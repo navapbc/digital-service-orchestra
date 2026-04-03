@@ -2,7 +2,7 @@
 
 **Date**: 2026-03-28
 **Story**: `2e99-2c22` — As a developer, validate that nava-platform app install runs fully headlessly
-**Source**: `plugins/dso/scripts/validate-nava-platform-headless.sh`
+**Source**: `plugins/dso/scripts/validate-nava-platform-headless.sh` # shim-exempt: internal implementation path reference
 
 ---
 
@@ -20,7 +20,7 @@ The validation approach:
 3. Verify structured `PASS/FAIL` output per template, including exit code and flags used.
 4. Run a negative test per template: omit all `--data` flags and assert a non-zero exit (not a hang).
 
-The script is located at `plugins/dso/scripts/validate-nava-platform-headless.sh`.
+The script is located at `plugins/dso/scripts/validate-nava-platform-headless.sh`. # shim-exempt: internal implementation path reference
 
 ---
 
@@ -229,19 +229,19 @@ stdin from `/dev/null` must exit non-zero. Structured output:
 
 ```bash
 # Run all 3 templates (requires uv or pipx, installs nava-platform if needed):
-plugins/dso/scripts/validate-nava-platform-headless.sh
+.claude/scripts/dso validate-nava-platform-headless.sh
 
 # Run a single template:
-plugins/dso/scripts/validate-nava-platform-headless.sh nextjs
+.claude/scripts/dso validate-nava-platform-headless.sh nextjs
 
 # List required --data flags for a template:
-plugins/dso/scripts/validate-nava-platform-headless.sh --list-flags nextjs
+.claude/scripts/dso validate-nava-platform-headless.sh --list-flags nextjs
 
 # List flags from a local copier.yml:
-plugins/dso/scripts/validate-nava-platform-headless.sh \
+.claude/scripts/dso validate-nava-platform-headless.sh \
   --list-flags nextjs \
   --copier-yml tests/fixtures/copier-nextjs.yml
 
 # Override timeout (seconds):
-NAVA_TIMEOUT=60 plugins/dso/scripts/validate-nava-platform-headless.sh
+NAVA_TIMEOUT=60 .claude/scripts/dso validate-nava-platform-headless.sh
 ```

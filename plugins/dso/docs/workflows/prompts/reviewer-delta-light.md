@@ -25,7 +25,7 @@ Deep tiers.
 Before applying the checklist, identify the file type from the diff header. Apply the
 corresponding sub-criteria below in addition to the shared checks.
 
-- **Bash scripts** (`.sh` files, files under `plugins/dso/hooks/`, `plugins/dso/scripts/`):
+- **Bash scripts** (`.sh` files, files under `plugins/dso/hooks/`, `plugins/dso/scripts/`): # shim-exempt: file path pattern for code review file-type classification, not an invocation
   apply the "Bash-specific" sub-criteria. Do NOT flag patterns covered by shellcheck
   (e.g., SC2086 unquoted variables in simple expansions, SC2164 `cd` without error handling)
   — these are enforced pre-commit by the project's shellcheck integration.

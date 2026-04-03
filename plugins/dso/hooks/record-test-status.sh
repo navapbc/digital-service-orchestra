@@ -198,22 +198,70 @@ count_centrality() {
     basename="$(basename "$filepath")"
     local module_name="${basename%.*}"
 
-    # Use grep-based fan-in counting: count files that import/source the target.
-    # This is more reliable across languages than ast-grep pattern matching,
-    # which requires language-specific AST patterns and fails on hyphenated names.
-    # Patterns matched: Python import/from, bash source.
-    #
     # Escape regex metacharacters in module_name to prevent injection (Bug 5 fix).
     local escaped_module_name
     escaped_module_name=$(printf '%s' "$module_name" | sed 's/[.[\*^$()+?{|\\]/\\&/g')
 
+    # Hardcoded default patterns (fallback when no config patterns are present).
+    # Patterns matched: Python import/from, bash source.
+    local _hardcoded_pattern
+    _hardcoded_pattern="(import[[:space:]]+${escaped_module_name}|from[[:space:]]+${escaped_module_name}[[:space:]]|source[[:space:]]+(.*/)?(${escaped_module_name}))"
+
+    # Read test_gate.import_pattern.* keys from config.
+    # Each key value may contain literal "$MODULE" which gets replaced with the escaped module name.
+    local _config_file="${repo_root}/.claude/dso-config.conf"
+    local _combined_pattern=""
+    local _has_valid_config_pattern=false
+
+    if [[ -f "$_config_file" ]]; then
+        while IFS= read -r _cfg_line || [[ -n "$_cfg_line" ]]; do
+            # Extract key and value
+            local _cfg_key _cfg_val
+            _cfg_key="${_cfg_line%%=*}"
+            _cfg_val="${_cfg_line#*=}"
+
+            # Skip entries with empty values
+            [[ -z "$_cfg_val" ]] && continue
+
+            # Replace literal $MODULE with the escaped module name
+            local _resolved_pattern
+            _resolved_pattern="${_cfg_val//\$MODULE/${escaped_module_name}}"
+
+            # Validate pattern: use grep -E on empty string — exit 0 (match) or 1 (no match)
+            # are both valid; any other exit code means the pattern itself is invalid.
+            local _grep_rc=0
+            echo '' | grep -E "$_resolved_pattern" /dev/null 2>/dev/null || _grep_rc=$?
+            if [[ "$_grep_rc" -ne 0 && "$_grep_rc" -ne 1 ]]; then
+                echo "WARNING: invalid import pattern '${_cfg_key}': ${_resolved_pattern} — skipping" >&2
+                continue
+            fi
+
+            # Append valid pattern to combined pattern
+            if [[ -z "$_combined_pattern" ]]; then
+                _combined_pattern="$_resolved_pattern"
+            else
+                _combined_pattern="${_combined_pattern}|${_resolved_pattern}"
+            fi
+            _has_valid_config_pattern=true
+        done < <(grep '^test_gate\.import_pattern\.' "$_config_file" 2>/dev/null || true)
+    fi
+
+    # When no valid config patterns exist, fall back to hardcoded default patterns
+    local _grep_pattern
+    if [[ "$_has_valid_config_pattern" == "true" ]]; then
+        _grep_pattern="$_combined_pattern"
+    else
+        # fallback to hardcoded default patterns
+        _grep_pattern="$_hardcoded_pattern"
+    fi
+
     local count
     count=$(grep -rlE \
-        "(import[[:space:]]+${escaped_module_name}|from[[:space:]]+${escaped_module_name}[[:space:]]|source[[:space:]]+(.*/)?(${escaped_module_name}))" \
+        "$_grep_pattern" \
         "$repo_root" \
         --include='*.py' --include='*.sh' --include='*.bash' \
         --include='*.js' --include='*.ts' --include='*.tsx' \
-        --include='*.rb' 2>/dev/null \
+        --include='*.rb' --include='*.java' 2>/dev/null \
         | grep -vcF "$repo_root/$filepath" 2>/dev/null) || count=0
     # Ensure single integer — grep pipelines can produce multi-line output
     # when one stage fails (e.g., "0\n0" from BSD grep exit-1 + || fallback).
@@ -265,6 +313,11 @@ fi
 # Read centrality threshold configuration (default: 8)
 _CENTRALITY_THRESHOLD=$(grep '^test_gate\.centrality_threshold=' "${REPO_ROOT}/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2- || true)
 _CENTRALITY_THRESHOLD="${_CENTRALITY_THRESHOLD:-8}"
+
+# Read file count threshold configuration (default: 50)
+# When staged file count exceeds this threshold, centrality is skipped and full suite runs.
+_FILE_COUNT_THRESHOLD=$(grep '^test_gate\.file_count_threshold=' "${REPO_ROOT}/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2- || true)
+_FILE_COUNT_THRESHOLD="${_FILE_COUNT_THRESHOLD:-50}"
 
 # Read full test suite command from config (commands.test)
 _FULL_SUITE_CMD=$(grep '^commands\.test=' "${REPO_ROOT}/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2- || true)
@@ -510,32 +563,101 @@ for _tf in "${ASSOCIATED_TESTS[@]}"; do
     ASSOCIATED_TEST_MARKERS+=("${_TEST_MARKER_MAP[$_tf]:-}")
 done
 
+# --- Compute diff hash BEFORE centrality scoring (enables centrality caching) ---
+# Computed early so centrality results can be cached keyed by diff hash.
+# Also used later for test-gate-status and progress tracking.
+DIFF_HASH=$("$HOOK_DIR/compute-diff-hash.sh")
+
 # --- Centrality scoring: determine if full suite is needed ---
 # Uses grep-based fan-in counting (no external tools required).
 # When ast-grep (sg) is not installed, emits a diagnostic note but still
 # performs centrality scoring via grep (the primary counting method).
 FULL_SUITE=false
 _max_centrality=0
+_CENTRALITY_LOG="$ARTIFACTS_DIR/centrality-log.jsonl"
 if ! command -v sg >/dev/null 2>&1; then
     echo "NOTE: ast-grep (sg) not installed — centrality scoring uses grep-based fan-in counting" >&2
 fi
 
-while IFS= read -r _csf; do
-    [[ -z "$_csf" ]] && continue
-    # Skip test files — centrality is only meaningful for source files
-    if fuzzy_is_test_file "$_csf"; then
-        continue
+# Clean up stale centrality cache directories when diff hash changes.
+# Keep only the cache for the current DIFF_HASH; remove all others.
+for _old_cache_dir in "$ARTIFACTS_DIR"/centrality-cache-*/; do
+    [[ -d "$_old_cache_dir" ]] || continue
+    _old_cache_hash="${_old_cache_dir%/}"
+    _old_cache_hash="${_old_cache_hash##*centrality-cache-}"
+    if [[ "$_old_cache_hash" != "$DIFF_HASH" ]]; then
+        rm -rf "$_old_cache_dir" 2>/dev/null || true
     fi
-    _centrality=$(count_centrality "$_csf" "$REPO_ROOT" 2>/dev/null)
-    _centrality="${_centrality:-0}"
-    if [[ "$_centrality" -gt "$_max_centrality" ]] 2>/dev/null; then
-        _max_centrality="$_centrality"
+done
+
+# Per-diff-hash centrality cache directory
+_CENTRALITY_CACHE_DIR="$ARTIFACTS_DIR/centrality-cache-${DIFF_HASH}"
+
+# Count staged source files for file count threshold check.
+_staged_source_file_count=0
+while IFS= read -r _scf; do
+    [[ -z "$_scf" ]] && continue
+    if ! fuzzy_is_test_file "$_scf"; then
+        (( _staged_source_file_count++ )) || true
     fi
 done <<< "$STAGED_FILES"
 
-if [[ "$_max_centrality" -gt "$_CENTRALITY_THRESHOLD" ]] 2>/dev/null; then
+# File count threshold bypass: when staged file count exceeds threshold,
+# skip per-file centrality computation and run the full suite directly.
+if [[ "$_staged_source_file_count" -gt "$_FILE_COUNT_THRESHOLD" ]] 2>/dev/null; then
     FULL_SUITE=true
-    echo "Centrality score ${_max_centrality} exceeds threshold ${_CENTRALITY_THRESHOLD} — running full test suite" >&2
+    echo "Staged file count ${_staged_source_file_count} exceeds threshold ${_FILE_COUNT_THRESHOLD} — skipping centrality, running full test suite" >&2
+    # Log the threshold bypass decision to centrality-log.jsonl
+    _ts_log=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+    printf '{"file":"(all)","centrality_score":0,"threshold":%s,"decision":"skipped_file_count","file_count":%s,"diff_hash":"%s","timestamp":"%s"}\n' \
+        "$_FILE_COUNT_THRESHOLD" "$_staged_source_file_count" "$DIFF_HASH" "$_ts_log" \
+        >> "$_CENTRALITY_LOG"
+else
+    while IFS= read -r _csf; do
+        [[ -z "$_csf" ]] && continue
+        # Skip test files — centrality is only meaningful for source files
+        if fuzzy_is_test_file "$_csf"; then
+            continue
+        fi
+
+        # Check per-file per-diff-hash cache before computing centrality
+        _csf_safe="${_csf//\//_}"
+        _cache_file="${_CENTRALITY_CACHE_DIR}/${_csf_safe}.centrality"
+        _centrality=""
+        if [[ -f "$_cache_file" ]]; then
+            _centrality=$(cat "$_cache_file" 2>/dev/null || echo "")
+        fi
+
+        if [[ -z "$_centrality" ]] || ! [[ "$_centrality" =~ ^[0-9]+$ ]]; then
+            _centrality=$(count_centrality "$_csf" "$REPO_ROOT" 2>/dev/null)
+            _centrality="${_centrality:-0}"
+            # Write to cache
+            mkdir -p "$_CENTRALITY_CACHE_DIR"
+            printf '%s\n' "$_centrality" > "$_cache_file"
+        fi
+
+        if [[ "$_centrality" -gt "$_max_centrality" ]] 2>/dev/null; then
+            _max_centrality="$_centrality"
+        fi
+
+        # Determine decision for JSONL log
+        _ts_log=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+        if [[ "$_centrality" -gt "$_CENTRALITY_THRESHOLD" ]] 2>/dev/null; then
+            _decision="full_suite"
+        elif ! command -v sg >/dev/null 2>&1; then
+            _decision="skipped_no_sg"
+        else
+            _decision="associated_only"
+        fi
+        printf '{"file":"%s","centrality_score":%s,"threshold":%s,"decision":"%s","diff_hash":"%s","timestamp":"%s"}\n' \
+            "$_csf" "$_centrality" "$_CENTRALITY_THRESHOLD" "$_decision" "$DIFF_HASH" "$_ts_log" \
+            >> "$_CENTRALITY_LOG"
+    done <<< "$STAGED_FILES"
+
+    if [[ "$_max_centrality" -gt "$_CENTRALITY_THRESHOLD" ]] 2>/dev/null; then
+        FULL_SUITE=true
+        echo "Centrality score ${_max_centrality} exceeds threshold ${_CENTRALITY_THRESHOLD} — running full test suite" >&2
+    fi
 fi
 
 # --- No associated tests and no staged skill files: exit cleanly (exempt) ---
@@ -544,11 +666,6 @@ if [[ ${#ASSOCIATED_TESTS[@]} -eq 0 ]] && [[ -z "$_staged_skill_paths" ]] && [[ 
     # test-gate-status (the gate exempts files with no associated tests)
     exit 0
 fi
-
-# --- Compute diff hash BEFORE running tests (AFTER git add, same as record-review.sh) ---
-# Must be captured before test execution, which may create cache files that would
-# alter the untracked file list and produce a different hash.
-DIFF_HASH=$("$HOOK_DIR/compute-diff-hash.sh")
 
 # --- Incorporate .test-index content into cache key (dc5a-7663) ---
 # .test-index is excluded from DIFF_HASH via the allowlist, so edits to it

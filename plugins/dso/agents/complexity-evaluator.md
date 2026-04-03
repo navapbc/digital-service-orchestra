@@ -49,7 +49,7 @@ The shared rubric's Confidence dimension (Dimension 5) requires specific files f
 Pipe the list of discovered files (one path per line) into `blast-radius-score.py` to obtain a blast-radius signal:
 
 ```bash
-printf '%s\n' path/to/file1.py path/to/file2.sh | python3 plugins/dso/scripts/blast-radius-score.py
+printf '%s\n' path/to/file1.py path/to/file2.sh | .claude/scripts/dso blast-radius-score.py
 ```
 
 The script outputs a JSON object with at minimum `blast_radius_score` (numeric) and `complex_override` (boolean). If `complex_override=true`, **force COMPLEX classification** regardless of other dimension scores.

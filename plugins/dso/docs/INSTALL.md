@@ -34,7 +34,7 @@ git clone https://github.com/navapbc/digital-service-orchestra.git /path/to/digi
 From the DSO plugin directory, run the setup script against your host project:
 
 ```bash
-bash /path/to/digital-service-orchestra/plugins/dso/scripts/dso-setup.sh /path/to/your-project
+bash /path/to/digital-service-orchestra/plugins/dso/scripts/dso-setup.sh /path/to/your-project # shim-exempt: bootstrap installer, run before shim exists
 ```
 
 This script:
@@ -197,7 +197,7 @@ prompt. No manual configuration is required.
 
 | Requirement | How to satisfy |
 |---|---|
-| `.tickets-tracker/` initialized | Run `.claude/scripts/dso ticket init` from the repo root (see `plugins/dso/scripts/ticket-init.sh`) |
+| `.tickets-tracker/` initialized | Run `.claude/scripts/dso ticket init` from the repo root (see `plugins/dso/scripts/ticket-init.sh`) | # shim-exempt: internal implementation path in parenthetical reference
 | `origin` remote configured | `git -C .tickets-tracker remote add origin <url>` |
 | `tickets` branch exists in remote | `git -C .tickets-tracker push origin tickets:tickets` (on first environment only) |
 
@@ -295,13 +295,13 @@ with `bad interpreter: No such file or directory`. Fix:
 ```bash
 cd /path/to/digital-service-orchestra
 git config core.autocrlf false
-git checkout -- plugins/dso/scripts/ plugins/dso/hooks/
+git checkout -- plugins/dso/scripts/ plugins/dso/hooks/ # shim-exempt: git reset command for file recovery, not a script invocation
 ```
 
 **File permissions**: Ensure hook scripts are executable after cloning:
 
 ```bash
-chmod +x /path/to/digital-service-orchestra/plugins/dso/scripts/*
+chmod +x /path/to/digital-service-orchestra/plugins/dso/scripts/* # shim-exempt: bootstrap file permission fix, run before shim is installed
 chmod +x /path/to/digital-service-orchestra/plugins/dso/hooks/*.sh
 ```
 

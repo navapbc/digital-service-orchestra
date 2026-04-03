@@ -21,7 +21,7 @@ This contract must be agreed upon before either side is implemented to prevent i
 
 ## Emitter
 
-`plugins/dso/scripts/review-complexity-classifier.sh`
+`plugins/dso/scripts/review-complexity-classifier.sh` # shim-exempt: internal implementation path reference
 
 The emitter computes a tier score from seven factors and prints a single JSON object to stdout, then exits 0 on success or non-zero on failure.
 

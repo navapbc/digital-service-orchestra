@@ -21,11 +21,11 @@ At activation, load project commands via read-config.sh before executing any ste
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 PLUGIN_SCRIPTS="$PLUGIN_ROOT/scripts"
-TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
-LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
-VALIDATE_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.validate)
-VISUAL_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_visual)
-E2E_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_e2e)
+TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)  # shim-exempt: internal orchestration script
+LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)  # shim-exempt: internal orchestration script
+VALIDATE_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.validate)  # shim-exempt: internal orchestration script
+VISUAL_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_visual)  # shim-exempt: internal orchestration script
+E2E_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_e2e)  # shim-exempt: internal orchestration script
 ```
 
 Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
@@ -436,8 +436,8 @@ Before launching each batch, run the shared pre-batch check script:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check       # standard
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check --db  # if batch includes DB-dependent tasks
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check       # standard  # shim-exempt: internal orchestration script
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check --db  # if batch includes DB-dependent tasks  # shim-exempt: internal orchestration script
 ```
 
 The script outputs structured key-value pairs:
@@ -449,7 +449,7 @@ The script outputs structured key-value pairs:
 Clean the discovery directory:
 
 ```bash
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries  # shim-exempt: internal orchestration script
 ```
 
 Output: `DISCOVERIES_CLEANED: <N>`. Exit 0 always (best-effort).
@@ -845,7 +845,7 @@ Check for actual file conflicts before committing:
 1. For each sub-agent, collect its modified files from the Task result
 2. Run the overlap detection script:
    ```bash
-   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh file-overlap \
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh file-overlap \  # shim-exempt: internal orchestration script
      --agent=<task-id-1>:<file1>,<file2> \
      --agent=<task-id-2>:<file3>,<file4>
    ```
@@ -867,7 +867,7 @@ After the file overlap check, run the LLM-based semantic conflict detector on th
 batch's combined diff:
 
 ```bash
-SEMANTIC_RESULT=$(git diff | python3 "$PLUGIN_SCRIPTS/semantic-conflict-check.py" 2>/dev/null) || SEMANTIC_RESULT='{"conflicts":[],"clean":true,"error":"script failed"}'
+SEMANTIC_RESULT=$(git diff | python3 "$PLUGIN_SCRIPTS/semantic-conflict-check.py" 2>/dev/null) || SEMANTIC_RESULT='{"conflicts":[],"clean":true,"error":"script failed"}'  # shim-exempt: internal orchestration script
 ```
 
 Parse the JSON output:
@@ -882,7 +882,7 @@ Parse the JSON output:
 ### Step 4: Run Validation (/dso:sprint)
 
 ```bash
-$PLUGIN_SCRIPTS/validate-phase.sh post-batch
+$PLUGIN_SCRIPTS/validate-phase.sh post-batch  # shim-exempt: internal orchestration script
 ```
 
 If validation fails, identify which sub-agent's code is broken and note it.
@@ -926,7 +926,7 @@ cd $REPO_ROOT/app && make test-visual 2>&1
 
 - **Pass** → proceed
 - **Fail** → Use `/dso:playwright-debug` Tier 2. If still failing, revert task to open.
-- **No baselines** → Use `/dso:playwright-debug` full 3-tier. Verify local env: `$PLUGIN_SCRIPTS/check-local-env.sh`.
+- **No baselines** → Use `/dso:playwright-debug` full 3-tier. Verify local env: `$PLUGIN_SCRIPTS/check-local-env.sh`.  # shim-exempt: internal orchestration script
 
 ### Step 7: Formal Code Review (/dso:sprint)
 
@@ -1025,7 +1025,7 @@ Run the context check:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 context_exit=0
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?  # shim-exempt: internal orchestration script
 # context_exit: 0=normal, 10=medium, 11=high
 ```
 

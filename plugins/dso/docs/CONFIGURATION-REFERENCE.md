@@ -61,7 +61,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Application directory, relative to the repo root. Controls where hooks, scripts, and skills look for source code, tests, and virtual environments. |
 | **Accepted values** | Relative directory path (e.g., `app`, `.`, `backend`) |
 | **Default** | `app` |
-| **Used by** | `plugins/dso/hooks/lib/config-paths.sh`, `plugins/dso/scripts/validate.sh`, `plugins/dso/scripts/agent-batch-lifecycle.sh`, `plugins/dso/scripts/retro-gather.sh` |
+| **Used by** | `plugins/dso/hooks/lib/config-paths.sh`, `plugins/dso/scripts/validate.sh`, `plugins/dso/scripts/agent-batch-lifecycle.sh`, `plugins/dso/scripts/retro-gather.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -72,7 +72,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Source code directory, relative to `paths.app_dir`. Used for file impact analysis and auto-format scope. |
 | **Accepted values** | Relative directory path (e.g., `src`, `lib`) |
 | **Default** | `src` |
-| **Used by** | `plugins/dso/hooks/lib/config-paths.sh`, `plugins/dso/scripts/sprint-next-batch.sh` |
+| **Used by** | `plugins/dso/hooks/lib/config-paths.sh`, `plugins/dso/scripts/sprint-next-batch.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -83,7 +83,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Test directory, relative to `paths.app_dir`. Used for test file discovery, snapshot paths, and file impact analysis. |
 | **Accepted values** | Relative directory path (e.g., `tests`, `test`) |
 | **Default** | `tests` |
-| **Used by** | `plugins/dso/hooks/lib/config-paths.sh`, `plugins/dso/scripts/sprint-next-batch.sh` |
+| **Used by** | `plugins/dso/hooks/lib/config-paths.sh`, `plugins/dso/scripts/sprint-next-batch.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -94,7 +94,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Unit test directory, relative to `paths.app_dir`. Used for targeted test discovery when distinguishing unit from integration tests. |
 | **Accepted values** | Relative directory path (e.g., `tests/unit`) |
 | **Default** | Absent — falls back to `paths.test_dir` |
-| **Used by** | `plugins/dso/scripts/sprint-next-batch.sh` |
+| **Used by** | `plugins/dso/scripts/sprint-next-batch.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -105,7 +105,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Path to the Python virtual environment interpreter, relative to the repo root. Used to locate the correct Python binary for running scripts and tests. |
 | **Accepted values** | Relative file path (e.g., `app/.venv/bin/python3`, `.venv/bin/python3`) |
 | **Default** | `app/.venv/bin/python3` |
-| **Used by** | `plugins/dso/hooks/lib/config-paths.sh`, `plugins/dso/scripts/sprint-next-batch.sh` |
+| **Used by** | `plugins/dso/hooks/lib/config-paths.sh`, `plugins/dso/scripts/sprint-next-batch.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -337,7 +337,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Jira project key used by `.claude/scripts/dso ticket sync`. The `JIRA_PROJECT` environment variable takes precedence over this value. |
 | **Accepted values** | Jira project key string (e.g., `DIG`, `MYPROJ`) |
 | **Default** | No default — required when using `.claude/scripts/dso ticket sync` |
-| **Used by** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` |
+| **Used by** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -502,7 +502,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Git branch naming pattern for worktree validation and cleanup. Used to identify branches created by worktree workflows during automated cleanup. |
 | **Accepted values** | Branch name pattern (e.g., `worktree-*`) |
 | **Default** | Absent — cleanup uses default heuristics |
-| **Used by** | `plugins/dso/scripts/worktree-cleanup.sh` |
+| **Used by** | `plugins/dso/scripts/worktree-cleanup.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -513,7 +513,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Maximum age in days for automatic worktree cleanup. Worktrees older than this threshold are candidates for removal. Overridden by `AGE_DAYS` env var. |
 | **Accepted values** | Positive integer |
 | **Default** | `2` |
-| **Used by** | `plugins/dso/scripts/worktree-cleanup.sh` |
+| **Used by** | `plugins/dso/scripts/worktree-cleanup.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -645,7 +645,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Docker Compose file specifically for database services. Used by worktree cleanup to tear down database containers. When absent but `infrastructure.compose_project` or `infrastructure.container_prefix` is set, a partial-config warning is emitted and Docker cleanup is skipped. |
 | **Accepted values** | Relative path to a Compose file (e.g., `docker-compose.db.yml`) |
 | **Default** | Absent — Docker DB cleanup skipped |
-| **Used by** | `plugins/dso/scripts/worktree-cleanup.sh` |
+| **Used by** | `plugins/dso/scripts/worktree-cleanup.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -711,7 +711,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Semicolon-delimited glob list of file patterns the review complexity classifier treats as behavioral (full scoring weight). Files matching these patterns receive higher blast_radius and critical_path scores, making them more likely to route to standard or deep review tiers. |
 | **Accepted values** | Semicolon-delimited glob patterns (e.g., `plugins/dso/skills/**;plugins/dso/hooks/**`) |
 | **Default** | Absent — classifier uses built-in heuristics only |
-| **Used by** | `plugins/dso/scripts/review-complexity-classifier.sh` |
+| **Used by** | `plugins/dso/scripts/review-complexity-classifier.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -840,7 +840,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Literal substring patterns (grep -F) for identifying persistence/data-layer source files. Used by the persistence coverage check to verify that data-layer code has corresponding integration tests. Repeatable key. |
 | **Accepted values** | File path substrings (e.g., `src/core/data_store.py`, `src/adapters/db/`) |
 | **Default** | Absent — persistence coverage check skipped |
-| **Used by** | `plugins/dso/scripts/check-persistence-coverage.sh` |
+| **Used by** | `plugins/dso/scripts/check-persistence-coverage.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -851,7 +851,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Extended regex patterns (grep -E) for identifying persistence integration test files. Paired with `persistence.source_patterns` to validate coverage. Repeatable key. |
 | **Accepted values** | Extended regex patterns (e.g., `tests/integration/.*test_.*_db_roundtrip`) |
 | **Default** | Absent — persistence coverage check skipped |
-| **Used by** | `plugins/dso/scripts/check-persistence-coverage.sh` |
+| **Used by** | `plugins/dso/scripts/check-persistence-coverage.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -873,7 +873,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Ticket ID prefix used when generating new ticket IDs. When absent, the v3 ticket system derives the prefix from the project directory name. |
 | **Accepted values** | Short string without spaces (e.g., `dso`, `my-project`) |
 | **Default** | Derived from repo directory name |
-| **Used by** | `.claude/scripts/dso ticket` (v3 ticket dispatcher), `plugins/dso/scripts/ticket-reducer.py` |
+| **Used by** | `.claude/scripts/dso ticket` (v3 ticket dispatcher), `plugins/dso/scripts/ticket-reducer.py` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -884,7 +884,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Directory where ticket markdown files are stored, relative to repo root. |
 | **Accepted values** | Relative directory path |
 | **Default** | `.tickets` |
-| **Used by** | `.claude/scripts/dso ticket` (v3 ticket dispatcher), `plugins/dso/scripts/ticket-reducer.py`, `plugins/dso/hooks/check-validation-failures.sh` |
+| **Used by** | `.claude/scripts/dso ticket` (v3 ticket dispatcher), `plugins/dso/scripts/ticket-reducer.py`, `plugins/dso/hooks/check-validation-failures.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -895,7 +895,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Jira project key for .claude/scripts/dso ticket sync. Only needed when using `.claude/scripts/dso ticket sync` with Jira. Superseded by `jira.project` — prefer `jira.project` for new configurations. |
 | **Accepted values** | Jira project key string (e.g., `DTL`, `MYPROJ`) |
 | **Default** | Absent |
-| **Used by** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` |
+| **Used by** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -906,7 +906,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Enable bidirectional comment sync between local tickets and Jira. When true, comments added locally are pushed to Jira and vice versa. |
 | **Accepted values** | `true`, `false` |
 | **Default** | `true` |
-| **Used by** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` |
+| **Used by** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -975,9 +975,9 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Base URL of the Jira instance (e.g., `https://myorg.atlassian.net`). Used by `plugins/dso/scripts/bridge-outbound.py` when adding remote links to Jira issues. |
+| **Description** | Base URL of the Jira instance (e.g., `https://myorg.atlassian.net`). Used by `plugins/dso/scripts/bridge-outbound.py` when adding remote links to Jira issues. | # shim-exempt: internal implementation reference
 | **Required** | Required for `.claude/scripts/dso ticket sync` remote-link features |
-| **Usage context** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand, remote link creation) |
+| **Usage context** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand, remote link creation) | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -987,7 +987,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Jira username (email address) for API authentication. Used with `JIRA_API_TOKEN` via HTTP Basic Auth. |
 | **Required** | Required for `.claude/scripts/dso ticket sync` remote-link features |
-| **Usage context** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand) |
+| **Usage context** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand) | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -997,7 +997,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Jira API token for authentication. Generate at https://id.atlassian.com/manage-profile/security/api-tokens. Used with `JIRA_USER` via HTTP Basic Auth. |
 | **Required** | Required for `.claude/scripts/dso ticket sync` remote-link features |
-| **Usage context** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand) |
+| **Usage context** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand) | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -1007,7 +1007,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Jira project key (e.g., `DIG`). Takes precedence over `jira.project` in `dso-config.conf`. Required by `.claude/scripts/dso ticket sync` unless `jira.project` is configured. |
 | **Required** | Required for `.claude/scripts/dso ticket sync` unless `jira.project` is set in config |
-| **Usage context** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` |
+| **Usage context** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -1151,7 +1151,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | When set to `1`, suppresses the worktree push step during `.claude/scripts/dso ticket sync`. Used internally by `.claude/scripts/dso reset-tickets.sh` when doing a bulk sync to prevent duplicate push operations. |
 | **Required** | Internal — set and unset by `.claude/scripts/dso reset-tickets.sh` |
-| **Usage context** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand), `.claude/scripts/dso reset-tickets.sh` |
+| **Usage context** | `plugins/dso/scripts/bridge-outbound.py`, `plugins/dso/scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand), `.claude/scripts/dso reset-tickets.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 

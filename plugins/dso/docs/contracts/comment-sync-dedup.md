@@ -12,7 +12,7 @@
 
 ## Emitter
 
-`plugins/dso/scripts/bridge-outbound.py`
+`plugins/dso/scripts/bridge-outbound.py` # shim-exempt: internal implementation path reference
 
 The outbound bridge embeds a UUID marker in every Jira comment it creates so the inbound bridge can
 identify comments that originated locally and skip them during pull (echo prevention).
