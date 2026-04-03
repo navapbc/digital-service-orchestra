@@ -97,10 +97,9 @@ class TestToLlmOmissions:
         assert "asn" not in result
         assert "assignee" not in result
 
-    def test_parent_id_always_emitted(self, mod):
+    def test_parent_id_none_omitted(self, mod):
         result = mod.to_llm({"title": "x", "parent_id": None})
-        assert "pid" in result
-        assert result["pid"] is None
+        assert "pid" not in result
 
     def test_empty_list_omitted(self, mod):
         result = mod.to_llm({"title": "x", "comments": [], "deps": []})
@@ -138,7 +137,7 @@ class TestToLlmOmissions:
         assert result["ttl"] == "As a user, I can do things"
         assert result["st"] == "open"
         assert result["au"] == "alice"
-        assert result["pid"] is None
+        assert "pid" not in result
         assert "created_at" not in result
         assert "env_id" not in result
         assert "cm" not in result

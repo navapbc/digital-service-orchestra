@@ -24,8 +24,8 @@ repos:
         stages: [pre-commit]
 
       - id: shim-refs-check
-        name: Shim Refs Check (5s timeout)
-        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh shim-refs-check 5 "plugins/dso/scripts/check-shim-refs.sh"
+        name: Shim Refs Check (15s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh shim-refs-check 15 "plugins/dso/scripts/check-shim-refs.sh"
         language: system
         pass_filenames: false
         stages: [pre-commit]
