@@ -8,48 +8,34 @@
 
 **Worktree sessions**: If in a worktree (`test -f .git`), use `REPO_ROOT=$(git rev-parse --show-toplevel)`. See `plugins/dso/docs/WORKTREE-GUIDE.md`.
 
-## Quick Start: What Are You Doing?
-
-```
-Task type → Action:
-  Bug fix        → /dso:fix-bug
-  New feature    → Run pwd → Review Architecture below /dso:sprint for epics
-  Interface      → /dso:interface-contracts
-  Task mgmt      → Ticket Commands section
-  Test failure   → See TEST-FAILURE-DISPATCH.md (auto-delegation via /dso:sprint and /dso:commit)
-  Debugging      → Check KNOWN-ISSUES.md in consuming project's .claude/docs/
-```
-
 ## Quick Reference
 
-| Action | Command | When Run |
-|--------|---------|----------|
-| Onboard a new project (unified) | `/dso:onboarding` | Onboarding a host project |
-| Scaffold enforcement infrastructure | `/dso:architect-foundation` | After onboarding |
-| Run epics end-to-end | `/dso:sprint` | Starting a feature epic |
-| Feature ideation to epic spec; accepts any ticket type (epic, story, task, bug) — convert-to-epic or enrich-in-place | `/dso:brainstorm` | New feature exploration or enriching any existing ticket |
-| Epic decomposition into stories | `/dso:preplanning` | After epic creation |
-| Story to task breakdown | `/dso:implementation-plan` | Before coding a story |
-| Fix a bug (TDD-based) | `/dso:fix-bug` | Bug fixes (classifies, investigates, fixes) |
-| TDD development cycle | `/dso:tdd-workflow` | New feature TDD (not bug fixes) |
-| Diagnose and fix failures | `/dso:debug-everything` | Test/CI/runtime failures |
-| Commit with review gates | `/dso:commit` | Ready to commit |
-| Code review via sub-agent | `/dso:review` | Pre-commit review |
-| Review plans/designs | `/dso:plan-review` | Before presenting a plan |
-| Update project docs | `/dso:update-docs` | After epic completion |
-| Clean session close | `/dso:end` | End of session |
-| Full validation suite | `plugins/dso/scripts/validate.sh --ci` | Before merge / after epic |
-| Run skill evals | `plugins/dso/scripts/run-skill-evals.sh` | After skill changes |
-| Scaffold a skill eval config | `plugins/dso/scripts/generate-skill-eval.sh <skill-name>` | Before writing a new eval |
-| Check unqualified skill refs | `plugins/dso/scripts/check-skill-refs.sh` | After editing in-scope files |
-| Bulk-qualify skill refs | `plugins/dso/scripts/qualify-skill-refs.sh` | One-shot migration (run once) |
-| Merge worktree to main | `plugins/dso/scripts/merge-to-main.sh` | Worktree session complete |
-| List ready tickets | `.claude/scripts/dso ticket list` | Check what to work on |
-| Show ticket details | `.claude/scripts/dso ticket show <id>` | Inspect a specific ticket |
-| Create a ticket | `.claude/scripts/dso ticket create <type> <title> [-d/--description <text>]` | Create bug/epic/story/task |
-| Close a ticket | `.claude/scripts/dso ticket transition <id> <current> closed` | Close a ticket (bug tickets require `--reason="Fixed: <summary>"`) |
-| Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` | Add dependency/blocks/relates_to link |
-| Sync with Jira | `.claude/scripts/dso ticket sync` (Jira bridge; see architecture) | Sync to Jira |
+| Action | Command |
+|--------|---------|
+| Onboard a new project | `/dso:onboarding` |
+| Scaffold enforcement | `/dso:architect-foundation` |
+| Run epics end-to-end | `/dso:sprint` |
+| Feature ideation to epic spec | `/dso:brainstorm` |
+| Epic decomposition into stories | `/dso:preplanning` |
+| Story to task breakdown | `/dso:implementation-plan` |
+| Fix a bug (TDD-based) | `/dso:fix-bug` |
+| TDD development cycle | `/dso:tdd-workflow` (new features only) |
+| Diagnose and fix failures | `/dso:debug-everything` |
+| Commit with review gates | `/dso:commit` |
+| Code review via sub-agent | `/dso:review` |
+| Review plans/designs | `/dso:plan-review` |
+| Update project docs | `/dso:update-docs` |
+| Clean session close | `/dso:end` |
+| Full validation suite | `plugins/dso/scripts/validate.sh --ci` |
+| Merge worktree to main | `plugins/dso/scripts/merge-to-main.sh` |
+| List ready tickets | `.claude/scripts/dso ticket list` |
+| Show ticket details | `.claude/scripts/dso ticket show <id>` |
+| Create a ticket | `.claude/scripts/dso ticket create <type> <title> [-d/--description <text>]` |
+| Close a ticket | `.claude/scripts/dso ticket transition <id> <current> closed` (bug tickets require `--reason="Fixed: <summary>"`) |
+| Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` |
+| Sync with Jira | `.claude/scripts/dso ticket sync` |
+
+Less common: `run-skill-evals.sh`, `generate-skill-eval.sh <skill-name>`, `check-skill-refs.sh`, `qualify-skill-refs.sh` — see `plugins/dso/docs/SKILL-EVALS-GUIDE.md`.
 
 Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 
@@ -57,12 +43,12 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 
 ## Architecture
 
-**Ticket system v3 (event-sourced)**: Orphan git branch `tickets` mounted at `.tickets-tracker/`. JSON event files per ticket; Python reducer (`ticket-reducer.py`) compiles state on-demand. Writes are serialized with `fcntl.flock` to prevent concurrent corruption. CLI: `plugins/dso/scripts/ticket <subcommand>` (full reference: `plugins/dso/docs/ticket-cli-reference.md`). **Archived-ticket exclusion**: All scan operations (`ticket list`, `ticket deps`, `ticket-graph.py` dep lookups) exclude archived tickets by default; `ticket show` always includes them. `ticket list` and `ticket deps` accept `--include-archived` to override. `ticket transition close` uses a single `batch_close_operations` scan (no repeated reducer calls). `ticket-graph.py` uses a single `reduce_all_tickets` call per invocation. **Jira bridge**: `.claude/scripts/dso ticket sync` (incremental default, `--full` to force, `--check` for dry-run). Requires `JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`.
-**Hook architecture**: Consolidated dispatchers (`pre-bash.sh` + `post-bash.sh`). All hooks are jq-free — use `parse_json_field`, `json_build`, and `python3` for JSON parsing. See `plugins/dso/hooks/dispatchers/` and `plugins/dso/hooks/lib/`. **Shared merge-state library** (`plugins/dso/hooks/lib/merge-state.sh`): centralizes merge/rebase state detection used by all enforcement hooks. Source with `source plugins/dso/hooks/lib/merge-state.sh`; all functions use the `ms_` namespace. API: `ms_get_git_dir` — resolves git dir (worktree-aware); `ms_is_merge_in_progress` — returns 0 when `MERGE_HEAD` exists and is not equal to `HEAD`; `ms_is_rebase_in_progress` — returns 0 when `REBASE_HEAD` or `rebase-merge/`/`rebase-apply/` dir exists; `ms_get_merge_base` — returns merge-base SHA for current merge or rebase state; `ms_get_worktree_only_files` — orig-head-anchored list of files changed on the worktree branch (excludes incoming-only files); `ms_get_worktree_only_files_from_head` — HEAD-anchored variant for `capture-review-diff.sh`; `ms_filter_to_worktree_only` — filters a newline-separated file list to worktree-only files; `ms_get_conflicted_files` — wraps `git diff --name-only --diff-filter=U`. All functions are fail-open (fall back to staged files if state is indeterminate). Consumers: `pre-commit-review-gate.sh`, `pre-commit-test-gate.sh`, `record-test-status.sh`, `capture-review-diff.sh`, `compute-diff-hash.sh`, `review-complexity-classifier.sh`. **Test injection**: set `_MERGE_STATE_GIT_DIR=/path/to/fake-git-dir` before sourcing to override git dir detection — enables hermetic unit tests without a real git repo. **Review gate (two-layer defense-in-depth)**: Layer 1 — `pre-commit-review-gate.sh` (git pre-commit hook); default-deny allowlist from `review-gate-allowlist.conf`; checks review-status + diff hash; formatting-only mismatches self-heal via `ruff format`. Handles both `MERGE_HEAD` and `REBASE_HEAD` natively via `merge-state.sh` — when either is present, computes the merge/rebase base and filters incoming-only files from review consideration; `record-test-status.sh`, `capture-review-diff.sh`, `compute-diff-hash.sh`, and `review-complexity-classifier.sh` apply the same REBASE_HEAD filter for hash stability. Layer 2 — `review-gate.sh` (PreToolUse hook, wraps `review-gate-bypass-sentinel.sh`); blocks `--no-verify`, `-n`, `core.hooksPath=` override, `git commit-tree`, direct `.git/hooks/` writes, direct writes/deletions to `test-gate-status` and `test-exemptions` (only `record-test-status.sh` and `record-test-exemption.sh` are authorized writers). **Test gate (two-layer defense-in-depth)**: Layer 1 — `pre-commit-test-gate.sh` (git pre-commit hook); verifies `test-gate-status` for each staged source file with an associated test (fuzzy matching or `.test-index`); excludes incoming-only files during both merge (`MERGE_HEAD`) and rebase (`REBASE_HEAD`) operations via `merge-state.sh` to prevent false positives. Test dirs: `test_gate.test_dirs` in `.claude/dso-config.conf` (default: `tests/`). **Centrality-aware test gate** (`record-test-status.sh`): for each staged source file, counts fan-in references (files that import/source it) to determine if the full suite must run. Config keys: `test_gate.centrality_threshold` (default: `8` — files with score ≥ threshold trigger full suite); `test_gate.file_count_threshold` (default: `50` — when staged source file count exceeds threshold, skip per-file centrality and run full suite directly); `test_gate.import_pattern.<lang>` (per-language grep-E patterns; `$MODULE` is replaced with the file's base name at runtime; when any key is present, replaces hardcoded defaults; 6 example keys ship in `dso-config.conf`: `python`, `flask`, `ruby`, `typescript`, `java`, `bash`). Graceful degradation: when `sg` (ast-grep) is absent, a stderr note is emitted and grep-based fan-in counting proceeds unchanged. Centrality decisions logged to `$ARTIFACTS_DIR/centrality-log.jsonl` (`{file, centrality_score, threshold, decision, diff_hash, timestamp}`). Per-file per-diff-hash caching: scores cached under `$ARTIFACTS_DIR/centrality-cache-<diff_hash>/`; cache invalidated automatically when diff hash changes. `.test-index` format: `source/path.ext: test/path1.ext, test/path2.ext` (one per line; `#` comments ok). **RED marker format**: `source/path.ext: test/path.ext [first_red_test_name]` — `[marker]` marks boundary between GREEN (passing) and RED (not yet implemented) tests; failures at or after marker are tolerated. RED tests must be at end of test file. **TDD workflow**: Add test at end of file + `[test_name]` marker to `.test-index` — e.g., `source/foo.sh: tests/test_foo.sh [test_new_feature]`. Remove marker after implementation passes. **Epic closure**: blocked while any `[marker]` entries remain in `.test-index`. Layer 2 — `review-gate-bypass-sentinel.sh` blocks direct writes/deletions to `test-gate-status` and `test-exemptions`.
+**Ticket system v3 (event-sourced)**: Orphan branch `tickets` → `.tickets-tracker/`. CLI: `.claude/scripts/dso ticket <subcommand>` (ref: `plugins/dso/docs/ticket-cli-reference.md`). Archived tickets excluded from list/deps by default; `--include-archived` to override. **Jira bridge**: `.claude/scripts/dso ticket sync` (incremental default, `--full` to force, `--check` for dry-run). Requires `JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`.
+**Hook architecture**: Consolidated dispatchers (`pre-bash.sh` + `post-bash.sh`). All hooks are jq-free — use `parse_json_field`, `json_build`, and `python3` for JSON parsing. See `plugins/dso/hooks/dispatchers/` and `plugins/dso/hooks/lib/`. **Shared merge-state library** (`plugins/dso/hooks/lib/merge-state.sh`): centralizes merge/rebase detection for all enforcement hooks. `ms_` namespace. Fail-open when state is indeterminate. Test injection: set `_MERGE_STATE_GIT_DIR` before sourcing. See file for full API. **Review gate (two-layer)**: Layer 1 — `pre-commit-review-gate.sh` (git hook); Layer 2 — `review-gate.sh` (PreToolUse hook) blocks `--no-verify` and plumbing bypasses. Both layers handle MERGE_HEAD and REBASE_HEAD via `merge-state.sh`. See Never-Do rule 22. **Test gate**: `pre-commit-test-gate.sh` verifies test status per staged file. Centrality-aware (`record-test-status.sh`): high fan-in files trigger full suite. Config: `test_gate.*` in `dso-config.conf`. `.test-index` maps source → tests; RED marker `[test_name]` tolerates failures at that boundary. **Epic closure**: blocked while any `[marker]` entries remain in `.test-index`.
 **Validation gate**: `validate.sh` writes state; hooks block sprint/epic if validation hasn't passed. `--verbose` for real-time progress.
 **Portability lint**: `check-portability.sh` (registered as pre-commit hook) blocks commits containing hardcoded `/Users/<name>/` or `/home/<name>/` paths. Inline suppression: append `# portability-ok` to exempt a line. CI validation: `.github/workflows/portability-smoke.yml` validates zero-config shim detection in a clean Ubuntu container.
-**Shim enforcement**: `check-shim-refs.sh` (registered as pre-commit hook and in `validate.sh`) blocks instruction files inside `plugins/dso/` from containing direct plugin script references. Three detection patterns: (1) literal `plugins/dso/scripts/` path, (2) `$PLUGIN_SCRIPTS/` or `${PLUGIN_SCRIPTS}/`, (3) `$CLAUDE_PLUGIN_ROOT/scripts/` or `${CLAUDE_PLUGIN_ROOT}/scripts/`. Use `.claude/scripts/dso <script-name>` shim instead. Inline suppression: append `# shim-exempt: <reason>` to exempt a line. Violations are reported as `VIOLATION: <file>:<line>: <content>`.
-**Skill eval framework**: `plugins/dso/scripts/run-skill-evals.sh` orchestrates promptfoo-based evals across DSO skills. Tier 1 — accepts changed file paths and maps them to the affected skill's `evals/promptfooconfig.yaml`; Tier 2 (`--all`) discovers and runs all skill evals. Per-skill eval convention: each skill directory may contain an `evals/promptfooconfig.yaml` defining providers, tests, and grader model (Haiku default via `defaultTest.options.provider`; per-eval Sonnet override allowed). **Daily CI** (`eval-daily.yml`): cron workflow runs Tier 2 daily at 04:00 UTC via `eval-daily-runner.sh`; on failure, creates a P0 bug ticket with title-prefix dedup to prevent duplicates. **P0 visibility**: `sprint-list-epics.sh` surfaces open P0 bugs above the epic list so they are visible at sprint start. **Eval scaffold generator**: `generate-skill-eval.sh <skill-name>` creates a starter `evals/promptfooconfig.yaml` from the skill's `SKILL.md` description; exits 1 if the skill is missing, config already exists, or no description is parseable. **TODO eval commit guard** (in `record-test-status.sh`): blocks commits that stage a `*/evals/promptfooconfig.yaml` containing `TODO` markers, an empty `tests:` list, or no `type: llm-rubric` assertion; pure static scan, no API calls required. Full guide: `plugins/dso/docs/SKILL-EVALS-GUIDE.md`.
+**Shim enforcement**: `check-shim-refs.sh` (registered as pre-commit hook and in `validate.sh`) blocks instruction files inside `plugins/dso/` from containing direct plugin script references. Three detection patterns: (1) literal `plugins/dso/scripts/` path, (2) PLUGIN_SCRIPTS-prefixed script paths, (3) CLAUDE_PLUGIN_ROOT-prefixed script paths. Use `.claude/scripts/dso <script-name>` shim instead. Inline suppression: append `# shim-exempt: <reason>` to exempt a line.
+**Skill evals**: `run-skill-evals.sh` (Tier 1: changed files; Tier 2 `--all`). Per-skill: `evals/promptfooconfig.yaml`. Scaffold: `generate-skill-eval.sh <skill-name>`. Daily CI creates P0 tickets on failure. Commits with incomplete eval configs (TODO markers, empty tests, no `llm-rubric`) are blocked. Guide: `plugins/dso/docs/SKILL-EVALS-GUIDE.md`.
 **Agent routing**: `discover-agents.sh` resolves routing categories to agents via `agent-routing.conf`; all fall back to `general-purpose`. See `plugins/dso/docs/INSTALL.md`. **Named-agent dispatch** (via `subagent_type`, defined in `plugins/dso/agents/`):
 
 | Agent | Model | Dispatched by |
@@ -86,17 +72,15 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 | `dso:code-reviewer-security-blue-team` | opus | `/dso:review` overlay — triages red team findings with dismiss/downgrade/sustain; dispatched after red team |
 | `dso:code-reviewer-performance` | opus | `/dso:review` overlay — parallel when classifier flags `performance_overlay:true`; serial when tier reviewer flags `performance_overlay_warranted:yes` |
 
-RED test escalation: `dso:red-test-writer` → `dso:red-test-evaluator` triage → opus retry → user escalation. Template: `plugins/dso/skills/sprint/prompts/red-task-escalation.md`.
-**Agent fallback**: When a named sub-agent (dispatched via `subagent_type`) is unavailable or dispatch fails, read the agent definition inline from `plugins/dso/agents/<agent-name>.md` — where `<agent-name>` is the portion of `subagent_type` after the `dso:` prefix (e.g., `subagent_type: dso:complexity-evaluator` → `plugins/dso/agents/complexity-evaluator.md`). Use the file contents as a prompt and run the agent logic inline.
-**Tiered review**: `review-complexity-classifier.sh` scores diffs on 7 factors; 0–2 → light (haiku), 3–6 → standard (sonnet), 7+ → deep (3 parallel sonnet + opus synthesis). Diff: 300+ lines → opus upgrade, 600+ → rejection; merge commits bypass size limits. Classifier also emits `security_overlay` and `performance_overlay` boolean flags; `overlay-dispatch.sh` launches the corresponding overlay agents in parallel (classifier-detected) or serial (tier-reviewer-raised) mode, with graceful degradation if agents fail. See `plugins/dso/docs/contracts/classifier-tier-output.md` and `plugins/dso/docs/workflows/REVIEW-WORKFLOW.md` (Step 4b). **Review dimensions**: `correctness`, `verification`, `hygiene`, `design`, `maintainability` in `reviewer-findings.json`.
+**Agent fallback**: On dispatch failure, read `plugins/dso/agents/<agent-name>.md` inline (strip `dso:` prefix from `subagent_type`).
+**Tiered review**: Classifier scores 0–2 → light (haiku), 3–6 → standard (sonnet), 7+ → deep (3×sonnet + opus synthesis). 300+ lines → opus upgrade; 600+ → rejection. Security/performance overlays auto-dispatched when classifier flags them. Review dimensions: `correctness`, `verification`, `hygiene`, `design`, `maintainability`.
 **Conflict avoidance** (multi-agent): Static file impact analysis, shared blackboard, agent discovery protocol, semantic conflict check — integrated into `/dso:sprint` and `/dso:debug-everything`.
-**Shared scrutiny pipeline**: `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md` — invocable by both `/dso:brainstorm` and `/dso:roadmap`; contains gap analysis, web research, scenario analysis, and fidelity review phases. **Value/effort scorer**: `plugins/dso/skills/shared/prompts/value-effort-scorer.md` — standalone 1-5 value × 1-5 effort → P0-P4 priority matrix used by both brainstorm and roadmap. **scrutiny:pending gate**: epics tagged with `scrutiny:pending` (via `/dso:roadmap` opt-out) are blocked at `/dso:preplanning` and `/dso:implementation-plan` entry until `/dso:brainstorm` is run. Contract: `plugins/dso/docs/contracts/scrutiny-pending-tag.md`. **Brainstorm non-epic support**: `/dso:brainstorm` accepts any ticket type (epic, story, task, bug); when invoked on a non-epic ticket, presents two options — (a) convert-to-epic (closes original as superseded, runs full brainstorm flow) or (b) enrich-in-place (streamlined dialogue, updates ticket description with structured content). **Consolidated reviewer prompts**: `plugins/dso/skills/shared/docs/reviewers/` (agent-clarity.md, scope.md, value.md) — used by both brainstorm and roadmap. **Prior-art search framework**: `plugins/dso/skills/shared/prompts/prior-art-search.md` — tiered knowledge-verification sub-workflow consulted before writing or modifying code; defines bright-line triggers, trust validation gate (hard blockers: open bug tickets or CI failures on discovered code → untrusted), and tiered search protocol: Tier 1 project docs (~2 calls) → Tier 2 narrow codebase search (~6 calls) → Tier 3 broad outcome-reframed search (~10 calls) → Tier 4 user escalation. Integrated at: `/dso:fix-bug` Step 6 (pre-fix-dispatch check), `plugins/dso/docs/workflows/prompts/review-fix-dispatch.md` (resolution agents), and `plugins/dso/skills/sprint/prompts/task-execution.md` (implementation agents). Eval suite: `plugins/dso/skills/shared/evals/promptfooconfig.yaml` (9 scenarios). Routine exclusions: single-file logic fixes, formatting/lint, test reversions, doc-only edits, config value updates.
-**This repo is the `dso` plugin.** Skills: interface-contracts, resolve-conflicts, tickets-health, onboarding, architect-foundation, design-review, design-wireframe, ui-discover, debug-everything, sprint, brainstorm, preplanning, implementation-plan, fix-bug (replaces tdd-workflow for bug fixes), tdd-workflow (new feature TDD only), etc. Commands: commit, end, review. Invocation: `/dso:skill-name` (qualified, required) or `/skill-name` (alias). **Namespace policy**: in-scope files MUST use `/dso:<skill-name>`. Enforced by `check-skill-refs.sh` (fatal in `validate.sh`); `qualify-skill-refs.sh` for bulk migration. **Command wrappers**: `.claude/commands/*.md` provides one wrapper per user-invocable skill (26 files); each uses Claude Code shell preprocessing to detect marketplace plugin via `claude plugin list` — if detected, invokes the plugin skill via Skill tool; otherwise reads `plugins/dso/skills/<skill-name>/SKILL.md` inline. Config: `.claude/dso-config.conf` (flat KEY=VALUE; keys: `format.*`, `ci.*`, `commands.*`, `jira.*`, `design.*`, `tickets.*`, `merge.*`, `version.*`, `test.*`). Test suites: `project-detect.sh --suites [REPO_ROOT]` for discovery. CI workflow generation: see `/dso:onboarding` skill.
-**Onboarding** (`/dso:onboarding`): Phase 1 auto-detects project configuration from files (`project-detect.sh`, `package.json`, `pyproject.toml`, `.husky/`, `.github/workflows/`, test directories) before asking any questions; detected values are presented for confirmation rather than re-discovered from scratch. **Phase 1.5 (Template Gate)**: When Phase 1 detects no recognized framework (`detect-stack.sh` returns `"unknown"`), onboarding reads `plugins/dso/config/template-registry.yaml` via `parse-template-registry.sh` and presents a numbered template menu (NextJS, Flask, Rails, Jekyll USWDS). **Phase 1.6a** installs nava-platform templates via `nava-platform app install` (requires `uv` or `pipx`); **Phase 1.6b** installs git-clone templates via `git clone`. **Phase 1.7** re-runs `detect-stack.sh` after install and skips Phase 2 if a framework is now detected. If no template is selected or the registry is unavailable, onboarding proceeds to Phase 2 (manual flow) unchanged. Phase 3 initializes enforcement infrastructure for the host project: installs git pre-commit hooks (Husky / pre-commit framework / bare `.git/hooks/` — detected automatically), initializes the ticket system (orphan `tickets` branch + `.tickets-tracker/` + smoke test), generates `.test-index` via `generate-test-index.sh`, generates a host-project `CLAUDE.md` with ticket command references, and copies the `KNOWN-ISSUES` template. Both the `project-understanding.md` artifact and `dso-config.conf` are presented for user review before writing; existing files show a diff so no prior configuration is silently overwritten. **Template registry**: `plugins/dso/config/template-registry.yaml` (4 templates: nextjs, flask, rails, jekyll-uswds). **Stack detection**: `detect-stack.sh` now recognizes `ruby-rails` (Gemfile + `config/routes.rb`) and `ruby-jekyll` (Gemfile + `_config.yml`).
-**Architect-foundation** (`/dso:architect-foundation`): Reads `.claude/project-understanding.md` written by `/dso:onboarding` and skips questions already answered there. Phase 2.5 (Recommendation Synthesis) synthesizes findings into concrete, project-specific enforcement recommendations — each recommendation cites the specific project file or pattern that triggered it (e.g., "Because `src/adapters/db.py` directly imports `domain/models.py`, recommend enforcing the adapter boundary as a fitness function"). Recommendations are presented one at a time for the user to accept, reject, or discuss. Phase 2.75 presents every artifact for user review before writing; existing files (such as `CLAUDE.md` or `ARCH_ENFORCEMENT.md`) show a diff rather than a full replacement.
-Config keys: `ci.workflow_name` (GitHub Actions workflow; preferred over deprecated `merge.ci_workflow_name`), `merge.visual_baseline_path` (snapshot dir), `merge.message_exclusion_pattern` (default `^chore: post-merge cleanup`), `version.file_path` (semver file; `.json`/`.toml`/plaintext; absent = skip bumping), `debug.max_fix_validate_cycles` (max fix→validate cycles for `/dso:debug-everything` validation loop, default 3), `debug.intent_search_budget` (max tool calls for Gate 1a intent-search agent in `/dso:fix-bug`, default 20). Source of truth: `plugins/dso/scripts/merge-to-main.sh`. Phases: `sync → merge → version_bump → validate → push → archive → ci_trigger`; state file at `/tmp/merge-to-main-state-<branch>.json` (4h TTL) for `--resume`; SIGURG saves current phase. **Plugin portability**: path assumptions config-driven via `.claude/dso-config.conf`. **Host project invocation**: `.claude/scripts/dso <script-name>` shim; install via `bash plugins/dso/scripts/dso-setup.sh [TARGET_REPO]`. **Shim `DSO_ROOT` resolution order**: (1) `$CLAUDE_PLUGIN_ROOT` env var; (2) `dso.plugin_root` in `.claude/dso-config.conf`; (3) sentinel self-detection — when `plugins/dso/.claude-plugin/plugin.json` exists at the repo root, `DSO_ROOT` resolves automatically with no configuration required; (4) error exit.
+**scrutiny:pending gate**: epics tagged with `scrutiny:pending` (via `/dso:roadmap` opt-out) are blocked at `/dso:preplanning` and `/dso:implementation-plan` entry until `/dso:brainstorm` is run. **Brainstorm non-epic support**: `/dso:brainstorm` accepts any ticket type; non-epics can convert-to-epic or enrich-in-place. **Prior-art search**: Before writing or modifying code, consult `plugins/dso/skills/shared/prompts/prior-art-search.md`. Tiered protocol: Tier 1 project docs → Tier 2 narrow codebase → Tier 3 broad search → Tier 4 user escalation. Routine exclusions: single-file logic fixes, formatting/lint, test reversions, doc-only edits, config value updates.
+**This repo is the `dso` plugin.** Invocation: `/dso:skill-name` (qualified, required) or `/skill-name` (alias). **Namespace policy**: in-scope files MUST use `/dso:<skill-name>` (enforced by `check-skill-refs.sh`). Host project shim: `.claude/scripts/dso <script-name>`. Config: `.claude/dso-config.conf` (KEY=VALUE; see file for keys).
+**Onboarding** (`/dso:onboarding`): Auto-detects project config before asking questions. Template gate for unknown frameworks (`plugins/dso/config/template-registry.yaml`). Phase 3 installs hooks, initializes ticket system, generates `.test-index`. Existing files show diff before overwrite. See SKILL.md.
+**Architect-foundation** (`/dso:architect-foundation`): Reads `.claude/project-understanding.md` from onboarding; presents recommendations one-at-a-time; shows diffs before overwriting existing files.
+Config keys (`dso-config.conf`): `ci.workflow_name`, `merge.message_exclusion_pattern` (default `^chore: post-merge cleanup`), `version.file_path` (absent = skip bump), `debug.max_fix_validate_cycles` (default 3), `debug.intent_search_budget` (default 20). Merge-to-main phases: `sync → merge → version_bump → validate → push → archive → ci_trigger`; state file `/tmp/merge-to-main-state-<branch>.json` (4h TTL); `--resume` continues from checkpoint.
 
-The pre-commit review gate (`pre-commit-review-gate.sh`) handles both merge commits (`MERGE_HEAD`) and rebase operations (`REBASE_HEAD`) natively via `plugins/dso/hooks/lib/merge-state.sh` — when either is present, it computes the merge/rebase base and filters out incoming-only files (files changed on main but not on the worktree branch) from review consideration, since those were already reviewed on main. The same REBASE_HEAD filter is applied symmetrically in `pre-commit-test-gate.sh`, `record-test-status.sh`, `capture-review-diff.sh`, `compute-diff-hash.sh`, and `review-complexity-classifier.sh` (all consumers of `merge-state.sh`) to prevent false positives during squash-rebase recovery. Fail-safe: if MERGE_HEAD/REBASE_HEAD equals HEAD or base computation fails, `merge-state.sh` functions fail-open and normal enforcement applies.
 
 **Worktree lifecycle** (`claude-safe`): After Claude exits, `_offer_worktree_cleanup` auto-removes the worktree if: (1) branch is ancestor of main (`is_merged`), AND (2) `git status --porcelain` is empty (`is_clean`). No special filtering — `.tickets-tracker/` files block removal like any other dirty file. `/dso:end` ensures the worktree meets these criteria by: generating technical learnings (Step 2.8) and creating bug tickets (Step 2.85) before commit/merge, and verifying `is_merged` + `is_clean` (Step 4.75) before session summary.
 
@@ -106,7 +90,7 @@ The pre-commit review gate (`pre-commit-review-gate.sh`) handles both merge comm
 
 ### Never Do These
 1. **Never close tasks before CI passes** — fix if you broke it; create tracking issue if pre-existing.
-2. **Never use `app/` in paths when CWD is `app/`** — use `src/`, `tests/` directly. When CWD is the repo root, `app/` prefix is required. `.claude/` is always at the repo root; plugin scripts are at `plugins/dso/scripts/`. (This is this project's convention; `app/` is configured via `paths.app_dir` in `.claude/dso-config.conf` and is project-specific, not a universal plugin requirement.)
+2. **Never use `app/` in paths when CWD is `app/`** — use `src/`, `tests/` directly. When CWD is the repo root, `app/` prefix is required. `.claude/` is always at the repo root; plugin scripts are at `plugins/dso/scripts/`.
 3. **Never skip issue validation after creating issues or adding deps** — run `validate-issues.sh --quick --terse`.
 4. **Never create more than 5 sub-agents at a time** — batch into groups of 5.
 5. **Never launch new sub-agent batch without committing previous batch's results** — #1 cause of lost work.
@@ -122,7 +106,7 @@ The pre-commit review gate (`pre-commit-review-gate.sh`) handles both merge comm
 15. **Never override reviewer severity** — critical->1-2, important->3. Autonomous resolution via code-visible defense (R5) for up to `review.max_resolution_attempts` (default: 5) attempts; user escalation after. See REVIEW-WORKFLOW.md R1-R5.
 16. **Never write/modify/delete `reviewer-findings.json`** — written by code-reviewer sub-agent only. Integrity verified via `--reviewer-hash`.
 17. **Never edit `.github/workflows/` files via the GitHub API** — always edit workflow files in the worktree source and commit normally. API calls bypass review, hooks, and leave the worktree out of sync.
-18. **Never edit safeguard files without user approval** — protected: `plugins/dso/skills/**`, `plugins/dso/hooks/**`, `plugins/dso/docs/workflows/**`, `plugins/dso/scripts/**`, `CLAUDE.md`, `plugins/dso/hooks/lib/review-gate-allowlist.conf`, `plugins/dso/scripts/review-complexity-classifier.sh`. Agents may rationalize removing safeguards — this is exactly the failure mode this rule prevents. Always confirm specific changes first. Task-level instructions ("fix this bug", "implement this feature") do not constitute authorization for safeguard file edits — explicit, specific confirmation of the safeguard change itself is required separately.
+18. **Never edit safeguard files without user approval** — protected: `plugins/dso/skills/**`, `plugins/dso/hooks/**`, `plugins/dso/docs/workflows/**`, `plugins/dso/scripts/**`, `CLAUDE.md`, `plugins/dso/hooks/lib/review-gate-allowlist.conf`, `plugins/dso/scripts/review-complexity-classifier.sh`. Always confirm specific changes first. Task-level instructions ("fix this bug", "implement this feature") do not constitute authorization for safeguard file edits — explicit, specific confirmation of the safeguard change itself is required separately.
 19. **Never autonomously close a bug without a code change** — escalate to the user if no code fix is possible. Use `.claude/scripts/dso ticket comment <id> "note"` to record findings. Only `.claude/scripts/dso ticket transition <id> <current> closed --reason="Fixed: <summary>"` after (a) a code change fixes it, or (b) the user explicitly authorizes closure (use `--reason="Escalated to user: <summary>"`). Bug tickets **require** the `--reason` flag with prefix `Fixed:` or `Escalated to user:` — omitting it causes a silent failure.
 20. **Never make changes without a way to validate them** — this project strictly follows TDD. Every code change requires a corresponding test that fails before the change (RED) and passes after (GREEN). For non-code changes (skills, CLAUDE.md, agent guidance), define an eval or validation method before making the change.
 21. **Resolution sub-agents must NOT dispatch nested Task calls for re-review** — nesting (orchestrator → resolution → re-review) causes `[Tool result missing due to internal error]`. The orchestrator handles all re-review dispatching after the resolution sub-agent returns `RESOLUTION_RESULT`. See `plugins/dso/docs/workflows/prompts/review-fix-dispatch.md` NESTING PROHIBITION.
@@ -138,7 +122,7 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 2. **CLAUDE.md is for agent instructions, rules, and command references — not feature descriptions.** Feature and implementation documentation belongs in codebase-overview (consuming projects use `.claude/docs/DOCUMENTATION-GUIDE.md`).
 
 ### Always Do These
-1. **Use `/dso:sprint` for epics** — it runs `validate.sh --ci` automatically. For bug fixes, use `/dso:fix-bug`. For non-epic work (docs, research), validation runs at commit time for code changes.
+1. **Use `/dso:sprint` for epics** — it runs `validate.sh --ci` automatically. For bug fixes, use `/dso:fix-bug`.
 2. **Formatting runs automatically** via PostToolUse hook on `.py` edits (ruff). If a hook failure is reported, run `make format` manually.
 3. **Create tracking issues** for ALL failures discovered, even "infrastructure" ones.
 4. **Use the correct review tool:**
@@ -150,19 +134,19 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 
 5. **Use task status updates for step/phase progress — not text headers.** When executing a skill's numbered steps or phases, track progress through `TaskUpdate` (`in_progress` → `completed`) rather than printing headers like `**Step N: Description**` or `**Phase N: Description**` as visible text. Task status updates show in the spinner; narrating step/phase headers is redundant and clutters the user-visible output.
 6. **Use WebSearch/WebFetch when facing significant tradeoffs** — before committing to an approach involving meaningful tradeoffs in testing, maintainability, readability, functionality, or usability, use WebSearch or WebFetch to research current best practices. See `plugins/dso/docs/RESEARCH-PATTERN.md` for when and how to apply this.
-7. **During edit-test iteration, run targeted tests — not the full suite.** Use `cd app && poetry run pytest tests/unit/path/test_file.py::test_name --tb=short -q` for the specific test being worked on. For final validation, use `plugins/dso/scripts/validate.sh --ci`. Use `--tb=no -q` for repeated iteration runs, `--tb=short` for final pass.
+7. **During edit-test iteration, run targeted tests — not the full suite.** Use `poetry run pytest tests/unit/path/test_file.py::test_name --tb=short -q`. Final validation: `plugins/dso/scripts/validate.sh --ci`.
 8. **Parallelize independent tool calls — always.** When issuing Read, Grep, Glob, or Bash calls with no data dependency between them, place them all in the same response so they run concurrently (e.g., two independent Read calls in one response; Grep + Glob for unrelated patterns). Never serialize calls that could be parallel.
 9. **When fixing a bug, search for the same anti-pattern elsewhere.** After fixing a bug, search the codebase for other code that follows the same anti-pattern you just fixed. Create a bug ticket (`.claude/scripts/dso ticket create bug "<title>"`) for each occurrence found so they can be tracked and fixed systematically.
 10. **Write a failing test to verify your CI/staging bug hypothesis before fixing.** When diagnosing a CI or staging failure, write a unit or integration test that reproduces the suspected root cause FIRST. Run it to confirm it fails (RED). Only then implement the fix and verify the test passes (GREEN). This prevents fixing symptoms instead of causes and guards against the fix being wrong.
 11. **Always set `timeout: 600000` on Bash calls expected to exceed 30s AND on all Bash calls during commit/review workflows.** Without it, the timeout ceiling drops from ~73s to ~48s. Known slow commands: `validate.sh --ci`, `make test`, `.claude/scripts/dso ticket sync`. Even fast commands during commit/review can receive SIGURG (exit 144) from tool-call cancellation (see INC-016).
-12. **Use `test-batched.sh` for running tests.** Prefer `--runner=bash --test-dir=<dir>` for bash suites (per-script resume on timeout). Example: `$(git rev-parse --show-toplevel)/plugins/dso/scripts/test-batched.sh --timeout=50 --runner=bash --test-dir=tests/scripts`. Runners: `bash` (test-*.sh), `node` (*.test.js), `pytest`. Generic fallback: `--timeout=50 "command"`. Run the printed `RUN:` command in subsequent Bash calls until summary appears. Do NOT use `while` polling loops (killed by ~73s ceiling). For non-test long-running commands, see INC-016 in KNOWN-ISSUES.md.
+12. **Use `test-batched.sh` for running tests.** Runners: `bash` (test-*.sh), `node` (*.test.js), `pytest`. Prefer `--runner=bash --test-dir=<dir>` for bash suites. Run the printed `RUN:` command in subsequent Bash calls until summary appears. Do NOT use `while` polling loops (killed by ~73s ceiling). See INC-016 in KNOWN-ISSUES.md.
 
 ## Task Start Workflow
 
 **Worktree session setup**: See `plugins/dso/docs/WORKTREE-GUIDE.md` (Session Setup section).
 
 **Epics**: Use `/dso:sprint` — it runs `plugins/dso/scripts/validate.sh --ci` automatically and blocks until the codebase is healthy.
-**Bug fixes**: Use `/dso:fix-bug` — classifies the bug, selects the investigation path, and applies the TDD-based fix. Do NOT use `/dso:tdd-workflow` for bug fixes; tdd-workflow is for new feature TDD only. Investigation RESULT reports must include a `hypothesis_tests` field (sub-fields: `hypothesis`, `test`, `observed`, `verdict`); results with no confirmed hypothesis are rejected by Step 3.5 (Hypothesis Validation Gate) and escalated. Code modification is blocked by Step 5.5 (RED-before-fix Gate) until a RED test is confirmed failing — mechanical bugs (import errors, lint violations, config syntax) are exempt.
+**Bug fixes**: Use `/dso:fix-bug` — TDD-based; investigates before fixing. Do NOT use `/dso:tdd-workflow` for bug fixes; tdd-workflow is for new feature TDD only.
 **Docs, research**: Start directly. Validation runs at commit time for code changes (skipped for docs-only commits).
 **Before `/dso:debug-everything`**: Run `plugins/dso/scripts/estimate-context-load.sh debug-everything`. If static load >10,000 tokens, trim `MEMORY.md` before starting to avoid premature compaction.
 **`/dso:debug-everything` two-mode flow**: When open bug tickets exist, it enters Bug-Fix Mode — reads `/dso:fix-bug` SKILL.md inline at orchestrator level (preserving Agent tool access) and applies it to each open ticket, then runs Validation Mode (inner fix→validate loop, bounded by `debug.max_fix_validate_cycles`, default 3). When no open bugs exist, it runs the diagnostic scan (Phase 1) → triage sub-agent (Phase 2) → fix pipeline. Interactivity is declared at session start; non-interactive mode defers user-blocking gates as `INTERACTIVITY_DEFERRED` ticket comments instead of pausing. Complexity evaluation happens post-investigation in `/dso:fix-bug` (Step 4.5), after the bug is fully understood — not pre-investigation in `/dso:debug-everything`.
@@ -181,7 +165,6 @@ After ExitPlanMode approval, do NOT begin implementation. Create a ticket epic (
 # 2. git push (or plugins/dso/scripts/merge-to-main.sh in worktree sessions — handles .claude/scripts/dso ticket sync + merge + push)
 #    Supports --resume (continue from last state file checkpoint).
 #    Phases: sync → merge → version_bump → validate → push → archive → ci_trigger
-#    # REVIEW-DEFENSE: checkpoint_verify phase removed from docs here intentionally — story dso-q0df (batch 2) removes _phase_checkpoint_verify() from merge-to-main.sh. Docs lead code in this multi-story epic.
 #    State file: /tmp/merge-to-main-state-<branch>.json (expires after 4h); lock file: /tmp/merge-to-main-lock-<hash>
 #    On interruption (SIGURG), current phase is saved to state file — re-run with --resume to continue.
 # 3. plugins/dso/scripts/ci-status.sh --wait — must return "success"
@@ -195,10 +178,7 @@ After ExitPlanMode approval, do NOT begin implementation. Create a ticket epic (
 **Sub-agent boundaries**: See `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md` for all sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format, model selection, recovery).
 **Sub-agent guard pattern**: Skills that require the Agent tool or direct user interaction contain a `<SUB-AGENT-GUARD>` block at the top of their `SKILL.md`. When invoked in sub-agent context (via Task tool), the guard instructs the agent to stop immediately and return an error. Two guard variants exist: (1) **Agent tool check** — for skills that dispatch sub-agents (sprint, debug-everything, brainstorm, preplanning, implementation-plan, design-wireframe, design-review, roadmap, plan-review, review-protocol, resolve-conflicts, architect-foundation, validate-work, retro, ui-discover); (2) **Orchestrator signal check** — for skills that require user interaction (end-session, project-setup, design-onboarding, onboarding). Tests: `tests/hooks/test-sub-agent-guard.sh` (40 tests, 2 per skill).
 
-Orchestrator-level rules (apply to `/dso:sprint` and `/dso:debug-everything`, not sub-agents):
-- Max 5 concurrent sub-agents; commit+push between batches
-- Models: `haiku` (structured I/O), `sonnet` (code gen, review), `opus` (architecture, high-blast-radius); escalate on failure
-- Recovery: `.claude/scripts/dso ticket list` + `.claude/scripts/dso ticket show <id>` to read CHECKPOINT notes → `git log --oneline -5 && git status --short` for git state
+Orchestrator-level models: `haiku` (structured I/O), `sonnet` (code gen, review), `opus` (architecture, high-blast-radius); escalate on failure. Recovery: `.claude/scripts/dso ticket list` + `.claude/scripts/dso ticket show <id>` to read CHECKPOINT notes → `git log --oneline -5 && git status --short` for git state.
 
 ## Context Efficiency
 
@@ -208,37 +188,7 @@ Orchestrator-level rules (apply to `/dso:sprint` and `/dso:debug-everything`, no
 
 ## Structural Code Search (ast-grep)
 
-**Prefer `sg` (ast-grep) over text grep for cross-file dependency discovery.** The `sg` command provides syntax-aware structural pattern matching across 170+ languages, distinguishing real code references from comments and string literals. Use it when exploring callers, importers, and source-chain dependencies.
-
-**Installation** (optional — all workflows fall back to Grep when unavailable):
-- macOS: `brew install ast-grep`
-- Linux: `cargo install ast-grep --locked`
-
-**Binary name**: The package is called `ast-grep`; the CLI binary is `sg`. Always check availability with `command -v sg`.
-
-**Guard and fallback pattern** (canonical — copy this pattern in all skill/script integrations):
-```bash
-if command -v sg >/dev/null 2>&1; then
-    # Use sg for structural search
-    sg --pattern '<pattern>' --lang <lang> /path/to/search
-else
-    # Fall back to Grep tool or grep command
-    grep -r '<pattern>' /path/to/search
-fi
-```
-
-**Example patterns**:
-```bash
-# Find all Python files that import a specific module
-sg --pattern 'import $MODULE' --lang python .
-sg --pattern 'from $MODULE import $_' --lang python .
-
-# Find all bash files that source a specific script
-sg --pattern 'source $PATH' --lang bash .
-sg --pattern '. $PATH' --lang bash .
-```
-
-**Note**: The existing `gate-2b-blast-radius.sh` uses `command -v ast-grep` (the package name) rather than `command -v sg`. Both resolve to the same binary when installed via the standard package. New integrations should use `sg`.
+**Prefer `sg` (ast-grep) over text grep for cross-file dependency discovery** — syntax-aware, distinguishes real references from comments. Binary: `sg`. Check availability: `command -v sg`. When unavailable, fall back to Grep tool. Guard pattern: `if command -v sg >/dev/null 2>&1; then sg ...; else grep ...; fi`.
 
 ## Common Fixes
 
