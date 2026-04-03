@@ -93,7 +93,7 @@ chmod +x "$_t3_fake_repo/scripts/sprint-next-batch.sh"
 exit_code=0
 output=$(cd "$_t3_fake_repo" && TICKET_CMD="$_t3_fake_repo/scripts/ticket" bash "$_t3_fake_repo/scripts/sprint-next-batch.sh" "t3-epic" 2>&1) || exit_code=$?
 rm -rf "$_t3_mock_dir" "$_t3_fake_repo"
-if [ "$exit_code" -eq 0 ] && echo "$output" | grep -qE "EPIC:|BATCH_SIZE:"; then
+if [ "$exit_code" -eq 0 ] && [[ "$output" =~ EPIC:|BATCH_SIZE: ]]; then
     echo "  PASS: plugin exits 0 with EPIC and BATCH_SIZE lines"
     (( PASS++ ))
 else
@@ -692,7 +692,7 @@ rm -rf "$_t16b_fake_repo"
 # be present in the batch.
 t16b_batch_ids=$(echo "$t16b_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(' '.join(t['id'] for t in d.get('batch',[])))" 2>/dev/null || echo "")
 t16b_blocked=$(echo "$t16b_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('skipped_blocked_story',[])))" 2>/dev/null || echo "1")
-if [ "$t16b_exit" -eq 0 ] && echo "$t16b_batch_ids" | grep -q "t16b-task" && [ "$t16b_blocked" -eq 0 ]; then
+if [ "$t16b_exit" -eq 0 ] && [[ "$t16b_batch_ids" == *"t16b-task"* ]] && [ "$t16b_blocked" -eq 0 ]; then
     echo "  PASS: closed-dep target does not block ticket (t16b-task in batch, skipped_blocked_story=0)"
     (( PASS++ ))
 else
