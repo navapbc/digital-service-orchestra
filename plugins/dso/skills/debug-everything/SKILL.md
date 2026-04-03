@@ -1210,10 +1210,10 @@ Write to: `{auto-memory-dir}/debug-sessions.md` (append, don't overwrite).
 
 ## Phase 11: End Session (/dso:debug-everything)
 
-After Phase 10 completes (both success and graceful shutdown paths), invoke `/dso:end-session` to close out the worktree session:
+After Phase 10 completes (both success and graceful shutdown paths), invoke `/dso:end-session` with `--bump patch` to close out the worktree session and bump the patch version:
 
 ```
-/dso:end-session
+/dso:end-session --bump patch
 ```
 
 This handles any remaining session cleanup: closing in-progress issues, committing straggling changes, syncing tickets, and producing a final task summary.

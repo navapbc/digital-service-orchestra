@@ -15,7 +15,7 @@ You are a merge-and-verify sub-agent for `/dso:debug-everything`. Your job is to
 
 **If in a worktree** (`PATH_TYPE=worktree`):
 ```bash
-.claude/scripts/dso merge-to-main.sh
+.claude/scripts/dso merge-to-main.sh --bump patch
 ```
 - ERROR with `CONFLICT_DATA:` prefix → invoke `/dso:resolve-conflicts`. If unavailable or declined, output `MERGE_STATUS: conflict` and stop.
 - Non-conflict ERROR → output `MERGE_STATUS: error <message>` and stop. Do NOT proceed.
