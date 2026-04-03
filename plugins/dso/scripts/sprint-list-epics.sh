@@ -79,8 +79,14 @@ if [ -d "$TRACKER_DIR/.git" ] || [ -f "$TRACKER_DIR/.git" ]; then
         fi
     fi
     if [ "$_needs_fetch" = true ]; then
-        git -C "$TRACKER_DIR" fetch origin tickets 2>/dev/null && \
-        git -C "$TRACKER_DIR" reset --hard origin/tickets 2>/dev/null || true
+        if git -C "$TRACKER_DIR" fetch origin tickets 2>/dev/null; then
+            # Guard: skip destructive reset when local-only commits exist
+            # that haven't been pushed to origin (46ee-7d1c, mirrors eb00-efd0 fix).
+            _local_ahead=$(git -C "$TRACKER_DIR" log --oneline origin/tickets..tickets 2>/dev/null) || true
+            if [ -z "$_local_ahead" ]; then
+                git -C "$TRACKER_DIR" reset --hard origin/tickets 2>/dev/null || true
+            fi
+        fi
         touch "$_sync_marker" 2>/dev/null || true
     fi
 fi
