@@ -691,7 +691,7 @@ For each task, launch a Task with the appropriate `subagent_type`.
 .claude/scripts/dso issue-quality-check.sh <task-id>
 ```
 
-- **Exit 0 (quality pass)**: Use ticket-as-prompt template (`$PLUGIN_ROOT/skills/sprint/prompts/task-execution.md`), fill in `{id}` only.
+- **Exit 0 (quality pass)**: Use ticket-as-prompt template (`$PLUGIN_ROOT/skills/sprint/prompts/task-execution.md`), fill in `{id}` and `{escalation_policy}` (see COMPLEX detection and escalation policy extraction below).
 - **Exit 1 (too sparse)**: Try `.claude/scripts/dso enrich-file-impact.sh <task-id>`, re-run check. If still failing, fall back to inline prompt via `.claude/scripts/dso ticket show <id>`.
 
 **Acceptance criteria gate**: After the quality gate, run:
@@ -720,7 +720,7 @@ When launching each Task tool call, set `subagent_type` and `model` from the TAS
 
 **Doc-story title match**: Task title or parent story title matches `Update project docs to reflect`.
 
-**COMPLEX detection**: Run `.claude/scripts/dso ticket show <task-id>` and read the `parent` field; if a parent story ID exists, run `.claude/scripts/dso ticket show <parent-story-id>` and grep its output with `grep -Fx "COMPLEXITY_CLASSIFICATION: COMPLEX"` (exact full-line match to avoid false positives).
+**COMPLEX detection and escalation policy extraction**: Run `.claude/scripts/dso ticket show <task-id>` and read the `parent` field; if a parent story ID exists, run `.claude/scripts/dso ticket show <parent-story-id>` and from that output: (1) grep with `grep -Fx "COMPLEXITY_CLASSIFICATION: COMPLEX"` (exact full-line match to avoid false positives); (2) extract the `## Escalation Policy` section by capturing all lines between `## Escalation Policy` and the next `##` heading (or end of description). Store the extracted text as `escalation_policy_text`. If no `## Escalation Policy` section is present (Autonomous mode omits it), set `escalation_policy_text` to `"Proceed with best judgment. Make and document reasonable assumptions. Do not escalate for uncertainty."` When populating `task-execution.md`, replace `{escalation_policy}` with `escalation_policy_text`.
 
 **Skill check guidance** (appended to prompt when `class` is `skill-guided`): `"Before implementing, check if a skill applies to this task type (e.g., /writing-skills for skill files, /claude-md-improver for CLAUDE.md updates, /writing-rules for hookify rules)."`
 
@@ -1009,7 +1009,7 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in thi
 
 **Interpret results:**
 - **No Critical or Important issues** (all scores >= 4) → proceed to Step 8
-- **Critical or Important issues found** → Enter Autonomous Resolution Loop per REVIEW-WORKFLOW.md. No inline fixes by orchestrator. Failed tasks: revert to open, add issue details, re-run with reviewer feedback.
+- **Critical or Important issues found** (any score < 4, OR any critical/important finding regardless of score) → Enter Autonomous Resolution Loop per REVIEW-WORKFLOW.md. No inline fixes by orchestrator. Failed tasks: revert to open, add issue details, re-run with reviewer feedback. **Score=3 with important findings is NOT a pass — do NOT suggest graceful shutdown or proceed to commit. Apply the fix or escalate.**
 - **Minor issues only** → proceed (note them in ticket but don't block)
 - **Autonomous resolution**: Up to `review.max_resolution_attempts` (default: 5) fix/defend attempts before tier escalation (light → standard → deep). When attempts are exhausted, upgrade to the next tier before escalating to user — the deep tier (3 sonnet + opus synthesis) must be tried before user escalation. Resolution sub-agent applies fixes, then orchestrator dispatches separate re-review sub-agent (no nesting). If issues persist after deep tier, escalate to the user — do NOT commit or initiate graceful shutdown. The review loop continues until the review passes OR the user explicitly approves proceeding.
 

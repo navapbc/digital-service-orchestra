@@ -231,11 +231,9 @@ is_old_enough() {
     # On macOS, stat -f %B gives the birth time (seconds since epoch).
     # On Linux, stat -c %W gives birth time (may be 0 if unsupported; fall back to mtime).
     local created_epoch=0
-    if stat -f %B "$wt_path" &>/dev/null 2>&1; then
-        # macOS
+    if [[ "$(uname)" == "Darwin" ]]; then
         created_epoch=$(stat -f %B "$wt_path" 2>/dev/null || echo "0")
-    elif stat -c %W "$wt_path" &>/dev/null 2>&1; then
-        # Linux birth time
+    else
         created_epoch=$(stat -c %W "$wt_path" 2>/dev/null || echo "0")
     fi
 
