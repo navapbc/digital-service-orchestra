@@ -34,3 +34,4 @@ spike-env/
 
 # Test fixture temp files (leaked when test runner is killed by tool timeout)
 tests/scripts/fixtures/isolation-rules/tmp-*
+.playwright-cli/
