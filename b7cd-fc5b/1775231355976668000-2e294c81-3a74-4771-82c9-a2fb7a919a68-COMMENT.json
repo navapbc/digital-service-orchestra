@@ -1,1 +1,0 @@
-{"timestamp": 1775231355976668000, "uuid": "2e294c81-3a74-4771-82c9-a2fb7a919a68", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Gate 1a: intent-aligned (high confidence). Prior fix commit 47e1bfeb partially fixed this pattern but left 5+ files unfixed. System documented to require Linux portability."}}
