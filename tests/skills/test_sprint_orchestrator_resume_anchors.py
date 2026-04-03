@@ -21,7 +21,9 @@ import re
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SPRINT_SKILL = REPO_ROOT / "plugins" / "dso" / "skills" / "sprint" / "SKILL.md"
-IMPL_PLAN_SKILL = REPO_ROOT / "plugins" / "dso" / "skills" / "implementation-plan" / "SKILL.md"
+IMPL_PLAN_SKILL = (
+    REPO_ROOT / "plugins" / "dso" / "skills" / "implementation-plan" / "SKILL.md"
+)
 
 
 def _read(path: pathlib.Path) -> str:
@@ -35,18 +37,18 @@ class TestSprintOrchestratorResumeAnchors:
         """Each Skill("dso:implementation-plan") must be followed by ORCHESTRATOR_RESUME."""
         content = _read(SPRINT_SKILL)
         # Find all Skill("dso:implementation-plan" call sites
-        call_sites = [m.start() for m in re.finditer(
-            r'Skill\("dso:implementation-plan"', content
-        )]
+        call_sites = [
+            m.start() for m in re.finditer(r'Skill\("dso:implementation-plan"', content)
+        ]
         assert len(call_sites) >= 2, (
             f"Expected at least 2 Skill call sites, found {len(call_sites)}"
         )
         for i, pos in enumerate(call_sites):
             # Look for ORCHESTRATOR_RESUME within 500 chars after the call site
             # (before the next major section)
-            window = content[pos:pos + 500]
+            window = content[pos : pos + 500]
             assert "ORCHESTRATOR_RESUME" in window, (
-                f"Skill call site #{i+1} at char {pos} is missing an "
+                f"Skill call site #{i + 1} at char {pos} is missing an "
                 f"ORCHESTRATOR_RESUME anchor within the next 500 characters. "
                 f"This anchor prevents the agent from halting after a long "
                 f"implementation-plan execution."
