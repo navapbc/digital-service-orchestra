@@ -476,7 +476,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 ## After Review
 
 ### If ALL scores are 4, 5, or "N/A" AND no critical findings:
-Review passed. **Immediately resume the calling workflow** — do NOT wait for user input. If this workflow was invoked from COMMIT-WORKFLOW.md Step 5, proceed directly to Step 6 (Commit). If invoked from another orchestrator, resume at the step after the review invocation. Important findings do not automatically fail — the reviewer uses judgment (score 3-4) for important findings.
+Review passed. **Immediately resume the calling workflow** — do NOT wait for user input. If this workflow was invoked from COMMIT-WORKFLOW.md Step 5, proceed directly to Step 6 (Commit). If invoked from another orchestrator, resume at the step after the review invocation. Note: this branch requires ALL scores >= 4. A score of 3 with important findings is NOT a pass — it enters the resolution loop below.
 
 ### If ANY score is below 4, OR any critical finding exists:
 Review failed. Enter the Autonomous Resolution Loop. Critical findings always fail regardless of score.

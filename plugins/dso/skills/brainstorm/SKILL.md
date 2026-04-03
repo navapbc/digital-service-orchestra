@@ -215,7 +215,7 @@ Before we move to approaches, here's my understanding:
 - **Scope**: [what's in scope; what's explicitly out of scope]
 - **Success**: [how the user will know this worked — observable outcome]
 
-Does this capture it correctly, or is anything missing?
+Does this capture your intent? If anything is off, tell me what to adjust.
 ```
 
 Wait for confirmation before proceeding. This confirmation step is separate from the gap analysis that follows — always proceed to the gap analysis after confirmation.
@@ -413,7 +413,32 @@ Log format to append under the heading `### Planning Intelligence Log`:
 
 **Clean-text instruction**: Strip all provenance markers and bold emphasis before writing the ticket description. Provenance annotations are used only during the approval-gate review phase — the final ticket description must be written as clean plain text with no markup from the provenance tracking step.
 
-### Step 1: Create the Epic
+### Step 1: Create or Update the Epic
+
+**If an existing epic ID was passed as input** (i.e., the Type Detection Gate identified `ticket_type: epic`): do NOT call `ticket create`. Instead, update the existing epic's description with the refined spec from Phase 2:
+
+```bash
+.claude/scripts/dso ticket edit <epic-id> --description "$(cat <<'DESCRIPTION'
+## Context
+[context narrative]
+
+## Success Criteria
+- [criterion 1]
+- [criterion 2]
+
+## Dependencies
+[dependencies or 'None']
+
+## Approach
+[1-2 sentences on the chosen approach from Phase 2]
+
+## Scenario Analysis
+{scenario analysis content from scrutiny pipeline, if generated}
+DESCRIPTION
+)"
+```
+
+**If no existing epic** (i.e., this is a new brainstorm or the original ticket was not epic — i.e., you arrived here via the Convert-to-Epic path): create the epic:
 
 ```bash
 .claude/scripts/dso ticket create epic "<title>" -p <priority> -d "$(cat <<'DESCRIPTION'
@@ -436,7 +461,7 @@ DESCRIPTION
 )"
 ```
 
-**Priority guidance:** Before creating the ticket, read and apply the value/effort scorer from `plugins/dso/skills/shared/prompts/value-effort-scorer.md`. Assess the epic's value (1-5) and effort (1-5) based on the conversation context, map to the recommended priority via the scorer's matrix, and use that priority with `-p <priority>` in the ticket create command above.
+**Priority guidance (new epics only):** Before creating the ticket, read and apply the value/effort scorer from `plugins/dso/skills/shared/prompts/value-effort-scorer.md`. Assess the epic's value (1-5) and effort (1-5) based on the conversation context, map to the recommended priority via the scorer's matrix, and use that priority with `-p <priority>` in the ticket create command above.
 
 ### Step 2: Set Dependencies
 

@@ -1000,7 +1000,7 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in thi
 
 **Interpret results:**
 - **No Critical or Important issues** (all scores >= 4) → proceed to Step 8
-- **Critical or Important issues found** → Enter Autonomous Resolution Loop per REVIEW-WORKFLOW.md. No inline fixes by orchestrator. Failed tasks: revert to open, add issue details, re-run with reviewer feedback.
+- **Critical or Important issues found** (any score < 4, OR any critical/important finding regardless of score) → Enter Autonomous Resolution Loop per REVIEW-WORKFLOW.md. No inline fixes by orchestrator. Failed tasks: revert to open, add issue details, re-run with reviewer feedback. **Score=3 with important findings is NOT a pass — do NOT suggest graceful shutdown or proceed to commit. Apply the fix or escalate.**
 - **Minor issues only** → proceed (note them in ticket but don't block)
 - **Autonomous resolution**: Up to `review.max_resolution_attempts` (default: 5) fix/defend attempts before tier escalation (light → standard → deep). When attempts are exhausted, upgrade to the next tier before escalating to user — the deep tier (3 sonnet + opus synthesis) must be tried before user escalation. Resolution sub-agent applies fixes, then orchestrator dispatches separate re-review sub-agent (no nesting). If issues persist after deep tier, escalate to the user — do NOT commit or initiate graceful shutdown. The review loop continues until the review passes OR the user explicitly approves proceeding.
 
