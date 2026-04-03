@@ -356,6 +356,315 @@ else:
     assert_pass_if_clean "test_multiple_nested_invocations_correct_pairing"
 }
 
+# ── Helper: extract a hypothesis verdict from JSON output ─────────────────────
+_get_hypothesis() {
+    local json="$1" hyp="$2"
+    python3 -c "
+import sys, json
+data = json.loads(sys.stdin.read())
+if isinstance(data, list):
+    d = data[0] if data else {}
+else:
+    d = data
+hypotheses = d.get('hypotheses', {})
+print(hypotheses.get('$hyp', ''))
+" <<< "$json" 2>/dev/null || echo ""
+}
+
+# ── test_h1_confirmed_high_tool_call_count ────────────────────────────────────
+# CONTROL_LOSS + tool_call_count >= 60 → H1=confirmed
+test_h1_confirmed_high_tool_call_count() {
+    _snapshot_fail
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local logfile="$tmpdir/dso-skill-trace-h1.log"
+
+    # INVOKE with tool_call_count=65 (>= threshold 60), no RESUMED = CONTROL_LOSS
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:39:27Z","skill_name":"sprint","nesting_depth":1,"session_ordinal":1,"tool_call_count":65,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+
+    local output exit_code=0
+    output=$(_run_analyze "$logfile") || exit_code=$?
+
+    assert_eq "test_h1_confirmed_high_tool_call_count: exits 0" "0" "$exit_code"
+
+    local h1_status
+    h1_status=$(_get_hypothesis "$output" "H1")
+    assert_eq "test_h1_confirmed_high_tool_call_count: H1=confirmed when tool_call_count>=60 and CONTROL_LOSS" "confirmed" "$h1_status"
+
+    assert_pass_if_clean "test_h1_confirmed_high_tool_call_count"
+}
+
+# ── test_h1_refuted_low_tool_call_count ───────────────────────────────────────
+# CONTROL_LOSS + tool_call_count < 60 → H1=refuted
+test_h1_refuted_low_tool_call_count() {
+    _snapshot_fail
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local logfile="$tmpdir/dso-skill-trace-h1r.log"
+
+    # INVOKE with tool_call_count=20 (< threshold 60), no RESUMED = CONTROL_LOSS
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:39:27Z","skill_name":"sprint","nesting_depth":1,"session_ordinal":1,"tool_call_count":20,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+
+    local output exit_code=0
+    output=$(_run_analyze "$logfile") || exit_code=$?
+
+    assert_eq "test_h1_refuted_low_tool_call_count: exits 0" "0" "$exit_code"
+
+    local h1_status
+    h1_status=$(_get_hypothesis "$output" "H1")
+    assert_eq "test_h1_refuted_low_tool_call_count: H1=refuted when tool_call_count<60 and CONTROL_LOSS" "refuted" "$h1_status"
+
+    assert_pass_if_clean "test_h1_refuted_low_tool_call_count"
+}
+
+# ── test_h2_confirmed_high_cumulative_bytes ───────────────────────────────────
+# CONTROL_LOSS + cumulative_bytes >= 50000 → H2=confirmed
+test_h2_confirmed_high_cumulative_bytes() {
+    _snapshot_fail
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local logfile="$tmpdir/dso-skill-trace-h2.log"
+
+    # INVOKE (no RESUMED = CONTROL_LOSS) plus a breadcrumb with high cumulative_bytes
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:39:27Z","skill_name":"sprint","nesting_depth":1,"session_ordinal":1,"tool_call_count":10,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":55000,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+
+    local output exit_code=0
+    output=$(_run_analyze "$logfile") || exit_code=$?
+
+    assert_eq "test_h2_confirmed_high_cumulative_bytes: exits 0" "0" "$exit_code"
+
+    local h2_status
+    h2_status=$(_get_hypothesis "$output" "H2")
+    assert_eq "test_h2_confirmed_high_cumulative_bytes: H2=confirmed when cumulative_bytes>=50000 and CONTROL_LOSS" "confirmed" "$h2_status"
+
+    assert_pass_if_clean "test_h2_confirmed_high_cumulative_bytes"
+}
+
+# ── test_h3_confirmed_long_elapsed_ms ────────────────────────────────────────
+# CONTROL_LOSS + elapsed_ms >= 300000 on SKILL_EXIT → H3=confirmed
+test_h3_confirmed_long_elapsed_ms() {
+    _snapshot_fail
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local logfile="$tmpdir/dso-skill-trace-h3.log"
+
+    # INVOKE (no RESUMED = CONTROL_LOSS)
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:39:27Z","skill_name":"sprint","nesting_depth":1,"session_ordinal":1,"tool_call_count":10,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+    # SKILL_EXIT with elapsed_ms >= 300000
+    printf '{"type":"SKILL_EXIT","timestamp":"2026-04-02T17:44:27Z","skill_name":"preplanning","nesting_depth":1,"session_ordinal":2,"tool_call_count":50,"skill_file_size":null,"elapsed_ms":350000,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+
+    local output exit_code=0
+    output=$(_run_analyze "$logfile") || exit_code=$?
+
+    assert_eq "test_h3_confirmed_long_elapsed_ms: exits 0" "0" "$exit_code"
+
+    local h3_status
+    h3_status=$(_get_hypothesis "$output" "H3")
+    assert_eq "test_h3_confirmed_long_elapsed_ms: H3=confirmed when elapsed_ms>=300000 and CONTROL_LOSS" "confirmed" "$h3_status"
+
+    assert_pass_if_clean "test_h3_confirmed_long_elapsed_ms"
+}
+
+# ── test_h4_confirmed_high_user_interaction ───────────────────────────────────
+# CONTROL_LOSS + user_interaction_count >= 3 on SKILL_EXIT → H4=confirmed
+test_h4_confirmed_high_user_interaction() {
+    _snapshot_fail
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local logfile="$tmpdir/dso-skill-trace-h4.log"
+
+    # INVOKE (no RESUMED = CONTROL_LOSS)
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:39:27Z","skill_name":"sprint","nesting_depth":1,"session_ordinal":1,"tool_call_count":10,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+    # SKILL_EXIT with user_interaction_count >= 3 (threshold is 3)
+    printf '{"type":"SKILL_EXIT","timestamp":"2026-04-02T17:44:27Z","skill_name":"preplanning","nesting_depth":1,"session_ordinal":2,"tool_call_count":50,"skill_file_size":null,"elapsed_ms":5000,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":4}\n' \
+        >> "$logfile"
+
+    local output exit_code=0
+    output=$(_run_analyze "$logfile") || exit_code=$?
+
+    assert_eq "test_h4_confirmed_high_user_interaction: exits 0" "0" "$exit_code"
+
+    local h4_status
+    h4_status=$(_get_hypothesis "$output" "H4")
+    assert_eq "test_h4_confirmed_high_user_interaction: H4=confirmed when user_interaction_count>=3 and CONTROL_LOSS" "confirmed" "$h4_status"
+
+    assert_pass_if_clean "test_h4_confirmed_high_user_interaction"
+}
+
+# ── test_h5_confirmed_late_session_ordinal ────────────────────────────────────
+# CONTROL_LOSS at session_ordinal >= 10 → H5=confirmed
+test_h5_confirmed_late_session_ordinal() {
+    _snapshot_fail
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local logfile="$tmpdir/dso-skill-trace-h5.log"
+
+    # INVOKE at ordinal=12 (>= threshold 10), no RESUMED = CONTROL_LOSS
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:39:27Z","skill_name":"sprint","nesting_depth":1,"session_ordinal":12,"tool_call_count":10,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+
+    local output exit_code=0
+    output=$(_run_analyze "$logfile") || exit_code=$?
+
+    assert_eq "test_h5_confirmed_late_session_ordinal: exits 0" "0" "$exit_code"
+
+    local h5_status
+    h5_status=$(_get_hypothesis "$output" "H5")
+    assert_eq "test_h5_confirmed_late_session_ordinal: H5=confirmed when ordinal>=10 and CONTROL_LOSS" "confirmed" "$h5_status"
+
+    assert_pass_if_clean "test_h5_confirmed_late_session_ordinal"
+}
+
+# ── test_h6_confirmed_large_skill_file_size ───────────────────────────────────
+# CONTROL_LOSS + skill_file_size >= 20000 → H6=confirmed
+test_h6_confirmed_large_skill_file_size() {
+    _snapshot_fail
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local logfile="$tmpdir/dso-skill-trace-h6.log"
+
+    # INVOKE with skill_file_size >= 20000, no RESUMED = CONTROL_LOSS
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:39:27Z","skill_name":"sprint","nesting_depth":1,"session_ordinal":1,"tool_call_count":10,"skill_file_size":25000,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+
+    local output exit_code=0
+    output=$(_run_analyze "$logfile") || exit_code=$?
+
+    assert_eq "test_h6_confirmed_large_skill_file_size: exits 0" "0" "$exit_code"
+
+    local h6_status
+    h6_status=$(_get_hypothesis "$output" "H6")
+    assert_eq "test_h6_confirmed_large_skill_file_size: H6=confirmed when skill_file_size>=20000 and CONTROL_LOSS" "confirmed" "$h6_status"
+
+    assert_pass_if_clean "test_h6_confirmed_large_skill_file_size"
+}
+
+# ── test_h8_confirmed_enter_without_exit ─────────────────────────────────────
+# SKILL_ENTER with no matching SKILL_EXIT → H8=confirmed
+test_h8_confirmed_enter_without_exit() {
+    _snapshot_fail
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local logfile="$tmpdir/dso-skill-trace-h8.log"
+
+    # INVOKE (no RESUMED = CONTROL_LOSS to ensure hypotheses are classified)
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:39:27Z","skill_name":"sprint","nesting_depth":1,"session_ordinal":1,"tool_call_count":10,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+    # SKILL_ENTER at ordinal=2 with no matching SKILL_EXIT
+    printf '{"type":"SKILL_ENTER","timestamp":"2026-04-02T17:39:28Z","skill_name":"preplanning","nesting_depth":2,"session_ordinal":2,"tool_call_count":15,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+
+    local output exit_code=0
+    output=$(_run_analyze "$logfile") || exit_code=$?
+
+    assert_eq "test_h8_confirmed_enter_without_exit: exits 0" "0" "$exit_code"
+
+    local h8_status
+    h8_status=$(_get_hypothesis "$output" "H8")
+    assert_eq "test_h8_confirmed_enter_without_exit: H8=confirmed when SKILL_ENTER has no matching SKILL_EXIT" "confirmed" "$h8_status"
+
+    assert_pass_if_clean "test_h8_confirmed_enter_without_exit"
+}
+
+# ── test_h9_confirmed_multiple_control_loss ───────────────────────────────────
+# Two INVOKE without RESUMED → two CONTROL_LOSS events → H9=confirmed
+test_h9_confirmed_multiple_control_loss() {
+    _snapshot_fail
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local logfile="$tmpdir/dso-skill-trace-h9.log"
+
+    # INVOKE ordinal=1 (no RESUMED)
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:39:27Z","skill_name":"sprint","nesting_depth":1,"session_ordinal":1,"tool_call_count":10,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+    # INVOKE ordinal=2 (no RESUMED)
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:40:00Z","skill_name":"preplanning","nesting_depth":1,"session_ordinal":2,"tool_call_count":20,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+
+    local output exit_code=0
+    output=$(_run_analyze "$logfile") || exit_code=$?
+
+    assert_eq "test_h9_confirmed_multiple_control_loss: exits 0" "0" "$exit_code"
+
+    local h9_status
+    h9_status=$(_get_hypothesis "$output" "H9")
+    assert_eq "test_h9_confirmed_multiple_control_loss: H9=confirmed when >=2 CONTROL_LOSS events" "confirmed" "$h9_status"
+
+    assert_pass_if_clean "test_h9_confirmed_multiple_control_loss"
+}
+
+# ── test_h10_confirmed_all_invokes_are_control_loss ───────────────────────────
+# All INVOKEs lack RESUMED (every invoke is a CONTROL_LOSS) → H10=confirmed
+test_h10_confirmed_all_invokes_are_control_loss() {
+    _snapshot_fail
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local logfile="$tmpdir/dso-skill-trace-h10.log"
+
+    # Two INVOKEs, neither has a RESUMED → both are CONTROL_LOSS → H10=confirmed
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:39:27Z","skill_name":"sprint","nesting_depth":1,"session_ordinal":1,"tool_call_count":10,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:40:00Z","skill_name":"preplanning","nesting_depth":1,"session_ordinal":2,"tool_call_count":20,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+
+    local output exit_code=0
+    output=$(_run_analyze "$logfile") || exit_code=$?
+
+    assert_eq "test_h10_confirmed_all_invokes_are_control_loss: exits 0" "0" "$exit_code"
+
+    local h10_status
+    h10_status=$(_get_hypothesis "$output" "H10")
+    assert_eq "test_h10_confirmed_all_invokes_are_control_loss: H10=confirmed when all invokes lack RESUMED" "confirmed" "$h10_status"
+
+    assert_pass_if_clean "test_h10_confirmed_all_invokes_are_control_loss"
+}
+
+# ── test_h10_refuted_some_invokes_resumed ─────────────────────────────────────
+# One INVOKE has RESUMED, one does not → not all lost → H10=refuted
+test_h10_refuted_some_invokes_resumed() {
+    _snapshot_fail
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local logfile="$tmpdir/dso-skill-trace-h10r.log"
+
+    # ordinal=1: complete pair (no CONTROL_LOSS)
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:39:27Z","skill_name":"sprint","nesting_depth":1,"session_ordinal":1,"tool_call_count":10,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+    printf '{"type":"SKILL_RESUMED","timestamp":"2026-04-02T17:39:28Z","skill_name":"sprint","nesting_depth":1,"session_ordinal":1,"tool_call_count":10,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+    # ordinal=2: no RESUMED (CONTROL_LOSS)
+    printf '{"type":"SKILL_INVOKE","timestamp":"2026-04-02T17:40:00Z","skill_name":"preplanning","nesting_depth":1,"session_ordinal":2,"tool_call_count":20,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}\n' \
+        >> "$logfile"
+
+    local output exit_code=0
+    output=$(_run_analyze "$logfile") || exit_code=$?
+
+    assert_eq "test_h10_refuted_some_invokes_resumed: exits 0" "0" "$exit_code"
+
+    local h10_status
+    h10_status=$(_get_hypothesis "$output" "H10")
+    assert_eq "test_h10_refuted_some_invokes_resumed: H10=refuted when only some invokes are CONTROL_LOSS" "refuted" "$h10_status"
+
+    assert_pass_if_clean "test_h10_refuted_some_invokes_resumed"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_control_loss_detected
 test_no_false_positive_complete_pairs
@@ -366,5 +675,16 @@ test_empty_log_graceful_exit
 test_nonexistent_log_graceful_exit
 test_malformed_lines_skipped_without_crash
 test_multiple_nested_invocations_correct_pairing
+test_h1_confirmed_high_tool_call_count
+test_h1_refuted_low_tool_call_count
+test_h2_confirmed_high_cumulative_bytes
+test_h3_confirmed_long_elapsed_ms
+test_h4_confirmed_high_user_interaction
+test_h5_confirmed_late_session_ordinal
+test_h6_confirmed_large_skill_file_size
+test_h8_confirmed_enter_without_exit
+test_h9_confirmed_multiple_control_loss
+test_h10_confirmed_all_invokes_are_control_loss
+test_h10_refuted_some_invokes_resumed
 
 print_summary
