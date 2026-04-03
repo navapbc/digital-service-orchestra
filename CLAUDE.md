@@ -19,7 +19,6 @@
 | Epic decomposition into stories | `/dso:preplanning` |
 | Story to task breakdown | `/dso:implementation-plan` |
 | Fix a bug (TDD-based) | `/dso:fix-bug` |
-| TDD development cycle | `/dso:tdd-workflow` (new features only) |
 | Diagnose and fix failures | `/dso:debug-everything` |
 | Commit with review gates | `/dso:commit` |
 | Code review via sub-agent | `/dso:review` |
@@ -147,7 +146,7 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 **Worktree session setup**: See `plugins/dso/docs/WORKTREE-GUIDE.md` (Session Setup section).
 
 **Epics**: Use `/dso:sprint` — it runs `plugins/dso/scripts/validate.sh --ci` automatically and blocks until the codebase is healthy.
-**Bug fixes**: Use `/dso:fix-bug` — TDD-based; investigates before fixing. Do NOT use `/dso:tdd-workflow` for bug fixes; tdd-workflow is for new feature TDD only.
+**Bug fixes**: Use `/dso:fix-bug` — TDD-based; investigates before fixing.
 **Docs, research**: Start directly. Validation runs at commit time for code changes (skipped for docs-only commits).
 **Before `/dso:debug-everything`**: Run `plugins/dso/scripts/estimate-context-load.sh debug-everything`. If static load >10,000 tokens, trim `MEMORY.md` before starting to avoid premature compaction.
 **`/dso:debug-everything` two-mode flow**: When open bug tickets exist, it enters Bug-Fix Mode — reads `/dso:fix-bug` SKILL.md inline at orchestrator level (preserving Agent tool access) and applies it to each open ticket, then runs Validation Mode (inner fix→validate loop, bounded by `debug.max_fix_validate_cycles`, default 3). When no open bugs exist, it runs the diagnostic scan (Phase 1) → triage sub-agent (Phase 2) → fix pipeline. Interactivity is declared at session start; non-interactive mode defers user-blocking gates as `INTERACTIVITY_DEFERRED` ticket comments instead of pausing. Complexity evaluation happens post-investigation in `/dso:fix-bug` (Step 4.5), after the bug is fully understood — not pre-investigation in `/dso:debug-everything`.

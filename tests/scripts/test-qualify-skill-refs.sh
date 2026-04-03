@@ -29,7 +29,7 @@ echo "=== test-qualify-skill-refs.sh ==="
 #   Alternation: match EITHER a full URL (kept unchanged) OR an unqualified skill ref (qualified).
 _apply_fixer_regex() {
     local _content="$1"
-    local _skill_alternation="sprint|commit|review|end|tdd-workflow|implementation-plan|preplanning|debug-everything|brainstorm|plan-review|interface-contracts|resolve-conflicts|retro|roadmap|oscillation-check|design-onboarding|design-review|ui-discover|dev-onboarding|validate-work|tickets-health|playwright-debug|dryrun|quick-ref|fix-cascade-recovery|fix-bug"
+    local _skill_alternation="sprint|commit|review|end|implementation-plan|preplanning|debug-everything|brainstorm|plan-review|interface-contracts|resolve-conflicts|retro|roadmap|oscillation-check|design-onboarding|design-review|ui-discover|dev-onboarding|validate-work|tickets-health|playwright-debug|dryrun|quick-ref|fix-cascade-recovery|fix-bug"
     printf '%s' "$_content" | perl -pe "s{(https?://\S+)|(?<![a-zA-Z0-9_/])(?<!dso:)/(${_skill_alternation})(?![a-zA-Z0-9_:-])}{ defined \$1 ? \$1 : \"/dso:\$2\" }ge"
 }
 

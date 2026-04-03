@@ -341,23 +341,6 @@
       ]
     },
     {
-      "id": "skill-tdd-workflow-exists",
-      "category": "skill-activation",
-      "phase_introduced": 0,
-      "hook": "plugins/dso/skills/tdd-workflow/SKILL.md",
-      "setup": {
-        "stdin": "",
-        "state_files": {},
-        "env": {}
-      },
-      "assertions": [
-        {
-          "type": "file_exists",
-          "path": "plugins/dso/skills/tdd-workflow/SKILL.md"
-        }
-      ]
-    },
-    {
       "id": "skill-ui-discover-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
@@ -456,23 +439,6 @@
         {
           "type": "file_exists",
           "path": "plugins/dso/skills/review-protocol/SKILL.md"
-        }
-      ]
-    },
-    {
-      "id": "plugin-scaffold-skill-tdd-workflow-exists",
-      "category": "plugin-scaffold-phase1",
-      "phase_introduced": 1,
-      "hook": "plugins/dso/skills/tdd-workflow/SKILL.md",
-      "setup": {
-        "stdin": "",
-        "state_files": {},
-        "env": {}
-      },
-      "assertions": [
-        {
-          "type": "file_exists",
-          "path": "plugins/dso/skills/tdd-workflow/SKILL.md"
         }
       ]
     },
@@ -711,24 +677,6 @@
         {
           "type": "file_contains",
           "path": "plugins/dso/skills/sprint/SKILL.md",
-          "pattern": "read-config"
-        }
-      ]
-    },
-    {
-      "id": "tdd-workflow-skill-reads-config",
-      "category": "plugin-config-phase2",
-      "phase_introduced": 2,
-      "hook": "plugins/dso/skills/tdd-workflow/SKILL.md",
-      "setup": {
-        "stdin": "",
-        "state_files": {},
-        "env": {}
-      },
-      "assertions": [
-        {
-          "type": "file_contains",
-          "path": "plugins/dso/skills/tdd-workflow/SKILL.md",
           "pattern": "read-config"
         }
       ]

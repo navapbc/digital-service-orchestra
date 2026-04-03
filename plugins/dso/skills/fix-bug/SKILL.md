@@ -1,6 +1,6 @@
 ---
 name: fix-bug
-description: Classify bugs by type and severity, then route through the appropriate investigation and fix path. Replaces tdd-workflow for bug fixes.
+description: Classify bugs by type and severity, then route through the appropriate investigation and fix path.
 user-invocable: true
 ---
 
@@ -8,7 +8,7 @@ user-invocable: true
 
 Enforce a hard separation between investigation and implementation. Bugs are classified, scored, investigated to root cause, and only then fixed — with TDD discipline ensuring the fix is verified.
 
-This skill replaces `/dso:tdd-workflow` for bug fixes. For new feature development using TDD, continue to use `/dso:tdd-workflow`.
+This skill handles bug fixes with investigation-first TDD discipline.
 
 <HARD-GATE>
 Do NOT modify any code, write any fix, or make any file changes until Steps 1–5 are complete (classify, investigate, hypothesis test, approve, RED test). This applies regardless of how simple or obvious the bug appears. Steps 1–5 must complete before any code modification.
