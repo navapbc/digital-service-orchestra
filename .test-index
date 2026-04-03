@@ -74,6 +74,7 @@ plugins/dso/scripts/issue-batch.sh:tests/scripts/test-utility-scripts-v2-removal
 plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test_issue_quality_check_file_impact.py
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh
 plugins/dso/scripts/project-detect.sh:tests/scripts/test-ci-generator-integration.sh,tests/scripts/test-project-detect.sh
+plugins/dso/scripts/ticket:tests/scripts/test-ticket-sync-preserves-local.sh
 plugins/dso/scripts/ticket-bridge-status.sh:tests/scripts/test_bridge_status.py
 plugins/dso/scripts/ticket-graph.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket-lib.sh:tests/scripts/test_revert_event.py,tests/scripts/test-ticket-lib.sh,tests/scripts/test-ticket-health-guards.sh

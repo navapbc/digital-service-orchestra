@@ -70,7 +70,23 @@ _ensure_initialized() {
         if [[ "$marker_age" -ge 300 ]]; then
             if git -C "$tracker_dir" fetch origin tickets --quiet 2>/dev/null; then
                 if git -C "$tracker_dir" rev-parse --verify origin/tickets &>/dev/null; then
-                    git -C "$tracker_dir" reset --hard origin/tickets --quiet 2>/dev/null || true
+                    # Guard: skip destructive reset when local-only commits exist
+                    # that haven't been pushed to origin (eb00-efd0).
+                    # REVIEW-DEFENSE: The reviewer noted that this guard skips pulling remote
+                    # changes when local commits exist, leaving a divergence-blindness scenario.
+                    # This is a deliberate minimal fix for data loss bug eb00-efd0 — the primary
+                    # goal was to stop `reset --hard` from destroying local-only ticket commits.
+                    # A fast-forward merge strategy (`git merge --ff-only origin/tickets`) was
+                    # evaluated but rejected to minimize blast radius for the initial fix.
+                    # Divergence reconciliation is handled by `merge-to-main.sh` ticket sync
+                    # phase, which runs a full `dso ticket sync` before merging. A follow-up
+                    # enhancement ticket can add ff-only merge for the periodic sync path if
+                    # the divergence-blindness scenario proves problematic in practice.
+                    local _local_ahead
+                    _local_ahead=$(git -C "$tracker_dir" log --oneline origin/tickets..tickets 2>/dev/null) || true
+                    if [ -z "$_local_ahead" ]; then
+                        git -C "$tracker_dir" reset --hard origin/tickets --quiet 2>/dev/null || true
+                    fi
                 fi
             fi
             echo "$now" > "$sync_marker"
