@@ -23,7 +23,6 @@
 | Feature ideation to epic spec | `/dso:brainstorm` | New feature exploration |
 | Epic decomposition into stories | `/dso:preplanning` | After epic creation |
 | Story to task breakdown | `/dso:implementation-plan` | Before coding a story |
-| TDD development cycle | `/dso:tdd-workflow` | Bug fixes, code changes |
 | Diagnose and fix failures | `/dso:debug-everything` | Test/CI/runtime failures |
 | Commit with review gates | `/dso:commit` | Ready to commit |
 | Code review via sub-agent | `/dso:review` | Pre-commit review |
