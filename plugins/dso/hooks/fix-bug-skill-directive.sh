@@ -33,8 +33,11 @@ INPUT=$(cat)
 # Extract the user's prompt text
 MSG=$(parse_json_field "$INPUT" '.prompt')
 
-# Check for slash-anchored /fix-bug or /dso:fix-bug (slash required)
-if echo "$MSG" | grep -qE '/(dso:)?fix-bug'; then
+# Check for /fix-bug or /dso:fix-bug at the start of the prompt (command position).
+# Only match when the slash command is the first non-whitespace content — this
+# prevents false positives from task notifications and narrative text that
+# references the skill (bug fbd3-60c9).
+if printf '%s' "$MSG" | grep -qE '^\s*/(dso:)?fix-bug'; then
     printf '%s\n' "IMPORTANT: The user has invoked the /fix-bug skill. You MUST invoke the Skill tool with skill=\"fix-bug\" as your FIRST action before any other response or tool call. Do not begin investigation, reading files, or any other activity until you have invoked the Skill tool."
 fi
 

@@ -107,18 +107,18 @@ test_fix_bug_unrelated_message_produces_no_output() {
 }
 
 # ============================================================
-# test_fix_bug_embedded_in_sentence_triggers_directive
-# '/fix-bug' embedded in a longer sentence should still fire the
-# directive. Exit code must be 0.
+# test_fix_bug_embedded_in_sentence_no_false_positive
+# '/fix-bug' embedded mid-sentence should NOT fire the directive
+# after bug fbd3-60c9 fix — only start-of-prompt matches.
 # ============================================================
-test_fix_bug_embedded_in_sentence_triggers_directive() {
+test_fix_bug_embedded_in_sentence_no_false_positive() {
     local _exit_code=0
     local _output=""
     local _payload
     _payload=$(_make_payload "please use /fix-bug to investigate the crash in production")
     _output=$(printf '%s' "$_payload" | bash "$HOOK_SCRIPT" 2>/dev/null) || _exit_code=$?
-    assert_eq "test_fix_bug_embedded_in_sentence_triggers_directive: exit 0" "0" "$_exit_code"
-    assert_contains "test_fix_bug_embedded_in_sentence_triggers_directive: stdout contains directive" "Skill" "$_output"
+    assert_eq "test_fix_bug_embedded_in_sentence_no_false_positive: exit 0" "0" "$_exit_code"
+    assert_eq "test_fix_bug_embedded_in_sentence_no_false_positive: stdout is empty" "" "$_output"
 }
 
 # ============================================================
@@ -209,6 +209,23 @@ test_directive_qualified_command_names_fix_bug() {
     assert_contains "test_directive_qualified_command_names_fix_bug: directive says 'FIRST'" "FIRST" "$_output"
 }
 
+# ============================================================
+# test_fix_bug_task_notification_no_false_positive
+# A task notification that references /dso:fix-bug in narrative
+# text (e.g., "Running /dso:fix-bug on ticket...") must NOT trigger
+# the directive. The hook should only match standalone slash commands.
+# Bug fbd3-60c9.
+# ============================================================
+test_fix_bug_task_notification_no_false_positive() {
+    local _exit_code=0
+    local _output=""
+    local _payload
+    _payload=$(_make_payload "Running /dso:fix-bug on ticket fbd3-60c9 — investigation complete, 3 findings")
+    _output=$(printf '%s' "$_payload" | bash "$HOOK_SCRIPT" 2>/dev/null) || _exit_code=$?
+    assert_eq "test_fix_bug_task_notification_no_false_positive: exit 0" "0" "$_exit_code"
+    assert_eq "test_fix_bug_task_notification_no_false_positive: stdout is empty (no false positive)" "" "$_output"
+}
+
 # --- Run all tests ---
 echo "--- test_fix_bug_slash_command_triggers_directive ---"
 test_fix_bug_slash_command_triggers_directive
@@ -219,8 +236,8 @@ test_fix_bug_qualified_command_triggers_directive
 echo "--- test_fix_bug_unrelated_message_produces_no_output ---"
 test_fix_bug_unrelated_message_produces_no_output
 
-echo "--- test_fix_bug_embedded_in_sentence_triggers_directive ---"
-test_fix_bug_embedded_in_sentence_triggers_directive
+echo "--- test_fix_bug_embedded_in_sentence_no_false_positive ---"
+test_fix_bug_embedded_in_sentence_no_false_positive
 
 echo "--- test_fix_bug_pattern_match ---"
 test_fix_bug_pattern_match
@@ -239,5 +256,8 @@ test_directive_prohibits_prior_investigation
 
 echo "--- test_directive_qualified_command_names_fix_bug ---"
 test_directive_qualified_command_names_fix_bug
+
+echo "--- test_fix_bug_task_notification_no_false_positive ---"
+test_fix_bug_task_notification_no_false_positive
 
 print_summary
