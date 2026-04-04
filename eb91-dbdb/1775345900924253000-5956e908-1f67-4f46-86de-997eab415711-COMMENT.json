@@ -1,0 +1,1 @@
+{"timestamp": 1775345900924253000, "uuid": "5956e908-1f67-4f46-86de-997eab415711", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Fixed: .test-index RED markers verified; stale markers cleaned up after GREEN implementation."}}
