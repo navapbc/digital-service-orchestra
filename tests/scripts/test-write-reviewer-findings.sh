@@ -203,6 +203,107 @@ assert_eq "test_dimensions_key_normalized_to_scores" "scores_key" "$actual"
 # Clean up
 rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 
+# ---------------------------------------------------------------------------
+# --review-tier flag tests (RED: write-reviewer-findings.sh does not support
+# --review-tier yet; these tests document the expected behaviour)
+# ---------------------------------------------------------------------------
+# REVIEW-DEFENSE: field_in_json tests assert review_tier as a top-level key.
+# validate-review-output.sh currently enforces exactly 3 top-level keys. This
+# is intentional TDD RED state — the GREEN implementation task will add
+# --review-tier support to write-reviewer-findings.sh AND update
+# validate-review-output.sh schema to accept review_tier as a 4th top-level
+# key. Both changes are scoped to the same GREEN task, ensuring the validator
+# contract and writer output stay in sync. The .test-index RED markers for
+# these tests enforce that the test gate tolerates their current failure.
+
+# test_review_tier_light_accepted
+# --review-tier light should exit 0 and produce a review_tier field in the output JSON.
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$VALID_JSON" | "$SCRIPT" --review-tier light 2>/dev/null && tier_light_exit=0 || tier_light_exit=$?
+assert_eq "test_review_tier_light_exit_code" "0" "$tier_light_exit"
+
+if [[ -f "$ARTIFACTS_DIR/reviewer-findings.json" ]]; then
+    if python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings.json')); assert d.get('review_tier') == 'light'" 2>/dev/null; then
+        tier_light_field="present"
+    else
+        tier_light_field="missing_or_wrong"
+    fi
+else
+    tier_light_field="no_file"
+fi
+assert_eq "test_review_tier_light_field_in_json" "present" "$tier_light_field"
+
+# test_review_tier_standard_accepted
+# --review-tier standard should exit 0.
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$VALID_JSON" | "$SCRIPT" --review-tier standard 2>/dev/null && tier_std_exit=0 || tier_std_exit=$?
+assert_eq "test_review_tier_standard_exit_code" "0" "$tier_std_exit"
+
+if [[ -f "$ARTIFACTS_DIR/reviewer-findings.json" ]]; then
+    if python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings.json')); assert d.get('review_tier') == 'standard'" 2>/dev/null; then
+        tier_std_field="present"
+    else
+        tier_std_field="missing_or_wrong"
+    fi
+else
+    tier_std_field="no_file"
+fi
+assert_eq "test_review_tier_standard_field_in_json" "present" "$tier_std_field"
+
+# test_review_tier_deep_accepted
+# --review-tier deep should exit 0.
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$VALID_JSON" | "$SCRIPT" --review-tier deep 2>/dev/null && tier_deep_exit=0 || tier_deep_exit=$?
+assert_eq "test_review_tier_deep_exit_code" "0" "$tier_deep_exit"
+
+if [[ -f "$ARTIFACTS_DIR/reviewer-findings.json" ]]; then
+    if python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings.json')); assert d.get('review_tier') == 'deep'" 2>/dev/null; then
+        tier_deep_field="present"
+    else
+        tier_deep_field="missing_or_wrong"
+    fi
+else
+    tier_deep_field="no_file"
+fi
+assert_eq "test_review_tier_deep_field_in_json" "present" "$tier_deep_field"
+
+# test_review_tier_invalid_rejected
+# --review-tier invalid should exit non-zero.
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$VALID_JSON" | "$SCRIPT" --review-tier invalid 2>/dev/null && tier_inv_exit=0 || tier_inv_exit=$?
+if [[ "$tier_inv_exit" -ne 0 ]]; then
+    tier_inv_result="rejected"
+else
+    tier_inv_result="accepted"
+fi
+assert_eq "test_review_tier_invalid_rejected" "rejected" "$tier_inv_result"
+
+# test_review_tier_wrong_case_Deep_rejected
+# --review-tier Deep (wrong case) should exit non-zero — enum is lowercase only.
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$VALID_JSON" | "$SCRIPT" --review-tier Deep 2>/dev/null && tier_deep_case_exit=0 || tier_deep_case_exit=$?
+if [[ "$tier_deep_case_exit" -ne 0 ]]; then
+    tier_deep_case_result="rejected"
+else
+    tier_deep_case_result="accepted"
+fi
+assert_eq "test_review_tier_wrong_case_Deep_rejected" "rejected" "$tier_deep_case_result"
+
+# test_review_tier_wrong_case_LIGHT_rejected
+# --review-tier LIGHT (wrong case) should exit non-zero — enum is lowercase only.
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$VALID_JSON" | "$SCRIPT" --review-tier LIGHT 2>/dev/null && tier_light_case_exit=0 || tier_light_case_exit=$?
+if [[ "$tier_light_case_exit" -ne 0 ]]; then
+    tier_light_case_result="rejected"
+else
+    tier_light_case_result="accepted"
+fi
+assert_eq "test_review_tier_wrong_case_LIGHT_rejected" "rejected" "$tier_light_case_result"
+
+# ---------------------------------------------------------------------------
+# End --review-tier tests
+# ---------------------------------------------------------------------------
+
 # test_write_old_dimension_names_rejected
 # Piping JSON with OLD dimension names should exit 1 (validator rejects them).
 OLD_DIM_JSON='{
