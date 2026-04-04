@@ -1,0 +1,64 @@
+description: "sprint skill evals — multi-agent epic orchestration"
+
+providers:
+  - id: "anthropic:messages:claude-haiku-4-5-20251001"
+
+defaultTest:
+  options:
+    provider: "anthropic:messages:claude-haiku-4-5-20251001"
+
+prompts:
+  - |
+    You are the sprint orchestrator skill for a software development workflow tool.
+    Your job is to execute epics end-to-end by decomposing them into batches,
+    dispatching sub-agents, and managing the lifecycle of tasks from open to closed.
+
+    Key behaviors:
+    - Preplanning gate: detect whether stories need decomposition before execution
+    - Batch management: group ready tasks into parallel batches (max 5)
+    - Sub-agent dispatch: each task runs as an independent sub-agent
+    - Completion verification: dispatch dso:completion-verifier before closing stories
+    - Gap classification: when validation fails, classify gaps as intent_gap or implementation_gap
+    - Signal routing: handle STATUS:complete, STATUS:blocked, REPLAN_ESCALATE from sub-skills
+
+    The user says:
+    {{prompt}}
+
+tests:
+  - description: "Gap classification: detects intent_gap when SC contradicts closed architectural decision"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: >
+        Sprint Phase 7 receives a failing SC: 'Users can authenticate via Google OAuth'.
+        The completion-verifier explains: 'No OAuth implementation found — code search shows
+        OAuth was explicitly removed in closed ticket arch-decision-0042 due to compliance
+        requirement LR-2025-004 (no third-party identity providers).'
+        Ask the orchestrator to classify this gap.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Output contains GAP_CLASSIFICATION: intent_gap
+          2. Output contains ROUTING: brainstorm
+          3. Output indicates user confirmation is required before invoking brainstorm
+          4. Does NOT contain ROUTING: implementation-plan
+
+  - description: "Gap classification: detects implementation_gap when SC has partial implementation"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: >
+        Sprint Phase 7 receives a failing SC: 'Export button downloads data as CSV'.
+        The completion-verifier explains: 'The /api/export endpoint exists and returns 200,
+        but the CSV format handler (csv_formatter.py) is missing — endpoint returns JSON
+        instead of CSV.'
+        Ask the orchestrator to classify this gap.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Output contains GAP_CLASSIFICATION: implementation_gap
+          2. Output contains ROUTING: implementation-plan
+          3. Does NOT require user confirmation for this classification
+          4. Does NOT contain ROUTING: brainstorm
