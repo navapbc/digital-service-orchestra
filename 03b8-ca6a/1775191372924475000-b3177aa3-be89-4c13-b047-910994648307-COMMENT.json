@@ -1,1 +1,0 @@
-{"timestamp": 1775191372924475000, "uuid": "b3177aa3-be89-4c13-b047-910994648307", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: behavioral, Score: 5 (INTERMEDIATE). Fix complexity: COMPLEX \u2014 523 occurrences across 114 test files. Escalating per fix-bug Step 4.5."}}
