@@ -269,5 +269,5 @@ plugins/dso/scripts/sprint-list-epics.sh: tests/scripts/test-ticket-lifecycle-sy
 plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/scripts/test-sub-agent-boundaries-cli-user-tag.sh
 CLAUDE.md:tests/scripts/test-claude-md-cli-user-guidance.sh
 plugins/dso/skills/debug-everything/SKILL.md:tests/scripts/test-debug-everything-bug-fix-mode.sh
-plugins/dso/docs/ticket-cli-reference.md:tests/scripts/test-ticket-cli-reference-md-tags.sh [test_ticket_cli_reference_has_tags_flag]
+plugins/dso/docs/ticket-cli-reference.md:tests/scripts/test-ticket-cli-reference-md-tags.sh
 CLAUDE.md:tests/scripts/test-claude-md-fix-bug-gates.sh
