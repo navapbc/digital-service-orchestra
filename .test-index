@@ -270,4 +270,4 @@ plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/scripts/test-sub-agent-boundaries
 CLAUDE.md:tests/scripts/test-claude-md-cli-user-guidance.sh
 plugins/dso/skills/debug-everything/SKILL.md:tests/scripts/test-debug-everything-bug-fix-mode.sh
 plugins/dso/docs/ticket-cli-reference.md:tests/scripts/test-ticket-cli-reference-md-tags.sh [test_ticket_cli_reference_has_tags_flag]
-CLAUDE.md:tests/scripts/test-claude-md-fix-bug-gates.sh [test_claude_md_cli_user_skips_intent_search]
+CLAUDE.md:tests/scripts/test-claude-md-fix-bug-gates.sh

@@ -29,7 +29,7 @@
 | Merge worktree to main | `plugins/dso/scripts/merge-to-main.sh` |
 | List ready tickets | `.claude/scripts/dso ticket list` |
 | Show ticket details | `.claude/scripts/dso ticket show <id>` |
-| Create a ticket | `.claude/scripts/dso ticket create <type> <title> [-d/--description <text>]` |
+| Create a ticket | `.claude/scripts/dso ticket create <type> <title> [-d/--description <text>] [--tags <tag>]` |
 | Close a ticket | `.claude/scripts/dso ticket transition <id> <current> closed` (bug tickets require `--reason="Fixed: <summary>"`) |
 | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` |
 | Sync with Jira | `.claude/scripts/dso ticket sync` |
@@ -42,7 +42,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 
 ## Architecture
 
-**Ticket system v3 (event-sourced)**: Orphan branch `tickets` → `.tickets-tracker/`. CLI: `.claude/scripts/dso ticket <subcommand>` (ref: `plugins/dso/docs/ticket-cli-reference.md`). Archived tickets excluded from list/deps by default; `--include-archived` to override. **Jira bridge**: `.claude/scripts/dso ticket sync` (incremental default, `--full` to force, `--check` for dry-run). Requires `JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`.
+**Ticket system v3 (event-sourced)**: Orphan branch `tickets` → `.tickets-tracker/`. CLI: `.claude/scripts/dso ticket <subcommand>` (ref: `plugins/dso/docs/ticket-cli-reference.md`). Archived tickets excluded from list/deps by default; `--include-archived` to override. **Jira bridge**: `.claude/scripts/dso ticket sync` (incremental default, `--full` to force, `--check` for dry-run). Requires `JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`. The --tags flag sets tags atomically at creation time (comma-separated). The CLI_user tag marks bugs reported explicitly by a human during an interactive session; /dso:fix-bug Gate 1a skips the dso:intent-search dispatch for CLI_user-tagged bugs, setting GATE_1A_RESULT="intent-aligned" directly.
 **Hook architecture**: Consolidated dispatchers (`pre-bash.sh` + `post-bash.sh`). All hooks are jq-free — use `parse_json_field`, `json_build`, and `python3` for JSON parsing. See `plugins/dso/hooks/dispatchers/` and `plugins/dso/hooks/lib/`. **Shared merge-state library** (`plugins/dso/hooks/lib/merge-state.sh`): centralizes merge/rebase detection for all enforcement hooks. `ms_` namespace. Fail-open when state is indeterminate. Test injection: set `_MERGE_STATE_GIT_DIR` before sourcing. See file for full API. **Review gate (two-layer)**: Layer 1 — `pre-commit-review-gate.sh` (git hook); Layer 2 — `review-gate.sh` (PreToolUse hook) blocks `--no-verify` and plumbing bypasses. Both layers handle MERGE_HEAD and REBASE_HEAD via `merge-state.sh`. See Never-Do rule 22. **Test gate**: `pre-commit-test-gate.sh` verifies test status per staged file. Centrality-aware (`record-test-status.sh`): high fan-in files trigger full suite. Config: `test_gate.*` in `dso-config.conf`. `.test-index` maps source → tests; RED marker `[test_name]` tolerates failures at that boundary. **Epic closure**: blocked while any `[marker]` entries remain in `.test-index`.
 **Validation gate**: `validate.sh` writes state; hooks block sprint/epic if validation hasn't passed. `--verbose` for real-time progress.
 **Portability lint**: `check-portability.sh` (registered as pre-commit hook) blocks commits containing hardcoded `/Users/<name>/` or `/home/<name>/` paths. Inline suppression: append `# portability-ok` to exempt a line. CI validation: `.github/workflows/portability-smoke.yml` validates zero-config shim detection in a clean Ubuntu container.
@@ -56,7 +56,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 | `dso:conflict-analyzer` | sonnet | `/dso:resolve-conflicts` |
 | `dso:bot-psychologist` | sonnet | `/dso:fix-bug` llm-behavioral path (dispatched or read inline when sub-agent) |
 | `dso:doc-writer` | sonnet | `/dso:sprint` (doc stories), `/dso:update-docs` |
-| `dso:intent-search` | sonnet | `/dso:fix-bug` Step 1.5 (Gate 1a — pre-investigation intent search) |
+| `dso:intent-search` | sonnet | `/dso:fix-bug` Step 1.5 (Gate 1a — pre-investigation intent search; skipped for CLI_user-tagged bugs) |
 | `dso:feasibility-reviewer` | sonnet | `/dso:brainstorm` (conditional, on integration signals) |
 | `dso:red-team-reviewer` | opus | `/dso:preplanning` Phase 2.5 |
 | `dso:blue-team-filter` | sonnet | `/dso:preplanning` Phase 2.5 |
