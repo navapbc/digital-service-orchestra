@@ -137,6 +137,51 @@ tests:
           (4) the halt message must reference the specific action required: running
           /dso:brainstorm on the epic to clear the scrutiny:pending tag.
 
+  - description: "Re-invocation guard: detects existing children and avoids duplicate tasks"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Please create an implementation plan for this user story:
+
+        Story ID: story-def456
+        Story: "As a developer, I want the CI pipeline to report test coverage so I can
+        track quality trends over time."
+
+        When you run `dso ticket deps story-def456` (or `dso ticket show story-def456`
+        listing children via --include-archived), the output shows:
+        [
+          {
+            "ticket_id": "task-001",
+            "type": "task",
+            "title": "Write RED test for coverage reporter",
+            "status": "closed"
+          },
+          {
+            "ticket_id": "task-002",
+            "type": "task",
+            "title": "Implement coverage reporter module",
+            "status": "in_progress"
+          }
+        ]
+
+        Proceed with the implementation plan.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output detects that the story already has children (existing tasks) and
+          does NOT create duplicate tasks. Instead it should:
+          (1) identify that existing children were found for the story — specifically
+          closed task "task-001" and in-progress task "task-002",
+          (2) treat closed children as read-only historical context — it must NOT
+          propose recreating or reopening them,
+          (3) flag the in-progress task (task-002) as already underway and only propose
+          work for genuinely missing or unstarted tasks not already covered,
+          (4) produce a diff plan (gap-filling plan) rather than a full new decomposition —
+          if all tasks are accounted for, it should note that no new tasks are needed,
+          (5) NOT create any task that duplicates or conflicts with an existing child task —
+          duplicate task creation is explicitly prohibited when children already exist.
+
   - description: "Surfaces blocking ambiguities and defaultable assumptions before planning"
     vars:
       prompt: |
