@@ -112,18 +112,21 @@ def test_gap_analysis_precedes_fidelity_review() -> None:
     so the spec author can address them before reviewers evaluate the spec.
     """
     content = _read_skill()
-    # Find positions of the gap analysis section and the fidelity review section
+    # Find positions of the gap analysis section and the fidelity review section.
+    # Use "fidelity reviewer" rather than "Step 3" because "Step 3" also appears in
+    # Phase 1 ("Step 3 — Proceed to Phase 2") which precedes the Phase 2 gap analysis.
     gap_analysis_pos = content.find("Step 2.5")
-    fidelity_review_pos = content.find("Step 3")
+    fidelity_review_pos = content.find("fidelity reviewer")
     assert gap_analysis_pos != -1, (
         "Expected brainstorm SKILL.md to contain a 'Step 2.5' section for gap analysis. "
         "This is a RED test — Step 2.5 gap analysis section may not be labeled correctly."
     )
     assert fidelity_review_pos != -1, (
-        "Expected brainstorm SKILL.md to contain a 'Step 3' section for fidelity review."
+        "Expected brainstorm SKILL.md to contain a 'fidelity reviewer' reference after "
+        "the gap analysis section."
     )
     assert gap_analysis_pos < fidelity_review_pos, (
-        "Expected Step 2.5 (gap analysis) to appear BEFORE Step 3 (fidelity review) "
+        "Expected Step 2.5 (gap analysis) to appear BEFORE fidelity reviewers "
         "in the brainstorm SKILL.md. Gap analysis must run before reviewers evaluate "
         "the spec so completeness gaps can be addressed first."
     )

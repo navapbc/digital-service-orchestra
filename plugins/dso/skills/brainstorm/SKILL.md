@@ -311,9 +311,11 @@ Read and execute the shared epic scrutiny pipeline from `plugins/dso/skills/shar
 - `{caller_name}` = `brainstorm`
 - `{caller_prompts_dir}` = `$REPO_ROOT/plugins/dso/skills/brainstorm/prompts`
 
-#### Step 2.5 Supplement: ast-grep Pattern Discovery for Technical Self-Review
+#### Step 2.5 Supplement: Gap Analysis and ast-grep Pattern Discovery for Technical Self-Review
 
-During Part B (Technical Approach Self-Review) of the scrutiny pipeline's Step 1, use `sg` (ast-grep) for structural pattern matching when discovering existing codebase patterns that bear on technical feasibility. Structural search finds real code references rather than string matches, improving the accuracy of feasibility assessments.
+**Gap analysis reminder**: The scrutiny pipeline's Step 2.5 (gap analysis) cross-references user-named artifacts — file paths, CLI tools, data structures, API endpoints, config keys — against the success criteria text. For each user-named artifact, check whether it appears directly or by fuzzy/partial match (including abbreviations, aliases, and variant phrasing) in any success criterion. Flag any artifact named in the request that is absent from or not covered by the SCs, then ask the user whether the SCs are exhaustive relative to what they asked for.
+
+**During Part B (Technical Approach Self-Review)** of the scrutiny pipeline's Step 1, use `sg` (ast-grep) for structural pattern matching when discovering existing codebase patterns that bear on technical feasibility. Structural search finds real code references rather than string matches, improving the accuracy of feasibility assessments.
 
 Before invoking `sg`, check availability with the canonical guard:
 
@@ -413,6 +415,30 @@ Log format to append under the heading `### Planning Intelligence Log`:
 
 **Clean-text instruction**: Strip all provenance markers and bold emphasis before writing the ticket description. Provenance annotations are used only during the approval-gate review phase — the final ticket description must be written as clean plain text with no markup from the provenance tracking step.
 
+### Follow-on and Derivative Epic Gate
+
+<HARD-GATE>
+Do NOT call `ticket create` for any follow-on or derivative epic until the user has explicitly approved that epic's title, description, and success criteria in a separate approval step. Do NOT treat directional approval of the primary epic (Phase 2 Step 4, option a) as approval for any follow-on epic.
+</HARD-GATE>
+
+**When this gate applies**: A follow-on or derivative epic exists whenever:
+- The scope reviewer recommended splitting the primary epic and identified a second epic (Epic B).
+- The user made a directional statement requesting a future epic (e.g., "we should create a follow-up epic for X").
+- You identified a related epic during Phase 1 or Phase 2 that was out of scope for the primary epic.
+
+**Procedure for each follow-on epic** (execute before Step 1 for each follow-on, one at a time):
+1. **Draft the follow-on epic spec**: title, 1-2 sentence context, and 2-4 proposed success criteria. Seed from the scope reviewer's recommendation or the user's directional statement — do not invent scope.
+2. **Present and wait for explicit approval**:
+   ```
+   Follow-on epic proposed: "[Title]"
+   Context: [1-2 sentence description]
+   Proposed success criteria:
+   - [criterion 1]
+   - [criterion 2]
+   Shall I create this as a separate epic? (yes / no / let's refine it)
+   ```
+   Wait for the user's response before calling `ticket create`. If the user says "no" or requests refinement, update the spec or skip creation accordingly.
+
 ### Step 1: Create or Update the Epic
 
 **If an existing epic ID was passed as input** (i.e., the Type Detection Gate identified `ticket_type: epic`): do NOT call `ticket create`. Instead, update the existing epic's description with the refined spec from Phase 2:
@@ -494,7 +520,11 @@ Task tool:
   argument: <epic-id>
   context:
     tier_schema: SIMPLE
+    success_criteria_count: <count of SC bullet items in the approved spec from Phase 2>
+    scenario_survivor_count: <count of scenarios surviving blue team filter from Step 2.75, or 0 if Step 2.75 did not run>
 ```
+
+Compute `success_criteria_count` by counting the bullet items in the `## Success Criteria` section of the approved spec. Read `scenario_survivor_count` from the Planning-Intelligence Log entry recorded at Step 4 approval (or 0 if the scrutiny pipeline did not run scenario analysis).
 
 If the agent fails or returns malformed JSON (not parseable or missing the `classification` key), log a warning and fall through to full `/dso:preplanning` (full mode is the safe fallback default).
 
@@ -502,14 +532,21 @@ If the agent fails or returns malformed JSON (not parseable or missing the `clas
 
 Apply the brainstorm routing rule to the shared rubric's output. The key insight: brainstorm produces specs at varying fidelity levels. When the spec already includes explicit file lists, a defined approach, and measurable success criteria, preplanning (story decomposition) is redundant — route directly to `/dso:implementation-plan`.
 
+**Session-signal override** (applies before the routing table): If EITHER of the following is true based on the approved spec and scenario analysis from earlier in this session, override the evaluator's classification to COMPLEX regardless of its output:
+- `success_criteria_count ≥ 7` (exceeds the spec norm of 3–6; signals scope expansion)
+- `scenario_survivor_count ≥ 10` (high scenario density signals unresolved edge-case complexity)
+
+Log the override: `"Epic classified as COMPLEX (session-signal override: <reason>) — invoking /dso:preplanning"`
+
 | Classification | scope_certainty | Routing |
 |---|---|---|
 | TRIVIAL | High (always) | `/dso:implementation-plan <epic-id>` |
-| MODERATE | High | `/dso:implementation-plan <epic-id>` |
+| MODERATE | High | `/dso:preplanning <epic-id> --lightweight` |
 | MODERATE | Medium | `/dso:preplanning <epic-id> --lightweight` |
+| MODERATE | Low | Promoted to COMPLEX by evaluator — see COMPLEX row |
 | COMPLEX | any | `/dso:preplanning <epic-id>` (full mode) |
 
-**Rationale**: TRIVIAL and MODERATE+High epics have named files, testable acceptance criteria, and bounded scope — the brainstorm dialogue already produced story-level detail. Preplanning would add overhead without value. MODERATE+Medium epics have a clear goal but implicit acceptance criteria that need decomposition. COMPLEX epics require full story decomposition regardless of spec fidelity.
+**Rationale**: TRIVIAL epics route directly to `/dso:implementation-plan` — the brainstorm dialogue produced task-level detail. MODERATE+High epics route to `/dso:preplanning --lightweight` to run a risk/scope scan, detect qualitative overrides missed during brainstorm, and write structured done definitions before implementation planning. MODERATE+Medium epics have implicit acceptance criteria that need decomposition. MODERATE+Low is not a reachable combination in practice — the complexity-evaluator's promotion rule (`scope_certainty Low → COMPLEX always`) converts it to COMPLEX before routing. The row is listed for completeness. COMPLEX epics require full story decomposition regardless of spec fidelity.
 
 #### Step 4c: Invoke Next Skill
 
@@ -522,10 +559,15 @@ Epic classified as <TIER> (scope_certainty: <HIGH|MEDIUM|LOW>) — invoking /<sk
 Then immediately (same response, no pause):
 
 ```
-# TRIVIAL or MODERATE + scope_certainty High:
+# TRIVIAL:
 Skill tool:
   skill: "dso:implementation-plan"
   args: "<epic-id>"
+
+# MODERATE + scope_certainty High:
+Skill tool:
+  skill: "dso:preplanning"
+  args: "<epic-id> --lightweight"
 
 # MODERATE + scope_certainty Medium:
 Skill tool:
@@ -564,4 +606,4 @@ Skill tool:
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop; Phase 1 Gate: Understanding Summary (problem/users/scope/success structured bullets, wait for confirmation) → Intent Gap Analysis (self-reflect on inferred content, one question at a time, at most 3 questions total, exclude confirmed content, opt-in continuation) → proceed to Phase 2 |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Provenance Tracking (4 categories: explicit, confirmed-via-gap-question, inferred, researched); Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); Step 2.75 scenario analysis (red team + blue team sonnet sub-agents; always runs when ≥5 SCs or integration signal, reduced/cap 3 when 3-4 SCs, skip when ≤2 SCs; targets epic-level spec gaps — distinct from preplanning adversarial review which targets cross-story gaps); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics); Step 4 approval gate (annotation summary line before options: "N of M criteria confirmed; K inferred requiring review"; inferred/researched → bold, explicit/confirmed → normal; 4-option AskUserQuestion: approve/scenario re-run/web research re-run/discuss; labels reflect initial-run vs re-run; planning-intelligence log appended on approve) |
-| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `.claude/scripts/dso ticket create epic "<title>" -d "..."`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |
+| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | Follow-on epic gate (HARD-GATE: present + approve each follow-on before `ticket create`). `.claude/scripts/dso ticket create epic "<title>" -d "..."`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE, pass success_criteria_count + scenario_survivor_count), apply session-signal override (SC≥7 or scenarios≥10 → COMPLEX), output classification line + invoke Skill tool in same response: TRIVIAL → `/dso:implementation-plan`, MODERATE+High → `/dso:preplanning --lightweight`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |

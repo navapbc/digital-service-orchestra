@@ -130,7 +130,7 @@ gc_stale_state_files() {
     local dirs=()
     while IFS= read -r -d '' dir; do
         dirs+=("$dir")
-    done < <(find / -maxdepth 3 -type d -name "workflow-plugin-*" -path "/tmp/*" -print0 2>/dev/null || true)
+    done < <(find /tmp -maxdepth 2 -type d -name "workflow-plugin-*" -print0 2>/dev/null || true)
 
     # If GC_PLUGIN_GLOB is set to a specific path, use it directly
     if [[ -n "${GC_PLUGIN_GLOB:-}" ]]; then

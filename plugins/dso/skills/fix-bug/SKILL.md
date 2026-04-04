@@ -10,6 +10,8 @@ Enforce a hard separation between investigation and implementation. Bugs are cla
 
 This skill handles bug fixes with investigation-first TDD discipline.
 
+**Pre-investigation gates**: Gate 1a (intent search via `dso:intent-search` agent, Step 1.5) and Gate 1b (feature-request language check via `gate-1b-feature-request-check.py`, emitting a `signal_type: "primary"` gate signal, Step 1.7) both run before Step 2 investigation dispatch. Gate 1b runs only when Gate 1a returns ambiguous; it is skipped for intent-aligned and intent-contradicting outcomes. On script failure, the gate defaults to non-blocking to prevent investigation blockage.
+
 <HARD-GATE>
 Do NOT modify any code, write any fix, or make any file changes until Steps 1–5 are complete (classify, investigate, hypothesis test, approve, RED test). This applies regardless of how simple or obvious the bug appears. Steps 1–5 must complete before any code modification.
 
@@ -365,7 +367,7 @@ else
 fi
 ```
 
-Include the discovered callers, importers, and source-chain dependencies as additional context in the investigation sub-agent prompt. This structural pre-loading step complements the `gate-2b-blast-radius.sh` blast-radius analysis — both use the same `command -v` guard pattern. Note: `gate-2b-blast-radius.sh` checks `command -v ast-grep` (the package name) while new integrations use `command -v sg` (the CLI binary name); see CLAUDE.md "Structural Code Search (ast-grep)" for the canonical naming convention. Gate 2b runs post-investigation; this step runs pre-dispatch.
+Include the discovered callers, importers, and source-chain dependencies as additional context in the investigation sub-agent prompt. This structural pre-loading step complements the `gate-2b-blast-radius.sh` blast-radius analysis — both use the same `command -v` guard pattern. Note: `gate-2b-blast-radius.sh` checks `command -v ast-grep` (the package name) while new integrations use `command -v sg` (the CLI binary name); see CLAUDE.md "Structural Code Search (ast-grep)" for the canonical naming convention. Gate 2b (modifier gate: appends blast-radius annotation to escalation context; skips annotation silently on error) runs post-investigation; this step runs pre-dispatch.
 
 #### BASIC Investigation (score < 3)
 
