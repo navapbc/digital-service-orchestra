@@ -1,1 +1,0 @@
-{"timestamp": 1775272264283269000, "uuid": "8cc7287d-8bba-4f96-9e32-6f590ff01362", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: mechanical (doc error \u2014 README lists Ticket as external dependency when it is native)."}}
