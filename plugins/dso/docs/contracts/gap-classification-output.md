@@ -123,13 +123,17 @@ The orchestrator must:
 
 ### implementation_gap routing — autonomous permitted
 
-When a SC is classified as `implementation_gap`, the sprint orchestrator MAY route autonomously to implementation-plan without requiring user confirmation. This is the only classification that permits fully autonomous remediation.
+When a SC is classified as `implementation_gap`, the sprint orchestrator MAY route autonomously without requiring user confirmation. This is the only classification that permits fully autonomous remediation.
+
+**Clarification — `ROUTING: implementation-plan` is a routing signal label, not a skill invocation.** When the orchestrator receives `ROUTING: implementation-plan`, it proceeds to the **Phase 7 Step 1 remediation flow** (`.claude/scripts/dso ticket create bug`), which creates targeted implementation tasks under the epic. The orchestrator does NOT invoke `/dso:implementation-plan` as a separate skill for `implementation_gap` routing. The label `implementation-plan` identifies the remediation category (implementation work is needed) and permits autonomous action, but the mechanism for delivering that remediation is bug-task creation in Phase 7 Step 1.
 
 ---
 
 ## REPLAN_ESCALATE Integration
 
-If `/dso:implementation-plan` returns a `REPLAN_ESCALATE` signal during an `implementation_gap` routing attempt, the sprint orchestrator MUST:
+> **Invocation context note**: This section applies when `/dso:implementation-plan` is invoked **directly** (e.g., from the `/dso:sprint` preplanning gate, a cascade replan, or a standalone `implementation-plan` call) — **not** from Phase 7 `implementation_gap` routing. As described in the Routing Behavior section above, Phase 7 `implementation_gap` routing does NOT invoke `/dso:implementation-plan` as a separate skill; it proceeds to Phase 7 Step 1 bug-task creation. The REPLAN_ESCALATE integration below therefore applies only in contexts where `/dso:implementation-plan` is genuinely invoked as a skill.
+
+If `/dso:implementation-plan` returns a `REPLAN_ESCALATE` signal during a direct invocation of the skill (e.g., preplanning gate or cascade replan), the sprint orchestrator MUST:
 
 1. Re-classify that SC as `intent_gap` (overriding the original gap-classification result).
 2. Route the SC to brainstorm, following the user confirmation requirement for `intent_gap` routing.

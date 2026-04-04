@@ -1346,7 +1346,7 @@ For each failing success criterion (SC) identified in Phase 6 validation, dispat
 
 - `intent_gap` + `ROUTING: brainstorm` — REQUIRE user confirmation before proceeding. Do NOT autonomously invoke `/dso:brainstorm`. Present the failing SC text and classification explanation to the user. Ask the user to confirm that brainstorm re-examination is desired. Proceed to `/dso:brainstorm` only after explicit user approval. If the user declines, mark the SC as deferred and continue to the next SC.
 
-- `implementation_gap` + `ROUTING: implementation-plan` — autonomous remediation is permitted. Proceed with the existing Phase 7 remediation flow (Step 1 below) without requiring user confirmation.
+- `implementation_gap` + `ROUTING: implementation-plan` — autonomous remediation is permitted. Proceed directly to **Step 1 (Create Remediation Tasks)** below without requiring user confirmation. **Important**: `ROUTING: implementation-plan` is a routing signal label — it does NOT mean invoking `/dso:implementation-plan` as a separate skill. The action for `implementation_gap` is bug-task creation via the Phase 7 Step 1 remediation flow (`.claude/scripts/dso ticket create bug`), which creates targeted implementation tasks under the epic. This is the correct and intended behavior for filling a clear implementation gap.
 
 ### Step 1: Create Remediation Tasks (/dso:sprint)
 

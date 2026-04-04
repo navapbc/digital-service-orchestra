@@ -193,6 +193,83 @@ def test_sprint_phase7_requires_user_confirmation_for_intent_gap() -> None:
     )
 
 
+def test_sprint_phase7_implementation_gap_routes_to_bug_task_creation() -> None:
+    """Sprint SKILL.md must clarify that implementation_gap routes to Phase 7 Step 1 bug-task creation.
+
+    SC4 requires that implementation_gap SCs are routed to create implementation tasks.
+    The ROUTING: implementation-plan signal label does NOT mean invoking /dso:implementation-plan
+    as a separate skill — it means falling through to the Phase 7 Step 1 remediation flow
+    which creates bug tickets via `.claude/scripts/dso ticket create bug`.
+
+    This test asserts that SKILL.md explicitly documents that:
+    1. implementation_gap proceeds to Step 1 (bug-task creation), AND
+    2. ROUTING: implementation-plan does NOT invoke /dso:implementation-plan as a skill.
+    """
+    content = _read_skill()
+
+    # Find implementation_gap occurrences and check surrounding context (±1000 chars)
+    impl_gap_positions = [
+        m.start() for m in re.finditer(r"implementation.gap", content, re.IGNORECASE)
+    ]
+
+    if not impl_gap_positions:
+        raise AssertionError(
+            "Expected sprint/SKILL.md to contain 'implementation_gap' with adjacent "
+            "Step 1 / bug-task creation routing documentation. "
+            "'implementation_gap' was not found at all. Phase 7 must document how "
+            "implementation_gap SCs are remediated."
+        )
+
+    # Must document that implementation_gap routes to Step 1 / bug-task creation,
+    # checked within ±1000 chars of each implementation_gap occurrence
+    has_step1_routing = False
+    for pos in impl_gap_positions:
+        window_start = max(0, pos - 1000)
+        window_end = min(len(content), pos + 1000)
+        window = content[window_start:window_end]
+        if re.search(
+            r"Step\s*1|bug.task|ticket create bug|remediation flow",
+            window,
+            re.IGNORECASE,
+        ):
+            has_step1_routing = True
+            break
+
+    assert has_step1_routing, (
+        "Expected sprint/SKILL.md to document that 'implementation_gap' routes to the "
+        "Phase 7 Step 1 remediation flow (bug-task creation via ticket create bug). "
+        "SC4 requires that implementation_gap SCs are remediated by creating implementation "
+        "tasks — this should be explicit in the routing rule to prevent misinterpretation "
+        "that ROUTING: implementation-plan invokes /dso:implementation-plan as a skill."
+    )
+
+    # Must clarify that ROUTING: implementation-plan is a label, not a skill invocation,
+    # checked within ±1000 chars of each implementation_gap occurrence
+    has_not_skill_invocation_clarification = False
+    for pos in impl_gap_positions:
+        window_start = max(0, pos - 1000)
+        window_end = min(len(content), pos + 1000)
+        window = content[window_start:window_end]
+        if re.search(
+            r"does\s+not.*invok.*implementation.plan"
+            r"|NOT.*invok.*implementation.plan"
+            r"|routing.*signal.*label"
+            r"|label.*not.*skill"
+            r"|not.*separate\s+skill",
+            window,
+            re.IGNORECASE,
+        ):
+            has_not_skill_invocation_clarification = True
+            break
+
+    assert has_not_skill_invocation_clarification, (
+        "Expected sprint/SKILL.md to clarify that 'ROUTING: implementation-plan' is a "
+        "routing signal label and does NOT mean invoking /dso:implementation-plan as a "
+        "separate skill. The routing description must be explicit to prevent "
+        "misinterpretation of the routing label."
+    )
+
+
 def test_sprint_phase7_failure_fallback_to_intent_gap() -> None:
     """Sprint SKILL.md must document that malformed/absent signals fall back to intent_gap.
 
