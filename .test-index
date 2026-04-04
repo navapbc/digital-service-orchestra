@@ -263,3 +263,6 @@ plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py
 
 plugins/dso/scripts/ticket-lifecycle.sh: tests/scripts/test-ticket-lifecycle-sync-preserves-local.sh
 plugins/dso/scripts/sprint-list-epics.sh: tests/scripts/test-ticket-lifecycle-sync-preserves-local.sh
+plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/scripts/test-sub-agent-boundaries-cli-user-tag.sh [test_cli_user_tag_mentioned]
+CLAUDE.md:tests/scripts/test-claude-md-cli-user-guidance.sh [test_cli_user_tag_user_requested]
+plugins/dso/skills/debug-everything/SKILL.md:tests/scripts/test-debug-everything-bug-fix-mode.sh [test_bug_fix_mode_extracts_cli_user_tag]
