@@ -1,1 +1,0 @@
-{"timestamp": 1775272261138224000, "uuid": "e4e6558d-a99b-4c93-bfd9-eabaae25fdfa", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: llm-behavioral (dual-signal: ticket describes orchestrator bypassing sub-agent + affected file is skill SKILL.md). Score: N/A (llm-behavioral path)."}}
