@@ -1322,6 +1322,32 @@ If it returns OSCILLATION: flag the specific items to the user before creating t
 Report which remediation items target files already modified by completed remediation.
 If it returns CLEAR: proceed to create tasks normally.
 
+### Gap Classification Step (/dso:sprint)
+
+**User confirmation required before any intent_gap SC is routed to brainstorm — autonomous brainstorm invocation is prohibited.**
+
+For each failing success criterion (SC) identified in Phase 6 validation, dispatch the gap-classification sub-agent to classify it before creating remediation tasks.
+
+**Dispatch** (`subagent_type="general-purpose"`, `model="sonnet"`) with the prompt from `plugins/dso/skills/sprint/prompts/gap-classification.md` and the following context for each failing SC: # shim-exempt: internal prompt path reference
+- The exact failing SC criterion text from the completion-verifier output
+- The completion-verifier failure explanation for the SC
+- Relevant code snippets or file paths from the validation context
+
+**Parse output**: Scan all lines prefixed with `GAP_CLASSIFICATION: ` and extract:
+- Classification value: `intent_gap` or `implementation_gap`
+- Routing value: `brainstorm` or `implementation-plan`
+- Explanation text
+
+**REPLAN_ESCALATE override**: If a previous `/dso:implementation-plan` invocation returned `REPLAN_ESCALATE` for this SC, override any `implementation_gap` classification to `intent_gap` before routing. Log that the re-classification was triggered by REPLAN_ESCALATE, not the original gap-classification output.
+
+**Failure contract**: If the gap-classification sub-agent output is absent, malformed (missing `ROUTING:` or `EXPLANATION:` fields, empty explanation), or contains an unrecognized classification value, treat all affected failing SCs as `intent_gap` (fallback to intent_gap — the safer default). Log a warning so silent degradation is detectable in debug output.
+
+**Routing rules**:
+
+- `intent_gap` + `ROUTING: brainstorm` — REQUIRE user confirmation before proceeding. Do NOT autonomously invoke `/dso:brainstorm`. Present the failing SC text and classification explanation to the user. Ask the user to confirm that brainstorm re-examination is desired. Proceed to `/dso:brainstorm` only after explicit user approval. If the user declines, mark the SC as deferred and continue to the next SC.
+
+- `implementation_gap` + `ROUTING: implementation-plan` — autonomous remediation is permitted. Proceed with the existing Phase 7 remediation flow (Step 1 below) without requiring user confirmation.
+
 ### Step 1: Create Remediation Tasks (/dso:sprint)
 
 For each item in the validation agent's FAIL/REMEDIATION output:

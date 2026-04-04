@@ -273,4 +273,4 @@ plugins/dso/docs/ticket-cli-reference.md:tests/scripts/test-ticket-cli-reference
 CLAUDE.md:tests/scripts/test-claude-md-fix-bug-gates.sh
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation_plan_reinvocation_guard.py
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation_plan_replan_escalate.py
-plugins/dso/skills/sprint/SKILL.md:tests/skills/test_sprint_gap_classification.py [test_sprint_phase7_gap_classification_step_exists]
+plugins/dso/skills/sprint/SKILL.md:tests/skills/test_sprint_gap_classification.py
