@@ -137,6 +137,82 @@ tests:
           (4) the halt message must reference the specific action required: running
           /dso:brainstorm on the epic to clear the scrutiny:pending tag.
 
+  - description: "Re-invocation guard: detects existing children and avoids duplicate tasks"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Please create an implementation plan for this user story:
+
+        Story ID: story-def456
+        Story: "As a developer, I want the CI pipeline to report test coverage so I can
+        track quality trends over time."
+
+        When you run `dso ticket deps story-def456 --include-archived`, the output shows:
+        {
+          "children": ["task-001", "task-002"],
+          "deps": [],
+          "blockers": [],
+          "ready_to_work": false
+        }
+
+        Running `dso ticket show task-001` shows status "closed" and title "Write RED test for coverage reporter".
+        Running `dso ticket show task-002` shows status "in_progress" and title "Implement coverage reporter module".
+
+        Proceed with the implementation plan.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output detects that the story already has children (existing tasks) and
+          does NOT create duplicate tasks. Instead it should:
+          (1) identify that existing children were found for the story — specifically
+          closed task "task-001" and in-progress task "task-002",
+          (2) treat closed children as read-only historical context — it must NOT
+          propose recreating or reopening them,
+          (3) flag the in-progress task (task-002) as already underway and only propose
+          work for genuinely missing or unstarted tasks not already covered,
+          (4) produce a diff plan (gap-filling plan) rather than a full new decomposition —
+          if all tasks are accounted for, it should note that no new tasks are needed,
+          (5) NOT create any task that duplicates or conflicts with an existing child task —
+          duplicate task creation is explicitly prohibited when children already exist.
+
+  - description: "Re-invocation guard: all-children-closed early-exit emits STATUS:complete and halts"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Please create an implementation plan for this user story:
+
+        Story ID: story-ghi789
+        Story: "As a developer, I want the deploy pipeline to notify Slack on failure."
+
+        When you run `dso ticket deps story-ghi789 --include-archived`, the output shows:
+        {
+          "children": ["task-003", "task-004", "task-005"],
+          "deps": [],
+          "blockers": [],
+          "ready_to_work": false
+        }
+
+        Running `dso ticket show task-003` shows status "closed".
+        Running `dso ticket show task-004` shows status "closed".
+        Running `dso ticket show task-005` shows status "closed".
+
+        Proceed with the implementation plan.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output detects that ALL children are closed and halts with STATUS:complete.
+          It should:
+          (1) identify that all 3 child tasks (task-003, task-004, task-005) are closed (read-only),
+          (2) log a summary like "Re-invocation guard: 3 closed (read-only), 0 in-progress, 0 open"
+          or equivalent indicating all children are accounted for,
+          (3) emit STATUS:complete with required TASKS: and STORY: fields indicating no new tasks
+          are needed — the story is already fully decomposed,
+          (4) NOT produce any new tasks, task drafts, or planning output — it must halt at the
+          early-exit path without proceeding to Epic Type Detection or task drafting,
+          (5) NOT reopen, modify, or duplicate any of the closed tasks.
+
   - description: "Surfaces blocking ambiguities and defaultable assumptions before planning"
     vars:
       prompt: |
@@ -161,3 +237,32 @@ tests:
           (4) NOT produce a task list or implementation plan — planning must be blocked
           until the ambiguities are resolved, since a plan built on assumptions about
           an underspecified story would be worse than no plan.
+
+  - description: "Emits REPLAN_ESCALATE when success criteria cannot be satisfied"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Create an implementation plan for this story:
+        Story: "As a user, I want to log in via Google OAuth."
+        Context: Closed ticket arch-decision-0042 documents a permanent legal constraint
+        (LR-2025-004): "OAuth and all third-party identity providers are permanently
+        prohibited by Legal. Non-negotiable. The app must never integrate OAuth."
+        No OAuth libraries exist in requirements.txt; a CI lint rule blocks adding them.
+        Success criteria: User can authenticate via Google OAuth; new users are
+        auto-provisioned via OAuth. Do not ask for clarification — proceed to analysis.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output recognizes that the story's success criteria are actively contradicted
+          by a permanent, closed architectural decision prohibiting OAuth, and emits a
+          REPLAN_ESCALATE signal instead of producing tasks. It should:
+          (1) output a line containing "REPLAN_ESCALATE" as a standalone signal,
+          (2) include the literal string "brainstorm" as the escalation target —
+          matching the format "REPLAN_ESCALATE: brainstorm",
+          (3) include an EXPLANATION field (with the "EXPLANATION:" prefix) describing
+          why the success criteria cannot be satisfied — referencing the permanent legal
+          prohibition (arch-decision-0042 / LR-2025-004) that makes OAuth impossible,
+          (4) NOT emit STATUS:complete or STATUS:blocked,
+          (5) NOT produce any implementation tasks or partial decomposition — task
+          decomposition must halt entirely once the unsatisfiable contradiction is detected.
