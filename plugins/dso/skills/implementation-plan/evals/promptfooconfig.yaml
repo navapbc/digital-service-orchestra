@@ -148,22 +148,16 @@ tests:
         Story: "As a developer, I want the CI pipeline to report test coverage so I can
         track quality trends over time."
 
-        When you run `dso ticket deps story-def456` (or `dso ticket show story-def456`
-        listing children via --include-archived), the output shows:
-        [
-          {
-            "ticket_id": "task-001",
-            "type": "task",
-            "title": "Write RED test for coverage reporter",
-            "status": "closed"
-          },
-          {
-            "ticket_id": "task-002",
-            "type": "task",
-            "title": "Implement coverage reporter module",
-            "status": "in_progress"
-          }
-        ]
+        When you run `dso ticket deps story-def456 --include-archived`, the output shows:
+        {
+          "children": ["task-001", "task-002"],
+          "deps": [],
+          "blockers": [],
+          "ready_to_work": false
+        }
+
+        Running `dso ticket show task-001` shows status "closed" and title "Write RED test for coverage reporter".
+        Running `dso ticket show task-002` shows status "in_progress" and title "Implement coverage reporter module".
 
         Proceed with the implementation plan.
     assert:
@@ -181,6 +175,43 @@ tests:
           if all tasks are accounted for, it should note that no new tasks are needed,
           (5) NOT create any task that duplicates or conflicts with an existing child task —
           duplicate task creation is explicitly prohibited when children already exist.
+
+  - description: "Re-invocation guard: all-children-closed early-exit emits STATUS:complete and halts"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Please create an implementation plan for this user story:
+
+        Story ID: story-ghi789
+        Story: "As a developer, I want the deploy pipeline to notify Slack on failure."
+
+        When you run `dso ticket deps story-ghi789 --include-archived`, the output shows:
+        {
+          "children": ["task-003", "task-004", "task-005"],
+          "deps": [],
+          "blockers": [],
+          "ready_to_work": false
+        }
+
+        Running `dso ticket show task-003` shows status "closed".
+        Running `dso ticket show task-004` shows status "closed".
+        Running `dso ticket show task-005` shows status "closed".
+
+        Proceed with the implementation plan.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output detects that ALL children are closed and halts with STATUS:complete.
+          It should:
+          (1) identify that all 3 child tasks (task-003, task-004, task-005) are closed (read-only),
+          (2) log a summary like "Re-invocation guard: 3 closed (read-only), 0 in-progress, 0 open"
+          or equivalent indicating all children are accounted for,
+          (3) emit STATUS:complete with required TASKS: and STORY: fields indicating no new tasks
+          are needed — the story is already fully decomposed,
+          (4) NOT produce any new tasks, task drafts, or planning output — it must halt at the
+          early-exit path without proceeding to Epic Type Detection or task drafting,
+          (5) NOT reopen, modify, or duplicate any of the closed tasks.
 
   - description: "Surfaces blocking ambiguities and defaultable assumptions before planning"
     vars:

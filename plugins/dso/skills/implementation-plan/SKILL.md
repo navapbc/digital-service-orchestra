@@ -145,6 +145,43 @@ Load the story:
 
 If the story is not found, report the error and exit.
 
+### Re-invocation Guard
+
+Before proceeding to Epic Type Detection, check whether the story/epic already has child tasks (i.e., this is a re-invocation). Use:
+
+```bash
+.claude/scripts/dso ticket deps <story-id> --include-archived
+```
+
+This returns a JSON object with shape `{"ticket_id": "<story-or-epic-id>", "children": ["id1","id2",...], "deps": [...], "blockers": [...], "ready_to_work": bool}` — not a flat list of IDs. Parse the `children` field to get all child ticket IDs (including archived ones):
+
+```bash
+CHILDREN=$(.claude/scripts/dso ticket deps <story-id> --include-archived | python3 -c 'import json,sys; print(",".join(json.load(sys.stdin)["children"]))')
+```
+
+**If `children` is empty (no existing child tasks):** This is the first invocation — skip this guard entirely and proceed to Epic Type Detection below.
+
+For each child ID in the `children` list, run `.claude/scripts/dso ticket show <child-id>` and classify by status:
+
+- **closed or archived** (`status=closed` OR `archived=true`): read-only — never modify, reopen, or duplicate; log as skipped
+- **in-progress** (`status=in_progress`): flagged for review — include in the diff plan output with a WARNING note
+- **open** (`status=open`): candidate for revision — may be updated or left as-is
+
+Log a summary line:
+```
+Re-invocation guard: N closed (read-only), M in-progress (flagged), K open (candidates)
+```
+
+**If ALL children are closed (read-only):**
+Log "All children are complete — no new tasks needed". Before emitting STATUS, emit the SKILL_EXIT trace breadcrumb per the Observability section. Then emit:
+```
+STATUS:complete TASKS:<comma-separated-child-ids> STORY:<story-id>
+```
+where `<comma-separated-child-ids>` is the full list of child IDs already fetched from the `children` field of the `ticket deps` JSON output (comma-separated, no spaces), and `<story-id>` is the story/epic being processed. Do not proceed further.
+
+**Otherwise:**
+Produce only a diff plan: new tasks to be created + open/flagged tasks to be revised — never touch closed children. The diff plan must clearly distinguish "new or reopened" tasks from tasks that are left unchanged. After producing the diff plan, proceed to Epic Type Detection below with only the open/new tasks in scope. (The SKILL_EXIT breadcrumb is emitted at the normal end of the full skill execution, not at this intermediate guard exit.)
+
 ### Epic Type Detection
 
 After loading the item with `.claude/scripts/dso ticket show`, check the `type` field in the output:
