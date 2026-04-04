@@ -125,9 +125,12 @@ parse_failing_tests_from_output() {
         || true
 
     # Bash-style (assert_pass_if_clean): "FAIL: test_name" on stderr merged into output
-    # No ^ anchor — many test scripts output indented "  FAIL: test_name" lines
-    grep -oE 'FAIL: [a-zA-Z_][a-zA-Z0-9_-]*' "$output_file" \
-        | sed 's/^FAIL: //' \
+    # Full-line match with end-of-line anchor ensures multi-word assert_eq labels
+    # (e.g., "FAIL: ticket ID returned for --tags test") are NOT extracted as
+    # partial words. Only lines where the content after "FAIL: " is a single
+    # identifier are matched (bug 091a-368f).
+    grep -E '^[[:space:]]*FAIL: [a-zA-Z_][a-zA-Z0-9_-]*$' "$output_file" \
+        | sed 's/^[[:space:]]*FAIL: //' \
         || true
 
     # Pytest-style: "FAILED path/to/test.py::test_name" or "FAILED path/to/test.py::ClassName::test_name"

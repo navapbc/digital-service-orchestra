@@ -54,6 +54,11 @@ _ensure_initialized() {
     fi
     # Sync ticket data from origin if not recently synced.
     # Works from both main repo and worktree contexts.
+    # _TICKET_TEST_NO_SYNC=1 skips the sync block entirely — used by test
+    # harnesses where temp repos have no remote and the fetch is wasted I/O.
+    if [[ "${_TICKET_TEST_NO_SYNC:-}" == "1" ]]; then
+        return
+    fi
     local tracker_dir
     tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$repo_root/.tickets-tracker" 2>/dev/null) || tracker_dir="$repo_root/.tickets-tracker"
     if [[ -d "$tracker_dir" ]] && git -C "$tracker_dir" rev-parse --verify tickets &>/dev/null; then
