@@ -10,6 +10,10 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 
 SUT="$REPO_ROOT/plugins/dso/scripts/check-acceptance-criteria.sh"
 
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+declare -a _TMPSCRIPTS=()
+trap 'rm -f "${_TMPSCRIPTS[@]:-}"' EXIT
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 _make_ticket_json() {
@@ -36,8 +40,10 @@ _run_sut_with_json() {
     # Run SUT with a mock TICKET_CMD that returns the given JSON
     local json_output="$1"
     local tmpscript
-    tmpscript=$(mktemp /tmp/mock-ticket-XXXXXX.sh)
-    # Write mock script — use heredoc to avoid quoting issues with JSON
+    tmpscript=$(mktemp /tmp/mock-ticket-XXXXXX)
+    mv "$tmpscript" "${tmpscript}.sh"
+    tmpscript="${tmpscript}.sh"
+    _TMPSCRIPTS+=("$tmpscript")
     trap "rm -f '$tmpscript'" RETURN
     cat > "$tmpscript" <<'MOCKEOF'
 #!/usr/bin/env bash

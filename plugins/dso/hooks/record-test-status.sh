@@ -773,7 +773,7 @@ if [[ "$FULL_SUITE" == true ]]; then
                 else
                     _all_test_files="$_rel"
                 fi
-            done < <(find "$REPO_ROOT/$_td" -type f \( -name "test-*.sh" -o -name "test_*.sh" -o -name "test_*.py" -o -name "*.test.js" -o -name "*.test.ts" \) 2>/dev/null | sort)
+            done < <(find "$REPO_ROOT/$_td" -not -path '*/__pycache__/*' -type f \( -name "test-*.sh" -o -name "test_*.sh" -o -name "test_*.py" -o -name "*.test.js" -o -name "*.test.ts" \) 2>/dev/null | sort)
         fi
     done
 
@@ -1196,7 +1196,7 @@ trap - URG
 # --- Handle exit 144 (SIGURG/timeout) ---
 if [[ "$HAD_TIMEOUT" == true ]]; then
     echo "Test runner terminated (exit 144). Complete tests using test-batched.sh:" >&2
-    echo "bash plugins/dso/scripts/test-batched.sh --timeout=50 \"bash tests/hooks/test-<name>.sh\"" >&2
+    echo "bash plugins/dso/scripts/test-batched.sh --timeout=50 \"bash tests/hooks/test-<name>.sh\"" >&2  # shim-exempt: user-facing error message showing literal command
     echo "Then resume with the NEXT: command printed by test-batched.sh." >&2
     exit 1
 fi
