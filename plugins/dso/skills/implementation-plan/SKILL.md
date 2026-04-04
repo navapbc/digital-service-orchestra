@@ -252,7 +252,29 @@ Check for these signals:
 - Separate into **blocking** ("cannot plan without this") and **defaultable** ("I'll assume X unless you say otherwise")
 - Never ask about things clearly inferrable from the codebase or parent epic
 
-**If no ambiguities found**, proceed to Cross-Cutting Change Detection.
+**If no ambiguities found**, proceed to Unsatisfiable Criteria Detection.
+
+### Unsatisfiable Criteria Detection
+
+After resolving ambiguities (or confirming none exist), check whether the success criteria can actually be satisfied given the current codebase state:
+
+- If success criteria are contradicted by codebase state (e.g., SC says "add OAuth login" but a closed ticket permanently removed OAuth per legal mandate)
+- If SC items are mutually exclusive (A and B cannot both be true simultaneously)
+- If the current architecture makes the SC impossible to implement without fundamental redesign beyond this story's scope
+
+**When any of these apply, emit the REPLAN_ESCALATE signal and STOP — do NOT proceed to task drafting:**
+
+```
+REPLAN_ESCALATE: brainstorm EXPLANATION:<human-readable explanation of the contradiction or impossibility, including what SC cannot be satisfied, why (the codebase state that contradicts it), and what the orchestrator should investigate>
+```
+
+This signal is terminal — it is the final output. Do not emit STATUS:complete or STATUS:blocked after it.
+
+**Distinction from STATUS:blocked:**
+- STATUS:blocked = user can answer questions to unblock planning (ambiguous requirements, missing info)
+- REPLAN_ESCALATE = the story intent itself needs brainstorm-level re-examination; no clarifying question can unblock it; the success criteria cannot be satisfied as written
+
+**If no unsatisfiable criteria found**, proceed to Cross-Cutting Change Detection.
 
 ### Cross-Cutting Change Detection
 
@@ -926,5 +948,13 @@ Each question object must have two fields:
 - `"blocking"`: genuinely cannot draft tasks without this answer
 - `"defaultable"`: safe assumption exists; include the assumption explicitly
 - Never include questions clearly answerable from the codebase or parent epic
+
+### On unsatisfiable success criteria (story intent requires brainstorm-level re-evaluation):
+
+```
+REPLAN_ESCALATE: brainstorm EXPLANATION:<explanation>
+```
+
+Emitted when success criteria cannot be satisfied given the current codebase state — they are actively contradicted, internally contradictory, or unsatisfiable regardless of implementation approach. This is a terminal signal — do not emit STATUS:complete or STATUS:blocked after it. No tasks are created. The calling orchestrator (e.g., `/dso:sprint`) routes this signal to `/dso:brainstorm` on the story rather than proceeding to implementation batches.
 
 **Termination directive**: After emitting a STATUS line, emit no further prose, questions, or options. The STATUS line is your final output for this skill. **Do NOT halt the session** — if you were invoked from `/dso:sprint` via the Skill tool, the sprint orchestrator will continue automatically after reading this STATUS line. Only halt if you were invoked interactively (user-initiated).
