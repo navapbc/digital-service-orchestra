@@ -1,1 +1,0 @@
-{"timestamp": 1775345509639462000, "uuid": "c91851b6-4d42-4bec-acec-63a3be9577f9", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Verified: .test-index RED marker exists and test gate tolerates the expected failure. No code changes needed."}}
