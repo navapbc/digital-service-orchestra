@@ -55,7 +55,9 @@ assert_pass_if_clean "test_ignores_non_bash_files"
 
 # ── test_respects_isolation_ok_comment ───────────────────────────────────────
 _snapshot_fail
-_TEMP_SH=$(mktemp /tmp/test-isolation-XXXXXX.sh)
+_TEMP_SH=$(mktemp /tmp/test-isolation-XXXXXX)
+mv "$_TEMP_SH" "${_TEMP_SH}.sh"
+_TEMP_SH="${_TEMP_SH}.sh"
 cat > "$_TEMP_SH" << 'SHEOF'
 #!/usr/bin/env bash
 REPO_ROOT="$(git rev-parse --show-toplevel)"
