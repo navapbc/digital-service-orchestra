@@ -128,7 +128,7 @@ Ticket system initialized.
 Create a new ticket.
 
 ```
-.claude/scripts/dso ticket create <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>] [-d/--description <text>]
+.claude/scripts/dso ticket create <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>] [-d/--description <text>] [--tags <tag1,tag2>]
 ```
 
 **Arguments:**
@@ -141,6 +141,7 @@ Create a new ticket.
 | `--priority` | No | Priority 0-4 (0=critical, 4=backlog; default: 2) |
 | `--assignee` | No | Assignee name (default: git config user.name) |
 | `-d`, `--description` | No | Optional long-form description text for the ticket |
+| `--tags` | No | Comma-separated list of tags to attach to the ticket at creation time (e.g., `CLI_user`) |
 
 **Output:** Prints the generated ticket ID to stdout (e.g., `ab12-cd34`). No other output on success.
 
@@ -151,6 +152,7 @@ Create a new ticket.
 - Writes a `CREATE` event JSON file to `.tickets-tracker/<ticket_id>/`
 - Commits the event atomically to the tickets branch
 - The new ticket has status `open` by default
+- Tags are stored as a list on the ticket; use --tags to set them atomically at creation time.
 
 **Exit codes:**
 
@@ -170,6 +172,9 @@ w21-b9c2
 
 $ .claude/scripts/dso ticket create bug "Login fails on mobile Safari" -d "Reproducible on iOS 17 with Safari 17. Steps: 1) Open login page, 2) Enter credentials, 3) Tap Sign In — redirects to blank page instead of dashboard."
 w21-c3d4
+
+$ .claude/scripts/dso ticket create bug "User reported: Login fails on mobile" --tags CLI_user
+ab12-cd34
 ```
 
 ---

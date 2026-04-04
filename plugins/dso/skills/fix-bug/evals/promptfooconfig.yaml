@@ -11,6 +11,28 @@ defaultTest:
     provider: "anthropic:messages:claude-haiku-4-5-20251001"
 
 prompts:
+  - id: step-1-5-gate-1a
+    raw: |
+      You are the fix-bug skill executing Step 1.5 (Gate 1a — Intent Search).
+
+      Step 1.5 purpose: Before dispatching the investigation sub-agent, run an
+      intent-search gate to determine whether the bug aligns with system intent.
+
+      Follow the SKILL.md Step 1.5 logic precisely. The SKILL.md describes what
+      checks to run and what conditions skip or short-circuit the intent-search dispatch.
+
+      After applying the Step 1.5 logic, describe:
+      1. Whether intent-search is dispatched or skipped, and why
+      2. What GATE_1A_RESULT is set to
+      3. Any ticket comment added to document the gate outcome
+
+      Bug ticket context:
+      {{prompt}}
+
+  - id: step-7-5-anti-pattern
+    raw: |
+      {{prompt}}
+
   - |
     You are the fix-bug skill. Given a bug report, you must:
     1. Classify the error type as either "mechanical" or "behavioral".
@@ -127,3 +149,89 @@ tests:
           correct skill to handle this — not brainstorm, sprint, or implementation-plan.
           Verify the output produces a bug classification (mechanical or behavioral)
           and routes to an investigation path, confirming fix-bug was the right skill.
+
+  - description: "Step 7.5 anti-pattern scan failure: bug ticket must NOT use --tags CLI_user"
+    prompt: "id:step-7-5-anti-pattern"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: |
+        You are the fix-bug skill executing Step 7.5 (Anti-Pattern Scan). A batch of
+        anti-pattern fix sub-agents has returned batch_status: FAILED for the following batch:
+
+        Batch context:
+        - pattern: Unguarded dict key access without .get() fallback
+        - affected files: src/api/handler.py, src/utils/helpers.py
+        - batch_status: FAILED
+        - error: "Sub-agent timeout on src/utils/helpers.py"
+
+        Step 7.5 instructions from fix-bug SKILL.md:
+        "If a batch returns batch_status: FAILED or PARTIAL, record findings as a bug
+        ticket (.claude/scripts/dso ticket create bug '<title>' --parent=<EPIC_ID>)
+        and proceed to the next batch — do not block the entire scan on a single
+        failing batch."
+
+        These bug tickets are created autonomously by the fix-bug skill during the
+        anti-pattern scan phase. They represent discovered defects, not bugs reported
+        by the user via the CLI.
+
+        Question: What is the exact CLI command you would run to create the bug ticket
+        for this failed batch? Write out the full command. Should it include
+        --tags CLI_user?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must NOT include '--tags CLI_user' in the bug ticket creation
+          command. Bug tickets created during Step 7.5 anti-pattern scans are
+          autonomously discovered defects — they are NOT user-requested bugs filed
+          via the CLI, so '--tags CLI_user' is incorrect for them. The correct command
+          should be '.claude/scripts/dso ticket create bug "<title>" --parent=<EPIC_ID>'
+          without any --tags CLI_user flag. If the output includes '--tags CLI_user',
+          the assertion FAILS. Note: the current SKILL.md Step 7.5 does not explicitly
+          prohibit '--tags CLI_user' for discovered bugs, so an LLM following the
+          current text may incorrectly suggest including it — this test is RED until
+          Step 7.5 is updated with that prohibition.
+
+  - description: "Step 1.5 Gate 1a: CLI_user-tagged ticket skips intent-search dispatch (positive path)"
+    prompt: id:step-1-5-gate-1a
+    vars:
+      prompt: |
+        Bug ticket ID: BUG-4921
+        Title: CLI output truncated when piping to less
+        Tags: CLI_user
+        Description: When running `dso ticket list | less`, output is truncated after
+        the first screen. Users report this in the terminal only -- no API impact.
+        Stack trace: N/A. Observed in dso CLI v2.3.1 on macOS.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output should recognize that the ticket has the CLI_user tag. Because the
+          CLI_user tag indicates the bug was filed by a CLI user whose intent alignment is
+          already understood, Step 1.5 should skip dispatching the dso:intent-search sub-agent
+          entirely. Instead, it should set GATE_1A_RESULT="intent-aligned" directly without
+          calling dso:intent-search. Additionally, the output must describe adding a ticket
+          comment documenting the skip, for example: "Gate 1a: skipped -- CLI_user tag
+          present; intent-aligned assumed." The output must NOT describe dispatching
+          dso:intent-search when the CLI_user tag is present. Any response that dispatches
+          intent-search for a CLI_user-tagged ticket or that fails to mention adding a ticket
+          comment about the skip fails this rubric.
+
+  - description: "Step 1.5 Gate 1a: untagged ticket dispatches intent-search normally (negative path)"
+    prompt: id:step-1-5-gate-1a
+    vars:
+      prompt: |
+        Bug ticket ID: BUG-5102
+        Title: Report generation fails for large datasets
+        Tags: (none)
+        Description: When generating reports with more than 10,000 rows, the process
+        times out after 30 seconds. Error: TimeoutError in src/reports/generator.py:87.
+        This is a production issue affecting enterprise customers.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output should recognize that the ticket has no CLI_user tag. Without the
+          CLI_user tag, Step 1.5 should follow the normal path and dispatch the
+          dso:intent-search sub-agent with ticket_id=BUG-5102 and the configured
+          intent_search_budget. The output must NOT skip intent-search dispatch for this
+          untagged ticket. Any response that skips intent-search for a ticket without
+          the CLI_user tag fails this rubric.

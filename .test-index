@@ -127,6 +127,7 @@ plugins/dso/skills/fix-bug/prompts/intermediate-investigation.md:tests/skills/te
 plugins/dso/skills/fix-bug/SKILL.md:tests/skills/test_fix_bug_skill.py
 plugins/dso/skills/fix-bug/SKILL.md:tests/skills/test_fix_bug_gate_1a.py
 plugins/dso/skills/fix-bug/SKILL.md:tests/skills/test_fix_bug_gate_1b.py
+plugins/dso/skills/fix-bug/SKILL.md:tests/skills/test_fix_bug_gate_2b.py
 plugins/dso/skills/fix-bug/prompts/intermediate-investigation-fallback.md:tests/skills/test_fix_bug_skill.py
 plugins/dso/skills/fix-bug/prompts/basic-investigation.md:tests/skills/test_basic_investigation_prompt.py
 plugins/dso/skills/fix-bug/prompts/intermediate-investigation.md:tests/skills/test_intermediate_investigation_prompt.py
@@ -219,7 +220,7 @@ plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:tests/skills/test-
 plugins/dso/skills/roadmap/SKILL.md: tests/skills/test-roadmap-scrutiny-opt-in.sh
 plugins/dso/skills/preplanning/SKILL.md: tests/skills/test-scrutiny-pending-gate.sh
 plugins/dso/skills/implementation-plan/SKILL.md: tests/skills/test-scrutiny-pending-gate.sh
-CLAUDE.md: tests/skills/test-shared-subworkflow-docs.sh
+CLAUDE.md:tests/skills/test-shared-subworkflow-docs.sh
 plugins/dso/agents/doc-writer.md: tests/scripts/test-doc-writer-agent.sh
 plugins/dso/agents/bot-psychologist.md: tests/scripts/test-bot-psychologist-agent.sh
 plugins/dso/skills/update-docs/SKILL.md: tests/hooks/test-sub-agent-guard.sh
@@ -258,7 +259,18 @@ CLAUDE.md: tests/docs/test-playwright-doc-refs.sh
 plugins/dso/docs/CONFIGURATION-REFERENCE.md: tests/docs/test-playwright-doc-refs.sh
 plugins/dso/docs/INSTALL.md: tests/docs/test-playwright-doc-refs.sh
 tests/scripts/test-merge-recovery-integration.sh: tests/scripts/test-merge-recovery-isolation.sh
+plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py
 
 plugins/dso/scripts/ticket-lifecycle.sh: tests/scripts/test-ticket-lifecycle-sync-preserves-local.sh
 plugins/dso/scripts/sprint-list-epics.sh: tests/scripts/test-ticket-lifecycle-sync-preserves-local.sh
+plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/scripts/test-sub-agent-boundaries-cli-user-tag.sh
+CLAUDE.md:tests/scripts/test-claude-md-cli-user-guidance.sh
+plugins/dso/skills/debug-everything/SKILL.md:tests/scripts/test-debug-everything-bug-fix-mode.sh
+plugins/dso/docs/ticket-cli-reference.md:tests/scripts/test-ticket-cli-reference-md-tags.sh
+CLAUDE.md:tests/scripts/test-claude-md-fix-bug-gates.sh
+plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation_plan_reinvocation_guard.py
+plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation_plan_replan_escalate.py
+plugins/dso/skills/sprint/SKILL.md:tests/skills/test_sprint_gap_classification.py
+CLAUDE.md:tests/scripts/test-claude-md-replan-safety.sh
+plugins/dso/skills/sprint/SKILL.md:tests/skills/test_sprint_cascade_protocol.py

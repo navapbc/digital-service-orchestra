@@ -235,3 +235,120 @@ class TestTaskExecutionProhibitedFixPatterns:
             "Expected 'Prohibited Fix Patterns' section in task-execution.md to include "
             "rationale for why each anti-pattern is prohibited (e.g., 'hides the root cause')."
         )
+
+
+class TestCLIUserTagProhibitionPropagation:
+    """Highest-traffic prompt files must propagate the CLI_user tag prohibition.
+
+    TDD spec for task 0d64-0eab: Sub-agent prompt files that contain
+    'ticket create bug' examples must ensure sub-agents know not to use
+    --tags CLI_user on autonomously-created bug tickets. This is enforced
+    either by referencing SUB-AGENT-BOUNDARIES.md (which contains the
+    prohibition) or by including explicit CLI_user prohibition text near
+    the ticket create bug command.
+    """
+
+    PROMPT_FILES = {
+        "sprint/task-execution.md": os.path.join(
+            REPO_ROOT,
+            "plugins",
+            "dso",
+            "skills",
+            "sprint",
+            "prompts",
+            "task-execution.md",
+        ),
+        "debug-everything/triage-and-create.md": os.path.join(
+            REPO_ROOT,
+            "plugins",
+            "dso",
+            "skills",
+            "debug-everything",
+            "prompts",
+            "triage-and-create.md",
+        ),
+        "debug-everything/fix-task-tdd.md": os.path.join(
+            REPO_ROOT,
+            "plugins",
+            "dso",
+            "skills",
+            "debug-everything",
+            "prompts",
+            "fix-task-tdd.md",
+        ),
+        "debug-everything/test-failure-fix.md": os.path.join(
+            REPO_ROOT,
+            "plugins",
+            "dso",
+            "skills",
+            "debug-everything",
+            "prompts",
+            "test-failure-fix.md",
+        ),
+    }
+
+    def _check_propagation(self, file_path: str) -> bool:
+        """Return True if the file references SUB-AGENT-BOUNDARIES or contains CLI_user prohibition.
+
+        A bare mention of CLI_user is insufficient — the mention must appear within 3 lines of
+        prohibition language (Do NOT / MUST NOT / must not / autonomously) to distinguish
+        'do not use CLI_user for autonomous bugs' from 'use CLI_user for user-reported bugs'.
+        """
+        with open(file_path) as f:
+            content = f.read()
+        if "SUB-AGENT-BOUNDARIES" in content:
+            return True
+        lines = content.splitlines()
+        prohibition_words = (
+            "Do NOT",
+            "MUST NOT",
+            "must not",
+            "not use",
+            "autonomously",
+        )
+        for i, line in enumerate(lines):
+            if "CLI_user" in line:
+                context = "\n".join(lines[max(0, i - 3) : i + 4])
+                if any(word in context for word in prohibition_words):
+                    return True
+        return False
+
+    def test_sprint_task_execution_propagates_cli_user_prohibition(self) -> None:
+        """sprint/task-execution.md must reference SUB-AGENT-BOUNDARIES or mention CLI_user."""
+        path = self.PROMPT_FILES["sprint/task-execution.md"]
+        assert self._check_propagation(path), (
+            "sprint/prompts/task-execution.md contains 'ticket create bug' examples but "
+            "neither references SUB-AGENT-BOUNDARIES.md nor contains explicit CLI_user "
+            "prohibition. Sub-agents dispatched via this template may incorrectly apply "
+            "--tags CLI_user to autonomously-discovered bug tickets."
+        )
+
+    def test_triage_and_create_propagates_cli_user_prohibition(self) -> None:
+        """debug-everything/triage-and-create.md must reference SUB-AGENT-BOUNDARIES or mention CLI_user."""
+        path = self.PROMPT_FILES["debug-everything/triage-and-create.md"]
+        assert self._check_propagation(path), (
+            "debug-everything/prompts/triage-and-create.md contains 'ticket create bug' "
+            "examples but neither references SUB-AGENT-BOUNDARIES.md nor contains explicit "
+            "CLI_user prohibition. Triage agents dispatched via this template may "
+            "incorrectly apply --tags CLI_user to autonomously-discovered bug tickets."
+        )
+
+    def test_fix_task_tdd_propagates_cli_user_prohibition(self) -> None:
+        """debug-everything/fix-task-tdd.md must reference SUB-AGENT-BOUNDARIES or mention CLI_user."""
+        path = self.PROMPT_FILES["debug-everything/fix-task-tdd.md"]
+        assert self._check_propagation(path), (
+            "debug-everything/prompts/fix-task-tdd.md contains 'ticket create bug' "
+            "examples but neither references SUB-AGENT-BOUNDARIES.md nor contains explicit "
+            "CLI_user prohibition. Fix agents dispatched via this template may "
+            "incorrectly apply --tags CLI_user to autonomously-discovered bug tickets."
+        )
+
+    def test_test_failure_fix_propagates_cli_user_prohibition(self) -> None:
+        """debug-everything/test-failure-fix.md must reference SUB-AGENT-BOUNDARIES or mention CLI_user."""
+        path = self.PROMPT_FILES["debug-everything/test-failure-fix.md"]
+        assert self._check_propagation(path), (
+            "debug-everything/prompts/test-failure-fix.md contains 'ticket create bug' "
+            "examples but neither references SUB-AGENT-BOUNDARIES.md nor contains explicit "
+            "CLI_user prohibition. Fix agents dispatched via this template may "
+            "incorrectly apply --tags CLI_user to autonomously-discovered bug tickets."
+        )

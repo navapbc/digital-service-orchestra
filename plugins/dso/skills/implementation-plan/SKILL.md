@@ -145,6 +145,43 @@ Load the story:
 
 If the story is not found, report the error and exit.
 
+### Re-invocation Guard
+
+Before proceeding to Epic Type Detection, check whether the story/epic already has child tasks (i.e., this is a re-invocation). Use:
+
+```bash
+.claude/scripts/dso ticket deps <story-id> --include-archived
+```
+
+This returns a JSON object with shape `{"ticket_id": "<story-or-epic-id>", "children": ["id1","id2",...], "deps": [...], "blockers": [...], "ready_to_work": bool}` — not a flat list of IDs. Parse the `children` field to get all child ticket IDs (including archived ones):
+
+```bash
+CHILDREN=$(.claude/scripts/dso ticket deps <story-id> --include-archived | python3 -c 'import json,sys; print(",".join(json.load(sys.stdin)["children"]))')
+```
+
+**If `children` is empty (no existing child tasks):** This is the first invocation — skip this guard entirely and proceed to Epic Type Detection below.
+
+For each child ID in the `children` list, run `.claude/scripts/dso ticket show <child-id>` and classify by status:
+
+- **closed or archived** (`status=closed` OR `archived=true`): read-only — never modify, reopen, or duplicate; log as skipped
+- **in-progress** (`status=in_progress`): flagged for review — include in the diff plan output with a WARNING note
+- **open** (`status=open`): candidate for revision — may be updated or left as-is
+
+Log a summary line:
+```
+Re-invocation guard: N closed (read-only), M in-progress (flagged), K open (candidates)
+```
+
+**If ALL children are closed (read-only):**
+Log "All children are complete — no new tasks needed". Before emitting STATUS, emit the SKILL_EXIT trace breadcrumb per the Observability section. Then emit:
+```
+STATUS:complete TASKS:<comma-separated-child-ids> STORY:<story-id>
+```
+where `<comma-separated-child-ids>` is the full list of child IDs already fetched from the `children` field of the `ticket deps` JSON output (comma-separated, no spaces), and `<story-id>` is the story/epic being processed. Do not proceed further.
+
+**Otherwise:**
+Produce only a diff plan: new tasks to be created + open/flagged tasks to be revised — never touch closed children. The diff plan must clearly distinguish "new or reopened" tasks from tasks that are left unchanged. After producing the diff plan, proceed to Epic Type Detection below with only the open/new tasks in scope. (The SKILL_EXIT breadcrumb is emitted at the normal end of the full skill execution, not at this intermediate guard exit.)
+
 ### Epic Type Detection
 
 After loading the item with `.claude/scripts/dso ticket show`, check the `type` field in the output:
@@ -218,7 +255,29 @@ Check for these signals:
 - Separate into **blocking** ("cannot plan without this") and **defaultable** ("I'll assume X unless you say otherwise")
 - Never ask about things clearly inferrable from the codebase or parent epic
 
-**If no ambiguities found**, proceed to Cross-Cutting Change Detection.
+**If no ambiguities found**, proceed to Unsatisfiable Criteria Detection.
+
+### Unsatisfiable Criteria Detection
+
+After resolving ambiguities (or confirming none exist), check whether the success criteria can actually be satisfied given the current codebase state:
+
+- If success criteria are contradicted by codebase state (e.g., SC says "add OAuth login" but a closed ticket permanently removed OAuth per legal mandate)
+- If SC items are mutually exclusive (A and B cannot both be true simultaneously)
+- If the current architecture makes the SC impossible to implement without fundamental redesign beyond this story's scope
+
+**When any of these apply, emit the REPLAN_ESCALATE signal and STOP — do NOT proceed to task drafting:**
+
+```
+REPLAN_ESCALATE: brainstorm EXPLANATION:<human-readable explanation of the contradiction or impossibility, including what SC cannot be satisfied, why (the codebase state that contradicts it), and what the orchestrator should investigate>
+```
+
+This signal is terminal — it is the final output. Do not emit STATUS:complete or STATUS:blocked after it.
+
+**Distinction from STATUS:blocked:**
+- STATUS:blocked = user can answer questions to unblock planning (ambiguous requirements, missing info)
+- REPLAN_ESCALATE = the story intent itself needs brainstorm-level re-examination; no clarifying question can unblock it; the success criteria cannot be satisfied as written
+
+**If no unsatisfiable criteria found**, proceed to Cross-Cutting Change Detection.
 
 ### Cross-Cutting Change Detection
 
@@ -892,5 +951,13 @@ Each question object must have two fields:
 - `"blocking"`: genuinely cannot draft tasks without this answer
 - `"defaultable"`: safe assumption exists; include the assumption explicitly
 - Never include questions clearly answerable from the codebase or parent epic
+
+### On unsatisfiable success criteria (story intent requires brainstorm-level re-evaluation):
+
+```
+REPLAN_ESCALATE: brainstorm EXPLANATION:<explanation>
+```
+
+Emitted when success criteria cannot be satisfied given the current codebase state — they are actively contradicted, internally contradictory, or unsatisfiable regardless of implementation approach. This is a terminal signal — do not emit STATUS:complete or STATUS:blocked after it. No tasks are created. The calling orchestrator (e.g., `/dso:sprint`) routes this signal to `/dso:brainstorm` on the story rather than proceeding to implementation batches.
 
 **Termination directive**: After emitting a STATUS line, emit no further prose, questions, or options. The STATUS line is your final output for this skill. **Do NOT halt the session** — if you were invoked from `/dso:sprint` via the Skill tool, the sprint orchestrator will continue automatically after reading this STATUS line. Only halt if you were invoked interactively (user-initiated).

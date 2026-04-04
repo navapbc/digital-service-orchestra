@@ -364,8 +364,7 @@ def reduce_ticket(
             state["priority"] = data.get("priority")
             state["assignee"] = data.get("assignee")
             state["description"] = data.get("description") or ""
-            if data.get("tags"):
-                state["tags"] = data["tags"]
+            state["tags"] = data.get("tags", [])
         elif event_type == "STATUS":
             current_status = data.get("current_status")
             if current_status is not None and current_status != state["status"]:

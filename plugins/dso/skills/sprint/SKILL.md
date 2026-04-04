@@ -385,6 +385,15 @@ Log the layer assignment: `"Dependency layers: Layer 0: <ids>, Layer 1: <ids>, .
 
 Process stories in layer order — Layer 0 first, then Layer 1, etc. Within each layer, invoke `/dso:implementation-plan` sequentially via Skill tool for each story that needs decomposition. Wait for all stories in the layer to complete before processing the next layer.
 
+**Epic-level cascade counter (initialize once before the layer loop):**
+
+```
+replan_cycle_count = 0
+max_replan_cycles = read_config("sprint.max_replan_cycles", default=2)
+```
+
+This counter is shared across all stories in the epic. Each full brainstorm → preplanning → implementation-plan cascade iteration (regardless of which story triggered it) increments the counter by 1. This prevents unbounded loops when multiple stories each emit REPLAN_ESCALATE across cascade iterations.
+
 **For each layer (in order Layer 0, Layer 1, ...):**
 
 a. Filter to stories in this layer that need decomposition
@@ -412,6 +421,10 @@ d. For each skill result, **parse STATUS:**
      - Proceed to post-dispatch validation (step e)
    - On `STATUS:blocked QUESTIONS:<json-array>`:
      - **Add to blocked-stories list** — do not ask the user inline; collect all `STATUS:blocked` results from this layer batch and present them together after the full layer batch completes (see step d-collect below)
+   - **On `REPLAN_ESCALATE: brainstorm EXPLANATION:<text>` (canonical signal from implementation-plan):**
+     - Extract the explanation text following `EXPLANATION:`.
+     - **If the signal is malformed** (present but missing `EXPLANATION:` field or the text is empty): log a warning and treat as `STATUS:blocked` — surface the story as blocked for user input. Do not enter the cascade.
+     - **Otherwise**: add the story and its explanation to the **replan-stories list** — do not present to the user inline. Collect all `REPLAN_ESCALATE` results from this layer batch and handle them together after the full layer batch completes (see step d-replan-collect below).
    - **Fallback — if no STATUS line in skill output:**
      - Run `.claude/scripts/dso ticket deps <story-id>` to check whether tasks were created
      - If children exist → treat as success; log a warning: `"WARNING: skill returned no STATUS line for story <id>, but .claude/scripts/dso ticket deps shows tasks — continuing"`; proceed to post-dispatch validation
@@ -462,6 +475,47 @@ d-collect. **Collect and present blocked-layer stories** — after the full laye
      ```
    - **Re-invoke the skill**: Call the Skill tool again with the same story ID.
    - **If the re-invoked skill returns `STATUS:blocked` again**: Do not ask the user a second time. Treat as failure: revert story to open (`.claude/scripts/dso ticket transition <story-id> open`), log `"ERROR: /dso:implementation-plan returned STATUS:blocked twice for story <story-id> — story reverted to open"`, and skip to the next story.
+d-replan-collect. **Collect and handle all REPLAN_ESCALATE stories** — after the full layer batch completes, if any stories are in the replan-stories list:
+   - **Check cycle cap first** (before presenting anything to the user):
+     - **If `replan_cycle_count >= max_replan_cycles`:** Cap is exhausted. Present the stored REPLAN_ESCALATE signals (story IDs and explanations) and inform the user the cascade limit has been reached:
+       ```
+       /dso:implementation-plan cannot satisfy success criteria for:
+         - Story <story-id-1>: <explanation-1>
+         - Story <story-id-2>: <explanation-2>
+
+       The cascade replan limit (max_replan_cycles=<N>) has been reached.
+       Options:
+         (a) Proceed — accept the current plan as-is and continue sprint execution
+         (b) Abort — stop the sprint for this epic; it will remain open for manual adjustment
+         (c) Manual adjustment — edit the relevant story or epic tickets manually, then resume the sprint
+       ```
+       Wait for user input. Act on their choice. Do NOT enter the cascade. See `plugins/dso/docs/designs/cascade-replan-protocol.md` §"When Max Cycles Are Hit". # shim-exempt: internal documentation reference
+   - **If cap is not yet exhausted:** Present all REPLAN_ESCALATE stories together in a single prompt:
+     ```
+     /dso:implementation-plan cannot satisfy success criteria for:
+       - Story <story-id-1>: <explanation-1>
+       - Story <story-id-2>: <explanation-2>
+       ...
+
+     Current cascade cycle: <replan_cycle_count> of <max_replan_cycles>
+
+     Options:
+       (a) Route to /dso:brainstorm — revise the epic, then re-run preplanning and implementation-plan (cascade replan)
+       (b) Proceed — accept the current state and continue sprint with these stories as-is
+       (c) Abort — stop the sprint for this epic; it will remain open for manual adjustment
+     ```
+     Wait for user input.
+     - **If user selects (b) or (c):** act accordingly — proceed or abort. Do not enter cascade.
+     - **If user selects (a):** Enter the cascade replan per `plugins/dso/docs/designs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
+       1. Emit SKILL_INVOKE breadcrumb for brainstorm, then invoke `/dso:brainstorm <epic-id>` via Skill tool
+       2. Emit SKILL_RESUMED breadcrumb after brainstorm returns
+       3. Delete `/tmp/preplanning-context-<epic-id>.json` (invalidate stale preplanning cache before re-run)
+       4. Emit SKILL_INVOKE breadcrumb for preplanning, then invoke `/dso:preplanning <epic-id>` via Skill tool
+       5. Emit SKILL_RESUMED breadcrumb after preplanning returns
+       6. Increment `replan_cycle_count += 1`
+       7. Re-run Step 2 (implementation planning) for all stories in the epic — re-enter the layer loop from the beginning
+       8. If implementation-plan returns no `REPLAN_ESCALATE` for any story: cascade exits — proceed to step e normally (plan accepted)
+       9. If implementation-plan still emits `REPLAN_ESCALATE`: repeat from d-replan-collect (check cap first, then present to user)
 e. **Post-layer-batch ticket validation**:
    ```bash
    .claude/scripts/dso validate-issues.sh --quick --terse
@@ -1321,6 +1375,32 @@ Before creating remediation tasks, invoke `/dso:oscillation-check` as a sub-agen
 If it returns OSCILLATION: flag the specific items to the user before creating tasks.
 Report which remediation items target files already modified by completed remediation.
 If it returns CLEAR: proceed to create tasks normally.
+
+### Gap Classification Step (/dso:sprint)
+
+**User confirmation required before any intent_gap SC is routed to brainstorm — autonomous brainstorm invocation is prohibited.**
+
+For each failing success criterion (SC) identified in Phase 6 validation, dispatch the gap-classification sub-agent to classify it before creating remediation tasks.
+
+**Dispatch** (`subagent_type="general-purpose"`, `model="sonnet"`) with the prompt from `plugins/dso/skills/sprint/prompts/gap-classification.md` and the following context for each failing SC: # shim-exempt: internal prompt path reference
+- The exact failing SC criterion text from the completion-verifier output
+- The completion-verifier failure explanation for the SC
+- Relevant code snippets or file paths from the validation context
+
+**Parse output**: Scan all lines prefixed with `GAP_CLASSIFICATION: ` and extract:
+- Classification value: `intent_gap` or `implementation_gap`
+- Routing value: `brainstorm` or `implementation-plan`
+- Explanation text
+
+**REPLAN_ESCALATE override**: If a previous `/dso:implementation-plan` invocation returned `REPLAN_ESCALATE` for this SC, override any `implementation_gap` classification to `intent_gap` before routing. Log that the re-classification was triggered by REPLAN_ESCALATE, not the original gap-classification output.
+
+**Failure contract**: If the gap-classification sub-agent output is absent, malformed (missing `ROUTING:` or `EXPLANATION:` fields, empty explanation), or contains an unrecognized classification value, treat all affected failing SCs as `intent_gap` (fallback to intent_gap — the safer default). Log a warning so silent degradation is detectable in debug output.
+
+**Routing rules**:
+
+- `intent_gap` + `ROUTING: brainstorm` — REQUIRE user confirmation before proceeding. Do NOT autonomously invoke `/dso:brainstorm`. Present the failing SC text and classification explanation to the user. Ask the user to confirm that brainstorm re-examination is desired. Proceed to `/dso:brainstorm` only after explicit user approval. If the user declines, mark the SC as deferred and continue to the next SC.
+
+- `implementation_gap` + `ROUTING: implementation-plan` — autonomous remediation is permitted. Proceed directly to **Step 1 (Create Remediation Tasks)** below without requiring user confirmation. **Important**: `ROUTING: implementation-plan` is a routing signal label — it does NOT mean invoking `/dso:implementation-plan` as a separate skill. The action for `implementation_gap` is bug-task creation via the Phase 7 Step 1 remediation flow (`.claude/scripts/dso ticket create bug`), which creates targeted implementation tasks under the epic. This is the correct and intended behavior for filling a clear implementation gap.
 
 ### Step 1: Create Remediation Tasks (/dso:sprint)
 

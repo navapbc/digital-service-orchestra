@@ -21,13 +21,14 @@ TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
-    echo "Usage: ticket create <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>] [--description <text>]" >&2
+    echo "Usage: ticket create <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>] [--description <text>] [--tags <tag1,tag2>]" >&2
     echo "  ticket_type: bug | epic | story | task" >&2
     echo "  title: non-empty string" >&2
     echo "  --parent: optional parent ticket ID" >&2
     echo "  --priority: 0-4 (0=critical, 4=backlog; default: 2)" >&2
     echo "  --assignee: assignee name (default: git config user.name)" >&2
     echo "  --description, -d: optional description text" >&2
+    echo "  --tags: comma-separated list of tags" >&2
     exit 1
 }
 
@@ -178,12 +179,15 @@ temp_event=$(mktemp "$TRACKER_DIR/.tmp-create-XXXXXX")
 python3 -c "
 import json, sys
 
+tags_str = sys.argv[11]
+tags_list = [t.strip() for t in tags_str.split(',') if t.strip()] if tags_str else []
+
 data = {
     'ticket_type': sys.argv[5],
     'title': sys.argv[6],
     'parent_id': sys.argv[7] if sys.argv[7] else '',
     'description': sys.argv[10],
-    'tags': [t.strip() for t in sys.argv[12].split(',') if t.strip()] if sys.argv[12] else []
+    'tags': tags_list
 }
 if sys.argv[8]:
     data['priority'] = int(sys.argv[8])
@@ -199,9 +203,9 @@ event = {
     'data': data
 }
 
-with open(sys.argv[11], 'w', encoding='utf-8') as f:
+with open(sys.argv[12], 'w', encoding='utf-8') as f:
     json.dump(event, f, ensure_ascii=False)
-" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$assignee" "$description" "$temp_event" "$tags" || {
+" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$assignee" "$description" "$tags" "$temp_event" || {
     rm -f "$temp_event"
     echo "Error: failed to build CREATE event JSON" >&2
     exit 1
