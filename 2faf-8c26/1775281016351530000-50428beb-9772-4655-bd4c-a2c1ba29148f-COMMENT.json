@@ -1,1 +1,0 @@
-{"timestamp": 1775281016351530000, "uuid": "50428beb-9772-4655-bd4c-a2c1ba29148f", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 6/6 \u2713 \u2014 RED assertions added to tests/scripts/test-claude-md-cli-user-guidance.sh and confirmed failing (PASSED: 0, FAILED: 2, exit 1)"}}
