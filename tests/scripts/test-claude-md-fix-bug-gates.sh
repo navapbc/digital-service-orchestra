@@ -75,4 +75,37 @@ assert_contains \
     "$skill_md_content"
 echo ""
 
+# ── test_claude_md_cli_user_skips_intent_search ───────────────────────────────
+# CLAUDE.md architecture table must explicitly document that CLI_user-tagged
+# tickets skip intent-search dispatch. The dso:intent-search routing row must
+# mention CLI_user within 5 lines (grep -A5 -B5 context window) so future
+# agents know to bypass Gate 1a for user-reported bugs.
+_snapshot_fail
+if echo "$claude_md_content" | grep -A5 -B5 "intent-search" | grep -q "CLI_user"; then
+    echo "PASS: test_claude_md_cli_user_skips_intent_search: CLAUDE.md documents CLI_user skip for intent-search"
+    (( ++PASS ))
+else
+    echo "FAIL: test_claude_md_cli_user_skips_intent_search: CLAUDE.md does not document CLI_user skip near intent-search" >&2
+    printf "  expected: CLI_user mentioned within 5 lines of intent-search in CLAUDE.md\n" >&2
+    printf "  actual:   no CLI_user found near intent-search\n" >&2
+    (( ++FAIL ))
+fi
+echo ""
+
+# ── test_claude_md_gate1a_cli_user_skip_phrase ────────────────────────────────
+# CLAUDE.md must contain a phrase near CLI_user that confirms Gate 1a is
+# skipped for CLI_user-tagged tickets. Acceptable phrases: "skips", "skip",
+# "intent-aligned" (the GATE_1A_RESULT value when bypassed), or "Gate 1a".
+_snapshot_fail
+if echo "$claude_md_content" | grep -A3 -B3 "CLI_user" | grep -qiE "(skips?|intent-aligned|Gate 1a)"; then
+    echo "PASS: test_claude_md_gate1a_cli_user_skip_phrase"
+    (( ++PASS ))
+else
+    echo "FAIL: test_claude_md_gate1a_cli_user_skip_phrase: CLAUDE.md has no skip/intent-aligned/Gate 1a phrase near CLI_user" >&2
+    printf "  expected: skip/intent-aligned/Gate 1a within 3 lines of CLI_user\n" >&2
+    printf "  actual:   no qualifying phrase found\n" >&2
+    (( ++FAIL ))
+fi
+echo ""
+
 print_summary
