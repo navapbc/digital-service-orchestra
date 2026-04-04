@@ -1,1 +1,0 @@
-{"timestamp": 1775325709, "uuid": "f635f742-fb96-4fca-af70-60ad7a2dacfc", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "bug", "title": "Add ticket_id field to ticket deps schema description in re-invocation guard", "parent_id": "d16d-1419", "description": "", "tags": [], "priority": 4, "assignee": "Test"}}
