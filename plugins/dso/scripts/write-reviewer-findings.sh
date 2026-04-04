@@ -39,11 +39,20 @@ source "$PLUGIN_ROOT/hooks/lib/deps.sh"
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 
-# Parse --output flag (or FINDINGS_OUTPUT env var) for slot-specific output path
+# Parse flags
 _OUTPUT_PATH=""
+_REVIEW_TIER=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --output) _OUTPUT_PATH="${2:?--output requires a path argument}"; shift 2 ;;
+        --review-tier)
+            _REVIEW_TIER="${2:?--review-tier requires a value (light|standard|deep)}"
+            if [[ "$_REVIEW_TIER" != "light" && "$_REVIEW_TIER" != "standard" && "$_REVIEW_TIER" != "deep" ]]; then
+                echo "ERROR: --review-tier must be one of: light, standard, deep (got '$_REVIEW_TIER')" >&2
+                exit 2
+            fi
+            shift 2
+            ;;
         *) echo "ERROR: unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -82,6 +91,18 @@ if 'dimensions' in data and 'scores' not in data:
     with open(sys.argv[1], 'w') as f:
         json.dump(data, f, indent=2)
 " "$PENDING_FILE" 2>&1 || true  # normalization failure is non-fatal
+
+# Inject review_tier field if --review-tier was provided
+if [[ -n "$_REVIEW_TIER" ]]; then
+    python3 -c "
+import json, sys
+with open(sys.argv[1], 'r') as f:
+    data = json.load(f)
+data['review_tier'] = sys.argv[2]
+with open(sys.argv[1], 'w') as f:
+    json.dump(data, f, indent=2)
+" "$PENDING_FILE" "$_REVIEW_TIER"
+fi
 
 # Validate schema BEFORE writing to canonical location.
 # If validation fails, pending file is removed and the sub-agent cannot obtain a hash.
