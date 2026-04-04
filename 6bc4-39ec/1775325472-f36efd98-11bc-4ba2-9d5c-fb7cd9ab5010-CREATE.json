@@ -1,1 +1,0 @@
-{"timestamp": 1775325472, "uuid": "f36efd98-11bc-4ba2-9d5c-fb7cd9ab5010", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "bug", "title": "Add eval test for zero-children first-invocation path in re-invocation guard", "parent_id": "d16d-1419", "description": "", "tags": [], "priority": 3, "assignee": "Test"}}
