@@ -116,6 +116,7 @@ fuzzy_find_associated_tests() {
             -not -path '*/.gradle/*' \
             -not -path '*/Pods/*' \
             -not -path '*/.git/*' \
+            -not -path '*/__pycache__/*' \
             2>/dev/null)
     done
 }

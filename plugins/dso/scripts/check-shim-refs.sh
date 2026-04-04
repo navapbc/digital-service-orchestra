@@ -33,6 +33,14 @@ _scan_targets=()
 if [[ $# -gt 0 ]]; then
     # Explicit targets provided (used for pre-commit hook and test isolation)
     _scan_targets=("$@")
+elif [[ -n "${PRE_COMMIT:-}" ]]; then
+    # Pre-commit hook context: scan only staged files under plugins/dso/ (not scripts/)
+    # to avoid the full 183-file corpus scan that causes timeouts on larger changesets.
+    # _scan_file already filters out scripts/ files, so we pass all staged plugins/dso/ files.
+    _repo_root="$(cd "$PLUGIN_DIR/../.." && pwd)"
+    mapfile -t _scan_targets < <(git diff --cached --name-only -- plugins/dso/ 2>/dev/null | while IFS= read -r _f; do
+        [[ -f "$_repo_root/$_f" ]] && echo "$_repo_root/$_f"
+    done)
 else
     # Default in-scope set: plugins/dso/{skills,agents,docs/workflows,docs/prompts}
     for _dir in skills agents docs/workflows docs/prompts; do
