@@ -31,6 +31,7 @@ For each cluster or standalone error without an existing ticket issue:
 
 ```bash
 # For clusters: title describes root cause, not individual symptoms
+# Do NOT use --tags CLI_user — autonomously-created bugs must not carry this tag (see SUB-AGENT-BOUNDARIES.md)
 .claude/scripts/dso ticket create bug "Fix: <root cause description> (N related errors)" -p <priority>
 
 # For standalone errors:
