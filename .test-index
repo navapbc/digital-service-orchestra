@@ -274,4 +274,4 @@ CLAUDE.md:tests/scripts/test-claude-md-fix-bug-gates.sh
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation_plan_reinvocation_guard.py
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation_plan_replan_escalate.py
 plugins/dso/skills/sprint/SKILL.md:tests/skills/test_sprint_gap_classification.py
-CLAUDE.md:tests/scripts/test-claude-md-replan-safety.sh [test_claude_md_contains_reinvocation_guard]
+CLAUDE.md:tests/scripts/test-claude-md-replan-safety.sh
