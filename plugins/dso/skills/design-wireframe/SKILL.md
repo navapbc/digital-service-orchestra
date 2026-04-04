@@ -253,12 +253,15 @@ Extract and note (if not already noted):
    #### Context File Check (skip epic tree walk if fresh context exists)
 
    Before fetching epic data via `ticket` commands, check for a preplanning context
-   file that may already contain all the information needed:
+   in the parent epic's ticket comments:
 
-   a. Look for `/tmp/preplanning-context-<epic-id>.json`.
-   b. **If the file exists**: read it and check `generatedAt`. If the timestamp
-      is less than 24 hours old, the context is fresh — load the following from
-      the file and **skip sub-steps 2a-2d below**:
+   a. Call `.claude/scripts/dso ticket show <parent-epic-id>` to retrieve the epic's
+      full JSON including the `comments` array.
+   b. Scan the `comments` array for the last comment in the array whose `body` starts
+      with `PREPLANNING_CONTEXT:`.
+   c. **If found AND the embedded `generatedAt` timestamp is within the last 7 days AND the payload is valid JSON**:
+      extract the JSON payload (strip the `PREPLANNING_CONTEXT: ` prefix; if not valid JSON, treat as not found and proceed to 2a) and load
+      the following, then **skip sub-steps 2a-2d below**:
       - Epic title, description, and success criteria (from `epic` field)
       - All sibling stories: IDs, titles, descriptions, priorities, walking
         skeleton flags, review findings (from `stories` array)
@@ -270,9 +273,9 @@ Extract and note (if not already noted):
         for siblings with `hasWireframe: true` to get the manifest path).
       - Carry forward review findings (especially accessibility and security
         safeguards) into the Epic UX Map.
-      - Log: `"Loaded epic context from /tmp/preplanning-context-<epic-id>.json
+      - Log: `"Loaded epic context from preplanning comment on epic <epic-id>
         (generated <timestamp>) — skipping epic tree walk."`
-   c. **If the file is missing or stale (>24h)**: proceed with the full epic
+   d. **If not found OR stale (>7 days)**: proceed with the full epic
       tree walk below (sub-steps 2a-2d). Behavior is unchanged from the
       original flow.
 

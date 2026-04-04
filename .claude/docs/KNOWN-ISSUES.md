@@ -150,3 +150,29 @@
 - **Detection**: git merge main produces conflict markers inside ticket tracker JSON files. git status shows both modified for tracker files.
 - **Fix**: Use `merge-to-main.sh` which handles ticket branch syncing inline via `_phase_sync`. Never use raw `git merge main` in worktrees.
 - **Rule added**: Always use `merge-to-main.sh` (which includes inline ticket sync) for worktree merge operations.
+
+---
+
+## Review and Commit Workflow
+
+### INC-016: git stash Destroys Staged Files During Diagnosis
+- **Date**: 2026-04
+- **Keywords**: git stash, staged files, pre-commit, review workflow, diagnosis
+- **Symptom**: Running `git stash` while diagnosing a pre-commit failure unstages all previously staged files. After `git stash pop`, files return to the working tree as unstaged modifications, requiring manual re-staging of every file.
+- **Root cause**: `git stash` (without flags) saves both the index (staged) and working tree changes, then resets both to HEAD. On pop, changes are restored as unstaged working tree modifications — the original staging state is lost.
+- **Detection**: After `git stash pop`, `git status` shows all previously staged files as unstaged (`M` not `M `). Any staged test files (new files) may appear as untracked.
+- **Fix**: Re-stage all files manually: `git add <file1> <file2> ...`. For new files, use `git add` to re-stage them.
+- **Prevention**: Never use bare `git stash` when staged files must be preserved. Use one of these alternatives instead:
+  - `git stash --keep-index` — stashes only unstaged changes; leaves the index intact.
+  - Save the diff first: `git diff --cached > /tmp/staged.patch`, then restore with `git apply --cached /tmp/staged.patch` after the stash pop.
+  - For read-only diagnosis (just want to see what HEAD looks like): use `git diff HEAD <file>` or `git show HEAD:<file>` instead of stashing.
+- **Rule added**: When staged files are present, never use `git stash` without `--keep-index`.
+
+### INC-017: Review Orchestrator Uses Wrong Hash Method Causing record-review.sh Failures
+- **Date**: 2026-04
+- **Keywords**: compute-diff-hash, record-review, diff hash mismatch, review gate, sha256sum
+- **Symptom**: `record-review.sh --expected-hash <hash>` fails with "diff hash mismatch — code changed between review dispatch and recording" even though no code changed. Multiple review re-dispatches required.
+- **Root cause**: The review orchestrator captured the diff hash using `git diff HEAD | sha256sum` or `git diff --cached | sha256sum`, but `record-review.sh` validates against the output of `plugins/dso/hooks/compute-diff-hash.sh`. These produce different hashes for the same staged state because `compute-diff-hash.sh` applies an exclusion pathspec allowlist (`.tickets-tracker/**`, `docs/**`, `.claude/docs/**`, `*.png`, etc.) before hashing.
+- **Detection**: `record-review.sh` exits 1 with "Expected: <hash-A> / Current: <hash-B>" where both hashes are non-trivially different despite no visible code change.
+- **Fix**: Always use `plugins/dso/hooks/compute-diff-hash.sh` (or its shim equivalent) as the canonical hash capture method. Run it directly: `DIFF_HASH=$(bash "$PLUGIN_ROOT/hooks/compute-diff-hash.sh")`. Never substitute `git diff | sha256sum` — the exclusion pathspecs make them non-equivalent.
+- **Rule added**: Diff hash for review must always be captured via `compute-diff-hash.sh`, not via raw `git diff | sha256sum`. Tracked in ticket 0815-cee3 for REVIEW-WORKFLOW.md update and shim registration.

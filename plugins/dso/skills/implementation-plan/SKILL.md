@@ -198,18 +198,21 @@ After loading the item with `.claude/scripts/dso ticket show`, check the `type` 
 
 ### Context File Check
 
-After loading the story with `.claude/scripts/dso ticket show <story-id>`, check for a preplanning context file:
+After loading the story with `.claude/scripts/dso ticket show <story-id>`, check for a preplanning context in the parent epic's ticket comments:
 
 1. Extract the parent epic ID from the story's `parent` field
-2. Check for `/tmp/preplanning-context-<parent-epic-id>.json`
-3. If found AND `generatedAt` is within the last 24 hours:
-   - Load epic data from the context file (skip `.claude/scripts/dso ticket show <parent-epic-id>`)
-   - Load sibling stories from the context file (skip `.claude/scripts/dso ticket deps` + per-sibling `.claude/scripts/dso ticket show`)
+2. Run `.claude/scripts/dso ticket show <parent-epic-id>` and scan the `comments` array for the last comment in the array whose `body` starts with `PREPLANNING_CONTEXT:`
+3. If found AND the embedded `generatedAt` timestamp is within the last 7 days:
+   - Extract the JSON payload from the comment body (strip the `PREPLANNING_CONTEXT: ` prefix)
+   - If the payload is not valid JSON, treat as not found and fall through to step 4
+   - Load epic data from the payload (skip a second `.claude/scripts/dso ticket show <parent-epic-id>` re-fetch)
+   - Load sibling stories from the payload (skip `.claude/scripts/dso ticket deps` + per-sibling `.claude/scripts/dso ticket show`)
    - Carry forward: review findings, walking skeleton flags, classifications, traceability lines, story dashboard
-   - Log: `"Context loaded from preplanning — skipping redundant epic/sibling fetch"`
+   - Log: `"Context loaded from preplanning comment on epic <parent-epic-id> — skipping redundant epic/sibling fetch"`
    - **Skip the Input Analysis section below** and proceed directly to Architectural Alignment
-4. If not found OR stale (>24 hours):
-   - Proceed with normal Input Analysis below (no change to current behavior)
+4. If not found OR stale (>7 days) OR malformed JSON:
+   - Log: `"No recent preplanning context found on epic <parent-epic-id> — running full Input Analysis"`
+   - Proceed with normal Input Analysis below
 
 ### Input Analysis
 

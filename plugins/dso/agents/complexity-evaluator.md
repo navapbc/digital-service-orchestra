@@ -32,6 +32,13 @@ When no `tier_schema` is specified, default to `TRIVIAL`.
 
 Read the ticket title, description, type, acceptance criteria, and any done definitions or success criteria. If a parent epic exists (`parent` field), also load:
 
+**Context fields passed by callers**: Some callers (e.g., `/dso:brainstorm`) pass advisory context fields alongside the ticket ID:
+
+- `success_criteria_count` — the count of success criteria as tallied by the calling session. This is **informational only**. The evaluator's own count from the ticket description is authoritative for the Qualitative Override "Success criteria overflow" check (>6 SC forces COMPLEX). The session-signal override in `/dso:brainstorm` (SC ≥ 7 → COMPLEX) is enforced by the caller, not by this agent.
+- `scenario_survivor_count` — the count of scenario-analysis survivors from the calling session. This is **informational only**. The session-signal override in `/dso:brainstorm` (survivors ≥ 10 → COMPLEX) is enforced by the caller, not by this agent.
+
+These context fields do not override the agent's rubric-based classification. They are provided for logging and transparency purposes; ignore them for classification decisions.
+
 ```bash
 .claude/scripts/dso ticket show <parent-epic-id>
 ```
@@ -49,7 +56,7 @@ The shared rubric's Confidence dimension (Dimension 5) requires specific files f
 Pipe the list of discovered files (one path per line) into `blast-radius-score.py` to obtain a blast-radius signal:
 
 ```bash
-printf '%s\n' path/to/file1.py path/to/file2.sh | .claude/scripts/dso blast-radius-score.py
+printf '%s\n' path/to/file1.py path/to/file2.sh | .claude/scripts/dso blast-radius-score.py  # reads file paths from stdin, one per line
 ```
 
 The script outputs a JSON object with at minimum `blast_radius_score` (numeric) and `complex_override` (boolean). If `complex_override=true`, **force COMPLEX classification** regardless of other dimension scores.
@@ -214,7 +221,8 @@ Check whether ANY of these apply (each forces COMPLEX):
 - **UI + backend**: epic requires BOTH template/CSS changes AND service/model changes
 - **New DB migration**: epic requires a schema migration
 - **Foundation/enhancement candidate**: scope naturally splits into "works" vs "works well"
-- **External integration**: epic introduces a new external API, service, or infrastructure dependency
+- **External integration**: epic introduces a new external API, service, infrastructure dependency, or library/SDK/tool package with no existing usage in this repo
+- **Success criteria overflow**: epic has more than 6 success criteria (spec norm is 3–6; exceeding it signals scope expansion that warrants story decomposition)
 
 ### Done-Definition Check (Applicable when evaluating epics only)
 

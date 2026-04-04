@@ -163,6 +163,7 @@ If resolution was abandoned (user chose to resolve manually):
 ## Constraints
 
 - `.tickets-tracker/` JSON event files are auto-resolved (accept ours) — they are append-only and safe to resolve without user input.
+- Individual ticket `.md` files are NOT auto-resolved — show a diff to the user and ask for confirmation before choosing a version, as each side may contain important state changes.
 - Sub-agent model: **sonnet** — conflict resolution needs code understanding but not architectural reasoning
 - This skill does NOT commit or push — it only completes the merge. The calling skill handles commit/push.
 - Maximum 10 conflicted files. Above that, report to user: "Too many conflicts for agent-assisted resolution. Consider rebasing incrementally."
