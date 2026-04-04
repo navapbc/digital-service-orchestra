@@ -17,6 +17,9 @@ TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
 source "$REPO_ROOT/tests/lib/assert.sh"
 source "$REPO_ROOT/tests/lib/git-fixtures.sh"
 
+# This test specifically validates sync behavior — override the test-wide skip.
+unset _TICKET_TEST_NO_SYNC
+
 echo "=== test-ticket-sync-preserves-local.sh ==="
 
 PASSED=0

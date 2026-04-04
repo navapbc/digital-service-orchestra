@@ -232,8 +232,8 @@ plugins/dso/scripts/gate-2c-test-regression-check.py: tests/scripts/test_gate_2c
 plugins/dso/scripts/gate-escalation-router.py: tests/scripts/test_gate_escalation_router.py
 plugins/dso/hooks/record-test-status.sh: tests/hooks/test-record-test-status-part2.sh,tests/hooks/test-record-test-status-accumulative.sh
 plugins/dso/hooks/record-test-status.sh: tests/hooks/test-record-test-status-part4.sh
-plugins/dso/hooks/record-test-status.sh: tests/hooks/test-record-test-status-centrality.sh
-plugins/dso/hooks/record-test-status.sh: tests/hooks/test-eval-todo-guard.sh [test_todo_marker_blocks]
+plugins/dso/hooks/record-test-status.sh: tests/hooks/test-record-test-status-centrality.sh [test_missing_sg_gracefully_degrades]
+plugins/dso/hooks/record-test-status.sh: tests/hooks/test-eval-todo-guard.sh
 .claude/docs/KNOWN-ISSUES.md: tests/scripts/test-known-issues-smoke.sh
 plugins/dso/skills/resolve-conflicts/SKILL.md: tests/skills/test_resolve_conflicts_ticket_diff_required.py [test_user_confirmation_required_for_ticket_md_conflicts]
 plugins/dso/skills/fix-bug/SKILL.md:tests/scripts/test-fix-bug-agent-separation.sh
@@ -245,6 +245,7 @@ plugins/dso/skills/fix-bug/prompts/anti-pattern-fix-batch.md:tests/scripts/test-
 .claude/commands/sprint.md: tests/scripts/test-wrapper-parity.sh
 plugins/dso/scripts/check-portability.sh: tests/scripts/test-check-portability.sh
 plugins/dso/hooks/lib/merge-state.sh: tests/hooks/test-merge-state.sh, tests/hooks/test-merge-state-golden-path.sh
+plugins/dso/hooks/lib/red-zone.sh: tests/hooks/test-red-zone-bash-parser.sh
 plugins/dso/skills/shared/prompts/prior-art-search.md: tests/scripts/test-prior-art-search-structure.sh
 plugins/dso/skills/fix-bug/SKILL.md: tests/scripts/test-prior-art-search-consumers.sh
 plugins/dso/skills/shared/evals/promptfooconfig.yaml: tests/scripts/test-prior-art-search-eval.sh

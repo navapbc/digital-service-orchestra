@@ -23,6 +23,11 @@
 #   - Stored in _GIT_FIXTURE_TEMPLATE_DIR (exported so callers can inspect)
 #   - Callers are responsible for their own dest cleanup
 
+# Skip ticket dispatcher's remote sync in test repos (no remote exists).
+# The env var is only checked by plugins/dso/scripts/ticket _ensure_initialized;
+# harmless for non-ticket tests.
+export _TICKET_TEST_NO_SYNC=1
+
 # Temp dir cleanup on exit (guarded for sourced usage — avoid clobbering caller state)
 if [[ -z "${_CLEANUP_DIRS+set}" ]]; then
     _CLEANUP_DIRS=()
