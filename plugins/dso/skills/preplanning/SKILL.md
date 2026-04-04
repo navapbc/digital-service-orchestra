@@ -132,7 +132,18 @@ If `--lightweight` was passed:
      - **Done Definitions**: Observable outcomes from the epic description, formatted the same way as story-level done definitions (see Phase 4 Step 2)
      - **Scope**: What's in and what's explicitly out
      - **Considerations**: Flags from the abbreviated risk scan
-   - Write the preplanning context file to `/tmp/preplanning-context-<epic-id>.json` (same schema as Phase 4 Step 5a, but with an empty `stories` array)
+   - Write the preplanning context to the epic ticket as a comment (same schema as Phase 4 Step 5a, but with an empty `stories` array) using Python subprocess to avoid ARG_MAX shell argument limits. This write is an optional cache — if it fails, log a warning and continue; do not abort the phase:
+     ```python
+     import json, subprocess
+     payload = json.dumps(<context-dict>, separators=(",",":"))
+     body = "PREPLANNING_CONTEXT: " + payload
+     result = subprocess.run(
+         [".claude/scripts/dso", "ticket", "comment", "<epic-id>", body],
+         check=False
+     )
+     if result.returncode != 0:
+         print("WARNING: Failed to write PREPLANNING_CONTEXT comment to epic ticket — continuing without cache write")
+     ```
    - Return:
      ```json
      {
@@ -726,11 +737,26 @@ Use `AskUserQuestion` to get user approval:
 
 If the user requests changes, iterate on the plan and re-present. Once the user selects "Approve — finalize and proceed", immediately continue to Step 5a, Step 6, and Step 7 without pausing for additional input — approval is the signal to proceed, not a stopping point.
 
-### Step 5a: Write Planning Context File (/dso:preplanning)
+### Step 5a: Write Planning Context to Epic Ticket (/dso:preplanning)
 
-Write the accumulated context to `/tmp/preplanning-context-<epic-id>.json` so that `/dso:implementation-plan` can load richer context when planning individual stories from this epic.
+Write the accumulated context as a structured comment on the epic ticket so that `/dso:implementation-plan` can load richer context when planning individual stories from this epic, regardless of which session or environment runs next.
 
-**File path**: `/tmp/preplanning-context-<epic-id>.json`
+**Command** (use Python subprocess to avoid shell ARG_MAX limits for large payloads). This write is an optional cache — if the ticket CLI call fails, log a warning and continue; do not abort the phase:
+```python
+import json, subprocess
+payload = json.dumps(<context-dict>, separators=(",",":"))
+body = "PREPLANNING_CONTEXT: " + payload
+result = subprocess.run(
+    [".claude/scripts/dso", "ticket", "comment", "<epic-id>", body],
+    check=False
+)
+if result.returncode != 0:
+    print("WARNING: Failed to write PREPLANNING_CONTEXT comment to epic ticket — continuing without cache write")
+```
+
+> **Known limitation**: For extremely large epic contexts (unlikely in practice), the actual ARG_MAX constraint boundary is `ticket-comment.sh`, which passes the comment body as a shell argument to its internal `python3 -c` invocation. The Python subprocess call in this skill avoids ARG_MAX at the *outer* shell level, but a body >~500KB could still hit the kernel limit inside `ticket-comment.sh`. A proper fix would write the payload to a temp file and pass the path instead of the body directly. This is tracked as a separate fix (ticket eba1-f7c1). Typical epic contexts are 10–50KB and well within limits.
+
+Serialize the JSON payload to a single minified line (no whitespace between keys/values) and write it as a ticket comment. If `/dso:preplanning` runs again on the same epic, write a new comment — `/dso:implementation-plan` will use the last `PREPLANNING_CONTEXT:` comment in the array.
 
 **Schema** (version 1):
 ```json
@@ -776,9 +802,9 @@ Write the accumulated context to `/tmp/preplanning-context-<epic-id>.json` so th
 - **Story dashboard**: total story count, UI story count, critical path order
 - **`generatedAt`**: Current ISO-8601 timestamp for staleness detection
 
-Write the file using the Write tool. If `/dso:preplanning` runs again on the same epic, the file is overwritten (newer context wins).
+Write the context as a ticket comment using `.claude/scripts/dso ticket comment`. If `/dso:preplanning` runs again on the same epic, write a new comment — `/dso:implementation-plan` uses the last `PREPLANNING_CONTEXT:` comment in the array.
 
-Log: `"Planning context written to /tmp/preplanning-context-<epic-id>.json"`
+Log: `"Planning context written to epic ticket <epic-id> as PREPLANNING_CONTEXT comment"`
 
 ### Step 6: Design Wireframes for UI Stories (/dso:preplanning)
 

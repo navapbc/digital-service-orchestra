@@ -109,7 +109,7 @@ def test_brainstorm_routing_table_remains_in_skill() -> None:
         re.DOTALL | re.IGNORECASE,
     ), (
         "Expected brainstorm/SKILL.md to contain the MODERATE + scope_certainty routing logic "
-        "(e.g., MODERATE+High → implementation-plan, MODERATE+Medium → preplanning). "
+        "(e.g., MODERATE+High → preplanning --lightweight, MODERATE+Medium → preplanning --lightweight). "
         "This context-specific routing must remain in brainstorm/SKILL.md."
     )
 

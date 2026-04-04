@@ -45,6 +45,7 @@ parent_id=""
 priority="2"  # REVIEW-DEFENSE: default P2 is intentional — user-requested behavior change so all tickets have a priority
 assignee=""
 description=""
+tags=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --parent)
@@ -86,6 +87,14 @@ while [ $# -gt 0 ]; do
         -p)
             priority="$2"
             shift 2
+            ;;
+        --tags)
+            tags="$2"
+            shift 2
+            ;;
+        --tags=*)
+            tags="${1#--tags=}"
+            shift
             ;;
         *)
             # Positional: treat as parent_id (backward-compatible)
@@ -173,7 +182,8 @@ data = {
     'ticket_type': sys.argv[5],
     'title': sys.argv[6],
     'parent_id': sys.argv[7] if sys.argv[7] else '',
-    'description': sys.argv[10]
+    'description': sys.argv[10],
+    'tags': [t.strip() for t in sys.argv[12].split(',') if t.strip()] if sys.argv[12] else []
 }
 if sys.argv[8]:
     data['priority'] = int(sys.argv[8])
@@ -191,7 +201,7 @@ event = {
 
 with open(sys.argv[11], 'w', encoding='utf-8') as f:
     json.dump(event, f, ensure_ascii=False)
-" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$assignee" "$description" "$temp_event" || {
+" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$assignee" "$description" "$temp_event" "$tags" || {
     rm -f "$temp_event"
     echo "Error: failed to build CREATE event JSON" >&2
     exit 1
