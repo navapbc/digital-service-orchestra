@@ -189,6 +189,29 @@ Store the ticket ID as `BUG_TICKET_ID` for use throughout the workflow.
 
 Before dispatching the investigation sub-agent, run the intent-search gate to determine whether the bug aligns with system intent.
 
+**CLI_user tag check (pre-check — runs first):**
+
+Check whether this bug was explicitly reported by a user via the `CLI_user` tag. If present, the intent is known and the intent-search agent can be skipped entirely.
+
+```bash
+BUG_TAGS=$(.claude/scripts/dso ticket show "$BUG_TICKET_ID" | python3 -c "import json,sys; d=json.load(sys.stdin); print(' '.join(d.get('tags', [])))" 2>/dev/null || echo "")
+if echo "$BUG_TAGS" | grep -q "CLI_user"; then
+    GATE_1A_RESULT="intent-aligned"
+    .claude/scripts/dso ticket comment "$BUG_TICKET_ID" "Gate 1a: skipped — CLI_user tag present; intent-aligned assumed"
+    # Proceed to Step 1.7 / Step 2 — skip intent-search dispatch below
+else
+    # CLI_user tag not present — proceed with normal intent-search dispatch
+fi
+```
+
+If `CLI_user` is present:
+- `GATE_1A_RESULT` is set to `"intent-aligned"` directly — do NOT dispatch `dso:intent-search`
+- A ticket comment records the skip reason
+- Proceed to Step 1.7 (Gate 1b is skipped since `GATE_1A_RESULT` is decisive) and then Step 2
+
+If `CLI_user` is NOT in the tags (or the tags field is absent — legacy tickets default to empty list, which falls through normally):
+- Continue with the normal intent-search dispatch below
+
 **Read budget config:**
 
 ```bash
@@ -932,6 +955,8 @@ After the fix is verified GREEN (Step 7) and all Gate 2 checks pass, scan the co
 
 **When to run**: After Gate routing resolves to `auto-fix` or `dialog` (not `escalate`). When route is `escalate`, skip this step — the scope has been handed off to `/dso:brainstorm`.
 
+**CLI_user tag**: Never apply `--tags CLI_user` to tickets created by this step. Anti-pattern discoveries are autonomous, not user-requested. The `CLI_user` tag is reserved exclusively for bugs that a human explicitly asked the agent to file.
+
 #### 7.5.1 — Dispatch Scan Sub-Agent
 
 Dispatch `prompts/anti-pattern-scan.md` as a sub-agent with the confirmed root cause pattern, reference file, and pattern description from the investigation results:
@@ -991,7 +1016,7 @@ for each batch of up to 5 fix agents:
   4. Proceed to next batch
 ```
 
-If a batch returns `batch_status: FAILED` or `PARTIAL`, record findings as a bug ticket (`.claude/scripts/dso ticket create bug "<title>" --parent=<EPIC_ID>`) and proceed to the next batch — do not block the entire scan on a single failing batch.
+If a batch returns `batch_status: FAILED` or `PARTIAL`, record findings as a bug ticket (`.claude/scripts/dso ticket create bug "<title>" --parent=<EPIC_ID>`) and proceed to the next batch — do not block the entire scan on a single failing batch. Do NOT use `--tags CLI_user` for these tickets — they are autonomously-discovered defects identified by the anti-pattern scan, not bugs reported by the user during an interactive session.
 
 #### 7.5.5 — Observation Tracking (Dogfooding)
 

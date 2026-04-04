@@ -150,11 +150,34 @@ PYEOF
     assert_eq "test_orchestrator_level_fix_bug_invocation: bug-fix mode invokes fix-bug inline at orchestrator level (not Task tool)" "found" "$inline_invocation_found"
 }
 
+# ============================================================
+# test_bug_fix_mode_extracts_cli_user_tag
+# In bug-fix mode, before inlining fix-bug steps for each ticket,
+# the orchestrator must extract tags from ticket show output and
+# check for the CLI_user tag to determine the correct fix-bug path.
+# RED: current SKILL.md bug-fix mode has no CLI_user tag extraction guidance.
+# ============================================================
+test_bug_fix_mode_extracts_cli_user_tag() {
+    local skill_content
+    skill_content=$(cat "$SKILL_FILE" 2>/dev/null || true)
+
+    local tag_extraction_found="missing"
+
+    # Look for guidance that instructs extracting tags from ticket show output
+    # and checking for BUG_TAGS or CLI_user tag specifically before inlining fix-bug.
+    if echo "$skill_content" | grep -qE '(BUG_TAGS|CLI_user|cli.user.*tag|tag.*cli.user)'; then
+        tag_extraction_found="found"
+    fi
+
+    assert_eq "test_bug_fix_mode_extracts_cli_user_tag: bug-fix mode extracts CLI_user tag from ticket show output before inlining fix-bug" "found" "$tag_extraction_found"
+}
+
 # Run all tests
 test_orchestration_flow_has_bug_fix_branch
 test_bug_detection_step_exists
 test_bug_fix_mode_skips_diagnostic
 test_bug_fix_mode_skips_triage
 test_orchestrator_level_fix_bug_invocation
+test_bug_fix_mode_extracts_cli_user_tag
 
 print_summary

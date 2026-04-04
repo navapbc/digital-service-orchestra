@@ -351,9 +351,11 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
    Violation of this gate — including pre-writing fixes in sub-agent prompts, performing investigation at orchestrator level, or reusing prior ticket findings as a substitute for independent dispatch — must be treated as a process failure, not an efficiency optimization.
 
+   > **Note on CLI_user tag**: If the ticket was tagged `CLI_user` (user-reported bug), fix-bug Step 1.5 will automatically skip Gate 1a intent-search. No special handling is needed here — the authoritative CLI_user check lives in fix-bug Step 1.5. Do NOT duplicate the check in debug-everything.
+
    Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute its steps directly — NOT via the Skill tool or Task tool. This orchestrator-level invocation (reads SKILL.md inline) preserves Agent tool access for fix-bug's investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED) which require the Agent tool themselves.
 
-   Pass the ticket ID as the bug to fix:
+   Pass the ticket ID as the bug context:
 
    ```
    Bug ticket: <ticket-id>

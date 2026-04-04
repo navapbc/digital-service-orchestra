@@ -18,6 +18,7 @@ Sub-agents must NOT:
 - Add `# type: ignore`, `# noqa`, `@pytest.mark.skip`, or any suppression comments
 - Use any prohibited fix pattern — see [Prohibited Fix Patterns](#prohibited-fix-patterns) below
 - Follow the "Task Completion Workflow" in CLAUDE.md — that applies to orchestrators only
+- Use `--tags CLI_user` when creating bug tickets for autonomously discovered defects (anti-pattern scans, debug-everything discovery, or any defect found without explicit human request). The `CLI_user` tag is reserved for bugs that a human explicitly asked the agent to file during an interactive session.
 
 **Resolution sub-agents** (launched via `review-fix-dispatch.md`) have an additional prohibition:
 - MUST NOT dispatch a nested re-review Task tool call. Two levels of nesting
@@ -180,7 +181,7 @@ Sub-agents MUST:
 ## Permitted Actions
 
 Sub-agents MAY:
-- `.claude/scripts/dso ticket create bug "..." --parent <parent-id>` for discovered bugs (use positional `bug` type when filing defects, not positional `task` type)
+- `.claude/scripts/dso ticket create bug "..." --parent <parent-id>` for discovered bugs (use positional `bug` type when filing defects, not positional `task` type; do NOT add `--tags CLI_user` — these are autonomous discoveries, not user-requested bugs)
 - `.claude/scripts/dso ticket comment <id> "..."` for checkpoint progress notes
 - Read any file in the repo to understand context
 - Write discovery files to `$ARTIFACTS_DIR/agent-discoveries/<task-id>.json` (resolve via: `source ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh && get_artifacts_dir`) (atomic: write `.tmp`, then `mv`) when encountering bugs, missing dependencies, API changes, or convention violations during execution. Schema: `{"task_id": "<id>", "type": "<bug|dependency|api_change|convention>", "summary": "<one-line>", "affected_files": ["<path>", ...]}`. Discovery writing is non-fatal — failures must not block task completion.
