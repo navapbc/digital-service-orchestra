@@ -237,3 +237,32 @@ tests:
           (4) NOT produce a task list or implementation plan — planning must be blocked
           until the ambiguities are resolved, since a plan built on assumptions about
           an underspecified story would be worse than no plan.
+
+  - description: "Emits REPLAN_ESCALATE when success criteria cannot be satisfied"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Create an implementation plan for this story:
+        Story: "As a user, I want to log in via Google OAuth."
+        Context: Closed ticket arch-decision-0042 documents a permanent legal constraint
+        (LR-2025-004): "OAuth and all third-party identity providers are permanently
+        prohibited by Legal. Non-negotiable. The app must never integrate OAuth."
+        No OAuth libraries exist in requirements.txt; a CI lint rule blocks adding them.
+        Success criteria: User can authenticate via Google OAuth; new users are
+        auto-provisioned via OAuth. Do not ask for clarification — proceed to analysis.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output recognizes that the story's success criteria are actively contradicted
+          by a permanent, closed architectural decision prohibiting OAuth, and emits a
+          REPLAN_ESCALATE signal instead of producing tasks. It should:
+          (1) output a line containing "REPLAN_ESCALATE" as a standalone signal,
+          (2) include the literal string "brainstorm" as the escalation target —
+          matching the format "REPLAN_ESCALATE: brainstorm",
+          (3) include an EXPLANATION field (with the "EXPLANATION:" prefix) describing
+          why the success criteria cannot be satisfied — referencing the permanent legal
+          prohibition (arch-decision-0042 / LR-2025-004) that makes OAuth impossible,
+          (4) NOT emit STATUS:complete or STATUS:blocked,
+          (5) NOT produce any implementation tasks or partial decomposition — task
+          decomposition must halt entirely once the unsatisfiable contradiction is detected.

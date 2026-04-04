@@ -272,3 +272,4 @@ plugins/dso/skills/debug-everything/SKILL.md:tests/scripts/test-debug-everything
 plugins/dso/docs/ticket-cli-reference.md:tests/scripts/test-ticket-cli-reference-md-tags.sh
 CLAUDE.md:tests/scripts/test-claude-md-fix-bug-gates.sh
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation_plan_reinvocation_guard.py
+plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation_plan_replan_escalate.py [test_implementation_plan_emits_replan_escalate_signal]
