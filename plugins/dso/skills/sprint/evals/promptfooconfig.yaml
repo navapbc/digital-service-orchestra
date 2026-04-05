@@ -156,6 +156,29 @@ tests:
           4. Does NOT silently discard or ignore the accepted out-of-scope finding
           5. Does NOT modify the existing task-auth-01's scope to include src/auth/session.py
 
+  - description: "Non-interactive mode: brainstorm escalation deferred via INTERACTIVITY_DEFERRED"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: >
+        You are the sprint orchestrator running in non-interactive mode (no user present).
+        Sprint is executing epic auth-9f1a. Implementation-plan was invoked for story
+        story-auth-07 and returned: REPLAN_ESCALATE: brainstorm EXPLANATION: The session
+        expiry requirements conflict with the existing stateless JWT architecture — the
+        story intent needs brainstorm-level re-examination before tasks can be drafted.
+        The replan_cycle_count is 1 and max_replan_cycles is 2.
+        Because this is a non-interactive session, you cannot block for user confirmation.
+        What should the orchestrator do?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Records INTERACTIVITY_DEFERRED: brainstorm on the epic ticket (mentions ticket comment or INTERACTIVITY_DEFERRED signal)
+          2. Does NOT invoke /dso:brainstorm or ask the user for input — brainstorm escalation is deferred, not executed
+          3. Does NOT write REPLAN_RESOLVED (no resolved signal is emitted because brainstorm was not completed)
+          4. Indicates the story remains blocked pending a follow-up interactive session
+          5. Mentions the REPLAN_ESCALATE signal or the brainstorm escalation requirement as the reason for deferral
+
   - description: "Out-of-scope review REPLAN_ESCALATE: implementation-plan cannot satisfy out-of-scope story triggers cascade with cycle cap"
     options:
       provider: "anthropic:messages:claude-haiku-4-5-20251001"
