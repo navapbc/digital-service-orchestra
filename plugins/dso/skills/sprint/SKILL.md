@@ -150,7 +150,7 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
 
 1. Parse the drifted file list from `DRIFT_RESULT` (everything after `DRIFT_DETECTED: `).
 2. Log: `"Codebase drift detected — files modified since task creation: <files>"`
-3. Record a REPLAN_TRIGGER comment on the epic:
+3. Record a REPLAN_TRIGGER comment on the epic (see `plugins/dso/docs/contracts/replan-observability.md` for signal format): # shim-exempt: internal documentation reference
    ```bash
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Files drifted: <files>. Re-invoking implementation-plan for affected stories."
    ```
@@ -532,6 +532,11 @@ d-collect. **Collect and present blocked-layer stories** — after the full laye
    - **Re-invoke the skill**: Call the Skill tool again with the same story ID.
    - **If the re-invoked skill returns `STATUS:blocked` again**: Do not ask the user a second time. Treat as failure: revert story to open (`.claude/scripts/dso ticket transition <story-id> open`), log `"ERROR: /dso:implementation-plan returned STATUS:blocked twice for story <story-id> — story reverted to open"`, and skip to the next story.
 d-replan-collect. **Collect and handle all REPLAN_ESCALATE stories** — after the full layer batch completes, if any stories are in the replan-stories list:
+   - **Non-interactive mode check** (before all other steps): If the session is non-interactive (interactivity mode declared at session start as non-interactive), do NOT block for user input. For each story in the replan-stories list, record:
+     ```bash
+     .claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: brainstorm — implementation-plan emitted REPLAN_ESCALATE for story <story-id>: <explanation>. Re-run sprint interactively to address."
+     ```
+     Skip the brainstorm cascade entirely. Do NOT write `REPLAN_RESOLVED`. Continue with any remaining work (the affected stories remain in their current state, pending a follow-up interactive session). See `plugins/dso/docs/contracts/replan-observability.md` for the INTERACTIVITY_DEFERRED signal format. # shim-exempt: internal documentation reference
    - **Check cycle cap first** (before presenting anything to the user):
      - **If `replan_cycle_count >= max_replan_cycles`:** Cap is exhausted. Present the stored REPLAN_ESCALATE signals (story IDs and explanations) and inform the user the cascade limit has been reached:
        ```
@@ -1371,6 +1376,11 @@ If `batch_out_of_scope_findings` is non-empty:
       .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: implementation-plan — Tasks created for out-of-scope review feedback on story <story-id>."
       ```
 2a. **Handle collected REPLAN_ESCALATE stories** — if any stories were added to the `replan-stories` list during step 2e above:
+   - **Non-interactive mode check** (before all other steps): If the session is non-interactive, do NOT block for user input. For each story in the replan-stories list, record:
+     ```bash
+     .claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: brainstorm — implementation-plan emitted REPLAN_ESCALATE for story <story-id>: <explanation>. Re-run sprint interactively to address."
+     ```
+     Skip the brainstorm cascade entirely. Do NOT write `REPLAN_RESOLVED`. Continue to step 3 below (clear accumulator and return to Phase 3). See `plugins/dso/docs/contracts/replan-observability.md` for the INTERACTIVITY_DEFERRED signal format. # shim-exempt: internal documentation reference
    - **If `replan_cycle_count >= max_replan_cycles`:** Cap is exhausted. Present the REPLAN_ESCALATE stories (story IDs and explanations) and inform the user:
      ```
      /dso:implementation-plan cannot satisfy success criteria for:
