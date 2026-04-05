@@ -15,7 +15,7 @@ Callers configure the review by providing:
 | `pass_threshold` | No | Minimum dimension score to pass. Default: 4 |
 | `start_stage` | No | `1` (default), `2`, or `3`. Use `2` to skip mental pre-review when caller already self-validated |
 | `max_revision_cycles` | No | Default: 3 |
-| `caller_id` | No | If the caller has a registered schema (see `scripts/validate-review-output.sh --list-callers`), pass the caller ID here to enable per-caller validation of perspectives, dimensions, and reviewer-specific finding fields. Known IDs: `roadmap`, `design-wireframe`, `implementation-plan`, `retro`, `design-review`, `dev-onboarding`, `preplanning`. |
+| `caller_id` | No | If the caller has a registered schema (see `scripts/validate-review-output.sh --list-callers`), pass the caller ID here to enable per-caller validation of perspectives, dimensions, and reviewer-specific finding fields. Known IDs: `roadmap`, `design-wireframe`, `implementation-plan`, `retro`, `design-review`, `architect-foundation`, `preplanning`. |
 
 ### Perspective Definition
 

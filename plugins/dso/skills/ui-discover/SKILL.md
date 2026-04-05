@@ -436,8 +436,9 @@ npx @playwright/cli open -s=ui-discover
 
 **For each route** in `.ui-discovery-cache/global/route-map.json`:
 
-1. **Slugify** the route path: strip leading `/`, replace `/` with `-`, default
-   to `index` for the root path `/`.
+1. **Slugify** the route path per the Route Slug Convention in
+   `docs/cache-format-reference.md` Section 1 (strip leading `/`, replace `/`
+   with `_`, replace `:param` with `[param]`, root `/` becomes `_root`).
 
 2. **Navigate** to the route URL:
    ```bash

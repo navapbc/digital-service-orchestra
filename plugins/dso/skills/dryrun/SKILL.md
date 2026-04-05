@@ -12,7 +12,7 @@ Preview what a skill would do without making any changes.
 
 ```
 /dso:dryrun /dso:roadmap
-/dso:dryrun /dso:dev-onboarding
+/dso:dryrun /dso:architect-foundation
 /dso:dryrun /dso:preplanning <epic-id>
 ```
 

@@ -179,9 +179,9 @@ Before marking an interface contract task complete:
 # 5. Run type checking - REQUIRED
 make lint-mypy  # Must pass
 
-# 6. Run all validation checks
-make format-check && make lint && make test
+# 6. Run validation
+plugins/dso/scripts/validate.sh --ci  # shim-exempt: example in checklist
 
-# 7. Commit only if all checks pass (never use --no-verify)
-git commit -m "feat: add new provider interface"
+# 7. Commit using the project commit workflow (CLAUDE.md rule 13)
+# Use /dso:commit or follow COMMIT-WORKFLOW.md — never raw git commit
 ```

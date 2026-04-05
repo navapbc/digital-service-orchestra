@@ -95,7 +95,6 @@ Both signals must be present. A markdown file change with no behavioral ticket s
 
 LLM-behavioral bugs follow a combined investigation+fix path (SC5 — HARD-GATE amendment applies). The investigation produces a diagnosis of what behavioral gap or prompt regression is causing the issue, and the fix is a targeted change to the skill, agent, or prompt template.
 
-<!-- REVIEW-DEFENSE: This SUB-AGENT-GUARD serves a different purpose than the llm-behavioral fix path dispatch instruction that follows it. The guard handles the case where fix-bug itself is running as a sub-agent (e.g., dispatched by debug-everything or sprint) — in that context, the Agent tool is unavailable and nested dispatch is prohibited. The dispatch instruction that follows is for when fix-bug runs as the orchestrator (Agent tool available). These two contexts are complementary: when fix-bug is the orchestrator, dispatch bot-psychologist as a sub-agent; when fix-bug is itself a sub-agent, fall back to inline guidance. The inline fallback acknowledges that iterative experiment loops requiring user input cannot complete in non-interactive sub-agent contexts — it degrades to partial investigation and surfaces findings for the calling orchestrator to escalate. -->
 <SUB-AGENT-GUARD>
 Agent tool availability check: if the Agent tool is unavailable, use the inline fallback below instead of dispatching a sub-agent.
 
@@ -461,13 +460,10 @@ For each category (Code Logic, State, Configuration, Dependencies, Environment, 
 
 The synthesized fishbone becomes the orchestrator's unified root cause report, which is used for fix approval (Step 4).
 
-The orchestrator applies convergence scoring across both agents. Agents independently converging on the same root cause or fix increases confidence. Synthesize findings using fishbone categories: Code Logic, State, Configuration, Dependencies, Environment, Data.
-
 #### ESCALATED Investigation
 
 Triggered when ADVANCED investigation fails to resolve the issue. Launch **four opus** sub-agents with differentiated lenses:
 
-<!-- REVIEW-DEFENSE: Agents 1-3 prompt files (escalated-investigation-agent-1.md, escalated-investigation-agent-2.md, escalated-investigation-agent-3.md) are created by upcoming GREEN tasks dso-mn94, dso-sjck, and dso-cxuh respectively. This SKILL.md is updated in GREEN task dso-bgqs as part of a TDD RED→GREEN sequence. The RED tests for those prompt files already exist and are expected to fail until the corresponding GREEN tasks create the files. Only agent-4.md exists at this stage; the remaining prompts will be added incrementally. -->
 - **Agent 1 (Web Researcher)**: error pattern analysis, similar issue correlation, dependency changelogs — authorized to use WebSearch/WebFetch — uses the prompt template at `prompts/escalated-investigation-agent-1.md`
 - **Agent 2 (History Analyst)**: timeline reconstruction, fault tree analysis, commit bisection — uses the prompt template at `prompts/escalated-investigation-agent-2.md`
 - **Agent 3 (Code Tracer)**: execution path tracing, dependency-ordered reading, intermediate variable tracking, five whys — uses the prompt template at `prompts/escalated-investigation-agent-3.md`
@@ -557,7 +553,7 @@ Record the gate failure in the discovery file and as a ticket comment before esc
 
 Determine whether the fix can be auto-approved or requires user input:
 
-- **Auto-approve** if: there is exactly one proposed fix, AND the fix is high confidence + low risk + does not degrade functionality, AND the fix does not modify safeguard files (per CLAUDE.md rule 18: `skills/**`, `hooks/**`, `docs/workflows/**`, `scripts/**`, `CLAUDE.md`), AND the fix does not reduce the enforcement scope of any safety gate (test gate, review gate, or validation gate) under any code path, AND the fix does not introduce capabilities, configuration options, or environment variables that were absent from the system before the bug was reported
+- **Auto-approve** if: there is exactly one proposed fix, AND the fix is high confidence + low risk + does not degrade functionality, AND the fix does not modify safeguard files, AND the fix does not reduce the enforcement scope of any safety gate (test gate, review gate, or validation gate) under any code path, AND the fix does not introduce capabilities, configuration options, or environment variables that were absent from the system before the bug was reported
 - **User approval required** if: the fix modifies safeguard files, OR the fix introduces new capabilities not described in the original bug report — i.e., adds code paths, CLI flags, environment variables, or configuration keys that did not exist before (feature creep — escalate to user; do NOT invoke `/dso:brainstorm` from sub-agent context), OR the fix reduces the enforcement scope of any safety gate under any code path (including conditional bypasses such as merge-commit or rebase exemptions), OR multiple competing fixes with comparable confidence/risk, OR all fixes degrade functionality, OR confidence is medium or below
 
 When presenting fixes for user approval, display:
@@ -709,6 +705,8 @@ $FORMAT_CHECK_CMD   # No format regressions
 - All hypothesis test results
 - Recommendation for manual investigation
 
+> **Gate signal parsing (Gates 2a–2d)**: All gate scripts output JSON conforming to `plugins/dso/docs/contracts/gate-signal-schema.md`. Parse `triggered` and `signal_type` from stdout. On nonzero exit, empty stdout, or unparseable JSON, construct a fallback: `{"gate_id": "<id>", "triggered": false, "signal_type": "<type>", "evidence": "gate error: <reason>", "confidence": "low"}` and log a warning. Gate 2b is an exception — see its section for unique handling.
+
 ### Gate 2a: Reversal Check (/dso:fix-bug)
 
 After verification passes (Step 7) and before committing (Step 8), run the reversal check gate to detect whether the proposed fix unintentionally undoes a recent committed change.
@@ -736,19 +734,9 @@ fi
 GATE_2A_EXIT=$?
 ```
 
-**Parse the gate signal**: The script outputs a JSON object conforming to `plugins/dso/docs/contracts/gate-signal-schema.md`. Parse the `triggered` and `signal_type` fields from stdout.
-
 **Reversal behavior**: The script compares the working-tree diff against recent commit history. If >50% of a recent commit's changed lines are inverted by the proposed fix, the gate fires (`triggered: true`, `signal_type: "primary"`). The gate also recognizes revert-of-revert patterns — when the commit being reversed is itself a revert (message matches `^Revert`, case-insensitive), the inversion is treated as an intentional re-application of the original change, and the gate does not fire.
 
 **On triggered:true**: Add a primary signal to the gate accumulator. The reversal detection is a blocking signal — present the evidence to the user and require confirmation that the reversal is intentional before proceeding to Step 8.
-
-**Error handling (graceful degradation)**: If `gate-2a-reversal-check.sh` exits nonzero, produces empty stdout, or outputs JSON that cannot be parsed, construct a fallback gate signal and log a warning:
-
-```json
-{"gate_id": "2a", "triggered": false, "signal_type": "primary", "evidence": "gate error: <reason>", "confidence": "low"}
-```
-
-This ensures `validate-gate-signal.py` receives a complete 5-field signal on error paths. The gate degrades to triggered:false so that gate errors do not block the fix workflow.
 
 ### Gate 2b: Blast Radius Annotation (/dso:fix-bug)
 
@@ -782,8 +770,6 @@ Do not surface gate errors to the user or halt the fix workflow.
 
 **ast-grep / grep fallback**: `gate-2b-blast-radius.sh` uses ast-grep (the `sg` tool, checked via `command -v ast-grep` in the script) for fan-in analysis when available. When ast-grep is not installed, the script automatically falls back to grep-based analysis so the gate remains functional across all environments.
 
-**Boundary with Centrality-Aware Test Gate**: Gate 2b runs at commit-time annotation (post-investigation), while the Centrality-Aware Test Gate operates at pre-commit time. They serve different phases and do not interact.
-
 ### Gate 2c: Test Regression Analysis (/dso:fix-bug)
 
 Gate 2c is a **primary** gate (signal_type `"primary"`) — it detects whether the proposed fix weakens, removes, or loosens existing test assertions. It delegates to `gate-2c-test-regression-check.py` which reads a unified diff from stdin. On error, the gate defaults to triggered:false (non-blocking). A specific-to-specific value swap (e.g., `assertEqual(x, 42)` to `assertEqual(x, 57)`) does not fire this gate — both values are specific literals, so assertion specificity is preserved. This gate runs post-investigation after the fix is implemented (Step 6) and verified (Step 7), before commit (Step 8).
@@ -804,24 +790,11 @@ GATE_2C_OUTPUT=$(git diff -- "$TEST_DIR" | python3 "$PLUGIN_SCRIPTS/gate-2c-test
 GATE_2C_EXIT=$?
 ```
 
-**Parsing the gate signal**: Parse the JSON emitted to stdout per `plugins/dso/docs/contracts/gate-signal-schema.md`:
-- `gate_id`: `"2c"`
-- `signal_type`: `"primary"` — when triggered, it drives a routing decision
-- `triggered`: `true` if assertion removal, specificity reduction, or skip/xfail addition is detected; `false` otherwise
-- `evidence`: human-readable explanation of what was detected
-- `confidence`: `"high"` | `"medium"` | `"low"`
+**Gate 2c `triggered` definition**: `true` if assertion removal, specificity reduction, or skip/xfail addition is detected; `false` otherwise.
 
 **On triggered:true**: Add a primary signal to the gate accumulator. The test regression detection is an independent signal — any removal or broadening of assertions fires the gate regardless of other gate outcomes. Present the evidence to the user and require confirmation before proceeding to Step 8.
 
 **Specific-to-specific replacement exemption**: A fix that replaces one specific expected value with a different specific expected value does NOT trigger Gate 2c. For example, `assertEqual(result, 42)` changed to `assertEqual(result, 57)` is a specific-to-specific value swap — the assertion method is unchanged, both the old and new expected values are literals, and assertion specificity is preserved. Only specificity-reducing changes fire the gate: assertion removal, assertion count reduction, weakened matchers (e.g., `assertEqual` to `assertIsNotNone`), literal-to-variable replacement (e.g., `assertEqual(x, 42)` to `assertEqual(x, result)`), or skip/xfail additions.
-
-**Error handling (graceful degradation)**: If `gate-2c-test-regression-check.py` exits nonzero, produces empty stdout, or outputs JSON that cannot be parsed, construct a fallback gate signal with triggered:false and log a warning:
-
-```json
-{"gate_id": "2c", "triggered": false, "signal_type": "primary", "evidence": "gate error: <reason>", "confidence": "low"}
-```
-
-This ensures `validate-gate-signal.py` receives a complete 5-field signal on error paths. The gate degrades to triggered:false so that gate errors do not block the fix workflow.
 
 ### Gate 2d: Dependency Check (/dso:fix-bug)
 
@@ -835,24 +808,9 @@ GATE_2D_OUTPUT=$(bash "$PLUGIN_SCRIPTS/gate-2d-dependency-check.sh" "${AFFECTED_
 GATE_2D_EXIT=$?
 ```
 
-**Parsing the gate signal**: Parse the JSON emitted to stdout. The signal conforms to `plugins/dso/docs/contracts/gate-signal-schema.md`:
-- `gate_id`: `"2d"`
-- `signal_type`: `"primary"` — Gate 2d is a primary signal; when triggered, it drives a routing decision
-- `triggered`: `true` if a new dependency/import is detected that is not in the manifest and not used elsewhere; `false` otherwise
-- `evidence`: human-readable explanation of what was detected (or why the gate did not fire)
-- `confidence`: `"high"` | `"medium"` | `"low"`
-
 **On triggered:true**: Add a primary signal to the gate accumulator. The dependency detection is a blocking signal — present the evidence to the user and require confirmation that the new dependency is intentional before proceeding to Step 8.
 
 **Existing pattern exemption**: Code that follows existing patterns in the codebase does not trigger Gate 2d. If the import/require is already used elsewhere in the codebase (even if not declared in the manifest), the gate treats it as a pre-existing dependency pattern and does not fire. This prevents false positives on established conventions — only genuinely novel dependencies trigger escalation.
-
-**Error handling (graceful degradation)**: If `gate-2d-dependency-check.sh` exits nonzero, produces empty stdout, or outputs JSON that cannot be parsed, construct a fallback gate signal and log a warning:
-
-```json
-{"gate_id": "2d", "triggered": false, "signal_type": "primary", "evidence": "gate error: <reason>", "confidence": "low"}
-```
-
-This ensures `validate-gate-signal.py` receives a complete 5-field signal on error paths. The gate degrades to triggered:false so that gate errors do not block the fix workflow.
 
 ### Escalation Routing (/dso:fix-bug)
 
@@ -949,7 +907,6 @@ if [ "${FIX_BUG_INTERACTIVE:-true}" = "false" ] && [ "$ROUTE" = "escalate" ]; th
 fi
 ```
 
-<!-- REVIEW-DEFENSE: anti-pattern prompt templates are pre-staged for Layer 2 (task e502-1ae6) which adds Step 7.5 to wire them; wired in this batch. -->
 
 ### Step 7.5: Anti-Pattern Scan (/dso:fix-bug)
 
@@ -1002,7 +959,7 @@ dispatch_list:
 
 #### 7.5.4 — Dispatch Fix Sub-Agents in Batches of 5
 
-Dispatch fix sub-agents in batches of at most 5 concurrent agents (CLAUDE.md rule: never create more than 5 sub-agents at a time). Each agent receives:
+Dispatch fix sub-agents in batches of at most 5 concurrent agents. Each agent receives:
 
 - `pattern_summary` — from the SCAN_RESULT
 - `root_cause` — from the investigation
@@ -1010,7 +967,7 @@ Dispatch fix sub-agents in batches of at most 5 concurrent agents (CLAUDE.md rul
 - `assigned_files` — its assigned file(s)
 - `occurrences` — the confirmed occurrences for its assigned files
 
-**Commit between batches**: After each batch of fix sub-agents completes, commit the results following `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md` (including review) before dispatching the next batch. This prevents lost work if a subsequent batch fails (CLAUDE.md rule: never launch a new sub-agent batch without committing the previous batch's results).
+**Commit between batches**: After each batch of fix sub-agents completes, commit the results following `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md` (including review) before dispatching the next batch. This prevents lost work if a subsequent batch fails.
 
 ```
 for each batch of up to 5 fix agents:
@@ -1231,25 +1188,3 @@ Escalation path: BASIC -> INTERMEDIATE -> ADVANCED -> ESCALATED -> **User** (ter
 
 When ESCALATED investigation fails to produce a high-confidence root cause, the skill enters the **ESCALATED terminal condition**: surface all findings to the user with the full investigation history. No blind fix is attempted.
 
-## Context Pre-Loading
-
-Before dispatching any investigation sub-agent, the orchestrator pre-loads:
-
-1. **Existing failing tests**: run `$TEST_CMD` and capture output showing which tests fail and how
-2. **Stack traces**: extract from test output or error logs
-3. **Commit history**: `git log --oneline -20 -- <affected-files>` for recent changes to relevant files
-4. **Prior fix attempts**: read ticket notes for any CHECKPOINT or fix-attempt records
-
-This context is included in every sub-agent dispatch prompt so agents begin with concrete evidence rather than starting from scratch.
-
-## Escalation Handoff Context
-
-When escalating from one tier to the next, the following context is passed:
-
-- Previous tier's complete RESULT report
-- Discovery file contents (`/tmp/fix-bug-discovery-<ticket-id>.json`)
-- Hypothesis test results from Step 3
-- Any fix attempts and their verification results from Step 7
-- The original bug description and all ticket notes
-
-The next tier receives everything the previous tier learned, preventing duplicated investigation work.

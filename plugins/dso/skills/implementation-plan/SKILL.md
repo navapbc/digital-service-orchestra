@@ -30,11 +30,6 @@ FORMAT_CHECK_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format_check) 
 
 Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
 
-Resolved commands used in this skill:
-- `TEST_CMD` — replaces `make test-unit-only` in acceptance criteria templates generated during Step 3 (Task Drafting)
-- `LINT_CMD` — replaces `make lint` in acceptance criteria templates
-- `FORMAT_CHECK_CMD` — replaces `make format-check` in acceptance criteria templates
-
 **Supports dryrun mode.** Use `/dso:dryrun /dso:implementation-plan` to preview without changes.
 
 ## Observability: SKILL_ENTER Breadcrumb
@@ -369,7 +364,7 @@ Axis comparison is structural, not textual. "Store in a dictionary" and "use a h
 
 **Handling sprint vs standalone context**:
 
-- **Sprint context** (invoked from `/dso:sprint` via Skill tool): Pass the full proposal set to the decision-maker agent (added in Story a1f3-db49) for autonomous selection. The decision-maker returns a selected proposal; use that as the basis for task drafting in Step 3. Do NOT display proposals to the user — the sprint orchestrator manages the flow.
+- **Sprint context** (invoked from `/dso:sprint` via Skill tool): Pass the full proposal set to the decision-maker agent for autonomous selection. The decision-maker returns a selected proposal; use that as the basis for task drafting in Step 3. Do NOT display proposals to the user — the sprint orchestrator manages the flow.
 - **Standalone context** (invoked directly by the user): Display the proposals to the user in a readable format (title, description, pros, cons, risk for each). Wait for the user to select a proposal before proceeding to Step 3. Do NOT begin task drafting until the user has confirmed a selection.
 
 **Context detection**: Check whether you are in sprint context by verifying that `/dso:sprint` invoked this skill via the Skill tool (the Progress Checklist rule from the Progress Checklist section also applies — in sprint context, `TaskCreate` is suppressed). If the invocation originated from user input directly, treat as standalone.
@@ -903,7 +898,7 @@ Output a **File Impact Summary** — a consolidated list of every file touched a
 | `tests/unit/test_auth.py` | Create | xxx-002 |
 | `src/routes/legacy_login.py` | Remove | xxx-004 |
 
-Actions: **Create**, **Edit**, or **Remove**. If multiple tasks touch the same file, list all task IDs — this signals overlap for `/dso:batch-overlap-check`.
+Actions: **Create**, **Edit**, or **Remove**. If multiple tasks touch the same file, list all task IDs — this signals overlap for the orchestrator's batch conflict detection.
 
 Report:
 - Total tasks created
@@ -914,9 +909,7 @@ Report:
 
 **When invoked interactively (user-initiated)**: Stop and wait for user instructions — do not begin implementing any tasks.
 
-**When invoked from `/dso:sprint` (via Skill tool)**: Do NOT stop. Continue immediately to Step 6 (Gap Analysis) and then output the STATUS protocol (see Output Protocol below).
-
-**CRITICAL**: When invoked from `/dso:sprint` via the Skill tool, you MUST emit your STATUS line and then yield control back to the sprint orchestrator. Do NOT wait for user input, ask questions, or present options after emitting `STATUS:complete` or `STATUS:blocked`. Do NOT halt the session — the sprint orchestrator continues after this skill.
+**When invoked from `/dso:sprint` (via Skill tool)**: Do NOT stop. Continue immediately to Step 6 (Gap Analysis) and then emit STATUS:complete per the Output Protocol section below.
 
 ---
 
@@ -973,13 +966,7 @@ After processing findings (or skipping/failing), update the summary output to in
 
 ### Return Control to Sprint Orchestrator
 
-**When invoked from `/dso:sprint` (via Skill tool)**: After updating the summary, emit the STATUS line immediately as the final output:
-
-```
-STATUS:complete TASKS:<comma-separated-task-ids> STORY:<story-or-epic-id>
-```
-
-Do not wait for user input. This line is the signal that returns control to the sprint orchestrator.
+**When invoked from `/dso:sprint` (via Skill tool)**: After updating the summary, emit STATUS:complete per the Output Protocol section below. Do not wait for user input.
 
 ---
 

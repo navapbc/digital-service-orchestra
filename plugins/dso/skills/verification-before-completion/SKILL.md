@@ -25,8 +25,8 @@ BEFORE claiming any status or expressing satisfaction:
 
 | Claim | Requires | Not Sufficient |
 |-------|----------|----------------|
-| Tests pass | `make test-unit-only` output: 0 failures | Previous run, "should pass" |
-| Linter clean | `make lint` output: 0 errors | Partial check, extrapolation |
+| Tests pass | `validate.sh --ci` or targeted `poetry run pytest path/test.py::test_name` | Previous run, "should pass" |
+| Linter clean | `make lint-ruff` output: 0 errors | Partial check, extrapolation |
 | Type checks pass | `make lint-mypy` output: no errors | Linter passing |
 | Bug fixed | Test original symptom: passes | Code changed, assumed fixed |
 | Regression test works | Red-green cycle verified | Test passes once |

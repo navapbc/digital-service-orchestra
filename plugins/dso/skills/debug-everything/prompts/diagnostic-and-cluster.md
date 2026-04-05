@@ -66,7 +66,6 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 # Existing ticket issues
 .claude/scripts/dso ticket list
-.claude/scripts/dso ticket list
 
 # Issue health
 .claude/scripts/dso validate-issues.sh
@@ -162,19 +161,4 @@ Do NOT return the full failure inventory table in your response. The orchestrato
 See `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules.
 - Report ALL errors, even if they seem trivial
 
-## READ-ONLY ENFORCEMENT
-
-You are a diagnostic reporting agent. You MUST NOT modify source files, tests, or system state.
-The ONLY permitted write is the diagnostic report file produced in "Save Report to Disk" above.
-
-**STOP immediately** if you find yourself about to use any of these tools or commands beyond the report write:
-- **Edit** — forbidden. Do not edit any source or config file.
-- **Write** — forbidden except for the designated `$DIAG_FILE` report path.
-- **Bash with modifying commands** — forbidden:
-  - `git commit`, `git push`, `git add`, `git checkout`, `git reset`
-  - `.claude/scripts/dso ticket transition`, `.claude/scripts/dso ticket create`
-  - `make`, `pip install`, `npm install`, `poetry install`
-  - Any command that changes source files or application state
-
-If you detect a problem, you must ONLY report it. You must not fix it.
-Fixing is the orchestrator's job, not yours. TERMINATE your response with findings only.
+**READ-ONLY ENFORCEMENT**: Read and follow `prompts/shared/read-only-enforcement.md`. Exception: the designated `$DIAG_FILE` report path write (above) is permitted.

@@ -19,6 +19,15 @@ import re
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SKILL_MD = REPO_ROOT / "plugins" / "dso" / "skills" / "sprint" / "SKILL.md"
+REMEDIATION_LOOP = (
+    REPO_ROOT
+    / "plugins"
+    / "dso"
+    / "skills"
+    / "sprint"
+    / "prompts"
+    / "remediation-loop.md"
+)
 
 # Canonical signal regex per gap-classification-output.md contract
 GAP_CLASSIFICATION_RE = re.compile(
@@ -29,7 +38,11 @@ GAP_CLASSIFICATION_RE = re.compile(
 
 
 def _read_skill() -> str:
-    return SKILL_MD.read_text()
+    content = SKILL_MD.read_text()
+    # Phase 7 remediation content may be extracted to a separate prompt file
+    if REMEDIATION_LOOP.exists():
+        content += "\n" + REMEDIATION_LOOP.read_text()
+    return content
 
 
 def test_sprint_phase7_gap_classification_step_exists() -> None:

@@ -106,7 +106,7 @@ Based on sub-agent classifications:
    ```
 3. Run validation:
    ```bash
-   cd "$REPO_ROOT/app" && make format-check && make lint && make test-unit-only
+   plugins/dso/scripts/validate.sh --ci  # shim-exempt: post-merge validation step
    ```
 4. **If validation passes**: report summary and exit successfully. The merge is complete.
    ```

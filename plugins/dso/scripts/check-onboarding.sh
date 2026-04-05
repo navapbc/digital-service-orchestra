@@ -24,12 +24,8 @@ for arg in "$@"; do
   esac
 done
 
-# REVIEW-DEFENSE: The skill names referenced below (/dso:onboarding, /dso:architect-foundation)
-# are the NEW canonical names. The OLD skill directories (plugins/dso/skills/design-onboarding/,
-# plugins/dso/skills/dev-onboarding/) still exist on disk as redirect stubs — they contain
-# SKILL.md files that forward users to the new skill names. This is intentional: the redirect
-# stubs preserve backward compatibility during the migration. The migration is NOT incomplete;
-# the old directories are redirect artifacts, not active skill directories.
+# The canonical skill names are /dso:onboarding and /dso:architect-foundation.
+# The old redirect stubs (design-onboarding, dev-onboarding, project-setup) have been deleted.
 
 # --- Artifact checks ---
 

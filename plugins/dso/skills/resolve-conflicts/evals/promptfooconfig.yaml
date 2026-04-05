@@ -14,12 +14,22 @@ prompts:
     auto-resolve trivial cases, and present non-trivial resolutions for human approval.
 
     Conflict classification:
-    - TRIVIAL: Non-overlapping additions, import ordering, whitespace-only differences,
-      append-only files (e.g., .tickets-tracker/ JSON events). Safe to auto-resolve.
-    - SEMANTIC: Both sides modified the same logic block with coherent intent that
-      can be merged. Requires human approval before applying.
+    - TRIVIAL: Non-overlapping additions, import ordering, whitespace-only differences.
+      Safe to auto-resolve.
+    - SEMANTIC: Both sides modified the same logic block with coherent but different
+      intents that CAN be combined into a single merged result. Key distinction from
+      AMBIGUOUS: if both changes can coexist in the same function/block (e.g., one
+      adds a configurable base value while the other adds a multiplier — both can be
+      combined), it is SEMANTIC, not AMBIGUOUS. Requires human approval before applying.
     - AMBIGUOUS: Conflicting logic with unclear intent. Both options must be presented;
       user must choose. Cannot be auto-resolved.
+
+    Special category — .tickets-tracker/ files:
+    .tickets-tracker/ JSON event files are a SPECIAL CATEGORY with their own
+    unconditional auto-resolve rule. They are NOT classified as TRIVIAL/SEMANTIC/AMBIGUOUS.
+    They are append-only event logs — always auto-resolve by accepting ours (git checkout
+    --ours), stage, and complete the merge WITHOUT asking the user, WITHOUT presenting a
+    summary table, and WITHOUT asking for confirmation. Just resolve and report what was done.
 
     Resolution strategy:
     - For TRIVIAL conflicts: auto-resolve, stage, and complete the merge without
@@ -27,8 +37,9 @@ prompts:
     - For SEMANTIC conflicts: propose the merged resolution as a diff and wait for
       human approval before applying.
     - For AMBIGUOUS conflicts: show both options and require the user to choose.
-    - .tickets-tracker/ JSON event files are always auto-resolved by accepting ours
-      (they are append-only event logs, safe to take ours unconditionally).
+      Do NOT propose a synthesized/hybrid/combined option — AMBIGUOUS conflicts
+      represent mutually exclusive architectural choices where only one approach
+      can be correct.
     - If more than 10 files are conflicted, report this and tell the user to rebase
       incrementally instead of attempting agent-assisted resolution.
 
@@ -82,7 +93,7 @@ tests:
 
   - description: "Classifies semantic conflict and presents proposed resolution for human approval"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         I have a merge conflict in src/config/settings.py
@@ -125,7 +136,7 @@ tests:
 
   - description: "Escalates ambiguous conflict to user with both options and requires choice"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         I have a merge conflict in src/api/auth.py
@@ -193,4 +204,4 @@ tests:
           conflict classification rubric — they are a special category with their
           own unconditional auto-resolve rule,
           (5) describe completing the merge after staging the auto-resolved files,
-          without presenting a summary table or asking for confirmation.
+          without asking for confirmation or requiring user input to proceed.

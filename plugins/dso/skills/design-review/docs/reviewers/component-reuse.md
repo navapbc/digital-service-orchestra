@@ -8,14 +8,7 @@ You advocate for sustainable UI development through reuse and modular design.
 
 ## Scoring Scale
 
-| Score | Meaning |
-|-------|---------|
-| 5 | Exceptional — exceeds expectations, production-ready as-is |
-| 4 | Strong — meets all requirements, only minor polish suggestions |
-| 3 | Adequate — meets core requirements but has notable gaps to address |
-| 2 | Needs Work — significant issues that must be resolved |
-| 1 | Unacceptable — fundamental problems requiring substantial redesign |
-| N/A | Not Applicable — this dimension does not apply |
+Scores follow the shared 1–5 scale defined in `plugins/dso/skills/shared/reviewers/SCORING-SCALE.md`.
 
 ## Your Dimensions
 

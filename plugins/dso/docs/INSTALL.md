@@ -72,15 +72,15 @@ pre-commit install --hook-type pre-push
 
 This activates both commit-time and push-time hook stages.
 
-### Step 5 — Run /dso:project-setup
+### Step 5 — Run /dso:onboarding
 
 Open a Claude Code session in your project and run:
 
 ```
-/dso:project-setup
+/dso:onboarding
 ```
 
-`/dso:project-setup` is the primary onboarding entry point. It runs `dso-setup.sh` to install
+`/dso:onboarding` is the primary onboarding entry point. It runs `dso-setup.sh` to install
 the DSO shim, detects your project stack, walks through an interactive configuration wizard
 (one question at a time) to generate `.claude/dso-config.conf`, and offers to copy starter
 templates (`CLAUDE.md`, `KNOWN-ISSUES.md`). It supports a `--dryrun` flag to preview all

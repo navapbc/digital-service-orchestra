@@ -248,7 +248,6 @@ The quadrant placement maps to priority ranges: Quick Wins → P0–P1, Strategi
 
 3. **Scrutiny Step** (per-epic, inline — not batched): After each epic ticket is created, apply the scrutiny decision from Phase 2.5:
 
-   <!-- REVIEW-DEFENSE: caller_prompts_dir uses brainstorm's prompts as the canonical source for scenario-red-team.md and scenario-blue-team.md. Roadmap does not need its own copies — these prompts are caller-agnostic. Session variable SCRUTINY_OPT_IN is set in Phase 2.5 and consumed in Phase 5 — the agent executing this SKILL.md holds the variable in its conversation context across phases (no sub-agent boundary between 2.5 and 5). -->
    - **If `SCRUTINY_OPT_IN` is true**: Read and execute the shared scrutiny pipeline from `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass `caller_name=roadmap` and `caller_prompts_dir=$REPO_ROOT/plugins/dso/skills/brainstorm/prompts` as the pipeline parameters (scenario analysis prompts are shared from brainstorm's prompts directory). Run scrutiny inline for each epic before moving to the next. Append scrutiny output (gap analysis, scenario analysis, fidelity review verdict) to the epic spec via ticket edit before continuing.
 
    - **If `SCRUTINY_OPT_IN` is false**: Write the `scrutiny:pending` tag to signal that the epic has not been scrutinized:

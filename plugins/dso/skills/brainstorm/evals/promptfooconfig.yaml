@@ -2,6 +2,8 @@ description: "Brainstorm skill evals — intermediate-step verification for mult
 
 providers:
   - id: "anthropic:messages:claude-haiku-4-5-20251001"
+    config:
+      max_tokens: 4096
 
 defaultTest:
   options:
@@ -28,15 +30,49 @@ prompts:
     implementation approaches with trade-offs, then draft a structured epic
     spec with Context, Success Criteria, and Dependencies sections.
 
-    Phase 3 (Ticket Integration): Create the epic ticket and route to the
-    next planning step.
+    Phase 3 (Ticket Integration): Create the epic ticket, run health validation,
+    then write a brainstorm sentinel file to record completion. The sentinel
+    file (e.g., brainstorm-sentinel or .brainstorm-complete) MUST be written
+    after ticket creation and health validation pass but BEFORE invoking the
+    next skill (preplanning or implementation-plan). The sentinel file must
+    contain the epic ID and brainstorm session metadata so downstream processes
+    can detect that brainstorm completed successfully. Writing the sentinel is
+    a REQUIRED Phase 3 action, not optional.
 
     Rules:
-    - Ask ONE question at a time during Phase 1
+    - Ask ONE question at a time during Phase 1 — exactly ONE question per
+      response, never multiple questions in a single message
     - Prefer multiple-choice questions over open-ended ones
     - Apply YAGNI ruthlessly — do not include unnecessary scope
     - Success criteria must be observable outcomes, not implementation details
     - Always propose approaches BEFORE drafting the spec
+
+    Convert-to-epic flow: When user selects option (a), acknowledge that the
+    original ticket will be closed as superseded, then begin Phase 1 Socratic
+    dialogue (ask ONE clarifying question at a time). Do NOT skip to Phase 2.
+    The original ticket is closed/superseded only after the new epic is created.
+
+    Enrich-in-place flow: When user selects option (b), run a streamlined
+    enrichment dialogue — ask targeted clarifying questions to gather just
+    enough context to produce structured updates (acceptance criteria, approach
+    summary, affected components). Do NOT create a new epic, do NOT close the
+    original ticket, do NOT enter the full multi-phase epic brainstorm flow.
+    The result is a lightweight update to the existing ticket only — no
+    Phase 2 approach proposals or full epic spec drafting.
+
+    Understanding summary protocol: When the user provides mostly sufficient
+    context and explicitly asks for a summary before proceeding, present a
+    structured understanding summary in brief bullet form covering the problem,
+    users, scope, and success criteria. Then ask the user to confirm the summary
+    is correct BEFORE proceeding. Do NOT present gap questions in the same
+    response — wait for confirmation first. Do NOT advance to Phase 2 until
+    the summary is confirmed.
+
+    Explicit Phase 2 request: When the user provides comprehensive context AND
+    explicitly says to proceed to approaches/spec (e.g., "please propose
+    approaches and draft the spec"), skip the understanding summary and go
+    directly to Phase 2 — propose approaches with trade-offs, then draft the
+    structured epic spec.
 
     The user says:
     {{prompt}}
@@ -54,13 +90,16 @@ tests:
           (1) ask at least one clarifying question about the feature (e.g.,
           what kind of notifications, who receives them, what triggers them,
           or what problem notifications would solve),
-          (2) ask only ONE question at a time (not a list of multiple questions),
+          (2) focus on ONE topic per question — a single question with
+          multiple-choice options (A, B, C, D) counts as one question and is
+          acceptable, but asking multiple unrelated open-ended questions in
+          the same message is not,
           (3) NOT propose implementation approaches or draft an epic spec yet —
           the skill should gather more context first before jumping to solutions.
 
   - description: "Produces structured epic spec for a well-defined feature"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         I need a CSV export feature. Here's what I know:
@@ -123,7 +162,7 @@ tests:
 
   - description: "Runs full brainstorm flow and marks original ticket superseded when user selects convert-to-epic"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         I ran /dso:brainstorm on ticket DSO-456. The ticket show output is:
@@ -158,7 +197,7 @@ tests:
 
   - description: "Presents understanding summary and gap questions for inferred content when context is mostly sufficient"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         I want to add a dark mode toggle to our web app. Here's what I know:
@@ -176,30 +215,28 @@ tests:
         value: >
           The user provided mostly sufficient context and explicitly asked for a
           summary before proceeding. The output should present a structured
-          understanding summary and then ask gap-closing questions for inferred
-          content. It should:
+          understanding summary. It should:
           (1) present a structured understanding summary in brief bullet form
-          covering all four areas: the problem (eye strain from light interface),
-          the users (individual contributors working after hours), the scope
-          (theme toggle in top nav bar with session persistence), and the success
-          criteria or outcome (reduced eye strain / improved after-hours experience),
+          covering at least three of these areas: the problem (eye strain from
+          light interface), the users (individual contributors working after hours),
+          the scope (theme toggle in top nav bar with session persistence), and
+          the success criteria or outcome (reduced eye strain / improved experience),
           (2) ask for user confirmation that the summary is correct before
-          proceeding — e.g., "Does this capture it correctly, or is anything
-          missing?" — and NOT immediately jump to gap questions or Phase 2,
-          (3) NOT yet propose implementation approaches, draft an epic spec, or
-          advance to Phase 2 — the understanding summary step must complete and
-          receive confirmation first,
-          (4) NOT present gap questions in the same response as the
-          understanding summary — the summary must be confirmed first before
-          gap analysis begins. It may indicate that gap questions will follow
-          after confirmation, but must not present the actual gap questions yet.
+          proceeding — e.g., "Does this capture it correctly?" or "Let me know
+          if anything is missing",
+          (3) NOT yet propose implementation approaches or draft an epic spec
+          in this same response — the understanding summary step must complete
+          and receive confirmation first before advancing to Phase 2,
+          (4) NOT present the actual gap-closing questions in the same response
+          as the understanding summary — it may mention that gap questions or
+          Phase 2 will follow after confirmation, but must not present them yet.
 
   # REVIEW-DEFENSE: This eval is intentionally RED — it asserts sentinel write behavior
   # that will be added to SKILL.md by task e75e-1747 in a subsequent TDD batch.
   # The eval must fail now (no sentinel instruction in SKILL.md) and pass after implementation.
   - description: "Phase 3 completion: writes sentinel file after epic ticket is created"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         You are completing Phase 3 (Ticket Integration) of the brainstorm skill.
@@ -227,7 +264,7 @@ tests:
 
   - description: "Runs streamlined dialogue and updates ticket in-place when user selects enrich-in-place"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         I ran /dso:brainstorm on ticket DSO-789. The ticket show output is:

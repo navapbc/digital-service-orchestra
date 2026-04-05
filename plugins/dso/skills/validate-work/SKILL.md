@@ -25,7 +25,7 @@ Comprehensive project health verification using parallel sub-agents. Detects iss
 ## When NOT to Use
 
 - To fix issues (use `/dso:debug-everything` instead)
-- For initial project setup (use `/dso:dev-onboarding`)
+- For initial project setup (use `/dso:onboarding`)
 - For ongoing task execution (use `/dso:sprint`)
 
 ## Verification Architecture

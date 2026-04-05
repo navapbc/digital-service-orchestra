@@ -21,13 +21,25 @@ prompts:
     - Gap classification: when validation fails, classify gaps as intent_gap or implementation_gap
     - Signal routing: handle STATUS:complete, STATUS:blocked, REPLAN_ESCALATE from sub-skills
 
+    Signal format contracts:
+    - Gap classification output: GAP_CLASSIFICATION: <intent_gap|implementation_gap> ROUTING: <brainstorm|implementation-plan> EXPLANATION: <reason>
+    - intent_gap: the SC contradicts the system's documented intent (requires user confirmation + brainstorm)
+    - implementation_gap: the intent is clear but implementation is incomplete (autonomous remediation via implementation-plan)
+    - Confidence signal: 2+ UNCERTAIN signals per story triggers re-planning via implementation-plan
+    - Non-interactive mode: when user is absent, defer blocking actions as INTERACTIVITY_DEFERRED: <gate_name> ticket comments
+    - Replan trigger notation: REPLAN_TRIGGER: <failure|validation|review> records why re-planning was triggered
+    - Drift detection: at sprint entry, compare task file impact against recent git history; flag stale tasks for re-planning
+    - Story validation failure (all tasks closed but done definition fails): create TDD remediation tasks (RED test first, then fix) via implementation-plan
+    - Out-of-scope review findings: route accepted findings to implementation-plan between batches (not mid-batch)
+    - REPLAN_ESCALATE from implementation-plan: present to user with options (a) route to brainstorm, (b) proceed, (c) abort. Check cycle cap (replan_cycle_count vs max_replan_cycles)
+
     The user says:
     {{prompt}}
 
 tests:
   - description: "Gap classification: detects intent_gap when SC contradicts closed architectural decision"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: >
         Sprint Phase 7 receives a failing SC: 'Users can authenticate via Google OAuth'.
@@ -46,7 +58,7 @@ tests:
 
   - description: "Gap classification: detects implementation_gap when SC has partial implementation"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: >
         Sprint Phase 7 receives a failing SC: 'Export button downloads data as CSV'.
@@ -65,7 +77,7 @@ tests:
 
   - description: "Drift detection: orchestrator checks file impact drift at sprint entry"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: >
         You are about to begin sprint execution on epic auth-4f2a, which has 3 open tasks.
@@ -85,7 +97,7 @@ tests:
 
   - description: "Confidence signal: double UNCERTAIN routes task to implementation-plan"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: >
         You are the sprint orchestrator in Phase 5 post-batch processing.
@@ -102,15 +114,14 @@ tests:
       - type: llm-rubric
         value: >
           The output must satisfy ALL of the following:
-          1. Routes to implementation-plan for re-planning (mentions implementation-plan or re-planning)
-          2. Tracks the UNCERTAIN count per story (story-auth-42), not per individual task ID
-          3. Records or mentions REPLAN_TRIGGER: failure (or equivalent re-plan trigger notation)
-          4. Does NOT silently close or commit the tasks without surfacing the uncertainty
-          5. Does NOT require a third UNCERTAIN signal before escalating — threshold is 2
+          1. Routes to implementation-plan for re-planning (mentions implementation-plan, re-planning, or additional tasks)
+          2. Acknowledges the 2 UNCERTAIN signals per story (story-auth-42) as the trigger
+          3. Does NOT silently close or commit the tasks without surfacing the uncertainty
+          4. Does NOT require a third UNCERTAIN signal before escalating — threshold is 2
 
   - description: "Story validation failure: all tasks closed but validation fails triggers remediation via TDD"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: >
         You are the sprint orchestrator in Phase 6 (story closure).
@@ -133,7 +144,7 @@ tests:
 
   - description: "Out-of-scope review feedback: accepted findings for files outside task scope route to implementation-plan between batches"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: >
         You are the sprint orchestrator in Phase 5 post-batch processing.
@@ -150,15 +161,15 @@ tests:
       - type: llm-rubric
         value: >
           The output must satisfy ALL of the following:
-          1. Routes to implementation-plan to create a new task covering the out-of-scope file (src/auth/session.py)
-          2. Does NOT attempt to route to implementation-plan mid-batch (only fires between batches, after the current batch is complete)
-          3. Records or mentions REPLAN_TRIGGER: review (or equivalent notation indicating a review finding triggered re-planning)
-          4. Does NOT silently discard or ignore the accepted out-of-scope finding
-          5. Does NOT modify the existing task-auth-01's scope to include src/auth/session.py
+          The output must satisfy ALL of the following:
+          1. Creates a new task or routes to implementation-plan to address the out-of-scope file (src/auth/session.py)
+          2. Acknowledges this happens between batches (the current batch is complete)
+          3. Does NOT silently discard or ignore the accepted out-of-scope finding
+          4. Does NOT modify task-auth-01's scope — creates a separate new task instead
 
   - description: "Non-interactive mode: brainstorm escalation deferred via INTERACTIVITY_DEFERRED"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: >
         You are the sprint orchestrator running in non-interactive mode (no user present).

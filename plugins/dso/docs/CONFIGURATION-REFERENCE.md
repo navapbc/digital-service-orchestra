@@ -359,7 +359,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Name and version of the design system used by the project. |
 | **Accepted values** | String (e.g., `USWDS 3.x`, `Material UI 5`, `None (custom)`) |
 | **Default** | Absent — skill falls back to generic guidance |
-| **Used by** | Skills: `/dso:design-onboarding`, `/dso:design-review`, `/dso:design-wireframe` |
+| **Used by** | Skills: `/dso:onboarding`, `/dso:design-review`, `/dso:design-wireframe` |
 
 ---
 
@@ -392,7 +392,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Path to the project's North Star design document, relative to repo root. |
 | **Accepted values** | Relative file path (e.g., `.claude/design-notes.md`, `docs/design-notes.md`) |
 | **Default** | `.claude/design-notes.md` |
-| **Used by** | Skills: `/dso:design-review`, `/dso:design-onboarding` |
+| **Used by** | Skills: `/dso:design-review`, `/dso:onboarding` |
 
 ---
 

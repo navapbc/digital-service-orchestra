@@ -345,7 +345,7 @@ test_setup_outputs_env_var_guidance() {
     fi
 }
 
-# test_setup_outputs_success_summary: script output references next steps with project-setup
+# test_setup_outputs_success_summary: script output references next steps with onboarding
 test_setup_outputs_success_summary() {
     local T output
     T=$(mktemp -d)
@@ -354,7 +354,7 @@ test_setup_outputs_success_summary() {
 
     output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
 
-    if [[ "$output" == *"project-setup"* ]]; then
+    if [[ "$output" == *"onboarding"* ]]; then
         assert_eq "test_setup_outputs_success_summary" "found" "found"
     else
         assert_eq "test_setup_outputs_success_summary" "found" "missing"

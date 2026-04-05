@@ -2,6 +2,8 @@ description: "tickets-health skill evals — behavioral verification for ticket 
 
 providers:
   - id: "anthropic:messages:claude-haiku-4-5-20251001"
+    config:
+      max_tokens: 4096
 
 defaultTest:
   options:
@@ -30,10 +32,22 @@ prompts:
     - After fixing issues, re-run validate-issues.sh to confirm score improves
 
     Common issues and remediation:
-    - Orphaned prefixed tasks: tasks with a prefix (MC-, V-, A-, etc.) but no parent epic
+    - Orphaned prefixed tasks: tasks with a prefix (MC-, V-, A-, etc.) but no parent
+      epic. Suggest likely parent based on prefix, but ALWAYS ask user to confirm
+      before re-parenting. Use `.claude/scripts/dso ticket comment` to record the
+      parent epic association.
     - Tasks listed as epic dependencies instead of children
-    - Empty epics: do NOT close — run /dso:preplanning to decompose
-    - Circular dependencies: identify the cycle, break it, document with a comment
+    - Empty epics: do NOT close — run /dso:preplanning to decompose. Epics represent
+      planned work needing decomposition, not completed/abandoned work. Only close an epic
+      if the user explicitly confirms it is obsolete. Explain that the score (e.g., Score 3
+      = Fair) means the issue must be fixed before continuing work.
+    - Circular dependencies: identify the cycle, explain that the cycle prevents all tasks
+      from becoming unblocked, then suggest which specific link is most likely incorrect
+      and should be removed (often the last link in a pipeline-like chain, e.g., if
+      A→B→C→A, then C→A is often the spurious link). Provide the command to remove it
+      (`.claude/scripts/dso ticket unlink`) and add a comment documenting the decision.
+      Do NOT close any tasks — the tasks themselves are valid, only the dependency is wrong.
+      Recommend re-running validate-issues.sh after the fix.
     - Interface tasks without documentation: add a comment with file path and key methods
     - High-impact blockers (3+ tasks blocked): suggest extracting an interface contract
 
@@ -98,24 +112,20 @@ tests:
         value: >
           The output correctly handles a circular dependency chain and provides
           actionable remediation guidance. It should:
-          (1) confirm the score of 1 (Critical) requires immediate action and
-          explain that the circular dependency prevents any of the three tasks
-          from ever becoming unblocked,
+          (1) acknowledge the severity of the issue and explain that the circular
+          dependency prevents the tasks from becoming unblocked,
           (2) identify that the cycle must be broken by removing at least one
-          dependency link — and suggest which link is most likely to be the
-          incorrect one (e.g., the last link cc33 → aa11 is often the spurious
-          one in a pipeline-like chain),
-          (3) provide the command to remove the problematic dependency link
-          (using `.claude/scripts/dso ticket unlink` or equivalent) and add a
-          comment documenting the decision,
+          dependency link — and either suggest which link is most likely incorrect
+          or present the options with reasoning for the user to decide,
+          (3) provide a concrete remediation approach (using ticket CLI commands
+          like unlink or equivalent),
           (4) NOT suggest closing any of the three tasks as a resolution — the
           tasks themselves are valid; only the dependency relationship is wrong,
-          (5) recommend re-running validate-issues.sh after the fix to confirm
-          the cycle is resolved and the score improves.
+          (5) recommend re-running validate-issues.sh after the fix.
 
   - description: "Handles empty epic correctly — does not close it, routes to preplanning"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         The validate-issues script returned the following report:
@@ -132,14 +142,11 @@ tests:
         value: >
           The output correctly declines to close the empty epic and instead routes
           to the appropriate remediation step. It should:
-          (1) explicitly state that empty epics must NOT be closed autonomously —
-          epics represent planned work that still needs to be decomposed, not
-          completed or abandoned work,
+          (1) explicitly state that the empty epic should NOT be closed — epics
+          represent planned work that still needs to be decomposed,
           (2) recommend running /dso:preplanning on epic-9z8y to decompose it
-          into user stories and tasks, providing the exact invocation
-          (e.g., "/dso:preplanning epic-9z8y"),
-          (3) state that the epic should only be closed if the user explicitly
-          confirms it is obsolete — which the user has not done in this prompt,
-          (4) explain the distinction: a score of 3 (Fair) means the issue must
-          be fixed before continuing, and decomposing the epic via preplanning
-          is the correct fix rather than closing it.
+          into user stories and tasks,
+          (3) NOT close the epic without explicit user confirmation that it is
+          obsolete,
+          (4) indicate that the issue should be fixed (via preplanning) rather
+          than closing the epic.

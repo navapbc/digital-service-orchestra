@@ -2,39 +2,20 @@ description: "Fix-bug skill evals — trigger routing and bug classification"
 
 providers:
   - id: "anthropic:messages:claude-haiku-4-5-20251001"
-  - id: "anthropic:claude-agent-sdk"
-    config:
-      modelId: "claude-haiku-4-5-20251001"
 
 defaultTest:
   options:
     provider: "anthropic:messages:claude-haiku-4-5-20251001"
 
 prompts:
-  - id: step-1-5-gate-1a
-    raw: |
-      You are the fix-bug skill executing Step 1.5 (Gate 1a — Intent Search).
-
-      Step 1.5 purpose: Before dispatching the investigation sub-agent, run an
-      intent-search gate to determine whether the bug aligns with system intent.
-
-      Follow the SKILL.md Step 1.5 logic precisely. The SKILL.md describes what
-      checks to run and what conditions skip or short-circuit the intent-search dispatch.
-
-      After applying the Step 1.5 logic, describe:
-      1. Whether intent-search is dispatched or skipped, and why
-      2. What GATE_1A_RESULT is set to
-      3. Any ticket comment added to document the gate outcome
-
-      Bug ticket context:
-      {{prompt}}
-
-  - id: step-7-5-anti-pattern
-    raw: |
-      {{prompt}}
-
   - |
-    You are the fix-bug skill. Given a bug report, you must:
+    You are the fix-bug skill for a software development workflow tool.
+    Your job is to classify bugs, route them through investigation, and fix them
+    using TDD discipline.
+
+    Key behaviors:
+
+    Bug classification:
     1. Classify the error type as either "mechanical" or "behavioral".
        Mechanical errors: import errors, type annotation issues, lint violations, config syntax errors.
        Behavioral errors: everything else (test failures, runtime errors, logic bugs, race conditions, etc.).
@@ -45,7 +26,7 @@ prompts:
        - Score 3-5: INTERMEDIATE investigation
        - Score >= 6: ADVANCED investigation
 
-    Respond with a structured classification report:
+    Output format for classification:
     CLASSIFICATION
     ==============
     Error type: mechanical | behavioral
@@ -58,7 +39,27 @@ prompts:
       Total score: <N>
       Investigation tier: BASIC | INTERMEDIATE | ADVANCED
 
-    Bug report:
+    Step 1.5 — Gate 1a (Intent Search):
+    Before dispatching the investigation sub-agent, run an intent-search gate.
+    - If the ticket has a CLI_user tag: SKIP intent-search entirely, set
+      GATE_1A_RESULT="intent-aligned" directly, and add a ticket comment
+      documenting the skip (e.g., "Gate 1a: skipped -- CLI_user tag present;
+      intent-aligned assumed."). The CLI_user tag means the bug was filed by a
+      human user whose intent alignment is already understood.
+    - If the ticket does NOT have a CLI_user tag: dispatch dso:intent-search
+      sub-agent with the ticket_id and configured intent_search_budget. Do NOT
+      skip intent-search for untagged tickets.
+
+    Step 7.5 — Anti-Pattern Scan:
+    When creating bug tickets during the anti-pattern scan phase, these are
+    autonomously discovered defects. The CLI command is:
+    `.claude/scripts/dso ticket create bug "<title>" --parent=<EPIC_ID>`
+    These tickets must NOT include --tags CLI_user because they are NOT
+    user-requested bugs filed via the CLI. The --tags CLI_user flag is reserved
+    exclusively for bugs that a human user explicitly asks to create during an
+    interactive session.
+
+    The user says:
     {{prompt}}
 
 tests:
@@ -151,13 +152,10 @@ tests:
           and routes to an investigation path, confirming fix-bug was the right skill.
 
   - description: "Step 7.5 anti-pattern scan failure: bug ticket must NOT use --tags CLI_user"
-    prompt: "id:step-7-5-anti-pattern"
-    options:
-      provider: "anthropic:messages:claude-haiku-4-5-20251001"
     vars:
       prompt: |
-        You are the fix-bug skill executing Step 7.5 (Anti-Pattern Scan). A batch of
-        anti-pattern fix sub-agents has returned batch_status: FAILED for the following batch:
+        You are executing Step 7.5 (Anti-Pattern Scan). A batch of anti-pattern fix
+        sub-agents has returned batch_status: FAILED for the following batch:
 
         Batch context:
         - pattern: Unguarded dict key access without .get() fallback
@@ -165,7 +163,7 @@ tests:
         - batch_status: FAILED
         - error: "Sub-agent timeout on src/utils/helpers.py"
 
-        Step 7.5 instructions from fix-bug SKILL.md:
+        Step 7.5 instructions:
         "If a batch returns batch_status: FAILED or PARTIAL, record findings as a bug
         ticket (.claude/scripts/dso ticket create bug '<title>' --parent=<EPIC_ID>)
         and proceed to the next batch — do not block the entire scan on a single
@@ -187,15 +185,17 @@ tests:
           via the CLI, so '--tags CLI_user' is incorrect for them. The correct command
           should be '.claude/scripts/dso ticket create bug "<title>" --parent=<EPIC_ID>'
           without any --tags CLI_user flag. If the output includes '--tags CLI_user',
-          the assertion FAILS. Note: the current SKILL.md Step 7.5 does not explicitly
-          prohibit '--tags CLI_user' for discovered bugs, so an LLM following the
-          current text may incorrectly suggest including it — this test is RED until
-          Step 7.5 is updated with that prohibition.
+          the assertion FAILS.
 
   - description: "Step 1.5 Gate 1a: CLI_user-tagged ticket skips intent-search dispatch (positive path)"
-    prompt: id:step-1-5-gate-1a
     vars:
       prompt: |
+        You are executing Step 1.5 (Gate 1a — Intent Search). Apply the Gate 1a
+        logic to this bug ticket and describe: (1) whether intent-search is dispatched
+        or skipped and why, (2) what GATE_1A_RESULT is set to, and (3) any ticket
+        comment added to document the gate outcome.
+
+        Bug ticket context:
         Bug ticket ID: BUG-4921
         Title: CLI output truncated when piping to less
         Tags: CLI_user
@@ -217,9 +217,14 @@ tests:
           comment about the skip fails this rubric.
 
   - description: "Step 1.5 Gate 1a: untagged ticket dispatches intent-search normally (negative path)"
-    prompt: id:step-1-5-gate-1a
     vars:
       prompt: |
+        You are executing Step 1.5 (Gate 1a — Intent Search). Apply the Gate 1a
+        logic to this bug ticket and describe: (1) whether intent-search is dispatched
+        or skipped and why, (2) what GATE_1A_RESULT is set to, and (3) any ticket
+        comment added to document the gate outcome.
+
+        Bug ticket context:
         Bug ticket ID: BUG-5102
         Title: Report generation fails for large datasets
         Tags: (none)

@@ -7,8 +7,9 @@
 # before the commit step to ensure changed code passes its associated tests.
 #
 # Usage:
-#   record-test-status.sh [--source-file <path>]
+#   record-test-status.sh [--source-file <path>] [--restart]
 #   When --source-file is omitted, runs discovery for all staged source files.
+#   --restart clears stale status and progress files before running.
 #
 # Convention-based association algorithm:
 #   For each staged source file (e.g., plugins/dso/hooks/foo.sh or src/bar.py):
@@ -273,6 +274,7 @@ count_centrality() {
 
 # Parse arguments
 SOURCE_FILE=""
+_RESTART=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --source-file)
@@ -283,14 +285,26 @@ while [[ $# -gt 0 ]]; do
             SOURCE_FILE="${1#*=}"
             shift
             ;;
+        --restart)
+            _RESTART=true
+            shift
+            ;;
         *)
             echo "ERROR: unknown argument: $1" >&2
             echo "" >&2
-            echo "Usage: record-test-status.sh [--source-file <path>]" >&2
+            echo "Usage: record-test-status.sh [--source-file <path>] [--restart]" >&2
             exit 1
             ;;
     esac
 done
+
+# --restart: clear stale status and progress files so the full suite runs fresh
+if [[ "$_RESTART" == true ]]; then
+    _artifacts=$(get_artifacts_dir)
+    rm -f "$_artifacts/test-gate-status"
+    rm -f "$_artifacts"/test-gate-progress-*
+    echo "Restart: cleared test-gate-status and progress files." >&2
+fi
 
 # Determine repo root
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
@@ -1112,7 +1126,7 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # Invoke run-skill-evals.sh with absolute paths to staged skill files.
 # run-skill-evals.sh maps file paths to skill directories, deduplicates, and
 # runs promptfoo evals only if evals/promptfooconfig.yaml exists.
-# Non-zero exit = eval failure → downgrade STATUS to 'failed' (or preserve 'timeout').
+# Non-zero exit = eval failure → warn but do not block (LLM evals are non-deterministic).
 if [[ -n "$_staged_skill_paths" ]]; then
     _RUN_EVALS_SCRIPT="${RECORD_TEST_STATUS_EVALS_RUNNER:-${HOOK_DIR}/../scripts/run-skill-evals.sh}"
     # Skip evals when ANTHROPIC_API_KEY is not set (evals require API access),
@@ -1135,9 +1149,16 @@ if [[ -n "$_staged_skill_paths" ]]; then
             # npx/promptfoo not available — warn and skip (non-blocking)
             echo "WARNING: run-skill-evals.sh exited 2 (npx/promptfoo not available); skipping skill evals." >&2
         elif [[ $_eval_exit -ne 0 ]]; then
-            # Eval failures at commit time are non-blocking warnings (LLM grading is non-deterministic).
-            # The daily CI workflow (Tier 2) is the authoritative blocking gate for eval regressions.
-            echo "WARNING: Skill eval failed (exit ${_eval_exit}) — non-blocking at commit time. Daily CI will catch regressions." >&2
+            # Eval failures are non-blocking at commit time (LLM-graded evals are
+            # inherently non-deterministic). Daily CI is the authoritative gate.
+            # See epic a978-bf1c for migration to deterministic eval architecture.
+            echo "WARNING: Skill eval failed (exit ${_eval_exit}) — non-blocking at commit time." >&2
+            echo "  Failing evals for staged skills:" >&2
+            for _sp in "${_eval_args[@]}"; do
+                _skill_dir=$(dirname "$_sp")
+                _eval_cfg="$_skill_dir/evals/promptfooconfig.yaml"
+                [[ -f "$_eval_cfg" ]] && echo "    - $_eval_cfg" >&2
+            done
         fi
     else
         echo "WARNING: run-skill-evals.sh not found or not executable at ${_RUN_EVALS_SCRIPT}; skipping skill evals." >&2

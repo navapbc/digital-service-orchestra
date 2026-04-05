@@ -39,45 +39,9 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 
 ## Orchestration Flow
 
-```
-Phase 1 Step 1 (session lock + resume check)
-  → [open bugs exist? Yes: bug-fix mode (reads fix-bug SKILL.md inline at orchestrator level) → Validation Mode (inner loop)]
-  → [open bugs exist? No: Phase 1 (Diagnostic Scan) → Phase 2 (Triage sub-agent)]
-Phase 1 (Diagnostic + Clustering sub-agent) → Phase 2 (Triage sub-agent)
-  → [dry-run: stop] or [execute: Phase 2.6 (Safeguard Analysis)]
-Phase 2.6 → [no safeguard bugs: Phase 3] [safeguard bugs: interactive → user approval → Phase 3 | non-interactive → auto-defer safeguard bugs → Phase 3]
-Phase 3 → Phase 4 (Auto-Fix, Tiers 0-1) → Phase 5 (Sub-Agent Batches)
-  → Phase 6 (Checkpoint) → [COMPLEX_ESCALATION from /dso:fix-bug: Phase 6 Step 3a re-dispatch (interactive) | non-interactive → log ticket comment + defer] → [more in tier: Phase 5] [tier clear: Phase 7]
-  → Phase 6 Step 1a (file-overlap) → [conflict re-run fails: interactive → escalate user | non-interactive → defer + INTERACTIVITY_DEFERRED]
-  → Phase 6 Step 1b (oscillation-guard) → [OSCILLATION: interactive → escalate user | non-interactive → defer oscillation with both approaches recorded]
-Non-interactive mode: oscillation-guard escalation deferred; COMPLEX_ESCALATION logged as non-interactive ticket comment instead of user-blocking re-dispatch
-Phase 7 (Re-Diagnose) → [more tiers: Phase 3] [all done: Phase 8]
-Phase 8 (Full Validation sub-agent) → [ALL PASS: Phase 9 → Phase 10 (Merge/CI/Staging) → Phase 11 (/dso:end-session)] [FAIL: Phase 2]
-Graceful shutdown: Phase 5/6 session limit or compaction → Phase 9 → Phase 10 (Merge Checkpoint) → [context <70% AND open bugs: Phase 2] [context ≥70% OR no bugs: Phase 11 (/dso:end-session)]
-
-Validation Loop (inner loop — within Bug-Fix Mode → Phase 8):
-Bug-Fix Mode → Validation Mode
-  → [new bugs found AND iteration < max_fix_validate_cycles?] → Bug-Fix Mode (next iteration)
-  → [no new bugs OR iteration >= max_fix_validate_cycles] → Phase 8 (Full Validation)
-
-NOTE: These are SEPARATE loops. The validation loop (inner) governs fix→validate cycles within a
-single tier's Bug-Fix Mode run, bounded by debug.max_fix_validate_cycles (default: 3, cap: 10).
-The outer loop (Phase 1→8) is bounded by the 5-cycle safety limit in Phase 8. They are independent
-and must NOT be conflated or allowed to nest multiplicatively.
-```
+Two entry modes: (1) **Bug-Fix Mode** — when open bug tickets exist, skip diagnostics/triage and apply `/dso:fix-bug` directly to each ticket, then enter Validation Mode (inner loop, bounded by `debug.max_fix_validate_cycles`); (2) **Diagnostic Mode** — when no open bugs exist, run Phase 1 diagnostic scan, Phase 2 triage, then fix in tier order (Phases 3-7). Both modes converge at Phase 8 (Full Validation). The outer loop (Phase 1-8, max 5 cycles) and inner validation loop (Bug-Fix Mode, max `debug.max_fix_validate_cycles`) are independent and must not nest multiplicatively.
 
 **Bug-Fix Mode note**: In bug-fix mode, `/dso:fix-bug` is invoked at orchestrator level — reads fix-bug/SKILL.md inline directly, NOT via Task tool dispatch — preserving Agent tool access for investigation sub-agents.
-
----
-
-## Epic Lifecycle
-
-`/dso:debug-everything` creates a "Project Health Restoration" epic to track all discovered bugs for a session. The epic follows this lifecycle:
-
-1. **Creation** (Phase 2): The triage sub-agent creates the epic via `/dso:brainstorm` and sets all discovered issues as children via `.claude/scripts/dso ticket link <issue-id> <epic-id> relates_to`.
-2. **Resume** (Phase 1, on re-entry): If a "Project Health Restoration" epic already exists from a previous session, it is reused — no new epic is created. New issues are added as children of the existing epic.
-3. **Closure on success** (Phase 9, "On Success"): When all checks pass and zero open bugs remain, the epic is closed with `.claude/scripts/dso ticket transition <epic-id> open closed` after adding a "Health restored." note.
-4. **Left open on graceful shutdown** (Phase 9, "On Graceful Shutdown"): When the session shuts down with work remaining, the epic is left open with a summary note listing resolved vs. remaining issues. The next session resumes it.
 
 ---
 
@@ -520,11 +484,7 @@ The sub-agent returns: path to proposals file + summary (count + per-bug one-lin
 
 ### Step 3: Present Proposals to User (/dso:debug-everything)
 
-**Non-interactive mode check**: If `INTERACTIVE_SESSION=false`, auto-defer ALL safeguard bugs. For each bug in `SAFEGUARD_BUGS`:
-```bash
-.claude/scripts/dso ticket comment <id> "INTERACTIVITY_DEFERRED: safeguard_approval | Non-interactive session. File: <path>. Proposed fix: <description>. Re-run in interactive session to approve."
-```
-Log: `"Non-interactive: deferring N safeguard bug(s)."` Skip to Phase 3 with `SAFEGUARD_BUGS` removed from the fix queue (they remain open).
+Non-interactive: apply Non-Interactive Deferral Protocol (see Phase 1 Step 1) using gate_name=`safeguard_approval`. Auto-defer ALL safeguard bugs; skip to Phase 3 with `SAFEGUARD_BUGS` removed from the fix queue (they remain open).
 
 **Interactive mode**: Read the proposals file from disk. Present each proposal to the user:
 
@@ -615,22 +575,7 @@ Within each tier, group independent fixes into batches of up to 5 sub-agents:
       fall back to text-based file extraction from issue descriptions (existing behavior).
       Debug sessions must not break if static analysis is unavailable.
 
-   After computing file impact for all candidates, build an **NxN pairwise overlap matrix**:
-   - For each pair of issues (i, j), check whether their `files_likely_modified` sets intersect
-   - **Write-write conflicts** (both issues modify the same file): defer the lower-priority
-     issue to the next batch. The higher-priority issue (lower priority number, or earlier
-     in dependency order) keeps its slot.
-   - **Read-read overlap** (`files_likely_read` intersections) is allowed — only write-write
-     conflicts trigger deferral
-   - Log the conflict matrix to stderr for observability, using the same format as
-     `$PLUGIN_SCRIPTS/sprint-next-batch.sh`:  # shim-exempt: internal orchestration script
-     ```
-     CONFLICT_MATRIX: <issue-A> x <issue-B> -> overlap on <file> (deferred: <issue-B>)
-     ```
-
-   This deterministic, zero-LLM-cost approach replaces the previous sub-agent dispatch for
-   overlap checking. See `$PLUGIN_SCRIPTS/sprint-next-batch.sh` lines 545-583 for the  # shim-exempt: internal orchestration script
-   reference greedy selection algorithm with file-overlap detection.
+   Batch conflict detection: read `prompts/batch-conflict-matrix.md`. Write-write conflicts defer the lower-priority issue; read-read overlap is allowed; conflicts are logged to stderr in `CONFLICT_MATRIX:` format.
 
 ---
 
@@ -844,7 +789,7 @@ Sub-agents may modify files beyond what their task description predicts. Check f
    - **Secondary agents**: all others. Before reverting, capture each secondary agent's diff for the conflicting files. Then revert all at once: `git checkout -- <conflicting-files>`
    - Re-run secondary agents **one at a time in priority order** (not in parallel), each with original prompt plus a `### Conflict Resolution Context` block containing the captured diff and instruction to not overwrite the primary agent's changes. Commit each re-run before launching the next.
    - After each re-run: if agent only touched non-conflicting files → success. If it overwrote the same files again:
-     - **Non-interactive mode** (`INTERACTIVE_SESSION=false`): Defer. For each secondary-agent ticket involved: `.claude/scripts/dso ticket comment <id> "INTERACTIVITY_DEFERRED: file_overlap | Agent re-overwrote conflicting files after re-run. Primary agent: <primary-agent-id>, conflicting files: <files>. Requires interactive session to resolve."` Revert secondary agent's changes: `git checkout -- <conflicting-files>`. Proceed to Step 1b.
+     - Non-interactive: apply Non-Interactive Deferral Protocol (see Phase 1 Step 1) using gate_name=`file_overlap`. Revert secondary agent's changes: `git checkout -- <conflicting-files>`. Proceed to Step 1b.
      - **Interactive mode**: Escalate to user, do not retry.
 4. No conflicts → proceed to Step 1b
 
@@ -873,7 +818,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/critic-revi
 **Oscillation guard**: Track critic outcomes per issue ID. On the 2nd CONCERN for
 the same issue, invoke `/dso:oscillation-check` (sub-agent, model="sonnet"  # Tier 2: must compare structural diffs across fix iterations to detect oscillation patterns) with
 context=critic. If it returns OSCILLATION:
-- **Non-interactive mode** (`INTERACTIVE_SESSION=false`): Defer. Record both fix approaches and both critic concerns as a ticket comment: `.claude/scripts/dso ticket comment <bug-id> "INTERACTIVITY_DEFERRED: oscillation_guard | Oscillation detected after 2 CONCERN cycles. Approach 1: <summary-1>. Approach 2: <summary-2>. Critic concerns: <concern-1> / <concern-2>. Requires interactive session to choose approach."` Leave the bug open. Do NOT retry.
+- Non-interactive: apply Non-Interactive Deferral Protocol (see Phase 1 Step 1) using gate_name=`oscillation_guard`. Record both fix approaches and both critic concerns in the deferral comment. Leave the bug open. Do NOT retry.
 - **Interactive mode**: Escalate to user with both fix approaches and both critic concerns. Do NOT retry.
 
 ### Step 2: Validate via Sub-Agent (/dso:debug-everything)
@@ -900,8 +845,6 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/post-batch-
 
 ### Step 3a: COMPLEX Escalation Handling (/dso:debug-everything)
 
-<!-- REVIEW-DEFENSE: CLAUDE.md line 131 still references the old Phase 2.5 description.
-     Update is tracked as task w21-z0jv (blocked by w21-b0tq). Do not edit CLAUDE.md here. -->
 
 After fix-bug sub-agents return, parse each result for a `COMPLEX_ESCALATION` report. Fix-bug sub-agents emit this structured report when post-investigation complexity evaluation classifies a bug as requiring multi-agent planning (i.e., the bug is too complex for a solo fix sub-agent to resolve autonomously).
 
@@ -917,11 +860,7 @@ COMPLEX_ESCALATION: true
 - `investigation_findings`: summary of root cause candidates, confidence, and evidence from investigation
 - `escalation_reason`: why the fix is COMPLEX (e.g., cross-system refactor, multiple subsystems affected)
 
-**Non-interactive mode** (`INTERACTIVE_SESSION=false`): When a `COMPLEX_ESCALATION` signal is found, log it as a ticket comment instead of blocking for re-dispatch. Do not invoke `/dso:fix-bug` at orchestrator level — defer the bug:
-```bash
-.claude/scripts/dso ticket comment <bug-id> "INTERACTIVITY_DEFERRED: complex_escalation | COMPLEX escalation from fix-bug sub-agent. escalation_reason: <escalation_reason>. investigation_findings: <investigation_findings>. Requires interactive session for orchestrator-level re-dispatch."
-```
-Add to `COMPLEX_BUGS` list for session summary. Continue to next bug.
+Non-interactive: apply Non-Interactive Deferral Protocol (see Phase 1 Step 1) using gate_name=`complex_escalation`. Do not invoke `/dso:fix-bug` at orchestrator level — defer the bug. Add to `COMPLEX_BUGS` list for session summary. Continue to next bug.
 
 **Interactive mode (re-dispatch at orchestrator level)** — do NOT use a sub-agent for the re-dispatch — invoke `/dso:fix-bug` directly from the orchestrator:
 
@@ -1149,13 +1088,7 @@ Run:
 
 For every open bug, apply the three-outcome classification (Fixed / Escalated / Deferred) per the guide. Close fixed bugs with `.claude/scripts/dso ticket transition <id> open closed`.
 
-**Non-interactive mode** (`INTERACTIVE_SESSION=false`): For bugs classified as Escalated (including any previously deferred via COMPLEX_ESCALATION in non-interactive mode), do NOT present them to the user. Instead, add a deferral comment:
-```bash
-.claude/scripts/dso ticket comment <bug-id> "INTERACTIVITY_DEFERRED: bug_accountability | Classified as ESCALATED (requires user decision). <classification_reason>. Requires interactive session."
-```
-Include these bugs in the session summary report under a `DEFERRED (non-interactive)` section rather than `ESCALATED`.
-
-**Note**: In non-interactive mode, `COMPLEX_ESCALATION` reports from fix-bug sub-agents are also deferred — they are logged as ticket comments (Phase 6 Step 3a) and surface here as open bugs awaiting escalation. The non-interactive COMPLEX_ESCALATION log comment format is: `INTERACTIVITY_DEFERRED: complex_escalation | <reason>`.
+Non-interactive: apply Non-Interactive Deferral Protocol (see Phase 1 Step 1) using gate_name=`bug_accountability`. Include deferred bugs in the session summary under a `DEFERRED (non-interactive)` section rather than `ESCALATED`. Previously deferred `COMPLEX_ESCALATION` bugs (Phase 6 Step 3a) surface here as open bugs awaiting escalation.
 
 **Interactive mode**: Present escalated bugs to the user.
 
@@ -1226,24 +1159,7 @@ This handles any remaining session cleanup: closing in-progress issues, committi
 
 ## TDD Enforcement
 
-The orchestrator uses this table to decide whether to include TDD instructions in each sub-agent's prompt. The sub-agent prompt template (Phase 5) contains the full RED-GREEN-VALIDATE flow.
-
-| Issue Type | TDD Required? | Why |
-|-----------|---------------|-----|
-| Runtime error without test | **YES** | Behavioral bug — most important TDD case |
-| Logic bug (wrong output) | **YES** | Test proves correct behavior, prevents recurrence |
-| Data corruption / state bug | **YES** | Test captures the exact failure condition |
-| MyPy type error (complex) | **YES** | Multi-file type mismatches may cause runtime errors |
-| MyPy type error (simple) | NO | Missing annotation or obvious fix — mypy itself is the test |
-| Ruff lint violation | NO | Style/safety, not behavioral |
-| Unit test failure | NO — failing test IS the RED test | Make it pass |
-| E2E test failure | NO — failing test IS the RED test | Make it pass |
-| Import error | NO | Mechanical fix — existing tests will validate |
-| Config / environment issue | NO | Not testable via unit test |
-| Infrastructure issue | CASE-BY-CASE | Code-fixable: yes. Config-only: no |
-| Ticket bug (code/logic) | **YES** | Behavioral bug — test proves correct behavior |
-| Ticket bug (tooling/script) | NO | Script behavior verified manually or by existing tests |
-| Ticket bug (investigation) | NO | Investigation produces findings, not code |
+TDD routing: read `prompts/tdd-enforcement-table.md`.
 
 ---
 
@@ -1259,8 +1175,8 @@ The orchestrator uses this table to decide whether to include TDD instructions i
 | All sub-agents fail in a batch | Do not retry same session. Graceful shutdown. |
 | Context compaction | Immediate graceful shutdown. Checkpoint everything. |
 | Git push fails (no upstream) | This is an ephemeral worktree branch — push is not required. Commit locally. |
-| Merge to main fails (conflict) | Invoke `/dso:resolve-conflicts` to analyze and propose resolutions. Trivial conflicts (imports, whitespace, non-overlapping additions) are auto-resolved if validation passes. Semantic/ambiguous conflicts require human approval. If `/dso:resolve-conflicts` is unavailable or the user declines all proposals, relay the conflict error for manual resolution. |
+| Merge to main fails (conflict) | Invoke `/dso:resolve-conflicts`. |
 | CI fails on main after merge | Return to Phase 2. Maximum 2 retries, then report to user for manual intervention. |
-| Staging fails (Phase 10) | `/dso:validate-work` handles retry logic, screenshot evidence, and specific recommendations for all staging failure modes (deploy not ready, test fails, Playwright unreachable, AWS auth expired). Follow its report. For staging bug investigation, use `/dso:playwright-debug` 3-tier process (code analysis -> targeted `npx @playwright/cli run-code -s=<session>` CLI dispatch -> full browser session only as last resort). |
+| Staging fails (Phase 10) | Follow `/dso:validate-work` report. |
 | Concurrent session detected | `lock-acquire` returns `LOCK_BLOCKED`. STOP. Report lock issue ID and worktree path to user. |
 | Stale lock found | `lock-acquire` returns `LOCK_STALE` (auto-reclaimed), then acquires new lock. Proceed. |

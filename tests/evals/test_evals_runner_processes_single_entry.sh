@@ -30,13 +30,13 @@ cat > "$MINIMAL_JSON" <<'EOF'
 {
   "suites": [
     {
-      "id": "skill-batch-overlap-check-exists",
+      "id": "skill-dryrun-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/batch-overlap-check/SKILL.md",
+      "hook": "plugins/dso/skills/dryrun/SKILL.md",
       "setup": { "stdin": "", "state_files": {}, "env": {} },
       "assertions": [
-        { "type": "file_exists", "path": "skills/batch-overlap-check/SKILL.md" }
+        { "type": "file_exists", "path": "plugins/dso/skills/dryrun/SKILL.md" }
       ]
     }
   ]
@@ -49,7 +49,7 @@ exit_code=$?
 
 assert_eq "exit_code is 0 for passing entry" "0" "$exit_code"
 assert_contains "output contains PASS" "PASS" "$output"
-assert_contains "output contains entry id" "skill-batch-overlap-check-exists" "$output"
+assert_contains "output contains entry id" "skill-dryrun-exists" "$output"
 assert_contains "output contains summary line" "passed" "$output"
 
 print_summary

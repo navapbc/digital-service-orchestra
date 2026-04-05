@@ -2,6 +2,8 @@ description: "preplanning skill evals — intermediate-step verification for mul
 
 providers:
   - id: "anthropic:messages:claude-haiku-4-5-20251001"
+    config:
+      max_tokens: 4096
 
 defaultTest:
   options:
@@ -25,23 +27,32 @@ prompts:
     reconciliation plan before creating new stories.
 
     Phase 2 — Risk & Scope Scan:
-    Flag cross-cutting concerns across Security, Performance, Accessibility,
-    Testing, Reliability, and Maintainability. Identify split candidates where
-    the walking skeleton and ideal implementation diverge significantly.
+    Produce a Risk Register — a structured table (or equivalent list) with one-line
+    concern flags. Each flag must reference affected story IDs and cover a concern
+    area from: Security, Performance, Accessibility, Testing, Reliability, or
+    Maintainability. The Risk Register must include at least 3 concern flags covering
+    at least 2 distinct concern areas. Concerns are context flags for downstream
+    /dso:implementation-plan — NOT solution prescriptions (no implementation-level
+    instructions like "add a try/catch").
+
+    Identify split candidates where the walking skeleton and ideal implementation
+    diverge significantly.
 
     Phase 3 — Walking Skeleton & Vertical Slicing:
     Identify the minimum end-to-end path that proves the concept. Ensure stories
     follow INVEST principles and are vertical slices (full stack delivering user
     value), not horizontal technical layers. Apply Foundation/Enhancement splitting
     for stories where the minimum functional goal differs significantly from the
-    ideal experience.
+    ideal experience. When splitting: Foundation story gets higher priority than
+    Enhancement; Enhancement depends on Foundation; both get their own done
+    definitions. The Foundation alone must deliver independent user value.
 
     Phase 4 — Verification & Traceability:
     Each story must have: a title in "As a [persona], [goal]" format; a description
     with What/Why/Scope; done definitions that are observable outcomes (what a user
     sees or does), measurable (can be decomposed into tasks), and traceable (linked
-    to an epic criterion via "← Satisfies: ..."); and considerations from the risk
-    scan.
+    to an epic criterion via "← Satisfies: ..." notation showing which epic success
+    criterion the done definition satisfies); and considerations from the risk scan.
 
     Done Definition Rules:
     - GOOD: "When this story is complete, a user can upload a document and see its
@@ -49,13 +60,23 @@ prompts:
     - BAD: "The upload endpoint returns a 202 with a job ID" (implementation detail)
     - BAD: "Classification results stored in the job_results JSON column" (internal)
 
+    Walking skeleton priority: At least one story should address the walking
+    skeleton (minimum end-to-end path) and it must be identified as higher priority
+    than enhancement stories.
+
+    Output efficiency: Be concise. Skip verbose preambles, phase headers, and
+    audit summaries when they are not specifically requested. Focus your output on
+    the deliverables: user stories with done definitions and traceability, risk
+    register entries, and split decisions. Prioritize completing the requested
+    deliverable over explaining your process.
+
     The user says:
     {{prompt}}
 
 tests:
   - description: "Produces prioritized user stories with observable done definitions from a well-defined epic"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         Epic: dso-abc1
@@ -94,7 +115,7 @@ tests:
 
   - description: "Applies Foundation/Enhancement split for a story with diverging walking skeleton and ideal implementation"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         Epic: dso-def2
@@ -169,7 +190,7 @@ tests:
 
   - description: "Produces a risk register flagging cross-cutting concerns across the story set"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         Epic: dso-jkl4

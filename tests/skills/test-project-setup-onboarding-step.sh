@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
 # tests/skills/test-project-setup-onboarding-step.sh
-# Tests that plugins/dso/skills/project-setup/SKILL.md contains an onboarding
-# integration step (Step 7) that offers /dso:dev-onboarding and /dso:design-onboarding
+# Tests that plugins/dso/skills/onboarding/SKILL.md contains an onboarding
+# integration step (Step 7) that offers /dso:architect-foundation
 # with correct structure, prompts, and artifact detection.
 #
-# Validates (8 named assertions):
+# Validates (6 named assertions):
 #   SC1: Step 7 heading present after Step 6 in SKILL.md
-#   SC2: Option descriptions include brief summaries of what each skill produces
-#   SC3: AskUserQuestion with 4 options when both skills available
-#   SC4: yes/no variant when only one skill available
-#   SC5: dev-onboarding invoked before design-onboarding in the sequence
+#   SC2: Option descriptions include brief summaries of what architect-foundation produces
+#   SC3: AskUserQuestion with options when architect-foundation not yet run
 #   SC6: skip option ends setup with no additional steps
-#   SC8a: references DESIGN_NOTES.md and ARCH_ENFORCEMENT.md for artifact detection
+#   SC8a: references design-notes.md and ARCH_ENFORCEMENT.md for artifact detection
 #   SC8b: both artifacts present → prompt skipped entirely
 #
 # Usage: bash tests/skills/test-project-setup-onboarding-step.sh
@@ -45,22 +43,22 @@ test_step7_exists() {
 }
 
 # test_descriptive_labels (SC2): option descriptions must include brief summaries of
-# what each skill produces (e.g. what dev-onboarding and design-onboarding generate)
+# what architect-foundation produces (e.g. ARCH_ENFORCEMENT.md, architecture enforcement)
 test_descriptive_labels() {
     _snapshot_fail
-    local step7_content has_skill_names has_descriptions has_descriptive_labels
-    step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error/' "$SKILL_MD" 2>/dev/null)
-    if echo "$step7_content" | grep -qiE "dev-onboarding|design-onboarding"; then
-        has_skill_names="yes"
+    local step7_content has_skill_name has_descriptions has_descriptive_labels
+    step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error|^## Guardrails/' "$SKILL_MD" 2>/dev/null)
+    if echo "$step7_content" | grep -qiE "architect-foundation"; then
+        has_skill_name="yes"
     else
-        has_skill_names="no"
+        has_skill_name="no"
     fi
-    if echo "$step7_content" | grep -qiE "produces|generates|creates|sets up|ARCH_ENFORCEMENT|DESIGN_NOTES|codebase guide|architecture"; then
+    if echo "$step7_content" | grep -qiE "produces|generates|creates|sets up|ARCH_ENFORCEMENT|architecture.*enforcement|scaffolding"; then
         has_descriptions="yes"
     else
         has_descriptions="no"
     fi
-    if [[ "$has_skill_names" == "yes" && "$has_descriptions" == "yes" ]]; then
+    if [[ "$has_skill_name" == "yes" && "$has_descriptions" == "yes" ]]; then
         has_descriptive_labels="found"
     else
         has_descriptive_labels="missing"
@@ -69,57 +67,25 @@ test_descriptive_labels() {
     assert_pass_if_clean "test_descriptive_labels"
 }
 
-# test_four_option_prompt (SC3): Step 7 must include an AskUserQuestion with 4 options
-# when both skills are available (dev-onboarding and design-onboarding)
-test_four_option_prompt() {
+# test_prompt_with_options (SC3): Step 7 must include an AskUserQuestion with options
+# when architect-foundation has not been run
+test_prompt_with_options() {
     _snapshot_fail
-    local step7_content four_option_found
-    step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error/' "$SKILL_MD" 2>/dev/null)
-    four_option_found="missing"
-    if echo "$step7_content" | grep -qiE "AskUserQuestion"; then
-        if echo "$step7_content" | grep -qiE "both.*onboarding|run both|both skills|option.*both|4\)"; then
-            four_option_found="found"
-        fi
+    local step7_content prompt_found
+    step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error|^## Guardrails/' "$SKILL_MD" 2>/dev/null)
+    prompt_found="missing"
+    if echo "$step7_content" | grep -qiE "AskUserQuestion|Which would you like|1\)|2\)"; then
+        prompt_found="found"
     fi
-    assert_eq "test_four_option_prompt" "found" "$four_option_found"
-    assert_pass_if_clean "test_four_option_prompt"
-}
-
-# test_single_option_prompt (SC4): Step 7 must include a yes/no variant for when
-# only one onboarding skill is available
-test_single_option_prompt() {
-    _snapshot_fail
-    local step7_content single_option_found
-    step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error/' "$SKILL_MD" 2>/dev/null)
-    single_option_found="missing"
-    if echo "$step7_content" | grep -qiE "only one|one.*available|yes.*no|yes/no|if only"; then
-        single_option_found="found"
-    fi
-    assert_eq "test_single_option_prompt" "found" "$single_option_found"
-    assert_pass_if_clean "test_single_option_prompt"
-}
-
-# test_invocation_order (SC5): dev-onboarding must be invoked before design-onboarding
-# when running in sequence (dev-onboarding appears at a lower line number)
-test_invocation_order() {
-    _snapshot_fail
-    local step7_content dev_line design_line invocation_order_ok
-    step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error/' "$SKILL_MD" 2>/dev/null)
-    invocation_order_ok="missing"
-    dev_line=$(echo "$step7_content" | grep -n "dev-onboarding" | head -1 | cut -d: -f1)
-    design_line=$(echo "$step7_content" | grep -n "design-onboarding" | head -1 | cut -d: -f1)
-    if [[ -n "$dev_line" && -n "$design_line" && "$dev_line" -lt "$design_line" ]]; then
-        invocation_order_ok="found"
-    fi
-    assert_eq "test_invocation_order" "found" "$invocation_order_ok"
-    assert_pass_if_clean "test_invocation_order"
+    assert_eq "test_prompt_with_options" "found" "$prompt_found"
+    assert_pass_if_clean "test_prompt_with_options"
 }
 
 # test_skip_ends_setup (SC6): skip option must end setup with no additional steps
 test_skip_ends_setup() {
     _snapshot_fail
     local step7_content skip_ends_setup
-    step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error/' "$SKILL_MD" 2>/dev/null)
+    step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error|^## Guardrails/' "$SKILL_MD" 2>/dev/null)
     skip_ends_setup="missing"
     if echo "$step7_content" | grep -qiE "skip.*setup.*complete|skip.*no.*additional|skip.*end|skip.*nothing|skip.*done|setup is complete|no additional steps"; then
         skip_ends_setup="found"
@@ -128,12 +94,12 @@ test_skip_ends_setup() {
     assert_pass_if_clean "test_skip_ends_setup"
 }
 
-# test_artifact_detection (SC8): Step 7 must reference DESIGN_NOTES.md and
+# test_artifact_detection (SC8a): Step 7 must reference design-notes.md and
 # ARCH_ENFORCEMENT.md as the artifacts used to detect whether onboarding already ran
 test_artifact_detection() {
     _snapshot_fail
     local step7_content has_design_notes has_arch_enforcement artifact_detection
-    step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error/' "$SKILL_MD" 2>/dev/null)
+    step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error|^## Guardrails/' "$SKILL_MD" 2>/dev/null)
     has_design_notes="no"
     has_arch_enforcement="no"
     if echo "$step7_content" | grep -qE "DESIGN_NOTES\.md|design-notes\.md"; then
@@ -151,12 +117,12 @@ test_artifact_detection() {
     assert_pass_if_clean "test_artifact_detection"
 }
 
-# test_both_artifacts_skip_entirely (SC8): when both DESIGN_NOTES.md and
-# ARCH_ENFORCEMENT.md are present, the prompt must be skipped entirely
+# test_both_artifacts_skip_entirely (SC8b): when both artifacts are present,
+# the prompt must be skipped entirely
 test_both_artifacts_skip_entirely() {
     _snapshot_fail
     local step7_content both_artifacts_skip
-    step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error/' "$SKILL_MD" 2>/dev/null)
+    step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error|^## Guardrails/' "$SKILL_MD" 2>/dev/null)
     both_artifacts_skip="missing"
     if echo "$step7_content" | grep -qiE "both.*present.*skip|skip.*both.*present|both.*artifact.*skip|already.*both.*skip|both.*exist.*skip|skip.*entirely|skip.*prompt|skip this step"; then
         both_artifacts_skip="found"
@@ -180,9 +146,7 @@ test_sc2_numbered_ci_workflow_selection() {
 # Run all assertion functions
 test_step7_exists
 test_descriptive_labels
-test_four_option_prompt
-test_single_option_prompt
-test_invocation_order
+test_prompt_with_options
 test_skip_ends_setup
 test_artifact_detection
 test_both_artifacts_skip_entirely

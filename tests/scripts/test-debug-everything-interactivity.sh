@@ -99,7 +99,7 @@ test_deferred_items_get_classification_comment() {
 test_interactivity_gates_safeguard_approval() {
     local safeguard_gate_found="missing"
 
-    # Extract Phase 2.6 section and check for non-interactive deferral
+    # Extract Phase 2.6 section (including sub-steps) and check for non-interactive deferral
     local phase26_section
     phase26_section=$(python3 - "$SKILL_FILE" <<'PYEOF'
 import sys, re
@@ -110,9 +110,10 @@ try:
 except FileNotFoundError:
     sys.exit(0)
 
-# Find Phase 2.6 section (heading with "2.6" or "Safeguard Bug Analysis")
+# Find Phase 2.6 section including all sub-headings (### steps).
+# Stop at the next ## heading or end of file.
 section_match = re.search(
-    r'(?m)^#{1,3}\s+.*?(?:2\.6|Safeguard Bug Analysis).*?$(.+?)(?=^#{1,3}\s|\Z)',
+    r'(?m)^##\s+.*?(?:2\.6|Safeguard Bug Analysis).*?$(.+?)(?=^##\s[^#]|\Z)',
     content,
     re.DOTALL
 )
@@ -210,9 +211,10 @@ except FileNotFoundError:
     sys.exit(0)
 
 # Find Step 1a (File Overlap Check) under Phase 6
-# Match heading with "1a" and "File Overlap" or "Safety Net"
+# Match heading containing "File Overlap" or "Safety Net" to avoid matching
+# the earlier Step 1a (Validation Gate) in Phase 1
 section_match = re.search(
-    r'(?m)^#{1,4}\s+.*?(?:1a|File Overlap|Safety Net).*?$(.+?)(?=^#{1,4}\s|\Z)',
+    r'(?m)^#{1,4}\s+.*?(?:File Overlap|Safety Net).*?$(.+?)(?=^#{1,4}\s|\Z)',
     content,
     re.DOTALL
 )
@@ -252,8 +254,10 @@ except FileNotFoundError:
     sys.exit(0)
 
 # Find Step 1b (Critic Review / Oscillation guard) under Phase 6
+# Match heading containing "Critic Review" or "Oscillation" to avoid matching
+# the earlier Step 1b (Pre-Flight Infrastructure) in Phase 1
 section_match = re.search(
-    r'(?m)^#{1,4}\s+.*?(?:1b|Critic Review|Oscillation).*?$(.+?)(?=^#{1,4}\s|\Z)',
+    r'(?m)^#{1,4}\s+.*?(?:Critic Review|Oscillation).*?$(.+?)(?=^#{1,4}\s|\Z)',
     content,
     re.DOTALL
 )

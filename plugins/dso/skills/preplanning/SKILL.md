@@ -107,53 +107,7 @@ Store the selected policy label and its full text as `{escalation_policy_label}`
 
 ### Lightweight Mode Gate (/dso:preplanning)
 
-If `--lightweight` was passed:
-
-1. **Skip Steps 2-4** of Phase 1 (no children to reconcile)
-2. **Skip Phase 2.5** (Adversarial Review) entirely — lightweight mode does not create stories, so cross-story analysis is not applicable
-3. Proceed to **Phase 2 (abbreviated)**: Run the Risk & Scope Scan but with these modifications:
-   - **Run** the Concern Areas scan (Security, Performance, Accessibility, Testing, Reliability, Maintainability)
-   - **Run** the qualitative override check from the epic complexity evaluator (multiple personas, UI + backend, new DB migration, foundation/enhancement candidate, external integration)
-   - **Skip** split-candidate identification (no stories to split)
-3. **If any COMPLEX qualitative override is discovered** that the evaluator missed:
-   - Do NOT write the preplanning context file
-   - Do NOT modify the epic description
-   - Return immediately:
-     ```json
-     {
-       "result": "ESCALATED",
-       "reason": "<override name>: <explanation>",
-       "recommendation": "full_preplanning",
-       "epicId": "<epic-id>"
-     }
-     ```
-4. **If no overrides discovered**, proceed to write done definitions:
-   - Update the epic description with:
-     - **Done Definitions**: Observable outcomes from the epic description, formatted the same way as story-level done definitions (see Phase 4 Step 2)
-     - **Scope**: What's in and what's explicitly out
-     - **Considerations**: Flags from the abbreviated risk scan
-   - Write the preplanning context to the epic ticket as a comment (same schema as Phase 4 Step 5a, but with an empty `stories` array) using Python subprocess to avoid ARG_MAX shell argument limits. This write is an optional cache — if it fails, log a warning and continue; do not abort the phase:
-     ```python
-     import json, subprocess
-     payload = json.dumps(<context-dict>, separators=(",",":"))
-     body = "PREPLANNING_CONTEXT_LIGHTWEIGHT: " + payload
-     result = subprocess.run(
-         [".claude/scripts/dso", "ticket", "comment", "<epic-id>", body],
-         check=False
-     )
-     if result.returncode != 0:
-         print("WARNING: Failed to write PREPLANNING_CONTEXT_LIGHTWEIGHT comment to epic ticket — continuing without cache write")
-     ```
-   Note: Lightweight mode uses the `PREPLANNING_CONTEXT_LIGHTWEIGHT:` key to avoid overwriting a full `PREPLANNING_CONTEXT:` comment. Consumers (e.g., `/dso:implementation-plan`) read `PREPLANNING_CONTEXT:` by default and only fall back to `PREPLANNING_CONTEXT_LIGHTWEIGHT:` if no full context exists.
-   - Return:
-     ```json
-     {
-       "result": "ENRICHED",
-       "epicId": "<epic-id>",
-       "doneDefinitions": ["<list of done definitions written>"],
-       "considerations": ["<list of considerations>"]
-     }
-     ```
+If `--lightweight` was passed: run Phase 1 Step 1 only, skip Step 1b, run abbreviated Phase 2, skip Phases 2.5 and 3-4, write done definitions to epic, return ENRICHED or ESCALATED per the Lightweight Mode Appendix below.
 
 If `--lightweight` was NOT passed, continue to Phase 1 Step 2 as normal.
 
@@ -207,9 +161,6 @@ If the user requests changes, iterate on the reconciliation plan and re-present.
 Scan all drafted stories (new and modified) as a batch to flag cross-cutting concerns that individual tasks would be too granular to catch. This is a lightweight analysis — no sub-agent dispatch, no scored review, no revision cycles.
 
 ### Concern Areas
-
-Read [docs/review-criteria.md](docs/review-criteria.md) for the full list of
-reviewers and their focus areas. The six concern areas are:
 
 | Area | Reviewer File | What to flag |
 |------|--------------|--------------|
@@ -269,13 +220,13 @@ A story qualifies for integration research if it references any of:
 - Data format migrations
 - Authentication/credential flows
 
-### Research Process
+### Research Process (shared)
 
 For each qualifying story:
 
-1. Use WebSearch to find known-working code that uses the specific integration. Search GitHub for repositories that import or call the tool/API.
+1. Use WebSearch to find known-working code that uses the specific integration or topic. Search GitHub for repositories that import or call the tool/API.
 2. Verify specific capabilities claimed or implied by the story scope. Check official documentation against what the story requires.
-3. Add findings to the story's Considerations as **Verified Integration Constraints**:
+3. Add findings to the story's Considerations as **Verified Constraints**:
    ```
    - [Integration] Verified: <tool> supports <capability> (source: <URL>)
    - [Integration] NOT verified: <tool> does not appear to support <capability>
@@ -447,21 +398,7 @@ A story qualifies for story-level research if any of the following apply:
 - **Assumed data format**: The story assumes a data format, schema, or protocol not described in the epic context (e.g., the exact shape of a webhook payload or file format encoding).
 - **Low agent confidence**: Agent confidence on a key implementation decision is low — the approach is unclear, multiple conflicting patterns exist, or the story references technology the agent is uncertain about.
 
-### Research Process
-
-For each qualifying story:
-
-1. Identify the specific gap (trigger condition name) and formulate a targeted search query.
-2. Use WebSearch or WebFetch to find prior art, working examples, or authoritative documentation.
-3. Record findings in the story spec under a **Research Notes** section using the following item-level format:
-   ```
-   - Trigger condition: <undocumented API behavior | assumed data format | low agent confidence>
-   - Query summary: <the search query used>
-   - Source URLs: <list of URLs consulted>
-   - Key insight: <the concrete finding that resolves or clarifies the gap>
-   ```
-4. If research resolves the gap, update the story's done definition or considerations to reflect the verified constraint.
-5. If research surfaces new risks, flag the story as high-risk and note it for the user during Phase 4 review.
+When a story qualifies, follow the Research Process defined in Phase 2.25. Record findings in the story spec under a **Research Notes** section, noting the trigger condition, query summary, source URLs, and key insight for each gap. If research resolves the gap, update the story's done definition or considerations. If research surfaces new risks, flag the story as high-risk for Phase 4 review.
 
 ### Graceful Degradation
 
@@ -666,7 +603,6 @@ This RED acceptance criteria ensures the TDD test story's tests are observed to 
 #### Exemptions
 
 - **Documentation and research stories** are exempt from TDD story requirements — they have no associated test stories and do not depend on any TDD test story.
-- **Internal tooling epics** follow the internal epic exemption described above — no dedicated TDD test story is required at the epic level.
 - If an epic is **TRIVIAL** (single story, no external dependencies) and the story already contains unit test acceptance criteria, a separate TDD test story may be omitted. Document the rationale.
 
 ### Step 3: Present Story Dashboard (/dso:preplanning)
@@ -878,6 +814,58 @@ dependent designs reference them.
 
 After wireframe phase completes (or is skipped), confirm all ticket state is
 up to date and report completion.
+
+---
+
+## Appendix: Lightweight Mode Specification
+
+When `--lightweight` is passed:
+
+1. **Skip Steps 2-4** of Phase 1 (no children to reconcile)
+2. **Skip Phase 2.5** (Adversarial Review) entirely — lightweight mode does not create stories, so cross-story analysis is not applicable
+3. Proceed to **Phase 2 (abbreviated)**: Run the Risk & Scope Scan but with these modifications:
+   - **Run** the Concern Areas scan (Security, Performance, Accessibility, Testing, Reliability, Maintainability)
+   - **Run** the qualitative override check from the epic complexity evaluator (multiple personas, UI + backend, new DB migration, foundation/enhancement candidate, external integration)
+   - **Skip** split-candidate identification (no stories to split)
+4. **If any COMPLEX qualitative override is discovered** that the evaluator missed:
+   - Do NOT write the preplanning context file
+   - Do NOT modify the epic description
+   - Return immediately:
+     ```json
+     {
+       "result": "ESCALATED",
+       "reason": "<override name>: <explanation>",
+       "recommendation": "full_preplanning",
+       "epicId": "<epic-id>"
+     }
+     ```
+5. **If no overrides discovered**, proceed to write done definitions:
+   - Update the epic description with:
+     - **Done Definitions**: Observable outcomes from the epic description, formatted the same way as story-level done definitions (see Phase 4 Step 2)
+     - **Scope**: What's in and what's explicitly out
+     - **Considerations**: Flags from the abbreviated risk scan
+   - Write the preplanning context to the epic ticket as a comment (same schema as Phase 4 Step 5a, but with an empty `stories` array) using Python subprocess to avoid ARG_MAX shell argument limits. This write is an optional cache — if it fails, log a warning and continue; do not abort the phase:
+     ```python
+     import json, subprocess
+     payload = json.dumps(<context-dict>, separators=(",",":"))
+     body = "PREPLANNING_CONTEXT_LIGHTWEIGHT: " + payload
+     result = subprocess.run(
+         [".claude/scripts/dso", "ticket", "comment", "<epic-id>", body],
+         check=False
+     )
+     if result.returncode != 0:
+         print("WARNING: Failed to write PREPLANNING_CONTEXT_LIGHTWEIGHT comment to epic ticket — continuing without cache write")
+     ```
+   Note: Lightweight mode uses the `PREPLANNING_CONTEXT_LIGHTWEIGHT:` key to avoid overwriting a full `PREPLANNING_CONTEXT:` comment. Consumers (e.g., `/dso:implementation-plan`) read `PREPLANNING_CONTEXT:` by default and only fall back to `PREPLANNING_CONTEXT_LIGHTWEIGHT:` if no full context exists.
+   - Return:
+     ```json
+     {
+       "result": "ENRICHED",
+       "epicId": "<epic-id>",
+       "doneDefinitions": ["<list of done definitions written>"],
+       "considerations": ["<list of considerations>"]
+     }
+     ```
 
 ---
 

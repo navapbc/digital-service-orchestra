@@ -42,9 +42,10 @@ echo "=== test-debug-everything-bug-fix-mode.sh ==="
 test_orchestration_flow_has_bug_fix_branch() {
     local branch_found="missing"
 
-    # Look for a conditional branch in the flow diagram referencing open bugs
-    # and bug-fix mode (e.g., "[open bugs: bug-fix mode]" or similar)
-    if grep -qE '\[open bugs?.*bug.?fix|bug.?fix.*mode.*open bugs?' "$SKILL_FILE" 2>/dev/null; then
+    # Look for a conditional branch referencing open bugs and bug-fix mode
+    # in either a flow diagram (e.g., "[open bugs: bug-fix mode]") or prose summary
+    # (e.g., "Bug-Fix Mode — when open bug tickets exist")
+    if grep -qE '\[open bugs?.*bug.?fix|bug.?fix.*mode.*open bugs?|Bug.?Fix Mode.*open bug tickets' "$SKILL_FILE" 2>/dev/null; then
         branch_found="found"
     fi
 

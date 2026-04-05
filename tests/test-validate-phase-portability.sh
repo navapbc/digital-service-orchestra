@@ -95,8 +95,10 @@ run_phase() {
     local phase="$1"
     RUN_OUTPUT=""
     RUN_EXIT=0
+    # Use ulimit-safe single-process execution to avoid fork exhaustion
+    # in resource-constrained environments (Claude tool-use sandbox).
     RUN_OUTPUT=$(
-        cd "$TMPDIR" && bash "$CANONICAL_SCRIPT" "$phase" 2>&1
+        cd "$TMPDIR" && MAX_PARALLEL=1 bash "$CANONICAL_SCRIPT" "$phase" 2>&1
     ) || RUN_EXIT=$?
 }
 

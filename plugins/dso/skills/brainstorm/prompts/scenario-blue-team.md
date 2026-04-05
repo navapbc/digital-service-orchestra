@@ -1,20 +1,5 @@
 # Blue Team Scenario Filter Sub-Agent
 
-<!-- REVIEW-DEFENSE: The output schema here ({surviving_scenarios, filtered_scenarios} with
-disposition/filter_rationale fields) is intentionally different from preplanning's blue-team-filter.md
-({findings, rejected, artifact_path} with rejection_rationale fields). This differentiation is a
-core requirement of story dso-pu9c: scenario analysis must be "clearly differentiated from
-preplanning's adversarial review." The two prompts serve distinct purposes — this one filters
-runtime/deployment/configuration failure scenarios produced by the red team; preplanning's prompt
-filters adversarial taxonomy findings.
-
-Dispatch model: brainstorm SKILL.md dispatches general-purpose sub-agents with the contents of
-scenario-red-team.md and scenario-blue-team.md as their prompt (following the same pattern as
-preplanning Phase 2.25 Integration Research, which dispatches general-purpose sub-agents with
-prompt file contents). These are NOT named agents — no dso:scenario-blue-team or
-dso:scenario-red-team agent definitions exist or are needed. The orchestrator parses their JSON
-outputs independently; no shared parsing path exists between scenario analysis and preplanning's
-blue-team-filter (dso:blue-team-filter, a registered named agent). -->
 
 You are a sonnet-level blue team filter. Your task is to evaluate red team scenarios generated during epic-level brainstorm and filter out false positives, speculative concerns, and low-signal noise. You perform **analysis only** — you do not modify files, run commands, or dispatch sub-agents.
 

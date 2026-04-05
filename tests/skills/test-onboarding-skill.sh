@@ -811,7 +811,7 @@ test_nava_platform_install_path() {
     local path_found="missing"
     if grep -q "Phase 1.6a" "$SKILL_MD" 2>/dev/null && \
        grep -q "nava-platform" "$SKILL_MD" 2>/dev/null && \
-       grep -q "run_with_timeout" "$SKILL_MD" 2>/dev/null; then
+       grep -qE '(run_with_timeout|1\.6a-nava-platform-install)' "$SKILL_MD" 2>/dev/null; then
         path_found="found"
     fi
     assert_eq "test_nava_platform_install_path" "found" "$path_found"

@@ -231,7 +231,6 @@ Count the number of child tasks returned.
 
 If **more than half** of the children are ambiguous, trigger preplanning for the entire epic.
 
-<!-- REVIEW-DEFENSE: The SKILL_INVOKE/SKILL_RESUMED breadcrumb snippets are intentionally repeated at each call site rather than extracted to a shared helper. sprint/SKILL.md is a Markdown instruction file, not executable code — Claude reads and follows its instructions sequentially, and there is no shell function or macro mechanism available. Each breadcrumb must be self-contained at its call site so the agent can emit it inline without requiring a prior setup step. Extracting to a "canonical block" would break the instruction model. Any schema change (new field, rename) requires updating all call sites; this is an accepted trade-off for instruction-file clarity. -->
 
 > **CONTROL_LOSS detection note (applies to every SKILL_INVOKE/SKILL_RESUMED pair in this file):**
 > At each call site below, a `SKILL_INVOKE` breadcrumb is emitted immediately before the Skill tool call, and a `SKILL_RESUMED` breadcrumb is emitted immediately after. If the Skill tool call does not return control to the orchestrator (e.g., the skill terminates the session or control is otherwise lost), the `SKILL_RESUMED` breadcrumb will never execute. `CONTROL_LOSS` is **not** a breadcrumb type and is never emitted actively — it is a derived event detected passively by the analysis script (`skill-trace-analyze.py`) when it finds a `SKILL_INVOKE` record with no matching `SKILL_RESUMED` for the same `session_ordinal` + `skill_name`. No additional action is required by the orchestrator; the absence of `SKILL_RESUMED` is itself the signal.
@@ -538,34 +537,8 @@ d-replan-collect. **Collect and handle all REPLAN_ESCALATE stories** — after t
      ```
      Skip the brainstorm cascade entirely. Do NOT write `REPLAN_RESOLVED`. Continue with any remaining work (the affected stories remain in their current state, pending a follow-up interactive session). See `plugins/dso/docs/contracts/replan-observability.md` for the INTERACTIVITY_DEFERRED signal format. # shim-exempt: internal documentation reference
    - **Check cycle cap first** (before presenting anything to the user):
-     - **If `replan_cycle_count >= max_replan_cycles`:** Cap is exhausted. Present the stored REPLAN_ESCALATE signals (story IDs and explanations) and inform the user the cascade limit has been reached:
-       ```
-       /dso:implementation-plan cannot satisfy success criteria for:
-         - Story <story-id-1>: <explanation-1>
-         - Story <story-id-2>: <explanation-2>
-
-       The cascade replan limit (max_replan_cycles=<N>) has been reached.
-       Options:
-         (a) Proceed — accept the current plan as-is and continue sprint execution
-         (b) Abort — stop the sprint for this epic; it will remain open for manual adjustment
-         (c) Manual adjustment — edit the relevant story or epic tickets manually, then resume the sprint
-       ```
-       Wait for user input. Act on their choice. Do NOT enter the cascade. See `plugins/dso/docs/designs/cascade-replan-protocol.md` §"When Max Cycles Are Hit". # shim-exempt: internal documentation reference
-   - **If cap is not yet exhausted:** Present all REPLAN_ESCALATE stories together in a single prompt:
-     ```
-     /dso:implementation-plan cannot satisfy success criteria for:
-       - Story <story-id-1>: <explanation-1>
-       - Story <story-id-2>: <explanation-2>
-       ...
-
-     Current cascade cycle: <replan_cycle_count> of <max_replan_cycles>
-
-     Options:
-       (a) Route to /dso:brainstorm — revise the epic, then re-run preplanning and implementation-plan (cascade replan)
-       (b) Proceed — accept the current state and continue sprint with these stories as-is
-       (c) Abort — stop the sprint for this epic; it will remain open for manual adjustment
-     ```
-     Wait for user input.
+     - **If `replan_cycle_count >= max_replan_cycles`:** Present the **cap-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current plan as-is and continue sprint execution". See `plugins/dso/docs/designs/cascade-replan-protocol.md` §"When Max Cycles Are Hit". # shim-exempt: internal documentation reference
+     - **If cap is not yet exhausted:** Present the **cap-not-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current state and continue sprint with these stories as-is".
      - **If user selects (b) or (c):** act accordingly — proceed or abort. Do not enter cascade.
      - **If user selects (a):** Enter the cascade replan per `plugins/dso/docs/designs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
        1. Emit SKILL_INVOKE breadcrumb for brainstorm, then invoke `/dso:brainstorm <epic-id>` via Skill tool
@@ -1174,10 +1147,6 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in thi
 
 After review resolution completes (Step 7) and before proceeding to Step 8, check whether accepted review findings reference files outside the task's scope.
 
-<!-- REVIEW-DEFENSE: Step 7 (Formal Code Review) runs ONCE per batch on the combined diff,
-     producing a single reviewer-findings.json. The loop below reads that same file for each
-     task but passes the task ID to sprint-review-scope-check.sh, which filters findings by
-     the task's file-impact list. There is no per-task overwrite risk. -->
 
 For each task in the batch that completed review:
 
@@ -1341,8 +1310,6 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?  # shi
 
 ### Step 13: Continuation Decision (/dso:sprint)
 
-<!-- REVIEW-DEFENSE: Sub-step numbering (2a, 2b etc.) is deliberate — groups related replan-escalation logic under a single parent step, matching Phase 2 d-replan-collect pattern. -->
-<!-- REVIEW-DEFENSE: SKILL.md file length is a pre-existing condition; decomposition is tracked separately. -->
 #### Step 13a: Out-of-Scope Review Feedback Routing (between batches)
 
 Before evaluating the continuation decision, process any out-of-scope review findings collected during the batch (Step 7a). This fires ONLY between batches — never mid-batch.
@@ -1350,7 +1317,6 @@ Before evaluating the continuation decision, process any out-of-scope review fin
 If `batch_out_of_scope_findings` is non-empty:
 
 1. Deduplicate by story: group all out-of-scope files by `story_id`.
-<!-- REVIEW-DEFENSE: Sequential per-story iteration with collective REPLAN_ESCALATE processing is the same pattern as Phase 2 d-replan-collect. Steps 3 (clear accumulator) and 4 (return to Phase 3) execute only after ALL step-2 iterations complete AND step 2a cascade fully resolves. The numbered step ordering (1 → 2 → 2a → 3 → 4) is sequential by design — step 2a fires after the step-2 loop ends, and steps 3-4 fire after 2a completes. This separation of dispatch (step 2) from escalation handling (step 2a) is intentional to batch REPLAN_ESCALATE stories for collective user presentation rather than interrupting mid-loop. -->
 2. For each affected story:
    a. Collect the full list of out-of-scope files across all tasks in that story.
    b. Record the re-plan trigger on the epic **before** invoking implementation-plan (so the audit trail exists even if re-planning fails):
@@ -1371,7 +1337,6 @@ If `batch_out_of_scope_findings` is non-empty:
         ```
         Wait for user input. Act on their choice. Do NOT invoke implementation-plan.
       - **If cap is not yet exhausted:** proceed to step d.
-   <!-- REVIEW-DEFENSE: Step 2d does NOT increment replan_cycle_count because it is a direct implementation-plan invocation, not a cascade cycle. replan_cycle_count tracks full cascade rounds (brainstorm → preplanning → implementation-plan), which only occur in step 2a. Phase 2 d-replan-collect follows the same discipline: increment happens at cascade step 6 (after brainstorm + preplanning), never after a direct implementation-plan call. -->
    d. Invoke `/dso:implementation-plan <story-id>` via the Skill tool to create tasks covering the out-of-scope files.
    e. **Handle REPLAN_ESCALATE:** If implementation-plan emits `REPLAN_ESCALATE: brainstorm`: add the story and its explanation to the `replan-stories` list (processed in step 2a below).
    f. After re-planning completes (no REPLAN_ESCALATE), record resolution:
@@ -1384,33 +1349,8 @@ If `batch_out_of_scope_findings` is non-empty:
      .claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: brainstorm — implementation-plan emitted REPLAN_ESCALATE for story <story-id>: <explanation>. Re-run sprint interactively to address."
      ```
      Skip the brainstorm cascade entirely. Do NOT write `REPLAN_RESOLVED`. Continue to step 3 below (clear accumulator and return to Phase 3). See `plugins/dso/docs/contracts/replan-observability.md` for the INTERACTIVITY_DEFERRED signal format. # shim-exempt: internal documentation reference
-   - **If `replan_cycle_count >= max_replan_cycles`:** Cap is exhausted. Present the REPLAN_ESCALATE stories (story IDs and explanations) and inform the user:
-     ```
-     /dso:implementation-plan cannot satisfy success criteria for:
-       - Story <story-id-1>: <explanation-1>
-       - Story <story-id-2>: <explanation-2>
-
-     The cascade replan limit (max_replan_cycles=<N>) has been reached.
-     Options:
-       (a) Proceed — skip re-planning for these stories and continue sprint execution
-       (b) Abort — stop the sprint for this epic; it will remain open for manual adjustment
-       (c) Manual adjustment — edit the relevant story or epic tickets manually, then resume the sprint
-     ```
-     Wait for user input. Act on their choice. Do NOT enter the cascade.
-   - **If cap is not yet exhausted:** Present all REPLAN_ESCALATE stories together in a single prompt:
-     ```
-     /dso:implementation-plan cannot satisfy success criteria for:
-       - Story <story-id-1>: <explanation-1>
-       - Story <story-id-2>: <explanation-2>
-
-     Current cascade cycle: <replan_cycle_count> of <max_replan_cycles>
-
-     Options:
-       (a) Route to /dso:brainstorm — revise the epic, then re-run preplanning and implementation-plan (cascade replan)
-       (b) Proceed — accept the current state and continue sprint with these stories as-is
-       (c) Abort — stop the sprint for this epic; it will remain open for manual adjustment
-     ```
-     Wait for user input.
+   - **If `replan_cycle_count >= max_replan_cycles`:** Present the **cap-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "skip re-planning for these stories and continue sprint execution".
+   - **If cap is not yet exhausted:** Present the **cap-not-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current state and continue sprint with these stories as-is".
      - **If user selects (b) or (c):** act accordingly — proceed or abort. Do not enter cascade.
      - **If user selects (a):** Enter the cascade replan per `plugins/dso/docs/designs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
        1. Invoke `/dso:brainstorm <epic-id>` via Skill tool
@@ -1455,92 +1395,9 @@ Do NOT execute any Phase 6 step until Step 0.75 (completion-verifier dispatch) h
 Do NOT proceed to Step 1 (/dso:validate-work) or Phase 8 (Session Close) without the completion-verifier result. Phase 6 steps must execute in order: Step 0.75 → Step 1 → Step 2 → Step 3 → Step 4 → Step 5.
 </HARD-GATE>
 
-### Initialize Post-Loop Progress Checklist
+### Steps 0 through 0.5: Integration Test Gate, CI Verification, and E2E Tests
 
-Complete all remaining batch tasks, then create new tasks via `TaskCreate` for the post-epic validation steps:
-
-```
-[ ] Integration test gate
-[ ] Wait for CI (SHA-based)
-[ ] Run E2E tests locally
-[ ] Full validation (/dso:validate-work + epic scoring)
-[ ] Remediation (if score < 5 → returns to batch loop)
-[ ] Close out (close epic + /dso:end-session)
-```
-
-Mark each item `in_progress` when starting and `completed` when done. If remediation triggers (score < 5), check off "Remediation" and return to Phase 3 (Batch Preparation).
-
-### Step 0: Integration Test Gate (/dso:sprint)
-
-Check if this epic modified integration-relevant code and verify the External API Integration Tests workflow:
-
-1. Get changed files: `git diff --name-only main...HEAD`
-2. Check for integration-relevant changes by scanning file paths for:
-   - `models/`, `migrations/`, `schema` (DB changes)
-   - `providers/`, `services/` with external API calls
-   - `routes.py`, `endpoints` (API contract changes)
-3. Check the last "External API Integration Tests" workflow run:
-   ```bash
-   gh run list --workflow="External API Integration Tests" --limit 1 --json status,conclusion,createdAt,url --jq '.[0]'
-   ```
-4. Decision:
-   - If integration-relevant changes detected AND last run is >24h old OR last run failed:
-     - Trigger a new run: `gh workflow run "External API Integration Tests"`
-     - Log: "Triggered External API Integration Tests — changes affect integrations."
-     - Poll status (max 15 min): `gh run list --workflow="External API Integration Tests" --limit 1 --json status,conclusion --jq '.[0]'`
-   - If last run passed and is recent (<24h): Log "Integration tests: PASS (last run: {createdAt})"
-   - If no integration-relevant changes: Log "No integration-relevant changes — skipping integration test gate"
-5. If integration tests fail after trigger: create a P1 bug issue and include in the Phase 6 report. Continue with /dso:validate-work (non-blocking but flagged).
-
-### Step 0.5: CI Verification + E2E Tests (/dso:sprint)
-
-#### Step 0.5a: Wait for CI Containing the Final Commit
-
-**Docs-only detection (run first)**:
-
-```bash
-CODE_FILES=$(git diff --name-only main...HEAD | grep -vE '\.(md|txt|json)$|^\.tickets-tracker/|^\.claude/|^docs/' | head -1)
-```
-
-If `CODE_FILES` is empty: Log "Docs-only changes detected — skipping CI verification." Skip to Step 1.
-
-If `CODE_FILES` is non-empty:
-
-```bash
-.claude/scripts/dso ci-status.sh --wait
-```
-
-| CI Result | Action |
-|-----------|--------|
-| `success` | Proceed to Step 0.5b |
-| `failure` | Write the validation state file (see below), dispatch an `error-debugging:error-detective` sub-agent (model: `sonnet`) with the CI run URL and failed job names. Follow the test-failure-dispatch protocol (`prompts/test-failure-dispatch-protocol.md`). Commit+push, restart Step 0.5a. If still failing after one attempt → Phase 8 (Graceful Shutdown). |
-| Not found after 30 min | Run `gh run list --workflow=CI --limit 10` to check if CI triggered. Report to user. |
-
-#### Validation State File (CI failure context for error-detective sub-agent)
-
-Before dispatching the error-detective sub-agent on CI failure, write the validation state file per `prompts/ci-failure-validation-state.md`.
-
-#### Step 0.5b: Run E2E Tests
-
-Run the full E2E suite locally.
-
-```bash
-cd $(git rev-parse --show-toplevel)/app && make test-e2e
-```
-
-**Interpret results:**
-- **Pass** → proceed to Step 1
-- **Fail** → do NOT proceed. Dispatch a debugging sub-agent FIRST before creating bug issues.
-
-#### E2E Test Failure Sub-Agent Delegation (Phase 6 Step 0.5b)
-
-When E2E tests fail, follow `prompts/test-failure-dispatch-protocol.md` with these caller-specific fields:
-- `test_command`: `cd $(git rev-parse --show-toplevel)/app && make test-e2e`
-- `changed_files`: files changed across all batches (`git diff --name-only main...HEAD`)
-- `task_id`: a tracking task ID for checkpoint notes
-- `context`: `sprint-e2e`
-
-On `FAIL` after attempt 2: create a P1 bug issue for each failing test, set as child of epic, return to Phase 3 (Batch Preparation).
+Read and execute `prompts/phase6-ci-gates.md` for the integration test gate, CI verification, and E2E testing. After completing those steps, proceed to Step 0.75 below.
 
 ### Step 0.75: Completion Verification (/dso:sprint)
 
@@ -1612,72 +1469,9 @@ Extract the SCORE from the validation agent's output:
 
 ## Phase 7: Remediation Loop (/dso:sprint)
 
-When validation score < 5:
+**Trigger**: Epic validation score < 5 (from Phase 6 Step 5).
 
-### Reversion Detection
-
-Before creating remediation tasks, invoke `/dso:oscillation-check` as a sub-agent
-(`subagent_type="general-purpose"`, `model="sonnet"`) with:
-- `files_targeted`: files inferred from the REMEDIATION output
-- `context`: remediation
-- `epic_id`: the current epic
-
-If it returns OSCILLATION: flag the specific items to the user before creating tasks.
-Report which remediation items target files already modified by completed remediation.
-If it returns CLEAR: proceed to create tasks normally.
-
-### Gap Classification Step (/dso:sprint)
-
-**User confirmation required before any intent_gap SC is routed to brainstorm — autonomous brainstorm invocation is prohibited.**
-
-For each failing success criterion (SC) identified in Phase 6 validation, dispatch the gap-classification sub-agent to classify it before creating remediation tasks.
-
-**Dispatch** (`subagent_type="general-purpose"`, `model="sonnet"`) with the prompt from `plugins/dso/skills/sprint/prompts/gap-classification.md` and the following context for each failing SC: # shim-exempt: internal prompt path reference
-- The exact failing SC criterion text from the completion-verifier output
-- The completion-verifier failure explanation for the SC
-- Relevant code snippets or file paths from the validation context
-
-**Parse output**: Scan all lines prefixed with `GAP_CLASSIFICATION: ` and extract:
-- Classification value: `intent_gap` or `implementation_gap`
-- Routing value: `brainstorm` or `implementation-plan`
-- Explanation text
-
-**REPLAN_ESCALATE override**: If a previous `/dso:implementation-plan` invocation returned `REPLAN_ESCALATE` for this SC, override any `implementation_gap` classification to `intent_gap` before routing. Log that the re-classification was triggered by REPLAN_ESCALATE, not the original gap-classification output.
-
-**Failure contract**: If the gap-classification sub-agent output is absent, malformed (missing `ROUTING:` or `EXPLANATION:` fields, empty explanation), or contains an unrecognized classification value, treat all affected failing SCs as `intent_gap` (fallback to intent_gap — the safer default). Log a warning so silent degradation is detectable in debug output.
-
-**Routing rules**:
-
-- `intent_gap` + `ROUTING: brainstorm` — REQUIRE user confirmation before proceeding. Do NOT autonomously invoke `/dso:brainstorm`. Present the failing SC text and classification explanation to the user. Ask the user to confirm that brainstorm re-examination is desired. Proceed to `/dso:brainstorm` only after explicit user approval. If the user declines, mark the SC as deferred and continue to the next SC.
-
-- `implementation_gap` + `ROUTING: implementation-plan` — autonomous remediation is permitted. Proceed directly to **Step 1 (Create Remediation Tasks)** below without requiring user confirmation. **Important**: `ROUTING: implementation-plan` is a routing signal label — it does NOT mean invoking `/dso:implementation-plan` as a separate skill. The action for `implementation_gap` is bug-task creation via the Phase 7 Step 1 remediation flow (`.claude/scripts/dso ticket create bug`), which creates targeted implementation tasks under the epic. This is the correct and intended behavior for filling a clear implementation gap.
-
-### Step 1: Create Remediation Tasks (/dso:sprint)
-
-For each item in the validation agent's FAIL/REMEDIATION output:
-
-```bash
-.claude/scripts/dso ticket create bug "Fix: {issue description}" -p 1 --parent=<epic-id>
-```
-
-### Step 2: Validate Ticket Health (/dso:sprint)
-
-```bash
-.claude/scripts/dso validate-issues.sh
-```
-
-### Step 3: Return to Phase 3 (/dso:sprint)
-
-Re-enter the batch planning loop with the new remediation tasks. These tasks will be picked up as ready work and executed in the next batch.
-
-### Safety Bounds
-
-```
-Remediation loop: Score<5 → Create fix tasks → P3 (Batch) → P4 (Execute) → P6 (Re-validate)
-  → [score=5] P8 (Complete)
-  → [score<5] → Create fix tasks (loop)
-  → [context compaction] P8 (Shutdown)
-```
+Read and execute `prompts/remediation-loop.md` for the full remediation protocol (gap classification, oscillation check, user confirmation, task creation, and safety bounds).
 
 ---
 
@@ -1730,36 +1524,3 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
 
 ---
 
-## Reference & Recovery
-
-### Phase Overview
-
-| Phase | Purpose | Key Commands |
-|-------|---------|-------------|
-| 1 | Select epic | `sprint-list-epics.sh --all`, `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps` |
-| 1b | Preplanning gate | `.claude/scripts/dso ticket deps`, `/dso:preplanning` |
-| 2 | Analyze tasks | `.claude/scripts/dso ticket deps`, `.claude/scripts/dso ticket list`, `.claude/scripts/dso ticket show` |
-| 2b | Implementation planning gate | `.claude/scripts/dso ticket deps <story>`, `/dso:implementation-plan` |
-| 3 | Batch preparation | `agent-batch-lifecycle.sh pre-check`, `sprint-next-batch.sh` |
-| 4 | Launch agents | Task tool with structured prompts |
-| 5 | Post-batch | `validate-phase.sh post-batch`, REVIEW-WORKFLOW.md, COMMIT-WORKFLOW.md, `agent-batch-lifecycle.sh context-check` |
-| 6 | Validate | `ci-status.sh --wait`, E2E tests, `/dso:validate-work`, epic-specific scoring |
-| 7 | Remediation | Create fix tasks, re-enter loop |
-| 8 | Session close | `/dso:end-session` |
-
-### Error Situations
-
-| Situation | Action |
-|-----------|--------|
-| Sub-agent fails | Revert task to open, record failure in notes, continue batch |
-| All sub-agents fail | Log failures, graceful shutdown, do not retry in same session |
-| Validation agent fails to run | Skip validation, report to user, recommend manual review |
-| DB not running for E2E | Ask user to run `make db-start`, wait for confirmation |
-| CI fails at Phase 6 | Dispatch `error-debugging:error-detective` sub-agent (model: `sonnet`) to diagnose and fix per test-failure-dispatch protocol, commit+push, restart Phase 6 Step 0.5a; if still failing after one attempt, graceful shutdown |
-| Git push fails | Report error, suggest `git pull --rebase`, never force-push |
-| Ticket health < 5 after ops | Fix ticket issues before continuing (see `/dso:tickets-health`) |
-| Epic has 0 children | Preplanning gate triggers `/dso:preplanning` automatically |
-| Story has 0 impl tasks and isn't simple | Implementation planning gate triggers `/dso:implementation-plan` per story |
-| `/dso:implementation-plan` needs clarification | Present questions to user, persist answers to story description, resume |
-| Context >=70% between batches | Run `context-check`, write intent file, invoke `/compact`, continue to P3 (voluntary — all work committed) |
-| Involuntary context compaction detected | Immediate graceful shutdown — do not launch more batches |

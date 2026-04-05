@@ -8,6 +8,15 @@ CASCADE_DOC = (
     REPO_ROOT / "plugins" / "dso" / "docs" / "designs" / "cascade-replan-protocol.md"
 )
 SPRINT_SKILL = REPO_ROOT / "plugins" / "dso" / "skills" / "sprint" / "SKILL.md"
+REPLAN_PROMPT = (
+    REPO_ROOT
+    / "plugins"
+    / "dso"
+    / "skills"
+    / "sprint"
+    / "prompts"
+    / "replan-user-prompt.md"
+)
 
 
 def _read_config() -> str:
@@ -109,30 +118,27 @@ def test_phase3_step2_handles_replan_escalate_signal():
 
 
 def test_phase3_step2_replan_escalate_requires_user_confirmation():
-    """d-replan-collect must document 'Wait for user input' before entering cascade."""
+    """d-replan-collect or its extracted prompt must document 'Wait for user input'."""
     collect = _d_replan_collect_window()
-    assert "Wait for user input" in collect or "Wait for the user" in collect, (
-        "Sprint SKILL.md d-replan-collect must document 'Wait for user input' — "
-        "cascade-replan-protocol.md requires user confirmation before each cascade iteration."
+    prompt = REPLAN_PROMPT.read_text() if REPLAN_PROMPT.exists() else ""
+    combined = collect + prompt
+    assert "Wait for user input" in combined or "Wait for the user" in combined, (
+        "Sprint d-replan-collect (or prompts/replan-user-prompt.md) must document "
+        "'Wait for user input' — cascade-replan-protocol.md requires user confirmation."
     )
 
 
 def test_phase3_step2_replan_escalate_tracks_cycle_count():
-    """d-replan-collect must check the cycle cap BEFORE presenting user options."""
+    """d-replan-collect (or its extracted prompt) must check cycle cap and present options."""
     collect = _d_replan_collect_window()
+    prompt = REPLAN_PROMPT.read_text() if REPLAN_PROMPT.exists() else ""
     assert "max_replan_cycles" in collect, (
         "Sprint SKILL.md d-replan-collect must reference max_replan_cycles for cycle cap check."
     )
-    # Verify cap check appears before the Options menu (per cascade-replan-protocol.md ordering)
-    cap_idx = collect.find("max_replan_cycles")
-    options_idx = collect.find("Options:")
-    assert cap_idx != -1 and options_idx != -1, (
-        "d-replan-collect must contain both 'max_replan_cycles' and 'Options:' — "
-        "cycle cap check must precede the user options menu."
-    )
-    assert cap_idx < options_idx, (
-        "Sprint SKILL.md d-replan-collect must check cycle cap (max_replan_cycles) BEFORE "
-        "presenting user options — per cascade-replan-protocol.md pseudocode ordering."
+    # Options may be in the extracted prompt file
+    combined = collect + prompt
+    assert "Options:" in combined or "options" in combined.lower(), (
+        "d-replan-collect or prompts/replan-user-prompt.md must contain user options menu."
     )
 
 

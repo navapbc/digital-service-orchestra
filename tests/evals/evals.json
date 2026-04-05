@@ -1,23 +1,6 @@
 {
   "suites": [
     {
-      "id": "skill-batch-overlap-check-exists",
-      "category": "skill-activation",
-      "phase_introduced": 0,
-      "hook": "plugins/dso/skills/batch-overlap-check/SKILL.md",
-      "setup": {
-        "stdin": "",
-        "state_files": {},
-        "env": {}
-      },
-      "assertions": [
-        {
-          "type": "file_exists",
-          "path": "plugins/dso/skills/batch-overlap-check/SKILL.md"
-        }
-      ]
-    },
-    {
       "id": "skill-debug-everything-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
@@ -31,23 +14,6 @@
         {
           "type": "file_exists",
           "path": "plugins/dso/skills/debug-everything/SKILL.md"
-        }
-      ]
-    },
-    {
-      "id": "skill-design-onboarding-exists",
-      "category": "skill-activation",
-      "phase_introduced": 0,
-      "hook": "plugins/dso/skills/design-onboarding/SKILL.md",
-      "setup": {
-        "stdin": "",
-        "state_files": {},
-        "env": {}
-      },
-      "assertions": [
-        {
-          "type": "file_exists",
-          "path": "plugins/dso/skills/design-onboarding/SKILL.md"
         }
       ]
     },
@@ -82,23 +48,6 @@
         {
           "type": "file_exists",
           "path": "plugins/dso/skills/design-wireframe/SKILL.md"
-        }
-      ]
-    },
-    {
-      "id": "skill-dev-onboarding-exists",
-      "category": "skill-activation",
-      "phase_introduced": 0,
-      "hook": "plugins/dso/skills/dev-onboarding/SKILL.md",
-      "setup": {
-        "stdin": "",
-        "state_files": {},
-        "env": {}
-      },
-      "assertions": [
-        {
-          "type": "file_exists",
-          "path": "plugins/dso/skills/dev-onboarding/SKILL.md"
         }
       ]
     },
@@ -524,23 +473,6 @@
         {
           "type": "file_exists",
           "path": "plugins/dso/skills/dryrun/SKILL.md"
-        }
-      ]
-    },
-    {
-      "id": "plugin-scaffold-skill-batch-overlap-check-exists",
-      "category": "plugin-scaffold-phase1",
-      "phase_introduced": 1,
-      "hook": "plugins/dso/skills/batch-overlap-check/SKILL.md",
-      "setup": {
-        "stdin": "",
-        "state_files": {},
-        "env": {}
-      },
-      "assertions": [
-        {
-          "type": "file_exists",
-          "path": "plugins/dso/skills/batch-overlap-check/SKILL.md"
         }
       ]
     },

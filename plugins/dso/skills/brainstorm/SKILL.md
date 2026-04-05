@@ -234,8 +234,6 @@ Before I propose approaches: [Targeted gap question]
 
 **Bounded gap loop**: Ask at most 3 questions total, one at a time. After each answer, ask the next highest-priority gap question (if any remain) or proceed to Phase 2. If the user wants to continue refining after the initial set, they can opt-in by asking for more questions or clarifying further. Do not loop indefinitely.
 
-**Step 3 — Proceed to Phase 2**: After receiving answers (or if the user opts to skip), proceed to Phase 2. Do NOT present the understanding summary and gap analysis in a collapsed single question — they are separate steps.
-
 Do NOT proceed to Phase 2 until the user confirms the understanding summary or explicitly skips the gap analysis.
 
 ---
@@ -396,7 +394,7 @@ If changes are requested during discussion or after any re-run, revise the spec 
 
 #### Planning-Intelligence Log Entry
 
-After the user approves (option a), append a planning-intelligence log to the epic spec comment that will be written in Phase 3. The log entry records the planning context for future reference and uses a fixed state vocabulary: **"not triggered"** (phase skipped entirely), **"triggered"** (ran once, automatically or via bright-line condition), or **"re-triggered via gate"** (user explicitly requested a re-run via this gate).
+After the user approves (option a), append a planning-intelligence log to the epic spec comment that will be written in Phase 3.
 
 Log format to append under the heading `### Planning Intelligence Log`:
 

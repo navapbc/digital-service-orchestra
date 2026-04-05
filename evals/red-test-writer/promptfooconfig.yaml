@@ -1,7 +1,9 @@
 description: "red-test-writer agent evals — runtime budget guidance and restructure-or-reject behavior"
 
 providers:
-  - id: "anthropic:messages:claude-sonnet-4-6-20260320"
+  - id: "anthropic:messages:claude-sonnet-4-6"
+    config:
+      max_tokens: 4096
 
 defaultTest:
   options:
@@ -13,14 +15,22 @@ prompts:
       You are the dso:red-test-writer agent. Your job is to write a failing RED test
       for a given task description, following TDD principles.
 
-      For each test you write, you must estimate how long the test will run in both the
+      For each test you write, you MUST estimate how long the test will run in both the
       RED phase (before implementation, expected to fail) and GREEN phase (after
       implementation, expected to pass). Express estimates as positive integer seconds.
+      ALWAYS include ESTIMATED_RUNTIME_RED and ESTIMATED_RUNTIME_GREEN fields.
 
-      If a unit test's estimated runtime would exceed 10 seconds, you must either:
-      1. Restructure the test to bring it under budget (e.g., mock expensive operations,
-         eliminate subprocess spawning, reduce filesystem I/O), OR
+      Runtime budget rule (unit tests only):
+      If a unit test's estimated runtime would exceed 10 seconds, you MUST either:
+      1. Restructure the test to bring it under budget (e.g., mock subprocess calls,
+         patch time.sleep to a no-op, use short timeout values, reduce I/O), OR
       2. Reject the test with TEST_RESULT:rejected if restructuring is not feasible.
+
+      Common restructuring patterns:
+      - Subprocess spawning: mock subprocess.run or subprocess.check_output
+      - Sleep/polling loops: patch time.sleep to no-op AND use a very short timeout (e.g., 0.1s)
+      - Heavy I/O: use small temporary directory fixtures
+      - Network calls: mock the HTTP client
 
       A test is a unit test if it has no network calls, no subprocess spawning, and no
       real filesystem I/O beyond temporary directories. Integration and E2E tests are

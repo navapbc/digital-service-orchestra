@@ -95,7 +95,7 @@ check_guard_agent_tool "plan-review"
 check_guard_agent_tool "architect-foundation"
 check_guard_agent_tool "review-protocol"
 check_guard_agent_tool "resolve-conflicts"
-check_guard_agent_tool "dev-onboarding"
+# dev-onboarding: tombstone/redirect stub — no guard needed (skill has no logic)
 check_guard_agent_tool "validate-work"
 check_guard_agent_tool "retro"
 check_guard_agent_tool "ui-discover"
@@ -107,8 +107,8 @@ check_guard_agent_tool "update-docs"
 # RED until Story 3459-7246 adds their guards
 # ===========================================================================
 check_guard_orchestrator_signal "end-session"
-check_guard_orchestrator_signal "project-setup"
-check_guard_orchestrator_signal "design-onboarding"
+# project-setup: deleted — skill removed (use /dso:onboarding)
+# design-onboarding: deleted — skill removed (use /dso:onboarding)
 check_guard_orchestrator_signal "onboarding"
 
 print_summary

@@ -1,7 +1,7 @@
 description: "approach-decision-maker agent evals — ADR-style proposal evaluation and approach selection"
 
 providers:
-  - id: "anthropic:messages:claude-sonnet-4-6-20260320"
+  - id: "anthropic:messages:claude-sonnet-4-6"
 
 defaultTest:
   options:
@@ -14,9 +14,18 @@ prompts:
     select the best approach, or construct a counter-proposal when no submitted proposal is adequate.
     You produce a structured ADR-style decision record.
 
-    You evaluate proposals on 5 dimensions: codebase alignment, blast radius, testability,
-    simplicity, and robustness (each scored 1-5). You also scan for anti-patterns: golden hammer,
-    premature abstraction, cargo cult, resume-driven development, premature optimization, and NIH.
+    You evaluate proposals on 5 dimensions (each scored 1-5):
+    1. Codebase alignment — how well does this fit the existing codebase?
+    2. Blast radius — how much of the codebase is affected by this change?
+    3. Testability — how easy is it to write meaningful tests?
+    4. Simplicity — is this the simplest approach that satisfies the requirements?
+    5. Robustness — how well does this handle edge cases and failures?
+
+    You MUST reference at least 2 of these dimensions BY NAME in the context, decision,
+    consequences, or rationale_summary fields of your APPROACH_DECISION output.
+
+    You also scan for anti-patterns: golden hammer, premature abstraction, cargo cult,
+    resume-driven development, premature optimization, and NIH.
 
     You MUST output exactly one APPROACH_DECISION signal:
 
@@ -34,7 +43,7 @@ prompts:
 tests:
   - description: "Selects a non-naive approach over a naive grep-and-replace bash script for structured data parsing"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         Story: "As a developer, I want to extract all ticket IDs from a YAML-formatted
@@ -80,7 +89,7 @@ tests:
 
   - description: "Rationale references at least 2 of the 5 evaluation dimensions"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         Story: "As a developer, I want the pre-commit hook to check for hardcoded
@@ -133,7 +142,7 @@ tests:
 
   - description: "Anti-pattern detection: flags golden hammer when Redis is proposed for a simple single-process cache"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         Story: "As a developer, I want the ticket CLI to cache the parsed ticket index
@@ -187,7 +196,7 @@ tests:
 
   - description: "Anti-pattern detection: flags premature abstraction when a plugin registry is proposed for a one-time feature"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         Story: "As a developer, I want the ticket CLI to support exporting tickets to
@@ -241,7 +250,7 @@ tests:
 
   - description: "Counter-proposal mode: emits Mode B when all submitted proposals fail success criteria"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         Story: "As a developer, I want the pre-commit hook to verify that all modified
@@ -295,7 +304,7 @@ tests:
 
   - description: "Epic criterion disqualification: rejects proposal violating non-negotiable constraint"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         Story: "As a developer, I want the ticket export command to write output atomically

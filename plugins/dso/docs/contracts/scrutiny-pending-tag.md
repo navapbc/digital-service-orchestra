@@ -39,12 +39,10 @@ Missing tag is treated as **absent** (not pending). Only epics that are explicit
 
 ## Writer
 
-<!-- REVIEW-DEFENSE: Writer implementation tracked in story 02b2-c73d task 81ee-be6f (dependency layer 2 of epic e136-0ec7). Contract is defined before implementation per interface-first pattern. Phase 2.5 will be added to roadmap SKILL.md by that task. -->
 `/dso:roadmap` — writes the tag during the scrutiny decision step when the practitioner opts out of the scrutiny pipeline. (Implementation: story 02b2-c73d)
 
 ---
 
-<!-- REVIEW-DEFENSE: Reader gate implementation tracked in story 3193-3b53 (dependency layer 3 of epic e136-0ec7). Contract defined first so readers have a spec. -->
 ## Readers
 
 | Skill | Gate Location | Action on Tag Present |
