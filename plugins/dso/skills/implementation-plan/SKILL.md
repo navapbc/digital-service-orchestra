@@ -102,10 +102,15 @@ Flow: S1 (Discovery) → [ambiguities?] → Yes: Clarify with user → S1 (loop)
       → Yes: FORCE S2 (Arch Review) regardless of new-pattern flag
       → No: [new pattern needed?]
         → Yes: S2 (Arch Review) → [pass] S3 | [fail, iter<3] Revise → S2 | [fail, iter=3] Fallback → S3
-        → No: S3 (Task Drafting) → S4 (Plan Review)
-          → [score=5] S5 (Task Creation)
-          → [score<5, iter<3] Revise → S4
-          → [score<5, iter=3] Present plan with remaining issues
+        → No: [Proposal Generation] → Generate ≥3 proposals → Distinctness gate
+          → [all pairs distinct] → [sprint context?]
+            → Yes: Pass proposals to decision-maker agent → Selected proposal → S3 (Task Drafting)
+            → No: Display proposals to user → User selects → S3 (Task Drafting)
+          → [equivalent pair found] → Regenerate with explicit differentiation guidance → [Proposal Generation] (loop)
+          → S3 → S4 (Plan Review)
+            → [score=5] S5 (Task Creation)
+            → [score<5, iter<3] Revise → S4
+            → [score<5, iter=3] Present plan with remaining issues
   → S5 complete → [evaluator says TRIVIAL?]
     → Yes: Skip S6, present summary
     → No: S6 (Gap Analysis) → parse findings → create tasks / amend ACs → present summary
@@ -329,6 +334,41 @@ Using the story description and the codebase context gathered in Architectural A
 This annotation tells the Step 2 reviewer why a full review was triggered even if no new pattern is proposed.
 
 **If no cross-cutting signals found**, proceed to Step 2 only if a new pattern is needed; otherwise skip to Step 3.
+
+### Proposal Generation
+
+After resolving cross-cutting detection, generate at least 3 distinct implementation proposals for the story before proceeding to task drafting. Each proposal represents a genuinely different approach to satisfying the story's success criteria, giving the reviewer or decision-maker a real choice rather than surface-level variations.
+
+**Proposal format**: Each proposal MUST include all six fields defined in `prompts/proposal-schema.md` (the single source of truth for field definitions, risk categories, and the distinctness gate). Read that file before generating proposals. Required fields:
+
+| Field | Description |
+|-------|-------------|
+| `title` | Concise name for the approach (≤ 80 characters) |
+| `description` | How the approach works and why it satisfies the success criteria |
+| `files` | File paths likely touched (create, modify, or delete) |
+| `pros` | Concrete advantages traceable to design decisions |
+| `cons` | Concrete drawbacks and risks — do not omit known tradeoffs |
+| `risk` | One of: `low`, `medium`, `high` (see `prompts/proposal-schema.md` for criteria) |
+
+**Minimum proposal count**: Generate at least 3 proposals. A default of 3 is used when no project-level override is set. If the story is genuinely constrained to fewer viable approaches, document the constraint explicitly and generate as many distinct approaches as exist — but attempt at least 3 before concluding that fewer are possible.
+
+**Distinctness validation gate**: Before finalizing the proposal set, self-verify that every pair of proposals differs on at least one of the four structural axes defined in `prompts/proposal-schema.md`:
+
+- **Data layer** — how and where state is stored or retrieved
+- **Control flow** — the execution path or orchestration strategy
+- **Dependency graph** — which modules, packages, or services are introduced or removed
+- **Interface boundary** — where the public contract is drawn and what it exposes
+
+For each pair `(A, B)`, compare on all four axes. If any pair is structurally equivalent on all four axes (two proposals that differ only in naming or surface details), **reject one and replace it** with a genuinely different approach — then re-verify. A proposal set with any equivalent pair MUST NOT be presented or passed to the decision-maker.
+
+Axis comparison is structural, not textual. "Store in a dictionary" and "use a hash map" are the same data-layer choice. Two proposals may look similar yet still pass if they differ on control flow or interface boundary.
+
+**Handling sprint vs standalone context**:
+
+- **Sprint context** (invoked from `/dso:sprint` via Skill tool): Pass the full proposal set to the decision-maker agent (added in Story a1f3-db49) for autonomous selection. The decision-maker returns a selected proposal; use that as the basis for task drafting in Step 3. Do NOT display proposals to the user — the sprint orchestrator manages the flow.
+- **Standalone context** (invoked directly by the user): Display the proposals to the user in a readable format (title, description, pros, cons, risk for each). Wait for the user to select a proposal before proceeding to Step 3. Do NOT begin task drafting until the user has confirmed a selection.
+
+**Context detection**: Check whether you are in sprint context by verifying that `/dso:sprint` invoked this skill via the Skill tool (the Progress Checklist rule from the Progress Checklist section also applies — in sprint context, `TaskCreate` is suppressed). If the invocation originated from user input directly, treat as standalone.
 
 ---
 
