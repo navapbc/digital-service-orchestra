@@ -574,7 +574,10 @@ d-replan-collect. **Collect and handle all REPLAN_ESCALATE stories** — after t
        4. Emit SKILL_RESUMED breadcrumb after preplanning returns
        5. Increment `replan_cycle_count += 1`
        6. Re-run Step 2 (implementation planning) for all stories in the epic — re-enter the layer loop from the beginning
-       7. If implementation-plan returns no `REPLAN_ESCALATE` for any story: cascade exits — proceed to step e normally (plan accepted)
+       7. If implementation-plan returns no `REPLAN_ESCALATE` for any story: write the resolved signal, then cascade exits — proceed to step e normally (plan accepted):
+          ```bash
+          .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: brainstorm — Stories re-planned after brainstorm cascade."
+          ```
        8. If implementation-plan still emits `REPLAN_ESCALATE`: repeat from d-replan-collect (check cap first, then present to user)
 e. **Post-layer-batch ticket validation**:
    ```bash
@@ -1415,7 +1418,10 @@ If `batch_out_of_scope_findings` is non-empty:
        3. Invoke `/dso:preplanning <epic-id>` via Skill tool
        4. Increment `replan_cycle_count += 1`
        5. Re-run `/dso:implementation-plan` for all affected stories
-       6. If no more `REPLAN_ESCALATE`: cascade exits — proceed normally
+       6. If no more `REPLAN_ESCALATE`: write the resolved signal, then cascade exits — proceed normally:
+          ```bash
+          .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: brainstorm — Stories re-planned after brainstorm cascade."
+          ```
        7. If `REPLAN_ESCALATE` persists: repeat from 2a (check cap first)
 3. Clear the accumulator: `batch_out_of_scope_findings = []`
 4. Return to Phase 3 (Batch Preparation) to include the newly created tasks.
