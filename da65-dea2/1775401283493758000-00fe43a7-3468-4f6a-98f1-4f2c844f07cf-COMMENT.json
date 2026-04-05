@@ -1,1 +1,0 @@
-{"timestamp": 1775401283493758000, "uuid": "00fe43a7-3468-4f6a-98f1-4f2c844f07cf", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 6/6: All ACs verified. Test TOLERATED (8 red-zone). Pre-existing test-discover-agents.sh failure unrelated. .test-index entry persists \u2713"}}
