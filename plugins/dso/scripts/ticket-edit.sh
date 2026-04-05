@@ -106,6 +106,11 @@ if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 \( -name '*-CREATE.json' -o -nam
     exit 1
 fi
 
+# ── Unicode arrow conversion (U+2192 → ASCII ->) for title field ─────────────
+if [[ -n "${fields[title]+x}" ]]; then
+    fields[title]=$(python3 -c "import sys; print(sys.argv[1].replace('\u2192', '->'))" "${fields[title]}")
+fi
+
 # ── Step 4: Build EDIT event JSON via python3 ────────────────────────────────
 env_id=$(cat "$TRACKER_DIR/.env-id")
 author=$(git config user.name 2>/dev/null || echo "Unknown")
