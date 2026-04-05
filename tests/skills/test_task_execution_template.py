@@ -352,3 +352,359 @@ class TestCLIUserTagProhibitionPropagation:
             "CLI_user prohibition. Fix agents dispatched via this template may "
             "incorrectly apply --tags CLI_user to autonomously-discovered bug tickets."
         )
+
+
+class TestTaskExecutionReadFirstGate:
+    """task-execution.md must include a mandatory file-list reading instruction (read_first gate).
+
+    TDD spec for the read_first gate: Before implementing, sub-agents must be
+    instructed to read a list of impacted files so they understand the full
+    context of what they are changing. The template must contain an explicit
+    instruction directing agents to read the files listed in the task's file
+    impact section before beginning implementation.
+    """
+
+    def test_read_first_gate_instruction_present(self) -> None:
+        """The template must contain a mandatory file-reading instruction.
+
+        The instruction must direct agents to read files before starting work
+        so they understand existing patterns and do not duplicate logic.
+        """
+        content = _read_template()
+        assert any(
+            phrase in content
+            for phrase in [
+                "read_first",
+                "file_impact",
+                "file impact",
+                "mandatory.*read",
+                "must read",
+                "Read each file",
+                "read each file",
+                "read the files",
+                "Read the files",
+            ]
+        ), (
+            "task-execution.md must contain a mandatory file-reading instruction "
+            "(read_first gate) directing agents to read impacted files before "
+            "beginning implementation. Found none of: read_first, file_impact, "
+            "'must read', 'Read each file', 'read the files'."
+        )
+
+    def test_read_first_gate_precedes_implementation_step(self) -> None:
+        """The file-reading instruction must appear before the implementation step (step 5).
+
+        The read_first gate is only effective if agents read files before
+        they start implementing, not after. The instruction must appear in
+        steps 1–4 or in the context-loading step.
+        """
+        content = _read_template()
+        # Find position of the read_first gate instruction
+        read_first_markers = [
+            "read_first",
+            "file_impact",
+            "must read",
+            "Read each file",
+            "read each file",
+            "read the files",
+            "Read the files",
+        ]
+        gate_pos = -1
+        for marker in read_first_markers:
+            idx = content.find(marker)
+            if idx != -1:
+                gate_pos = idx
+                break
+
+        # Find the implementation step (step 5)
+        impl_pos = content.find("5. Implement the task")
+        if impl_pos == -1:
+            impl_pos = content.find("5. Implement")
+
+        assert gate_pos != -1, (
+            "task-execution.md must contain a read_first gate instruction. "
+            "Expected one of: read_first, file_impact, must read, Read each file, "
+            "read the files."
+        )
+        assert impl_pos != -1, (
+            "task-execution.md must contain an implementation step (step 5)."
+        )
+        assert gate_pos < impl_pos, (
+            "The read_first gate instruction must appear before the implementation "
+            f"step. Gate found at position {gate_pos}, implementation at {impl_pos}."
+        )
+
+
+class TestTaskExecutionExemplarDiscovery:
+    """task-execution.md must instruct agents to discover suffix-matched exemplars.
+
+    TDD spec: When a task involves creating a new file (create-action), agents
+    must be directed to find exemplar files — existing files with the same suffix
+    (e.g., test_*.py, *_handler.sh) — to understand naming conventions and
+    patterns before implementing. The template must include this suffix-based
+    exemplar discovery instruction.
+    """
+
+    def test_exemplar_discovery_instruction_present(self) -> None:
+        """The template must contain an exemplar discovery instruction for create-action tasks."""
+        content = _read_template()
+        assert any(
+            phrase in content
+            for phrase in [
+                "exemplar",
+                "suffix match",
+                "suffix-match",
+                "sibling file",
+                "sibling files",
+                "same suffix",
+                "existing.*similar",
+            ]
+        ), (
+            "task-execution.md must instruct agents to find exemplar files (suffix-matched "
+            "sibling files) when creating new files. Found no mention of: exemplar, "
+            "'suffix match', 'sibling file', 'same suffix'."
+        )
+
+    def test_exemplar_discovery_applies_to_create_action(self) -> None:
+        """The exemplar discovery instruction must specifically mention create-action files.
+
+        This gate applies when the task creates a new file — not when it modifies
+        an existing one. The template must distinguish the create-action case.
+        """
+        content = _read_template()
+        # The create-action context should appear near the exemplar instruction
+        assert any(
+            phrase in content
+            for phrase in [
+                "create",
+                "new file",
+                "creating",
+            ]
+        ) and any(
+            phrase in content
+            for phrase in [
+                "exemplar",
+                "suffix",
+                "sibling",
+            ]
+        ), (
+            "task-execution.md must mention both create-action context and exemplar/suffix "
+            "discovery together, so agents know to look for sibling files when creating "
+            "new files."
+        )
+
+
+class TestTaskExecutionNamingConventions:
+    """task-execution.md must instruct agents to handle multiple naming conventions.
+
+    TDD spec: When discovering exemplars or reading file lists, agents must be
+    aware that different file types use different naming conventions. The template
+    must explicitly mention PascalCase, snake_case, and kebab-case so agents
+    check for all convention variants when searching for exemplars.
+    """
+
+    def test_pascal_case_naming_convention_mentioned(self) -> None:
+        """The template must mention PascalCase naming convention."""
+        content = _read_template()
+        assert "PascalCase" in content, (
+            "task-execution.md must mention PascalCase naming convention so agents "
+            "know to check for PascalCase file names when discovering exemplars."
+        )
+
+    def test_snake_case_naming_convention_mentioned(self) -> None:
+        """The template must mention snake_case naming convention."""
+        content = _read_template()
+        assert "snake_case" in content, (
+            "task-execution.md must mention snake_case naming convention so agents "
+            "know to check for snake_case file names when discovering exemplars."
+        )
+
+    def test_kebab_case_naming_convention_mentioned(self) -> None:
+        """The template must mention kebab-case naming convention."""
+        content = _read_template()
+        assert "kebab" in content or "kebab-case" in content, (
+            "task-execution.md must mention kebab-case naming convention so agents "
+            "know to check for kebab-case file names when discovering exemplars."
+        )
+
+    def test_naming_conventions_appear_near_exemplar_or_read_first(self) -> None:
+        """Naming convention guidance must appear near the exemplar discovery or read_first gate.
+
+        Naming conventions mentioned far from the file-reading context are unhelpful.
+        They must appear within the same logical step or block.
+        """
+        content = _read_template()
+        # Find any naming convention mention
+        pascal_pos = content.find("PascalCase")
+        snake_pos = content.find("snake_case")
+        kebab_pos = content.find("kebab")
+
+        # Find exemplar or read_first gate
+        gate_markers = [
+            "exemplar",
+            "suffix",
+            "read_first",
+            "file_impact",
+            "read the files",
+        ]
+        gate_pos = -1
+        for marker in gate_markers:
+            idx = content.find(marker)
+            if idx != -1:
+                gate_pos = idx
+                break
+
+        # At least one convention must be near the gate (within 1000 chars)
+        assert gate_pos != -1, (
+            "task-execution.md must contain a read_first or exemplar gate "
+            "for this proximity check to be meaningful."
+        )
+        positions = [p for p in [pascal_pos, snake_pos, kebab_pos] if p != -1]
+        assert any(abs(p - gate_pos) < 1000 for p in positions), (
+            "Naming convention guidance (PascalCase, snake_case, kebab) must appear "
+            f"within 1000 characters of the exemplar/read_first gate (gate at {gate_pos}). "
+            f"Positions: PascalCase={pascal_pos}, snake_case={snake_pos}, kebab={kebab_pos}."
+        )
+
+
+class TestTaskExecutionStep4ValidatesExistingTests:
+    """task-execution.md Step 4 must instruct agents to validate existing RED tests.
+
+    TDD spec: Step 4 of the template currently says 'Write unit tests ... before
+    implementing'. For tasks that are GREEN implementations of RED test tasks,
+    this is wrong — there are already RED tests waiting to be satisfied. Step 4
+    must be updated to instruct agents to first check for existing RED tests and
+    validate them, rather than always writing new tests.
+    """
+
+    def test_step4_mentions_existing_tests(self) -> None:
+        """Step 4 must direct agents to check for existing RED tests before writing new ones."""
+        content = _read_template()
+        # Find step 4 content (between "4." and "5.")
+        step4_start = content.find("4.")
+        step5_start = content.find("5.", step4_start + 2) if step4_start != -1 else -1
+
+        assert step4_start != -1, "task-execution.md must contain a step 4."
+        step4_content = (
+            content[step4_start:step5_start]
+            if step5_start != -1
+            else content[step4_start : step4_start + 500]
+        )
+
+        assert any(
+            phrase in step4_content
+            for phrase in [
+                "existing test",
+                "existing RED test",
+                "RED test",
+                "validate.*test",
+                "check for.*test",
+                "already.*test",
+            ]
+        ), (
+            "task-execution.md Step 4 must instruct agents to check for and validate "
+            "existing RED tests before writing new ones. This ensures GREEN implementation "
+            "tasks satisfy already-written RED tests rather than writing duplicate tests. "
+            f"Step 4 content: {step4_content[:300]!r}"
+        )
+
+    def test_step4_does_not_unconditionally_require_new_tests(self) -> None:
+        """Step 4 must not unconditionally require writing new tests for all tasks.
+
+        Some tasks are GREEN implementations — writing new tests would duplicate
+        the existing RED tests. Step 4 must make test-writing conditional on
+        whether RED tests already exist.
+        """
+        content = _read_template()
+        step4_start = content.find("4.")
+        step5_start = content.find("5.", step4_start + 2) if step4_start != -1 else -1
+
+        assert step4_start != -1, "task-execution.md must contain a step 4."
+        step4_content = (
+            content[step4_start:step5_start]
+            if step5_start != -1
+            else content[step4_start : step4_start + 500]
+        )
+
+        # The step should have conditional language (if, when, only if)
+        # OR explicitly mention validating existing tests
+        assert any(
+            phrase in step4_content.lower()
+            for phrase in [
+                "if no",
+                "if existing",
+                "only if",
+                "when no",
+                "validate existing",
+                "check for existing",
+                "run existing",
+            ]
+        ), (
+            "task-execution.md Step 4 must use conditional language for test writing "
+            "(e.g., 'only if no existing RED tests', 'validate existing RED tests first'). "
+            "Unconditionally requiring new tests causes GREEN implementation tasks to write "
+            f"duplicate tests. Step 4 content: {step4_content[:300]!r}"
+        )
+
+
+class TestTaskExecutionCheckpoint2RecordsFilesAndExemplars:
+    """task-execution.md CHECKPOINT 2/6 must record files and exemplars read.
+
+    TDD spec: The current CHECKPOINT 2/6 text ('Code patterns understood') is
+    too vague. It must be updated to explicitly instruct agents to record which
+    files and exemplars they read in the checkpoint note. This makes it easy for
+    the orchestrator to audit what context the sub-agent had when implementing.
+    """
+
+    def test_checkpoint_2_mentions_files_read(self) -> None:
+        """CHECKPOINT 2/6 comment text must mention recording files read."""
+        content = _read_template()
+        # Find the checkpoint 2 line
+        ckpt2_idx = content.find("CHECKPOINT 2/6")
+        assert ckpt2_idx != -1, (
+            "task-execution.md must contain a CHECKPOINT 2/6 instruction."
+        )
+        # Check within 200 chars of the checkpoint marker for files/exemplars mention
+        ckpt2_context = content[ckpt2_idx : ckpt2_idx + 300]
+        assert any(
+            phrase in ckpt2_context
+            for phrase in [
+                "files",
+                "exemplar",
+                "read",
+            ]
+        ) and any(
+            phrase in ckpt2_context
+            for phrase in [
+                "files read",
+                "exemplars read",
+                "files and exemplar",
+                "exemplar.*read",
+                "read.*files",
+            ]
+        ), (
+            "task-execution.md CHECKPOINT 2/6 must instruct agents to record which "
+            "files and exemplars they read. Current text is too vague — the checkpoint "
+            "comment should say something like 'CHECKPOINT 2/6: Code patterns understood "
+            "(read: file1.py, file2.sh; exemplars: test_foo.py)'. "
+            f"Found checkpoint 2/6 context: {ckpt2_context!r}"
+        )
+
+    def test_checkpoint_2_template_includes_exemplar_placeholder(self) -> None:
+        """The CHECKPOINT 2/6 sample comment must include a placeholder for exemplars.
+
+        Sub-agents follow the template literally. If the sample checkpoint comment
+        does not show where to list exemplars, agents will not include them.
+        """
+        content = _read_template()
+        ckpt2_idx = content.find("CHECKPOINT 2/6")
+        assert ckpt2_idx != -1, (
+            "task-execution.md must contain a CHECKPOINT 2/6 instruction."
+        )
+        ckpt2_context = content[ckpt2_idx : ckpt2_idx + 400]
+        assert "exemplar" in ckpt2_context or "files read" in ckpt2_context, (
+            "task-execution.md CHECKPOINT 2/6 sample comment must include 'exemplar' "
+            "or 'files read' as a placeholder so agents know to list the files and "
+            "exemplars they read when writing this checkpoint. "
+            f"Found: {ckpt2_context!r}"
+        )
