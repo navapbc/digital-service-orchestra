@@ -219,7 +219,11 @@ for finding in data.get('findings', []):
         files.add(f)
 
 files_str = '\\n'.join(sorted(files)) if files else ''
-print(f'OK:{min_score}:{critical_flag}:{files_str}')
+import re
+review_tier = data.get('review_tier', '')
+# Sanitize review_tier: only lowercase letters allowed to prevent colon-delimiter corruption
+review_tier = re.sub(r'[^a-z]', '', review_tier) if review_tier else ''
+print(f'OK:{min_score}:{critical_flag}:{review_tier}:{files_str}')
 " 2>&1)
 REVIEWER_EXIT=$?
 set -e
@@ -229,11 +233,13 @@ if [[ $REVIEWER_EXIT -ne 0 || "$REVIEWER_SCORE" == ERROR:* ]]; then
     exit 1
 fi
 
-# Parse the OK response: OK:<score>:<critical_flag>:<files>
+# Parse the OK response: OK:<score>:<critical_flag>:<review_tier>:<files>
 RESULT_BODY="${REVIEWER_SCORE#OK:}"
 SCORE="${RESULT_BODY%%:*}"
 REMAINDER="${RESULT_BODY#*:}"
 HAS_CRITICAL="${REMAINDER%%:*}"
+REMAINDER="${REMAINDER#*:}"
+REVIEW_TIER="${REMAINDER%%:*}"
 FILES_FROM_FINDINGS="${REMAINDER#*:}"
 
 # --- Validate files overlap with actual changed files ---
@@ -345,6 +351,47 @@ fi
 # Hash the reviewer-findings.json as proof of review
 REVIEW_HASH="$ACTUAL_HASH"
 
+# --- Tier enforcement: verify review tier matches or exceeds classified tier ---
+# REVIEW-DEFENSE: The --review-tier wiring into the review dispatch workflow is
+# tracked separately (epic 1627-1ecf). Until wired, review_tier will be absent
+# from findings JSON and this block will correctly fail-open with a warning.
+# Tier rank: light=1, standard=2, deep=3
+_tier_rank() {
+    case "$1" in
+        light)    echo 1 ;;
+        standard) echo 2 ;;
+        deep)     echo 3 ;;
+        *)        echo 0 ;;
+    esac
+}
+
+TIER_VERIFIED="true"
+TELEMETRY_FILE="$ARTIFACTS_DIR/classifier-telemetry.jsonl"
+
+if [[ ! -f "$TELEMETRY_FILE" ]]; then
+    echo "WARNING: classifier-telemetry.jsonl not found — cannot verify tier; allowing review (fail-open)" >&2
+    TIER_VERIFIED="false"
+elif [[ -z "${REVIEW_TIER// /}" ]]; then
+    # review_tier absent, empty, or whitespace-only in findings JSON — expected until
+    # --review-tier injection is wired into the review dispatch workflow. Fail-open.
+    echo "WARNING: review_tier missing or empty in reviewer-findings.json — cannot verify tier; allowing review (fail-open)" >&2
+    TIER_VERIFIED="false"
+else
+    # Read selected_tier from last line of telemetry
+    SELECTED_TIER=$(tail -1 "$TELEMETRY_FILE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('selected_tier',''))" 2>/dev/null || echo "")
+    if [[ -z "$SELECTED_TIER" ]]; then
+        echo "WARNING: selected_tier missing from classifier telemetry — cannot verify tier; allowing review (fail-open)" >&2
+        TIER_VERIFIED="false"
+    else
+        REVIEW_RANK=$(_tier_rank "$REVIEW_TIER")
+        SELECTED_RANK=$(_tier_rank "$SELECTED_TIER")
+        if [[ "$REVIEW_RANK" -lt "$SELECTED_RANK" ]]; then
+            echo "TIER IMMUTABILITY VIOLATION: review tier '${REVIEW_TIER}' is a downgrade from classified tier '${SELECTED_TIER}'. Re-run /dso:review." >&2
+            exit 1
+        fi
+    fi
+fi
+
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Determine pass/fail: pass requires min score >= 4 AND no critical findings.
@@ -371,6 +418,11 @@ diff_hash=${DIFF_HASH}
 score=${SCORE}
 review_hash=${REVIEW_HASH}
 EOF
+
+# Append tier_verified if fail-open occurred
+if [[ "$TIER_VERIFIED" == "false" ]]; then
+    echo "tier_verified=false" >> "$REVIEW_STATE_FILE"
+fi
 
 echo "Review status recorded: ${STATUS} (score=${SCORE}, diff_hash=${DIFF_HASH:0:12}...)"
 
