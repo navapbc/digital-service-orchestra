@@ -80,11 +80,16 @@ if [ -d "$TRACKER_DIR/.git" ] || [ -f "$TRACKER_DIR/.git" ]; then
     fi
     if [ "$_needs_fetch" = true ]; then
         if git -C "$TRACKER_DIR" fetch origin tickets 2>/dev/null; then
-            # Guard: skip destructive reset when local-only commits exist
-            # that haven't been pushed to origin (46ee-7d1c, mirrors eb00-efd0 fix).
-            _local_ahead=$(git -C "$TRACKER_DIR" log --oneline origin/tickets..tickets 2>/dev/null) || true
-            if [ -z "$_local_ahead" ]; then
+            # Two-phase sync guard (0051-3428 + eb00-efd0):
+            # Phase 1: orphan branch (no merge-base) — safe to force-reset.
+            # Phase 2: related history — preserve local-ahead commits.
+            if ! git -C "$TRACKER_DIR" merge-base tickets origin/tickets &>/dev/null; then
                 git -C "$TRACKER_DIR" reset --hard origin/tickets 2>/dev/null || true
+            else
+                _local_ahead=$(git -C "$TRACKER_DIR" log --oneline origin/tickets..tickets 2>/dev/null) || true
+                if [ -z "$_local_ahead" ]; then
+                    git -C "$TRACKER_DIR" reset --hard origin/tickets 2>/dev/null || true
+                fi
             fi
         fi
         touch "$_sync_marker" 2>/dev/null || true
