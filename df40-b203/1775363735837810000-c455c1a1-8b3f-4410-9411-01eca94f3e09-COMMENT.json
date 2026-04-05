@@ -1,0 +1,1 @@
+{"timestamp": 1775363735837810000, "uuid": "c455c1a1-8b3f-4410-9411-01eca94f3e09", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Fixed: Confidence signal parsing (Phase 5 Step 1a3), per-story UNCERTAIN counter, and double-failure detection added to sprint SKILL.md. Changes committed as batch 4 in ad1a6180."}}
