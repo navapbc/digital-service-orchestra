@@ -18,6 +18,7 @@
 #   hook_tool_logging_summary         — emit session tool usage summary on stop
 #   hook_track_tool_errors            — track and categorize tool use errors
 #   hook_plan_review_gate             — block ExitPlanMode without plan review
+#   hook_brainstorm_gate              — block EnterPlanMode without brainstorm sentinel
 #   hook_worktree_isolation_guard     — block Agent calls with worktree isolation
 #   hook_taskoutput_block_guard       — block TaskOutput calls with block=false
 #
@@ -643,7 +644,7 @@ print('DONE')
 hook_track_tool_errors() {
     local _HOOK_LIB_DIR; _HOOK_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     # PATH-ANCHOR: _HOOK_LIB_DIR is anchored to plugins/dso/hooks/lib/ (this file's directory).
-    # read-config.sh lives in plugins/dso/scripts/, which is two levels up from hooks/lib/.
+    # read-config.sh lives in plugins/dso/scripts/, which is two levels up from hooks/lib/.  # shim-exempt: comment explaining path resolution
     # The naive relative path would be $_HOOK_LIB_DIR/../../scripts/read-config.sh (two "..").
     # However, this function resolves _PLUGIN_ROOT via CLAUDE_PLUGIN_ROOT (preferred) or by
     # walking up two directories from _HOOK_LIB_DIR, then uses $_PLUGIN_ROOT/scripts/read-config.sh.
@@ -826,6 +827,106 @@ hook_plan_review_gate() {
         echo "**The plan review did not pass.**" >&2
         echo "" >&2
         echo "Address the review findings and re-run \`/dso:plan-review\`." >&2
+        echo "" >&2
+        return 2
+    fi
+
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# hook_brainstorm_gate
+# ---------------------------------------------------------------------------
+# PreToolUse hook (EnterPlanMode matcher): blocks EnterPlanMode if no
+# brainstorm sentinel has been recorded for this session.
+#
+# The sentinel is written by /dso:brainstorm when it completes successfully.
+# Sentinel path: $ARTIFACTS_DIR/brainstorm-sentinel
+# (session-scoping comes from get_artifacts_dir() which is unique per repo —
+# session ID in the filename is unnecessary complexity)
+#
+# Config: brainstorm.enforce_entry_gate (default: true)
+#   Set to false to disable the gate (e.g., for sessions that don't require brainstorm).
+hook_brainstorm_gate() {
+    local INPUT="$1"
+    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    trap 'printf "{\"ts\":\"%s\",\"hook\":\"brainstorm-gate\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
+
+    local TOOL_NAME
+    TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
+    if [[ "$TOOL_NAME" != "EnterPlanMode" ]]; then
+        return 0
+    fi
+
+    local REPO_ROOT
+    REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    if [[ -z "$REPO_ROOT" ]]; then
+        return 0
+    fi
+
+    # Check config: brainstorm.enforce_entry_gate (default true)
+    local _PLUGIN_ROOT
+    _PLUGIN_ROOT=$(resolve_plugin_root)
+    local ENFORCE_GATE
+    ENFORCE_GATE=$(bash "$_PLUGIN_ROOT/scripts/read-config.sh" brainstorm.enforce_entry_gate 2>/dev/null || echo "")
+    if [[ "$ENFORCE_GATE" == "false" ]]; then
+        return 0
+    fi
+
+    local ARTIFACTS_DIR
+    ARTIFACTS_DIR=$(get_artifacts_dir)
+
+    # REVIEW-DEFENSE: The allowlist bypass reads $ARTIFACTS_DIR/active-skill-context, which
+    # is written by each skill's SKILL.md at entry (e.g., "echo 'sprint' > $ARTIFACTS_DIR/active-skill-context").
+    # No production writer exists yet — this is Phase 1 infrastructure. Skills adopt the
+    # writer in their own enhancement cycles. The mechanism is tested via unit tests that
+    # create the file directly. This is the same pattern as the brainstorm sentinel: the
+    # hook (reader) ships before all writers are wired.
+    #
+    # Allowlist bypass: skills that legitimately invoke EnterPlanMode as part of
+    # their workflow do not need a prior brainstorm sentinel.
+    # To update this list: add the skill's short name (the part after "dso:") to the
+    # BRAINSTORM_GATE_ALLOWLIST array below, then add a corresponding test in
+    # tests/hooks/test-brainstorm-gate-hook.sh.
+    # Writers: each allowlisted skill writes active-skill-context at entry via:
+    #   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
+    #   echo "<skill-short-name>" > "$(get_artifacts_dir)/active-skill-context"
+    local -a BRAINSTORM_GATE_ALLOWLIST
+    BRAINSTORM_GATE_ALLOWLIST=(
+        fix-bug
+        debug-everything
+        sprint
+        implementation-plan
+        preplanning
+        resolve-conflicts
+        architect-foundation
+        retro
+    )
+
+    local SKILL_CONTEXT_FILE="$ARTIFACTS_DIR/active-skill-context"
+    if [[ -f "$SKILL_CONTEXT_FILE" ]]; then
+        local SKILL_NAME
+        SKILL_NAME=$(< "$SKILL_CONTEXT_FILE")
+        local _skill
+        for _skill in "${BRAINSTORM_GATE_ALLOWLIST[@]}"; do
+            if [[ "$SKILL_NAME" == "$_skill" ]]; then
+                echo "Brainstorm gate: bypassed (allowlisted skill: $SKILL_NAME)" >&2
+                return 0
+            fi
+        done
+    fi
+
+    local SENTINEL_FILE="$ARTIFACTS_DIR/brainstorm-sentinel"
+
+    if [[ ! -f "$SENTINEL_FILE" ]]; then
+        echo "# BRAINSTORM GATE: BLOCKED" >&2
+        echo "" >&2
+        echo "**No brainstorm sentinel recorded for this session.**" >&2
+        echo "" >&2
+        echo "Before entering plan mode for a new feature or epic, run the brainstorm skill:" >&2
+        echo "  Invoke \`/dso:brainstorm\` with the feature idea." >&2
+        echo "" >&2
+        echo "This ensures ideas are properly scoped and refined before planning begins." >&2
         echo "" >&2
         return 2
     fi

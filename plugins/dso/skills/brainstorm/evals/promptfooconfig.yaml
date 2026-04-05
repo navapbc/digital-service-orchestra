@@ -194,6 +194,37 @@ tests:
           gap analysis begins. It may indicate that gap questions will follow
           after confirmation, but must not present the actual gap questions yet.
 
+  # REVIEW-DEFENSE: This eval is intentionally RED — it asserts sentinel write behavior
+  # that will be added to SKILL.md by task e75e-1747 in a subsequent TDD batch.
+  # The eval must fail now (no sentinel instruction in SKILL.md) and pass after implementation.
+  - description: "Phase 3 completion: writes sentinel file after epic ticket is created"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        You are completing Phase 3 (Ticket Integration) of the brainstorm skill.
+        The user has approved the epic spec for a new feature called "CSV Export".
+        The epic ticket has been successfully created with ID DSO-999.
+        All ticket health checks have passed.
+        What is the very next action you take after ticket creation and health validation
+        complete in Phase 3, specifically regarding sentinel or completion tracking files?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must indicate that a sentinel file is written upon Phase 3
+          completion to record that the brainstorm workflow has finished. It should:
+          (1) reference writing a sentinel file (e.g., a file named
+          ".brainstorm-complete", "brainstorm.sentinel", or similar) to the
+          filesystem as a Phase 3 completion signal,
+          (2) indicate the sentinel file contains or records the epic ID (DSO-999)
+          or brainstorm session metadata so downstream processes can detect
+          completion,
+          (3) NOT skip the sentinel write step or treat it as optional —
+          the sentinel write must be described as a required Phase 3 action
+          that occurs after ticket creation and health validation pass,
+          (4) describe the sentinel write as occurring before invoking the next
+          skill (preplanning or implementation-plan), not after.
+
   - description: "Runs streamlined dialogue and updates ticket in-place when user selects enrich-in-place"
     options:
       provider: "anthropic:messages:claude-sonnet-4-6-20260320"
