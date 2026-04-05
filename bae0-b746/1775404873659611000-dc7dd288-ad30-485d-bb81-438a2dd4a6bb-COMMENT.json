@@ -1,0 +1,1 @@
+{"timestamp": 1775404873659611000, "uuid": "dc7dd288-ad30-485d-bb81-438a2dd4a6bb", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Fixed: Post-creation CLI validation warnings implemented \u2014 unicode arrow conversion, title pattern/description headers/size warnings to stderr, configurable via dso-config.conf."}}
