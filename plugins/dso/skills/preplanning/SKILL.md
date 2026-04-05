@@ -805,6 +805,8 @@ Serialize the JSON payload to a single minified line (no whitespace between keys
 
 Write the context as a ticket comment using `.claude/scripts/dso ticket comment`. If `/dso:preplanning` runs again on the same epic, write a new comment — `/dso:implementation-plan` uses the last `PREPLANNING_CONTEXT:` comment in the array.
 
+> **TTL note for consumers**: The `generatedAt` timestamp enables staleness detection. Consumers should treat `PREPLANNING_CONTEXT` comments older than 7 days as potentially stale — epic scope, story priorities, or dependency structures may have changed since generation. When consuming a stale context, re-invoke `/dso:preplanning` to refresh it rather than relying on outdated data.
+
 Log: `"Planning context written to epic ticket <epic-id> as PREPLANNING_CONTEXT comment"`
 
 ### Step 6: Design Wireframes for UI Stories (/dso:preplanning)
