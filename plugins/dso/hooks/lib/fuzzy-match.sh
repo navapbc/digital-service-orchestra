@@ -42,10 +42,13 @@ fuzzy_normalize() {
 # --- fuzzy_is_test_file ---
 # Detect test files by naming convention. Returns 0 (true) if test file.
 # Handles: test_*.py, test-*.sh, *.test.ts, *.spec.ts, *.test.js, *.spec.js, *_test.go, test-*.*, test_*.*
+# Excludes: .md files (markdown documents are never executable tests, even when named test-*.md)
 fuzzy_is_test_file() {
     local filename="$1"
     local base
     base=$(basename "$filename")
+    # Exclude markdown files — prompt templates like test-failure-fix.md are not tests
+    [[ "$base" == *.md ]] && return 1
     [[ "$base" == test_* ]] || [[ "$base" == test-* ]] || \
     [[ "$base" == *.test.* ]] || [[ "$base" == *.spec.* ]] || \
     [[ "$base" == *_test.* ]]

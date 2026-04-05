@@ -276,3 +276,4 @@ plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation
 plugins/dso/skills/sprint/SKILL.md:tests/skills/test_sprint_gap_classification.py
 CLAUDE.md:tests/scripts/test-claude-md-replan-safety.sh
 plugins/dso/skills/sprint/SKILL.md:tests/skills/test_sprint_cascade_protocol.py
+plugins/dso/skills/debug-everything/prompts/test-failure-fix.md:tests/scripts/test-commit-workflow-step-1-5.sh

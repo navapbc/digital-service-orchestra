@@ -210,7 +210,53 @@ sys.exit(0)
         return 1
     fi
 
+    # Push to remote after successful commit (best-effort with retry)
+    _push_tickets_branch "$tracker_dir"
+
     return 0
+}
+
+# _push_tickets_branch <base_path>
+# Push the tickets branch to origin with retry logic for non-fast-forward.
+# Best-effort: push failures are logged but do not fail the caller.
+# ticket-lifecycle.sh has equivalent logic; this is the shared version.
+_push_tickets_branch() {
+    local base_path="$1"
+    local _remote
+    _remote=$(git -C "$base_path" remote 2>/dev/null | head -1)
+    if [ -z "$_remote" ]; then
+        return 0  # No remote — nothing to push
+    fi
+
+    local _max_retries=3
+    local _attempt=0
+    while [ "$_attempt" -lt "$_max_retries" ]; do
+        _attempt=$((_attempt + 1))
+        local _push_exit=0
+        local _push_stderr=""
+        _push_stderr=$(git -C "$base_path" push origin tickets 2>&1) || _push_exit=$?
+
+        if [ "$_push_exit" -eq 0 ]; then
+            return 0
+        fi
+
+        if echo "$_push_stderr" | grep -qiE 'non-fast-forward|rejected|fetch first'; then
+            git -C "$base_path" fetch origin tickets 2>/dev/null || true
+            local _rebase_exit=0
+            git -C "$base_path" rebase origin/tickets 2>/dev/null || _rebase_exit=$?
+            if [ "$_rebase_exit" -ne 0 ]; then
+                git -C "$base_path" rebase --abort 2>/dev/null || true
+                echo "Warning: tickets branch push failed (rebase conflict, attempt $_attempt)" >&2
+                return 0  # Best-effort: don't fail the caller
+            fi
+        else
+            echo "Warning: tickets branch push failed (exit $_push_exit): $_push_stderr" >&2
+            return 0  # Best-effort: don't fail the caller
+        fi
+    done
+
+    echo "Warning: tickets branch push failed after $_max_retries retries" >&2
+    return 0  # Best-effort
 }
 
 # ticket_read_status <tracker_dir> <ticket_id>

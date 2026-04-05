@@ -39,6 +39,8 @@ Read the ticket title, description, type, acceptance criteria, and any done defi
 
 These context fields do not override the agent's rubric-based classification. They are provided for logging and transparency purposes; ignore them for classification decisions.
 
+> **Defense-in-depth rationale (dual-trigger design)**: The SC overflow check runs in two places by design — once in the calling session (e.g., `/dso:brainstorm` at SC ≥ 7) and once in this agent (Qualitative Override at >6 SC). This dual-trigger approach ensures that even if one layer is skipped, bypassed, or miscounted, the other catches oversized epics. The caller's check uses its own session-tallied count; this agent's check uses the authoritative count parsed from the ticket description. Neither layer alone is sufficient — the caller may miscount, and this agent may receive stale ticket content.
+
 ```bash
 .claude/scripts/dso ticket show <parent-epic-id>
 ```
