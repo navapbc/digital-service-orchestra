@@ -67,6 +67,25 @@ log_action() {
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 WORKTREE_NAME=$(basename "$REPO_ROOT")
 
+# Resolve CLAUDE_PLUGIN_ROOT if not set by the caller (e.g., running outside Claude Code)
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    _cfg="$REPO_ROOT/.claude/dso-config.conf"
+    if [[ -f "$_cfg" ]]; then
+        _raw_root="$(grep '^dso\.plugin_root=' "$_cfg" 2>/dev/null | cut -d= -f2-)"
+        if [[ -n "$_raw_root" ]]; then
+            # Resolve relative paths against REPO_ROOT
+            if [[ "$_raw_root" != /* ]]; then
+                CLAUDE_PLUGIN_ROOT="$REPO_ROOT/$_raw_root"
+            else
+                CLAUDE_PLUGIN_ROOT="$_raw_root"
+            fi
+        fi
+    fi
+    if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
+    fi
+fi
+
 # Source config-driven paths (CFG_APP_DIR defaults to "app")
 _CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 if [ -f "$_CONFIG_PATHS" ]; then
@@ -516,9 +535,17 @@ else
 fi
 
 # Detect orphaned Playwright CLI browser processes (Chromium spawned by @playwright/cli sub-agents)
+# Note: @playwright/cli auto-detects system Chrome before falling back to ms-playwright Chromium.
+# When system Chrome is used, the process path is /Applications/Google Chrome.app/... which does
+# NOT contain "playwright" or "ms-playwright". Playwright always passes --remote-debugging-pipe
+# to launched browsers, so we use that as a reliable fingerprint alongside the path-based patterns.
 log ""
 log "Checking for orphaned Playwright CLI browser processes..."
-PLAYWRIGHT_CLI_PROCS=$(pgrep -u "$(id -u)" -f "playwright.*cli.*chromium\|chromium.*playwright.*cli\|\.playwright-cli.*chrome\|ms-playwright.*chromium" 2>/dev/null || true)
+# Path-based patterns (ms-playwright bundled Chromium):
+#   playwright.*cli.*chromium, chromium.*playwright.*cli, .playwright-cli.*chrome, ms-playwright.*chromium
+# Fingerprint-based pattern (system Chrome launched by Playwright — requires both chrom + remote-debugging-pipe):
+#   chrom.*remote-debugging-pipe, remote-debugging-pipe.*chrom
+PLAYWRIGHT_CLI_PROCS=$(pgrep -u "$(id -u)" -f "playwright.*cli.*chromium\|chromium.*playwright.*cli\|\.playwright-cli.*chrome\|ms-playwright.*chromium\|chrom.*remote-debugging-pipe\|remote-debugging-pipe.*chrom" 2>/dev/null || true)
 if [ -n "$PLAYWRIGHT_CLI_PROCS" ]; then
     CLI_PROC_COUNT=$(echo "$PLAYWRIGHT_CLI_PROCS" | wc -l | tr -d ' ')
     if [ $DRY_RUN -eq 1 ]; then

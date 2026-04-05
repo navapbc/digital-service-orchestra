@@ -256,6 +256,28 @@ else
     (( SKIP++ ))
 fi
 
+# ── Test 13: Playwright pgrep pattern matches system Chrome with --remote-debugging-pipe ──
+# When @playwright/cli auto-selects system Chrome (/Applications/Google Chrome.app/...),
+# the spawned processes do NOT contain "playwright" or "ms-playwright" in their path.
+# However, Playwright always passes --remote-debugging-pipe to launched browsers.
+# The pgrep pattern must match this fingerprint to detect orphaned system Chrome processes.
+echo "Test 13: Playwright pgrep pattern matches system Chrome with --remote-debugging-pipe (static check)"
+if [ -f "$SCRIPT" ]; then
+    # The cleanup script's pgrep pattern must include a conjunctive pattern that
+    # combines "chrom" with "remote-debugging-pipe" — matching system Chrome processes
+    # launched by Playwright without being so broad as to kill unrelated Chrome instances.
+    if grep -qE 'chrom.*remote-debugging-pipe|remote-debugging-pipe.*chrom' "$SCRIPT"; then
+        echo "  PASS: pgrep pattern includes conjunctive chrom+remote-debugging-pipe fingerprint"
+        (( PASS++ ))
+    else
+        echo "  FAIL: pgrep pattern does not match conjunctive chrom+remote-debugging-pipe — system Chrome processes spawned by Playwright will not be detected" >&2
+        (( FAIL++ ))
+    fi
+else
+    echo "  SKIP: plugin script not yet created (expected — TDD)"
+    (( SKIP++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"
 echo "PASSED: $PASS  FAILED: $FAIL"
