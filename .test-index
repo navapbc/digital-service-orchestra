@@ -323,3 +323,7 @@ tests/scripts/test-validate-issues.sh:tests/scripts/test-v2-clean-guard.sh
 plugins/dso/skills/implementation-plan/SKILL.md:tests/scripts/test-implementation-plan-proposals.sh
 plugins/dso/skills/implementation-plan/SKILL.md:tests/scripts/test-implementation-plan-resolution-loop.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
+plugins/dso/skills/shared/prompts/exploration-decomposition.md:tests/skills/test_exploration_protocol_compliance.py
+plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test_exploration_protocol_compliance.py
+plugins/dso/skills/fix-bug/SKILL.md:tests/skills/test_exploration_protocol_compliance.py
+plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_exploration_protocol_compliance.py

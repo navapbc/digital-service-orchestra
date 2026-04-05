@@ -246,6 +246,8 @@ Search for architecture docs and existing patterns:
 
 **Curiosity before planning.** After gathering context, actively scan for ambiguity. A plan built on assumptions is worse than no plan.
 
+**Exploration decomposition**: When gathering context involves compound or multi-source questions (spanning multiple codebase layers, web research, or ambiguous scope), apply the shared exploration decomposition protocol at `plugins/dso/skills/shared/prompts/exploration-decomposition.md`. Classify each question as SINGLE_SOURCE or MULTI_SOURCE before answering. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings contradict.
+
 Check for these signals:
 
 | Signal | Example | Action |
