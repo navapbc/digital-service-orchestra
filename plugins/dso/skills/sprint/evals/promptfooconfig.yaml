@@ -62,3 +62,142 @@ tests:
           2. Output contains ROUTING: implementation-plan
           3. Does NOT require user confirmation for this classification
           4. Does NOT contain ROUTING: brainstorm
+
+  - description: "Drift detection: orchestrator checks file impact drift at sprint entry"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: >
+        You are about to begin sprint execution on epic auth-4f2a, which has 3 open tasks.
+        Task task-001 lists file impact: ['src/auth/login.py', 'tests/unit/test_login.py'].
+        Since task-001 was created, 4 external commits have modified src/auth/login.py
+        and added a new dependency src/auth/oauth_provider.py that task-001 does not
+        reference. The task was created 6 days ago.
+        How should the orchestrator handle this situation at sprint entry?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Mentions drift detection, file impact drift, or stale file impact as a concern
+          2. Indicates the orchestrator should compare or re-check the task's file impact list against recent git history or current codebase state
+          3. Suggests re-invoking implementation-plan, refreshing file impact, or flagging the task for re-planning before execution
+          4. Does NOT proceed directly to executing the task without acknowledging the drift
+
+  - description: "Confidence signal: double UNCERTAIN routes task to implementation-plan"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: >
+        You are the sprint orchestrator in Phase 5 post-batch processing.
+        Story story-auth-42 has two tasks: task-a1 and task-a2, both under the same story.
+        In the previous batch, task-a1 returned: STATUS:pass, UNCERTAIN:The token refresh
+        logic passes unit tests but I could not exercise the full OAuth callback path.
+        In this batch, task-a2 returned: STATUS:pass, UNCERTAIN:The session invalidation
+        path is partially tested — happy path only, edge cases with concurrent sessions
+        were not covered.
+        Both tasks are under story story-auth-42. The UNCERTAIN count for story story-auth-42
+        is now 2 (one from each task, tracked per story not per task ID).
+        What action should the orchestrator take now?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Routes to implementation-plan for re-planning (mentions implementation-plan or re-planning)
+          2. Tracks the UNCERTAIN count per story (story-auth-42), not per individual task ID
+          3. Records or mentions REPLAN_TRIGGER: failure (or equivalent re-plan trigger notation)
+          4. Does NOT silently close or commit the tasks without surfacing the uncertainty
+          5. Does NOT require a third UNCERTAIN signal before escalating — threshold is 2
+
+  - description: "Story validation failure: all tasks closed but validation fails triggers remediation via TDD"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: >
+        You are the sprint orchestrator in Phase 6 (story closure).
+        Story story-payments-17 has 3 tasks: task-p1, task-p2, task-p3 — all are closed.
+        You dispatch dso:completion-verifier for story-payments-17.
+        The verifier returns: RESULT:FAIL — done definition 'Payment flow completes without
+        error for all supported card types' is not satisfied. The Stripe test suite for
+        AMEX card type fails with a 422 validation error in checkout_service.py line 88.
+        All tasks were previously marked closed.
+        What action should the orchestrator take?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Invokes or mentions invoking implementation-plan to create remediation tasks for the failing done definition
+          2. Follows TDD flow — mentions creating a RED test task (failing test) before an implementation fix task
+          3. Records or mentions REPLAN_TRIGGER: validation (or equivalent notation indicating validation triggered re-planning)
+          4. Does NOT close the story or mark it complete while the done definition is failing
+          5. Does NOT silently skip or ignore the completion-verifier FAIL result
+
+  - description: "Out-of-scope review feedback: accepted findings for files outside task scope route to implementation-plan between batches"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: >
+        You are the sprint orchestrator in Phase 5 post-batch processing.
+        The current batch contained task-auth-01, whose file impact list is:
+        ['src/auth/login.py', 'tests/unit/test_login.py'].
+        After the batch completed, /dso:review ran on task-auth-01's changes and returned
+        a finding: SEVERITY: important — The token expiry logic in src/auth/session.py
+        does not invalidate sessions on password change. This file is not in task-auth-01's
+        file impact list (src/auth/session.py was not in scope for this task).
+        The orchestrator has evaluated the finding and accepted it (decided not to defend).
+        The current batch is now fully complete.
+        What should the orchestrator do next?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Routes to implementation-plan to create a new task covering the out-of-scope file (src/auth/session.py)
+          2. Does NOT attempt to route to implementation-plan mid-batch (only fires between batches, after the current batch is complete)
+          3. Records or mentions REPLAN_TRIGGER: review (or equivalent notation indicating a review finding triggered re-planning)
+          4. Does NOT silently discard or ignore the accepted out-of-scope finding
+          5. Does NOT modify the existing task-auth-01's scope to include src/auth/session.py
+
+  - description: "Non-interactive mode: brainstorm escalation deferred via INTERACTIVITY_DEFERRED"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: >
+        You are the sprint orchestrator running in non-interactive mode (no user present).
+        Sprint is executing epic auth-9f1a. Implementation-plan was invoked for story
+        story-auth-07 and returned: REPLAN_ESCALATE: brainstorm EXPLANATION: The session
+        expiry requirements conflict with the existing stateless JWT architecture — the
+        story intent needs brainstorm-level re-examination before tasks can be drafted.
+        The replan_cycle_count is 1 and max_replan_cycles is 2.
+        Because this is a non-interactive session, you cannot block for user confirmation.
+        What should the orchestrator do?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Records INTERACTIVITY_DEFERRED: brainstorm on the epic ticket (mentions ticket comment or INTERACTIVITY_DEFERRED signal)
+          2. Does NOT invoke /dso:brainstorm or ask the user for input — brainstorm escalation is deferred, not executed
+          3. Does NOT write REPLAN_RESOLVED (no resolved signal is emitted because brainstorm was not completed)
+          4. Indicates the story remains blocked pending a follow-up interactive session
+          5. Mentions the REPLAN_ESCALATE signal or the brainstorm escalation requirement as the reason for deferral
+
+  - description: "Out-of-scope review REPLAN_ESCALATE: implementation-plan cannot satisfy out-of-scope story triggers cascade with cycle cap"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the sprint orchestrator in Step 13a (out-of-scope review routing).
+        After the current batch, sprint-review-scope-check.sh found 1 out-of-scope
+        finding for story story-session-05 (file: src/auth/session.py).
+        You invoked /dso:implementation-plan on story-session-05.
+        Implementation-plan returned: REPLAN_ESCALATE: brainstorm EXPLANATION: The session
+        invalidation requirement conflicts with the existing token refresh architecture.
+        The current replan_cycle_count is 1 and max_replan_cycles is 2.
+        What should the orchestrator do?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Presents the REPLAN_ESCALATE signal to the user (does NOT autonomously invoke brainstorm)
+          2. Checks or mentions the cascade cycle cap (replan_cycle_count vs max_replan_cycles)
+          3. Offers the user options including route to brainstorm, proceed as-is, or abort
+          4. Records or mentions REPLAN_TRIGGER: review before presenting to user
+          5. Does NOT silently discard the REPLAN_ESCALATE signal or proceed without user input

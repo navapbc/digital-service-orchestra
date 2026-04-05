@@ -1,5 +1,5 @@
 ---
-last_synced_commit: 223a85d5080d755c692eddc5cca3474bdb9491d5
+last_synced_commit: f7daa80da2bbd8b7d3df310beedf0825e06e7071
 ---
 
 # System Landscape Reference
@@ -53,6 +53,43 @@ Wrapper files live in `.claude/commands/` and are named after the skill (e.g., `
 **Hook registration**: Registered as a pre-commit hook in `.pre-commit-config.yaml`. Violations block commits. Violations are printed to stderr in `file:line` format.
 
 **CI validation**: `.github/workflows/portability-smoke.yml` runs the shim self-detection path in a clean Ubuntu container to validate zero-config portability on each push.
+
+## Sprint Self-Healing Loop
+
+The `/dso:sprint` orchestrator includes a self-healing layer that detects and routes mid-implementation gaps at four lifecycle checkpoints. When a checkpoint fires, the orchestrator writes a `REPLAN_TRIGGER` comment to the epic ticket before acting and a `REPLAN_RESOLVED` comment after successful re-planning.
+
+| Checkpoint | Phase | Detection Mechanism | Action |
+|---|---|---|---|
+| Drift detection | Phase 1 Step 6 | `sprint-drift-check.sh` compares git history since task creation against each story's file impact table | Re-invoke `implementation-plan` for affected stories |
+| Confidence failure | Phase 5 Step 1a3 | Count `UNCERTAIN` signals per story across batch iterations; threshold: 2 | Re-invoke `implementation-plan` for the story (Phase 3 double-failure detection) |
+| Validation failure | Step 10a | All tasks closed but story done-definition validation fails | Create TDD remediation tasks via `implementation-plan` |
+| Out-of-scope review | Step 7a / Step 13a | `sprint-review-scope-check.sh` identifies review findings for files outside task scope | Create tasks for out-of-scope files via `implementation-plan` |
+
+### Confidence Signal
+
+Task-execution sub-agents emit exactly one confidence signal per task in their final report block:
+
+- `CONFIDENT` — agent has high confidence the task is correctly and completely implemented.
+- `UNCERTAIN:<reason>` — agent lacks confidence; reason must be non-empty.
+
+A missing or malformed confidence signal is treated as `UNCERTAIN` (fail-safe default). Signals are tracked per story (not per task ID) so that task replacement cannot reset the counter.
+
+Contract: `plugins/dso/docs/contracts/confidence-signal.md`
+
+### Observability Signals
+
+The self-healing loop writes structured comments to the epic ticket for audit and resume-anchor scanning:
+
+- `REPLAN_TRIGGER: <type> — <description>` — written before re-planning. Valid types: `drift`, `failure`, `validation`, `review`.
+- `REPLAN_RESOLVED: <tier> — <description>` — written after successful re-planning. Valid tiers: `implementation-plan`, `brainstorm`.
+- `INTERACTIVITY_DEFERRED: brainstorm — <reason>` — written in non-interactive mode when brainstorm escalation is needed but cannot block for user input. Replaced REPLAN_RESOLVED in this case.
+
+Contract: `plugins/dso/docs/contracts/replan-observability.md`
+
+### Scripts
+
+- `plugins/dso/scripts/sprint-drift-check.sh` — detects codebase drift by comparing git history against story file impact tables.
+- `plugins/dso/scripts/sprint-review-scope-check.sh` — identifies review findings for files outside the story's defined task scope.
 
 ## Agent Fallback
 
