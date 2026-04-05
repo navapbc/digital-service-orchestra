@@ -70,6 +70,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 | `dso:code-reviewer-security-red-team` | opus | `/dso:review` overlay — parallel when classifier flags `security_overlay:true`; serial when tier reviewer flags `security_overlay_warranted:yes` |
 | `dso:code-reviewer-security-blue-team` | opus | `/dso:review` overlay — triages red team findings with dismiss/downgrade/sustain; dispatched after red team |
 | `dso:code-reviewer-performance` | opus | `/dso:review` overlay — parallel when classifier flags `performance_overlay:true`; serial when tier reviewer flags `performance_overlay_warranted:yes` |
+| `dso:approach-decision-maker` | opus | `/dso:implementation-plan` |
 
 **Agent fallback**: On dispatch failure, read `plugins/dso/agents/<agent-name>.md` inline (strip `dso:` prefix from `subagent_type`).
 **Tiered review**: Classifier scores 0–2 → light (haiku), 3–6 → standard (sonnet), 7+ → deep (3×sonnet + opus synthesis). 300+ lines → opus upgrade; 600+ → rejection. Security/performance overlays auto-dispatched when classifier flags them. Review dimensions: `correctness`, `verification`, `hygiene`, `design`, `maintainability`.
