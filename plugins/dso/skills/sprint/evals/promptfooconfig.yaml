@@ -82,3 +82,28 @@ tests:
           2. Indicates the orchestrator should compare or re-check the task's file impact list against recent git history or current codebase state
           3. Suggests re-invoking implementation-plan, refreshing file impact, or flagging the task for re-planning before execution
           4. Does NOT proceed directly to executing the task without acknowledging the drift
+
+  - description: "Confidence signal: double UNCERTAIN routes task to implementation-plan"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: >
+        You are the sprint orchestrator in Phase 5 post-batch processing.
+        Story story-auth-42 has two tasks: task-a1 and task-a2, both under the same story.
+        In the previous batch, task-a1 returned: STATUS:pass, UNCERTAIN:The token refresh
+        logic passes unit tests but I could not exercise the full OAuth callback path.
+        In this batch, task-a2 returned: STATUS:pass, UNCERTAIN:The session invalidation
+        path is partially tested — happy path only, edge cases with concurrent sessions
+        were not covered.
+        Both tasks are under story story-auth-42. The UNCERTAIN count for story story-auth-42
+        is now 2 (one from each task, tracked per story not per task ID).
+        What action should the orchestrator take now?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Routes to implementation-plan for re-planning (mentions implementation-plan or re-planning)
+          2. Tracks the UNCERTAIN count per story (story-auth-42), not per individual task ID
+          3. Records or mentions REPLAN_TRIGGER: failure (or equivalent re-plan trigger notation)
+          4. Does NOT silently close or commit the tasks without surfacing the uncertainty
+          5. Does NOT require a third UNCERTAIN signal before escalating — threshold is 2
