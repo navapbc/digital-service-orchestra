@@ -219,6 +219,49 @@ If this agent exits non-zero, times out (exit 144), or outputs a malformed block
 
 ---
 
+## Section 8: Runtime Budget Check
+
+### When the Writer Reports Runtime Estimates
+
+The `dso:red-test-writer` success output may include two optional fields:
+
+```
+ESTIMATED_RUNTIME_RED: <positive integer seconds>
+ESTIMATED_RUNTIME_GREEN: <positive integer seconds>
+```
+
+These fields are backward-compatible — they may be absent in payloads produced by older writer versions or for non-unit tests. When absent, treat runtime as unknown and do NOT issue a runtime-based verdict.
+
+**However, these fields also appear in rejection payloads when the writer was unable to write a test due to a timing concern.** The evaluator must check for them even in `TEST_RESULT:rejected` blocks.
+
+### Runtime Budget Rule
+
+**Unit test budget ceiling: 10 seconds.** A test is classified as a unit test if it has no network calls, no subprocess spawning beyond minimal fixtures, and no real filesystem I/O beyond temporary directories.
+
+When `ESTIMATED_RUNTIME_RED` or `ESTIMATED_RUNTIME_GREEN` is present **and** either value exceeds 10:
+
+1. **Check `SUGGESTED_ALTERNATIVE`**: If the writer's rejection payload includes a `SUGGESTED_ALTERNATIVE` that points to a valid restructuring path (e.g., mock `subprocess.run`, patch `time.sleep`, use small fixture data), the over-budget runtime is fixable.
+
+2. **Issue `VERDICT:REVISE`** with runtime-specific `REVISION_GUIDANCE`. The guidance must:
+   - Reference the specific estimated runtime value (e.g., "45 seconds") and note it exceeds the 10-second unit test budget
+   - Name the restructuring approach from `SUGGESTED_ALTERNATIVE` (e.g., "mock subprocess.run")
+   - Explain how the restructuring would bring the runtime within budget
+
+3. **Do NOT issue `VERDICT:CONFIRM`** when a valid restructuring path exists. `CONFIRM` is only appropriate when the behavior genuinely cannot be tested — a runtime problem is an implementation constraint, not an inherent infeasibility.
+
+4. **Priority**: The runtime budget check runs **before** the standard verdict decision logic (Sections 3–6). If a runtime violation is detected and a restructuring path exists, issue `VERDICT:REVISE` without proceeding to the standard routing.
+
+### Backward Compatibility
+
+When `ESTIMATED_RUNTIME_RED` and `ESTIMATED_RUNTIME_GREEN` are both absent from the input:
+
+- Treat runtime as unknown
+- Do NOT issue a runtime-based `VERDICT:REVISE`
+- Proceed directly to the standard verdict decision logic (Section 3)
+- Do NOT mention runtime budget, estimated runtime, or "seconds" as a reason for the verdict
+
+---
+
 ## Examples
 
 ### Example 1 — VERDICT:REVISE (ambiguous_spec)
@@ -283,4 +326,54 @@ Output:
 VERDICT:CONFIRM
 INFEASIBILITY_CATEGORY: documentation
 JUSTIFICATION: The task produces a Markdown contract file with no runtime behavior. TDD policy explicitly excludes structural tests (file existence, line count) as insufficient for behavioral RED assertions. The writer's no_observable_behavior rejection is correct and falls squarely within the documentation infeasibility category.
+```
+
+### Example 4 — VERDICT:REVISE (runtime over budget)
+
+Writer input:
+```
+TEST_RESULT:rejected
+REJECTION_REASON: structural_only_possible
+DESCRIPTION: The task requires spawning a subprocess to run `find` across a large directory tree, which takes ~45 seconds in the RED phase. The only structural assertion available is that the function returns a list.
+SUGGESTED_ALTERNATIVE: Mock subprocess.run to return a fixed output for unit testing.
+ESTIMATED_RUNTIME_RED: 45
+ESTIMATED_RUNTIME_GREEN: 45
+```
+
+Context:
+```
+TASK_ID: a1b2-c3d4
+STORY_ID: e5f6-a7b8
+EPIC_ID: c9d0-e1f2
+TASK_DESCRIPTION: Add a function scan_directory(path: str) -> list that spawns a subprocess running `find <path> -type f` and returns output lines as a list.
+IN_PROGRESS_TASKS: none
+CLOSED_TASKS: none
+```
+
+Output:
+```
+VERDICT:REVISE
+IMPACT_ASSESSMENT:
+- TASK_ID: a1b2-c3d4 | IMPACT_TYPE: rerun
+AFFECTED_TASKS: a1b2-c3d4
+REVISION_GUIDANCE: The estimated runtime of 45 seconds in the RED phase exceeds the 10-second unit test budget. The writer's structural_only_possible rejection arose because the test as described would require real subprocess spawning. However, the SUGGESTED_ALTERNATIVE identifies a valid restructuring path: mock subprocess.run to return a fixed fixture output. Revise the test to mock subprocess.run (or subprocess.check_output) at the system boundary so that scan_directory() can be exercised without spawning a real process. The restructured test will assert on the return value of scan_directory() given the mocked output — a behavioral assertion — and should run well under 10 seconds.
+```
+
+### Example 5 — VERDICT:REJECT or CONFIRM (absent ESTIMATED_RUNTIME — backward compat)
+
+Writer input:
+```
+TEST_RESULT:rejected
+REJECTION_REASON: requires_integration_env
+DESCRIPTION: Meaningful testing of the Jira sync bridge requires a live Jira instance. The sync behavior depends on Jira response codes, pagination, and field mapping.
+SUGGESTED_ALTERNATIVE: none
+```
+
+Note: No `ESTIMATED_RUNTIME_RED` or `ESTIMATED_RUNTIME_GREEN` fields present.
+
+Output (runtime check skipped — absent fields, proceed to standard logic):
+```
+VERDICT:REJECT
+REJECTION_REASON: The Jira sync bridge requires a live or staged Jira environment. The writer's requires_integration_env rejection is well-founded: sync behavior depends on response codes, pagination, and field mapping that cannot be faithfully reproduced with a mock. No revision would make a unit-level RED test feasible.
+RECOMMENDED_MODEL: opus
 ```
