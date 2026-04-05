@@ -672,6 +672,8 @@ Before dispatching any fix implementation (Step 6), verify that a RED test exist
 
 ### Step 6: Fix Implementation (/dso:fix-bug)
 
+**Exploration Decomposition**: During investigation, when a diagnostic question is compound or spans multiple sources (multiple codebase layers, web research, or ambiguous scope), apply the shared exploration decomposition protocol at `plugins/dso/skills/shared/prompts/exploration-decomposition.md`. Classify as SINGLE_SOURCE or MULTI_SOURCE. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings directly contradict.
+
 **Prior-Art Search**: Before dispatching the fix sub-agent, consult the shared prior-art search framework at `plugins/dso/skills/shared/prompts/prior-art-search.md`. This ensures the fix approach does not duplicate an existing pattern, introduce an inconsistent abstraction, or miss a reuse opportunity. Apply the Routine Exclusions section of that framework — single-file logic fixes that correct a clear bug without introducing new abstractions are exempt. For fixes that add new helpers, patterns, or abstractions, run at least Tier 1–2 of the tiered search protocol before dispatching the fix sub-agent.
 
 **HARD-GATE**: Before dispatching the fix sub-agent, the orchestrator MUST have a `root_cause_report` produced by the investigation sub-agent Task tool call (Step 3 / Step 3-LLM-behavioral). The orchestrating agent may not produce the `root_cause_report` itself — it must come from the prior investigation sub-agent's RESULT output. If no `root_cause_report` is present, do NOT proceed to fix dispatch; return to the appropriate investigation step.
