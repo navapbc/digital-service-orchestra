@@ -102,10 +102,17 @@ Flow: S1 (Discovery) → [ambiguities?] → Yes: Clarify with user → S1 (loop)
       → Yes: FORCE S2 (Arch Review) regardless of new-pattern flag
       → No: [new pattern needed?]
         → Yes: S2 (Arch Review) → [pass] S3 | [fail, iter<3] Revise → S2 | [fail, iter=3] Fallback → S3
-        → No: S3 (Task Drafting) → S4 (Plan Review)
-          → [score=5] S5 (Task Creation)
-          → [score<5, iter<3] Revise → S4
-          → [score<5, iter=3] Present plan with remaining issues
+        → No: [Proposal Generation] → Generate ≥3 proposals → Distinctness gate
+          → [all pairs distinct] → [Resolution Loop] → Dispatch approach-decision-maker (timeout: 600000)
+            → [mode=selection] Accept → Selected proposal → S3 (Task Drafting)
+            → [mode=counter_proposal] Revise → Incorporate feedback → [Proposal Generation] (loop, max 2 cycles)
+            → [2 cycles exhausted] Escalate → Present proposals + feedback to user → User selects → S3
+            → [agent failure] Surface to user for manual resolution
+          → [equivalent pair found] → Regenerate with explicit differentiation guidance → [Proposal Generation] (loop)
+          → S3 → S4 (Plan Review)
+            → [score=5] S5 (Task Creation)
+            → [score<5, iter<3] Revise → S4
+            → [score<5, iter=3] Present plan with remaining issues
   → S5 complete → [evaluator says TRIVIAL?]
     → Yes: Skip S6, present summary
     → No: S6 (Gap Analysis) → parse findings → create tasks / amend ACs → present summary
@@ -329,6 +336,118 @@ Using the story description and the codebase context gathered in Architectural A
 This annotation tells the Step 2 reviewer why a full review was triggered even if no new pattern is proposed.
 
 **If no cross-cutting signals found**, proceed to Step 2 only if a new pattern is needed; otherwise skip to Step 3.
+
+### Proposal Generation
+
+After resolving cross-cutting detection, generate at least 3 distinct implementation proposals for the story before proceeding to task drafting. Each proposal represents a genuinely different approach to satisfying the story's success criteria, giving the reviewer or decision-maker a real choice rather than surface-level variations.
+
+**Proposal format**: Each proposal MUST include all six fields defined in `prompts/proposal-schema.md` (the single source of truth for field definitions, risk categories, and the distinctness gate). Read that file before generating proposals. Required fields:
+
+| Field | Description |
+|-------|-------------|
+| `title` | Concise name for the approach (≤ 80 characters) |
+| `description` | How the approach works and why it satisfies the success criteria |
+| `files` | File paths likely touched (create, modify, or delete) |
+| `pros` | Concrete advantages traceable to design decisions |
+| `cons` | Concrete drawbacks and risks — do not omit known tradeoffs |
+| `risk` | One of: `low`, `medium`, `high` (see `prompts/proposal-schema.md` for criteria) |
+
+**Minimum proposal count**: Generate at least 3 proposals. A default of 3 is used when no project-level override is set. If the story is genuinely constrained to fewer viable approaches, document the constraint explicitly and generate as many distinct approaches as exist — but attempt at least 3 before concluding that fewer are possible.
+
+**Distinctness validation gate**: Before finalizing the proposal set, self-verify that every pair of proposals differs on at least one of the four structural axes defined in `prompts/proposal-schema.md`:
+
+- **Data layer** — how and where state is stored or retrieved
+- **Control flow** — the execution path or orchestration strategy
+- **Dependency graph** — which modules, packages, or services are introduced or removed
+- **Interface boundary** — where the public contract is drawn and what it exposes
+
+For each pair `(A, B)`, compare on all four axes. If any pair is structurally equivalent on all four axes (two proposals that differ only in naming or surface details), **reject one and replace it** with a genuinely different approach — then re-verify. A proposal set with any equivalent pair MUST NOT be presented or passed to the decision-maker.
+
+Axis comparison is structural, not textual. "Store in a dictionary" and "use a hash map" are the same data-layer choice. Two proposals may look similar yet still pass if they differ on control flow or interface boundary.
+
+**Handling sprint vs standalone context**:
+
+- **Sprint context** (invoked from `/dso:sprint` via Skill tool): Pass the full proposal set to the decision-maker agent (added in Story a1f3-db49) for autonomous selection. The decision-maker returns a selected proposal; use that as the basis for task drafting in Step 3. Do NOT display proposals to the user — the sprint orchestrator manages the flow.
+- **Standalone context** (invoked directly by the user): Display the proposals to the user in a readable format (title, description, pros, cons, risk for each). Wait for the user to select a proposal before proceeding to Step 3. Do NOT begin task drafting until the user has confirmed a selection.
+
+**Context detection**: Check whether you are in sprint context by verifying that `/dso:sprint` invoked this skill via the Skill tool (the Progress Checklist rule from the Progress Checklist section also applies — in sprint context, `TaskCreate` is suppressed). If the invocation originated from user input directly, treat as standalone.
+
+### Resolution Loop
+
+After generating a valid, distinct proposal set, dispatch the `dso:approach-decision-maker` agent to evaluate and select an approach. This loop arbitrates between proposals and feeds back into proposal regeneration when no existing proposal is satisfactory.
+
+#### Cycle State Persistence
+
+Before dispatching the agent, read and update the cycle counter from the state file:
+
+```bash
+STATE_FILE="/tmp/approach-resolution-${STORY_ID}.json"
+# Read current cycle count (0 if file absent or stale)
+if [ -f "$STATE_FILE" ]; then
+  _file_age=$(( $(date +%s) - $(date -r "$STATE_FILE" +%s 2>/dev/null || echo 0) ))
+  if [ "$_file_age" -gt 14400 ]; then
+    # TTL = 4 hours; treat stale file as fresh start
+    rm -f "$STATE_FILE"
+    CYCLE_COUNT=0
+  else
+    CYCLE_COUNT=$(python3 -c "import json,sys; d=json.load(open('$STATE_FILE')); print(d.get('cycle_count', 0))" 2>/dev/null || echo 0)
+  fi
+else
+  CYCLE_COUNT=0
+fi
+```
+
+#### Dispatch
+
+Dispatch the `dso:approach-decision-maker` agent (subagent_type, model: opus, timeout: 600000) with:
+- All proposals from the generation step (full proposal set with title, description, files, pros, cons, risk)
+- Story success criteria and done definitions
+- Current codebase context (architecture notes, existing patterns)
+
+#### Parse Response
+
+Scan the agent output for the `APPROACH_DECISION:` prefix line per the contract at `plugins/dso/docs/contracts/approach-decision-output.md`. Extract the JSON block between the opening ` ```json ` and closing ` ``` ` fences. Validate the `mode` field before acting.
+
+**If the agent output is absent, malformed, missing the `APPROACH_DECISION:` prefix, or contains an unrecognized `mode` value**: log a warning and surface the failure to the user for manual proposal selection. Do NOT autonomously fall back to any proposal.
+
+#### Accept Path (mode: selection)
+
+When `mode` is `"selection"`:
+1. Read `selected_proposal_index` and extract the corresponding proposal from the input list
+2. Log the ADR rationale (`context`, `decision`, `consequences`, `rationale_summary`) for traceability
+3. In sprint context: proceed directly to Step 3 (Task Drafting) using the selected proposal
+4. In standalone context: present the decision-maker's selection and rationale to the user; confirm before proceeding to Step 3
+5. Clean up the state file: `rm -f "$STATE_FILE"`
+
+#### Revise Path (mode: counter_proposal)
+
+When `mode` is `"counter_proposal"`:
+1. Check whether the cycle limit (max 2 cycles) has been reached:
+   ```bash
+   CYCLE_COUNT=$(( CYCLE_COUNT + 1 ))
+   python3 -c "import json; f=open('$STATE_FILE','w'); json.dump({'cycle_count': $CYCLE_COUNT, 'story_id': '$STORY_ID'}, f)"
+   ```
+2. If `CYCLE_COUNT` is less than or equal to 2:
+   - Incorporate the counter-proposal's `approach` and `done_definitions` as additional input constraints
+   - Return to Proposal Generation with explicit guidance: generate new proposals that satisfy both the original success criteria AND the counter-proposal's requirements
+   - Re-enter the Resolution Loop with the regenerated proposals
+3. If `CYCLE_COUNT` exceeds 2: proceed to the Escalate Path below
+
+#### Escalate Path (after 2 cycles)
+
+When the cycle limit is exhausted (2 revision cycles completed without reaching mode `selection`):
+1. Present to the user:
+   - All proposals from the most recent generation step
+   - All counter-proposal feedback received across cycles (from the state file and current agent output)
+   - A clear summary: "The decision-maker could not reach a satisfactory selection after 2 cycles. Please review the proposals and counter-proposal feedback, then select an approach manually."
+2. Wait for user review and selection before proceeding to Step 3 (Task Drafting)
+3. In sprint context, emit `STATUS:blocked REASON:approach_escalated_to_user STORY:<story-id>` and pause for user input — do NOT proceed autonomously
+4. Clean up the state file after the user selects: `rm -f "$STATE_FILE"`
+
+#### Sprint vs Standalone Context
+
+- **Sprint context**: The resolution loop runs autonomously — accept and revise paths require no user interaction. The escalate path is the only point where user interaction is required; emit the blocked status and pause.
+- **Standalone context**: At the accept path, display the selected proposal and rationale to the user before proceeding. At the revise path, briefly note that the decision-maker requested revisions and the loop is retrying. At the escalate path, present the full context and wait for user selection.
 
 ---
 
