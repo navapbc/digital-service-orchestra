@@ -48,7 +48,11 @@ TEST_RESULT:rejected
 REJECTION_REASON: <enum value>
 DESCRIPTION: <explanation>
 SUGGESTED_ALTERNATIVE: <alternative or "none">
+ESTIMATED_RUNTIME_RED: <positive integer seconds — optional, backward-compatible>
+ESTIMATED_RUNTIME_GREEN: <positive integer seconds — optional, backward-compatible>
 ```
+
+The `ESTIMATED_RUNTIME_RED` and `ESTIMATED_RUNTIME_GREEN` fields are optional (backward-compatible). When present and either exceeds 10 seconds for a unit test, the evaluator must perform a runtime budget check before applying standard verdict routing (see Runtime-Aware Behavior below).
 
 ### Section 2 — Orchestrator Context Envelope
 
@@ -73,6 +77,39 @@ TASK_DESCRIPTION: <task_description>
 IN_PROGRESS_TASKS: <comma-separated task_ids or "none">
 CLOSED_TASKS: <comma-separated task_ids or "none">
 ```
+
+---
+
+## Runtime-Aware Behavior
+
+### ESTIMATED_RUNTIME Fields
+
+The writer may include two optional runtime estimate fields in its rejection payload:
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `ESTIMATED_RUNTIME_RED` | positive integer (seconds) | optional | Estimated runtime of the test in the RED phase (implementation absent) |
+| `ESTIMATED_RUNTIME_GREEN` | positive integer (seconds) | optional | Estimated runtime of the test in the GREEN phase (implementation correct) |
+
+These fields are backward-compatible. They may be absent in payloads produced by older writer versions or for non-unit-test contexts.
+
+### Runtime Budget Rule
+
+**Unit test budget ceiling: 10 seconds.** When either `ESTIMATED_RUNTIME_RED` or `ESTIMATED_RUNTIME_GREEN` is present and exceeds 10:
+
+1. The evaluator checks `SUGGESTED_ALTERNATIVE` for a valid restructuring path (e.g., mock `subprocess.run`, patch `time.sleep`, use small fixture data).
+2. If a restructuring path exists, the evaluator **must** emit `VERDICT:REVISE` with `REVISION_GUIDANCE` that references the specific runtime value, names the restructuring approach, and explains how it brings the estimate within budget.
+3. `VERDICT:CONFIRM` must **not** be issued when a restructuring path is available — a runtime constraint is not an inherent infeasibility.
+4. The runtime budget check takes **priority** over standard verdict routing: if a runtime violation with a valid restructuring path is detected, `VERDICT:REVISE` is emitted without proceeding to the CONFIRM/REJECT decision logic.
+
+### Absent-Field Handling (Backward Compatibility)
+
+When both `ESTIMATED_RUNTIME_RED` and `ESTIMATED_RUNTIME_GREEN` are absent from the input:
+
+- The evaluator treats runtime as unknown.
+- The evaluator does **not** issue a runtime-based `VERDICT:REVISE`.
+- The evaluator proceeds directly to standard verdict decision logic (CONFIRM/REVISE/REJECT based on `REJECTION_REASON`).
+- The evaluator does **not** mention runtime budget, estimated runtime, or time in seconds as a reason for the verdict.
 
 ---
 

@@ -65,6 +65,8 @@ TEST_RESULT:written
 TEST_FILE: {path to test file}
 RED_ASSERTION: {the specific assertion that fails before implementation}
 BEHAVIORAL_JUSTIFICATION: {one sentence: what observable behavior is tested}
+ESTIMATED_RUNTIME_RED: {positive integer seconds — estimated runtime in RED phase}
+ESTIMATED_RUNTIME_GREEN: {positive integer seconds — estimated runtime in GREEN phase}
 ```
 
 **Rejection format:**
@@ -120,12 +122,16 @@ TEST_RESULT:written
 TEST_FILE: <repo-relative path to test file>
 RED_ASSERTION: <short description (≤ 120 chars) of what the test asserts>
 BEHAVIORAL_JUSTIFICATION: <1-3 sentences explaining why this captures behavioral intent>
+ESTIMATED_RUNTIME_RED: <positive integer seconds — estimated runtime in RED phase>
+ESTIMATED_RUNTIME_GREEN: <positive integer seconds — estimated runtime in GREEN phase>
 ```
 
 **Field rules:**
 - `TEST_FILE` must point to an existing file after agent completes
 - `RED_ASSERTION` describes expected behavior, not implementation
 - `BEHAVIORAL_JUSTIFICATION` references the observable outcome being tested
+- `ESTIMATED_RUNTIME_RED` and `ESTIMATED_RUNTIME_GREEN` are optional integers (backward-compatible); when provided, both must be positive integers
+- If `ESTIMATED_RUNTIME_RED` or `ESTIMATED_RUNTIME_GREEN` exceed 10 seconds for a unit test, apply the restructuring protocol from Section 8 before emitting this format
 
 ### FORMAT 2 — Cannot write behavioral test (TEST_RESULT:rejected)
 
@@ -144,6 +150,48 @@ SUGGESTED_ALTERNATIVE: <alternative validation approach or "none">
 | `requires_integration_env` | Meaningful test requires an external system not available in unit test environment and cannot be mocked without losing behavioral fidelity |
 | `ambiguous_spec` | Task description is insufficiently specific to derive a deterministic assertion — expected output or success condition cannot be inferred |
 | `structural_only_possible` | Only a structural test (file exists, line count, import check) can be written — no behavioral assertion is possible; structural tests are excluded per TDD policy |
+
+---
+
+## Section 8: Runtime Budget
+
+### Estimation Protocol
+
+Before writing a test, estimate how long it will take to run in both the RED phase (test exists, implementation does not) and the GREEN phase (implementation is correct). Express both estimates as positive integer seconds and include them as `ESTIMATED_RUNTIME_RED` and `ESTIMATED_RUNTIME_GREEN` in the success output.
+
+**Unit test budget ceiling: 10 seconds.** A test is classified as a unit test if it has no network calls, no subprocess spawning, and no real filesystem I/O beyond temporary directories. Integration and E2E tests are exempt from this ceiling.
+
+### When Estimates Exceed the Budget
+
+If either runtime estimate exceeds 10 seconds for a unit test, apply the following protocol IN ORDER:
+
+1. **Identify the slow root cause**: subprocess spawning, sleep/polling loops, real filesystem traversal, large fixture data, or excessive computation.
+
+2. **Attempt restructuring** (see strategies below). If restructuring can bring both estimates to ≤ 10 seconds, write the restructured test and include the updated estimates.
+
+3. **If restructuring is not feasible** (e.g., mocking would eliminate the behavior being tested), emit `TEST_RESULT:rejected` with `REJECTION_REASON: requires_integration_env`. The `DESCRIPTION` must explain both the timing problem and why restructuring was ruled out. Optionally include a `RESTRUCTURING_APPROACH` field describing what was attempted.
+
+### Restructuring Strategies
+
+| Slow Pattern | Restructuring Approach |
+|---|---|
+| Real subprocess spawning (`subprocess.run`, `os.system`) | Mock `subprocess.run` / `subprocess.check_output` to return a fixture response |
+| Sleep/polling loops with long timeouts | Patch `time.sleep` to a no-op; use a short timeout parameter (e.g., `timeout_seconds=0.01`) |
+| Large filesystem traversal (`os.walk`, recursive reads) | Use `tmp_path` or `mktemp -d` with 1-3 small fixture files |
+| Network calls | Mock the HTTP client (e.g., `responses` library, `unittest.mock.patch`) |
+| Heavy computation on large data | Use a small representative fixture instead of production-scale data |
+
+### RESTRUCTURING_APPROACH Field (optional)
+
+When a rejection occurs because restructuring was attempted but ruled out, you MAY include a `RESTRUCTURING_APPROACH` field in the rejection output. This field is optional and documents what was considered:
+
+```
+TEST_RESULT:rejected
+REJECTION_REASON: requires_integration_env
+DESCRIPTION: <explanation including timing concern and restructuring ruling>
+SUGGESTED_ALTERNATIVE: <alternative or "none">
+RESTRUCTURING_APPROACH: <what was attempted and why it was ruled out>
+```
 
 ---
 
