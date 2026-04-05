@@ -19,10 +19,8 @@ set -euo pipefail
 #   IN_SCOPE                            — all finding files within task scope
 #   OUT_OF_SCOPE: file1,file2,...       — files not in the task file impact table
 #
-# REVIEW-DEFENSE: This script is not yet referenced in SKILL.md. Integration is
-# tracked as task b68c-d2a9 (story 8b6c-966e) — "Add out-of-scope review routing
-# to sprint SKILL.md". The script is implemented and tested ahead of its
-# integration point, which is the next batch item.
+# Integration: Referenced in SKILL.md Phase 5 Step 7a (out-of-scope review
+# feedback detection). Between-batch routing in Step 13a.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

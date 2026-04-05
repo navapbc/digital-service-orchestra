@@ -131,10 +131,6 @@ tests:
           4. Does NOT close the story or mark it complete while the done definition is failing
           5. Does NOT silently skip or ignore the completion-verifier FAIL result
 
-  # REVIEW-DEFENSE: This eval test case is forward-looking — it validates orchestrator
-  # behavior for out-of-scope review routing that will be wired into SKILL.md in a
-  # subsequent sprint batch. The eval asserts the expected behavior pattern so that
-  # when the SKILL.md instructions are added, the eval is already in place.
   - description: "Out-of-scope review feedback: accepted findings for files outside task scope route to implementation-plan between batches"
     options:
       provider: "anthropic:messages:claude-sonnet-4-6-20260320"
@@ -159,3 +155,26 @@ tests:
           3. Records or mentions REPLAN_TRIGGER: review (or equivalent notation indicating a review finding triggered re-planning)
           4. Does NOT silently discard or ignore the accepted out-of-scope finding
           5. Does NOT modify the existing task-auth-01's scope to include src/auth/session.py
+
+  - description: "Out-of-scope review REPLAN_ESCALATE: implementation-plan cannot satisfy out-of-scope story triggers cascade with cycle cap"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the sprint orchestrator in Step 13a (out-of-scope review routing).
+        After the current batch, sprint-review-scope-check.sh found 1 out-of-scope
+        finding for story story-session-05 (file: src/auth/session.py).
+        You invoked /dso:implementation-plan on story-session-05.
+        Implementation-plan returned: REPLAN_ESCALATE: brainstorm EXPLANATION: The session
+        invalidation requirement conflicts with the existing token refresh architecture.
+        The current replan_cycle_count is 1 and max_replan_cycles is 2.
+        What should the orchestrator do?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Presents the REPLAN_ESCALATE signal to the user (does NOT autonomously invoke brainstorm)
+          2. Checks or mentions the cascade cycle cap (replan_cycle_count vs max_replan_cycles)
+          3. Offers the user options including route to brainstorm, proceed as-is, or abort
+          4. Records or mentions REPLAN_TRIGGER: review before presenting to user
+          5. Does NOT silently discard the REPLAN_ESCALATE signal or proceed without user input

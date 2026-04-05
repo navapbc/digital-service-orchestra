@@ -442,6 +442,14 @@ story_uncertain_counts = {}
 
 This dictionary tracks the number of `STATUS:pass` + `UNCERTAIN` signals received per story across all batch iterations. Keys are parent story IDs (not task IDs). The counter persists across the Phase 5 → Phase 3 batch loop — do NOT re-initialize between batches. See Phase 5 Step 1a3 for parsing logic and Phase 3 Step 4 for double-failure detection.
 
+**Out-of-scope review findings accumulator (initialize once before the layer loop):**
+
+```
+batch_out_of_scope_findings = []
+```
+
+This list collects out-of-scope files detected by `sprint-review-scope-check.sh` during Phase 5 Step 7a. Each entry is a dict `{"task_id": "<id>", "story_id": "<parent>", "files": ["file1", ...]}`. The list is consumed between batches in Step 13 and cleared after processing. Do NOT process these findings mid-batch — they are only routed between batches to avoid task injection conflicts.
+
 **For each layer (in order Layer 0, Layer 1, ...):**
 
 a. Filter to stories in this layer that need decomposition
@@ -1155,6 +1163,36 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in thi
 - **Minor issues only** → proceed (note them in ticket but don't block)
 - **Autonomous resolution**: Up to `review.max_resolution_attempts` (default: 5) fix/defend attempts before tier escalation (light → standard → deep). When attempts are exhausted, upgrade to the next tier before escalating to user — the deep tier (3 sonnet + opus synthesis) must be tried before user escalation. Resolution sub-agent applies fixes, then orchestrator dispatches separate re-review sub-agent (no nesting). If issues persist after deep tier, escalate to the user — do NOT commit or initiate graceful shutdown. The review loop continues until the review passes OR the user explicitly approves proceeding.
 
+### Step 7a: Out-of-Scope Review Feedback Detection (/dso:sprint)
+
+After review resolution completes (Step 7) and before proceeding to Step 8, check whether accepted review findings reference files outside the task's scope.
+
+<!-- REVIEW-DEFENSE: Step 7 (Formal Code Review) runs ONCE per batch on the combined diff,
+     producing a single reviewer-findings.json. The loop below reads that same file for each
+     task but passes the task ID to sprint-review-scope-check.sh, which filters findings by
+     the task's file-impact list. There is no per-task overwrite risk. -->
+
+For each task in the batch that completed review:
+
+1. Run `sprint-review-scope-check.sh` with the reviewer-findings path and task ID:
+   ```bash
+   SCOPE_RESULT=$(.claude/scripts/dso sprint-review-scope-check.sh "$(get_artifacts_dir)/reviewer-findings.json" "<task-id>")  # shim-exempt: internal orchestration script
+   ```
+2. If `SCOPE_RESULT` starts with `OUT_OF_SCOPE`:
+   a. Parse the out-of-scope file list (everything after `OUT_OF_SCOPE: `).
+   b. Log: `"Review accepted findings for out-of-scope files: <files> (task <task-id>)"`
+   c. Append to the accumulator:
+      ```
+      batch_out_of_scope_findings.append({
+          "task_id": "<task-id>",
+          "story_id": "<parent-story-id>",
+          "files": [<out-of-scope files>]
+      })
+      ```
+   d. **DO NOT route to implementation-plan here.** Out-of-scope findings are collected during the batch and processed only between batches (Step 13) to avoid mid-batch task injection conflicts.
+3. If `IN_SCOPE` → no action needed; proceed normally.
+4. If the script fails (non-zero exit) → log a warning and continue. Scope checking failure must not block the sprint.
+
 ### Step 8: Update Ticket Notes (/dso:sprint)
 
 For each task in the batch, write checkpoint-format notes for crash recovery:
@@ -1295,6 +1333,87 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?  # shi
 ---
 
 ### Step 13: Continuation Decision (/dso:sprint)
+
+<!-- REVIEW-DEFENSE: Sub-step numbering (2a, 2b etc.) is deliberate — groups related replan-escalation logic under a single parent step, matching Phase 2 d-replan-collect pattern. -->
+<!-- REVIEW-DEFENSE: SKILL.md file length is a pre-existing condition; decomposition is tracked separately. -->
+#### Step 13a: Out-of-Scope Review Feedback Routing (between batches)
+
+Before evaluating the continuation decision, process any out-of-scope review findings collected during the batch (Step 7a). This fires ONLY between batches — never mid-batch.
+
+If `batch_out_of_scope_findings` is non-empty:
+
+1. Deduplicate by story: group all out-of-scope files by `story_id`.
+<!-- REVIEW-DEFENSE: Sequential per-story iteration with collective REPLAN_ESCALATE processing is the same pattern as Phase 2 d-replan-collect. Steps 3 (clear accumulator) and 4 (return to Phase 3) execute only after ALL step-2 iterations complete AND step 2a cascade fully resolves. The numbered step ordering (1 → 2 → 2a → 3 → 4) is sequential by design — step 2a fires after the step-2 loop ends, and steps 3-4 fire after 2a completes. This separation of dispatch (step 2) from escalation handling (step 2a) is intentional to batch REPLAN_ESCALATE stories for collective user presentation rather than interrupting mid-loop. -->
+2. For each affected story:
+   a. Collect the full list of out-of-scope files across all tasks in that story.
+   b. Record the re-plan trigger on the epic **before** invoking implementation-plan (so the audit trail exists even if re-planning fails):
+      ```bash
+      .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: review — Out-of-scope files from review: <files>. Routing to implementation-plan for story <story-id>."
+      ```
+   c. **Check the cascade cycle cap before invoking implementation-plan:**
+      - **If `replan_cycle_count >= max_replan_cycles`:** Cap is exhausted. Present the out-of-scope files and inform the user the cascade limit has been reached:
+        ```
+        Out-of-scope review files require re-planning for story <story-id>:
+          <file list>
+
+        The cascade replan limit (max_replan_cycles=<N>) has been reached.
+        Options:
+          (a) Proceed — skip re-planning for these files and continue sprint execution
+          (b) Abort — stop the sprint for this epic; it will remain open for manual adjustment
+          (c) Manual adjustment — edit the relevant story or epic tickets manually, then resume the sprint
+        ```
+        Wait for user input. Act on their choice. Do NOT invoke implementation-plan.
+      - **If cap is not yet exhausted:** proceed to step d.
+   <!-- REVIEW-DEFENSE: Step 2d does NOT increment replan_cycle_count because it is a direct implementation-plan invocation, not a cascade cycle. replan_cycle_count tracks full cascade rounds (brainstorm → preplanning → implementation-plan), which only occur in step 2a. Phase 2 d-replan-collect follows the same discipline: increment happens at cascade step 6 (after brainstorm + preplanning), never after a direct implementation-plan call. -->
+   d. Invoke `/dso:implementation-plan <story-id>` via the Skill tool to create tasks covering the out-of-scope files.
+   e. **Handle REPLAN_ESCALATE:** If implementation-plan emits `REPLAN_ESCALATE: brainstorm`: add the story and its explanation to the `replan-stories` list (processed in step 2a below).
+   f. After re-planning completes (no REPLAN_ESCALATE), record resolution:
+      ```bash
+      .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: implementation-plan — Tasks created for out-of-scope review feedback on story <story-id>."
+      ```
+2a. **Handle collected REPLAN_ESCALATE stories** — if any stories were added to the `replan-stories` list during step 2e above:
+   - **If `replan_cycle_count >= max_replan_cycles`:** Cap is exhausted. Present the REPLAN_ESCALATE stories (story IDs and explanations) and inform the user:
+     ```
+     /dso:implementation-plan cannot satisfy success criteria for:
+       - Story <story-id-1>: <explanation-1>
+       - Story <story-id-2>: <explanation-2>
+
+     The cascade replan limit (max_replan_cycles=<N>) has been reached.
+     Options:
+       (a) Proceed — skip re-planning for these stories and continue sprint execution
+       (b) Abort — stop the sprint for this epic; it will remain open for manual adjustment
+       (c) Manual adjustment — edit the relevant story or epic tickets manually, then resume the sprint
+     ```
+     Wait for user input. Act on their choice. Do NOT enter the cascade.
+   - **If cap is not yet exhausted:** Present all REPLAN_ESCALATE stories together in a single prompt:
+     ```
+     /dso:implementation-plan cannot satisfy success criteria for:
+       - Story <story-id-1>: <explanation-1>
+       - Story <story-id-2>: <explanation-2>
+
+     Current cascade cycle: <replan_cycle_count> of <max_replan_cycles>
+
+     Options:
+       (a) Route to /dso:brainstorm — revise the epic, then re-run preplanning and implementation-plan (cascade replan)
+       (b) Proceed — accept the current state and continue sprint with these stories as-is
+       (c) Abort — stop the sprint for this epic; it will remain open for manual adjustment
+     ```
+     Wait for user input.
+     - **If user selects (b) or (c):** act accordingly — proceed or abort. Do not enter cascade.
+     - **If user selects (a):** Enter the cascade replan per `plugins/dso/docs/designs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
+       1. Invoke `/dso:brainstorm <epic-id>` via Skill tool
+       2. Delete `/tmp/preplanning-context-<epic-id>.json` (invalidate stale preplanning cache)
+       3. Invoke `/dso:preplanning <epic-id>` via Skill tool
+       4. Increment `replan_cycle_count += 1`
+       5. Re-run `/dso:implementation-plan` for all affected stories
+       6. If no more `REPLAN_ESCALATE`: cascade exits — proceed normally
+       7. If `REPLAN_ESCALATE` persists: repeat from 2a (check cap first)
+3. Clear the accumulator: `batch_out_of_scope_findings = []`
+4. Return to Phase 3 (Batch Preparation) to include the newly created tasks.
+
+If `batch_out_of_scope_findings` is empty, proceed to the standard continuation decision below.
+
+#### Step 13b: Standard Continuation Decision
 
 ```
 Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
