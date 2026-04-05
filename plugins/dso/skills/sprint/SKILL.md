@@ -1213,8 +1213,28 @@ After the batch commit and `git push -u origin HEAD` succeed, close each task wh
 
 **MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the story ID (CLAUDE.md rule #24 — no inline verification substitute).
 - `overall_verdict: PASS` → proceed with closure
-- `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3 (Batch Preparation)
+- `overall_verdict: FAIL` → see branching logic below
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
+
+**Story validation failure detection** — when `overall_verdict: FAIL`:
+
+Check whether all tasks under the story are closed (no open or in-progress tasks remain):
+
+- **If open/in-progress tasks still exist**: create bug tasks from `remediation_tasks_created` and return to Phase 3 (Batch Preparation) as normal.
+- **If all tasks are closed but validation fails** (story-level done definition not satisfied despite no remaining tasks):
+  1. Do NOT close the story.
+  2. Log: `"Story <id> validation failed despite all tasks closed — creating TDD remediation tasks"`
+  3. Record a REPLAN_TRIGGER comment on the epic **before** invoking implementation-plan (so the audit trail exists even if re-planning fails):
+     ```bash
+     .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: validation — Story <story-id> validation failed with all tasks closed. Creating TDD remediation tasks."
+     ```
+  4. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool on the story to create remediation tasks. The implementation-plan re-invocation guard will detect existing closed children and produce a diff plan (new tasks only for uncovered success criteria — no duplication). **If implementation-plan emits `REPLAN_ESCALATE: brainstorm`**: add the story to the `replan-stories` list and route to **d-replan-collect** (Phase 2 replan logic). The cascade counter (`sprint.max_replan_cycles`) applies — if the cap is reached, escalate to the user. Do NOT assume implementation-plan always succeeds here.
+  5. Implementation-plan will create TDD remediation tasks following standard flow: RED test task first (failing test targeting the unmet done definition), then implementation task depending on the RED test. No special logic is needed in sprint to enforce this ordering.
+  6. After re-planning completes (no REPLAN_ESCALATE), record resolution:
+     ```bash
+     .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: implementation-plan — Remediation tasks created for story <story-id>."
+     ```
+  7. Return to Phase 3 (Batch Preparation) to execute the new remediation tasks.
 
 <HARD-GATE>
 Do NOT rationalize around a FAIL verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase 3 path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding past this step.
