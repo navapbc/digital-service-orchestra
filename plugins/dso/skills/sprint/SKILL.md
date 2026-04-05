@@ -434,6 +434,14 @@ max_replan_cycles = read_config("sprint.max_replan_cycles", default=2)
 
 This counter is shared across all stories in the epic. Each full brainstorm → preplanning → implementation-plan cascade iteration (regardless of which story triggered it) increments the counter by 1. This prevents unbounded loops when multiple stories each emit REPLAN_ESCALATE across cascade iterations.
 
+**Per-story UNCERTAIN counter (initialize once before the layer loop):**
+
+```
+story_uncertain_counts = {}
+```
+
+This dictionary tracks the number of `STATUS:pass` + `UNCERTAIN` signals received per story across all batch iterations. Keys are parent story IDs (not task IDs). The counter persists across the Phase 5 → Phase 3 batch loop — do NOT re-initialize between batches. See Phase 5 Step 1a3 for parsing logic and Phase 3 Step 4 for double-failure detection.
+
 **For each layer (in order Layer 0, Layer 1, ...):**
 
 a. Filter to stories in this layer that need decomposition
@@ -720,6 +728,27 @@ candidates share a cross-file dependency not reflected in their `file_list`, add
 dependency link (`.claude/scripts/dso ticket link <src> <tgt> depends_on`) before
 finalizing the batch to avoid parallel conflicts.
 
+#### Double-Failure Detection (per story)
+
+After composing the batch, check each task's parent story against the `story_uncertain_counts` map (initialized in Phase 2 Step 2) **before dispatching**:
+
+1. For each `TASK:` line in the batch output, extract the parent story ID from the `story:<id>` field.
+2. Look up `story_uncertain_counts[<story-id>]`. If the count is **>= 2**, do NOT dispatch the task. Instead:
+   a. Record the re-plan trigger on the epic **before** invoking implementation-plan (so the audit trail exists even if re-planning fails):
+      ```bash
+      .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: failure — Story <story-id> had 2+ UNCERTAIN signals. Routing to implementation-plan."
+      ```
+   b. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool to re-plan the story.
+   c. After re-planning completes, record resolution:
+      ```bash
+      .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: implementation-plan — Story <story-id> re-planned after confidence failures."
+      ```
+   d. Reset `story_uncertain_counts[<story-id>] = 0` so the story does not immediately re-trigger on the next batch.
+   e. Remove the affected task(s) from the current batch and proceed with the remaining tasks. The re-planned story's new tasks will be picked up in the next batch cycle.
+3. Tasks whose parent story has a count of 0 or 1 are dispatched normally.
+
+**Key invariant**: Only `STATUS:pass` + `UNCERTAIN` signals (tracked in Phase 5 Step 1a3) count toward this threshold. `STATUS:fail` tasks are handled via revert-to-open in Phase 5 Step 9 and do not affect this counter.
+
 ### Dry-Run Mode
 
 If `--dry-run` was specified:
@@ -936,6 +965,23 @@ For each sub-agent that returned successfully, check whether its code changes in
 - Tasks classified as `skill-guided` or `docs-only`
 - Tasks whose only source changes are type stubs, `__init__.py` re-exports, or Alembic migrations
 - Tasks that explicitly document in their AC why tests are not applicable
+
+### Step 1a3: Confidence Signal Parsing (/dso:sprint)
+
+For each sub-agent result, scan for the confidence signal line (see `plugins/dso/docs/contracts/confidence-signal.md`): # shim-exempt: internal contract reference
+
+1. **Parse the confidence signal**: Scan the sub-agent output for a line that is exactly `CONFIDENT` or begins with `UNCERTAIN:`.
+   - `CONFIDENT` — high confidence; no action needed beyond normal processing.
+   - `UNCERTAIN:<reason>` — low confidence; proceed to steps below.
+   - **Absent or malformed signal** (no confidence line, bare `UNCERTAIN` with no colon, `UNCERTAIN:` with empty reason) — treat as `UNCERTAIN` with reason `"no confidence signal emitted"`. Log a warning: `"Warning: task <task-id> emitted no valid confidence signal — treating as UNCERTAIN."`
+
+2. **Only count `STATUS:pass` + `UNCERTAIN` signals toward the threshold.** `STATUS:fail` tasks already trigger revert-to-open in Step 9 through the normal failure path — the UNCERTAIN signal on a failing task does not change routing.
+
+3. **For each task where `STATUS:pass` + `UNCERTAIN`:**
+   a. Identify the parent story ID from the task's `story:<id>` field in the TASK line (from Phase 4 batch list).
+   b. Record the signal: `.claude/scripts/dso ticket comment <story-id> "UNCERTAIN_SIGNAL: task <task-id> — <reason>"`
+   c. Increment the per-story counter: `story_uncertain_counts[<story-id>] += 1` (initialize to 0 if not yet set).
+   d. Log: `"UNCERTAIN signal from task <task-id> under story <story-id> — count now <N>."`
 
 ### Step 1b: Integrate Discovered Tasks (/dso:sprint)
 

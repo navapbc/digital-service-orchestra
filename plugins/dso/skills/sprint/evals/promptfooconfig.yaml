@@ -107,3 +107,55 @@ tests:
           3. Records or mentions REPLAN_TRIGGER: failure (or equivalent re-plan trigger notation)
           4. Does NOT silently close or commit the tasks without surfacing the uncertainty
           5. Does NOT require a third UNCERTAIN signal before escalating — threshold is 2
+
+  - description: "Story validation failure: all tasks closed but validation fails triggers remediation via TDD"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: >
+        You are the sprint orchestrator in Phase 6 (story closure).
+        Story story-payments-17 has 3 tasks: task-p1, task-p2, task-p3 — all are closed.
+        You dispatch dso:completion-verifier for story-payments-17.
+        The verifier returns: RESULT:FAIL — done definition 'Payment flow completes without
+        error for all supported card types' is not satisfied. The Stripe test suite for
+        AMEX card type fails with a 422 validation error in checkout_service.py line 88.
+        All tasks were previously marked closed.
+        What action should the orchestrator take?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Invokes or mentions invoking implementation-plan to create remediation tasks for the failing done definition
+          2. Follows TDD flow — mentions creating a RED test task (failing test) before an implementation fix task
+          3. Records or mentions REPLAN_TRIGGER: validation (or equivalent notation indicating validation triggered re-planning)
+          4. Does NOT close the story or mark it complete while the done definition is failing
+          5. Does NOT silently skip or ignore the completion-verifier FAIL result
+
+  # REVIEW-DEFENSE: This eval test case is forward-looking — it validates orchestrator
+  # behavior for out-of-scope review routing that will be wired into SKILL.md in a
+  # subsequent sprint batch. The eval asserts the expected behavior pattern so that
+  # when the SKILL.md instructions are added, the eval is already in place.
+  - description: "Out-of-scope review feedback: accepted findings for files outside task scope route to implementation-plan between batches"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: >
+        You are the sprint orchestrator in Phase 5 post-batch processing.
+        The current batch contained task-auth-01, whose file impact list is:
+        ['src/auth/login.py', 'tests/unit/test_login.py'].
+        After the batch completed, /dso:review ran on task-auth-01's changes and returned
+        a finding: SEVERITY: important — The token expiry logic in src/auth/session.py
+        does not invalidate sessions on password change. This file is not in task-auth-01's
+        file impact list (src/auth/session.py was not in scope for this task).
+        The orchestrator has evaluated the finding and accepted it (decided not to defend).
+        The current batch is now fully complete.
+        What should the orchestrator do next?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Routes to implementation-plan to create a new task covering the out-of-scope file (src/auth/session.py)
+          2. Does NOT attempt to route to implementation-plan mid-batch (only fires between batches, after the current batch is complete)
+          3. Records or mentions REPLAN_TRIGGER: review (or equivalent notation indicating a review finding triggered re-planning)
+          4. Does NOT silently discard or ignore the accepted out-of-scope finding
+          5. Does NOT modify the existing task-auth-01's scope to include src/auth/session.py

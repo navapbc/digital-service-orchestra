@@ -205,6 +205,7 @@ plugins/dso/scripts/skip-review-check.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/claude-safe:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/retro-gather.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/sprint-next-batch.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/scripts/test-sprint-next-batch.sh,tests/scripts/test_sprint_next_batch_extra_dir_roots.py
+plugins/dso/scripts/sprint-review-scope-check.sh:tests/scripts/test-sprint-review-scope-check.sh [missing_args],tests/scripts/test-sprint-review-scope-check.sh [in_scope],tests/scripts/test-sprint-review-scope-check.sh [out_of_scope],tests/scripts/test-sprint-review-scope-check.sh [missing_findings_file],tests/scripts/test-sprint-review-scope-check.sh [no_file_impact_section],tests/scripts/test-sprint-review-scope-check.sh [findings_with_empty_file_paths],tests/scripts/test-sprint-review-scope-check.sh [multiple_out_of_scope]
 plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh
 plugins/dso/skills/sprint/prompts/epic-validation-review.md:tests/scripts/test-v2-skills-cleanup.sh
 plugins/dso/scripts/purge-non-project-tickets.sh:tests/scripts/test-purge-non-project-tickets.sh
