@@ -1,1 +1,0 @@
-{"timestamp": 1775354224333101000, "uuid": "1ce733a8-563e-4b42-80b9-517542934f92", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Test: verifying push works after write_commit_event fix"}}
