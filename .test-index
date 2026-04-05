@@ -320,4 +320,5 @@ tests/scripts/test-merge-recovery-integration.sh:tests/scripts/test-merge-recove
 tests/scripts/test-read-config.sh:tests/scripts/test-v2-clean-guard.sh
 tests/scripts/test-validate-issues.sh:tests/scripts/test-v2-clean-guard.sh
 plugins/dso/skills/implementation-plan/SKILL.md:tests/scripts/test-implementation-plan-proposals.sh
+plugins/dso/skills/implementation-plan/SKILL.md:tests/scripts/test-implementation-plan-resolution-loop.sh [test_resolution_loop_section_exists]
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh

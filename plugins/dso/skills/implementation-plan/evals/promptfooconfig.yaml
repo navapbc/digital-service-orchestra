@@ -284,6 +284,78 @@ tests:
           and begin task drafting — but the 3+ proposals section must be present and
           structurally complete before any tasks appear.
 
+  - description: "resolution loop: dispatches decision-maker, handles counter-proposal, escalates to user after 2 cycles"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Please create an implementation plan for this story (sprint context — autonomous proposal
+        selection is required):
+
+        Story: "As a developer, I want the API to support cursor-based pagination on the /api/items
+        endpoint so that clients can efficiently traverse large result sets without offset drift."
+
+        Context:
+        - The app has a Python Flask API with GET /api/items in src/api/items.py.
+        - The endpoint currently returns all items as a flat JSON array.
+        - There is an existing test file: tests/test_items_api.py
+        - Success criteria: GET /api/items accepts an optional cursor param; response includes
+          next_cursor and items array; invalid cursor returns 400.
+
+        After you generate 3+ distinct proposals, pass them to the approach-decision-maker agent
+        for selection. The decision-maker returns the following counter-proposal (Mode B):
+
+        APPROACH_DECISION:
+        ```json
+        {
+          "mode": "counter_proposal",
+          "proposal_title": "Opaque token cursor with HMAC integrity check",
+          "approach": "Encode cursor state (last_id + timestamp) as a base64 HMAC-signed token. The API decodes and verifies the token on each request, returning 400 for tampered or expired tokens. This prevents clients from constructing arbitrary cursor values and avoids exposing internal IDs.",
+          "done_definitions": [
+            "GET /api/items?cursor=<token> returns the next page of items.",
+            "An invalid or tampered cursor returns HTTP 400 with a descriptive error message.",
+            "The response envelope includes next_cursor (null on last page) and items array.",
+            "Cursor tokens expire after 1 hour; expired tokens return HTTP 400."
+          ],
+          "context": "The submitted proposals exposed internal database row IDs in the cursor, violating the security requirement that internal identifiers must not be leaked to clients.",
+          "decision": "None of the submitted proposals satisfy the non-leakage constraint. The counter-proposal uses HMAC-signed opaque tokens.",
+          "consequences": "Adds HMAC signing overhead per request (~0.1ms). Cursor tokens expire, which clients must handle.",
+          "rationale_summary": "Counter-proposal: HMAC-signed opaque cursor satisfies non-leakage and pagination requirements."
+        }
+        ```
+
+        The counter-proposal introduces a new cryptographic pattern not currently in the codebase.
+        This triggers the resolution loop: you must re-evaluate whether to accept the counter-proposal,
+        request revisions, or escalate to the user.
+
+        Simulate running the resolution loop for 2 full cycles. In cycle 1, request revisions to the
+        counter-proposal (ask the decision-maker to simplify the token expiry requirement). In cycle 2,
+        the decision-maker returns another counter-proposal that still requires HMAC. Escalate to the
+        user after 2 cycles without resolution.
+
+        Do not ask for clarification — proceed directly.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output describes the resolution loop behavior for a counter-proposal scenario in sprint
+          context. It should:
+          (1) show that the decision-maker agent was dispatched to evaluate the submitted proposals —
+          the output must reference dispatching the approach-decision-maker (or decision-maker) agent
+          and receiving its APPROACH_DECISION output,
+          (2) describe handling a counter-proposal (Mode B) response — the output must distinguish
+          a counter-proposal from a simple selection and indicate that the counter-proposal requires
+          evaluation before proceeding to task drafting,
+          (3) demonstrate the accept/revise/escalate decision point — the output must show at least
+          one of: accepting the counter-proposal and proceeding to task drafting, requesting a
+          revision cycle (re-dispatching the decision-maker with feedback), or escalating to the user,
+          (4) track and surface the cycle count — the output must reference the current resolution
+          cycle number (e.g., "cycle 1", "cycle 2", or equivalent), and must NOT silently loop
+          indefinitely — the cycle count must be visible in the output,
+          (5) escalate to the user after 2 cycles without resolution — the output must show that
+          after 2 resolution cycles without an accepted proposal or counter-proposal, the skill
+          halts autonomous resolution and presents the unresolved decision to the user for manual
+          judgment, rather than continuing to loop or silently picking an approach.
+
   - description: "Emits REPLAN_ESCALATE when success criteria cannot be satisfied"
     options:
       provider: "anthropic:messages:claude-sonnet-4-6-20260320"
