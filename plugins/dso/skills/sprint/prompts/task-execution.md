@@ -55,6 +55,11 @@ Ticket ID: {id}
    AC_RESULTS: (if Acceptance Criteria section present) criterion1: pass, criterion2: pass/fail
    TASKS_CREATED: ticket-042, ticket-043 (or "none", or "error: <reason>")
    DISCOVERIES_WRITTEN: yes|no|error
+   CONFIDENT or UNCERTAIN:<reason>
+   Confidence signal (per plugins/dso/docs/contracts/confidence-signal.md):
+   - Emit `CONFIDENT` (single keyword, own line) when you have high confidence the task is correctly and completely implemented, all acceptance criteria genuinely pass, and no significant edge cases were left unaddressed.
+   - Emit `UNCERTAIN:<reason>` (keyword + colon + reason, own line, no space before reason) when you lack confidence — ambiguous task description, missing context, codebase state mismatch, untested edge cases, or unfamiliar patterns. The reason must not be empty.
+   - You MUST emit exactly one of these signals. If omitted, the orchestrator treats it as UNCERTAIN with reason "no confidence signal emitted".
 
 ### Escalation Policy
 
