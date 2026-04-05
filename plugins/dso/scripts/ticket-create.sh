@@ -125,6 +125,10 @@ if [ -z "$title" ]; then
     exit 1
 fi
 
+# ── Unicode arrow conversion (U+2192 → ASCII ->) ────────────────────────────
+# Convert unicode arrow → to ASCII -> in title before event creation.
+title=$(python3 -c "import sys; print(sys.argv[1].replace('\u2192', '->'))" "$title")
+
 # ── Validate ticket system is initialized ─────────────────────────────────────
 if [ ! -f "$TRACKER_DIR/.env-id" ]; then
     echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
@@ -223,3 +227,54 @@ rm -f "$temp_event"
 
 # ── Output ticket ID ─────────────────────────────────────────────────────────
 echo "$ticket_id"
+
+# ── Post-creation validation (warnings only, never blocks, exit 0) ───────────
+# Only applies to bug tickets.
+if [ "$ticket_type" = "bug" ]; then
+    # Read config for title warning opt-out
+    _title_warning_enabled="true"
+    _read_config="$SCRIPT_DIR/read-config.sh"
+    if [ -f "$_read_config" ]; then
+        _cfg_val=$(bash "$_read_config" "bug_report.title_warning_enabled" 2>/dev/null) || true
+        if [ "$_cfg_val" = "false" ]; then
+            _title_warning_enabled="false"
+        fi
+    fi
+
+    # (a) Title pattern warning: [Component]: [Condition] -> [Observed Result]
+    if [ "$_title_warning_enabled" = "true" ]; then
+        if ! echo "$title" | grep -qE '^[^:]+: .+ -> .+$'; then
+            echo "Warning: Bug title does not match recommended pattern: [Component]: [Condition] -> [Observed Result]" >&2
+            echo "  To fix: ticket edit $ticket_id --title=\"[Component]: [Condition] -> [Observed Result]\"" >&2
+        fi
+    fi
+
+    # (b) Description headers warning: check for Expected Behavior and Actual Behavior
+    if [ -n "$description" ]; then
+        _desc_lower=$(echo "$description" | tr '[:upper:]' '[:lower:]')
+        _missing_headers=""
+        if ! echo "$_desc_lower" | grep -q "expected behavior"; then
+            _missing_headers="Expected Behavior"
+        fi
+        if ! echo "$_desc_lower" | grep -q "actual behavior"; then
+            if [ -n "$_missing_headers" ]; then
+                _missing_headers="$_missing_headers, Actual Behavior"
+            else
+                _missing_headers="Actual Behavior"
+            fi
+        fi
+        if [ -n "$_missing_headers" ]; then
+            echo "Warning: Bug description missing recommended headers: $_missing_headers" >&2
+            echo "  To fix: ticket edit $ticket_id --description=\"...\"" >&2
+            echo "  See template: plugins/dso/skills/shared/prompts/bug-report-template.md" >&2
+        fi
+    fi
+
+    # (c) Description size warning: > 30000 characters
+    if [ -n "$description" ]; then
+        _desc_len=${#description}
+        if [ "$_desc_len" -gt 30000 ]; then
+            echo "Warning: Bug description exceeds 30000 characters ($_desc_len chars)" >&2
+        fi
+    fi
+fi
