@@ -1,0 +1,1 @@
+{"timestamp": 1775428706184871000, "uuid": "dbe8b06a-795b-40ea-b54c-5f30b90fc12a", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Anti-pattern scan: no other instances of narrow Playwright process detection found. Only cleanup-claude-session.sh uses pgrep for Playwright processes \u2014 fix applied there."}}
