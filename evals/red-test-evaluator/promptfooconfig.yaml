@@ -1,0 +1,112 @@
+description: "red-test-evaluator agent evals — runtime REVISE verdict and backward-compat absent ESTIMATED_RUNTIME handling"
+
+providers:
+  - id: "anthropic:messages:claude-opus-4-5"
+
+defaultTest:
+  options:
+    provider: "anthropic:messages:claude-haiku-4-5-20251001"
+
+prompts:
+  - id: red-test-evaluator-runtime-check
+    raw: |
+      You are the dso:red-test-evaluator agent. You receive a TEST_RESULT:rejected payload
+      from dso:red-test-writer and an orchestrator context envelope. You determine the correct
+      verdict: REVISE, REJECT, or CONFIRM.
+
+      Your job is to answer: Is this rejection legitimate, fixable, or out of scope for automated TDD?
+
+      When a unit test's estimated runtime exceeds 10 seconds (ESTIMATED_RUNTIME_RED or
+      ESTIMATED_RUNTIME_GREEN fields present and > 10), you must issue VERDICT:REVISE with
+      a runtime-specific note explaining that the test can be restructured (e.g., mock expensive
+      operations, patch timing functions) to bring the estimate within budget.
+
+      When ESTIMATED_RUNTIME fields are absent (backward-compat mode), treat runtime as unknown
+      and do NOT issue a runtime-based REVISE. Evaluate only the stated REJECTION_REASON.
+
+      Output exactly one verdict block beginning with VERDICT:.
+
+      Input:
+      {{prompt}}
+
+tests:
+  - description: "Runtime-over-budget: unit test with ESTIMATED_RUNTIME_RED > 10s triggers REVISE"
+    vars:
+      prompt: |
+        TEST_RESULT:rejected
+        REJECTION_REASON: structural_only_possible
+        DESCRIPTION: The task requires spawning a subprocess to run `find` across a large
+        directory tree, which takes ~45 seconds in the RED phase. The only structural assertion
+        available is that the function returns a list.
+        SUGGESTED_ALTERNATIVE: Mock subprocess.run to return a fixed output for unit testing.
+        ESTIMATED_RUNTIME_RED: 45
+        ESTIMATED_RUNTIME_GREEN: 45
+
+        TASK_ID: a1b2-c3d4
+        STORY_ID: e5f6-a7b8
+        EPIC_ID: c9d0-e1f2
+        TASK_DESCRIPTION: Add a function `scan_directory(path: str) -> list` to
+        `src/utils/scanner.py` that spawns a subprocess running `find <path> -type f`
+        and returns the output lines as a list.
+        IN_PROGRESS_TASKS: none
+        CLOSED_TASKS: none
+    assert:
+      - type: llm-rubric
+        value: >
+          The input includes ESTIMATED_RUNTIME_RED: 45 — well above the 10-second unit
+          test budget — and a SUGGESTED_ALTERNATIVE that identifies a valid restructuring
+          path (mock subprocess.run). The output MUST satisfy ALL of the following:
+          (1) The verdict is VERDICT:REVISE (not CONFIRM or REJECT), because the
+          SUGGESTED_ALTERNATIVE points to a feasible restructuring path via mocking that
+          would bring the runtime under 10 seconds;
+          (2) The REVISION_GUIDANCE or explanation explicitly references the runtime estimate
+          (45 seconds, or "> 10 seconds", or "exceeds budget") as the reason REVISE is
+          warranted rather than CONFIRM;
+          (3) The output acknowledges that mocking subprocess.run (or equivalent strategy)
+          is the recommended restructuring approach.
+          The output FAILS this rubric if:
+          - VERDICT:CONFIRM is returned (treating a runtime-over-budget rejection as
+            legitimately infeasible when restructuring is available);
+          - VERDICT:REJECT is returned without acknowledging that mocking makes the test
+            feasible;
+          - The runtime concern is ignored and only structural_only_possible is evaluated
+            without reference to the 45-second estimate.
+
+  - description: "Backward-compat: absent ESTIMATED_RUNTIME fields — evaluator does NOT issue runtime-based REVISE"
+    vars:
+      prompt: |
+        TEST_RESULT:rejected
+        REJECTION_REASON: requires_integration_env
+        DESCRIPTION: Meaningful testing of the Jira sync bridge requires a live Jira
+        instance. The sync behavior depends on Jira response codes, pagination, and field
+        mapping that cannot be faithfully reproduced in a unit test environment.
+        SUGGESTED_ALTERNATIVE: none
+
+        TASK_ID: b3c4-d5e6
+        STORY_ID: f7a8-b9c0
+        EPIC_ID: d1e2-f3a4
+        TASK_DESCRIPTION: Implement incremental Jira sync in `plugins/dso/scripts/jira_sync.py`
+        that fetches updated tickets since last sync timestamp and applies field mappings.
+        IN_PROGRESS_TASKS: none
+        CLOSED_TASKS: none
+    assert:
+      - type: llm-rubric
+        value: >
+          The input has NO ESTIMATED_RUNTIME_RED or ESTIMATED_RUNTIME_GREEN fields —
+          this is a pre-epic output from a version of the writer that did not emit runtime
+          estimates. The evaluator MUST treat runtime as unknown and evaluate only the
+          stated REJECTION_REASON (requires_integration_env). The output MUST satisfy
+          ALL of the following:
+          (1) The verdict is NOT VERDICT:REVISE based on a runtime concern — since no
+          ESTIMATED_RUNTIME fields are present, the evaluator must not invent a
+          runtime-based revision rationale;
+          (2) The verdict correctly addresses the requires_integration_env rejection:
+          either VERDICT:REJECT (well-founded integration dependency with no feasible
+          mock) or VERDICT:CONFIRM with INFEASIBILITY_CATEGORY: infrastructure if the
+          Jira dependency genuinely cannot be mocked;
+          (3) The output does NOT mention runtime budget, ESTIMATED_RUNTIME, or
+          "seconds" as a reason for the verdict.
+          The output FAILS this rubric if:
+          - VERDICT:REVISE is issued with a runtime-based rationale when no
+            ESTIMATED_RUNTIME fields were present in the input;
+          - The verdict references runtime estimates that were not in the input.
