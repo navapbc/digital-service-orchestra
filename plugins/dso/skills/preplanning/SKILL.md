@@ -136,14 +136,15 @@ If `--lightweight` was passed:
      ```python
      import json, subprocess
      payload = json.dumps(<context-dict>, separators=(",",":"))
-     body = "PREPLANNING_CONTEXT: " + payload
+     body = "PREPLANNING_CONTEXT_LIGHTWEIGHT: " + payload
      result = subprocess.run(
          [".claude/scripts/dso", "ticket", "comment", "<epic-id>", body],
          check=False
      )
      if result.returncode != 0:
-         print("WARNING: Failed to write PREPLANNING_CONTEXT comment to epic ticket — continuing without cache write")
+         print("WARNING: Failed to write PREPLANNING_CONTEXT_LIGHTWEIGHT comment to epic ticket — continuing without cache write")
      ```
+   Note: Lightweight mode uses the `PREPLANNING_CONTEXT_LIGHTWEIGHT:` key to avoid overwriting a full `PREPLANNING_CONTEXT:` comment. Consumers (e.g., `/dso:implementation-plan`) read `PREPLANNING_CONTEXT:` by default and only fall back to `PREPLANNING_CONTEXT_LIGHTWEIGHT:` if no full context exists.
    - Return:
      ```json
      {
@@ -754,7 +755,7 @@ if result.returncode != 0:
     print("WARNING: Failed to write PREPLANNING_CONTEXT comment to epic ticket — continuing without cache write")
 ```
 
-> **Known limitation**: For extremely large epic contexts (unlikely in practice), the actual ARG_MAX constraint boundary is `ticket-comment.sh`, which passes the comment body as a shell argument to its internal `python3 -c` invocation. The Python subprocess call in this skill avoids ARG_MAX at the *outer* shell level, but a body >~500KB could still hit the kernel limit inside `ticket-comment.sh`. A proper fix would write the payload to a temp file and pass the path instead of the body directly. This is tracked as a separate fix (ticket eba1-f7c1). Typical epic contexts are 10–50KB and well within limits.
+> **Known limitation**: For extremely large epic contexts (unlikely in practice), the actual ARG_MAX constraint boundary is `ticket-comment.sh`, which passes the comment body as a shell argument to its internal `python3 -c` invocation. The Python subprocess call in this skill avoids ARG_MAX at the *outer* shell level, but a body >~500KB could still hit the kernel limit inside `ticket-comment.sh`. A proper fix would write the payload to a temp file and pass the path instead of the body directly. A proper fix would pass the body via a temp file instead of a shell argument. Typical epic contexts are 10–50KB and well within limits.
 
 Serialize the JSON payload to a single minified line (no whitespace between keys/values) and write it as a ticket comment. If `/dso:preplanning` runs again on the same epic, write a new comment — `/dso:implementation-plan` will use the last `PREPLANNING_CONTEXT:` comment in the array.
 
@@ -803,6 +804,8 @@ Serialize the JSON payload to a single minified line (no whitespace between keys
 - **`generatedAt`**: Current ISO-8601 timestamp for staleness detection
 
 Write the context as a ticket comment using `.claude/scripts/dso ticket comment`. If `/dso:preplanning` runs again on the same epic, write a new comment — `/dso:implementation-plan` uses the last `PREPLANNING_CONTEXT:` comment in the array.
+
+> **TTL note for consumers**: The `generatedAt` timestamp enables staleness detection. Consumers should treat `PREPLANNING_CONTEXT` comments older than 7 days as potentially stale — epic scope, story priorities, or dependency structures may have changed since generation. When consuming a stale context, re-invoke `/dso:preplanning` to refresh it rather than relying on outdated data.
 
 Log: `"Planning context written to epic ticket <epic-id> as PREPLANNING_CONTEXT comment"`
 

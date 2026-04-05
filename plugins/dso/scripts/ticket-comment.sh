@@ -61,9 +61,15 @@ env_id=$(cat "$TRACKER_DIR/.env-id")
 author=$(git config user.name 2>/dev/null || echo "Unknown")
 
 temp_event=$(mktemp "$TRACKER_DIR/.tmp-comment-XXXXXX")
+# Write body to temp file to avoid ARG_MAX limits on large payloads (e.g. PREPLANNING_CONTEXT)
+body_file=$(mktemp "$TRACKER_DIR/.tmp-body-XXXXXX")
+printf '%s' "$body" > "$body_file"
 
 python3 -c "
 import json, sys, time, uuid
+
+with open(sys.argv[3], 'r', encoding='utf-8') as bf:
+    body = bf.read()
 
 event = {
     'timestamp': time.time_ns(),
@@ -72,17 +78,18 @@ event = {
     'env_id': sys.argv[1],
     'author': sys.argv[2],
     'data': {
-        'body': sys.argv[3]
+        'body': body
     }
 }
 
 with open(sys.argv[4], 'w', encoding='utf-8') as f:
     json.dump(event, f, ensure_ascii=False)
-" "$env_id" "$author" "$body" "$temp_event" || {
-    rm -f "$temp_event"
+" "$env_id" "$author" "$body_file" "$temp_event" || {
+    rm -f "$temp_event" "$body_file"
     echo "Error: failed to build COMMENT event JSON" >&2
     exit 1
 }
+rm -f "$body_file"
 
 # ── Step 4: Write and commit via ticket-lib.sh ──────────────────────────────
 write_commit_event "$ticket_id" "$temp_event" || {

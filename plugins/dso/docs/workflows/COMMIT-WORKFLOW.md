@@ -316,6 +316,8 @@ bash "$(git rev-parse --show-toplevel)/plugins/dso/hooks/record-test-status.sh"
   Run the command shown on the `RUN:` line in subsequent calls until the summary appears, then re-run Step 3.5.
 - **exit non-zero (other)**: tests failed; fix the failures and **restart from Step 1**.
 
+> **NEVER add RED markers to `.test-index` to bypass a test gate failure.** RED markers (`[test_name]` entries in `.test-index`) are exclusively for TDD — they mark tests that are expected to fail because the feature under test is not yet implemented. If the test gate blocks due to pre-existing failures unrelated to your change, create a bug ticket (`.claude/scripts/dso ticket create bug "<test failure description>"`) and fix the test. Do NOT add a marker to mask the failure.
+
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3.5-record-test-status" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```

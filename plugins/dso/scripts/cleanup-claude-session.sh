@@ -126,19 +126,14 @@ gc_stale_state_files() {
 
     local stale_count=0
 
-    # Expand the glob; if nothing matches, return cleanly
+    # Expand the glob to find matching directories.
+    # Top-level match is intentional — get_artifacts_dir() creates /tmp/workflow-plugin-<hash>/
+    # at the top level only. Override GC_PLUGIN_GLOB for custom search paths.
     local dirs=()
-    while IFS= read -r -d '' dir; do
-        dirs+=("$dir")
-    done < <(find /tmp -maxdepth 2 -type d -name "workflow-plugin-*" -print0 2>/dev/null || true)
-
-    # If GC_PLUGIN_GLOB is set to a specific path, use it directly
-    if [[ -n "${GC_PLUGIN_GLOB:-}" ]]; then
-        dirs=()
-        if [[ -d "$GC_PLUGIN_GLOB" ]]; then
-            dirs=("$GC_PLUGIN_GLOB")
-        fi
-    fi
+    # shellcheck disable=SC2086
+    for d in $glob; do
+        [[ -d "$d" ]] && dirs+=("$d")
+    done
 
     if [[ ${#dirs[@]} -eq 0 ]]; then
         return 0
