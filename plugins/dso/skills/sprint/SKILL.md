@@ -129,6 +129,46 @@ Flow: P1 (Init) → Preplanning Gate
 3. Mark epic in-progress: `.claude/scripts/dso ticket transition <epic-id> in_progress`
 4. Mark the **Select and validate epic** todo item `completed`.
 
+### Drift Detection Check
+
+After validating the epic, check for codebase drift before proceeding to the Preplanning Gate.
+
+**Initialize the cascade counter** (if not already set from a prior phase — drift-triggered REPLAN_ESCALATE feeds into the same machinery as Phase 2):
+
+```
+replan_cycle_count = replan_cycle_count ?? 0
+max_replan_cycles = read_config("sprint.max_replan_cycles", default=2)
+```
+
+**Run the drift check:**
+
+```bash
+DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
+```
+
+**If `DRIFT_DETECTED`:**
+
+1. Parse the drifted file list from `DRIFT_RESULT` (everything after `DRIFT_DETECTED: `).
+2. Log: `"Codebase drift detected — files modified since task creation: <files>"`
+3. Record a REPLAN_TRIGGER comment on the epic:
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Files drifted: <files>. Re-invoking implementation-plan for affected stories."
+   ```
+4. Identify which stories' tasks reference any of the drifted files (inspect each child task's `## File Impact` or `## Files to Modify` section).
+5. For each affected story, emit a SKILL_INVOKE breadcrumb and re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as Phase 2 Step 2).
+   - **On success (`STATUS:complete`)**: continue.
+   - **On `STATUS:blocked`**: surface the story as blocked for user input (same handling as Phase 2 blocked-stories list).
+   - **On `REPLAN_ESCALATE: brainstorm EXPLANATION:<text>`**: add the story and its explanation to the **replan-stories list** and route through the existing d-replan-collect cascade machinery (Phase 2 step d-replan-collect). The `replan_cycle_count` / `max_replan_cycles` initialized above are shared with Phase 2 — do not reinitialize them.
+6. After all re-invocations complete (and no REPLAN_ESCALATE is outstanding), record:
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: implementation-plan — Drift re-planning complete for <N> stories."
+   ```
+7. Proceed to Preplanning Gate.
+
+**If `NO_DRIFT`:**
+
+Log: `"No codebase drift detected — proceeding to Preplanning Gate."` Continue normally.
+
 ### Context Efficiency Rules
 
 **Status checks**: Use `.claude/scripts/dso issue-summary.sh <id>` or `.claude/scripts/dso ticket list` for orchestrator status checks (is it done? what's blocking?). Reserve full `.claude/scripts/dso ticket show <id>` only when sub-agents need to read their complete task context.
