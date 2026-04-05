@@ -245,6 +245,7 @@ if [ "$ticket_type" = "bug" ]; then
     if [ "$_title_warning_enabled" = "true" ]; then
         if ! echo "$title" | grep -qE '^[^:]+: .+ -> .+$'; then
             echo "Warning: Bug title does not match recommended pattern: [Component]: [Condition] -> [Observed Result]" >&2
+            echo "  To fix: ticket edit $ticket_id --title=\"[Component]: [Condition] -> [Observed Result]\"" >&2
         fi
     fi
 
@@ -264,6 +265,8 @@ if [ "$ticket_type" = "bug" ]; then
         fi
         if [ -n "$_missing_headers" ]; then
             echo "Warning: Bug description missing recommended headers: $_missing_headers" >&2
+            echo "  To fix: ticket edit $ticket_id --description=\"...\"" >&2
+            echo "  See template: plugins/dso/skills/shared/prompts/bug-report-template.md" >&2
         fi
     fi
 
