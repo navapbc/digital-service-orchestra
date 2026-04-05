@@ -565,13 +565,12 @@ d-replan-collect. **Collect and handle all REPLAN_ESCALATE stories** — after t
      - **If user selects (a):** Enter the cascade replan per `plugins/dso/docs/designs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
        1. Emit SKILL_INVOKE breadcrumb for brainstorm, then invoke `/dso:brainstorm <epic-id>` via Skill tool
        2. Emit SKILL_RESUMED breadcrumb after brainstorm returns
-       3. Delete `/tmp/preplanning-context-<epic-id>.json` (invalidate stale preplanning cache before re-run)
-       4. Emit SKILL_INVOKE breadcrumb for preplanning, then invoke `/dso:preplanning <epic-id>` via Skill tool
-       5. Emit SKILL_RESUMED breadcrumb after preplanning returns
-       6. Increment `replan_cycle_count += 1`
-       7. Re-run Step 2 (implementation planning) for all stories in the epic — re-enter the layer loop from the beginning
-       8. If implementation-plan returns no `REPLAN_ESCALATE` for any story: cascade exits — proceed to step e normally (plan accepted)
-       9. If implementation-plan still emits `REPLAN_ESCALATE`: repeat from d-replan-collect (check cap first, then present to user)
+       3. Emit SKILL_INVOKE breadcrumb for preplanning, then invoke `/dso:preplanning <epic-id>` via Skill tool
+       4. Emit SKILL_RESUMED breadcrumb after preplanning returns
+       5. Increment `replan_cycle_count += 1`
+       6. Re-run Step 2 (implementation planning) for all stories in the epic — re-enter the layer loop from the beginning
+       7. If implementation-plan returns no `REPLAN_ESCALATE` for any story: cascade exits — proceed to step e normally (plan accepted)
+       8. If implementation-plan still emits `REPLAN_ESCALATE`: repeat from d-replan-collect (check cap first, then present to user)
 e. **Post-layer-batch ticket validation**:
    ```bash
    .claude/scripts/dso validate-issues.sh --quick --terse

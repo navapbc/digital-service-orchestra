@@ -45,6 +45,15 @@
         ]
       },
       {
+        "matcher": "EnterPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/pre-enterplanmode.sh"
+          }
+        ]
+      },
+      {
         "matcher": "ExitPlanMode",
         "hooks": [
           {
