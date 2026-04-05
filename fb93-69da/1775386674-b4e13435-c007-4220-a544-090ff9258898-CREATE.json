@@ -1,1 +1,0 @@
-{"timestamp": 1775386674, "uuid": "b4e13435-c007-4220-a544-090ff9258898", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"ticket_type": "bug", "title": "Version not bumped during sprint \u2014 merge-to-main skips version bump phase", "parent_id": "", "description": "", "tags": ["CLI_user"], "priority": 2, "assignee": "Main"}}
