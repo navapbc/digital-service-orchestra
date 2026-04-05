@@ -80,8 +80,8 @@ Validates review agent output against the expected schema.
 
 Prompt IDs:
   code-review-dispatch   Schema hash: ${HASH_CODE_REVIEW_DISPATCH}
-                         Validates: reviewer-findings.json (exactly 3 top-level
-                         keys, 5 score dimensions, findings with severity/category)
+                         Validates: reviewer-findings.json (3 required top-level
+                         keys + optional review_tier, 5 score dimensions, findings with severity/category)
 
   review-protocol        Schema hash: ${HASH_REVIEW_PROTOCOL}
                          Validates: REVIEW-SCHEMA.md JSON (subject, reviews[],
@@ -214,15 +214,22 @@ with open(output_file) as f:
 
 errors = []
 
-# Must have EXACTLY 3 top-level keys
+# Must have required top-level keys; review_tier is optional
 required_top = {"scores", "findings", "summary"}
+optional_top = {"review_tier"}
+allowed_top = required_top | optional_top
 actual_top = set(data.keys())
-extra = actual_top - required_top
+extra = actual_top - allowed_top
 missing = required_top - actual_top
 if extra:
-    errors.append(f"unexpected top-level keys: {sorted(extra)} (only 'scores', 'findings', 'summary' allowed)")
+    errors.append(f"unexpected top-level keys: {sorted(extra)} (only {sorted(allowed_top)} allowed)")
 if missing:
     errors.append(f"missing top-level keys: {sorted(missing)}")
+
+# Validate review_tier if present
+if "review_tier" in data:
+    if data["review_tier"] not in ("light", "standard", "deep"):
+        errors.append(f"'review_tier' must be one of: light, standard, deep (got '{data['review_tier']}')")
 
 # Validate scores
 scores = data.get("scores")
