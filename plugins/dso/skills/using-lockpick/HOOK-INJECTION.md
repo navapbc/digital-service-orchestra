@@ -31,6 +31,16 @@ Process skills first (`/dso:brainstorm`, `/dso:fix-bug` for bug fixes) — then 
 
 Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
 
+## Feature Intent Detection
+
+When a user message signals intent to build something new, invoke `/dso:brainstorm` before entering plan mode or selecting implementation skills.
+
+**Explicit signals**: "new feature", "create an epic", "I want to build", "add a capability".
+
+**Implicit signals**: proposals for significant new capabilities or architectural changes.
+
+**Action**: Detect signal → invoke `/dso:brainstorm` first. Do not jump to `/dso:sprint` or `/dso:implementation-plan` without brainstorming first.
+
 ## When No Skill Matches
 
 **Silent Investigation**: Before asking anything, read code, tickets (`.claude/scripts/dso ticket show`), git history, CLAUDE.md, and memory to gather context that already exists.

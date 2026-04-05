@@ -49,6 +49,21 @@ digraph skill_flow {
 }
 ```
 
+## Feature Intent Detection
+
+When a user message signals intent to build something new, invoke `/dso:brainstorm` **before** entering plan mode or selecting implementation skills.
+
+**Explicit signals** — phrases that directly state a new feature request:
+
+- "new feature" — e.g., "I want to add a new feature for notifications"
+- "create an epic" — e.g., "create an epic for user authentication"
+- "I want to build" — e.g., "I want to build a dashboard"
+- "add a capability" — e.g., "add a capability to export reports"
+
+**Implicit signals** — proposals for significant new capabilities or architectural changes, cross-cutting concerns affecting multiple systems, or requests that would introduce a new user-facing workflow.
+
+**Action**: When any explicit or implicit signal is detected, invoke `/dso:brainstorm` first. Do not jump directly to `/dso:sprint` or `/dso:implementation-plan`. Brainstorm validates feasibility and shapes the scope before planning begins.
+
 ## Red Flags
 
 These thoughts mean STOP—you're rationalizing:
