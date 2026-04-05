@@ -1100,8 +1100,18 @@ _phase_version_bump() {
         local _state_file; _state_file=$(_state_file_path) 2>/dev/null || true
         if [[ -n "$_state_file" && -f "$_state_file" ]] && [[ "$(python3 -c "import json;d=json.load(open('$_state_file'));print('y' if 'version_bump' in d.get('completed_phases',[]) else 'n')" 2>/dev/null)" == "y" ]]; then
             echo "INFO: version_bump already completed (resume skip)."; return 0; fi; fi
-    if [[ -z "${BUMP_TYPE:-}" ]]; then echo 'INFO: --bump not specified -- skipping version bump.'
-        _state_mark_complete "version_bump"; return 0; fi
+    if [[ -z "${BUMP_TYPE:-}" ]]; then
+        # Default to patch when version.file_path is configured (fb93-69da).
+        # This eliminates the fragile multi-hop --bump relay chain:
+        # sprint → end-session → merge-to-main.sh was losing --bump.
+        if [[ -n "${VERSION_FILE_PATH:-}" ]]; then
+            BUMP_TYPE="patch"
+            echo "INFO: --bump not specified — defaulting to patch (version.file_path configured)."
+        else
+            echo 'INFO: --bump not specified and version.file_path not configured -- skipping version bump.'
+            _state_mark_complete "version_bump"; return 0
+        fi
+    fi
     if [[ "${VERSION_FILE_PATH+SET}" == "SET" && -z "${VERSION_FILE_PATH:-}" ]]; then
         echo 'INFO: version.file_path not configured -- skipping version bump.'
         _state_mark_complete "version_bump"; return 0; fi

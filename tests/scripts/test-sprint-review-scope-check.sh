@@ -16,6 +16,11 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
+# Pin CWD to REPO_ROOT so subshells inherit a stable directory (fb93-69da / 7993-e05f).
+# suite-engine sets TMPDIR to a per-test dir that gets deleted after the test exits;
+# on CI Linux, bash resolves CWD from TMPDIR at startup, causing getcwd failures
+# when the test_tmpdir is removed.
+cd "$REPO_ROOT"
 SCRIPT="$REPO_ROOT/plugins/dso/scripts/sprint-review-scope-check.sh"
 
 source "$SCRIPT_DIR/../lib/assert.sh"
