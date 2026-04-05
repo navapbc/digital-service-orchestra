@@ -84,11 +84,11 @@ if [ -d "$TRACKER_DIR/.git" ] || [ -f "$TRACKER_DIR/.git" ]; then
             # Phase 1: orphan branch (no merge-base) — safe to force-reset.
             # Phase 2: related history — preserve local-ahead commits.
             if ! git -C "$TRACKER_DIR" merge-base tickets origin/tickets &>/dev/null; then
-                git -C "$TRACKER_DIR" reset --hard origin/tickets 2>/dev/null || true
+                git -C "$TRACKER_DIR" reset --hard origin/tickets >/dev/null 2>&1 || true
             else
                 _local_ahead=$(git -C "$TRACKER_DIR" log --oneline origin/tickets..tickets 2>/dev/null) || true
                 if [ -z "$_local_ahead" ]; then
-                    git -C "$TRACKER_DIR" reset --hard origin/tickets 2>/dev/null || true
+                    git -C "$TRACKER_DIR" reset --hard origin/tickets >/dev/null 2>&1 || true
                 fi
             fi
         fi
