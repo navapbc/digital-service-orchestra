@@ -1,1 +1,0 @@
-{"timestamp": 1775394671466854000, "uuid": "703dcdc3-7ef0-4574-9dae-d3049e161147", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Fixed: CLAUDE.md, system-landscape.md, and ADR-0002 updated for sprint gap detection. Committed in 79375a39."}}
