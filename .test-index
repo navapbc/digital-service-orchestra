@@ -82,6 +82,7 @@ plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-commit-tracker.sh
 plugins/dso/hooks/lib/red-zone.sh:tests/hooks/test-red-zone-bash-parser.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh,tests/hooks/test-compute-diff-hash-tickets-tracker.sh
 plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-mechanical-amend-bypass.sh
+plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-cleanliness.sh,tests/hooks/test-mechanical-amend-bypass.sh,tests/scripts/test-merge-to-main-version-bump.sh
 plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-pre-commit-review-gate.sh
 plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-pre-commit-test-gate.sh,tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-test-gate-fast-path.sh
 plugins/dso/hooks/pre-commit-ticket-gate.sh:tests/hooks/test-pre-commit-ticket-gate.sh

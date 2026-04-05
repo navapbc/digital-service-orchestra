@@ -420,4 +420,100 @@ rm -f "$_T7_STATE_FILE" 2>/dev/null || true
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
+# Test 8: test_version_bump_defaults_to_patch_when_version_file_configured
+# When BUMP_TYPE is EMPTY but VERSION_FILE_PATH is set (configured),
+# _phase_version_bump must default to patch and invoke bump-version.sh --patch.
+# This tests the fix for fb93-69da: version not bumped when --bump is not passed.
+# MUST FAIL (RED): current code skips when BUMP_TYPE is empty.
+# =============================================================================
+echo ""
+echo "--- test_version_bump_defaults_to_patch_when_version_file_configured ---"
+_snapshot_fail
+
+_setup_test_repo
+_T8_MOCK_DIR="$_TEST_BASE/mock-bin"
+_T8_CALL_LOG="$_TEST_BASE/bump-calls-default.txt"
+_setup_mock_bump_version "$_T8_MOCK_DIR" "$_T8_CALL_LOG"
+
+_PHASE_FN_BODY=$(_extract_fn "_phase_version_bump" 2>/dev/null || echo "")
+
+_T8_RC=0
+_T8_OUTPUT=$(
+    cd "$_WORK_DIR"
+    export PATH="$_T8_MOCK_DIR:$PATH"
+    # KEY: BUMP_TYPE is EMPTY (no --bump passed) but VERSION_FILE_PATH is set
+    export BUMP_TYPE=""
+    export VERSION_FILE_PATH="plugins/dso/.claude-plugin/plugin.json"
+    export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
+    export MAIN_REPO="$_WORK_DIR"
+    _state_init 2>/dev/null || true
+    if [[ -n "$_PHASE_FN_BODY" ]]; then
+        eval "$_PHASE_FN_BODY"
+        _phase_version_bump 2>&1
+    else
+        echo "FUNCTION_NOT_FOUND"
+        exit 1
+    fi
+) || _T8_RC=$?
+
+# Must have called mock with --patch (defaulted)
+if [[ -f "$_T8_CALL_LOG" ]]; then
+    _T8_CALL_ARGS=$(cat "$_T8_CALL_LOG")
+else
+    _T8_CALL_ARGS=""
+fi
+assert_contains "test_version_bump_defaults_to_patch" "--patch" "$_T8_CALL_ARGS"
+assert_eq "test_version_bump_default_exits_0" "0" "$_T8_RC"
+
+assert_pass_if_clean "test_version_bump_defaults_to_patch_when_version_file_configured"
+rm -rf "$_TEST_BASE"
+
+# =============================================================================
+# Test 9: test_version_bump_skips_when_no_bump_type_and_no_version_file
+# When BUMP_TYPE is EMPTY and VERSION_FILE_PATH is also EMPTY,
+# _phase_version_bump must skip (not default to patch).
+# =============================================================================
+echo ""
+echo "--- test_version_bump_skips_when_no_bump_type_and_no_version_file ---"
+_snapshot_fail
+
+_setup_test_repo
+_T9_MOCK_DIR="$_TEST_BASE/mock-bin"
+_T9_CALL_LOG="$_TEST_BASE/bump-calls-skip.txt"
+_setup_mock_bump_version "$_T9_MOCK_DIR" "$_T9_CALL_LOG"
+
+_PHASE_FN_BODY=$(_extract_fn "_phase_version_bump" 2>/dev/null || echo "")
+
+_T9_RC=0
+_T9_OUTPUT=$(
+    cd "$_WORK_DIR"
+    export PATH="$_T9_MOCK_DIR:$PATH"
+    export BUMP_TYPE=""
+    # KEY: VERSION_FILE_PATH also empty — no version config
+    unset VERSION_FILE_PATH
+    export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
+    export MAIN_REPO="$_WORK_DIR"
+    _state_init 2>/dev/null || true
+    if [[ -n "$_PHASE_FN_BODY" ]]; then
+        eval "$_PHASE_FN_BODY"
+        _phase_version_bump 2>&1
+    else
+        echo "FUNCTION_NOT_FOUND"
+        exit 1
+    fi
+) || _T9_RC=$?
+
+# Mock must NOT have been called
+if [[ -f "$_T9_CALL_LOG" ]]; then
+    _T9_CALLS=$(wc -l < "$_T9_CALL_LOG" | tr -d ' ')
+else
+    _T9_CALLS="0"
+fi
+assert_eq "test_version_bump_no_config_exits_0" "0" "$_T9_RC"
+assert_eq "test_version_bump_no_config_no_mock_call" "0" "$_T9_CALLS"
+
+assert_pass_if_clean "test_version_bump_skips_when_no_bump_type_and_no_version_file"
+rm -rf "$_TEST_BASE"
+
+# =============================================================================
 print_summary
