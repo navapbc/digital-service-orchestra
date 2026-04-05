@@ -1,1 +1,0 @@
-{"timestamp": 1775431235000539000, "uuid": "dbce1d98-c067-4c85-a16c-f456871193c9", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Classification: behavioral, Score: 4 (INTERMEDIATE). severity=1, complexity=1, environment=1, intermittent=1. Likely duplicate of 4a06-eee3."}}
