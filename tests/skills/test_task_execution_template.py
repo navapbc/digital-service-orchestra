@@ -237,6 +237,86 @@ class TestTaskExecutionProhibitedFixPatterns:
         )
 
 
+class TestConfidenceSignalInReportOutput:
+    """task-execution.md must include CONFIDENT/UNCERTAIN signal in the step 9 report output.
+
+    The confidence signal contract (plugins/dso/docs/contracts/confidence-signal.md) requires
+    implementation sub-agents to emit CONFIDENT or UNCERTAIN:<reason> in their final report
+    alongside STATUS:, FILES_MODIFIED:, etc. The instruction must appear in the report output
+    section (step 9), not just as a general instruction elsewhere in the template.
+    """
+
+    @staticmethod
+    def _get_report_section(content: str) -> str:
+        """Extract the step 9 report output section from the template.
+
+        The report output section starts at the line containing 'Report output:'
+        and ends at the next heading or numbered step.
+        """
+        lines = content.splitlines()
+        in_section = False
+        section_lines: list[str] = []
+        for line in lines:
+            if "Report output:" in line:
+                in_section = True
+                section_lines.append(line)
+                continue
+            if in_section:
+                # Stop at the next heading or next numbered step
+                stripped = line.strip()
+                if stripped.startswith("#") or (
+                    stripped and stripped[0].isdigit() and "." in stripped[:4]
+                ):
+                    break
+                section_lines.append(line)
+        return "\n".join(section_lines)
+
+    def test_confident_signal_present_in_report_output_section(self) -> None:
+        """The step 9 report output block must include the CONFIDENT signal."""
+        content = _read_template()
+        report_section = self._get_report_section(content)
+        assert report_section, (
+            "Could not find 'Report output:' section in task-execution.md"
+        )
+        assert "CONFIDENT" in report_section, (
+            "The step 9 report output section in task-execution.md must include 'CONFIDENT' "
+            "as a signal line. The sprint orchestrator parses this from the sub-agent output."
+        )
+
+    def test_uncertain_signal_present_in_report_output_section(self) -> None:
+        """The step 9 report output block must include the UNCERTAIN signal."""
+        content = _read_template()
+        report_section = self._get_report_section(content)
+        assert report_section, (
+            "Could not find 'Report output:' section in task-execution.md"
+        )
+        assert "UNCERTAIN:" in report_section, (
+            "The step 9 report output section in task-execution.md must include 'UNCERTAIN:' "
+            "as a signal line. The sprint orchestrator parses this from the sub-agent output."
+        )
+
+    def test_confidence_signal_not_only_elsewhere_in_file(self) -> None:
+        """The confidence signal must appear in the report output section, not just elsewhere.
+
+        This catches the case where someone adds confidence instructions in a general
+        section but forgets to add the actual signal lines to the report output block.
+        """
+        content = _read_template()
+        report_section = self._get_report_section(content)
+        assert report_section, (
+            "Could not find 'Report output:' section in task-execution.md"
+        )
+        # Both signals must be in the report section specifically
+        has_confident_in_report = "CONFIDENT" in report_section
+        has_uncertain_in_report = "UNCERTAIN:" in report_section
+        assert has_confident_in_report and has_uncertain_in_report, (
+            "Both CONFIDENT and UNCERTAIN: signals must appear in the step 9 report output "
+            "section of task-execution.md (not just in a general instruction section). "
+            f"CONFIDENT in report: {has_confident_in_report}, "
+            f"UNCERTAIN: in report: {has_uncertain_in_report}"
+        )
+
+
 class TestCLIUserTagProhibitionPropagation:
     """Highest-traffic prompt files must propagate the CLI_user tag prohibition.
 
