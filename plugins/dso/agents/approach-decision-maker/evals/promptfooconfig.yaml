@@ -1,0 +1,347 @@
+description: "approach-decision-maker agent evals — ADR-style proposal evaluation and approach selection"
+
+providers:
+  - id: "anthropic:messages:claude-sonnet-4-6-20260320"
+
+defaultTest:
+  options:
+    provider: "anthropic:messages:claude-haiku-4-5-20251001"
+
+prompts:
+  - |
+    You are the approach-decision-maker agent for a software development workflow tool.
+    Your sole purpose is to evaluate competing implementation proposals for a story or task,
+    select the best approach, or construct a counter-proposal when no submitted proposal is adequate.
+    You produce a structured ADR-style decision record.
+
+    You evaluate proposals on 5 dimensions: codebase alignment, blast radius, testability,
+    simplicity, and robustness (each scored 1-5). You also scan for anti-patterns: golden hammer,
+    premature abstraction, cargo cult, resume-driven development, premature optimization, and NIH.
+
+    You MUST output exactly one APPROACH_DECISION signal:
+
+    APPROACH_DECISION:
+    ```json
+    { ... }
+    ```
+
+    Mode A (selection): { "mode": "selection", "selected_proposal_index": N, "context": "...", "decision": "...", "consequences": "...", "rationale_summary": "..." }
+    Mode B (counter_proposal): { "mode": "counter_proposal", "proposal_title": "...", "approach": "...", "done_definitions": [...], "context": "...", "decision": "...", "consequences": "...", "rationale_summary": "..." }
+
+    The story and proposals are:
+    {{prompt}}
+
+tests:
+  - description: "Selects a non-naive approach over a naive grep-and-replace bash script for structured data parsing"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Story: "As a developer, I want to extract all ticket IDs from a YAML-formatted
+        ticket store so that the CLI can list all tickets without reading each file individually."
+
+        Success criteria:
+        - The CLI can enumerate all ticket IDs from the ticket store in under 200ms for stores up to 10,000 tickets.
+        - The extraction is correct even when ticket IDs appear in multi-line YAML values (e.g., in description fields referencing other tickets).
+
+        Proposals:
+
+        Proposal 0 — grep and sed pipeline:
+        "Pipe the ticket store through grep to find lines matching 'ticket_id:' and extract the value with sed."
+        Done definitions:
+        - Running `grep 'ticket_id:' tickets.yaml | sed 's/.*ticket_id: //'` returns all ticket IDs.
+
+        Proposal 1 — Python YAML parser:
+        "Parse the ticket YAML using Python's PyYAML library, traverse the document tree, and collect all top-level ticket_id fields."
+        Done definitions:
+        - A Python script parses the YAML document and returns exactly the set of top-level ticket IDs.
+        - Ticket IDs referenced within description text are not misidentified as top-level ticket entries.
+
+        Please evaluate these proposals and output your APPROACH_DECISION.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output evaluates both proposals and selects a non-naive approach — specifically,
+          it should NOT select Proposal 0 (the grep/sed pipeline) as the best approach.
+          The decision must:
+          (1) identify that Proposal 0 (grep/sed) is naive because it cannot distinguish
+          top-level ticket_id fields from ticket IDs appearing in YAML description values —
+          the success criterion explicitly requires correct handling of multi-line values,
+          (2) select Proposal 1 (Python YAML parser) or construct a counter-proposal — any
+          approach that performs structured YAML parsing rather than line-by-line text matching
+          qualifies as non-naive,
+          (3) emit exactly one APPROACH_DECISION signal in the canonical format with an
+          "APPROACH_DECISION:" prefix line followed by a JSON code block,
+          (4) include "mode": "selection" (if selecting proposal 1) or "mode": "counter_proposal"
+          (if constructing a new approach) — the mode field must be present and valid,
+          (5) the rationale or context field must reference at least one of the 5 evaluation
+          dimensions (codebase alignment, blast radius, testability, simplicity, robustness)
+          — dimension names may be implicit but the relevant quality attribute must be discussed.
+
+  - description: "Rationale references at least 2 of the 5 evaluation dimensions"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Story: "As a developer, I want the pre-commit hook to check for hardcoded
+        localhost URLs in staged Python files so that staging/production configs are
+        not accidentally committed."
+
+        Success criteria:
+        - The hook scans only staged Python files (not all tracked files).
+        - The hook exits non-zero and prints the file and line number for any match.
+        - The hook completes in under 2 seconds for repositories with up to 500 staged files.
+
+        Proposals:
+
+        Proposal 0 — Full-repo grep in hook:
+        "In the pre-commit hook, run `grep -rn 'localhost' .` across the entire repository and
+        fail if any Python file matches. Cache the result in /tmp to speed up subsequent runs."
+        Done definitions:
+        - Running the hook finds any hardcoded localhost URL in any Python file in the repo.
+
+        Proposal 1 — git diff --cached + targeted grep:
+        "Use `git diff --cached --name-only --diff-filter=ACM` to get the list of staged files,
+        filter for .py extension, then run grep only on those files."
+        Done definitions:
+        - The hook only inspects files currently staged (not all tracked files).
+        - The hook exits 1 and prints file:line for each match found.
+        - The hook completes in under 2 seconds because it reads only staged files.
+
+        Please evaluate these proposals and output your APPROACH_DECISION.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output evaluates both proposals and selects a non-naive approach (Proposal 1
+          or a counter-proposal). Critically, the rationale must reference at least 2 of
+          the 5 evaluation dimensions explicitly by name or by their defining quality
+          attribute. The 5 dimensions are: codebase alignment, blast radius, testability,
+          simplicity, robustness. Meeting this criterion requires:
+          (1) the output references at least 2 distinct evaluation dimensions — e.g.,
+          "blast radius" (Proposal 0 scans the entire repo; Proposal 1 is scoped to staged files),
+          "correctness/robustness" (Proposal 0 violates the success criterion requiring only staged
+          files to be scanned), "testability" (Proposal 1's behavior is directly verifiable per
+          done definition), or "simplicity" (Proposal 1 avoids caching complexity),
+          (2) the dimension references appear in the context, decision, consequences, or
+          rationale_summary fields of the APPROACH_DECISION JSON — not merely in a preamble
+          that is separate from the signal output,
+          (3) the output emits exactly one APPROACH_DECISION signal with all required fields
+          present and non-empty (mode, context, decision, consequences, rationale_summary for
+          selection mode; plus proposal_title, approach, done_definitions for counter_proposal mode),
+          (4) the selected approach or counter-proposal satisfies all 3 success criteria —
+          staged-file scope, non-zero exit with file:line output, and sub-2-second completion.
+
+  - description: "Anti-pattern detection: flags golden hammer when Redis is proposed for a simple single-process cache"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Story: "As a developer, I want the ticket CLI to cache the parsed ticket index
+        in memory so that repeated `dso ticket list` calls within the same shell session
+        are faster."
+
+        Success criteria:
+        - Repeated calls to `dso ticket list` within the same shell session return in under
+          50ms after the first call (which may take up to 500ms for initial parse).
+        - The cache is invalidated automatically when the ticket store file is modified.
+        - No new infrastructure dependencies are introduced.
+
+        Proposals:
+
+        Proposal 0 — Redis-backed distributed cache:
+        "Add a Redis client dependency. On first call, parse the ticket index and store it
+        in Redis with a 5-minute TTL. Subsequent calls read from Redis. Use Redis keyspace
+        notifications for invalidation."
+        Done definitions:
+        - The CLI connects to a local Redis instance to cache parsed ticket data.
+        - Redis TTL of 5 minutes provides eventual invalidation.
+
+        Proposal 1 — In-process Python dict with mtime check:
+        "Store the parsed ticket index in a module-level Python dict. On each call, check
+        the mtime of the ticket store file; if unchanged, return the cached dict. If changed,
+        re-parse and update the cache."
+        Done definitions:
+        - A module-level dict stores the parsed ticket index after first parse.
+        - Mtime comparison detects file modifications and triggers re-parse.
+        - No new dependencies are added.
+
+        Please evaluate these proposals and output your APPROACH_DECISION.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output detects and flags the golden hammer anti-pattern in Proposal 0,
+          then selects the simpler non-naive approach (Proposal 1 or a counter-proposal).
+          The evaluation must:
+          (1) identify that Proposal 0 applies Redis — a distributed cache infrastructure —
+          to a problem that requires only single-process, single-session in-memory caching,
+          which is a golden hammer anti-pattern (applying a heavy tool regardless of fit),
+          (2) note that Proposal 0 violates the "no new infrastructure dependencies" success
+          criterion — Redis is an infrastructure dependency,
+          (3) select Proposal 1 (in-process dict with mtime check) or construct a
+          counter-proposal that does not require Redis or other external dependencies,
+          (4) include anti-pattern detection in the decision output — either as a named flag
+          ("golden hammer"), in the context or decision field explaining why Redis is
+          disproportionate, or in the consequences field noting the architectural mismatch,
+          (5) emit exactly one valid APPROACH_DECISION signal — the mode must be "selection"
+          (index 1) or "counter_proposal", and all required fields must be non-empty.
+
+  - description: "Anti-pattern detection: flags premature abstraction when a plugin registry is proposed for a one-time feature"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Story: "As a developer, I want the ticket CLI to support exporting tickets to
+        CSV format so that I can import them into a spreadsheet."
+
+        Success criteria:
+        - `dso ticket export --format csv` writes all ticket fields to stdout in CSV format.
+        - The CSV includes headers (ticket_id, title, status, priority, created_at).
+        - No other export formats are required now or planned.
+
+        Proposals:
+
+        Proposal 0 — Generic exporter plugin registry:
+        "Introduce an ExporterRegistry class with a register(format, exporter_fn) method.
+        Create a CsvExporter class implementing an Exporter ABC with an export(tickets) method.
+        Register CsvExporter at startup. Future exporters (JSON, XML, Jira) can be registered
+        without modifying the CLI core."
+        Done definitions:
+        - An ExporterRegistry class exists with register() and get() methods.
+        - A CsvExporter class implementing Exporter ABC is registered at startup.
+        - `dso ticket export --format csv` delegates to the registered CsvExporter.
+
+        Proposal 1 — Direct CSV write function:
+        "Add a single `export_csv(tickets)` function in the CLI that writes the required
+        fields to stdout using Python's csv module. Wire `dso ticket export --format csv`
+        to call this function."
+        Done definitions:
+        - A `export_csv(tickets)` function writes ticket data to stdout in CSV format with headers.
+        - `dso ticket export --format csv` calls export_csv and exits 0.
+
+        Please evaluate these proposals and output your APPROACH_DECISION.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output detects the premature abstraction anti-pattern in Proposal 0 and
+          selects the simpler direct implementation (Proposal 1 or a counter-proposal).
+          The evaluation must:
+          (1) identify that Proposal 0 introduces a plugin registry, abstract base class,
+          and registration machinery for a single use case with no stated second use case —
+          this is premature abstraction (generic interfaces before a second use case exists),
+          (2) note that the success criteria explicitly state "no other export formats are
+          required now or planned" — which makes the extensibility machinery in Proposal 0
+          unjustified at this time,
+          (3) select Proposal 1 (direct CSV function) or construct a counter-proposal that
+          avoids the registry/ABC indirection,
+          (4) include the anti-pattern flag in the decision reasoning — the output must
+          explain why the abstraction is premature, not merely state a preference for
+          Proposal 1 without rationale,
+          (5) emit exactly one valid APPROACH_DECISION signal with mode "selection" (index 1)
+          or "counter_proposal", and all required fields non-empty.
+
+  - description: "Counter-proposal mode: emits Mode B when all submitted proposals fail success criteria"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Story: "As a developer, I want the pre-commit hook to verify that all modified
+        Python files pass mypy type checking before committing."
+
+        Epic success criterion (non-negotiable):
+        - The hook must not require any per-developer mypy configuration — it must use
+          the project's shared mypy.ini and fail if mypy.ini is absent.
+
+        Success criteria:
+        - Running `mypy --config-file mypy.ini <staged-files>` exits 0 before the commit proceeds.
+        - If mypy.ini is absent, the hook exits 1 with a clear error message.
+        - Only staged Python files are type-checked (not the entire repo).
+
+        Proposals:
+
+        Proposal 0 — mypy with inline config flags:
+        "Run mypy with inline flags: `mypy --strict --ignore-missing-imports <staged-files>`.
+        This avoids the need for mypy.ini."
+        Done definitions:
+        - Running `mypy --strict --ignore-missing-imports <staged-files>` exits 0 before commit.
+
+        Proposal 1 — mypy with auto-discovered config:
+        "Run `mypy <staged-files>` without specifying a config file. mypy's auto-discovery
+        will find mypy.ini if present."
+        Done definitions:
+        - Running `mypy <staged-files>` exits 0 before commit (mypy auto-discovers mypy.ini).
+
+        Please evaluate these proposals and output your APPROACH_DECISION.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output rejects all submitted proposals because they violate the non-negotiable
+          epic success criterion, and emits a Mode B (counter_proposal) APPROACH_DECISION.
+          The evaluation must:
+          (1) disqualify Proposal 0 because it explicitly bypasses mypy.ini with inline flags
+          ("--strict --ignore-missing-imports"), directly violating the epic criterion that
+          the hook must use the project's shared mypy.ini,
+          (2) disqualify Proposal 1 because auto-discovery does not guarantee mypy.ini is
+          used — if mypy.ini is absent, mypy silently falls back to defaults rather than
+          failing with a clear error message as required by the success criteria,
+          (3) emit a APPROACH_DECISION with "mode": "counter_proposal" (not "selection") —
+          both submitted proposals fail at least one success criterion or the epic criterion,
+          so a counter-proposal is required,
+          (4) the counter-proposal must include an approach that: explicitly passes
+          "--config-file mypy.ini" to mypy, checks for the presence of mypy.ini before
+          running mypy and exits 1 with a message if absent, and runs mypy only on staged
+          Python files,
+          (5) the done_definitions array in the counter-proposal must be non-empty and
+          collectively satisfy all 3 success criteria plus the epic criterion.
+
+  - description: "Epic criterion disqualification: rejects proposal violating non-negotiable constraint"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Story: "As a developer, I want the ticket export command to write output atomically
+        so that interrupted exports do not leave partial files."
+
+        Epic success criterion (non-negotiable, from closed arch decision):
+        - All file writes in the CLI must use atomic write patterns (write to temp file,
+          then rename). Direct writes to the final path are prohibited.
+
+        Success criteria:
+        - `dso ticket export --format csv --output report.csv` writes a complete, valid CSV
+          to report.csv or leaves the existing file unchanged on error.
+        - The export command exits 0 on success and non-zero on any write failure.
+
+        Proposals:
+
+        Proposal 0 — Direct file write with try/except:
+        "Open report.csv directly for writing. Wrap the write in try/except; if an exception
+        occurs, delete the partial file and exit non-zero."
+        Done definitions:
+        - Writing to report.csv uses `open('report.csv', 'w')` with exception handling.
+        - Partial files are deleted on exception.
+
+        Proposal 1 — Atomic write via temp file + rename:
+        "Write to a temporary file in the same directory (using tempfile.NamedTemporaryFile),
+        then use os.replace() to atomically rename it to report.csv on success."
+        Done definitions:
+        - The export writes to a temp file first, then renames to report.csv on success.
+        - On any write failure, the temp file is cleaned up and report.csv is not modified.
+
+        Please evaluate these proposals and output your APPROACH_DECISION.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output enforces the epic success criterion and disqualifies Proposal 0 for
+          violating it, then selects Proposal 1 (or emits a counter-proposal conforming to
+          the atomic write requirement). The evaluation must:
+          (1) identify that Proposal 0 uses a direct write pattern (`open('report.csv', 'w')`)
+          which is explicitly prohibited by the non-negotiable epic criterion requiring
+          atomic write patterns (write to temp file, then rename),
+          (2) disqualify Proposal 0 despite its exception handling — the direct-write
+          anti-pattern violates the epic criterion regardless of try/except wrappers,
+          (3) select Proposal 1 (atomic write via temp file + os.replace()) as the approach
+          that satisfies both the epic criterion and the story success criteria,
+          (4) reference the epic success criterion in the context or decision field —
+          the evaluation must make clear this is a non-negotiable constraint, not merely
+          a preference,
+          (5) emit exactly one valid APPROACH_DECISION signal with "mode": "selection"
+          (index 1) or "counter_proposal", and all required fields non-empty.
