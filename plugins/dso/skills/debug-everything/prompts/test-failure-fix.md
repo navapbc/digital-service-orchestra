@@ -78,7 +78,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
    # Show only the tail -- full output is in $_RESULT
    tail -5 "$_RESULT"
    ```
-   - If `TEST_EXIT != 0`: revert any source code changes that broke tests (`git checkout -- <files>`) — do NOT revert `.test-index` (marker edits are intentional metadata changes), then report FAIL below.
+   - If `TEST_EXIT != 0`: revert any source code changes that broke tests (`git checkout -- <files>`) — do NOT revert `.test-index` entries that YOU added as part of a RED test in this session (those are intentional TDD metadata). Do NOT add RED markers to `.test-index` to mask pre-existing failures — RED markers are exclusively for TDD (tests expected to fail because the feature under test is not yet implemented). If the test gate blocks due to pre-existing failures, create a bug ticket instead.
 7. **Your final response MUST contain ONLY the structured report below.** See Output Format section.
 
 ---
@@ -92,7 +92,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
 2ma. **Research if stuck** -- if the fix isn't obvious after reading the code and multiple approaches are plausible, consult `${CLAUDE_PLUGIN_ROOT}/docs/RESEARCH-PATTERN.md` before guessing. Use `WebSearch` inline (max 3 searches, max 2 fetches) only for external knowledge gaps. Skip if the answer is visible in the codebase.
 3m. Implement the minimal fix -- change ONLY what is necessary
 4m. Run full validation -- same as TDD path Step 6 above (capture to disk, show tail only)
-   - If `TEST_EXIT != 0`: revert source code changes that broke tests — do NOT revert `.test-index`, then report FAIL below.
+   - If `TEST_EXIT != 0`: revert source code changes that broke tests — do NOT revert `.test-index` entries you added as part of TDD, then report FAIL below. Do NOT add RED markers to mask pre-existing failures.
 5m. **Your final response MUST contain ONLY the structured report below.** See Output Format section.
 
 ---
@@ -149,3 +149,4 @@ If the above section is populated, respect these boundaries:
 | Guessing at fixes | Introduces new bugs | Read code, trace data flow |
 | Fixing multiple things at once | Can't isolate what worked | One logical fix, then verify |
 | Scope creep ("while I'm here...") | Unrelated changes risk regressions | Note it for a separate issue |
+| Adding RED markers to `.test-index` for pre-existing failures | RED markers are for TDD only — masking failures bypasses the test gate contract | Fix the failing test, or create a bug ticket for it |
