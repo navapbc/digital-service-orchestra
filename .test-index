@@ -76,7 +76,7 @@ plugins/dso/scripts/issue-batch.sh:tests/scripts/test-utility-scripts-v2-removal
 plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test_issue_quality_check_file_impact.py
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh
 plugins/dso/scripts/project-detect.sh:tests/scripts/test-ci-generator-integration.sh,tests/scripts/test-project-detect.sh
-plugins/dso/scripts/ticket:tests/scripts/test-ticket-sync-preserves-local.sh
+plugins/dso/scripts/ticket:tests/scripts/test-ticket-sync-preserves-local.sh,tests/scripts/test-ticket-sync-orphan-reset.sh
 plugins/dso/scripts/ticket-bridge-status.sh:tests/scripts/test_bridge_status.py
 plugins/dso/scripts/ticket-graph.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket-lib.sh:tests/scripts/test_revert_event.py,tests/scripts/test-ticket-lib.sh,tests/scripts/test-ticket-health-guards.sh
@@ -205,7 +205,7 @@ plugins/dso/scripts/skip-review-check.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/claude-safe:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/retro-gather.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/sprint-next-batch.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/scripts/test-sprint-next-batch.sh,tests/scripts/test_sprint_next_batch_extra_dir_roots.py
-plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh
+plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh,tests/scripts/test-ticket-sync-orphan-reset.sh
 plugins/dso/skills/sprint/prompts/epic-validation-review.md:tests/scripts/test-v2-skills-cleanup.sh
 plugins/dso/scripts/purge-non-project-tickets.sh:tests/scripts/test-purge-non-project-tickets.sh
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-bash-runner-discovery.sh
@@ -264,7 +264,7 @@ tests/scripts/test-merge-recovery-integration.sh:tests/scripts/test-merge-recove
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py
 
-plugins/dso/scripts/ticket-lifecycle.sh:tests/scripts/test-ticket-lifecycle-sync-preserves-local.sh
+plugins/dso/scripts/ticket-lifecycle.sh:tests/scripts/test-ticket-lifecycle-sync-preserves-local.sh,tests/scripts/test-ticket-sync-orphan-reset.sh
 plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-ticket-lifecycle-sync-preserves-local.sh
 plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/scripts/test-sub-agent-boundaries-cli-user-tag.sh
 CLAUDE.md:tests/scripts/test-claude-md-cli-user-guidance.sh
