@@ -153,7 +153,7 @@ Before proceeding to Epic Type Detection, check whether the story/epic already h
 .claude/scripts/dso ticket deps <story-id> --include-archived
 ```
 
-This returns a JSON object with shape `{"ticket_id": "<story-or-epic-id>", "children": ["id1","id2",...], "deps": [...], "blockers": [...], "ready_to_work": bool}` — not a flat list of IDs. Parse the `children` field to get all child ticket IDs (including archived ones):
+This returns a JSON object with shape `{"ticket_id": "<story-or-epic-id>", "children": ["id1","id2",...], "deps": [...], "blockers": [...], "ready_to_work": bool}` — not a flat list of IDs. Parse ONLY the `children` field to get direct child ticket IDs (including archived ones). Do NOT use the `deps` or `blockers` fields for this guard — they contain cross-story relationships (siblings, peers) that are not children and would cause false short-circuits:
 
 ```bash
 CHILDREN=$(.claude/scripts/dso ticket deps <story-id> --include-archived | python3 -c 'import json,sys; print(",".join(json.load(sys.stdin)["children"]))')
@@ -164,7 +164,7 @@ CHILDREN=$(.claude/scripts/dso ticket deps <story-id> --include-archived | pytho
 For each child ID in the `children` list, run `.claude/scripts/dso ticket show <child-id>` and classify by status:
 
 - **closed or archived** (`status=closed` OR `archived=true`): read-only — never modify, reopen, or duplicate; log as skipped
-- **in-progress** (`status=in_progress`): flagged for review — include in the diff plan output with a WARNING note
+- **in-progress** (`status=in_progress`): **hard hold** — an active sub-agent may be working on this task. Do NOT produce a diff plan that modifies in-progress children. If any in-progress children exist, emit `STATUS:blocked REASON:in_progress_children_detected TASKS:<in-progress-ids>` and stop. The sprint orchestrator should retry after those tasks complete
 - **open** (`status=open`): candidate for revision — may be updated or left as-is
 
 Log a summary line:

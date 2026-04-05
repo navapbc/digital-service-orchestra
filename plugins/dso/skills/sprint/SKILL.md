@@ -1055,6 +1055,8 @@ cd $REPO_ROOT/app && make test-visual 2>&1
 
 Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in this conversation, use the version in context. Produces a review state file at `$(get_artifacts_dir)/review-status`.
 
+**Do NOT dispatch any `dso:code-reviewer-*` agent directly.** You MUST execute REVIEW-WORKFLOW.md Step 3 first to obtain `REVIEW_TIER` and `REVIEW_AGENT` from the complexity classifier before dispatching. Hardcoding `dso:code-reviewer-light` or any other tier is prohibited — the classifier determines the tier based on diff characteristics.
+
 **Snapshot exclusion**: Exclude snapshot baselines from review diffs:
 ```bash
 ".claude/scripts/dso capture-review-diff.sh" "$DIFF_FILE" "$STAT_FILE" \
@@ -1123,7 +1125,7 @@ After `git push -u origin HEAD` and blackboard cleanup are done, proceed to **St
 
 After the batch commit and `git push -u origin HEAD` succeed, close each task whose code was successfully committed:
 
-**MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the story ID (CLAUDE.md rule #26 — no inline verification substitute).
+**MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the story ID (CLAUDE.md rule #24 — no inline verification substitute).
 - `overall_verdict: PASS` → proceed with closure
 - `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3 (Batch Preparation)
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
@@ -1302,7 +1304,7 @@ On `FAIL` after attempt 2: create a P1 bug issue for each failing test, set as c
 
 ### Step 0.75: Completion Verification (/dso:sprint)
 
-**MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the epic ID (CLAUDE.md rule #26).
+**MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the epic ID (CLAUDE.md rule #24).
 - `overall_verdict: PASS` → proceed to Step 1
 - `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3 (Batch Preparation)
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 1.
@@ -1473,7 +1475,7 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
 2. Wait for any running sub-agents to complete
 3. Run final validation:
    ```bash
-   cd $(git rev-parse --show-toplevel)/app && make test-unit-only
+   .claude/scripts/dso validate.sh --ci
    ```
 4. Update ALL in-progress tasks with checkpoint-format progress notes:
    ```bash
@@ -1484,7 +1486,7 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
    - Tasks completed this session
    - Tasks remaining (with IDs and titles)
    - Resume command: `/dso:sprint <epic-id> --resume`
-6. Invoke `/dso:end-session`
+6. Invoke `/dso:end-session --bump minor` if the epic reached Phase 6 completion-verifier PASS this session; otherwise invoke `/dso:end-session` without `--bump` (incomplete sprint does not earn a version bump)
 
 ---
 

@@ -136,14 +136,15 @@ If `--lightweight` was passed:
      ```python
      import json, subprocess
      payload = json.dumps(<context-dict>, separators=(",",":"))
-     body = "PREPLANNING_CONTEXT: " + payload
+     body = "PREPLANNING_CONTEXT_LIGHTWEIGHT: " + payload
      result = subprocess.run(
          [".claude/scripts/dso", "ticket", "comment", "<epic-id>", body],
          check=False
      )
      if result.returncode != 0:
-         print("WARNING: Failed to write PREPLANNING_CONTEXT comment to epic ticket — continuing without cache write")
+         print("WARNING: Failed to write PREPLANNING_CONTEXT_LIGHTWEIGHT comment to epic ticket — continuing without cache write")
      ```
+   Note: Lightweight mode uses the `PREPLANNING_CONTEXT_LIGHTWEIGHT:` key to avoid overwriting a full `PREPLANNING_CONTEXT:` comment. Consumers (e.g., `/dso:implementation-plan`) read `PREPLANNING_CONTEXT:` by default and only fall back to `PREPLANNING_CONTEXT_LIGHTWEIGHT:` if no full context exists.
    - Return:
      ```json
      {
