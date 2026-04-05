@@ -179,7 +179,7 @@ plugins/dso/agents/code-reviewer-deep-arch.md:tests/agents/test-reviewer-dimensi
 plugins/dso/agents/code-reviewer-deep-correctness.md:tests/agents/test-reviewer-dimension-names.sh
 plugins/dso/agents/code-reviewer-deep-hygiene.md:tests/agents/test-reviewer-dimension-names.sh
 plugins/dso/agents/code-reviewer-deep-verification.md:tests/agents/test-reviewer-dimension-names.sh
-plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-cleanliness.sh,tests/hooks/test-mechanical-amend-bypass.sh
+plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-cleanliness.sh,tests/hooks/test-mechanical-amend-bypass.sh,tests/scripts/test-merge-to-main-version-bump.sh
 plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-pre-commit-review-gate.sh
 plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-pre-commit-test-gate.sh,tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-test-gate-fast-path.sh
 plugins/dso/scripts/pre-commit-wrapper.sh:tests/hooks/test-test-gate-fast-path.sh
