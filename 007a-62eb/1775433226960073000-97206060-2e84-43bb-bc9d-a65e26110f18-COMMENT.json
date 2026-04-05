@@ -1,0 +1,1 @@
+{"timestamp": 1775433226960073000, "uuid": "97206060-2e84-43bb-bc9d-a65e26110f18", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Classification: llm-behavioral. Ticket references orchestrator behavior (halts after review) AND affected file is skills/sprint/SKILL.md. Dual-signal detected."}}
