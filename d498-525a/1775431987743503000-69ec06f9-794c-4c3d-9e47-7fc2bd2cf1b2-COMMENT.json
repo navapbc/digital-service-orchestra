@@ -1,0 +1,1 @@
+{"timestamp": 1775431987743503000, "uuid": "69ec06f9-794c-4c3d-9e47-7fc2bd2cf1b2", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "CHECKPOINT 5/6: Validation passed \u2713 \u2014 test-model-id-lint.sh shows as TOLERATED (2 pass, 4 red-zone) in script test suite run; RED zone tolerance working correctly"}}
