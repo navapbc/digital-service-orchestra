@@ -75,8 +75,6 @@ plugins/dso/hooks/cascade-circuit-breaker.sh:tests/hooks/test-cascade-breaker.sh
 plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-tickets-tracker.sh,tests/hooks/test-compute-diff-hash.sh
 plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
-plugins/dso/hooks/dispatchers/pre-enterplanmode.sh:tests/hooks/test-brainstorm-gate-hook.sh [test_brainstorm_gate_dispatcher_allows_with_sentinel]
-plugins/dso/hooks/dispatchers/pre-enterplanmode.sh:tests/hooks/test-brainstorm-gate-hook.sh [test_brainstorm_gate_dispatcher_blocks_without_sentinel]
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
 plugins/dso/hooks/fix-bug-skill-directive.sh:tests/hooks/test-fix-bug-skill-directive.sh
 plugins/dso/hooks/lib/merge-state.sh:tests/hooks/test-merge-state.sh,tests/hooks/test-merge-state-golden-path.sh
@@ -84,10 +82,6 @@ plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-commit-tracker.sh
 plugins/dso/hooks/lib/red-zone.sh:tests/hooks/test-red-zone-bash-parser.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh,tests/hooks/test-compute-diff-hash-tickets-tracker.sh
 plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-mechanical-amend-bypass.sh
-plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-brainstorm-gate-hook.sh [test_brainstorm_gate_config_disabled_allows]
-plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-brainstorm-gate-hook.sh [test_brainstorm_gate_non_enterplanmode_passthrough]
-plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-brainstorm-gate-hook.sh [test_brainstorm_gate_sentinel_absent_blocks]
-plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-brainstorm-gate-hook.sh [test_brainstorm_gate_sentinel_present_allows]
 plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-pre-commit-review-gate.sh
 plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-pre-commit-test-gate.sh,tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-test-gate-fast-path.sh
 plugins/dso/hooks/pre-commit-ticket-gate.sh:tests/hooks/test-pre-commit-ticket-gate.sh

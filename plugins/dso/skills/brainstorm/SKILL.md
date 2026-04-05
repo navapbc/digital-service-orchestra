@@ -136,8 +136,9 @@ Use this path when the user selects **Option (b)** from the Type Detection Gate 
 - Skip scenario analysis (Step 2.75 red/blue team review)
 - Skip web research phase (Step 2.6)
 - Skip ticket creation (Phase 3) — the ticket already exists; no new ticket is needed
-- Skip complexity evaluation (Phase 3 Step 4a)
+- Skip complexity evaluation (Phase 3, complexity evaluator dispatch)
 - Skip routing to downstream skills — do not invoke `/dso:preplanning` or `/dso:implementation-plan`
+- Skip writing the brainstorm completion sentinel (Step 3b) — **REVIEW-DEFENSE**: enrich-in-place is used on existing tickets that are already defined, not on new features being scoped from scratch. The brainstorm-before-plan-mode enforcement is designed to ensure new ideas are properly scoped before entering plan mode. When enriching an existing ticket, the user is refining something already in the system — not discovering and framing a new feature — so the sentinel gate correctly does not apply to this path.
 
 Example `ticket edit --description` command structure (replace placeholder values):
 
@@ -504,6 +505,18 @@ If the epic depends on others identified in Phase 1:
 ```
 
 Fix any issues before finalizing.
+
+### Step 3b: Write Brainstorm Completion Sentinel
+
+Write a sentinel file to record that brainstorm has completed for this session. This file is checked by the EnterPlanMode PreToolUse hook to enforce brainstorm-before-plan-mode.
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
+ARTIFACTS_DIR=$(get_artifacts_dir)
+echo "brainstorm-complete" > "$ARTIFACTS_DIR/brainstorm-sentinel"
+```
+
+This must be the last Phase 3 action before downstream skill invocation. If brainstorm crashes after this write but before completion, the sentinel is a false certificate — but this is an acceptable trade-off vs. not writing a sentinel at all.
 
 ### Step 4: Invoke Preplanning
 

@@ -7,8 +7,7 @@
 # blocks EnterPlanMode if no brainstorm sentinel has been recorded for this
 # session (i.e., /dso:brainstorm has not been run for the current epic).
 #
-# These tests MUST FAIL (RED) because hook_brainstorm_gate and
-# pre-enterplanmode.sh do not yet exist.
+# Tests verify block/allow behavior of the brainstorm enforcement gate.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -51,30 +50,28 @@ run_dispatcher() {
 # test_brainstorm_gate_sentinel_absent_blocks
 # No sentinel file → hook_brainstorm_gate must return exit 2 (block)
 # ---------------------------------------------------------------------------
-SESSION_ID="test-session-no-sentinel-$$"
-SENTINEL_FILE="$ARTIFACTS_DIR/brainstorm-sentinel-${SESSION_ID}"
 # Ensure no leftover sentinel from prior runs
-rm -f "$SENTINEL_FILE"
+rm -f "$ARTIFACTS_DIR/brainstorm-sentinel"
 
-INPUT_NO_SENTINEL="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"${SESSION_ID}\"}"
+INPUT_NO_SENTINEL="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"test-session-no-sentinel-$$\"}"
 EXIT_CODE=$(run_hook_fn "$INPUT_NO_SENTINEL")
 assert_eq "test_brainstorm_gate_sentinel_absent_blocks" "2" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
 # test_brainstorm_gate_sentinel_present_allows
-# Sentinel file exists for the session → hook must return exit 0 (allow)
+# Sentinel file exists → hook must return exit 0 (allow)
+# (session-scoping comes from get_artifacts_dir() which is unique per repo;
+# session ID is not part of the sentinel filename)
 # ---------------------------------------------------------------------------
-SESSION_ID_WITH="test-session-with-sentinel-$$"
-SENTINEL_FILE_WITH="$ARTIFACTS_DIR/brainstorm-sentinel-${SESSION_ID_WITH}"
 mkdir -p "$ARTIFACTS_DIR"
-echo "completed" > "$SENTINEL_FILE_WITH"
+echo "completed" > "$ARTIFACTS_DIR/brainstorm-sentinel"
 
-INPUT_WITH_SENTINEL="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"${SESSION_ID_WITH}\"}"
+INPUT_WITH_SENTINEL="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"test-session-with-sentinel-$$\"}"
 EXIT_CODE=$(run_hook_fn "$INPUT_WITH_SENTINEL")
 assert_eq "test_brainstorm_gate_sentinel_present_allows" "0" "$EXIT_CODE"
 
 # Cleanup
-rm -f "$SENTINEL_FILE_WITH"
+rm -f "$ARTIFACTS_DIR/brainstorm-sentinel"
 
 # ---------------------------------------------------------------------------
 # test_brainstorm_gate_config_disabled_allows
@@ -86,11 +83,9 @@ cat > "$TMP_CONFIG_FILE" <<'CONF'
 brainstorm.enforce_entry_gate=false
 CONF
 
-SESSION_ID_DISABLED="test-session-gate-disabled-$$"
-SENTINEL_FILE_DISABLED="$ARTIFACTS_DIR/brainstorm-sentinel-${SESSION_ID_DISABLED}"
-rm -f "$SENTINEL_FILE_DISABLED"
+rm -f "$ARTIFACTS_DIR/brainstorm-sentinel"
 
-INPUT_GATE_DISABLED="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"${SESSION_ID_DISABLED}\"}"
+INPUT_GATE_DISABLED="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"test-session-gate-disabled-$$\"}"
 EXIT_CODE=$(
     WORKFLOW_CONFIG_FILE="$TMP_CONFIG_FILE" \
     run_hook_fn "$INPUT_GATE_DISABLED"
@@ -104,10 +99,7 @@ rm -rf "$TMP_CONFIG_DIR"
 # test_brainstorm_gate_non_enterplanmode_passthrough
 # Non-EnterPlanMode tool calls should pass through (exit 0)
 # ---------------------------------------------------------------------------
-SESSION_ID_PASS="test-session-passthrough-$$"
-rm -f "$ARTIFACTS_DIR/brainstorm-sentinel-${SESSION_ID_PASS}"
-
-INPUT_OTHER="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls\"},\"session_id\":\"${SESSION_ID_PASS}\"}"
+INPUT_OTHER="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls\"},\"session_id\":\"test-session-passthrough-$$\"}"
 EXIT_CODE=$(run_hook_fn "$INPUT_OTHER")
 assert_eq "test_brainstorm_gate_non_enterplanmode_passthrough" "0" "$EXIT_CODE"
 
@@ -115,10 +107,9 @@ assert_eq "test_brainstorm_gate_non_enterplanmode_passthrough" "0" "$EXIT_CODE"
 # test_brainstorm_gate_dispatcher_blocks_without_sentinel (functional dispatcher test)
 # Pipe EnterPlanMode JSON to pre-enterplanmode.sh dispatcher → must block (exit 2)
 # ---------------------------------------------------------------------------
-SESSION_ID_DISP="test-session-dispatcher-block-$$"
-rm -f "$ARTIFACTS_DIR/brainstorm-sentinel-${SESSION_ID_DISP}"
+rm -f "$ARTIFACTS_DIR/brainstorm-sentinel"
 
-INPUT_DISP_BLOCK="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"${SESSION_ID_DISP}\"}"
+INPUT_DISP_BLOCK="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"test-session-dispatcher-block-$$\"}"
 EXIT_CODE=$(run_dispatcher "$INPUT_DISP_BLOCK")
 assert_eq "test_brainstorm_gate_dispatcher_blocks_without_sentinel" "2" "$EXIT_CODE"
 
@@ -126,16 +117,14 @@ assert_eq "test_brainstorm_gate_dispatcher_blocks_without_sentinel" "2" "$EXIT_C
 # test_brainstorm_gate_dispatcher_allows_with_sentinel (functional dispatcher test)
 # Pipe EnterPlanMode JSON to pre-enterplanmode.sh dispatcher with sentinel present → allow (exit 0)
 # ---------------------------------------------------------------------------
-SESSION_ID_DISP_ALLOW="test-session-dispatcher-allow-$$"
-SENTINEL_FILE_DISP="$ARTIFACTS_DIR/brainstorm-sentinel-${SESSION_ID_DISP_ALLOW}"
 mkdir -p "$ARTIFACTS_DIR"
-echo "completed" > "$SENTINEL_FILE_DISP"
+echo "completed" > "$ARTIFACTS_DIR/brainstorm-sentinel"
 
-INPUT_DISP_ALLOW="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"${SESSION_ID_DISP_ALLOW}\"}"
+INPUT_DISP_ALLOW="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"test-session-dispatcher-allow-$$\"}"
 EXIT_CODE=$(run_dispatcher "$INPUT_DISP_ALLOW")
 assert_eq "test_brainstorm_gate_dispatcher_allows_with_sentinel" "0" "$EXIT_CODE"
 
 # Cleanup
-rm -f "$SENTINEL_FILE_DISP"
+rm -f "$ARTIFACTS_DIR/brainstorm-sentinel"
 
 print_summary
