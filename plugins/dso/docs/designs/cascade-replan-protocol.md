@@ -39,22 +39,9 @@ The cascade iteration count reaches `sprint.max_replan_cycles` (configured in `.
 - The orchestrator asks the user for direction: proceed with the current plan as-is, abort the epic, or make manual adjustments.
 - The orchestrator does NOT autonomously loop further.
 
-## Context File Invalidation
+## Context Invalidation
 
-Before each preplanning re-run in a cascade iteration, the preplanning context file MUST be deleted:
-
-```
-/tmp/preplanning-context-<epic-id>.json
-```
-
-This file caches preplanning state from previous runs. If it is not deleted before the re-run, preplanning will load stale pre-revision context — the context from before brainstorm revised the epic — and produce stories that do not reflect the updated epic definition. The cascade would then silently fail to incorporate the brainstorm revision.
-
-The delete must happen BEFORE preplanning is dispatched, not after. The pattern is:
-
-```bash
-rm -f /tmp/preplanning-context-<epic-id>.json
-# then dispatch preplanning sub-agent
-```
+Preplanning context is stored as `PREPLANNING_CONTEXT:` ticket comments on the epic (not in `/tmp/`). Each preplanning re-run writes a new comment; consumers (`/dso:implementation-plan`) read the **last** such comment in the array. No explicit invalidation step is needed — the new comment supersedes previous ones automatically.
 
 ## Cycle Count Tracking
 
@@ -74,8 +61,7 @@ while replan_escalated:
 
     confirm_user_wants_replan()
     run brainstorm (revise epic)
-    delete /tmp/preplanning-context-<epic-id>.json
-    run preplanning (revise stories)
+    run preplanning (revise stories — writes new PREPLANNING_CONTEXT comment)
     run implementation-plan (realign tasks)
     replan_cycle_count += 1
 
