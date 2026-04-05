@@ -62,3 +62,23 @@ tests:
           2. Output contains ROUTING: implementation-plan
           3. Does NOT require user confirmation for this classification
           4. Does NOT contain ROUTING: brainstorm
+
+  - description: "Drift detection: orchestrator checks file impact drift at sprint entry"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: >
+        You are about to begin sprint execution on epic auth-4f2a, which has 3 open tasks.
+        Task task-001 lists file impact: ['src/auth/login.py', 'tests/unit/test_login.py'].
+        Since task-001 was created, 4 external commits have modified src/auth/login.py
+        and added a new dependency src/auth/oauth_provider.py that task-001 does not
+        reference. The task was created 6 days ago.
+        How should the orchestrator handle this situation at sprint entry?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Mentions drift detection, file impact drift, or stale file impact as a concern
+          2. Indicates the orchestrator should compare or re-check the task's file impact list against recent git history or current codebase state
+          3. Suggests re-invoking implementation-plan, refreshing file impact, or flagging the task for re-planning before execution
+          4. Does NOT proceed directly to executing the task without acknowledging the drift
