@@ -267,3 +267,4 @@ tests/scripts/test-lock-acquire-ticket-format.sh:tests/scripts/test-v2-clean-gua
 tests/scripts/test-merge-recovery-integration.sh:tests/scripts/test-merge-recovery-isolation.sh
 tests/scripts/test-read-config.sh:tests/scripts/test-v2-clean-guard.sh
 tests/scripts/test-validate-issues.sh:tests/scripts/test-v2-clean-guard.sh
+plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-brainstorm-gate-hook.sh [test_brainstorm_gate_allowlisted_skill_allows]

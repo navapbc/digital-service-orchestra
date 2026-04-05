@@ -127,4 +127,53 @@ assert_eq "test_brainstorm_gate_dispatcher_allows_with_sentinel" "0" "$EXIT_CODE
 # Cleanup
 rm -f "$ARTIFACTS_DIR/brainstorm-sentinel"
 
+# ---------------------------------------------------------------------------
+# test_brainstorm_gate_allowlisted_skill_allows
+# When an allowlisted skill context file exists (e.g., fix-bug), hook should
+# return exit 0 even without a brainstorm sentinel.
+# (This test is RED: hook has no allowlist check yet — will exit 2, not 0)
+# ---------------------------------------------------------------------------
+mkdir -p "$ARTIFACTS_DIR"
+rm -f "$ARTIFACTS_DIR/brainstorm-sentinel"
+echo "fix-bug" > "$ARTIFACTS_DIR/active-skill-context"
+
+INPUT_ALLOWLISTED="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"test-session-allowlist-$$\"}"
+EXIT_CODE=$(run_hook_fn "$INPUT_ALLOWLISTED")
+assert_eq "test_brainstorm_gate_allowlisted_skill_allows" "0" "$EXIT_CODE"
+
+# Cleanup
+rm -f "$ARTIFACTS_DIR/active-skill-context"
+
+# ---------------------------------------------------------------------------
+# test_brainstorm_gate_unknown_skill_blocks
+# When active-skill-context contains an unknown/non-allowlisted skill name,
+# hook should still return exit 2 (block) without a brainstorm sentinel.
+# (This test is RED: hook has no allowlist check yet — currently exits 2,
+# which happens to match, but once allowlist is added the non-allowlisted
+# path must still block. Kept as a regression guard.)
+# Actually this test asserts current-and-future behavior: unknown skill → block (exit 2)
+# ---------------------------------------------------------------------------
+mkdir -p "$ARTIFACTS_DIR"
+rm -f "$ARTIFACTS_DIR/brainstorm-sentinel"
+echo "unknown-skill" > "$ARTIFACTS_DIR/active-skill-context"
+
+INPUT_UNKNOWN="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"test-session-unknown-skill-$$\"}"
+EXIT_CODE=$(run_hook_fn "$INPUT_UNKNOWN")
+assert_eq "test_brainstorm_gate_unknown_skill_blocks" "2" "$EXIT_CODE"
+
+# Cleanup
+rm -f "$ARTIFACTS_DIR/active-skill-context"
+
+# ---------------------------------------------------------------------------
+# test_brainstorm_gate_no_skill_context_blocks
+# No active-skill-context file and no brainstorm sentinel → hook must block (exit 2).
+# Verifies baseline blocking behavior still holds after allowlist feature is added.
+# ---------------------------------------------------------------------------
+rm -f "$ARTIFACTS_DIR/brainstorm-sentinel"
+rm -f "$ARTIFACTS_DIR/active-skill-context"
+
+INPUT_NO_CONTEXT="{\"tool_name\":\"EnterPlanMode\",\"tool_input\":{},\"session_id\":\"test-session-no-context-$$\"}"
+EXIT_CODE=$(run_hook_fn "$INPUT_NO_CONTEXT")
+assert_eq "test_brainstorm_gate_no_skill_context_blocks" "2" "$EXIT_CODE"
+
 print_summary
