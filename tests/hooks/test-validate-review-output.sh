@@ -1050,4 +1050,62 @@ assert_ne "test_minor_only_score_5_rejected" "0" "$_MINOR_ONLY_SCORE_5_EXIT"
 
 assert_pass_if_clean "test_minor_only_score_5_rejected"
 
+# =============================================================================
+# Tests: review_tier field acceptance in code-review-dispatch schema (f493-bf4e)
+#
+# These tests are RED against the current schema — validate-review-output.sh
+# currently requires EXACTLY 3 top-level keys (scores, findings, summary) and
+# rejects review_tier as an unexpected extra key. Once SC2 of epic b430-9eb3
+# is implemented (validate-review-output.sh accepts the extended schema),
+# test_review_tier_valid_value_passes will turn GREEN and
+# test_review_tier_invalid_value_fails will remain RED (then GREEN once enum
+# validation is in place).
+# =============================================================================
+
+# Test: findings JSON with review_tier field (valid value) should pass schema validation
+# RED: current schema rejects review_tier as an unexpected top-level key
+echo ""
+echo "--- test_review_tier_valid_value_passes ---"
+_snapshot_fail
+
+_REVIEW_TIER_VALID_FILE=$(write_fixture "review_tier_valid.json" '{
+  "scores": {
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
+  },
+  "findings": [],
+  "summary": "No issues found. Code is well-structured and tests are adequate.",
+  "review_tier": "standard"
+}')
+_REVIEW_TIER_VALID_EXIT=$(run_script code-review-dispatch "$_REVIEW_TIER_VALID_FILE")
+assert_eq "test_review_tier_valid_value_passes" "0" "$_REVIEW_TIER_VALID_EXIT"
+
+assert_pass_if_clean "test_review_tier_valid_value_passes"
+
+# Test: findings JSON with review_tier=invalid_value should fail schema validation
+# RED: currently fails for wrong reason (unexpected key), should fail due to enum check
+echo ""
+echo "--- test_review_tier_invalid_value_fails ---"
+_snapshot_fail
+
+_REVIEW_TIER_INVALID_FILE=$(write_fixture "review_tier_invalid.json" '{
+  "scores": {
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
+  },
+  "findings": [],
+  "summary": "No issues found. Code is well-structured and tests are adequate.",
+  "review_tier": "ultra_deep"
+}')
+_REVIEW_TIER_INVALID_EXIT=$(run_script code-review-dispatch "$_REVIEW_TIER_INVALID_FILE")
+assert_ne "test_review_tier_invalid_value_fails" "0" "$_REVIEW_TIER_INVALID_EXIT"
+
+assert_pass_if_clean "test_review_tier_invalid_value_fails"
+
 print_summary
