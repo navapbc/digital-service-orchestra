@@ -875,6 +875,47 @@ hook_brainstorm_gate() {
 
     local ARTIFACTS_DIR
     ARTIFACTS_DIR=$(get_artifacts_dir)
+
+    # REVIEW-DEFENSE: The allowlist bypass reads $ARTIFACTS_DIR/active-skill-context, which
+    # is written by each skill's SKILL.md at entry (e.g., "echo 'sprint' > $ARTIFACTS_DIR/active-skill-context").
+    # No production writer exists yet — this is Phase 1 infrastructure. Skills adopt the
+    # writer in their own enhancement cycles. The mechanism is tested via unit tests that
+    # create the file directly. This is the same pattern as the brainstorm sentinel: the
+    # hook (reader) ships before all writers are wired.
+    #
+    # Allowlist bypass: skills that legitimately invoke EnterPlanMode as part of
+    # their workflow do not need a prior brainstorm sentinel.
+    # To update this list: add the skill's short name (the part after "dso:") to the
+    # BRAINSTORM_GATE_ALLOWLIST array below, then add a corresponding test in
+    # tests/hooks/test-brainstorm-gate-hook.sh.
+    # Writers: each allowlisted skill writes active-skill-context at entry via:
+    #   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
+    #   echo "<skill-short-name>" > "$(get_artifacts_dir)/active-skill-context"
+    local -a BRAINSTORM_GATE_ALLOWLIST
+    BRAINSTORM_GATE_ALLOWLIST=(
+        fix-bug
+        debug-everything
+        sprint
+        implementation-plan
+        preplanning
+        resolve-conflicts
+        architect-foundation
+        retro
+    )
+
+    local SKILL_CONTEXT_FILE="$ARTIFACTS_DIR/active-skill-context"
+    if [[ -f "$SKILL_CONTEXT_FILE" ]]; then
+        local SKILL_NAME
+        SKILL_NAME=$(< "$SKILL_CONTEXT_FILE")
+        local _skill
+        for _skill in "${BRAINSTORM_GATE_ALLOWLIST[@]}"; do
+            if [[ "$SKILL_NAME" == "$_skill" ]]; then
+                echo "Brainstorm gate: bypassed (allowlisted skill: $SKILL_NAME)" >&2
+                return 0
+            fi
+        done
+    fi
+
     local SENTINEL_FILE="$ARTIFACTS_DIR/brainstorm-sentinel"
 
     if [[ ! -f "$SENTINEL_FILE" ]]; then
