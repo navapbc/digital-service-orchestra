@@ -167,4 +167,111 @@ else
 fi
 assert_eq "test_record_review_changed_files_excludes_untracked" "excludes_untracked" "$actual"
 
+# ===========================================================================
+# Tier enforcement tests
+#
+# record-review.sh must read classifier-telemetry.jsonl (last line) to get
+# selected_tier and compare it against review_tier in reviewer-findings.json.
+# Rules:
+#   - Downgrade (review_tier < selected_tier) → reject (exit non-zero)
+#   - Match → accept
+#   - Upgrade (review_tier > selected_tier) → accept
+#   - Missing telemetry file → accept with warning, tier_verified=false
+#   - Missing review_tier in findings → accept with warning, tier_verified=false
+# ===========================================================================
+
+# Helper: write a valid findings file with optional review_tier and return its hash.
+# Usage: _write_findings [review_tier]
+_write_findings() {
+    local tier="${1:-}"
+    cleanup
+    mkdir -p "$ARTIFACTS_DIR"
+    if [[ -n "$tier" ]]; then
+        cat > "$FINDINGS_FILE" <<EOFJ
+{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found.","review_tier":"${tier}"}
+EOFJ
+    else
+        cat > "$FINDINGS_FILE" <<EOFJ
+{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}
+EOFJ
+    fi
+    shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}'
+}
+
+# Helper: write a classifier-telemetry.jsonl with a given selected_tier.
+_write_telemetry() {
+    local tier="$1"
+    cat > "$ARTIFACTS_DIR/classifier-telemetry.jsonl" <<EOFT
+{"blast_radius":2,"critical_path":0,"anti_shortcut":0,"staleness":1,"cross_cutting":1,"diff_lines":1,"change_volume":0,"computed_total":5,"selected_tier":"${tier}","files":["foo.py"],"diff_size_lines":87,"size_action":"none","is_merge_commit":false}
+EOFT
+}
+
+# ---------------------------------------------------------------------------
+# test_tier_downgrade_rejected
+# review_tier=light when telemetry says selected_tier=standard → exit non-zero
+# ---------------------------------------------------------------------------
+HASH=$(_write_findings "light")
+_write_telemetry "standard"
+EXIT_CODE=0
+STDERR_OUT=$(bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+assert_ne "test_tier_downgrade_rejected: exits non-zero" "0" "$EXIT_CODE"
+assert_contains "test_tier_downgrade_rejected: stderr mentions downgrade" "downgrade" "$STDERR_OUT"
+
+# ---------------------------------------------------------------------------
+# test_tier_match_accepted
+# review_tier=standard when telemetry says selected_tier=standard → exit 0
+# ---------------------------------------------------------------------------
+HASH=$(_write_findings "standard")
+_write_telemetry "standard"
+EXIT_CODE=0
+bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || EXIT_CODE=$?
+assert_eq "test_tier_match_accepted: exits 0" "0" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
+# test_tier_upgrade_accepted
+# review_tier=deep when telemetry says selected_tier=standard → exit 0
+# ---------------------------------------------------------------------------
+HASH=$(_write_findings "deep")
+_write_telemetry "standard"
+EXIT_CODE=0
+bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || EXIT_CODE=$?
+assert_eq "test_tier_upgrade_accepted: exits 0" "0" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
+# test_tier_missing_telemetry_fail_open
+# No classifier-telemetry.jsonl → exit 0, warning on stderr, tier_verified=false
+# ---------------------------------------------------------------------------
+HASH=$(_write_findings "standard")
+rm -f "$ARTIFACTS_DIR/classifier-telemetry.jsonl"
+EXIT_CODE=0
+STDERR_OUT=$(bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+assert_eq "test_tier_missing_telemetry_fail_open: exits 0" "0" "$EXIT_CODE"
+assert_contains "test_tier_missing_telemetry_fail_open: stderr warns" "WARN" "$STDERR_OUT"
+# Check tier_verified=false in review-status
+REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+if [[ -f "$REVIEW_STATUS_FILE" ]] && grep -q 'tier_verified=false' "$REVIEW_STATUS_FILE"; then
+    TIER_VERIFIED_PRESENT="yes"
+else
+    TIER_VERIFIED_PRESENT="no"
+fi
+assert_eq "test_tier_missing_telemetry_fail_open: tier_verified=false in review-status" "yes" "$TIER_VERIFIED_PRESENT"
+
+# ---------------------------------------------------------------------------
+# test_tier_missing_review_tier_fail_open
+# Missing review_tier in findings → exit 0, warning on stderr, tier_verified=false
+# ---------------------------------------------------------------------------
+HASH=$(_write_findings "")  # no review_tier field
+_write_telemetry "standard"
+EXIT_CODE=0
+STDERR_OUT=$(bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+assert_eq "test_tier_missing_review_tier_fail_open: exits 0" "0" "$EXIT_CODE"
+assert_contains "test_tier_missing_review_tier_fail_open: stderr warns" "WARN" "$STDERR_OUT"
+REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+if [[ -f "$REVIEW_STATUS_FILE" ]] && grep -q 'tier_verified=false' "$REVIEW_STATUS_FILE"; then
+    TIER_VERIFIED_PRESENT="yes"
+else
+    TIER_VERIFIED_PRESENT="no"
+fi
+assert_eq "test_tier_missing_review_tier_fail_open: tier_verified=false in review-status" "yes" "$TIER_VERIFIED_PRESENT"
+
 print_summary

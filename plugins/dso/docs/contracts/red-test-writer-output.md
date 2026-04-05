@@ -56,6 +56,8 @@ BEHAVIORAL_JUSTIFICATION: <explanation>
 | `TEST_FILE` | string (file path) | required | Repo-relative path to the test file that was created or modified. Must point to an existing file after the agent completes. Example: `tests/unit/scripts/test_my_feature.sh` |
 | `RED_ASSERTION` | string | required | Short description (≤ 120 characters) of what the test asserts. Should describe the expected behavior being tested, not the implementation. Example: `ticket transition to closed is blocked when .test-index contains RED markers` |
 | `BEHAVIORAL_JUSTIFICATION` | string | required | One to three sentences explaining why this test captures behavioral intent rather than structural/implementation detail. Must reference the observable outcome being tested (user-visible behavior, data contract, or system state change). |
+| `ESTIMATED_RUNTIME_RED` | integer (seconds) | optional | Estimated runtime in the RED phase (before implementation). Must be a positive integer. When provided together with `ESTIMATED_RUNTIME_GREEN`, the runtime budget protocol applies: if either value exceeds 10 seconds for a unit test, the agent must restructure or reject. |
+| `ESTIMATED_RUNTIME_GREEN` | integer (seconds) | optional | Estimated runtime in the GREEN phase (after correct implementation). Must be a positive integer. Provided together with `ESTIMATED_RUNTIME_RED` when the agent estimates test duration. |
 
 ---
 
@@ -78,6 +80,7 @@ SUGGESTED_ALTERNATIVE: <alternative approach or "none">
 | `REJECTION_REASON` | string (enum) | required | Machine-readable rejection category. Must be one of the enum values defined below. |
 | `DESCRIPTION` | string | required | Human-readable explanation of why the test cannot be written. Should be specific enough for the parser to surface a useful message to the orchestrator. |
 | `SUGGESTED_ALTERNATIVE` | string | optional | A concrete alternative validation approach (e.g., manual verification step, integration test approach, contract check), or the literal string `none` if no alternative applies. |
+| `RESTRUCTURING_APPROACH` | string | optional | Documents what restructuring approach was considered and why it was ruled out. Present only when rejection is due to a runtime budget concern (e.g., `requires_integration_env` caused by subprocess/sleep that could not be safely mocked). |
 
 #### REJECTION_REASON Enum Values
 
@@ -97,6 +100,8 @@ TEST_RESULT:written
 TEST_FILE: tests/unit/scripts/test_ticket_transition.sh
 RED_ASSERTION: ticket transition to closed is blocked when .test-index has RED markers
 BEHAVIORAL_JUSTIFICATION: This test invokes the ticket transition script with a real .test-index fixture containing a [marker] entry and asserts exit code 1 with a blocking message. It captures user-visible enforcement behavior rather than internal implementation details.
+ESTIMATED_RUNTIME_RED: 1
+ESTIMATED_RUNTIME_GREEN: 1
 ```
 
 ---
