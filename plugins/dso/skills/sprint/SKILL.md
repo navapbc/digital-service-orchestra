@@ -1132,6 +1132,14 @@ After the batch commit and `git push -u origin HEAD` succeed, close each task wh
 Do NOT rationalize around a FAIL verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase 3 path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding past this step.
 </HARD-GATE>
 
+**RED marker cleanup (before closure)**: After `overall_verdict: PASS`, check `.test-index` for stale RED markers associated with tests from this story's scope. If any `[test_name]` entries exist for tests that now pass (GREEN), remove them before closing the story. Stale markers accumulate across story completions and block epic closure.
+
+```bash
+# Check for stale RED markers
+grep -n "\[.*\]" .test-index || true
+# Remove any markers for tests that are now passing
+```
+
 ```bash
 .claude/scripts/dso ticket comment <id> "Fixed: <summary>"
 .claude/scripts/dso ticket transition <id> open closed
