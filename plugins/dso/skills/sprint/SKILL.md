@@ -220,7 +220,7 @@ Log: `"No codebase drift detected — proceeding to Preplanning Gate."` Continue
 
 ### Clarity Gate
 
-The Clarity Gate is a two-layer check that runs **for epic-typed tickets only** before entering the Preplanning Gate. It prevents sprint execution from starting when the ticket intent is unclear.
+The Clarity Gate is a three-layer check that runs **for epic-typed tickets only** before entering the Preplanning Gate. It prevents sprint execution from starting when the ticket intent is unclear.
 
 **CHECKPOINT: clarity-gate-start** — record this before running the gate.
 
