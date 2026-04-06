@@ -1,0 +1,1 @@
+{"timestamp": 1775493293451635000, "uuid": "1fb0a912-aa3b-463a-8554-92db4bef37b6", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: Config key worktree.isolation_enabled=true added, shared worktree-dispatch.md prompt created."}}
