@@ -1,0 +1,1 @@
+{"timestamp": 1775495199155373000, "uuid": "040d5528-c2bc-4968-9165-47caddea4759", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: Worktree retention tests (12 pass, 0 fail \u2014 lifecycle verified)."}}
