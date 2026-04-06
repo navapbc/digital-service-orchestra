@@ -1083,5 +1083,80 @@ assert_eq "test_bash_auto_detected_when_test_scripts_exist: exits 0" "0" "$bash_
 rm -rf "$TMPDIR_BASH_AUTO"
 assert_pass_if_clean "test_bash_auto_detected_when_test_scripts_exist"
 
+# ── test_state_loading_overhead_is_sublinear ─────────────────────────────────
+# When resuming with many completed tests, the startup overhead should NOT scale
+# as O(N) subprocess invocations. Previously, each completed entry triggered a
+# separate python3 subprocess to check if it was "interrupted" — causing 15+ seconds
+# of overhead with 258 completed tests (the root cause of exit 144 / SIGURG kill).
+#
+# This test verifies that resuming with 200 completed tests in the state file
+# completes the startup (skipping) phase within 10 seconds total.
+echo ""
+echo "--- test_state_loading_overhead_is_sublinear ---"
+_snapshot_fail
+
+TMPDIR_OVERHEAD="$(mktemp -d)"
+OVERHEAD_STATE="$TMPDIR_OVERHEAD/state.json"
+
+# Create 200 small test scripts and a state file marking all as completed
+mkdir -p "$TMPDIR_OVERHEAD/tests"
+for i in $(seq 1 200); do
+    cat > "$TMPDIR_OVERHEAD/tests/test-gen-$(printf '%03d' $i).sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+    chmod +x "$TMPDIR_OVERHEAD/tests/test-gen-$(printf '%03d' $i).sh"
+done
+
+# Build state file marking all 200 as completed
+python3 -c "
+import json, time, sys, os
+
+test_dir = sys.argv[1]
+state_file = sys.argv[2]
+files = sorted(f for f in os.listdir(test_dir) if f.startswith('test-') and f.endswith('.sh'))
+state = {
+    'runner': 'bash:' + test_dir,
+    'completed': files,
+    'results': {f: 'pass' for f in files},
+    'command_hash': '',
+    'created_at': int(time.time())
+}
+with open(state_file, 'w') as fh:
+    json.dump(state, fh)
+print(len(files))
+" "$TMPDIR_OVERHEAD/tests" "$OVERHEAD_STATE" >/dev/null
+
+# Add one more test that isn't in the completed list
+cat > "$TMPDIR_OVERHEAD/tests/test-gen-201.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+chmod +x "$TMPDIR_OVERHEAD/tests/test-gen-201.sh"
+
+# Time the resume run — should complete within 10s even with 200 entries in state
+overhead_start=$(date +%s)
+overhead_out=""
+overhead_exit=0
+overhead_out=$(TEST_BATCHED_STATE_FILE="$OVERHEAD_STATE" \
+    bash "$SCRIPT" --runner=bash --test-dir="$TMPDIR_OVERHEAD/tests" --timeout=30 2>&1) \
+    || overhead_exit=$?
+overhead_end=$(date +%s)
+overhead_elapsed=$(( overhead_end - overhead_start ))
+
+# Should complete in under 10 seconds (was previously 20+ seconds due to O(N) python3 calls)
+overhead_fast=0
+[ "$overhead_elapsed" -lt 10 ] && overhead_fast=1
+assert_eq "test_state_loading_overhead_is_sublinear: startup+skip of 200 completed < 10s (was: ${overhead_elapsed}s)" \
+    "1" "$overhead_fast"
+
+# Should have skipped the 200 completed tests and run the 201st
+ran_201=0
+[[ "$overhead_out" =~ Running.*test-gen-201\.sh ]] && ran_201=1
+assert_eq "test_state_loading_overhead_is_sublinear: ran the un-completed test" "1" "$ran_201"
+
+rm -rf "$TMPDIR_OVERHEAD"
+assert_pass_if_clean "test_state_loading_overhead_is_sublinear"
+
 print_summary
 
