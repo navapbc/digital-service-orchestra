@@ -187,7 +187,7 @@ plugins/dso/scripts/pre-commit-wrapper.sh:tests/hooks/test-test-gate-fast-path.s
 plugins/dso/scripts/project-detect.sh:tests/scripts/test-ci-generator-integration.sh,tests/scripts/test-project-detect.sh
 plugins/dso/scripts/purge-non-project-tickets.sh:tests/scripts/test-purge-non-project-tickets.sh
 plugins/dso/scripts/retro-gather.sh:tests/hooks/test-v2-hooks-cleanup.sh
-plugins/dso/scripts/resolve-model-id.sh:tests/scripts/test-resolve-model-id.sh [test-resolve-model-id]
+plugins/dso/scripts/resolve-model-id.sh:tests/scripts/test-resolve-model-id.sh
 plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/hooks/test-review-complexity-classifier.sh,tests/hooks/test-classifier-config-file-floor.sh
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-test-batched.sh

@@ -127,6 +127,9 @@ except `version`. Below are the most commonly needed keys for initial setup:
 | `ci.workflow_name` | absent | GitHub Actions workflow name for post-push CI trigger recovery (e.g. `CI`). Preferred over deprecated `merge.ci_workflow_name`. |
 | `jira.project` | absent | Jira project key for `.claude/scripts/dso ticket sync` (e.g. `DIG`) |
 | `monitoring.tool_errors` | absent (disabled) | Set to `true` to enable tool error tracking and auto-ticket creation |
+| `model.haiku` | absent | Canonical model ID for the haiku tier (e.g. `claude-haiku-4-5-20251001`). Read by `resolve-model-id.sh`. |
+| `model.sonnet` | absent | Canonical model ID for the sonnet tier (e.g. `claude-sonnet-4-6-20260320`). Read by `resolve-model-id.sh`. |
+| `model.opus` | absent | Canonical model ID for the opus tier (e.g. `claude-opus-4-6`). Read by `resolve-model-id.sh`. |
 
 For the full key reference including staging, CI, design, infrastructure, and worktree keys,
 see **[docs/CONFIGURATION-REFERENCE.md](CONFIGURATION-REFERENCE.md)**.
