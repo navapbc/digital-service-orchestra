@@ -69,6 +69,8 @@ CLOSED_TASKS: <comma-separated task_ids or "none">
 
 ## Section 3: Verdict Decision Logic
 
+Consult `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` for the 4-rule behavioral testing standard. Apply these rules as baseline rejection criteria.
+
 Apply this routing logic in order. The first matching condition determines your verdict.
 
 ### Step 1: Parse the writer's `REJECTION_REASON`
@@ -113,6 +115,12 @@ Emit `VERDICT:REJECT` when:
 2. OR the rejection reason is `requires_integration_env` and no mock approach would preserve behavioral fidelity
 3. OR no revision to the task description would yield a behavioral assertion AND the infeasibility category does not match any CONFIRM category
 4. Always set `RECOMMENDED_MODEL: opus` in REJECT verdicts
+
+Additionally, apply these evaluator-specific rejection criteria when assessing submitted tests:
+
+**Refactoring survival**: Reject if the submitted test would break under semantics-preserving refactoring (variable renaming, method extraction, internal restructuring). A test that breaks on implementation changes while behavior is preserved is a change-detector test.
+
+**Suite-level value**: Reject if the submitted test is redundant with existing suite coverage — the same observable behavior is already asserted by another test in the suite. Duplicate assertions add maintenance burden without improving fault detection.
 
 ---
 

@@ -1062,6 +1062,7 @@ context:
 - Pass the full task context: task description, story context, and file impact table
 - Parse the leading `TEST_RESULT:` line from the output:
   - `TEST_RESULT:written` → Success. Proceed to TDD setup using `TEST_FILE` and `RED_ASSERTION` fields. Do NOT escalate.
+  - `TEST_RESULT:no_new_tests_needed` → Success. No new test was needed. Do NOT escalate to Tier 2. Proceed to normal task execution without TDD setup.
   - `TEST_RESULT:rejected` → Escalate to Tier 2. This is **not** a dispatch failure — do not route to Phase 5 Step 0.
   - Timeout / malformed / non-zero exit → Treat as `TEST_RESULT:rejected` with `REJECTION_REASON: ambiguous_spec`. Escalate to Tier 2.
 
@@ -1087,6 +1088,7 @@ context:
 - Pass the same task context as Tier 1, augmented with the evaluator's `VERDICT:REJECT` payload
 - Parse the leading `TEST_RESULT:` line:
   - `TEST_RESULT:written` → Success. Proceed to TDD setup normally.
+  - `TEST_RESULT:no_new_tests_needed` → Success. No new test was needed. Do NOT escalate to Tier 2. Proceed to normal task execution without TDD setup.
   - `TEST_RESULT:rejected` → Terminal failure. Escalate to the user with: the Tier 1 rejection payload, the Tier 2 `VERDICT:REJECT` reason, and the Tier 3 rejection payload. Do not retry further.
   - Timeout / malformed / non-zero exit → Terminal failure. Escalate to the user.
 

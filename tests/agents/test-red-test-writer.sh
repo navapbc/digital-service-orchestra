@@ -319,5 +319,98 @@ echo "--- test_narrow_exception_excludes_skill_agent_prompt_files ---"
 test_narrow_exception_excludes_skill_agent_prompt_files
 echo ""
 
+# ============================================================
+# test_no_new_tests_needed_green_classified
+# Agent must define the no_new_tests_needed output format and
+# include the green_classified REASON enum value.
+# Failing this test indicates the agent lacks the third exit path
+# (epic 80c9-df3c). RED until the agent prompt is updated.
+#
+# REVIEW-DEFENSE [hygiene]: Agent prompt files (*.md under plugins/dso/agents/)
+# are LLM instruction text, not executable code. The only way to verify the
+# prompt contains required output contract fields without dispatching the LLM
+# is structural text search. This falls under the "Metadata/schema validation"
+# exemption — the output contract is interface metadata. The behavioral test
+# is the agent-level eval (run via promptfoo), not this unit test.
+# See plugins/dso/docs/SKILL-EVALS-GUIDE.md for the distinction.
+#
+# REVIEW-DEFENSE [verification]: RED marker [test_no_new_tests_needed_green_classified]
+# is registered in .test-index at the red-test-writer.md source line. The RED
+# zone is line-based (red-zone.sh marks from the [marker] entry forward).
+# This test is within the RED zone and is intentionally tolerated until the
+# agent prompt is updated to include the no_new_tests_needed exit path.
+# ============================================================
+test_no_new_tests_needed_green_classified() {
+    _snapshot_fail
+    if [[ ! -f "$AGENT_FILE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: agent file not found: %s\n" "$AGENT_FILE" >&2
+        assert_pass_if_clean "test_no_new_tests_needed_green_classified"
+        return
+    fi
+    local _found_format=0
+    local _found_reason=0
+    if grep -q 'TEST_RESULT:no_new_tests_needed\|no_new_tests_needed' "$AGENT_FILE" 2>/dev/null; then
+        _found_format=1
+    fi
+    if grep -q 'green_classified' "$AGENT_FILE" 2>/dev/null; then
+        _found_reason=1
+    fi
+    assert_eq "output contract defines TEST_RESULT:no_new_tests_needed format" "1" "$_found_format"
+    assert_eq "REASON enum includes green_classified" "1" "$_found_reason"
+    assert_pass_if_clean "test_no_new_tests_needed_green_classified"
+}
+
+# ============================================================
+# test_no_new_tests_needed_existing_coverage_sufficient
+# Agent must define the existing_coverage_sufficient REASON enum
+# value for the no_new_tests_needed exit path and include an
+# EXISTING_TESTS field description.
+# Failing this test indicates the agent lacks the third exit path
+# (epic 80c9-df3c). RED until the agent prompt is updated.
+#
+# REVIEW-DEFENSE [hygiene]: Agent prompt files (*.md under plugins/dso/agents/)
+# are LLM instruction text, not executable code. The only way to verify the
+# prompt contains required output contract fields without dispatching the LLM
+# is structural text search. This falls under the "Metadata/schema validation"
+# exemption — the output contract is interface metadata. The behavioral test
+# is the agent-level eval (run via promptfoo), not this unit test.
+# See plugins/dso/docs/SKILL-EVALS-GUIDE.md for the distinction.
+#
+# REVIEW-DEFENSE [verification]: RED marker [test_no_new_tests_needed_existing_coverage_sufficient]
+# is registered in .test-index alongside [test_no_new_tests_needed_green_classified]
+# on the red-test-writer.md source line. Both tests are intentionally RED-tolerated
+# until the agent prompt is updated to include the full no_new_tests_needed exit
+# path (existing_coverage_sufficient reason + EXISTING_TESTS field).
+# ============================================================
+test_no_new_tests_needed_existing_coverage_sufficient() {
+    _snapshot_fail
+    if [[ ! -f "$AGENT_FILE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: agent file not found: %s\n" "$AGENT_FILE" >&2
+        assert_pass_if_clean "test_no_new_tests_needed_existing_coverage_sufficient"
+        return
+    fi
+    local _found_reason=0
+    local _found_existing_tests_field=0
+    if grep -q 'existing_coverage_sufficient' "$AGENT_FILE" 2>/dev/null; then
+        _found_reason=1
+    fi
+    if grep -q 'EXISTING_TESTS' "$AGENT_FILE" 2>/dev/null; then
+        _found_existing_tests_field=1
+    fi
+    assert_eq "REASON enum includes existing_coverage_sufficient" "1" "$_found_reason"
+    assert_eq "no_new_tests_needed format defines EXISTING_TESTS field" "1" "$_found_existing_tests_field"
+    assert_pass_if_clean "test_no_new_tests_needed_existing_coverage_sufficient"
+}
+
+echo "--- test_no_new_tests_needed_green_classified ---"
+test_no_new_tests_needed_green_classified
+echo ""
+
+echo "--- test_no_new_tests_needed_existing_coverage_sufficient ---"
+test_no_new_tests_needed_existing_coverage_sufficient
+echo ""
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

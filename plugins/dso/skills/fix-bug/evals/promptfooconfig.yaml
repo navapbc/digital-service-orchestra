@@ -64,6 +64,33 @@ prompts:
     Step 6 fix dispatch) but NOT to diagnostic-only inline operations. Step 1
     intent-search and gate scripts run inline, not as isolated sub-agents.
 
+    Step 4.75 — Testing Mode Classification:
+    Before writing or modifying tests (Step 5), classify the fix into a testing mode.
+    Examine the investigation root cause and approved fix description.
+
+    Classification rules:
+    - testing_mode=GREEN: existing tests remain valid after the fix (they pass before and
+      after). Apply when existing_tests_pass_after_fix: true is present in the root cause
+      report, or when the fix corrects internal implementation logic and no test changes
+      are needed. DEFAULT for most bug fixes — most fixes correct logic without requiring
+      new tests or test updates because existing tests already cover the behavior.
+    - testing_mode=UPDATE: fix changes observable behavior AND existing tests cover the
+      affected paths but assert old (buggy) behavior — the tests need updating.
+      Indicated by: existing_test_file or existing_test_name provided but
+      existing_tests_pass_after_fix is NOT true.
+    - testing_mode=RED: fix introduces new observable behavior with NO existing coverage.
+      Indicated by: existing_test_coverage: false and no existing_test_file/test_name.
+
+    Emit the classification on its own line:
+    testing_mode=<GREEN|UPDATE|RED>
+
+    Step 5 branching based on testing_mode:
+    - testing_mode=GREEN: Log "Testing mode: GREEN — existing tests validate fix correctness.
+      Proceeding to implementation." Then skip RED test writing and proceed to implementation.
+    - testing_mode=UPDATE: Identify existing tests that assert old behavior, update them to
+      assert new expected behavior before implementing the fix (they should now fail = RED state).
+    - testing_mode=RED: Dispatch dso:red-test-writer to write a new failing test before the fix.
+
     Step 7.5 — Anti-Pattern Scan:
     When creating bug tickets during the anti-pattern scan phase, these are
     autonomously discovered defects. The CLI command is:

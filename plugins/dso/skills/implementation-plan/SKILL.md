@@ -564,6 +564,30 @@ Before drafting tasks, enumerate all files affected by the story. This produces 
 
 Use this table to determine which TDD task types to create (see TDD Task Structure below). Files classified `still-valid` require no test task. Files classified `needs-modification` require a **modify-existing-test** RED task. Files classified `needs-removal` require a **remove-test** task. Files classified `needs-creation` require a **create-test** RED task (the existing flow).
 
+### Testing Mode Classification
+
+Each task in the plan must carry an explicit `testing_mode` field — either **RED**, **GREEN**, or **UPDATE** — derived from the file impact table. The classification describes what the code does to observable behavior, not what text it adds or removes from source files.
+
+The testing_mode applies to the **source file task** (the implementation task), not the test task. A test task for a RED source file is always called a "RED test task" but the implementation task for that same file also carries `testing_mode: RED`:
+
+| Source file condition | testing_mode | Meaning |
+|----------------------|-------------|---------|
+| Source action = `create` (new file, classification = `needs-creation`) | **RED** | New behavioral content with no existing tests — must have a preceding RED test task that writes a failing test before implementation runs |
+| Source action = `modify`, behavior changes, classification = `needs-modification` | **UPDATE** | Existing file with observable behavior change — existing tests must be updated to assert the new behavior before implementation runs |
+| Source action = `modify`, no behavior change (pure refactor), classification = `still-valid` | **GREEN** | Implementation change only — existing tests remain correct without modification, no new test task required |
+| Source action = `remove`, classification = `needs-removal` | **GREEN** | Deleting behavior — remove corresponding tests to keep the suite honest |
+
+**Behavioral framing rule**: The testing_mode value must reflect what the code *does* — the observable outputs, decisions, or side effects it produces — not what it *contains*. A refactor that renames internal methods without changing what the function returns for any input is GREEN regardless of how many lines change. A new file that computes and returns a value is RED because its behavior has never been tested.
+
+**Emit testing_mode per task** (in the task plan output):
+
+```
+Task: <task title>
+testing_mode: RED | GREEN | UPDATE
+```
+
+The field must appear as an explicit labeled attribute for each task, not inferred from prose alone. This classification drives which TDD task type (see TDD Task Structure below) is selected and whether a RED test task dependency is required.
+
 ### TDD Task Structure
 
 **Behavioral content** is defined as code that contains conditional logic, data transformation, or decision points — any code where the output varies based on inputs or state. Every task whose implementation adds or modifies behavioral content must have a preceding **RED test task** as a declared dependency before any implementation task.
@@ -572,19 +596,23 @@ Use this table to determine which TDD task types to create (see TDD Task Structu
 
 #### TDD task types
 
-Use the file impact table from File Impact Enumeration to select the correct task type for each source file:
+Use the file impact table from File Impact Enumeration to select the correct task type for each source file. The `testing_mode` field from Testing Mode Classification maps directly to task type selection:
 
-**1. Create-test task** (source action: `create`, classification: `needs-creation`)
-- Write a new test file asserting the expected behavior of the new source file
+- `testing_mode: RED` → **Create-test task** (new file, no existing tests)
+- `testing_mode: UPDATE` → **Modify-existing-test task** (behavior change with existing coverage)
+- `testing_mode: GREEN` → No test task needed (refactor or deletion with no behavior change)
+
+**1. Create-test task** (source action: `create`, classification: `needs-creation`, testing_mode: `RED`)
+- Write a new test file asserting the expected behavior of the new source file — what it returns, emits, or does for given inputs
 - Standard RED-first flow; implementation task depends on this create-test task
 
-**2. Modify-existing-test task** (source action: `modify`, classification: `needs-modification`)
-- Update an existing test to assert the new expected behavior after the source change
-- This is a RED test task: the modified test must fail (RED) before the implementation runs
+**2. Modify-existing-test task** (source action: `modify`, classification: `needs-modification`, testing_mode: `UPDATE`)
+- Update an existing test to assert the new expected behavior after the source change — describe which observable behaviors change and how the assertions must shift
+- This is a RED test task: the modified test must fail (RED) before the implementation runs because the new behavior does not yet exist
 - The task must name the specific existing test file to modify and describe which assertions change
 - Implementation task depends on this modify-existing-test task
 
-**3. Remove-test task** (source action: `remove`, classification: `needs-removal`)
+**3. Remove-test task** (source action: `remove`, classification: `needs-removal`, testing_mode: `GREEN`)
 - Remove test cases or entire test files that verify behavior being deleted from the source
 - Removing tests for deleted behavior keeps the test suite honest and prevents dead-code assertions
 - This task may run before or in parallel with the source removal task (no behavioral assertion to run RED)
@@ -832,6 +860,9 @@ Each task must include:
 ```bash
 # Create the task with acceptance criteria included in description
 TASK_ID=$(.claude/scripts/dso ticket create task "{title}" --parent=<story-id> --priority=2 -d "$(cat <<'DESCRIPTION'
+## Testing Mode
+<RED|GREEN|UPDATE>
+
 ## Acceptance Criteria
 - [ ] `make test-unit-only` passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel)/app && make test-unit-only

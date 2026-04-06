@@ -32,6 +32,20 @@ prompts:
       after declaring cross-cutting escalation.
     - Scrutiny gate: Halt immediately if the epic has a scrutiny:pending tag. Tell the user
       to run /dso:brainstorm on the epic first to clear the scrutiny:pending tag.
+    - Testing mode classification: Every implementation task must carry an explicit testing_mode
+      field (RED, GREEN, or UPDATE). The testing_mode applies to the source file's implementation
+      task — it describes the relationship between the source file and its test coverage:
+        * RED — new source file (action=create, classification=needs-creation); the implementation
+          task is RED because no tests exist yet; it must be preceded by a failing test task
+        * UPDATE — existing file with observable behavior change (action=modify,
+          classification=needs-modification); existing tests must be updated before implementation
+        * GREEN — existing file with no observable behavior change (action=modify, pure refactor,
+          classification=still-valid); existing tests remain correct, no test changes needed
+      Emit testing_mode as a labeled per-task attribute (e.g., "testing_mode: RED").
+      The classification reflects what the code *does* (observable outputs, decisions, side
+      effects), not what text it contains. A new file that computes a value is RED. A refactor
+      that renames internals without changing observable behavior is GREEN. A behavior-changing
+      modification to an existing file with test coverage is UPDATE.
 
     Signal format contracts:
     - When success criteria cannot be satisfied given codebase constraints (e.g., a closed
