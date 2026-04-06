@@ -1,1 +1,0 @@
-{"timestamp": 1775450699730807000, "uuid": "20e4d1a0-3097-4642-bc76-6f9d40c0f28a", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "CHECKPOINT 2/6: Code patterns understood (files read: plugins/dso/hooks/lib/deps.sh, tests/lib/assert.sh; exemplars read: tests/hooks/test-worktree-isolation-guard.sh) \u2713"}}
