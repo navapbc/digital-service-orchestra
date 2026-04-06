@@ -70,9 +70,9 @@ def _make_review_event(
     return {
         "event_type": "review_result",
         "timestamp": ts,
-        "result": result,
+        "pass_fail": result,
         "tier": tier,
-        "dimensions": dimensions or {},
+        "dimension_scores": dimensions or {},
         "findings": findings or [],
     }
 
@@ -106,8 +106,8 @@ def test_read_events_valid_jsonl(review_stats: ModuleType, tmp_path: Path) -> No
 
     assert isinstance(result, list)
     assert len(result) == 3
-    assert result[0]["result"] == "passed"
-    assert result[1]["result"] == "failed"
+    assert result[0]["pass_fail"] == "passed"
+    assert result[1]["pass_fail"] == "failed"
 
 
 def test_read_events_skips_malformed(
@@ -128,7 +128,7 @@ def test_read_events_skips_malformed(
         result = review_stats.read_events(jsonl_file)
 
     assert len(result) == 1
-    assert result[0]["result"] == "passed"
+    assert result[0]["pass_fail"] == "passed"
     # At least one warning logged for skipped lines
     assert len(caplog.records) >= 1
 
