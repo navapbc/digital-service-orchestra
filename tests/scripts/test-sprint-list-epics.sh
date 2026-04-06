@@ -1155,6 +1155,72 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 44: large ticket index does not trigger ARG_MAX (exit 126) ──────────
+echo "Test 44: large ticket index does not produce ARG_MAX error (exit 126)"
+test_large_index_no_arg_max() {
+    local TDIR44
+    TDIR44=$(mktemp -d)
+    trap 'rm -rf "$TDIR44"' RETURN
+
+    # Generate 500 epic ticket directories using a single python3 call to avoid
+    # per-ticket subprocess overhead. Each ticket has a long title (~200 chars)
+    # to produce a large index (300KB+) that would previously exceed ARG_MAX when
+    # passed via environment variables.
+    python3 - "$TDIR44" <<'PYEOF'
+import json, os, sys
+tracker_dir = sys.argv[1]
+long_suffix = "x" * 180  # pad title to ~200 chars to inflate index size
+for i in range(500):
+    tid = f"epic-large-{i:04d}"
+    tdir = os.path.join(tracker_dir, tid)
+    os.makedirs(tdir, exist_ok=True)
+    create_event = {
+        "timestamp": 1000000001,
+        "uuid": f"aaaa-{tid}",
+        "event_type": "CREATE",
+        "data": {
+            "ticket_type": "epic",
+            "title": f"Large Index Epic {i:04d} {long_suffix}",
+            "priority": (i % 5)
+        }
+    }
+    with open(os.path.join(tdir, f"1000000001-aaaa-CREATE.json"), "w") as f:
+        json.dump(create_event, f)
+PYEOF
+    [ $? -eq 0 ] || return 1
+
+    local out44
+    local exit_code44
+    out44=$(TICKETS_TRACKER_DIR="$TDIR44" SPRINT_MAX_RETRIES=0 bash "$SCRIPT" 2>/dev/null)
+    exit_code44=$?
+
+    # Exit 126 means execve() ARG_MAX was exceeded — the regression we guard against.
+    # Valid exit codes: 0 (epics found), 1 (no open epics), 2 (all blocked).
+    if [ "$exit_code44" -eq 126 ]; then
+        echo "    exit code was 126 (Argument list too long) — ARG_MAX regression detected" >&2
+        return 1
+    fi
+
+    # At least one of the generated epics must appear in the output, confirming the
+    # large index was processed rather than silently truncated or errored out.
+    # Use grep on a file to avoid SIGPIPE (exit 141) from pipefail when grep -q
+    # closes the pipe early after finding the first match in a large output.
+    local tmpout
+    tmpout=$(mktemp)
+    printf '%s' "$out44" > "$tmpout"
+    grep -q "epic-large-" "$tmpout"
+    local grep_rc=$?
+    rm -f "$tmpout"
+    [ "$grep_rc" -eq 0 ] || return 1
+}
+if test_large_index_no_arg_max; then
+    echo "  PASS: large ticket index processed without ARG_MAX error"
+    (( PASS++ ))
+else
+    echo "  FAIL: large ticket index triggered ARG_MAX or produced no output" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
