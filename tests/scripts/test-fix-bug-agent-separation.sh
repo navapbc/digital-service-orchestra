@@ -42,7 +42,8 @@ _extract_step6() {
 test_step6_requires_root_cause_report() {
     local step6_content
     step6_content=$(_extract_step6 "$SKILL_FILE")
-    if echo "$step6_content" | grep -q "root_cause_report"; then
+    _tmp="$step6_content"
+    if [[ "$_tmp" == *"root_cause_report"* ]]; then
         assert_eq "test_step6_requires_root_cause_report" "present" "present"
     else
         assert_eq "test_step6_requires_root_cause_report" "present" "missing"
@@ -59,7 +60,8 @@ test_step6_requires_root_cause_report() {
 test_step6_has_hard_gate() {
     local step6_content
     step6_content=$(_extract_step6 "$SKILL_FILE")
-    if echo "$step6_content" | grep -qE "HARD-GATE|blocks.*root_cause_report"; then
+    _tmp="$step6_content"
+    if [[ "$_tmp" =~ HARD-GATE|blocks.*root_cause_report ]]; then
         assert_eq "test_step6_has_hard_gate" "present" "present"
     else
         assert_eq "test_step6_has_hard_gate" "present" "missing"
@@ -76,9 +78,12 @@ test_step6_has_hard_gate() {
 test_mechanical_exempt() {
     local step6_content
     step6_content=$(_extract_step6 "$SKILL_FILE")
-    if echo "$step6_content" | grep -qiE "mechanical.*exempt|exempt.*mechanical"; then
+    _tmp="$step6_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ mechanical.*exempt|exempt.*mechanical ]]; then
+        shopt -u nocasematch
         assert_eq "test_mechanical_exempt" "present" "present"
     else
+        shopt -u nocasematch
         assert_eq "test_mechanical_exempt" "present" "missing"
     fi
 }
@@ -93,9 +98,12 @@ test_mechanical_exempt() {
 test_bot_psychologist_exempt() {
     local step6_content
     step6_content=$(_extract_step6 "$SKILL_FILE")
-    if echo "$step6_content" | grep -qiE "bot.psychologist.*exempt|exempt.*bot.psychologist"; then
+    _tmp="$step6_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ bot.psychologist.*exempt|exempt.*bot.psychologist ]]; then
+        shopt -u nocasematch
         assert_eq "test_bot_psychologist_exempt" "present" "present"
     else
+        shopt -u nocasematch
         assert_eq "test_bot_psychologist_exempt" "present" "missing"
     fi
 }

@@ -54,7 +54,7 @@ _snapshot_fail
 _verbose_print_body=$(awk '/^verbose_print\(\)/{found=1} found{print; if(/^\}$/) exit}' "$VALIDATE_SCRIPT" 2>/dev/null || true)
 
 # Must contain flock with -w timeout
-if echo "$_verbose_print_body" | grep -q '\-w [0-9]'; then
+if [[ "$_verbose_print_body" =~ -w\ [0-9] ]]; then
     HAS_TIMEOUT_FLAG="yes"
 else
     HAS_TIMEOUT_FLAG="no"
@@ -63,7 +63,7 @@ assert_eq "verbose_print flock call has -w timeout flag" "yes" "$HAS_TIMEOUT_FLA
 
 # Must have fallback output path (temp file + cat approach used when flock is unavailable or times out)
 # The fallback uses mktemp + printf + cat pattern
-if echo "$_verbose_print_body" | grep -q 'mktemp\|printf.*tmp\|cat.*tmp'; then
+if [[ "$_verbose_print_body" =~ mktemp|printf.*tmp|cat.*tmp ]]; then
     HAS_FALLBACK_OUTPUT="yes"
 else
     HAS_FALLBACK_OUTPUT="no"
@@ -73,9 +73,10 @@ assert_eq "verbose_print has fallback output path (mktemp/cat)" "yes" "$HAS_FALL
 # The flock timeout must trigger the fallback — check that there is a conditional
 # that branches to the fallback (||, if flock fails, or similar pattern)
 # Accept either: flock ... || fallback  OR  if ! flock ...; then fallback; fi
-if echo "$_verbose_print_body" | grep -qE 'flock.*\|\||if.*flock|flock.*&&|FLOCK_OK|flock_ok|flock_result|_flock_rc'; then
+_flock_cond_re='flock.*[|][|]|if.*flock|flock.*&&|FLOCK_OK|flock_ok|flock_result|_flock_rc'
+if [[ "$_verbose_print_body" =~ $_flock_cond_re ]]; then
     HAS_TIMEOUT_CONDITIONAL="yes"
-elif echo "$_verbose_print_body" | grep -qE '\|\|'; then
+elif [[ "$_verbose_print_body" =~ [|][|] ]]; then
     # Any || fallback pattern in the function is acceptable
     HAS_TIMEOUT_CONDITIONAL="yes"
 else
@@ -96,7 +97,7 @@ echo "=== test_verbose_print_flock_unavail_unchanged ==="
 _snapshot_fail
 
 # The function must still check for flock availability
-if echo "$_verbose_print_body" | grep -q 'command -v flock'; then
+if [[ "$_verbose_print_body" == *"command -v flock"* ]]; then
     HAS_AVAILABILITY_CHECK="yes"
 else
     HAS_AVAILABILITY_CHECK="no"
@@ -104,7 +105,7 @@ fi
 assert_eq "verbose_print still checks flock availability (command -v flock)" "yes" "$HAS_AVAILABILITY_CHECK"
 
 # The else branch for flock unavailable must still contain the temp file fallback
-if echo "$_verbose_print_body" | grep -q 'mktemp'; then
+if [[ "$_verbose_print_body" == *"mktemp"* ]]; then
     HAS_MKTEMP_FALLBACK="yes"
 else
     HAS_MKTEMP_FALLBACK="no"

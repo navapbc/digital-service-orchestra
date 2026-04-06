@@ -57,9 +57,9 @@ test_accept_revise_escalate() {
   local _section
   _section=$(awk '/^### Resolution Loop/{found=1} found && /^### / && !/^### Resolution Loop/{exit} found{print}' "$IMPL_PLAN_SKILL")
   local _has_accept=0 _has_revise=0 _has_escalate=0
-  echo "$_section" | grep -qi "accept" && _has_accept=1
-  echo "$_section" | grep -qi "revise" && _has_revise=1
-  echo "$_section" | grep -qi "escalate" && _has_escalate=1
+  [[ "${_section,,}" == *accept* ]] && _has_accept=1
+  [[ "${_section,,}" == *revise* ]] && _has_revise=1
+  [[ "${_section,,}" == *escalate* ]] && _has_escalate=1
   assert_eq "test_accept_revise_escalate: 'accept' outcome within Resolution Loop section" \
     "1" "$_has_accept"
   assert_eq "test_accept_revise_escalate: 'revise' outcome within Resolution Loop section" \
@@ -80,7 +80,7 @@ test_cycle_bound() {
   local _section
   _section=$(awk '/^### Resolution Loop/{found=1} found && /^### / && !/^### Resolution Loop/{exit} found{print}' "$IMPL_PLAN_SKILL")
   local _has_cycle_bound=0
-  { echo "$_section" | grep -qiE "2 cycles|max.*2|maximum.*2|cycle.*limit.*2|2.*cycle.*limit"; } && _has_cycle_bound=1
+  [[ "${_section,,}" =~ 2\ cycles|max.*2|maximum.*2|cycle.*limit.*2|2.*cycle.*limit ]] && _has_cycle_bound=1
   assert_eq "test_cycle_bound: '2 cycles' or 'max.*2' cycle limit within Resolution Loop section" \
     "1" "$_has_cycle_bound"
   assert_pass_if_clean "test_cycle_bound"
@@ -98,7 +98,7 @@ test_state_file_persistence() {
   local _section
   _section=$(awk '/^### Resolution Loop/{found=1} found && /^### / && !/^### Resolution Loop/{exit} found{print}' "$IMPL_PLAN_SKILL")
   local _has_state_file=0
-  echo "$_section" | grep -q "/tmp/approach-resolution" && _has_state_file=1
+  [[ "$_section" == */tmp/approach-resolution* ]] && _has_state_file=1
   assert_eq "test_state_file_persistence: '/tmp/approach-resolution' state file within Resolution Loop section" \
     "1" "$_has_state_file"
   assert_pass_if_clean "test_state_file_persistence"
@@ -115,7 +115,7 @@ test_user_escalation() {
   local _section
   _section=$(awk '/^### Resolution Loop/{found=1} found && /^### / && !/^### Resolution Loop/{exit} found{print}' "$IMPL_PLAN_SKILL")
   local _has_user_escalation=0
-  { echo "$_section" | grep -qiE "escalat.*user|user.*escalat|escalat.*human|human.*escalat|present.*user|user.*review"; } && _has_user_escalation=1
+  [[ "${_section,,}" =~ escalat.*user|user.*escalat|escalat.*human|human.*escalat|present.*user|user.*review ]] && _has_user_escalation=1
   assert_eq "test_user_escalation: user escalation after cycle limit within Resolution Loop section" \
     "1" "$_has_user_escalation"
   assert_pass_if_clean "test_user_escalation"
@@ -133,7 +133,7 @@ test_decision_maker_dispatch() {
   local _section
   _section=$(awk '/^### Resolution Loop/{found=1} found && /^### / && !/^### Resolution Loop/{exit} found{print}' "$IMPL_PLAN_SKILL")
   local _has_decision_maker=0
-  echo "$_section" | grep -q "approach-decision-maker" && _has_decision_maker=1
+  [[ "$_section" == *approach-decision-maker* ]] && _has_decision_maker=1
   assert_eq "test_decision_maker_dispatch: 'approach-decision-maker' agent reference within Resolution Loop section" \
     "1" "$_has_decision_maker"
   assert_pass_if_clean "test_decision_maker_dispatch"

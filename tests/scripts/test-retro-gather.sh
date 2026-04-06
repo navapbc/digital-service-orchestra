@@ -74,7 +74,7 @@ wait "$_PID" 2>/dev/null || true
 kill "$_TIMER" 2>/dev/null; wait "$_TIMER" 2>/dev/null || true
 output=$(cat "$_OUTFILE")
 rm -f "$_OUTFILE"
-if echo "$output" | grep -qE "=== [A-Z]"; then
+if [[ "$output" =~ ===\ [A-Z] ]]; then
     echo "  PASS: output contains section headers"
     (( PASS++ ))
 else
@@ -85,7 +85,7 @@ fi
 # ── Test 5: --quick flag produces CLEANUP section ────────────────────────────
 echo "Test 5: --quick flag produces CLEANUP section"
 # Reuse output from Test 4 to avoid running the script twice
-if echo "$output" | grep -qE "CLEANUP|VALIDATION"; then
+if [[ "$output" =~ CLEANUP|VALIDATION ]]; then
     echo "  PASS: --quick output contains CLEANUP and/or VALIDATION section"
     (( PASS++ ))
 else

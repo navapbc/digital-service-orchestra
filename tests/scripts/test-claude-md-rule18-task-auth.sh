@@ -27,8 +27,12 @@ test_rule18_task_instructions_not_approval() {
     _rule18=$(grep -i "never edit safeguard files" "$CLAUDE_MD" 2>/dev/null || echo "")
     local _has_task_auth_clarification=0
     # Rule 18 must explicitly state that task instructions do not satisfy the approval requirement
-    if echo "$_rule18" | grep -qiE '(task.*(instruction|directive|request).*(do(es)? not|cannot|never).*(constitut|satisf|authoriz|override|count as))|(do(es)? not.*(constitut|satisf|count as|authoriz).*(approv|permission))'; then
+    _tmp="$_rule18"; shopt -s nocasematch
+    if [[ "$_tmp" =~ (task.*(instruction|directive|request).*(do(es)?\ not|cannot|never).*(constitut|satisf|authoriz|override|count\ as))|(do(es)?\ not.*(constitut|satisf|count\ as|authoriz).*(approv|permission)) ]]; then
+        shopt -u nocasematch
         _has_task_auth_clarification=1
+    else
+        shopt -u nocasematch
     fi
     assert_eq "rule 18 clarifies task instructions don't constitute safeguard approval (bug 859b-b48b)" "1" "$_has_task_auth_clarification"
     assert_pass_if_clean "test_rule18_task_instructions_not_approval"

@@ -335,20 +335,20 @@ batch_output=""
 batch_output=$(bash "$SCRIPT" --batch "$BATCH_FIXTURE_DIR/dso-config.conf" 2>&1) || batch_exit=$?
 assert_eq "test_batch_mode_returns_all_keys: exit 0" "0" "$batch_exit"
 # Must contain KEY=value lines (uppercase, dots to underscores)
-if echo "$batch_output" | grep -qE '^[A-Z_]+=.'; then
+if [[ "$batch_output" =~ (^|$'\n')[A-Z_]+= ]]; then
     actual_format="has_uppercase_kv"
 else
     actual_format="no_uppercase_kv"
 fi
 assert_eq "test_batch_mode_returns_all_keys: KEY=value lines (uppercase, dots-to-underscores)" "has_uppercase_kv" "$actual_format"
 # All 6 keys should appear
-if echo "$batch_output" | grep -q '^TICKETS_DIRECTORY='; then
+if [[ "$batch_output" =~ (^|$'\n')TICKETS_DIRECTORY= ]]; then
     actual_td="found"
 else
     actual_td="missing"
 fi
 assert_eq "test_batch_mode_returns_all_keys: TICKETS_DIRECTORY key present" "found" "$actual_td"
-if echo "$batch_output" | grep -q '^COMMANDS_LINT='; then
+if [[ "$batch_output" =~ (^|$'\n')COMMANDS_LINT= ]]; then
     actual_cl="found"
 else
     actual_cl="missing"
@@ -527,20 +527,20 @@ yaml_bm_output=""
 yaml_bm_output=$(bash "$SCRIPT" --batch "$YAML_FIXTURE" 2>&1) || yaml_bm_exit=$?
 assert_eq "test_yaml_batch_mode: exit 0" "0" "$yaml_bm_exit"
 # Must contain uppercase KEY=value lines
-if echo "$yaml_bm_output" | grep -qE '^[A-Z_]+='; then
+if [[ "$yaml_bm_output" =~ (^|$'\n')[A-Z_]+= ]]; then
     actual_ybm_format="has_uppercase_kv"
 else
     actual_ybm_format="no_uppercase_kv"
 fi
 assert_eq "test_yaml_batch_mode: KEY=value format" "has_uppercase_kv" "$actual_ybm_format"
 # Check specific keys
-if echo "$yaml_bm_output" | grep -q "^DATABASE_HOST="; then
+if [[ "$yaml_bm_output" =~ (^|$'\n')DATABASE_HOST= ]]; then
     actual_ybm_host="found"
 else
     actual_ybm_host="missing"
 fi
 assert_eq "test_yaml_batch_mode: DATABASE_HOST present" "found" "$actual_ybm_host"
-if echo "$yaml_bm_output" | grep -q "^APP_NAME="; then
+if [[ "$yaml_bm_output" =~ (^|$'\n')APP_NAME= ]]; then
     actual_ybm_name="found"
 else
     actual_ybm_name="missing"

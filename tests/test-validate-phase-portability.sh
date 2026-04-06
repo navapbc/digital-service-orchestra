@@ -120,19 +120,19 @@ else
     fail "post-batch all-pass: expected exit 0, got $RUN_EXIT (output: $RUN_OUTPUT)"
 fi
 
-if echo "$RUN_OUTPUT" | grep -q "FORMAT: PASS"; then
+if grep -q "FORMAT: PASS" <<< "$RUN_OUTPUT"; then
     pass "post-batch all-pass: output has FORMAT: PASS"
 else
     fail "post-batch all-pass: output missing FORMAT: PASS (output: $RUN_OUTPUT)"
 fi
 
-if echo "$RUN_OUTPUT" | grep -q "LINT: PASS"; then
+if grep -q "LINT: PASS" <<< "$RUN_OUTPUT"; then
     pass "post-batch all-pass: output has LINT: PASS"
 else
     fail "post-batch all-pass: output missing LINT: PASS (output: $RUN_OUTPUT)"
 fi
 
-if echo "$RUN_OUTPUT" | grep -q "TESTS: PASS"; then
+if grep -q "TESTS: PASS" <<< "$RUN_OUTPUT"; then
     pass "post-batch all-pass: output has TESTS: PASS"
 else
     fail "post-batch all-pass: output missing TESTS: PASS (output: $RUN_OUTPUT)"
@@ -162,7 +162,7 @@ else
     fail "post-batch lint-fail: expected non-zero exit, got 0 (output: $RUN_OUTPUT)"
 fi
 
-if echo "$RUN_OUTPUT" | grep -q "LINT: FAIL"; then
+if grep -q "LINT: FAIL" <<< "$RUN_OUTPUT"; then
     pass "post-batch lint-fail: output has LINT: FAIL"
 else
     fail "post-batch lint-fail: output missing LINT: FAIL (output: $RUN_OUTPUT)"
@@ -186,19 +186,19 @@ else
     fail "tier-transition all-pass: expected exit 0, got $RUN_EXIT (output: $RUN_OUTPUT)"
 fi
 
-if echo "$RUN_OUTPUT" | grep -q "FORMAT: PASS"; then
+if grep -q "FORMAT: PASS" <<< "$RUN_OUTPUT"; then
     pass "tier-transition all-pass: output has FORMAT: PASS"
 else
     fail "tier-transition all-pass: output missing FORMAT: PASS (output: $RUN_OUTPUT)"
 fi
 
-if echo "$RUN_OUTPUT" | grep -q "LINT: PASS"; then
+if grep -q "LINT: PASS" <<< "$RUN_OUTPUT"; then
     pass "tier-transition all-pass: output has LINT: PASS"
 else
     fail "tier-transition all-pass: output missing LINT: PASS (output: $RUN_OUTPUT)"
 fi
 
-if echo "$RUN_OUTPUT" | grep -q "TESTS: PASS"; then
+if grep -q "TESTS: PASS" <<< "$RUN_OUTPUT"; then
     pass "tier-transition all-pass: output has TESTS: PASS"
 else
     fail "tier-transition all-pass: output missing TESTS: PASS (output: $RUN_OUTPUT)"
@@ -289,7 +289,7 @@ else
     fail "post-batch test-batched delegation: test-batched.sh was NOT called (raw eval used instead)"
 fi
 
-if echo "$RUN_OUTPUT" | grep -q "TESTS: PASS"; then
+if grep -q "TESTS: PASS" <<< "$RUN_OUTPUT"; then
     pass "post-batch test-batched delegation: output has TESTS: PASS"
 else
     fail "post-batch test-batched delegation: output missing TESTS: PASS (output: $RUN_OUTPUT)"
@@ -387,7 +387,7 @@ else
     fail "post-batch RUN: pending: expected exit 2 (pending), got $RUN_EXIT (output: $RUN_OUTPUT)"
 fi
 
-if echo "$RUN_OUTPUT" | grep -q "TESTS: PENDING"; then
+if grep -q "TESTS: PENDING" <<< "$RUN_OUTPUT"; then
     pass "post-batch RUN: pending: output has TESTS: PENDING"
 else
     fail "post-batch RUN: pending: output missing TESTS: PENDING (output: $RUN_OUTPUT)"

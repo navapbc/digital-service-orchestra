@@ -150,7 +150,8 @@ echo "--- test_no_undefined_variable_errors ---"
 _snapshot_fail
 lifecycle_stderr=""
 lifecycle_stderr=$(_run_claude_safe 2>&1 >/dev/null) || true
-if echo "$lifecycle_stderr" | grep -qE 'unbound variable|undefined variable'; then
+_tmp="$lifecycle_stderr"
+if [[ "$_tmp" =~ unbound\ variable|undefined\ variable ]]; then
     (( ++FAIL ))
     printf "FAIL: test_no_undefined_variable_errors\n  stderr contained unbound/undefined variable errors:\n  %s\n" \
         "$lifecycle_stderr" >&2

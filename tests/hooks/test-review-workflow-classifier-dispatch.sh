@@ -839,13 +839,14 @@ header_a_present=false
 header_b_present=false
 header_c_present=false
 
-if echo "$INLINE_BLOCK" | grep -q "=== SONNET-A FINDINGS"; then
+_tmp="$INLINE_BLOCK"
+if [[ "$_tmp" =~ ===\ SONNET-A\ FINDINGS ]]; then
     header_a_present=true
 fi
-if echo "$INLINE_BLOCK" | grep -q "=== SONNET-B FINDINGS"; then
+if [[ "$_tmp" =~ ===\ SONNET-B\ FINDINGS ]]; then
     header_b_present=true
 fi
-if echo "$INLINE_BLOCK" | grep -q "=== SONNET-C FINDINGS"; then
+if [[ "$_tmp" =~ ===\ SONNET-C\ FINDINGS ]]; then
     header_c_present=true
 fi
 
@@ -856,7 +857,7 @@ assert_eq "inline_block_has_sonnet_c_header: SONNET-C FINDINGS header present" "
 # Verify header format matches code-reviewer-deep-arch.md input format spec
 # Expected: "=== SONNET-A FINDINGS (correctness) ===" pattern
 header_format_matches=false
-if echo "$INLINE_BLOCK" | grep -qE "^=== SONNET-[ABC] FINDINGS \([a-z/]+\) ===$"; then
+if grep -qE "^=== SONNET-[ABC] FINDINGS \([a-z/]+\) ===$" <<< "$INLINE_BLOCK"; then
     header_format_matches=true
 fi
 assert_eq "inline_block_header_matches_arch_agent_input_format: headers match === SONNET-X FINDINGS (role) === pattern from code-reviewer-deep-arch.md" "true" "$header_format_matches"

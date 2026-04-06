@@ -35,10 +35,13 @@ claude_md_content="$(cat "$CLAUDE_MD")"
 # CLAUDE.md must document a re-invocation guard to prevent unsafe recursive
 # or repeated invocations of skills. Future agents must know this guard exists
 # and when it applies.
-if echo "$claude_md_content" | grep -qiE "re-invocation guard|reinvocation guard"; then
+_tmp="$claude_md_content"; shopt -s nocasematch
+if [[ "$_tmp" =~ re-invocation\ guard|reinvocation\ guard ]]; then
+    shopt -u nocasematch
     echo "PASS: test_claude_md_contains_reinvocation_guard: CLAUDE.md documents re-invocation guard"
     (( ++PASS ))
 else
+    shopt -u nocasematch
     echo "FAIL: test_claude_md_contains_reinvocation_guard: CLAUDE.md documents re-invocation guard"
     echo "  expected: 're-invocation guard' or 'reinvocation guard' (case-insensitive)"
     echo "  actual:   pattern not found in CLAUDE.md"
@@ -51,11 +54,16 @@ echo ""
 # brainstorm context so agents know when re-planning should trigger escalation
 # to the brainstorm workflow rather than proceeding autonomously.
 _snapshot_fail
-if echo "$claude_md_content" | grep -q "REPLAN_ESCALATE"; then
-    if echo "$claude_md_content" | grep -A5 -B5 "REPLAN_ESCALATE" | grep -qi "brainstorm"; then
+_tmp="$claude_md_content"
+if [[ "$_tmp" == *"REPLAN_ESCALATE"* ]]; then
+    _replan_context=$(echo "$claude_md_content" | grep -A5 -B5 "REPLAN_ESCALATE")
+    _tmp2="$_replan_context"; shopt -s nocasematch
+    if [[ "$_tmp2" == *"brainstorm"* ]]; then
+        shopt -u nocasematch
         echo "PASS: test_claude_md_contains_replan_escalate: CLAUDE.md documents REPLAN_ESCALATE signal with brainstorm context"
         (( ++PASS ))
     else
+        shopt -u nocasematch
         echo "FAIL: test_claude_md_contains_replan_escalate: CLAUDE.md documents REPLAN_ESCALATE signal with brainstorm context"
         echo "  expected: 'brainstorm' within 5 lines of REPLAN_ESCALATE"
         echo "  actual:   REPLAN_ESCALATE found but no nearby brainstorm context"
@@ -73,11 +81,15 @@ echo ""
 # CLAUDE.md must document the GAP_CLASSIFICATION signal and its relationship to
 # intent gaps or gap classification patterns so agents can correctly categorize
 # planning gaps during re-invocation scenarios.
-if echo "$claude_md_content" | grep -q "GAP_CLASSIFICATION"; then
-    if echo "$claude_md_content" | grep -iE "intent_gap|gap.*classification" | grep -q .; then
+_tmp="$claude_md_content"
+if [[ "$_tmp" == *"GAP_CLASSIFICATION"* ]]; then
+    shopt -s nocasematch
+    if [[ "$_tmp" =~ intent_gap|gap.*classification ]]; then
+        shopt -u nocasematch
         echo "PASS: test_claude_md_contains_gap_classification: CLAUDE.md documents GAP_CLASSIFICATION with intent_gap or gap classification patterns"
         (( ++PASS ))
     else
+        shopt -u nocasematch
         echo "FAIL: test_claude_md_contains_gap_classification: CLAUDE.md documents GAP_CLASSIFICATION with intent_gap or gap classification patterns"
         echo "  expected: 'intent_gap' or gap.*classification pattern alongside GAP_CLASSIFICATION"
         echo "  actual:   GAP_CLASSIFICATION found but no intent_gap or gap classification pattern"
@@ -95,10 +107,13 @@ echo ""
 # CLAUDE.md must document a cascade protocol for re-planning cycles, including
 # cycle limits (max_replan_cycles) or cascade/replan cycle terminology to prevent
 # unbounded re-planning loops.
-if echo "$claude_md_content" | grep -qiE "max_replan_cycles|cascade.*replan|replan.*cycle"; then
+_tmp="$claude_md_content"; shopt -s nocasematch
+if [[ "$_tmp" =~ max_replan_cycles|cascade.*replan|replan.*cycle ]]; then
+    shopt -u nocasematch
     echo "PASS: test_claude_md_contains_cascade_protocol: CLAUDE.md documents cascade protocol with replan cycle limits"
     (( ++PASS ))
 else
+    shopt -u nocasematch
     echo "FAIL: test_claude_md_contains_cascade_protocol: CLAUDE.md documents cascade protocol with replan cycle limits"
     echo "  expected: 'max_replan_cycles', 'cascade.*replan', or 'replan.*cycle' in CLAUDE.md"
     echo "  actual:   no cascade/replan cycle limit pattern found in CLAUDE.md"

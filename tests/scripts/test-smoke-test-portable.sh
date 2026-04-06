@@ -81,7 +81,7 @@ echo "Test 5: test_smoke_test_produces_summary — output contains PASS summary"
 if [ -x "$SCRIPT" ]; then
     output=""
     output=$(CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}" bash "$SCRIPT" 2>&1) || true
-    if echo "$output" | grep -q "PASS"; then
+    if [[ "$output" == *PASS* ]]; then
         echo "  PASS: output contains PASS summary marker"
         (( PASS++ ))
     else

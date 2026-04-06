@@ -52,7 +52,7 @@ echo "=== test-cli-lifecycle-migration.sh ==="
 _snapshot_fail
 
 _de_content=$(cat "$DEBUG_SKILL_MD" 2>/dev/null || true)
-if echo "$_de_content" | grep -q "full MCP only as last resort"; then
+if grep -q "full MCP only as last resort" <<< "$_de_content"; then
     _de_has_mcp_dispatch="yes"
 else
     _de_has_mcp_dispatch="no"
@@ -75,7 +75,7 @@ assert_pass_if_clean "test_debug_everything_no_mcp_dispatch"
 _snapshot_fail
 
 _es_content=$(cat "$END_SKILL_MD" 2>/dev/null || true)
-if echo "$_es_content" | grep -q "\.playwright-cli/"; then
+if grep -q "\.playwright-cli/" <<< "$_es_content"; then
     _es_has_cli_ref="yes"
 else
     _es_has_cli_ref="no"
@@ -116,7 +116,7 @@ _t3_output=$(
     || true
 )
 
-if echo "$_t3_output" | grep -q "\.playwright-cli"; then
+if grep -q "\.playwright-cli" <<< "$_t3_output"; then
     _t3_has_cli="yes"
 else
     _t3_has_cli="no"
@@ -159,7 +159,7 @@ _t4_output=$(
 # After migration the script should mention CLI browser process cleanup in its
 # dry-run output (e.g. "Checking for orphaned Playwright CLI browser processes..."
 # or "Would kill N Playwright CLI browser process(es)").
-if echo "$_t4_output" | grep -qiE "playwright.*cli.*process|cli.*browser.*process|orphan.*playwright.*cli|playwright.*cli.*browser"; then
+if grep -qiE "playwright.*cli.*process|cli.*browser.*process|orphan.*playwright.*cli|playwright.*cli.*browser" <<< "$_t4_output"; then
     _t4_has_cli_proc="yes"
 else
     _t4_has_cli_proc="no"

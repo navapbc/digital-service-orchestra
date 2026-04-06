@@ -66,7 +66,7 @@ suite_output_pass=$(
 
 # Should NOT contain the dump markers
 _has_dump=0
-echo "$suite_output_pass" | grep -q "=== Failed test output ===" && _has_dump=1
+_tmp="$suite_output_pass"; [[ "$_tmp" =~ ===\ Failed\ test\ output\ === ]] && _has_dump=1
 assert_eq "no_dump_when_all_pass" "0" "$_has_dump"
 
 # --- test_suite_engine_dumps_only_failing_tests ---
@@ -85,7 +85,7 @@ assert_contains "dump_has_failing_test_output" "specific failure marker xyz123" 
 _has_pass_output=0
 # Extract only the dump section and check for the passing test's marker
 _dump_section=$(echo "$suite_output_mixed" | sed -n '/=== Failed test output ===/,/=== End failed test output ===/p')
-echo "$_dump_section" | grep -q "passing test unique marker abc789" && _has_pass_output=1
+_tmp="$_dump_section"; [[ "$_tmp" =~ passing\ test\ unique\ marker\ abc789 ]] && _has_pass_output=1
 assert_eq "dump_excludes_passing_test" "0" "$_has_pass_output"
 
 print_summary

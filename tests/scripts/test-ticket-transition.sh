@@ -200,7 +200,7 @@ test_transition_optimistic_concurrency_rejection() {
     assert_eq "concurrency: wrong current_status exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
 
     # Assert: stderr mentions the actual status
-    if echo "$stderr_out" | grep -qE 'open|actual|current'; then
+    if [[ "$stderr_out" =~ open|actual|current ]]; then
         assert_eq "concurrency: error output mentions actual status" "has-status-info" "has-status-info"
     else
         assert_eq "concurrency: error output mentions actual status" "has-status-info" "no-status-info: $stderr_out"
@@ -364,7 +364,7 @@ test_transition_invalid_target_status() {
     assert_eq "invalid-status: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
 
     # Assert: error message mentions the invalid status or valid values
-    if echo "$stderr_out" | grep -qiE 'invalid|status|open|in_progress|closed|blocked'; then
+    if [[ "${stderr_out,,}" =~ invalid|status|open|in_progress|closed|blocked ]]; then
         assert_eq "invalid-status: error message mentions status info" "has-status-info" "has-status-info"
     else
         assert_eq "invalid-status: error message mentions status info" "has-status-info" "no-status-info: $stderr_out"
@@ -488,7 +488,7 @@ test_close_ticket_reports_newly_unblocked() {
 
     # Assert: stdout contains 'UNBLOCKED: ' with ticket_b listed
     # RED: ticket-transition.sh does not call ticket-unblock.py yet → this will FAIL
-    if echo "$stdout_out" | grep -qE "UNBLOCKED:.*$ticket_b"; then
+    if [[ "$stdout_out" =~ UNBLOCKED:.*$ticket_b ]]; then
         assert_eq "unblocked-report: stdout contains UNBLOCKED: <B>" "has-unblocked-B" "has-unblocked-B"
     else
         assert_eq "unblocked-report: stdout contains UNBLOCKED: <B>" "has-unblocked-B" "missing: $stdout_out"
@@ -526,7 +526,7 @@ test_close_ticket_reports_no_unblocked() {
 
     # Assert: stdout contains 'UNBLOCKED: none'
     # RED: ticket-transition.sh does not emit UNBLOCKED output yet → this will FAIL
-    if echo "$stdout_out" | grep -q "UNBLOCKED: none"; then
+    if [[ "$stdout_out" == *"UNBLOCKED: none"* ]]; then
         assert_eq "no-unblocked: stdout contains UNBLOCKED: none" "has-none" "has-none"
     else
         assert_eq "no-unblocked: stdout contains UNBLOCKED: none" "has-none" "missing: $stdout_out"
@@ -564,7 +564,7 @@ test_close_ticket_unblocked_output_only_on_close() {
     # Assert: stdout does NOT contain 'UNBLOCKED:'
     # This test should PASS even before implementation (the script doesn't emit UNBLOCKED yet).
     # After implementation it must still pass (guard: only emit on close).
-    if echo "$stdout_out" | grep -q "UNBLOCKED:"; then
+    if [[ "$stdout_out" == *"UNBLOCKED:"* ]]; then
         assert_eq "only-on-close: no UNBLOCKED in stdout for non-close transition" "no-unblocked" "has-unblocked: $stdout_out"
     else
         assert_eq "only-on-close: no UNBLOCKED in stdout for non-close transition" "no-unblocked" "no-unblocked"
@@ -635,8 +635,8 @@ PYEOF
     # Check if either: (a) a warning was emitted to stderr, OR (b) UNBLOCKED: none
     # appears in stdout (meaning unblock ran and returned no results — still valid).
     # If neither, the implementation hasn't added unblock support yet (RED for now).
-    if echo "$stderr_out" | grep -qiE 'warn|unblock|fail|error' || \
-       echo "$stdout_out" | grep -q "UNBLOCKED:"; then
+    if [[ "${stderr_out,,}" =~ warn|unblock|fail|error ]] || \
+       [[ "$stdout_out" == *"UNBLOCKED:"* ]]; then
         assert_eq "unblock-fail: stderr warning or UNBLOCKED output present (unblock called)" "unblock-called" "unblock-called"
     else
         # RED: unblock not called yet — this assertion fails until dso-f8xn is implemented
@@ -675,7 +675,7 @@ test_transition_bug_close_requires_reason() {
     assert_eq "bug-close-no-reason: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
 
     # Assert: error message mentions '--reason' or 'reason' (guard feedback)
-    if echo "$stderr_out" | grep -qiE 'reason|--reason'; then
+    if [[ "${stderr_out,,}" =~ reason|--reason ]]; then
         assert_eq "bug-close-no-reason: error mentions --reason" "has-reason-hint" "has-reason-hint"
     else
         assert_eq "bug-close-no-reason: error mentions --reason" "has-reason-hint" "no-hint: $stderr_out"
@@ -774,7 +774,7 @@ test_transition_close_blocked_with_open_children() {
     assert_eq "close-with-open-children: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
 
     # Assert: error message mentions children or open tickets
-    if echo "$stderr_out" | grep -qiE 'child|children|open|block'; then
+    if [[ "${stderr_out,,}" =~ child|children|open|block ]]; then
         assert_eq "close-with-open-children: error mentions children" "has-children-hint" "has-children-hint"
     else
         assert_eq "close-with-open-children: error mentions children" "has-children-hint" "no-hint: $stderr_out"
@@ -944,13 +944,13 @@ test_close_with_open_children_blocked_via_batch() {
     assert_eq "batch-open-children: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
 
     # Assert: error output mentions both child IDs
-    if echo "$stderr_out" | grep -q "$child1_id"; then
+    if [[ "$stderr_out" == *"$child1_id"* ]]; then
         assert_eq "batch-open-children: error lists child1" "has-child1" "has-child1"
     else
         assert_eq "batch-open-children: error lists child1" "has-child1" "missing: $stderr_out"
     fi
 
-    if echo "$stderr_out" | grep -q "$child2_id"; then
+    if [[ "$stderr_out" == *"$child2_id"* ]]; then
         assert_eq "batch-open-children: error lists child2" "has-child2" "has-child2"
     else
         assert_eq "batch-open-children: error lists child2" "has-child2" "missing: $stderr_out"
@@ -999,7 +999,7 @@ test_close_unblock_works_via_batch() {
     assert_eq "unblock-batch: transition exits 0" "0" "$exit_code"
 
     # Assert: stdout contains UNBLOCKED with ticket_b's ID
-    if echo "$stdout_out" | grep -qE "UNBLOCKED.*$ticket_b|UNBLOCKED:.*$ticket_b"; then
+    if [[ "$stdout_out" =~ UNBLOCKED.*$ticket_b|UNBLOCKED:.*$ticket_b ]]; then
         assert_eq "unblock-batch: stdout contains UNBLOCKED: <B>" "has-unblocked-B" "has-unblocked-B"
     else
         assert_eq "unblock-batch: stdout contains UNBLOCKED: <B>" "has-unblocked-B" "missing: $stdout_out"

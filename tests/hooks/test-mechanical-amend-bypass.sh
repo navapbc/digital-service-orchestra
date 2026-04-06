@@ -72,7 +72,7 @@ _snapshot_fail
 
 _VB_FN=$(_extract_fn "_phase_version_bump" "$MERGE_SCRIPT" 2>/dev/null || echo "")
 _VB_HAS_AMEND_VAR="not_found"
-echo "$_VB_FN" | grep -q 'DSO_MECHANICAL_AMEND' 2>/dev/null && _VB_HAS_AMEND_VAR="found"
+_tmp="$_VB_FN"; [[ "$_tmp" =~ DSO_MECHANICAL_AMEND ]] 2>/dev/null && _VB_HAS_AMEND_VAR="found"
 assert_eq "test_version_bump_sets_mechanical_amend" "found" "$_VB_HAS_AMEND_VAR"
 
 assert_pass_if_clean "test_version_bump_sets_mechanical_amend"
@@ -87,7 +87,7 @@ _snapshot_fail
 
 _VAL_FN=$(_extract_fn "_phase_validate" "$MERGE_SCRIPT" 2>/dev/null || echo "")
 _VAL_HAS_AMEND_VAR="not_found"
-echo "$_VAL_FN" | grep -q 'DSO_MECHANICAL_AMEND' 2>/dev/null && _VAL_HAS_AMEND_VAR="found"
+_tmp="$_VAL_FN"; [[ "$_tmp" =~ DSO_MECHANICAL_AMEND ]] 2>/dev/null && _VAL_HAS_AMEND_VAR="found"
 assert_eq "test_validate_phase_sets_mechanical_amend" "found" "$_VAL_HAS_AMEND_VAR"
 
 assert_pass_if_clean "test_validate_phase_sets_mechanical_amend"

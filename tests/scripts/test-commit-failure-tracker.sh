@@ -115,7 +115,8 @@ STDERR_OUT=$(
 )
 
 # Should NOT warn because index found a matching entry
-if echo "$STDERR_OUT" | grep -q "UNTRACKED VALIDATION"; then
+_tmp="$STDERR_OUT"
+if [[ "$_tmp" == *"UNTRACKED VALIDATION"* ]]; then
     echo "  FAIL: test_tracker_uses_index — unexpected warning when index has match" >&2
     echo "  STDERR: $STDERR_OUT" >&2
     (( FAIL++ ))
@@ -163,7 +164,8 @@ STDERR_OUT=$(
 )
 
 # Should NOT warn because grep found the .md file
-if echo "$STDERR_OUT" | grep -q "UNTRACKED VALIDATION"; then
+_tmp="$STDERR_OUT"
+if [[ "$_tmp" == *"UNTRACKED VALIDATION"* ]]; then
     echo "  FAIL: test_tracker_finds_matching_md — unexpected warning" >&2
     echo "  STDERR: $STDERR_OUT" >&2
     (( FAIL++ ))
@@ -200,7 +202,8 @@ STDERR_OUT=$(
     " 2>&1 >/dev/null || true
 )
 
-if echo "$STDERR_OUT" | grep -q "UNTRACKED VALIDATION"; then
+_tmp="$STDERR_OUT"
+if [[ "$_tmp" == *"UNTRACKED VALIDATION"* ]]; then
     echo "  PASS: test_tracker_warns_when_no_match — warning emitted when nothing found"
     (( PASS++ ))
 else
@@ -250,7 +253,8 @@ STDERR_OUT=$(
 )
 
 # Should NOT warn — index entry found (even though .md is absent)
-if echo "$STDERR_OUT" | grep -q "UNTRACKED VALIDATION"; then
+_tmp="$STDERR_OUT"
+if [[ "$_tmp" == *"UNTRACKED VALIDATION"* ]]; then
     echo "  FAIL: test_tracker_index_stale_entry — unexpected warning for stale entry" >&2
     echo "  STDERR: $STDERR_OUT" >&2
     (( FAIL++ ))
@@ -300,7 +304,8 @@ STDERR_OUT=$(
 )
 
 # Should NOT warn — grep fallback found the .md file
-if echo "$STDERR_OUT" | grep -q "UNTRACKED VALIDATION"; then
+_tmp="$STDERR_OUT"
+if [[ "$_tmp" == *"UNTRACKED VALIDATION"* ]]; then
     echo "  FAIL: test_tracker_index_no_match_but_md_exists — unexpected warning" >&2
     echo "  STDERR: $STDERR_OUT" >&2
     (( FAIL++ ))

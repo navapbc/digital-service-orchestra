@@ -318,7 +318,7 @@ assert_eq "test_validate_emits_action_required_block_on_exit_2: exits 2" "2" "$r
 
 # validate.sh stdout must contain "ACTION REQUIRED"
 e2_has_action=0
-echo "$output_e2" | grep -q "ACTION REQUIRED" && e2_has_action=1
+[[ "$output_e2" == *"ACTION REQUIRED"* ]] && e2_has_action=1
 assert_eq "test_validate_emits_action_required_block_on_exit_2: output contains 'ACTION REQUIRED'" "1" "$e2_has_action"
 
 assert_pass_if_clean "test_validate_emits_action_required_block_on_exit_2"

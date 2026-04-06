@@ -200,14 +200,14 @@ test_write_commit_event_commits_specific_file() {
         | grep -v '^$' | tr -d ' ')
 
     # stray.txt must NOT be in the committed files
-    if echo "$committed_files" | grep -q 'stray.txt'; then
+    if [[ "$committed_files" == *"stray.txt"* ]]; then
         assert_eq "stray file not committed" "not-committed" "committed"
     else
         assert_eq "stray file not committed" "not-committed" "not-committed"
     fi
 
     # The event file for our ticket_id must be in the committed files
-    if echo "$committed_files" | grep -q "$ticket_id"; then
+    if [[ "$committed_files" == *"$ticket_id"* ]]; then
         assert_eq "event file for ticket committed" "committed" "committed"
     else
         assert_eq "event file for ticket committed" "committed" "not-committed"
@@ -539,7 +539,7 @@ test_flock_stage_commit_commits_to_branch() {
     local log_output
     log_output=$(git -C "$tracker_dir" log --oneline -5 2>/dev/null || echo "")
 
-    if echo "$log_output" | grep -q "COMMENT $ticket_id"; then
+    if [[ "$log_output" == *"COMMENT $ticket_id"* ]]; then
         assert_eq "_flock_stage_commit: commit message in git log" "found" "found"
     else
         assert_eq "_flock_stage_commit: commit message in git log" "found" "not-found"
@@ -549,7 +549,7 @@ test_flock_stage_commit_commits_to_branch() {
     local committed_files
     committed_files=$(git -C "$tracker_dir" log --name-only --pretty=format: -1 2>/dev/null \
         | grep -v '^$' || echo "")
-    if echo "$committed_files" | grep -q "$ticket_id/$final_filename"; then
+    if [[ "$committed_files" == *"$ticket_id/$final_filename"* ]]; then
         assert_eq "_flock_stage_commit: correct file in commit" "committed" "committed"
     else
         assert_eq "_flock_stage_commit: correct file in commit" "committed" "not-committed"

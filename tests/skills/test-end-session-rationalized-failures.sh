@@ -53,7 +53,7 @@ assert_pass_if_clean "test_skill_has_rationalized_failures_step"
 # ---------------------------------------------------------------------------
 _snapshot_fail
 step_content=$(awk '/Rationalized Failures/,/^### 2\.8\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step_content" | grep -qiE "scan|conversation|context"; then
+if grep -qiE "scan|conversation|context" <<< "$step_content"; then
     has_scan="found"
 else
     has_scan="missing"
@@ -68,7 +68,7 @@ assert_pass_if_clean "test_step_references_conversation_scan"
 # ---------------------------------------------------------------------------
 _snapshot_fail
 step_content=$(awk '/Rationalized Failures/,/^### 2\.8\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step_content" | grep -qiE "before.*after|after.*before|before or after"; then
+if grep -qiE "before.*after|after.*before|before or after" <<< "$step_content"; then
     has_before_after="found"
 else
     has_before_after="missing"
@@ -83,7 +83,7 @@ assert_pass_if_clean "test_step_has_accountability_question_before_after"
 # ---------------------------------------------------------------------------
 _snapshot_fail
 step_content=$(awk '/Rationalized Failures/,/^### 2\.8\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step_content" | grep -qiE "bug.*exist|exist.*bug|ticket.*exist|exist.*ticket|already.*ticket|ticket.*already"; then
+if grep -qiE "bug.*exist|exist.*bug|ticket.*exist|exist.*ticket|already.*ticket|ticket.*already" <<< "$step_content"; then
     has_bug_exists="found"
 else
     has_bug_exists="missing"
@@ -97,7 +97,7 @@ assert_pass_if_clean "test_step_has_accountability_question_bug_exists"
 # ---------------------------------------------------------------------------
 _snapshot_fail
 step_content=$(awk '/Rationalized Failures/,/^### 2\.8\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step_content" | grep -q "?"; then
+if grep -q "?" <<< "$step_content"; then
     has_question_mark="found"
 else
     has_question_mark="missing"
@@ -112,7 +112,7 @@ assert_pass_if_clean "test_accountability_questions_interrogative"
 # ---------------------------------------------------------------------------
 _snapshot_fail
 step_content=$(awk '/Rationalized Failures/,/^### 2\.8\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step_content" | grep -qiE "git stash|stash.*baseline|baseline.*stash|stash pop|stash.*check"; then
+if grep -qiE "git stash|stash.*baseline|baseline.*stash|stash pop|stash.*check" <<< "$step_content"; then
     has_stash="found"
 else
     has_stash="missing"
@@ -127,7 +127,7 @@ assert_pass_if_clean "test_step_references_git_stash_baseline"
 # ---------------------------------------------------------------------------
 _snapshot_fail
 step_content=$(awk '/Rationalized Failures/,/^### 2\.8\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step_content" | grep -qE "ticket list.*--type.*bug|ticket list.*bug|--type=bug|--type bug"; then
+if grep -qE "ticket list.*--type.*bug|ticket list.*bug|--type=bug|--type bug" <<< "$step_content"; then
     has_ticket_list_bug="found"
 else
     has_ticket_list_bug="missing"
@@ -142,7 +142,7 @@ assert_pass_if_clean "test_step_references_ticket_list_bug"
 # ---------------------------------------------------------------------------
 _snapshot_fail
 step_content=$(awk '/Rationalized Failures/,/^### 2\.8\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step_content" | grep -qE "ticket create"; then
+if grep -qE "ticket create" <<< "$step_content"; then
     has_ticket_create="found"
 else
     has_ticket_create="missing"
@@ -157,7 +157,7 @@ assert_pass_if_clean "test_step_references_ticket_create"
 # ---------------------------------------------------------------------------
 _snapshot_fail
 step6_content=$(awk '/^### 6\./,/^### 7\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step6_content" | grep -qiE "rationalized.failure|RATIONALIZED_FAILURES"; then
+if grep -qiE "rationalized.failure|RATIONALIZED_FAILURES" <<< "$step6_content"; then
     has_summary_display="found"
 else
     has_summary_display="missing"
@@ -172,7 +172,7 @@ assert_pass_if_clean "test_step_has_summary_display"
 # ---------------------------------------------------------------------------
 _snapshot_fail
 step6_content=$(awk '/^### 6\./,/^### 7\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step6_content" | grep -q "RATIONALIZED_FAILURES_FROM_2_77"; then
+if grep -q "RATIONALIZED_FAILURES_FROM_2_77" <<< "$step6_content"; then
     has_var_ref="found"
 else
     has_var_ref="missing"
@@ -203,7 +203,7 @@ assert_pass_if_clean "test_step_ordering_before_learnings"
 # ---------------------------------------------------------------------------
 _snapshot_fail
 step_content=$(awk '/Rationalized Failures/,/^### 2\.8\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step_content" | grep -qiE "if none|if no|skip.*if|none found|nothing found|empty|no failures"; then
+if grep -qiE "if none|if no|skip.*if|none found|nothing found|empty|no failures" <<< "$step_content"; then
     has_empty_guard="found"
 else
     has_empty_guard="missing"

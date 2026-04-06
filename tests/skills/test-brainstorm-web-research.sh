@@ -47,7 +47,7 @@ PYEOF
 RESEARCH_SECTION="$(extract_research_section)"
 
 echo "=== Research phase heading ==="
-if echo "$RESEARCH_SECTION" | grep -qiE "web research"; then
+if grep -qiE "web research" <<< "$RESEARCH_SECTION"; then
   pass "SKILL.md contains a web research phase heading"
 else
   fail "SKILL.md missing web research phase heading"
@@ -63,7 +63,7 @@ for trigger in \
   "security|auth|authentication|credential" \
   "performance|scalability|throughput|latency" \
   "migration|upgrade|version|compatibility"; do
-  if echo "$RESEARCH_SECTION" | grep -qiE "$trigger"; then
+  if grep -qiE "$trigger" <<< "$RESEARCH_SECTION"; then
     TRIGGER_COUNT=$((TRIGGER_COUNT + 1))
   fi
 done
@@ -77,7 +77,7 @@ fi
 echo ""
 echo "=== One-sentence examples for trigger conditions ==="
 # Each trigger condition should have an illustrative example sentence
-if echo "$RESEARCH_SECTION" | grep -qiE "example|e\.g\.|for instance|such as"; then
+if grep -qiE "example|e\.g\.|for instance|such as" <<< "$RESEARCH_SECTION"; then
   pass "Research phase section includes trigger condition examples"
 else
   fail "Research phase section missing one-sentence examples for trigger conditions"
@@ -86,7 +86,7 @@ fi
 echo ""
 echo "=== Agent-judgment trigger guidance paragraph ==="
 # There should be a paragraph describing when agent judgment applies (edge cases beyond bright-line triggers)
-if echo "$RESEARCH_SECTION" | grep -qiE "judgment|agent.*judge|use.*judgment|exercise.*judgment|when.*unclear|when.*uncertain|when.*doubt"; then
+if grep -qiE "judgment|agent.*judge|use.*judgment|exercise.*judgment|when.*unclear|when.*uncertain|when.*doubt" <<< "$RESEARCH_SECTION"; then
   pass "Research phase section contains agent-judgment trigger guidance"
 else
   fail "Research phase section missing agent-judgment trigger guidance paragraph"
@@ -94,13 +94,13 @@ fi
 
 echo ""
 echo "=== WebSearch and WebFetch references within research phase section ==="
-if echo "$RESEARCH_SECTION" | grep -q "WebSearch"; then
+if grep -q "WebSearch" <<< "$RESEARCH_SECTION"; then
   pass "Research phase section references WebSearch"
 else
   fail "Research phase section missing WebSearch reference"
 fi
 
-if echo "$RESEARCH_SECTION" | grep -q "WebFetch"; then
+if grep -q "WebFetch" <<< "$RESEARCH_SECTION"; then
   pass "Research phase section references WebFetch"
 else
   fail "Research phase section missing WebFetch reference"
@@ -108,35 +108,35 @@ fi
 
 echo ""
 echo "=== Research Findings section structure ==="
-if echo "$RESEARCH_SECTION" | grep -qiE "[Rr]esearch [Ff]indings|findings section"; then
+if grep -qiE "[Rr]esearch [Ff]indings|findings section" <<< "$RESEARCH_SECTION"; then
   pass "Research phase section contains a Research Findings structure"
 else
   fail "Research phase section missing Research Findings section structure"
 fi
 
 # Item-level format: trigger condition name
-if echo "$RESEARCH_SECTION" | grep -qiE "trigger.*condition|condition.*name|trigger name"; then
+if grep -qiE "trigger.*condition|condition.*name|trigger name" <<< "$RESEARCH_SECTION"; then
   pass "Research Findings format includes trigger condition name"
 else
   fail "Research Findings format missing trigger condition name field"
 fi
 
 # Item-level format: query summary
-if echo "$RESEARCH_SECTION" | grep -qiE "query summary|search query|query used|what.*searched"; then
+if grep -qiE "query summary|search query|query used|what.*searched" <<< "$RESEARCH_SECTION"; then
   pass "Research Findings format includes query summary"
 else
   fail "Research Findings format missing query summary field"
 fi
 
 # Item-level format: source URLs
-if echo "$RESEARCH_SECTION" | grep -qiE "source URL|source url|URLs?.*found|link.*found|references?.*URL"; then
+if grep -qiE "source URL|source url|URLs?.*found|link.*found|references?.*URL" <<< "$RESEARCH_SECTION"; then
   pass "Research Findings format includes source URLs"
 else
   fail "Research Findings format missing source URLs field"
 fi
 
 # Item-level format: key insight
-if echo "$RESEARCH_SECTION" | grep -qiE "key insight|insight|finding|takeaway|summary.*result"; then
+if grep -qiE "key insight|insight|finding|takeaway|summary.*result" <<< "$RESEARCH_SECTION"; then
   pass "Research Findings format includes key insight"
 else
   fail "Research Findings format missing key insight field"
@@ -144,7 +144,7 @@ fi
 
 echo ""
 echo "=== Graceful degradation when WebSearch/WebFetch fails ==="
-if echo "$RESEARCH_SECTION" | grep -qiE "fail|unavailable|not available|graceful|degraded?|skip.*search|if.*fails?\b|when.*fails?\b"; then
+if grep -qiE "fail|unavailable|not available|graceful|degraded?|skip.*search|if.*fails?\b|when.*fails?\b" <<< "$RESEARCH_SECTION"; then
   pass "Research phase section describes graceful degradation on tool failure"
 else
   fail "Research phase section missing graceful degradation guidance for WebSearch/WebFetch failures"

@@ -107,7 +107,7 @@ assert_eq "test_no_ticket_creation_at_threshold_no_bugs_created" "no" "$_TTE_BUG
 
 # Assert no hook output (no "Recurring tool error detected")
 _TTE_OUTPUT_CLEAN="yes"
-if echo "$_TTE_OUTPUT" | grep -q "Recurring tool error detected" 2>/dev/null; then
+_tmp="$_TTE_OUTPUT"; if [[ "$_tmp" =~ Recurring\ tool\ error\ detected ]] 2>/dev/null; then
     _TTE_OUTPUT_CLEAN="no"
 fi
 assert_eq "test_no_ticket_creation_at_threshold_no_output" "yes" "$_TTE_OUTPUT_CLEAN"

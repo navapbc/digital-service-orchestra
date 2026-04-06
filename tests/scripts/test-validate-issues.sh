@@ -116,7 +116,7 @@ MOCK_TICKET_CMD=$(make_ticket_cmd "[$TICKETS_JSON]")
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
-if echo "$output" | grep -qiE "\[MINOR\].*test-epic-alone|\[WARNING\].*test-epic-alone"; then
+if [[ "${output,,}" =~ \[minor\].*test-epic-alone|\[warning\].*test-epic-alone ]]; then
     echo "  FAIL: childless epic emitted MINOR or WARNING (should be verbose-only)" >&2
     echo "  Output: $output" >&2
     (( FAIL++ ))
@@ -139,7 +139,7 @@ MOCK_TICKET_CMD=$(make_ticket_cmd "$TICKETS_ARRAY")
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
-if echo "$output" | grep -qiE "\[MAJOR\].*ticket count|\[WARNING\].*ticket count"; then
+if [[ "${output,,}" =~ \[major\].*ticket\ count|\[warning\].*ticket\ count ]]; then
     echo "  FAIL: small ticket count triggered unexpected ticket-count warning" >&2
     echo "  Output: $output" >&2
     (( FAIL++ ))
@@ -162,7 +162,7 @@ MOCK_TICKET_CMD=$(make_ticket_cmd "$TICKETS_ARRAY")
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
-if echo "$output" | grep -qiE "\[WARNING\].*ticket count|\[MAJOR\].*ticket count"; then
+if [[ "${output,,}" =~ \[warning\].*ticket\ count|\[major\].*ticket\ count ]]; then
     echo "  PASS: 300+ tickets produced ticket-count WARNING"
     (( PASS++ ))
 else
@@ -179,7 +179,7 @@ MOCK_TICKET_CMD=$(make_ticket_cmd "[$ORPHAN_JSON]")
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
-if echo "$output" | grep -qiE "\[WARNING\].*test-orphan|\[WARNING\].*[Oo]rphan"; then
+if [[ "${output,,}" =~ \[warning\].*test-orphan|\[warning\].*orphan ]]; then
     echo "  PASS: orphaned task produced WARNING"
     (( PASS++ ))
 else
@@ -197,7 +197,7 @@ MOCK_TICKET_CMD=$(make_ticket_cmd "[$PARENT_EPIC,$CHILD_TASK]")
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
-if echo "$output" | grep -qiE "\[WARNING\].*test-child-task.*[Oo]rphan|\[WARNING\].*[Oo]rphan.*test-child-task"; then
+if [[ "${output,,}" =~ \[warning\].*test-child-task.*orphan|\[warning\].*orphan.*test-child-task ]]; then
     echo "  FAIL: child task with parent was incorrectly flagged as orphan" >&2
     echo "  Output: $output" >&2
     (( FAIL++ ))
@@ -216,7 +216,7 @@ MOCK_TICKET_CMD=$(make_ticket_cmd "[$DUP_EPIC,$DUP_1,$DUP_2]")
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
-if echo "$output" | grep -qiE "\[MINOR\].*[Dd]uplicate"; then
+if [[ "${output,,}" =~ \[minor\].*duplicate ]]; then
     echo "  PASS: duplicate titles produced MINOR"
     (( PASS++ ))
 else
@@ -249,7 +249,7 @@ MOCK_TICKET_CMD=$(make_ticket_cmd "[$CP_EPIC,$CP_CHILD]")
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
-if echo "$output" | grep -qiE "\[CRITICAL\].*test-cp-child|\[CRITICAL\].*[Cc]hild.*parent"; then
+if [[ "${output,,}" =~ \[critical\].*test-cp-child|\[critical\].*child.*parent ]]; then
     echo "  PASS: child->parent dep produced CRITICAL"
     (( PASS++ ))
 else
@@ -268,7 +268,7 @@ MOCK_TICKET_CMD=$(make_ticket_cmd "[$NODESC_EPIC,$NODESC_TASK]")
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
-if echo "$output" | grep -qiE "\[WARNING\].*test-nodesc-task|\[WARNING\].*[Mm]issing description"; then
+if [[ "${output,,}" =~ \[warning\].*test-nodesc-task|\[warning\].*missing\ description ]]; then
     echo "  PASS: task without description produced WARNING"
     (( PASS++ ))
 else
@@ -287,7 +287,7 @@ MOCK_TICKET_CMD=$(make_ticket_cmd "[$INP_EPIC,$INP_TASK]")
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
-if echo "$output" | grep -qiE "\[WARNING\].*test-inp-task|\[WARNING\].*[Ii]n.progress.*notes|\[WARNING\].*notes.*in.progress"; then
+if [[ "${output,,}" =~ \[warning\].*test-inp-task|\[warning\].*in.progress.*notes|\[warning\].*notes.*in.progress ]]; then
     echo "  PASS: in_progress task without notes produced WARNING"
     (( PASS++ ))
 else
@@ -326,7 +326,7 @@ MOCK_TICKET_CMD=$(make_ticket_cmd "[$CLOSED_TASK]")
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
-if echo "$output" | grep -qiE "\[WARNING\].*test-closed-task"; then
+if [[ "${output,,}" =~ \[warning\].*test-closed-task ]]; then
     echo "  FAIL: closed ticket was incorrectly flagged" >&2
     echo "  Output: $output" >&2
     (( FAIL++ ))
@@ -362,7 +362,7 @@ int_ts_output=""
 int_ts_exit=0
 int_ts_output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || int_ts_exit=$?
 
-if echo "$int_ts_output" | grep -q "TypeError"; then
+if [[ "$int_ts_output" == *"TypeError"* ]]; then
     echo "  FAIL: script emitted a TypeError when created_at is an integer" >&2
     echo "  Output: $int_ts_output" >&2
     (( FAIL++ ))

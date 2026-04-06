@@ -126,10 +126,10 @@ fi
 _scenario_section=$(grep -A 50 -i "Scenario Analysis" "$SKILL_MD" 2>/dev/null | head -60 || true)
 _has_threshold=false
 _has_conditional=false
-if echo "$_scenario_section" | grep -qE '[0-9]+'; then
+if grep -qE '[0-9]+' <<< "$_scenario_section"; then
   _has_threshold=true
 fi
-if echo "$_scenario_section" | grep -qiE '\b(only|when|if|threshold|COMPLEX|MODERATE|score)\b'; then
+if grep -qiE '\b(only|when|if|threshold|COMPLEX|MODERATE|score)\b' <<< "$_scenario_section"; then
   _has_conditional=true
 fi
 if [ "$_has_threshold" = "true" ] && [ "$_has_conditional" = "true" ]; then

@@ -35,7 +35,7 @@ test_no_usability_testing() {
     local _content
     _content=$(cat "$VALUE_MD")
     local _found=0
-    if echo "$_content" | grep -qF 'usability testing'; then
+    if [[ "$_content" == *"usability testing"* ]]; then
         _found=1
     fi
     assert_eq "test_no_usability_testing: value.md must NOT contain 'usability testing'" "0" "$_found"
@@ -49,7 +49,7 @@ test_no_support_ticket_vol() {
     local _content
     _content=$(cat "$VALUE_MD")
     local _found=0
-    if echo "$_content" | grep -qF 'support ticket volume decrease'; then
+    if [[ "$_content" == *"support ticket volume decrease"* ]]; then
         _found=1
     fi
     assert_eq "test_no_support_ticket_vol: value.md must NOT contain 'support ticket volume decrease'" "0" "$_found"
@@ -63,7 +63,7 @@ test_no_ab_tests() {
     local _content
     _content=$(cat "$VALUE_MD")
     local _found=0
-    if echo "$_content" | grep -qF 'A/B tests'; then
+    if [[ "$_content" == *"A/B tests"* ]]; then
         _found=1
     fi
     assert_eq "test_no_ab_tests: value.md must NOT contain 'A/B tests'" "0" "$_found"
@@ -77,7 +77,7 @@ test_has_dogfooding() {
     local _content
     _content=$(cat "$VALUE_MD")
     local _found=0
-    if echo "$_content" | grep -qF 'dogfooding'; then
+    if [[ "$_content" == *"dogfooding"* ]]; then
         _found=1
     fi
     assert_eq "test_has_dogfooding: value.md MUST contain 'dogfooding'" "1" "$_found"
@@ -91,7 +91,7 @@ test_has_before_after() {
     local _content
     _content=$(cat "$VALUE_MD")
     local _found=0
-    if echo "$_content" | grep -qF 'before/after'; then
+    if [[ "$_content" == *"before/after"* ]]; then
         _found=1
     fi
     assert_eq "test_has_before_after: value.md MUST contain 'before/after'" "1" "$_found"
@@ -105,7 +105,7 @@ test_has_operational_metrics() {
     local _content
     _content=$(cat "$VALUE_MD")
     local _found=0
-    if echo "$_content" | grep -qF 'operational metrics'; then
+    if [[ "$_content" == *"operational metrics"* ]]; then
         _found=1
     fi
     assert_eq "test_has_operational_metrics: value.md MUST contain 'operational metrics'" "1" "$_found"

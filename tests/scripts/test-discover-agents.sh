@@ -242,7 +242,8 @@ stderr_output=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tm
 assert_contains "test_dso_short_circuit_always_resolves: resolves to dso:bot-psychologist" \
     "llm_behavioral=dso:bot-psychologist" "$output"
 # Must NOT fall through to general-purpose
-if echo "$output" | grep -q "llm_behavioral=general-purpose"; then
+_tmp="$output"
+if [[ "$_tmp" == *"llm_behavioral=general-purpose"* ]]; then
     actual_no_fallback="fell-through"
 else
     actual_no_fallback="short-circuited"

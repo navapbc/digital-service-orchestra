@@ -41,16 +41,16 @@ test_dimensions_reference_planners() {
 
     # Must NOT contain the old developer-agent framing
     local _has_old_framing=0
-    if echo "$_content" | grep -qF 'developer agent'; then
+    _tmp="$_content"; if [[ "$_tmp" == *'developer agent'* ]]; then
         _has_old_framing=1
     fi
     assert_eq "test_dimensions_reference_planners: must NOT contain 'developer agent'" "0" "$_has_old_framing"
 
     # Must contain reference to planner-level concerns (planners or story decomposition)
     local _has_planner_ref=0
-    if echo "$_content" | grep -qiE 'planner|story decomposition|decompose'; then
+    _tmp="$_content"; shopt -s nocasematch; if [[ "$_tmp" =~ planner|story\ decomposition|decompose ]]; then
         _has_planner_ref=1
-    fi
+    fi; shopt -u nocasematch
     assert_eq "test_dimensions_reference_planners: must reference planners/story decomposition" "1" "$_has_planner_ref"
 
     assert_pass_if_clean "test_dimensions_reference_planners"
@@ -66,16 +66,16 @@ test_anti_pattern_instruction_present() {
 
     # Must NOT penalize missing file paths
     local _has_anti_filepath=0
-    if echo "$_content" | grep -qiE 'do not penali[sz]e.*file path|file path.*not.*penali[sz]|not.*penali[sz]e.*file'; then
+    _tmp="$_content"; shopt -s nocasematch; if [[ "$_tmp" =~ do\ not\ penali[sz]e.*file\ path|file\ path.*not.*penali[sz]|not.*penali[sz]e.*file ]]; then
         _has_anti_filepath=1
-    fi
+    fi; shopt -u nocasematch
     assert_eq "test_anti_pattern_instruction_present: must instruct not to penalize missing file paths" "1" "$_has_anti_filepath"
 
     # Must NOT penalize missing shell commands or implementation details
     local _has_anti_impl=0
-    if echo "$_content" | grep -qiE 'do not penali[sz]e.*shell|do not penali[sz]e.*implementation|implementation detail.*not.*penali[sz]|not.*penali[sz]e.*(shell|implementation)'; then
+    _tmp="$_content"; shopt -s nocasematch; if [[ "$_tmp" =~ do\ not\ penali[sz]e.*shell|do\ not\ penali[sz]e.*implementation|implementation\ detail.*not.*penali[sz]|not.*penali[sz]e.*(shell|implementation) ]]; then
         _has_anti_impl=1
-    fi
+    fi; shopt -u nocasematch
     assert_eq "test_anti_pattern_instruction_present: must instruct not to penalize missing shell commands/implementation details" "1" "$_has_anti_impl"
 
     assert_pass_if_clean "test_anti_pattern_instruction_present"
@@ -91,9 +91,9 @@ test_ambiguity_penalization_present() {
 
     # Must contain reference to penalizing vague outcomes or undefined jargon or edge cases
     local _has_vague_outcomes=0
-    if echo "$_content" | grep -qiE 'vague outcome|undefined jargon|edge case'; then
+    _tmp="$_content"; shopt -s nocasematch; if [[ "$_tmp" =~ vague\ outcome|undefined\ jargon|edge\ case ]]; then
         _has_vague_outcomes=1
-    fi
+    fi; shopt -u nocasematch
     assert_eq "test_ambiguity_penalization_present: must penalize vague outcomes/undefined jargon/missing edge cases" "1" "$_has_vague_outcomes"
 
     assert_pass_if_clean "test_ambiguity_penalization_present"
@@ -122,21 +122,21 @@ test_scoring_scale_preserved() {
 
     # Scoring scale table must be present (check for scale header and at least scores 1 and 5)
     local _has_scale_table=0
-    if echo "$_content" | grep -qF '| Score |' && echo "$_content" | grep -qF '| 5 |' && echo "$_content" | grep -qF '| 1 |'; then
+    _tmp="$_content"; if [[ "$_tmp" == *'| Score |'* ]] && [[ "$_tmp" == *'| 5 |'* ]] && [[ "$_tmp" == *'| 1 |'* ]]; then
         _has_scale_table=1
     fi
     assert_eq "test_scoring_scale_preserved: scoring scale table must be preserved" "1" "$_has_scale_table"
 
     # JSON output block must be present with "dimensions" key
     local _has_json_output=0
-    if echo "$_content" | grep -qF '"dimensions"'; then
+    _tmp="$_content"; if [[ "$_tmp" == *'"dimensions"'* ]]; then
         _has_json_output=1
     fi
     assert_eq "test_scoring_scale_preserved: JSON output format with 'dimensions' must be preserved" "1" "$_has_json_output"
 
     # perspective label "Agent Clarity" must be preserved
     local _has_perspective=0
-    if echo "$_content" | grep -qF '"Agent Clarity"'; then
+    _tmp="$_content"; if [[ "$_tmp" == *'"Agent Clarity"'* ]]; then
         _has_perspective=1
     fi
     assert_eq "test_scoring_scale_preserved: perspective label 'Agent Clarity' must be preserved" "1" "$_has_perspective"

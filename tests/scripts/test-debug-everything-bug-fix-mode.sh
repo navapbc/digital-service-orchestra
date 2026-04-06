@@ -143,8 +143,12 @@ PYEOF
     # In the extracted section, check for orchestrator-level invocation pattern
     # (reads SKILL.md inline, not via Task tool)
     if [[ -n "$bug_fix_section" ]]; then
-        if echo "$bug_fix_section" | grep -qEi '(inline|orchestrator.*level|reads.*SKILL\.md|NOT.*Task tool|not.*via.*Task)'; then
+        _tmp="$bug_fix_section"; shopt -s nocasematch
+        if [[ "$_tmp" =~ inline|orchestrator.*level|reads.*SKILL\.md|NOT.*Task\ tool|not.*via.*Task ]]; then
+            shopt -u nocasematch
             inline_invocation_found="found"
+        else
+            shopt -u nocasematch
         fi
     fi
 
@@ -166,7 +170,8 @@ test_bug_fix_mode_extracts_cli_user_tag() {
 
     # Look for guidance that instructs extracting tags from ticket show output
     # and checking for BUG_TAGS or CLI_user tag specifically before inlining fix-bug.
-    if echo "$skill_content" | grep -qE '(BUG_TAGS|CLI_user|cli.user.*tag|tag.*cli.user)'; then
+    _tmp="$skill_content"
+    if [[ "$_tmp" =~ BUG_TAGS|CLI_user|cli.user.*tag|tag.*cli.user ]]; then
         tag_extraction_found="found"
     fi
 

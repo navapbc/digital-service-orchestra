@@ -36,7 +36,7 @@ file="$1"
 line_num=0
 while IFS= read -r line; do
     (( line_num++ ))
-    if echo "$line" | grep -q "BAD_PATTERN"; then
+    if [[ "$line" == *"BAD_PATTERN"* ]]; then
         echo "$file:$line_num:no-bad-pattern:Found BAD_PATTERN"
     fi
 done < "$file"
@@ -50,7 +50,7 @@ file="$1"
 line_num=0
 while IFS= read -r line; do
     (( line_num++ ))
-    if echo "$line" | grep -q "UGLY_THING"; then
+    if [[ "$line" == *"UGLY_THING"* ]]; then
         echo "$file:$line_num:no-ugly-thing:Found UGLY_THING"
     fi
 done < "$file"

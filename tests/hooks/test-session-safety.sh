@@ -160,7 +160,7 @@ rm -f "$_SS_MARKER2"
 
 OUTPUT=$(bash "$HOOK" 2>/dev/null < /dev/null || true)
 _SS_WARNS_PRESENT="no"
-if echo "$OUTPUT" | grep -q "auto-format.sh" 2>/dev/null; then
+_tmp="$OUTPUT"; if [[ "$_tmp" =~ auto-format\.sh ]] 2>/dev/null; then
     _SS_WARNS_PRESENT="yes"
 fi
 assert_eq "test_session_safety_counting_matches_expected" "yes" "$_SS_WARNS_PRESENT"

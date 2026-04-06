@@ -64,7 +64,7 @@ else
 fi
 
 # ── test_tag_release_dry_run_shows_tag ────────────────────────────────────────
-if echo "$output" | grep -q "v9.9.9"; then
+if [[ "$output" == *v9.9.9* ]]; then
     actual="shows_tag"
 else
     actual="missing_tag"

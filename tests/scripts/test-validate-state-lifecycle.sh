@@ -187,14 +187,14 @@ _snapshot_fail
 # Verify: cleanup function block contains both "in_progress" check and "interrupted" write
 _cleanup_body=$(awk '/^cleanup\(\)/{found=1} found{print; if(/^\}/) exit}' "$VALIDATE_SCRIPT" 2>/dev/null || true)
 
-if echo "$_cleanup_body" | grep -q 'in_progress'; then
+if [[ "$_cleanup_body" == *"in_progress"* ]]; then
     CLEANUP_CHECKS_IN_PROGRESS="yes"
 else
     CLEANUP_CHECKS_IN_PROGRESS="no"
 fi
 assert_eq "cleanup() EXIT trap checks for in_progress state" "yes" "$CLEANUP_CHECKS_IN_PROGRESS"
 
-if echo "$_cleanup_body" | grep -q 'interrupted'; then
+if [[ "$_cleanup_body" == *"interrupted"* ]]; then
     CLEANUP_WRITES_INTERRUPTED="yes"
 else
     CLEANUP_WRITES_INTERRUPTED="no"
@@ -213,7 +213,7 @@ _snapshot_fail
 
 # Check that the interrupted write includes timestamp
 _interrupted_write_context=$(grep -A 5 '"interrupted"' "$VALIDATE_SCRIPT" | grep -v '^\s*#' || true)
-if echo "$_interrupted_write_context" | grep -q 'timestamp\|date'; then
+if [[ "$_interrupted_write_context" =~ timestamp|date ]]; then
     HAS_TIMESTAMP="yes"
 else
     HAS_TIMESTAMP="no"

@@ -98,7 +98,7 @@ output_e=$(bash "$VERIFY_SCRIPT" "$PATCH_FILE" 2>&1) || exit_e=$?
 # is that it does NOT report "could not extract hash" — it gets past that step.
 assert_ne "patch-file does NOT report could-not-extract-hash" \
     "true" \
-    "$(echo "$output_e" | grep -q 'could not extract hash' && echo true || echo false)"
+    "$({ _tmp="$output_e"; [[ "$_tmp" =~ could\ not\ extract\ hash ]] && echo true || echo false; })"
 
 # ---------------------------------------------------------------------------
 # Test F: CLAUDE_PLUGIN_ROOT unset — should resolve compute-diff-hash.sh via git
@@ -117,7 +117,7 @@ output_f=$(env -u CLAUDE_PLUGIN_ROOT bash "$VERIFY_SCRIPT" "$PATCH_HASH_FILE" 2>
 # Should NOT exit with "unbound variable" (exit 1 due to hash mismatch is OK)
 assert_ne "unset-CLAUDE_PLUGIN_ROOT: no unbound-variable error" \
     "true" \
-    "$(echo "$output_f" | grep -q 'unbound variable\|CLAUDE_PLUGIN_ROOT' && echo true || echo false)"
+    "$({ _tmp="$output_f"; [[ "$_tmp" =~ unbound\ variable|CLAUDE_PLUGIN_ROOT ]] && echo true || echo false; })"
 
 # ---------------------------------------------------------------------------
 # Summary

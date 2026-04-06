@@ -50,8 +50,12 @@ test_template_requires_numbered_list() {
     local _content _found=0
     if [[ -f "$TEMPLATE_PATH" ]]; then
         _content=$(cat "$TEMPLATE_PATH")
-        if echo "$_content" | grep -qiE '(numbered list|enumerat|[0-9]+\.)'; then
+        _tmp="$_content"; shopt -s nocasematch
+        if [[ "$_tmp" =~ "numbered list"|enumerat|[0-9]+\. ]]; then
+            shopt -u nocasematch
             _found=1
+        else
+            shopt -u nocasematch
         fi
     fi
     assert_eq "test_template_requires_numbered_list: contains numbered/enumerated list requirement" "1" "$_found"
@@ -66,8 +70,12 @@ test_template_requires_categorization() {
     local _content _found=0
     if [[ -f "$TEMPLATE_PATH" ]]; then
         _content=$(cat "$TEMPLATE_PATH")
-        if echo "$_content" | grep -qiE '(primary|secondary|tangential)'; then
+        _tmp="$_content"; shopt -s nocasematch
+        if [[ "$_tmp" =~ primary|secondary|tangential ]]; then
+            shopt -u nocasematch
             _found=1
+        else
+            shopt -u nocasematch
         fi
     fi
     assert_eq "test_template_requires_categorization: contains primary/secondary/tangential categorization" "1" "$_found"
@@ -82,8 +90,12 @@ test_template_requires_completeness_check() {
     local _content _found=0
     if [[ -f "$TEMPLATE_PATH" ]]; then
         _content=$(cat "$TEMPLATE_PATH")
-        if echo "$_content" | grep -qiE '(completeness|self.check|verify.*output|check.*complete)'; then
+        _tmp="$_content"; shopt -s nocasematch
+        if [[ "$_tmp" =~ completeness|self.check|verify.*output|check.*complete ]]; then
+            shopt -u nocasematch
             _found=1
+        else
+            shopt -u nocasematch
         fi
     fi
     assert_eq "test_template_requires_completeness_check: contains completeness self-check section" "1" "$_found"
@@ -97,8 +109,12 @@ test_template_requires_term_matching() {
     local _content _found=0
     if [[ -f "$TEMPLATE_PATH" ]]; then
         _content=$(cat "$TEMPLATE_PATH")
-        if echo "$_content" | grep -qiE '(all terms|every term|match.*term|term.*match)'; then
+        _tmp="$_content"; shopt -s nocasematch
+        if [[ "$_tmp" =~ "all terms"|"every term"|match.*term|term.*match ]]; then
+            shopt -u nocasematch
             _found=1
+        else
+            shopt -u nocasematch
         fi
     fi
     assert_eq "test_template_requires_term_matching: contains instruction to match ALL terms from request" "1" "$_found"
@@ -113,7 +129,8 @@ test_template_is_tech_stack_agnostic() {
     local _content _found=0
     if [[ -f "$TEMPLATE_PATH" ]]; then
         _content=$(cat "$TEMPLATE_PATH")
-        if echo "$_content" | grep -qE '(\.tickets/|plugins/dso/|app/src/)'; then
+        _tmp="$_content"
+        if [[ "$_tmp" =~ \.tickets/|plugins/dso/|app/src/ ]]; then
             _found=1
         fi
     fi
@@ -129,7 +146,8 @@ test_template_has_request_placeholder() {
     local _content _found=0
     if [[ -f "$TEMPLATE_PATH" ]]; then
         _content=$(cat "$TEMPLATE_PATH")
-        if echo "$_content" | grep -qF '{exploration_request}'; then
+        _tmp="$_content"
+        if [[ "$_tmp" == *'{exploration_request}'* ]]; then
             _found=1
         fi
     fi
@@ -145,8 +163,12 @@ test_template_has_output_example() {
     local _content _found=0
     if [[ -f "$TEMPLATE_PATH" ]]; then
         _content=$(cat "$TEMPLATE_PATH")
-        if echo "$_content" | grep -qiE '(example|output format|format.*example|e\.g\.|e\.g:)'; then
+        _tmp="$_content"; shopt -s nocasematch
+        if [[ "$_tmp" =~ example|"output format"|format.*example|e\.g\.|"e.g:" ]]; then
+            shopt -u nocasematch
             _found=1
+        else
+            shopt -u nocasematch
         fi
     fi
     assert_eq "test_template_has_output_example: contains structured output format example" "1" "$_found"

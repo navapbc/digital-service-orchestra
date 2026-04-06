@@ -235,7 +235,7 @@ assert_eq "test_force_push_branch_on_origin_exits_0" "0" "$_T4_RC"
 
 # Output should contain RECOVERY success or force-with-lease indication
 _T4_HAS_RECOVERY=0
-if echo "$_T4_OUTPUT" | grep -qiE 'force-with-lease|RECOVERY.*squash|squash.*succeeded|RECOVERY'; then
+if [[ "${_T4_OUTPUT,,}" =~ force-with-lease|recovery.*squash|squash.*succeeded|recovery ]]; then
     _T4_HAS_RECOVERY=1
 fi
 assert_eq "test_force_push_output_indicates_push_or_success" "1" "$_T4_HAS_RECOVERY"
@@ -337,13 +337,13 @@ assert_eq "test_prints_file_list_returns_1" "1" "$_T7_RC"
 
 # Output should contain "ACTION REQUIRED" and the conflicted file name
 _T7_HAS_ACTION=0
-if echo "$_T7_OUTPUT" | grep -q "ACTION REQUIRED"; then
+if [[ "$_T7_OUTPUT" == *ACTION\ REQUIRED* ]]; then
     _T7_HAS_ACTION=1
 fi
 assert_eq "test_prints_file_list_action_required" "1" "$_T7_HAS_ACTION"
 
 _T7_HAS_FILE=0
-if echo "$_T7_OUTPUT" | grep -q "conflict_file.txt"; then
+if [[ "$_T7_OUTPUT" == *conflict_file.txt* ]]; then
     _T7_HAS_FILE=1
 fi
 assert_eq "test_prints_file_list_contains_filename" "1" "$_T7_HAS_FILE"

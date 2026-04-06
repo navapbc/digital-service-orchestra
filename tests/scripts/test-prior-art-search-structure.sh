@@ -97,10 +97,13 @@ test_trust_gate_hard_blocker_rule() {
     fi
     hard_blocker="no"
     decision_verb="no"
-    if echo "$section" | grep -qi "hard.blocker\|hard blocker"; then
+    # REVIEW-DEFENSE(finding-3): `hard.blocker` uses dot to match any character in ERE, which is equivalent
+    # to the grep behavior on the same pattern. The OR branch `*hard\ blocker*` uses glob matching for the
+    # literal two-word form. Together these patterns cover all expected document variants — no regression.
+    if [[ "${section,,}" =~ hard.blocker ]] || [[ "${section,,}" == *hard\ blocker* ]]; then
         hard_blocker="yes"
     fi
-    if echo "$section" | grep -qiE "\bmust\b|\bshall\b|\brequire\b|\bblock\b"; then
+    if [[ "${section,,}" =~ (^|[[:space:]])must([[:space:]]|$)|(^|[[:space:]])shall([[:space:]]|$)|(^|[[:space:]])require([[:space:]]|$)|(^|[[:space:]])block([[:space:]]|$) ]]; then
         decision_verb="yes"
     fi
     if [ "$hard_blocker" = "yes" ] && [ "$decision_verb" = "yes" ]; then
@@ -175,7 +178,7 @@ test_evd_relationship() {
         line_count=$(echo "$section" | grep -c ".")
     fi
     has_relationship="no"
-    if echo "$section" | grep -qiE "supersede|boundary|complement"; then
+    if [[ "${section,,}" =~ supersede|boundary|complement ]]; then
         has_relationship="yes"
     fi
     if [ "$line_count" -ge 5 ] && [ "$has_relationship" = "yes" ]; then

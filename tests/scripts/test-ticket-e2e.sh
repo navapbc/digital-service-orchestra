@@ -114,7 +114,7 @@ except Exception:
     # Additionally verify the latest commit message references the ticket ID
     local latest_msg
     latest_msg=$(git -C "$repo/.tickets-tracker" log --oneline -1 2>/dev/null)
-    if echo "$latest_msg" | grep -qF "$ticket_id"; then
+    if [[ "$latest_msg" == *"$ticket_id"* ]]; then
         assert_eq "latest commit on tickets branch references ticket ID" "referenced" "referenced"
     else
         assert_eq "latest commit on tickets branch references ticket ID" "referenced" "not-referenced: $latest_msg"
@@ -405,7 +405,7 @@ test_concurrent_create_serialized_by_flock() {
     git_log_out=$(git -C "$tracker_dir" log --oneline 2>/dev/null) || true
     local committed_count=0
     for cid in "$cid1" "$cid2" "$cid3"; do
-        if echo "$git_log_out" | grep -qF "$cid"; then
+        if [[ "$git_log_out" == *"$cid"* ]]; then
             committed_count=$((committed_count + 1))
         fi
     done

@@ -150,7 +150,7 @@ test_run_all_produces_combined_summary() {
         --python-runner "$mock_python" 2>&1)
 
     # Check that summary section is present
-    if echo "$output" | grep -qiE "(summary|PASS|FAIL)"; then
+    if grep -qiE "(summary|PASS|FAIL)" <<< "$output"; then
         pass "test_run_all_produces_combined_summary"
     else
         fail "test_run_all_produces_combined_summary" "no summary found in output"

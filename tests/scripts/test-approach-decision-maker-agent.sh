@@ -47,7 +47,7 @@ assert_pass_if_clean "test_agent_file_exists"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     frontmatter=$(awk '/^---/{c++; if(c==2) exit} c{print}' "$AGENT_FILE")
-    if echo "$frontmatter" | grep -qE '^name:[[:space:]]*approach-decision-maker[[:space:]]*$'; then
+    if grep -qE '^name:[[:space:]]*approach-decision-maker[[:space:]]*$' <<< "$frontmatter"; then
         actual_name="present"
     else
         actual_name="missing"
@@ -64,7 +64,7 @@ assert_pass_if_clean "test_frontmatter_name"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     frontmatter=$(awk '/^---/{c++; if(c==2) exit} c{print}' "$AGENT_FILE")
-    if echo "$frontmatter" | grep -qE '^model:[[:space:]]*opus[[:space:]]*$'; then
+    if grep -qE '^model:[[:space:]]*opus[[:space:]]*$' <<< "$frontmatter"; then
         actual_model="present"
     else
         actual_model="missing"
@@ -94,11 +94,13 @@ DIMENSIONS=(
 )
 
 for dim in "${DIMENSIONS[@]}"; do
-    if echo "$file_content" | grep -qi "$dim"; then
+    shopt -s nocasematch
+    if [[ "$file_content" =~ $dim ]]; then
         actual_dim="present"
     else
         actual_dim="missing"
     fi
+    shopt -u nocasematch
     assert_eq "test_five_evaluation_dimensions: '$dim' present" "present" "$actual_dim"
 done
 assert_pass_if_clean "test_five_evaluation_dimensions"
@@ -110,27 +112,29 @@ assert_pass_if_clean "test_five_evaluation_dimensions"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
-    if echo "$file_content" | grep -qi "epic"; then
+    shopt -s nocasematch
+    if [[ "$file_content" =~ epic ]]; then
         actual_epic="present"
     else
         actual_epic="missing"
     fi
-    if echo "$file_content" | grep -qi "story"; then
+    if [[ "$file_content" =~ story ]]; then
         actual_story="present"
     else
         actual_story="missing"
     fi
-    if echo "$file_content" | grep -qi "consideration"; then
+    if [[ "$file_content" =~ consideration ]]; then
         actual_considerations="present"
     else
         actual_considerations="missing"
     fi
     # Must reference "context hierarchy" or "context" + "hierarchy" nearby
-    if echo "$file_content" | grep -qiE "context.hierarch|hierarch.*context"; then
+    if [[ "$file_content" =~ context.hierarch|hierarch.*context ]]; then
         actual_section="present"
     else
         actual_section="missing"
     fi
+    shopt -u nocasematch
 else
     actual_epic="missing"
     actual_story="missing"
@@ -161,21 +165,23 @@ ANTIPATTERNS=(
 )
 
 for ap in "${ANTIPATTERNS[@]}"; do
-    if echo "$file_content" | grep -qi "$ap"; then
+    shopt -s nocasematch
+    if [[ "$file_content" =~ $ap ]]; then
         actual_ap="present"
     else
         actual_ap="missing"
     fi
+    shopt -u nocasematch
     assert_eq "test_antipattern_detection: '$ap' present" "present" "$actual_ap"
 done
 
 # Must reference "anti-pattern" or "antipattern" as a section/concept
 if [[ -n "$file_content" ]]; then
-    if echo "$file_content" | grep -qiE "anti.pattern|antipattern"; then
+    shopt -s nocasematch; if [[ "$file_content" =~ anti.pattern|antipattern ]]; then
         actual_section="present"
     else
         actual_section="missing"
-    fi
+    fi; shopt -u nocasematch
 else
     actual_section="missing"
 fi
@@ -191,33 +197,35 @@ _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
     # Must prohibit Task dispatches (nesting)
-    if echo "$file_content" | grep -qiE "do not.*dispatch|never.*dispatch|must not.*dispatch|prohibit.*dispatch|no.*task.*dispatch|do not.*task"; then
+    shopt -s nocasematch; if [[ "$file_content" =~ do\ not.*dispatch|never.*dispatch|must\ not.*dispatch|prohibit.*dispatch|no.*task.*dispatch|do\ not.*task ]]; then
         actual_prohibition="present"
     else
         actual_prohibition="missing"
-    fi
+    fi; shopt -u nocasematch
     # Must allow Read/Grep/Glob as tools
-    if echo "$file_content" | grep -qi "Read"; then
+    shopt -s nocasematch
+    if [[ "$file_content" =~ Read ]]; then
         actual_read="present"
     else
         actual_read="missing"
     fi
-    if echo "$file_content" | grep -qi "Grep"; then
+    if [[ "$file_content" =~ Grep ]]; then
         actual_grep="present"
     else
         actual_grep="missing"
     fi
-    if echo "$file_content" | grep -qi "Glob"; then
+    if [[ "$file_content" =~ Glob ]]; then
         actual_glob="present"
     else
         actual_glob="missing"
     fi
     # Must NOT contain SUB-AGENT-GUARD (per AC amendment)
-    if echo "$file_content" | grep -qi "SUB-AGENT-GUARD"; then
+    if [[ "$file_content" =~ SUB-AGENT-GUARD ]]; then
         actual_no_guard="guard-found"
     else
         actual_no_guard="no-guard"
     fi
+    shopt -u nocasematch
 else
     actual_prohibition="missing"
     actual_read="missing"
@@ -239,26 +247,28 @@ assert_pass_if_clean "test_nesting_prohibition"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
-    if echo "$file_content" | grep -qi "Context"; then
+    shopt -s nocasematch
+    if [[ "$file_content" =~ Context ]]; then
         actual_context="present"
     else
         actual_context="missing"
     fi
-    if echo "$file_content" | grep -qi "Decision"; then
+    if [[ "$file_content" =~ Decision ]]; then
         actual_decision="present"
     else
         actual_decision="missing"
     fi
-    if echo "$file_content" | grep -qi "Consequences"; then
+    if [[ "$file_content" =~ Consequences ]]; then
         actual_consequences="present"
     else
         actual_consequences="missing"
     fi
-    if echo "$file_content" | grep -qiE "counter.proposal|counter proposal|alternative.*proposal|propose.*alternative"; then
+    if [[ "$file_content" =~ counter.proposal|counter\ proposal|alternative.*proposal|propose.*alternative ]]; then
         actual_counter="present"
     else
         actual_counter="missing"
     fi
+    shopt -u nocasematch
 else
     actual_context="missing"
     actual_decision="missing"

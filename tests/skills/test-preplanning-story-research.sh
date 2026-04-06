@@ -46,7 +46,7 @@ PHASE_35_SECTION="$(extract_phase_35_section)"
 
 echo "=== test_phase_heading ==="
 SECTION="test_phase_heading"
-if echo "$PHASE_35_SECTION" | grep -qE "^#{1,3} Phase 3\.5"; then
+if grep -qE "^#{1,3} Phase 3\.5" <<< "$PHASE_35_SECTION"; then
   pass "SKILL.md contains a Phase 3.5 heading for story-level research"
 else
   fail "SKILL.md missing Phase 3.5 heading — expected '## Phase 3.5' or '### Phase 3.5'"
@@ -62,7 +62,7 @@ for trigger in \
   "undocumented API|undocumented.*api|api.*undocumented" \
   "assumed data format|assumed.*format|data format.*assum|unknown.*format|format.*unknown" \
   "low.*confidence|agent confidence|uncertain|unclear.*behavior|behavior.*unclear"; do
-  if echo "$PHASE_35_SECTION" | grep -qiE "$trigger"; then
+  if grep -qiE "$trigger" <<< "$PHASE_35_SECTION"; then
     TRIGGER_COUNT=$((TRIGGER_COUNT + 1))
   fi
 done
@@ -77,7 +77,7 @@ echo ""
 echo "=== test_websearch_reference ==="
 SECTION="test_websearch_reference"
 # This assertion is section-scoped to Phase 3.5 to avoid matching Phase 2.25
-if echo "$PHASE_35_SECTION" | grep -qE "WebSearch|WebFetch"; then
+if grep -qE "WebSearch|WebFetch" <<< "$PHASE_35_SECTION"; then
   pass "Phase 3.5 section references WebSearch or WebFetch"
 else
   fail "Phase 3.5 section missing WebSearch or WebFetch reference (section-scoped check)"
@@ -94,7 +94,7 @@ for field_pattern in \
   "query summary|search query|query used" \
   "source URL|source url|URLs?\b|link.*found" \
   "key insight|insight\b|finding\b|takeaway"; do
-  if echo "$PHASE_35_SECTION" | grep -qiE "$field_pattern"; then
+  if grep -qiE "$field_pattern" <<< "$PHASE_35_SECTION"; then
     FIELD_COUNT=$((FIELD_COUNT + 1))
   fi
 done
@@ -108,7 +108,7 @@ fi
 echo ""
 echo "=== test_graceful_degradation ==="
 SECTION="test_graceful_degradation"
-if echo "$PHASE_35_SECTION" | grep -qiE "fail|unavailable|not available|graceful|degraded?|skip.*search|if.*fails?\b|when.*fails?\b|cannot.*search|search.*unavailable"; then
+if grep -qiE "fail|unavailable|not available|graceful|degraded?|skip.*search|if.*fails?\b|when.*fails?\b|cannot.*search|search.*unavailable" <<< "$PHASE_35_SECTION"; then
   pass "Phase 3.5 section includes graceful degradation language"
 else
   fail "Phase 3.5 section missing graceful degradation language for when WebSearch/WebFetch is unavailable or fails"

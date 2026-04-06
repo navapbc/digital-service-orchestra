@@ -126,7 +126,7 @@ assert_eq "test_background_produces_output_file exits 0" "0" "$rc"
 if [ -f "$CAPTURE_FILE" ]; then
     captured_args=$(cat "$CAPTURE_FILE")
     # The output file should be /tmp/validate-<something>.out
-    if echo "$captured_args" | grep -qE '/tmp/validate-.+\.out'; then
+    if [[ "$captured_args" =~ /tmp/validate-.+\.out ]]; then
         assert_eq "test_background_produces_output_file output path" "true" "true"
     else
         assert_eq "test_background_produces_output_file output path contains /tmp/validate-*.out" "true" "false (args: $captured_args)"

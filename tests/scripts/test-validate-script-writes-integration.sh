@@ -86,7 +86,7 @@ CONF
     # app dir doesn't exist, but we only care that "script-writes" is not present.
     local _out=""
     _out=$(CONFIG_FILE="$_tmpd/wc.conf" bash "$VALIDATE_SH" 2>&1 || true)
-    if echo "$_out" | grep -q 'script-writes'; then
+    if [[ "$_out" == *"script-writes"* ]]; then
         assert_eq "script-writes absent when key absent" "absent" "present"
     else
         assert_eq "script-writes absent when key absent" "absent" "absent"
@@ -113,7 +113,7 @@ CONF
 
     local _out=""
     _out=$(CONFIG_FILE="$_tmpd/wc.conf" bash "$VALIDATE_SH" 2>&1 || true)
-    if echo "$_out" | grep -q 'script-writes'; then
+    if [[ "$_out" == *"script-writes"* ]]; then
         assert_eq "script-writes absent when key empty" "absent" "present"
     else
         assert_eq "script-writes absent when key empty" "absent" "absent"
@@ -169,7 +169,7 @@ EOF
     # Should exit 1 (violation found) or exit 0 if shfmt not available
     if [ "$_exit" -eq 0 ]; then
         # shfmt not available — check if the script reported "shfmt not found"
-        if echo "$_out" | grep -q 'shfmt not found'; then
+        if [[ "$_out" == *"shfmt not found"* ]]; then
             # Graceful skip — shfmt unavailable, test still passes
             assert_eq "end-to-end: shfmt unavailable, graceful skip" "0" "0"
         else

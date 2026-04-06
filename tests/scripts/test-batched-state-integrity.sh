@@ -134,19 +134,19 @@ mismatch_out=$(TEST_BATCHED_STATE_FILE="$MISMATCH_STATE" bash "$SCRIPT" --timeou
 
 # Must warn about hash mismatch
 hash_warned=0
-echo "$mismatch_out" | grep -qiE 'hash|mismatch|stale|fresh' && hash_warned=1
+_tmp="$mismatch_out"; shopt -s nocasematch; [[ "$_tmp" =~ hash|mismatch|stale|fresh ]] && hash_warned=1; shopt -u nocasematch
 assert_eq "test_hash_mismatch_warns_and_starts_fresh: output warns about hash mismatch" \
     "1" "$hash_warned"
 
 # Must NOT show "Resuming from state file" (should start fresh, not resume)
 resumed_stale=0
-echo "$mismatch_out" | grep -q "Resuming from state file" && resumed_stale=1
+_tmp="$mismatch_out"; [[ "$_tmp" == *"Resuming from state file"* ]] && resumed_stale=1
 assert_eq "test_hash_mismatch_warns_and_starts_fresh: does NOT resume stale state" \
     "0" "$resumed_stale"
 
 # Must complete successfully (started fresh and ran the command)
 completed_ok=0
-echo "$mismatch_out" | grep -qiE 'passed|All tests done' && completed_ok=1
+_tmp="$mismatch_out"; shopt -s nocasematch; [[ "$_tmp" =~ passed|"All tests done" ]] && completed_ok=1; shopt -u nocasematch
 assert_eq "test_hash_mismatch_warns_and_starts_fresh: completes successfully after fresh start" \
     "1" "$completed_ok"
 
@@ -187,19 +187,19 @@ ttl_out=$(TEST_BATCHED_STATE_FILE="$TTL_STATE" bash "$SCRIPT" --timeout=30 \
 
 # Must warn about TTL/stale/expired
 ttl_warned=0
-echo "$ttl_out" | grep -qiE 'TTL|expired|stale|old|fresh' && ttl_warned=1
+_tmp="$ttl_out"; shopt -s nocasematch; [[ "$_tmp" =~ TTL|expired|stale|old|fresh ]] && ttl_warned=1; shopt -u nocasematch
 assert_eq "test_ttl_expiry_warns_and_starts_fresh: output warns about TTL expiry" \
     "1" "$ttl_warned"
 
 # Must NOT resume (should start fresh)
 ttl_resumed=0
-echo "$ttl_out" | grep -q "Resuming from state file" && ttl_resumed=1
+_tmp="$ttl_out"; [[ "$_tmp" == *"Resuming from state file"* ]] && ttl_resumed=1
 assert_eq "test_ttl_expiry_warns_and_starts_fresh: does NOT resume expired state" \
     "0" "$ttl_resumed"
 
 # Must complete successfully
 ttl_completed=0
-echo "$ttl_out" | grep -qiE 'passed|All tests done' && ttl_completed=1
+_tmp="$ttl_out"; shopt -s nocasematch; [[ "$_tmp" =~ passed|"All tests done" ]] && ttl_completed=1; shopt -u nocasematch
 assert_eq "test_ttl_expiry_warns_and_starts_fresh: completes successfully after fresh start" \
     "1" "$ttl_completed"
 
@@ -240,7 +240,7 @@ custom_ttl_out=$(TEST_BATCHED_STATE_FILE="$CUSTOM_TTL_STATE" STATE_TTL=1 \
 
 # Must warn about TTL
 custom_ttl_warned=0
-echo "$custom_ttl_out" | grep -qiE 'TTL|expired|stale|old|fresh' && custom_ttl_warned=1
+_tmp="$custom_ttl_out"; shopt -s nocasematch; [[ "$_tmp" =~ TTL|expired|stale|old|fresh ]] && custom_ttl_warned=1; shopt -u nocasematch
 assert_eq "test_ttl_configurable_via_state_ttl_env: custom STATE_TTL=1 causes expiry" \
     "1" "$custom_ttl_warned"
 
@@ -279,13 +279,13 @@ original_exists=0
 
 # Must also warn about corruption
 corrupt_warned=0
-echo "$corrupt_out" | grep -qiE 'corrupt|corrupted|invalid|starting fresh|fresh' && corrupt_warned=1
+_tmp="$corrupt_out"; shopt -s nocasematch; [[ "$_tmp" =~ corrupt|corrupted|invalid|"starting fresh"|fresh ]] && corrupt_warned=1; shopt -u nocasematch
 assert_eq "test_corruption_renames_to_corrupt_bak: warns about corruption" \
     "1" "$corrupt_warned"
 
 # Must complete successfully (started fresh)
 corrupt_completed=0
-echo "$corrupt_out" | grep -qiE 'passed|All tests done' && corrupt_completed=1
+_tmp="$corrupt_out"; shopt -s nocasematch; [[ "$_tmp" =~ passed|"All tests done" ]] && corrupt_completed=1; shopt -u nocasematch
 assert_eq "test_corruption_renames_to_corrupt_bak: completes successfully after backup" \
     "1" "$corrupt_completed"
 
@@ -326,13 +326,13 @@ valid_out=$(TEST_BATCHED_STATE_FILE="$VALID_STATE" bash "$SCRIPT" --timeout=30 \
 
 # Must resume (not start fresh)
 resumed_ok=0
-echo "$valid_out" | grep -q "Resuming from state file" && resumed_ok=1
+_tmp="$valid_out"; [[ "$_tmp" == *"Resuming from state file"* ]] && resumed_ok=1
 assert_eq "test_valid_hash_allows_resume: valid hash + fresh timestamp allows resume" \
     "1" "$resumed_ok"
 
 # Must show "Skipping (already completed)"
 skipped_ok=0
-echo "$valid_out" | grep -q "Skipping (already completed)" && skipped_ok=1
+_tmp="$valid_out"; [[ "$_tmp" == *"Skipping (already completed)"* ]] && skipped_ok=1
 assert_eq "test_valid_hash_allows_resume: skips already-completed test" \
     "1" "$skipped_ok"
 
@@ -392,7 +392,7 @@ interrupted_out=$(TEST_BATCHED_STATE_FILE="$INTERRUPTED_STATE" bash "$SCRIPT" \
 
 # The stub test must have been re-run (output contains "stub test ran")
 reran=0
-echo "$interrupted_out" | grep -q "stub test ran" && reran=1
+_tmp="$interrupted_out"; [[ "$_tmp" == *"stub test ran"* ]] && reran=1
 assert_eq "test_interrupted_test_reruns_on_resume: interrupted test is re-run" \
     "1" "$reran"
 
@@ -402,7 +402,7 @@ assert_eq "test_interrupted_test_reruns_on_resume: exit 0 after re-run passes" \
 
 # Must NOT say "Skipping (already completed)" for the interrupted test
 not_skipped=0
-echo "$interrupted_out" | grep -q "Skipping (already completed)" || not_skipped=1
+_tmp="$interrupted_out"; [[ "$_tmp" == *"Skipping (already completed)"* ]] || not_skipped=1
 assert_eq "test_interrupted_test_reruns_on_resume: interrupted test not skipped" \
     "1" "$not_skipped"
 
@@ -429,13 +429,13 @@ state_write_body=$(awk '/_state_write\(\) \{/{found=1} found{print} found && /^}
 
 # Check for atomic pattern: tempfile.mkstemp or tempfile.NamedTemporaryFile
 has_atomic=0
-echo "$state_write_body" | grep -qE 'mkstemp|NamedTemporaryFile|tempfile' && has_atomic=1
+_tmp="$state_write_body"; [[ "$_tmp" =~ mkstemp|NamedTemporaryFile|tempfile ]] && has_atomic=1
 assert_eq "test_state_write_is_atomic: _state_write uses tempfile for atomic write" \
     "1" "$has_atomic"
 
 # Check for atomic replace: os.replace or os.rename
 has_replace=0
-echo "$state_write_body" | grep -qE 'os\.replace|os\.rename' && has_replace=1
+_tmp="$state_write_body"; [[ "$_tmp" =~ os\.replace|os\.rename ]] && has_replace=1
 assert_eq "test_state_write_is_atomic: _state_write uses os.replace for atomic swap" \
     "1" "$has_replace"
 
@@ -458,7 +458,7 @@ _extracted_func=$(awk '/_state_write\(\) \{/{found=1} found{print} found && /^}$
 
 # Verify extraction succeeded (function body is non-trivial)
 extracted_ok=0
-echo "$_extracted_func" | grep -q '_state_write()' && extracted_ok=1
+_tmp="$_extracted_func"; [[ "$_tmp" == *'_state_write()'* ]] && extracted_ok=1
 assert_eq "test_state_write_is_atomic: function extraction succeeded" \
     "1" "$extracted_ok"
 

@@ -315,13 +315,13 @@ test_e2e_deps_archived_target_exits_error() {
         "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
 
     # Assert: error message mentions 'archived' and hints at --include-archived
-    if echo "$stderr_out" | grep -qi "archived"; then
+    if [[ "${stderr_out,,}" == *"archived"* ]]; then
         assert_eq "test 4: error message mentions 'archived'" "found" "found"
     else
         assert_eq "test 4: error message mentions 'archived'" "found" "not found: $stderr_out"
     fi
 
-    if echo "$stderr_out" | grep -q "include-archived"; then
+    if [[ "$stderr_out" == *"include-archived"* ]]; then
         assert_eq "test 4: error message hints at --include-archived" "found" "found"
     else
         assert_eq "test 4: error message hints at --include-archived" "found" "not found: $stderr_out"

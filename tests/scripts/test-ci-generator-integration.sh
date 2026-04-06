@@ -190,7 +190,8 @@ VALIDATION_FAKE_BIN="$(mktemp -d)"
 cat > "$VALIDATION_FAKE_BIN/python3" << 'FAKE_PYEOF'
 #!/usr/bin/env bash
 # Stub: make yaml.safe_load always fail; delegate everything else to real python3
-if echo "$*" | grep -q 'yaml.safe_load'; then
+_args="$*"
+if [[ "$_args" == *'yaml.safe_load'* ]]; then
     exit 1
 fi
 exec /usr/bin/python3 "$@"

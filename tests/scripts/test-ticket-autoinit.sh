@@ -63,14 +63,14 @@ test_ticket_autoinit_on_create() {
     fi
 
     # Assert: stdout contains a ticket ID (non-empty, matches pattern)
-    if [ -n "$stdout_out" ] && echo "$stdout_out" | grep -qE '^[a-z0-9]+-[a-z0-9]+$'; then
+    if [ -n "$stdout_out" ] && [[ "$stdout_out" =~ ^[a-z0-9]+-[a-z0-9]+$ ]]; then
         assert_eq "ticket ID output to stdout" "match" "match"
     else
         assert_eq "ticket ID output to stdout" "match" "no-match: ${stdout_out:-<empty>}"
     fi
 
     # Assert: init output is NOT visible on stdout (suppressed)
-    if echo "$stdout_out" | grep -q "Ticket system initialized"; then
+    if [[ "$stdout_out" == *"Ticket system initialized"* ]]; then
         assert_eq "init message suppressed from stdout" "suppressed" "visible"
     else
         assert_eq "init message suppressed from stdout" "suppressed" "suppressed"
@@ -129,7 +129,7 @@ test_ticket_explicit_init_still_prints_message() {
     assert_eq "explicit ticket init exits 0" "0" "$exit_code"
 
     # Assert: stdout contains the success message
-    if echo "$stdout_out" | grep -q "Ticket system initialized."; then
+    if [[ "$stdout_out" == *"Ticket system initialized."* ]]; then
         assert_eq "explicit init prints 'Ticket system initialized.'" "printed" "printed"
     else
         assert_eq "explicit init prints 'Ticket system initialized.'" "printed" "not-printed: ${stdout_out:-<empty>}"

@@ -40,7 +40,7 @@ test_tier_immutability_prohibits_downgrade() {
     local _section
     _section=$(sed -n '/TIER IMMUTABILITY/,/^$/p' "$REVIEW_WF" 2>/dev/null)
     local _prohibits=0
-    if echo "$_section" | grep -qiE '(never|must not|prohibit).*(downgrad|lighter tier|standard.*light|deep.*standard)'; then
+    if grep -qiE '(never|must not|prohibit).*(downgrad|lighter tier|standard.*light|deep.*standard)' <<< "$_section"; then
         _prohibits=1
     fi
     assert_eq "TIER IMMUTABILITY directive prohibits tier downgrades" "1" "$_prohibits"

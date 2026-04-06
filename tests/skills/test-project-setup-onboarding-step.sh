@@ -48,12 +48,12 @@ test_descriptive_labels() {
     _snapshot_fail
     local step7_content has_skill_name has_descriptions has_descriptive_labels
     step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error|^## Guardrails/' "$SKILL_MD" 2>/dev/null)
-    if echo "$step7_content" | grep -qiE "architect-foundation"; then
+    if grep -qiE "architect-foundation" <<< "$step7_content"; then
         has_skill_name="yes"
     else
         has_skill_name="no"
     fi
-    if echo "$step7_content" | grep -qiE "produces|generates|creates|sets up|ARCH_ENFORCEMENT|architecture.*enforcement|scaffolding"; then
+    if grep -qiE "produces|generates|creates|sets up|ARCH_ENFORCEMENT|architecture.*enforcement|scaffolding" <<< "$step7_content"; then
         has_descriptions="yes"
     else
         has_descriptions="no"
@@ -74,7 +74,7 @@ test_prompt_with_options() {
     local step7_content prompt_found
     step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error|^## Guardrails/' "$SKILL_MD" 2>/dev/null)
     prompt_found="missing"
-    if echo "$step7_content" | grep -qiE "AskUserQuestion|Which would you like|1\)|2\)"; then
+    if grep -qiE "AskUserQuestion|Which would you like|1\)|2\)" <<< "$step7_content"; then
         prompt_found="found"
     fi
     assert_eq "test_prompt_with_options" "found" "$prompt_found"
@@ -87,7 +87,7 @@ test_skip_ends_setup() {
     local step7_content skip_ends_setup
     step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error|^## Guardrails/' "$SKILL_MD" 2>/dev/null)
     skip_ends_setup="missing"
-    if echo "$step7_content" | grep -qiE "skip.*setup.*complete|skip.*no.*additional|skip.*end|skip.*nothing|skip.*done|setup is complete|no additional steps"; then
+    if grep -qiE "skip.*setup.*complete|skip.*no.*additional|skip.*end|skip.*nothing|skip.*done|setup is complete|no additional steps" <<< "$step7_content"; then
         skip_ends_setup="found"
     fi
     assert_eq "test_skip_ends_setup" "found" "$skip_ends_setup"
@@ -102,10 +102,10 @@ test_artifact_detection() {
     step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error|^## Guardrails/' "$SKILL_MD" 2>/dev/null)
     has_design_notes="no"
     has_arch_enforcement="no"
-    if echo "$step7_content" | grep -qE "DESIGN_NOTES\.md|design-notes\.md"; then
+    if grep -qE "DESIGN_NOTES\.md|design-notes\.md" <<< "$step7_content"; then
         has_design_notes="yes"
     fi
-    if echo "$step7_content" | grep -q "ARCH_ENFORCEMENT.md"; then
+    if grep -q "ARCH_ENFORCEMENT.md" <<< "$step7_content"; then
         has_arch_enforcement="yes"
     fi
     if [[ "$has_design_notes" == "yes" && "$has_arch_enforcement" == "yes" ]]; then
@@ -124,7 +124,7 @@ test_both_artifacts_skip_entirely() {
     local step7_content both_artifacts_skip
     step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error|^## Guardrails/' "$SKILL_MD" 2>/dev/null)
     both_artifacts_skip="missing"
-    if echo "$step7_content" | grep -qiE "both.*present.*skip|skip.*both.*present|both.*artifact.*skip|already.*both.*skip|both.*exist.*skip|skip.*entirely|skip.*prompt|skip this step"; then
+    if grep -qiE "both.*present.*skip|skip.*both.*present|both.*artifact.*skip|already.*both.*skip|both.*exist.*skip|skip.*entirely|skip.*prompt|skip this step" <<< "$step7_content"; then
         both_artifacts_skip="found"
     fi
     assert_eq "test_both_artifacts_skip_entirely" "found" "$both_artifacts_skip"

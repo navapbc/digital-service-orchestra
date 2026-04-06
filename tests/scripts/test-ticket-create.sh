@@ -83,7 +83,7 @@ test_ticket_create_outputs_ticket_id() {
 
     # Assert: stdout matches the collision-resistant short ID pattern [a-z0-9]+-[a-z0-9]+
     # (e.g., "w21-gyn8" or "abc1-def2")
-    if echo "$stdout_out" | grep -qE '^[a-z0-9]+-[a-z0-9]+$'; then
+    if [[ "$stdout_out" =~ ^[a-z0-9]+-[a-z0-9]+$ ]]; then
         assert_eq "ticket ID matches [a-z0-9]+-[a-z0-9]+" "match" "match"
     else
         assert_eq "ticket ID matches [a-z0-9]+-[a-z0-9]+" "match" "no-match: $stdout_out"
@@ -271,7 +271,7 @@ test_ticket_create_event_uses_python_json() {
     # Assert: no literal \n sequences (bash heredoc artifact)
     local raw_content
     raw_content=$(cat "$event_file")
-    if echo "$raw_content" | grep -qF '\n'; then
+    if [[ "$raw_content" == *'\n'* ]]; then
         assert_eq "no literal \\n in JSON (bash heredoc artifact)" "no-literal-newline" "has-literal-newline"
     else
         assert_eq "no literal \\n in JSON (bash heredoc artifact)" "no-literal-newline" "no-literal-newline"
@@ -334,7 +334,7 @@ test_ticket_create_auto_commits_to_tickets_branch() {
     # Assert: the latest commit message references the ticket ID
     local latest_commit_msg
     latest_commit_msg=$(git -C "$repo/.tickets-tracker" log --oneline -1 2>/dev/null)
-    if echo "$latest_commit_msg" | grep -qF "$ticket_id"; then
+    if [[ "$latest_commit_msg" == *"$ticket_id"* ]]; then
         assert_eq "latest commit references ticket ID" "referenced" "referenced"
     else
         assert_eq "latest commit references ticket ID" "referenced" "not-referenced: $latest_commit_msg"
@@ -417,7 +417,7 @@ test_create_with_closed_parent_blocked() {
     assert_eq "create-closed-parent: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
 
     # Assert: error message mentions parent, closed, or not allowed
-    if echo "$stderr_out" | grep -qiE 'parent|closed|not allowed|cannot'; then
+    if [[ "${stderr_out,,}" =~ parent|closed|not\ allowed|cannot ]]; then
         assert_eq "create-closed-parent: error mentions closed parent" "has-closed-hint" "has-closed-hint"
     else
         assert_eq "create-closed-parent: error mentions closed parent" "has-closed-hint" "no-hint: $stderr_out"

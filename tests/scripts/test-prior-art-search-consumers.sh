@@ -44,7 +44,7 @@ test_fix_bug_references_prior_art() {
     if [ -f "$FIX_BUG_SKILL" ]; then
         section=$(extract_section "$FIX_BUG_SKILL" "Step 6")
     fi
-    if echo "$section" | grep -q "prior-art-search"; then
+    if [[ "$section" == *prior-art-search* ]]; then
         actual="found"
     else
         actual="missing"

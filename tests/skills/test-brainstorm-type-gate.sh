@@ -82,7 +82,7 @@ else
 fi
 
 # The gate must reference dso ticket show to detect the ticket type
-if echo "$_type_gate_section" | grep -qiE 'ticket show|dso ticket show'; then
+if grep -qiE 'ticket show|dso ticket show' <<< "$_type_gate_section"; then
   pass "type detection gate references 'dso ticket show' for type detection"
 else
   fail "type detection gate missing reference to 'dso ticket show' for type detection"
@@ -146,21 +146,21 @@ EOF
 ) || true
 
 # Must mention non-epic ticket types by name (story, task, bug)
-if echo "$_full_content" | grep -qiE 'story|task|bug'; then
+if grep -qiE 'story|task|bug' <<< "$_full_content"; then
   pass "SKILL.md references non-epic ticket types (story/task/bug) in type gate context"
 else
   fail "SKILL.md missing reference to non-epic ticket types (story, task, bug) in type gate"
 fi
 
 # Must offer "convert to epic" option
-if echo "$_full_content" | grep -qiE 'convert.to.epic|convert.*epic'; then
+if grep -qiE 'convert.to.epic|convert.*epic' <<< "$_full_content"; then
   pass "SKILL.md presents 'convert to epic' option for non-epic types"
 else
   fail "SKILL.md missing 'convert to epic' option for non-epic ticket types"
 fi
 
 # Must offer "enrich in-place" option
-if echo "$_full_content" | grep -qiE 'enrich.in.place|enrich.*in.place'; then
+if grep -qiE 'enrich.in.place|enrich.*in.place' <<< "$_full_content"; then
   pass "SKILL.md presents 'enrich in-place' option for non-epic types"
 else
   fail "SKILL.md missing 'enrich in-place' option for non-epic ticket types"
@@ -202,7 +202,7 @@ SECTION="test_epic_flow_preserved"
 # the gate should not alter the existing dialogue or output for epic-type tickets.
 
 # Gate must distinguish epic vs non-epic explicitly
-if echo "$_full_content" | grep -qiE 'type.*epic|epic.*type|is.*epic|epic.*ticket'; then
+if grep -qiE 'type.*epic|epic.*type|is.*epic|epic.*ticket' <<< "$_full_content"; then
   pass "SKILL.md type gate explicitly identifies epic ticket type"
 else
   fail "SKILL.md type gate missing explicit epic-type identification"
@@ -239,7 +239,7 @@ else
 fi
 
 # The gate documentation must assert that existing Phase 1 behavior is unchanged
-if echo "$_full_content" | grep -qiE 'unchanged|unmodified|proceed.*phase.1|continue.*phase.1|route.*phase.1|proceed to phase 1|continue to phase 1'; then
+if grep -qiE 'unchanged|unmodified|proceed.*phase.1|continue.*phase.1|route.*phase.1|proceed to phase 1|continue to phase 1' <<< "$_full_content"; then
   pass "SKILL.md documents that epic flow proceeds to Phase 1 unchanged"
 else
   fail "SKILL.md missing assertion that epic flow routes to Phase 1 unchanged"
@@ -261,14 +261,14 @@ else
 fi
 
 # Usage section must reference non-epic types or generic ticket-id invocation
-if echo "$_usage_section" | grep -qiE 'story|task|bug|non.epic|any ticket|ticket.id|ticket-id'; then
+if grep -qiE 'story|task|bug|non.epic|any ticket|ticket.id|ticket-id' <<< "$_usage_section"; then
   pass "Usage section shows invocation for non-epic ticket types"
 else
   fail "Usage section only shows epic-id invocation — missing non-epic ticket type examples"
 fi
 
 # Usage section must have an example command for a non-epic invocation
-if echo "$_usage_section" | grep -qiE 'story[-_]?id|task[-_]?id|bug[-_]?id|<ticket-id>|<story|<task|<bug'; then
+if grep -qiE 'story[-_]?id|task[-_]?id|bug[-_]?id|<ticket-id>|<story|<task|<bug' <<< "$_usage_section"; then
   pass "Usage section includes a concrete non-epic invocation example"
 else
   fail "Usage section missing concrete non-epic invocation example (e.g., <story-id>, <task-id>, <bug-id>)"

@@ -47,21 +47,12 @@ assert_pass_if_clean "test_agent_file_exists"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     frontmatter=$(awk '/^---/{c++; if(c==2) exit} c{print}' "$AGENT_FILE")
-    if echo "$frontmatter" | grep -qE '^name:[[:space:]]*bot-psychologist[[:space:]]*$'; then
-        actual_name="present"
-    else
-        actual_name="missing"
-    fi
-    if echo "$frontmatter" | grep -qE '^model:[[:space:]]*sonnet[[:space:]]*$'; then
-        actual_model="present"
-    else
-        actual_model="missing"
-    fi
-    if echo "$frontmatter" | grep -qE '^description:'; then
-        actual_desc="present"
-    else
-        actual_desc="missing"
-    fi
+    actual_name="missing"; actual_model="missing"; actual_desc="missing"
+    while IFS= read -r _line; do
+        [[ "$_line" =~ ^name:[[:space:]]*bot-psychologist[[:space:]]*$ ]] && actual_name="present"
+        [[ "$_line" =~ ^model:[[:space:]]*sonnet[[:space:]]*$ ]] && actual_model="present"
+        [[ "$_line" =~ ^description: ]] && actual_desc="present"
+    done <<< "$frontmatter"
 else
     actual_name="missing"
     actual_model="missing"
@@ -101,11 +92,12 @@ TAXONOMY_ITEMS=(
 )
 
 for item in "${TAXONOMY_ITEMS[@]}"; do
-    if echo "$file_content" | grep -qi "$item"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" == *"$item"* ]]; then
         actual_item="present"
     else
         actual_item="missing"
-    fi
+    fi; shopt -u nocasematch
     assert_eq "test_failure_taxonomy_all_15_items: '$item' present" "present" "$actual_item"
 done
 assert_pass_if_clean "test_failure_taxonomy_all_15_items"
@@ -129,11 +121,12 @@ RCA_PROBES=(
 )
 
 for probe in "${RCA_PROBES[@]}"; do
-    if echo "$file_content" | grep -qi "$probe"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" == *"$probe"* ]]; then
         actual_probe="present"
     else
         actual_probe="missing"
-    fi
+    fi; shopt -u nocasematch
     assert_eq "test_rca_probes_all_5: '$probe' present" "present" "$actual_probe"
 done
 assert_pass_if_clean "test_rca_probes_all_5"
@@ -144,21 +137,22 @@ assert_pass_if_clean "test_rca_probes_all_5"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
-    if echo "$file_content" | grep -qiE "ROOT_CAUSE|root_cause"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ ROOT_CAUSE|root_cause ]]; then
         actual_root_cause="present"
     else
         actual_root_cause="missing"
     fi
-    if echo "$file_content" | grep -qi "confidence"; then
+    if [[ "$_tmp" == *"confidence"* ]]; then
         actual_confidence="present"
     else
         actual_confidence="missing"
     fi
-    if echo "$file_content" | grep -qi "proposed_fixes\|proposed.fixes"; then
+    if [[ "$_tmp" =~ proposed_fixes|proposed.fixes ]]; then
         actual_fixes="present"
     else
         actual_fixes="missing"
-    fi
+    fi; shopt -u nocasematch
 else
     actual_root_cause="missing"
     actual_confidence="missing"
@@ -176,31 +170,32 @@ assert_pass_if_clean "test_result_schema_root_cause_and_confidence"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
-    if echo "$file_content" | grep -qi "hypothesis_tests\|hypothesis.tests"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ hypothesis_tests|hypothesis.tests ]]; then
         actual_ht="present"
     else
         actual_ht="missing"
     fi
-    if echo "$file_content" | grep -qi "hypothesis"; then
+    if [[ "$_tmp" == *"hypothesis"* ]]; then
         actual_hypothesis="present"
     else
         actual_hypothesis="missing"
     fi
-    if echo "$file_content" | grep -qiE "\btest\b"; then
+    if [[ "$_tmp" =~ [[:space:]]test[[:space:]] ]] || [[ "$_tmp" =~ [[:space:]]test$|^test[[:space:]] ]]; then
         actual_test_field="present"
     else
         actual_test_field="missing"
     fi
-    if echo "$file_content" | grep -qi "observed"; then
+    if [[ "$_tmp" == *"observed"* ]]; then
         actual_observed="present"
     else
         actual_observed="missing"
     fi
-    if echo "$file_content" | grep -qi "verdict"; then
+    if [[ "$_tmp" == *"verdict"* ]]; then
         actual_verdict="present"
     else
         actual_verdict="missing"
-    fi
+    fi; shopt -u nocasematch
 else
     actual_ht="missing"
     actual_hypothesis="missing"
@@ -222,11 +217,12 @@ assert_pass_if_clean "test_result_schema_hypothesis_tests_subfields"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
-    if echo "$file_content" | grep -qi "SUB-AGENT-GUARD"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" == *"SUB-AGENT-GUARD"* ]]; then
         actual_guard="present"
     else
         actual_guard="missing"
-    fi
+    fi; shopt -u nocasematch
 else
     actual_guard="missing"
 fi
@@ -240,21 +236,22 @@ assert_pass_if_clean "test_sub_agent_guard_present"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
-    if echo "$file_content" | grep -qi "hypothesis"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" == *"hypothesis"* ]]; then
         actual_hyp="present"
     else
         actual_hyp="missing"
     fi
-    if echo "$file_content" | grep -qi "experiment\|probe\|test"; then
+    if [[ "$_tmp" =~ experiment|probe|test ]]; then
         actual_exp="present"
     else
         actual_exp="missing"
     fi
-    if echo "$file_content" | grep -qi "iterative\|loop\|step.*hypothesis\|hypothesis.*step\|proven\|confirmed\|disproven"; then
+    if [[ "$_tmp" =~ iterative|loop|step.*hypothesis|hypothesis.*step|proven|confirmed|disproven ]]; then
         actual_iter="present"
     else
         actual_iter="missing"
-    fi
+    fi; shopt -u nocasematch
 else
     actual_hyp="missing"
     actual_exp="missing"
@@ -272,11 +269,12 @@ assert_pass_if_clean "test_iterative_loop_defined"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
-    if echo "$file_content" | grep -qiE "not.*fix|fix.*not|never.*fix|fix.*unconfirmed|fix.*proven|proven.*fix|do not.*propose.*fix|do not.*assume"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ not.*fix|fix.*not|never.*fix|fix.*unconfirmed|fix.*proven|proven.*fix|do\ not.*propose.*fix|do\ not.*assume ]]; then
         actual_constraint="present"
     else
         actual_constraint="missing"
-    fi
+    fi; shopt -u nocasematch
 else
     actual_constraint="missing"
 fi

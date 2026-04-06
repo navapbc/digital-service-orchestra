@@ -74,14 +74,14 @@ EOF
         bash "$TEST_BATCHED" --timeout=30 --runner=bash --test-dir="$tmpdir" 2>&1) || exit_code=$?
 
     # The aggregator must NOT appear in the run output
-    if echo "$output" | grep -q "run-all-tests.sh"; then
+    if [[ "$output" == *"run-all-tests.sh"* ]]; then
         echo "  DEBUG: aggregator was discovered and run" >&2
         return 1
     fi
 
     # test-alpha.sh and test-beta.sh must appear
-    echo "$output" | grep -q "test-alpha.sh" || return 1
-    echo "$output" | grep -q "test-beta.sh" || return 1
+    [[ "$output" == *"test-alpha.sh"* ]] || return 1
+    [[ "$output" == *"test-beta.sh"* ]] || return 1
 }
 if test_discovery_excludes_aggregators; then
     echo "  PASS: run-*-tests.sh excluded from discovery"
@@ -109,7 +109,7 @@ EOF
     output=$(TEST_BATCHED_STATE_FILE="$tmpdir/state.json" \
         bash "$TEST_BATCHED" --timeout=30 --runner=bash --test-dir="$tmpdir" 2>&1) || exit_code=$?
 
-    echo "$output" | grep -q "test-gamma.sh"
+    [[ "$output" == *"test-gamma.sh"* ]]
 }
 if test_discovery_includes_test_files; then
     echo "  PASS: test-*.sh files discovered"
@@ -133,7 +133,7 @@ test_warning_message_no_aggregator_mention() {
         bash "$TEST_BATCHED" --timeout=30 --runner=bash --test-dir="$tmpdir/empty-dir" 2>&1) || exit_code=$?
 
     # Warning should NOT mention run-*-tests.sh
-    if echo "$output" | grep -q "run-\*-tests.sh"; then
+    if [[ "$output" == *'run-*-tests.sh'* ]]; then
         return 1
     fi
     return 0

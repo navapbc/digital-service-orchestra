@@ -104,7 +104,7 @@ test_cli_guide_sections() {
     content=$(< "$CLI_GUIDE")
 
     # Commands reference section — must document @playwright/cli or npx playwright commands
-    if echo "$content" | grep -qiE '@playwright/cli|npx playwright|playwright (test|screenshot|pdf|codegen)'; then
+    if grep -qiE '@playwright/cli|npx playwright|playwright (test|screenshot|pdf|codegen)' <<< "$content"; then
         has_commands="found"
     else
         has_commands="missing"
@@ -113,7 +113,7 @@ test_cli_guide_sections() {
         "found" "$has_commands"
 
     # Output patterns section — must describe disk-based output (reading results back)
-    if echo "$content" | grep -qiE 'output|stdout|result|\.png|\.pdf|screenshot'; then
+    if grep -qiE 'output|stdout|result|\.png|\.pdf|screenshot' <<< "$content"; then
         has_output_patterns="found"
     else
         has_output_patterns="missing"
@@ -122,7 +122,7 @@ test_cli_guide_sections() {
         "found" "$has_output_patterns"
 
     # Session naming section — must describe session naming conventions
-    if echo "$content" | grep -qiE 'session.nam|--save-storage|storage-state|session.id'; then
+    if grep -qiE 'session.nam|--save-storage|storage-state|session.id' <<< "$content"; then
         has_session_naming="found"
     else
         has_session_naming="missing"
@@ -131,7 +131,7 @@ test_cli_guide_sections() {
         "found" "$has_session_naming"
 
     # Pre-flight section — must document availability checks before invoking CLI
-    if echo "$content" | grep -qiE 'pre-?flight|which playwright|command -v playwright|playwright.*--version|install.*playwright'; then
+    if grep -qiE 'pre-?flight|which playwright|command -v playwright|playwright.*--version|install.*playwright' <<< "$content"; then
         has_preflight="found"
     else
         has_preflight="missing"
@@ -140,7 +140,7 @@ test_cli_guide_sections() {
         "found" "$has_preflight"
 
     # CI considerations section — must address CI environment specifics (--no-sandbox, browser install)
-    if echo "$content" | grep -qiE 'no-sandbox|CI|ci\b|install.*browser|browser.*install|chromium'; then
+    if grep -qiE 'no-sandbox|CI|ci\b|install.*browser|browser.*install|chromium' <<< "$content"; then
         has_ci="found"
     else
         has_ci="missing"

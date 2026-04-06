@@ -501,7 +501,7 @@ test_ticket_link_too_few_args() {
     assert_eq "link too few args: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
 
     # Assert: usage message printed (mentions "usage" or "Usage" or argument info)
-    if echo "$stderr_out" | grep -qiE 'usage|usage:|<id|ticket_id|source|target'; then
+    if [[ "${stderr_out,,}" =~ usage|'<id'|ticket_id|source|target ]]; then
         assert_eq "link too few args: usage message printed" "has-usage" "has-usage"
     else
         assert_eq "link too few args: usage message printed" "has-usage" "no-usage: $stderr_out"
@@ -784,9 +784,9 @@ PYEOF
 )
 
     # Confirm the crafted files produce the bad sort order (prerequisite for the test)
-    if echo "$result" | grep -q "ORDERING_CONFIRMED"; then
+    if [[ "$result" == *"ORDERING_CONFIRMED"* ]]; then
         assert_eq "same-second ordering: crafted files produce UNLINK-before-LINK sort order" "ORDERING_CONFIRMED" "ORDERING_CONFIRMED"
-    elif echo "$result" | grep -q "ORDERING_REVERSED"; then
+    elif [[ "$result" == *"ORDERING_REVERSED"* ]]; then
         # Crafted UUIDs don't produce the bad order — skip (precondition invalid)
         assert_eq "same-second ordering: crafted files produce UNLINK-before-LINK sort order (precondition)" "ORDERING_CONFIRMED" "ORDERING_REVERSED_PRECONDITION_INVALID"
         assert_pass_if_clean "test_ticket_link_unlink_same_second_ordering"
@@ -866,7 +866,7 @@ test_link_depends_on_closed_target_blocked() {
     assert_eq "link-depends_on-closed-target: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
 
     # Assert: error message mentions closed or not allowed
-    if echo "$stderr_out" | grep -qiE 'closed|not allowed|cannot|target'; then
+    if [[ "${stderr_out,,}" =~ closed|not\ allowed|cannot|target ]]; then
         assert_eq "link-depends_on-closed-target: error mentions closed target" "has-closed-hint" "has-closed-hint"
     else
         assert_eq "link-depends_on-closed-target: error mentions closed target" "has-closed-hint" "no-hint: $stderr_out"

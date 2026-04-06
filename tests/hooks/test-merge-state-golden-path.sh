@@ -263,7 +263,7 @@ test_s1_c2_test_gate_normal_returns_staged_files() {
 
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files 2>/dev/null || echo "")
     has_worktree=0
-    echo "$files" | grep -q "worktree.txt" && has_worktree=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree.txt ]] && has_worktree=1
     assert_eq "S1-C2 test-gate: staged worktree.txt returned in normal state" \
         "1" "$has_worktree"
     assert_pass_if_clean "test_s1_c2_test_gate_normal_returns_staged_files"
@@ -310,7 +310,7 @@ test_s1_c5_capture_review_diff_normal_returns_staged_files() {
 
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files_from_head 2>/dev/null || echo "")
     has_worktree=0
-    echo "$files" | grep -q "worktree.txt" && has_worktree=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree.txt ]] && has_worktree=1
     assert_eq "S1-C5 capture-review-diff: staged worktree.txt returned in normal state" \
         "1" "$has_worktree"
     assert_pass_if_clean "test_s1_c5_capture_review_diff_normal_returns_staged_files"
@@ -378,12 +378,12 @@ test_s2_c1_review_gate_merge_detects_merge_state() {
         ms_filter_to_worktree_only "$(printf 'worktree.txt\nincoming.txt')" 2>/dev/null || echo "")
 
     has_incoming=0
-    echo "$filtered" | grep -q "incoming.txt" && has_incoming=1
+    _tmp="$filtered"; [[ "$_tmp" =~ incoming.txt ]] && has_incoming=1
     assert_eq "S2-C1 review-gate: incoming.txt filtered out during merge" \
         "0" "$has_incoming"
 
     has_worktree=0
-    echo "$filtered" | grep -q "worktree.txt" && has_worktree=1
+    _tmp="$filtered"; [[ "$_tmp" =~ worktree.txt ]] && has_worktree=1
     assert_eq "S2-C1 review-gate: worktree.txt retained during merge" \
         "1" "$has_worktree"
     assert_pass_if_clean "test_s2_c1_review_gate_merge_detects_merge_state"
@@ -399,12 +399,12 @@ test_s2_c2_test_gate_merge_filters_incoming() {
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files 2>/dev/null || echo "FAILED")
 
     has_incoming=0
-    echo "$files" | grep -q "incoming.txt" && has_incoming=1
+    _tmp="$files"; [[ "$_tmp" =~ incoming.txt ]] && has_incoming=1
     assert_eq "S2-C2 test-gate: incoming.txt excluded from worktree-only files" \
         "0" "$has_incoming"
 
     has_worktree=0
-    echo "$files" | grep -q "worktree.txt" && has_worktree=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree.txt ]] && has_worktree=1
     assert_eq "S2-C2 test-gate: worktree.txt included in worktree-only files" \
         "1" "$has_worktree"
     assert_pass_if_clean "test_s2_c2_test_gate_merge_filters_incoming"
@@ -420,12 +420,12 @@ test_s2_c3_record_test_status_merge_filters_incoming() {
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files 2>/dev/null || echo "")
 
     has_incoming=0
-    echo "$files" | grep -q "incoming.txt" && has_incoming=1
+    _tmp="$files"; [[ "$_tmp" =~ incoming.txt ]] && has_incoming=1
     assert_eq "S2-C3 record-test-status: incoming.txt excluded during merge" \
         "0" "$has_incoming"
 
     has_worktree=0
-    echo "$files" | grep -q "worktree.txt" && has_worktree=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree.txt ]] && has_worktree=1
     assert_eq "S2-C3 record-test-status: worktree.txt included during merge" \
         "1" "$has_worktree"
     assert_pass_if_clean "test_s2_c3_record_test_status_merge_filters_incoming"
@@ -461,12 +461,12 @@ test_s2_c5_capture_review_diff_merge_filters_incoming() {
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files_from_head 2>/dev/null || echo "")
 
     has_incoming=0
-    echo "$files" | grep -q "incoming.txt" && has_incoming=1
+    _tmp="$files"; [[ "$_tmp" =~ incoming.txt ]] && has_incoming=1
     assert_eq "S2-C5 capture-review-diff: incoming.txt excluded from from_head result during merge" \
         "0" "$has_incoming"
 
     has_worktree=0
-    echo "$files" | grep -q "worktree.txt" && has_worktree=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree.txt ]] && has_worktree=1
     assert_eq "S2-C5 capture-review-diff: worktree.txt included in from_head result during merge" \
         "1" "$has_worktree"
     assert_pass_if_clean "test_s2_c5_capture_review_diff_merge_filters_incoming"
@@ -546,12 +546,12 @@ test_s3_c2_test_gate_rebase_merge_filters_onto_files() {
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files 2>/dev/null || echo "FAILED")
 
     has_pre_onto=0
-    echo "$files" | grep -q "pre-onto.txt" && has_pre_onto=1
+    _tmp="$files"; [[ "$_tmp" =~ pre-onto.txt ]] && has_pre_onto=1
     assert_eq "S3-C2 test-gate: pre-onto.txt excluded during rebase-merge" \
         "0" "$has_pre_onto"
 
     has_worktree=0
-    echo "$files" | grep -q "worktree-feature.txt" && has_worktree=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree-feature.txt ]] && has_worktree=1
     assert_eq "S3-C2 test-gate: worktree-feature.txt included during rebase-merge" \
         "1" "$has_worktree"
     assert_pass_if_clean "test_s3_c2_test_gate_rebase_merge_filters_onto_files"
@@ -573,12 +573,12 @@ test_s3_c3_record_test_status_rebase_merge_filters_onto_files() {
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files 2>/dev/null || echo "")
 
     has_pre_onto=0
-    echo "$files" | grep -q "pre-onto.txt" && has_pre_onto=1
+    _tmp="$files"; [[ "$_tmp" =~ pre-onto.txt ]] && has_pre_onto=1
     assert_eq "S3-C3 record-test-status: pre-onto.txt excluded" \
         "0" "$has_pre_onto"
 
     has_worktree=0
-    echo "$files" | grep -q "worktree-feature.txt" && has_worktree=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree-feature.txt ]] && has_worktree=1
     assert_eq "S3-C3 record-test-status: worktree-feature.txt included" \
         "1" "$has_worktree"
     assert_pass_if_clean "test_s3_c3_record_test_status_rebase_merge_filters_onto_files"
@@ -614,12 +614,12 @@ test_s3_c5_capture_review_diff_rebase_merge_from_head() {
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files_from_head 2>/dev/null || echo "")
 
     has_pre_onto=0
-    echo "$files" | grep -q "pre-onto.txt" && has_pre_onto=1
+    _tmp="$files"; [[ "$_tmp" =~ pre-onto.txt ]] && has_pre_onto=1
     assert_eq "S3-C5 capture-review-diff: pre-onto.txt excluded from HEAD-anchored result" \
         "0" "$has_pre_onto"
 
     has_worktree=0
-    echo "$files" | grep -q "worktree-feature.txt" && has_worktree=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree-feature.txt ]] && has_worktree=1
     assert_eq "S3-C5 capture-review-diff: worktree-feature.txt included in HEAD-anchored result" \
         "1" "$has_worktree"
     assert_pass_if_clean "test_s3_c5_capture_review_diff_rebase_merge_from_head"
@@ -701,7 +701,7 @@ test_s4_c2_test_gate_rebase_apply_filters_correctly() {
         "FAILED" "$files"
 
     has_apply_file=0
-    echo "$files" | grep -q "worktree-apply.txt" && has_apply_file=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree-apply.txt ]] && has_apply_file=1
     assert_eq "S4-C2 test-gate: worktree-apply.txt included during rebase-apply" \
         "1" "$has_apply_file"
     assert_pass_if_clean "test_s4_c2_test_gate_rebase_apply_filters_correctly"
@@ -721,7 +721,7 @@ test_s4_c3_record_test_status_rebase_apply_detects_and_filters() {
 
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files 2>/dev/null || echo "")
     has_apply_file=0
-    echo "$files" | grep -q "worktree-apply.txt" && has_apply_file=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree-apply.txt ]] && has_apply_file=1
     assert_eq "S4-C3 record-test-status: worktree-apply.txt in worktree-only files" \
         "1" "$has_apply_file"
     assert_pass_if_clean "test_s4_c3_record_test_status_rebase_apply_detects_and_filters"
@@ -754,7 +754,7 @@ test_s4_c5_capture_review_diff_rebase_apply_from_head() {
 
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files_from_head 2>/dev/null || echo "")
     has_apply_file=0
-    echo "$files" | grep -q "worktree-apply.txt" && has_apply_file=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree-apply.txt ]] && has_apply_file=1
     assert_eq "S4-C5 capture-review-diff: worktree-apply.txt in from_head result for rebase-apply" \
         "1" "$has_apply_file"
     assert_pass_if_clean "test_s4_c5_capture_review_diff_rebase_apply_from_head"
@@ -833,7 +833,7 @@ test_s5_c2_test_gate_self_merge_guard_fail_open() {
 
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files 2>/dev/null || echo "")
     has_staged=0
-    echo "$files" | grep -q "worktree-self.txt" && has_staged=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree-self.txt ]] && has_staged=1
     assert_eq "S5-C2 test-gate: staged file returned when MERGE_HEAD==HEAD (fail-open)" \
         "1" "$has_staged"
     assert_pass_if_clean "test_s5_c2_test_gate_self_merge_guard_fail_open"
@@ -848,7 +848,7 @@ test_s5_c3_record_test_status_self_merge_guard_fail_open() {
 
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files 2>/dev/null || echo "")
     has_staged=0
-    echo "$files" | grep -q "worktree-self.txt" && has_staged=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree-self.txt ]] && has_staged=1
     assert_eq "S5-C3 record-test-status: staged file returned on MERGE_HEAD==HEAD guard (fail-open)" \
         "1" "$has_staged"
     assert_pass_if_clean "test_s5_c3_record_test_status_self_merge_guard_fail_open"
@@ -892,7 +892,7 @@ test_s5_c5_capture_review_diff_self_merge_guard_fail_open() {
 
     files=$(cd "$repo" && _MERGE_STATE_GIT_DIR="$git_dir" ms_get_worktree_only_files_from_head 2>/dev/null || echo "")
     has_staged=0
-    echo "$files" | grep -q "worktree-self.txt" && has_staged=1
+    _tmp="$files"; [[ "$_tmp" =~ worktree-self.txt ]] && has_staged=1
     assert_eq "S5-C5 capture-review-diff: from_head fail-opens on MERGE_HEAD==HEAD" \
         "1" "$has_staged"
     assert_pass_if_clean "test_s5_c5_capture_review_diff_self_merge_guard_fail_open"

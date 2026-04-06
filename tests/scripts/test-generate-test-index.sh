@@ -320,7 +320,7 @@ if _red_guard "test_scanner_excludes_dependency_dirs"; then
     assert_contains "test_scanner_excludes_dep_dirs: has parser entry" "parser.py" "$index_content"
     # Scanner must NOT include node_modules paths
     has_node_modules=0
-    echo "$index_content" | grep -q "node_modules" && has_node_modules=1
+    _tmp="$index_content"; [[ "$_tmp" == *"node_modules"* ]] && has_node_modules=1
     assert_eq "test_scanner_excludes_dep_dirs: no node_modules in index" "0" "$has_node_modules"
 fi
 assert_pass_if_clean "test_scanner_excludes_dependency_dirs"

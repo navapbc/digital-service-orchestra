@@ -82,12 +82,13 @@ assert_pass_if_clean "test_config_allowed_files_has_three_entries"
 _snapshot_fail
 if [[ -f "$CONFIG" ]]; then
     class_names_line="$(grep '^LOCKPICK_CLASS_NAMES=' "$CONFIG" | head -1 | cut -d= -f2-)"
-    if echo "$class_names_line" | grep -q "PipelineLLMClientFactory"; then
+    _tmp="$class_names_line"
+    if [[ "$_tmp" == *"PipelineLLMClientFactory"* ]]; then
         actual_pipeline="present"
     else
         actual_pipeline="missing"
     fi
-    if echo "$class_names_line" | grep -q "PostPipelineProcessor"; then
+    if [[ "$_tmp" == *"PostPipelineProcessor"* ]]; then
         actual_post="present"
     else
         actual_post="missing"
