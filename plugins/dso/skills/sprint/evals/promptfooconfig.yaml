@@ -239,6 +239,37 @@ tests:
           4. Dispatches all 3 tasks as parallel sub-agents (batch of 3)
           5. Does NOT use shared-directory or non-isolated dispatch mode when isolation is enabled
 
+  - description: "Phase 5 per-worktree serial review: when worktree isolation is enabled, each worktree is reviewed and committed separately before the next worktree starts"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the sprint orchestrator in Phase 5 post-batch processing.
+        worktree.isolation_enabled=true is set in dso-config.conf.
+        The batch contained 3 tasks dispatched to isolated worktrees:
+        task-pay-01 (worktree: wt-pay-01), task-pay-02 (worktree: wt-pay-02),
+        task-pay-03 (worktree: wt-pay-03). All 3 sub-agents returned STATUS:pass.
+        You need to run review and commit for these worktrees in Phase 5 Steps 7 and 10.
+        Does your sprint SKILL.md instruct you to run review and commit on a
+        per-worktree basis (serially, one worktree at a time) using the
+        per-worktree-review-commit.md workflow? Cite the specific step or section
+        in your sprint instructions that establishes this per-worktree serial
+        review-then-commit behavior when worktree isolation is enabled.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Cites or references a specific step, section, or document name from
+             sprint SKILL.md instructions that establishes per-worktree serial
+             review-and-commit behavior (e.g., "per-worktree-review-commit.md",
+             "Phase 5 Step X", or equivalent sprint-specific instruction)
+          2. Confirms that sprint SKILL.md explicitly instructs per-worktree serial
+             processing (review → commit for one worktree before moving to the next)
+             rather than batch-level review of all worktrees together
+          3. Does NOT say the sprint instructions are silent or missing on this topic
+          4. Does NOT rely on general reasoning or inference — must cite sprint
+             SKILL.md or per-worktree-review-commit.md as the source of this rule
+
   - description: "Worktree isolation dispatch (negative): when worktree.isolation_enabled=false, sprint uses shared-directory fallback — NOT isolation:worktree"
     options:
       provider: "anthropic:messages:claude-haiku-4-5-20251001"
