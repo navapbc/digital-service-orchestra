@@ -1,1 +1,0 @@
-{"timestamp": 1775454306006694000, "uuid": "127640b6-4031-4817-b527-1edd1d5f3511", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Story complete: all 5 tasks closed, verification PASS. Both guard implementations updated with auth-file allowlist, cleanup added to session end."}}
