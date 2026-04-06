@@ -523,6 +523,8 @@ while IFS= read -r src_file; do
                     if [[ "$_idx_entry" =~ ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$ ]]; then
                         _idx_test="${BASH_REMATCH[1]}"
                         _idx_mk="${BASH_REMATCH[2]}"
+                        # Strip source prefix (e.g., "source.md:tests/foo.sh" → "tests/foo.sh")
+                        _idx_test="${_idx_test##*:}"
                         [[ "$_idx_test" == "$_test_self" ]] && { _direct_marker="$_idx_mk"; break; }
                     fi
                 done < <(grep -F "$_test_self" "$REPO_ROOT/.test-index" 2>/dev/null || true)
