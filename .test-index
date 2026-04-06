@@ -104,7 +104,7 @@ plugins/dso/scripts/build-review-agents.sh:tests/unit/scripts/test-build-review-
 plugins/dso/scripts/capture-review-diff.sh:tests/hooks/test-merge-aware-diff.sh
 plugins/dso/scripts/check-acceptance-criteria.sh:tests/scripts/test-check-acceptance-criteria.sh
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-generic.sh
-plugins/dso/scripts/check-model-id-lint.sh:tests/scripts/test-model-id-lint.sh [test-model-id-lint]
+plugins/dso/scripts/check-model-id-lint.sh:tests/scripts/test-model-id-lint.sh
 plugins/dso/scripts/check-portability.sh:tests/scripts/test-check-portability.sh
 plugins/dso/scripts/check-script-writes.py:tests/scripts/test-check-script-writes.sh
 plugins/dso/scripts/check-shim-refs.sh:tests/scripts/test-check-shim-refs-detection.sh,tests/scripts/test-check-shim-refs.sh
