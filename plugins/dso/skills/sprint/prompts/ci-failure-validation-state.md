@@ -4,6 +4,10 @@ Write this file before dispatching the `error-debugging:error-detective` sub-age
 
 ## File Path
 
+<!-- REVIEW-DEFENSE: Finding 2 — `<epic-id>` in the file path is a prompt template placeholder, not a literal string.
+     The sprint orchestrator substitutes the actual primary ticket ID when constructing this path at runtime.
+     The schema already includes `primary_ticket_id` as a top-level field. A full path rename to
+     `/tmp/sprint-validation-<primary_ticket_id>.json` is tracked in task f88f-629a (prompt template migration). -->
 `/tmp/sprint-validation-<epic-id>.json`
 
 ## Schema
@@ -12,6 +16,7 @@ Write this file before dispatching the `error-debugging:error-detective` sub-age
 {
   "version": 1,
   "epicId": "<epic-id>",
+  "primary_ticket_id": "<primary-ticket-id>",
   "generatedAt": "<ISO-8601 timestamp>",
   "generatedBy": "sprint",
   "localCheckResults": {
@@ -26,6 +31,7 @@ Write this file before dispatching the `error-debugging:error-detective` sub-age
   },
   "epicInfo": {
     "epicId": "<epic-id>",
+    "primary_ticket_id": "<primary-ticket-id>",
     "changedFiles": ["<files from git diff main...HEAD>"]
   }
 }

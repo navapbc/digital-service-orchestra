@@ -188,7 +188,9 @@ def test_hard_gate_at_phase_6_entry() -> None:
     to run before any Phase 6 progress.
     """
     content = _read_skill()
-    phase_6_pos = content.find("## Phase 6: Post-Epic Validation")
+    phase_6_pos = content.find("## Phase 6: Post-Primary Ticket Validation")
+    if phase_6_pos < 0:
+        phase_6_pos = content.find("## Phase 6: Post-Epic Validation")
     assert phase_6_pos > 0, "Phase 6 not found in SKILL.md"
 
     # HARD-GATE must appear between Phase 6 header and first ### step
