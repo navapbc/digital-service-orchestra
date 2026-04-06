@@ -36,7 +36,14 @@ trap _cleanup EXIT
 
 # --- Configuration from environment ---
 : "${TEST_TIMEOUT:=30}"
-: "${MAX_PARALLEL:=8}"
+# Cap parallelism to min(4, nproc/2) to prevent fork exhaustion when
+# run-all.sh launches 4 concurrent suites (4 × MAX_PARALLEL × subprocess layers).
+_nproc=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+_default_parallel=$(( _nproc / 2 ))
+[ "$_default_parallel" -lt 2 ] && _default_parallel=2
+[ "$_default_parallel" -gt 4 ] && _default_parallel=4
+: "${MAX_PARALLEL:=$_default_parallel}"
+unset _nproc _default_parallel
 : "${MAX_CONSECUTIVE_FAILS:=5}"
 : "${SUITE_LABEL:=Tests}"
 

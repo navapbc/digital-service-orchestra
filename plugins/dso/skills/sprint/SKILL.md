@@ -1143,6 +1143,8 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in thi
 - **Minor issues only** → proceed (note them in ticket but don't block)
 - **Autonomous resolution**: Up to `review.max_resolution_attempts` (default: 5) fix/defend attempts before tier escalation (light → standard → deep). When attempts are exhausted, upgrade to the next tier before escalating to user — the deep tier (3 sonnet + opus synthesis) must be tried before user escalation. Resolution sub-agent applies fixes, then orchestrator dispatches separate re-review sub-agent (no nesting). If issues persist after deep tier, escalate to the user — do NOT commit or initiate graceful shutdown. The review loop continues until the review passes OR the user explicitly approves proceeding.
 
+> **CONTEXT ANCHOR**: When REVIEW_RESULT: passed is received from the review sub-agent, this is NOT a session completion signal. Proceed immediately to Step 7a → Step 8 → Step 9 → Step 10. Do NOT stop, wait for user input, or treat review completion as a stopping point.
+
 ### Step 7a: Out-of-Scope Review Feedback Detection (/dso:sprint)
 
 After review resolution completes (Step 7) and before proceeding to Step 8, check whether accepted review findings reference files outside the task's scope.

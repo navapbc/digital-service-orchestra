@@ -234,7 +234,7 @@ _push_tickets_branch() {
         _attempt=$((_attempt + 1))
         local _push_exit=0
         local _push_stderr=""
-        _push_stderr=$(git -C "$base_path" push origin tickets 2>&1) || _push_exit=$?
+        _push_stderr=$(PRE_COMMIT_ALLOW_NO_CONFIG=1 git -C "$base_path" push origin tickets 2>&1) || _push_exit=$?
 
         if [ "$_push_exit" -eq 0 ]; then
             return 0

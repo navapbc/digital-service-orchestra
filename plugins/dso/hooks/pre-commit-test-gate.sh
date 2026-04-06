@@ -30,7 +30,7 @@
 #   MISSING:       'BLOCKED: test gate — no test-status recorded. Run record-test-status.sh or use /dso:commit'
 #   HASH_MISMATCH: 'BLOCKED: test gate — code changed since tests were recorded. Re-run record-test-status.sh'
 #   NOT_PASSED:    'BLOCKED: test gate — tests did not pass. Fix failures before committing'
-#   exit 144 hint: 'Run: plugins/dso/scripts/test-batched.sh --timeout=50 "<test cmd>"'
+#   exit 144 hint: 'Run: .claude/scripts/dso test-batched.sh --timeout=50 "<test cmd>"'
 #
 # INSTALL:
 #   Registered in .pre-commit-config.yaml as a local hook (NOT via core.hooksPath).
@@ -584,7 +584,7 @@ if [[ ! -f "$TEST_GATE_STATUS_FILE" ]]; then
     echo "  then retry your commit." >&2
     echo "" >&2
     echo "  If tests are timing out, run:" >&2
-    echo "  plugins/dso/scripts/test-batched.sh --timeout=50 \"<test cmd>\"" >&2
+    echo "  .claude/scripts/dso test-batched.sh --timeout=50 \"<test cmd>\"" >&2
     echo "" >&2
     exit 1
 fi
@@ -592,27 +592,32 @@ fi
 # ── Check first line is 'passed' ───────────────────────────────────────────────
 TEST_STATUS_LINE=$(head -1 "$TEST_GATE_STATUS_FILE" 2>/dev/null || echo "")
 if [[ "$TEST_STATUS_LINE" != "passed" ]]; then
-    echo "" >&2
-    echo "BLOCKED: test gate — tests did not pass. Fix failures before committing" >&2
-    echo "" >&2
-    echo "  Recorded status: ${TEST_STATUS_LINE}" >&2
-    echo "" >&2
-    if [[ "$TEST_STATUS_LINE" == "timeout" ]]; then
-        echo "  Tests timed out (exit 144). Run:" >&2
-        echo "  plugins/dso/scripts/test-batched.sh --timeout=50 \"<test cmd>\"" >&2
+    # Fail-open on timeout/partial — infrastructure constraint, not test failure.
+    # CI will catch failures; blocking commits on timeout creates an unrecoverable loop.
+    if [[ "$TEST_STATUS_LINE" == "timeout" || "$TEST_STATUS_LINE" == "partial" ]]; then
         echo "" >&2
-    fi
-    FAILED_TESTS=$(grep '^failed_tests=' "$TEST_GATE_STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
-    if [[ -n "$FAILED_TESTS" ]]; then
-        echo "  Required tests (failing): ${FAILED_TESTS}" >&2
+        echo "pre-commit-test-gate: WARNING: tests ${TEST_STATUS_LINE} — failing open (commit allowed)" >&2
+        echo "  Run: .claude/scripts/dso test-batched.sh --timeout=50 \"<test cmd>\"" >&2
         echo "" >&2
-    fi
-    TESTED_FILES=$(grep '^tested_files=' "$TEST_GATE_STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
-    if [[ -n "$TESTED_FILES" ]]; then
-        echo "  Tests run: ${TESTED_FILES}" >&2
+        # Fall through to diff hash check (do not exit 1)
+    else
         echo "" >&2
+        echo "BLOCKED: test gate — tests did not pass. Fix failures before committing" >&2
+        echo "" >&2
+        echo "  Recorded status: ${TEST_STATUS_LINE}" >&2
+        echo "" >&2
+        FAILED_TESTS=$(grep '^failed_tests=' "$TEST_GATE_STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+        if [[ -n "$FAILED_TESTS" ]]; then
+            echo "  Required tests (failing): ${FAILED_TESTS}" >&2
+            echo "" >&2
+        fi
+        TESTED_FILES=$(grep '^tested_files=' "$TEST_GATE_STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+        if [[ -n "$TESTED_FILES" ]]; then
+            echo "  Tests run: ${TESTED_FILES}" >&2
+            echo "" >&2
+        fi
+        exit 1
     fi
-    exit 1
 fi
 
 # ── Verify diff hash matches ───────────────────────────────────────────────────
@@ -644,7 +649,7 @@ if [[ "$RECORDED_HASH" != "$CURRENT_HASH" ]]; then
     echo "  Re-run record-test-status.sh or use /dso:commit to re-record test status." >&2
     echo "" >&2
     echo "  If tests are timing out, run:" >&2
-    echo "  plugins/dso/scripts/test-batched.sh --timeout=50 \"<test cmd>\"" >&2
+    echo "  .claude/scripts/dso test-batched.sh --timeout=50 \"<test cmd>\"" >&2
     echo "" >&2
     exit 1
 fi

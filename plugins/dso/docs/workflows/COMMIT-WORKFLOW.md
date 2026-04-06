@@ -2,6 +2,10 @@
 
 Create a git commit with mandatory test, format, lint, and review gates.
 
+<HARD-GATE>
+Execute ALL steps in this workflow in order. Do NOT skip, abbreviate, or "run through key steps efficiently." Every step is mandatory — including format checks, lint, test recording, and review. Rationalizing that "these are simple changes" or "time pressure" justifies skipping steps is exactly the failure mode this gate prevents.
+</HARD-GATE>
+
 ## Config Reference (from dso-config.conf)
 
 Replace commands below with values from your `.claude/dso-config.conf`:

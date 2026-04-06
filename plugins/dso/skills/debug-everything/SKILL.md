@@ -80,7 +80,11 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-acquire "debug-everything"  # shim
 
 The script outputs `LOCK_ID: <id>` on success, `LOCK_BLOCKED: <id>` with `LOCK_WORKTREE: <path>` if another session holds the lock, or `LOCK_STALE: <id>` if a stale lock was reclaimed before acquiring.
 
-- **`LOCK_ID`**: Save for release in Phase 9.
+- **`LOCK_ID`**: Save for release in Phase 9. Also persist to artifact file for recovery after context compaction:
+  ```bash
+  source "${PLUGIN_ROOT}/hooks/lib/deps.sh"
+  echo "$LOCK_ID" > "$(get_artifacts_dir)/debug-lock-id"
+  ```
 - **`LOCK_BLOCKED`**: **STOP.** Report to user: "Another `/dso:debug-everything` session is running from `<worktree>`. Wait for it to finish, or close `<lock-id>` to force-release."
 - **`LOCK_STALE`**: Stale lock was auto-reclaimed. Proceed — the script acquired a new lock (printed on the next `LOCK_ID` line).
 
@@ -942,7 +946,7 @@ If `collect-discoveries.sh` fails, log a warning and proceed without discovery p
 
 **Default is CONTINUE, not shutdown.** Only shut down on a concrete, verifiable signal — never on a "felt sense" of context fullness (a54a-95fc).
 
-- If you received a **literal context-compaction event banner** from Claude Code during this session → Phase 9 (graceful shutdown). A compaction banner is an unmistakable system message — if you are unsure whether you saw one, you did NOT see one.
+- If you received a **literal context-compaction event banner** from Claude Code during this session → Phase 9 (graceful shutdown). **CRITICAL**: On compaction, LOCK_ID may be lost from context. Recover it from the artifact file before Phase 9: `LOCK_ID=$(cat "$(get_artifacts_dir)/debug-lock-id" 2>/dev/null)`. Phase 9 MUST release the lock and write epic summary notes — these are the two obligations that prior sessions lost after compaction.
 - If more failures remain in this tier → Phase 5 (next batch)
 - If tier is clear → Phase 7 (re-diagnose)
 

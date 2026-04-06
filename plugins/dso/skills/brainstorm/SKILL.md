@@ -377,7 +377,7 @@ Note: summary confirmation (Phase 1 Gate Step 1) does NOT collapse with gap anal
 
 Please choose how to proceed:
 
-(a) Approve — advance to ticket creation (Phase 3)
+(a) Approve — advance to Phase 3 Step 0 (Follow-on Epic Gate), then Step 1 (Ticket Creation)
 (b) [Perform / Re-run] red/blue team review cycle — re-runs scenario analysis (Step 2.75) and re-presents this gate
 (c) [Perform / Re-run] additional web research — re-runs web research phase (Step 2.6) and re-presents this gate
 (d) Let's discuss more — pause for conversational review before re-presenting this gate
@@ -416,7 +416,7 @@ Log format to append under the heading `### Planning Intelligence Log`:
 
 **Clean-text instruction**: Strip all provenance markers and bold emphasis before writing the ticket description. Provenance annotations are used only during the approval-gate review phase — the final ticket description must be written as clean plain text with no markup from the provenance tracking step.
 
-### Follow-on and Derivative Epic Gate
+### Step 0: Follow-on and Derivative Epic Gate (/dso:brainstorm)
 
 <HARD-GATE>
 Do NOT call `ticket create` for any follow-on or derivative epic until the user has explicitly approved that epic's title, description, and success criteria in a separate approval step. Do NOT treat directional approval of the primary epic (Phase 2 Step 4, option a) as approval for any follow-on epic.
@@ -543,11 +543,11 @@ If the agent fails or returns malformed JSON (not parseable or missing the `clas
 
 #### Step 4b: Route Based on Classification
 
-Apply the brainstorm routing rule to the shared rubric's output. The key insight: brainstorm produces specs at varying fidelity levels. When the spec already includes explicit file lists, a defined approach, and measurable success criteria, preplanning (story decomposition) is redundant — route directly to `/dso:implementation-plan`.
+Apply the brainstorm routing rule to the shared rubric's output using the routing table below. **Always consult the table** — do NOT skip preplanning based on prose heuristics. Only TRIVIAL epics bypass preplanning; MODERATE and COMPLEX epics always route through preplanning (lightweight or full).
 
-**Session-signal override** (applies before the routing table): If EITHER of the following is true based on the approved spec and scenario analysis from earlier in this session, override the evaluator's classification to COMPLEX regardless of its output:
-- `success_criteria_count ≥ 7` (exceeds the spec norm of 3–6; signals scope expansion)
-- `scenario_survivor_count ≥ 10` (high scenario density signals unresolved edge-case complexity)
+**Session-signal override** (applies before the routing table): If EITHER of the following is true, override the evaluator's classification to COMPLEX regardless of its output:
+- `success_criteria_count ≥ 7` — count the bullet items in the `## Success Criteria` section of the approved spec (re-count from the spec text, do NOT rely on session memory which may be lost after compaction)
+- `scenario_survivor_count ≥ 10` — read from the Planning-Intelligence Log entry written at Step 4 approval; if the log is unavailable (compacted), read from the `## Scenario Analysis` section of the approved spec and count surviving scenarios
 
 Log the override: `"Epic classified as COMPLEX (session-signal override: <reason>) — invoking /dso:preplanning"`
 

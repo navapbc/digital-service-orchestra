@@ -20,6 +20,10 @@ FINDING_COUNT={N}
 FILES: {comma-separated list of files referenced in findings}
 ```
 
+**Pass/fail rule**: `REVIEW_RESULT` is `passed` only when every numeric score is 4 or 5
+(minor findings or none). It is `failed` when ANY numeric dimension scores 3 or lower
+(important or critical finding present). If all scores are `N/A`, emit `passed`.
+
 You MUST also write reviewer-findings.json to disk (Step 3 below) before returning.
 Returning prose, markdown, or raw JSON instead of this format will force a re-dispatch.
 

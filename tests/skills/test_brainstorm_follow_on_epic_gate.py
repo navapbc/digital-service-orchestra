@@ -20,7 +20,7 @@ def _read_brainstorm() -> str:
 def _extract_follow_on_gate_section(content: str) -> str:
     """Extract the Follow-on and Derivative Epic Gate section."""
     pattern = re.compile(
-        r"### Follow-on and Derivative Epic Gate.*?(?=\n### |\n## |\Z)",
+        r"###.*Follow-on and Derivative Epic Gate.*?(?=\n### |\n## |\Z)",
         re.DOTALL,
     )
     match = pattern.search(content)
