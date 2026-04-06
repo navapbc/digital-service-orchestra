@@ -1,1 +1,0 @@
-{"timestamp": 1775513898123328000, "uuid": "738d55c1-88a2-45ed-b261-a458ab78fb78", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 4/6: 3 testing_mode eval tests added to promptfooconfig.yaml (GREEN/UPDATE/RED). RED marker added to .test-index. Running final eval verification \u2713"}}
