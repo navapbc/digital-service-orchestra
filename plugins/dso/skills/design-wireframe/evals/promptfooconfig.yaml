@@ -273,3 +273,28 @@ tests:
           2. Describes fixing the brief to add the missing criterion before finalizing
           3. Does NOT finalize or link the brief to the story while a criterion is uncovered
           4. Mentions that the self-review checks that all acceptance criteria are covered
+
+  - description: "Desync guard: regenerating wireframe.svg clears design:approved tag and warns user"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are regenerating wireframe.svg for story STORY-9901. The story ticket
+        currently has the design:approved tag applied, meaning a reviewer has already
+        signed off on the design. However, the developer has requested a full
+        regeneration of wireframe.svg to incorporate new acceptance criteria.
+        Explain step-by-step what you do before and after regenerating wireframe.svg,
+        paying particular attention to the design:approved tag and any warnings you
+        issue to the user.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Detects that the story ticket has the design:approved tag before regenerating
+          2. Clears (removes) the design:approved tag from the story ticket because the
+             wireframe is being regenerated and the previous approval is now stale
+          3. Warns the user explicitly that the design:approved tag has been cleared
+             because regeneration invalidates the prior approval
+          4. Does NOT silently regenerate wireframe.svg while leaving design:approved in place
+          5. Explains that the design must be re-reviewed and re-approved after regeneration
+             before the design:approved tag can be reapplied

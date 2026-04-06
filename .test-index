@@ -282,3 +282,4 @@ tests/scripts/test-merge-recovery-integration.sh:tests/scripts/test-merge-recove
 plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-sub-agent-guard.sh
 plugins/dso/hooks/worktree-isolation-guard.sh:tests/hooks/test-worktree-isolation-guard.sh
 plugins/dso/skills/shared/constants/figma-tags.conf:tests/skills/test-figma-tag-constants.sh
+plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh [test_da_approve_1_happy_path]
