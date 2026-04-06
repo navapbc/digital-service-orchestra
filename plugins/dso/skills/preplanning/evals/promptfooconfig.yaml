@@ -76,7 +76,7 @@ prompts:
 tests:
   - description: "Produces prioritized user stories with observable done definitions from a well-defined epic"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         Epic: dso-abc1
@@ -115,7 +115,7 @@ tests:
 
   - description: "Applies Foundation/Enhancement split for a story with diverging walking skeleton and ideal implementation"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         Epic: dso-def2
@@ -190,7 +190,7 @@ tests:
 
   - description: "Produces a risk register flagging cross-cutting concerns across the story set"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         Epic: dso-jkl4

@@ -478,6 +478,20 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 ### If ALL scores are 4, 5, or "N/A" AND no critical findings:
 Review passed. **Immediately resume the calling workflow** — do NOT wait for user input. If this workflow was invoked from COMMIT-WORKFLOW.md Step 5, proceed directly to Step 6 (Commit). If invoked from another orchestrator, resume at the step after the review invocation. Note: this branch requires ALL scores >= 4. A score of 3 with important findings is NOT a pass — it enters the resolution loop below.
 
+**Emit review result event** (best-effort — does not block the workflow):
+
+```bash
+".claude/scripts/dso" emit-review-result.sh \
+  --pass-fail=passed \
+  --revision-cycles=0 \
+  --resolution-code-changes=0 \
+  --resolution-defenses=0 \
+  --tier-original="$REVIEW_TIER" \
+  --tier-final="$REVIEW_TIER" \
+  --overlay-security="${OVERLAY_SECURITY:-false}" \
+  --overlay-performance="${OVERLAY_PERFORMANCE:-false}"
+```
+
 ### If ANY score is below 4, OR any critical finding exists:
 Review failed. Enter the Autonomous Resolution Loop. Critical findings always fail regardless of score.
 
@@ -602,6 +616,21 @@ Task tool:
      --expected-hash "<NEW_DIFF_HASH>" \
      --reviewer-hash "<REVIEWER_HASH from re-review sub-agent>"
    ```
+
+   **Emit review result event** (best-effort — does not block the workflow):
+
+   ```bash
+   ".claude/scripts/dso" emit-review-result.sh \
+     --pass-fail=passed \
+     --revision-cycles="$REVIEW_PASS_NUM" \
+     --resolution-code-changes="$RESOLUTION_CODE_CHANGES" \
+     --resolution-defenses="$RESOLUTION_DEFENSES" \
+     --tier-original="$REVIEW_TIER" \
+     --tier-final="$([ "$RE_REVIEW_DEEP_FULL" = true ] && echo deep || echo "$REVIEW_TIER")" \
+     --overlay-security="${OVERLAY_SECURITY:-false}" \
+     --overlay-performance="${OVERLAY_PERFORMANCE:-false}"
+   ```
+
    Then proceed to commit.
 
 5. **If re-review fails**: run the OSCILLATION GATE before dispatching another resolution sub-agent.

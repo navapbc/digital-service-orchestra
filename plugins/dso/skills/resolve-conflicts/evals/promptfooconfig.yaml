@@ -93,7 +93,7 @@ tests:
 
   - description: "Classifies semantic conflict and presents proposed resolution for human approval"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         I have a merge conflict in src/config/settings.py
@@ -136,7 +136,7 @@ tests:
 
   - description: "Escalates ambiguous conflict to user with both options and requires choice"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         I have a merge conflict in src/api/auth.py

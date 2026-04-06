@@ -39,7 +39,7 @@ prompts:
 tests:
   - description: "Gap classification: detects intent_gap when SC contradicts closed architectural decision"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: >
         Sprint Phase 7 receives a failing SC: 'Users can authenticate via Google OAuth'.
@@ -58,7 +58,7 @@ tests:
 
   - description: "Gap classification: detects implementation_gap when SC has partial implementation"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: >
         Sprint Phase 7 receives a failing SC: 'Export button downloads data as CSV'.
@@ -77,7 +77,7 @@ tests:
 
   - description: "Drift detection: orchestrator checks file impact drift at sprint entry"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: >
         You are about to begin sprint execution on epic auth-4f2a, which has 3 open tasks.
@@ -97,7 +97,7 @@ tests:
 
   - description: "Confidence signal: double UNCERTAIN routes task to implementation-plan"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: >
         You are the sprint orchestrator in Phase 5 post-batch processing.
@@ -121,7 +121,7 @@ tests:
 
   - description: "Story validation failure: all tasks closed but validation fails triggers remediation via TDD"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: >
         You are the sprint orchestrator in Phase 6 (story closure).
@@ -144,7 +144,7 @@ tests:
 
   - description: "Out-of-scope review feedback: accepted findings for files outside task scope route to implementation-plan between batches"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: >
         You are the sprint orchestrator in Phase 5 post-batch processing.
@@ -169,7 +169,7 @@ tests:
 
   - description: "Non-interactive mode: brainstorm escalation deferred via INTERACTIVITY_DEFERRED"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: >
         You are the sprint orchestrator running in non-interactive mode (no user present).
