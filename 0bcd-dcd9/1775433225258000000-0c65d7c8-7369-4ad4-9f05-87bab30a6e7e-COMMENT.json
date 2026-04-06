@@ -1,1 +1,0 @@
-{"timestamp": 1775433225258000000, "uuid": "0c65d7c8-7369-4ad4-9f05-87bab30a6e7e", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Classification: llm-behavioral. Ticket references orchestrator behavior (cleanup lost after compaction) AND affected file is skills/debug-everything/SKILL.md. Dual-signal detected."}}
