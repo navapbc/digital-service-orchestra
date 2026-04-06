@@ -483,6 +483,36 @@ If `epic_routing` is `"SIMPLE"` or `"MODERATE"` (set in Phase 1's Preplanning Ga
 
 Log: `"Skipping Implementation Planning Gate — epic was routed as <epic_routing>, tasks already exist under epic."`
 
+#### Design-Blocked Story Filter (/dso:sprint)
+
+Before processing stories for implementation planning, filter out design-blocked stories.
+
+**Source tag constants from shared config:**
+```bash
+source plugins/dso/skills/shared/constants/figma-tags.conf
+# TAG_AWAITING_IMPORT=design:awaiting_import
+```
+
+**Read staleness threshold from config:**
+```bash
+figma_staleness_days=$(grep '^design\.figma_staleness_days=' .claude/dso-config.conf | cut -d= -f2)
+figma_staleness_days=${figma_staleness_days:-7}
+```
+
+**Initialize awaiting_design_stories list (once before layer loop):**
+```
+awaiting_design_stories = []  # List of {id, title, tag_applied_date}
+```
+
+**For each story from `.claude/scripts/dso ticket list` (filtered by parent):**
+1. Run `.claude/scripts/dso ticket show <story-id>` and check the `tags` field
+2. If `design:awaiting_import` (i.e., `$TAG_AWAITING_IMPORT`) is present:
+   - Log: `"Story <id> tagged design:awaiting_import — skipping implementation planning."`
+   - Estimate the tag age from the ticket's comment timestamps: find the comment whose body contains `"Import designs/"` (written by design-wireframe when the tag was applied) and read its `timestamp` field from the JSON output. Compute days elapsed: `$(( ($(date +%s) - comment_timestamp_epoch) / 86400 ))`. If no such comment exists, treat tag age as unknown (no staleness warning).
+   - Add the story to the `awaiting_design_stories` list: `{id: "<story-id>", title: "<story-title>", tag_applied_date: "<date or unknown>"}`
+   - **Do not add this story to the needs-planning list**. Skip all further processing for this story (no complexity eval, no implementation-plan dispatch, no batch dispatch in Phase 4).
+3. Only stories **without** the `design:awaiting_import` tag proceed to Step 1 below.
+
 #### Step 1: Identify Stories Needing Implementation Planning (/dso:sprint)
 
 For each ready task from `.claude/scripts/dso ticket list` (filtered by parent):
@@ -792,6 +822,9 @@ TASK: <id>  P<priority>  <issue-type>  <model>  <subagent-type>  <class>  <title
 | `SKIPPED_OPUS_CAP: <id> ...` | Deferred — opus cap (2) already reached |
 | `SKIPPED_BLOCKED_STORY: <id> ...` | Deferred — parent story has open blockers |
 | `SKIPPED_IN_PROGRESS: <id> ...` | Already claimed by another agent |
+| `SKIPPED_DESIGN_AWAITING: <id> <title>` | Deferred — story tagged `design:awaiting_import` (Figma designs not yet finalized) |
+
+**Parsing `SKIPPED_DESIGN_AWAITING` lines:** After running `sprint-next-batch.sh`, parse any `SKIPPED_DESIGN_AWAITING` lines from the output. For each such line, extract the story ID and title and add them to the `awaiting_design_stories` list (if not already present from Phase 2 filtering). These stories are surfaced in the Phase 5 Batch Completion Summary "Awaiting designer input" section.
 
 Use `--json` for machine-readable output with full detail including file lists.
 
@@ -920,6 +953,38 @@ ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" 
 
 When `ISOLATION_ENABLED` equals `true`, add `isolation: "worktree"` to each Agent/Task dispatch call and pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each sub-agent's prompt so sub-agents can verify isolation. When `ISOLATION_ENABLED` is `false`, empty, or absent, omit the `isolation` parameter entirely.
 
+### Design Context Population
+
+Before dispatch, source the figma tag constants and check whether the parent story has the `design:approved` tag:
+
+```bash
+# Source tag constants
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/plugins/dso}/skills/shared/constants/figma-tags.conf"
+# TAG_APPROVED is now set to "design:approved"
+```
+
+For each task, look up the parent story's tags (already fetched during COMPLEX detection):
+
+**If parent story has `design:approved` tag:**
+
+> Note: `design:approved` guarantees the revision PNG exists — the approval command (`design-approve.sh`) validates PNG existence before applying the tag. No additional file existence check is needed here.
+
+1. Find the design UUID from story comments — search for a comment whose body matches the pattern `designs/([^/]+)/` (e.g., `"Design Manifest: designs/550e8400-.../manifest.md"`). Extract the UUID from the first capture group. If multiple comments match, use the most recent one.
+2. Build the `design_context` string:
+   ```
+   ## Design Artifacts
+   Manifest path: designs/<uuid>/spatial-layout.json
+   Revision image path: designs/<uuid>/figma-revision.png
+   ```
+3. Replace `{design_context}` in `task-execution.md` with this string.
+4. Set `STORY_HAS_DESIGN_APPROVED=true` for model tier enforcement (see Subagent Type and Model Selection).
+
+**If parent story does NOT have `design:approved` tag:**
+
+- Replace `{design_context}` in `task-execution.md` with an empty string.
+- Set `STORY_HAS_DESIGN_APPROVED=false`. No model override.
+
 ### Sub-Agent Prompt Template
 
 For each task, launch a Task with the appropriate `subagent_type`.
@@ -947,14 +1012,15 @@ Use the `model` and `subagent` fields from the `TASK:` lines produced by
 
 When launching each Task tool call, set `subagent_type` and `model` from the TASK line, then apply the decision table below in order (first matching row wins):
 
-| parent_story_complex | task_model | task_class | action |
-|---------------------|------------|------------|--------|
-| any | any | any (doc-story title match) | Override `subagent_type` to `dso:doc-writer`, `model` to `sonnet`. Pass `epic_context` and `git_diff` context fields (see Documentation Story Dispatch below). Log: `"Documentation story detected — dispatching to dso:doc-writer instead of generic agent."` |
-| `COMPLEX` | `sonnet` | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
-| `COMPLEX` | `sonnet` | any other | Override `model` to `opus`. Log: `"Story <parent-id> classified COMPLEX — upgrading task <task-id> model to opus."` |
-| `COMPLEX` | `opus` | any | No change (already opus). |
-| not COMPLEX | any | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
-| not COMPLEX | any | any other | No change — use `model` and `subagent` from TASK line as-is. |
+| parent_story_has_design_approved | parent_story_complex | task_model | task_class | action |
+|----------------------------------|---------------------|------------|------------|--------|
+| `true` (revision image present) | any | any | any | Override `model` to minimum `sonnet` (if current model is `haiku`, upgrade to `sonnet`; if already `sonnet` or `opus`, no change). Log: `"design:approved story — enforcing sonnet minimum for multimodal."` |
+| any | any | any | any (doc-story title match) | Override `subagent_type` to `dso:doc-writer`, `model` to `sonnet`. Pass `epic_context` and `git_diff` context fields (see Documentation Story Dispatch below). Log: `"Documentation story detected — dispatching to dso:doc-writer instead of generic agent."` |
+| any | `COMPLEX` | `sonnet` | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
+| any | `COMPLEX` | `sonnet` | any other | Override `model` to `opus`. Log: `"Story <parent-id> classified COMPLEX — upgrading task <task-id> model to opus."` |
+| any | `COMPLEX` | `opus` | any | No change (already opus). |
+| any | not COMPLEX | any | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
+| any | not COMPLEX | any | any other | No change — use `model` and `subagent` from TASK line as-is. |
 
 **Doc-story title match**: Task title or parent story title matches `Update project docs to reflect`.
 
@@ -1176,6 +1242,24 @@ Print a completion summary. Each line must show the task ID, title, and pass/fai
 ```
 
 Titles are retained from the pre-launch batch list printed in Phase 4 — no additional `.claude/scripts/dso ticket show` calls are needed.
+
+#### Awaiting Designer Input Section
+
+After the per-task completion lines, if `awaiting_design_stories` is non-empty, print a blocked status section:
+
+```
+Awaiting designer input:
+  - [<story-id>] <story-title> (awaiting since <date>)
+  - [<story-id>] <story-title> (awaiting since <date>) ⚠️ STALE (><figma_staleness_days> days)
+```
+
+**Staleness logic:**
+- For each story in `awaiting_design_stories`, compute tag age in days from `tag_applied_date` to today.
+- If `tag_applied_date` is unknown, omit the staleness warning for that story.
+- If tag age exceeds `figma_staleness_days` (read from `design.figma_staleness_days` in `.claude/dso-config.conf`, default 7), append ` ⚠️ STALE (>N days)` to that story's line.
+- Stories in this section are **not** counted as batch failures — they are explicitly blocked pending designer delivery.
+
+These stories are excluded from Phase 2 implementation-plan dispatch and Phase 4 sub-agent dispatch. They are surfaced here to give the user visibility into what is blocked on design. No action is required from the orchestrator — the sprint continues with non-blocked stories.
 
 ### Step 3: File Overlap Check (Safety Net) (/dso:sprint)
 

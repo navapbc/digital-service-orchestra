@@ -79,6 +79,18 @@ ADAPTER_FILE=$(bash ".claude/scripts/dso resolve-stack-adapter.sh")
 Store the resolved adapter data (or null) as `ADAPTER` for use in subsequent
 phases. The adapter is a pure-data YAML file — no code execution is needed.
 
+### Figma Collaboration Config Check
+
+After resolving the stack adapter, check whether Figma collaboration mode is enabled:
+
+```bash
+FIGMA_COLLABORATION=$(bash "$PLUGIN_SCRIPTS/read-config.sh" design.figma_collaboration)  # shim-exempt: internal orchestration script
+```
+
+When `FIGMA_COLLABORATION` is absent, empty, or any value other than `"true"`, skip all
+Figma-specific logic throughout this skill. Only proceed with Figma steps when
+`FIGMA_COLLABORATION` is exactly `"true"`.
+
 ---
 
 ## Complexity Triage
@@ -643,6 +655,41 @@ structure with:
 Every component `id` in this file must be unique and will be referenced by the
 SVG wireframe and token overlay.
 
+### Step 12.5: Desync Guard — Clear Stale Approval Before SVG Regeneration
+
+Before generating or regenerating `wireframe.svg`, check whether the story ticket
+already carries the `design:approved` tag. If it does, the previous approval is
+now stale because the wireframe is about to change.
+
+```bash
+# Check if the story already has design:approved
+STORY_TAGS=$(bash ".claude/scripts/dso" ticket show "$STORY_ID" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print(' '.join(data.get('tags', [])))
+")
+
+if echo "$STORY_TAGS" | grep -qw "design:approved"; then
+  # Log the action
+  echo "Desync guard: cleared design:approved tag — wireframe being regenerated"
+
+  # Source tag constants
+  source plugins/dso/skills/shared/constants/figma-tags.conf
+
+  # Remove design:approved from tags via read-modify-write
+  UPDATED_TAGS=$(bash ".claude/scripts/dso" ticket show "$STORY_ID" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+tags = [t for t in data.get('tags', []) if t != '$TAG_APPROVED']
+print(','.join(tags))
+")
+  bash ".claude/scripts/dso" ticket edit "$STORY_ID" --tags "$UPDATED_TAGS"
+
+  # Warn the user about the desync
+  bash ".claude/scripts/dso" ticket comment "$STORY_ID" "⚠️ wireframe.svg is being regenerated. The previous Figma revision image (figma-revision.png) may no longer match the new manifest. Re-import the updated SVG into Figma and export a new revision PNG, then re-run the approval command."
+fi
+```
+
 ### Step 13: Generate the Functional Blueprint (SVG) (/dso:design-wireframe)
 
 Read [docs/output-format-reference.md](docs/output-format-reference.md) for SVG
@@ -659,6 +706,34 @@ Create `designs/<uuid>/wireframe.svg` as a semantic SVG that:
 
 The SVG must be optimized for LLM consumption: prioritize clear labeling,
 semantic structure, and accurate spatial relationships over visual polish.
+
+#### Figma SVG Requirements (when `FIGMA_COLLABORATION=true`)
+
+When Figma collaboration mode is enabled, augment the SVG output with these
+additional requirements to ensure Figma import compatibility:
+
+1. **Semantic `<g>` group names**: Every `<g>` element must have an `id`
+   attribute whose value matches the corresponding component `id` from
+   `spatial-layout.json`. Do not use auto-generated names (e.g., "Group 1",
+   "Layer 2") — use the exact IDs from spatial-layout.json (e.g., if
+   spatial-layout.json has `"id": "widget-container"`, the group must be
+   `<g id="widget-container">`).
+
+2. **Inline styles only**: All style declarations must use inline `style`
+   attributes (e.g., `style="fill: #FFFFFF; stroke: #CCCCCC;"`). Do NOT use
+   external stylesheets, `<style>` blocks, or CSS class references. Figma
+   does not support external CSS during SVG import.
+
+3. **Valid SVG 1.1 structure**: The SVG root must declare:
+   - `xmlns="http://www.w3.org/2000/svg"` namespace
+   - `version="1.1"` attribute (Figma imports SVG 1.1; do NOT use SVG 2.0
+     features)
+   - Proper DOCTYPE is optional but must not declare SVG 2.0
+
+4. **Element IDs on interactive/labeled elements**: All interactive elements
+   (buttons, inputs, links) and labeled elements must have `id` attributes
+   matching their corresponding component IDs in spatial-layout.json. This
+   enables Figma layers to map directly to the JSON component tree.
 
 ### Step 14: Generate the Design Token Overlay (Markdown) (/dso:design-wireframe)
 
@@ -712,7 +787,25 @@ ID-Linkage Method that the implementation agent depends on.
    components, which must be documented with a `"visual": false` flag in the
    JSON node).
 
-6. Update `progress.json`: set `"artifacts"` to include all three files and
+6. **Figma ID-linkage validation (when `FIGMA_COLLABORATION=true`)**:
+   In addition to the standard ID cross-check above, verify the following:
+
+   a. **Semantic group names**: For every `<g>` element in the SVG, confirm
+      that its `id` attribute value exactly matches a component `id` in
+      spatial-layout.json. Auto-generated names (containing "Group", "Layer",
+      or purely numeric suffixes) are not acceptable — fix any `<g>` elements
+      that do not map to a spatial-layout.json ID.
+
+   b. **Inline styles present**: Scan the SVG for any `<style>` blocks,
+      `class` attributes, or external stylesheet references (`<?xml-stylesheet`).
+      If any are found, convert those styles to inline `style` attributes on
+      the affected elements and remove the non-inline declarations.
+
+   Record these Figma-specific checks in `progress.json` under
+   `"figmaValidation": "passed"` (or `"figmaValidation": "failed: <reason>"`
+   if issues remain after fixes).
+
+7. Update `progress.json`: set `"artifacts"` to include all three files and
    add `"idValidation": "passed"`.
 
 ### Step 15: Assemble the Design Manifest (/dso:design-wireframe)
@@ -733,6 +826,37 @@ Create `designs/<uuid>/manifest.md` combining:
 - State change table (default, loading, success, error, empty)
 - Accessibility assertions
 - UX friction review
+
+### Figma Finalization (when `FIGMA_COLLABORATION=true`)
+
+After assembling the manifest, perform these Figma-specific finalization steps:
+
+1. **Add `.gitignore` entry for revision PNGs**: Append `*.png` to
+   `designs/<uuid>/.gitignore` (create the file if it does not exist). This
+   prevents designer-exported revision PNGs from bloating VCS history.
+
+   ```bash
+   echo "*.png" >> "$DESIGN_ROOT/<uuid>/.gitignore"
+   ```
+
+2. **Tag the story with `design:awaiting_import`**: Source the shared tag
+   constants and apply the tag using a read-modify-write to preserve any
+   existing tags:
+
+   ```bash
+   source plugins/dso/skills/shared/constants/figma-tags.conf
+   EXISTING_TAGS=$(.claude/scripts/dso ticket show <story-id> | python3 -c "import sys,json; t=json.load(sys.stdin).get('tags',[]); print(','.join(t))")
+   # Build merged tag list — tags are simple identifiers (a-z, 0-9, :, _), no special chars
+   NEW_TAGS="${EXISTING_TAGS:+${EXISTING_TAGS},}${TAG_AWAITING_IMPORT}"
+   .claude/scripts/dso ticket edit <story-id> "--tags=${NEW_TAGS}"
+   ```
+
+3. **Add Figma import instructions comment**: Post a comment on the story
+   with import instructions for the designer:
+
+   ```bash
+   .claude/scripts/dso ticket comment <story-id> "Import designs/<uuid>/wireframe.svg into Figma. After the designer revises, export a PNG of the revised design to designs/<uuid>/figma-revision.png and run the approval command."
+   ```
 
 ---
 
