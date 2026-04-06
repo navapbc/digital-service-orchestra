@@ -85,11 +85,12 @@ plugins/dso/hooks/lib/red-zone.sh:tests/hooks/test-red-zone-bash-parser.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh,tests/hooks/test-compute-diff-hash-tickets-tracker.sh
 plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-mechanical-amend-bypass.sh
 plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-pre-commit-review-gate.sh
-plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-pre-commit-test-gate.sh,tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-test-gate-fast-path.sh
+plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-pre-commit-test-gate.sh,tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-test-gate-fast-path.sh,tests/hooks/test-pre-commit-test-gate-resource-exhaustion.sh,tests/hooks/test-integration-eagain-full-path.sh
 plugins/dso/hooks/pre-commit-ticket-gate.sh:tests/hooks/test-pre-commit-ticket-gate.sh
 plugins/dso/hooks/record-review.sh:tests/hooks/test-record-review.sh,tests/workflows/test-review-tier-enforcement-e2e.sh
 plugins/dso/hooks/record-test-status.sh:tests/hooks/test-eval-todo-guard.sh
 plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-centrality.sh [test_missing_sg_gracefully_degrades]
+plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-eagain.sh,tests/hooks/test-integration-eagain-full-path.sh
 plugins/dso/scripts/pre-commit-wrapper.sh:tests/hooks/test-test-gate-fast-path.sh
 plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-mechanical-amend-bypass.sh
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation_plan_bidirectional_tdd.py
@@ -147,6 +148,7 @@ plugins/dso/hooks/resolve-overlay-findings.sh:tests/hooks/test-overlay-resolutio
 plugins/dso/hooks/review-stop-check.sh:tests/hooks/test-review-stop.sh,tests/hooks/test-review-stop-check.sh
 plugins/dso/hooks/run-hook.sh:tests/hooks/test-run-hook-relative-paths.sh,tests/hooks/test-hooks-json-paths.sh
 plugins/dso/hooks/title-length-validator.sh:tests/hooks/test-title-length-validator.sh
+tests/lib/suite-engine.sh:tests/hooks/test-suite-engine-eagain.sh,tests/hooks/test-integration-eagain-full-path.sh
 plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py
 plugins/dso/scripts/acli-version-resolver.sh:tests/scripts/test-acli-version-resolver.sh
 plugins/dso/scripts/agent-batch-lifecycle.sh:tests/scripts/test-validate-phase-v2-removal.sh
