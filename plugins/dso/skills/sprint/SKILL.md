@@ -837,6 +837,38 @@ ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" 
 
 When `ISOLATION_ENABLED` equals `true`, add `isolation: "worktree"` to each Agent/Task dispatch call and pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each sub-agent's prompt so sub-agents can verify isolation. When `ISOLATION_ENABLED` is `false`, empty, or absent, omit the `isolation` parameter entirely.
 
+### Design Context Population
+
+Before dispatch, source the figma tag constants and check whether the parent story has the `design:approved` tag:
+
+```bash
+# Source tag constants
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/plugins/dso}/skills/shared/constants/figma-tags.conf"
+# TAG_APPROVED is now set to "design:approved"
+```
+
+For each task, look up the parent story's tags (already fetched during COMPLEX detection):
+
+**If parent story has `design:approved` tag:**
+
+> Note: `design:approved` guarantees the revision PNG exists — the approval command (`design-approve.sh`) validates PNG existence before applying the tag. No additional file existence check is needed here.
+
+1. Find the design UUID from story comments — search for a comment whose body matches the pattern `designs/([^/]+)/` (e.g., `"Design Manifest: designs/550e8400-.../manifest.md"`). Extract the UUID from the first capture group. If multiple comments match, use the most recent one.
+2. Build the `design_context` string:
+   ```
+   ## Design Artifacts
+   Manifest path: designs/<uuid>/spatial-layout.json
+   Revision image path: designs/<uuid>/figma-revision.png
+   ```
+3. Replace `{design_context}` in `task-execution.md` with this string.
+4. Set `STORY_HAS_DESIGN_APPROVED=true` for model tier enforcement (see Subagent Type and Model Selection).
+
+**If parent story does NOT have `design:approved` tag:**
+
+- Replace `{design_context}` in `task-execution.md` with an empty string.
+- Set `STORY_HAS_DESIGN_APPROVED=false`. No model override.
+
 ### Sub-Agent Prompt Template
 
 For each task, launch a Task with the appropriate `subagent_type`.
@@ -864,14 +896,15 @@ Use the `model` and `subagent` fields from the `TASK:` lines produced by
 
 When launching each Task tool call, set `subagent_type` and `model` from the TASK line, then apply the decision table below in order (first matching row wins):
 
-| parent_story_complex | task_model | task_class | action |
-|---------------------|------------|------------|--------|
-| any | any | any (doc-story title match) | Override `subagent_type` to `dso:doc-writer`, `model` to `sonnet`. Pass `epic_context` and `git_diff` context fields (see Documentation Story Dispatch below). Log: `"Documentation story detected — dispatching to dso:doc-writer instead of generic agent."` |
-| `COMPLEX` | `sonnet` | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
-| `COMPLEX` | `sonnet` | any other | Override `model` to `opus`. Log: `"Story <parent-id> classified COMPLEX — upgrading task <task-id> model to opus."` |
-| `COMPLEX` | `opus` | any | No change (already opus). |
-| not COMPLEX | any | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
-| not COMPLEX | any | any other | No change — use `model` and `subagent` from TASK line as-is. |
+| parent_story_has_design_approved | parent_story_complex | task_model | task_class | action |
+|----------------------------------|---------------------|------------|------------|--------|
+| `true` (revision image present) | any | any | any | Override `model` to minimum `sonnet` (if current model is `haiku`, upgrade to `sonnet`; if already `sonnet` or `opus`, no change). Log: `"design:approved story — enforcing sonnet minimum for multimodal."` |
+| any | any | any | any (doc-story title match) | Override `subagent_type` to `dso:doc-writer`, `model` to `sonnet`. Pass `epic_context` and `git_diff` context fields (see Documentation Story Dispatch below). Log: `"Documentation story detected — dispatching to dso:doc-writer instead of generic agent."` |
+| any | `COMPLEX` | `sonnet` | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
+| any | `COMPLEX` | `sonnet` | any other | Override `model` to `opus`. Log: `"Story <parent-id> classified COMPLEX — upgrading task <task-id> model to opus."` |
+| any | `COMPLEX` | `opus` | any | No change (already opus). |
+| any | not COMPLEX | any | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
+| any | not COMPLEX | any | any other | No change — use `model` and `subagent` from TASK line as-is. |
 
 **Doc-story title match**: Task title or parent story title matches `Update project docs to reflect`.
 
