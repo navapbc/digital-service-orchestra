@@ -84,16 +84,27 @@ The emitter outputs a single JSON object on stdout. All fields are required.
 
 ## Failure Contract
 
+Exit code `2` (error/absent) and structural errors are handled as distinct cases:
+
+### Exit 2 (error or absent script) — fail-open
+
 If the emitter:
 
-- is absent (script file not found),
+- is absent (script file not found), or
 - exits with code `2` (error/invalid-input),
+
+then the parser **must** fall through to Layer 2 (Scope Certainty Assessment) rather than routing to Layer 3. The script being unavailable or erroring is not evidence that the ticket is unclear — it is evidence that structural evaluation is not possible. The parser emits a warning (`"ticket-clarity-check.sh unavailable — falling through to Layer 2"`) so that silent degradation is detectable.
+
+### Timeout or malformed output — pessimistic (treat as fail)
+
+If the emitter:
+
 - times out (exit code 144 from `test-batched.sh` or SIGURG),
 - or outputs malformed JSON (not parseable or missing required fields),
 
-then the parser **must** treat the result as `verdict: "fail"` with `score: 0`. Absent or erroring clarity checks are treated pessimistically — a gate that cannot evaluate a ticket is not a gate that can be bypassed.
+then the parser **must** treat the result as `verdict: "fail"` with `score: 0` and route to Layer 3 (User Escalation). Timeouts and malformed output indicate a dysfunctional emitter, not a merely absent one, and warrant user visibility.
 
-The parser must emit a warning to the user when the emitter exits non-zero with code `2` or produces malformed output, so that silent degradation is detectable.
+The parser must emit a warning to the user in all non-zero cases so that silent degradation is detectable.
 
 ---
 

@@ -233,19 +233,28 @@ Run the ticket clarity check script:
 ```
 
 Parse the result:
-- **Exit 0 (CLEAR)**: proceed to Layer 2.
+- **Exit 0 (CLEAR)**: ticket passes structural check; proceed to Layer 2.
 - **Exit 1 (UNCLEAR)**: log the reason; proceed to User Escalation (Layer 3).
+- **Exit 2 (ERROR/ABSENT)**: script is missing or encountered an error; emit a warning (`"ticket-clarity-check.sh unavailable — falling through to Layer 2"`); proceed to Layer 2 (fail-open).
 
 #### Layer 2: Scope Certainty Assessment
 
-Evaluate `scope_certainty` by checking whether the ticket has:
-- At least 3 sentences of description, AND
-- At least one measurable success criterion (Gherkin or bullet-list)
+Dispatch `dso:complexity-evaluator` (model: haiku) with the primary ticket context to evaluate `scope_certainty`:
 
-Set `scope_certainty = HIGH` (both present) or `LOW` (either absent).
+```
+subagent_type: dso:complexity-evaluator
+model: haiku
+input:
+  ticket_id: <primary_ticket_id>
+  tier_schema: SIMPLE
+```
 
-- **`scope_certainty = HIGH`**: proceed to Preplanning Gate.
-- **`scope_certainty = LOW`**: proceed to User Escalation (Layer 3).
+Parse `scope_certainty` from the evaluator's JSON output:
+
+- **`High` or `Medium`**: proceed to Preplanning Gate.
+- **`Low`**: proceed to User Escalation (Layer 3).
+- **Unrecognized value**: treat as `Low` — proceed to User Escalation (Layer 3).
+- **Agent unavailability** (timeout, dispatch failure, API key absent): log `"WARNING: complexity-evaluator unavailable — falling through to Layer 3."` and proceed to User Escalation (Layer 3).
 
 #### Layer 3: User Escalation (AskUserQuestion)
 
@@ -1619,7 +1628,7 @@ Read and execute `prompts/remediation-loop.md` for the full remediation protocol
 
 ---
 
-## Phase 8: Session Close (/dso:sprint)
+## Phase 8: Primary Ticket Closure (/dso:sprint)
 
 Phase 8 delegates to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh`, and reporting.
 
