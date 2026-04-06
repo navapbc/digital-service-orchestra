@@ -531,7 +531,7 @@ Before proceeding to fix approval or fix implementation, validate the `hypothesi
 
 2. **Check for at least one confirmed verdict**: If all `hypothesis_tests` entries have `verdict: disproved` or `verdict: inconclusive` (no `verdict: confirmed` entry exists), escalate to the next investigation tier. All hypotheses being disproved means the true root cause has not been identified — proceeding to fix implementation would be speculative.
 
-3. **Proceed only with confirmed evidence**: If at least one `hypothesis_tests` entry has `verdict: confirmed`, the root cause is sufficiently validated. Proceed to check 4 below.
+3. **Proceed only with confirmed evidence**: If at least one `hypothesis_tests` entry has `verdict: confirmed`, check the `observed` field for evidentiary quality. The `observed` field MUST contain empirical evidence — command output, test results, or concrete observations from running code. It must NOT contain only reasoning, inference, or "based on code reading" explanations. If the `observed` field contains only reasoning without empirical evidence, treat the verdict as `inconclusive` and escalate. Proceed to check 4 below only when the `observed` field contains genuine empirical evidence.
 
 4. **Check hypothesis-root-cause consistency**: The confirmed hypothesis must explain the ROOT_CAUSE identified in the investigation RESULT. If the confirmed hypothesis tests a different aspect than the ROOT_CAUSE (e.g., hypothesis confirms a config value exists but ROOT_CAUSE claims a code logic error), the gate fails — the investigation has confirmed a tangential fact, not the root cause. Escalate to the next investigation tier.
 
