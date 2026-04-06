@@ -190,11 +190,11 @@ MOCK
 
     # t-001 should appear (it's a child of epic-001 via s-001)
     local has_task="no"
-    echo "$output" | grep -q "t-001" && has_task="yes"
+    [[ "$output" == *"t-001"* ]] && has_task="yes"
 
     # t-999 should NOT appear (not a child of epic-001)
     local has_other="no"
-    echo "$output" | grep -q "t-999" && has_other="yes"
+    [[ "$output" == *"t-999"* ]] && has_other="yes"
 
     rm -rf "$tmpdir"
 

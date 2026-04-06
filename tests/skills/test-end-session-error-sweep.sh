@@ -603,13 +603,13 @@ fi
 assert_eq "test_skill_sweep_step_2_9_exists" "found" "$has_step_29"
 # Both sweep functions must appear under Step 2.9 (before Step 3)
 step_29_to_step3=$(awk '/2\.9\./,/^### 3\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step_29_to_step3" | grep -q 'sweep_tool_errors'; then
+if grep -q 'sweep_tool_errors' <<< "$step_29_to_step3"; then
     has_tool_errors="found"
 else
     has_tool_errors="missing"
 fi
 assert_eq "test_skill_sweep_before_commit_tool_errors" "found" "$has_tool_errors"
-if echo "$step_29_to_step3" | grep -q 'sweep_validation_failures'; then
+if grep -q 'sweep_validation_failures' <<< "$step_29_to_step3"; then
     has_validation_failures="found"
 else
     has_validation_failures="missing"

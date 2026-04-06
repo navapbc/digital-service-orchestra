@@ -602,7 +602,7 @@ _HELP_OUTPUT=$(bash "$MERGE_SCRIPT" --help 2>&1) || true
 _HELP_RC=$?
 assert_eq "test_cli_help_exits_0" "0" "$_HELP_RC"
 # --help output must mention --resume
-if echo "$_HELP_OUTPUT" | grep -q "\-\-resume"; then
+if [[ "$_HELP_OUTPUT" == *--resume* ]]; then
     _HELP_HAS_RESUME="true"
 else
     _HELP_HAS_RESUME="false"
@@ -661,7 +661,7 @@ _has_already_bumped_guard=0
 _vb_body=$(sed -n '/_phase_version_bump()/,/^}/p' "$MERGE_SCRIPT")
 # The pattern must appear AFTER the resume-skip block and BEFORE bump-version.sh call.
 # Filter out the "already completed (resume skip)" line — that's the state-file check, not the file-level guard.
-if echo "$_vb_body" | grep -v "resume skip" | grep -qE 'already.*bump|git diff.*version|version.*file.*modif'; then
+if [[ "$(echo "$_vb_body" | grep -v "resume skip")" =~ already.*bump|git\ diff.*version|version.*file.*modif ]]; then
     _has_already_bumped_guard=1
 fi
 assert_eq "test_version_bump_idempotent_guard: _phase_version_bump must check if version already bumped before calling bump-version.sh" \
@@ -695,7 +695,7 @@ echo "--- test_outbound_bridge_dispatch_guarded ---"
 _snapshot_fail
 _push_body=$(sed -n '/_phase_push()/,/^}/p' "$MERGE_SCRIPT")
 _has_sha_guard=0
-if echo "$_push_body" | grep -qE '_REMOTE_SHA_BEFORE.*_LOCAL_SHA|_LOCAL_SHA.*_REMOTE_SHA_BEFORE'; then
+if [[ "$_push_body" =~ _REMOTE_SHA_BEFORE.*_LOCAL_SHA|_LOCAL_SHA.*_REMOTE_SHA_BEFORE ]]; then
     _has_sha_guard=1
 fi
 assert_eq "test_outbound_bridge_dispatch_guarded: must compare SHAs before dispatching outbound bridge" \

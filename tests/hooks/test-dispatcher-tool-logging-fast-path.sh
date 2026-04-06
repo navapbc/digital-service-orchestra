@@ -61,11 +61,11 @@ assert_eq "test_post_functions_defense_in_depth: at least 2 flag checks" "1" "$_
 # ============================================================
 echo "--- test_post_functions_defense_in_depth_post ---"
 _has_pre_check=0
-grep -A5 'hook_tool_logging_pre' "$POST_FUNCTIONS" | grep -q 'tool-logging-enabled' && _has_pre_check=1
+_tmp=$(grep -A5 'hook_tool_logging_pre' "$POST_FUNCTIONS"); grep -q 'tool-logging-enabled' <<< "$_tmp" && _has_pre_check=1
 assert_eq "test_post_functions_defense_in_depth_post: hook_tool_logging_pre has flag check" "1" "$_has_pre_check"
 
 _has_post_check=0
-grep -A5 'hook_tool_logging_post' "$POST_FUNCTIONS" | grep -q 'tool-logging-enabled' && _has_post_check=1
+_tmp=$(grep -A5 'hook_tool_logging_post' "$POST_FUNCTIONS"); grep -q 'tool-logging-enabled' <<< "$_tmp" && _has_post_check=1
 assert_eq "test_post_functions_defense_in_depth_post: hook_tool_logging_post has flag check" "1" "$_has_post_check"
 
 print_summary

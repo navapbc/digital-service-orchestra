@@ -172,7 +172,7 @@ _matched=0
 for _pat in "${EXCLUDE_PATTERNS[@]}"; do
     if [[ ".tickets-tracker/somefile.md" == *"$_pat"* ]] || \
        [[ "path/.tickets-tracker/file.md" == *"$_pat"* ]] || \
-       echo ".tickets-tracker/somefile.md" | grep -qE "$_pat" 2>/dev/null || \
+       { _tmp=".tickets-tracker/somefile.md"; [[ "$_tmp" =~ $_pat ]] 2>/dev/null; } || \
        [[ "$_pat" == *".tickets-tracker"* ]]; then
         _matched=1
         break

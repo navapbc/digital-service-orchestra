@@ -169,7 +169,7 @@ _output=$(
 assert_eq "test_tool_logging_summary_below_threshold: exits 0" "0" "$_exit_code"
 # Should not contain the summary header since < 10 calls
 _has_summary=0
-echo "$_output" | grep -q "Session Tool Usage Summary" && _has_summary=1
+_tmp="$_output"; [[ "$_tmp" =~ Session\ Tool\ Usage\ Summary ]] && _has_summary=1
 assert_eq "test_tool_logging_summary_below_threshold: no summary" "0" "$_has_summary"
 
 rm -rf "$_test_dir4"

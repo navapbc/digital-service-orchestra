@@ -177,7 +177,7 @@ if [ -z "$_convert_section" ]; then
   fail "Convert-to-Epic Path section not found — cannot verify original ticket ID traceability"
 else
   # Section must mention original ticket ID inclusion in the epic description
-  if echo "$_convert_section" | grep -qiE 'original.*ticket.*id|ticket.*id.*original|original.*id.*description|description.*original.*id|traceab|superseded.by|converted.from'; then
+  if grep -qiE 'original.*ticket.*id|ticket.*id.*original|original.*id.*description|description.*original.*id|traceab|superseded.by|converted.from' <<< "$_convert_section"; then
     pass "Convert-to-Epic Path section instructs including original ticket ID for traceability"
   else
     fail "Convert-to-Epic Path section missing instruction to include original ticket ID in the new epic description for traceability"
@@ -196,14 +196,14 @@ if [ -z "$_convert_section" ]; then
   fail "Convert-to-Epic Path section not found — cannot verify edge case coverage"
 else
   # Edge case 1: --reason flag requirement for closing tickets (especially bug tickets)
-  if echo "$_convert_section" | grep -qiE '\-\-reason|reason flag|reason='; then
+  if grep -qiE '\-\-reason|reason flag|reason=' <<< "$_convert_section"; then
     pass "Convert-to-Epic Path section documents --reason flag requirement when closing original ticket"
   else
     fail "Convert-to-Epic Path section missing --reason flag requirement for closing original ticket"
   fi
 
   # Edge case 2: open children handling
-  if echo "$_convert_section" | grep -qiE 'open child|child ticket|children|open sub'; then
+  if grep -qiE 'open child|child ticket|children|open sub' <<< "$_convert_section"; then
     pass "Convert-to-Epic Path section addresses tickets with open children"
   else
     fail "Convert-to-Epic Path section missing guidance for tickets with open children"
@@ -261,14 +261,14 @@ elif [ "$_gate_option_a" = "option_a_not_found" ]; then
   fail "Type Detection Gate Option (a) block not found"
 else
   # Option (a) must NOT contain an inline 'ticket transition' command
-  if echo "$_gate_option_a" | grep -q 'ticket transition'; then
+  if grep -q 'ticket transition' <<< "$_gate_option_a"; then
     fail "Type Detection Gate Option (a) contains an inline 'ticket transition' command — it must delegate to the Convert-to-Epic Path section instead"
   else
     pass "Type Detection Gate Option (a) does not contain inline 'ticket transition' — correctly delegates to Convert-to-Epic Path section"
   fi
 
   # Option (a) should reference the Convert-to-Epic Path section
-  if echo "$_gate_option_a" | grep -qiE 'convert.to.epic path|see.*convert|convert.*path|follow.*convert'; then
+  if grep -qiE 'convert.to.epic path|see.*convert|convert.*path|follow.*convert' <<< "$_gate_option_a"; then
     pass "Type Detection Gate Option (a) references the Convert-to-Epic Path section"
   else
     fail "Type Detection Gate Option (a) missing reference to the Convert-to-Epic Path section"

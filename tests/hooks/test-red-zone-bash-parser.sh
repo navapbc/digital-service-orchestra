@@ -40,7 +40,7 @@ EOF
     rm -f "$tmp"
 
     # "ticket" should NOT appear as an extracted test name
-    if echo "$result" | grep -qx "ticket"; then
+    _tmp="$result"; if grep -qx "ticket" <<< "$_tmp"; then
         echo "  FAIL: extracted 'ticket' from multi-word label"
         FAILED=$((FAILED + 1))
     else
@@ -64,7 +64,7 @@ EOF
     result=$(parse_failing_tests_from_output "$tmp")
     rm -f "$tmp"
 
-    if echo "$result" | grep -qx "test_tags_flag_creates_ticket_with_tags"; then
+    _tmp="$result"; if grep -qx "test_tags_flag_creates_ticket_with_tags" <<< "$_tmp"; then
         echo "  PASS: extracted single-identifier function name"
         PASSED=$((PASSED + 1))
     else
@@ -96,13 +96,14 @@ EOF
     local has_function_name=false
     local has_partial_word=false
 
-    if echo "$result" | grep -qx "test_tags_flag_creates_ticket_with_tags"; then
+    _tmp="$result"
+    if grep -qx "test_tags_flag_creates_ticket_with_tags" <<< "$_tmp"; then
         has_function_name=true
     fi
-    if echo "$result" | grep -qx "test_other_thing"; then
+    if grep -qx "test_other_thing" <<< "$_tmp"; then
         has_function_name=true
     fi
-    if echo "$result" | grep -qx "ticket"; then
+    if grep -qx "ticket" <<< "$_tmp"; then
         has_partial_word=true
     fi
 
@@ -130,7 +131,7 @@ EOF
     result=$(parse_failing_tests_from_output "$tmp")
     rm -f "$tmp"
 
-    if echo "$result" | grep -qx "test_indented_function"; then
+    _tmp="$result"; if grep -qx "test_indented_function" <<< "$_tmp"; then
         echo "  PASS: extracted indented single-identifier"
         PASSED=$((PASSED + 1))
     else

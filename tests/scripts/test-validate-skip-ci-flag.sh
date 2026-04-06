@@ -97,7 +97,7 @@ else
 fi
 
 # Output should NOT contain a "ci:" or "ci(main):" line
-if echo "$output" | grep -qE '^\s+ci(\(main\))?:'; then
+if [[ "$output" =~ ^[[:space:]]+ci(\(main\))?: ]]; then
     assert_eq "test_skip_ci_suppresses_ci_check no ci line in output" "absent" "present"
 else
     assert_eq "test_skip_ci_suppresses_ci_check no ci line in output" "absent" "absent"

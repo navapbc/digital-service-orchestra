@@ -300,12 +300,12 @@ test_get_worktree_only_files_filters_incoming_during_merge() {
     worktree_files=$(cd "$merge_repo" && ms_get_worktree_only_files 2>/dev/null || echo "FAILED")
 
     has_incoming=0
-    echo "$worktree_files" | grep -q "incoming.txt" && has_incoming=1
+    _tmp="$worktree_files"; [[ "$_tmp" =~ incoming.txt ]] && has_incoming=1
     assert_eq "test_get_worktree_only_files_filters_incoming_during_merge: incoming.txt excluded" \
         "0" "$has_incoming"
 
     has_worktree=0
-    echo "$worktree_files" | grep -q "worktree.txt" && has_worktree=1
+    _tmp="$worktree_files"; [[ "$_tmp" =~ worktree.txt ]] && has_worktree=1
     assert_eq "test_get_worktree_only_files_filters_incoming_during_merge: worktree.txt included" \
         "1" "$has_worktree"
     assert_pass_if_clean "test_get_worktree_only_files_filters_incoming_during_merge"
@@ -320,12 +320,12 @@ test_get_worktree_only_files_filters_during_rebase() {
     rebase_files=$(cd "$rebase_repo" && ms_get_worktree_only_files 2>/dev/null || echo "FAILED")
 
     has_pre_onto=0
-    echo "$rebase_files" | grep -q "pre-onto.txt" && has_pre_onto=1
+    _tmp="$rebase_files"; [[ "$_tmp" =~ pre-onto.txt ]] && has_pre_onto=1
     assert_eq "test_get_worktree_only_files_filters_during_rebase: pre-onto.txt excluded" \
         "0" "$has_pre_onto"
 
     has_worktree_feature=0
-    echo "$rebase_files" | grep -q "worktree-feature.txt" && has_worktree_feature=1
+    _tmp="$rebase_files"; [[ "$_tmp" =~ worktree-feature.txt ]] && has_worktree_feature=1
     assert_eq "test_get_worktree_only_files_filters_during_rebase: worktree-feature.txt included" \
         "1" "$has_worktree_feature"
     assert_pass_if_clean "test_get_worktree_only_files_filters_during_rebase"
@@ -351,7 +351,7 @@ test_merge_head_equals_head_guard_skips_filtering() {
         "0" "$guard_result"
 
     guard_has_file=0
-    echo "$guard_files" | grep -q "new-file.txt" && guard_has_file=1
+    _tmp="$guard_files"; [[ "$_tmp" =~ new-file.txt ]] && guard_has_file=1
     assert_eq "test_merge_head_equals_head_guard_skips_filtering: fail-open returns staged file" \
         "1" "$guard_has_file"
     assert_pass_if_clean "test_merge_head_equals_head_guard_skips_filtering"
@@ -377,7 +377,7 @@ test_merge_head_equals_head_guard_from_head_skips_filtering() {
         "0" "$guard_result"
 
     guard_has_file=0
-    echo "$guard_files" | grep -q "new-file-from-head.txt" && guard_has_file=1
+    _tmp="$guard_files"; [[ "$_tmp" =~ new-file-from-head.txt ]] && guard_has_file=1
     assert_eq "test_merge_head_equals_head_guard_from_head_skips_filtering: fail-open returns staged file" \
         "1" "$guard_has_file"
     assert_pass_if_clean "test_merge_head_equals_head_guard_from_head_skips_filtering"
@@ -402,7 +402,7 @@ test_fallback_on_missing_merge_base_orig_head() {
         "0" "$fallback_result"
 
     fallback_has_staged=0
-    echo "$fallback_files" | grep -q "staged.txt" && fallback_has_staged=1
+    _tmp="$fallback_files"; [[ "$_tmp" =~ staged.txt ]] && fallback_has_staged=1
     assert_eq "test_fallback_on_missing_merge_base_orig_head: fail-open returns original list" \
         "1" "$fallback_has_staged"
     assert_pass_if_clean "test_fallback_on_missing_merge_base_orig_head"
@@ -434,7 +434,7 @@ test_fallback_on_missing_merge_base_head() {
         "0" "$hf_result"
 
     hf_has_staged=0
-    echo "$hf_files" | grep -q "staged2.txt" && hf_has_staged=1
+    _tmp="$hf_files"; [[ "$_tmp" =~ staged2.txt ]] && hf_has_staged=1
     assert_eq "test_fallback_on_missing_merge_base_head: fail-open returns original list" \
         "1" "$hf_has_staged"
     assert_pass_if_clean "test_fallback_on_missing_merge_base_head"
@@ -459,17 +459,17 @@ test_get_worktree_only_files_from_head_during_rebase() {
     range_files=$(ms_get_worktree_only_files 2>/dev/null || echo "FAILED")
 
     has_first=0
-    echo "$range_files" | grep -q "worktree-feature.txt" && has_first=1
+    _tmp="$range_files"; [[ "$_tmp" =~ worktree-feature.txt ]] && has_first=1
     assert_eq "test_get_worktree_only_files_from_head_during_rebase: first worktree file included" \
         "1" "$has_first"
 
     has_second=0
-    echo "$range_files" | grep -q "worktree-second.txt" && has_second=1
+    _tmp="$range_files"; [[ "$_tmp" =~ worktree-second.txt ]] && has_second=1
     assert_eq "test_get_worktree_only_files_from_head_during_rebase: second worktree file included" \
         "1" "$has_second"
 
     has_pre=0
-    echo "$range_files" | grep -q "pre-onto.txt" && has_pre=1
+    _tmp="$range_files"; [[ "$_tmp" =~ pre-onto.txt ]] && has_pre=1
     assert_eq "test_get_worktree_only_files_from_head_during_rebase: pre-onto file excluded" \
         "0" "$has_pre"
     assert_pass_if_clean "test_get_worktree_only_files_from_head_during_rebase"
@@ -537,7 +537,7 @@ test_filter_to_worktree_only_all_incoming_returns_empty_intersection() {
     # When filtering produces zero matches, fail-open returns the ORIGINAL input.
     # This documents the intentional fail-open behavior of ms_filter_to_worktree_only.
     has_incoming=0
-    echo "$filtered" | grep -q "incoming.txt" && has_incoming=1
+    _tmp="$filtered"; [[ "$_tmp" =~ incoming.txt ]] && has_incoming=1
     assert_eq \
         "test_filter_to_worktree_only_all_incoming_returns_empty_intersection: fail-open returns original list when no intersection" \
         "1" "$has_incoming"
@@ -565,13 +565,13 @@ test_filter_to_worktree_only_partial_intersection() {
         2>/dev/null) || true
 
     has_worktree=0
-    echo "$filtered" | grep -q "worktree.txt" && has_worktree=1
+    _tmp="$filtered"; [[ "$_tmp" =~ worktree.txt ]] && has_worktree=1
     assert_eq \
         "test_filter_to_worktree_only_partial_intersection: worktree.txt retained" \
         "1" "$has_worktree"
 
     has_incoming=0
-    echo "$filtered" | grep -q "incoming.txt" && has_incoming=1
+    _tmp="$filtered"; [[ "$_tmp" =~ incoming.txt ]] && has_incoming=1
     assert_eq \
         "test_filter_to_worktree_only_partial_intersection: incoming.txt excluded" \
         "0" "$has_incoming"

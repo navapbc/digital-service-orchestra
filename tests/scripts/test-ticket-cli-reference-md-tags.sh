@@ -35,7 +35,8 @@ echo ""
 # --tags must be documented in proximity to the ticket create subcommand so
 # agents know it applies specifically to create, not some other subcommand.
 # RED: will FAIL until --tags appears near a ticket create example.
-if echo "$ref_content" | grep -A20 -B2 "ticket create\|create.*bug\|create.*story\|create.*task\|create.*epic" | grep -q "\-\-tags"; then
+_tags_context=$(printf '%s' "$ref_content" | grep -A20 -B2 "ticket create\|create.*bug\|create.*story\|create.*task\|create.*epic")
+if [[ "$_tags_context" == *"--tags"* ]]; then
     echo "PASS: test_ticket_cli_reference_tags_in_create_section: --tags appears near ticket create section"
     (( ++PASS ))
 else

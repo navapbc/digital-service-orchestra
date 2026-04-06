@@ -401,7 +401,7 @@ run_test_suite() {
         local is_timeout=false
         if [ -f "$results_dir/$tname.counts" ]; then
             counts_line=$(cat "$results_dir/$tname.counts")
-            if echo "$counts_line" | grep -q "timeout"; then
+            _tmp="$counts_line"; if [[ "$_tmp" =~ timeout ]]; then
                 is_timeout=true
                 counts_line="0 0"
             fi

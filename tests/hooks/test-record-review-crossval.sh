@@ -80,7 +80,7 @@ run_test() {
 
     local pattern_match=0
     if [[ -n "$expected_pattern" ]]; then
-        echo "$output" | grep -q "$expected_pattern" && pattern_match=1
+        _tmp="$output"; [[ "$_tmp" =~ $expected_pattern ]] && pattern_match=1
     else
         pattern_match=1  # No pattern to match
     fi

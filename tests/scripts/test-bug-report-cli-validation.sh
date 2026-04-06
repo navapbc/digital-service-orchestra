@@ -128,11 +128,12 @@ test_title_pattern_no_warning() {
     stderr_content=$(cat "$stderr_out")
 
     # Should NOT contain a title pattern warning
-    if echo "$stderr_content" | grep -qi "title.*pattern\|title.*format\|title.*warning"; then
+    _tmp="$stderr_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ title.*pattern|title.*format|title.*warning ]]; then
         assert_eq "no title pattern warning for conforming title" "no warning" "has warning"
     else
         assert_eq "no title pattern warning for conforming title" "no warning" "no warning"
-    fi
+    fi; shopt -u nocasematch
 }
 test_title_pattern_no_warning
 
@@ -177,11 +178,12 @@ Crashes." 2>"$stderr_out") || true
     stderr_content=$(cat "$stderr_out")
 
     # Should NOT contain description header warning
-    if echo "$stderr_content" | grep -qi "Expected Behavior.*missing\|description.*header"; then
+    _tmp="$stderr_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ "Expected Behavior".*missing|description.*header ]]; then
         assert_eq "no description header warning" "no warning" "has warning"
     else
         assert_eq "no description header warning" "no warning" "no warning"
-    fi
+    fi; shopt -u nocasematch
 }
 test_description_headers_no_warning
 
@@ -257,11 +259,12 @@ CONF
     stderr_content=$(cat "$stderr_out")
 
     # Should NOT contain a title pattern warning
-    if echo "$stderr_content" | grep -qi "title.*pattern\|title.*format\|Bug title"; then
+    _tmp="$stderr_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ title.*pattern|title.*format|"Bug title" ]]; then
         assert_eq "title warning suppressed by config" "no title warning" "has title warning"
     else
         assert_eq "title warning suppressed by config" "no title warning" "no title warning"
-    fi
+    fi; shopt -u nocasematch
 }
 test_title_warning_config_disabled
 
@@ -326,11 +329,12 @@ test_no_warnings_for_non_bug() {
     stderr_content=$(cat "$stderr_out")
 
     # Should NOT contain any bug-specific warnings
-    if echo "$stderr_content" | grep -qi "title.*pattern\|Expected Behavior\|description.*size\|Bug title"; then
+    _tmp="$stderr_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ title.*pattern|"Expected Behavior"|description.*size|"Bug title" ]]; then
         assert_eq "no bug warnings for task type" "no warnings" "has warnings"
     else
         assert_eq "no bug warnings for task type" "no warnings" "no warnings"
-    fi
+    fi; shopt -u nocasematch
 }
 test_no_warnings_for_non_bug
 

@@ -69,7 +69,7 @@ test_exit_144_incident() {
     local content
     content="$(cat "$KNOWN_ISSUES" 2>/dev/null)"
     # Must have a Fix section referencing timeout or test-batched (match literal **Fix**: marker)
-    if echo "$content" | grep -q "exit 144" && echo "$content" | grep -A 20 "exit 144" | grep -q '\*\*Fix\*\*:'; then
+    if [[ "$content" == *exit\ 144* ]] && { _exit144_ctx=$(grep -A 20 "exit 144" <<< "$content"); [[ "$_exit144_ctx" == *'**Fix**:'* ]]; }; then
         (( ++PASS ))
     else
         (( ++FAIL ))
@@ -84,14 +84,14 @@ test_worktree_path_incident() {
     _snapshot_fail
     local content
     content="$(cat "$KNOWN_ISSUES" 2>/dev/null)"
-    if echo "$content" | grep -qi "worktree" && echo "$content" | grep -qi "path"; then
+    if [[ "${content,,}" == *worktree* ]] && [[ "${content,,}" == *path* ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))
         printf "FAIL: worktree path confusion incident not found\n" >&2
     fi
     # Fix must reference git rev-parse or absolute path
-    if echo "$content" | grep -q "rev-parse\|absolute path\|show-toplevel"; then
+    if [[ "$content" =~ rev-parse|absolute\ path|show-toplevel ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))
@@ -106,7 +106,7 @@ test_test_timeout_incident() {
     _snapshot_fail
     local content
     content="$(cat "$KNOWN_ISSUES" 2>/dev/null)"
-    if echo "$content" | grep -qi "test-batched\|make test\|test timeout"; then
+    if [[ "${content,,}" =~ test-batched|make\ test|test\ timeout ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))
@@ -121,7 +121,7 @@ test_venv_command_not_found_incident() {
     _snapshot_fail
     local content
     content="$(cat "$KNOWN_ISSUES" 2>/dev/null)"
-    if echo "$content" | grep -qi "venv\|command.not.found\|poetry env"; then
+    if [[ "${content,,}" =~ venv|command.not.found|poetry\ env ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))
@@ -136,7 +136,7 @@ test_review_gate_sub_agent_incident() {
     _snapshot_fail
     local content
     content="$(cat "$KNOWN_ISSUES" 2>/dev/null)"
-    if echo "$content" | grep -qi "review gate\|sub.agent.*commit\|commit.*sub.agent"; then
+    if [[ "${content,,}" =~ review\ gate|sub.agent.*commit|commit.*sub.agent ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))
@@ -151,7 +151,7 @@ test_nesting_tool_result_incident() {
     _snapshot_fail
     local content
     content="$(cat "$KNOWN_ISSUES" 2>/dev/null)"
-    if echo "$content" | grep -qi "nesting\|nested.*task\|tool result missing"; then
+    if [[ "${content,,}" =~ nesting|nested.*task|tool\ result\ missing ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))
@@ -166,7 +166,7 @@ test_hook_cascade_incident() {
     _snapshot_fail
     local content
     content="$(cat "$KNOWN_ISSUES" 2>/dev/null)"
-    if echo "$content" | grep -qi "hook.*cascade\|cascade.*hook\|hook-error-log\|cascade.circuit"; then
+    if [[ "${content,,}" =~ hook.*cascade|cascade.*hook|hook-error-log|cascade.circuit ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))
@@ -181,7 +181,7 @@ test_ticket_merge_conflict_incident() {
     _snapshot_fail
     local content
     content="$(cat "$KNOWN_ISSUES" 2>/dev/null)"
-    if echo "$content" | grep -qi "ticket.*merge\|merge.*conflict.*ticket\|\.tickets-tracker"; then
+    if [[ "${content,,}" =~ ticket.*merge|merge.*conflict.*ticket ]] || [[ "$content" == *\.tickets-tracker* ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))
@@ -196,7 +196,7 @@ test_claude_plugin_root_incident() {
     _snapshot_fail
     local content
     content="$(cat "$KNOWN_ISSUES" 2>/dev/null)"
-    if echo "$content" | grep -q "CLAUDE_PLUGIN_ROOT"; then
+    if [[ "$content" == *CLAUDE_PLUGIN_ROOT* ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))
@@ -211,7 +211,7 @@ test_cascading_failure_runaway_incident() {
     _snapshot_fail
     local content
     content="$(cat "$KNOWN_ISSUES" 2>/dev/null)"
-    if echo "$content" | grep -qi "cascading failure\|cascade.*runaway\|fix.cascade.recovery\|runaway"; then
+    if [[ "${content,,}" =~ cascading\ failure|cascade.*runaway|fix.cascade.recovery|runaway ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))

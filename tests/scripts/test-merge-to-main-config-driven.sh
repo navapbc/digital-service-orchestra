@@ -66,7 +66,8 @@ assert_eq "test_merge_to_main_no_hardcoded_invocation_lint_ruff" "0" "$HARDCODED
 # When config is absent, the fallback should be the current value.
 # =============================================================================
 HAS_FORMAT_DEFAULT="false"
-if grep 'CMD_FORMAT_CHECK\|_FMT_TARGET' "$MERGE_SCRIPT" | grep -q 'format-check'; then
+_tmp=$(grep 'CMD_FORMAT_CHECK\|_FMT_TARGET' "$MERGE_SCRIPT")
+if grep -q 'format-check' <<< "$_tmp"; then
     HAS_FORMAT_DEFAULT="true"
 fi
 assert_eq "test_merge_to_main_default_format_check" "true" "$HAS_FORMAT_DEFAULT"
@@ -76,7 +77,7 @@ assert_eq "test_merge_to_main_default_format_check" "true" "$HAS_FORMAT_DEFAULT"
 # When config is absent, the fallback should be a reasonable lint default.
 # =============================================================================
 HAS_LINT_DEFAULT="false"
-if grep 'CMD_LINT' "$MERGE_SCRIPT" | grep -q 'make lint'; then
+_tmp=$(grep 'CMD_LINT' "$MERGE_SCRIPT"); if grep -q 'make lint' <<< "$_tmp"; then
     HAS_LINT_DEFAULT="true"
 fi
 assert_eq "test_merge_to_main_default_lint" "true" "$HAS_LINT_DEFAULT"

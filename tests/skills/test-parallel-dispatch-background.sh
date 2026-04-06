@@ -46,7 +46,7 @@ _snapshot_fail
 # It must also contain run_in_background
 _dispatch_para=$(grep -A5 'Launch ALL sub-agents' "$SPRINT_SKILL" || true)
 _has_bg=0
-echo "$_dispatch_para" | grep -q 'run_in_background' && _has_bg=1 || true
+grep -q 'run_in_background' <<< "$_dispatch_para" && _has_bg=1 || true
 assert_eq "test_sprint_dispatch_instruction_specifies_background_true: dispatch paragraph must include run_in_background" \
     "1" "$_has_bg"
 assert_pass_if_clean "test_sprint_dispatch_instruction_specifies_background_true"
@@ -72,7 +72,7 @@ _snapshot_fail
 
 _de_dispatch_para=$(grep -A5 'Launch all sub-agents in the batch' "$DEBUG_SKILL" || true)
 _de_has_bg=0
-echo "$_de_dispatch_para" | grep -q 'run_in_background' && _de_has_bg=1 || true
+grep -q 'run_in_background' <<< "$_de_dispatch_para" && _de_has_bg=1 || true
 assert_eq "test_debug_everything_dispatch_instruction_specifies_background: dispatch paragraph must include run_in_background" \
     "1" "$_de_has_bg"
 assert_pass_if_clean "test_debug_everything_dispatch_instruction_specifies_background"

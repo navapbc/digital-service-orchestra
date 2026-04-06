@@ -318,7 +318,7 @@ assert_eq "test_validate_emits_action_required_block_on_exit_2: exits 2" "2" "$r
 
 # validate.sh stdout must contain "ACTION REQUIRED"
 e2_has_action=0
-echo "$output_e2" | grep -q "ACTION REQUIRED" && e2_has_action=1
+[[ "$output_e2" == *"ACTION REQUIRED"* ]] && e2_has_action=1
 assert_eq "test_validate_emits_action_required_block_on_exit_2: output contains 'ACTION REQUIRED'" "1" "$e2_has_action"
 
 assert_pass_if_clean "test_validate_emits_action_required_block_on_exit_2"
@@ -334,7 +334,7 @@ _snapshot_fail
 # with missing command_hash. Verify that the Python code block inside the function
 # uses "not stored_hash" (reject empty) rather than "stored_hash and ..." (skip empty).
 # This is a structural test — it verifies the fix pattern is present in the source.
-if sed -n '/_test_state_already_passed/,/^}/p' "$VALIDATE_SCRIPT" | grep -q 'not stored_hash'; then
+_tmp=$(sed -n '/_test_state_already_passed/,/^}/p' "$VALIDATE_SCRIPT"); if grep -q 'not stored_hash' <<< "$_tmp"; then
     _nohash_actual="rejects_missing"
 else
     _nohash_actual="accepts_missing"

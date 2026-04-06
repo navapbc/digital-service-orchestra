@@ -124,7 +124,7 @@ if [[ -f "$OUTPUT_FILE" ]]; then
     assert_contains "output contains command output" "test-output-marker" "$output_content"
     # Ensure output/exit-code file paths were NOT prepended to the command
     exitcode_file="${OUTPUT_FILE}.exitcode"
-    if echo "$output_content" | grep -qF "$exitcode_file"; then
+    if [[ "$output_content" == *"$exitcode_file"* ]]; then
         (( ++FAIL ))
         echo "FAIL: output contains exit-code file path (bash -c positional arg bug)"
     else
@@ -189,7 +189,7 @@ if [[ -f "$PIPE_OUTPUT_FILE" ]]; then
     # Must contain the expected output
     assert_contains "piped command output contains marker" "pipe-marker" "$pipe_output_content"
     # Must NOT contain a "command not found" error (which would be the bug symptom)
-    if echo "$pipe_output_content" | grep -q "command not found"; then
+    if [[ "$pipe_output_content" == *command\ not\ found* ]]; then
         (( ++FAIL ))
         printf "FAIL: piped command output contains 'command not found' error (pipe not interpreted)\n  output: %s\n" "$pipe_output_content" >&2
     else

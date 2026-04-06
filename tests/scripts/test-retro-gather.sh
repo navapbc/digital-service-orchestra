@@ -74,7 +74,7 @@ wait "$_PID" 2>/dev/null || true
 kill "$_TIMER" 2>/dev/null; wait "$_TIMER" 2>/dev/null || true
 output=$(cat "$_OUTFILE")
 rm -f "$_OUTFILE"
-if echo "$output" | grep -qE "=== [A-Z]"; then
+if [[ "$output" =~ ===\ [A-Z] ]]; then
     echo "  PASS: output contains section headers"
     (( PASS++ ))
 else
@@ -85,7 +85,7 @@ fi
 # ── Test 5: --quick flag produces CLEANUP section ────────────────────────────
 echo "Test 5: --quick flag produces CLEANUP section"
 # Reuse output from Test 4 to avoid running the script twice
-if echo "$output" | grep -qE "CLEANUP|VALIDATION"; then
+if [[ "$output" =~ CLEANUP|VALIDATION ]]; then
     echo "  PASS: --quick output contains CLEANUP and/or VALIDATION section"
     (( PASS++ ))
 else
@@ -95,7 +95,7 @@ fi
 
 # ── Test 6: Script uses section() function for structured output ──────────────
 echo "Test 6: Script uses section() function for structured output"
-if grep -q "section()" "$SCRIPT" || grep -q "^section " "$SCRIPT"; then
+_section_found=0; grep -q "section()" "$SCRIPT" && _section_found=1; [[ "$_section_found" -eq 0 ]] && grep -q "^section " "$SCRIPT" && _section_found=1; if [[ "$_section_found" -eq 1 ]]; then
     echo "  PASS: script uses section() function"
     (( PASS++ ))
 else

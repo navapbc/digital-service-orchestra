@@ -98,7 +98,12 @@ assert_pass_if_clean "test_jira_project_key_in_config"
 # test_idempotent_hook_install: hook installation must check for existing entries
 # before appending (no duplicate DSO hook calls on re-run)
 _snapshot_fail
-if grep -q "grep-qF\|grep -qF\|Idempotency\|idempotent\|already exists before" "$SKILL_MD" 2>/dev/null; then
+_idm_found=0
+grep -q "grep-qF" "$SKILL_MD" 2>/dev/null && _idm_found=1
+[[ "$_idm_found" -eq 0 ]] && grep -q "Idempotency" "$SKILL_MD" 2>/dev/null && _idm_found=1
+[[ "$_idm_found" -eq 0 ]] && grep -q "idempotent" "$SKILL_MD" 2>/dev/null && _idm_found=1
+[[ "$_idm_found" -eq 0 ]] && grep -q "already exists before" "$SKILL_MD" 2>/dev/null && _idm_found=1
+if [[ "$_idm_found" -eq 1 ]]; then
     has_idempotency="found"
 else
     has_idempotency="missing"

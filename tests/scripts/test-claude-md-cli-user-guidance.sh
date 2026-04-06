@@ -50,10 +50,14 @@ echo ""
 # exact wording, so correct implementations with different phrasing still pass.
 # Proximity check: within 3 lines of any CLI_user mention, must find prohibition language.
 # This prevents false positives from "Do NOT" appearing elsewhere in CLAUDE.md.
-if echo "$claude_md_content" | grep -A3 -B3 "CLI_user" | grep -qiE "(Do NOT|MUST NOT|must not|autonomous)"; then
+_cli_context=$(echo "$claude_md_content" | grep -A3 -B3 "CLI_user")
+_tmp="$_cli_context"; shopt -s nocasematch
+if [[ "$_tmp" =~ "Do NOT"|"MUST NOT"|"must not"|autonomous ]]; then
+    shopt -u nocasematch
     echo "PASS: test_cli_user_tag_not_for_autonomous: CLAUDE.md clarifies CLI_user must not be used for autonomously-discovered bugs"
     (( ++PASS ))
 else
+    shopt -u nocasematch
     echo "FAIL: test_cli_user_tag_not_for_autonomous: CLAUDE.md clarifies CLI_user must not be used for autonomously-discovered bugs"
     echo "  expected: prohibition language (Do NOT / MUST NOT / autonomous) within 3 lines of CLI_user"
     echo "  actual:   no prohibition context found near CLI_user in CLAUDE.md"

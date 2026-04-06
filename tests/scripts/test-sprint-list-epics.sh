@@ -135,7 +135,7 @@ fi
 # ── Test 5: In-progress epic shown with P* marker ────────────────────────────
 echo "Test 5: In-progress epic shown with P* marker"
 out5=$(TICKETS_TRACKER_DIR="$TDIR" bash "$SCRIPT" 2>/dev/null)
-if echo "$out5" | grep -q "epic-c.*P\*"; then
+if [[ "$out5" =~ epic-c.*P\* ]]; then
     echo "  PASS: in-progress epic shown with P*"
     (( PASS++ ))
 else
@@ -161,7 +161,7 @@ echo "Test 7: Unblocked open epics sorted by priority"
 # (epic-c is in_progress, epic-d is blocked)
 ids_in_order=$(TICKETS_TRACKER_DIR="$TDIR" bash "$SCRIPT" 2>/dev/null | grep -v "^BLOCKED" | awk '{print $1}' | tr '\n' ' ' | xargs)
 # Expected: epic-c (in_progress first), then epic-b (P1), epic-e (P2), epic-a (P3)
-if echo "$ids_in_order" | grep -qE "^epic-c[[:space:]]+epic-b[[:space:]]+epic-e[[:space:]]+epic-a$"; then
+if [[ "$ids_in_order" =~ ^epic-c[[:space:]]+epic-b[[:space:]]+epic-e[[:space:]]+epic-a$ ]]; then
     echo "  PASS: epics sorted correctly (in-progress first, then by priority)"
     (( PASS++ ))
 else
@@ -172,7 +172,7 @@ fi
 # ── Test 8: Blocked epic NOT shown without --all ─────────────────────────────
 echo "Test 8: Blocked epic not shown without --all"
 out8=$(TICKETS_TRACKER_DIR="$TDIR" bash "$SCRIPT" 2>/dev/null)
-if echo "$out8" | grep -q "BLOCKED"; then
+if [[ "$out8" == *BLOCKED* ]]; then
     echo "  FAIL: BLOCKED prefix appeared without --all" >&2
     (( FAIL++ ))
 else
@@ -183,7 +183,7 @@ fi
 # ── Test 9: Blocked epic shown with BLOCKED prefix when --all ────────────────
 echo "Test 9: Blocked epic shown with BLOCKED prefix when --all"
 out9=$(TICKETS_TRACKER_DIR="$TDIR" bash "$SCRIPT" --all 2>/dev/null)
-if echo "$out9" | grep -qE "^BLOCKED[[:space:]]+epic-d"; then
+if [[ "$out9" =~ (^|$'\n')BLOCKED[[:space:]]+epic-d ]]; then
     echo "  PASS: blocked epic shown with BLOCKED prefix"
     (( PASS++ ))
 else
@@ -196,12 +196,12 @@ fi
 echo "Test 10: Epic with closed dep is not blocked"
 out10=$(TICKETS_TRACKER_DIR="$TDIR" bash "$SCRIPT" --all 2>/dev/null)
 # epic-e has dep on task-y which is closed, so epic-e should appear unblocked (no BLOCKED prefix)
-if echo "$out10" | grep -qE "^BLOCKED.*epic-e"; then
+if [[ "$out10" =~ (^|$'\n')BLOCKED.*epic-e ]]; then
     echo "  FAIL: epic-e (dep closed) incorrectly shown as blocked" >&2
     echo "  Output: $out10" >&2
     (( FAIL++ ))
 else
-    if echo "$out10" | grep -q "epic-e"; then
+    if [[ "$out10" == *epic-e* ]]; then
         echo "  PASS: epic-e with closed dep shown as unblocked"
         (( PASS++ ))
     else
@@ -331,7 +331,7 @@ test_self_children_not_blocked() {
     local out18
     out18=$(TICKETS_TRACKER_DIR="$TDIR18" bash "$SCRIPT" --all 2>/dev/null)
     # epic-p should NOT appear with BLOCKED prefix
-    ! echo "$out18" | grep -q "^BLOCKED.*epic-p"
+    ! [[ "$out18" =~ (^|$'\n')BLOCKED.*epic-p ]]
 }
 if test_self_children_not_blocked; then
     echo "  PASS: epic-p not blocked by its own children"
@@ -378,9 +378,9 @@ EVTEOF
     # Exit 0: unblocked epics exist
     [ "$exit19" -eq 0 ] || return 1
     # epic-v3a should appear as unblocked open epic with P1
-    echo "$out19" | grep -q "epic-v3a" || return 1
+    [[ "$out19" == *epic-v3a* ]] || return 1
     # epic-v3b should appear with P* prefix (in_progress)
-    echo "$out19" | grep -qE "epic-v3b.*P\*" || return 1
+    [[ "$out19" =~ epic-v3b.*P\* ]] || return 1
     # epic-v3b should show child count 1 (story-v3c is its child)
     local v3b_children
     v3b_children=$(echo "$out19" | grep "epic-v3b" | awk -F'\t' '{print $4}')
@@ -492,7 +492,7 @@ test_retry_on_transient_reducer_failure() {
 
     # The script should have retried and found the epic
     [ "$exit25" -eq 0 ] || return 1
-    echo "$out25" | grep -q "epic-retry" || return 1
+    [[ "$out25" == *epic-retry* ]] || return 1
 }
 if test_retry_on_transient_reducer_failure; then
     echo "  PASS: script retries on transient reducer failure"
@@ -563,7 +563,7 @@ test_retry_through_symlink() {
 
     # The script should have retried (via symlink) and found the epic
     [ "$exit27" -eq 0 ] || return 1
-    echo "$out27" | grep -q "epic-symlink" || return 1
+    [[ "$out27" == *epic-symlink* ]] || return 1
 }
 if test_retry_through_symlink; then
     echo "  PASS: retry works through symlinked tracker dir"
@@ -948,11 +948,11 @@ test_p0_bugs_appear_above_epics() {
     out37=$(TICKETS_TRACKER_DIR="$TDIR37" bash "$SCRIPT" 2>/dev/null)
 
     # P0 section header must appear
-    echo "$out37" | grep -q "P0 bugs requiring attention:" || return 1
+    [[ "$out37" == *P0\ bugs\ requiring\ attention:* ]] || return 1
     # The P0 bug line must reference the bug ID, title, and "(P0)"
-    echo "$out37" | grep -q "bug-p0" || return 1
-    echo "$out37" | grep -q "Critical P0 Bug" || return 1
-    echo "$out37" | grep -q "(P0)" || return 1
+    [[ "$out37" == *bug-p0* ]] || return 1
+    [[ "$out37" == *Critical\ P0\ Bug* ]] || return 1
+    [[ "$out37" == *\(P0\)* ]] || return 1
 
     # The P0 section must appear BEFORE the epic list (bug-p0 line before epic-x line)
     local p0_line_num epic_line_num
@@ -991,7 +991,7 @@ test_no_p0_section_when_none_exist() {
     out38=$(TICKETS_TRACKER_DIR="$TDIR38" bash "$SCRIPT" 2>/dev/null)
 
     # P0 section must NOT appear
-    ! echo "$out38" | grep -q "P0 bugs requiring attention:"
+    ! [[ "$out38" == *P0\ bugs\ requiring\ attention:* ]]
 }
 if test_no_p0_section_when_none_exist; then
     echo "  PASS: no P0 section when no P0 bugs exist"
@@ -1023,9 +1023,9 @@ test_min_children_filters_zero_child_epics() {
     local out39
     out39=$(TICKETS_TRACKER_DIR="$TDIR39" bash "$SCRIPT" --min-children=1 2>/dev/null)
     # epic-has-children (1 child) must appear
-    echo "$out39" | grep -q "epic-has-children" || return 1
+    [[ "$out39" == *epic-has-children* ]] || return 1
     # epic-no-children (0 children) must NOT appear
-    ! echo "$out39" | grep -q "epic-no-children" || return 1
+    ! [[ "$out39" == *epic-no-children* ]] || return 1
 }
 if test_min_children_filters_zero_child_epics; then
     echo "  PASS: --min-children=1 excludes epics with 0 children"
@@ -1050,9 +1050,9 @@ test_max_children_zero_shows_only_zero_child() {
     local out40
     out40=$(TICKETS_TRACKER_DIR="$TDIR40" bash "$SCRIPT" --max-children=0 2>/dev/null)
     # epic-empty (0 children) must appear
-    echo "$out40" | grep -q "epic-empty" || return 1
+    [[ "$out40" == *epic-empty* ]] || return 1
     # epic-with-child (1 child) must NOT appear
-    ! echo "$out40" | grep -q "epic-with-child" || return 1
+    ! [[ "$out40" == *epic-with-child* ]] || return 1
 }
 if test_max_children_zero_shows_only_zero_child; then
     echo "  PASS: --max-children=0 shows only epics with 0 children"
@@ -1080,9 +1080,9 @@ test_max_children_zero_set_check() {
     out41=$(TICKETS_TRACKER_DIR="$TDIR41" bash "$SCRIPT" --max-children=0 2>/dev/null)
     # Only epic-zero-ch (0 children) must appear; the others must be excluded.
     # If 0 is mishandled as unset, all epics will appear — this test catches that bug.
-    echo "$out41" | grep -q "epic-zero-ch"  || return 1
-    ! echo "$out41" | grep -q "epic-one-ch"  || return 1
-    ! echo "$out41" | grep -q "epic-two-ch"  || return 1
+    [[ "$out41" == *epic-zero-ch* ]]  || return 1
+    ! [[ "$out41" == *epic-one-ch* ]]  || return 1
+    ! [[ "$out41" == *epic-two-ch* ]]  || return 1
 }
 if test_max_children_zero_set_check; then
     echo "  PASS: --max-children=0 correctly treats 0 as a set value (not unset)"
@@ -1109,9 +1109,9 @@ test_min_children_backward_compat() {
     local out42
     out42=$(TICKETS_TRACKER_DIR="$TDIR42" bash "$SCRIPT" 2>/dev/null)
     # All 3 epics must appear (no child-count filtering when flags are absent)
-    echo "$out42" | grep -q "epic-bc-zero" || return 1
-    echo "$out42" | grep -q "epic-bc-one"  || return 1
-    echo "$out42" | grep -q "epic-bc-two"  || return 1
+    [[ "$out42" == *epic-bc-zero* ]] || return 1
+    [[ "$out42" == *epic-bc-one* ]]  || return 1
+    [[ "$out42" == *epic-bc-two* ]]  || return 1
 }
 if test_min_children_backward_compat; then
     echo "  PASS: existing behavior preserved when no child-count flags are used"
@@ -1141,11 +1141,11 @@ test_flags_combined_with_all() {
     local out43
     out43=$(TICKETS_TRACKER_DIR="$TDIR43" bash "$SCRIPT" --all --min-children=1 2>/dev/null)
     # epic-all-ch (1 child, unblocked) must appear
-    echo "$out43" | grep -q "epic-all-ch" || return 1
+    [[ "$out43" == *epic-all-ch* ]] || return 1
     # epic-all-noch (0 children) must NOT appear
-    ! echo "$out43" | grep -q "epic-all-noch" || return 1
+    ! [[ "$out43" == *epic-all-noch* ]] || return 1
     # epic-all-blocked (1 child, blocked) must appear as BLOCKED (--all includes blocked epics)
-    echo "$out43" | grep -qE "BLOCKED.*epic-all-blocked" || return 1
+    [[ "$out43" =~ BLOCKED.*epic-all-blocked ]] || return 1
 }
 if test_flags_combined_with_all; then
     echo "  PASS: --all and --min-children=1 work correctly together"

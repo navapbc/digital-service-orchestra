@@ -81,7 +81,7 @@ test_ticket_init_creates_env_id() {
     # Assert: content matches UUID4 pattern (8-4-4-4-12 hex, version 4, variant bits 8/9/a/b)
     local env_id
     env_id=$(cat "$repo/.tickets-tracker/.env-id")
-    if echo "$env_id" | grep -qE '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'; then
+    if [[ "$env_id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]]; then
         assert_eq "env-id: content is valid UUID4" "valid" "valid"
     else
         assert_eq "env-id: content is valid UUID4" "valid" "invalid: $env_id"
@@ -126,14 +126,14 @@ test_ticket_init_adds_to_gitignore() {
     gitignore_content=$(git -C "$repo/.tickets-tracker" show tickets:.gitignore 2>/dev/null)
 
     # Assert: .env-id is excluded
-    if echo "$gitignore_content" | grep -q '\.env-id'; then
+    if [[ "$gitignore_content" == *".env-id"* ]]; then
         assert_eq "gitignore: excludes .env-id" "excluded" "excluded"
     else
         assert_eq "gitignore: excludes .env-id" "excluded" "missing"
     fi
 
     # Assert: .state-cache is excluded
-    if echo "$gitignore_content" | grep -q '\.state-cache'; then
+    if [[ "$gitignore_content" == *".state-cache"* ]]; then
         assert_eq "gitignore: excludes .state-cache" "excluded" "excluded"
     else
         assert_eq "gitignore: excludes .state-cache" "excluded" "missing"
@@ -433,7 +433,7 @@ test_ticket_init_generates_env_id_when_symlink_exists_but_env_id_missing() {
     # Assert: content is valid UUID4
     local env_id
     env_id=$(cat "$real_tracker/.env-id")
-    if echo "$env_id" | grep -qE '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'; then
+    if [[ "$env_id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]]; then
         assert_eq "env-id regeneration: content is valid UUID4" "valid" "valid"
     else
         assert_eq "env-id regeneration: content is valid UUID4" "valid" "invalid: $env_id"

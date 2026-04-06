@@ -493,7 +493,8 @@ test_gate_passes_when_test_exempted() {
 
     # Write a valid test-gate-status with 'passed' and matching hash
     # (exemption should also work even when status exists)
-    if [[ ! -f "$GATE_HOOK" ]] || ! grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null; then
+    _has_exemptions=0; [[ -f "$GATE_HOOK" ]] && grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null && _has_exemptions=1
+    if [[ "$_has_exemptions" -eq 0 ]]; then
         assert_eq "test_gate_passes_when_test_exempted: no exemption support (RED)" "missing" "missing"
         return
     fi
@@ -537,7 +538,8 @@ test_gate_blocked_when_test_not_exempted() {
     # Write an exemption for a DIFFERENT test (not the associated one)
     write_test_exemption "$_artifacts" "tests/test_something_else.py"
 
-    if [[ ! -f "$GATE_HOOK" ]] || ! grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null; then
+    _has_exemptions=0; [[ -f "$GATE_HOOK" ]] && grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null && _has_exemptions=1
+    if [[ "$_has_exemptions" -eq 0 ]]; then
         assert_eq "test_gate_blocked_when_test_not_exempted: no exemption support (RED)" "missing" "missing"
         return
     fi
@@ -574,7 +576,8 @@ test_gate_passes_no_status_but_fully_exempted() {
     # Write an exemption for the associated test file path
     write_test_exemption "$_artifacts" "tests/test_fullex.py"
 
-    if [[ ! -f "$GATE_HOOK" ]] || ! grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null; then
+    _has_exemptions=0; [[ -f "$GATE_HOOK" ]] && grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null && _has_exemptions=1
+    if [[ "$_has_exemptions" -eq 0 ]]; then
         assert_eq "test_gate_passes_no_status_but_fully_exempted: no exemption support (RED)" "missing" "missing"
         return
     fi
@@ -1048,7 +1051,7 @@ IDX
     index_content=$(cat "$_repo/.test-index" 2>/dev/null || echo "FILE_MISSING")
 
     # The stale entry should not be present in the file
-    if echo "$index_content" | grep -q 'test_stale_nonexistent'; then
+    _tmp="$index_content"; if [[ "$_tmp" =~ test_stale_nonexistent ]]; then
         assert_eq "test_gate_index_prune_stale_entry: stale entry removed from .test-index" \
             "removed" "still_present"
     else
@@ -1108,7 +1111,7 @@ IDX
     index_content=$(cat "$_repo/.test-index" 2>/dev/null || echo "FILE_MISSING")
 
     # allstale.py line should be gone
-    if echo "$index_content" | grep -q 'lib/allstale.py'; then
+    _tmp="$index_content"; if [[ "$_tmp" =~ lib/allstale\.py ]]; then
         assert_eq "test_gate_index_prune_removes_line_when_all_stale: all-stale line removed" \
             "removed" "still_present"
     else
@@ -1117,7 +1120,7 @@ IDX
     fi
 
     # valid_func.py line should still be present
-    if echo "$index_content" | grep -q 'lib/valid_func.py'; then
+    _tmp="$index_content"; if [[ "$_tmp" =~ lib/valid_func\.py ]]; then
         assert_eq "test_gate_index_prune_removes_line_when_all_stale: valid line preserved" \
             "preserved" "preserved"
     else
@@ -1174,7 +1177,7 @@ IDX
     local staged_files
     staged_files=$(git -C "$_repo" diff --cached --name-only 2>/dev/null || echo "")
 
-    if echo "$staged_files" | grep -q '\.test-index'; then
+    _tmp="$staged_files"; if [[ "$_tmp" =~ \.test-index ]]; then
         assert_eq "test_gate_index_prune_stages_modified_index: .test-index is staged" \
             "staged" "staged"
     else
@@ -1232,7 +1235,7 @@ IDX
     index_content=$(cat "$_repo/.test-index" 2>/dev/null || echo "FILE_MISSING")
 
     # The source line should still be present (one valid test remains)
-    if ! echo "$index_content" | grep -q 'lib/partial_func.py'; then
+    _tmp="$index_content"; if ! [[ "$_tmp" =~ lib/partial_func\.py ]]; then
         assert_eq "test_gate_index_prune_partial: source line preserved" \
             "preserved" "missing"
         return
@@ -1241,7 +1244,7 @@ IDX
         "preserved" "preserved"
 
     # The valid test path should be retained
-    if ! echo "$index_content" | grep -q 'test_partial_unit.py'; then
+    _tmp="$index_content"; if ! [[ "$_tmp" =~ test_partial_unit\.py ]]; then
         assert_eq "test_gate_index_prune_partial: valid test path retained" \
             "retained" "missing"
         return
@@ -1250,7 +1253,7 @@ IDX
         "retained" "retained"
 
     # The stale test path should be removed
-    if echo "$index_content" | grep -q 'test_partial_gone.py'; then
+    _tmp="$index_content"; if [[ "$_tmp" =~ test_partial_gone\.py ]]; then
         assert_eq "test_gate_index_prune_partial: stale test path removed" \
             "removed" "still_present"
     else
@@ -1454,7 +1457,7 @@ test_gate_fails_open_on_sigterm() {
     # The gate may exit before SIGTERM arrives (exit 1 for missing status).
     # In that case, check that the trap is at least present in the script.
     # When SIGTERM IS caught, exit should be 0 with the warning message.
-    if echo "$_stderr_output" | grep -q "failing open"; then
+    _tmp="$_stderr_output"; if [[ "$_tmp" =~ failing\ open ]]; then
         # SIGTERM was caught — verify exit 0
         assert_eq "test_gate_fails_open_on_sigterm: exits 0 on SIGTERM" \
             "0" "$_exit_code"
@@ -1552,7 +1555,7 @@ IDX
     # Verify the .test-index was NOT pruned (the entry should still exist after the fix)
     local index_content
     index_content=$(cat "$_repo/.test-index" 2>/dev/null || echo "FILE_MISSING")
-    if echo "$index_content" | grep -q 'lib/auth_service.py'; then
+    _tmp="$index_content"; if [[ "$_tmp" =~ lib/auth_service\.py ]]; then
         assert_eq "test_gate_red_marker_index_passes: .test-index entry preserved (not pruned)" \
             "preserved" "preserved"
     else

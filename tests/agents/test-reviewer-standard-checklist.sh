@@ -194,7 +194,7 @@ _snapshot_fail
 # Expect a mapping comment or a "maps to" / "category:" annotation in the checklist
 # OR the file uses the canonical JSON key names in findings-relevant context
 for json_key in "correctness" "verification" "hygiene" "maintainability" "design"; do
-    if grep -qF "\"${json_key}\"" "$DELTA_FILE" || grep -qF "${json_key}" "$DELTA_FILE"; then
+    _key_found=0; grep -qF "\"${json_key}\"" "$DELTA_FILE" && _key_found=1; [[ "$_key_found" -eq 0 ]] && grep -qF "${json_key}" "$DELTA_FILE" && _key_found=1; if [[ "$_key_found" -eq 1 ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))

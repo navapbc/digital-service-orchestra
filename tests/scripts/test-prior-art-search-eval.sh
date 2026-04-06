@@ -109,7 +109,7 @@ test_eval_has_incident_replay() {
 test_eval_discoverable_by_runner() {
     _snapshot_fail
     local actual
-    if find "$PLUGIN_ROOT/plugins/dso/skills" -path '*/evals/promptfooconfig.yaml' | grep -q "shared"; then
+    _tmp=$(find "$PLUGIN_ROOT/plugins/dso/skills" -path '*/evals/promptfooconfig.yaml'); if grep -q "shared" <<< "$_tmp"; then
         actual="discoverable"
     else
         actual="not_discoverable"

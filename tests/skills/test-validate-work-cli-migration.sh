@@ -62,7 +62,7 @@ if match:
 EOF
     ) || true
 
-    if echo "$_step2b" | grep -qE 'browser_snapshot|browser_run_code|browser_navigate|Playwright MCP'; then
+    if grep -qE 'browser_snapshot|browser_run_code|browser_navigate|Playwright MCP' <<< "$_step2b"; then
         fail "SKILL.md Step 2b still references Playwright MCP tools (browser_snapshot etc.) — must be migrated to @playwright/cli"
     else
         pass "SKILL.md Step 2b does not reference Playwright MCP tools"

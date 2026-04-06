@@ -304,10 +304,13 @@ test_narrow_exception_excludes_skill_agent_prompt_files() {
     # Must contain language like "does not apply to skill files" or
     # "does not cover files in skills/" — an actual prohibition, not
     # just mentioning "skill file" as a positive example.
-    if echo "$_section" | grep -qiE '(does not (apply|cover|extend)|not acceptable|must not|never applies).*(skill|agent|prompt)' ||
-       echo "$_section" | grep -qiE '(skill|agent|prompt).*(does not (apply|cover)|not acceptable|excluded|never)'; then
+    _tmp="$_section"
+    shopt -s nocasematch
+    if [[ "$_tmp" =~ (does\ not\ (apply|cover|extend)|not\ acceptable|must\ not|never\ applies).*(skill|agent|prompt) ]] ||
+       [[ "$_tmp" =~ (skill|agent|prompt).*(does\ not\ (apply|cover)|not\ acceptable|excluded|never) ]]; then
         _has_exclusion=1
     fi
+    shopt -u nocasematch
     assert_eq "narrow exception excludes skill/agent/prompt files (bug 9c16-7780)" "1" "$_has_exclusion"
     assert_pass_if_clean "test_narrow_exception_excludes_skill_agent_prompt_files"
 }

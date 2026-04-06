@@ -81,7 +81,7 @@ MAIN_REPO_ROOT=$(dirname "$(git -C "$REPO_ROOT" rev-parse --git-common-dir)")
 exit_code=0
 output=$(cd "$MAIN_REPO_ROOT" && bash "$SCRIPT" 2>&1) || exit_code=$?
 if [ "$exit_code" -ne 0 ]; then
-    if echo "$output" | grep -qiE "not a worktree|not.*worktree|worktree.*only"; then
+    if [[ "${output,,}" =~ not\ a\ worktree|not.*worktree|worktree.*only ]]; then
         echo "  PASS: script exits non-zero with worktree guard message (exit $exit_code)"
         (( PASS++ ))
     else
@@ -171,8 +171,9 @@ hardcoded_path=false
 
 # Fail if the MAIN_REPO= line contains a hardcoded absolute path (starts with /)
 # but NOT a git command (dynamic derivation is fine).
-if echo "$main_repo_line" | grep -qE "MAIN_REPO=['\"]?/" && \
-   ! echo "$main_repo_line" | grep -qE "git rev-parse|git-common-dir"; then
+_main_repo_pat="MAIN_REPO=['\"]?/"
+if [[ "$main_repo_line" =~ $_main_repo_pat ]] && \
+   ! [[ "$main_repo_line" =~ git\ rev-parse|git-common-dir ]]; then
     hardcoded_path=true
 fi
 

@@ -62,7 +62,7 @@ test_cleanup_targets_only_own_session() {
     assert_contains "cleanup: includes 99992" "99992" "$pids_to_clean"
 
     # Should NOT include other-session's PID
-    if echo "$pids_to_clean" | grep -q "99993"; then
+    if grep -q "99993" <<< "$pids_to_clean"; then
         (( ++FAIL ))
         echo "FAIL: cleanup: should not include other-session PID 99993" >&2
     else

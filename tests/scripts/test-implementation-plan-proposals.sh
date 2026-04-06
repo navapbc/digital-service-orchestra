@@ -53,7 +53,7 @@ test_minimum_proposals_requirement() {
   local _section
   _section=$(awk '/^### Proposal Generation/{found=1} found && /^### / && !/^### Proposal Generation/{exit} found{print}' "$IMPL_PLAN_SKILL")
   local _has_minimum=0
-  { echo "$_section" | grep -qiE "at least 3|minimum.*3|3.*minimum"; } && _has_minimum=1
+  [[ "${_section,,}" =~ at\ least\ 3|minimum.*3|3.*minimum ]] && _has_minimum=1
   assert_eq "test_minimum_proposals_requirement: 'at least 3' or 'minimum.*3' within Proposal Generation section" \
     "1" "$_has_minimum"
   assert_pass_if_clean "test_minimum_proposals_requirement"
@@ -71,12 +71,12 @@ test_proposal_format_fields() {
   local _section
   _section=$(awk '/^### Proposal Generation/{found=1} found && /^### / && !/^### Proposal Generation/{exit} found{print}' "$IMPL_PLAN_SKILL")
   local _has_title=0 _has_description=0 _has_files=0 _has_pros=0 _has_cons=0 _has_risk=0
-  echo "$_section" | grep -qi "title" && _has_title=1
-  echo "$_section" | grep -qi "description" && _has_description=1
-  echo "$_section" | grep -qi "files" && _has_files=1
-  echo "$_section" | grep -qi "pros" && _has_pros=1
-  echo "$_section" | grep -qi "cons" && _has_cons=1
-  echo "$_section" | grep -qi "risk" && _has_risk=1
+  [[ "${_section,,}" == *title* ]] && _has_title=1
+  [[ "${_section,,}" == *description* ]] && _has_description=1
+  [[ "${_section,,}" == *files* ]] && _has_files=1
+  [[ "${_section,,}" == *pros* ]] && _has_pros=1
+  [[ "${_section,,}" == *cons* ]] && _has_cons=1
+  [[ "${_section,,}" == *risk* ]] && _has_risk=1
   assert_eq "test_proposal_format_fields: 'title' field within Proposal Generation section" \
     "1" "$_has_title"
   assert_eq "test_proposal_format_fields: 'description' field within Proposal Generation section" \
@@ -105,11 +105,11 @@ test_distinctness_validation_gate() {
   local _section
   _section=$(awk '/^### Proposal Generation/{found=1} found && /^### / && !/^### Proposal Generation/{exit} found{print}' "$IMPL_PLAN_SKILL")
   local _has_distinctness=0 _has_data_layer=0 _has_control_flow=0 _has_dependency=0 _has_interface=0
-  echo "$_section" | grep -qi "distinct" && _has_distinctness=1
-  echo "$_section" | grep -qi "data layer" && _has_data_layer=1
-  echo "$_section" | grep -qi "control flow" && _has_control_flow=1
-  echo "$_section" | grep -qi "dependency" && _has_dependency=1
-  echo "$_section" | grep -qi "interface boundary\|interface_boundary" && _has_interface=1
+  [[ "${_section,,}" == *distinct* ]] && _has_distinctness=1
+  [[ "${_section,,}" == *data\ layer* ]] && _has_data_layer=1
+  [[ "${_section,,}" == *control\ flow* ]] && _has_control_flow=1
+  [[ "${_section,,}" == *dependency* ]] && _has_dependency=1
+  { [[ "${_section,,}" == *interface\ boundary* ]] || [[ "${_section,,}" == *interface_boundary* ]]; } && _has_interface=1
   assert_eq "test_distinctness_validation_gate: 'distinct' within Proposal Generation section" \
     "1" "$_has_distinctness"
   assert_eq "test_distinctness_validation_gate: 'data layer' axis within Proposal Generation section" \

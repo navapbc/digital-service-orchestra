@@ -163,7 +163,7 @@ test_compact_does_not_trigger_below_threshold() {
     assert_eq "original events preserved below threshold" "$before_count" "$after_count"
 
     # Assert: output mentions skipping
-    if echo "$output" | grep -qi 'skip\|below.*threshold\|no.*compaction'; then
+    if [[ "${output,,}" =~ skip|below.*threshold|no.*compaction ]]; then
         assert_eq "skip message present" "present" "present"
     else
         assert_eq "skip message present" "present" "missing"

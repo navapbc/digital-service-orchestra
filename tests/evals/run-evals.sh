@@ -161,14 +161,16 @@ for i in $(seq 0 $(( entry_count - 1 ))); do
                 ;;
             stdout_contains)
                 expected_str=$(echo "$assertion" | jq -r '.expected')
-                if ! echo "$actual_stdout" | grep -qF "$expected_str"; then
+                _tmp="$actual_stdout"
+                if [[ "$_tmp" != *"$expected_str"* ]]; then
                     echo "  FAIL [$id]: stdout_contains: expected to contain '$expected_str'" >&2
                     entry_pass=false
                 fi
                 ;;
             stdout_not_contains)
                 unexpected_str=$(echo "$assertion" | jq -r '.expected')
-                if echo "$actual_stdout" | grep -qF "$unexpected_str"; then
+                _tmp="$actual_stdout"
+                if [[ "$_tmp" == *"$unexpected_str"* ]]; then
                     echo "  FAIL [$id]: stdout_not_contains: expected NOT to contain '$unexpected_str'" >&2
                     entry_pass=false
                 fi

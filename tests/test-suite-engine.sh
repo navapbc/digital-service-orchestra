@@ -126,7 +126,7 @@ test_fail_fast_aborts_after_threshold() {
     assert_contains "fail-fast: output mentions ABORT" "ABORT" "$output"
 
     # Should NOT have run all 10 tests — check that test-pass-10 is absent
-    if echo "$output" | grep -q "test-pass-10.sh"; then
+    if grep -q "test-pass-10.sh" <<< "$output"; then
         (( ++FAIL ))
         echo "FAIL: fail-fast: test-pass-10.sh should not have run" >&2
     else
@@ -240,7 +240,7 @@ test_consecutive_fail_resets_on_pass() {
         bash "$SCRIPT_DIR/lib/suite-engine.sh" "${tests[@]}" 2>&1) || exit_code=$?
 
     # Should NOT contain ABORT — consecutive never reaches 3
-    if echo "$output" | grep -q "ABORT"; then
+    if grep -q "ABORT" <<< "$output"; then
         (( ++FAIL ))
         echo "FAIL: consecutive-reset: should not have aborted" >&2
     else

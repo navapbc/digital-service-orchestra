@@ -345,12 +345,12 @@ test_dependency_dirs_excluded() {
 
     # Must find the real test
     local has_real=0
-    echo "$result" | grep -q "tests/test_parser.sh" && has_real=1
+    _tmp="$result"; [[ "$_tmp" =~ tests/test_parser\.sh ]] && has_real=1
     assert_eq "dep-dirs-excluded: finds real test" "1" "$has_real"
 
     # Must NOT find the decoy in node_modules
     local has_decoy=0
-    echo "$result" | grep -q "node_modules" && has_decoy=1
+    _tmp="$result"; [[ "$_tmp" =~ node_modules ]] && has_decoy=1
     assert_eq "dep-dirs-excluded: excludes node_modules" "0" "$has_decoy"
 }
 

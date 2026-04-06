@@ -37,7 +37,7 @@ assert_pass_if_clean "test_skill_exists"
 
 # test_frontmatter_name: must have name: quick-ref in frontmatter
 _snapshot_fail
-if head -5 "$SKILL_MD" 2>/dev/null | grep -q 'name: quick-ref'; then
+_tmp=$(head -5 "$SKILL_MD" 2>/dev/null); if grep -q 'name: quick-ref' <<< "$_tmp"; then
     has_name="found"
 else
     has_name="missing"

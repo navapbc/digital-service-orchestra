@@ -214,7 +214,7 @@ test_compact_e2e_below_threshold_skips() {
     assert_eq "below_threshold: original events preserved" "$before_count" "$after_count"
 
     # Verify: output mentions skipping / below threshold
-    if echo "$output" | grep -qi 'skip\|below.*threshold\|no.*compaction'; then
+    if [[ "${output,,}" =~ skip|below.*threshold|no.*compaction ]]; then
         assert_eq "below_threshold: skip message present" "present" "present"
     else
         assert_eq "below_threshold: skip message present" "present" "missing"

@@ -257,12 +257,12 @@ assert_eq "test_recovery_triggers: exit non-zero" "1" "$_T1_RC"
 
 # Output should contain evidence of recovery attempt
 _T1_HAS_RECOVERY=0
-if echo "$_T1_OUTPUT" | grep -qiE 'RECOVERY|squash|rebase|_squash_rebase_recovery'; then
+if [[ "${_T1_OUTPUT,,}" =~ recovery|squash|rebase|_squash_rebase_recovery ]]; then
     _T1_HAS_RECOVERY=1
 fi
 # Also acceptable: increment retry or directive to --resume
 _T1_HAS_RESUME=0
-if echo "$_T1_OUTPUT" | grep -q '\-\-resume'; then
+if [[ "$_T1_OUTPUT" == *--resume* ]]; then
     _T1_HAS_RESUME=1
 fi
 # At least one of recovery attempt OR --resume directive should appear
@@ -326,13 +326,13 @@ assert_eq "test_retry_succeeds: exit 0" "0" "$_T2_RC"
 
 # Output should contain evidence of recovery + success
 _T2_HAS_RECOVERY=0
-if echo "$_T2_OUTPUT" | grep -qiE 'RECOVERY|squash'; then
+if [[ "${_T2_OUTPUT,,}" =~ recovery|squash ]]; then
     _T2_HAS_RECOVERY=1
 fi
 assert_eq "test_retry_succeeds: shows recovery output" "1" "$_T2_HAS_RECOVERY"
 
 _T2_HAS_MERGED=0
-if echo "$_T2_OUTPUT" | grep -qiE 'OK.*[Mm]erg|[Mm]erg.*OK|[Mm]erge.*success'; then
+if [[ "${_T2_OUTPUT}" =~ OK.*[Mm]erg|[Mm]erg.*OK|[Mm]erge.*success ]]; then
     _T2_HAS_MERGED=1
 fi
 assert_eq "test_retry_succeeds: confirms merge success" "1" "$_T2_HAS_MERGED"
@@ -454,7 +454,7 @@ assert_eq "test_clear_directive: exit non-zero" "1" "$_T4_RC"
 
 # Output should contain --resume directive
 _T4_HAS_RESUME=0
-if echo "$_T4_OUTPUT" | grep -q '\-\-resume'; then
+if [[ "$_T4_OUTPUT" == *--resume* ]]; then
     _T4_HAS_RESUME=1
 fi
 assert_eq "test_clear_directive: --resume in output" "1" "$_T4_HAS_RESUME"
@@ -511,7 +511,7 @@ assert_eq "test_failure_output: exits non-zero" "1" "$_T5_RC"
 
 # Must contain --resume
 _T5_HAS_RESUME=0
-if echo "$_T5_OUTPUT" | grep -q '\-\-resume'; then
+if [[ "$_T5_OUTPUT" == *--resume* ]]; then
     _T5_HAS_RESUME=1
 fi
 assert_eq "test_failure_output: contains --resume" "1" "$_T5_HAS_RESUME"

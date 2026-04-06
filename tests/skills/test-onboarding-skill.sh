@@ -948,7 +948,8 @@ test_key_name_design_system_name() {
     if grep -q "design.system_name" "$SKILL_MD" 2>/dev/null; then
         has_correct="yes"
     fi
-    if grep "design\.system" "$SKILL_MD" 2>/dev/null | grep -v "design\.system_name" | grep -q "design\.system"; then
+    _tmp=$(grep "design\.system" "$SKILL_MD" 2>/dev/null | grep -v "design\.system_name")
+    if grep -q "design\.system" <<< "$_tmp"; then
         has_incorrect="yes"
     fi
     if [[ "$has_correct" == "yes" && "$has_incorrect" == "no" ]]; then

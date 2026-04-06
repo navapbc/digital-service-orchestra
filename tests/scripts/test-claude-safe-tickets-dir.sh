@@ -198,7 +198,7 @@ mkdir -p "$_main_repo"
 # Ensure we have a 'main' branch
 (
     cd "$_main_repo"
-    git branch 2>/dev/null | grep -q 'main' || git branch -m master main 2>/dev/null || true
+    _tmp=$(git branch 2>/dev/null); grep -q 'main' <<< "$_tmp" || git branch -m master main 2>/dev/null || true
 ) 2>/dev/null || true
 
 # Add worktree on test branch

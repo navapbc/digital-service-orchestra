@@ -68,7 +68,7 @@ exit_code=0
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --quick --terse 2>&1) || exit_code=$?
 
-if echo "$output" | grep -qiE "traceback|TypeError|subscriptable"; then
+if [[ "${output,,}" =~ traceback|typeerror|subscriptable ]]; then
     echo "  FAIL: Python exception in output — int created_at caused unhandled error" >&2
     echo "  Output: $output" >&2
     (( FAIL++ ))
@@ -102,11 +102,11 @@ exit_code=0
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --quick --terse 2>&1) || exit_code=$?
 
-if echo "$output" | grep -qiE "traceback|TypeError|subscriptable"; then
+if [[ "${output,,}" =~ traceback|typeerror|subscriptable ]]; then
     echo "  FAIL: Python exception — int created_at not handled in cluster detection" >&2
     echo "  Output: $output" >&2
     (( FAIL++ ))
-elif ! echo "$output" | grep -qiE "\[MAJOR\].*orphaned tasks created around"; then
+elif ! [[ "${output,,}" =~ \[major\].*orphaned\ tasks\ created\ around ]]; then
     echo "  FAIL: 3+ same-hour orphaned tasks with int timestamps did not produce MAJOR cluster warning" >&2
     echo "  (cluster detection is silently discarding int timestamps instead of converting them)" >&2
     echo "  Output: $output" >&2
@@ -135,11 +135,11 @@ exit_code=0
 output=""
 output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --quick --terse 2>&1) || exit_code=$?
 
-if echo "$output" | grep -qiE "traceback|TypeError|subscriptable"; then
+if [[ "${output,,}" =~ traceback|typeerror|subscriptable ]]; then
     echo "  FAIL: Python exception on mixed created_at types" >&2
     echo "  Output: $output" >&2
     (( FAIL++ ))
-elif ! echo "$output" | grep -qiE "\[MAJOR\].*orphaned tasks created around"; then
+elif ! [[ "${output,,}" =~ \[major\].*orphaned\ tasks\ created\ around ]]; then
     echo "  FAIL: mixed-type tasks did not produce expected MAJOR cluster warning" >&2
     echo "  Output: $output" >&2
     (( FAIL++ ))
