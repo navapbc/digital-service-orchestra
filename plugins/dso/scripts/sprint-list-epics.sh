@@ -64,7 +64,8 @@ fi
 # ---------------------------------------------------------------------------
 if [ -d "$TRACKER_DIR/.git" ] || [ -f "$TRACKER_DIR/.git" ]; then
     _resolved_tracker=$(cd "$TRACKER_DIR" && pwd -P 2>/dev/null || echo "$TRACKER_DIR")
-    _sync_hash=$(echo -n "$_resolved_tracker" | md5sum 2>/dev/null | cut -d' ' -f1 || md5 -q -s "$_resolved_tracker" 2>/dev/null || echo "fallback")
+    # Use 12-char truncated hash to match the ticket dispatcher's sync marker key
+    _sync_hash=$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$_resolved_tracker" 2>/dev/null || echo "fallback")
     _sync_marker="/tmp/.ticket-sync-${_sync_hash}"
     _needs_fetch=true
     if [ -f "$_sync_marker" ]; then
@@ -89,6 +90,10 @@ if [ -d "$TRACKER_DIR/.git" ] || [ -f "$TRACKER_DIR/.git" ]; then
                 _local_ahead=$(git -C "$TRACKER_DIR" log --oneline origin/tickets..tickets 2>/dev/null) || true
                 if [ -z "$_local_ahead" ]; then
                     git -C "$TRACKER_DIR" reset --hard origin/tickets >/dev/null 2>&1 || true
+                else
+                    # Local is ahead — rebase to incorporate any origin-only commits (d88e-4365)
+                    git -C "$TRACKER_DIR" rebase origin/tickets >/dev/null 2>&1 || \
+                        git -C "$TRACKER_DIR" rebase --abort >/dev/null 2>&1 || true
                 fi
             fi
         fi
@@ -202,15 +207,11 @@ while [ "$attempt" -lt "$MAX_RETRIES" ]; do
     index_and_counts=$(_build_index)
 done
 
-SPRINT_INDEX_JSON=$(echo "$index_and_counts" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin)['index']))")
-child_counts_json=$(echo "$index_and_counts" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin)['child_counts']))")
-
 # ---------------------------------------------------------------------------
-# Single Python pass: read index once, classify epics, emit output.
+# Single Python pass: pipe index_and_counts via stdin to avoid ARG_MAX.
 # ---------------------------------------------------------------------------
+echo "$index_and_counts" | \
 SPRINT_SHOW_ALL="$show_all" \
-SPRINT_INDEX_JSON="$SPRINT_INDEX_JSON" \
-SPRINT_CHILD_COUNTS="$child_counts_json" \
 SPRINT_MIN_CHILDREN="${min_children:-}" \
 SPRINT_MAX_CHILDREN="${max_children:-}" \
 SPRINT_MIN_CHILDREN_SET="${min_children+1}" \
@@ -224,16 +225,13 @@ show_all = os.environ.get('SPRINT_SHOW_ALL') == 'true'
 min_children = int(os.environ['SPRINT_MIN_CHILDREN']) if os.environ.get('SPRINT_MIN_CHILDREN_SET') == '1' else None
 max_children = int(os.environ['SPRINT_MAX_CHILDREN']) if os.environ.get('SPRINT_MAX_CHILDREN_SET') == '1' else None
 
-# Load index from env var (built by v3 path above)
+# Load index and child counts from stdin (avoids ARG_MAX for large ticket systems)
 try:
-    index = json.loads(os.environ.get('SPRINT_INDEX_JSON', '{}'))
+    _data = json.load(sys.stdin)
+    index = _data.get('index', {})
+    child_counts = _data.get('child_counts', {})
 except Exception:
     index = {}
-
-# Load child counts computed above
-try:
-    child_counts = json.loads(os.environ.get('SPRINT_CHILD_COUNTS', '{}'))
-except Exception:
     child_counts = {}
 
 # Build lookup for dep status and parent resolution
