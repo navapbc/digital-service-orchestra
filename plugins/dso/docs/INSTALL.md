@@ -131,6 +131,16 @@ except `version`. Below are the most commonly needed keys for initial setup:
 | `model.sonnet` | absent | Canonical model ID for the sonnet tier (e.g. `claude-sonnet-4-6-20260320`). Read by `resolve-model-id.sh`. |
 | `model.opus` | absent | Canonical model ID for the opus tier (e.g. `claude-opus-4-6`). Read by `resolve-model-id.sh`. |
 
+### Updating model IDs
+
+When Anthropic releases a new Claude model version, update all references in one step:
+
+1. Edit `.claude/dso-config.conf` — set `model.haiku`, `model.sonnet`, and `model.opus` to the new model IDs
+2. Run `.claude/scripts/dso sync-eval-model-ids.sh` — rewrites all `promptfooconfig.yaml` eval configs to match the updated config values
+3. Verify with `.claude/scripts/dso check-model-id-lint.sh` — confirms no stale hardcoded model IDs remain
+
+API-calling scripts (`enrich-file-impact.sh`, `semantic-conflict-check.py`) and the eval generator (`generate-skill-eval.sh`) read model IDs at runtime via `resolve-model-id.sh` — no manual edits needed beyond the config file.
+
 For the full key reference including staging, CI, design, infrastructure, and worktree keys,
 see **[docs/CONFIGURATION-REFERENCE.md](CONFIGURATION-REFERENCE.md)**.
 
