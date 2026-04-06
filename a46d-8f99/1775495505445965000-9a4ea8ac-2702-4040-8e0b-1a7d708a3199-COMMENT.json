@@ -1,1 +1,0 @@
-{"timestamp": 1775495505445965000, "uuid": "9a4ea8ac-2702-4040-8e0b-1a7d708a3199", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: merge-state.sh updated with ms_is_worktree_to_session_merge + ms_get_incoming_only_files. 101 tests pass."}}
