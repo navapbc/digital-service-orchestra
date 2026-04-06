@@ -32,6 +32,7 @@ prompts:
     - Story validation failure (all tasks closed but done definition fails): create TDD remediation tasks (RED test first, then fix) via implementation-plan
     - Out-of-scope review findings: route accepted findings to implementation-plan between batches (not mid-batch)
     - REPLAN_ESCALATE from implementation-plan: present to user with options (a) route to brainstorm, (b) proceed, (c) abort. Check cycle cap (replan_cycle_count vs max_replan_cycles)
+    - Worktree isolation dispatch: before Phase 4 sub-agent launch, read worktree.isolation_enabled config. When true: add isolation:"worktree" to each Agent/Task dispatch call. When false, empty, or absent: omit the isolation parameter entirely — use standard dispatch with no isolation block.
 
     The user says:
     {{prompt}}

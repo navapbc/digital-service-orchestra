@@ -793,6 +793,17 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
 
 3. **Populate the placeholder**: Replace `{file_ownership_context}` in `task-execution.md` with the per-agent ownership string.
 
+### Worktree Isolation Configuration
+
+Before dispatching sub-agents, read and apply `plugins/dso/skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration.
+
+Read the config key:
+```bash
+ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null || true)
+```
+
+When `ISOLATION_ENABLED` equals `true`, add `isolation: "worktree"` to each Agent/Task dispatch call and pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each sub-agent's prompt so sub-agents can verify isolation. When `ISOLATION_ENABLED` is `false`, empty, or absent, omit the `isolation` parameter entirely.
+
 ### Sub-Agent Prompt Template
 
 For each task, launch a Task with the appropriate `subagent_type`.
@@ -857,7 +868,7 @@ context:
 
 **Important**: Launch ALL sub-agents in the batch within a single message, each with `run_in_background: true`. Maximum 5 Task calls per message.
 
-**Worktree boundary**: If in a worktree, append to every sub-agent prompt: `"IMPORTANT: Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path."`
+**Worktree boundary**: If in a worktree, append to every sub-agent prompt: `"IMPORTANT: Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path."` When `ISOLATION_ENABLED=true`, also add `isolation: "worktree"` to the Task dispatch call (see Worktree Isolation Configuration above).
 
 ### RED Task Dispatch — Escalation Protocol
 
