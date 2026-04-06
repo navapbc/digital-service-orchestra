@@ -13,8 +13,20 @@ For each worktree returned by implementation sub-agents (process in completion o
 **Step 5 — Merge worktree branch into session branch**: From the session branch directory, run `git merge <worktree-branch> --no-edit`. merge-state.sh detects MERGE_HEAD, review gate skips the merge commit.
 
 **Step 6 — Handle merge result**:
-- Success: Proceed to cleanup (Step 7)
-- Conflict: Run `git merge --abort`. Flag for re-implementation (see conflict story 064a-4684). DO NOT remove the worktree. Continue to next worktree.
+- **Success** (exit 0): Proceed to Step 7 (cleanup).
+- **Conflict** (exit != 0):
+  a. Run `git merge --abort` to clean up the failed merge state.
+  b. Create a ticket comment: `.claude/scripts/dso ticket comment <story-id> "CONFLICT: worktree <worktree-name> blocked"`
+  c. Add the worktree to the **conflict queue** — do NOT remove the worktree (retained for re-implementation).
+  d. Continue processing the next worktree — non-conflicting worktrees proceed normally through Steps 2–7.
+
+**Conflict queue — re-implementation protocol** (after all non-conflicting worktrees are merged):
+
+For each worktree in the conflict queue, serialized one at a time against the latest session state:
+1. Re-dispatch the original task in the conflicting worktree context (the worktree is still present and available).
+2. Each re-implementation targets the post-merge session branch (so it incorporates all previously merged worktrees).
+3. After successful re-implementation: follow the full Steps 2–7 flow (review → commit → merge → cleanup).
+4. If re-implementation also conflicts: escalate to the user — do not re-queue indefinitely.
 
 **Step 7 — Worktree cleanup**: Only after successful merge: `git worktree remove --force <worktree-path>`.
 
