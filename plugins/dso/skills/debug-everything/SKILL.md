@@ -59,6 +59,14 @@ STAGING_URL="${STAGING_URL:-http://nava-lockpick-doc-to-logic-env-stage.eba-m8tu
 EB_STAGING_ENV="${EB_STAGING_ENVIRONMENT:-nava-lockpick-doc-to-logic-env-stage}"
 ```
 
+**Worktree isolation config** — read and apply `plugins/dso/skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration. Read the config key before dispatching any sub-agents:
+
+```bash
+ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null || true)
+```
+
+Set `DISPATCH_ISOLATION=true` when `ISOLATION_ENABLED` equals `true`; otherwise `DISPATCH_ISOLATION=false`. All sub-agent dispatches (Phase 2, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 10, Validation Mode) must pass `isolation: "worktree"` when `DISPATCH_ISOLATION=true`. Apply consistently — do not mix isolated and non-isolated dispatches within the same session.
+
 **Read validation loop config** — load `debug.max_fix_validate_cycles` from project config:
 
 ```bash
@@ -688,6 +696,8 @@ Environment: <CI failure | staging | local — from triage report>
 ### File Ownership Context
 {file_ownership_context}
 ```
+
+Add `isolation: "worktree"` to each Task dispatch when `DISPATCH_ISOLATION=true` (set during Step 1 per `plugins/dso/skills/shared/prompts/worktree-dispatch.md`). Also pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the dispatch prompt so sub-agents can verify isolation.
 
 **Cluster invocation** (for multiple related bugs in a cluster, resolved together):
 ```

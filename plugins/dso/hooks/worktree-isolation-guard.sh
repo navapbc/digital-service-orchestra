@@ -31,6 +31,27 @@ print(isolation)
 " 2>/dev/null) || true
 
 if [[ "$HAS_ISOLATION" == "worktree" ]]; then
+    # Check for auth marker files before denying.
+    # Format: /tmp/worktree-isolation-authorized-* containing a PID.
+    _AUTHORIZED=0
+    for _MARKER in /tmp/worktree-isolation-authorized-*; do
+        # Skip glob literal when no files match
+        [[ -f "$_MARKER" ]] || continue
+        _MARKER_PID=$(cat "$_MARKER" 2>/dev/null) || continue
+        if kill -0 "$_MARKER_PID" 2>/dev/null; then
+            # PID is alive — this is a valid authorization
+            _AUTHORIZED=1
+        else
+            # PID is dead — stale marker; clean it up
+            rm -f "$_MARKER" 2>/dev/null || true
+        fi
+    done
+
+    if [[ "$_AUTHORIZED" -eq 1 ]]; then
+        # Valid auth marker present — allow
+        exit 0
+    fi
+
     cat <<'EOF'
 {
   "hookSpecificOutput": {

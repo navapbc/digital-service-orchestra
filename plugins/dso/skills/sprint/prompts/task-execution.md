@@ -1,6 +1,21 @@
 ## Task
 Ticket ID: {id}
 
+### Pre-Step: Git Root Verification (isolation:worktree only)
+
+If `ORCHESTRATOR_ROOT` is set in this prompt (injected by the orchestrator when `worktree.isolation_enabled=true`), verify your working directory root differs from the orchestrator's root before doing anything else:
+
+```bash
+SUB_AGENT_ROOT=$(git rev-parse --show-toplevel)
+if [ "$SUB_AGENT_ROOT" = "$ORCHESTRATOR_ROOT" ]; then
+  echo "ERROR: Sub-agent git root matches orchestrator root — isolation not in effect" >&2
+  exit 1
+fi
+echo "Git root verified: $SUB_AGENT_ROOT (differs from orchestrator root: $ORCHESTRATOR_ROOT)"
+```
+
+If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and continue.
+
 ### Instructions
 1. Run `.claude/scripts/dso ticket show {id}` to read your full task description and acceptance criteria
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 1/6: Task context loaded ✓"`
@@ -70,7 +85,13 @@ This governs when you must stop and ask versus proceed with your best judgment.
 ### Rules
 Read and follow `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format). Key points:
 - DO write checkpoint notes after each substep: `.claude/scripts/dso ticket comment {id} "CHECKPOINT N/6: ..."`
-- Do NOT: git commit, git push, .claude/scripts/dso ticket transition, .claude/scripts/dso ticket link, slash-commands, nested Task calls
+- Sub-agents must NOT commit, push, or run any commit-related command. Prohibited actions include:
+  - `git commit` (any form, including `git commit --amend`)
+  - `/dso:commit` skill invocation
+  - `git push` or `git push --force`
+  - Any command that writes to git history
+  - `.claude/scripts/dso ticket transition` or `.claude/scripts/dso ticket link`
+  - Slash-commands or nested Task calls
 - You MAY run: .claude/scripts/dso ticket create bug "<title>" --parent=<parent-id> (for discovered bugs/defects only)
 - Your task ends at step 9 (Report output) — the orchestrator handles commits and issue lifecycle
 
