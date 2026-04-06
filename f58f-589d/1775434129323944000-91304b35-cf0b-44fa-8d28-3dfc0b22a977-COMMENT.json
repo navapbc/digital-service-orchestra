@@ -1,0 +1,1 @@
+{"timestamp": 1775434129323944000, "uuid": "91304b35-cf0b-44fa-8d28-3dfc0b22a977", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Classification: llm-behavioral. Ticket references agent model ID guessing behavior AND affected file is skill prompts. Dual-signal detected."}}
