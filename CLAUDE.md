@@ -14,7 +14,7 @@
 |--------|---------|
 | Onboard a new project | `/dso:onboarding` |
 | Scaffold enforcement | `/dso:architect-foundation` |
-| Run epics end-to-end | `/dso:sprint` |
+| Run primary tickets end-to-end | `/dso:sprint` |
 | Feature ideation to epic spec | `/dso:brainstorm` |
 | Epic decomposition into stories | `/dso:preplanning` |
 | Story to task breakdown | `/dso:implementation-plan` |
@@ -133,7 +133,7 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 2. **CLAUDE.md is for agent instructions, rules, and command references — not feature descriptions.** Feature and implementation documentation belongs in codebase-overview (consuming projects use `.claude/docs/DOCUMENTATION-GUIDE.md`).
 
 ### Always Do These
-1. **Use `/dso:sprint` for epics** — it runs `validate.sh --ci` automatically. For bug fixes, use `/dso:fix-bug`.
+1. **Use `/dso:sprint` for primary tickets** — it runs `validate.sh --ci` automatically. For bug fixes, use `/dso:fix-bug`.
 2. **Formatting runs automatically** via PostToolUse hook on `.py` edits (ruff). If a hook failure is reported, run `make format` manually.
 3. **Create tracking issues** for ALL failures discovered, even "infrastructure" ones.
 4. **Use the correct review tool:**
@@ -159,7 +159,7 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 
 **Worktree session setup**: See `plugins/dso/docs/WORKTREE-GUIDE.md` (Session Setup section).
 
-**Epics**: Use `/dso:sprint` — it runs `plugins/dso/scripts/validate.sh --ci` automatically and blocks until the codebase is healthy.
+**Primary tickets**: Use `/dso:sprint` — it runs `plugins/dso/scripts/validate.sh --ci` automatically and blocks until the codebase is healthy.
 **Bug fixes**: Use `/dso:fix-bug` — TDD-based; investigates before fixing.
 **Docs, research**: Start directly. Validation runs at commit time for code changes (skipped for docs-only commits).
 **Before `/dso:debug-everything`**: Run `plugins/dso/scripts/estimate-context-load.sh debug-everything`. If static load >10,000 tokens, trim `MEMORY.md` before starting to avoid premature compaction.

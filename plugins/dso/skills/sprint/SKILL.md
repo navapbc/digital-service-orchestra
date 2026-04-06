@@ -64,15 +64,15 @@ Flow: P1 (Init) → Preplanning Gate
 
 ---
 
-## Phase 1: Initialization & Epic Selection (/dso:sprint)
+## Phase 1: Initialization & Primary Ticket Selection (/dso:sprint)
 
 ### Parse Arguments
 
-- `<epic-id>`: The ticket epic to execute
+- `<primary-ticket-id>`: The primary ticket to execute (any type: epic, story, task, or bug)
 - `--dry-run`: Output batch plan without executing any sub-agents
-- `--resume`: Resume interrupted epic (skip to Phase 3 Batch Preparation)
+- `--resume`: Resume interrupted primary ticket (skip to Phase 3 Batch Preparation)
 
-### If No Epic ID Provided
+### If No Primary Ticket ID Provided
 
 1. Run the epic discovery script:
    ```bash
@@ -122,12 +122,57 @@ Flow: P1 (Init) → Preplanning Gate
 3. Ask the user: "Enter the number or epic ID to execute:" and wait for their text input
 4. Map the user's response (number or epic ID) back to the corresponding epic and proceed
 
-### Validate Epic
+### Validate Primary Ticket
 
-1. Run `.claude/scripts/dso ticket show <epic-id>` — confirm it is type `epic` and status is `open` or `in_progress`
-2. Run `.claude/scripts/dso ticket deps <epic-id>` — if 100% complete, skip to Phase 6 (validation)
-3. Mark epic in-progress: `.claude/scripts/dso ticket transition <epic-id> in_progress`
-4. Mark the **Select and validate epic** todo item `completed`.
+Set `primary_ticket_id = <the resolved ticket ID>`.
+
+1. Run `.claude/scripts/dso ticket show <primary_ticket_id>` — confirm status is `open` or `in_progress` (any ticket type is accepted)
+2. Run `.claude/scripts/dso ticket deps <primary_ticket_id>` — if 100% complete, skip to Phase 6 (validation)
+3. Mark ticket in-progress: `.claude/scripts/dso ticket transition <primary_ticket_id> in_progress`
+4. Mark the **Select and validate primary ticket** todo item `completed`.
+
+**Non-epic routing**: After validation, check the ticket type and route accordingly:
+
+| Ticket type | Route |
+|-------------|-------|
+| `epic` | Continue to Drift Detection → Preplanning Gate (standard flow) |
+| `bug` | Dispatch `/dso:fix-bug` as sub-skill (SC4) — see Bug Routing below |
+| `story` or `task` | Run complexity evaluation then optional `/dso:implementation-plan` (SC1) — see Non-Epic Routing below |
+
+#### Bug Routing (SC4)
+
+<!-- REVIEW-DEFENSE: Finding 3 — The absence of an explicit ORCHESTRATOR_RESUME fence here is intentional.
+     SC4 is a terminal routing path: the sprint orchestrator exits after fix-bug completes (step 4 proceeds directly
+     to Phase 8 Session Close). There is no sprint phase to resume into after fix-bug returns, so the ORCHESTRATOR_RESUME
+     pattern (which guards against fix-bug's own termination directives overriding the caller) is not applicable.
+     The fix-bug skill's SUB-AGENT-GUARD handles nested sub-agent context as designed per the epic's success criteria. -->
+When ticket type is `bug`:
+
+1. Log: `"Primary ticket <primary_ticket_id> is a bug — dispatching /dso:fix-bug."`
+2. Emit SKILL_INVOKE breadcrumb then invoke `/dso:fix-bug <primary_ticket_id>` via Skill tool.
+3. Emit SKILL_RESUMED breadcrumb after the skill returns.
+4. Exit Phase 1 and proceed to Phase 8 (Session Close). Do not continue to the Preplanning Gate or Phase 2.
+
+#### Non-Epic Routing (SC1)
+
+When ticket type is `story` or `task`:
+
+1. Log: `"Primary ticket <primary_ticket_id> is a <type> — running complexity evaluation."`
+2. Dispatch `subagent_type: dso:complexity-evaluator` (model: haiku) with `tier_schema=TRIVIAL` to classify the ticket.
+3. Route based on the complexity classification:
+   - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Proceed directly to Phase 3 (Batch Preparation) with the ticket as the sole task.
+   - **TRIVIAL (medium)** or **MODERATE/COMPLEX (any)**: Invoke `/dso:implementation-plan <primary_ticket_id>` via Skill tool.
+<!-- REVIEW-DEFENSE: Finding — "TRIVIAL (medium) treated as MODERATE but evaluator contract says medium→COMPLEX."
+     The TRIVIAL (medium) branch is a deliberate routing policy decision, not a contract violation. The
+     complexity-evaluator contract describes the evaluator's *output* classification space; it does not govern
+     sprint orchestrator routing policy. The evaluator may or may not promote TRIVIAL(medium) to COMPLEX
+     depending on version and context — what matters here is the routing outcome. Both TRIVIAL(medium) and
+     MODERATE/COMPLEX(any) are collapsed into a single branch that routes to /dso:implementation-plan, which
+     is correct in both cases. This mirrors the pre-existing epic routing table (Phase 1 Step 2b, same file),
+     which uses the same TRIVIAL(medium)→lightweight-preplanning pattern by design. If the evaluator contract
+     guarantees TRIVIAL(medium) is never emitted, this branch is harmlessly unreachable and causes no
+     incorrect behavior — the routing table remains correct for all reachable inputs. -->
+4. After routing, continue to Phase 3. Non-epics **skip** the Preplanning Gate and proceed directly to Phase 3.
 
 ### Drift Detection Check
 
@@ -142,6 +187,10 @@ max_replan_cycles = read_config("sprint.max_replan_cycles", default=2)
 
 **Run the drift check:**
 
+<!-- REVIEW-DEFENSE: Finding 1 — `<epic-id>` here is a SKILL.md instruction placeholder, not a literal string.
+     The orchestrator substitutes the actual primary ticket ID at runtime, consistent with the placeholder convention
+     used throughout this file (Phase 2, Phase 5, Phase 7, Phase 8, etc.). Renaming all occurrences from <epic-id>
+     to <primary_ticket_id> is tracked in task 6450-ce70 which handles the broader Phase naming migration. -->
 ```bash
 DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
 ```
@@ -168,6 +217,59 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
 **If `NO_DRIFT`:**
 
 Log: `"No codebase drift detected — proceeding to Preplanning Gate."` Continue normally.
+
+### Clarity Gate
+
+The Clarity Gate is a three-layer check that runs **for epic-typed tickets only** before entering the Preplanning Gate. It prevents sprint execution from starting when the ticket intent is unclear.
+
+**CHECKPOINT: clarity-gate-start** — record this before running the gate.
+
+#### Layer 1: Structural Clarity Check
+
+Run the ticket clarity check script:
+
+```bash
+.claude/scripts/dso ticket-clarity-check.sh <primary_ticket_id>
+```
+
+Parse the result:
+- **Exit 0 (CLEAR)**: ticket passes structural check; proceed to Layer 2.
+- **Exit 1 (UNCLEAR)**: log the reason; proceed to User Escalation (Layer 3).
+- **Exit 2 (ERROR/ABSENT)**: script is missing or encountered an error; emit a warning (`"ticket-clarity-check.sh unavailable — falling through to Layer 2"`); proceed to Layer 2 (fail-open).
+
+#### Layer 2: Scope Certainty Assessment
+
+Dispatch `dso:complexity-evaluator` (model: haiku) with the primary ticket context to evaluate `scope_certainty`:
+
+```
+subagent_type: dso:complexity-evaluator
+model: haiku
+input:
+  ticket_id: <primary_ticket_id>
+  tier_schema: SIMPLE
+```
+
+Parse `scope_certainty` from the evaluator's JSON output:
+
+- **`High` or `Medium`**: proceed to Preplanning Gate.
+- **`Low`**: proceed to User Escalation (Layer 3).
+- **Unrecognized value**: treat as `Low` — proceed to User Escalation (Layer 3).
+- **Agent unavailability** (timeout, dispatch failure, API key absent): log `"WARNING: complexity-evaluator unavailable — falling through to Layer 3."` and proceed to User Escalation (Layer 3).
+
+#### Layer 3: User Escalation (AskUserQuestion)
+
+When either Layer 1 or Layer 2 signals low clarity, present options via AskUserQuestion:
+
+> "The primary ticket `<primary_ticket_id>` has low clarity. How would you like to proceed?
+>
+> (a) Run `/dso:fix-bug` if this is actually a defect
+> (b) Run `/dso:brainstorm` to enrich the ticket before executing
+> (c) Proceed anyway with the current ticket as-is"
+
+Wait for user response and route accordingly:
+- **(a) fix-bug**: dispatch `/dso:fix-bug <primary_ticket_id>`, then exit to Phase 8.
+- **(b) brainstorm**: invoke `/dso:brainstorm <primary_ticket_id>` via Skill tool, then re-enter Preplanning Gate.
+- **(c) proceed**: log `"User elected to proceed with low-clarity ticket."`, continue to Preplanning Gate.
 
 ### Context Efficiency Rules
 
@@ -199,7 +301,9 @@ Log: `"No codebase drift detected — proceeding to Preplanning Gate."` Continue
    - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `.claude/scripts/dso ticket transition <id> open` for full re-execution
    - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
 4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
-5. Proceed to Phase 3
+5. **Backward compatibility**: Sprint reads old positional-counter checkpoints (CHECKPOINT N/6) without error and resumes from the last completed phase — no migration of existing checkpoint notes is required. Semantic-named checkpoints (CHECKPOINT:batch-complete, CHECKPOINT:review-passed, CHECKPOINT:validation-passed) are equivalent in resume logic.
+<!-- REVIEW-DEFENSE finding-2: The resume rules intentionally retain positional-counter format only (CHECKPOINT 6/6, 5/6, 3/6, 1/6). SC5 states semantic checkpoints are "equivalent in resume logic" — meaning the existing positional rules apply to them without adding duplicate semantic-specific rules. An agent encountering CHECKPOINT:batch-complete treats it as equivalent to CHECKPOINT 6/6 (complete), CHECKPOINT:review-passed as equivalent to CHECKPOINT 5/6, and CHECKPOINT:validation-passed as equivalent to CHECKPOINT 6/6. No new resume rules are required; the backward-compat clause is sufficient. -->
+6. Proceed to Phase 3
 
 ### Preplanning Gate
 
@@ -966,7 +1070,8 @@ context:
   ```
   TASK_ID: <task_id>
   STORY_ID: <story_id>
-  EPIC_ID: <epic_id>
+  EPIC_ID: <primary_ticket_id>
+  PRIMARY_TICKET_ID: <primary_ticket_id>
   TASK_DESCRIPTION: <task_description>
   IN_PROGRESS_TASKS: <comma-separated task_ids or "none">
   CLOSED_TASKS: <comma-separated task_ids or "none">
@@ -1300,10 +1405,15 @@ For each task in the batch, write checkpoint-format notes for crash recovery:
 
 | Outcome | Command |
 |---------|---------|
-| Success | `.claude/scripts/dso ticket comment <id> "CHECKPOINT 6/6: Done ✓ — Files: <files created/modified>. Tests: pass."` |
-| Failure | `.claude/scripts/dso ticket comment <id> "CHECKPOINT <N>/6: Failed — <error summary>. Files modified: <files>. Resume from: <what remains>."` |
+| Success | `.claude/scripts/dso ticket comment <id> "CHECKPOINT:batch-complete — Done ✓ — Files: <files created/modified>. Tests: pass."` |
+| Failure (pre-review) | `.claude/scripts/dso ticket comment <id> "CHECKPOINT:implementation-done — Failed at review — <error summary>. Files modified: <files>. Resume from: review."` |
+| Failure (post-review) | `.claude/scripts/dso ticket comment <id> "CHECKPOINT:review-passed — Failed at validation — <error summary>. Resume from: validation."` |
 
-The checkpoint number on failure should reflect the last successfully completed substep.
+Use semantic checkpoint names to describe progress phase:
+- `CHECKPOINT:implementation-done` — code written, not yet reviewed
+- `CHECKPOINT:review-passed` — code reviewed, not yet validated
+- `CHECKPOINT:validation-passed` — batch validation passed
+- `CHECKPOINT:batch-complete` — all substeps done
 
 ### Step 9: Handle Failures (/dso:sprint)
 
@@ -1512,7 +1622,7 @@ Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
 
 ---
 
-## Phase 6: Post-Epic Validation (/dso:sprint)
+## Phase 6: Post-Primary Ticket Validation (/dso:sprint)
 
 **Triggered when**: all child tasks are closed (or all remaining are failed/blocked).
 
@@ -1602,7 +1712,7 @@ Read and execute `prompts/remediation-loop.md` for the full remediation protocol
 
 ---
 
-## Phase 8: Session Close (/dso:sprint)
+## Phase 8: Primary Ticket Closure (/dso:sprint)
 
 Phase 8 delegates to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh`, and reporting.
 
@@ -1640,9 +1750,9 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
    ```
 4. Update ALL in-progress tasks with checkpoint-format progress notes:
    ```bash
-   .claude/scripts/dso ticket comment <id> "CHECKPOINT <N>/6: SESSION_END — Progress: <summary>. Next: <what remains>."
+   .claude/scripts/dso ticket comment <id> "CHECKPOINT:<phase-name>:SESSION_END — Progress: <summary>. Next: <what remains>."
    ```
-   Use the highest checkpoint number actually reached.
+   Use the highest semantic checkpoint name actually reached (e.g., `CHECKPOINT:implementation-done:SESSION_END`, `CHECKPOINT:review-passed:SESSION_END`, `CHECKPOINT:validation-passed:SESSION_END`).
 5. Set sprint context for `/dso:end-session` report:
    - Tasks completed this session
    - Tasks remaining (with IDs and titles)

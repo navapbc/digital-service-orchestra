@@ -332,22 +332,32 @@ if [ -f "$STATE_FILE" ]; then
         fi
 
         if [ "$_hash_ok" -eq 1 ] && [ "$_ttl_ok" -eq 1 ]; then
-            # Resume: read completed tests
+            # Resume: read completed tests, filtering out interrupted entries.
+            # Use a single python3 call to parse the entire state at once —
+            # avoids O(N) subprocess spawns (one per entry) that caused >15s
+            # overhead with large completed lists (root cause of exit 144 / SIGURG).
             RESUME_MODE=1
-            RESULTS_JSON=$(_state_read_field "$STATE_FILE" "results") || RESULTS_JSON="{}"
-            _completed_raw=$(_state_read_field "$STATE_FILE" "completed") || true
-            if [ -n "$_completed_raw" ]; then
-                while IFS= read -r line; do
-                    # Skip interrupted tests so they are re-run on resume
-                    if [ -n "$line" ]; then
-                        _result=$(python3 -c "
+            _resume_data=$(python3 -c "
 import json, sys
-results = json.loads(sys.argv[1])
-print(results.get(sys.argv[2], ''))
-" "$RESULTS_JSON" "$line" 2>/dev/null) || _result=""
-                        [ "$_result" != "interrupted" ] && COMPLETED_LIST+=("$line")
-                    fi
-                done <<< "$_completed_raw"
+try:
+    d = json.load(open(sys.argv[1]))
+    results = d.get('results', {})
+    completed = d.get('completed', [])
+    results_json = json.dumps(results)
+    # Print results JSON on first line, then one completed ID per line (non-interrupted only)
+    print(results_json)
+    for item in completed:
+        if results.get(item, '') != 'interrupted':
+            print(item)
+except Exception:
+    pass
+" "$STATE_FILE" 2>/dev/null) || _resume_data=""
+            if [ -n "$_resume_data" ]; then
+                # First line is the results JSON; remaining lines are completed IDs
+                RESULTS_JSON=$(echo "$_resume_data" | head -1)
+                while IFS= read -r line; do
+                    [ -n "$line" ] && COMPLETED_LIST+=("$line")
+                done < <(echo "$_resume_data" | tail -n +2)
             fi
             echo "Resuming from state file: $STATE_FILE"
             echo "Already completed: ${#COMPLETED_LIST[@]} tests"
