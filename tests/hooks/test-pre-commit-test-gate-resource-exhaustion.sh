@@ -103,7 +103,7 @@ write_resource_exhaustion_status() {
     local artifacts_dir="$1"
     local diff_hash="$2"
     mkdir -p "$artifacts_dir"
-    printf 'resource_exhaustion\ndiff_hash=%s\ntimestamp=2026-04-05T00:00:00Z\ntested_files=tests/test_example.py\n' \
+    printf 'resource_exhaustion\ndiff_hash=%s\ntimestamp=2026-04-05T00:00:00Z\ntested_files=tests/test_widget.py\n' \
         "$diff_hash" > "$artifacts_dir/test-gate-status"
 }
 
