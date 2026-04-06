@@ -240,3 +240,62 @@ tests:
           intent_search_budget. The output must NOT skip intent-search dispatch for this
           untagged ticket. Any response that skips intent-search for a ticket without
           the CLI_user tag fails this rubric.
+
+  - description: "Worktree isolation enabled: sub-agent dispatch includes isolation:worktree"
+    vars:
+      prompt: |
+        Bug ticket context:
+        Bug ticket ID: BUG-7741
+        Title: Dashboard crashes on load when user has no prior sessions
+        Tags: (none)
+        Description: Unhandled NullPointerException in src/dashboard/loader.py:34.
+        Reproducible in staging. Medium severity.
+
+        The project's dso-config.conf is:
+        worktree.isolation_enabled=true
+
+        You are at Step 3: dispatch the investigation sub-agent. List the exact
+        parameters you include in the Agent dispatch call. Does your dispatch
+        include an isolation parameter? If so, what is its value?
+    assert:
+      - type: llm-rubric
+        value: >
+          The fix-bug skill instructions must cause the agent to dispatch the
+          investigation sub-agent with isolation set to "worktree" when
+          worktree.isolation_enabled=true is present in the project config.
+          The output PASSES if it mentions passing isolation: "worktree",
+          isolation_mode: "worktree", or equivalent worktree isolation semantics
+          as part of the sub-agent dispatch call.
+          The output FAILS if the isolation parameter is absent or set to a non-worktree
+          value (e.g., none, false, shared). This tests whether the fix-bug skill
+          instructions document the worktree isolation dispatch behavior — which they
+          currently do not.
+
+  - description: "Worktree isolation disabled: sub-agent dispatch does NOT include isolation:worktree"
+    vars:
+      prompt: |
+        Bug ticket context:
+        Bug ticket ID: BUG-8812
+        Title: Export CSV produces garbled output for Unicode filenames
+        Tags: (none)
+        Description: CSV export encodes filenames incorrectly when they contain
+        non-ASCII characters. Reproducible locally. Low severity.
+
+        The project's dso-config.conf is:
+        worktree.isolation_enabled=false
+
+        You are at Step 3: dispatch the investigation sub-agent. List the exact
+        parameters you include in the Agent dispatch call. Does your dispatch
+        include an isolation parameter? If so, what is its value?
+    assert:
+      - type: llm-rubric
+        value: >
+          The fix-bug skill instructions must cause the agent NOT to dispatch with
+          isolation: "worktree" when worktree.isolation_enabled=false is set in the
+          project config. The output PASSES if it omits the worktree isolation
+          parameter entirely, or explicitly uses the shared-directory / non-isolated
+          default (e.g., no isolation key, isolation: none, isolation: false).
+          The output FAILS if it includes isolation: "worktree" or "worktree isolation"
+          when the config explicitly disables worktree isolation. This tests whether
+          the fix-bug skill instructions document the conditional worktree isolation
+          behavior — which they currently do not.

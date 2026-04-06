@@ -39,7 +39,7 @@ prompts:
 tests:
   - description: "Gap classification: detects intent_gap when SC contradicts closed architectural decision"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
     vars:
       prompt: >
         Sprint Phase 7 receives a failing SC: 'Users can authenticate via Google OAuth'.
@@ -58,7 +58,7 @@ tests:
 
   - description: "Gap classification: detects implementation_gap when SC has partial implementation"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
     vars:
       prompt: >
         Sprint Phase 7 receives a failing SC: 'Export button downloads data as CSV'.
@@ -77,7 +77,7 @@ tests:
 
   - description: "Drift detection: orchestrator checks file impact drift at sprint entry"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
     vars:
       prompt: >
         You are about to begin sprint execution on epic auth-4f2a, which has 3 open tasks.
@@ -97,7 +97,7 @@ tests:
 
   - description: "Confidence signal: double UNCERTAIN routes task to implementation-plan"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
     vars:
       prompt: >
         You are the sprint orchestrator in Phase 5 post-batch processing.
@@ -121,7 +121,7 @@ tests:
 
   - description: "Story validation failure: all tasks closed but validation fails triggers remediation via TDD"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
     vars:
       prompt: >
         You are the sprint orchestrator in Phase 6 (story closure).
@@ -144,7 +144,7 @@ tests:
 
   - description: "Out-of-scope review feedback: accepted findings for files outside task scope route to implementation-plan between batches"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
     vars:
       prompt: >
         You are the sprint orchestrator in Phase 5 post-batch processing.
@@ -169,7 +169,7 @@ tests:
 
   - description: "Non-interactive mode: brainstorm escalation deferred via INTERACTIVITY_DEFERRED"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
     vars:
       prompt: >
         You are the sprint orchestrator running in non-interactive mode (no user present).
@@ -212,3 +212,53 @@ tests:
           3. Offers the user options including route to brainstorm, proceed as-is, or abort
           4. Records or mentions REPLAN_TRIGGER: review before presenting to user
           5. Does NOT silently discard the REPLAN_ESCALATE signal or proceed without user input
+
+  - description: "Worktree isolation dispatch: when worktree.isolation_enabled=true, Phase 4 sub-agents are dispatched with isolation:worktree"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the sprint orchestrator entering Phase 4 (sub-agent dispatch) for epic
+        payments-epic-7a2b. The dso-config.conf contains worktree.isolation_enabled=true.
+        You have 3 ready tasks: task-pay-01, task-pay-02, task-pay-03 — all grouped into
+        a single batch of 3 parallel sub-agents.
+        Describe how you dispatch each sub-agent, including what isolation parameters or
+        context you pass to each Agent tool call. Show the dispatch configuration you would
+        use for each sub-agent in this batch.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Includes isolation:worktree (or equivalent worktree isolation parameter) in the
+             Agent dispatch configuration for the sub-agents
+          2. Indicates each sub-agent runs in an isolated worktree environment (not a shared
+             directory) — may use phrasing like "isolation: worktree", "worktree isolation",
+             "isolated worktree context", or equivalent
+          3. Mentions that worktree.isolation_enabled=true is the trigger for this dispatch mode
+          4. Dispatches all 3 tasks as parallel sub-agents (batch of 3)
+          5. Does NOT use shared-directory or non-isolated dispatch mode when isolation is enabled
+
+  - description: "Worktree isolation dispatch (negative): when worktree.isolation_enabled=false, sprint uses shared-directory fallback — NOT isolation:worktree"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the sprint orchestrator entering Phase 4 (sub-agent dispatch) for epic
+        payments-epic-7a2b. The dso-config.conf contains worktree.isolation_enabled=false.
+        You have 3 ready tasks: task-pay-01, task-pay-02, task-pay-03 — all grouped into
+        a single batch of 3 parallel sub-agents.
+        Describe how you dispatch each sub-agent, including what isolation parameters or
+        context you pass to each Agent tool call. Show the dispatch configuration you would
+        use for each sub-agent in this batch.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Does NOT include isolation:worktree or worktree isolation parameters in the
+             sub-agent dispatch — worktree isolation must NOT be used when disabled
+          2. Uses shared-directory mode, standard dispatch, or no isolation parameter (the
+             fallback behavior when worktree.isolation_enabled=false)
+          3. Indicates that isolation_enabled=false (or absent) means sub-agents share the
+             working directory, NOT isolated worktrees
+          4. Dispatches all 3 tasks as parallel sub-agents (batch of 3)
+          5. Does NOT apply worktree isolation parameters when the config disables isolation
