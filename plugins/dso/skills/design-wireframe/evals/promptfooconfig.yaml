@@ -228,6 +228,30 @@ tests:
           6. Tags or describes tagging the story ticket with design:awaiting_import
              after producing the design artifacts
 
+  - description: "Figma opt-out: design.figma_collaboration absent produces no Figma artifacts"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are processing story STORY-8801: "Add a new dashboard widget that displays
+        active user count with a sparkline chart." The project config does NOT have
+        design.figma_collaboration set (the flag is absent). Describe what design
+        artifacts you produce and whether you apply any Figma-specific steps.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Does NOT apply Figma collaboration mode — the design.figma_collaboration
+             flag is absent, so all Figma logic must be skipped entirely
+          2. Does NOT mention adding *.png to a .gitignore file
+          3. Does NOT tag or describe tagging the story with design:awaiting_import
+          4. Does NOT describe adding Figma import instructions as a ticket comment
+          5. Does NOT mention SVG requirements specific to Figma import (e.g. inline
+             styles only, semantic <g> group IDs matching spatial-layout.json,
+             SVG 1.1 targeting for Figma compatibility)
+          6. Produces standard design output (Design Brief for Lite track or Design
+             Manifest for Full track) without any Figma-specific augmentation
+
   - description: "Lite self-review: brief covers all acceptance criteria before finalizing"
     options:
       provider: "anthropic:messages:claude-haiku-4-5-20251001"
