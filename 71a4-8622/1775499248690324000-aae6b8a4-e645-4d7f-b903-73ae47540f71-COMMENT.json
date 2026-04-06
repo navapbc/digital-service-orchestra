@@ -1,1 +1,0 @@
-{"timestamp": 1775499248690324000, "uuid": "aae6b8a4-e645-4d7f-b903-73ae47540f71", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 6/6: Done \u2713 Self-check: bash plugins/dso/scripts/read-config.sh design.figma_staleness_days \u2192 7"}}
