@@ -1,1 +1,0 @@
-{"timestamp": 1775433228408903000, "uuid": "87c2358c-f4f1-4f4f-9915-f774be2d80ba", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Classification: llm-behavioral. Ticket references agent behavior (rationalizes skipping) AND affected file is docs/workflows/COMMIT-WORKFLOW.md. Dual-signal detected."}}
