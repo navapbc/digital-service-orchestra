@@ -194,6 +194,31 @@ When running in a worktree:
 - `.claude/` and `scripts/` always live at `$(git rev-parse --show-toplevel)` — never relative to CWD
 - Memory files are at `~/.claude/projects/<encoded-worktree-path>/memory/`
 
+### Worktree Isolation (`isolation: worktree`)
+
+When a sub-agent is launched with `isolation: worktree`, the framework creates a dedicated per-agent worktree. Sub-agents in this mode:
+
+**Must NOT commit in worktrees (implement only)**:
+- Sub-agents with `isolation: worktree` are workers — they implement code changes only
+- All git commits are prohibited; the orchestrator handles all commits after reviewing the work
+- This ensures review/test state is validated before any commit enters the branch history
+
+**Allowlist replaces categorical block**:
+- The blanket prohibition on `isolation: worktree` for code-review and fix-resolution sub-agents (see Prohibited Actions above) is replaced by a per-agent allowlist
+- Agents on the authorized worktree isolation allowlist may receive `isolation: worktree` when the orchestrator explicitly configures it
+- Code-review sub-agents (`dso:code-reviewer-*`) and fix-resolution sub-agents remain categorically blocked from worktree isolation — they require `reviewer-findings.json` and `write-reviewer-findings.sh` to be present in the shared orchestrator directory
+
+**Artifact isolation semantics**:
+- `ARTIFACTS_DIR` resolves per-worktree using a hash of `REPO_ROOT`
+- Compute: `source ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh && get_artifacts_dir`
+- Each per-agent worktree gets its own artifact namespace; artifacts do NOT bleed across worktrees
+- Discovery files written to `$ARTIFACTS_DIR/agent-discoveries/<task-id>.json` are scoped to the worktree
+
+**Review/test state flows through worktree ARTIFACTS_DIR**:
+- Test status records written by `record-test-status.sh` use the worktree-scoped `ARTIFACTS_DIR`
+- Review outcomes written by `record-review.sh` are also scoped per-worktree via `ARTIFACTS_DIR`
+- The orchestrator collects state from each sub-agent's worktree `ARTIFACTS_DIR` after the agent returns; state is never shared directly between concurrent per-agent worktrees
+
 ## Model Selection
 
 | Model | Use for |

@@ -36,16 +36,19 @@ The `.claude/scripts/dso worktree-setup-env.sh` script detects Python 3.13 (Home
 
 ### Worktree Location Conventions
 
-This project uses two worktree location conventions depending on how the session is launched:
+This project uses three worktree location conventions depending on how the session is launched:
 
 | Convention | Path Pattern | Created By |
 |------------|-------------|------------|
 | `claude-safe` (recommended for humans) | `../<repo-name>-worktrees/worktree-YYYYMMDD-HHMMSS` | `claude-safe` wrapper or `git worktree add` |
 | Claude Code built-in (agents) | `.claude/worktrees/agent-<id>` | Claude Code task/sub-agent framework |
+| Per-agent isolation (`isolation: worktree`) | `.claude/worktrees/agent-<task-id>-<timestamp>` | `/dso:sprint` orchestrator when `isolation: worktree` is set |
 
 The `claude-safe` convention places worktrees **outside** the main repo to prevent Claude Code from double-loading CLAUDE.md. The Claude Code built-in convention places worktrees inside `.claude/worktrees/` within the project; these are managed automatically by the Claude Code framework and should not be edited manually.
 
-In both cases, hooks and scripts must locate sibling files via `$CLAUDE_PLUGIN_ROOT` or `$(git rev-parse --show-toplevel)` — never via hardcoded absolute paths.
+Per-agent worktrees (see [Per-Agent Worktree Isolation](#per-agent-worktree-isolation) below) are created by the `/dso:sprint` orchestrator to give each implementation sub-agent its own isolated branch during parallel story execution.
+
+In all cases, hooks and scripts must locate sibling files via `$CLAUDE_PLUGIN_ROOT` or `$(git rev-parse --show-toplevel)` — never via hardcoded absolute paths.
 
 ### Automatic Setup (via `claude-safe`)
 
@@ -539,6 +542,78 @@ git worktree remove feature-auth
 # Pull the merged changes
 git pull
 ```
+
+---
+
+## Per-Agent Worktree Isolation
+
+### Overview
+
+When `/dso:sprint` dispatches implementation sub-agents with `isolation: worktree`, each agent receives its own dedicated worktree rather than operating in the shared orchestrator directory. This prevents concurrent agents from overwriting each other's in-progress files.
+
+Per-agent worktrees are created automatically by the orchestrator before each batch dispatch and are distinct from the `claude-safe` human worktrees and the Claude Code built-in agent worktrees.
+
+### Worktree Lifecycle: create → implement → review → commit → merge → cleanup
+
+```
+1. create     Orchestrator runs: git worktree add .claude/worktrees/agent-<task-id>-<ts> -b agent/<task-id>
+2. implement  Sub-agent works in the per-agent worktree. Writes code, runs tests. Does NOT commit.
+3. review     Orchestrator dispatches dso:code-reviewer-* in the shared (non-isolated) directory,
+              passing the diff from the per-agent worktree for review.
+4. commit     Orchestrator (not the sub-agent) commits approved changes to the worktree branch.
+5. merge      Orchestrator merges the per-agent branch back into the story branch (or main worktree branch).
+6. cleanup    Orchestrator removes the per-agent worktree: git worktree remove .claude/worktrees/agent-<task-id>-<ts>
+```
+
+### Sub-Agent Rules in Per-Agent Worktrees
+
+Sub-agents running under `isolation: worktree` **must NOT commit** — they implement only:
+
+- Write code changes and run tests (TDD: RED → GREEN)
+- Record checkpoint notes via `.claude/scripts/dso ticket comment`
+- Write discovery files to `$ARTIFACTS_DIR/agent-discoveries/<task-id>.json`
+- Return `STATUS: pass|fail` and `FILES_MODIFIED:` in their final report
+- Do NOT run `git commit`, `git push`, or any commit workflow step
+
+The orchestrator reads the sub-agent's report, dispatches review, then commits on behalf of the sub-agent.
+
+### Artifact Isolation Semantics
+
+Each per-agent worktree gets its own `ARTIFACTS_DIR`, derived from a hash of `REPO_ROOT`:
+
+```bash
+# Compute ARTIFACTS_DIR inside a per-agent worktree (same library as all hooks)
+source ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh && get_artifacts_dir
+```
+
+This means:
+- Test status files (`record-test-status.sh`) are scoped to the agent's worktree
+- Review sentinel files are scoped to the agent's worktree
+- Agent discovery files (`agent-discoveries/<task-id>.json`) are scoped to the agent's worktree
+- Artifacts do NOT bleed between concurrent per-agent worktrees
+
+The orchestrator collects artifacts from each per-agent `ARTIFACTS_DIR` after the agent returns.
+
+### Retention Protocol
+
+Per-agent worktrees are retained until merge is complete:
+
+| State | Action |
+|-------|--------|
+| Sub-agent still running | Worktree retained — never remove a worktree while its agent is active |
+| Sub-agent returned, review pending | Worktree retained — review may need to inspect files in the worktree |
+| Review complete, commit pending | Worktree retained — orchestrator has not yet committed |
+| Commit complete, merge pending | Worktree retained — merge step reads from the worktree branch |
+| Merge complete | Worktree safe to remove — `git worktree remove .claude/worktrees/agent-<task-id>-<ts>` |
+
+After cleanup, the orchestrator deletes the per-agent branch:
+```bash
+git branch -d agent/<task-id>
+```
+
+### Code-Review Sub-Agents Are NOT Isolated
+
+Code-review (`dso:code-reviewer-*`) and fix-resolution sub-agents must NOT receive `isolation: worktree`. They require `reviewer-findings.json` and `write-reviewer-findings.sh` to be present in the shared orchestrator directory. Running them in a per-agent worktree would break the review gate. See `SUB-AGENT-BOUNDARIES.md` for the full prohibition.
 
 ---
 
