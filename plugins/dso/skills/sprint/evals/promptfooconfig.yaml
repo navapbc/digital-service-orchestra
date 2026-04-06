@@ -271,6 +271,32 @@ tests:
           4. Does NOT rely on general reasoning or inference — must cite sprint
              SKILL.md or per-worktree-review-commit.md as the source of this rule
 
+  - description: "Design filter: stories tagged design:awaiting_import are excluded from dispatch and surfaced in Awaiting designer input section"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the sprint orchestrator beginning Phase 2 (Task Analysis) for epic
+        checkout-epic-3b9c. The epic has 4 stories:
+        - story-checkout-01: "As a user, I can complete checkout" (tags: [])
+        - story-checkout-02: "As a user, I can review my cart" (tags: [design:awaiting_import])
+        - story-checkout-03: "As a user, I can apply promo codes" (tags: [design:awaiting_import])
+        - story-checkout-04: "As a user, I can save payment methods" (tags: [])
+        The dso-config.conf contains design.figma_staleness_days=7.
+        Story-checkout-02 and story-checkout-03 are tagged design:awaiting_import,
+        meaning their Figma designs have not yet been imported or finalized.
+        How should the sprint orchestrator handle these stories during Phase 2 task
+        analysis and Phase 4 sub-agent dispatch? What does the status section look like?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Excludes story-checkout-02 and story-checkout-03 from implementation-plan dispatch (does NOT invoke implementation-plan for design:awaiting_import stories)
+          2. Excludes story-checkout-02 and story-checkout-03 from task execution dispatch in Phase 4 (does NOT dispatch sub-agents for those stories)
+          3. Surfaces story-checkout-02 and story-checkout-03 in an "Awaiting designer input" section or status area (uses that phrase or equivalent)
+          4. References the staleness warning using design.figma_staleness_days or mentions the 7-day staleness threshold
+          5. Continues to process story-checkout-01 and story-checkout-04 normally (does NOT block the entire epic)
+
   - description: "Worktree isolation dispatch (negative): when worktree.isolation_enabled=false, sprint uses shared-directory fallback — NOT isolation:worktree"
     options:
       provider: "anthropic:messages:claude-haiku-4-5-20251001"
