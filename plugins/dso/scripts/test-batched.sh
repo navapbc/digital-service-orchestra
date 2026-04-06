@@ -64,6 +64,11 @@ set -uo pipefail
 set -uo pipefail
 set -m  # Enable job control so background jobs get their own process group
 
+# ── Global start time (for tool-timeout-aware budget calculations) ────────────
+# Captured at script entry so runner drivers can account for startup overhead
+# when calculating their time budget relative to the Claude Code tool timeout.
+_SCRIPT_ENTRY_TIME=$(date +%s)
+
 # ── Signal handling ────────────────────────────────────────────────────────────
 # Trap SIGTERM, SIGINT, and SIGURG (exit code 144 from Claude Code tool timeout)
 # to save state before exiting, enabling resume on the next invocation.

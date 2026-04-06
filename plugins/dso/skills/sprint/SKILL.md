@@ -285,7 +285,13 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
    ```
    The skill handles epic type detection and runs inline (no sub-agent dispatch needed).
 
-   > **ORCHESTRATOR_RESUME — You are the sprint orchestrator.** The Skill tool call above has returned. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your next action is: emit the SKILL_RESUMED breadcrumb below, then parse the STATUS line from the skill's output.
+   <ORCHESTRATOR_RESUME>
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Your immediate next actions are:
+   1. Emit the SKILL_RESUMED breadcrumb (step 4 below)
+   2. Parse the STATUS line (step 5 below)
+   3. Continue to Phase 2
+   Stopping here is a known bug (7d7a-b707). Do not stop.
+   </ORCHESTRATOR_RESUME>
 
 4. Emit SKILL_RESUMED breadcrumb:
    ```bash
@@ -491,7 +497,13 @@ b. For each story in the layer, emit SKILL_INVOKE breadcrumb then invoke `/dso:i
    ```
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
 
-   > **ORCHESTRATOR_RESUME — You are the sprint orchestrator.** The Skill tool call above has returned. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your next action is: emit the SKILL_RESUMED breadcrumb below, then parse the STATUS line from the skill's output.
+   <ORCHESTRATOR_RESUME>
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. You have more stories to process in this layer. Your immediate next actions are:
+   1. Emit the SKILL_RESUMED breadcrumb (step c below)
+   2. Parse the STATUS line from the skill's output (step d below)
+   3. Continue to the next story in the layer loop
+   Stopping here is a known bug (7d7a-b707). Do not stop.
+   </ORCHESTRATOR_RESUME>
 
 c. After the skill returns, emit SKILL_RESUMED breadcrumb:
    ```bash
