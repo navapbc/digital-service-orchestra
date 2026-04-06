@@ -292,7 +292,9 @@ Wait for user response and route accordingly:
    - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `.claude/scripts/dso ticket transition <id> open` for full re-execution
    - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
 4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
-5. Proceed to Phase 3
+5. **Backward compatibility**: Sprint reads old positional-counter checkpoints (CHECKPOINT N/6) without error and resumes from the last completed phase — no migration of existing checkpoint notes is required. Semantic-named checkpoints (CHECKPOINT:batch-complete, CHECKPOINT:review-passed, CHECKPOINT:validation-passed) are equivalent in resume logic.
+<!-- REVIEW-DEFENSE finding-2: The resume rules intentionally retain positional-counter format only (CHECKPOINT 6/6, 5/6, 3/6, 1/6). SC5 states semantic checkpoints are "equivalent in resume logic" — meaning the existing positional rules apply to them without adding duplicate semantic-specific rules. An agent encountering CHECKPOINT:batch-complete treats it as equivalent to CHECKPOINT 6/6 (complete), CHECKPOINT:review-passed as equivalent to CHECKPOINT 5/6, and CHECKPOINT:validation-passed as equivalent to CHECKPOINT 6/6. No new resume rules are required; the backward-compat clause is sufficient. -->
+6. Proceed to Phase 3
 
 ### Preplanning Gate
 
@@ -1309,10 +1311,15 @@ For each task in the batch, write checkpoint-format notes for crash recovery:
 
 | Outcome | Command |
 |---------|---------|
-| Success | `.claude/scripts/dso ticket comment <id> "CHECKPOINT 6/6: Done ✓ — Files: <files created/modified>. Tests: pass."` |
-| Failure | `.claude/scripts/dso ticket comment <id> "CHECKPOINT <N>/6: Failed — <error summary>. Files modified: <files>. Resume from: <what remains>."` |
+| Success | `.claude/scripts/dso ticket comment <id> "CHECKPOINT:batch-complete — Done ✓ — Files: <files created/modified>. Tests: pass."` |
+| Failure (pre-review) | `.claude/scripts/dso ticket comment <id> "CHECKPOINT:implementation-done — Failed at review — <error summary>. Files modified: <files>. Resume from: review."` |
+| Failure (post-review) | `.claude/scripts/dso ticket comment <id> "CHECKPOINT:review-passed — Failed at validation — <error summary>. Resume from: validation."` |
 
-The checkpoint number on failure should reflect the last successfully completed substep.
+Use semantic checkpoint names to describe progress phase:
+- `CHECKPOINT:implementation-done` — code written, not yet reviewed
+- `CHECKPOINT:review-passed` — code reviewed, not yet validated
+- `CHECKPOINT:validation-passed` — batch validation passed
+- `CHECKPOINT:batch-complete` — all substeps done
 
 ### Step 9: Handle Failures (/dso:sprint)
 
@@ -1649,9 +1656,9 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
    ```
 4. Update ALL in-progress tasks with checkpoint-format progress notes:
    ```bash
-   .claude/scripts/dso ticket comment <id> "CHECKPOINT <N>/6: SESSION_END — Progress: <summary>. Next: <what remains>."
+   .claude/scripts/dso ticket comment <id> "CHECKPOINT:<phase-name>:SESSION_END — Progress: <summary>. Next: <what remains>."
    ```
-   Use the highest checkpoint number actually reached.
+   Use the highest semantic checkpoint name actually reached (e.g., `CHECKPOINT:implementation-done:SESSION_END`, `CHECKPOINT:review-passed:SESSION_END`, `CHECKPOINT:validation-passed:SESSION_END`).
 5. Set sprint context for `/dso:end-session` report:
    - Tasks completed this session
    - Tasks remaining (with IDs and titles)
