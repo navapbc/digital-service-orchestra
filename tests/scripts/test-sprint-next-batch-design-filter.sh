@@ -146,9 +146,7 @@ else
     (( FAIL++ ))
 fi
 
-# ── RED zone boundary — tests below require sprint-next-batch.sh tag-based filter ──
-# These tests FAIL until sprint-next-batch.sh implements design:awaiting_import filtering.
-design_awaiting_filter_not_implemented=true  # RED zone marker — do not remove
+# ── Tests below verify sprint-next-batch.sh tag-based design filter ──
 
 # ── Test DA-1: Task under design:awaiting_import story is SKIPPED_DESIGN_AWAITING ──
 # This is a RED test: sprint-next-batch.sh does not yet filter by tag.

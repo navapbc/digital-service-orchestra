@@ -181,6 +181,37 @@ tests:
           4. Frames reuse as the default approach (new components only when existing
              ones cannot support the required UX)
 
+  - description: "Figma collaboration: design.figma_collaboration=true produces Figma-optimized SVG output and tags story"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are processing story STORY-7701: "Add a new dashboard widget that displays
+        active user count with a sparkline chart." This story has Figma collaboration
+        enabled (design.figma_collaboration=true in the project config). The project
+        has a spatial layout file at designs/STORY-7701/spatial-layout.json with IDs
+        "widget-container", "count-label", and "sparkline-chart".
+        Describe how you handle the Figma collaboration mode: what SVG requirements
+        do you apply, how you name the SVG groups, what SVG version you target, what
+        inline style requirements exist, and how you tag the story after producing
+        the design artifacts.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Recognizes that design.figma_collaboration=true is enabled and enters
+             Figma collaboration mode
+          2. References producing SVG output with Figma-optimized requirements,
+             including semantic <g> element names that match the IDs from
+             spatial-layout.json (e.g., widget-container, count-label, sparkline-chart)
+          3. Specifies targeting SVG 1.1 (not SVG 2.0 or unspecified) for Figma
+             import compatibility
+          4. Mentions using inline styles on SVG elements (not external CSS or
+             CSS classes) as required for Figma import
+          5. Creates or references the designs/{uuid}/ directory for output artifacts
+          6. Tags or describes tagging the story ticket with design:awaiting_import
+             after producing the design artifacts
+
   - description: "Lite self-review: brief covers all acceptance criteria before finalizing"
     options:
       provider: "anthropic:messages:claude-haiku-4-5-20251001"
