@@ -317,13 +317,14 @@ test_emit_graceful_failure_lock_exhaustion() {
 
     local lock_file="$repo/.tickets-tracker/.ticket-write.lock"
 
-    # Hold the lock externally using flock in a background subshell
-    (
-        exec 9>"$lock_file"
-        flock -x 9
-        # Hold lock for 10 seconds (longer than the script timeout)
-        sleep 10
-    ) &
+    # Hold the lock externally using Python fcntl.flock (portable — macOS + Linux)
+    python3 -c "
+import fcntl, os, time, sys
+fd = os.open(sys.argv[1], os.O_CREAT | os.O_RDWR)
+fcntl.flock(fd, fcntl.LOCK_EX)
+time.sleep(10)
+os.close(fd)
+" "$lock_file" &
     local lock_pid=$!
 
     # Small delay to ensure lock is acquired

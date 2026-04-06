@@ -51,7 +51,7 @@ _flock_stage_commit() {
 
     # ── Acquire flock, then atomic rename + commit ──────────────────────────
     local max_retries=2
-    local flock_timeout=30
+    local flock_timeout="${FLOCK_STAGE_COMMIT_TIMEOUT:-30}"
     local attempt=0
     local lock_acquired=false
 
