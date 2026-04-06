@@ -1,0 +1,1 @@
+{"timestamp": 1775508877913129000, "uuid": "472ec202-334b-41cb-b7b0-5a1b7fcebc83", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: Created RED tests for sprint primary ticket model (34 test functions, 13 expected RED failures)"}}
