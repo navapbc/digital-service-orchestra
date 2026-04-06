@@ -1,7 +1,7 @@
 description: "red-test-writer agent evals — runtime budget guidance and restructure-or-reject behavior"
 
 providers:
-  - id: "anthropic:messages:claude-sonnet-4-6-20260320"
+  - id: "anthropic:messages:claude-sonnet-4-6"
     config:
       max_tokens: 4096
 

@@ -99,7 +99,7 @@ tests:
 
   - description: "Produces structured epic spec for a well-defined feature"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         I need a CSV export feature. Here's what I know:
@@ -162,7 +162,7 @@ tests:
 
   - description: "Runs full brainstorm flow and marks original ticket superseded when user selects convert-to-epic"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         I ran /dso:brainstorm on ticket DSO-456. The ticket show output is:
@@ -197,7 +197,7 @@ tests:
 
   - description: "Presents understanding summary and gap questions for inferred content when context is mostly sufficient"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         I want to add a dark mode toggle to our web app. Here's what I know:
@@ -236,7 +236,7 @@ tests:
   # The eval must fail now (no sentinel instruction in SKILL.md) and pass after implementation.
   - description: "Phase 3 completion: writes sentinel file after epic ticket is created"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         You are completing Phase 3 (Ticket Integration) of the brainstorm skill.
@@ -264,7 +264,7 @@ tests:
 
   - description: "Runs streamlined dialogue and updates ticket in-place when user selects enrich-in-place"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+      provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
         I ran /dso:brainstorm on ticket DSO-789. The ticket show output is:
