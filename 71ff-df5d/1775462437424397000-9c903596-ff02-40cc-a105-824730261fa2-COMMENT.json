@@ -1,1 +1,0 @@
-{"timestamp": 1775462437424397000, "uuid": "9c903596-ff02-40cc-a105-824730261fa2", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: SIGPIPE patterns replaced (4ff92a31)"}}
