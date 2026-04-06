@@ -655,6 +655,41 @@ structure with:
 Every component `id` in this file must be unique and will be referenced by the
 SVG wireframe and token overlay.
 
+### Step 12.5: Desync Guard — Clear Stale Approval Before SVG Regeneration
+
+Before generating or regenerating `wireframe.svg`, check whether the story ticket
+already carries the `design:approved` tag. If it does, the previous approval is
+now stale because the wireframe is about to change.
+
+```bash
+# Check if the story already has design:approved
+STORY_TAGS=$(bash ".claude/scripts/dso" ticket show "$STORY_ID" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print(' '.join(data.get('tags', [])))
+")
+
+if echo "$STORY_TAGS" | grep -qw "design:approved"; then
+  # Log the action
+  echo "Desync guard: cleared design:approved tag — wireframe being regenerated"
+
+  # Source tag constants
+  source plugins/dso/skills/shared/constants/figma-tags.conf
+
+  # Remove design:approved from tags via read-modify-write
+  UPDATED_TAGS=$(bash ".claude/scripts/dso" ticket show "$STORY_ID" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+tags = [t for t in data.get('tags', []) if t != '$TAG_APPROVED']
+print(','.join(tags))
+")
+  bash ".claude/scripts/dso" ticket edit "$STORY_ID" --tags "$UPDATED_TAGS"
+
+  # Warn the user about the desync
+  bash ".claude/scripts/dso" ticket comment "$STORY_ID" "⚠️ wireframe.svg is being regenerated. The previous Figma revision image (figma-revision.png) may no longer match the new manifest. Re-import the updated SVG into Figma and export a new revision PNG, then re-run the approval command."
+fi
+```
+
 ### Step 13: Generate the Functional Blueprint (SVG) (/dso:design-wireframe)
 
 Read [docs/output-format-reference.md](docs/output-format-reference.md) for SVG
