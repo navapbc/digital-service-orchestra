@@ -57,8 +57,8 @@ done
 if [[ -n "$_scan_dir" ]]; then
     _root="$_scan_dir"
 else
-    # Default: infer repo root from SCRIPT_DIR and scan plugins/dso/ + evals/
-    _repo_root="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+    # Default: use git to resolve repo root portably
+    _repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || _repo_root="$(cd "$SCRIPT_DIR" && cd "$(git rev-parse --show-toplevel)" && pwd)"
     _root="$_repo_root"
 fi
 
