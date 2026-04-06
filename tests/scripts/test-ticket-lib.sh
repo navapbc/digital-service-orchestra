@@ -434,4 +434,226 @@ test_write_commit_event_uses_no_verify() {
 }
 test_write_commit_event_uses_no_verify
 
+# ── Test 9: _flock_stage_commit writes file to final_path ─────────────────────
+echo "Test 9: _flock_stage_commit writes file at the specified final_path"
+test_flock_stage_commit_writes_file() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Initialize ticket system
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # ticket-lib.sh must exist for sourcing
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for _flock_stage_commit write test" "exists" "missing"
+        return
+    fi
+
+    # Source ticket-lib.sh and verify _flock_stage_commit is defined
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type _flock_stage_commit &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "_flock_stage_commit function exists" "defined" "undefined"
+        return
+    fi
+
+    local ticket_id="test-fsc1"
+    local tracker_dir="$repo/.tickets-tracker"
+    local ticket_dir="$tracker_dir/$ticket_id"
+    mkdir -p "$ticket_dir"
+
+    # Create a staging temp file
+    local staging_temp
+    staging_temp=$(mktemp "$tracker_dir/.tmp-fsc-XXXXXX")
+    echo '{"event_type":"CREATE","timestamp":1700000000,"uuid":"aaaa-bbbb"}' > "$staging_temp"
+
+    local final_path="$ticket_dir/1700000000-aaaa-bbbb-CREATE.json"
+    local commit_msg="ticket: CREATE $ticket_id"
+
+    # Call _flock_stage_commit directly
+    local exit_code=0
+    (cd "$repo" && source "$TICKET_LIB" && \
+        _flock_stage_commit "$tracker_dir" "$staging_temp" "$final_path" "$commit_msg") || exit_code=$?
+
+    # Assert: file exists at final_path
+    if [ -f "$final_path" ]; then
+        assert_eq "_flock_stage_commit: file exists at final_path" "exists" "exists"
+    else
+        assert_eq "_flock_stage_commit: file exists at final_path" "exists" "missing"
+    fi
+
+    # Assert: exit code is 0
+    assert_eq "_flock_stage_commit: exit code is 0" "0" "$exit_code"
+
+    # Assert: staging temp file was consumed (no longer exists)
+    if [ -f "$staging_temp" ]; then
+        assert_eq "_flock_stage_commit: staging temp consumed" "consumed" "still-exists"
+    else
+        assert_eq "_flock_stage_commit: staging temp consumed" "consumed" "consumed"
+    fi
+}
+test_flock_stage_commit_writes_file
+
+# ── Test 10: _flock_stage_commit commits to branch ────────────────────────────
+echo "Test 10: _flock_stage_commit commits to the tickets branch with the given message"
+test_flock_stage_commit_commits_to_branch() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Initialize ticket system
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # ticket-lib.sh must exist for sourcing
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for _flock_stage_commit commit test" "exists" "missing"
+        return
+    fi
+
+    # Source ticket-lib.sh and verify _flock_stage_commit is defined
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type _flock_stage_commit &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "_flock_stage_commit function exists (commit test)" "defined" "undefined"
+        return
+    fi
+
+    local ticket_id="test-fsc2"
+    local tracker_dir="$repo/.tickets-tracker"
+    local ticket_dir="$tracker_dir/$ticket_id"
+    mkdir -p "$ticket_dir"
+
+    # Create a staging temp file
+    local staging_temp
+    staging_temp=$(mktemp "$tracker_dir/.tmp-fsc-XXXXXX")
+    echo '{"event_type":"COMMENT","timestamp":1700000001,"uuid":"cccc-dddd"}' > "$staging_temp"
+
+    local final_filename="1700000001-cccc-dddd-COMMENT.json"
+    local final_path="$ticket_dir/$final_filename"
+    local commit_msg="ticket: COMMENT $ticket_id"
+
+    # Call _flock_stage_commit
+    (cd "$repo" && source "$TICKET_LIB" && \
+        _flock_stage_commit "$tracker_dir" "$staging_temp" "$final_path" "$commit_msg") || true
+
+    # Assert: git log on the tickets worktree contains the commit message
+    local log_output
+    log_output=$(git -C "$tracker_dir" log --oneline -5 2>/dev/null || echo "")
+
+    if echo "$log_output" | grep -q "COMMENT $ticket_id"; then
+        assert_eq "_flock_stage_commit: commit message in git log" "found" "found"
+    else
+        assert_eq "_flock_stage_commit: commit message in git log" "found" "not-found"
+    fi
+
+    # Assert: the committed file is the one we specified
+    local committed_files
+    committed_files=$(git -C "$tracker_dir" log --name-only --pretty=format: -1 2>/dev/null \
+        | grep -v '^$' || echo "")
+    if echo "$committed_files" | grep -q "$ticket_id/$final_filename"; then
+        assert_eq "_flock_stage_commit: correct file in commit" "committed" "committed"
+    else
+        assert_eq "_flock_stage_commit: correct file in commit" "committed" "not-committed"
+    fi
+}
+test_flock_stage_commit_commits_to_branch
+
+# ── Test 11: _flock_stage_commit fails gracefully on missing tracker ──────────
+echo "Test 11: _flock_stage_commit fails gracefully when tracker_dir does not exist"
+test_flock_stage_commit_fails_gracefully_on_missing_tracker() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Do NOT run ticket init — tracker does not exist
+
+    # ticket-lib.sh must exist for sourcing
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for _flock_stage_commit missing-tracker test" "exists" "missing"
+        return
+    fi
+
+    # Source ticket-lib.sh and verify _flock_stage_commit is defined
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type _flock_stage_commit &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "_flock_stage_commit function exists (missing-tracker test)" "defined" "undefined"
+        return
+    fi
+
+    local nonexistent_tracker="$repo/.tickets-tracker-does-not-exist"
+    local staging_temp
+    staging_temp=$(mktemp)
+    _CLEANUP_DIRS+=("$(dirname "$staging_temp")")
+    echo '{"event_type":"CREATE","timestamp":1700000002,"uuid":"eeee-ffff"}' > "$staging_temp"
+    local final_path="$nonexistent_tracker/test-fsc3/1700000002-eeee-ffff-CREATE.json"
+    local commit_msg="ticket: CREATE test-fsc3"
+
+    # Call _flock_stage_commit with invalid tracker_dir — must exit non-zero
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && source "$TICKET_LIB" && \
+        _flock_stage_commit "$nonexistent_tracker" "$staging_temp" "$final_path" "$commit_msg" 2>&1) || exit_code=$?
+
+    # Assert: non-zero exit code
+    assert_eq "_flock_stage_commit: non-zero exit on missing tracker" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: no crash — stderr should contain an error message (not a bash traceback)
+    if [ -n "$stderr_out" ]; then
+        assert_eq "_flock_stage_commit: error message on missing tracker" "has-message" "has-message"
+    else
+        # Even silent non-zero exit is acceptable (graceful) — but a message is preferred
+        assert_eq "_flock_stage_commit: error message on missing tracker" "has-message" "silent"
+    fi
+
+    # Assert: file was NOT created at final_path
+    if [ -f "$final_path" ]; then
+        assert_eq "_flock_stage_commit: no file created on failure" "no-file" "file-exists"
+    else
+        assert_eq "_flock_stage_commit: no file created on failure" "no-file" "no-file"
+    fi
+}
+test_flock_stage_commit_fails_gracefully_on_missing_tracker
+
+# ── Test 12: write_commit_event regression — still works after extraction ─────
+echo "Test 12: write_commit_event regression — still works end-to-end after _flock_stage_commit extraction"
+test_write_commit_event_regression_after_extraction() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Initialize ticket system
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # ticket-lib.sh must exist
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for regression test" "exists" "missing"
+        return
+    fi
+
+    local ticket_id="test-regr1"
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
+    local event_json="$tmpdir/event.json"
+    _make_event_json "$event_json" "$ticket_id"
+
+    # Call write_commit_event (the public API)
+    local exit_code=0
+    (cd "$repo" && source "$TICKET_LIB" && write_commit_event "$ticket_id" "$event_json") || exit_code=$?
+
+    # Assert: exit code is 0
+    assert_eq "write_commit_event regression: exit code 0" "0" "$exit_code"
+
+    # Assert: event file exists in the ticket directory
+    local event_files
+    event_files=$(find "$repo/.tickets-tracker/$ticket_id" -maxdepth 1 \
+        -name '*-CREATE.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "write_commit_event regression: event file created" "1" "$event_files"
+
+    # Assert: git log contains the commit
+    local commit_count
+    commit_count=$(git -C "$repo/.tickets-tracker" log --oneline --all 2>/dev/null | \
+        grep -c "$ticket_id" || echo "0")
+    assert_eq "write_commit_event regression: commit exists for ticket" "1" "$([ "$commit_count" -ge 1 ] && echo 1 || echo 0)"
+}
+test_write_commit_event_regression_after_extraction
+
 print_summary
