@@ -373,6 +373,36 @@ If `epic_routing` is `"SIMPLE"` or `"MODERATE"` (set in Phase 1's Preplanning Ga
 
 Log: `"Skipping Implementation Planning Gate — epic was routed as <epic_routing>, tasks already exist under epic."`
 
+#### Design-Blocked Story Filter (/dso:sprint)
+
+Before processing stories for implementation planning, filter out design-blocked stories.
+
+**Source tag constants from shared config:**
+```bash
+source plugins/dso/skills/shared/constants/figma-tags.conf
+# TAG_AWAITING_IMPORT=design:awaiting_import
+```
+
+**Read staleness threshold from config:**
+```bash
+figma_staleness_days=$(grep '^design\.figma_staleness_days=' .claude/dso-config.conf | cut -d= -f2)
+figma_staleness_days=${figma_staleness_days:-7}
+```
+
+**Initialize awaiting_design_stories list (once before layer loop):**
+```
+awaiting_design_stories = []  # List of {id, title, tag_applied_date}
+```
+
+**For each story from `.claude/scripts/dso ticket list` (filtered by parent):**
+1. Run `.claude/scripts/dso ticket show <story-id>` and check the `tags` field
+2. If `design:awaiting_import` (i.e., `$TAG_AWAITING_IMPORT`) is present:
+   - Log: `"Story <id> tagged design:awaiting_import — skipping implementation planning."`
+   - Estimate the tag age from the ticket's comment timestamps: find the comment whose body contains `"Import designs/"` (written by design-wireframe when the tag was applied) and read its `timestamp` field from the JSON output. Compute days elapsed: `$(( ($(date +%s) - comment_timestamp_epoch) / 86400 ))`. If no such comment exists, treat tag age as unknown (no staleness warning).
+   - Add the story to the `awaiting_design_stories` list: `{id: "<story-id>", title: "<story-title>", tag_applied_date: "<date or unknown>"}`
+   - **Do not add this story to the needs-planning list**. Skip all further processing for this story (no complexity eval, no implementation-plan dispatch, no batch dispatch in Phase 4).
+3. Only stories **without** the `design:awaiting_import` tag proceed to Step 1 below.
+
 #### Step 1: Identify Stories Needing Implementation Planning (/dso:sprint)
 
 For each ready task from `.claude/scripts/dso ticket list` (filtered by parent):
@@ -676,6 +706,9 @@ TASK: <id>  P<priority>  <issue-type>  <model>  <subagent-type>  <class>  <title
 | `SKIPPED_OPUS_CAP: <id> ...` | Deferred — opus cap (2) already reached |
 | `SKIPPED_BLOCKED_STORY: <id> ...` | Deferred — parent story has open blockers |
 | `SKIPPED_IN_PROGRESS: <id> ...` | Already claimed by another agent |
+| `SKIPPED_DESIGN_AWAITING: <id> <title>` | Deferred — story tagged `design:awaiting_import` (Figma designs not yet finalized) |
+
+**Parsing `SKIPPED_DESIGN_AWAITING` lines:** After running `sprint-next-batch.sh`, parse any `SKIPPED_DESIGN_AWAITING` lines from the output. For each such line, extract the story ID and title and add them to the `awaiting_design_stories` list (if not already present from Phase 2 filtering). These stories are surfaced in the Phase 5 Batch Completion Summary "Awaiting designer input" section.
 
 Use `--json` for machine-readable output with full detail including file lists.
 
@@ -1059,6 +1092,24 @@ Print a completion summary. Each line must show the task ID, title, and pass/fai
 ```
 
 Titles are retained from the pre-launch batch list printed in Phase 4 — no additional `.claude/scripts/dso ticket show` calls are needed.
+
+#### Awaiting Designer Input Section
+
+After the per-task completion lines, if `awaiting_design_stories` is non-empty, print a blocked status section:
+
+```
+Awaiting designer input:
+  - [<story-id>] <story-title> (awaiting since <date>)
+  - [<story-id>] <story-title> (awaiting since <date>) ⚠️ STALE (><figma_staleness_days> days)
+```
+
+**Staleness logic:**
+- For each story in `awaiting_design_stories`, compute tag age in days from `tag_applied_date` to today.
+- If `tag_applied_date` is unknown, omit the staleness warning for that story.
+- If tag age exceeds `figma_staleness_days` (read from `design.figma_staleness_days` in `.claude/dso-config.conf`, default 7), append ` ⚠️ STALE (>N days)` to that story's line.
+- Stories in this section are **not** counted as batch failures — they are explicitly blocked pending designer delivery.
+
+These stories are excluded from Phase 2 implementation-plan dispatch and Phase 4 sub-agent dispatch. They are surfaced here to give the user visibility into what is blocked on design. No action is required from the orchestrator — the sprint continues with non-blocked stories.
 
 ### Step 3: File Overlap Check (Safety Net) (/dso:sprint)
 

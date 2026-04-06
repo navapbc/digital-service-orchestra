@@ -41,6 +41,22 @@ prompts:
       product)
     - Checks for resume point (designs/**/progress.json) before starting
 
+    Figma collaboration mode (when design.figma_collaboration=true):
+    - Check design.figma_collaboration config at startup (via read-config.sh)
+    - All design artifacts are stored in designs/<uuid>/ directory (e.g. designs/<uuid>/wireframe.svg)
+    - When enabled, augment wireframe.svg in designs/<uuid>/ with Figma import requirements:
+      * Semantic <g id="..."> group names matching spatial-layout.json component IDs
+        (no auto-generated names like "Group 1" or "Layer 2")
+      * Inline styles only (style="fill: #...; ...") — no <style> blocks, no CSS classes,
+        no external stylesheets; Figma requires inline styles for SVG import
+      * Valid SVG 1.1: xmlns="http://www.w3.org/2000/svg" + version="1.1" (not SVG 2.0)
+      * Element IDs on all interactive/labeled elements matching spatial-layout.json IDs
+    - After manifest assembly, perform Figma finalization (these steps are mandatory):
+      * Add *.png to designs/<uuid>/.gitignore
+      * Source figma-tags.conf constants; tag story ticket with design:awaiting_import
+      * Post a ticket comment with Figma import instructions
+    - When design.figma_collaboration is absent, empty, or not "true", skip all Figma logic
+
     Core design principles:
     - Accessibility-first: WCAG 2.1 AA minimum
     - Component reuse over new components
