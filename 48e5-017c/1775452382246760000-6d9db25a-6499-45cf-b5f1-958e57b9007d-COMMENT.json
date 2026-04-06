@@ -1,1 +1,0 @@
-{"timestamp": 1775452382246760000, "uuid": "6d9db25a-6499-45cf-b5f1-958e57b9007d", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "AC amendment: Add negative eval test case \u2014 when worktree.isolation_enabled=false, assert debug-everything dispatch does NOT include isolation:worktree."}}

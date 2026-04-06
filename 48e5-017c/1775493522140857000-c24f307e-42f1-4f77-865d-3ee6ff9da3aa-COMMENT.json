@@ -1,1 +1,0 @@
-{"timestamp": 1775493522140857000, "uuid": "c24f307e-42f1-4f77-865d-3ee6ff9da3aa", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 5/6: Validation \u2014 RED confirmed \u2713 (0 passed, 5 failed \u2014 eval runs, worktree isolation test cases fail as expected)"}}
