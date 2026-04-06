@@ -1,0 +1,1 @@
+{"timestamp": 1775442800182188000, "uuid": "e9d85dea-d0d8-46a8-92a7-92f7314ca99a", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Classification: behavioral, Score: 1 (BASIC). severity=1 (functional degradation), complexity=0 (single file), environment=0 (local), intermittent=0 (deterministic with large data)."}}
