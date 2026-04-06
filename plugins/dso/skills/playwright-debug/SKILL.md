@@ -43,16 +43,22 @@ WORKTREE_ID="$(basename "$(git rev-parse --show-toplevel)")"
 SESSION_NAME="pw-debug-${WORKTREE_ID}"
 ```
 
-All CLI commands below use `-s=$SESSION_NAME` for session persistence. Open the session once before Tier 2:
+All CLI commands below use `-s=$SESSION_NAME` for session persistence. Open the session once before Tier 2, and register a cleanup trap to ensure the session is closed even if the agent is interrupted:
 
 ```bash
+# Register cleanup trap BEFORE opening the session — ensures browser is closed
+# on normal exit, errors, SIGTERM, SIGINT, and SIGURG (Claude Code tool timeout)
+_pw_cleanup() { "$PW_CLI" close -s="$SESSION_NAME" 2>/dev/null || true; }
+trap _pw_cleanup EXIT TERM INT
+
 "$PW_CLI" open -s="$SESSION_NAME"
 ```
 
-Close when done:
+Close when done (the trap also handles this, but explicit close is preferred for clarity):
 
 ```bash
 "$PW_CLI" close -s="$SESSION_NAME"
+trap - EXIT TERM INT  # Clear the trap after explicit close
 ```
 
 ## When to Use
