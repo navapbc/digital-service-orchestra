@@ -1,1 +1,0 @@
-{"timestamp": 1775433229828590000, "uuid": "21afa8a4-65c3-4cc8-b182-49e88a3717c2", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Classification: llm-behavioral. Ticket references agent behavior (rationalizes failing evals) AND affected file is skill evals/commit workflow. Dual-signal detected."}}

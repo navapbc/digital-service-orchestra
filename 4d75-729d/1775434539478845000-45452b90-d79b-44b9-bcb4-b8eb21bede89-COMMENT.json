@@ -1,1 +1,0 @@
-{"timestamp": 1775434539478845000, "uuid": "45452b90-d79b-44b9-bcb4-b8eb21bede89", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Bot-psychologist: Missing Never-Do rule for eval failures. Fix: added rule 25 to CLAUDE.md \u2014 never commit with failing evals."}}
