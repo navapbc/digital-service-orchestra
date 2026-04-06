@@ -1,1 +1,0 @@
-{"timestamp": 1775500463426796000, "uuid": "58915791-876b-4784-82d6-9ce88d9fef5c", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: RED tests created at tests/scripts/test-ticket-clarity-check.sh with 12 test functions in RED state"}}
