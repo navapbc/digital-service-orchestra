@@ -793,6 +793,17 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
 
 3. **Populate the placeholder**: Replace `{file_ownership_context}` in `task-execution.md` with the per-agent ownership string.
 
+### Worktree Isolation Configuration
+
+Before dispatching sub-agents, read and apply `plugins/dso/skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration.
+
+Read the config key:
+```bash
+ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null || true)
+```
+
+When `ISOLATION_ENABLED` equals `true`, add `isolation: "worktree"` to each Agent/Task dispatch call and pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each sub-agent's prompt so sub-agents can verify isolation. When `ISOLATION_ENABLED` is `false`, empty, or absent, omit the `isolation` parameter entirely.
+
 ### Sub-Agent Prompt Template
 
 For each task, launch a Task with the appropriate `subagent_type`.
@@ -857,7 +868,7 @@ context:
 
 **Important**: Launch ALL sub-agents in the batch within a single message, each with `run_in_background: true`. Maximum 5 Task calls per message.
 
-**Worktree boundary**: If in a worktree, append to every sub-agent prompt: `"IMPORTANT: Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path."`
+**Worktree boundary**: If in a worktree, append to every sub-agent prompt: `"IMPORTANT: Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path."` When `ISOLATION_ENABLED=true`, also add `isolation: "worktree"` to the Task dispatch call (see Worktree Isolation Configuration above).
 
 ### RED Task Dispatch — Escalation Protocol
 
@@ -903,6 +914,20 @@ See `prompts/red-task-escalation.md` for the complete escalation reference.
 ## Phase 5: Post-Batch Processing (/dso:sprint)
 
 After ALL sub-agents in the batch return, follow the Orchestrator Checkpoint Protocol from CLAUDE.md.
+
+### Worktree Isolation Mode: Per-Worktree Serial Review and Commit
+
+**When `worktree.isolation_enabled` is `true` and sub-agents returned with `isolation:worktree`**, do NOT proceed to the shared-directory batch review flow (Step 7). Instead, process each worktree **serially** using the per-worktree protocol:
+
+Read and execute `plugins/dso/skills/sprint/prompts/per-worktree-review-commit.md` for each worktree, in completion order (first-pass-first-merge). This means: for each worktree — run review in the worktree context, commit to the worktree branch, merge the worktree branch into the session branch — before moving to the next worktree.
+
+**Git log note**: In worktree isolation mode, `git log` on the session branch shows one commit per worktree (no combined batch commits). Each worktree's changes are merged independently into the session branch.
+
+**merge-to-main.sh note**: `merge-to-main.sh` runs **once** at session end (Phase 8), not per worktree. Each per-worktree merge is worktree-branch → session-branch only.
+
+After all worktrees have been processed via `per-worktree-review-commit.md`, skip Steps 7 and 10 (which apply only in shared-directory mode) and proceed directly to Steps 8, 9, 10a, 11, and 13.
+
+**When `worktree.isolation_enabled` is `false`, empty, or absent** (shared-directory mode), proceed through Steps 0–13 as written below, including Step 7 (formal code review) and Step 10 (commit and push).
 
 ### Step 0: Dispatch Failure Recovery (/dso:sprint)
 
@@ -1125,7 +1150,9 @@ cd $REPO_ROOT/app && make test-visual 2>&1
 - **Fail** → Use `/dso:playwright-debug` Tier 2. If still failing, revert task to open.
 - **No baselines** → Use `/dso:playwright-debug` full 3-tier. Verify local env: `$PLUGIN_SCRIPTS/check-local-env.sh`.  # shim-exempt: internal orchestration script
 
-### Step 7: Formal Code Review (/dso:sprint)
+### Step 7: Formal Code Review (/dso:sprint) — Shared-Directory Mode Only
+
+**This step applies only when `worktree.isolation_enabled` is `false` (shared-directory mode).** When worktree isolation is enabled, review is handled per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase 5). Skip this step in worktree isolation mode.
 
 Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in this conversation, use the version in context. Produces a review state file at `$(get_artifacts_dir)/review-status`.
 
@@ -1188,7 +1215,9 @@ For tasks that failed:
 - Revert to open: `.claude/scripts/dso ticket transition <id> open`
 - Record the failure reason in notes (already done in Step 8)
 
-### Step 10: Commit & Push (/dso:sprint)
+### Step 10: Commit & Push (/dso:sprint) — Shared-Directory Mode Only
+
+**This step applies only when `worktree.isolation_enabled` is `false` (shared-directory mode).** When worktree isolation is enabled, commits are made per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase 5). Skip this step in worktree isolation mode.
 
 Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
 

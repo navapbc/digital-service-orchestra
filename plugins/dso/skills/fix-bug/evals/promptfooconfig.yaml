@@ -50,6 +50,20 @@ prompts:
       sub-agent with the ticket_id and configured intent_search_budget. Do NOT
       skip intent-search for untagged tickets.
 
+    Step 2 / Step 6 — Worktree Isolation:
+    Before dispatching any investigation sub-agent (Step 2) or fix implementation
+    sub-agent (Step 6), read and apply plugins/dso/skills/shared/prompts/worktree-dispatch.md
+    to determine whether to pass isolation: "worktree" in the Agent dispatch call.
+    - Read the config key: worktree.isolation_enabled (via read-config.sh)
+    - If worktree.isolation_enabled=true: add isolation: "worktree" to the Agent
+      dispatch call and pass ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)
+      in the dispatch prompt so the sub-agent can verify its isolation.
+    - If worktree.isolation_enabled=false, absent, or empty: omit the isolation
+      parameter entirely (shared-directory fallback — pre-isolation default behavior).
+    Note: isolation applies to IMPLEMENTATION sub-agents (Step 2 investigation,
+    Step 6 fix dispatch) but NOT to diagnostic-only inline operations. Step 1
+    intent-search and gate scripts run inline, not as isolated sub-agents.
+
     Step 7.5 — Anti-Pattern Scan:
     When creating bug tickets during the anti-pattern scan phase, these are
     autonomously discovered defects. The CLI command is:
@@ -240,3 +254,62 @@ tests:
           intent_search_budget. The output must NOT skip intent-search dispatch for this
           untagged ticket. Any response that skips intent-search for a ticket without
           the CLI_user tag fails this rubric.
+
+  - description: "Worktree isolation enabled: sub-agent dispatch includes isolation:worktree"
+    vars:
+      prompt: |
+        Bug ticket context:
+        Bug ticket ID: BUG-7741
+        Title: Dashboard crashes on load when user has no prior sessions
+        Tags: (none)
+        Description: Unhandled NullPointerException in src/dashboard/loader.py:34.
+        Reproducible in staging. Medium severity.
+
+        The project's dso-config.conf is:
+        worktree.isolation_enabled=true
+
+        You are at Step 3: dispatch the investigation sub-agent. List the exact
+        parameters you include in the Agent dispatch call. Does your dispatch
+        include an isolation parameter? If so, what is its value?
+    assert:
+      - type: llm-rubric
+        value: >
+          The fix-bug skill instructions must cause the agent to dispatch the
+          investigation sub-agent with isolation set to "worktree" when
+          worktree.isolation_enabled=true is present in the project config.
+          The output PASSES if it mentions passing isolation: "worktree",
+          isolation_mode: "worktree", or equivalent worktree isolation semantics
+          as part of the sub-agent dispatch call.
+          The output FAILS if the isolation parameter is absent or set to a non-worktree
+          value (e.g., none, false, shared). This tests whether the fix-bug skill
+          instructions document the worktree isolation dispatch behavior — which they
+          currently do not.
+
+  - description: "Worktree isolation disabled: sub-agent dispatch does NOT include isolation:worktree"
+    vars:
+      prompt: |
+        Bug ticket context:
+        Bug ticket ID: BUG-8812
+        Title: Export CSV produces garbled output for Unicode filenames
+        Tags: (none)
+        Description: CSV export encodes filenames incorrectly when they contain
+        non-ASCII characters. Reproducible locally. Low severity.
+
+        The project's dso-config.conf is:
+        worktree.isolation_enabled=false
+
+        You are at Step 3: dispatch the investigation sub-agent. List the exact
+        parameters you include in the Agent dispatch call. Does your dispatch
+        include an isolation parameter? If so, what is its value?
+    assert:
+      - type: llm-rubric
+        value: >
+          The fix-bug skill instructions must cause the agent NOT to dispatch with
+          isolation: "worktree" when worktree.isolation_enabled=false is set in the
+          project config. The output PASSES if it omits the worktree isolation
+          parameter entirely, or explicitly uses the shared-directory / non-isolated
+          default (e.g., no isolation key, isolation: none, isolation: false).
+          The output FAILS if it includes isolation: "worktree" or "worktree isolation"
+          when the config explicitly disables worktree isolation. This tests whether
+          the fix-bug skill instructions document the conditional worktree isolation
+          behavior — which they currently do not.

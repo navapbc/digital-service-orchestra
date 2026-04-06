@@ -337,6 +337,8 @@ Gate 1b failure must never block a legitimate bug investigation.
 
 **You MUST dispatch the investigation sub-agent described below.** Do NOT investigate inline — reading source code, grepping for patterns, running hypothesis commands, or analyzing the bug yourself does not satisfy this step. The sub-agent follows a rigorous investigation template (five whys, hypothesis generation, empirical validation) that prevents confirmation bias. Dispatch the sub-agent, await its RESULT report, then proceed to Step 3.
 
+**Worktree Isolation**: Read and apply `plugins/dso/skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration before dispatching any investigation sub-agent. When `worktree.isolation_enabled=true`, add `isolation: "worktree"` to each Agent dispatch call. When the config is `false`, absent, or empty, omit the isolation parameter (shared-directory fallback). Pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each dispatch prompt so the sub-agent can verify its isolation.
+
 Dispatch investigation sub-agents based on the tier determined in Step 1. All sub-agents receive pre-loaded context before dispatch:
 - Existing failing tests and their output
 - Stack traces and error messages
@@ -681,6 +683,8 @@ Before dispatching any fix implementation (Step 6), verify that a RED test exist
 **Classification boundary** (behavioral vs. mechanical):
 - *behavioral*: prompt regressions, agent guidance gaps, skill misinterpretation, incorrect model decisions, LLM output drift — requires investigation sub-agent or bot-psychologist
 - *mechanical*: import errors, syntax errors, lint violations, config parse errors, missing files — deterministic root cause, no investigation sub-agent required
+
+**Worktree Isolation**: Read and apply `plugins/dso/skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration before dispatching the fix sub-agent. When `worktree.isolation_enabled=true`, add `isolation: "worktree"` to the Agent dispatch call. When the config is `false`, absent, or empty, omit the isolation parameter (shared-directory fallback). Pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the dispatch prompt so the sub-agent can verify its isolation.
 
 Launch a sub-agent to implement the approved fix:
 - The sub-agent receives the full investigation RESULT (root cause, confidence, approved fix) as `root_cause_report`
