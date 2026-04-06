@@ -1,0 +1,1 @@
+{"timestamp": 1775505079983116000, "uuid": "0f4995ae-e71a-4196-95a0-1a7fb5e678f3", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fix: bash runner now uses global _SCRIPT_ENTRY_TIME for elapsed calculations, added process group kill."}}
