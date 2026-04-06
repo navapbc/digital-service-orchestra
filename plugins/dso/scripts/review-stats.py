@@ -240,7 +240,7 @@ def compute_metrics(events: list[dict]) -> dict:
     """Compute all metrics from a list of events.
 
     Returns a dict with keys: pass_fail, dimension_scores,
-    severity_distribution, revision_cycles, commit_stats.
+    severity_distribution, revision_cycles, commit_stats, session_ids.
     """
     review_events = [e for e in events if e.get("event_type") == "review_result"]
     commit_events = [e for e in events if e.get("event_type") == "commit_workflow"]
@@ -274,6 +274,9 @@ def compute_metrics(events: list[dict]) -> dict:
         (blocked / total_commits * 100.0) if total_commits > 0 else 0.0
     )
 
+    # Session IDs (for traceability)
+    session_ids = [e.get("session_id") for e in events if e.get("session_id")]
+
     return {
         "pass_fail": pass_fail,
         "dimension_scores": dimension_scores,
@@ -285,6 +288,7 @@ def compute_metrics(events: list[dict]) -> dict:
             "blocked": blocked,
             "failure_rate": commit_failure_rate,
         },
+        "session_ids": session_ids,
     }
 
 
@@ -333,6 +337,14 @@ def format_table(metrics: dict) -> str:
     lines.append(f"  Committed:      {cs.get('committed', 0)}")
     lines.append(f"  Blocked:        {cs.get('blocked', 0)}")
     lines.append(f"  Failure rate:   {cs.get('failure_rate', 0.0):.1f}%")
+
+    # Session IDs
+    session_ids = metrics.get("session_ids", [])
+    if session_ids:
+        lines.append("")
+        lines.append("Sessions Included")
+        for sid in session_ids:
+            lines.append(f"  {sid}")
 
     return "\n".join(lines)
 
