@@ -160,7 +160,7 @@ assert_eq "test_record_review_equals_style_reviewer_hash: --reviewer-hash=VALUE 
 # Check the CHANGED_FILES computation block (not the diagnostic dump which
 # legitimately uses ls-files --others for mismatch forensics).
 # The CHANGED_FILES block is between "CHANGED_FILES=$(" and the closing ")".
-if sed -n '/CHANGED_FILES=$(/,/^[[:space:]]*)/p' "$HOOK" | grep -q 'ls-files.*--others'; then
+_tmp=$(sed -n '/CHANGED_FILES=$(/,/^[[:space:]]*)/p' "$HOOK"); if grep -q 'ls-files.*--others' <<< "$_tmp"; then
     actual="includes_untracked"
 else
     actual="excludes_untracked"

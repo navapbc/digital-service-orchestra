@@ -94,7 +94,7 @@ guidance_output=$(
 
 # Should include descriptive guidance text (URL or instructions)
 _has_guidance=0
-echo "$guidance_output" | grep -qiE "token|api|atlassian|account|https://" && _has_guidance=1
+[[ "${guidance_output,,}" =~ token|api|atlassian|account|https:// ]] && _has_guidance=1
 assert_eq "test_missing_vars_show_guidance: guidance text present" "1" "$_has_guidance"
 assert_pass_if_clean "test_missing_vars_show_guidance"
 
@@ -140,7 +140,7 @@ no_env_output=$(
 
 # Output should mention that one or more variables are missing/not set
 _has_missing=0
-echo "$no_env_output" | grep -qiE "missing|not set|unset|required|not configured" && _has_missing=1
+[[ "${no_env_output,,}" =~ missing|not\ set|unset|required|not\ configured ]] && _has_missing=1
 assert_eq "test_no_env_vars: missing-vars indicator present" "1" "$_has_missing"
 assert_pass_if_clean "test_no_env_vars"
 

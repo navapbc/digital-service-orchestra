@@ -187,7 +187,7 @@ if [[ -f "$EXEMPTIONS_FILE_3" ]]; then
     # Verify the timestamp value looks like ISO8601
     TIMESTAMP_VAL="${TIMESTAMP_LINE#timestamp=}"
     ISO8601_PATTERN='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
-    if echo "$TIMESTAMP_VAL" | grep -qE "$ISO8601_PATTERN"; then
+    _tmp="$TIMESTAMP_VAL"; if [[ "$_tmp" =~ $ISO8601_PATTERN ]]; then
         assert_eq "test_exemption_file_format: timestamp is ISO8601" "valid" "valid"
     else
         assert_eq "test_exemption_file_format: timestamp is ISO8601" "valid" "invalid: $TIMESTAMP_VAL"

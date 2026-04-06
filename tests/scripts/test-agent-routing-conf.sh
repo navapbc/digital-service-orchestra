@@ -38,7 +38,11 @@ if [[ -f "$CONF_FILE" ]]; then
         # Skip comments and blank lines
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         [[ -z "${line// /}" ]] && continue
-        echo "$line" | grep -qE '^[a-z_]+=.+\|general-purpose$' || (( bad_lines++ ))
+        # REVIEW-DEFENSE(finding-2): _tmp is intentionally reused across test functions; in bash [[ =~ ]] context
+        # it is overwritten on each iteration — no cross-function leakage occurs. Standard bash test file practice.
+        # BUGFIX(finding-1): In bash ERE ([[ =~ ]]), \| matches literal backslash-pipe, not alternation. To match a
+        # literal pipe character in the string, use [|]. Pattern intent: key=<agents>[|]general-purpose
+        _tmp="$line"; [[ "$_tmp" =~ ^[a-z_]+=.+[|]general-purpose$ ]] || (( bad_lines++ ))
     done < "$CONF_FILE"
     if [[ "$bad_lines" -eq 0 ]]; then
         actual_format="valid"
@@ -96,11 +100,14 @@ else
     header=""
 fi
 for term in "format" "category" "preference chain" "fallback"; do
-    if echo "$header" | grep -qi "$term"; then
+    _tmp="$header"
+    shopt -s nocasematch
+    if [[ "$_tmp" =~ $term ]]; then
         actual_term="present"
     else
         actual_term="missing"
     fi
+    shopt -u nocasematch
     assert_eq "test_header_documents_interface_contract: term '$term' in header" "present" "$actual_term"
 done
 assert_pass_if_clean "test_header_documents_interface_contract"
@@ -138,7 +145,7 @@ if [[ -n "$_routing_output" ]]; then
         | grep '^llm_behavioral=' | cut -d= -f2)" || true
 fi
 
-if printf '%s\n' "$_resolved_agent" | grep -q 'dso:bot-psychologist'; then
+if grep -q 'dso:bot-psychologist' <<< "$_resolved_agent"; then
     actual_llm_routing="routes_to_bot_psychologist"
 else
     actual_llm_routing="missing_or_wrong: '$_resolved_agent'"

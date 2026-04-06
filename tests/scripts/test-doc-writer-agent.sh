@@ -47,21 +47,12 @@ assert_pass_if_clean "test_agent_file_exists"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     frontmatter=$(awk '/^---/{c++; if(c==2) exit} c{print}' "$AGENT_FILE")
-    if echo "$frontmatter" | grep -qE '^name:[[:space:]]*doc-writer[[:space:]]*$'; then
-        actual_name="present"
-    else
-        actual_name="missing"
-    fi
-    if echo "$frontmatter" | grep -qE '^model:[[:space:]]*sonnet[[:space:]]*$'; then
-        actual_model="present"
-    else
-        actual_model="missing"
-    fi
-    if echo "$frontmatter" | grep -qE '^description:'; then
-        actual_desc="present"
-    else
-        actual_desc="missing"
-    fi
+    actual_name="missing"; actual_model="missing"; actual_desc="missing"
+    while IFS= read -r _line; do
+        [[ "$_line" =~ ^name:[[:space:]]*doc-writer[[:space:]]*$ ]] && actual_name="present"
+        [[ "$_line" =~ ^model:[[:space:]]*sonnet[[:space:]]*$ ]] && actual_model="present"
+        [[ "$_line" =~ ^description: ]] && actual_desc="present"
+    done <<< "$frontmatter"
 else
     actual_name="missing"
     actual_model="missing"
@@ -122,11 +113,12 @@ else
 fi
 
 for tier_label in "Navigation" "User-Facing" "Living Reference" "ADR"; do
-    if echo "$file_content" | grep -qi "$tier_label"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" == *"$tier_label"* ]]; then
         actual_tier="present"
     else
         actual_tier="missing"
-    fi
+    fi; shopt -u nocasematch
     assert_eq "test_documentation_schema_sections: tier '$tier_label' present" "present" "$actual_tier"
 done
 assert_pass_if_clean "test_documentation_schema_sections"
@@ -138,23 +130,26 @@ assert_pass_if_clean "test_documentation_schema_sections"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
-    if echo "$file_content" | grep -qi "breakout\|break.out\|break out"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ breakout|break.out|"break out" ]]; then
         actual_breakout="present"
     else
         actual_breakout="missing"
-    fi
+    fi; shopt -u nocasematch
     # Token threshold: accept 1500 or ~1500 or 1,500
-    if echo "$file_content" | grep -qE "1[,.]?500|~1500|1500"; then
+    _tmp="$file_content"
+    if [[ "$_tmp" =~ 1[,.]?500|~1500|1500 ]]; then
         actual_threshold="present"
     else
         actual_threshold="missing"
     fi
     # 3rd-level nesting trigger: accept "third", "3rd", or "level 3" patterns
-    if echo "$file_content" | grep -qiE "3rd\.level|third\.level|level\.3|###"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ 3rd\.level|third\.level|level\.3|"###" ]]; then
         actual_nesting="present"
     else
         actual_nesting="missing"
-    fi
+    fi; shopt -u nocasematch
 else
     actual_breakout="missing"
     actual_threshold="missing"
@@ -173,21 +168,22 @@ assert_pass_if_clean "test_breakout_heuristic"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
-    if echo "$file_content" | grep -qi "read\.only\|read only"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ read\.only|"read only" ]]; then
         actual_guard="present"
     else
         actual_guard="missing"
     fi
-    if echo "$file_content" | grep -qi "suggested.change\|suggest.*change\|change.*report\|proposed.*change"; then
+    if [[ "$_tmp" =~ suggested.change|suggest.*change|change.*report|proposed.*change ]]; then
         actual_report="present"
     else
         actual_report="missing"
     fi
-    if echo "$file_content" | grep -qi "CLAUDE\.md\|safeguard"; then
+    if [[ "$_tmp" =~ CLAUDE\.md|safeguard ]]; then
         actual_ref="present"
     else
         actual_ref="missing"
-    fi
+    fi; shopt -u nocasematch
 else
     actual_guard="missing"
     actual_report="missing"
@@ -205,21 +201,22 @@ assert_pass_if_clean "test_claude_md_read_only_guard"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
-    if echo "$file_content" | grep -qi "truncat"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" == *"truncat"* ]]; then
         actual_truncation="present"
     else
         actual_truncation="missing"
     fi
-    if echo "$file_content" | grep -qi "warn\|log.*warn\|warning"; then
+    if [[ "$_tmp" =~ warn|log.*warn|warning ]]; then
         actual_warning="present"
     else
         actual_warning="missing"
     fi
-    if echo "$file_content" | grep -qi "context\|exceed\|limit"; then
+    if [[ "$_tmp" =~ context|exceed|limit ]]; then
         actual_context="present"
     else
         actual_context="missing"
-    fi
+    fi; shopt -u nocasematch
 else
     actual_truncation="missing"
     actual_warning="missing"
@@ -237,21 +234,22 @@ assert_pass_if_clean "test_truncation_warning"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
-    if echo "$file_content" | grep -qi "reason"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" == *"reason"* ]]; then
         actual_reason="present"
     else
         actual_reason="missing"
     fi
-    if echo "$file_content" | grep -qi "gates.*evaluat\|evaluat.*gates\|gates_evaluated\|evaluated"; then
+    if [[ "$_tmp" =~ gates.*evaluat|evaluat.*gates|gates_evaluated|evaluated ]]; then
         actual_gates_eval="present"
     else
         actual_gates_eval="missing"
     fi
-    if echo "$file_content" | grep -qiE "pass.*fail|fail.*pass|pass/fail|PASS|FAIL|passed|failed"; then
+    if [[ "$_tmp" =~ pass.*fail|fail.*pass|pass/fail|PASS|FAIL|passed|failed ]]; then
         actual_passfail="present"
     else
         actual_passfail="missing"
-    fi
+    fi; shopt -u nocasematch
 else
     actual_reason="missing"
     actual_gates_eval="missing"
@@ -268,16 +266,17 @@ assert_pass_if_clean "test_noop_report_format"
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
-    if echo "$file_content" | grep -qi "epic"; then
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" == *"epic"* ]]; then
         actual_epic="present"
     else
         actual_epic="missing"
     fi
-    if echo "$file_content" | grep -qi "git diff\|git.diff\|diff"; then
+    if [[ "$_tmp" =~ "git diff"|git.diff|diff ]]; then
         actual_diff="present"
     else
         actual_diff="missing"
-    fi
+    fi; shopt -u nocasematch
 else
     actual_epic="missing"
     actual_diff="missing"

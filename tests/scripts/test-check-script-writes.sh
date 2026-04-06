@@ -100,7 +100,8 @@ EOF
     local _out=""
     _out=$(python3 "$SCRIPT" --scan-dir="$_dir" 2>&1) || _exit=$?
     assert_eq "test_redirect_to_repo_root_detected: exit 1" "1" "$_exit"
-    if echo "$_out" | grep -qE 'FAIL \[.*:[0-9]+\] write to repo-root path:'; then
+    _tmp="$_out"
+    if [[ "$_tmp" =~ FAIL\ \[.*:[0-9]+\]\ write\ to\ repo-root\ path: ]]; then
         assert_eq "test_redirect_to_repo_root_detected: FAIL format" "yes" "yes"
     else
         assert_eq "test_redirect_to_repo_root_detected: FAIL format" "FAIL [file:line] write to repo-root path:" "$_out"

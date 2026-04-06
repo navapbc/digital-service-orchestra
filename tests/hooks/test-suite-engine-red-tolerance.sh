@@ -212,7 +212,7 @@ assert_ne "no_index_exit_nonzero" \
     "$_exit_code_no_index"
 
 _has_tolerated=0
-echo "$_suite_output_no_index" | grep -q "TOLERATED:" && _has_tolerated=1
+_tmp="$_suite_output_no_index"; [[ "$_tmp" =~ TOLERATED: ]] && _has_tolerated=1
 assert_eq "no_index_no_tolerated_in_summary" \
     "0" \
     "$_has_tolerated"

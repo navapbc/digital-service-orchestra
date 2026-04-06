@@ -180,6 +180,23 @@ find_global_red_marker_for_test() {
     done < "$index_file"
 }
 
+# ── EAGAIN resource exhaustion detection ─────────────────────────────────────
+# Matches fork failures caused by transient resource pressure (EAGAIN/ENOMEM).
+# Exit code 254 is used as a sentinel by suite-engine when the test process
+# itself exits with this code indicating resource exhaustion.
+EAGAIN_PATTERN='fork: (retry: )?Resource temporarily unavailable|BlockingIOError.*Resource temporarily unavailable'
+
+# _is_eagain_failure <exit_code> <output_file>
+# Returns 0 when exit_code==254 AND the output file contains the EAGAIN pattern.
+_is_eagain_failure() {
+    local exit_code="$1"
+    local output_file="$2"
+    [ "$exit_code" -eq 254 ] || return 1
+    [ -f "$output_file" ] || return 1
+    grep -qE "$EAGAIN_PATTERN" "$output_file" || return 1
+    return 0
+}
+
 # ── Centrality scoring ───────────────────────────────────────────────────────
 # REVIEW-DEFENSE: grep is used here for file-level fan-in counting, consistent with
 # the project pattern in gate-2b-blast-radius.sh count_fan_in() (line 226). The
@@ -695,8 +712,11 @@ fi
 # --- Guard: clear stale status when code changed since last recorded test run ---
 # If an existing 'passed' status was recorded for a DIFFERENT hash, clear it so
 # the test loop below re-runs tests against the current code (dso-6x8o).
+# Skip this guard in --source-file mode: that path is an incremental merge where
+# the caller manages the status file across sequential per-file invocations.
+# The merge block below (lines ~1200+) is the authoritative merging logic.
 _EXISTING_STATUS_FILE="$ARTIFACTS_DIR/test-gate-status"
-if [[ -f "$_EXISTING_STATUS_FILE" ]]; then
+if [[ -f "$_EXISTING_STATUS_FILE" ]] && [[ -z "$SOURCE_FILE" ]]; then
     _EXISTING_STATUS=$(head -1 "$_EXISTING_STATUS_FILE" 2>/dev/null || echo "")
     _EXISTING_HASH=$(grep '^diff_hash=' "$_EXISTING_STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2 || echo "")
     if [[ "$_EXISTING_STATUS" == "passed" ]] && [[ -n "$_EXISTING_HASH" ]] && [[ "$_EXISTING_HASH" != "$DIFF_HASH" ]]; then
@@ -970,6 +990,18 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
         continue
     fi
 
+    # EAGAIN detection: exit 254 + resource-exhaustion pattern in output.
+    # Must run BEFORE rm -f "$test_output_file" so the file still exists.
+    # Severity: resource_exhaustion is below failed and timeout — only set if
+    # current STATUS is "passed" (i.e., no worse status has been recorded yet).
+    if _is_eagain_failure "$exit_code" "$test_output_file"; then
+        rm -f "$test_output_file"
+        if [[ "$STATUS" != "timeout" ]] && [[ "$STATUS" != "failed" ]]; then
+            STATUS="resource_exhaustion"
+        fi
+        continue
+    fi
+
     if [[ $exit_code -ne 0 ]] && [[ -n "$red_marker" ]]; then
         # RED marker present — check if all failures are in the RED zone
         red_zone_line=$(get_red_zone_line_number "$test_file" "$red_marker")
@@ -1185,12 +1217,22 @@ if [[ -n "$SOURCE_FILE" ]] && [[ -f "$STATUS_FILE" ]]; then
     elif [[ -n "$_existing_failed" ]]; then
         FAILED_TESTS_LIST="$_existing_failed"
     fi
-    # Enforce severity hierarchy: timeout > failed > passed (never downgrade severity)
+    # Enforce severity hierarchy: timeout > failed > resource_exhaustion; passed from suite-engine is authoritative over resource_exhaustion
     # Compare both existing and current, keep the more severe.
+    # Deference check: when existing status is "passed" and new STATUS is
+    # "resource_exhaustion", preserve "passed" — suite-engine result is authoritative.
     if [[ "$_existing_status" == "timeout" ]] || [[ "$STATUS" == "timeout" ]]; then
         STATUS="timeout"
     elif [[ "$_existing_status" == "failed" ]] || [[ "$STATUS" == "failed" ]]; then
         STATUS="failed"
+    elif [[ "$_existing_status" == "resource_exhaustion" ]] || [[ "$STATUS" == "resource_exhaustion" ]]; then
+        # Only set resource_exhaustion if neither existing nor current is "passed"
+        # (passed means the suite-engine ran successfully — authoritative)
+        if [[ "$_existing_status" != "passed" ]] && [[ "$STATUS" != "passed" ]]; then
+            STATUS="resource_exhaustion"
+        else
+            STATUS="passed"
+        fi
     fi
 fi
 

@@ -154,6 +154,65 @@ elif command -v gtimeout >/dev/null 2>&1; then
     _TIMEOUT_CMD="gtimeout"
 fi
 
+# --- EAGAIN resource exhaustion detection ---
+# Matches fork failures caused by transient resource pressure (EAGAIN/ENOMEM).
+# Exit code 254 is used as a sentinel by _run_single_test when the test process
+# itself exits with this code indicating resource exhaustion.
+EAGAIN_PATTERN="fork: (retry: )?Resource temporarily unavailable|BlockingIOError.*Resource temporarily unavailable"
+
+# _is_eagain_failure <exit_code> <output_file>
+# Returns 0 when exit_code==254 AND the output file contains the EAGAIN pattern.
+_is_eagain_failure() {
+    local exit_code="$1"
+    local output_file="$2"
+    [ "$exit_code" -eq 254 ] || return 1
+    [ -f "$output_file" ] || return 1
+    grep -qE "$EAGAIN_PATTERN" "$output_file" || return 1
+    return 0
+}
+
+# _retry_eagain_test <test_path> <results_dir>
+# Re-runs the test synchronously with MAX_PARALLEL=1 exported to limit
+# process concurrency and reduce resource pressure. Overwrites .out, .exit,
+# and .counts files in results_dir. Returns the new exit code.
+_retry_eagain_test() {
+    local test_path="$1"
+    local results_dir="$2"
+    local test_name
+    test_name=$(basename "$test_path")
+
+    # Create per-test TMPDIR matching _run_single_test's isolation contract.
+    local retry_tmpdir
+    retry_tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/suite-test-${test_name}-retry-XXXXXX")
+
+    local retry_exit=0
+    if [ -n "$_TIMEOUT_CMD" ]; then
+        MAX_PARALLEL=1 "$_TIMEOUT_CMD" --signal=TERM --kill-after=5 "$TEST_TIMEOUT" \
+            env TMPDIR="$retry_tmpdir" \
+            bash "$test_path" > "$results_dir/$test_name.out" 2>&1 || retry_exit=$?
+    else
+        MAX_PARALLEL=1 TMPDIR="$retry_tmpdir" \
+            bash "$test_path" > "$results_dir/$test_name.out" 2>&1 || retry_exit=$?
+    fi
+
+    echo "$retry_exit" > "$results_dir/$test_name.exit"
+
+    # Clean up per-test TMPDIR (matches _run_single_test cleanup pattern)
+    rm -rf "$retry_tmpdir" 2>/dev/null || true
+
+    # Reparse counts from retry output
+    if [ "$retry_exit" -eq 124 ] || [ "$retry_exit" -eq 137 ]; then
+        echo "0 0 timeout" > "$results_dir/$test_name.counts"
+    else
+        local counts output
+        output=$(cat "$results_dir/$test_name.out")
+        counts=$(_parse_test_counts "$output")
+        echo "$counts" > "$results_dir/$test_name.counts"
+    fi
+
+    return "$retry_exit"
+}
+
 # --- Parse test output for PASS/FAIL counts ---
 # Handles both formats:
 #   "PASSED: N  FAILED: N"  (assert.sh)
@@ -326,11 +385,23 @@ run_test_suite() {
             exit_code=$(cat "$results_dir/$tname.exit")
         fi
 
+        # --- EAGAIN retry (must happen BEFORE rm -f on output file) ---
+        # If exit code is 254 and output contains an EAGAIN pattern, the test
+        # hit transient resource exhaustion. Retry synchronously with MAX_PARALLEL=1
+        # to reduce process pressure. The retry result is authoritative.
+        if _is_eagain_failure "$exit_code" "$results_dir/$tname.out"; then
+            _retry_eagain_test "$tpath" "$results_dir" || true
+            exit_code=$(cat "$results_dir/$tname.exit")
+            local retry_status="FAIL"
+            [ "$exit_code" -eq 0 ] && retry_status="PASS"
+            echo "EAGAIN retry for $tname: $retry_status" >&2
+        fi
+
         local counts_line="0 0"
         local is_timeout=false
         if [ -f "$results_dir/$tname.counts" ]; then
             counts_line=$(cat "$results_dir/$tname.counts")
-            if echo "$counts_line" | grep -q "timeout"; then
+            _tmp="$counts_line"; if [[ "$_tmp" =~ timeout ]]; then
                 is_timeout=true
                 counts_line="0 0"
             fi

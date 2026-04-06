@@ -23,7 +23,7 @@ trap 'rm -rf "$TMPDIR_BASE"' EXIT
 
 # The detection snippet embedded in .claude/commands/ wrapper files.
 # This is the canonical snippet — wrapper files will use this exact pattern.
-DETECTION_SNIPPET='timeout 3 claude plugin list 2>/dev/null | grep -q "digital-service-orchestra" && echo "PLUGIN_DETECTED" || echo "LOCAL_FALLBACK"'
+DETECTION_SNIPPET='_dso_out=$(timeout 3 claude plugin list 2>/dev/null); [[ "$_dso_out" == *"digital-service-orchestra"* ]] && echo "PLUGIN_DETECTED" || echo "LOCAL_FALLBACK"'
 
 # ── test_detection_finds_installed_plugin ─────────────────────────────────────
 # Mock claude returns "digital-service-orchestra" → PLUGIN_DETECTED

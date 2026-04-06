@@ -155,7 +155,7 @@ smoke_output=""
 smoke_output=$(cd "$SMOKE_REPO" && bash "$SCRIPT" --name=smoke-skip --dir="$SMOKE_WORKTREES" --skip-pull 2>&1) || smoke_exit=$?
 if [ "$smoke_exit" -eq 0 ]; then
     # Also verify no error about missing hook in output
-    if echo "$smoke_output" | grep -qi "hook.*not found\|post_create.*error"; then
+    if [[ "${smoke_output,,}" =~ hook.*not\ found|post_create.*error ]]; then
         echo "  FAIL: portability skip-path — exit 0 but error about missing hook in output" >&2
         (( FAIL++ ))
     else

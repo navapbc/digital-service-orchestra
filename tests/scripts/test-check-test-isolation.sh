@@ -38,7 +38,7 @@ file="$1"
 line_num=0
 while IFS= read -r line; do
     (( line_num++ ))
-    if echo "$line" | grep -q "BAD_PATTERN"; then
+    if [[ "$line" == *"BAD_PATTERN"* ]]; then
         echo "$file:$line_num:no-bad-pattern:Found BAD_PATTERN"
     fi
 done < "$file"

@@ -28,7 +28,7 @@ fi
 # (known: TEST-FAILURE-DISPATCH.md has debugging-toolkit, unit-testing references)
 _snapshot_fail
 found_refs=0
-if echo "$OUTPUT" | grep -v '^$' | grep -v '^---' | grep -v 'Summary' | grep -v 'Total' | grep -q '.'; then
+if [[ -n "$(echo "$OUTPUT" | grep -v '^$' | grep -v '^---' | grep -v 'Summary' | grep -v 'Total')" ]]; then
     found_refs=1
 fi
 assert_eq "test_catalog_finds_known_references: at least 1 reference found" "1" "$found_refs"
@@ -41,7 +41,7 @@ format_ok=1
 detail_lines="$(echo "$OUTPUT" | grep -v '^$' | grep -v '^---' | grep -v 'Summary' | grep -v 'Total' | grep -v '^[a-z-]*: [0-9]')"
 if [ -n "$detail_lines" ]; then
     while IFS= read -r line; do
-        if ! echo "$line" | grep -qE '^[^:]+:[0-9]+:[a-z-]+:.*$'; then
+        if ! [[ "$line" =~ ^[^:]+:[0-9]+:[a-z-]+:.*$ ]]; then
             format_ok=0
             break
         fi
@@ -56,11 +56,11 @@ assert_pass_if_clean "test_catalog_output_format"
 # Output contains "Summary" section with per-plugin counts
 _snapshot_fail
 has_summary=0
-echo "$OUTPUT" | grep -q 'Summary' && has_summary=1
+[[ "$OUTPUT" == *Summary* ]] && has_summary=1
 assert_eq "test_catalog_summary_count: output contains Summary section" "1" "$has_summary"
 
 has_counts=0
-echo "$OUTPUT" | grep -qE '^[a-z-]+: [0-9]+ references' && has_counts=1
+[[ "$OUTPUT" =~ (^|$'\n')[a-z-]+:\ [0-9]+\ references ]] && has_counts=1
 assert_eq "test_catalog_summary_count: output contains per-plugin counts" "1" "$has_counts"
 assert_pass_if_clean "test_catalog_summary_count"
 
@@ -69,7 +69,7 @@ assert_pass_if_clean "test_catalog_summary_count"
 _snapshot_fail
 all_present=1
 for plugin in commit-commands claude-md-management code-simplifier backend-api-security debugging-toolkit unit-testing error-debugging; do
-    if ! echo "$OUTPUT" | grep -q "^${plugin}: "; then
+    if ! [[ "$OUTPUT" == *$'\n'"${plugin}: "* ]] && ! [[ "$OUTPUT" == "${plugin}: "* ]]; then
         all_present=0
         echo "  missing plugin in summary: $plugin" >&2
     fi
@@ -81,7 +81,7 @@ assert_pass_if_clean "test_catalog_covers_all_seven_plugins"
 # The catalog script and its test are not in the output
 _snapshot_fail
 self_excluded=1
-if echo "$detail_lines" | grep -q 'plugin-reference-catalog'; then
+if [[ "$detail_lines" == *plugin-reference-catalog* ]]; then
     self_excluded=0
 fi
 assert_eq "test_catalog_excludes_self: catalog script and test not in output" "1" "$self_excluded"

@@ -71,7 +71,7 @@ if [ -f "$WORKFLOW_FILE" ]; then
   stage3=$(sed -n '/^## Stage 3/,/^---$/p' "$WORKFLOW_FILE")
   has_all=true
   for term in critical major minor; do
-    if ! echo "$stage3" | grep -q "$term"; then
+    _tmp="$stage3"; if ! [[ "$_tmp" =~ $term ]]; then
       has_all=false
       break
     fi
@@ -89,7 +89,7 @@ fi
 if [ -f "$WORKFLOW_FILE" ]; then
   qr_section=$(sed -n '/^## Quick Reference/,/^## /p' "$WORKFLOW_FILE")
   escalate_line=$(echo "$qr_section" | grep -i "escalat")
-  if echo "$escalate_line" | grep -q "critical" && echo "$escalate_line" | grep -q "major"; then
+  _tmp="$escalate_line"; if [[ "$_tmp" =~ critical ]] && [[ "$_tmp" =~ major ]]; then
     assert "Quick Reference escalation mentions both critical and major" 0
   else
     assert "Quick Reference escalation mentions both critical and major" 1

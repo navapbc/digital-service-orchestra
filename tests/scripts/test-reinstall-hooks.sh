@@ -164,7 +164,7 @@ WORKTREE_PATH="$FAKE_REPO" bash "$SCRIPT" 2>/dev/null || rc=$?
 # Check that the hook shims were created and contain a poetry run fallback
 if [ -f "$FAKE_REPO/.git/hooks/pre-commit" ]; then
     shim_content=$(cat "$FAKE_REPO/.git/hooks/pre-commit")
-    if echo "$shim_content" | grep -q "poetry run"; then
+    if [[ "$shim_content" == *poetry\ run* ]]; then
         assert_eq "test_poetry_fallback_in_precommit_shim" "has-poetry-fallback" "has-poetry-fallback"
     else
         assert_eq "test_poetry_fallback_in_precommit_shim" "has-poetry-fallback" "no-poetry-fallback"
@@ -289,7 +289,7 @@ if [ -f "$FAKE_REPO8/.git/hooks/pre-commit" ]; then
     shim_content=$(cat "$FAKE_REPO8/.git/hooks/pre-commit")
     # The stale path may still be present in the shim (we don't remove it, we add a fallback)
     # but the hook now has a poetry run fallback to handle the stale case
-    if echo "$shim_content" | grep -q "poetry run"; then
+    if [[ "$shim_content" == *poetry\ run* ]]; then
         assert_eq "test_poetry_fallback_injected_stale_shim" "has-poetry-run" "has-poetry-run"
     else
         assert_eq "test_poetry_fallback_injected_stale_shim" "has-poetry-run" "missing-poetry-run"
@@ -411,13 +411,13 @@ WORKTREE_PATH="$FAKE_REPO10" bash "$SCRIPT" 2>/dev/null || true
 if [ -f "$FAKE_REPO10/.git/hooks/pre-commit" ]; then
     shim_content=$(cat "$FAKE_REPO10/.git/hooks/pre-commit")
     # Should contain a fallback that uses git-common-dir to find the main repo venv
-    if echo "$shim_content" | grep -q "git-common-dir\|git rev-parse --git-common-dir"; then
+    if [[ "$shim_content" == *git-common-dir* ]] || [[ "$shim_content" == *git\ rev-parse\ --git-common-dir* ]]; then
         assert_eq "test_main_repo_venv_fallback_7rg2" "has-main-repo-fallback" "has-main-repo-fallback"
     else
         assert_eq "test_main_repo_venv_fallback_7rg2" "has-main-repo-fallback" "missing-main-repo-fallback"
     fi
     # Should still have poetry run as final fallback
-    if echo "$shim_content" | grep -q "poetry run"; then
+    if [[ "$shim_content" == *poetry\ run* ]]; then
         assert_eq "test_poetry_fallback_still_present_7rg2" "has-poetry-fallback" "has-poetry-fallback"
     else
         assert_eq "test_poetry_fallback_still_present_7rg2" "has-poetry-fallback" "missing-poetry-fallback"

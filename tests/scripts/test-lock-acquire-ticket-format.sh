@@ -162,7 +162,7 @@ assert_contains "lock_acquire_blocked_output: LOCK_BLOCKED emitted" "LOCK_BLOCKE
 
 # CRITICAL: lock-acquire must NOT call `ticket create` when blocked
 ticket_calls=$(cat "$TICKET_LOG_FILE" 2>/dev/null || echo "")
-if echo "$ticket_calls" | grep -q "^create "; then
+if [[ "$ticket_calls" == *$'\ncreate '* ]] || [[ "$ticket_calls" == create\ * ]]; then
     assert_eq "lock_acquire_no_duplicate: must not call ticket create when blocked" "no_create" "called_create"
 else
     assert_eq "lock_acquire_no_duplicate: must not call ticket create when blocked" "no_create" "no_create"
@@ -205,7 +205,7 @@ assert_contains "lock_acquire_new: LOCK_ID emitted" "LOCK_ID:" "$acquire_out2"
 
 # Should call `ticket create`
 ticket_calls2=$(cat "$TICKET_LOG_FILE" 2>/dev/null || echo "")
-if echo "$ticket_calls2" | grep -q "^create "; then
+if [[ "$ticket_calls2" == *$'\ncreate '* ]] || [[ "$ticket_calls2" == create\ * ]]; then
     assert_eq "lock_acquire_new: calls ticket create" "called_create" "called_create"
 else
     assert_eq "lock_acquire_new: calls ticket create" "called_create" "no_create"

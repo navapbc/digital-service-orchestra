@@ -87,7 +87,7 @@ assert_eq "setup: MERGE_HEAD exists" "1" "$merge_head_exists"
 # First, get the full diff to verify incoming.txt IS in the raw diff
 full_diff=$(git diff HEAD 2>/dev/null)
 has_incoming_in_full=0
-echo "$full_diff" | grep -q "incoming.txt" && has_incoming_in_full=1
+_tmp="$full_diff"; [[ "$_tmp" =~ incoming\.txt ]] && has_incoming_in_full=1
 assert_eq "setup: incoming.txt is in the full diff" "1" "$has_incoming_in_full"
 
 # Now run compute-diff-hash.sh twice:

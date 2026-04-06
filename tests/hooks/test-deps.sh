@@ -77,9 +77,9 @@ assert_eq "bash: file_path" "/tmp/test.txt" "$(parse_json_field "$INPUT" '.tool_
 assert_eq "bash: missing field" "" "$(parse_json_field "$INPUT" '.nonexistent')"
 
 # Test Edit tool input shape
-INPUT2='{"tool_name":"Edit","tool_input":{"file_path":"/Users/joe/src/main.py","old_string":"foo","new_string":"bar"}}'
+INPUT2='{"tool_name":"Edit","tool_input":{"file_path":"/tmp/test/src/main.py","old_string":"foo","new_string":"bar"}}' # portability-ok
 assert_eq "bash: Edit tool_name" "Edit" "$(parse_json_field "$INPUT2" '.tool_name')"
-assert_eq "bash: Edit file_path" "/Users/joe/src/main.py" "$(parse_json_field "$INPUT2" '.tool_input.file_path')"
+assert_eq "bash: Edit file_path" "/tmp/test/src/main.py" "$(parse_json_field "$INPUT2" '.tool_input.file_path')"
 
 # Test ExitPlanMode (empty tool_input)
 INPUT3='{"tool_name":"ExitPlanMode","tool_input":{}}'
@@ -166,17 +166,17 @@ PATTERN_COUNT=$(echo "$PATTERNS" | wc -l | tr -d ' ')
 assert_eq "load_allowlist: returns 4 patterns" "4" "$PATTERN_COUNT"
 
 # Verify specific patterns are present
-echo "$PATTERNS" | grep -q '^\*\.png$'
+grep -q '^\*\.png$' <<< "$PATTERNS"
 assert_eq "load_allowlist: contains *.png" "0" "$?"
-echo "$PATTERNS" | grep -q '^\*\.jpg$'
+grep -q '^\*\.jpg$' <<< "$PATTERNS"
 assert_eq "load_allowlist: contains *.jpg" "0" "$?"
-echo "$PATTERNS" | grep -q '^\.tickets-tracker/\*\*$'
+grep -q '^\.tickets-tracker/\*\*$' <<< "$PATTERNS"
 assert_eq "load_allowlist: contains .tickets-tracker/**" "0" "$?"
-echo "$PATTERNS" | grep -q '^docs/\*\*$'
+grep -q '^docs/\*\*$' <<< "$PATTERNS"
 assert_eq "load_allowlist: contains docs/**" "0" "$?"
 
 # test_load_allowlist_patterns_skips_comments
-echo "$PATTERNS" | grep -q '^#'
+grep -q '^#' <<< "$PATTERNS"
 GREP_RC=$?
 assert_ne "load_allowlist: no comment lines" "0" "$GREP_RC"
 
@@ -188,7 +188,9 @@ assert_eq "load_allowlist: no blank lines" "0" "$BLANK_LINES"
 MISSING_STDERR=$(_load_allowlist_patterns "/tmp/nonexistent-allowlist-$$" 2>&1 1>/dev/null)
 MISSING_RC=$?
 assert_ne "load_allowlist: missing file returns non-zero" "0" "$MISSING_RC"
-echo "$MISSING_STDERR" | grep -qi 'warn\|not found'
+# REVIEW-DEFENSE: bash [[ =~ ]] uses ERE where | is the alternation operator (verified empirically).
+# "warn|not\ found" correctly matches either "warn" or "not found" — no parentheses needed.
+_tmp="$MISSING_STDERR"; shopt -s nocasematch; [[ "$_tmp" =~ warn|not\ found ]]; _rc=$?; shopt -u nocasematch; (exit $_rc)
 assert_eq "load_allowlist: missing file warns on stderr" "0" "$?"
 
 # --- _allowlist_to_pathspecs ---
@@ -198,11 +200,11 @@ echo "=== _allowlist_to_pathspecs ==="
 PATHSPECS=$(_allowlist_to_pathspecs "*.png
 *.jpg
 .tickets-tracker/**")
-echo "$PATHSPECS" | grep -q '^:!\*\.png$'
+grep -q '^:!\*\.png$' <<< "$PATHSPECS"
 assert_eq "pathspecs: *.png becomes :!*.png" "0" "$?"
-echo "$PATHSPECS" | grep -q '^:!\*\.jpg$'
+grep -q '^:!\*\.jpg$' <<< "$PATHSPECS"
 assert_eq "pathspecs: *.jpg becomes :!*.jpg" "0" "$?"
-echo "$PATHSPECS" | grep -q '^:!\.tickets-tracker/\*\*$'
+grep -q '^:!\.tickets-tracker/\*\*$' <<< "$PATHSPECS"
 assert_eq "pathspecs: .tickets-tracker/** becomes :!.tickets-tracker/**" "0" "$?"
 
 PATHSPEC_COUNT=$(echo "$PATHSPECS" | wc -l | tr -d ' ')
@@ -218,19 +220,19 @@ REGEX=$(_allowlist_to_grep_regex ".tickets-tracker/**
 docs/**")
 
 # Verify dot escaping: .tickets-tracker/ becomes \.tickets-tracker/
-echo "$REGEX" | grep -q '\\\.tickets-tracker/'
+grep -q '\\\.tickets-tracker/' <<< "$REGEX"
 assert_eq "grep_regex: escapes dot in .tickets-tracker/" "0" "$?"
 
 # Verify .sync-state.json dot escaping
-echo "$REGEX" | grep -q '\\\.sync-state\\\.json'
+grep -q '\\\.sync-state\\\.json' <<< "$REGEX"
 assert_eq "grep_regex: escapes dots in .sync-state.json" "0" "$?"
 
 # Verify single glob * conversion (single * matches within path segment: [^/]*)
-echo "$REGEX" | grep -q '\[^/\]\*\\\.png'
+grep -q '\[^/\]\*\\\.png' <<< "$REGEX"
 assert_eq "grep_regex: *.png glob converts correctly" "0" "$?"
 
 # Verify ** conversion
-echo "$REGEX" | grep -q 'docs/\.\*'
+grep -q 'docs/\.\*' <<< "$REGEX"
 assert_eq "grep_regex: docs/** converts to docs/.*" "0" "$?"
 
 # --- Summary ---

@@ -52,7 +52,7 @@ assert_contains "test_commit_step_has_fetch_before_push" "fetch origin tickets" 
 assert_contains "test_commit_step_has_rebase" "rebase" "$COMMIT_STEP_RUN"
 
 # 4. test_commit_step_no_plain_push — push should be inside a while/for retry loop
-if echo "$COMMIT_STEP_RUN" | grep -qE 'while|for.*retry|max_.*retries'; then
+if [[ "$COMMIT_STEP_RUN" =~ while|for.*retry|max_.*retries ]]; then
     echo "PASS: test_commit_step_no_plain_push"
     (( ++PASS ))
 else

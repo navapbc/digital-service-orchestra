@@ -140,7 +140,7 @@ test_review_stats_default_30_day_window() {
     assert_contains "includes recent event sess-fixture-002" "sess-fixture-002" "$output"
     # The old event (sess-fixture-003) should not appear
     local has_old="no"
-    if echo "$output" | grep -q "sess-fixture-003"; then
+    if [[ "$output" == *sess-fixture-003* ]]; then
         has_old="yes"
     fi
     assert_eq "excludes old event sess-fixture-003" "no" "$has_old"
@@ -179,7 +179,7 @@ print(d.strftime('%Y-%m-%d'))
     assert_contains "includes event within --since window" "sess-fixture-001" "$output"
 
     local has_older="no"
-    if echo "$output" | grep -q "sess-fixture-002"; then
+    if [[ "$output" == *sess-fixture-002* ]]; then
         has_older="yes"
     fi
     assert_eq "excludes event before --since date" "no" "$has_older"

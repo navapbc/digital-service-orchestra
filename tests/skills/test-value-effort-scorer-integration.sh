@@ -46,35 +46,35 @@ test_scorer_priority_matrix_boundary_conditions() {
   SCORER_CONTENT="$(cat "$SCORER_MD")"
 
   # Priority matrix must be present
-  if echo "$SCORER_CONTENT" | grep -qiE "priority matrix|P0|P1|P2|P3|P4"; then
+  if grep -qiE "priority matrix|P0|P1|P2|P3|P4" <<< "$SCORER_CONTENT"; then
     pass "Scorer prompt contains priority matrix with P-level labels"
   else
     fail "Scorer prompt missing priority matrix with P0/P1/P2/P3/P4 labels"
   fi
 
   # High-value, low-effort boundary: (5,1) → P0 or P1
-  if echo "$SCORER_CONTENT" | grep -qiE "5.*1|high.*value.*low.*effort|low.*effort.*high.*value|P0|P1"; then
+  if grep -qiE "5.*1|high.*value.*low.*effort|low.*effort.*high.*value|P0|P1" <<< "$SCORER_CONTENT"; then
     pass "Scorer prompt covers high-value/low-effort boundary (5,1) → P0/P1"
   else
     fail "Scorer prompt missing high-value/low-effort boundary condition (5,1) → P0/P1"
   fi
 
   # Low-value, high-effort boundary: (1,5) → P3 or P4
-  if echo "$SCORER_CONTENT" | grep -qiE "1.*5|low.*value.*high.*effort|high.*effort.*low.*value|P3|P4"; then
+  if grep -qiE "1.*5|low.*value.*high.*effort|high.*effort.*low.*value|P3|P4" <<< "$SCORER_CONTENT"; then
     pass "Scorer prompt covers low-value/high-effort boundary (1,5) → P3/P4"
   else
     fail "Scorer prompt missing low-value/high-effort boundary condition (1,5) → P3/P4"
   fi
 
   # High-value, high-effort boundary: (5,5) → P1 or P2
-  if echo "$SCORER_CONTENT" | grep -qiE "P2|strategic|high.*value.*high.*effort|high.*effort.*high.*value"; then
+  if grep -qiE "P2|strategic|high.*value.*high.*effort|high.*effort.*high.*value" <<< "$SCORER_CONTENT"; then
     pass "Scorer prompt covers high-value/high-effort boundary (5,5) → P1/P2"
   else
     fail "Scorer prompt missing high-value/high-effort boundary condition (5,5) → P1/P2"
   fi
 
   # Low-value, low-effort boundary: (1,1) → P3 or P4
-  if echo "$SCORER_CONTENT" | grep -qiE "fill.in|low.*value.*low.*effort|low.*effort.*low.*value|backlog|P3|P4"; then
+  if grep -qiE "fill.in|low.*value.*low.*effort|low.*effort.*low.*value|backlog|P3|P4" <<< "$SCORER_CONTENT"; then
     pass "Scorer prompt covers low-value/low-effort boundary (1,1) → P3/P4"
   else
     fail "Scorer prompt missing low-value/low-effort boundary condition (1,1) → P3/P4"
@@ -148,14 +148,14 @@ test_scorer_scale_definitions() {
   SCORER_CONTENT="$(cat "$SCORER_MD")"
 
   # Value scale 1-5 must be defined
-  if echo "$SCORER_CONTENT" | grep -qiE "value.*scale|value.*1.*5|1.*=.*value|value.*1\b"; then
+  if grep -qiE "value.*scale|value.*1.*5|1.*=.*value|value.*1\b" <<< "$SCORER_CONTENT"; then
     pass "Scorer defines value scale with 1-5 range"
   else
     fail "Scorer missing value scale definition (1-5)"
   fi
 
   # Effort scale 1-5 must be defined
-  if echo "$SCORER_CONTENT" | grep -qiE "effort.*scale|effort.*1.*5|1.*=.*effort|effort.*1\b"; then
+  if grep -qiE "effort.*scale|effort.*1.*5|1.*=.*effort|effort.*1\b" <<< "$SCORER_CONTENT"; then
     pass "Scorer defines effort scale with 1-5 range"
   else
     fail "Scorer missing effort scale definition (1-5)"

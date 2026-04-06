@@ -18,7 +18,7 @@ echo "=== Tests for estimate-context-load.sh ==="
 if output=$("$SCRIPT" 2>&1); then
     fail "No arguments should exit non-zero"
 else
-    if echo "$output" | grep -qi "usage"; then
+    if grep -qi "usage" <<< "$output"; then
         pass "No arguments prints usage and exits 1"
     else
         fail "No arguments should print usage (got: $output)"
@@ -27,7 +27,7 @@ fi
 
 # --- Test: --help prints usage and exits 0 ---
 if output=$("$SCRIPT" --help 2>&1); then
-    if echo "$output" | grep -qi "usage"; then
+    if grep -qi "usage" <<< "$output"; then
         pass "--help prints usage and exits 0"
     else
         fail "--help should print usage (got: $output)"
@@ -38,7 +38,7 @@ fi
 
 # --- Test: accepts skill name argument ---
 if output=$("$SCRIPT" debug-everything 2>&1); then
-    if echo "$output" | grep -q "Static Context Load Estimate"; then
+    if grep -q "Static Context Load Estimate" <<< "$output"; then
         pass "Accepts skill name argument and produces output"
     else
         fail "Expected 'Static Context Load Estimate' header in output"
@@ -49,7 +49,7 @@ fi
 
 # --- Test: skill name appears in output ---
 if output=$("$SCRIPT" debug-everything 2>&1); then
-    if echo "$output" | grep -q "debug-everything"; then
+    if grep -q "debug-everything" <<< "$output"; then
         pass "Skill name appears in output"
     else
         fail "Skill name should appear in output"
@@ -60,7 +60,7 @@ fi
 
 # --- Test: --window flag overrides default ---
 if output=$("$SCRIPT" debug-everything --window=100000 2>&1); then
-    if echo "$output" | grep -q "100000"; then
+    if grep -q "100000" <<< "$output"; then
         pass "--window=N overrides context window"
     else
         fail "--window=100000 should appear in output (got: $output)"
@@ -71,13 +71,13 @@ fi
 
 # --- Test: --threshold flag overrides default ---
 if output=$("$SCRIPT" debug-everything --threshold=5000 2>&1); then
-    if echo "$output" | grep -q "5,000\|5000"; then
+    if grep -q "5,000\|5000" <<< "$output"; then
         pass "--threshold=N overrides warning threshold"
     else
         # Threshold only appears in WARNING/OK message, check logic:
         # If total < 5000, should say "OK: Static load within healthy range (<5,000 tokens)"
         # If total >= 5000, should say "WARNING: Static load >5,000 tokens"
-        if echo "$output" | grep -qE "(WARNING|OK).*5.000"; then
+        if grep -qE "(WARNING|OK).*5.000" <<< "$output"; then
             pass "--threshold=N overrides warning threshold"
         else
             fail "--threshold=5000 should affect WARNING/OK message (got: $output)"
@@ -89,7 +89,7 @@ fi
 
 # --- Test: --window and --threshold together ---
 if output=$("$SCRIPT" debug-everything --window=100000 --threshold=5000 2>&1); then
-    if echo "$output" | grep -q "100000"; then
+    if grep -q "100000" <<< "$output"; then
         pass "--window and --threshold work together"
     else
         fail "Combined flags should work (got: $output)"
@@ -108,7 +108,7 @@ fi
 
 # --- Test: non-existent skill name still runs without error ---
 if output=$("$SCRIPT" nonexistent-skill 2>&1); then
-    if echo "$output" | grep -q "Static Context Load Estimate"; then
+    if grep -q "Static Context Load Estimate" <<< "$output"; then
         pass "Non-existent skill name runs without error"
     else
         fail "Should still produce output for non-existent skill"
@@ -119,7 +119,8 @@ fi
 
 # --- Test: non-existent skill shows ~0 tokens for SKILL.md and prompts/ ---
 if output=$("$SCRIPT" nonexistent-skill-xyz 2>&1); then
-    if echo "$output" | grep -E 'SKILL.md|prompts/' | grep -q '~0 tokens'; then
+    _skill_lines=$(grep -E 'SKILL.md|prompts/' <<< "$output" || true)
+    if grep -q '~0 tokens' <<< "$_skill_lines"; then
         pass "Non-existent skill shows ~0 tokens for SKILL.md/prompts/"
     else
         fail "SKILL.md and prompts/ should show ~0 tokens for non-existent skill"
@@ -145,7 +146,7 @@ fi
 if output=$("$SCRIPT" debug-everything 2>&1); then
     ok=true
     for section in "CLAUDE.md:" "MEMORY.md:" "SKILL.md" "prompts/" "Static total:" "Context window:" "Pre-conversation static load:"; do
-        if ! echo "$output" | grep -q "$section"; then
+        if ! grep -q "$section" <<< "$output"; then
             fail "Missing expected section: $section"
             ok=false
             break

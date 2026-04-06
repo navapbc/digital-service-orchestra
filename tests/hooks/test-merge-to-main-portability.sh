@@ -162,14 +162,14 @@ assert_contains "test_portability_merge_succeeds" "DONE" "$MERGE_OUTPUT1"
 # No baseline check should have run — must not see "Visual baseline" or
 # "verify-baseline-intent" in the output
 BASELINE_ABSENT1="true"
-if echo "$MERGE_OUTPUT1" | grep -qE "Visual baseline|verify-baseline-intent"; then
+_tmp="$MERGE_OUTPUT1"; if [[ "$_tmp" =~ Visual\ baseline|verify-baseline-intent ]]; then
     BASELINE_ABSENT1="false"
 fi
 assert_eq "test_portability_no_baseline_check" "true" "$BASELINE_ABSENT1"
 
 # No CI trigger should have run — must not see "workflow run" in the output
 CI_ABSENT1="true"
-if echo "$MERGE_OUTPUT1" | grep -qE "workflow run"; then
+_tmp="$MERGE_OUTPUT1"; if [[ "$_tmp" =~ workflow\ run ]]; then
     CI_ABSENT1="false"
 fi
 assert_eq "test_portability_no_ci_trigger" "true" "$CI_ABSENT1"
@@ -235,7 +235,7 @@ assert_contains "test_portability_custom_dir_merge_succeeds" "DONE" "$MERGE_OUTP
 
 # Confirm the dirty ticket did not block the merge (no ERROR about uncommitted changes)
 UNCOMMITTED_ERROR3="false"
-if echo "$MERGE_OUTPUT3" | grep -qE "ERROR: Uncommitted changes"; then
+_tmp="$MERGE_OUTPUT3"; if [[ "$_tmp" =~ ERROR:\ Uncommitted\ changes ]]; then
     UNCOMMITTED_ERROR3="true"
 fi
 assert_eq "test_portability_custom_dir_no_uncommitted_error" "false" "$UNCOMMITTED_ERROR3"

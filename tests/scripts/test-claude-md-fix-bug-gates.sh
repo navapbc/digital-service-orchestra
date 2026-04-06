@@ -81,7 +81,9 @@ echo ""
 # mention CLI_user within 5 lines (grep -A5 -B5 context window) so future
 # agents know to bypass Gate 1a for user-reported bugs.
 _snapshot_fail
-if echo "$claude_md_content" | grep -A5 -B5 "intent-search" | grep -q "CLI_user"; then
+_intent_context=$(echo "$claude_md_content" | grep -A5 -B5 "intent-search")
+_tmp="$_intent_context"
+if [[ "$_tmp" == *"CLI_user"* ]]; then
     echo "PASS: test_claude_md_cli_user_skips_intent_search: CLAUDE.md documents CLI_user skip for intent-search"
     (( ++PASS ))
 else
@@ -97,10 +99,14 @@ echo ""
 # skipped for CLI_user-tagged tickets. Acceptable phrases: "skips", "skip",
 # "intent-aligned" (the GATE_1A_RESULT value when bypassed), or "Gate 1a".
 _snapshot_fail
-if echo "$claude_md_content" | grep -A3 -B3 "CLI_user" | grep -qiE "(skips?|intent-aligned|Gate 1a)"; then
+_cli_context=$(echo "$claude_md_content" | grep -A3 -B3 "CLI_user")
+_tmp="$_cli_context"; shopt -s nocasematch
+if [[ "$_tmp" =~ skips?|intent-aligned|"Gate 1a" ]]; then
+    shopt -u nocasematch
     echo "PASS: test_claude_md_gate1a_cli_user_skip_phrase"
     (( ++PASS ))
 else
+    shopt -u nocasematch
     echo "FAIL: test_claude_md_gate1a_cli_user_skip_phrase: CLAUDE.md has no skip/intent-aligned/Gate 1a phrase near CLI_user" >&2
     printf "  expected: skip/intent-aligned/Gate 1a within 3 lines of CLI_user\n" >&2
     printf "  actual:   no qualifying phrase found\n" >&2

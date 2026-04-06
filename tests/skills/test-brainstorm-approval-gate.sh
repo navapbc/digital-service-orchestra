@@ -89,28 +89,28 @@ else
 fi
 
 # Option (a): Approve — advances to fidelity review (or next phase)
-if echo "$_gate_section" | grep -qiE 'approv|advance|fidelity'; then
+if grep -qiE 'approv|advance|fidelity' <<< "$_gate_section"; then
   pass "approval gate section contains approve/advance option (option a)"
 else
   fail "approval gate section missing approve option (option a)"
 fi
 
 # Option (b): Red/blue team / scenario analysis re-run
-if echo "$_gate_section" | grep -qiE 'red.blue|blue.team|scenario.analysis|red.team'; then
+if grep -qiE 'red.blue|blue.team|scenario.analysis|red.team' <<< "$_gate_section"; then
   pass "approval gate section contains red/blue team scenario analysis option (option b)"
 else
   fail "approval gate section missing red/blue team scenario analysis option (option b)"
 fi
 
 # Option (c): Additional web research
-if echo "$_gate_section" | grep -qiE 'web.research|additional.research|research.phase'; then
+if grep -qiE 'web.research|additional.research|research.phase' <<< "$_gate_section"; then
   pass "approval gate section contains additional web research option (option c)"
 else
   fail "approval gate section missing additional web research option (option c)"
 fi
 
 # Option (d): Discuss / pause for conversational review
-if echo "$_gate_section" | grep -qiE "discuss|pause|let.s discuss|conversational"; then
+if grep -qiE "discuss|pause|let.s discuss|conversational" <<< "$_gate_section"; then
   pass "approval gate section contains discuss/pause option (option d)"
 else
   fail "approval gate section missing discuss/pause option (option d)"
@@ -118,7 +118,7 @@ fi
 
 # Verify the gate presents all 4 options (not just describes them) — must reference AskUserQuestion
 # or equivalent user-facing prompt mechanism with at least 4 numbered/lettered choices
-if echo "$_gate_section" | grep -qiE 'AskUserQuestion|four options|4 options|\(a\)|\(b\)|\(c\)|\(d\)|option a|option b|option c|option d'; then
+if grep -qiE 'AskUserQuestion|four options|4 options|\(a\)|\(b\)|\(c\)|\(d\)|option a|option b|option c|option d' <<< "$_gate_section"; then
   pass "approval gate section references 4-option user prompt mechanism"
 else
   fail "approval gate section missing 4-option user prompt mechanism (AskUserQuestion or equivalent)"
@@ -149,14 +149,14 @@ print(content)
 EOF
 ) || true
 
-if echo "$_rerun_section" | grep -qiE 're.run|rerun|re.trigger|already ran|already executed|already run|previously'; then
+if grep -qiE 're.run|rerun|re.trigger|already ran|already executed|already run|previously' <<< "$_rerun_section"; then
   pass "SKILL.md documents re-run awareness for approval gate options"
 else
   fail "SKILL.md missing re-run vs initial-run labeling for approval gate options"
 fi
 
 # Options must distinguish initial vs re-run state for research and scenario analysis
-if echo "$_rerun_section" | grep -qiE 'initial|first.time|not yet run|not yet triggered'; then
+if grep -qiE 'initial|first.time|not yet run|not yet triggered' <<< "$_rerun_section"; then
   pass "SKILL.md documents initial-run labeling for approval gate options"
 else
   fail "SKILL.md missing initial-run labeling for approval gate options (options should indicate when first time)"
@@ -190,28 +190,28 @@ EOF
 ) || true
 
 # Bright-line triggers: which conditions triggered research (or "none")
-if echo "$_log_section" | grep -qiE 'bright.line|trigger|triggered'; then
+if grep -qiE 'bright.line|trigger|triggered' <<< "$_log_section"; then
   pass "planning-intelligence log documents bright-line trigger field"
 else
   fail "planning-intelligence log missing bright-line trigger documentation"
 fi
 
 # Scenario count: how many scenarios survived the blue team filter
-if echo "$_log_section" | grep -qiE 'scenario|survived|blue.team|count'; then
+if grep -qiE 'scenario|survived|blue.team|count' <<< "$_log_section"; then
   pass "planning-intelligence log documents scenario count / blue team filter field"
 else
   fail "planning-intelligence log missing scenario count or blue team filter field"
 fi
 
 # Practitioner cycles: whether practitioner requested additional cycles via the gate
-if echo "$_log_section" | grep -qiE 'practitioner|cycle|additional|gate|requested'; then
+if grep -qiE 'practitioner|cycle|additional|gate|requested' <<< "$_log_section"; then
   pass "planning-intelligence log documents practitioner cycle field"
 else
   fail "planning-intelligence log missing practitioner cycle documentation"
 fi
 
 # Log entry must distinguish between states: not triggered / triggered / re-triggered via gate
-if echo "$_log_section" | grep -qiE 'not triggered|triggered|re.triggered|re-triggered'; then
+if grep -qiE 'not triggered|triggered|re.triggered|re-triggered' <<< "$_log_section"; then
   pass "planning-intelligence log documents triggered/not-triggered/re-triggered states"
 else
   fail "planning-intelligence log missing triggered state vocabulary (not triggered / triggered / re-triggered)"

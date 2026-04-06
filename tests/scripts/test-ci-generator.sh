@@ -256,7 +256,8 @@ YAML_FAKE_BIN="$(mktemp -d)"
 cat > "$YAML_FAKE_BIN/python3" << 'FAKE_PYEOF'
 #!/usr/bin/env bash
 # Stub: pretend yaml.safe_load always fails
-if echo "$*" | grep -q 'yaml.safe_load'; then
+_args="$*"
+if [[ "$_args" == *'yaml.safe_load'* ]]; then
     exit 1
 fi
 exec /usr/bin/python3 "$@"
@@ -360,7 +361,8 @@ _snapshot_fail
 TTM_FAKE_BIN="$(mktemp -d)"
 cat > "$TTM_FAKE_BIN/python3" << 'TTM_PYEOF'
 #!/usr/bin/env bash
-if echo "$*" | grep -q 'yaml.safe_load'; then
+_args="$*"
+if [[ "$_args" == *'yaml.safe_load'* ]]; then
     exit 1
 fi
 exec /usr/bin/python3 "$@"
@@ -406,7 +408,8 @@ NOVAL_FAKE_BIN="$(mktemp -d)"
 cat > "$NOVAL_FAKE_BIN/python3" << 'NOVAL_PYEOF'
 #!/usr/bin/env bash
 # Stub: pretend PyYAML is not installed (import yaml fails)
-if echo "$*" | grep -q 'import yaml'; then
+_args="$*"
+if [[ "$_args" == *'import yaml'* ]]; then
     exit 1
 fi
 exec /usr/bin/python3 "$@"

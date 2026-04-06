@@ -268,9 +268,12 @@ json.dump(payload, sys.stdout)
     assert_eq "compact exits 0 when remote SNAPSHOT present" "0" "$compact_exit"
 
     # Assert: output mentions skip
-    if echo "$compact_output" | grep -qi 'skip\|remote.*snapshot\|snapshot.*remote\|already.*compacted'; then
+    _tmp="$compact_output"; shopt -s nocasematch
+    if [[ "$_tmp" =~ skip|remote.*snapshot|snapshot.*remote|already.*compacted ]]; then
+        shopt -u nocasematch
         assert_eq "skip message for remote SNAPSHOT" "present" "present"
     else
+        shopt -u nocasematch
         assert_eq "skip message for remote SNAPSHOT" "present" "missing"
     fi
 
@@ -425,10 +428,12 @@ SHIM_EOF
 
     # Assert: output contains a useful message about sync being unavailable
     # (not a raw shell "command not found" trace)
-    if echo "$compact_output" | grep -qi \
-        'sync.*absent\|no.*sync.*subcommand\|sync_subcommand_missing\|sync.*not.*available\|sync.*unavailable\|skip.*sync'; then
+    _tmp="$compact_output"; shopt -s nocasematch
+    if [[ "$_tmp" =~ sync.*absent|no.*sync.*subcommand|sync_subcommand_missing|sync.*not.*available|sync.*unavailable|skip.*sync ]]; then
+        shopt -u nocasematch
         assert_eq "graceful message when sync absent" "present" "present"
     else
+        shopt -u nocasematch
         assert_eq "graceful message when sync absent" "present" "missing"
     fi
 

@@ -31,7 +31,7 @@ while IFS= read -r line; do
     # Allow legacy/fallback context mentions (lines that explain .yaml is the old format)
     content="${line#*:}"
     # Skip lines that mention .yaml in the context of legacy/fallback/old format
-    echo "$content" | grep -qiE 'legacy|fallback|old format|migration' && continue
+    _tmp="$content"; shopt -s nocasematch; [[ "$_tmp" =~ legacy|fallback|"old format"|migration ]] && { shopt -u nocasematch; continue; }; shopt -u nocasematch
     yaml_refs_outside_adr="$yaml_refs_outside_adr
 $line"
 done < <(grep -rn 'workflow-config\.yaml' "$DSO_PLUGIN_DIR/docs/" "$DSO_PLUGIN_DIR/docs/" 2>/dev/null || true)

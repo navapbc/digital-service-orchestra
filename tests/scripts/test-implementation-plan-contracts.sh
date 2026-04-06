@@ -52,8 +52,8 @@ test_contract_emit_parse_pattern() {
   local _section
   _section=$(awk '/^### Contract Detection Pass/{found=1} found && /^### / && !/^### Contract Detection Pass/{exit} found{print}' "$IMPL_PLAN_SKILL")
   local _has_emit=0 _has_parse_signal=0
-  echo "$_section" | grep -qE "emit" && _has_emit=1
-  echo "$_section" | grep -qE "parse.*signal|signal.*parse" && _has_parse_signal=1
+  _tmp="$_section"; [[ "$_tmp" =~ emit ]] && _has_emit=1
+  _tmp="$_section"; [[ "$_tmp" =~ parse.*signal|signal.*parse ]] && _has_parse_signal=1
   assert_eq "test_contract_emit_parse_pattern: 'emit' within Contract Detection Pass section" \
     "1" "$_has_emit"
   assert_eq "test_contract_emit_parse_pattern: 'parse.*signal' within Contract Detection Pass section" \
@@ -88,8 +88,8 @@ test_contract_deduplication() {
   local _section
   _section=$(awk '/^### Contract Detection Pass/{found=1} found && /^### / && !/^### Contract Detection Pass/{exit} found{print}' "$IMPL_PLAN_SKILL")
   local _has_tk_dep=0 _has_contract_ref=0
-  { echo "$_section" | grep -q "tk dep tree" || echo "$_section" | grep -q "ticket deps"; } && _has_tk_dep=1
-  { echo "$_section" | grep -q "existing contract" || echo "$_section" | grep -q "Contract:"; } \
+  _tmp="$_section"; { [[ "$_tmp" == *"tk dep tree"* ]] || [[ "$_tmp" == *"ticket deps"* ]]; } && _has_tk_dep=1
+  _tmp="$_section"; { [[ "$_tmp" == *"existing contract"* ]] || [[ "$_tmp" == *"Contract:"* ]]; } \
     && _has_contract_ref=1
   assert_eq "test_contract_deduplication: 'tk dep tree' or 'ticket deps' within Contract Detection Pass section" \
     "1" "$_has_tk_dep"

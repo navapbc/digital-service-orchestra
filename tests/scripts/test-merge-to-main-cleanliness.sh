@@ -164,7 +164,7 @@ MERGE_OUTPUT1=$(cd "$WT1" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
 
 # The merge script should report an ERROR, not just a WARNING
 HAS_ERROR1="false"
-if echo "$MERGE_OUTPUT1" | grep -q "ERROR.*dirty\|ERROR.*clean\|ERROR.*leftover"; then
+if [[ "$MERGE_OUTPUT1" =~ ERROR.*dirty|ERROR.*clean|ERROR.*leftover ]]; then
     HAS_ERROR1="true"
 fi
 # Currently this is a WARNING, so this test should FAIL (RED)
@@ -195,7 +195,7 @@ MERGE_OUTPUT2=$(cd "$WT2" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
 
 # The merge script should report the untracked file
 HAS_UNTRACKED_DETECTION2="false"
-if echo "$MERGE_OUTPUT2" | grep -q "artifact.log\|untracked.*main\|ERROR.*clean"; then
+if [[ "$MERGE_OUTPUT2" == *artifact.log* ]] || [[ "$MERGE_OUTPUT2" =~ untracked.*main|ERROR.*clean ]]; then
     HAS_UNTRACKED_DETECTION2="true"
 fi
 # Currently untracked files are NOT detected, so this test should FAIL (RED)

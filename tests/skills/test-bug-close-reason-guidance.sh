@@ -73,8 +73,9 @@ _snapshot_fail
 # The task completion workflow section should mention --reason near the
 # ticket transition close command
 _CW_HAS_REASON="not_found"
-# Look for --reason within the Task Completion Workflow section (lines ~155-165)
-sed -n '155,170p' "$CLAUDE_MD" | grep -q '\-\-reason' 2>/dev/null && _CW_HAS_REASON="found"
+# Look for --reason within the Task Completion Workflow section
+# Use section-based search instead of hardcoded line numbers (fragile after doc updates)
+_tmp=$(sed -n '/^## Task Completion Workflow/,/^## /p' "$CLAUDE_MD" 2>/dev/null); grep -q '\-\-reason' <<< "$_tmp" && _CW_HAS_REASON="found"
 assert_eq "test_claude_md_completion_workflow_includes_reason" "found" "$_CW_HAS_REASON"
 
 assert_pass_if_clean "test_claude_md_completion_workflow_includes_reason"

@@ -135,7 +135,7 @@ fi
 
 # Understanding summary must contain key elements covering problem, users, scope, success, confirmation
 for keyword in problem users scope success confirmation; do
-  if echo "$_phase1_gate" | grep -qi "$keyword"; then
+  if grep -qi "$keyword" <<< "$_phase1_gate"; then
     pass "Phase 1 Gate section contains keyword: $keyword"
   else
     fail "Phase 1 Gate section missing keyword: $keyword"
@@ -150,14 +150,14 @@ SECTION="test_intent_gap_analysis"
 _phase1_gate2=$(_extract_phase1_gate) || true
 
 # Gap analysis must reference inferred or assumed content
-if echo "$_phase1_gate2" | grep -qiE 'inferred|assumed'; then
+if grep -qiE 'inferred|assumed' <<< "$_phase1_gate2"; then
   pass "Phase 1 Gate section references inferred/assumed content for gap analysis"
 else
   fail "Phase 1 Gate section missing inferred/assumed language for intent gap analysis"
 fi
 
 # Gap analysis must mention targeted questions
-if echo "$_phase1_gate2" | grep -qiE 'targeted questions|targeted question|gap question'; then
+if grep -qiE 'targeted questions|targeted question|gap question' <<< "$_phase1_gate2"; then
   pass "Phase 1 Gate section references targeted questions for gap analysis"
 else
   fail "Phase 1 Gate section missing targeted questions reference"
@@ -222,7 +222,7 @@ sys.exit(1)
 EOF
 ) || true
 
-if echo "$_gate_section" | grep -qiE 'annotation summary|summary line|provenance summary'; then
+if grep -qiE 'annotation summary|summary line|provenance summary' <<< "$_gate_section"; then
   pass "Approval gate section contains annotation summary line reference"
 else
   fail "Approval gate section missing annotation summary line reference"
@@ -257,7 +257,7 @@ else
 fi
 
 # Phase 3 must instruct to strip/clean bold annotations for the final epic spec
-if echo "$_phase3" | grep -qiE 'strip|clean|no bold|remove bold|plain text|without.*bold'; then
+if grep -qiE 'strip|clean|no bold|remove bold|plain text|without.*bold' <<< "$_phase3"; then
   pass "Phase 3 section contains clean-text instruction (strip/clean/no bold)"
 else
   fail "Phase 3 section missing clean-text instruction for final epic spec"
@@ -291,7 +291,7 @@ _phase3_neg=$(_extract_phase3_section) || true
 
 # Phase 3 (final epic spec section) should NOT contain bold annotation rendering instructions —
 # those belong in the Phase 1 Gate / progressive validation sections.
-if echo "$_phase3_neg" | grep -qiE 'render.*bold|display.*bold|show.*bold|bold.*annotation.*render|annotation.*bold.*instruct'; then
+if grep -qiE 'render.*bold|display.*bold|show.*bold|bold.*annotation.*render|annotation.*bold.*instruct' <<< "$_phase3_neg"; then
   fail "Phase 3 section contains bold annotation rendering instructions (should be in Phase 1 Gate only)"
 else
   pass "Phase 3 section does not contain bold annotation rendering instructions (correct)"
@@ -311,7 +311,7 @@ else
 fi
 
 # Gap analysis section must indicate confirmed content is excluded/skipped from gaps
-if echo "$_gap_section" | grep -qiE 'exclude|skip|not.*gap|confirmed.*not|already.*confirmed|no gap'; then
+if grep -qiE 'exclude|skip|not.*gap|confirmed.*not|already.*confirmed|no gap' <<< "$_gap_section"; then
   pass "Gap analysis section excludes/skips confirmed content from gap questions"
 else
   fail "Gap analysis section missing exclusion of confirmed content from gaps"

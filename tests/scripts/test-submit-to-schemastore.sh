@@ -84,7 +84,7 @@ rm -f "$TEMP_VALID"
 assert_eq "test_schemastore_accepts_valid_schema" "0" "$exit_code"
 
 # ── test_schemastore_output_contains_catalog_entry ────────────────────────────
-if echo "$output" | grep -q "catalog.json"; then
+if [[ "$output" == *catalog.json* ]]; then
     actual="contains_catalog"
 else
     actual="missing_catalog"

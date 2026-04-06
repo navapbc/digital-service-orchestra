@@ -313,10 +313,12 @@ test_shim_unconditional_reexport_detection() {
     # Look for a pattern where CLAUDE_PLUGIN_ROOT export is conditional on it being unset.
     # The guard should appear BEFORE `export CLAUDE_PLUGIN_ROOT=` in the shim.
     # Accepted patterns: -z CLAUDE_PLUGIN_ROOT, unset CLAUDE_PLUGIN_ROOT check, etc.
-    if grep -A3 'export CLAUDE_PLUGIN_ROOT=' "$SHIM" | grep -qE '(-z.*CLAUDE_PLUGIN_ROOT|CLAUDE_PLUGIN_ROOT.*-z|unset.*CLAUDE_PLUGIN_ROOT)'; then
+    _tmp=$(grep -A3 'export CLAUDE_PLUGIN_ROOT=' "$SHIM"); if grep -qE '(-z.*CLAUDE_PLUGIN_ROOT|CLAUDE_PLUGIN_ROOT.*-z|unset.*CLAUDE_PLUGIN_ROOT)' <<< "$_tmp"; then
         has_guard="true"
-    elif grep -B3 'export CLAUDE_PLUGIN_ROOT=' "$SHIM" | grep -qE '(-z.*CLAUDE_PLUGIN_ROOT|CLAUDE_PLUGIN_ROOT.*-z)'; then
-        has_guard="true"
+    else
+        _tmp=$(grep -B3 'export CLAUDE_PLUGIN_ROOT=' "$SHIM"); if grep -qE '(-z.*CLAUDE_PLUGIN_ROOT|CLAUDE_PLUGIN_ROOT.*-z)' <<< "$_tmp"; then
+            has_guard="true"
+        fi
     fi
 
     # RED assertion: the guard does NOT exist yet (current code is unconditional).

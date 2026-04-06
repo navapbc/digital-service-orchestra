@@ -437,7 +437,7 @@ test_ticket_edit_usage_mentions_tags() {
     local usage_output
     usage_output=$(bash "$TICKET_EDIT_SCRIPT" 2>&1) || true
 
-    if echo "$usage_output" | grep -qi "tags"; then
+    if [[ "${usage_output,,}" == *"tags"* ]]; then
         assert_eq "usage mentions 'tags'" "found" "found"
     else
         assert_eq "usage mentions 'tags'" "found" "not-found: $usage_output"

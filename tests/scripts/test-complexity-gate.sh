@@ -97,7 +97,13 @@ else
 fi
 
 # A5: Scoring rules table (Classification Rules section or Tier column)
-if grep -q "Classification Rules" "$SHARED_EVALUATOR" || grep -q "| Tier" "$SHARED_EVALUATOR" || grep -q "| \*\*Tier\*\*\|Tier |" "$SHARED_EVALUATOR"; then
+_tier_found=0
+grep -q "Classification Rules" "$SHARED_EVALUATOR" && _tier_found=1
+[[ "$_tier_found" -eq 0 ]] && grep -q "| Tier" "$SHARED_EVALUATOR" \
+    && _tier_found=1
+[[ "$_tier_found" -eq 0 ]] && grep -q "| \*\*Tier\*\*\|Tier |" "$SHARED_EVALUATOR" \
+    && _tier_found=1
+if [[ "$_tier_found" -eq 1 ]]; then
   echo "  PASS A5: Scoring rules table present"
 else
   echo "  FAIL A5: Scoring rules table (Classification Rules or Tier) missing from $SHARED_EVALUATOR" >&2

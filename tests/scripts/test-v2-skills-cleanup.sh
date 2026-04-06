@@ -64,7 +64,7 @@ _snapshot_fail
 end_session_bare_count=0
 # Count lines that have .tickets/ but NOT .tickets-tracker/
 while IFS= read -r line; do
-    if echo "$line" | grep -q '\.tickets/' && ! echo "$line" | grep -q '\.tickets-tracker/'; then
+    if [[ "$line" == *".tickets/"* ]] && [[ "$line" != *".tickets-tracker/"* ]]; then
         end_session_bare_count=$((end_session_bare_count + 1))
     fi
 done < <(grep '\.tickets/' "$SKILLS_DIR/end-session/SKILL.md" 2>/dev/null || true)
@@ -78,7 +78,7 @@ assert_pass_if_clean "test_end_session_dot_tickets_updated"
 _snapshot_fail
 resolve_bare_count=0
 while IFS= read -r line; do
-    if echo "$line" | grep -q '\.tickets/' && ! echo "$line" | grep -q '\.tickets-tracker/'; then
+    if [[ "$line" == *".tickets/"* ]] && [[ "$line" != *".tickets-tracker/"* ]]; then
         resolve_bare_count=$((resolve_bare_count + 1))
     fi
 done < <(grep '\.tickets/' "$SKILLS_DIR/resolve-conflicts/SKILL.md" 2>/dev/null || true)
@@ -130,7 +130,7 @@ assert_pass_if_clean "test_brainstorm_no_dot_tickets"
 _snapshot_fail
 oscillation_bare_count=0
 while IFS= read -r line; do
-    if echo "$line" | grep -q '\.tickets/' && ! echo "$line" | grep -q '\.tickets-tracker/'; then
+    if [[ "$line" == *".tickets/"* ]] && [[ "$line" != *".tickets-tracker/"* ]]; then
         oscillation_bare_count=$((oscillation_bare_count + 1))
     fi
 done < <(grep '\.tickets/' "$SKILLS_DIR/oscillation-check/SKILL.md" 2>/dev/null || true)
@@ -146,7 +146,7 @@ _snapshot_fail
 prompts_dir="$SKILLS_DIR/sprint/prompts"
 sprint_prompts_total=0
 while IFS= read -r line; do
-    if echo "$line" | grep -q '\.tickets/' && ! echo "$line" | grep -q '\.tickets-tracker/'; then
+    if [[ "$line" == *".tickets/"* ]] && [[ "$line" != *".tickets-tracker/"* ]]; then
         sprint_prompts_total=$((sprint_prompts_total + 1))
     fi
 done < <(grep -r '\.tickets/' "$prompts_dir/" 2>/dev/null || true)

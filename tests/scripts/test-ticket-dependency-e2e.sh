@@ -208,7 +208,7 @@ test_scenario2_cycle_rejection() {
         "$([ "$link_yx_exit" -ne 0 ] && echo 1 || echo 0)"
 
     # 3. Error message mentions cycle
-    if echo "$link_yx_stderr" | grep -qi "cycle"; then
+    if [[ "${link_yx_stderr,,}" == *"cycle"* ]]; then
         assert_eq "scenario2: cycle error message mentions 'cycle'" "has-cycle" "has-cycle"
     else
         assert_eq "scenario2: cycle error message mentions 'cycle'" "has-cycle" \

@@ -88,7 +88,7 @@ if [ -z "$_enrich_section" ]; then
   fail "SKILL.md missing a dedicated Enrich-in-Place Path section (requires a markdown heading, not just a bold label)"
 else
   # Confirm the section contains Socratic dialogue instructions (not just a heading label)
-  if echo "$_enrich_section" | grep -qiE 'socratic|one question at a time|targeted question|dialogue'; then
+  if grep -qiE 'socratic|one question at a time|targeted question|dialogue' <<< "$_enrich_section"; then
     pass "SKILL.md has a dedicated Enrich-in-Place Path section with Socratic dialogue instructions"
   else
     fail "SKILL.md dedicated enrich-in-place section exists but lacks Socratic dialogue instructions"
@@ -107,28 +107,28 @@ SECTION="test_enrich_updates_ticket_description"
 if [ -z "$_enrich_section" ]; then
   fail "Cannot test: enrich-in-place section not found in SKILL.md"
 else
-  if echo "$_enrich_section" | grep -qE 'ticket edit.*--description|ticket.*edit.*--description'; then
+  if grep -qE 'ticket edit.*--description|ticket.*edit.*--description' <<< "$_enrich_section"; then
     pass "enrich-in-place section uses 'ticket edit --description' to update ticket"
   else
     fail "enrich-in-place section does not use 'ticket edit --description' (found 'ticket comment' or nothing)"
   fi
 
   # Must instruct including structured acceptance criteria
-  if echo "$_enrich_section" | grep -qiE 'acceptance criteria|success criteria'; then
+  if grep -qiE 'acceptance criteria|success criteria' <<< "$_enrich_section"; then
     pass "enrich-in-place section instructs including acceptance criteria in updated description"
   else
     fail "enrich-in-place section missing acceptance criteria instruction in ticket description update"
   fi
 
   # Must instruct including approach summary
-  if echo "$_enrich_section" | grep -qiE 'approach summary|approach'; then
+  if grep -qiE 'approach summary|approach' <<< "$_enrich_section"; then
     pass "enrich-in-place section instructs including approach summary in updated description"
   else
     fail "enrich-in-place section missing approach summary instruction in ticket description update"
   fi
 
   # Must instruct including file paths
-  if echo "$_enrich_section" | grep -qiE 'file path|relevant file|files'; then
+  if grep -qiE 'file path|relevant file|files' <<< "$_enrich_section"; then
     pass "enrich-in-place section instructs including file paths in updated description"
   else
     fail "enrich-in-place section missing file paths instruction in ticket description update"
@@ -145,31 +145,31 @@ SECTION="test_enrich_skips_epic_phases"
 if [ -z "$_enrich_section" ]; then
   fail "Cannot test: enrich-in-place section not found in SKILL.md"
 else
-  if echo "$_enrich_section" | grep -qiE 'skip.*fidelity|fidelity.*skip|no fidelity|omit.*fidelity'; then
+  if grep -qiE 'skip.*fidelity|fidelity.*skip|no fidelity|omit.*fidelity' <<< "$_enrich_section"; then
     pass "enrich-in-place section explicitly skips fidelity review"
   else
     fail "enrich-in-place section missing explicit skip of fidelity review"
   fi
 
-  if echo "$_enrich_section" | grep -qiE 'skip.*scenario|scenario.*skip|no scenario|omit.*scenario'; then
+  if grep -qiE 'skip.*scenario|scenario.*skip|no scenario|omit.*scenario' <<< "$_enrich_section"; then
     pass "enrich-in-place section explicitly skips scenario analysis"
   else
     fail "enrich-in-place section missing explicit skip of scenario analysis"
   fi
 
-  if echo "$_enrich_section" | grep -qiE 'skip.*ticket creation|ticket creation.*skip|no.*ticket creation|Phase 3.*skip|skip.*Phase 3'; then
+  if grep -qiE 'skip.*ticket creation|ticket creation.*skip|no.*ticket creation|Phase 3.*skip|skip.*Phase 3' <<< "$_enrich_section"; then
     pass "enrich-in-place section explicitly skips ticket creation"
   else
     fail "enrich-in-place section missing explicit skip of ticket creation"
   fi
 
-  if echo "$_enrich_section" | grep -qiE 'skip.*complexity|complexity.*skip|no complexity|omit.*complexity'; then
+  if grep -qiE 'skip.*complexity|complexity.*skip|no complexity|omit.*complexity' <<< "$_enrich_section"; then
     pass "enrich-in-place section explicitly skips complexity evaluation"
   else
     fail "enrich-in-place section missing explicit skip of complexity evaluation"
   fi
 
-  if echo "$_enrich_section" | grep -qiE 'skip.*downstream|downstream.*skip|no.*routing|do not.*route|omit.*preplanning|skip.*preplanning'; then
+  if grep -qiE 'skip.*downstream|downstream.*skip|no.*routing|do not.*route|omit.*preplanning|skip.*preplanning' <<< "$_enrich_section"; then
     pass "enrich-in-place section explicitly skips routing to downstream skills"
   else
     fail "enrich-in-place section missing explicit skip of routing to downstream skills"
@@ -186,14 +186,14 @@ SECTION="test_enrich_preserves_ticket_type"
 if [ -z "$_enrich_section" ]; then
   fail "Cannot test: enrich-in-place section not found in SKILL.md"
 else
-  if echo "$_enrich_section" | grep -qiE 'preserve.*type|type.*unchanged|do not.*convert|not.*convert|keep.*type|retain.*type|ticket type.*preserved|original.*type'; then
+  if grep -qiE 'preserve.*type|type.*unchanged|do not.*convert|not.*convert|keep.*type|retain.*type|ticket type.*preserved|original.*type' <<< "$_enrich_section"; then
     pass "enrich-in-place section documents that ticket type is preserved"
   else
     fail "enrich-in-place section missing explicit statement that ticket type is not changed"
   fi
 
   # Confirm the section does NOT instruct closing the original ticket (that's Option a behavior)
-  if echo "$_enrich_section" | grep -qiE 'ticket transition.*closed|close the original|transition.*closed'; then
+  if grep -qiE 'ticket transition.*closed|close the original|transition.*closed' <<< "$_enrich_section"; then
     fail "enrich-in-place section incorrectly instructs closing the original ticket (that is Option a behavior)"
   else
     pass "enrich-in-place section does not instruct closing/converting the original ticket"

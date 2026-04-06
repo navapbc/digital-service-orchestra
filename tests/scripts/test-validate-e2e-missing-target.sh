@@ -151,14 +151,14 @@ output=$(
 # but that is expected — we only care about the e2e line in the output.
 
 # PRIMARY ASSERTION: e2e must be reported as SKIP, not FAIL
-if echo "$output" | grep -qE 'e2e:\s+FAIL'; then
+if [[ "$output" =~ e2e:[[:space:]]+FAIL ]]; then
     assert_eq "e2e not reported as FAIL when target missing" "SKIP" "FAIL"
 else
     assert_eq "e2e not reported as FAIL when target missing" "SKIP" "SKIP"
 fi
 
 # SECONDARY ASSERTION: output must contain a SKIP line for e2e
-if echo "$output" | grep -qE 'e2e:\s+SKIP'; then
+if [[ "$output" =~ e2e:[[:space:]]+SKIP ]]; then
     assert_eq "e2e SKIP line present in output" "present" "present"
 else
     assert_eq "e2e SKIP line present in output" "present" "absent (output: $output)"

@@ -116,7 +116,7 @@ assert_contains "test_ticket_json_conflict_auto_resolved" "DONE" "$MERGE_OUT1"
 
 # Verify auto-resolve message appeared
 HAS_AUTO_MSG1="false"
-if echo "$MERGE_OUT1" | grep -qi "auto-resolved\|Ticket-data conflicts auto-resolved"; then
+if [[ "${MERGE_OUT1,,}" =~ auto-resolved ]] || [[ "${MERGE_OUT1,,}" == *ticket-data\ conflicts\ auto-resolved* ]]; then
     HAS_AUTO_MSG1="true"
 fi
 assert_eq "test_ticket_json_conflict_reports_auto_resolve" "true" "$HAS_AUTO_MSG1"
@@ -138,14 +138,14 @@ MERGE_OUT2=$(cd "$WT2" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
 
 # Should fail — real code conflict
 NO_DONE2="true"
-if echo "$MERGE_OUT2" | grep -q "^DONE:"; then
+if [[ "$MERGE_OUT2" == *$'\nDONE:'* ]] || [[ "$MERGE_OUT2" == DONE:* ]]; then
     NO_DONE2="false"
 fi
 assert_eq "test_non_ticket_conflict_blocks_merge" "true" "$NO_DONE2"
 
 # Should mention --resume in the error message
 HAS_RESUME2="false"
-if echo "$MERGE_OUT2" | grep -q "\-\-resume"; then
+if [[ "$MERGE_OUT2" == *--resume* ]]; then
     HAS_RESUME2="true"
 fi
 assert_eq "test_non_ticket_conflict_mentions_resume" "true" "$HAS_RESUME2"
@@ -164,14 +164,14 @@ MERGE_OUT3=$(cd "$WT3" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
 
 # Should succeed — two-level ticket path must be auto-resolved, not block merge
 HAS_DONE3="false"
-if echo "$MERGE_OUT3" | grep -q "^DONE:"; then
+if [[ "$MERGE_OUT3" == *$'\nDONE:'* ]] || [[ "$MERGE_OUT3" == DONE:* ]]; then
     HAS_DONE3="true"
 fi
 assert_eq "test_v3_two_level_ticket_path_auto_resolved" "true" "$HAS_DONE3"
 
 # Auto-resolve message must appear
 HAS_AUTO_MSG3="false"
-if echo "$MERGE_OUT3" | grep -qi "auto-resolved\|Ticket-data conflicts auto-resolved"; then
+if [[ "${MERGE_OUT3,,}" =~ auto-resolved ]] || [[ "${MERGE_OUT3,,}" == *ticket-data\ conflicts\ auto-resolved* ]]; then
     HAS_AUTO_MSG3="true"
 fi
 assert_eq "test_v3_two_level_ticket_path_reports_auto_resolve" "true" "$HAS_AUTO_MSG3"
@@ -242,14 +242,14 @@ MERGE_OUT4=$(cd "$WT4" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
 
 # Should succeed — origin/main is ancestor of main, pull is skipped
 HAS_DONE4="false"
-if echo "$MERGE_OUT4" | grep -q "^DONE:"; then
+if [[ "$MERGE_OUT4" == *$'\nDONE:'* ]] || [[ "$MERGE_OUT4" == DONE:* ]]; then
     HAS_DONE4="true"
 fi
 assert_eq "test_ancestor_skip_pull_completes" "true" "$HAS_DONE4"
 
 # Should log the ancestor skip message
 HAS_SKIP_MSG4="false"
-if echo "$MERGE_OUT4" | grep -qi "origin/main.*ancestor.*skip"; then
+if [[ "${MERGE_OUT4,,}" =~ origin/main.*ancestor.*skip ]]; then
     HAS_SKIP_MSG4="true"
 fi
 assert_eq "test_ancestor_skip_pull_logs_message" "true" "$HAS_SKIP_MSG4"
@@ -328,14 +328,14 @@ MERGE_OUT5=$(cd "$WT5" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
 
 # Should NOT contain the old CONFLICT_DATA at pull_rebase — that phase is gone
 NO_CONFLICT5="true"
-if echo "$MERGE_OUT5" | grep -q "CONFLICT_DATA.*pull_rebase"; then
+if [[ "$MERGE_OUT5" == *CONFLICT_DATA*pull_rebase* ]]; then
     NO_CONFLICT5="false"
 fi
 assert_eq "test_diverged_pull_no_pull_rebase_abort" "true" "$NO_CONFLICT5"
 
 # Should contain the warning about skipping the pull
 HAS_WARNING5="false"
-if echo "$MERGE_OUT5" | grep -qi "WARNING.*Could not merge origin/main.*Continuing"; then
+if [[ "${MERGE_OUT5,,}" =~ warning.*could\ not\ merge\ origin/main.*continuing ]]; then
     HAS_WARNING5="true"
 fi
 assert_eq "test_diverged_pull_logs_skip_warning" "true" "$HAS_WARNING5"

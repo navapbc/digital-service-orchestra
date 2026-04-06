@@ -248,7 +248,7 @@ prog_out=$(TEST_BATCHED_STATE_FILE="$PROG_STATE" bash "$SCRIPT" --timeout=30 \
 
 # Check for N/M pattern in output
 nm_found=0
-echo "$prog_out" | grep -qE '[0-9]+/[0-9]+' && nm_found=1
+[[ "$prog_out" =~ [0-9]+/[0-9]+ ]] && nm_found=1
 assert_eq "test_progress_indicator_in_output: output contains N/M progress pattern" "1" "$nm_found"
 rm -rf "$TMPDIR_PROG"
 assert_pass_if_clean "test_progress_indicator_in_output"
@@ -278,8 +278,8 @@ rm -f "$CHAIN_LOG"
 
 first_ran=0
 second_ran=0
-echo "$chain_contents" | grep -q 'first'  && first_ran=1
-echo "$chain_contents" | grep -q 'second' && second_ran=1
+[[ "$chain_contents" == *first* ]]  && first_ran=1
+[[ "$chain_contents" == *second* ]] && second_ran=1
 assert_eq "test_trap_cleanup_chains: first cleanup ran" "1" "$first_ran"
 assert_eq "test_trap_cleanup_chains: second cleanup ran" "1" "$second_ran"
 assert_pass_if_clean "test_trap_cleanup_chains"
@@ -299,7 +299,7 @@ compound_out=$(TEST_BATCHED_STATE_FILE="$COMPOUND_STATE" bash "$SCRIPT" --timeou
     "echo hello && echo world" 2>&1) || compound_exit=$?
 # Must produce a summary line (pass/complete/summary signal)
 compound_ok=0
-echo "$compound_out" | grep -qiE 'pass|complete|summary' && compound_ok=1
+[[ "${compound_out,,}" =~ pass|complete|summary ]] && compound_ok=1
 assert_eq "test_command_validation_compound_commands: compound command produces summary" "1" "$compound_ok"
 # Exit must be 0 (both echo commands succeed)
 assert_eq "test_command_validation_compound_commands: compound command exits 0" "0" "$compound_exit"
@@ -321,7 +321,7 @@ envvar_out=$(TEST_BATCHED_STATE_FILE="$ENVVAR_STATE" bash "$SCRIPT" --timeout=10
     "FOO=bar echo test" 2>&1) || envvar_exit=$?
 # Must produce a summary line
 envvar_ok=0
-echo "$envvar_out" | grep -qiE 'pass|complete|summary' && envvar_ok=1
+[[ "${envvar_out,,}" =~ pass|complete|summary ]] && envvar_ok=1
 assert_eq "test_command_validation_env_var_prefix: env var prefix produces summary" "1" "$envvar_ok"
 # Exit must be 0
 assert_eq "test_command_validation_env_var_prefix: env var prefix exits 0" "0" "$envvar_exit"
@@ -388,7 +388,7 @@ if command -v node >/dev/null 2>&1; then
         bash "$SCRIPT" --test-dir="$TMPDIR_NODE_AUTO" --timeout=30 2>&1) \
         || node_auto_exit=$?
     auto_detected=0
-    (echo "$node_auto_out" | grep -qE '\.test\.js|\.test\.mjs|node') && auto_detected=1
+    [[ "$node_auto_out" =~ \.test\.js|\.test\.mjs|node ]] && auto_detected=1
     assert_eq "test_node_auto_detected_when_available: auto-detection ran node driver" \
         "1" "$auto_detected"
 else
@@ -447,7 +447,7 @@ node_nofs_out=$(TEST_BATCHED_STATE_FILE="$NODE_NOFS_STATE" \
     || node_nofs_exit=$?
 
 fallback_noted=0
-(echo "$node_nofs_out" | grep -qiE 'fallback|generic|no.*test.*file|passed') && fallback_noted=1
+[[ "${node_nofs_out,,}" =~ fallback|generic|no.*test.*file|passed ]] && fallback_noted=1
 assert_eq "test_node_discovery_failure_falls_back: fallback triggered when no files found" \
     "1" "$fallback_noted"
 rm -rf "$TMPDIR_NODE_NOFS"
@@ -476,7 +476,7 @@ node_nobin_out=$(TEST_BATCHED_STATE_FILE="$NODE_NOBIN_STATE" \
     || node_nobin_exit=$?
 
 nobin_ok=0
-(echo "$node_nobin_out" | grep -qiE 'fallback|generic|node.*not|passed') && nobin_ok=1
+[[ "${node_nobin_out,,}" =~ fallback|generic|node.*not|passed ]] && nobin_ok=1
 assert_eq "test_node_not_installed_falls_back: falls back when node not on PATH" \
     "1" "$nobin_ok"
 rm -rf "$TMPDIR_NODE_NOBIN"
@@ -530,7 +530,7 @@ sys.exit(0 if 'interrupted' in vals else 1)
 
     # The resume must NOT say "Skipping (already completed)" — the test is re-run
     _int_node_skipped=0
-    echo "$int_node_resume_out" | grep -q "Skipping" && _int_node_skipped=1 || true
+    [[ "$int_node_resume_out" == *Skipping* ]] && _int_node_skipped=1 || true
     assert_eq "test_interrupted_node_test_reruns_on_resume: resume does not skip interrupted test" \
         "0" "$_int_node_skipped"
     # Test is re-run: output must mention it running
@@ -618,7 +618,7 @@ if command -v pytest >/dev/null 2>&1; then
         || pytest_collect_exit=$?
     # Output should reference the .py file discovered (collection occurred)
     py_mentioned=0
-    (echo "$pytest_collect_out" | grep -qE '\.py|test_sample|collect') && py_mentioned=1
+    [[ "$pytest_collect_out" =~ \.py|test_sample|collect ]] && py_mentioned=1
     assert_eq "test_runner_pytest_triggers_collection: pytest collection triggered" \
         "1" "$py_mentioned"
 else
@@ -628,7 +628,7 @@ else
         "bash -c 'exit 0'" 2>&1) \
         || pytest_collect_exit=$?
     fallback_seen=0
-    (echo "$pytest_collect_out" | grep -qiE 'fallback|not.*path|passed') && fallback_seen=1
+    [[ "${pytest_collect_out,,}" =~ fallback|not.*path|passed ]] && fallback_seen=1
     assert_eq "test_runner_pytest_triggers_collection: no pytest — fallback triggered" \
         "1" "$fallback_seen"
 fi
@@ -657,7 +657,7 @@ if command -v pytest >/dev/null 2>&1; then
         bash "$SCRIPT" --test-dir="$TMPDIR_PYTEST_AUTO" --timeout=30 2>&1) \
         || pytest_auto_exit=$?
     auto_ok=0
-    (echo "$pytest_auto_out" | grep -qiE '\.py|pytest|test_auto|passed') && auto_ok=1
+    [[ "${pytest_auto_out,,}" =~ \.py|pytest|test_auto|passed ]] && auto_ok=1
     assert_eq "test_pytest_auto_detected_when_available: pytest auto-detection ran" \
         "1" "$auto_ok"
 else
@@ -697,8 +697,8 @@ if command -v pytest >/dev/null 2>&1; then
     # Both test files should appear in output
     first_mentioned=0
     second_mentioned=0
-    (echo "$pytest_batch_out" | grep -qE 'test_first') && first_mentioned=1
-    (echo "$pytest_batch_out" | grep -qE 'test_second') && second_mentioned=1
+    [[ "$pytest_batch_out" =~ test_first ]] && first_mentioned=1
+    [[ "$pytest_batch_out" =~ test_second ]] && second_mentioned=1
     assert_eq "test_collected_tests_batched_via_pytest: test_first.py mentioned" \
         "1" "$first_mentioned"
     assert_eq "test_collected_tests_batched_via_pytest: test_second.py mentioned" \
@@ -733,7 +733,7 @@ if command -v pytest >/dev/null 2>&1; then
         || pytest_colfail_exit=$?
     # Should fall back: output must mention fallback/generic OR produce a summary
     fallback_or_summary=0
-    (echo "$pytest_colfail_out" | grep -qiE 'fallback|generic|fall.back|passed') \
+    [[ "${pytest_colfail_out,,}" =~ fallback|generic|fall.back|passed ]] \
         && fallback_or_summary=1
     assert_eq "test_collection_failure_falls_back_to_generic: fallback on collection error" \
         "1" "$fallback_or_summary"
@@ -763,7 +763,7 @@ pytest_empty_out=$(TEST_BATCHED_STATE_FILE="$PYTEST_EMPTY_STATE" \
 
 # Should produce a message about no files or fallback
 empty_ok=0
-(echo "$pytest_empty_out" | grep -qiE 'no.*test|no.*\.py|fallback|generic|passed') \
+[[ "${pytest_empty_out,,}" =~ no.*test|no.*\.py|fallback|generic|passed ]] \
     && empty_ok=1
 assert_eq "test_empty_collection_exits_with_message: message on empty collection" \
     "1" "$empty_ok"
@@ -794,7 +794,7 @@ pytest_malformed_out=$(TEST_BATCHED_STATE_FILE="$PYTEST_MALFORMED_STATE" \
 
 # Should fall back (zero tests collected = malformed/empty → generic)
 malformed_ok=0
-(echo "$pytest_malformed_out" | grep -qiE 'fallback|generic|no.*test|passed') \
+[[ "${pytest_malformed_out,,}" =~ fallback|generic|no.*test|passed ]] \
     && malformed_ok=1
 assert_eq "test_malformed_collection_output_falls_back: empty collect → fallback" \
     "1" "$malformed_ok"
@@ -841,13 +841,13 @@ sarb_out=""
 sarb_out=$(TEST_BATCHED_STATE_FILE="$SARB_STATE" bash "$SCRIPT" --timeout=1 "sleep 10" 2>/dev/null) || true
 rm -rf "$TMPDIR_SARB"
 sarb_has_action=0
-echo "$sarb_out" | grep -q "ACTION REQUIRED" && sarb_has_action=1
+[[ "$sarb_out" == *ACTION\ REQUIRED* ]] && sarb_has_action=1
 assert_eq "test_structured_action_required_block_on_timeout: output contains 'ACTION REQUIRED'" "1" "$sarb_has_action"
 sarb_has_run=0
-echo "$sarb_out" | grep -q "^RUN:" && sarb_has_run=1
+[[ "$sarb_out" =~ (^|$'\n')RUN: ]] && sarb_has_run=1
 assert_eq "test_structured_action_required_block_on_timeout: output contains 'RUN:' line" "1" "$sarb_has_run"
 sarb_has_dnp=0
-echo "$sarb_out" | grep -q "DO NOT PROCEED" && sarb_has_dnp=1
+[[ "$sarb_out" == *DO\ NOT\ PROCEED* ]] && sarb_has_dnp=1
 assert_eq "test_structured_action_required_block_on_timeout: output contains 'DO NOT PROCEED'" "1" "$sarb_has_dnp"
 assert_pass_if_clean "test_structured_action_required_block_on_timeout"
 
@@ -863,7 +863,7 @@ runcmd_out=""
 runcmd_out=$(TEST_BATCHED_STATE_FILE="$RUNCMD_STATE" bash "$SCRIPT" --timeout=1 "sleep 10" 2>/dev/null) || true
 rm -rf "$TMPDIR_RUNCMD"
 runcmd_has_state=0
-echo "$runcmd_out" | grep "^RUN:" | grep -q "TEST_BATCHED_STATE_FILE" && runcmd_has_state=1
+{ _runcmd_run_lines=$(grep "^RUN:" <<< "$runcmd_out"); [[ "$_runcmd_run_lines" == *TEST_BATCHED_STATE_FILE* ]]; } && runcmd_has_state=1
 assert_eq "test_structured_action_required_block_run_line_contains_command: RUN: line contains resume command" "1" "$runcmd_has_state"
 assert_pass_if_clean "test_structured_action_required_block_run_line_contains_command"
 
@@ -881,11 +881,11 @@ _snapshot_fail
 default_path_out=""
 default_path_out=$(bash "$SCRIPT" --timeout=1 "sleep 10" 2>/dev/null) || true
 default_path_has_fixed=0
-echo "$default_path_out" | grep "^RUN:" | grep -q "test-batched-state\.json$" && default_path_has_fixed=1
+{ _dp_run_lines=$(grep "^RUN:" <<< "$default_path_out"); [[ "$_dp_run_lines" =~ test-batched-state\.json$ ]]; } && default_path_has_fixed=1
 assert_eq "test_default_state_file_includes_repo_hash: default path is NOT the fixed /tmp/test-batched-state.json" \
     "0" "$default_path_has_fixed"
 default_path_has_hash=0
-echo "$default_path_out" | grep "^RUN:" | grep -qE "test-batched-state-[a-f0-9]" && default_path_has_hash=1
+{ _dp_run_lines2=$(grep "^RUN:" <<< "$default_path_out"); [[ "$_dp_run_lines2" =~ test-batched-state-[a-f0-9] ]]; } && default_path_has_hash=1
 assert_eq "test_default_state_file_includes_repo_hash: default path contains repo hash segment" \
     "1" "$default_path_has_hash"
 _cleanup_path=$(echo "$default_path_out" | grep "^RUN:" | grep -oE "TEST_BATCHED_STATE_FILE=[^ ]+" | cut -d= -f2 | tr -d "'")
@@ -926,13 +926,13 @@ bash_disc_out=$(TEST_BATCHED_STATE_FILE="$BASH_DISC_STATE" \
 # Should mention both test scripts in output
 disc_alpha=0
 disc_beta=0
-echo "$bash_disc_out" | grep -q "test-alpha.sh" && disc_alpha=1
-echo "$bash_disc_out" | grep -q "test-beta.sh" && disc_beta=1
+[[ "$bash_disc_out" == *test-alpha.sh* ]] && disc_alpha=1
+[[ "$bash_disc_out" == *test-beta.sh* ]] && disc_beta=1
 assert_eq "test_bash_runner_discovers_test_scripts: found test-alpha.sh" "1" "$disc_alpha"
 assert_eq "test_bash_runner_discovers_test_scripts: found test-beta.sh" "1" "$disc_beta"
 # Should show 2/2 progress (two separate items, not 1/1)
 disc_two=0
-echo "$bash_disc_out" | grep -q "2/2" && disc_two=1
+[[ "$bash_disc_out" == *2/2* ]] && disc_two=1
 assert_eq "test_bash_runner_discovers_test_scripts: shows 2/2 progress" "1" "$disc_two"
 assert_eq "test_bash_runner_discovers_test_scripts: exits 0" "0" "$bash_disc_exit"
 rm -rf "$TMPDIR_BASH_DISC"
@@ -979,10 +979,10 @@ bash_resume_out=$(TEST_BATCHED_STATE_FILE="$BASH_RESUME_STATE" \
 
 # Should skip test-first.sh and run test-second.sh
 skip_first=0
-echo "$bash_resume_out" | grep -q "Skipping.*test-first.sh" && skip_first=1
+[[ "$bash_resume_out" =~ Skipping.*test-first\.sh ]] && skip_first=1
 assert_eq "test_bash_runner_resumes_skipping_completed: skips test-first.sh" "1" "$skip_first"
 ran_second=0
-echo "$bash_resume_out" | grep -q "Running.*test-second.sh" && ran_second=1
+[[ "$bash_resume_out" =~ Running.*test-second\.sh ]] && ran_second=1
 assert_eq "test_bash_runner_resumes_skipping_completed: runs test-second.sh" "1" "$ran_second"
 rm -rf "$TMPDIR_BASH_RESUME"
 assert_pass_if_clean "test_bash_runner_resumes_skipping_completed"
@@ -1000,7 +1000,7 @@ bash_nodir_out=$(TEST_BATCHED_STATE_FILE="$BASH_NODIR_STATE" \
     bash "$SCRIPT" --runner=bash --timeout=10 "bash -c 'exit 0'" 2>&1) \
     || bash_nodir_exit=$?
 nodir_fallback=0
-echo "$bash_nodir_out" | grep -qi "fallback\|falling back" && nodir_fallback=1
+[[ "${bash_nodir_out,,}" =~ fallback|falling\ back ]] && nodir_fallback=1
 assert_eq "test_bash_runner_fallback_when_no_test_dir: warns about fallback" "1" "$nodir_fallback"
 rm -rf "$TMPDIR_BASH_NODIR"
 assert_pass_if_clean "test_bash_runner_fallback_when_no_test_dir"
@@ -1032,10 +1032,10 @@ bash_fail_out=$(TEST_BATCHED_STATE_FILE="$BASH_FAIL_STATE" \
 
 # Should report 1 passed, 1 failed
 bash_fail_has_pass=0
-echo "$bash_fail_out" | grep -q "1 passed" && bash_fail_has_pass=1
+[[ "$bash_fail_out" == *1\ passed* ]] && bash_fail_has_pass=1
 assert_eq "test_bash_runner_records_failures: reports 1 passed" "1" "$bash_fail_has_pass"
 bash_fail_has_fail=0
-echo "$bash_fail_out" | grep -q "1 failed" && bash_fail_has_fail=1
+[[ "$bash_fail_out" == *1\ failed* ]] && bash_fail_has_fail=1
 assert_eq "test_bash_runner_records_failures: reports 1 failed" "1" "$bash_fail_has_fail"
 # Should exit non-zero when a test fails
 assert_ne "test_bash_runner_records_failures: exits non-zero" "0" "$bash_fail_exit"
@@ -1071,13 +1071,13 @@ bash_auto_out=$(TEST_BATCHED_STATE_FILE="$BASH_AUTO_STATE" \
 # Should auto-detect bash runner and show both scripts
 auto_one=0
 auto_two=0
-echo "$bash_auto_out" | grep -q "test-auto-one.sh" && auto_one=1
-echo "$bash_auto_out" | grep -q "test-auto-two.sh" && auto_two=1
+[[ "$bash_auto_out" == *test-auto-one.sh* ]] && auto_one=1
+[[ "$bash_auto_out" == *test-auto-two.sh* ]] && auto_two=1
 assert_eq "test_bash_auto_detected_when_test_scripts_exist: found test-auto-one.sh" "1" "$auto_one"
 assert_eq "test_bash_auto_detected_when_test_scripts_exist: found test-auto-two.sh" "1" "$auto_two"
 # Should show 2/2 progress (not 1/1 generic fallback)
 auto_progress=0
-echo "$bash_auto_out" | grep -q "2/2" && auto_progress=1
+[[ "$bash_auto_out" == *2/2* ]] && auto_progress=1
 assert_eq "test_bash_auto_detected_when_test_scripts_exist: shows 2/2 progress" "1" "$auto_progress"
 assert_eq "test_bash_auto_detected_when_test_scripts_exist: exits 0" "0" "$bash_auto_exit"
 rm -rf "$TMPDIR_BASH_AUTO"

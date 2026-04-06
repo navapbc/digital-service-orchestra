@@ -47,7 +47,7 @@ _snapshot_fail
 preflight_stdout=""
 preflight_stdout=$(WORKFLOW_CONFIG=/dev/null bash "$LIFECYCLE" preflight --start-db 2>/dev/null) || true
 # stdout should NOT contain WARN
-if echo "$preflight_stdout" | grep -q "WARN"; then
+if [[ "$preflight_stdout" == *WARN* ]]; then
     assert_eq "test_preflight_start_db_noop_stderr: WARN not on stdout" "no_warn" "has_warn"
 else
     assert_eq "test_preflight_start_db_noop_stderr: WARN not on stdout" "no_warn" "no_warn"
@@ -65,7 +65,7 @@ precheck_output=$(WORKFLOW_CONFIG=/dev/null bash "$LIFECYCLE" pre-check --db 2>&
 # DB no-op should produce "DB_STATUS: skipped" (not "DB_STATUS: stopped" which sets any_fail)
 precheck_stdout_only=""
 precheck_stdout_only=$(WORKFLOW_CONFIG=/dev/null bash "$LIFECYCLE" pre-check --db 2>/dev/null) || true
-if echo "$precheck_stdout_only" | grep -q "DB_STATUS: stopped"; then
+if [[ "$precheck_stdout_only" == *DB_STATUS:\ stopped* ]]; then
     assert_eq "test_pre_check_db_noop: DB not stopped" "skipped" "stopped"
 else
     assert_eq "test_pre_check_db_noop: DB not stopped" "skipped" "skipped"
@@ -84,7 +84,7 @@ assert_pass_if_clean "test_pre_check_db_noop_warns"
 _snapshot_fail
 precheck_stdout=""
 precheck_stdout=$(WORKFLOW_CONFIG=/dev/null bash "$LIFECYCLE" pre-check --db 2>/dev/null) || true
-if echo "$precheck_stdout" | grep -q "WARN"; then
+if [[ "$precheck_stdout" == *WARN* ]]; then
     assert_eq "test_pre_check_db_noop_stderr: WARN not on stdout" "no_warn" "has_warn"
 else
     assert_eq "test_pre_check_db_noop_stderr: WARN not on stdout" "no_warn" "no_warn"
@@ -120,7 +120,7 @@ assert_pass_if_clean "test_cleanup_stale_containers_noop_warns"
 _snapshot_fail
 cleanup_stdout=""
 cleanup_stdout=$(WORKFLOW_CONFIG=/dev/null bash "$LIFECYCLE" cleanup-stale-containers 2>/dev/null) || true
-if echo "$cleanup_stdout" | grep -q "WARN"; then
+if [[ "$cleanup_stdout" == *WARN* ]]; then
     assert_eq "test_cleanup_stale_containers_noop_stderr: WARN not on stdout" "no_warn" "has_warn"
 else
     assert_eq "test_cleanup_stale_containers_noop_stderr: WARN not on stdout" "no_warn" "no_warn"
