@@ -1,1 +1,0 @@
-{"timestamp": 1775434916939711000, "uuid": "7f0ce5a3-7ce3-4792-9fb7-6c5f6e02d27a", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Bot-psychologist: Session-signal override reads from session memory which is lost on compaction. Fix: re-count SCs from spec text and read scenario count from Planning-Intelligence Log."}}
