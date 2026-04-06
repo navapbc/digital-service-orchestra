@@ -1,0 +1,1 @@
+{"timestamp": 1775508875303095000, "uuid": "3a30ee3e-4241-4ff5-9451-f50bc11ee654", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: Implemented ticket-clarity-check.sh with type-conditional weighted signals, configurable threshold, and --stdin mode"}}
