@@ -326,11 +326,16 @@ def compute_metrics(events: list[dict]) -> dict:
 
     # Commit stats
     total_commits = len(commit_events)
-    committed = sum(1 for e in commit_events if e.get("outcome") == "committed")
+    committed_events = [e for e in commit_events if e.get("outcome") == "committed"]
+    committed = len(committed_events)
     blocked = total_commits - committed
     commit_failure_rate = (
         (blocked / total_commits * 100.0) if total_commits > 0 else 0.0
     )
+
+    # Avg commit duration (from committed events with duration_ms)
+    durations = [e["duration_ms"] for e in committed_events if "duration_ms" in e]
+    avg_duration_ms = sum(durations) / len(durations) if durations else 0.0
 
     # Session IDs (for traceability)
     session_ids = [e.get("session_id") for e in events if e.get("session_id")]
@@ -357,6 +362,7 @@ def compute_metrics(events: list[dict]) -> dict:
             "committed": committed,
             "blocked": blocked,
             "failure_rate": commit_failure_rate,
+            "avg_duration_ms": avg_duration_ms,
         },
         "session_ids": session_ids,
         "review_caught_bugs": review_caught_bugs,
@@ -411,6 +417,7 @@ def format_table(metrics: dict) -> str:
     lines.append(f"  Committed:      {cs.get('committed', 0)}")
     lines.append(f"  Blocked:        {cs.get('blocked', 0)}")
     lines.append(f"  Failure rate:   {cs.get('failure_rate', 0.0):.1f}%")
+    lines.append(f"  Avg duration:   {cs.get('avg_duration_ms', 0.0):.0f}ms")
 
     # Review-caught bugs (compound heuristic)
     review_caught = metrics.get("review_caught_bugs", 0)

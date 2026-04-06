@@ -376,3 +376,62 @@ def test_time_window_filtering(review_stats: ModuleType) -> None:
         datetime.fromisoformat(e["timestamp"]) > now - timedelta(days=30)
         for e in filtered
     )
+
+
+def test_commit_avg_duration(review_stats: ModuleType) -> None:
+    """Commit workflow events with duration_ms produce correct avg_duration."""
+    now = datetime.now(tz=timezone.utc)
+    events = [
+        {
+            "event_type": "commit_workflow",
+            "timestamp": now.isoformat(),
+            "phase": "end",
+            "outcome": "committed",
+            "duration_ms": 1000,
+        },
+        {
+            "event_type": "commit_workflow",
+            "timestamp": now.isoformat(),
+            "phase": "end",
+            "outcome": "committed",
+            "duration_ms": 2000,
+        },
+        {
+            "event_type": "commit_workflow",
+            "timestamp": now.isoformat(),
+            "phase": "end",
+            "outcome": "committed",
+            "duration_ms": 3000,
+        },
+    ]
+    metrics = review_stats.compute_metrics(events)
+    assert metrics["commit_stats"]["avg_duration_ms"] == pytest.approx(2000.0)
+
+
+def test_commit_avg_duration_excludes_blocked(review_stats: ModuleType) -> None:
+    """Only committed events contribute to avg_duration_ms."""
+    now = datetime.now(tz=timezone.utc)
+    events = [
+        {
+            "event_type": "commit_workflow",
+            "timestamp": now.isoformat(),
+            "phase": "end",
+            "outcome": "committed",
+            "duration_ms": 1000,
+        },
+        {
+            "event_type": "commit_workflow",
+            "timestamp": now.isoformat(),
+            "phase": "end",
+            "outcome": "blocked",
+            "duration_ms": 9000,
+        },
+    ]
+    metrics = review_stats.compute_metrics(events)
+    assert metrics["commit_stats"]["avg_duration_ms"] == pytest.approx(1000.0)
+
+
+def test_commit_avg_duration_no_events(review_stats: ModuleType) -> None:
+    """No commit events -> avg_duration_ms is 0."""
+    metrics = review_stats.compute_metrics([])
+    assert metrics["commit_stats"]["avg_duration_ms"] == 0.0
