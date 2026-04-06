@@ -1,1 +1,0 @@
-{"timestamp": 1775504606877563000, "uuid": "fb4b9cfc-3403-41bf-b564-4739a26d8a8d", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 6/6: Done \u2713 \u2014 all 3 AC satisfied: (1) eval exits 0, (2) grep finds opt-out pattern, (3) run-skill-evals.sh exits 0"}}
