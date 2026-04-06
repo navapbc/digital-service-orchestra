@@ -236,11 +236,69 @@ def compute_finding_severity_distribution(events: list[dict]) -> dict[str, int]:
     return dict(dist)
 
 
+def compute_review_caught_bugs(events: list[dict]) -> int:
+    """Count review-caught bugs not caught by tests using compound heuristic.
+
+    A finding is counted when ALL four criteria are met:
+    1. test_gate_status == "passed" (tests were green, so tests missed this)
+    2. dimension is "correctness" or "verification" (substantive bug dimensions)
+    3. severity is critical, major, important, or severe
+    4. resolution is "code-change" (not a defense/dismissal)
+    """
+    qualifying_severities = {"critical", "major", "important", "severe"}
+    qualifying_dimensions = {"correctness", "verification"}
+    count = 0
+
+    for event in events:
+        if event.get("test_gate_status") != "passed":
+            continue
+        findings = event.get("findings", [])
+        if not isinstance(findings, list):
+            continue
+        for finding in findings:
+            if (
+                finding.get("dimension") in qualifying_dimensions
+                and finding.get("severity") in qualifying_severities
+                and finding.get("resolution") == "code-change"
+            ):
+                count += 1
+
+    return count
+
+
+def compute_tier_distribution(events: list[dict]) -> dict[str, int]:
+    """Count review events by tier (light, standard, deep)."""
+    dist: dict[str, int] = defaultdict(int)
+    for event in events:
+        tier = event.get("tier", "unknown")
+        dist[tier] += 1
+    return dict(dist)
+
+
+def compute_overlay_counts(events: list[dict]) -> dict[str, int]:
+    """Count how many events triggered each overlay type."""
+    counts: dict[str, int] = defaultdict(int)
+    for event in events:
+        overlays = event.get("overlays", [])
+        if not isinstance(overlays, list):
+            continue
+        for overlay in overlays:
+            counts[overlay] += 1
+    return dict(counts)
+
+
+def compute_escalation_count(events: list[dict]) -> int:
+    """Count events where escalation occurred."""
+    return sum(1 for e in events if e.get("escalated") is True)
+
+
 def compute_metrics(events: list[dict]) -> dict:
     """Compute all metrics from a list of events.
 
     Returns a dict with keys: pass_fail, dimension_scores,
-    severity_distribution, revision_cycles, commit_stats, session_ids.
+    severity_distribution, revision_cycles, commit_stats, session_ids,
+    review_caught_bugs, tier_distribution, overlay_counts,
+    escalation_count.
     """
     review_events = [e for e in events if e.get("event_type") == "review_result"]
     commit_events = [e for e in events if e.get("event_type") == "commit_workflow"]
@@ -277,6 +335,18 @@ def compute_metrics(events: list[dict]) -> dict:
     # Session IDs (for traceability)
     session_ids = [e.get("session_id") for e in events if e.get("session_id")]
 
+    # Compound heuristic: review-caught bugs not caught by tests
+    review_caught_bugs = compute_review_caught_bugs(review_events)
+
+    # Tier usage distribution
+    tier_distribution = compute_tier_distribution(review_events)
+
+    # Overlay trigger counts
+    overlay_counts = compute_overlay_counts(review_events)
+
+    # Escalation frequency
+    escalation_count = compute_escalation_count(review_events)
+
     return {
         "pass_fail": pass_fail,
         "dimension_scores": dimension_scores,
@@ -289,6 +359,10 @@ def compute_metrics(events: list[dict]) -> dict:
             "failure_rate": commit_failure_rate,
         },
         "session_ids": session_ids,
+        "review_caught_bugs": review_caught_bugs,
+        "tier_distribution": tier_distribution,
+        "overlay_counts": overlay_counts,
+        "escalation_count": escalation_count,
     }
 
 
@@ -337,6 +411,32 @@ def format_table(metrics: dict) -> str:
     lines.append(f"  Committed:      {cs.get('committed', 0)}")
     lines.append(f"  Blocked:        {cs.get('blocked', 0)}")
     lines.append(f"  Failure rate:   {cs.get('failure_rate', 0.0):.1f}%")
+
+    # Review-caught bugs (compound heuristic)
+    review_caught = metrics.get("review_caught_bugs", 0)
+    lines.append("")
+    lines.append(f"Review-Caught Bugs (not caught by tests): {review_caught}")
+
+    # Tier distribution
+    tier_dist = metrics.get("tier_distribution", {})
+    if tier_dist:
+        lines.append("")
+        lines.append("Tier Usage Distribution")
+        for tier, count in sorted(tier_dist.items()):
+            lines.append(f"  {tier:<12}  {count}")
+
+    # Escalation frequency
+    escalation_count = metrics.get("escalation_count", 0)
+    lines.append("")
+    lines.append(f"Escalation Count: {escalation_count}")
+
+    # Overlay trigger counts
+    overlay_counts = metrics.get("overlay_counts", {})
+    if overlay_counts:
+        lines.append("")
+        lines.append("Overlay Trigger Counts")
+        for overlay, count in sorted(overlay_counts.items()):
+            lines.append(f"  {overlay:<16}  {count}")
 
     # Session IDs
     session_ids = metrics.get("session_ids", [])
