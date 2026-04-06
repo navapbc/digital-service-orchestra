@@ -1,0 +1,1 @@
+{"timestamp": 1775509718375549000, "uuid": "ccf24b41-c5ac-4eb5-ae47-b1fd592f0490", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Done definition update: The eval config completeness guard (~70 lines) in record-test-status.sh and tests/hooks/test-eval-todo-guard.sh must both be removed."}}
