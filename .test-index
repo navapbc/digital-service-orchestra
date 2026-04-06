@@ -114,7 +114,7 @@ plugins/dso/scripts/claude-safe:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/cleanup-claude-session.sh:tests/skills/test-cli-lifecycle-migration.sh
 plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoveries-plugin-root.sh
 plugins/dso/scripts/detect-stack.sh:tests/scripts/test-detect-stack.sh
-plugins/dso/scripts/enrich-file-impact.sh:tests/scripts/test_issue_quality_check_file_impact.py,tests/scripts/test-enrich-file-impact-v2-removal.sh,tests/scripts/test-model-config-integration.sh [test-model-config-integration]
+plugins/dso/scripts/enrich-file-impact.sh:tests/scripts/test_issue_quality_check_file_impact.py,tests/scripts/test-enrich-file-impact-v2-removal.sh,tests/scripts/test-model-config-integration.sh
 plugins/dso/scripts/ensure-pre-commit.sh:tests/scripts/test-ensure-precommit-config-paths.sh
 plugins/dso/scripts/gate-1b-feature-request-check.py:tests/scripts/test_gate_1b_feature_request_check.py
 plugins/dso/scripts/gate-2a-reversal-check.sh:tests/scripts/test-gate-2a-reversal-check.sh
@@ -122,7 +122,7 @@ plugins/dso/scripts/gate-2b-blast-radius.sh:tests/scripts/test-gate-2b-blast-rad
 plugins/dso/scripts/gate-2c-test-regression-check.py:tests/scripts/test_gate_2c_test_regression_check.py
 plugins/dso/scripts/gate-2d-dependency-check.sh:tests/scripts/test-gate-2d-dependency-check.sh
 plugins/dso/scripts/gate-escalation-router.py:tests/scripts/test_gate_escalation_router.py
-plugins/dso/scripts/generate-skill-eval.sh:tests/scripts/test-generate-skill-eval.sh,tests/scripts/test-model-config-integration.sh [test-model-config-integration]
+plugins/dso/scripts/generate-skill-eval.sh:tests/scripts/test-generate-skill-eval.sh,tests/scripts/test-model-config-integration.sh
 plugins/dso/scripts/gh-availability-check.sh:tests/scripts/test-gh-availability-check.sh
 plugins/dso/scripts/gh-identity-resolver.sh:tests/scripts/test-gh-identity-resolver.sh
 plugins/dso/scripts/issue-batch.sh:tests/scripts/test-utility-scripts-v2-removal.sh
@@ -141,14 +141,14 @@ plugins/dso/scripts/retro-gather.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/hooks/test-review-complexity-classifier.sh,tests/hooks/test-classifier-config-file-floor.sh
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-test-batched.sh
-plugins/dso/scripts/semantic-conflict-check.py:tests/scripts/test-model-config-integration.sh [test-model-config-integration]
+plugins/dso/scripts/semantic-conflict-check.py:tests/scripts/test-model-config-integration.sh
 plugins/dso/scripts/skill-trace-analyze.py:tests/scripts/test-skill-trace-analyze.sh
 plugins/dso/scripts/skip-review-check.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh
 plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-ticket-lifecycle-sync-preserves-local.sh
 plugins/dso/scripts/sprint-next-batch.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/scripts/test-sprint-next-batch.sh,tests/scripts/test_sprint_next_batch_extra_dir_roots.py
 plugins/dso/scripts/sprint-review-scope-check.sh:tests/scripts/test-sprint-review-scope-check.sh
-plugins/dso/scripts/sync-eval-model-ids.sh:tests/scripts/test-sync-eval-model-ids.sh [test-sync-eval-model-ids]
+plugins/dso/scripts/sync-eval-model-ids.sh:tests/scripts/test-sync-eval-model-ids.sh
 plugins/dso/scripts/test-batched.sh:tests/scripts/test-batched-state-integrity.sh,tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/scripts/ticket-bridge-status.sh:tests/scripts/test_bridge_status.py
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh

@@ -168,9 +168,11 @@ _SCC_CONFIG_NO_HAIKU="$(_make_config_without_haiku "$_SCC_TMPDIR_A")"
 
 scc_no_haiku_exit=0
 scc_no_haiku_output=""
+# Export WORKFLOW_CONFIG_FILE before the pipeline so python3 (the second command)
+# inherits it; command-prefix syntax (VAR=val cmd1 | cmd2) only exports to cmd1.
 scc_no_haiku_output=$(
-    WORKFLOW_CONFIG_FILE="$_SCC_CONFIG_NO_HAIKU" \
-    ANTHROPIC_API_KEY="" \
+    export WORKFLOW_CONFIG_FILE="$_SCC_CONFIG_NO_HAIKU"
+    export ANTHROPIC_API_KEY=""
     printf 'diff --git a/foo.py b/foo.py\n--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-old\n+new\n' | \
     python3 "$CONFLICT_SCRIPT" 2>&1
 ) || scc_no_haiku_exit=$?

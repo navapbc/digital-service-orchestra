@@ -16,6 +16,13 @@ set -uo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 DSO_SKILLS_ROOT="$REPO_ROOT/plugins/dso/skills"
 
+# ── Resolve model ID from config ──────────────────────────────────────────────
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EVAL_MODEL=$("$_SCRIPT_DIR/resolve-model-id.sh" haiku 2>/dev/null) || {
+    echo "ERROR: resolve-model-id.sh failed to resolve haiku model ID" >&2
+    exit 1
+}
+
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
     cat <<EOF
@@ -212,11 +219,11 @@ cat > "$TMPFILE" <<EOF
 description: "${ESCAPED_NAME} skill evals"
 
 providers:
-  - id: "anthropic:messages:claude-haiku-4-5-20251001"
+  - id: "anthropic:messages:${EVAL_MODEL}"
 
 defaultTest:
   options:
-    provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    provider: "anthropic:messages:${EVAL_MODEL}"
 
 prompts:
   - |
