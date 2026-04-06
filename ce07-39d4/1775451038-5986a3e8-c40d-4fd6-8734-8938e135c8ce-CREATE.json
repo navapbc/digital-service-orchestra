@@ -1,1 +1,0 @@
-{"timestamp": 1775451038, "uuid": "5986a3e8-c40d-4fd6-8734-8938e135c8ce", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"ticket_type": "bug", "title": "Pre-existing: test-bug-report-cli-validation.sh and test-bug-report-integration.sh fail", "parent_id": "", "description": "", "tags": [], "priority": 3, "assignee": "Main"}}
