@@ -125,7 +125,7 @@ tests:
 
   - description: "Handles empty epic correctly — does not close it, routes to preplanning"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         The validate-issues script returned the following report:
