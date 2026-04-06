@@ -1,7 +1,7 @@
 description: "red-test-evaluator agent evals — runtime REVISE verdict and backward-compat absent ESTIMATED_RUNTIME handling"
 
 providers:
-  - id: "anthropic:messages:claude-opus-4-5"
+  - id: "anthropic:messages:claude-opus-4-6"
 
 defaultTest:
   options:

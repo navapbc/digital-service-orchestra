@@ -837,6 +837,7 @@ fi
 LAUNCHED_CHECKS="syntax format ruff mypy tests migrate skill-refs hook-drift"
 [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS script-writes"
 [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS shim-refs"
+[ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS model-id-lint"
 # REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
 # This is the standard bash pattern for stored multi-word commands.
@@ -858,6 +859,9 @@ fi
 (cd "$REPO_ROOT" && run_check "skill-refs" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-skill-refs.sh") &
 if [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ]; then
     (cd "$REPO_ROOT" && run_check "shim-refs" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-shim-refs.sh") &
+fi
+if [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ]; then
+    (cd "$REPO_ROOT" && run_check "model-id-lint" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-model-id-lint.sh") &
 fi
 check_hook_drift &
 if [ $CHECK_CI -eq 1 ]; then
@@ -992,6 +996,7 @@ if [ "$VERBOSE" = "0" ]; then
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && report_check "script-writes" "script-writes" "$TIMEOUT_SYNTAX" "python3 $PLUGIN_SCRIPTS/check-script-writes.py --scan-dir=$SCRIPT_WRITE_SCAN_DIR"
     report_check "skill-refs" "skill-refs" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-skill-refs.sh"
     [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && report_check "shim-refs" "shim-refs" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-shim-refs.sh"
+    [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && report_check "model-id-lint" "model-id-lint" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-model-id-lint.sh"
     report_check "hook-drift" "hook-drift" "$TIMEOUT_SYNTAX" "diff <(grep 'id:' .pre-commit-config.yaml) <(grep 'id:' examples/pre-commit-config.example.yaml)"
 else
     tally_check "syntax" "syntax"
@@ -1002,6 +1007,7 @@ else
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && tally_check "script-writes" "script-writes"
     tally_check "skill-refs" "skill-refs"
     [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && tally_check "shim-refs" "shim-refs"
+    [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && tally_check "model-id-lint" "model-id-lint"
     tally_check "hook-drift" "hook-drift"
 fi
 

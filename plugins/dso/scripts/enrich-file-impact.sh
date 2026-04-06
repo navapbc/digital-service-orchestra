@@ -26,7 +26,10 @@ if [ -f "$_CONFIG_PATHS" ]; then
     source "$_CONFIG_PATHS"
 fi
 
-MODEL="claude-haiku-4-5-20251001"
+MODEL=$(bash "${SCRIPT_DIR}/resolve-model-id.sh" haiku 2>/dev/null) || {
+    echo "ERROR: resolve-model-id.sh failed to resolve haiku model ID" >&2
+    exit 1
+}
 MAX_TOKENS=500
 DRY_RUN=false
 
@@ -64,8 +67,8 @@ if [ "$has_file_impact" -ge 1 ]; then
     exit 0
 fi
 
-# Check for API key — graceful degradation
-if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+# Check for API key — graceful degradation (skip when dry-run; key not needed)
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ "$DRY_RUN" != true ]; then
     echo "WARNING: ANTHROPIC_API_KEY not set. Cannot enrich file impact for $ID." >&2
     echo "Set ANTHROPIC_API_KEY to enable haiku-based file impact generation." >&2
     exit 0
@@ -123,6 +126,14 @@ Respond with ONLY a markdown section like this (no other text):
 - \`path/to/file.py\` - brief reason
 - \`path/to/test_file.py\` - brief reason"
 
+# Dry-run: report model, prompt length, and exit before making any API call
+if [ "$DRY_RUN" = true ]; then
+    prompt_len=${#prompt_text}
+    echo "DRY RUN: Would call Anthropic API with model=$MODEL for ticket $ID"
+    echo "Prompt length: ${prompt_len} chars"
+    exit 0
+fi
+
 # Escape the prompt for JSON
 json_prompt=$(printf '%s' "$prompt_text" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
 
@@ -137,12 +148,6 @@ request_body=$(cat <<ENDJSON
 }
 ENDJSON
 )
-
-if [ "$DRY_RUN" = true ]; then
-    echo "DRY RUN: Would call Anthropic API with model=$MODEL for ticket $ID"
-    echo "Prompt length: $(echo "$prompt_text" | wc -c | tr -d ' ') chars"
-    exit 0
-fi
 
 # Call Anthropic Messages API
 response=$(curl -s -m 30 --connect-timeout 10 \

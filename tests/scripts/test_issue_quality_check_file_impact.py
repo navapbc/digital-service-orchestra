@@ -411,9 +411,9 @@ class TestEnrichFileImpactScript:
             cwd=WORKTREE_ROOT,
         )
         assert result.returncode == 0
-        # Should mention missing API key
+        # Dry-run exits before API key check — output shows model and prompt info
         combined = result.stdout + result.stderr
-        assert "ANTHROPIC_API_KEY" in combined or "api key" in combined.lower()
+        assert "DRY RUN" in combined or "dry run" in combined.lower()
 
     def test_usage_error_without_args(self) -> None:
         """Script should show usage and exit 1 when no args provided."""

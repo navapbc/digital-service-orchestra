@@ -76,7 +76,7 @@ prompts:
 tests:
   - description: "Decomposes a well-defined story into TDD-driven tasks with RED test dependencies"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         Please create an implementation plan for this user story:
@@ -116,7 +116,7 @@ tests:
 
   - description: "Escalates to architectural review when cross-cutting threshold is met"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         Please create an implementation plan for this user story:
@@ -184,7 +184,7 @@ tests:
 
   - description: "Re-invocation guard: detects existing children and avoids duplicate tasks"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         Please create an implementation plan for this user story:
@@ -224,7 +224,7 @@ tests:
 
   - description: "Re-invocation guard: all-children-closed early-exit emits STATUS:complete and halts"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         Please create an implementation plan for this user story:
@@ -286,7 +286,7 @@ tests:
 
   - description: "Generates 3+ distinct structured proposals before task breakdown"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         Please create an implementation plan for this user story:
@@ -329,7 +329,7 @@ tests:
 
   - description: "resolution loop: dispatches decision-maker, handles counter-proposal, escalates to user after 2 cycles"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         Please create an implementation plan for this story (sprint context — autonomous proposal
@@ -398,7 +398,7 @@ tests:
 
   - description: "Emits REPLAN_ESCALATE when success criteria cannot be satisfied"
     options:
-      provider: "anthropic:messages:claude-sonnet-4-6"
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         Create an implementation plan for this story:
