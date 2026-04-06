@@ -995,7 +995,8 @@ context:
   ```
   TASK_ID: <task_id>
   STORY_ID: <story_id>
-  EPIC_ID: <epic_id>
+  EPIC_ID: <primary_ticket_id>
+  PRIMARY_TICKET_ID: <primary_ticket_id>
   TASK_DESCRIPTION: <task_description>
   IN_PROGRESS_TASKS: <comma-separated task_ids or "none">
   CLOSED_TASKS: <comma-separated task_ids or "none">

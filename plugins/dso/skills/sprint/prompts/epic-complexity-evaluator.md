@@ -1,26 +1,26 @@
-# Epic Complexity Evaluator
+# Primary Ticket Complexity Evaluator
 
-Classify a ticket epic as SIMPLE, MODERATE, or COMPLEX to determine the decomposition path.
+Classify a primary ticket as SIMPLE, MODERATE, or COMPLEX to determine the decomposition path.
 
 ## Input
 
-Epic ID passed as argument.
+Primary ticket ID passed as argument.
 
 ## Process
 
 ### 1. Load Context
 
 ```bash
-.claude/scripts/dso ticket show <epic-id>
+.claude/scripts/dso ticket show <primary-ticket-id>
 ```
 
-Read the epic title, description, and any existing done definitions or success criteria.
+Read the ticket title, description, and any existing done definitions or success criteria.
 
 ### 2. Estimate File Impact
 
-Using the epic description and codebase knowledge:
+Using the ticket description and codebase knowledge:
 
-1. Grep/Glob for files likely affected by the epic (search for relevant class names, function names, routes, models mentioned or implied)
+1. Grep/Glob for files likely affected by the ticket (search for relevant class names, function names, routes, models mentioned or implied)
 2. List estimated source files to modify (excluding test files)
 3. List estimated test files to modify or create
 
@@ -35,7 +35,7 @@ Count the distinct layers from the estimated file impact.
 
 ### 4. Count Interface Changes
 
-Grep for classes, abstract base types, Protocol definitions, and public method signatures that the epic requires changing. Count distinct interfaces/classes requiring **signature changes** (not just internal implementation changes).
+Grep for classes, abstract base types, Protocol definitions, and public method signatures that the ticket requires changing. Count distinct interfaces/classes requiring **signature changes** (not just internal implementation changes).
 
 ### 5. Check Qualitative Overrides
 
@@ -49,9 +49,9 @@ Check whether ANY of these apply (each forces COMPLEX):
 
 ### 6. Check Done Definitions
 
-Determine whether the epic has measurable done definitions:
-- **Present**: Epic description contains bullet-list outcomes, Gherkin-style criteria, or specific measurable conditions
-- **Missing**: Epic description is vague, lacks measurable outcomes, or success criteria are implicit
+Determine whether the ticket has measurable done definitions:
+- **Present**: Ticket description contains bullet-list outcomes, Gherkin-style criteria, or specific measurable conditions
+- **Missing**: Ticket description is vague, lacks measurable outcomes, or success criteria are implicit
 
 ### 7. Check Single Concern
 
@@ -64,9 +64,9 @@ Apply the one-sentence test: can you describe the change in one sentence without
 
 Load the shared rubric dimensions from `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-evaluator.md` before scoring. Apply those dimension thresholds and scope_certainty guidance. Map your result to this file's output tier schema.
 
-**Sprint routing rule**: If the shared rubric returns MODERATE, classify this epic as COMPLEX for /dso:sprint. This preserves the safety behavior of full preplanning when scope is not fully certain.
+**Sprint routing rule**: If the shared rubric returns MODERATE, classify this ticket as COMPLEX for /dso:sprint. This preserves the safety behavior of full preplanning when scope is not fully certain.
 
-**File threshold note**: The shared rubric's MODERATE threshold (≤3 files) is more conservative than the old inline threshold (≤8 files). This is intentional — the tighter threshold ensures safe routing and avoids under-classifying epics with uncertain scope.
+**File threshold note**: The shared rubric's MODERATE threshold (≤3 files) is more conservative than the old inline threshold (≤8 files). This is intentional — the tighter threshold ensures safe routing and avoids under-classifying tickets with uncertain scope.
 
 **SIMPLE** — ALL dimension thresholds met (per shared rubric), no qualitative overrides, done definitions present, single concern yes, confidence high.
 
