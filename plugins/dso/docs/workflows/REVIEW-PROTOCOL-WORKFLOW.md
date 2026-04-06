@@ -131,7 +131,21 @@ After the sub-agent returns:
    # ".claude/scripts/dso validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller <caller_id>
    ```
 3. If `SCHEMA_VALID: no` — retry the sub-agent once with an explicit format correction prompt; do not proceed with invalid output
-4. If `SCHEMA_VALID: yes` — proceed to Stage 3
+4. If `SCHEMA_VALID: yes` — emit the review result event, then proceed to Stage 3
+
+### Emit Review Result (post-Stage 2)
+
+After Stage 2 completes with valid schema output, emit a review event so downstream observability can track review outcomes:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+".claude/scripts/dso" emit-protocol-review-result.sh \
+  --review-type="<caller's review type, e.g. implementation-plan, brainstorm-fidelity, architectural>" \
+  --pass-fail="<passed|failed, based on whether all dimensions meet pass_threshold>" \
+  --revision-cycles=0
+```
+
+The `--review-type` value comes from the caller context (the skill invoking this workflow). `--revision-cycles` is `0` for the initial Stage 2 pass. This call is best-effort — a failure does not block the review.
 
 **When `caller_id` is provided**, pass `--caller <caller_id>` to the validator. This additionally checks that:
 - All expected perspectives are present (or marked `not_applicable`)
@@ -173,6 +187,20 @@ When the review does not pass (any dimension below `pass_threshold`):
    - Apply user input, then run one final Stage 2 review
 
 6. **Cycle tracking**: The calling skill is responsible for tracking cycle count and logging review history in whatever format it uses (ticket notes, review-log.md, etc.).
+
+### Emit Review Result (post-Revision Protocol)
+
+After the Revision Protocol resolves (either all dimensions pass, or cycles are exhausted and user input is applied), emit a final review event reflecting the outcome:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+".claude/scripts/dso" emit-protocol-review-result.sh \
+  --review-type="<caller's review type>" \
+  --pass-fail="<passed|failed, final outcome after revisions>" \
+  --revision-cycles="<number of revision cycles consumed>"
+```
+
+This replaces the initial post-Stage 2 emission when revisions occurred (i.e., do not emit twice for the same review — emit once after Stage 2 if it passes immediately, or once here if the Revision Protocol was entered). Best-effort — a failure does not block the workflow.
 
 ---
 

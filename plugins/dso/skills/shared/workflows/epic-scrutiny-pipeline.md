@@ -224,6 +224,22 @@ EOF
 
 **Conflict detection**: If two reviewers give contradictory guidance on the same spec element, escalate to the user immediately — do not resolve conflicts autonomously.
 
+### Review Event Emission
+
+After the fidelity review completes (all dimensions pass or user escalation resolves), emit the review result event for observability:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+".claude/scripts/dso" emit-protocol-review-result.sh \
+  --review-type=brainstorm-fidelity \
+  --pass-fail=<passed|failed> \
+  --revision-cycles=<number of revision cycles executed>
+```
+
+- `--pass-fail`: `passed` if all dimensions scored 4+ on final run; `failed` if escalated to user without resolution.
+- `--revision-cycles`: The number of times a failing reviewer was re-run (0 if all passed on the first attempt).
+- Best-effort: if the emit script fails, log a warning and continue — do not block pipeline completion.
+
 ---
 
 ## Pipeline Output
