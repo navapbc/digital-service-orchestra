@@ -31,7 +31,7 @@ The emitter receives the full orchestrator input (described below) and reasons a
 
 Sprint and fix-bug orchestrators (`/dso:sprint`, `/dso:fix-bug`)
 
-The parser invokes the evaluator as a sub-agent. It reads the leading `VERDICT:` line to determine which of the three formats was emitted, then processes the fields accordingly. On `VERDICT:REVISE`, it updates the task list and re-runs the writer. On `VERDICT:REJECT`, it escalates to the user with the rejection reason and recommended model. On `VERDICT:CONFIRM`, it records the infeasibility category and allows the task to proceed without a RED test.
+The parser invokes the evaluator as a sub-agent **only when the writer emits `TEST_RESULT:rejected`**. Writer outputs of `TEST_RESULT:written` and `TEST_RESULT:no_new_tests_needed` bypass the evaluator — the parser does not dispatch this agent for those cases. When the evaluator is invoked, the parser reads the leading `VERDICT:` line to determine which of the three formats was emitted, then processes the fields accordingly. On `VERDICT:REVISE`, it updates the task list and re-runs the writer. On `VERDICT:REJECT`, it escalates to the user with the rejection reason and recommended model. On `VERDICT:CONFIRM`, it records the infeasibility category and allows the task to proceed without a RED test.
 
 ---
 
@@ -291,7 +291,10 @@ then the parser **must** treat the result as `VERDICT:REJECT` with `REJECTION_RE
 
 ## Relationship to RED_TEST_WRITER_OUTPUT Contract
 
-This contract is downstream of the `RED_TEST_WRITER_OUTPUT` contract (see `plugins/dso/docs/contracts/red-test-writer-output.md`). The evaluator is only invoked when the writer emits `TEST_RESULT:rejected`. A `TEST_RESULT:written` response from the writer bypasses the evaluator entirely — the orchestrator proceeds directly to TDD setup without requesting a verdict.
+This contract is downstream of the `RED_TEST_WRITER_OUTPUT` contract (see `plugins/dso/docs/contracts/red-test-writer-output.md`). The evaluator is **only invoked when the writer emits `TEST_RESULT:rejected`**. Two other outcomes bypass the evaluator entirely:
+
+- **`TEST_RESULT:written`** — the orchestrator proceeds directly to TDD setup without requesting a verdict.
+- **`TEST_RESULT:no_new_tests_needed`** — the orchestrator accepts this as a success signal without invoking evaluation. This output indicates either that existing tests already cover the behavior (`existing_coverage_sufficient`) or that the task is non-behavioral (`green_classified`). No verdict is needed in either case.
 
 ---
 

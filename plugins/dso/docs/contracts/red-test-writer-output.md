@@ -23,7 +23,11 @@ This contract must be agreed upon before either side is implemented to prevent i
 
 `dso:red-test-writer` (sonnet)
 
-The emitter receives a story or task description and determines whether a meaningful behavioral RED test can be written. It outputs one of two structured formats on stdout, then exits. Format selection is determined by whether a behaviorally observable, implementable test can be produced.
+The emitter receives a story or task description and determines whether a meaningful behavioral RED test can be written. It outputs one of three structured formats on stdout, then exits. Format selection is determined by whether a behaviorally observable, implementable test can be produced, whether existing tests already cover the behavior, or whether no test can be written.
+
+- **Format 1 (`TEST_RESULT:written`)** — a new RED test was successfully written.
+- **Format 2 (`TEST_RESULT:rejected`)** — no meaningful RED test can be written; the request is infeasible.
+- **Format 3 (`TEST_RESULT:no_new_tests_needed`)** — the behavior is already covered by existing tests, or the change is classified as non-behavioral (e.g., documentation). No new test is written; the orchestrator accepts this as a success signal without invoking the evaluator.
 
 ---
 
@@ -31,7 +35,7 @@ The emitter receives a story or task description and determines whether a meanin
 
 `dso:red-test-evaluator` (opus)
 
-The parser invokes the emitter as a sub-agent and reads its output. It inspects the leading `TEST_RESULT:` line to determine which format was emitted, then processes the fields accordingly. On `TEST_RESULT:written`, it evaluates test quality and proceeds with TDD setup. On `TEST_RESULT:rejected`, it routes to the appropriate fallback path based on `REJECTION_REASON`.
+The parser invokes the emitter as a sub-agent and reads its output. It inspects the leading `TEST_RESULT:` line to determine which format was emitted, then processes the fields accordingly. On `TEST_RESULT:written`, it evaluates test quality and proceeds with TDD setup. On `TEST_RESULT:rejected`, it routes to the appropriate fallback path based on `REJECTION_REASON`. On `TEST_RESULT:no_new_tests_needed`, the evaluator is **bypassed entirely** — the orchestrator accepts this as a success signal and proceeds without requesting a verdict.
 
 ---
 
@@ -93,6 +97,37 @@ SUGGESTED_ALTERNATIVE: <alternative approach or "none">
 
 ---
 
+### Format 3 — Skip: TEST_RESULT:no_new_tests_needed
+
+Emitted when the agent determines that no new test needs to be written — either because existing tests already cover the behavioral intent of this task, or because the task is classified as non-behavioral (green-classified).
+
+```
+TEST_RESULT:no_new_tests_needed
+REASON: <enum value>
+EXISTING_TESTS: <optional, comma-separated test file paths>
+```
+
+#### Fields
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `TEST_RESULT` | string literal | required | Always `no_new_tests_needed` for this format. Identifies the skip path. |
+| `REASON` | string (enum) | required | Machine-readable reason for skipping test creation. Must be one of the enum values defined below. |
+| `EXISTING_TESTS` | string (comma-separated file paths) | optional | Repo-relative paths to existing test files that already cover this behavior. Provided when `REASON` is `existing_coverage_sufficient`. Omitted when `REASON` is `green_classified`. |
+
+#### REASON Enum Values
+
+| Value | Meaning |
+|---|---|
+| `green_classified` | The task is non-behavioral: it produces only documentation, static assets, contract files, or configuration with no runtime behavior. No behavioral RED test is applicable. The orchestrator accepts this without invoking the evaluator. |
+| `existing_coverage_sufficient` | Existing tests already cover the behavioral intent of this task. The listed `EXISTING_TESTS` assert the relevant observable outcomes. Writing a new test would be redundant. |
+
+#### Evaluator Bypass
+
+`TEST_RESULT:no_new_tests_needed` **bypasses the evaluator entirely**. The orchestrator accepts it as a success signal — equivalent to a confirmed infeasibility — and proceeds without dispatching `dso:red-test-evaluator`. This is distinct from `TEST_RESULT:rejected`, which always requires evaluator review.
+
+---
+
 ## Example: Success Output
 
 ```
@@ -117,11 +152,28 @@ SUGGESTED_ALTERNATIVE: Verify acceptance criteria manually: file exists, grep fo
 
 ---
 
+## Example: no_new_tests_needed — green_classified
+
+```
+TEST_RESULT:no_new_tests_needed
+REASON: green_classified
+```
+
+## Example: no_new_tests_needed — existing_coverage_sufficient
+
+```
+TEST_RESULT:no_new_tests_needed
+REASON: existing_coverage_sufficient
+EXISTING_TESTS: tests/unit/scripts/test_ticket_transition.sh, tests/unit/scripts/test_ticket_close_guard.sh
+```
+
+---
+
 ## Exit Code Semantics
 
 | Exit code | Meaning |
 |---|---|
-| `0` | Success — stdout contains a valid `TEST_RESULT:written` or `TEST_RESULT:rejected` block conforming to this schema |
+| `0` | Success — stdout contains a valid `TEST_RESULT:written`, `TEST_RESULT:rejected`, or `TEST_RESULT:no_new_tests_needed` block conforming to this schema |
 | non-zero | Failure — stdout may be absent, partial, or malformed |
 
 ---
@@ -132,7 +184,7 @@ If the emitter:
 
 - exits non-zero,
 - times out (exit code 144 from `test-batched.sh` or SIGURG),
-- or outputs a malformed block (missing `TEST_RESULT:` prefix, missing required fields, unrecognized `REJECTION_REASON` value),
+- or outputs a malformed block (missing `TEST_RESULT:` prefix, missing required fields, unrecognized `REJECTION_REASON` or `REASON` value),
 
 then the parser **must** treat the result as `TEST_RESULT:rejected` with `REJECTION_REASON: ambiguous_spec` and escalate to the orchestrator for manual resolution. The parser must not propagate the failure or silently proceed with TDD setup.
 
