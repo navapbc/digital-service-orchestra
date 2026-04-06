@@ -58,7 +58,7 @@ test_bright_line_triggers_section() {
         section_exists="yes"
     fi
     if [ "$section_exists" = "yes" ]; then
-        if extract_section "$FRAGMENT" "Bright-Line Triggers" | grep -q "^[-*]"; then
+        _tmp=$(extract_section "$FRAGMENT" "Bright-Line Triggers"); if grep -q "^[-*]" <<< "$_tmp"; then
             checklist_found="yes"
         fi
     fi

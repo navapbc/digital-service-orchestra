@@ -28,7 +28,9 @@ echo "=== test-ticket-archived.sh ==="
 # When running under run-all.sh (or any batch runner), skip gracefully if
 # ARCHIVED support hasn't landed yet. Individual runs still show RED failures.
 if [[ "${_RUN_ALL_ACTIVE:-0}" == "1" ]]; then
-    if ! grep -q 'ARCHIVED' "$REDUCER_SCRIPT" 2>/dev/null || ! grep -q 'ARCHIVED' "$TICKET_LIB" 2>/dev/null; then
+    _arch_in_reducer=0; grep -q 'ARCHIVED' "$REDUCER_SCRIPT" 2>/dev/null && _arch_in_reducer=1
+    _arch_in_lib=0; grep -q 'ARCHIVED' "$TICKET_LIB" 2>/dev/null && _arch_in_lib=1
+    if [[ "$_arch_in_reducer" -eq 0 ]] || [[ "$_arch_in_lib" -eq 0 ]]; then
         echo "SKIP: ARCHIVED not yet supported in ticket-reducer.py (RED tests)"
         echo ""
         printf "PASSED: 0  FAILED: 0\n"

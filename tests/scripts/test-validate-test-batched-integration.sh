@@ -334,7 +334,7 @@ _snapshot_fail
 # with missing command_hash. Verify that the Python code block inside the function
 # uses "not stored_hash" (reject empty) rather than "stored_hash and ..." (skip empty).
 # This is a structural test — it verifies the fix pattern is present in the source.
-if sed -n '/_test_state_already_passed/,/^}/p' "$VALIDATE_SCRIPT" | grep -q 'not stored_hash'; then
+_tmp=$(sed -n '/_test_state_already_passed/,/^}/p' "$VALIDATE_SCRIPT"); if grep -q 'not stored_hash' <<< "$_tmp"; then
     _nohash_actual="rejects_missing"
 else
     _nohash_actual="accepts_missing"

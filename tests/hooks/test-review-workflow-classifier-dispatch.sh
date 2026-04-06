@@ -683,7 +683,7 @@ fi
 # The test is specifically checking that the mapping shows opus for deep tier
 if [[ "$cached_model_is_opus_for_deep" == "false" ]]; then
     # Verify the line with cached_model and deep explicitly maps to opus
-    if grep -E 'cached_model' "$REVIEW_WORKFLOW" 2>/dev/null | grep -q "deep.*opus"; then
+    _tmp=$(grep -E 'cached_model' "$REVIEW_WORKFLOW" 2>/dev/null); if grep -q "deep.*opus" <<< "$_tmp"; then
         cached_model_is_opus_for_deep=true
     fi
 fi

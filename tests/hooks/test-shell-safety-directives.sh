@@ -67,7 +67,7 @@ while IFS= read -r script_file; do
     # Check if a safety directive appears within the first 10 lines.
     # Accepts: set -euo pipefail, set -uo pipefail, set -e, set -eu, set -u, set -o pipefail
     # or any combination that includes at minimum -u and -o pipefail.
-    if ! head -10 "$script_file" | grep -qE '^set -[euo]|^set -o pipefail'; then
+    _tmp=$(head -10 "$script_file"); if ! grep -qE '^set -[euo]|^set -o pipefail' <<< "$_tmp"; then
         VIOLATIONS="${VIOLATIONS}  $rel_path\n"
         VIOLATION_COUNT=$((VIOLATION_COUNT + 1))
     fi

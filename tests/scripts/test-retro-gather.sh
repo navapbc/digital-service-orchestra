@@ -95,7 +95,7 @@ fi
 
 # ── Test 6: Script uses section() function for structured output ──────────────
 echo "Test 6: Script uses section() function for structured output"
-if grep -q "section()" "$SCRIPT" || grep -q "^section " "$SCRIPT"; then
+_section_found=0; grep -q "section()" "$SCRIPT" && _section_found=1; [[ "$_section_found" -eq 0 ]] && grep -q "^section " "$SCRIPT" && _section_found=1; if [[ "$_section_found" -eq 1 ]]; then
     echo "  PASS: script uses section() function"
     (( PASS++ ))
 else

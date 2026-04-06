@@ -493,7 +493,8 @@ test_gate_passes_when_test_exempted() {
 
     # Write a valid test-gate-status with 'passed' and matching hash
     # (exemption should also work even when status exists)
-    if [[ ! -f "$GATE_HOOK" ]] || ! grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null; then
+    _has_exemptions=0; [[ -f "$GATE_HOOK" ]] && grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null && _has_exemptions=1
+    if [[ "$_has_exemptions" -eq 0 ]]; then
         assert_eq "test_gate_passes_when_test_exempted: no exemption support (RED)" "missing" "missing"
         return
     fi
@@ -537,7 +538,8 @@ test_gate_blocked_when_test_not_exempted() {
     # Write an exemption for a DIFFERENT test (not the associated one)
     write_test_exemption "$_artifacts" "tests/test_something_else.py"
 
-    if [[ ! -f "$GATE_HOOK" ]] || ! grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null; then
+    _has_exemptions=0; [[ -f "$GATE_HOOK" ]] && grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null && _has_exemptions=1
+    if [[ "$_has_exemptions" -eq 0 ]]; then
         assert_eq "test_gate_blocked_when_test_not_exempted: no exemption support (RED)" "missing" "missing"
         return
     fi
@@ -574,7 +576,8 @@ test_gate_passes_no_status_but_fully_exempted() {
     # Write an exemption for the associated test file path
     write_test_exemption "$_artifacts" "tests/test_fullex.py"
 
-    if [[ ! -f "$GATE_HOOK" ]] || ! grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null; then
+    _has_exemptions=0; [[ -f "$GATE_HOOK" ]] && grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null && _has_exemptions=1
+    if [[ "$_has_exemptions" -eq 0 ]]; then
         assert_eq "test_gate_passes_no_status_but_fully_exempted: no exemption support (RED)" "missing" "missing"
         return
     fi

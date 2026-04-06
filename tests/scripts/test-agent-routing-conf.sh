@@ -145,7 +145,7 @@ if [[ -n "$_routing_output" ]]; then
         | grep '^llm_behavioral=' | cut -d= -f2)" || true
 fi
 
-if printf '%s\n' "$_resolved_agent" | grep -q 'dso:bot-psychologist'; then
+if grep -q 'dso:bot-psychologist' <<< "$_resolved_agent"; then
     actual_llm_routing="routes_to_bot_psychologist"
 else
     actual_llm_routing="missing_or_wrong: '$_resolved_agent'"

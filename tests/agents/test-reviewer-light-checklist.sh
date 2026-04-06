@@ -34,7 +34,10 @@ fi
 # the source of truth for tier-specific content. We check both to be thorough.
 agent_contains() {
     local pattern="$1"
-    grep -qF "$pattern" "$AGENT_FILE" || grep -qF "$pattern" "$DELTA_FILE"
+    local _found=0
+    grep -qF "$pattern" "$AGENT_FILE" && _found=1
+    [[ "$_found" -eq 0 ]] && grep -qF "$pattern" "$DELTA_FILE" && _found=1
+    [[ "$_found" -eq 1 ]]
 }
 
 # ============================================================

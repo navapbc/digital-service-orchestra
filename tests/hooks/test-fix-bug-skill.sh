@@ -142,7 +142,7 @@ fi
 # test_fix_bug_skill_hard_gate_prohibits_code_before_steps
 # The HARD-GATE block must prohibit code modification before completing Steps 1-5.
 if [[ -f "$SKILL_FILE" ]]; then
-    if grep -A10 "HARD-GATE" "$SKILL_FILE" | grep -qiE "step.*1.*5|steps 1|before.*step|1 through 5"; then
+    _tmp=$(grep -A10 "HARD-GATE" "$SKILL_FILE"); if grep -qiE "step.*1.*5|steps 1|before.*step|1 through 5" <<< "$_tmp"; then
         actual="present"
     else
         actual="missing"
@@ -156,7 +156,7 @@ fi
 # "I'll just investigate quickly before dispatching". The phrase "inline" must
 # appear within 20 lines of the HARD-GATE marker.
 if [[ -f "$SKILL_FILE" ]]; then
-    if grep -A20 "HARD-GATE" "$SKILL_FILE" | grep -qi "inline"; then
+    _tmp=$(grep -A20 "HARD-GATE" "$SKILL_FILE"); if grep -qi "inline" <<< "$_tmp"; then
         actual="present"
     else
         actual="missing"
@@ -169,7 +169,7 @@ fi
 # "YOU MUST dispatch") that explicitly requires sub-agent dispatch rather
 # than leaving it as an option the orchestrator can rationalize around.
 if [[ -f "$SKILL_FILE" ]]; then
-    if grep -A30 "Step 2:" "$SKILL_FILE" | grep -qE "MUST dispatch|YOU MUST dispatch"; then
+    _tmp=$(grep -A30 "Step 2:" "$SKILL_FILE"); if grep -qE "MUST dispatch|YOU MUST dispatch" <<< "$_tmp"; then
         actual="present"
     else
         actual="missing"

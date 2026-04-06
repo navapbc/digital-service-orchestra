@@ -247,7 +247,7 @@ assert_pass_if_clean "test_flask_jinja2_adapter_resolves"
 # test_flask_jinja2_adapter_has_component_patterns: adapter has component_file_patterns
 _snapshot_fail
 adapter_file="$ADAPTER_DIR/flask-jinja2.yaml"
-if $PYTHON -c "
+_tmp=$($PYTHON -c "
 import yaml
 d = yaml.safe_load(open('$adapter_file'))
 cfp = d.get('component_file_patterns', {})
@@ -255,7 +255,7 @@ assert 'glob_patterns' in cfp, 'missing glob_patterns'
 assert 'definition_patterns' in cfp, 'missing definition_patterns'
 assert 'import_patterns' in cfp, 'missing import_patterns'
 print('has_patterns')
-" 2>/dev/null | grep -q 'has_patterns'; then
+" 2>/dev/null); if [[ "$_tmp" == *"has_patterns"* ]]; then
     has_cp="has_component_patterns"
 else
     has_cp="missing_component_patterns"
@@ -265,7 +265,7 @@ assert_pass_if_clean "test_flask_jinja2_adapter_has_component_patterns"
 
 # test_flask_jinja2_adapter_has_route_patterns: adapter has route_patterns
 _snapshot_fail
-if $PYTHON -c "
+_tmp=$($PYTHON -c "
 import yaml
 d = yaml.safe_load(open('$adapter_file'))
 rp = d.get('route_patterns', {})
@@ -273,7 +273,7 @@ assert 'decorator_patterns' in rp, 'missing decorator_patterns'
 assert 'template_render_patterns' in rp, 'missing template_render_patterns'
 assert 'registration_patterns' in rp, 'missing registration_patterns'
 print('has_routes')
-" 2>/dev/null | grep -q 'has_routes'; then
+" 2>/dev/null); if [[ "$_tmp" == *"has_routes"* ]]; then
     has_rp="has_route_patterns"
 else
     has_rp="missing_route_patterns"
@@ -283,7 +283,7 @@ assert_pass_if_clean "test_flask_jinja2_adapter_has_route_patterns"
 
 # test_flask_jinja2_adapter_has_template_syntax: adapter has template_syntax
 _snapshot_fail
-if $PYTHON -c "
+_tmp=$($PYTHON -c "
 import yaml
 d = yaml.safe_load(open('$adapter_file'))
 ts = d.get('template_syntax', {})
@@ -291,7 +291,7 @@ assert 'inheritance_pattern' in ts, 'missing inheritance_pattern'
 assert 'block_patterns' in ts, 'missing block_patterns'
 assert 'include_patterns' in ts, 'missing include_patterns'
 print('has_syntax')
-" 2>/dev/null | grep -q 'has_syntax'; then
+" 2>/dev/null); if [[ "$_tmp" == *"has_syntax"* ]]; then
     has_ts="has_template_syntax"
 else
     has_ts="missing_template_syntax"
@@ -301,14 +301,14 @@ assert_pass_if_clean "test_flask_jinja2_adapter_has_template_syntax"
 
 # test_flask_jinja2_adapter_has_framework_detection: adapter has framework_detection
 _snapshot_fail
-if $PYTHON -c "
+_tmp=$($PYTHON -c "
 import yaml
 d = yaml.safe_load(open('$adapter_file'))
 fd = d.get('framework_detection', {})
 assert 'marker_files' in fd, 'missing marker_files'
 assert 'marker_keys' in fd, 'missing marker_keys'
 print('has_detection')
-" 2>/dev/null | grep -q 'has_detection'; then
+" 2>/dev/null); if [[ "$_tmp" == *"has_detection"* ]]; then
     has_fd="has_framework_detection"
 else
     has_fd="missing_framework_detection"

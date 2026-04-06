@@ -39,7 +39,7 @@ assert_pass_if_clean "test_breadcrumb_truncation_exists"
 # Each breadcrumb echo must include ISO8601 timestamp format
 _snapshot_fail
 timestamp_found=0
-grep 'commit-breadcrumbs' "$WORKFLOW_FILE" | grep -q '%Y-%m-%dT%H:%M:%SZ' 2>/dev/null && timestamp_found=1
+_tmp=$(grep 'commit-breadcrumbs' "$WORKFLOW_FILE" 2>/dev/null); grep -q '%Y-%m-%dT%H:%M:%SZ' <<< "$_tmp" && timestamp_found=1
 assert_eq "test_breadcrumb_has_iso8601_timestamp: ISO8601 format present" "1" "$timestamp_found"
 assert_pass_if_clean "test_breadcrumb_has_iso8601_timestamp"
 

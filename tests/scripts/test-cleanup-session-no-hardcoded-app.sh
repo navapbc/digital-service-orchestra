@@ -36,7 +36,7 @@ assert_pass_if_clean "test_cleanup_session_sources_config_paths"
 # ============================================================================
 # test_cleanup_session_no_hardcoded_app
 # ============================================================================
-# The AC specifically checks: grep -v '^\s*#' ... | grep -q '".*app/'
+# The AC specifically checks for '".*app/' in non-comment lines (grep -v then count)
 # We check for any hardcoded app/ in non-comment lines.
 echo "=== test_cleanup_session_no_hardcoded_app ==="
 _snapshot_fail
