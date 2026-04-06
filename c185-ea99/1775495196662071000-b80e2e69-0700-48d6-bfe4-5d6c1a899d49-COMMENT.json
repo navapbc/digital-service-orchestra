@@ -1,1 +1,0 @@
-{"timestamp": 1775495196662071000, "uuid": "b80e2e69-0700-48d6-bfe4-5d6c1a899d49", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: RED tests for merge-state worktree semantics (8 pass, 5 fail RED)."}}
