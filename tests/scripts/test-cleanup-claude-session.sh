@@ -278,6 +278,49 @@ else
     (( SKIP++ ))
 fi
 
+# ── Test 14: pgrep pattern uses ERE alternation (bare |, not \|) ──────────────
+# macOS pgrep -f uses Extended Regular Expressions (ERE). In ERE, alternation
+# is bare | (not \| which is BRE). Using \| causes the pattern to match nothing
+# silently, which is exactly the bug that allowed orphan Chrome processes to
+# accumulate undetected (ticket 7254-8ce2).
+#
+# This test spawns a mock process and verifies the cleanup script's actual
+# pgrep pattern can detect it at runtime — not just that the pattern text
+# exists in the source file (which is what Test 13's static grep check does).
+echo "Test 14: pgrep pattern uses ERE-compatible alternation (runtime pgrep check)"
+if [ -f "$SCRIPT" ]; then
+    # Extract the pgrep -f pattern from the script (the quoted string after pgrep ... -f)
+    PGREP_PATTERN=$(grep 'PLAYWRIGHT_CLI_PROCS=.*pgrep' "$SCRIPT" | sed -n 's/.*pgrep.*-f "\([^"]*\)".*/\1/p')
+    if [ -z "$PGREP_PATTERN" ]; then
+        echo "  FAIL: could not extract pgrep pattern from cleanup script" >&2
+        (( FAIL++ ))
+    else
+        # Spawn a mock process whose command line matches one of the pattern's alternatives.
+        # Use "chrom" + "remote-debugging-pipe" which is the system-Chrome fingerprint.
+        MOCK_CMD="sleep 300 --mock-chromium-for-test --remote-debugging-pipe"
+        bash -c "exec -a '$MOCK_CMD' sleep 300" &
+        MOCK_PID=$!
+        sleep 0.2  # Let process appear in process table
+
+        # Verify pgrep with the script's pattern can find the mock process
+        FOUND_PID=$(pgrep -u "$(id -u)" -f "$PGREP_PATTERN" 2>/dev/null || true)
+        kill "$MOCK_PID" 2>/dev/null; wait "$MOCK_PID" 2>/dev/null || true
+
+        if echo "$FOUND_PID" | grep -q "$MOCK_PID"; then
+            echo "  PASS: pgrep pattern correctly matches mock Playwright-launched Chrome process at runtime"
+            (( PASS++ ))
+        else
+            echo "  FAIL: pgrep pattern did NOT match mock process at runtime (ERE alternation broken — likely using \\| instead of |)" >&2
+            echo "  Pattern: $PGREP_PATTERN" >&2
+            echo "  Mock PID: $MOCK_PID, Found PIDs: ${FOUND_PID:-none}" >&2
+            (( FAIL++ ))
+        fi
+    fi
+else
+    echo "  SKIP: plugin script not yet created (expected — TDD)"
+    (( SKIP++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"
 echo "PASSED: $PASS  FAILED: $FAIL"

@@ -545,7 +545,7 @@ log "Checking for orphaned Playwright CLI browser processes..."
 #   playwright.*cli.*chromium, chromium.*playwright.*cli, .playwright-cli.*chrome, ms-playwright.*chromium
 # Fingerprint-based pattern (system Chrome launched by Playwright — requires both chrom + remote-debugging-pipe):
 #   chrom.*remote-debugging-pipe, remote-debugging-pipe.*chrom
-PLAYWRIGHT_CLI_PROCS=$(pgrep -u "$(id -u)" -f "playwright.*cli.*chromium\|chromium.*playwright.*cli\|\.playwright-cli.*chrome\|ms-playwright.*chromium\|chrom.*remote-debugging-pipe\|remote-debugging-pipe.*chrom" 2>/dev/null || true)
+PLAYWRIGHT_CLI_PROCS=$(pgrep -u "$(id -u)" -f "playwright.*cli.*chromium|chromium.*playwright.*cli|\.playwright-cli.*chrome|ms-playwright.*chromium|chrom.*remote-debugging-pipe|remote-debugging-pipe.*chrom" 2>/dev/null || true)
 if [ -n "$PLAYWRIGHT_CLI_PROCS" ]; then
     CLI_PROC_COUNT=$(echo "$PLAYWRIGHT_CLI_PROCS" | wc -l | tr -d ' ')
     if [ $DRY_RUN -eq 1 ]; then
