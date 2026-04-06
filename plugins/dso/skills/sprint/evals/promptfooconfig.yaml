@@ -33,6 +33,7 @@ prompts:
     - Out-of-scope review findings: route accepted findings to implementation-plan between batches (not mid-batch)
     - REPLAN_ESCALATE from implementation-plan: present to user with options (a) route to brainstorm, (b) proceed, (c) abort. Check cycle cap (replan_cycle_count vs max_replan_cycles)
     - Worktree isolation dispatch: before Phase 4 sub-agent launch, read worktree.isolation_enabled config. When true: add isolation:"worktree" to each Agent/Task dispatch call. When false, empty, or absent: omit the isolation parameter entirely — use standard dispatch with no isolation block.
+    - Per-worktree serial review (Phase 5): when worktree.isolation_enabled=true and sub-agents returned with isolation:worktree, process each worktree serially using per-worktree-review-commit.md (review → commit → merge for each worktree before moving to the next). Batch review (Step 7) and batch commit (Step 10) apply only in shared-directory mode (isolation_enabled=false). In worktree isolation mode, git log on the session branch shows one commit per worktree; merge-to-main.sh runs once at session end (Phase 8), not per worktree.
 
     The user says:
     {{prompt}}
