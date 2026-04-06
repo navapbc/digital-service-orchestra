@@ -489,6 +489,7 @@ Run the local environment preflight check:
 
 Write a temporary Playwright script to `/tmp/design-capture-$ARGUMENTS.mjs` that:
 - Launches chromium in headless mode
+- **Wraps all page interaction in a `try/finally` block that guarantees `await browser.close()` runs on both success and error paths** — this prevents orphaned Chrome processes when the script fails mid-execution
 - Navigates to each target page identified in Step 5
 - Waits for network idle
 - Takes a full-page screenshot of each page
@@ -496,6 +497,16 @@ Write a temporary Playwright script to `/tmp/design-capture-$ARGUMENTS.mjs` that
   and data attributes (limit to the top 3 levels of nesting)
 - Saves screenshots to the design output directory (created in Phase 4)
 - Outputs a JSON summary of findings to stdout
+
+The script MUST follow this structure to prevent Chrome process leaks:
+```javascript
+const browser = await chromium.launch({ headless: true });
+try {
+  // ... all page navigation, screenshots, DOM extraction ...
+} finally {
+  await browser.close();
+}
+```
 
 Run the script: `node /tmp/design-capture-$ARGUMENTS.mjs`
 

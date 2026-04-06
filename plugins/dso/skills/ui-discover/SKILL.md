@@ -429,8 +429,12 @@ Use the `@playwright/cli` to crawl each route via discrete CLI commands. The
 CLI uses named sessions (`-s=<name>`) to persist browser state across separate
 Bash invocations.
 
-**Open a session:**
+**Open a session** (with cleanup trap to prevent orphaned Chrome on interruption):
 ```bash
+# Register cleanup trap before opening — ensures browser is closed on exit/error/interruption
+_pw_cleanup() { npx @playwright/cli close -s=ui-discover 2>/dev/null || true; }
+trap _pw_cleanup EXIT TERM INT
+
 npx @playwright/cli open -s=ui-discover
 ```
 

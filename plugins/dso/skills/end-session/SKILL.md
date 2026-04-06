@@ -326,7 +326,7 @@ If any condition fails:
 
 Remove stale config-cache files from the workflow artifacts directory. These accumulate over sessions (one per unique config path hash) and cause I/O overhead in hooks that scan the directory.
 
-Also remove the `.playwright-cli/` state directory from the worktree root if present (session files created by `@playwright/cli` sub-agents during this session):
+Also remove the `.playwright-cli/` state directory and kill any orphaned Chrome/Chromium browser processes spawned by `@playwright/cli` during this session:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -335,6 +335,15 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 if [ -d "$REPO_ROOT/.playwright-cli" ]; then
     rm -rf "$REPO_ROOT/.playwright-cli"
     echo "Removed .playwright-cli/ state directory"
+fi
+
+# Kill orphaned Playwright-launched Chrome/Chromium processes
+# Uses ERE alternation (bare |, not \|) — macOS pgrep requires ERE syntax
+ORPHAN_CHROME=$(pgrep -u "$(id -u)" -f "playwright.*cli.*chromium|chromium.*playwright.*cli|\.playwright-cli.*chrome|ms-playwright.*chromium|chrom.*remote-debugging-pipe|remote-debugging-pipe.*chrom" 2>/dev/null || true)
+if [ -n "$ORPHAN_CHROME" ]; then
+    CHROME_COUNT=$(echo "$ORPHAN_CHROME" | wc -l | tr -d ' ')
+    echo "$ORPHAN_CHROME" | xargs kill 2>/dev/null || true
+    echo "Killed $CHROME_COUNT orphaned Playwright browser process(es)"
 fi
 
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"

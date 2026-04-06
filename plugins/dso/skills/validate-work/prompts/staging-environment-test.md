@@ -194,6 +194,10 @@ SESSION_NAME="staging-test-${WORKTREE_ID}"
 Open a named session, navigate to staging, collect console messages, then close:
 
 ```bash
+# Register cleanup trap before opening — ensures browser is closed on exit/error/interruption
+_pw_cleanup() { npx @playwright/cli close -s="$SESSION_NAME" 2>/dev/null || true; }
+trap _pw_cleanup EXIT TERM INT
+
 # Open session
 npx @playwright/cli open -s="$SESSION_NAME"
 
