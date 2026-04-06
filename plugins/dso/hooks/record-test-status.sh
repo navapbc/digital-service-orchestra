@@ -497,9 +497,16 @@ declare -A _TEST_MARKER_MAP=()
 while IFS= read -r src_file; do
     [[ -z "$src_file" ]] && continue
 
-    # If src_file is itself a test file, add it directly to ASSOCIATED_TESTS
-    # (the test must pass before it can be committed) and skip fuzzy matching.
-    if fuzzy_is_test_file "$src_file"; then
+    # If src_file is itself a test file AND lives under a test directory,
+    # add it directly to ASSOCIATED_TESTS and skip fuzzy matching.
+    # Files in non-test directories (e.g., scripts/test-batched.sh) are source
+    # files that happen to match test naming convention — they should be looked
+    # up via .test-index and fuzzy matching, not executed directly as tests.
+    _src_in_test_dir=false
+    for _td in ${_TEST_DIRS//:/ }; do
+        [[ "$src_file" == "$_td"* ]] && { _src_in_test_dir=true; break; }
+    done
+    if "$_src_in_test_dir" && fuzzy_is_test_file "$src_file"; then
         _test_self="$src_file"
         _test_self_path="$REPO_ROOT/$_test_self"
         if [[ -f "$_test_self_path" ]]; then
@@ -507,12 +514,25 @@ while IFS= read -r src_file; do
                 echo "WARNING: skipping non-executable shell test: $_test_self" >&2
             else
                 ASSOCIATED_TESTS+=("$_test_self")
-                if [[ -z "${_TEST_MARKER_MAP[$_test_self]+set}" ]]; then
-                    _TEST_MARKER_MAP["$_test_self"]=""
-                fi
+                # Look up RED marker from .test-index for this test file (bug 41dc-bb9b).
+                # Without this, directly-staged test files with RED markers would have
+                # their failures treated as real failures instead of tolerated.
+                _direct_marker=""
+                while IFS= read -r _idx_entry; do
+                    [[ -z "$_idx_entry" ]] && continue
+                    if [[ "$_idx_entry" =~ ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$ ]]; then
+                        _idx_test="${BASH_REMATCH[1]}"
+                        _idx_mk="${BASH_REMATCH[2]}"
+                        [[ "$_idx_test" == "$_test_self" ]] && { _direct_marker="$_idx_mk"; break; }
+                    fi
+                done < <(grep -F "$_test_self" "$REPO_ROOT/.test-index" 2>/dev/null || true)
+                _TEST_MARKER_MAP["$_test_self"]="${_direct_marker}"
             fi
         fi
-        continue
+        # Do NOT continue — fall through to .test-index lookup below so that
+        # other tests associated with this file (as a source) are also collected.
+        # The test file itself is already added; the .test-index lookup may find
+        # additional tests if the test file is also mapped as a source.
     fi
 
     # Collect from fuzzy matching (no markers from fuzzy match)
