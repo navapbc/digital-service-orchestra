@@ -10,6 +10,8 @@
 #   ms_get_worktree_only_files       — orig-head-anchored: files changed on worktree branch
 #   ms_get_worktree_only_files_from_head — HEAD-anchored: files changed on worktree branch (for capture-review-diff.sh)
 #   ms_filter_to_worktree_only       — filter a file list to worktree-only files; fail-open on error
+#   ms_is_worktree_to_session_merge  — detects worktree-to-session merge (MERGE_HEAD branch contains "worktree")
+#   ms_get_incoming_only_files       — returns files changed on MERGE_HEAD side (incoming branch)
 #   ms_get_conflicted_files          — wraps git diff --name-only --diff-filter=U
 #
 # Source guard: _MERGE_STATE_LOADED + _MS_LOAD_COUNT sentinel (informational only, >1 is non-fatal)
@@ -352,6 +354,104 @@ ms_filter_to_worktree_only() {
     fi
 
     printf '%s' "$_filtered"
+    return 0
+}
+
+# ── ms_is_worktree_to_session_merge ──────────────────────────────────────────
+# Returns 0 (true) when the current merge is a worktree-to-session merge:
+#   - MERGE_HEAD exists (merge in progress)
+#   - MERGE_HEAD's branch name contains "worktree" (created via `git worktree add`)
+#
+# Heuristic: resolves MERGE_HEAD to a branch name via `git name-rev` or
+# `git branch --contains`, then checks for the "worktree" substring.
+# Fail-closed: returns 1 if detection is ambiguous.
+ms_is_worktree_to_session_merge() {
+    local _git_dir
+    _git_dir=$(ms_get_git_dir)
+    [[ -z "$_git_dir" ]] && return 1
+    [[ -f "$_git_dir/MERGE_HEAD" ]] || return 1
+
+    local _merge_head_sha
+    _merge_head_sha=$(head -1 "$_git_dir/MERGE_HEAD" 2>/dev/null || echo "")
+    [[ -z "$_merge_head_sha" ]] && return 1
+
+    # Try to find a branch name for MERGE_HEAD
+    local _branch_name=""
+
+    # Method 1: git branch --contains (most reliable for local branches)
+    _branch_name=$(git branch --contains "$_merge_head_sha" 2>/dev/null \
+        | sed 's/^[* ]*//' | grep -i "worktree" | head -1 || echo "")
+
+    # Method 2: git name-rev fallback
+    if [[ -z "$_branch_name" ]]; then
+        local _name_rev
+        _name_rev=$(git name-rev --name-only "$_merge_head_sha" 2>/dev/null || echo "")
+        if [[ "$_name_rev" == *worktree* ]]; then
+            _branch_name="$_name_rev"
+        fi
+    fi
+
+    # Check if the branch name contains "worktree"
+    if [[ -n "$_branch_name" && "$_branch_name" == *worktree* ]]; then
+        return 0
+    fi
+
+    return 1
+}
+
+# ── ms_get_incoming_only_files ───────────────────────────────────────────────
+# Returns (to stdout, newline-separated) the list of files changed on the
+# MERGE_HEAD (incoming) branch only, excluding HEAD-side files.
+#
+# This is the semantic inverse of ms_get_worktree_only_files:
+#   - ms_get_worktree_only_files returns diff(merge_base..HEAD)
+#   - ms_get_incoming_only_files returns diff(merge_base..MERGE_HEAD)
+#
+# Use case: during worktree-to-session merge, the incoming changes (MERGE_HEAD)
+# ARE the implementation files we want. The review gate uses this to identify
+# worktree branch files and verify they were already reviewed.
+#
+# Only supports merge state (MERGE_HEAD). Returns empty for rebase state.
+# Fail-open: if merge-base computation fails, returns all staged files.
+# Re-computes on every call (no caching).
+ms_get_incoming_only_files() {
+    local _actual_git_dir
+    if [[ -n "${_MERGE_STATE_GIT_DIR:-}" ]]; then
+        _actual_git_dir="$_MERGE_STATE_GIT_DIR"
+    else
+        _actual_git_dir=$(ms_get_git_dir)
+    fi
+
+    # Only merge state is supported for incoming files
+    if [[ -n "$_actual_git_dir" && -f "$_actual_git_dir/MERGE_HEAD" ]]; then
+        local _merge_head_sha _merge_head_resolved _head_sha _merge_base _incoming_changed
+        _merge_head_sha=$(head -1 "$_actual_git_dir/MERGE_HEAD" 2>/dev/null || echo "")
+        _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
+        _merge_head_resolved=$(git rev-parse "$_merge_head_sha" 2>/dev/null || echo "")
+
+        # Guard: MERGE_HEAD == HEAD -> fail-open, return staged files
+        if [[ -n "$_merge_head_resolved" && "$_merge_head_resolved" == "$_head_sha" ]]; then
+            git diff --cached --name-only 2>/dev/null || true
+            return 0
+        fi
+
+        # Compute merge-base and diff to MERGE_HEAD (incoming side)
+        if [[ -n "$_merge_head_sha" ]]; then
+            _merge_base=$(git merge-base HEAD "$_merge_head_sha" 2>/dev/null || echo "")
+            if [[ -n "$_merge_base" ]]; then
+                _incoming_changed=$(git diff --name-only "$_merge_base" "$_merge_head_sha" 2>/dev/null || echo "")
+                echo "$_incoming_changed"
+                return 0
+            fi
+        fi
+
+        # Fail-open: merge-base failed
+        git diff --cached --name-only 2>/dev/null || true
+        return 0
+    fi
+
+    # No merge in progress — return staged files (fail-open)
+    git diff --cached --name-only 2>/dev/null || true
     return 0
 }
 
