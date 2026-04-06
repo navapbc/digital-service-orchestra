@@ -89,6 +89,28 @@ git diff HEAD --name-only | bash ".claude/scripts/dso skip-review-check.sh" && S
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0.5-skip-review-check" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
+## Step 0.9: Emit Commit Workflow Start Event
+
+Emit a durable start event **before** any timeout-prone steps (test, lint, review). This must be committed to the orphan branch so that SIGURG (exit 144) cannot lose it. Incomplete commits are detectable as unpaired start events (start without a matching end in the same session).
+
+> **Failure exits**: If the commit workflow fails at any step (test failure after exhausting retries, lint failure, review escalation to user, commit rejection), emit an end-failure event before aborting:
+>
+> ```bash
+> REPO_ROOT=$(git rev-parse --show-toplevel)
+> ".claude/scripts/dso" emit-commit-workflow-event.sh --phase=end --success=false --failure-reason="<step and reason>"
+> ```
+>
+> Replace `<step and reason>` with a concise description (e.g., `"Step 1: unit tests failed after 5 attempts"`, `"Step 5: review escalated to user"`). This pairs with the start event to close the observability window.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+".claude/scripts/dso" emit-commit-workflow-event.sh --phase=start
+```
+
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0.9-emit-start-event" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
+
 ## Step 1: Test
 
 Run unit tests to catch breakage before investing in review.
@@ -389,6 +411,13 @@ Create a single git commit following the repository's commit message conventions
 
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-6-commit" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
+
+After a successful commit, emit the end event:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+".claude/scripts/dso" emit-commit-workflow-event.sh --phase=end --success=true
 ```
 
 After committing, report the SHA and **immediately return control to the caller** — do NOT wait for user input. Resume the calling workflow at the step after this commit invocation. If you were executing `/dso:debug-everything`, continue at the step after this commit invocation (Phase 4 Step 5 for auto-fix commits, or Phase 6 Step 6 for post-batch commits). If you were executing `/dso:sprint`, continue at Phase 5 Step 10 (Commit & Push) or the step that invoked this workflow. Do NOT output any text that implies the session is complete.

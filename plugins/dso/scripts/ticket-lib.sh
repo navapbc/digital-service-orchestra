@@ -11,6 +11,134 @@
 #   - python3 must be available (for JSON parsing)
 #   - python3 fcntl.flock used for portable serialization (macOS + Linux)
 
+# Stable internal API — used by write_commit_event and emit-review-event.sh
+#
+# _flock_stage_commit <tracker_dir> <staging_temp> <final_path> <commit_msg>
+# Args:
+#   tracker_dir:   canonical path to .tickets-tracker/ (derives lock_file)
+#   staging_temp:  absolute path to the staged temp file (same filesystem as tracker_dir)
+#   final_path:    absolute destination path (atomic rename target)
+#   commit_msg:    git commit message string
+#
+# Handles:
+#   - Acquires flock on .tickets-tracker/.ticket-write.lock
+#   - atomic rename (staging_temp → final_path)
+#   - git add (tracker_dir-relative path) + git commit
+#   - gc.auto=0 guard
+#   - Lock timeout (30s), max retries (2)
+_flock_stage_commit() {
+    # Resolve to canonical path so callers using a symlink and callers using
+    # the real path always contend on the same lock file (cross-path serialization).
+    local tracker_dir
+    tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$1")
+    local staging_temp="$2"
+    local final_path="$3"
+    local commit_msg="$4"
+
+    local lock_file="$tracker_dir/.ticket-write.lock"
+
+    # ── Validate: tracker_dir exists ────────────────────────────────────────
+    if [ ! -d "$tracker_dir" ]; then
+        echo "Error: tracker directory does not exist: $tracker_dir" >&2
+        return 1
+    fi
+
+    # ── Derive tracker_dir-relative path from final_path ────────────────────
+    local relative_path="${final_path#"$tracker_dir/"}"
+
+    # ── Ensure gc.auto=0 in tickets worktree (idempotent guard) ─────────────
+    git -C "$tracker_dir" config gc.auto 0
+
+    # ── Acquire flock, then atomic rename + commit ──────────────────────────
+    local max_retries=2
+    local flock_timeout="${FLOCK_STAGE_COMMIT_TIMEOUT:-30}"
+    local attempt=0
+    local lock_acquired=false
+
+    while [ "$attempt" -lt "$max_retries" ]; do
+        attempt=$((attempt + 1))
+
+        local flock_exit=0
+        python3 -c "
+import fcntl, os, subprocess, sys, time
+
+lock_path = sys.argv[1]
+timeout = int(sys.argv[2])
+tracker_dir = sys.argv[3]
+relative_path = sys.argv[4]
+commit_msg = sys.argv[5]
+staging_temp = sys.argv[6]
+final_path = sys.argv[7]
+
+fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+deadline = time.monotonic() + timeout
+acquired = False
+while time.monotonic() < deadline:
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        acquired = True
+        break
+    except (IOError, OSError):
+        time.sleep(0.1)
+if not acquired:
+    os.close(fd)
+    sys.exit(1)
+
+# Lock acquired — atomic rename then git operations while holding the lock
+try:
+    os.rename(staging_temp, final_path)
+except OSError as e:
+    print(f'Error: atomic rename failed: {e}', file=sys.stderr)
+    os.close(fd)
+    sys.exit(3)
+
+try:
+    subprocess.run(
+        ['git', '-C', tracker_dir, 'add', relative_path],
+        check=True, capture_output=True, text=True,
+    )
+    subprocess.run(
+        ['git', '-C', tracker_dir, 'commit', '-q', '--no-verify', '-m', commit_msg],
+        check=True, capture_output=True, text=True,
+    )
+except subprocess.CalledProcessError as e:
+    print(f'Error: git operation failed: {e.stderr}', file=sys.stderr)
+    # Clean up the event file so it doesn't remain uncommitted on disk
+    try:
+        os.remove(final_path)
+    except OSError:
+        pass
+    os.close(fd)
+    sys.exit(2)
+
+# Release lock by closing fd
+os.close(fd)
+sys.exit(0)
+" "$lock_file" "$flock_timeout" "$tracker_dir" "$relative_path" "$commit_msg" "$staging_temp" "$final_path" || flock_exit=$?
+
+        if [ "$flock_exit" -eq 0 ]; then
+            lock_acquired=true
+            break
+        elif [ "$flock_exit" -eq 2 ]; then
+            echo "Error: git commit failed while holding lock" >&2
+            return 1
+        elif [ "$flock_exit" -eq 3 ]; then
+            rm -f "$staging_temp"
+            echo "Error: atomic rename failed" >&2
+            return 1
+        fi
+    done
+
+    if [ "$lock_acquired" = false ]; then
+        local total_wait=$((flock_timeout * max_retries))
+        echo "flock: could not acquire lock after ${total_wait}s" >&2
+        rm -f "$staging_temp"
+        return 1
+    fi
+
+    return 0
+}
+
 # write_commit_event <ticket_id> <temp_event_json_path>
 # Args:
 #   ticket_id: the ticket directory name (e.g., w21-ablv)
@@ -21,10 +149,7 @@
 #   2. Reads event_type, timestamp, uuid from JSON via python3
 #   3. Creates ticket dir: mkdir -p .tickets-tracker/<ticket_id>
 #   4. Stages temp file in .tickets-tracker/ (same filesystem for atomic rename)
-#   5. Acquires flock on .tickets-tracker/.ticket-write.lock
-#   6. Atomic rename: mv staging_temp → final_path (inside lock)
-#   7. git add <specific-file> + git commit (inside lock)
-#   8. Releases flock
+#   5. Delegates to _flock_stage_commit for flock + atomic rename + git commit
 write_commit_event() {
     local ticket_id="$1"
     local temp_event_json_path="$2"
@@ -107,108 +232,9 @@ with open(sys.argv[2], 'w', encoding='utf-8') as f:
         echo "Error: failed to write staging temp file" >&2
         return 1
     }
-    # ── Ensure gc.auto=0 in tickets worktree (idempotent guard) ──────────────
-    git -C "$tracker_dir" config gc.auto 0
-
-    # ── Acquire flock, then atomic rename + commit ───────────────────────────
-    # Uses python3 fcntl.flock for portable locking (macOS + Linux).
-    # Lock file: .tickets-tracker/.ticket-write.lock
-    # The Python process holds the lock while running:
-    #   1. Atomic rename (staging_temp → final_path)
-    #   2. git add <specific-file>
-    #   3. git commit
-    # This ensures the entire write-rename-commit pipeline is serialized.
-    # Budget: 30s timeout per attempt, max 2 retries (60s total)
-    local max_retries=2
-    local flock_timeout=30
-    local attempt=0
-    local lock_acquired=false
-
-    while [ "$attempt" -lt "$max_retries" ]; do
-        attempt=$((attempt + 1))
-
-        # Acquire flock, then rename + git add + commit while holding the lock
-        local flock_exit=0
-        python3 -c "
-import fcntl, os, subprocess, sys, time
-
-lock_path = sys.argv[1]
-timeout = int(sys.argv[2])
-tracker_dir = sys.argv[3]
-ticket_id = sys.argv[4]
-final_filename = sys.argv[5]
-event_type = sys.argv[6]
-staging_temp = sys.argv[7]
-final_path = sys.argv[8]
-
-fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
-deadline = time.monotonic() + timeout
-acquired = False
-while time.monotonic() < deadline:
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        acquired = True
-        break
-    except (IOError, OSError):
-        time.sleep(0.1)
-if not acquired:
-    os.close(fd)
-    sys.exit(1)
-
-# Lock acquired — atomic rename then git operations while holding the lock
-try:
-    os.rename(staging_temp, final_path)
-except OSError as e:
-    print(f'Error: atomic rename failed: {e}', file=sys.stderr)
-    os.close(fd)
-    sys.exit(3)
-
-try:
-    subprocess.run(
-        ['git', '-C', tracker_dir, 'add', f'{ticket_id}/{final_filename}'],
-        check=True, capture_output=True, text=True,
-    )
-    subprocess.run(
-        ['git', '-C', tracker_dir, 'commit', '-q', '--no-verify', '-m', f'ticket: {event_type} {ticket_id}'],
-        check=True, capture_output=True, text=True,
-    )
-except subprocess.CalledProcessError as e:
-    print(f'Error: git operation failed: {e.stderr}', file=sys.stderr)
-    # Clean up the event file so it doesn't remain uncommitted on disk
-    try:
-        os.remove(final_path)
-    except OSError:
-        pass
-    os.close(fd)
-    sys.exit(2)
-
-# Release lock by closing fd
-os.close(fd)
-sys.exit(0)
-" "$lock_file" "$flock_timeout" "$tracker_dir" "$ticket_id" "$final_filename" "$event_type" "$staging_temp" "$final_path" || flock_exit=$?
-
-        if [ "$flock_exit" -eq 0 ]; then
-            lock_acquired=true
-            break
-        elif [ "$flock_exit" -eq 2 ]; then
-            # git operation failed (not a lock timeout) — don't retry
-            echo "Error: git commit failed while holding lock" >&2
-            return 1
-        elif [ "$flock_exit" -eq 3 ]; then
-            # atomic rename failed — clean up staging temp and don't retry
-            rm -f "$staging_temp"
-            echo "Error: atomic rename failed" >&2
-            return 1
-        fi
-    done
-
-    if [ "$lock_acquired" = false ]; then
-        local total_wait=$((flock_timeout * max_retries))
-        echo "flock: could not acquire lock after ${total_wait}s" >&2
-        # Clean up: staging temp still exists since rename is inside the lock
-        rm -f "$staging_temp"
-        return 1
-    fi
+    # ── Delegate to _flock_stage_commit for flock + atomic rename + commit ──
+    local commit_msg="ticket: ${event_type} ${ticket_id}"
+    _flock_stage_commit "$tracker_dir" "$staging_temp" "$final_path" "$commit_msg" || return $?
 
     # Push to remote after successful commit (best-effort with retry)
     _push_tickets_branch "$tracker_dir"
