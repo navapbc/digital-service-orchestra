@@ -119,16 +119,21 @@ _bash_runner_run() {
         exit 0
     }
 
+    # Resolve TEST_DIR to an absolute path ONCE outside the loop.
+    # Previously this was recomputed on every iteration via `cd "$TEST_DIR" && pwd`
+    # (a subshell per file), causing O(N) fork overhead — ~6s extra for 260 files.
+    local _abs_test_dir_base
+    _abs_test_dir_base="$(cd "$TEST_DIR" && pwd)"
+
     for bash_file in "${BASH_FILES[@]}"; do
         # Use a path-relative test ID (relative to TEST_DIR) to avoid collisions
         # when two files share the same basename (even though -maxdepth 1 currently
         # prevents this, using a stable relative path makes the invariant explicit).
         # Portable: strip the TEST_DIR prefix from the absolute path.
         local test_id
-        local _abs_bash_file _abs_test_dir
+        local _abs_bash_file
         _abs_bash_file="$(cd "$(dirname "$bash_file")" && pwd)/$(basename "$bash_file")"
-        _abs_test_dir="$(cd "$TEST_DIR" && pwd)"
-        test_id="${_abs_bash_file#"${_abs_test_dir}/"}"
+        test_id="${_abs_bash_file#"${_abs_test_dir_base}/"}"
         # Fallback to basename if prefix stripping produced an empty or unchanged result
         [ -z "$test_id" ] || [ "$test_id" = "$_abs_bash_file" ] && test_id="$(basename "$bash_file")"
 

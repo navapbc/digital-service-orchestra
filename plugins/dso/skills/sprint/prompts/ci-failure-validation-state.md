@@ -4,14 +4,14 @@ Write this file before dispatching the `error-debugging:error-detective` sub-age
 
 ## File Path
 
-`/tmp/sprint-validation-<epic-id>.json`
+`/tmp/sprint-validation-<primary-ticket-id>.json`
 
 ## Schema
 
 ```json
 {
   "version": 1,
-  "epicId": "<epic-id>",
+  "primaryTicketId": "<primary-ticket-id>",
   "generatedAt": "<ISO-8601 timestamp>",
   "generatedBy": "sprint",
   "localCheckResults": {
@@ -25,7 +25,7 @@ Write this file before dispatching the `error-debugging:error-detective` sub-age
     "failedJobs": ["<job names if available>"]
   },
   "epicInfo": {
-    "epicId": "<epic-id>",
+    "primaryTicketId": "<primary-ticket-id>",
     "changedFiles": ["<files from git diff main...HEAD>"]
   }
 }
