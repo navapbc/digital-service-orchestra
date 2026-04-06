@@ -1,1 +1,0 @@
-{"timestamp": 1775496779739847000, "uuid": "3dacf292-d5d7-42f3-98d1-e5fe373bc446", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: SUB-AGENT-BOUNDARIES.md and WORKTREE-GUIDE.md updated for worktree isolation."}}
