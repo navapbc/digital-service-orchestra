@@ -1,1 +1,0 @@
-{"timestamp": 1775513723675494000, "uuid": "b733f179-b1a8-4e87-bd80-d3d162f5cf4d", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 6/6: Done \u2713 \u2014 All AC passed. 17/17 sprint primary ticket model tests pass, complexity gate 6/6 pass, ruff check/format clean."}}
