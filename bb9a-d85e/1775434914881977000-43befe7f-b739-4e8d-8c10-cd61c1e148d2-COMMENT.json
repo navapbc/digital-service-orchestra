@@ -1,0 +1,1 @@
+{"timestamp": 1775434914881977000, "uuid": "43befe7f-b739-4e8d-8c10-cd61c1e148d2", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Bot-psychologist: Routing intro text misleads agents to skip preplanning. Fix: replaced prose with explicit 'always consult the table' directive."}}
