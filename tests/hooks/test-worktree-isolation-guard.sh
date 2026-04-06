@@ -6,7 +6,10 @@
 # (artifacts dir, review findings, diff hashes).
 #
 # Tests:
-#   test_blocks_agent_with_worktree_isolation
+#   test_allows_agent_with_valid_auth_marker
+#   test_blocks_agent_without_auth_marker
+#   test_blocks_agent_with_stale_auth_marker
+#   test_cleans_stale_markers
 #   test_allows_agent_without_isolation
 #   test_allows_non_agent_tools
 #   test_handles_null_tool_input
@@ -27,6 +30,10 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 HOOK="$DSO_PLUGIN_DIR/hooks/worktree-isolation-guard.sh"
 
+# Cleanup trap: remove any marker files created by this test suite
+_TEST_MARKER_PREFIX="/tmp/worktree-isolation-authorized-test-"
+trap 'rm -f "${_TEST_MARKER_PREFIX}"* 2>/dev/null || true' EXIT
+
 # Helper: run hook with given JSON input, return exit code via echo
 run_hook_exit() {
     local input="$1"
@@ -41,18 +48,88 @@ run_hook_stdout() {
     printf '%s' "$input" | bash "$HOOK" 2>/dev/null || true
 }
 
+# Helper: assert stdout does NOT contain a substring (uses FAIL if it does)
+assert_not_contains() {
+    local label="$1" substring="$2" string="$3"
+    if [[ "$string" != *"$substring"* ]]; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: %s\n  should NOT contain: %s\n  actual:             %s\n" "$label" "$substring" "$string" >&2
+    fi
+}
+
 # ============================================================
-# test_blocks_agent_with_worktree_isolation
-# Agent tool call with isolation: "worktree" must be denied.
-# The hook outputs JSON with permissionDecision: deny and exits 0.
+# test_allows_agent_with_valid_auth_marker
+# Agent tool call with isolation: "worktree" AND a valid auth marker file
+# (containing current PID) must be ALLOWED (no deny in output).
+# RED: current guard categorically denies — this test will FAIL.
 # ============================================================
-echo "--- test_blocks_agent_with_worktree_isolation ---"
+echo "--- test_allows_agent_with_valid_auth_marker ---"
+_MARKER_FILE="${_TEST_MARKER_PREFIX}$$"
+echo "$$" > "$_MARKER_FILE"
+_INPUT='{"tool_name":"Agent","tool_input":{"isolation":"worktree","prompt":"authorized sub-agent"}}'
+_exit_code=$(run_hook_exit "$_INPUT")
+_stdout=$(run_hook_stdout "$_INPUT")
+assert_eq "test_allows_agent_with_valid_auth_marker: exits 0" "0" "$_exit_code"
+assert_not_contains "test_allows_agent_with_valid_auth_marker: no deny in stdout" '"permissionDecision": "deny"' "$_stdout"
+rm -f "$_MARKER_FILE"
+
+# ============================================================
+# test_blocks_agent_without_auth_marker
+# Agent tool call with isolation: "worktree" and NO marker file must be denied.
+# (Renamed from test_blocks_agent_with_worktree_isolation)
+# ============================================================
+echo "--- test_blocks_agent_without_auth_marker ---"
+# Ensure no marker files exist
+rm -f "${_TEST_MARKER_PREFIX}"* 2>/dev/null || true
 _INPUT='{"tool_name":"Agent","tool_input":{"isolation":"worktree","prompt":"do something"}}'
 _exit_code=$(run_hook_exit "$_INPUT")
 _stdout=$(run_hook_stdout "$_INPUT")
-assert_eq "test_blocks_agent_with_worktree_isolation: exits 0" "0" "$_exit_code"
-assert_contains "test_blocks_agent_with_worktree_isolation: stdout contains permissionDecision" "permissionDecision" "$_stdout"
-assert_contains "test_blocks_agent_with_worktree_isolation: permissionDecision is deny" '"permissionDecision": "deny"' "$_stdout"
+assert_eq "test_blocks_agent_without_auth_marker: exits 0" "0" "$_exit_code"
+assert_contains "test_blocks_agent_without_auth_marker: stdout contains permissionDecision" "permissionDecision" "$_stdout"
+assert_contains "test_blocks_agent_without_auth_marker: permissionDecision is deny" '"permissionDecision": "deny"' "$_stdout"
+
+# ============================================================
+# test_blocks_agent_with_stale_auth_marker
+# Agent tool call with isolation: "worktree" and a marker file containing
+# a dead PID (99999) must be denied. Stale marker treated as absent.
+# RED: current guard denies categorically, but new guard must check PID liveness.
+# This test passes for the wrong reason (deny) but verifies deny behavior still
+# occurs for stale markers after implementation.
+# ============================================================
+echo "--- test_blocks_agent_with_stale_auth_marker ---"
+_STALE_MARKER="${_TEST_MARKER_PREFIX}stale-$$"
+echo "99999" > "$_STALE_MARKER"
+_INPUT='{"tool_name":"Agent","tool_input":{"isolation":"worktree","prompt":"stale auth agent"}}'
+_exit_code=$(run_hook_exit "$_INPUT")
+_stdout=$(run_hook_stdout "$_INPUT")
+assert_eq "test_blocks_agent_with_stale_auth_marker: exits 0" "0" "$_exit_code"
+assert_contains "test_blocks_agent_with_stale_auth_marker: permissionDecision is deny" '"permissionDecision": "deny"' "$_stdout"
+rm -f "$_STALE_MARKER"
+
+# ============================================================
+# test_cleans_stale_markers
+# After running the guard with stale markers (dead PIDs), the marker files
+# must be removed by the guard.
+# RED: current guard does not clean marker files at all.
+# ============================================================
+echo "--- test_cleans_stale_markers ---"
+_STALE1="${_TEST_MARKER_PREFIX}stale1-$$"
+_STALE2="${_TEST_MARKER_PREFIX}stale2-$$"
+echo "99999" > "$_STALE1"
+echo "99998" > "$_STALE2"
+_INPUT='{"tool_name":"Agent","tool_input":{"isolation":"worktree","prompt":"cleanup test"}}'
+# Run the guard (output not needed — side effect is cleanup)
+run_hook_stdout "$_INPUT" >/dev/null 2>/dev/null || true
+_stale1_exists=0
+_stale2_exists=0
+[[ -f "$_STALE1" ]] && _stale1_exists=1
+[[ -f "$_STALE2" ]] && _stale2_exists=1
+assert_eq "test_cleans_stale_markers: stale marker 1 removed" "0" "$_stale1_exists"
+assert_eq "test_cleans_stale_markers: stale marker 2 removed" "0" "$_stale2_exists"
+# Clean up in case guard didn't (so subsequent tests are unaffected)
+rm -f "$_STALE1" "$_STALE2" 2>/dev/null || true
 
 # ============================================================
 # test_allows_agent_without_isolation
