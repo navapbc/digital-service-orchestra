@@ -1,0 +1,1 @@
+{"timestamp": 1775493590276787000, "uuid": "fc634409-2394-45c7-b64b-e7fd79886319", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Anti-pattern scan: no other pgrep calls with BRE-style \\| alternation found in codebase. The fix is isolated to cleanup-claude-session.sh."}}
