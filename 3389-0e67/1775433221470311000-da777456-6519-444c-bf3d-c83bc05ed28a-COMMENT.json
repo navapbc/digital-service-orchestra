@@ -1,1 +1,0 @@
-{"timestamp": 1775433221470311000, "uuid": "da777456-6519-444c-bf3d-c83bc05ed28a", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Classification: llm-behavioral. Ticket references sub-agent REVIEW_RESULT behavior AND affected file is agents/code-reviewer-deep-arch.md. Dual-signal detected."}}

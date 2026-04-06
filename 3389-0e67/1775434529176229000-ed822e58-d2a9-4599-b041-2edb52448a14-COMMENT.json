@@ -1,1 +1,0 @@
-{"timestamp": 1775434529176229000, "uuid": "ed822e58-d2a9-4599-b041-2edb52448a14", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Main", "data": {"body": "Bot-psychologist: Missing pass/fail threshold rule in reviewer-base.md. Fix: added explicit 'passed only when every score >= 4' rule."}}
