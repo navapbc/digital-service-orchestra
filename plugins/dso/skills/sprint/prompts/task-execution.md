@@ -76,6 +76,16 @@ If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and contin
    - Emit `UNCERTAIN:<reason>` (keyword + colon + reason, own line, no space before reason) when you lack confidence — ambiguous task description, missing context, codebase state mismatch, untested edge cases, or unfamiliar patterns. The reason must not be empty.
    - You MUST emit exactly one of these signals. If omitted, the orchestrator treats it as UNCERTAIN with reason "no confidence signal emitted".
 
+### Design Context
+
+{design_context}
+
+If the above section is populated, you are working on a story with a designer-approved Figma revision:
+- **Manifest path**: The spatial-layout.json file is authoritative for behavior (interactions, states, accessibility, responsive rules)
+- **Revision image path**: The figma-revision.png is authoritative for visual layout and styling
+- **Precedence rule**: When the manifest and image contradict each other, flag the contradiction as [NEEDS_REVIEW] in your output and proceed with the manifest's behavioral specification
+- Use the Read tool to view the revision image (multimodal capable) and the manifest JSON
+
 ### Escalation Policy
 
 {escalation_policy}

@@ -651,9 +651,27 @@ def is_parent_story_blocked(task_id):
         return parent_id
     return None
 
+# Tag constant from plugins/dso/skills/shared/constants/figma-tags.conf
+_DESIGN_AWAITING_IMPORT_TAG = "design:awaiting_import"
+
+def is_parent_story_design_awaiting(task_id):
+    """Check if a task's parent story has the design:awaiting_import tag.
+
+    Returns the parent story ID if the tag is present, None otherwise.
+    """
+    parent_id = find_parent_story(task_id)
+    if not parent_id:
+        return None
+    parent_data = ticket_show(parent_id)
+    tags = parent_data.get("tags") or []
+    if _DESIGN_AWAITING_IMPORT_TAG in tags:
+        return parent_id
+    return None
+
 # ── Build candidate list ───────────────────────────────────────────────────────
 
-skipped_blocked_story  = []   # (task_id, title, story_id)
+skipped_blocked_story    = []   # (task_id, title, story_id)
+skipped_design_awaiting  = []   # (task_id, title, story_id)
 skipped_in_progress    = []   # (task_id, title)
 skipped_needs_planning = []   # (task_id, title) — stories with 0 impl children
 candidates_raw         = []   # raw task dicts that are eligible
@@ -692,6 +710,12 @@ for raw in ready_tasks:
     blocked_parent = is_parent_story_blocked(tid)
     if blocked_parent:
         skipped_blocked_story.append((tid, title, blocked_parent))
+        continue
+
+    # Design gate: skip if parent story is awaiting designer import
+    design_awaiting_parent = is_parent_story_design_awaiting(tid)
+    if design_awaiting_parent:
+        skipped_design_awaiting.append((tid, title, design_awaiting_parent))
         continue
 
     candidates_raw.append(raw)
@@ -884,6 +908,10 @@ if json_mode:
             {"id": tid, "title": title, "blocked_story": sid}
             for tid, title, sid in skipped_blocked_story
         ],
+        "skipped_design_awaiting": [
+            {"id": tid, "title": title, "blocked_story": sid}
+            for tid, title, sid in skipped_design_awaiting
+        ],
         "skipped_in_progress": [
             {"id": tid, "title": title}
             for tid, title in skipped_in_progress
@@ -908,6 +936,8 @@ else:
         print(f"SKIPPED_OPUS_CAP: {tid}\tdeferred (opus cap of {OPUS_CAP} reached)")
     for tid, title, sid in skipped_blocked_story:
         print(f"SKIPPED_BLOCKED_STORY: {tid}\tdeferred (parent story {sid} is blocked)")
+    for tid, title, sid in skipped_design_awaiting:
+        print(f"SKIPPED_DESIGN_AWAITING: {tid}\tdeferred (parent story {sid} awaiting designer import)")
     for tid, title in skipped_in_progress:
         print(f"SKIPPED_IN_PROGRESS: {tid}\talready in_progress")
     for tid, title in skipped_needs_planning:
