@@ -1,0 +1,1 @@
+{"timestamp": 1775518210280202000, "uuid": "1bfc4c89-478b-4b23-b96c-5a4bd08264b3", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "AC amendment: Include test case for absent orchestration.max_agents config key \u2014 verify backward-compatible default (unlimited when unset)."}}
