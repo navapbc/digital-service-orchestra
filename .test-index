@@ -206,7 +206,7 @@ plugins/dso/scripts/sync-eval-model-ids.sh:tests/scripts/test-sync-eval-model-id
 plugins/dso/scripts/test-batched.sh:tests/scripts/test-batched-state-integrity.sh,tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/scripts/ticket-bridge-status.sh:tests/scripts/test_bridge_status.py
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh
-plugins/dso/scripts/ticket-clarity-check.sh:tests/scripts/test-ticket-clarity-check.sh [test_empty_description]
+plugins/dso/scripts/ticket-clarity-check.sh:tests/scripts/test-ticket-clarity-check.sh
 plugins/dso/scripts/ticket-graph.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket-lib.sh:tests/scripts/test_revert_event.py,tests/scripts/test-ticket-lib.sh,tests/scripts/test-ticket-health-guards.sh
 plugins/dso/scripts/ticket-lifecycle.sh:tests/scripts/test-ticket-lifecycle-sync-preserves-local.sh
