@@ -76,7 +76,11 @@ fi
 _bash_runner_run() {
     local TOTAL=${#BASH_FILES[@]}
     local START_TIME
-    START_TIME=$(date +%s)
+    # Use the global script entry time if available so the time budget accounts
+    # for startup overhead (state parsing, test discovery, path canonicalization).
+    # This prevents the runner's "50s" timeout from actually consuming 50s + overhead,
+    # which can exceed the ~73s Claude Code tool timeout ceiling (bug d04e-2f91).
+    START_TIME="${_SCRIPT_ENTRY_TIME:-$(date +%s)}"
     # Preserve created_at from existing state (if resuming), otherwise use now.
     local SESSION_CREATED_AT="${_state_created_at:-$START_TIME}"
     _elapsed() { echo $(( $(date +%s) - START_TIME )); }
@@ -152,7 +156,9 @@ _bash_runner_run() {
         # Monitor: poll until the test finishes or the time budget runs out.
         while kill -0 "$_test_bg_pid" 2>/dev/null; do
             if [ "$(_elapsed)" -ge "$TIMEOUT" ]; then
-                kill "$_test_bg_pid" 2>/dev/null || true
+                # Kill entire process group (negative PID) so child processes
+                # spawned by the test script don't survive as orphans.
+                kill -- -"$_test_bg_pid" 2>/dev/null || kill "$_test_bg_pid" 2>/dev/null || true
                 wait "$_test_bg_pid" 2>/dev/null || true
                 COMPLETED_LIST+=("$test_id")
                 RESULTS_JSON=$(_results_add "$RESULTS_JSON" "$test_id" "interrupted")

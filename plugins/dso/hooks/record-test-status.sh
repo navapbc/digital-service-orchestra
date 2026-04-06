@@ -497,9 +497,16 @@ declare -A _TEST_MARKER_MAP=()
 while IFS= read -r src_file; do
     [[ -z "$src_file" ]] && continue
 
-    # If src_file is itself a test file, add it directly to ASSOCIATED_TESTS
-    # (the test must pass before it can be committed) and skip fuzzy matching.
-    if fuzzy_is_test_file "$src_file"; then
+    # If src_file is itself a test file AND lives under a test directory,
+    # add it directly to ASSOCIATED_TESTS and skip fuzzy matching.
+    # Files in non-test directories (e.g., scripts/test-batched.sh) are source
+    # files that happen to match test naming convention — they should be looked
+    # up via .test-index and fuzzy matching, not executed directly as tests.
+    _src_in_test_dir=false
+    for _td in ${_TEST_DIRS//:/ }; do
+        [[ "$src_file" == "$_td"* ]] && { _src_in_test_dir=true; break; }
+    done
+    if "$_src_in_test_dir" && fuzzy_is_test_file "$src_file"; then
         _test_self="$src_file"
         _test_self_path="$REPO_ROOT/$_test_self"
         if [[ -f "$_test_self_path" ]]; then
