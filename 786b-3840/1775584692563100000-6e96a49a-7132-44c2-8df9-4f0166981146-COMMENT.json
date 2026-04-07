@@ -1,0 +1,1 @@
+{"timestamp": 1775584692563100000, "uuid": "6e96a49a-7132-44c2-8df9-4f0166981146", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: Added glob pattern guard to check-referential-integrity.sh \u2014 references with * or ? are now skipped"}}
