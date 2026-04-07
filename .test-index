@@ -89,7 +89,6 @@ plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-pre-commit-test-gate.
 plugins/dso/hooks/pre-commit-test-quality-gate.sh:tests/hooks/test-pre-commit-test-quality-gate.sh
 plugins/dso/hooks/pre-commit-ticket-gate.sh:tests/hooks/test-pre-commit-ticket-gate.sh
 plugins/dso/hooks/record-review.sh:tests/hooks/test-record-review.sh,tests/workflows/test-review-tier-enforcement-e2e.sh
-plugins/dso/hooks/record-test-status.sh:tests/hooks/test-eval-todo-guard.sh
 plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-centrality.sh [test_missing_sg_gracefully_degrades]
 plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-eagain.sh,tests/hooks/test-integration-eagain-full-path.sh
 plugins/dso/scripts/pre-commit-wrapper.sh:tests/hooks/test-test-gate-fast-path.sh
@@ -136,7 +135,7 @@ plugins/dso/scripts/gate-2d-dependency-check.sh:tests/scripts/test-gate-2d-depen
 plugins/dso/scripts/gate-2c-test-regression-check.py:tests/scripts/test_gate_2c_test_regression_check.py
 plugins/dso/scripts/gate-escalation-router.py:tests/scripts/test_gate_escalation_router.py
 plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-part2.sh,tests/hooks/test-record-test-status-accumulative.sh
-plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-part4.sh [test_record_status_eval_guard_absent]
+plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-part4.sh
 plugins/dso/hooks/review-stop-check.sh:tests/hooks/test-review-stop.sh,tests/hooks/test-review-stop-check.sh
 plugins/dso/hooks/run-hook.sh:tests/hooks/test-run-hook-relative-paths.sh,tests/hooks/test-hooks-json-paths.sh
 plugins/dso/hooks/title-length-validator.sh:tests/hooks/test-title-length-validator.sh

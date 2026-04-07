@@ -7,9 +7,7 @@ set -euo pipefail
 #   resume_skips_completed_tests, red_marker_survives_overwrite_by_unmarked_entry,
 #   red_marker_found_via_global_scan,
 #   global_scan_no_false_positive_from_substring_match,
-#   merge_commit_filters_incoming_only,
-#   staged_skill_file_triggers_eval,
-#   non_skill_staged_file_does_not_trigger_eval
+#   merge_commit_filters_incoming_only
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -833,137 +831,6 @@ RUNNER
 test_merge_commit_filters_incoming_only
 
 # ============================================================
-# test_staged_skill_file_triggers_eval
-# When a skill file under plugins/dso/skills/ is staged,
-# record-test-status.sh must invoke run-skill-evals.sh with
-# the absolute path to that file.
-# ============================================================
-echo ""
-echo "=== test_staged_skill_file_triggers_eval ==="
-
-TEST_REPO_EVAL=$(create_test_repo)
-ARTIFACTS_EVAL=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
-trap 'rm -rf "$TEST_REPO_EVAL" "$ARTIFACTS_EVAL"' EXIT
-
-# Create a staged skill file (not a source file with associated tests)
-mkdir -p "$TEST_REPO_EVAL/plugins/dso/skills/my-skill/evals"
-cat > "$TEST_REPO_EVAL/plugins/dso/skills/my-skill/SKILL.md" << 'SKILLEOF'
-# My Skill
-SKILLEOF
-git -C "$TEST_REPO_EVAL" add -A
-git -C "$TEST_REPO_EVAL" commit -m "add skill" --quiet 2>/dev/null
-
-# Modify the skill file to create a staged diff
-echo "# updated" >> "$TEST_REPO_EVAL/plugins/dso/skills/my-skill/SKILL.md"
-git -C "$TEST_REPO_EVAL" add -A
-
-# Create a mock run-skill-evals.sh that records its invocations
-EVAL_LOG="$ARTIFACTS_EVAL/eval-invocations.log"
-MOCK_EVAL_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-eval-runner-XXXXXX")
-chmod +x "$MOCK_EVAL_RUNNER"
-cat > "$MOCK_EVAL_RUNNER" << EVALEOF
-#!/usr/bin/env bash
-echo "\$*" >> "${EVAL_LOG}"
-exit 0
-EVALEOF
-
-# Also need a mock runner for any tests that might be discovered (none expected here)
-MOCK_PASS_EVAL=$(mktemp "${TMPDIR:-/tmp}/mock-pass-eval-XXXXXX")
-chmod +x "$MOCK_PASS_EVAL"
-cat > "$MOCK_PASS_EVAL" << 'MOCKEOF'
-#!/usr/bin/env bash
-exit 0
-MOCKEOF
-
-(
-    cd "$TEST_REPO_EVAL"
-    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_EVAL" \
-    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_EVAL" \
-    RECORD_TEST_STATUS_EVALS_RUNNER="$MOCK_EVAL_RUNNER" \
-    bash "$HOOK" 2>/dev/null || true
-)
-
-if [[ -f "$EVAL_LOG" ]]; then
-    assert_contains "test_staged_skill_file_triggers_eval: run-skill-evals.sh invoked with skill path" \
-        "plugins/dso/skills/my-skill/SKILL.md" \
-        "$(cat "$EVAL_LOG")"
-else
-    assert_eq "test_staged_skill_file_triggers_eval: eval invocation log exists" "exists" "missing"
-fi
-
-rm -f "$MOCK_PASS_EVAL" "$MOCK_EVAL_RUNNER"
-rm -rf "$TEST_REPO_EVAL" "$ARTIFACTS_EVAL"
-trap - EXIT
-
-# ============================================================
-# test_non_skill_staged_file_does_not_trigger_eval
-# When only non-skill files are staged, run-skill-evals.sh
-# must NOT be invoked.
-# ============================================================
-echo ""
-echo "=== test_non_skill_staged_file_does_not_trigger_eval ==="
-
-TEST_REPO_NOEVAL=$(create_test_repo)
-ARTIFACTS_NOEVAL=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
-trap 'rm -rf "$TEST_REPO_NOEVAL" "$ARTIFACTS_NOEVAL"' EXIT
-
-# Create a regular (non-skill) source file with a passing test
-mkdir -p "$TEST_REPO_NOEVAL/scripts" "$TEST_REPO_NOEVAL/tests"
-cat > "$TEST_REPO_NOEVAL/scripts/helper.sh" << 'SHEOF'
-#!/usr/bin/env bash
-echo "helper"
-SHEOF
-chmod +x "$TEST_REPO_NOEVAL/scripts/helper.sh"
-cat > "$TEST_REPO_NOEVAL/tests/test-helper.sh" << 'SHEOF'
-#!/usr/bin/env bash
-echo "test_helper_ok: PASS"
-exit 0
-SHEOF
-chmod +x "$TEST_REPO_NOEVAL/tests/test-helper.sh"
-git -C "$TEST_REPO_NOEVAL" add -A
-git -C "$TEST_REPO_NOEVAL" commit -m "add helper" --quiet 2>/dev/null
-
-# Stage a change to the non-skill file
-echo "# changed" >> "$TEST_REPO_NOEVAL/scripts/helper.sh"
-git -C "$TEST_REPO_NOEVAL" add -A
-
-# Create a mock run-skill-evals.sh that records its invocations
-EVAL_LOG_NE="$ARTIFACTS_NOEVAL/eval-invocations.log"
-MOCK_EVAL_RUNNER_NE=$(mktemp "${TMPDIR:-/tmp}/mock-eval-runner-ne-XXXXXX")
-chmod +x "$MOCK_EVAL_RUNNER_NE"
-cat > "$MOCK_EVAL_RUNNER_NE" << EVALEOF
-#!/usr/bin/env bash
-echo "\$*" >> "${EVAL_LOG_NE}"
-exit 0
-EVALEOF
-
-MOCK_PASS_NE=$(mktemp "${TMPDIR:-/tmp}/mock-pass-ne-XXXXXX")
-chmod +x "$MOCK_PASS_NE"
-cat > "$MOCK_PASS_NE" << 'MOCKEOF'
-#!/usr/bin/env bash
-exit 0
-MOCKEOF
-
-(
-    cd "$TEST_REPO_NOEVAL"
-    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_NOEVAL" \
-    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_NE" \
-    RECORD_TEST_STATUS_EVALS_RUNNER="$MOCK_EVAL_RUNNER_NE" \
-    bash "$HOOK" 2>/dev/null || true
-)
-
-# The eval log must NOT exist — run-skill-evals.sh should not have been called
-if [[ -f "$EVAL_LOG_NE" ]]; then
-    assert_eq "test_non_skill_staged_file_does_not_trigger_eval: eval log must not exist" "absent" "present"
-else
-    assert_eq "test_non_skill_staged_file_does_not_trigger_eval: eval log absent (no eval run)" "absent" "absent"
-fi
-
-rm -f "$MOCK_PASS_NE" "$MOCK_EVAL_RUNNER_NE"
-rm -rf "$TEST_REPO_NOEVAL" "$ARTIFACTS_NOEVAL"
-trap - EXIT
-
-# ============================================================
 # test_red_marker_parsed_with_20plus_test_files
 # When a single .test-index line maps ONE source file to 22+
 # comma-separated test files and one of them has a [marker],
@@ -1178,19 +1045,13 @@ trap - EXIT
 assert_pass_if_clean "test_progress_cache_invalidated_on_test_index_change"
 
 # ============================================================
-# test_record_status_eval_guard_absent
-# When a staged */evals/promptfooconfig.yaml has a non-empty
-# tests: list but is missing the 'type: llm-rubric' assertion,
-# record-test-status.sh should exit 0 (eval guard must NOT block
-# the commit for this case).
-#
-# RED PHASE: This test currently FAILS because the eval guard at
-# lines 401-473 of record-test-status.sh exits 1 when any staged
-# promptfooconfig.yaml is missing 'type: llm-rubric'. Once the
-# guard is removed or relaxed, this test will pass (GREEN).
+# test_promptfooconfig_does_not_block_commit
+# Regression guard: staging a promptfooconfig.yaml (with or without
+# type: llm-rubric) must not block the commit. The eval config guard
+# was removed in epic 07cb-5477; this test confirms it stays gone.
 # ============================================================
 echo ""
-echo "=== test_record_status_eval_guard_absent ==="
+echo "=== test_promptfooconfig_does_not_block_commit ==="
 _snapshot_fail
 
 TEST_REPO_EGABSENT=$(create_test_repo)
@@ -1200,7 +1061,6 @@ trap 'rm -rf "$TEST_REPO_EGABSENT" "$ARTIFACTS_EGABSENT"' EXIT
 # Create a skill with an eval config that has tests: entries but no llm-rubric
 mkdir -p "$TEST_REPO_EGABSENT/plugins/dso/skills/my-eval-skill/evals"
 
-# Incomplete promptfooconfig.yaml: has tests: list but omits type: llm-rubric
 cat > "$TEST_REPO_EGABSENT/plugins/dso/skills/my-eval-skill/evals/promptfooconfig.yaml" << 'YAMLEOF'
 description: "My eval skill test"
 prompts:
@@ -1219,7 +1079,7 @@ YAMLEOF
 git -C "$TEST_REPO_EGABSENT" add -A
 git -C "$TEST_REPO_EGABSENT" commit -m "add eval skill" --quiet 2>/dev/null
 
-# Stage a change to the promptfooconfig.yaml (modify description)
+# Stage a change to the promptfooconfig.yaml
 echo "# updated" >> "$TEST_REPO_EGABSENT/plugins/dso/skills/my-eval-skill/evals/promptfooconfig.yaml"
 git -C "$TEST_REPO_EGABSENT" add -A
 
@@ -1231,32 +1091,21 @@ cat > "$MOCK_PASS_EGA" << 'MOCKEOF'
 exit 0
 MOCKEOF
 
-# Mock evals runner (records invocations but exits 0)
-MOCK_EVALS_EGA=$(mktemp "${TMPDIR:-/tmp}/mock-evals-ega-XXXXXX")
-chmod +x "$MOCK_EVALS_EGA"
-cat > "$MOCK_EVALS_EGA" << 'MOCKEOF'
-#!/usr/bin/env bash
-exit 0
-MOCKEOF
-
 EXIT_EGABSENT=$(
     cd "$TEST_REPO_EGABSENT"
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_EGABSENT" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_EGA" \
-    RECORD_TEST_STATUS_EVALS_RUNNER="$MOCK_EVALS_EGA" \
     run_hook_exit
 )
 
-# The eval guard should NOT block this commit — incomplete promptfooconfig.yaml
-# (has tests: list but missing type: llm-rubric) must exit 0.
-# RED: Currently exits 1 because the guard is present and rejects incomplete configs.
-assert_eq "eval_guard_absent: exits 0 (incomplete promptfoo does not block commit)" "0" "$EXIT_EGABSENT"
+# Staging a promptfooconfig.yaml must not block the commit (guard removed)
+assert_eq "promptfooconfig_does_not_block: exits 0" "0" "$EXIT_EGABSENT"
 
-rm -f "$MOCK_PASS_EGA" "$MOCK_EVALS_EGA"
+rm -f "$MOCK_PASS_EGA"
 rm -rf "$TEST_REPO_EGABSENT" "$ARTIFACTS_EGABSENT"
 trap - EXIT
 
-assert_pass_if_clean "test_record_status_eval_guard_absent"
+assert_pass_if_clean "test_promptfooconfig_does_not_block_commit"
 
 print_summary
