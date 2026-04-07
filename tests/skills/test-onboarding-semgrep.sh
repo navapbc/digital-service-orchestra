@@ -11,7 +11,7 @@
 #   test_semgrep_language_detection: SKILL.md ties Semgrep to detected languages
 #   test_semgrep_config_generation: SKILL.md describes generating Semgrep config
 #   test_test_quality_config_referenced: SKILL.md mentions test quality configuration
-#   test_test_quality_coverage_thresholds: SKILL.md describes coverage thresholds
+#   test_test_quality_coverage_thresholds: SKILL.md does NOT reference coverage_threshold (dead config)
 #   test_test_quality_dso_config_key: SKILL.md references a test_quality config key
 #
 # Usage: bash tests/skills/test-onboarding-semgrep.sh
@@ -107,16 +107,17 @@ test_test_quality_config_referenced() {
     assert_pass_if_clean "test_test_quality_config_referenced"
 }
 
-# test_test_quality_coverage_thresholds: SKILL.md should describe coverage threshold configuration
-# The onboarding skill should guide the user in setting coverage thresholds
-# appropriate for their project.
+# test_test_quality_coverage_thresholds: SKILL.md must NOT reference coverage_threshold config key
+# coverage_threshold is not consumed by any hook or script (pre-commit-test-quality-gate.sh only
+# reads test_quality.enabled and test_quality.tool). Writing a dead config key creates a false
+# expectation that coverage enforcement is active. The key must be absent from the skill.
 test_test_quality_coverage_thresholds() {
     _snapshot_fail
-    local found="missing"
-    if grep -qiE "coverage.*(threshold|target|minimum|percent)|threshold.*coverage" "$SKILL_MD" 2>/dev/null; then
-        found="found"
+    local found="absent"
+    if grep -qF "coverage_threshold" "$SKILL_MD" 2>/dev/null; then
+        found="present"
     fi
-    assert_eq "test_test_quality_coverage_thresholds" "found" "$found"
+    assert_eq "test_test_quality_coverage_thresholds" "absent" "$found"
     assert_pass_if_clean "test_test_quality_coverage_thresholds"
 }
 
