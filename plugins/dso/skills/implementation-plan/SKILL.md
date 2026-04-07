@@ -26,6 +26,10 @@ PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
 TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)  # shim-exempt: internal orchestration script
 LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)  # shim-exempt: internal orchestration script
 FORMAT_CHECK_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format_check)  # shim-exempt: internal orchestration script
+APPROACH_RESOLUTION=$(bash "$PLUGIN_SCRIPTS/read-config.sh" implementation_plan.approach_resolution)  # shim-exempt: internal orchestration script
+# APPROACH_RESOLUTION: "autonomous" (default) | "interactive"
+# When absent or empty, defaults to "autonomous"
+APPROACH_RESOLUTION="${APPROACH_RESOLUTION:-autonomous}"
 ```
 
 Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
@@ -362,12 +366,10 @@ For each pair `(A, B)`, compare on all four axes. If any pair is structurally eq
 
 Axis comparison is structural, not textual. "Store in a dictionary" and "use a hash map" are the same data-layer choice. Two proposals may look similar yet still pass if they differ on control flow or interface boundary.
 
-**Handling sprint vs standalone context**:
+**Approach resolution routing** (config-driven via `APPROACH_RESOLUTION`):
 
-- **Sprint context** (invoked from `/dso:sprint` via Skill tool): Pass the full proposal set to the decision-maker agent for autonomous selection. The decision-maker returns a selected proposal; use that as the basis for task drafting in Step 3. Do NOT display proposals to the user — the sprint orchestrator manages the flow.
-- **Standalone context** (invoked directly by the user): Display the proposals to the user in a readable format (title, description, pros, cons, risk for each). Wait for the user to select a proposal before proceeding to Step 3. Do NOT begin task drafting until the user has confirmed a selection.
-
-**Context detection**: Check whether you are in sprint context by verifying that `/dso:sprint` invoked this skill via the Skill tool (the Progress Checklist rule from the Progress Checklist section also applies — in sprint context, `TaskCreate` is suppressed). If the invocation originated from user input directly, treat as standalone.
+- **Autonomous mode** (`APPROACH_RESOLUTION=autonomous`, the default when key is absent): Pass the full proposal set to the decision-maker agent for autonomous selection. The decision-maker returns a selected proposal; use that as the basis for task drafting in Step 3. Do NOT display proposals to the user or wait for manual selection — proceed directly after agent selection.
+- **Interactive mode** (`APPROACH_RESOLUTION=interactive`): Display the proposals to the user in a readable format (title, description, pros, cons, risk for each). Wait for the user to select a proposal before proceeding to Step 3. Do NOT dispatch the decision-maker agent — the user makes the selection. Do NOT begin task drafting until the user has confirmed a selection.
 
 ### Resolution Loop
 
@@ -412,8 +414,8 @@ Scan the agent output for the `APPROACH_DECISION:` prefix line per the contract 
 When `mode` is `"selection"`:
 1. Read `selected_proposal_index` and extract the corresponding proposal from the input list
 2. Log the ADR rationale (`context`, `decision`, `consequences`, `rationale_summary`) for traceability
-3. In sprint context: proceed directly to Step 3 (Task Drafting) using the selected proposal
-4. In standalone context: present the decision-maker's selection and rationale to the user; confirm before proceeding to Step 3
+3. In autonomous mode (`APPROACH_RESOLUTION=autonomous`): proceed directly to Step 3 (Task Drafting) using the selected proposal without user prompt
+4. In interactive mode (`APPROACH_RESOLUTION=interactive`): present the decision-maker's selection and rationale to the user; confirm before proceeding to Step 3
 5. Clean up the state file: `rm -f "$STATE_FILE"`
 
 #### Revise Path (mode: counter_proposal)
@@ -438,13 +440,13 @@ When the cycle limit is exhausted (2 revision cycles completed without reaching 
    - All counter-proposal feedback received across cycles (from the state file and current agent output)
    - A clear summary: "The decision-maker could not reach a satisfactory selection after 2 cycles. Please review the proposals and counter-proposal feedback, then select an approach manually."
 2. Wait for user review and selection before proceeding to Step 3 (Task Drafting)
-3. In sprint context, emit `STATUS:blocked REASON:approach_escalated_to_user STORY:<story-id>` and pause for user input — do NOT proceed autonomously
+3. In autonomous mode, emit `STATUS:blocked REASON:approach_escalated_to_user STORY:<story-id>` and pause for user input — do NOT proceed autonomously
 4. Clean up the state file after the user selects: `rm -f "$STATE_FILE"`
 
-#### Sprint vs Standalone Context
+#### Autonomous vs Interactive Mode
 
-- **Sprint context**: The resolution loop runs autonomously — accept and revise paths require no user interaction. The escalate path is the only point where user interaction is required; emit the blocked status and pause.
-- **Standalone context**: At the accept path, display the selected proposal and rationale to the user before proceeding. At the revise path, briefly note that the decision-maker requested revisions and the loop is retrying. At the escalate path, present the full context and wait for user selection.
+- **Autonomous mode** (`APPROACH_RESOLUTION=autonomous`): The resolution loop runs without user interaction — accept and revise paths proceed automatically. The escalate path is the only point where user interaction is required; emit the blocked status and pause.
+- **Interactive mode** (`APPROACH_RESOLUTION=interactive`): At the accept path, display the selected proposal and rationale to the user before proceeding. At the revise path, briefly note that the decision-maker requested revisions and the loop is retrying. At the escalate path, present the full context and wait for user selection.
 
 ---
 
