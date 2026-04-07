@@ -214,9 +214,9 @@ with open(output_file) as f:
 
 errors = []
 
-# Must have required top-level keys; review_tier is optional
+# Must have required top-level keys; review_tier and escalate_review are optional
 required_top = {"scores", "findings", "summary"}
-optional_top = {"review_tier"}
+optional_top = {"review_tier", "escalate_review"}
 allowed_top = required_top | optional_top
 actual_top = set(data.keys())
 extra = actual_top - allowed_top
@@ -256,7 +256,7 @@ if findings is None:
 elif not isinstance(findings, list):
     errors.append("'findings' must be an array")
 else:
-    valid_severities = {"critical", "important", "minor"}
+    valid_severities = {"critical", "important", "minor", "fragile"}
     valid_categories = {"hygiene", "design", "maintainability", "correctness", "verification"}
     for i, finding in enumerate(findings):
         prefix = f"findings[{i}]"
@@ -295,7 +295,7 @@ if isinstance(findings, list) and isinstance(scores, dict):
             errors.append(f"score '{dim}'={score}: no findings requires score 5")
         elif sevs == {"minor"} and score != 4:
             errors.append(f"score '{dim}'={score}: minor-only findings requires score 4")
-        elif "important" in sevs and "critical" not in sevs and score != 3:
+        elif ("important" in sevs or "fragile" in sevs) and "critical" not in sevs and score != 3:
             errors.append(f"score '{dim}'={score}: important (no critical) findings requires score 3")
 
 # Validate summary
@@ -304,6 +304,33 @@ if summary is None:
     errors.append("missing 'summary' field")
 elif not isinstance(summary, str) or len(summary.strip()) < 10:
     errors.append("'summary' must be a non-empty string (min 10 chars)")
+
+# Validate escalate_review if present
+if "escalate_review" in data:
+    escalate = data["escalate_review"]
+    if not isinstance(escalate, list):
+        errors.append("'escalate_review' must be an array")
+    else:
+        findings_count = len(findings) if isinstance(findings, list) else 0
+        for i, item in enumerate(escalate):
+            prefix = f"escalate_review[{i}]"
+            if not isinstance(item, dict):
+                errors.append(f"{prefix}: must be an object")
+                continue
+            if "finding_index" not in item:
+                errors.append(f"{prefix}: missing required field 'finding_index'")
+            else:
+                idx = item["finding_index"]
+                if not isinstance(idx, int):
+                    errors.append(f"{prefix}.finding_index: must be an integer, got: {idx!r}")
+                elif not (0 <= idx < findings_count):
+                    errors.append(f"{prefix}.finding_index: {idx} is out of bounds (findings has {findings_count} elements)")
+            if "reason" not in item:
+                errors.append(f"{prefix}: missing required field 'reason'")
+            else:
+                reason = item["reason"]
+                if not isinstance(reason, str) or not reason.strip():
+                    errors.append(f"{prefix}.reason: must be a non-empty string")
 
 if errors:
     for e in errors:

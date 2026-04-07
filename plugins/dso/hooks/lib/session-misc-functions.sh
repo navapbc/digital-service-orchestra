@@ -960,6 +960,21 @@ print(isolation)
 " 2>/dev/null) || true
 
     if [[ "$HAS_ISOLATION" == "worktree" ]]; then
+        # When worktree.isolation_enabled is not explicitly true, allow all worktree
+        # dispatches (main-session context — no orchestrator managing isolation).
+        # Env var override: WORKTREE_ISOLATION_ENABLED (for testing and orchestrator use)
+        local _ISOLATION_ENABLED="${WORKTREE_ISOLATION_ENABLED:-}"
+        if [[ -z "$_ISOLATION_ENABLED" ]]; then
+            local _REPO_ROOT
+            _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+            if [[ -n "$_REPO_ROOT" ]] && [[ -x "$_REPO_ROOT/.claude/scripts/dso" ]]; then
+                _ISOLATION_ENABLED=$("$_REPO_ROOT/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null || true)
+            fi
+        fi
+        if [[ "$_ISOLATION_ENABLED" != "true" ]]; then
+            return 0
+        fi
+
         # Check for auth marker files before denying.
         # Format: /tmp/worktree-isolation-authorized-* containing a PID.
         local _AUTHORIZED=0

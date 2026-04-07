@@ -1398,4 +1398,147 @@ print(str(v).lower() if isinstance(v,bool) else str(v))
 # Rebase detection — now GREEN with merge-state.sh delegation
 test_classifier_detects_rebase_commit  # GREEN: _is_merge_commit() delegates to ms_is_rebase_in_progress()
 
+# ============================================================
+# External API import floor rule tests (task 355c-2344)
+# ============================================================
+# These tests verify that a diff containing an import not present in any
+# project dependency manifest (pyproject.toml, package.json, requirements.txt)
+# triggers the _has_external_api_signal() floor rule and forces the tier to
+# at least "standard".
+#
+# Tests verify the floor rule bumps light→standard for unfamiliar imports.
+
+# Helper: extract selected_tier from classifier JSON output
+_extract_tier_from_output() {
+    local output="$1"
+    local exit_code="$2"
+    if [[ "$exit_code" -eq 0 ]] && is_valid_json "$output"; then
+        python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+print(d.get('selected_tier', ''))
+" "$output" 2>/dev/null || echo ""
+    else
+        echo ""
+    fi
+}
+
+test_floor_rule_external_api_import_forces_standard() {
+    # A diff that imports a library not listed in any manifest must not produce light tier.
+    # This simulates a developer adding an import for an unfamiliar package.
+    setup_temp_dir
+
+    # Create a minimal pyproject.toml in a temp dir so the classifier has a
+    # manifest to parse (that does NOT contain the imported package).
+    local manifest_dir="$TEST_TMPDIR/project"
+    mkdir -p "$manifest_dir"
+    cat > "$manifest_dir/pyproject.toml" <<'TOMLEOF'
+[tool.poetry.dependencies]
+python = "^3.11"
+requests = "^2.28"
+TOMLEOF
+
+    # Create a diff that imports a package NOT listed in pyproject.toml
+    local diff_file="$TEST_TMPDIR/external_import.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/src/services/payment.py b/src/services/payment.py
+index 0000000..1111111 100644
+--- a/src/services/payment.py
++++ b/src/services/payment.py
+@@ -1,3 +1,5 @@
++import stripe
++from stripe.error import StripeError
+DIFFEOF
+
+    local output exit_code=0
+    # Set REPO_ROOT to the manifest_dir so the classifier finds pyproject.toml there
+    output=$(REPO_ROOT="$manifest_dir" _MERGE_STATE_GIT_DIR="$TEST_GIT_DIR" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || exit_code=$?
+
+    local tier
+    tier=$(_extract_tier_from_output "$output" "$exit_code")
+
+    local is_at_least_standard="false"
+    if [[ "$tier" == "standard" || "$tier" == "deep" ]]; then
+        is_at_least_standard="true"
+    fi
+    assert_eq "external API import (stripe not in pyproject.toml) forces at least standard tier" "true" "$is_at_least_standard"
+    teardown_temp_dir
+}
+
+test_floor_rule_known_import_stays_light() {
+    # A diff importing a package that IS listed in pyproject.toml must not trigger the floor.
+    # A minimal diff that only adds a known import should stay at light tier.
+    setup_temp_dir
+
+    local manifest_dir="$TEST_TMPDIR/project"
+    mkdir -p "$manifest_dir"
+    cat > "$manifest_dir/pyproject.toml" <<'TOMLEOF'
+[tool.poetry.dependencies]
+python = "^3.11"
+requests = "^2.28"
+boto3 = "^1.26"
+TOMLEOF
+
+    local diff_file="$TEST_TMPDIR/known_import.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/src/utils/http_client.py b/src/utils/http_client.py
+index 0000000..1111111 100644
+--- a/src/utils/http_client.py
++++ b/src/utils/http_client.py
+@@ -1,3 +1,4 @@
++import requests
+DIFFEOF
+
+    local output exit_code=0
+    output=$(REPO_ROOT="$manifest_dir" _MERGE_STATE_GIT_DIR="$TEST_GIT_DIR" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || exit_code=$?
+
+    local tier
+    tier=$(_extract_tier_from_output "$output" "$exit_code")
+
+    assert_eq "known import (requests in pyproject.toml) stays at light tier" "light" "$tier"
+    teardown_temp_dir
+}
+
+test_floor_rule_external_import_fail_open_no_manifest() {
+    # When no manifest exists (no pyproject.toml/package.json/requirements.txt),
+    # the floor rule must NOT fire (fail-open: no false positives from missing manifests).
+    setup_temp_dir
+
+    # Use a REPO_ROOT that has no manifests at all
+    local empty_dir="$TEST_TMPDIR/empty_project"
+    mkdir -p "$empty_dir"
+    # Initialize a minimal git repo so REPO_ROOT is valid
+    git -C "$empty_dir" init -q -b main 2>/dev/null
+    git -C "$empty_dir" config user.email "test@test" 2>/dev/null
+    git -C "$empty_dir" config user.name "test" 2>/dev/null
+    touch "$empty_dir/.gitkeep"
+    git -C "$empty_dir" add -A 2>/dev/null
+    git -C "$empty_dir" commit -q -m "init" 2>/dev/null
+
+    local diff_file="$TEST_TMPDIR/unknown_import_no_manifest.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/src/services/payment.py b/src/services/payment.py
+index 0000000..1111111 100644
+--- a/src/services/payment.py
++++ b/src/services/payment.py
+@@ -1,3 +1,4 @@
++import stripe
+DIFFEOF
+
+    local output exit_code=0
+    output=$(REPO_ROOT="$empty_dir" _MERGE_STATE_GIT_DIR="$TEST_GIT_DIR" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || exit_code=$?
+
+    local tier
+    tier=$(_extract_tier_from_output "$output" "$exit_code")
+
+    # Without a manifest, the floor rule must not fire — should stay light
+    assert_eq "no manifest present: external import does NOT trigger floor (fail-open)" "light" "$tier"
+    teardown_temp_dir
+}
+
+# External API import floor rule tests (task 355c-2344)
+test_floor_rule_external_api_import_forces_standard
+test_floor_rule_known_import_stays_light
+test_floor_rule_external_import_fail_open_no_manifest
+
 print_summary

@@ -81,12 +81,14 @@ For EACH finding, assign ONE action:
 > (min score ≥ 4 means minor findings alone cannot cause failure). Do NOT add a `# REVIEW-DEFENSE:`
 > comment for a minor finding — it pollutes the codebase. Defer only if the finding represents
 > actionable future work; otherwise ignore entirely.
+> **`fragile` is NOT minor** — fragile findings NEVER go to Defer. Always route fragile findings
+> to Fix or Defend (see table below).
 
 | Action | When | What to do |
 |--------|------|------------|
-| **Fix** | Finding is correct and fixable. Prefer Fix for structural findings (types, tests, error handling). | Fix the code, write/update tests as needed. |
-| **Defend** | Finding is a false positive or acceptable tradeoff. Best for subjective findings (readability, design). NEVER for minor findings. | Add a `# REVIEW-DEFENSE: <explanation>` comment near the flagged code. Must reference verifiable artifacts (code, tests, ADRs). |
-| **Defer** | Finding is pre-existing, out of scope, or minor severity. | Create a ticket: `.claude/scripts/dso ticket create bug "Fix: <finding>" -p <P>`. Then note it in FINDINGS_ADDRESSED. |
+| **Fix** | Finding is correct and fixable. Prefer Fix for structural findings (types, tests, error handling). Also the primary route for `critical`, `important`, and `fragile` findings. | Fix the code, write/update tests as needed. |
+| **Defend** | Finding is a false positive or acceptable tradeoff. Best for subjective findings (readability, design). NEVER for minor findings. Valid for `critical`, `important`, and `fragile` findings when a genuine tradeoff exists. | Add a `# REVIEW-DEFENSE: <explanation>` comment near the flagged code. Must reference verifiable artifacts (code, tests, ADRs). |
+| **Defer** | Finding is pre-existing, out of scope, or minor severity. **NEVER for `critical`, `important`, or `fragile` findings.** | Create a ticket: `.claude/scripts/dso ticket create bug "Fix: <finding>" -p <P>`. Then note it in FINDINGS_ADDRESSED. |
 
 If ALL findings are Deferred, return immediately:
 ```
@@ -160,4 +162,7 @@ The orchestrator will then dispatch a re-review sub-agent with the updated diff 
    The orchestrator uses this to know fixes are ready for re-review.
 3. You MUST NOT call record-review.sh. The orchestrator calls it after re-review completes.
 4. You MUST NOT fabricate scores or write reviewer-findings.json yourself.
+5. You MUST NOT emit `escalate_review` in your output. The `ESCALATE_REVIEW` signal is reserved
+   for reviewer agents only. Resolution sub-agents must NOT emit `escalate_review` — if you include
+   it in your output, it will be ignored by the orchestrator.
 ```

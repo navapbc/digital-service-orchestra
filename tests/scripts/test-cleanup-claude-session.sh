@@ -329,7 +329,8 @@ if [ -x "$SCRIPT" ]; then
     git -C "$TMP_REPO" add . && git -C "$TMP_REPO" commit -q -m "init"
 
     TMP_HOME=$(mktemp -d)
-    (cd "$TMP_REPO" && HOME="$TMP_HOME" bash "$SCRIPT" >/dev/null 2>&1) || true
+    # Use timeout to prevent hang when cleanup script scans /tmp during busy sessions
+    timeout 30 bash -c "cd \"$TMP_REPO\" && HOME=\"$TMP_HOME\" bash \"$SCRIPT\" >/dev/null 2>&1" || true
 
     rm -rf "$TMP_REPO" "$TMP_HOME"
 

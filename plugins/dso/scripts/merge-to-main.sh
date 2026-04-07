@@ -598,9 +598,10 @@ _auto_resolve_archive_conflicts() {
     return 0
 }
 
-# --- Clean up stale git state (rebase/merge) on entry ---
+# --- Clean up stale git state (rebase/merge/staged) on entry ---
 # Usage: _cleanup_stale_git_state <repo_path>
-# Aborts any leftover rebase or merge state from a prior interrupted run.
+# Aborts any leftover rebase or merge state from a prior interrupted run,
+# and unstages any stale indexed changes from a prior session.
 # Delegates detection to ms_is_rebase_in_progress / ms_is_merge_in_progress
 # (merge-state.sh library). File removal (corrupted state fallback) still uses
 # the resolved git-dir path directly.
@@ -629,6 +630,12 @@ _cleanup_stale_git_state() {
         git -C "$repo_path" merge --abort 2>/dev/null || git -C "$repo_path" reset --merge 2>/dev/null || true
         rm -f "$_git_dir/MERGE_HEAD" 2>/dev/null || true
         echo "INFO: Cleaned up stale merge state in $repo_path"
+    fi
+
+    # Unstage any leftover staged changes from a prior interrupted session
+    if ! git -C "$repo_path" diff --cached --quiet 2>/dev/null; then
+        git -C "$repo_path" reset HEAD --quiet 2>/dev/null || true
+        echo "INFO: Unstaged stale indexed changes in $repo_path"
     fi
 
     # Restore _MERGE_STATE_GIT_DIR

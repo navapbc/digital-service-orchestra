@@ -24,6 +24,41 @@ Your scores object MUST use "N/A" for `hygiene`, `design`,
 
 ---
 
+## External Reference Verification
+
+Before beginning correctness analysis, scan the diff for all external API calls, model names,
+library functions, and internal helper invocations. As Correctness Specialist, verifying that
+referenced identifiers actually exist is part of your correctness mandate.
+
+**Internal APIs** (functions, classes, helpers defined within this repo):
+- Use Grep to search for the definition: `grep -r "def <function_name>" plugins/ app/ tests/`
+- Use Glob to verify the referenced file exists at the path specified
+- If the reference is not found in the repo: flag as `fragile` under `correctness` (high
+  confidence it does not exist or is misspelled)
+- If found but the call signature differs from the definition: flag as `important` under
+  `correctness`
+
+**External library APIs** (third-party packages, stdlib modules):
+- Verify the import statement is present in the diff or in surrounding file context via
+  Read/Grep
+- Check that the function/method name matches the documented API for that library (e.g.,
+  `subprocess.run` exists; `subprocess.execute` does not)
+- If the function/class name is unrecognizable and cannot be traced to a known import or
+  stdlib module: flag as `fragile` under `correctness`
+- If the usage looks plausible but cannot be confirmed via Grep/Read: flag as `important`
+
+**Model identifiers and service endpoint strings**:
+- Any hardcoded model ID (e.g., `claude-sonnet-4-6-20260320`) or API endpoint URL must be
+  treated as potentially hallucinated unless verifiable via a constant, config file, or
+  documented source in the repo
+- Flag unverifiable model IDs as `fragile` under `correctness`
+
+**Severity mapping for unverifiable references**:
+- `fragile`: high confidence the referenced identifier does not exist or is misspelled
+- `important`: moderate confidence — plausible but not confirmed via Grep/Read
+
+---
+
 ## Correctness Checklist (Step 2 scope — functionality dimension only)
 
 Perform deep correctness analysis. Use Read, Grep, and Glob extensively.
@@ -108,6 +143,25 @@ For `.py` files, apply these additional correctness checks in addition to the ba
 - [ ] `fcntl.flock` is used for serializing writes to the ticket event log and other shared files — verify `LOCK_EX` is used for writes and `LOCK_UN` released in a `finally` block or context manager
 - [ ] `fcntl.flock` is **advisory** on Linux/macOS; it does NOT prevent concurrent writes from processes that skip locking — if a new code path writes to a shared file without acquiring the lock, flag as `critical`
 - [ ] Lock acquisition must have a timeout strategy or a documented assumption about lock contention — unbounded blocking on `LOCK_EX` can deadlock in hook pipelines
+
+---
+
+## Approach Viability (approach_viability_concern)
+
+After completing correctness analysis, review your findings as a whole. If you detect a
+**PATTERN** (not an isolated instance) of hallucinated references or fragile workarounds
+across multiple findings in the same diff — for example, three or more `fragile` findings
+pointing to non-existent identifiers, or multiple findings where the implementation works
+around a missing abstraction rather than using one — set `approach_viability_concern: true`
+in your summary field text. This signals to the orchestrator that incremental fixes may be
+futile and the implementation approach itself may need revision.
+
+- Do NOT set `approach_viability_concern: true` for isolated findings, even critical ones.
+  The signal is reserved for cross-cutting patterns where the implementation strategy appears
+  fundamentally misaligned with the codebase.
+- When set to true, briefly note the pattern in the summary (e.g., "approach_viability_concern:
+  true — 4 fragile findings all reference non-existent hook helpers, suggesting the chosen
+  extension point does not exist").
 
 ---
 

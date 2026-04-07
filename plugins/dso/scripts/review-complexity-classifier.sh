@@ -439,6 +439,121 @@ _has_config_file() {
     return 1
 }
 
+# REVIEW-DEFENSE: Finding 1 — DIFF_CONTENT is a script-level global defined at line 52
+# (DIFF_CONTENT="$(cat)") and used by all floor rule functions in the same pattern
+# (e.g., _has_anti_shortcut_signal, _has_exception_broadening). This function follows
+# the established convention; DIFF_CONTENT is always in scope when floor rules execute.
+#
+# _has_external_api_signal: returns 0 if the diff adds imports of packages not
+# present in any project dependency manifest (pyproject.toml, package.json,
+# requirements.txt). Fail-open: if no manifest is found, returns 1 (no bump).
+_has_external_api_signal() {
+    # Only activate when a manifest exists — fail-open if none found.
+    local manifest_file=""
+    if [[ -n "$REPO_ROOT" ]]; then
+        if [[ -f "$REPO_ROOT/pyproject.toml" ]]; then
+            manifest_file="$REPO_ROOT/pyproject.toml"
+        elif [[ -f "$REPO_ROOT/requirements.txt" ]]; then
+            manifest_file="$REPO_ROOT/requirements.txt"
+        elif [[ -f "$REPO_ROOT/package.json" ]]; then
+            manifest_file="$REPO_ROOT/package.json"
+        fi
+    fi
+    [[ -z "$manifest_file" ]] && return 1
+
+    # Collect import names from added lines in the diff.
+    # Matches: "import foo", "from foo import ...", "require('foo')", "require(\"foo\")"
+    # Captures only the top-level package name (before any dot or slash).
+    local added_imports=()
+    while IFS= read -r import_name; do
+        [[ -z "$import_name" ]] && continue
+        added_imports+=("$import_name")
+    done < <(
+        printf '%s\n' "$DIFF_CONTENT" | grep -E '^\+' | \
+        grep -oE '^\+[[:space:]]*(import[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)|from[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)|require\(["'"'"']([a-zA-Z_@][a-zA-Z0-9_/-]*)["'"'"']\))' | \
+        sed -E 's/^\+[[:space:]]*(import[[:space:]]+|from[[:space:]]+|require\(["'"'"'])//' | \
+        sed -E 's/["'"'"']\)$//' | \
+        sed -E 's/^@[^/]+\///' | \
+        sed -E 's/\..*//' | \
+        sed -E 's/\/.*//' | \
+        sort -u 2>/dev/null || true
+    )
+
+    [[ ${#added_imports[@]} -eq 0 ]] && return 1
+
+    # Read known package names from the manifest (lowercased, normalized).
+    local manifest_contents
+    manifest_contents=$(python3 -c "
+import sys, re, os, json
+
+manifest = sys.argv[1]
+ext = os.path.splitext(manifest)[1].lower()
+known = set()
+
+with open(manifest, 'r', errors='replace') as f:
+    content = f.read()
+
+if ext == '.toml':
+    # Extract package names from pyproject.toml dependency sections only.
+    # Scoped to sections containing 'dependencies' in the header to avoid
+    # false negatives from metadata keys like 'name', 'version'.
+    in_deps = False
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith('[') and 'dependencies' in stripped:
+            in_deps = True
+            continue
+        if stripped.startswith('['):
+            in_deps = False
+            continue
+        if in_deps:
+            m = re.match(r'^([a-zA-Z][a-zA-Z0-9_.-]*)\s*=', stripped)
+            if m:
+                name = m.group(1).lower().replace('-', '_').replace('.', '_')
+                known.add(name)
+elif ext in ('.txt', ''):
+    # requirements.txt: one package per line, may include version specifiers
+    for line in content.splitlines():
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        m = re.match(r'^([a-zA-Z][a-zA-Z0-9_.-]*)', line)
+        if m:
+            name = m.group(1).lower().replace('-', '_').replace('.', '_')
+            known.add(name)
+elif ext == '.json':
+    # package.json: dependencies and devDependencies
+    try:
+        data = json.loads(content)
+        for section in ('dependencies', 'devDependencies', 'peerDependencies'):
+            for pkg in data.get(section, {}):
+                name = re.sub(r'^@[^/]+/', '', pkg)
+                name = name.lower().replace('-', '_').replace('.', '_')
+                known.add(name)
+    except Exception:
+        pass
+
+print(' '.join(sorted(known)))
+" "$manifest_file" 2>/dev/null || echo "")
+
+    # Check if any added import is absent from the manifest.
+    local import_name
+    for import_name in "${added_imports[@]}"; do
+        local normalized
+        normalized=$(printf '%s' "$import_name" | tr '[:upper:]' '[:lower:]' | tr '-' '_' | tr '.' '_')
+        # Skip stdlib-like names: single-word built-ins common in Python/Node
+        case "$normalized" in
+            os|sys|re|json|io|abc|ast|csv|math|time|enum|uuid|copy|glob|hmac|html|http|logging|pathlib|shutil|socket|struct|typing|hashlib|urllib|collections|contextlib|functools|itertools|operator|threading|subprocess|dataclasses|unittest|tempfile|warnings|traceback|textwrap|string|random|base64|binascii|codecs|decimal|fractions|numbers|calendar|datetime|locale|gettext|argparse|optparse|configparser|platform|signal|errno|ctypes|array|queue|heapq|bisect|pprint|inspect|importlib|pkgutil|gc|weakref|pickle|shelve|sqlite3|xml|html|email|mailbox|smtplib|ftplib|poplib|imaplib|telnetlib|nntplib|xmlrpc|http|urllib|ssl|select|selectors|asyncio|concurrent|multiprocessing|mmap|readline|rlcompleter|pdb|cprofile|timeit|doctest|pydoc|builtins) continue ;;
+        esac
+        # Check if the import is in the manifest
+        if ! printf ' %s ' "$manifest_contents" | grep -qiF " $normalized " 2>/dev/null; then
+            return 0  # Found an unfamiliar import
+        fi
+    done
+
+    return 1
+}
+
 # ============================================================
 # Diff size threshold: raw line count (excludes tests + generated)
 # ============================================================
@@ -609,6 +724,10 @@ fi
 if _has_config_file; then
     CONFIG_FILE_FLOOR=3
     [[ $COMPUTED_TOTAL -lt $CONFIG_FILE_FLOOR ]] && COMPUTED_TOTAL=$CONFIG_FILE_FLOOR
+fi
+
+if _has_external_api_signal && (( COMPUTED_TOTAL < 3 )); then
+    COMPUTED_TOTAL=3
 fi
 
 # ============================================================
