@@ -108,6 +108,7 @@ _model_for_tier() {
         security-red-team)  echo "opus" ;;
         security-blue-team) echo "opus" ;;
         performance)        echo "opus" ;;
+        test-quality)       echo "opus" ;;
         *)
             echo "ERROR: unknown tier: $1" >&2
             return 1
@@ -126,6 +127,7 @@ _description_for_tier() {
         security-red-team)  echo "Security red team reviewer (Opus): aggressive security detection without ticket context for AI-advantaged security concerns." ;;
         security-blue-team) echo "Security blue team reviewer (Opus): context-aware triage of red team findings with dismiss/downgrade/sustain authority." ;;
         performance)        echo "Performance reviewer (Opus): calibrated performance analysis with bright-line severity rules for scaling failures and resource exhaustion." ;;
+        test-quality)       echo "Test quality reviewer (Opus): detects test bloat patterns including change-detector tests, implementation-coupled assertions, tautological tests, source-file-grepping, and existence-only assertions." ;;
         *)
             echo "ERROR: unknown tier: $1" >&2
             return 1

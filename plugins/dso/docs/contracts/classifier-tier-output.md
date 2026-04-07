@@ -52,6 +52,7 @@ The emitter outputs a single JSON object on stdout. All fields are required.
 | `selected_tier` | string | Final tier selection after floor rules; one of: `light`, `standard`, `deep` |
 | `security_overlay` | boolean | `true` if the diff touches security-sensitive paths or contains security-related imports/keywords; `false` otherwise. Used by overlay dispatch to trigger the security review overlay. |
 | `performance_overlay` | boolean | `true` if the diff touches performance-sensitive paths or contains performance-related keywords (SQL, async, pooling); `false` otherwise. Used by overlay dispatch to trigger the performance review overlay. |
+| `test_quality_overlay` | boolean | `true` if the diff touches test files (paths matching `tests/**`, `test/**`, `**/test_*`, `**/tests/**`, `*_test.*`, `*.test.*`); `false` otherwise. Used by overlay dispatch to trigger the test quality review overlay. |
 
 ### per_factor_scores
 
@@ -83,7 +84,8 @@ Floor rules applied by the classifier may raise `selected_tier` above the thresh
   "computed_total": 5,
   "selected_tier": "standard",
   "security_overlay": false,
-  "performance_overlay": false
+  "performance_overlay": false,
+  "test_quality_overlay": false
 }
 ```
 
@@ -116,4 +118,5 @@ This contract is unversioned. Breaking changes (field removal, type changes, enu
 
 ### Change Log
 
+- **2026-04-06**: Added `test_quality_overlay` boolean field (story 9ebb-43ea, task c450-f4f6). Required field (always present in output). Backward-compatible: existing parsers that do not read this field are unaffected.
 - **2026-03-28**: Added `security_overlay` and `performance_overlay` boolean fields (epic dso-5ooy). These are required fields (always present in output). Backward-compatible: existing parsers that do not read these fields are unaffected since they add new keys rather than modifying existing ones.
