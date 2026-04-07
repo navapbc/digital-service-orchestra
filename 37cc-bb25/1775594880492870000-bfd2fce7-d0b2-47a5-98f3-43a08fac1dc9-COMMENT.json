@@ -1,1 +1,0 @@
-{"timestamp": 1775594880492870000, "uuid": "bfd2fce7-d0b2-47a5-98f3-43a08fac1dc9", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT:batch-complete \u2014 Done \u2713 \u2014 Files: tests/skills/test-follow-on-scrutiny.sh, .test-index. Tests: RED (10 assertions fail as expected)."}}
