@@ -126,6 +126,11 @@ awk -v ref_pat="$_REF_PATTERN" '
             while (ref ~ /[.,)]$/) {
                 ref = substr(ref, 1, length(ref) - 1)
             }
+            # Skip glob patterns — they are prose references, not concrete paths
+            if (index(ref, "*") > 0 || index(ref, "?") > 0) {
+                line = substr(line, RSTART + RLENGTH)
+                continue
+            }
             print FILENAME "\t" FNR "\t" ref
             line = substr(line, RSTART + RLENGTH)
         }
