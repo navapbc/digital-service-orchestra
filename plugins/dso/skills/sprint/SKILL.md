@@ -1052,6 +1052,39 @@ context:
 
 **Worktree boundary**: If in a worktree, append to every sub-agent prompt: `"IMPORTANT: Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path."` When `ISOLATION_ENABLED=true`, also add `isolation: "worktree"` to the Task dispatch call (see Worktree Isolation Configuration above).
 
+### Testing Mode Routing
+
+Before dispatching sub-agents, extract the `## Testing Mode` value from each task's description:
+
+```bash
+TASK_DESC=$(.claude/scripts/dso ticket show <task-id>)
+TESTING_MODE=$(echo "$TASK_DESC" | python3 -c "
+import sys, re
+desc = sys.stdin.read()
+m = re.search(r'## Testing Mode\s*\n([^\n#]+)', desc)
+print(m.group(1).strip() if m else '')
+")
+```
+
+Route based on `TESTING_MODE`:
+
+| testing_mode value | Action |
+|--------------------|--------|
+| `RED` | Dispatch `dso:red-test-writer` before implementation (existing behavior) |
+| `GREEN` | Skip RED test dispatch entirely. Sub-agent validates existing tests pass after implementation. |
+| `UPDATE` | Sub-agent modifies existing tests to assert new behavior **before** implementing. Do NOT dispatch `dso:red-test-writer`. |
+| absent / empty | Default to RED behavior (backward compatibility — tasks created before this field was introduced) |
+
+**GREEN mode**: Pass the following instruction to the sub-agent's Step 4 in `task-execution.md`: skip writing new tests; after implementation, validate that existing tests still pass.
+
+**UPDATE mode**: Pass the following instruction to the sub-agent's Step 4 in `task-execution.md`: modify the existing test file(s) listed in the file impact table to assert the new expected behavior before implementing the source change. The test must fail (RED) on the current code before the fix.
+
+**Backward compatibility**: When `TESTING_MODE` is absent or empty, treat as `RED` — dispatch `dso:red-test-writer` as normal.
+
+<!-- REVIEW-DEFENSE: Finding 2 (verification/no-test-coverage) — The Testing Mode Routing section is behavioral prompt guidance, not callable code. The appropriate verification layer for skill prompts is the eval suite, not structural unit tests. The sprint skill already has 16 passing evals (evals/promptfooconfig.yaml), including 3 evals that exercise testing_mode routing (RED/GREEN/UPDATE paths). A structural unit test that grep-checks section headings would be a change-detector anti-pattern: it would couple tests to formatting rather than behavior, and would not verify that the routing logic functions correctly. The eval suite is the correct and sufficient coverage vehicle for prompt-level behavioral changes. -->
+
+---
+
 ### RED Task Dispatch — Escalation Protocol
 
 **Detect RED tasks**: Check whether the `subagent` field equals `dso:red-test-writer`.
