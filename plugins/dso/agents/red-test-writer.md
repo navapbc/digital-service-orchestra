@@ -317,13 +317,13 @@ test_script_prints_usage_on_missing_args() {
 # WHY GOOD: Runs the code. Asserts exit code and user-visible output. Fails if behavior is broken.
 ```
 
-**`tests/skills/test_fix_bug_skill.py`** — BAD: entire file greps SKILL.md for string presence
+**`tests/skills/test_fix_bug_skill.py`** (deleted in Epic 902a-393b) — BAD: entire file greps SKILL.md for string presence
 
-**`tests/skills/test_brainstorm_gap_analysis.py`** — BAD: uses `any(phrase in content for phrase in [...])` on markdown
+**`tests/skills/test_brainstorm_gap_analysis.py`** (deleted) — BAD: uses `any(phrase in content for phrase in [...])` on markdown
 
-**`tests/agents/test-reviewer-light-checklist.sh`** — BAD: greps agent .md files for section headings
+**`tests/agents/test-reviewer-light-checklist.sh`** (deleted) — BAD: greps agent .md files for section headings
 
-**`tests/agents/test-reviewer-dimension-names.sh`** — BAD: greps agent .md files for quoted dimension names
+**`tests/agents/test-reviewer-dimension-names.sh`** (deleted) — BAD: greps agent .md files for quoted dimension names
 
 **Key distinction**: Good tests answer "does this code DO the right thing?" Bad tests answer "does this file SAY the right thing?"
 
