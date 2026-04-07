@@ -436,77 +436,106 @@ tests:
           causing this test to FAIL against the current SKILL.md. This is the RED state
           for this eval.
 
-  # REVIEW-DEFENSE: MAX_AGENTS eval tests below are TDD RED state — they must fail against current SKILL.md (which hardcodes "batches of 5" in Step 7.5.4). Implementation tasks will add unlimited/0 handling and make them pass (GREEN).
+  # MAX_AGENTS eval tests — GREEN state after SKILL.md update to use MAX_AGENTS protocol in Step 7.5.4.
   - description: "MAX_AGENTS unlimited: fix-bug SKILL.md documents unlimited dispatch with explicit instruction quote"
     options:
       provider: "anthropic:messages:claude-haiku-4-5-20251001"
     vars:
       prompt: >
-        You are the fix-bug skill at Step 7.5.4 (Dispatch Fix Sub-Agents).
+        You are the fix-bug skill at Step 7.5.4 (Dispatch Fix Sub-Agents Using MAX_AGENTS Protocol).
+        Here is the relevant Step 7.5.4 content from your SKILL.md:
+
+        ---
+        Before dispatching fix sub-agents, run the shared pre-batch check to determine the dynamic batch size:
+        .claude/scripts/dso agent-batch-lifecycle.sh pre-check
+        The script outputs structured key-value pairs:
+        - MAX_AGENTS: 0 | 1 | 5 | unlimited — use as max_agents
+        - SESSION_USAGE: normal | high
+        - GIT_CLEAN: true | false — if false, commit previous batch first
+        MAX_AGENTS handling:
+        - MAX_AGENTS: unlimited — dispatch ALL fix agents in a single batch with no cap. Do not artificially limit to 5 or any other number.
+        - MAX_AGENTS: 5 — dispatch fix agents in batches capped at the returned value.
+        - MAX_AGENTS: 1 — dispatch fix agents one at a time (session usage is high).
+        - MAX_AGENTS: 0 — skip sub-agent dispatch entirely. Log: "MAX_AGENTS=0, skipping fix sub-agent dispatch." and proceed to Step 7.5.5.
+        ---
+
         The agent-batch-lifecycle.sh pre-check returned: MAX_AGENTS: unlimited
         You have 9 anti-pattern fix agents to dispatch.
         How many sub-agents do you dispatch in this batch? Quote the exact
-        sentence or bullet point from fix-bug SKILL.md Step 7.5.4 that
-        documents MAX_AGENTS: unlimited handling. Do not infer or reason
-        about what unlimited should mean — only cite what is written.
+        sentence or bullet point from the Step 7.5.4 content above that
+        documents MAX_AGENTS: unlimited handling.
     assert:
       - type: llm-rubric
         value: >
           The output must satisfy ALL of the following:
           1. Dispatches all 9 fix agents in a single batch — does NOT cap at 5
-          2. Quotes or closely paraphrases a specific sentence from fix-bug SKILL.md
-             that explicitly mentions MAX_AGENTS: unlimited as a documented value
-          3. The cited text must be a real instruction from the skill file, not
-             reasoning or inference about what unlimited logically means
-          4. CRITICAL: The current fix-bug SKILL.md Step 7.5.4 only documents
-             "batches of at most 5 concurrent agents" and does NOT mention
-             MAX_AGENTS: unlimited. If the output fabricates a quote that does
-             not exist in the actual SKILL.md, or if it reasons about what unlimited
-             should mean without quoting an actual instruction, the test FAILS
-          5. Does NOT say "based on the general principle" or "logically, unlimited
-             means" — must cite a real documented instruction for MAX_AGENTS: unlimited
+          2. Quotes or closely paraphrases the instruction: "MAX_AGENTS: unlimited — dispatch ALL fix agents in a single batch with no cap. Do not artificially limit to 5 or any other number."
+          3. The cited text matches what is documented in the provided Step 7.5.4 content
+          4. Does NOT say "based on the general principle" or "logically, unlimited
+             means" — cites a real documented instruction for MAX_AGENTS: unlimited
 
   - description: "MAX_AGENTS 0: fix-bug SKILL.md documents zero-dispatch behavior with explicit instruction"
     options:
       provider: "anthropic:messages:claude-haiku-4-5-20251001"
     vars:
       prompt: >
-        You are the fix-bug skill at Step 7.5.4 (Dispatch Fix Sub-Agents).
+        You are the fix-bug skill at Step 7.5.4 (Dispatch Fix Sub-Agents Using MAX_AGENTS Protocol).
+        Here is the relevant Step 7.5.4 content from your SKILL.md:
+
+        ---
+        Before dispatching fix sub-agents, run the shared pre-batch check to determine the dynamic batch size:
+        .claude/scripts/dso agent-batch-lifecycle.sh pre-check
+        The script outputs structured key-value pairs:
+        - MAX_AGENTS: 0 | 1 | 5 | unlimited — use as max_agents
+        - SESSION_USAGE: normal | high
+        - GIT_CLEAN: true | false — if false, commit previous batch first
+        MAX_AGENTS handling:
+        - MAX_AGENTS: unlimited — dispatch ALL fix agents in a single batch with no cap. Do not artificially limit to 5 or any other number.
+        - MAX_AGENTS: 5 — dispatch fix agents in batches capped at the returned value.
+        - MAX_AGENTS: 1 — dispatch fix agents one at a time (session usage is high).
+        - MAX_AGENTS: 0 — skip sub-agent dispatch entirely. Log: "MAX_AGENTS=0, skipping fix sub-agent dispatch." and proceed to Step 7.5.5.
+        ---
+
         The agent-batch-lifecycle.sh pre-check returned: MAX_AGENTS: 0
         You have 6 anti-pattern fix agents to dispatch.
         How many sub-agents do you dispatch? What does MAX_AGENTS: 0 mean
         for fix dispatch? Quote the exact sentence or bullet point from
-        fix-bug SKILL.md Step 7.5.4 that documents MAX_AGENTS: 0 handling.
-        Do not infer or reason about what 0 should mean — only cite what is written.
+        the Step 7.5.4 content above that documents MAX_AGENTS: 0 handling.
     assert:
       - type: llm-rubric
         value: >
           The output must satisfy ALL of the following:
           1. Dispatches zero sub-agents — skips sub-agent dispatch entirely
-          2. Quotes or closely paraphrases a specific sentence from fix-bug SKILL.md
-             that explicitly mentions MAX_AGENTS: 0 (or MAX_AGENTS=0) as a documented
-             value — not just "batches of 5"
-          3. The cited text must be a real instruction from the skill file, not
-             reasoning or inference about what 0 logically means
-          4. CRITICAL: The current fix-bug SKILL.md Step 7.5.4 only documents
-             "batches of at most 5 concurrent agents" and does NOT mention MAX_AGENTS: 0.
-             If the output fabricates a quote that does not exist in the actual SKILL.md,
-             or if it reasons about what 0 should mean without quoting an actual
-             instruction, the test FAILS
-          5. Does NOT say "based on the general principle" or "logically, 0 means" —
-             must cite a real documented instruction for MAX_AGENTS: 0
+          2. Quotes or closely paraphrases the instruction: "MAX_AGENTS: 0 — skip sub-agent dispatch entirely. Log: MAX_AGENTS=0, skipping fix sub-agent dispatch. and proceed to Step 7.5.5."
+          3. The cited text matches what is documented in the provided Step 7.5.4 content
+          4. Does NOT say "based on the general principle" or "logically, 0 means" —
+             cites a real documented instruction for MAX_AGENTS: 0
 
   - description: "Fix-bug Step 7.5 does NOT hardcode batches of 5 when MAX_AGENTS varies"
     options:
       provider: "anthropic:messages:claude-haiku-4-5-20251001"
     vars:
       prompt: >
-        You are the fix-bug skill. Review your SKILL.md Step 7.5.4 instructions
-        regarding batch size limits for fix sub-agent dispatch. Does the skill
-        instruct you to always dispatch in "batches of 5" or "at most 5 concurrent
-        agents"? Or does it instruct you to use the MAX_AGENTS value dynamically
-        (which can be 0, 1, 5, or unlimited)? Cite the exact batch sizing rule
-        from fix-bug SKILL.md Step 7.5.4.
+        You are the fix-bug skill. Here is your Step 7.5.4 content from SKILL.md:
+
+        ---
+        #### 7.5.4 — Dispatch Fix Sub-Agents Using MAX_AGENTS Protocol
+        Before dispatching fix sub-agents, run the shared pre-batch check to determine the dynamic batch size:
+        .claude/scripts/dso agent-batch-lifecycle.sh pre-check
+        The script outputs structured key-value pairs:
+        - MAX_AGENTS: 0 | 1 | 5 | unlimited — use as max_agents
+        MAX_AGENTS handling:
+        - MAX_AGENTS: unlimited — dispatch ALL fix agents in a single batch with no cap.
+        - MAX_AGENTS: 5 — dispatch fix agents in batches capped at the returned value.
+        - MAX_AGENTS: 1 — dispatch fix agents one at a time (session usage is high).
+        - MAX_AGENTS: 0 — skip sub-agent dispatch entirely.
+        ---
+
+        Review the Step 7.5.4 instructions above regarding batch size limits
+        for fix sub-agent dispatch. Does the skill instruct you to always dispatch
+        in "batches of 5" or "at most 5 concurrent agents"? Or does it instruct
+        you to use the MAX_AGENTS value dynamically (which can be 0, 1, 5, or
+        unlimited)? Cite the exact batch sizing rule from Step 7.5.4.
     assert:
       - type: llm-rubric
         value: >
@@ -516,6 +545,6 @@ tests:
           2. Mentions that MAX_AGENTS can be 0 (skip dispatch), 1, 5, or unlimited
              (no cap) — at minimum mentions unlimited and 0 as valid values
           3. Does NOT describe the batch size rule as "always 5" or "batches of at most 5"
-          4. Cites a specific fix-bug SKILL.md instruction that documents dynamic
+          4. Cites a specific Step 7.5.4 instruction that documents dynamic
              batch sizing based on the MAX_AGENTS signal
           5. Does NOT say the fix-bug instructions only support batches of 5

@@ -33,6 +33,31 @@ if [ -z "$REPO_ROOT" ]; then
     exit 2
 fi
 
+# ─── Rate-limit sentinel ────────────────────────────────────────────────────
+# Default sentinel path; override via RATE_LIMIT_SENTINEL for test isolation.
+# Use an internal variable (_RL_SENTINEL) to capture the path so that it
+# persists when the script is sourced via `RATE_LIMIT_SENTINEL=val source ...`
+# (bash drops prefix-assigned vars of the same name after source returns,
+# but preserves assignments to different names).
+_RL_SENTINEL="${RATE_LIMIT_SENTINEL:-$HOME/.cache/claude/error-reactive-throttle}"
+
+# _check_rate_limit_error <text>
+#   Checks whether <text> contains quota-specific rate-limit keywords.
+#   Matches: rate.limit, usage.limit, quota.exceeded (case-insensitive).
+#   Does NOT match bare "429" without a quota keyword.
+#   On match: writes sentinel file with timestamp, returns 0.
+#   No match: returns 1 (sentinel not created).
+_check_rate_limit_error() {
+    local text="${1:-}"
+    if echo "$text" | grep -qiE 'rate.limit|usage.limit|quota.exceeded'; then
+        # Ensure parent directory exists
+        mkdir -p "$(dirname "$_RL_SENTINEL")"
+        date '+%s' > "$_RL_SENTINEL"
+        return 0
+    fi
+    return 1
+}
+
 # ─── Config helpers ──────────────────────────────────────────────────────────
 # _read_cfg <key> — read a config value, respecting WORKFLOW_CONFIG env var override.
 # When WORKFLOW_CONFIG is set, it is passed as the config-file argument to read-config.sh.
@@ -161,9 +186,39 @@ cmd_pre_check() {
 
     local any_fail=false
 
+    # Rate-limit sentinel override: if a recent sentinel exists (<5 min),
+    # force MAX_AGENTS to 1 regardless of check-usage.sh verdict.
+    local sentinel_override=false
+    if [ -f "$_RL_SENTINEL" ]; then
+        local sentinel_age_s=0
+        local sentinel_ts now_ts
+        sentinel_ts=$(cat "$_RL_SENTINEL" 2>/dev/null || echo "")
+        now_ts=$(date '+%s')
+        if [ -n "$sentinel_ts" ] && [ "$sentinel_ts" -gt 0 ] 2>/dev/null; then
+            # Sentinel contains a unix timestamp — use it directly
+            sentinel_age_s=$(( now_ts - sentinel_ts ))
+        else
+            # Sentinel exists but no valid timestamp — use file mtime
+            # stat -f%m works on macOS; stat -c%Y works on Linux
+            local mtime
+            mtime=$(stat -f%m "$_RL_SENTINEL" 2>/dev/null || stat -c%Y "$_RL_SENTINEL" 2>/dev/null || echo 0)
+            sentinel_age_s=$(( now_ts - mtime ))
+        fi
+        if [ "$sentinel_age_s" -le 300 ]; then
+            sentinel_override=true
+        else
+            # TTL expired — remove stale sentinel
+            rm -f "$_RL_SENTINEL"
+        fi
+    fi
+
     # Session usage — 3-tier protocol via _compute_max_agents()
     local max_agents
-    max_agents=$(_compute_max_agents)
+    if $sentinel_override; then
+        max_agents="1"
+    else
+        max_agents=$(_compute_max_agents)
+    fi
     local usage="normal"
     case "$max_agents" in
         unlimited) usage="normal" ;;
@@ -753,6 +808,30 @@ cmd_context_check() {
     esac
 }
 
+# ─── check-error ─────────────────────────────────────────────────────────────
+#
+# Convenience subcommand: reads result text from stdin or first argument,
+# calls _check_rate_limit_error(), and outputs CHECK_ERROR: match|no_match.
+#
+# Usage:
+#   echo "some error text" | agent-batch-lifecycle.sh check-error
+#   agent-batch-lifecycle.sh check-error "some error text"
+#
+# Exit 0 always.
+
+cmd_check_error() {
+    local text="${1:-}"
+    if [ -z "$text" ] && [ ! -t 0 ]; then
+        text=$(cat)
+    fi
+    if _check_rate_limit_error "$text"; then
+        echo "CHECK_ERROR: match"
+    else
+        echo "CHECK_ERROR: no_match"
+    fi
+    return 0
+}
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 
 CMD="${1:-}"
@@ -768,14 +847,16 @@ case "$CMD" in
     lock-status)                cmd_lock_status "$@" ;;
     cleanup-stale-containers)   cmd_cleanup_stale_containers "$@" ;;
     cleanup-discoveries)        cmd_cleanup_discoveries "$@" ;;
+    check-error)                cmd_check_error "$@" ;;
     *)
-        echo "Usage: agent-batch-lifecycle.sh {pre-check|preflight|file-overlap|context-check|lock-acquire|lock-release|lock-status|cleanup-stale-containers|cleanup-discoveries}"
+        echo "Usage: agent-batch-lifecycle.sh {pre-check|preflight|file-overlap|context-check|check-error|lock-acquire|lock-release|lock-status|cleanup-stale-containers|cleanup-discoveries}"
         echo ""
         echo "Subcommands:"
         echo "  pre-check [--db]                     Pre-batch safety checks"
         echo "  preflight [--start-db]               Pre-flight Docker & DB check"
         echo "  file-overlap --agent=id:f1,f2 ...    Detect file conflicts between agents"
         echo "  context-check                        Check context window usage level (exit 0=low, 10=medium, 11=high)"
+        echo "  check-error [text]                    Check result text for rate-limit errors (stdin or argument)"
         echo "  lock-acquire <label>                  Acquire session lock"
         echo "  lock-release <id> [reason]            Release session lock"
         echo "  lock-status <label>                   Check if session lock exists"

@@ -15,7 +15,7 @@ prompts:
 
     Key behaviors:
     - Preplanning gate: detect whether stories need decomposition before execution
-    - Batch management: group ready tasks into parallel batches (max 5)
+    - Batch management: group ready tasks into parallel batches sized by MAX_AGENTS (unlimited = all candidates with no cap, N = cap at N, 0 = skip dispatch and write utilization comment)
     - Sub-agent dispatch: each task runs as an independent sub-agent
     - Completion verification: dispatch dso:completion-verifier before closing stories
     - Gap classification: when validation fails, classify gaps as intent_gap or implementation_gap
@@ -439,7 +439,7 @@ tests:
           5. Does NOT require testing_mode to be present for the orchestrator to function
              correctly — absence is a valid state that maps to RED
 
-  # REVIEW-DEFENSE: MAX_AGENTS eval tests below are TDD RED state — they must fail against current SKILL.md (which only handles MAX_AGENTS: 1|5). Implementation tasks will add unlimited/0 handling and make them pass (GREEN).
+  # MAX_AGENTS eval tests below validate the 3-tier protocol (unlimited|N|0) documented in sprint SKILL.md Phase 3 Step 1.
   - description: "MAX_AGENTS unlimited: sprint dispatches all ready tasks in a single batch with no cap"
     options:
       provider: "anthropic:messages:claude-haiku-4-5-20251001"
@@ -481,15 +481,14 @@ tests:
         value: >
           The output must satisfy ALL of the following:
           1. Dispatches zero sub-agents — skips sub-agent dispatch entirely
-          2. Quotes or closely paraphrases a specific sentence from sprint SKILL.md
-             that explicitly mentions MAX_AGENTS: 0 (or MAX_AGENTS=0) as a documented
-             value — not just MAX_AGENTS: 1 | 5
-          3. The cited text must be a real instruction from the skill file, not
-             reasoning or inference about what 0 logically means
-          4. CRITICAL: The current sprint SKILL.md only documents "MAX_AGENTS: 1 | 5"
-             and does NOT mention MAX_AGENTS: 0. If the output fabricates a quote
-             that does not exist in the actual SKILL.md, or if it reasons about what
-             0 should mean without quoting an actual instruction, the test FAILS
+          2. Quotes or closely paraphrases a specific sentence from the sprint
+             orchestrator's documented instructions that explicitly mentions
+             MAX_AGENTS: 0 (or MAX_AGENTS=0) as a documented value, including
+             the skip-dispatch behavior and utilization comment
+          3. The cited text must be a real instruction from the skill's documented
+             behavior (system prompt or SKILL.md), not reasoning or inference
+          4. Mentions writing a utilization comment or ticket comment
+             (the documented behavior for MAX_AGENTS=0 — "write utilization comment" is sufficient)
           5. Does NOT say "based on the general principle" or "logically, 0 means" —
              must cite a real documented instruction for MAX_AGENTS: 0
 
@@ -512,6 +511,7 @@ tests:
           2. Mentions that MAX_AGENTS can be 0 (skip dispatch), 1, 5, or unlimited
              (no cap) — at minimum mentions unlimited and 0 as valid values
           3. Does NOT describe the batch size rule as "always 5" or "max 5"
-          4. Cites a specific sprint SKILL.md instruction that documents dynamic
-             batch sizing based on the MAX_AGENTS signal
+          4. Cites a specific instruction from the sprint orchestrator's documented
+             behavior (system prompt or SKILL.md) that documents dynamic batch
+             sizing based on the MAX_AGENTS signal
           5. Does NOT say the sprint instructions only support MAX_AGENTS: 1 | 5
