@@ -360,3 +360,4 @@ plugins/dso/skills/verification-before-completion/SKILL.md:plugins/dso/tests/tes
 plugins/dso/skills/sprint/SKILL.md:tests/scripts/test-sprint-primary-ticket-model.sh
 plugins/dso/skills/shared/constants/figma-tags.conf:tests/skills/test-figma-tag-constants.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
+plugins/dso/scripts/check_usage.py: tests/scripts/test_check_usage.py [test_verdict_unlimited]
