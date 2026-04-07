@@ -97,22 +97,26 @@ def test_re_review_escalation_specifies_light_to_standard() -> None:
 
 
 def test_re_review_escalation_specifies_standard_to_opus() -> None:
-    """The re-review escalation must specify standard→opus upgrade."""
+    """The re-review escalation must use RATCHETED_TIER-based escalation."""
     content = _read_workflow()
-    section = _extract_re_review_dispatch(content)
+    bash_block = _extract_bash_re_review_conditional(content)
 
-    assert section, "Expected to find 'When RESOLUTION_RESULT: FIXES_APPLIED' section."
+    assert bash_block, (
+        "Expected to find bash code block starting with '# Re-review model escalation "
+        "logic' in REVIEW-WORKFLOW.md."
+    )
 
-    # Must mention upgrading standard to opus on further failures
+    # Must use RATCHETED_TIER for escalation decisions, not a raw REVIEW_PASS_NUM >= 3 catch-all
     assert re.search(
-        r"standard.*(?:→|->|to|upgrade).*opus"
-        r"|code-reviewer-standard.*(?:code-reviewer-deep-arch|opus)",
-        section,
-        re.IGNORECASE,
+        r"RATCHETED_TIER",
+        bash_block,
     ), (
-        "Expected the re-review model escalation to specify upgrading to opus "
-        "on attempt 3+. This mirrors the commit workflow's test failure delegation "
-        "pattern (Attempt 1: sonnet, Attempt 2+: opus)."
+        "Expected the bash re-review escalation block to use RATCHETED_TIER "
+        "variable for selecting the escalated reviewer. Currently the block uses "
+        "a REVIEW_PASS_NUM >= 3 catch-all that unconditionally escalates all tiers "
+        "to full deep pipeline regardless of the current tier context. "
+        "RATCHETED_TIER-based logic should compute the next tier from the current "
+        "tier and drive the escalation decision."
     )
 
 
@@ -155,4 +159,55 @@ def test_deep_tier_re_review_always_uses_full_pipeline() -> None:
         "Currently the conditional only sets RE_REVIEW_DEEP_FULL=true at >= 3, "
         "leaving deep tier at pass 2 unhandled — causing opus arch to be dispatched "
         "without the 3 prerequisite sonnet reviews."
+    )
+
+
+def test_ratchet_variable_initialized() -> None:
+    """The bash block must initialize a RATCHETED_TIER variable.
+
+    The ratchet pattern computes the next tier from the current tier so that
+    escalation logic is driven by tier progression rather than a raw pass counter
+    catch-all. RATCHETED_TIER must be initialized in the escalation bash block.
+    """
+    content = _read_workflow()
+    bash_block = _extract_bash_re_review_conditional(content)
+
+    assert bash_block, (
+        "Expected to find bash code block starting with '# Re-review model escalation "
+        "logic' in REVIEW-WORKFLOW.md."
+    )
+
+    assert re.search(r"RATCHETED_TIER=", bash_block), (
+        "Expected the bash re-review escalation block to initialize a RATCHETED_TIER "
+        "variable. Currently the block has no RATCHETED_TIER assignment — it uses "
+        "REVIEW_PASS_NUM >= 3 catch-all escalation instead of computing the next tier "
+        "from the current tier value."
+    )
+
+
+def test_pass3_plus_removed() -> None:
+    """The bash block must NOT contain REVIEW_PASS_NUM >= 3 auto-escalation.
+
+    The old pass 3+ catch-all unconditionally escalates all tiers to full deep
+    pipeline regardless of context. The ratchet approach replaces this with
+    RATCHETED_TIER-based logic that computes the appropriate next tier from the
+    current one. The catch-all pattern must be removed.
+    """
+    content = _read_workflow()
+    bash_block = _extract_bash_re_review_conditional(content)
+
+    assert bash_block, (
+        "Expected to find bash code block starting with '# Re-review model escalation "
+        "logic' in REVIEW-WORKFLOW.md."
+    )
+
+    # The pass 3+ catch-all pattern should NOT be present in the bash block
+    assert not re.search(
+        r"REVIEW_PASS_NUM.*-ge\s+3",
+        bash_block,
+    ), (
+        "Expected the bash re-review escalation block to NOT contain a "
+        "REVIEW_PASS_NUM >= 3 catch-all. The current block has an 'if REVIEW_PASS_NUM "
+        "-ge 3' branch that unconditionally sets RE_REVIEW_DEEP_FULL=true for all tiers. "
+        "This should be replaced with RATCHETED_TIER-based escalation."
     )
