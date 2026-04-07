@@ -1,1 +1,0 @@
-{"timestamp": 1775597662117954000, "uuid": "9894f507-2c89-4e30-86c5-86107e9eb8e7", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: llm-behavioral (dual-signal: ticket describes agent behavior gap + affected file is workflow doc in docs/workflows/)"}}
