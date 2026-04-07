@@ -20,7 +20,9 @@ set -euo pipefail
 #
 # Usage:
 #   sprint-next-batch.sh <epic-id>              # All non-conflicting ready tasks
-#   sprint-next-batch.sh <epic-id> --limit=N    # Up to N tasks
+#   sprint-next-batch.sh <epic-id> --limit=N          # Up to N tasks
+#   sprint-next-batch.sh <epic-id> --limit=0          # Empty batch (BATCH_SIZE: 0)
+#   sprint-next-batch.sh <epic-id> --limit=unlimited  # No cap (same as omitting --limit)
 #   sprint-next-batch.sh <epic-id> --json       # Machine-readable JSON output
 #
 # Text output lines:
@@ -108,16 +110,21 @@ CFG_EXTRA_DIR_ROOTS="${CFG_EXTRA_DIR_ROOTS:-}"
 # --- Argument parsing ---
 
 epic_id=""
-limit=0          # 0 = unlimited
+limit=0          # 0 = unlimited (no cap)
+limit_zero=false # true when user explicitly passes --limit=0 (empty batch)
 json_output=false
 
 for arg in "$@"; do
     case "$arg" in
         --limit=*)
             limit="${arg#--limit=}"
-            if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
-                echo "Error: --limit must be a non-negative integer" >&2
+            if [[ "$limit" == "unlimited" ]]; then
+                limit=0  # internal 0 = unlimited (no cap)
+            elif ! [[ "$limit" =~ ^[0-9]+$ ]]; then
+                echo "Error: --limit must be a non-negative integer or 'unlimited'" >&2
                 exit 2
+            elif [[ "$limit" == "0" ]]; then
+                limit_zero=true
             fi
             ;;
         --json)
@@ -129,7 +136,7 @@ for arg in "$@"; do
             ;;
         -*)
             echo "Unknown flag: $arg" >&2
-            echo "Usage: sprint-next-batch.sh <epic-id> [--limit=N] [--json]" >&2
+            echo "Usage: sprint-next-batch.sh <epic-id> [--limit=N|unlimited] [--json]" >&2
             exit 2
             ;;
         *)
@@ -144,8 +151,18 @@ for arg in "$@"; do
 done
 
 if [ -z "$epic_id" ]; then
-    echo "Usage: sprint-next-batch.sh <epic-id> [--limit=N] [--json]" >&2
+    echo "Usage: sprint-next-batch.sh <epic-id> [--limit=N|unlimited] [--json]" >&2
     exit 2
+fi
+
+# --limit=0 early exit: return empty batch immediately (no task processing needed)
+if [ "$limit_zero" = true ]; then
+    if [ "$json_output" = true ]; then
+        echo '{"epic_id":"'"$epic_id"'","batch_size":0,"tasks":[]}'
+    else
+        echo "BATCH_SIZE: 0"
+    fi
+    exit 0
 fi
 
 # --- Data collection using ticket CLI ---

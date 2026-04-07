@@ -111,7 +111,7 @@ plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-v2-hooks-cl
 plugins/dso/scripts/skip-review-check.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/claude-safe:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/retro-gather.sh:tests/hooks/test-v2-hooks-cleanup.sh
-plugins/dso/scripts/sprint-next-batch.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/scripts/test-sprint-next-batch.sh,tests/scripts/test_sprint_next_batch_extra_dir_roots.py,tests/scripts/test-sprint-next-batch-design-filter.sh,tests/scripts/test-sprint-next-batch-limit.sh [test_limit_unlimited]
+plugins/dso/scripts/sprint-next-batch.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/scripts/test-sprint-next-batch.sh,tests/scripts/test_sprint_next_batch_extra_dir_roots.py,tests/scripts/test-sprint-next-batch-design-filter.sh,tests/scripts/test-sprint-next-batch-limit.sh
 plugins/dso/scripts/sprint-review-scope-check.sh:tests/scripts/test-sprint-review-scope-check.sh
 plugins/dso/skills/sprint/prompts/epic-validation-review.md:tests/scripts/test-v2-skills-cleanup.sh
 plugins/dso/scripts/purge-non-project-tickets.sh:tests/scripts/test-purge-non-project-tickets.sh
