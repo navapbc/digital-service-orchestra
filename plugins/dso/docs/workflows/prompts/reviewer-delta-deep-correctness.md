@@ -24,6 +24,41 @@ Your scores object MUST use "N/A" for `hygiene`, `design`,
 
 ---
 
+## External Reference Verification
+
+Before beginning correctness analysis, scan the diff for all external API calls, model names,
+library functions, and internal helper invocations. As Correctness Specialist, verifying that
+referenced identifiers actually exist is part of your correctness mandate.
+
+**Internal APIs** (functions, classes, helpers defined within this repo):
+- Use Grep to search for the definition: `grep -r "def <function_name>" plugins/ app/ tests/`
+- Use Glob to verify the referenced file exists at the path specified
+- If the reference is not found in the repo: flag as `fragile` under `correctness` (high
+  confidence it does not exist or is misspelled)
+- If found but the call signature differs from the definition: flag as `important` under
+  `correctness`
+
+**External library APIs** (third-party packages, stdlib modules):
+- Verify the import statement is present in the diff or in surrounding file context via
+  Read/Grep
+- Check that the function/method name matches the documented API for that library (e.g.,
+  `subprocess.run` exists; `subprocess.execute` does not)
+- If the function/class name is unrecognizable and cannot be traced to a known import or
+  stdlib module: flag as `fragile` under `correctness`
+- If the usage looks plausible but cannot be confirmed via Grep/Read: flag as `important`
+
+**Model identifiers and service endpoint strings**:
+- Any hardcoded model ID (e.g., `claude-sonnet-4-6-20260320`) or API endpoint URL must be
+  treated as potentially hallucinated unless verifiable via a constant, config file, or
+  documented source in the repo
+- Flag unverifiable model IDs as `fragile` under `correctness`
+
+**Severity mapping for unverifiable references**:
+- `fragile`: high confidence the referenced identifier does not exist or is misspelled
+- `important`: moderate confidence — plausible but not confirmed via Grep/Read
+
+---
+
 ## Correctness Checklist (Step 2 scope — functionality dimension only)
 
 Perform deep correctness analysis. Use Read, Grep, and Glob extensively.

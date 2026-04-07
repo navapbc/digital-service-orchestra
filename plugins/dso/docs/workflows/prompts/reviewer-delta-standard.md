@@ -84,6 +84,40 @@ diff — apply all relevant sections.
 
 ---
 
+## External Reference Verification
+
+Before scoring, scan the diff for external API calls, model names, library functions, and
+internal helper invocations. For each reference found, apply the appropriate verification
+method below. Unverifiable references indicate hallucination risk and must be flagged.
+
+**Internal APIs** (functions, classes, helpers defined within this repo):
+- Use Grep to search for the definition: `grep -r "def <function_name>" plugins/ app/ tests/`
+- Use Glob to check that the referenced file exists at the path specified
+- If the reference is not found in the repo: flag as `fragile` under `correctness` (high
+  confidence it does not exist or is misspelled)
+- If found but the signature differs from usage: flag as `important` under `correctness`
+
+**External library APIs** (third-party packages, stdlib modules):
+- Verify the import is present in the diff or in surrounding code via Read/Grep
+- Check that the function/method name matches documented API (e.g., verify `subprocess.run`
+  not `subprocess.execute`; `yaml.safe_load` not `yaml.safe_open`)
+- If the function/class name is unrecognizable and cannot be traced to a known import or
+  stdlib: flag as `fragile` under `correctness`
+- If the usage (argument order, keyword arguments) looks plausible but cannot be confirmed
+  via Grep/Read: flag as `important` under `correctness`
+
+**Model identifiers and service endpoint strings**:
+- Any hardcoded model ID (e.g., `claude-sonnet-4-6-20260320`) or API endpoint URL must be
+  treated as potentially hallucinated unless verifiable via a constant, config file, or
+  documented source in the repo
+- Flag unverifiable model IDs as `fragile` under `correctness`
+
+**Severity mapping for unverifiable references**:
+- `fragile`: high confidence the referenced identifier does not exist or is misspelled
+- `important`: moderate confidence — plausible but not confirmed via Grep/Read
+
+---
+
 ## Standard Checklist (Step 2 scope — all dimensions)
 
 Apply all checks below. Use Read, Grep, and Glob as needed to verify findings.

@@ -1196,4 +1196,110 @@ assert_eq "test_fragile_severity_write_reviewer_findings_integration" "0" "$_FRA
 
 assert_pass_if_clean "test_fragile_severity_write_reviewer_findings_integration"
 
+# ============================================================
+# RED tests: escalate_review optional field validation
+# These tests FAIL against the current validate-review-output.sh because
+# escalate_review is not yet listed in optional_top.
+# ============================================================
+
+# Test: findings JSON with valid escalate_review array passes validation
+# RED: current validator rejects escalate_review as an unexpected top-level key → exits 1.
+# After GREEN: escalate_review is in optional_top, valid array with required fields → exit 0.
+echo ""
+echo "--- test_escalate_review_valid_array_passes_validation ---"
+_snapshot_fail
+
+_ESC_VALID_FILE=$(write_fixture "escalate_review_valid.json" '{
+  "scores": {
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
+  },
+  "findings": [{"severity": "minor", "category": "correctness", "file": "src/foo.py", "description": "uncertain severity assignment"}],
+  "summary": "One finding with uncertain severity; escalation requested.",
+  "escalate_review": [{"finding_index": 0, "reason": "uncertain severity"}]
+}')
+_ESC_VALID_EXIT=$(run_script code-review-dispatch "$_ESC_VALID_FILE")
+assert_eq "test_escalate_review_valid_array_passes_validation" "0" "$_ESC_VALID_EXIT"
+
+assert_pass_if_clean "test_escalate_review_valid_array_passes_validation"
+
+# Test: findings JSON without escalate_review field passes (field is optional)
+# This is a behavioral GREEN test confirming the absence of escalate_review is accepted.
+# Placed here as documentation of the contract; no _snapshot_fail needed.
+_ESC_ABSENT_FILE=$(write_fixture "escalate_review_absent.json" '{
+  "scores": {
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
+  },
+  "findings": [],
+  "summary": "All dimensions clean; no escalation field present."
+}')
+_ESC_ABSENT_EXIT=$(run_script code-review-dispatch "$_ESC_ABSENT_FILE")
+assert_eq \
+    "test_escalate_review_absent_passes_validation: no escalate_review field is accepted" \
+    "0" \
+    "$_ESC_ABSENT_EXIT"
+
+# Test: findings JSON with escalate_review as a string (not array) fails validation
+# RED: current validator raises "unexpected top-level keys" error, which does not contain
+# the content-validation message "'escalate_review' must be an array". After GREEN, the
+# field is recognized and content-validation emits that specific message → assertion passes.
+echo ""
+echo "--- test_escalate_review_string_fails_with_type_error_message ---"
+_snapshot_fail
+
+_ESC_STRING_FILE=$(write_fixture "escalate_review_string.json" '{
+  "scores": {
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
+  },
+  "findings": [],
+  "summary": "All dimensions clean but escalate_review is malformed as a string.",
+  "escalate_review": "uncertain severity"
+}')
+_ESC_STRING_OUTPUT=$(bash "$SCRIPT" code-review-dispatch "$_ESC_STRING_FILE" 2>&1 || true)
+assert_contains \
+    "test_escalate_review_string_fails_with_type_error_message" \
+    "'escalate_review' must be an array" \
+    "$_ESC_STRING_OUTPUT"
+
+assert_pass_if_clean "test_escalate_review_string_fails_with_type_error_message"
+
+# Test: findings JSON with escalate_review element missing finding_index fails validation
+# RED: current validator raises "unexpected top-level keys" error, which does not contain
+# the content-validation message "missing required field 'finding_index'". After GREEN,
+# the field is recognized and per-element validation emits that specific message.
+echo ""
+echo "--- test_escalate_review_element_missing_finding_index_fails_validation ---"
+_snapshot_fail
+
+_ESC_MISSING_IDX_FILE=$(write_fixture "escalate_review_missing_index.json" '{
+  "scores": {
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
+  },
+  "findings": [],
+  "summary": "All dimensions clean but escalate_review element is missing finding_index.",
+  "escalate_review": [{"reason": "uncertain severity"}]
+}')
+_ESC_MISSING_IDX_OUTPUT=$(bash "$SCRIPT" code-review-dispatch "$_ESC_MISSING_IDX_FILE" 2>&1 || true)
+assert_contains \
+    "test_escalate_review_element_missing_finding_index_fails_validation" \
+    "missing required field 'finding_index'" \
+    "$_ESC_MISSING_IDX_OUTPUT"
+
+assert_pass_if_clean "test_escalate_review_element_missing_finding_index_fails_validation"
+
 print_summary

@@ -162,4 +162,7 @@ The orchestrator will then dispatch a re-review sub-agent with the updated diff 
    The orchestrator uses this to know fixes are ready for re-review.
 3. You MUST NOT call record-review.sh. The orchestrator calls it after re-review completes.
 4. You MUST NOT fabricate scores or write reviewer-findings.json yourself.
+5. You MUST NOT emit `escalate_review` in your output. The `ESCALATE_REVIEW` signal is reserved
+   for reviewer agents only. Resolution sub-agents must NOT emit `escalate_review` — if you include
+   it in your output, it will be ignored by the orchestrator.
 ```

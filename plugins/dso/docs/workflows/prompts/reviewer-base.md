@@ -113,7 +113,7 @@ will be rejected by the validator and force a re-dispatch.
   },
   "findings": [
     {
-      "severity": "critical|important|minor",
+      "severity": "critical|important|minor|fragile",
       "category": "<one of the 5 score dimensions>",
       "description": "...",
       "file": "path/to/file (MUST be from the diff being reviewed)"
@@ -122,6 +122,17 @@ will be rejected by the validator and force a re-dispatch.
   "summary": "2-3 sentence assessment"
 }
 ```
+
+**`severity` values**:
+- `critical`: correctness failure that will cause a bug or security issue
+- `important`: likely problem requiring fix before merge
+- `minor`: low-risk improvement suggestion
+- `fragile`: unverifiable external reference — high confidence the identifier does not exist
+  or is hallucinated (e.g., non-existent API function, unknown model ID). For **internal APIs**
+  (defined in this repo), verify existence via Grep/Read before assigning this severity. For
+  **external library APIs** (third-party packages, stdlib), verify the import is present and
+  the method name matches the library's documented interface. Fragile findings score the
+  same as `important` for pass/fail purposes (dimension score = 3).
 
 **`file` field constraint**: The `file` field in each finding MUST reference a file present in the diff being reviewed (DIFF_FILE). Do not use files from your recommendations (e.g., test files that should be created) — only files that appear in the actual diff. `record-review.sh` validates that finding files overlap with changed files and rejects the review if they do not.
 
