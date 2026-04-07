@@ -704,6 +704,24 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 ### If ALL scores are 4, 5, or "N/A" AND no critical findings:
 Review passed. **Immediately resume the calling workflow** — do NOT wait for user input. If this workflow was invoked from COMMIT-WORKFLOW.md Step 5, proceed directly to Step 6 (Commit). If invoked from another orchestrator, resume at the step after the review invocation. Note: this branch requires ALL scores >= 4. A score of 3 with important findings is NOT a pass — it enters the resolution loop below.
 
+**Post-pass findings inspection** (required — runs before resuming the calling workflow):
+
+Even on a passing review, `reviewer-findings.json` may contain actionable `minor` or `suggestion` severity findings. These must not be silently dropped. After confirming the review passed:
+
+1. Read `reviewer-findings.json` from `$ARTIFACTS_DIR`
+2. Filter findings where `severity` is `minor` or `suggestion` AND the finding describes a concrete, actionable improvement (not a stylistic preference or subjective opinion)
+3. For each actionable finding, create a bug ticket so it is tracked for a future session:
+   ```bash
+   .claude/scripts/dso ticket create bug "[Component]: [finding summary]" -d "## Incident Overview
+   Source: code review (passed) — minor finding not addressed in this session.
+   Finding: <finding description from reviewer-findings.json>
+   File: <file path from finding>
+   Category: <finding category>"
+   ```
+4. If zero actionable findings exist, skip ticket creation — proceed immediately
+
+This step is non-blocking: ticket creation failures do not prevent the calling workflow from resuming. Log a warning on failure and continue.
+
 **Emit review result event** (best-effort — does not block the workflow):
 
 ```bash

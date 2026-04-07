@@ -132,6 +132,8 @@ _run_isolation_fn() {
     # Run in a subshell so sourcing doesn't pollute the outer environment.
     # The subshell writes function stdout to out_file and exit code to out_file.exit.
     (
+        # Enable isolation enforcement so tests exercise the auth marker path
+        export WORKTREE_ISOLATION_ENABLED=true
         # Suppress the "no such file: deps.sh" error from sourcing in a worktree context;
         # the function itself does not depend on deps.sh at call time.
         source "$PLUGIN_ROOT/plugins/dso/hooks/lib/session-misc-functions.sh" 2>/dev/null
