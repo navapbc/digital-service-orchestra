@@ -120,6 +120,12 @@ A string containing the overall security posture assessment and confidence level
 }
 ```
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `SECURITY_RED_TEAM_OUTPUT` — this contract defines a `reviewer-findings.json` file interface. The parser reads the JSON object from that file and inspects the `scores`, `findings`, and `summary` keys. Within `findings`, each entry's `description` field MUST begin with a bracketed criterion prefix (e.g., `[TOCTOU]`, `[INJECTION]`). No line-prefix matching applies at the file level; the parser must deserialize the JSON object.
+
 ---
 
 ## Exit Code Semantics

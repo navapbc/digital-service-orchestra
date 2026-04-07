@@ -58,6 +58,12 @@ dependencies. Behavior:
 - On JSON parse error or missing required field, fall back to
   `[missing — treated as satisfied]` and emit a warning to stderr.
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- **tombstone file** — file-path match. A tombstone is identified by its path: `.tickets-tracker/tombstones/<id>.json`. Any file at that path is a candidate tombstone. The parser validates the `id` field against the filename stem and rejects the file if they do not match.
+
 ---
 
 ## Fields

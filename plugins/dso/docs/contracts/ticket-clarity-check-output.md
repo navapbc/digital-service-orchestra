@@ -54,6 +54,12 @@ The emitter outputs a single JSON object on stdout. All fields are required.
 | `"pass"` | Score meets or exceeds the threshold. The sprint clarity gate is satisfied and Phase 2 may proceed. |
 | `"fail"` | Score is below the threshold. The sprint must pause and surface the gap to the user before continuing. |
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `CLARITY_SCORE` — this contract defines a JSON stdout interface. The parser reads the full JSON object from the emitter's stdout and inspects the `verdict` field. No line-prefix matching applies; the parser must deserialize the JSON object and check `verdict` against `"pass"` or `"fail"` to determine routing.
+
 ---
 
 ## Exit Codes

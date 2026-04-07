@@ -838,6 +838,8 @@ LAUNCHED_CHECKS="syntax format ruff mypy tests migrate skill-refs hook-drift"
 [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS script-writes"
 [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS shim-refs"
 [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS model-id-lint"
+[ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS contract-schema"
+[ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS referential-integrity"
 # REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
 # This is the standard bash pattern for stored multi-word commands.
@@ -862,6 +864,12 @@ if [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ]; then
 fi
 if [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ]; then
     (cd "$REPO_ROOT" && run_check "model-id-lint" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-model-id-lint.sh") &
+fi
+if [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ]; then
+    (cd "$REPO_ROOT" && run_check "contract-schema" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-contract-schemas.sh") &
+fi
+if [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ]; then
+    (cd "$REPO_ROOT" && run_check "referential-integrity" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-referential-integrity.sh") &
 fi
 check_hook_drift &
 if [ $CHECK_CI -eq 1 ]; then
@@ -997,6 +1005,8 @@ if [ "$VERBOSE" = "0" ]; then
     report_check "skill-refs" "skill-refs" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-skill-refs.sh"
     [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && report_check "shim-refs" "shim-refs" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-shim-refs.sh"
     [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && report_check "model-id-lint" "model-id-lint" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-model-id-lint.sh"
+    [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && report_check "contract-schema" "contract-schema" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-contract-schemas.sh"
+    [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && report_check "referential-integrity" "referential-integrity" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-referential-integrity.sh"
     report_check "hook-drift" "hook-drift" "$TIMEOUT_SYNTAX" "diff <(grep 'id:' .pre-commit-config.yaml) <(grep 'id:' examples/pre-commit-config.example.yaml)"
 else
     tally_check "syntax" "syntax"
@@ -1008,6 +1018,8 @@ else
     tally_check "skill-refs" "skill-refs"
     [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && tally_check "shim-refs" "shim-refs"
     [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && tally_check "model-id-lint" "model-id-lint"
+    [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && tally_check "contract-schema" "contract-schema"
+    [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && tally_check "referential-integrity" "referential-integrity"
     tally_check "hook-drift" "hook-drift"
 fi
 

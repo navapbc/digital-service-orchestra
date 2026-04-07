@@ -203,6 +203,12 @@ JUSTIFICATION: <explanation>
 | `documentation` | The task produces only documentation, static assets, contract files, or configuration with no runtime behavior. There is no observable system state change or output to assert. |
 | `reference_removal` | The task removes a reference, import, or declaration without changing any observable behavior. The absence of a reference is not assertable as a behavioral outcome in a unit test. |
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `VERDICT:` — prefix match. Any line beginning with `VERDICT:` is the verdict discriminator line. The value following the colon identifies the format: `VERDICT:REVISE`, `VERDICT:REJECT`, or `VERDICT:CONFIRM`. The parser reads the leading `VERDICT:` line first and then processes the remaining fields according to the matched format.
+
 ---
 
 ## Examples

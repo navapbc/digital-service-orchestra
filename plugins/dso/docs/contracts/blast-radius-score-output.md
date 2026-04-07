@@ -58,6 +58,12 @@ The default threshold is **5**. `complex_override` is `true` when `score > 5`.
 | `substitutive` | Single file, or same-directory multi-file set with no config or test signals |
 | `mixed` | Multiple top-level directories with config or test files present, or conflicting additive/subtractive hints |
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `blast-radius-score` — this contract defines a JSON stdout interface, not a line-based signal. The parser reads the full JSON object from the emitter's stdout. No line-prefix matching applies; the parser must deserialize the JSON object and inspect the `complex_override` field.
+
 ---
 
 ## Example

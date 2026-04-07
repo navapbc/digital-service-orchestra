@@ -31,6 +31,22 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/
 
+      - id: contract-schema-check
+        name: Contract Schema Check (5s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh contract-schema-check 5 "plugins/dso/scripts/check-contract-schemas.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/docs/contracts/
+
+      - id: referential-integrity-check
+        name: Referential Integrity Check (10s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh referential-integrity-check 10 "plugins/dso/scripts/check-referential-integrity.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/(skills|agents)/
+
       - id: format-and-lint
         name: Format + Lint - Ruff (15s timeout)
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh format-and-lint 15 "ruff check plugins/dso/scripts/*.py tests/**/*.py && ruff format --check plugins/dso/scripts/*.py tests/**/*.py"

@@ -70,6 +70,12 @@ Each JSONL record is a JSON object. All fields are required.
 
 Each line in `classifier-telemetry.jsonl` is a complete, independent JSON record. Consumers must parse line-by-line; they must not attempt to parse the file as a single JSON document.
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `CLASSIFIER_TELEMETRY` — this contract defines a JSONL append-only log format. Consumers parse the file line-by-line; each line is a complete JSON object. No line-prefix string matching applies — consumers must deserialize each JSON record and inspect its fields independently.
+
 ---
 
 ## Independence from review-gate-telemetry.jsonl

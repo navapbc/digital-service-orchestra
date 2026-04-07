@@ -126,6 +126,12 @@ EXISTING_TESTS: <optional, comma-separated test file paths>
 
 `TEST_RESULT:no_new_tests_needed` **bypasses the evaluator entirely**. The orchestrator accepts it as a success signal — equivalent to a confirmed infeasibility — and proceeds without dispatching `dso:red-test-evaluator`. This is distinct from `TEST_RESULT:rejected`, which always requires evaluator review.
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `TEST_RESULT:` — prefix match. Any line beginning with `TEST_RESULT:` is the output discriminator line. The value following the colon identifies the format: `TEST_RESULT:written`, `TEST_RESULT:rejected`, or `TEST_RESULT:no_new_tests_needed`. The parser reads the leading `TEST_RESULT:` line first and then processes the remaining fields according to the matched format.
+
 ---
 
 ## Example: Success Output
