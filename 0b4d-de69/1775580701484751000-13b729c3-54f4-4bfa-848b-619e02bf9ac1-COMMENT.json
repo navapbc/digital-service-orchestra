@@ -1,1 +1,0 @@
-{"timestamp": 1775580701484751000, "uuid": "13b729c3-54f4-4bfa-848b-619e02bf9ac1", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: Added ## Purpose sections to comment-sync-dedup.md, revert-event.md, sync-event-format.md"}}
