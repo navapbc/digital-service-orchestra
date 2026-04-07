@@ -86,7 +86,7 @@ plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-al
 plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-mechanical-amend-bypass.sh
 plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-pre-commit-review-gate.sh
 plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-pre-commit-test-gate.sh,tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-test-gate-fast-path.sh,tests/hooks/test-pre-commit-test-gate-resource-exhaustion.sh,tests/hooks/test-integration-eagain-full-path.sh
-plugins/dso/hooks/pre-commit-test-quality-gate.sh:tests/hooks/test-pre-commit-test-quality-gate.sh [test_gate_passes_behavioral_test]
+plugins/dso/hooks/pre-commit-test-quality-gate.sh:tests/hooks/test-pre-commit-test-quality-gate.sh
 plugins/dso/hooks/pre-commit-ticket-gate.sh:tests/hooks/test-pre-commit-ticket-gate.sh
 plugins/dso/hooks/record-review.sh:tests/hooks/test-record-review.sh,tests/workflows/test-review-tier-enforcement-e2e.sh
 plugins/dso/hooks/record-test-status.sh:tests/hooks/test-eval-todo-guard.sh

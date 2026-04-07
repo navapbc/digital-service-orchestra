@@ -190,7 +190,7 @@ for f in d['findings']:
 output = {
     'scores': dim_scores,
     'findings': d['findings'],
-    'summary': 'Overlay findings aggregated from security and/or performance review.'
+    'summary': 'Overlay findings aggregated from security, performance, and/or test quality review.'
 }
 print(json.dumps(output))
 " "$AGGREGATE_JSON" | "$WRITE_FINDINGS_CMD" >/dev/null 2>&1 || true
