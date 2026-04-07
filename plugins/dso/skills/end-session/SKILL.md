@@ -384,7 +384,7 @@ Display each category from `LEARNINGS_FROM_2_8`:
   - `git log main..HEAD --oneline` (unmerged commits on this branch)
   - If empty (already merged): `git log --oneline -20 main` and identify commits from this worktree branch by their merge commit messages
 - Tasks remaining (if context is available: IDs, titles, blocked status)
-- Resume command (if work remains): `/dso:sprint <epic-id> --resume` or "Run `/dso:debug-everything` again"
+- Resume command (if work remains): `/dso:sprint <epic-id>` or "Run `/dso:debug-everything` again"
 
 **Session Summary**:
 - Issues closed (count, with IDs)

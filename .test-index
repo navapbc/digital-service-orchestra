@@ -175,6 +175,7 @@ plugins/dso/scripts/resolve-model-id.sh:tests/scripts/test-resolve-model-id.sh
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-test-batched.sh
 plugins/dso/scripts/semantic-conflict-check.py:tests/scripts/test-model-config-integration.sh
 plugins/dso/scripts/skill-trace-analyze.py:tests/scripts/test-skill-trace-analyze.sh
+plugins/dso/scripts/sprint-drift-check.sh:tests/scripts/test-sprint-drift-check.sh
 plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh
 plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-ticket-lifecycle-sync-preserves-local.sh
 plugins/dso/scripts/ticket-bridge-status.sh:tests/scripts/test_bridge_status.py
