@@ -1,1 +1,0 @@
-{"timestamp": 1775537658, "uuid": "ce363fcc-7504-4420-aec1-fe9f9ec32521", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "bug", "title": "hook-drift: pre-commit-test-quality-gate missing from examples/ directory", "parent_id": "", "description": "", "tags": [], "priority": 3, "assignee": "Test"}}
