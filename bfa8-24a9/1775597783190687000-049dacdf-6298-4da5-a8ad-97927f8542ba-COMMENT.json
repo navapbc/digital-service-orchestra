@@ -1,0 +1,1 @@
+{"timestamp": 1775597783190687000, "uuid": "049dacdf-6298-4da5-a8ad-97927f8542ba", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: behavioral, Score: 2 (BASIC). Hook code bug \u2014 worktree-isolation-guard blocks main session. Gate 1a: skipped \u2014 CLI_user tag present; intent-aligned assumed."}}
