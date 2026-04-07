@@ -28,6 +28,13 @@
 #     executable-guard:      5s
 #     check-assertion-density: 15s
 #     pre-commit-test-gate: 10s
+#     pre-commit-test-quality-gate: 15s
+#     pre-commit-review-gate: 10s
+#     pre-commit-ticket-gate: 10s
+#     portability-check:      5s
+#     shim-refs-check:        5s
+#     contract-schema-check:  5s
+#     referential-integrity-check: 10s
 #
 #   Claude Code ceiling: ~73s per tool call. Pre-commit hooks check staged
 #   files only for fast feedback (~30s total). Full-tree format/lint checks

@@ -35,17 +35,18 @@ _TEST_MARKER_PREFIX="/tmp/worktree-isolation-authorized-test-"
 trap 'rm -f "${_TEST_MARKER_PREFIX}"* 2>/dev/null || true' EXIT
 
 # Helper: run hook with given JSON input, return exit code via echo
+# Sets WORKTREE_ISOLATION_ENABLED=true to test the auth marker enforcement path.
 run_hook_exit() {
     local input="$1"
     local exit_code=0
-    printf '%s' "$input" | bash "$HOOK" >/dev/null 2>/dev/null || exit_code=$?
+    printf '%s' "$input" | WORKTREE_ISOLATION_ENABLED=true bash "$HOOK" >/dev/null 2>/dev/null || exit_code=$?
     echo "$exit_code"
 }
 
 # Helper: run hook with given JSON input, return stdout
 run_hook_stdout() {
     local input="$1"
-    printf '%s' "$input" | bash "$HOOK" 2>/dev/null || true
+    printf '%s' "$input" | WORKTREE_ISOLATION_ENABLED=true bash "$HOOK" 2>/dev/null || true
 }
 
 # Helper: assert stdout does NOT contain a substring (uses FAIL if it does)

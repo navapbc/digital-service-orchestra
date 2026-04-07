@@ -190,7 +190,7 @@ When ticket type is `story` or `task`:
 1. Log: `"Primary ticket <primary_ticket_id> is a <type> — running complexity evaluation."`
 2. Dispatch `subagent_type: dso:complexity-evaluator` (model: haiku) with `tier_schema=TRIVIAL` to classify the ticket.
 3. Route based on the complexity classification:
-   - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Proceed directly to Phase 3 (Batch Preparation) with the ticket as the sole task.
+   - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Before proceeding, run a **file-count guard**: estimate the number of files the task will touch by running `enrich-file-impact.sh` or by counting file paths mentioned in the ticket description. If the estimated file count exceeds 30, split the task into parallel sub-tasks by directory or alphabetical range (each sub-task ≤ 30 files), create child task tickets for each subset, and proceed to Phase 3 with the split tasks. If ≤ 30 files, proceed directly to Phase 3 (Batch Preparation) with the ticket as the sole task.
    - **TRIVIAL (medium)** or **MODERATE/COMPLEX (any)**: Invoke `/dso:implementation-plan <primary_ticket_id>` via Skill tool.
 <!-- REVIEW-DEFENSE: Finding — "TRIVIAL (medium) treated as MODERATE but evaluator contract says medium→COMPLEX."
      The TRIVIAL (medium) branch is a deliberate routing policy decision, not a contract violation. The
@@ -559,7 +559,7 @@ For each ready task from `.claude/scripts/dso ticket list` (filtered by parent):
 
 | Classification | Confidence | Action |
 |---------------|------------|--------|
-| TRIVIAL | high | Skip `/dso:implementation-plan` — log: `"Story <id> classified as TRIVIAL — skipping /dso:implementation-plan"` |
+| TRIVIAL | high | Skip `/dso:implementation-plan`. **File-count guard**: estimate the file count from the story description or `enrich-file-impact.sh`. If > 30 files, split into child tasks (≤ 30 files each) by directory or alphabetical range before proceeding. Log: `"Story <id> classified as TRIVIAL — skipping /dso:implementation-plan"` |
 | TRIVIAL | medium | Treat as COMPLEX (medium confidence = plan) |
 | COMPLEX | any | Run `/dso:implementation-plan` via Skill tool (see Step 2) |
 
@@ -1813,6 +1813,12 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
    /dso:end-session --bump minor
    ```
    If `version.file_path` is not configured in `dso-config.conf`, the flag is a no-op.
+   <HARD-GATE>
+   Do NOT ask the user whether to run /dso:end-session. Invoke it directly.
+   Asking "Would you like me to..." is a known anti-pattern (c26f-be3f) that adds
+   friction. This is an unconditional directive — execute immediately after the
+   epic closes.
+   </HARD-GATE>
 
 ### On Graceful Shutdown (Compaction, Failures)
 
@@ -1831,7 +1837,10 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
    - Tasks completed this session
    - Tasks remaining (with IDs and titles)
    - Resume command: `/dso:sprint <epic-id>`
-6. Invoke `/dso:end-session --bump minor` if the epic reached Phase 6 completion-verifier PASS this session; otherwise invoke `/dso:end-session` without `--bump` (incomplete sprint does not earn a version bump)
+6. Invoke `/dso:end-session --bump minor` if the epic reached Phase 6 completion-verifier PASS this session; otherwise invoke `/dso:end-session` without `--bump` (incomplete sprint does not earn a version bump).
+   <HARD-GATE>
+   Do NOT ask the user whether to run /dso:end-session. Invoke it directly.
+   </HARD-GATE>
 
 ---
 
