@@ -547,6 +547,33 @@ print('Uncertain finding indices: ' + str(uncertain_indices))
 
 After merging, `reviewer-findings.json` reflects the escalated severities for uncertain findings. Proceed to Step 4b with the updated findings.
 
+### 5b. Parse approach_viability_concern (Orchestrator Reading)
+
+After Step 4a completes (escalation merged or skipped) and before entering Step 4b, parse `approach_viability_concern` from the reviewer's summary text. This signal is embedded in the `summary` field of `reviewer-findings.json` as a plain-text line — it is NOT a top-level JSON key.
+
+```bash
+APPROACH_VIABILITY_CONCERN=$(python3 -c "
+import json, sys, re
+try:
+    d = json.load(open('$FINDINGS_FILE'))
+    summary = d.get('summary', '')
+    if re.search(r'approach_viability_concern:\s*true', summary, re.IGNORECASE):
+        print('true')
+    else:
+        print('false')
+except Exception as ex:
+    print('false', file=sys.stderr)
+    print('false')
+" 2>/dev/null)
+echo "APPROACH_VIABILITY_CONCERN=$APPROACH_VIABILITY_CONCERN"
+```
+
+**If `APPROACH_VIABILITY_CONCERN=true`**: log `"approach_viability_concern: true — implementation approach may need revision; signal available for routing to implementation-plan"`. Do NOT halt or block the workflow at this point. The signal is recorded so the calling orchestrator (sprint, commit workflow) can decide how to act after the review cycle completes. Proceed to Step 4b normally.
+
+**If `APPROACH_VIABILITY_CONCERN=false`** (or absent, or unparseable): no action — proceed to Step 4b normally.
+
+**Parsing note**: `approach_viability_concern` is a summary-embedded text signal (like `security_overlay_warranted`) — parse it from the `summary` field text, not from JSON structure. The pattern `approach_viability_concern: true` anywhere in the summary text (case-insensitive) sets the signal.
+
 ### 6. Deep-Tier Deduplication
 
 **DEEP-TIER DEDUP** applies when `REVIEW_TIER=deep`. After the opus arch agent completes synthesis and writes the authoritative `reviewer-findings.json`, read `escalate_review` from the synthesized output. The arch agent is responsible for deduplicating escalation requests that refer to the same synthesized finding — the indices in the synthesized `reviewer-findings.json` reference the synthesized findings array, not the per-agent pre-synthesis indices.
@@ -807,6 +834,34 @@ Task tool:
    ```
 
    **Do NOT re-run the classifier** for re-review passes — the diff shrank after fixes, which would produce a lower score and potentially route back to `light`. `REVIEW_TIER` is locked to its Step 3 value for the lifetime of this review session. The `RE_REVIEW_AGENT` escalation table above is the only permitted source of tier changes in re-review passes.
+
+   **Mid-resolution approach_viability_concern check (DD3)**: After the ratchet state update above and before dispatching the next re-review attempt, re-read `approach_viability_concern` from the most recent `reviewer-findings.json`. This catches cases where the signal was emitted by a re-review (not present in the initial review).
+
+   ```bash
+   # Re-read approach_viability_concern from the current reviewer-findings.json
+   # (may have been written by a re-review agent in this resolution iteration)
+   MID_RESOLUTION_AVC=$(python3 -c "
+   import json, sys, re
+   try:
+       d = json.load(open('$FINDINGS_FILE'))
+       summary = d.get('summary', '')
+       if re.search(r'approach_viability_concern:\s*true', summary, re.IGNORECASE):
+           print('true')
+       else:
+           print('false')
+   except Exception:
+       print('false')
+   " 2>/dev/null)
+
+   if [[ "$MID_RESOLUTION_AVC" == "true" ]]; then
+       echo "approach_viability_concern detected mid-resolution — completing current attempt then routing to implementation-plan"
+       # Exit the resolution loop — the calling orchestrator (sprint, commit) decides how to act.
+       # Do NOT dispatch another resolution sub-agent or re-review after this exit.
+       break  # or: set a flag and exit after current iteration completes
+   fi
+   ```
+
+   **If `approach_viability_concern` is true mid-resolution**: log the message above and exit the resolution loop immediately. The current resolution attempt has already completed (fixes were applied). The calling orchestrator receives control and is responsible for routing to `implementation-plan` re-invocation or surfacing the signal to the user. Do NOT continue attempting to resolve review findings — the approach itself may need revision.
 
    Dispatch the re-review:
    - **If `RE_REVIEW_DEEP_FULL=true`**: Run the full Step 4 Deep Tier sequence (3 parallel sonnet agents writing to slot files, then opus arch synthesis). Do NOT dispatch `dso:code-reviewer-deep-arch` alone.
