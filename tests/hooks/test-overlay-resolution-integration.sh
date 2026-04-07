@@ -256,4 +256,67 @@ fi
 assert_eq "test_empty_findings_no_ticket_signal: no OVERLAY_TICKET_CREATED for empty findings" \
     "0" "$ticket_signal_present"
 
+# ============================================================
+# test_fragile_finding_blocks_commit
+# Given:  overlay findings JSON with a fragile-severity finding.
+# When:   resolve-overlay-findings.sh is called with that findings file.
+# Then:   exit code is non-zero (fragile is treated as blocking).
+#
+# RED: The script's has_blocking check only matches "critical" and "important";
+#      "fragile" is not included, so the script exits 0 instead of 1.
+# ============================================================
+tmpdir=$(_new_tmpdir)
+findings_file=$(make_findings_file "$tmpdir" "fragile" "correctness")
+write_stub=$(make_write_stub "$tmpdir")
+
+run_integration \
+    --findings-json "$findings_file" \
+    --write-findings-cmd "$write_stub"
+
+assert_ne "test_fragile_finding_blocks_commit: exit code must be non-zero (fragile is blocking)" \
+    "0" "$INTEGRATION_EXIT"
+
+# ============================================================
+# test_fragile_finding_score_is_3
+# Given:  overlay findings JSON with a fragile-severity finding mapped to category
+#         "correctness".
+# When:   resolve-overlay-findings.sh is called and invokes write-reviewer-findings.sh.
+# Then:   the JSON piped to the write stub contains a correctness score of 3
+#         (fragile maps to score 3, same as important — not the default fallback of 4).
+#
+# RED: severity_to_score does not include "fragile", so .get("fragile", 4) returns 4,
+#      and the correctness dimension score will be 4 instead of the expected 3.
+# ============================================================
+tmpdir=$(_new_tmpdir)
+findings_file=$(make_findings_file "$tmpdir" "fragile" "correctness")
+
+# Capture-stdin write stub: logs the JSON payload it receives via stdin.
+capture_stub="$tmpdir/capture-write-stub.sh"
+captured_json="$tmpdir/captured-findings.json"
+cat > "$capture_stub" <<STUBEOF
+#!/usr/bin/env bash
+# Capture-stdin stub: saves stdin to a file, returns a fake hash.
+cat > "$captured_json"
+echo "fake-hash-000000000000000000000000000000000000000000000000000000000000"
+STUBEOF
+chmod +x "$capture_stub"
+
+run_integration \
+    --findings-json "$findings_file" \
+    --write-findings-cmd "$capture_stub"
+
+# Extract the correctness score from the captured JSON payload.
+correctness_score=$(python3 -c "
+import json, sys
+try:
+    with open('$captured_json') as fh:
+        data = json.load(fh)
+    print(data.get('scores', {}).get('correctness', 'missing'))
+except Exception as e:
+    print('missing')
+")
+
+assert_eq "test_fragile_finding_score_is_3: correctness score for fragile must be 3" \
+    "3" "$correctness_score"
+
 print_summary

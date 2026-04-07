@@ -1108,4 +1108,92 @@ assert_ne "test_review_tier_invalid_value_fails" "0" "$_REVIEW_TIER_INVALID_EXIT
 
 assert_pass_if_clean "test_review_tier_invalid_value_fails"
 
+# =============================================================================
+# Tests: fragile severity support in code-review-dispatch (3b1c-1323)
+#
+# RED tests — fail against current validate-review-output.sh because
+# valid_severities = {"critical", "important", "minor"} does not include "fragile".
+# These pass once fragile is added to valid_severities with score mapping score=3.
+# =============================================================================
+
+# Test: fragile finding passes code-review-dispatch validation
+# RED: current valid_severities excludes fragile → exits non-zero; test asserts exit 0
+echo ""
+echo "--- test_fragile_severity_passes_crd_validation ---"
+_snapshot_fail
+
+_FRAGILE_VALID_FILE=$(write_fixture "fragile_valid.json" '{
+  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 3, "verification": 5},
+  "findings": [
+    {"severity": "fragile", "category": "correctness", "description": "Edge case in error path not covered by tests.", "file": "app/src/handler.py"}
+  ],
+  "summary": "One fragile finding in correctness dimension; score correctly set to 3."
+}')
+_FRAGILE_VALID_EXIT=$(run_script code-review-dispatch "$_FRAGILE_VALID_FILE")
+assert_eq "test_fragile_severity_passes_crd_validation" "0" "$_FRAGILE_VALID_EXIT"
+
+assert_pass_if_clean "test_fragile_severity_passes_crd_validation"
+
+# Test: fragile finding with score 3 passes score-severity consistency
+# RED: current validator rejects fragile as an invalid severity before reaching
+# score-consistency checks; test asserts exit 0
+echo ""
+echo "--- test_fragile_finding_score_3_passes_consistency ---"
+_snapshot_fail
+
+_FRAGILE_SCORE_3_FILE=$(write_fixture "fragile_score_3.json" '{
+  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 3, "verification": 5},
+  "findings": [
+    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption about input ordering in merge logic.", "file": "app/src/merge.py"}
+  ],
+  "summary": "Fragile finding in correctness dimension with score 3 as required by fragile severity rule."
+}')
+_FRAGILE_SCORE_3_EXIT=$(run_script code-review-dispatch "$_FRAGILE_SCORE_3_FILE")
+assert_eq "test_fragile_finding_score_3_passes_consistency" "0" "$_FRAGILE_SCORE_3_EXIT"
+
+assert_pass_if_clean "test_fragile_finding_score_3_passes_consistency"
+
+# Test: fragile finding with score 4 fails score-severity consistency
+# RED: current validator rejects fragile as an invalid severity (not a score-consistency
+# error); test asserts the output contains a score-consistency message about score=4,
+# which is only emitted once fragile is a valid severity and triggers the consistency check
+echo ""
+echo "--- test_fragile_finding_score_4_fails_consistency ---"
+_snapshot_fail
+
+_FRAGILE_SCORE_4_FILE=$(write_fixture "fragile_score_4.json" '{
+  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 4, "verification": 5},
+  "findings": [
+    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption about input ordering that may fail under load.", "file": "app/src/merge.py"}
+  ],
+  "summary": "Fragile finding in correctness dimension with incorrectly high score of 4."
+}')
+_FRAGILE_SCORE_4_OUTPUT=$(bash "$SCRIPT" code-review-dispatch "$_FRAGILE_SCORE_4_FILE" 2>&1 || true)
+assert_contains "test_fragile_finding_score_4_fails_consistency_score_msg" "score 'correctness'=4" "$_FRAGILE_SCORE_4_OUTPUT"
+_FRAGILE_SCORE_4_EXIT=$(run_script code-review-dispatch "$_FRAGILE_SCORE_4_FILE")
+assert_ne "test_fragile_finding_score_4_fails_consistency_nonzero" "0" "$_FRAGILE_SCORE_4_EXIT"
+
+assert_pass_if_clean "test_fragile_finding_score_4_fails_consistency"
+
+# Test: integration — fragile finding piped through write-reviewer-findings.sh succeeds
+# RED: write-reviewer-findings.sh calls validate-review-output.sh code-review-dispatch,
+# which rejects fragile → exit 1; test asserts exit 0 and a hash on stdout
+echo ""
+echo "--- test_fragile_severity_write_reviewer_findings_integration ---"
+_snapshot_fail
+
+WRITE_SCRIPT="$DSO_PLUGIN_DIR/scripts/write-reviewer-findings.sh"
+_FRAGILE_INTEGRATION_FILE=$(write_fixture "fragile_integration.json" '{
+  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 3, "verification": 5},
+  "findings": [
+    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption in retry logic; may fail under concurrent load.", "file": "app/src/retry.py"}
+  ],
+  "summary": "One fragile correctness finding; all other dimensions are clean."
+}')
+_FRAGILE_INTEGRATION_EXIT=0
+_FRAGILE_INTEGRATION_OUTPUT=$(cat "$_FRAGILE_INTEGRATION_FILE" | bash "$WRITE_SCRIPT" --output "$TMP_DIR/fragile-findings-out.json" 2>/dev/null) || _FRAGILE_INTEGRATION_EXIT=$?
+assert_eq "test_fragile_severity_write_reviewer_findings_integration" "0" "$_FRAGILE_INTEGRATION_EXIT"
+
+assert_pass_if_clean "test_fragile_severity_write_reviewer_findings_integration"
+
 print_summary
