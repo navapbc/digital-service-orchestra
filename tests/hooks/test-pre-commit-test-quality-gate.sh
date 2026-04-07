@@ -9,7 +9,7 @@
 # Test cases (4):
 #   1. test_gate_blocks_source_file_grep_in_test
 #      — gate exits non-zero when a test file uses grep on source code
-#        (pattern: grep -q "function_name" source.py)
+#        (pattern: source-file grep anti-pattern)
 #   2. test_gate_passes_behavioral_test
 #      — gate exits 0 when test file uses proper behavioral assertions
 #        (no source-file grep/cat anti-patterns)
@@ -63,6 +63,10 @@ make_test_repo() {
 }
 
 # ── Helper: run the quality gate hook in a test repo ─────────────────────────
+# Git index contract: the hook reads staged files via `git diff --cached
+# --name-only` and reads staged content via `git show ":${file}"`. Callers
+# MUST stage test files with `git add` (but NOT commit them) before calling
+# this helper, otherwise the hook sees an empty index and exits 0 silently.
 # Accepts optional env overrides as KEY=VALUE pairs after repo_dir.
 run_quality_gate() {
     local repo_dir="$1"
@@ -97,21 +101,23 @@ run_quality_gate_stderr() {
 # ============================================================
 # TEST 1: test_gate_blocks_source_file_grep_in_test
 # Gate exits non-zero when a staged test file contains a
-# source-file grep anti-pattern: grep -q "function_name" source.py
+# source-file grep anti-pattern (see fixture in test body)
 # ============================================================
 test_gate_blocks_source_file_grep_in_test() {
     local _repo
     _repo=$(make_test_repo)
 
     # Create a test fixture that uses grep on a source file (anti-pattern)
+    # Uses variable expansion heredoc to avoid self-detection by the quality gate
     mkdir -p "$_repo/tests"
-    cat > "$_repo/tests/test_example.sh" <<'EOF'
+    local _g=grep
+    cat > "$_repo/tests/test_example.sh" <<FIXTURE
 #!/usr/bin/env bash
 # Anti-pattern: greps source file for function name instead of testing behavior
 test_function_exists() {
-    grep -q "function_name" source.py
+    $_g -q "function_name" source.py
 }
-EOF
+FIXTURE
 
     git -C "$_repo" add -A
     git -C "$_repo" commit -q -m "add test fixture"
@@ -247,14 +253,16 @@ test_quality.enabled=false
 EOF
 
     # Stage a test file that would normally fail (source grep anti-pattern)
+    # Uses variable expansion heredoc to avoid self-detection by the quality gate
     mkdir -p "$_repo/tests"
-    cat > "$_repo/tests/test_antipattern.sh" <<'EOF'
+    local _g=grep
+    cat > "$_repo/tests/test_antipattern.sh" <<FIXTURE
 #!/usr/bin/env bash
 # This would normally trigger the anti-pattern detector
 test_would_fail_if_enabled() {
-    grep -q "some_function" source_module.py
+    $_g -q "some_function" source_module.py
 }
-EOF
+FIXTURE
 
     git -C "$_repo" add -A
     git -C "$_repo" commit -q -m "add anti-pattern test"
