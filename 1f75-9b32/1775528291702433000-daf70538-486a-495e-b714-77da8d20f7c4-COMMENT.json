@@ -1,1 +1,0 @@
-{"timestamp": 1775528291702433000, "uuid": "daf70538-486a-495e-b714-77da8d20f7c4", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "REPLAN_TRIGGER: validation \u2014 Story 9ebb-43ea validation failed with all tasks closed. DD2 unmet: redundant sprint test review step not removed. Creating TDD remediation tasks."}}
