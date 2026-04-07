@@ -1,1 +1,0 @@
-{"timestamp": 1775509260154615000, "uuid": "b26ef144-ca87-406c-a656-6b310509eebb", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Consideration: [Integration] New pre-commit hook must be registered in: .pre-commit-config.yaml, reinstall-hooks.sh, dso-setup.sh, and .hook-drift-allowlist if applicable."}}
