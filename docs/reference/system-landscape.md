@@ -61,7 +61,7 @@ The `/dso:sprint` orchestrator includes a self-healing layer that detects and ro
 | Checkpoint | Phase | Detection Mechanism | Action |
 |---|---|---|---|
 | Drift detection | Phase 1 Step 6 | `sprint-drift-check.sh` compares git history since task creation against each story's file impact table | Re-invoke `implementation-plan` for affected stories |
-| Confidence failure | Phase 5 Step 1a3 | Count `UNCERTAIN` signals per story across batch iterations; threshold: 2 | Re-invoke `implementation-plan` for the story (Phase 3 double-failure detection) |
+| Confidence failure | Phase 5 Step 1a2 | Count `UNCERTAIN` signals per story across batch iterations; threshold: 2 | Re-invoke `implementation-plan` for the story (Phase 3 double-failure detection) |
 | Validation failure | Step 10a | All tasks closed but story done-definition validation fails | Create TDD remediation tasks via `implementation-plan` |
 | Out-of-scope review | Step 7a / Step 13a | `sprint-review-scope-check.sh` identifies review findings for files outside task scope | Create tasks for out-of-scope files via `implementation-plan` |
 

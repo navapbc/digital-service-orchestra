@@ -22,7 +22,7 @@ Add four detection checkpoints to the sprint orchestrator, each governed by a de
 
 1. **Drift detection at sprint entry (Phase 1 Step 6)**: `sprint-drift-check.sh` compares git commit history since each task's creation timestamp against the file impact table declared in the task. Stories with drifted files are re-routed through `implementation-plan` before Phase 4 batch execution begins.
 
-2. **Confidence signal routing (Phase 5 Step 1a3)**: Task-execution sub-agents emit a `CONFIDENT` or `UNCERTAIN:<reason>` line in their final report. The orchestrator counts `UNCERTAIN` signals per story (not per task ID, to survive task replacement). At the double-failure threshold (2 signals), the orchestrator re-invokes `implementation-plan` for the story (Phase 3 double-failure detection). In non-interactive mode, brainstorm-level escalations write `INTERACTIVITY_DEFERRED` instead of blocking for user input.
+2. **Confidence signal routing (Phase 5 Step 1a2)**: Task-execution sub-agents emit a `CONFIDENT` or `UNCERTAIN:<reason>` line in their final report. The orchestrator counts `UNCERTAIN` signals per story (not per task ID, to survive task replacement). At the double-failure threshold (2 signals), the orchestrator re-invokes `implementation-plan` for the story (Phase 3 double-failure detection). In non-interactive mode, brainstorm-level escalations write `INTERACTIVITY_DEFERRED` instead of blocking for user input.
 
 3. **Story validation failure routing (Step 10a)**: When all tasks on a story are closed but the story's done-definition validation fails, the orchestrator re-invokes `implementation-plan` to create TDD remediation tasks rather than force-closing the story or silently failing.
 

@@ -579,7 +579,7 @@ This counter is shared across all stories in the epic. Each full brainstorm → 
 story_uncertain_counts = {}
 ```
 
-This dictionary tracks the number of `STATUS:pass` + `UNCERTAIN` signals received per story across all batch iterations. Keys are parent story IDs (not task IDs). The counter persists across the Phase 5 → Phase 3 batch loop — do NOT re-initialize between batches. See Phase 5 Step 1a3 for parsing logic and Phase 3 Step 4 for double-failure detection.
+This dictionary tracks the number of `STATUS:pass` + `UNCERTAIN` signals received per story across all batch iterations. Keys are parent story IDs (not task IDs). The counter persists across the Phase 5 → Phase 3 batch loop — do NOT re-initialize between batches. See Phase 5 Step 1a2 for parsing logic and Phase 3 Step 4 for double-failure detection.
 
 **Out-of-scope review findings accumulator (initialize once before the layer loop):**
 
@@ -884,7 +884,7 @@ After composing the batch, check each task's parent story against the `story_unc
    e. Remove the affected task(s) from the current batch and proceed with the remaining tasks. The re-planned story's new tasks will be picked up in the next batch cycle.
 3. Tasks whose parent story has a count of 0 or 1 are dispatched normally.
 
-**Key invariant**: Only `STATUS:pass` + `UNCERTAIN` signals (tracked in Phase 5 Step 1a3) count toward this threshold. `STATUS:fail` tasks are handled via revert-to-open in Phase 5 Step 9 and do not affect this counter.
+**Key invariant**: Only `STATUS:pass` + `UNCERTAIN` signals (tracked in Phase 5 Step 1a2) count toward this threshold. `STATUS:fail` tasks are handled via revert-to-open in Phase 5 Step 9 and do not affect this counter.
 
 ### Dry-Run Mode
 
@@ -1177,27 +1177,7 @@ For each sub-agent in the batch, check if its task description contains migratio
 1. **Verify the replacement exists**: Run the first task-specific AC `Verify:` command. If it fails, mark the task as failed.
 2. **Behavioral smoke test**: If the task migrates a command/skill/script, invoke or test the migrated artifact. Log: `"Migration behavioral check for <task-id>: <pass|fail>"`
 
-### Step 1a2: Test Coverage Enforcement (/dso:sprint)
-
-For each sub-agent that returned successfully, check whether its code changes include corresponding test changes:
-
-1. Extract the list of modified source files from the sub-agent result (files matching `src/**/*.py` or equivalent source patterns, excluding `__init__.py`, migrations, and config files)
-2. Extract the list of modified test files (files matching `tests/**/*.py`)
-3. If source files were modified but NO test files were modified or created, dispatch a sub-agent (same model as the original) with prompt:
-   ```
-   The task <task-id> modified source files (<file list>) but did not include any test changes.
-   Review the changes and write appropriate tests following TDD principles.
-   Read the task's acceptance criteria: .claude/scripts/dso ticket show <task-id>
-   Ensure tests cover the modified behavior. Run the tests to confirm they pass.
-   ```
-5. Log: `"Test coverage enforcement for <task-id>: dispatched test sub-agent for untested changes in <files>"`
-
-**Exceptions** (skip enforcement):
-- Tasks classified as `skill-guided` or `docs-only`
-- Tasks whose only source changes are type stubs, `__init__.py` re-exports, or Alembic migrations
-- Tasks that explicitly document in their AC why tests are not applicable
-
-### Step 1a3: Confidence Signal Parsing (/dso:sprint)
+### Step 1a2: Confidence Signal Parsing (/dso:sprint)
 
 For each sub-agent result, scan for the confidence signal line (see `plugins/dso/docs/contracts/confidence-signal.md`): # shim-exempt: internal contract reference
 
