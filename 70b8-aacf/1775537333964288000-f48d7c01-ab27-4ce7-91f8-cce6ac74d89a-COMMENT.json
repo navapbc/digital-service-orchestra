@@ -1,0 +1,1 @@
+{"timestamp": 1775537333964288000, "uuid": "f48d7c01-ab27-4ce7-91f8-cce6ac74d89a", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Closed: Graceful shutdown \u2014 2/3 bugs fixed, 1 deferred (safeguard), pre-existing validation failures remain"}}
