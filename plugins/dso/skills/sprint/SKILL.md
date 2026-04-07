@@ -41,7 +41,6 @@ Resolved commands used in this skill:
 /dso:sprint                     # Interactive epic selection
 /dso:sprint <epic-id>           # Execute specific epic
 /dso:sprint <epic-id> --dry-run # Plan batches without executing
-/dso:sprint <epic-id> --resume  # Resume interrupted epic
 ```
 
 ## Orchestration Flow
@@ -70,7 +69,6 @@ Flow: P1 (Init) → Preplanning Gate
 
 - `<primary-ticket-id>`: The primary ticket to execute (any type: epic, story, task, or bug)
 - `--dry-run`: Output batch plan without executing any sub-agents
-- `--resume`: Resume interrupted primary ticket (skip to Phase 3 Batch Preparation)
 
 ### If No Primary Ticket ID Provided
 
@@ -144,7 +142,7 @@ If the ticket type is `epic` AND status is `in_progress`:
      DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <primary_ticket_id> --status=open)
      ```
    - Handle `DRIFT_DETECTED` / `NO_DRIFT` the same as the existing Drift Detection Check section below.
-   - Then apply checkpoint resume rules (same logic as the `--resume` Flag section):
+   - Then apply checkpoint resume rules:
      1. Run `.claude/scripts/dso ticket list` and filter for in-progress tasks under `<primary_ticket_id>` for interrupted tasks
      2. For each in-progress task, run `.claude/scripts/dso ticket show <id>` and parse its notes for CHECKPOINT lines
      3. Apply checkpoint resume rules:
@@ -331,21 +329,6 @@ Wait for user response and route accordingly:
 - At least 5 lines of description
 
 **File impact enrichment**: If a ticket is missing a file impact section, run `.claude/scripts/dso enrich-file-impact.sh <id>` to auto-generate it. Use `--dry-run` to preview. Gracefully degrades if `ANTHROPIC_API_KEY` is unset.
-
-### If `--resume` Flag
-
-1. Run `.claude/scripts/dso ticket list` and filter for in-progress tasks under `<epic-id>` for interrupted tasks
-2. For each in-progress task, run `.claude/scripts/dso ticket show <id>` and parse its notes for CHECKPOINT lines
-3. Apply checkpoint resume rules:
-   - **CHECKPOINT 6/6 ✓** — task is fully done; fast-close: verify files exist, then `.claude/scripts/dso ticket transition <id> open closed --reason="Fixed: <summary>"`
-   - **CHECKPOINT 5/6 ✓** — near-complete; fast-close: spot-check files and close without re-execution
-   - **CHECKPOINT 3/6 ✓ or 4/6 ✓** — partial progress; re-dispatch with resume context: include the highest checkpoint note in the sub-agent prompt so it can continue from that substep
-   - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `.claude/scripts/dso ticket transition <id> open` for full re-execution
-   - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
-4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
-5. **Backward compatibility**: Sprint reads old positional-counter checkpoints (CHECKPOINT N/6) without error and resumes from the last completed phase — no migration of existing checkpoint notes is required. Semantic-named checkpoints (CHECKPOINT:batch-complete, CHECKPOINT:review-passed, CHECKPOINT:validation-passed) are equivalent in resume logic.
-<!-- REVIEW-DEFENSE finding-2: The resume rules intentionally retain positional-counter format only (CHECKPOINT 6/6, 5/6, 3/6, 1/6). SC5 states semantic checkpoints are "equivalent in resume logic" — meaning the existing positional rules apply to them without adding duplicate semantic-specific rules. An agent encountering CHECKPOINT:batch-complete treats it as equivalent to CHECKPOINT 6/6 (complete), CHECKPOINT:review-passed as equivalent to CHECKPOINT 5/6, and CHECKPOINT:validation-passed as equivalent to CHECKPOINT 6/6. No new resume rules are required; the backward-compat clause is sufficient. -->
-6. Proceed to Phase 3
 
 ### Preplanning Gate
 
@@ -1847,7 +1830,7 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
 5. Set sprint context for `/dso:end-session` report:
    - Tasks completed this session
    - Tasks remaining (with IDs and titles)
-   - Resume command: `/dso:sprint <epic-id> --resume`
+   - Resume command: `/dso:sprint <epic-id>`
 6. Invoke `/dso:end-session --bump minor` if the epic reached Phase 6 completion-verifier PASS this session; otherwise invoke `/dso:end-session` without `--bump` (incomplete sprint does not earn a version bump)
 
 ---
