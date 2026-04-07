@@ -351,3 +351,90 @@ tests:
              working directory, NOT isolated worktrees
           4. Dispatches all 3 tasks as parallel sub-agents (batch of 3)
           5. Does NOT apply worktree isolation parameters when the config disables isolation
+
+  - description: "testing_mode=GREEN: sprint skips RED test dispatch and validates existing tests pass"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the sprint orchestrator in Phase 4 (sub-agent dispatch).
+        You are about to dispatch task-refactor-auth-03. The task output from implementation-plan
+        includes: testing_mode=GREEN. The task description says: 'Refactor auth token validation
+        into a shared helper — existing unit tests in tests/unit/test_auth.py already cover this
+        behavior.'
+        The standard sprint flow dispatches dso:red-test-writer before implementation for each
+        task. Given that testing_mode=GREEN is set on this task, what should the sprint
+        orchestrator do regarding the RED test dispatch step (dso:red-test-writer)?
+        Explain how testing_mode=GREEN changes the task execution flow.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Skips the RED test dispatch step — does NOT invoke or mention dispatching
+             dso:red-test-writer for this task when testing_mode=GREEN
+          2. Explicitly acknowledges that testing_mode=GREEN is the reason for skipping
+             RED test creation (references the testing_mode field value)
+          3. Indicates the orchestrator proceeds directly to implementation (or proceeds
+             without a new failing test) since existing tests already cover the behavior
+          4. Mentions validating that existing tests pass after implementation (green
+             validation, running existing tests, or equivalent)
+          5. Does NOT treat testing_mode=GREEN as equivalent to testing_mode=RED or ignore
+             the testing_mode field
+
+  - description: "testing_mode=UPDATE: sprint routes to modify-existing-test behavior instead of RED test creation"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the sprint orchestrator in Phase 4 (sub-agent dispatch).
+        You are about to dispatch task-api-change-07. The task output from implementation-plan
+        includes: testing_mode=UPDATE. The task description says: 'Update the /api/checkout
+        endpoint to return itemized tax breakdown — existing tests in tests/unit/test_checkout.py
+        assert the old response shape and must be updated to match the new schema.'
+        The standard sprint flow dispatches dso:red-test-writer (to write a new failing test)
+        before implementation. Given that testing_mode=UPDATE is set on this task, explain
+        how the orchestrator should change the test-handling step. What happens to the existing
+        tests? Should dso:red-test-writer be dispatched?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Does NOT dispatch dso:red-test-writer as the test step — UPDATE mode routes to
+             modifying existing tests, not writing a new failing test from scratch
+          2. Explicitly references testing_mode=UPDATE as the routing signal that changes
+             the test-handling behavior
+          3. Indicates that existing tests should be updated or modified to reflect the new
+             behavior (mentions updating, modifying, or adjusting existing tests)
+          4. Does NOT conflate UPDATE mode with RED mode (must NOT describe writing a brand
+             new failing test as the primary test step for this task)
+          5. Describes a flow where the existing tests are changed before or alongside
+             implementation to reflect the new expected behavior
+
+  - description: "testing_mode absent: sprint defaults to RED behavior for backward compatibility"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the sprint orchestrator in Phase 4 (sub-agent dispatch).
+        You are about to dispatch task-legacy-05. The task output from implementation-plan
+        does NOT include a testing_mode field. The task was created before the testing_mode
+        feature was introduced. The task description says: 'Add email validation to the
+        user registration form.'
+        Given that testing_mode is absent from this task, what test-writing behavior should
+        the sprint orchestrator apply? Should dso:red-test-writer be dispatched? Explain
+        how the orchestrator handles backward compatibility for tasks that predate the
+        testing_mode field.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Dispatches or mentions dispatching dso:red-test-writer (RED test writing) as
+             the default behavior when testing_mode is absent
+          2. Explicitly states or implies backward compatibility — tasks without testing_mode
+             default to RED behavior (the existing behavior before this feature was introduced)
+          3. Does NOT skip RED test creation or treat the absent field as equivalent to
+             testing_mode=GREEN or testing_mode=UPDATE
+          4. Indicates that the missing testing_mode field is handled gracefully (no error,
+             no crash — defaults to current RED flow)
+          5. Does NOT require testing_mode to be present for the orchestrator to function
+             correctly — absence is a valid state that maps to RED
