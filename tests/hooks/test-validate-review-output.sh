@@ -1197,9 +1197,7 @@ assert_eq "test_fragile_severity_write_reviewer_findings_integration" "0" "$_FRA
 assert_pass_if_clean "test_fragile_severity_write_reviewer_findings_integration"
 
 # ============================================================
-# RED tests: escalate_review optional field validation
-# These tests FAIL against the current validate-review-output.sh because
-# escalate_review is not yet listed in optional_top.
+# Tests: escalate_review optional field validation
 # ============================================================
 
 # Test: findings JSON with valid escalate_review array passes validation
@@ -1214,7 +1212,7 @@ _ESC_VALID_FILE=$(write_fixture "escalate_review_valid.json" '{
     "hygiene": 5,
     "design": 5,
     "maintainability": 5,
-    "correctness": 5,
+    "correctness": 4,
     "verification": 5
   },
   "findings": [{"severity": "minor", "category": "correctness", "file": "src/foo.py", "description": "uncertain severity assignment"}],
