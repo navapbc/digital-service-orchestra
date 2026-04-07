@@ -256,7 +256,7 @@ if findings is None:
 elif not isinstance(findings, list):
     errors.append("'findings' must be an array")
 else:
-    valid_severities = {"critical", "important", "minor"}
+    valid_severities = {"critical", "important", "minor", "fragile"}
     valid_categories = {"hygiene", "design", "maintainability", "correctness", "verification"}
     for i, finding in enumerate(findings):
         prefix = f"findings[{i}]"
@@ -295,7 +295,7 @@ if isinstance(findings, list) and isinstance(scores, dict):
             errors.append(f"score '{dim}'={score}: no findings requires score 5")
         elif sevs == {"minor"} and score != 4:
             errors.append(f"score '{dim}'={score}: minor-only findings requires score 4")
-        elif "important" in sevs and "critical" not in sevs and score != 3:
+        elif ("important" in sevs or "fragile" in sevs) and "critical" not in sevs and score != 3:
             errors.append(f"score '{dim}'={score}: important (no critical) findings requires score 3")
 
 # Validate summary
