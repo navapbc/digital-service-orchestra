@@ -1,1 +1,0 @@
-{"timestamp": 1775597706125079000, "uuid": "0dae076b-a4eb-4eb1-a35f-a9b82cfddd61", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: llm-behavioral (dual-signal: ticket describes agent context overflow during task dispatch + affected files are skill docs in skills/)"}}
