@@ -1011,9 +1011,26 @@ dispatch_list:
   ...
 ```
 
-#### 7.5.4 — Dispatch Fix Sub-Agents in Batches of 5
+#### 7.5.4 — Dispatch Fix Sub-Agents Using MAX_AGENTS Protocol
 
-Dispatch fix sub-agents in batches of at most 5 concurrent agents. Each agent receives:
+Before dispatching fix sub-agents, run the shared pre-batch check to determine the dynamic batch size:
+
+```bash
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check  # shim-exempt: internal orchestration script
+```
+
+The script outputs structured key-value pairs:
+- `MAX_AGENTS: 0 | 1 | 5 | unlimited` — use as `max_agents`
+- `SESSION_USAGE: normal | high`
+- `GIT_CLEAN: true | false` — if false, commit previous batch first
+
+**MAX_AGENTS handling**:
+- `MAX_AGENTS: unlimited` — dispatch ALL fix agents in a single batch with no cap. Do not artificially limit to 5 or any other number.
+- `MAX_AGENTS: 5` — dispatch fix agents in batches capped at the returned value.
+- `MAX_AGENTS: 1` — dispatch fix agents one at a time (session usage is high).
+- `MAX_AGENTS: 0` — skip sub-agent dispatch entirely. Log: `"MAX_AGENTS=0, skipping fix sub-agent dispatch."` and proceed to Step 7.5.5.
+
+Each fix sub-agent receives:
 
 - `pattern_summary` — from the SCAN_RESULT
 - `root_cause` — from the investigation
@@ -1024,11 +1041,13 @@ Dispatch fix sub-agents in batches of at most 5 concurrent agents. Each agent re
 **Commit between batches**: After each batch of fix sub-agents completes, commit the results following `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md` (including review) before dispatching the next batch. This prevents lost work if a subsequent batch fails.
 
 ```
-for each batch of up to 5 fix agents:
-  1. Dispatch agents concurrently
-  2. Collect BATCH_RESULT from each agent
-  3. Commit between batches following COMMIT-WORKFLOW.md
-  4. Proceed to next batch
+for each batch of up to max_agents fix agents:
+  1. Run pre-batch check: agent-batch-lifecycle.sh pre-check
+  2. If MAX_AGENTS=0, skip dispatch and proceed to Step 7.5.5
+  3. Dispatch up to max_agents agents concurrently
+  4. Collect BATCH_RESULT from each agent
+  5. Commit between batches following COMMIT-WORKFLOW.md
+  6. Proceed to next batch
 ```
 
 If a batch returns `batch_status: FAILED` or `PARTIAL`, record findings as a bug ticket (`.claude/scripts/dso ticket create bug "<title>" --parent=<EPIC_ID>`) and proceed to the next batch — do not block the entire scan on a single failing batch. Do NOT use `--tags CLI_user` for these tickets — they are autonomously-discovered defects identified by the anti-pattern scan, not bugs reported by the user during an interactive session.

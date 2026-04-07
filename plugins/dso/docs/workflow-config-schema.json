@@ -647,6 +647,20 @@
           }
         }
       }
+    },
+    "orchestration": {
+      "type": "object",
+      "description": "Multi-agent orchestration configuration. Controls the usage-aware throttling pipeline in agent-batch-lifecycle.sh. All keys are optional — when absent, dispatch is uncapped and throttling thresholds apply only from check-usage.sh exit codes.",
+      "additionalProperties": false,
+      "properties": {
+        "max_agents": {
+          "type": ["integer", "null"],
+          "description": "Upper bound on the number of concurrent sub-agents dispatched per batch. When null or absent, no config-level cap is applied and the effective MAX_AGENTS is determined solely by check-usage.sh throttle tier (unlimited/throttled/paused). When set, _compute_max_agents() in agent-batch-lifecycle.sh uses min(max_agents, throttle_tier_limit) as the effective cap. Set to 1 to serialize all dispatch regardless of usage tier.",
+          "default": null,
+          "minimum": 0,
+          "examples": [null, 3, 5, 10]
+        }
+      }
     }
   }
 }

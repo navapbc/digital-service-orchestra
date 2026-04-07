@@ -34,7 +34,7 @@
 1. **Never close tasks before CI passes** — fix if you broke it; create tracking issue if pre-existing.
 2. **Never use `--no-verify`** without human approval.
 3. **Never skip issue validation after creating issues or adding deps** — run `validate-issues.sh --quick --terse`.
-4. **Never create more than 5 sub-agents at a time** — batch into groups of 5.
+4. **Never exceed the usage-aware sub-agent cap** — `orchestration.max_agents` (`dso-config.conf`) sets the upper bound; when absent, `MAX_AGENTS` is unlimited. Throttle tiers override: 90%/95% (5hr/7day) usage → `MAX_AGENTS: 1`; 95%/98% → `MAX_AGENTS: 0` (pause all dispatch). Always check the effective cap before launching a batch.
 5. **Never launch new sub-agent batch without committing previous batch's results** — #1 cause of lost work.
 6. **Never assume sub-agent success without checking Task tool result**.
 7. **Never leave issues `in_progress` without progress notes**.
