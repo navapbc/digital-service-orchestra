@@ -398,94 +398,6 @@ if ms_is_merge_in_progress || ms_is_rebase_in_progress; then
     # fall through to normal enforcement with the full staged file list.
 fi
 
-# --- Eval config TODO guard (static scan, no API calls) ---
-# Scans staged */evals/promptfooconfig.yaml files for completeness before
-# allowing a commit. Blocks on: TODO markers, empty tests list, missing
-# llm-rubric assertion. Pure text scan — no npx, no API key required.
-_eval_guard_errors=""
-while IFS= read -r _eg_file; do
-    [[ -z "$_eg_file" ]] && continue
-    # Only scan files matching the eval config pattern
-    case "$_eg_file" in
-        */evals/promptfooconfig.yaml) ;;
-        *) continue ;;
-    esac
-
-    _eg_full="${REPO_ROOT}/${_eg_file}"
-    [[ -f "$_eg_full" ]] || continue
-    _eg_content=$(cat "$_eg_full")
-
-    _eg_file_errors=""
-
-    # Check 1: TODO markers anywhere in the file
-    if echo "$_eg_content" | grep -q 'TODO'; then
-        _eg_file_errors="${_eg_file_errors}  - contains TODO marker(s)"$'\n'
-    fi
-
-    # Check 2: empty tests list (tests: [] or tests: with no entries)
-    # Detect "tests: []" or "tests:" followed only by whitespace/comments/end-of-file
-    # with no subsequent list items (lines starting with "  -").
-    # Strategy: extract the tests block and check for at least one "- " entry.
-    _eg_has_test_entry=false
-    _eg_in_tests=false
-    while IFS= read -r _eg_line; do
-        if [[ "$_eg_line" =~ ^tests:[[:space:]]*\[\] ]]; then
-            # Inline empty list
-            break
-        fi
-        if [[ "$_eg_line" =~ ^tests: ]]; then
-            _eg_in_tests=true
-            continue
-        fi
-        if [[ "$_eg_in_tests" == true ]]; then
-            # A top-level key (no leading spaces) ends the tests block
-            if [[ "$_eg_line" =~ ^[^[:space:]] ]] && [[ -n "$_eg_line" ]]; then
-                _eg_in_tests=false
-                break
-            fi
-            # A list item under tests
-            if [[ "$_eg_line" =~ ^[[:space:]]+-[[:space:]] ]]; then
-                _eg_has_test_entry=true
-                break
-            fi
-        fi
-    done <<< "$_eg_content"
-
-    if [[ "$_eg_has_test_entry" == false ]]; then
-        _eg_file_errors="${_eg_file_errors}  - tests: list is empty (no test cases)"$'\n'
-    fi
-
-    # Check 3: at least one llm-rubric assertion type
-    if ! echo "$_eg_content" | grep -q 'type:[[:space:]]*llm-rubric'; then
-        _eg_file_errors="${_eg_file_errors}  - no 'type: llm-rubric' assertion found"$'\n'
-    fi
-
-    if [[ -n "$_eg_file_errors" ]]; then
-        _eval_guard_errors="${_eval_guard_errors}ERROR: Incomplete eval config: ${_eg_file}"$'\n'"${_eg_file_errors}"
-    fi
-done <<< "$STAGED_FILES"
-
-if [[ -n "$_eval_guard_errors" ]]; then
-    echo "EVAL CONFIG GUARD: staged eval config(s) are incomplete — commit blocked." >&2
-    echo "$_eval_guard_errors" >&2
-    echo "Fix the issues above before committing." >&2
-    exit 1
-fi
-
-# --- Detect staged skill files (for Tier 1 eval invocation) ---
-# Collected here (before the "no associated tests" early exit) so that skill evals
-# run even when no unit tests are associated with the staged files.
-_SKILL_PATTERN="plugins/dso/skills/"
-_staged_skill_paths=""
-while IFS= read -r _sf; do
-    [[ -z "$_sf" ]] && continue
-    case "$_sf" in
-        *"${_SKILL_PATTERN}"*)
-            _staged_skill_paths="${_staged_skill_paths}${REPO_ROOT}/${_sf}"$'\n'
-            ;;
-    esac
-done <<< "$STAGED_FILES"
-
 # --- Discover associated test files ---
 ASSOCIATED_TESTS=()
 # Parallel array: RED marker for each entry in ASSOCIATED_TESTS (empty string = no marker)
@@ -713,9 +625,9 @@ else
     fi
 fi
 
-# --- No associated tests and no staged skill files: exit cleanly (exempt) ---
-if [[ ${#ASSOCIATED_TESTS[@]} -eq 0 ]] && [[ -z "$_staged_skill_paths" ]] && [[ "$FULL_SUITE" != "true" ]]; then
-    # No associated tests and no skill evals to run — exit cleanly without writing
+# --- No associated tests: exit cleanly (exempt) ---
+if [[ ${#ASSOCIATED_TESTS[@]} -eq 0 ]] && [[ "$FULL_SUITE" != "true" ]]; then
+    # No associated tests — exit cleanly without writing
     # test-gate-status (the gate exempts files with no associated tests)
     exit 0
 fi
@@ -1174,50 +1086,6 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
 done
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-# --- Skill eval integration (Tier 1) ---
-# _staged_skill_paths was collected earlier (before the "no associated tests" early exit).
-# Invoke run-skill-evals.sh with absolute paths to staged skill files.
-# run-skill-evals.sh maps file paths to skill directories, deduplicates, and
-# runs promptfoo evals only if evals/promptfooconfig.yaml exists.
-# Non-zero exit = eval failure → warn but do not block (LLM evals are non-deterministic).
-if [[ -n "$_staged_skill_paths" ]]; then
-    _RUN_EVALS_SCRIPT="${RECORD_TEST_STATUS_EVALS_RUNNER:-${HOOK_DIR}/../scripts/run-skill-evals.sh}"
-    # Skip evals when ANTHROPIC_API_KEY is not set (evals require API access),
-    # unless an explicit override runner is provided (RECORD_TEST_STATUS_EVALS_RUNNER)
-    # which allows tests to supply a mock runner without requiring API credentials.
-    if [[ -z "${ANTHROPIC_API_KEY:-}" ]] && [[ -z "${RECORD_TEST_STATUS_EVALS_RUNNER:-}" ]]; then
-        echo "NOTE: ANTHROPIC_API_KEY not set; skipping skill evals (evals require API access)." >&2
-    elif [[ -x "$_RUN_EVALS_SCRIPT" ]]; then
-        # Build argument list from newline-separated paths
-        _eval_args=()
-        while IFS= read -r _sp; do
-            [[ -z "$_sp" ]] && continue
-            _eval_args+=("$_sp")
-        done <<< "$_staged_skill_paths"
-
-        _eval_exit=0
-        bash "$_RUN_EVALS_SCRIPT" "${_eval_args[@]}" >&2 || _eval_exit=$?
-
-        if [[ $_eval_exit -eq 2 ]]; then
-            # npx/promptfoo not available — warn and skip (non-blocking)
-            echo "WARNING: run-skill-evals.sh exited 2 (npx/promptfoo not available); skipping skill evals." >&2
-        elif [[ $_eval_exit -ne 0 ]]; then
-            # Eval failures are non-blocking at commit time (LLM-graded evals are
-            # inherently non-deterministic). Daily CI is the authoritative gate.
-            # See epic a978-bf1c for migration to deterministic eval architecture.
-            echo "WARNING: Skill eval failed (exit ${_eval_exit}) — non-blocking at commit time." >&2
-            echo "  Failing evals for staged skills:" >&2
-            for _sp in "${_eval_args[@]}"; do
-                _skill_dir=$(dirname "$_sp")
-                _eval_cfg="$_skill_dir/evals/promptfooconfig.yaml"
-                [[ -f "$_eval_cfg" ]] && echo "    - $_eval_cfg" >&2
-            done
-        fi
-    else
-        echo "WARNING: run-skill-evals.sh not found or not executable at ${_RUN_EVALS_SCRIPT}; skipping skill evals." >&2
-    fi
-fi
 
 # --- Write test-gate-status ---
 STATUS_FILE="$ARTIFACTS_DIR/test-gate-status"

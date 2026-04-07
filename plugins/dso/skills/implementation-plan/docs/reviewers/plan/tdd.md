@@ -24,7 +24,7 @@ A task is exempt from the RED test requirement only when one of these criteria a
 **Unit exemption criteria** (any one is sufficient for unit-level tasks):
 1. The task contains **no conditional logic** — it is pure wiring, configuration, or boilerplate where a test would be a change-detector (i.e., it would pass vacuously or restate the implementation).
 2. The task is a **change-detector** test itself — a task whose sole deliverable is renaming, reformatting, or restructuring without altering observable behavior.
-3. The task modifies **only static assets** (schema migrations with no branching logic, Markdown documentation, static config files) where no executable assertion is possible. **Exception**: `SKILL.md` and prompt files under `plugins/dso/skills/` are NOT static assets for this purpose when a sibling `evals/promptfooconfig.yaml` exists — they are behaviorally testable via `run-skill-evals.sh`. A task that exempts such a file under criterion 3 without checking for an eval config is an unjustified exemption.
+3. The task modifies **only static assets** (schema migrations with no branching logic, Markdown documentation, static config files) where no executable assertion is possible.
 
 **Integration exemption criteria** (any one is sufficient for integration-level tasks):
 1. The integration surface is **fully covered by an existing test** that is explicitly cited by task ID or file path.

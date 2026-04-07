@@ -21,5 +21,4 @@ plugins/dso/agents/code-reviewer-test-quality.md | source | Test quality overlay
 plugins/dso/scripts/validate.sh | source | Full validation suite
 plugins/dso/scripts/merge-to-main.sh | source | Worktree-to-main merge orchestration
 plugins/dso/docs/WORKTREE-GUIDE.md | guide | Worktree lifecycle, session setup, concurrent sessions
-plugins/dso/docs/SKILL-EVALS-GUIDE.md | guide | Skill eval framework
 plugins/dso/docs/ticket-cli-reference.md | guide | Ticket CLI full reference

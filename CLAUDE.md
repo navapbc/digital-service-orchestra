@@ -36,7 +36,7 @@
 | Sync with Jira | `.claude/scripts/dso ticket sync` |
 | Review event stats | `.claude/scripts/dso review-stats.sh` |
 
-Less common: `run-skill-evals.sh`, `generate-skill-eval.sh <skill-name>`, `check-skill-refs.sh`, `qualify-skill-refs.sh` — see `plugins/dso/docs/SKILL-EVALS-GUIDE.md`.
+Less common: `check-skill-refs.sh`, `qualify-skill-refs.sh`.
 
 Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 
@@ -50,7 +50,6 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 **Validation gate**: `validate.sh` writes state; hooks block sprint/epic if validation hasn't passed. `--verbose` for real-time progress.
 **Portability lint**: `check-portability.sh` (registered as pre-commit hook) blocks commits containing hardcoded `/Users/<name>/` or `/home/<name>/` paths. Inline suppression: append `# portability-ok` to exempt a line. CI validation: `.github/workflows/portability-smoke.yml` validates zero-config shim detection in a clean Ubuntu container.
 **Shim enforcement**: `check-shim-refs.sh` (registered as pre-commit hook and in `validate.sh`) blocks instruction files inside `plugins/dso/` from containing direct plugin script references. Three detection patterns: (1) literal `plugins/dso/scripts/` path, (2) PLUGIN_SCRIPTS-prefixed script paths, (3) CLAUDE_PLUGIN_ROOT-prefixed script paths. Use `.claude/scripts/dso <script-name>` shim instead. Inline suppression: append `# shim-exempt: <reason>` to exempt a line.
-**Skill evals**: `run-skill-evals.sh` (Tier 1: changed files; Tier 2 `--all`). Per-skill: `evals/promptfooconfig.yaml`. Scaffold: `generate-skill-eval.sh <skill-name>`. Daily CI creates P0 tickets on failure. Commits with incomplete eval configs (TODO markers, empty tests, no `llm-rubric`) are blocked. Guide: `plugins/dso/docs/SKILL-EVALS-GUIDE.md`.
 **Agent routing**: `discover-agents.sh` resolves routing categories to agents via `agent-routing.conf`; all fall back to `general-purpose`. See `plugins/dso/docs/INSTALL.md`. **Named-agent dispatch** (via `subagent_type`, defined in `plugins/dso/agents/`):
 
 | Agent | Model | Dispatched by |
@@ -126,8 +125,7 @@ Config keys (`dso-config.conf`): `ci.workflow_name`, `merge.message_exclusion_pa
 22. **Never bypass the review gate or use `--no-verify`** without explicit user approval. The review gate is two-layer: Layer 1 (git pre-commit hook) enforces allowlist + review-status + diff hash; Layer 2 (PreToolUse hook `review-gate.sh`) blocks `--no-verify`, `core.hooksPath=` overrides, and git plumbing commands. **`--no-verify` cannot bypass Layer 2** — it is a Claude Code tool-use hook, not a git hook, so `--no-verify` has no effect on it. When blocked, run the full commit workflow (`/dso:commit` or COMMIT-WORKFLOW.md). Rationalizing around it (e.g., "these are just docs", "this is trivial") is exactly the failure mode this gate prevents. Pre-commit hooks include format-check (Ruff) and lint (Ruff/MyPy); if hooks fail: `make format` for formatting, fix lint manually.
 23. **Never run `make test-unit-only` or `make test-e2e` as a full-suite validation command** — these broad test commands exceed the ~73s tool timeout ceiling and will be killed mid-run (exit 144), producing spurious failures. Use `plugins/dso/scripts/validate.sh --ci` for full validation instead. Targeted single-test invocations (`poetry run pytest tests/unit/path/test_file.py::test_name`) remain allowed during edit-test iteration.
 24. **Never skip `dso:completion-verifier` dispatch or substitute inline verification** — the orchestrator MUST dispatch the verifier sub-agent at story closure (Step 10a) and epic closure (Phase 7 Step 0.75). Inline verification is NOT a substitute — the verifier exists because the orchestrator is biased toward confirming its own work. Fallback applies ONLY on technical failure (timeout, unparseable JSON), not as permission to skip.
-25. **Never commit code with failing evals** — skill eval failures MUST be resolved before committing. Do NOT rationalize failures as "non-blocking", write directly to test-gate-status to bypass the gate, attempt `--no-verify` or hook overrides, or ask the user to run commands that bypass enforcement. Eval failures indicate the skill prompt is broken — fix the prompt or the eval config, then commit.
-26. **Never edit files in the plugin cache** (`~/.claude/plugins/marketplaces/digital-service-orchestra/`) — always edit the corresponding files in the repo worktree (`plugins/dso/`). Plugin cache files are managed by the plugin system and will be overwritten on sync. Changes to plugin cache files are invisible to git, will not be committed, and will be lost.
+25. **Never edit files in the plugin cache** (`~/.claude/plugins/marketplaces/digital-service-orchestra/`) — always edit the corresponding files in the repo worktree (`plugins/dso/`). Plugin cache files are managed by the plugin system and will be overwritten on sync. Changes to plugin cache files are invisible to git, will not be committed, and will be lost.
 
 ### Architectural Invariants
 

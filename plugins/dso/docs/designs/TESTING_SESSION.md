@@ -73,7 +73,7 @@ OpenAI captures JSONL execution traces (which tools called, what args, what orde
 "Rejected because any change to the skill invalidates the test. That's essentially a change detector test, not a regression test."
 
 ### On Docker E2E
-Critically evaluated: Docker E2E is fundamentally promptfoo with Docker overhead unless you mock the LLM, in which case it collapses to script testing with Docker overhead.
+Critically evaluated: Docker E2E adds infrastructure overhead without solving LLM non-determinism; if you mock the LLM, it collapses to script testing with Docker overhead.
 
 ### On the prompt strategy
 User wanted us to refine the prompt strategy together, not jump ahead. Requested research on:
@@ -84,9 +84,6 @@ User wanted us to refine the prompt strategy together, not jump ahead. Requested
 
 ### On configuration
 "Add a config value for language-specific test bloat detection tools, with fallback to semgrep. Semgrep should be listed as a dependency. Onboarding should install semgrep and configure language-specific tools."
-
-### On promptfoo removal
-"When we remove evals, promptfoo should be removed as a dependency and onboarding references should be removed. We should also verify that no prompts/skills/agents reference the old evals/promptfoo system."
 
 ### On the RED/GREEN/UPDATE testing model
 "The problem may be that the tests aren't RED when the test writer examines them. Sometimes a successful outcome is 'behavior doesn't change and everything still passes.' Do we need to shift this up the pipeline and have implementation-plan make a judgement call on whether a given task requires RED testing (it involves a change in behavior) or whether it only requires GREEN testing (it involves changes to implementation without changing behavior)?"
@@ -141,10 +138,10 @@ User requested rolling original principles 5 (mock only external boundaries) and
 9. Semgrep dependency + onboarding with graceful degradation
 10. RED test evaluator alignment
 11. Existing bloat cleanup
-12. Full promptfoo removal (configs, runner, CI, commit guard, docs, dependency, references)
+12. Eval infrastructure removal (configs, runner, CI, commit guard, docs, dependency, references)
 13. Contract tests + referential integrity linting for skill testing
 
 ### Scenario Analysis (9 surviving)
-- 2 critical: eval-daily.yml silent no-op, concurrent overlay/sprint-review conflict
+- 2 critical: concurrent overlay/sprint-review conflict, eval infrastructure migration
 - 3 high: Semgrep install failure, scaffolding marker blocking, sprint orchestrator not consuming mode
-- 4 medium: contradictory promptfoo remnants, referential integrity cascade, marker cleanup, timeout ceiling
+- 4 medium: referential integrity cascade, marker cleanup, timeout ceiling, eval remnants

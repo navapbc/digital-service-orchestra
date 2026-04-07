@@ -61,7 +61,7 @@ No tool specifically detects "change detector tests" out of the box. Semgrep cus
 - Copilot: Testing approach is manual — "use the editor play button to test your prompts"
 - **Industry standard is still "try it and see"**
 
-### LLM Prompt Testing Frameworks (Alternatives to promptfoo)
+### LLM Prompt Testing Frameworks
 
 | Framework | Approach | Maturity | Verdict |
 |-----------|----------|----------|---------|

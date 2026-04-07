@@ -36,7 +36,7 @@ SCAN_DIRS=(
 )
 # Exclude known installation/migration docs and developer reference docs where
 # hardcoded paths are intentional (commands meant to be run from the plugin repo root).
-EXCLUDE_PATTERNS="MIGRATION-TO-PLUGIN.md|INSTALL.md|SKILL-EVALS-GUIDE.md|overlay-calibration-baselines.md"
+EXCLUDE_PATTERNS="MIGRATION-TO-PLUGIN.md|INSTALL.md|overlay-calibration-baselines.md"
 
 # ── Helper: scan dirs for a grep pattern, excluding known exceptions ─────────
 _scan_for_bad_pattern() {

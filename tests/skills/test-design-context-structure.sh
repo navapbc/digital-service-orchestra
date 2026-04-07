@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # tests/skills/test-design-context-structure.sh
 # Structural tests verifying design context additions to task-execution.md
-# and sprint SKILL.md. Asserts text presence only — behavioral execution
-# is covered by promptfoo evals.
+# and sprint SKILL.md. Asserts text presence only.
 #
 # Tests for task-execution.md:
 #   (a) "### Design Context" heading exists

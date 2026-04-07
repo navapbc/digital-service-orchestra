@@ -89,7 +89,7 @@ test_exit_nonzero_on_curly_variable_path() {
     _dir=$(_make_tmpdir)
     mkdir -p "$_dir/plugins/dso/docs"
     _file="$_dir/plugins/dso/docs/GUIDE.md"
-    printf '# Guide\n\nUse `${CLAUDE_PLUGIN_ROOT}/scripts/run-skill-evals.sh`.\n' > "$_file"
+    printf '# Guide\n\nUse `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh`.\n' > "$_file"
     _exit=0
     _out=$(bash "$SCRIPT" "$_file" 2>&1) || _exit=$?
     assert_ne "test_exit_nonzero_on_curly_variable_path: exit != 0 for \${CLAUDE_PLUGIN_ROOT}/scripts/" "0" "$_exit"
