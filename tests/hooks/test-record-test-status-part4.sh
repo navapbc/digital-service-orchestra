@@ -1177,4 +1177,86 @@ trap - EXIT
 
 assert_pass_if_clean "test_progress_cache_invalidated_on_test_index_change"
 
+# ============================================================
+# test_record_status_eval_guard_absent
+# When a staged */evals/promptfooconfig.yaml has a non-empty
+# tests: list but is missing the 'type: llm-rubric' assertion,
+# record-test-status.sh should exit 0 (eval guard must NOT block
+# the commit for this case).
+#
+# RED PHASE: This test currently FAILS because the eval guard at
+# lines 401-473 of record-test-status.sh exits 1 when any staged
+# promptfooconfig.yaml is missing 'type: llm-rubric'. Once the
+# guard is removed or relaxed, this test will pass (GREEN).
+# ============================================================
+echo ""
+echo "=== test_record_status_eval_guard_absent ==="
+_snapshot_fail
+
+TEST_REPO_EGABSENT=$(create_test_repo)
+ARTIFACTS_EGABSENT=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_EGABSENT" "$ARTIFACTS_EGABSENT"' EXIT
+
+# Create a skill with an eval config that has tests: entries but no llm-rubric
+mkdir -p "$TEST_REPO_EGABSENT/plugins/dso/skills/my-eval-skill/evals"
+
+# Incomplete promptfooconfig.yaml: has tests: list but omits type: llm-rubric
+cat > "$TEST_REPO_EGABSENT/plugins/dso/skills/my-eval-skill/evals/promptfooconfig.yaml" << 'YAMLEOF'
+description: "My eval skill test"
+prompts:
+  - "Perform task: {{task}}"
+providers:
+  - openai:gpt-4
+tests:
+  - description: "basic behavior check"
+    vars:
+      task: "summarize this text"
+    assert:
+      - type: contains
+        value: "summary"
+YAMLEOF
+
+git -C "$TEST_REPO_EGABSENT" add -A
+git -C "$TEST_REPO_EGABSENT" commit -m "add eval skill" --quiet 2>/dev/null
+
+# Stage a change to the promptfooconfig.yaml (modify description)
+echo "# updated" >> "$TEST_REPO_EGABSENT/plugins/dso/skills/my-eval-skill/evals/promptfooconfig.yaml"
+git -C "$TEST_REPO_EGABSENT" add -A
+
+# Mock pass runner for any tests discovered (none expected for eval-only file)
+MOCK_PASS_EGA=$(mktemp "${TMPDIR:-/tmp}/mock-pass-ega-XXXXXX")
+chmod +x "$MOCK_PASS_EGA"
+cat > "$MOCK_PASS_EGA" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+
+# Mock evals runner (records invocations but exits 0)
+MOCK_EVALS_EGA=$(mktemp "${TMPDIR:-/tmp}/mock-evals-ega-XXXXXX")
+chmod +x "$MOCK_EVALS_EGA"
+cat > "$MOCK_EVALS_EGA" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+
+EXIT_EGABSENT=$(
+    cd "$TEST_REPO_EGABSENT"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_EGABSENT" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_EGA" \
+    RECORD_TEST_STATUS_EVALS_RUNNER="$MOCK_EVALS_EGA" \
+    run_hook_exit
+)
+
+# The eval guard should NOT block this commit — incomplete promptfooconfig.yaml
+# (has tests: list but missing type: llm-rubric) must exit 0.
+# RED: Currently exits 1 because the guard is present and rejects incomplete configs.
+assert_eq "eval_guard_absent: exits 0 (incomplete promptfoo does not block commit)" "0" "$EXIT_EGABSENT"
+
+rm -f "$MOCK_PASS_EGA" "$MOCK_EVALS_EGA"
+rm -rf "$TEST_REPO_EGABSENT" "$ARTIFACTS_EGABSENT"
+trap - EXIT
+
+assert_pass_if_clean "test_record_status_eval_guard_absent"
+
 print_summary
