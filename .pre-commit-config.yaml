@@ -60,6 +60,19 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      # Test quality gate (timeout: 15s)
+      # Scans staged test files for anti-patterns (e.g., source-file grep/cat
+      # instead of behavioral assertions) and blocks commits when detected.
+      # Configurable via test_quality.tool and test_quality.enabled in dso-config.conf.
+      - id: pre-commit-test-quality-gate
+        name: Test Quality Gate (15s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh pre-commit-test-quality-gate 15 "./plugins/dso/hooks/pre-commit-test-quality-gate.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^tests/
+
+
       # Review gate (timeout: 30s)
       # Blocks commits containing non-allowlisted files without a valid review-status.
       # Since this repo IS the DSO plugin, we call the hook directly.
