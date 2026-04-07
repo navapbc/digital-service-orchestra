@@ -365,23 +365,24 @@ Task tool:
 
 ## Step 4b: Overlay Dispatch (Conditional)
 
-After Step 4 returns, check whether security or performance overlays are warranted. Overlay agents produce findings in standard `reviewer-findings.json` format, which are merged with the tier reviewer's findings before recording.
+After Step 4 returns, check whether security, performance, or test quality overlays are warranted. Overlay agents produce findings in standard `reviewer-findings.json` format, which are merged with the tier reviewer's findings before recording.
 
 ### 1. Read Overlay Flags
 
-Read `security_overlay` and `performance_overlay` from the classifier output captured in Step 3:
+Read `security_overlay`, `performance_overlay`, and `test_quality_overlay` from the classifier output captured in Step 3:
 
 ```bash
 # $CLASSIFIER_OUTPUT is the shell variable captured in Step 3 (classifier stdout)
 SECURITY_OVERLAY=$(echo "$CLASSIFIER_OUTPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('security_overlay', False))")
 PERFORMANCE_OVERLAY=$(echo "$CLASSIFIER_OUTPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('performance_overlay', False))")
+TEST_QUALITY_OVERLAY=$(echo "$CLASSIFIER_OUTPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('test_quality_overlay', False))")
 ```
 
-If both are `False` and no tier reviewer signal is present (see Serial Path below), skip to Step 5.
+If all are `False` and no tier reviewer signal is present (see Serial Path below), skip to Step 5.
 
 ### 2. Parallel Path (deterministic classifier signal)
 
-If either `SECURITY_OVERLAY` or `PERFORMANCE_OVERLAY` is `True`, the classifier flagged the overlay at classification time. Source `plugins/dso/scripts/overlay-dispatch.sh` and call `overlay_dispatch_mode` to determine whether the overlay agents were already launched in parallel alongside the tier reviewer: # shim-exempt: internal library source, not a user-invocable command
+If any of `SECURITY_OVERLAY`, `PERFORMANCE_OVERLAY`, or `TEST_QUALITY_OVERLAY` is `True`, the classifier flagged the overlay at classification time. Source `plugins/dso/scripts/overlay-dispatch.sh` and call `overlay_dispatch_mode` to determine whether the overlay agents were already launched in parallel alongside the tier reviewer: # shim-exempt: internal library source, not a user-invocable command
 
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts" # shim-exempt: internal source path for overlay-dispatch.sh library
@@ -396,15 +397,17 @@ If `MODE` is `"parallel"`, the overlay agents were dispatched alongside the tier
 
 - **Security overlay**: The security red team agent produces output conforming to the schema in `plugins/dso/docs/contracts/security-red-team-output.md`. The red team output is passed through a blue team triage agent; only surviving findings (not dismissed by blue team) are included.
 - **Performance overlay**: Produces direct findings in standard format — no triage step.
+- **Test quality overlay**: The `dso:code-reviewer-test-quality` agent evaluates test files against the behavioral testing standard (`plugins/dso/skills/shared/prompts/behavioral-testing-standard.md`). Produces direct findings in standard format — no triage step.
 
 ### 3. Serial Path (tier reviewer signal)
 
-If both classifier overlay flags are `False`, check the tier reviewer's summary output for late-binding signals:
+If all classifier overlay flags are `False`, check the tier reviewer's summary output for late-binding signals:
 
 - `security_overlay_warranted: yes`
 - `performance_overlay_warranted: yes`
+- `test_quality_overlay_warranted: yes`
 
-If either signal is present, dispatch the corresponding overlay agent(s) serially (after the tier review has completed). Parse outputs using the same logic as the Parallel Path above.
+If any signal is present, dispatch the corresponding overlay agent(s) serially (after the tier review has completed). Parse outputs using the same logic as the Parallel Path above.
 
 ### 4. Merge Findings
 
@@ -413,7 +416,8 @@ Call `plugins/dso/hooks/resolve-overlay-findings.sh` with `--findings-json` for 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/hooks/resolve-overlay-findings.sh" \
     --findings-json "$ARTIFACTS_DIR/overlay-security-findings.json" \
-    --findings-json "$ARTIFACTS_DIR/overlay-performance-findings.json"
+    --findings-json "$ARTIFACTS_DIR/overlay-performance-findings.json" \
+    --findings-json "$ARTIFACTS_DIR/overlay-test-quality-findings.json"
 ```
 
 Pass only the `--findings-json` arguments for overlays that actually ran.
@@ -489,7 +493,8 @@ Review passed. **Immediately resume the calling workflow** — do NOT wait for u
   --tier-original="$REVIEW_TIER" \
   --tier-final="$REVIEW_TIER" \
   --overlay-security="${OVERLAY_SECURITY:-false}" \
-  --overlay-performance="${OVERLAY_PERFORMANCE:-false}"
+  --overlay-performance="${OVERLAY_PERFORMANCE:-false}" \
+  --overlay-test-quality="${TEST_QUALITY_OVERLAY:-false}"
 ```
 
 ### If ANY score is below 4, OR any critical finding exists:

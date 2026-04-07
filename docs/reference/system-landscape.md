@@ -1,5 +1,5 @@
 ---
-last_synced_commit: f7daa80da2bbd8b7d3df310beedf0825e06e7071
+last_synced_commit: acb4331f172604692cdddec96c5814eb77abc37d
 ---
 
 # System Landscape Reference
@@ -61,7 +61,7 @@ The `/dso:sprint` orchestrator includes a self-healing layer that detects and ro
 | Checkpoint | Phase | Detection Mechanism | Action |
 |---|---|---|---|
 | Drift detection | Phase 1 Step 6 | `sprint-drift-check.sh` compares git history since task creation against each story's file impact table | Re-invoke `implementation-plan` for affected stories |
-| Confidence failure | Phase 5 Step 1a3 | Count `UNCERTAIN` signals per story across batch iterations; threshold: 2 | Re-invoke `implementation-plan` for the story (Phase 3 double-failure detection) |
+| Confidence failure | Phase 5 Step 1a2 | Count `UNCERTAIN` signals per story across batch iterations; threshold: 2 | Re-invoke `implementation-plan` for the story (Phase 3 double-failure detection) |
 | Validation failure | Step 10a | All tasks closed but story done-definition validation fails | Create TDD remediation tasks via `implementation-plan` |
 | Out-of-scope review | Step 7a / Step 13a | `sprint-review-scope-check.sh` identifies review findings for files outside task scope | Create tasks for out-of-scope files via `implementation-plan` |
 
@@ -96,3 +96,45 @@ Contract: `plugins/dso/docs/contracts/replan-observability.md`
 When a named sub-agent (dispatched via `subagent_type`) is unavailable or dispatch fails, agents read the agent definition inline from `plugins/dso/agents/<agent-name>.md`. The `<agent-name>` is the portion of `subagent_type` after the `dso:` prefix (e.g., `subagent_type: dso:complexity-evaluator` → `plugins/dso/agents/complexity-evaluator.md`). The file contents are used as a prompt and the agent logic runs inline.
 
 All named agents are defined in `plugins/dso/agents/`. Agent routing configuration: `config/agent-routing.conf`.
+
+## Test Quality Overlay
+
+The `dso:code-reviewer-test-quality` agent (opus) is an overlay reviewer that evaluates test code in diffs for bloat patterns. It is dispatched by the review pipeline when the classifier flags `test_quality_overlay: true` (triggered when the diff modifies files under `tests/`).
+
+**Detection patterns (5 categories)**:
+
+| Pattern | Severity |
+|---------|----------|
+| Source-file-grepping (grep/cat/ast.parse in test assertions) | critical |
+| Tautological tests (assert on mock setup, not behavior) | critical |
+| Change-detector tests (asserts on private/internal names) | important |
+| Implementation-coupled assertions (internal state, not outputs) | important |
+| Existence-only assertions (sole assertion is hasattr/test -f) | important |
+
+**Dispatch mode**: Parallel alongside the tier reviewer when classifier flags the overlay at classification time. Serial (after tier review) when the tier reviewer emits `test_quality_overlay_warranted: yes`. Overlay fallback (`overlay_dispatch_with_fallback`) ensures overlay failures do not block commits — findings are omitted and a warning is emitted.
+
+**Authority**: `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` (4-rule standard). Agent definition: `plugins/dso/agents/code-reviewer-test-quality.md`.
+
+**Sprint integration**: The redundant sprint-level test coverage enforcement step (previously Step 1a2/1a3) has been removed. Test quality enforcement is now exclusively handled by this overlay, which fires on any diff touching test files regardless of whether the diff was produced by sprint, fix-bug, or any other path.
+
+## Pre-Commit Test Quality Gate
+
+`plugins/dso/hooks/pre-commit-test-quality-gate.sh` is a pre-commit hook that statically detects test anti-patterns in staged test files before they enter the repository. It operates only on files matching `tests/` and only on diff-added lines to avoid flagging pre-existing code.
+
+**Configuration** (`.claude/dso-config.conf`):
+
+| Key | Values | Default | Effect |
+|-----|--------|---------|--------|
+| `test_quality.enabled` | `true` / `false` | `true` | `false` exits 0 immediately (no checks run) |
+| `test_quality.tool` | `bash-grep` / `semgrep` / `disabled` | `bash-grep` | Selects detection engine |
+
+**Tool selection**:
+- `bash-grep`: zero-dependency grep-based detection; default fallback
+- `semgrep`: uses custom rules at `plugins/dso/hooks/semgrep-rules/test-anti-patterns.yaml`; requires Semgrep installed (gate disables gracefully when Semgrep is absent)
+- `disabled`: equivalent to `test_quality.enabled=false`
+
+**Timeout budget**: 15 seconds (enforced via `pre-commit-wrapper.sh`). The gate exits 0 on timeout to avoid blocking commits on slow machines.
+
+**Graceful degradation**: When `test_quality.tool=semgrep` and Semgrep is not installed, the gate logs a warning and exits 0. It does not fall back to `bash-grep` automatically — set `test_quality.tool=bash-grep` explicitly for zero-dependency detection.
+
+**Hook registration**: `.pre-commit-config.yaml` entry `pre-commit-test-quality-gate`. Runs at `pre-commit` stage on files matching `^tests/`.

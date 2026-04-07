@@ -52,7 +52,7 @@ fi
 DIFF_CONTENT="$(cat)"
 if [[ -z "$DIFF_CONTENT" ]]; then
     # No diff input — score zero (empty changeset)
-    printf '{"blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"selected_tier":"light","diff_size_lines":0,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false}'
+    printf '{"blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"selected_tier":"light","diff_size_lines":0,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
     exit 0
 fi
 
@@ -64,7 +64,7 @@ while IFS= read -r line; do
 done < <(printf '%s\n' "$DIFF_CONTENT" | grep -E '^diff --git a/' | sed 's|^diff --git a/.* b/||' || true)
 
 if [[ ${#CHANGED_FILES[@]} -eq 0 ]]; then
-    printf '{"blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"selected_tier":"light","diff_size_lines":0,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false}'
+    printf '{"blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"selected_tier":"light","diff_size_lines":0,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
     exit 0
 fi
 
@@ -205,7 +205,7 @@ done
 
 # If all files are exempt, output zero scores
 if [[ ${#SCORING_FILES[@]} -eq 0 ]]; then
-    printf '{"blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"selected_tier":"light","diff_size_lines":0,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false}'
+    printf '{"blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"selected_tier":"light","diff_size_lines":0,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
     exit 0
 fi
 
@@ -510,6 +510,22 @@ _compute_security_overlay() {
 }
 
 # ============================================================
+# Test quality overlay detection
+# ============================================================
+_compute_test_quality_overlay() {
+    # Check if any changed file matches test file patterns
+    local file
+    for file in "${SCORING_FILES[@]}"; do
+        if is_test_file "$file"; then
+            echo "true"
+            return
+        fi
+    done
+
+    echo "false"
+}
+
+# ============================================================
 # Performance overlay detection
 # ============================================================
 _compute_performance_overlay() {
@@ -620,6 +636,7 @@ fi
 SIZE_ACTION=$(_compute_size_action "$DIFF_SIZE_LINES" "$IS_MERGE")
 SECURITY_OVERLAY=$(_compute_security_overlay)
 PERFORMANCE_OVERLAY=$(_compute_performance_overlay)
+TEST_QUALITY_OVERLAY=$(_compute_test_quality_overlay)
 
 # ============================================================
 # Write telemetry
@@ -647,15 +664,15 @@ if [[ -n "$_artifacts_dir" ]]; then
     done
     _files_json="${_files_json}]"
 
-    printf '{"blast_radius":%d,"critical_path":%d,"anti_shortcut":%d,"staleness":%d,"cross_cutting":%d,"diff_lines":%d,"change_volume":%d,"computed_total":%d,"selected_tier":"%s","diff_size_lines":%d,"size_action":"%s","is_merge_commit":%s,"security_overlay":%s,"performance_overlay":%s,"files":%s}\n' \
-        "$BLAST_RADIUS" "$CRITICAL_PATH" "$ANTI_SHORTCUT" "$STALENESS" "$CROSS_CUTTING" "$DIFF_LINES" "$CHANGE_VOLUME" "$COMPUTED_TOTAL" "$SELECTED_TIER" "$DIFF_SIZE_LINES" "$SIZE_ACTION" "$IS_MERGE" "$SECURITY_OVERLAY" "$PERFORMANCE_OVERLAY" "$_files_json" \
+    printf '{"blast_radius":%d,"critical_path":%d,"anti_shortcut":%d,"staleness":%d,"cross_cutting":%d,"diff_lines":%d,"change_volume":%d,"computed_total":%d,"selected_tier":"%s","diff_size_lines":%d,"size_action":"%s","is_merge_commit":%s,"security_overlay":%s,"performance_overlay":%s,"test_quality_overlay":%s,"files":%s}\n' \
+        "$BLAST_RADIUS" "$CRITICAL_PATH" "$ANTI_SHORTCUT" "$STALENESS" "$CROSS_CUTTING" "$DIFF_LINES" "$CHANGE_VOLUME" "$COMPUTED_TOTAL" "$SELECTED_TIER" "$DIFF_SIZE_LINES" "$SIZE_ACTION" "$IS_MERGE" "$SECURITY_OVERLAY" "$PERFORMANCE_OVERLAY" "$TEST_QUALITY_OVERLAY" "$_files_json" \
         >> "$_artifacts_dir/classifier-telemetry.jsonl" 2>/dev/null || true
 fi
 
 # ============================================================
 # Output JSON to stdout
 # ============================================================
-printf '{"blast_radius":%d,"critical_path":%d,"anti_shortcut":%d,"staleness":%d,"cross_cutting":%d,"diff_lines":%d,"change_volume":%d,"computed_total":%d,"selected_tier":"%s","diff_size_lines":%d,"size_action":"%s","is_merge_commit":%s,"security_overlay":%s,"performance_overlay":%s}' \
-    "$BLAST_RADIUS" "$CRITICAL_PATH" "$ANTI_SHORTCUT" "$STALENESS" "$CROSS_CUTTING" "$DIFF_LINES" "$CHANGE_VOLUME" "$COMPUTED_TOTAL" "$SELECTED_TIER" "$DIFF_SIZE_LINES" "$SIZE_ACTION" "$IS_MERGE" "$SECURITY_OVERLAY" "$PERFORMANCE_OVERLAY"
+printf '{"blast_radius":%d,"critical_path":%d,"anti_shortcut":%d,"staleness":%d,"cross_cutting":%d,"diff_lines":%d,"change_volume":%d,"computed_total":%d,"selected_tier":"%s","diff_size_lines":%d,"size_action":"%s","is_merge_commit":%s,"security_overlay":%s,"performance_overlay":%s,"test_quality_overlay":%s}' \
+    "$BLAST_RADIUS" "$CRITICAL_PATH" "$ANTI_SHORTCUT" "$STALENESS" "$CROSS_CUTTING" "$DIFF_LINES" "$CHANGE_VOLUME" "$COMPUTED_TOTAL" "$SELECTED_TIER" "$DIFF_SIZE_LINES" "$SIZE_ACTION" "$IS_MERGE" "$SECURITY_OVERLAY" "$PERFORMANCE_OVERLAY" "$TEST_QUALITY_OVERLAY"
 
 exit 0

@@ -1,0 +1,147 @@
+rules:
+  # ── Python anti-patterns ──────────────────────────────────────────────────
+
+  - id: test-grep-source-file
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.run(["grep", ...], ...)
+          - pattern: subprocess.run(["cat", ...], ...)
+          - pattern: subprocess.run(["awk", ...], ...)
+          - pattern: os.popen("grep $...")
+          - pattern: os.popen("cat $...")
+          - pattern: os.popen("awk $...")
+    paths:
+      include:
+        - "tests/**"
+        - "**/test_*.py"
+        - "**/*_test.py"
+    message: >
+      Test uses grep/cat/awk on source files instead of testing observable
+      behavior. Invoke the code under test and assert on its outputs, side
+      effects, or exit codes — not on whether a string appears in a source file.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      confidence: HIGH
+      category: test-quality
+      standard: behavioral-testing-standard
+
+  - id: test-path-exists-sole-assertion
+    patterns:
+      - pattern-either:
+          - pattern: |
+              def $FUNC(...):
+                  ...
+                  assert os.path.exists($PATH)
+          - pattern: |
+              def $FUNC(...):
+                  ...
+                  assert Path($PATH).exists()
+          - pattern: |
+              def $FUNC(...):
+                  ...
+                  self.assertTrue(os.path.exists($PATH))
+          - pattern: |
+              def $FUNC(...):
+                  ...
+                  self.assertTrue(Path($PATH).exists())
+    paths:
+      include:
+        - "tests/**"
+        - "**/test_*.py"
+        - "**/*_test.py"
+    message: >
+      Test uses os.path.exists() or Path.exists() as its sole assertion.
+      File-existence checks verify implementation artifacts, not behavior.
+      Instead, read the file and assert on its contents, or test the function
+      that produces the file and assert on its return value.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      confidence: HIGH
+      category: test-quality
+      standard: behavioral-testing-standard
+
+  - id: test-ast-parse-inspect-source
+    patterns:
+      - pattern-either:
+          - pattern: ast.parse(...)
+          - pattern: inspect.getsource(...)
+          - pattern: inspect.getsourcelines(...)
+    paths:
+      include:
+        - "tests/**"
+        - "**/test_*.py"
+        - "**/*_test.py"
+    message: >
+      Test uses ast.parse() or inspect.getsource() to examine source code
+      structure. Tests should verify observable behavior (outputs, side effects,
+      errors), not internal code structure. Structural assertions break on
+      refactoring even when behavior is preserved.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      confidence: HIGH
+      category: test-quality
+      standard: behavioral-testing-standard
+
+  # ── Generic (language-agnostic) anti-patterns ─────────────────────────────
+
+  - id: test-subprocess-cat-grep
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.check_output(["cat", ...], ...)
+          - pattern: subprocess.check_output(["grep", ...], ...)
+    paths:
+      include:
+        - "tests/**"
+        - "**/test_*.py"
+        - "**/*_test.py"
+    message: >
+      Test shells out to cat/grep via subprocess to inspect files. This tests
+      file contents rather than code behavior. Call the function under test
+      directly and assert on its return value or side effects.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      confidence: HIGH
+      category: test-quality
+      standard: behavioral-testing-standard
+
+  - id: test-file-read-string-search
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $CONTENT = open($PATH, ...).read()
+              ...
+              assert $NEEDLE in $CONTENT
+          - pattern: |
+              with open($PATH, ...) as $F:
+                  $CONTENT = $F.read()
+                  ...
+                  assert $NEEDLE in $CONTENT
+          - pattern: |
+              $CONTENT = open($PATH, ...).read()
+              ...
+              self.assertIn($NEEDLE, $CONTENT)
+          - pattern: |
+              with open($PATH, ...) as $F:
+                  $CONTENT = $F.read()
+                  ...
+                  self.assertIn($NEEDLE, $CONTENT)
+    paths:
+      include:
+        - "tests/**"
+        - "**/test_*.py"
+        - "**/*_test.py"
+    message: >
+      Test reads a source file and searches for a string in its contents.
+      This verifies implementation details rather than observable behavior.
+      Test the code's outputs, return values, or side effects instead of
+      inspecting what the source code contains.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      confidence: HIGH
+      category: test-quality
+      standard: behavioral-testing-standard
