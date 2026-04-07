@@ -201,6 +201,21 @@ Apply the file-type sub-criteria above in addition to the generic checks here.
 - [ ] Do NOT emit `escalate_review` for findings with high confidence in severity assignment.
   Only escalate genuine uncertainty.
 
+### Approach Viability (approach_viability_concern)
+- [ ] After completing the checklist, review your findings as a whole. If you detect a
+  **PATTERN** (not an isolated instance) of hallucinated references or fragile workarounds
+  across multiple findings in the same diff — for example, three or more `fragile` findings
+  pointing to non-existent identifiers, or multiple findings where the implementation works
+  around a missing abstraction rather than using one — set `approach_viability_concern: true`
+  in your summary field text. This signals to the orchestrator that incremental fixes may be
+  futile and the implementation approach itself may need revision.
+- [ ] Do NOT set `approach_viability_concern: true` for isolated findings, even critical ones.
+  The signal is reserved for cross-cutting patterns where the implementation strategy appears
+  fundamentally misaligned with the codebase.
+- [ ] When set to true, briefly note the pattern in the summary (e.g., "approach_viability_concern:
+  true — 4 fragile findings all reference non-existent hook helpers, suggesting the chosen
+  extension point does not exist").
+
 ---
 
 ## Overlay Classification

@@ -1300,4 +1300,30 @@ assert_contains \
 
 assert_pass_if_clean "test_escalate_review_element_missing_finding_index_fails_validation"
 
+# ============================================================
+# approach_viability_concern: summary-embedded boolean signal
+# (follows *_warranted pattern — not a top-level JSON key)
+# No schema validation tests needed since it's parsed from summary text.
+# ============================================================
+
+# Test: findings JSON without approach_viability_concern passes (optional field)
+# This test is GREEN immediately: absent optional fields are not flagged as errors.
+_AVC_ABSENT_FILE=$(write_fixture "approach_viability_concern_absent.json" '{
+  "scores": {
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
+  },
+  "findings": [],
+  "summary": "No approach_viability_concern field present at all."
+}')
+_AVC_ABSENT_EXIT=0
+bash "$SCRIPT" code-review-dispatch "$_AVC_ABSENT_FILE" >/dev/null 2>&1 || _AVC_ABSENT_EXIT=$?
+assert_eq \
+    "test_approach_viability_concern_absent_passes" \
+    "0" \
+    "$_AVC_ABSENT_EXIT"
+
 print_summary

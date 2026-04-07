@@ -146,6 +146,25 @@ For `.py` files, apply these additional correctness checks in addition to the ba
 
 ---
 
+## Approach Viability (approach_viability_concern)
+
+After completing correctness analysis, review your findings as a whole. If you detect a
+**PATTERN** (not an isolated instance) of hallucinated references or fragile workarounds
+across multiple findings in the same diff — for example, three or more `fragile` findings
+pointing to non-existent identifiers, or multiple findings where the implementation works
+around a missing abstraction rather than using one — set `approach_viability_concern: true`
+in your summary field text. This signals to the orchestrator that incremental fixes may be
+futile and the implementation approach itself may need revision.
+
+- Do NOT set `approach_viability_concern: true` for isolated findings, even critical ones.
+  The signal is reserved for cross-cutting patterns where the implementation strategy appears
+  fundamentally misaligned with the codebase.
+- When set to true, briefly note the pattern in the summary (e.g., "approach_viability_concern:
+  true — 4 fragile findings all reference non-existent hook helpers, suggesting the chosen
+  extension point does not exist").
+
+---
+
 ## Acceptance Criteria Validation
 
 When ticket or issue context is provided in the dispatch prompt (e.g., `ISSUE_CONTEXT`, `TICKET_AC`, or a referenced ticket ID), perform these additional correctness checks:

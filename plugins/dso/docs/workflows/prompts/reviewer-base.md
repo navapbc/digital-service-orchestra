@@ -137,9 +137,12 @@ Example **without** `escalate_review` (omit when confident about all severities)
       "file": "src/handler.py"
     }
   ],
-  "summary": "One important correctness finding. Logic is otherwise sound."
+  "summary": "One important correctness finding. Logic is otherwise sound. security_overlay_warranted: no, performance_overlay_warranted: no, approach_viability_concern: false"
 }
 ```
+
+**`approach_viability_concern`** (optional boolean, emitted in `summary` field text only — NOT a top-level JSON key):
+Set `approach_viability_concern: true` in the `summary` text when you detect a **PATTERN** (not an isolated instance) of hallucinated references or fragile workarounds across multiple findings in the same diff. This signals to the orchestrator that incremental fixes may be futile and the implementation approach itself may need revision. Omit or set to `false` when findings are isolated. Tier-specific delta files define the threshold and detection criteria for this signal.
 
 **`severity` values**:
 - `critical`: correctness failure that will cause a bug or security issue
