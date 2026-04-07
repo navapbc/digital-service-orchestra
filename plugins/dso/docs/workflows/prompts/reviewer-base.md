@@ -94,8 +94,8 @@ Produce a JSON object with this EXACT schema (for writing to disk in Step 3).
 VIOLATIONS CAUSE RE-DISPATCH.
 
 REQUIRED: EXACTLY three top-level keys: "scores", "findings" (file field must reference diff files only), "summary".
-Do NOT add "schema_version", "review_result", "id", "review_date", or any other key —
-the validator will reject any extra keys and force a re-dispatch.
+Do NOT add "schema_version", "review_result", "id", "review_date", or any other key except escalate_review (see Escalation section below) —
+the validator will reject unrecognized keys and force a re-dispatch.
 The "scores" object MUST contain ALL five dimensions listed below with integer 1–5 or "N/A".
 
 **SCORE SCALE: INTEGER 1–5 ONLY. NOT 0–10. NOT 0–100. NOT any other scale.**
@@ -113,15 +113,59 @@ will be rejected by the validator and force a re-dispatch.
   },
   "findings": [
     {
-      "severity": "critical|important|minor",
+      "severity": "critical|important|minor|fragile",
       "category": "<one of the 5 score dimensions>",
       "description": "...",
       "file": "path/to/file (MUST be from the diff being reviewed)"
     }
   ],
-  "summary": "2-3 sentence assessment"
+  "summary": "2-3 sentence assessment",
+  "escalate_review": [{"finding_index": 0, "reason": "uncertain whether this is important or critical"}]
 }
 ```
+
+Example **without** `escalate_review` (omit when confident about all severities):
+
+```json
+{
+  "scores": { "hygiene": 4, "design": 5, "maintainability": 4, "correctness": 3, "verification": 4 },
+  "findings": [
+    {
+      "severity": "important",
+      "category": "correctness",
+      "description": "Missing null check on user input before passing to downstream handler.",
+      "file": "src/handler.py"
+    }
+  ],
+  "summary": "One important correctness finding. Logic is otherwise sound. security_overlay_warranted: no, performance_overlay_warranted: no, approach_viability_concern: false"
+}
+```
+
+**`approach_viability_concern`** (optional boolean, emitted in `summary` field text only — NOT a top-level JSON key):
+Set `approach_viability_concern: true` in the `summary` text when you detect a **PATTERN** (not an isolated instance) of hallucinated references or fragile workarounds across multiple findings in the same diff. This signals to the orchestrator that incremental fixes may be futile and the implementation approach itself may need revision. Omit or set to `false` when findings are isolated. Tier-specific delta files define the threshold and detection criteria for this signal.
+
+**`severity` values**:
+- `critical`: correctness failure that will cause a bug or security issue
+- `important`: likely problem requiring fix before merge
+- `minor`: low-risk improvement suggestion
+- `fragile`: unverifiable external reference — high confidence the identifier does not exist
+  or is hallucinated (e.g., non-existent API function, unknown model ID). For **internal APIs**
+  (defined in this repo), verify existence via Grep/Read before assigning this severity. For
+  **external library APIs** (third-party packages, stdlib), verify the import is present and
+  the method name matches the library's documented interface. Fragile findings score the
+  same as `important` for pass/fail purposes (dimension score = 3).
+
+## Escalation
+
+`escalate_review` is an **optional** top-level key. Include it only when you are uncertain about the severity assignment for one or more specific findings — for example, when a finding could be `important` or `critical` depending on runtime context you cannot verify from the diff alone. Omit it entirely when confident about all severity assignments.
+
+```json
+"escalate_review": [{"finding_index": 0, "reason": "Uncertain whether the missing auth check in src/api.py is critical or important — depends on whether this endpoint is publicly reachable"}]
+```
+
+Each element must have `finding_index` (zero-based index into the `findings` array) and `reason` (non-empty string explaining the uncertainty). Omit the field entirely when confident about all severity assignments.
+
+---
 
 **`file` field constraint**: The `file` field in each finding MUST reference a file present in the diff being reviewed (DIFF_FILE). Do not use files from your recommendations (e.g., test files that should be created) — only files that appear in the actual diff. `record-review.sh` validates that finding files overlap with changed files and rejects the review if they do not.
 

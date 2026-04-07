@@ -103,7 +103,7 @@ for path in files:
 
     for finding in data.get("findings", []):
         has_findings = True
-        if finding.get("severity", "minor") in ("critical", "important"):
+        if finding.get("severity", "minor") in ("critical", "important", "fragile"):
             has_blocking = True
         all_findings.append(finding)
 
@@ -177,7 +177,7 @@ if [[ -x "$WRITE_FINDINGS_CMD" ]]; then
     python3 -c "
 import json, sys
 d = json.load(open(sys.argv[1]))
-severity_to_score = {'critical': 1, 'important': 3, 'minor': 4}
+severity_to_score = {'critical': 1, 'important': 3, 'fragile': 3, 'minor': 4}
 dim_scores = {'correctness': 5, 'verification': 5, 'hygiene': 5, 'design': 5, 'maintainability': 5}
 for f in d['findings']:
     sev = f.get('severity', 'minor')
