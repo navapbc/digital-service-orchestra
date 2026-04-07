@@ -490,3 +490,162 @@ tests:
           (4) NOT emit STATUS:complete or STATUS:blocked,
           (5) NOT produce any implementation tasks or partial decomposition — task
           decomposition must halt entirely once the unsatisfiable contradiction is detected.
+
+  # RED: approach-resolution config-based routing — current SKILL.md routes by caller context (sprint vs standalone), not by config key.
+  # These 4 evals test config-driven approach-resolution behavior that does not yet exist.
+
+  - description: "approach_resolution config=autonomous: dispatches decision-maker without user prompt"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6"
+    vars:
+      prompt: |
+        Please create an implementation plan for this user story:
+
+        Story: "As a developer, I want the API to support bulk deletion on the /api/records
+        endpoint so that clients can remove multiple records in a single request."
+
+        Context:
+        - The app has a Python Flask API with DELETE /api/records/<id> in src/api/records.py.
+        - There is an existing test file: tests/test_records_api.py
+        - Success criteria: DELETE /api/records accepts a JSON body with an array of IDs;
+          returns 200 with count of deleted records; invalid IDs return 400.
+
+        Configuration:
+        approach_resolution: autonomous
+
+        This is a standalone invocation (not from /dso:sprint). The approach_resolution
+        config is set to "autonomous". Generate 3+ proposals and then resolve the approach
+        based on the config setting.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output handles approach_resolution in config-driven autonomous mode during
+          a standalone (non-sprint) invocation. It should:
+          (1) generate 3+ distinct implementation proposals before task breakdown,
+          (2) dispatch or reference the approach-decision-maker agent for autonomous
+          selection — the key behavior is that the config value "autonomous" causes
+          the decision-maker to be dispatched even though this is a standalone invocation
+          (which would normally display proposals to the user and wait for selection),
+          (3) NOT display proposals to the user and wait for manual selection — the
+          autonomous config overrides the default standalone behavior of prompting the user,
+          (4) proceed to task drafting after the decision-maker selects an approach,
+          without requiring user confirmation of the selection.
+
+  - description: "approach_resolution config=interactive: displays proposals to user, does NOT dispatch agent"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6"
+    vars:
+      prompt: |
+        Please create an implementation plan for this story (sprint context — invoked from
+        /dso:sprint via Skill tool):
+
+        Story: "As a developer, I want the API to support rate limiting on the /api/records
+        endpoint so that no single client can overwhelm the server."
+
+        Context:
+        - The app has a Python Flask API with GET /api/records in src/api/records.py.
+        - There is an existing test file: tests/test_records_api.py
+        - Success criteria: GET /api/records enforces a per-client rate limit of 100 requests
+          per minute; exceeded requests return 429 with Retry-After header.
+
+        Configuration:
+        approach_resolution: interactive
+
+        The approach_resolution config is set to "interactive". Generate 3+ proposals and
+        then resolve the approach based on the config setting.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output handles approach_resolution in config-driven interactive mode during
+          a sprint invocation. It should:
+          (1) generate 3+ distinct implementation proposals before task breakdown,
+          (2) display the proposals to the user in a readable format and wait for the
+          user to select a proposal — the key behavior is that the config value
+          "interactive" causes proposals to be shown to the user even though this is
+          a sprint invocation (which would normally dispatch the decision-maker agent
+          for autonomous selection),
+          (3) NOT dispatch or invoke the approach-decision-maker agent — the interactive
+          config overrides the default sprint behavior of autonomous agent selection,
+          (4) NOT proceed to task drafting until the user has confirmed a selection —
+          it must pause and request user input.
+
+  - description: "approach_resolution config absent: defaults to autonomous (dispatches decision-maker)"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6"
+    vars:
+      prompt: |
+        Please create an implementation plan for this user story:
+
+        Story: "As a developer, I want the API to support field-level encryption on the
+        /api/users endpoint so that sensitive fields are encrypted at rest."
+
+        Context:
+        - The app has a Python Flask API with GET/POST /api/users in src/api/users.py.
+        - There is an existing test file: tests/test_users_api.py
+        - Success criteria: POST /api/users encrypts the email and phone fields before
+          storage; GET /api/users decrypts them on retrieval; encryption uses AES-256-GCM
+          with a key from environment variable FIELD_ENCRYPTION_KEY.
+
+        Configuration:
+        (no approach_resolution key is set — the config is absent/empty)
+
+        This is a standalone invocation. No approach_resolution config is provided.
+        Generate 3+ proposals and then resolve the approach using the default behavior
+        when the config key is absent.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output handles the case where approach_resolution config is absent by
+          defaulting to autonomous behavior. It should:
+          (1) generate 3+ distinct implementation proposals before task breakdown,
+          (2) dispatch or reference the approach-decision-maker agent for autonomous
+          selection — the key behavior is that absent config defaults to autonomous mode,
+          causing the decision-maker to be dispatched even in a standalone invocation,
+          (3) NOT display proposals to the user and wait for manual selection — the
+          default autonomous fallback overrides the standalone context's normal behavior
+          of prompting the user,
+          (4) proceed to task drafting after the decision-maker selects an approach,
+          without requiring user confirmation.
+
+  - description: "approach_resolution escape hatch: escalates to user after 2 counter-proposal cycles regardless of config mode"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6"
+    vars:
+      prompt: |
+        Please create an implementation plan for this story:
+
+        Story: "As a developer, I want the API to support webhook delivery on record changes
+        so that external systems are notified in real time."
+
+        Context:
+        - The app has a Python Flask API in src/api/records.py.
+        - There is an existing test file: tests/test_records_api.py
+        - Success criteria: POST/PUT/DELETE on /api/records triggers a webhook POST to
+          registered URLs; failed deliveries are retried with exponential backoff up to 3 times.
+
+        Configuration:
+        approach_resolution: autonomous
+
+        Generate 3+ proposals and dispatch the decision-maker for autonomous selection.
+        The decision-maker returns counter_proposal in cycle 1. Re-generate proposals
+        incorporating feedback. The decision-maker returns counter_proposal again in cycle 2.
+        The cycle limit (2) is now exhausted.
+
+        Demonstrate the escape hatch behavior when 2 counter-proposal cycles are exhausted.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output demonstrates that the user-escalation escape hatch fires after 2
+          counter-proposal cycles regardless of the approach_resolution config mode. It should:
+          (1) reference the approach_resolution config setting (autonomous) as the mode
+          that determined how resolution was initially attempted — showing awareness that
+          the config drove the autonomous dispatch rather than caller context,
+          (2) track 2 resolution cycles with counter-proposal responses from the
+          decision-maker — either simulated or described,
+          (3) escalate to the user after the 2-cycle limit is exhausted — presenting
+          proposals and counter-proposal feedback for manual selection,
+          (4) the escalation must happen regardless of the autonomous config — the escape
+          hatch is a safety bound that overrides the config mode, ensuring a human is
+          consulted when autonomous resolution cannot converge,
+          (5) NOT continue looping autonomously past cycle 2 — the cycle limit is a
+          hard boundary that the config mode cannot override.
