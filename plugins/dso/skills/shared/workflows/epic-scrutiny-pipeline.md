@@ -201,7 +201,7 @@ The three core reviewers (Agent Clarity, Scope, Value) **always run in parallel*
 
 **Pass threshold**: All dimensions must score 4 or above. When the feasibility reviewer runs, `technical_feasibility` and `integration_risk` are also included in the pass threshold check.
 
-**Feasibility critical findings**: If the feasibility reviewer reports any score below 3, add a note to the epic spec recommending a spike task to de-risk the integration before implementation begins.
+**Feasibility critical findings**: If the feasibility reviewer reports any score below 3, annotate the epic spec with a `## FEASIBILITY_GAP` section identifying the unresolved capability gap and return control to the caller. The caller is responsible for handling this annotation — e.g., brainstorm re-enters its understanding loop bounded by `brainstorm.max_feasibility_cycles`, while other callers may implement their own resolution strategy. The pipeline itself takes no further action beyond the annotation.
 
 **Validate the review output:**
 ```bash
@@ -242,11 +242,65 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 ---
 
+## Step 5: Prompt Alignment
+
+When an epic modifies LLM-facing instructions, validate that prompt changes are well-grounded in prior art and reviewed for behavioral soundness. This step detects LLM-instruction signals in the epic spec, searches for prior art, and dispatches the bot-psychologist for review.
+
+### LLM-Instruction Signal Detection
+
+Scan the epic spec (Context + Success Criteria + Approach sections) for the following canonical keyword list using case-insensitive matching:
+
+- **skill file modifications** — changes to `SKILL.md` or skill workflow files
+- **agent definitions** — new or modified agent prompts, `subagent_type` declarations, or agent routing changes
+- **prompt templates** — changes to prompt files, instruction text, or LLM-facing guidance documents
+- **hook behavioral logic** — modifications to hook dispatchers, pre/post tool-use hooks, or enforcement gate behavior
+
+If none of the canonical keywords match, skip the remainder of Step 5 and proceed to Pipeline Output. Log: "No LLM-instruction signals detected — skipping prompt alignment."
+
+Set `matched_keyword = <first matched keyword category>` as a state variable for planning-intelligence log consumption. When multiple categories match, use the first match in the canonical order above.
+
+### Doc-Epic Exclusion
+
+Before proceeding with the full prompt alignment workflow, check the Approach section for file references. If the Approach section references **only** documentation files (`.md` files, documentation paths, or doc-only changes) and no code or configuration files, skip prompt alignment. Log: "Doc-epic exclusion — skipping prompt alignment."
+
+### GitHub Prior-Art Search
+
+If the signal fires and the doc-epic exclusion does not apply:
+
+1. Use **WebSearch** to run a provider-agnostic GitHub prior-art search for similar prompts, instruction patterns, or agent behavioral specifications in popular AI/LLM projects. Focus queries on the matched keyword category — e.g., if "agent definitions" matched, search for agent definition patterns in well-known AI orchestration repos.
+2. Limit to 2-3 focused queries. Stop when key patterns are identified.
+3. Present findings to the user for collaborative prompt drafting — highlight patterns that align with or diverge from the proposed approach.
+
+### Bot-Psychologist Dispatch
+
+After prior-art findings are gathered:
+
+1. Dispatch `dso:bot-psychologist` via the Agent tool (model: sonnet) to review the draft prompt text or LLM-facing instruction changes described in the epic spec.
+2. Pass the matched keyword category, the epic's Approach section, and any prior-art findings as context.
+3. Incorporate the bot-psychologist's behavioral analysis findings into the epic spec.
+
+### Graceful Degradation
+
+- **WebSearch failure**: If WebSearch fails (tool unavailable, network error, or returns no useful results), log: "Prompt alignment prior-art search skipped: WebSearch unavailable or returned no results." Continue without prior-art findings — proceed directly to bot-psychologist dispatch.
+- **Bot-psychologist failure**: If the bot-psychologist Agent dispatch fails (SUB-AGENT-GUARD rejection, dispatch timeout, or returns no usable analysis), log: "Prompt alignment bot-psychologist review skipped: dispatch failed or returned no results." Continue without bot-psychologist findings — do not block pipeline completion.
+
+### Prompt Alignment Findings
+
+If prompt alignment produced findings (from prior-art search, bot-psychologist review, or both), record them in the epic spec under a `## Prompt Alignment Findings` section:
+
+- **Matched signal**: Which canonical keyword category triggered prompt alignment
+- **Prior-art patterns**: Key patterns found in similar projects (if WebSearch succeeded)
+- **Behavioral review**: Bot-psychologist analysis summary (if dispatch succeeded)
+- **Recommendations**: Specific prompt improvements or cautions for the implementation plan
+
+---
+
 ## Pipeline Output
 
 After all steps complete, the caller receives an updated epic spec with any or all of these additional sections populated:
 
 - `## Research Findings` — if web research ran and produced findings
 - `## Scenario Analysis` — if scenario analysis ran and produced surviving scenarios
+- `## Prompt Alignment Findings` — if prompt alignment ran and produced findings (LLM-instruction signal detected)
 
 The caller is responsible for presenting the final spec to the user for approval.

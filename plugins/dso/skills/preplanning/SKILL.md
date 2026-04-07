@@ -232,7 +232,7 @@ For each qualifying story:
    - [Integration] NOT verified: <tool> does not appear to support <capability>
    ```
 4. If no sandbox or test environment is available for integration testing, flag this to the user during preplanning: "No sandbox available for <tool> — integration testing will require a live environment."
-5. If research finds no verified code or capabilities for a story's integration, flag the story as **high-risk** and recommend spike-task creation before implementation: "Story <id> references <tool> but no verified working code was found — recommend creating a spike task to validate capabilities before implementation."
+5. If research finds no verified code or capabilities for a story's integration, emit `REPLAN_ESCALATE: brainstorm` with explanation of the unresolved gap. Sprint's replan machinery routes this signal. Track the current iteration in `feasibility_cycle_count` (state variable exposed for planning-intelligence log consumption).
 
 ### Skip Condition
 
