@@ -16,9 +16,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 
 # ── Source figma tag constants ────────────────────────────────────────────────
-FIGMA_TAGS_CONF="$SCRIPT_DIR/../skills/shared/constants/figma-tags.conf"
+FIGMA_TAGS_CONF="$CLAUDE_PLUGIN_ROOT/skills/shared/constants/figma-tags.conf"
 if [ ! -f "$FIGMA_TAGS_CONF" ]; then
     echo "Error: figma-tags.conf not found at $FIGMA_TAGS_CONF" >&2
     exit 1
