@@ -183,7 +183,7 @@ def write_cache(cache_path: str, data: dict) -> None:
     if cache_dir:
         os.makedirs(cache_dir, exist_ok=True)
 
-    lock_path = cache_path + ".lock"
+    lock_path = os.path.join(os.path.dirname(cache_path), "usage-cache.lock")
 
     # Add timestamp to data
     enriched = dict(data)

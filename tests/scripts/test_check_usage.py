@@ -119,7 +119,7 @@ class TestCache:
         import fcntl as _fcntl
 
         cache_file = str(tmp_path / "usage-cache.json")
-        lock_file = cache_file + ".lock"
+        lock_file = str(tmp_path / "usage-cache.lock")
         data = {"five_hour": {"utilization": 0.1}, "seven_day": {"utilization": 0.1}}
 
         flock_calls: list[str] = []
