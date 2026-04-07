@@ -1,1 +1,0 @@
-{"timestamp": 1775586600768138000, "uuid": "7025f3ce-8100-4a9d-9e68-c28bfc7ccbad", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT:batch-complete \u2014 Done \u2713 \u2014 Files: plugins/dso/scripts/review-complexity-classifier.sh, tests/hooks/test-review-complexity-classifier.sh. Tests: 56 pass, 0 fail."}}
