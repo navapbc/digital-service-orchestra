@@ -139,10 +139,11 @@ Search existing bug tickets to avoid duplicates:
 
 Scan titles for a match to the failure. A ticket already exists **only if a specific ticket ID can be cited**. Do NOT rationalize that a ticket "likely exists" — if you cannot name a ticket ID, no match was found and a new ticket must be created.
 
-**Auto-Create Bug Tickets**: For each failure that does **not** have an existing bug ticket, create one:
+**Auto-Create Bug Tickets**: For each failure that does **not** have an existing bug ticket, create one. Follow `plugins/dso/skills/create-bug/SKILL.md` for title and description format:
 
 ```bash
-.claude/scripts/dso ticket create bug "<descriptive title>" -p <priority>
+# Title format: [Component]: [Condition] -> [Observed Result]
+.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -p <priority> -d "## Incident Overview ..."
 ```
 
 Where `<priority>` is assigned based on actual severity:
@@ -176,7 +177,14 @@ Focus on reusable knowledge. Exclude: workflow phases run, git operations perfor
 
 ### 2.85. Create Bug Tickets from Learnings (pre-commit)
 
-Review the `LEARNINGS_FROM_2_8` list stored in Step 2.8. For each learning, ask: "Should this be a bug ticket?" Create a bug ticket (`.claude/scripts/dso ticket create bug "<title>" -p <priority>`) for any learning that describes:
+Review the `LEARNINGS_FROM_2_8` list stored in Step 2.8. For each learning, ask: "Should this be a bug ticket?" Follow `plugins/dso/skills/create-bug/SKILL.md` for the required format:
+
+```bash
+# Title format: [Component]: [Condition] -> [Observed Result]
+.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -p <priority> -d "## Incident Overview ..."
+```
+
+Create a bug ticket for any learning that describes:
 - A defect, regression, or broken behavior that hasn't been fixed yet
 - A footgun or edge case that will bite users/developers again if not addressed
 - A workaround that was applied instead of a proper fix

@@ -163,9 +163,10 @@ Ensure a bug ticket exists and is set to in-progress before investigation begins
    ticket list | python3 -c "import json,sys; tickets=json.load(sys.stdin); bugs=[t for t in tickets if t.get('ticket_type')=='bug' and t.get('status')=='open']; [print(t['ticket_id'],t['title']) for t in bugs]"
    ```
    - If a matching bug is found (same error, same file, or same root symptom): use that ticket ID.
-   - If no match: create a new bug ticket:
+   - If no match: create a new bug ticket. Read `plugins/dso/skills/create-bug/SKILL.md` for the required title and description format. At minimum supply `-d` with Section 2 (Incident Overview):
      ```bash
-     ticket create bug "<concise bug title derived from the error>"
+     # Title format: [Component]: [Condition] -> [Observed Result]
+     ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..."
      ```
 3. **Set the ticket to in-progress** (check current status first to avoid optimistic concurrency errors):
    ```bash
@@ -1050,7 +1051,7 @@ for each batch of up to max_agents fix agents:
   6. Proceed to next batch
 ```
 
-If a batch returns `batch_status: FAILED` or `PARTIAL`, record findings as a bug ticket (`.claude/scripts/dso ticket create bug "<title>" --parent=<EPIC_ID>`) and proceed to the next batch — do not block the entire scan on a single failing batch. Do NOT use `--tags CLI_user` for these tickets — they are autonomously-discovered defects identified by the anti-pattern scan, not bugs reported by the user during an interactive session.
+If a batch returns `batch_status: FAILED` or `PARTIAL`, record findings as a bug ticket (`.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..." --parent=<EPIC_ID>` — follow `plugins/dso/skills/create-bug/SKILL.md` format) and proceed to the next batch — do not block the entire scan on a single failing batch. Do NOT use `--tags CLI_user` for these tickets — they are autonomously-discovered defects identified by the anti-pattern scan, not bugs reported by the user during an interactive session.
 
 #### 7.5.5 — Observation Tracking (Dogfooding)
 
