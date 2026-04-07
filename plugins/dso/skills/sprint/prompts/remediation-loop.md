@@ -45,7 +45,9 @@ For each failing success criterion (SC) identified in Phase 6 validation, dispat
 For each item in the validation agent's FAIL/REMEDIATION output:
 
 ```bash
-.claude/scripts/dso ticket create bug "Fix: {issue description}" -p 1 --parent=<epic-id>
+# Title format: [Component]: [Condition] -> [Observed Result]
+# Follow plugins/dso/skills/create-bug/SKILL.md for description format
+.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -p 1 --parent=<epic-id> -d "## Incident Overview ..."
 ```
 
 ### Step 2: Validate Ticket Health (/dso:sprint)

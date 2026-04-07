@@ -30,12 +30,11 @@ For EACH open ticket bug (`.claude/scripts/dso ticket list`):
 For each cluster or standalone error without an existing ticket issue:
 
 ```bash
-# For clusters: title describes root cause, not individual symptoms
+# Title MUST use format: [Component]: [Condition] -> [Observed Result]
+# Example: "TestGate: run staged tests -> exit 144 (SIGURG timeout)"
+# Follow plugins/dso/skills/create-bug/SKILL.md for description format.
 # Do NOT use --tags CLI_user — autonomously-created bugs must not carry this tag (see SUB-AGENT-BOUNDARIES.md)
-.claude/scripts/dso ticket create bug "Fix: <root cause description> (N related errors)" -p <priority>
-
-# For standalone errors:
-.claude/scripts/dso ticket create bug "Fix: <specific failure description>" -p <priority>
+.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -p <priority> -d "## Incident Overview ..."
 ```
 
 Update each new issue with its full error details:
