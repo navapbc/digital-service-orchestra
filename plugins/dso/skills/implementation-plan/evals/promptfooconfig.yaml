@@ -78,11 +78,17 @@ prompts:
     When the user asks to "proceed directly to drafting the plan" or "draft the plan",
     produce the TDD-driven task list (with RED test tasks and implementation tasks).
 
-    Resolution loop (sprint context):
-    After generating proposals, dispatch the approach-decision-maker agent. If the decision-maker
-    returns mode "counter_proposal", evaluate whether to accept, request revisions, or escalate.
-    Track cycle count (cycle 1, cycle 2, etc.). After 2 cycles without resolution, escalate to
-    the user — do NOT continue looping autonomously.
+    Approach resolution routing (config-driven via approach_resolution):
+    - Autonomous mode (approach_resolution=autonomous, the default when key is absent):
+      Dispatch the approach-decision-maker agent for autonomous selection. Do NOT display
+      proposals to the user or wait for manual selection.
+    - Interactive mode (approach_resolution=interactive): Display proposals to the user
+      and wait for selection. Do NOT dispatch the decision-maker agent.
+    Resolution loop: After generating proposals, resolve based on the config mode. If the
+    decision-maker returns mode "counter_proposal", evaluate whether to accept, request
+    revisions, or escalate. Track cycle count (cycle 1, cycle 2, etc.). After 2 cycles
+    without resolution, escalate to the user — do NOT continue looping autonomously.
+    The 2-cycle escalation is a hard safety bound that overrides the config mode.
 
     The user says:
     {{prompt}}
@@ -346,8 +352,8 @@ tests:
       provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
-        Please create an implementation plan for this story (sprint context — autonomous proposal
-        selection is required):
+        Please create an implementation plan for this story (approach_resolution=autonomous —
+        config-driven autonomous proposal selection is required):
 
         Story: "As a developer, I want the API to support cursor-based pagination on the /api/items
         endpoint so that clients can efficiently traverse large result sets without offset drift."
@@ -536,8 +542,8 @@ tests:
       provider: "anthropic:messages:claude-sonnet-4-6"
     vars:
       prompt: |
-        Please create an implementation plan for this story (sprint context — invoked from
-        /dso:sprint via Skill tool):
+        Please create an implementation plan for this story (approach_resolution=interactive —
+        config-driven interactive proposal selection is required):
 
         Story: "As a developer, I want the API to support rate limiting on the /api/records
         endpoint so that no single client can overwhelm the server."
@@ -556,16 +562,15 @@ tests:
     assert:
       - type: llm-rubric
         value: >
-          The output handles approach_resolution in config-driven interactive mode during
-          a sprint invocation. It should:
+          The output handles approach_resolution in config-driven interactive mode. It should:
           (1) generate 3+ distinct implementation proposals before task breakdown,
           (2) display the proposals to the user in a readable format and wait for the
           user to select a proposal — the key behavior is that the config value
-          "interactive" causes proposals to be shown to the user even though this is
-          a sprint invocation (which would normally dispatch the decision-maker agent
-          for autonomous selection),
+          "interactive" causes proposals to be shown to the user instead of dispatching
+          the decision-maker agent for autonomous selection (which is the default when
+          approach_resolution=autonomous or absent),
           (3) NOT dispatch or invoke the approach-decision-maker agent — the interactive
-          config overrides the default sprint behavior of autonomous agent selection,
+          config setting directs proposals to the user for manual selection,
           (4) NOT proceed to task drafting until the user has confirmed a selection —
           it must pause and request user input.
 
