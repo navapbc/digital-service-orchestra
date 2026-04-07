@@ -364,4 +364,4 @@ plugins/dso/skills/shared/constants/figma-tags.conf:tests/skills/test-figma-tag-
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
 plugins/dso/scripts/check_usage.py:tests/scripts/test_check_usage.py
 plugins/dso/scripts/check-usage.sh:tests/scripts/test-check-usage.sh
-plugins/dso/scripts/check-referential-integrity.sh: tests/scripts/test-check-referential-integrity.sh [test_valid_reference]
+plugins/dso/scripts/check-referential-integrity.sh: tests/scripts/test-check-referential-integrity.sh
