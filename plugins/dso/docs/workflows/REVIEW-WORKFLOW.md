@@ -447,9 +447,13 @@ Otherwise, apply the tier mapping to determine the escalation reviewer:
 case "$REVIEW_TIER" in
     light)
         ESCALATION_AGENT="dso:code-reviewer-standard"
+        # Ratchet: record that this session has escalated to standard tier
+        RATCHETED_TIER='standard'
         ;;
     standard)
         ESCALATION_AGENT="dso:code-reviewer-deep-arch"
+        # Ratchet: record that this session has escalated to deep tier
+        RATCHETED_TIER='deep'
         ;;
     deep)
         # Covered by OPUS GUARD above — skip escalation
@@ -707,12 +711,16 @@ that causes `[Tool result missing due to internal error]`:
 
 This design keeps nesting at one level (orchestrator → sub-agent) for both the fix and re-review steps.
 
-**Before dispatching**, record the current time for freshness verification:
+**Before dispatching**, record the current time for freshness verification and initialize the ratchet variable:
 
 ```bash
 DISPATCH_TIME=$(date +%s)
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 ARTIFACTS_DIR="$(get_artifacts_dir)"
+# RATCHETED_TIER tracks escalation from ESCALATE_REVIEW (Step 4a).
+# Once set, it ensures re-review passes use at least the escalated tier.
+# Initialized to empty (no ratchet in effect) before the first dispatch.
+RATCHETED_TIER=''
 ```
 
 Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md` and use its contents as the sub-agent prompt, filling in:
@@ -753,28 +761,46 @@ Task tool:
    ".claude/scripts/dso capture-review-diff.sh" "$NEW_DIFF_FILE" "$NEW_STAT_FILE"
    ```
 
-2. **Re-review model escalation**: Increment `REVIEW_PASS_NUM` by 1 before each re-review dispatch, then select the re-review agent based on the updated value. On repeated failures, upgrade the reviewer model to prevent infinite loops with a reviewer that cannot process the context (e.g., light-tier reviewers producing recurring false positives on REVIEW-DEFENSE comments):
+2. **Re-review model escalation**: Increment `REVIEW_PASS_NUM` by 1 before each re-review dispatch, then select the re-review agent based on the updated value. On repeated failures, upgrade the reviewer model to prevent infinite loops with a reviewer that cannot process the context (e.g., light-tier reviewers producing recurring false positives on REVIEW-DEFENSE comments). `RATCHETED_TIER` (set in Step 4a when `ESCALATE_REVIEW` triggered escalation) is respected as a one-way floor — once set, the re-review tier never drops below it:
 
    | `REVIEW_PASS_NUM` (after increment) | Re-review Agent | Rationale |
    |---|---|---|
    | 2 | `REVIEW_AGENT` from Step 3 (unchanged for standard); deep → full deep-multi-reviewer pipeline; light → upgrade to `dso:code-reviewer-standard` | Deep tier always requires 3 sonnet + opus sequence; light-tier haiku lacks context for REVIEW-DEFENSE |
-   | 3+ | Upgrade: light/standard/deep → run the **full deep-multi-reviewer path** (3 parallel `dso:code-reviewer-deep-*` sonnet agents + `dso:code-reviewer-deep-arch` opus synthesis) — NOT `dso:code-reviewer-deep-arch` alone | Escalate to maximum-coverage review; opus synthesis without sonnet findings is incomplete |
+   | Any pass with `RATCHETED_TIER` set | Use `max(RATCHETED_TIER, current escalation result)` — ratchet only goes up, never down | Preserves escalation from Step 4a `ESCALATE_REVIEW` across all re-review passes; ordinal: light=1, standard=2, deep=3 |
 
    ```bash
    # Re-review model escalation logic
+   # RATCHETED_TIER is initialized before the first dispatch and updated by Step 4a.
+   # It defaults to empty here if not previously set (no ESCALATE_REVIEW escalation occurred).
+   RATCHETED_TIER="${RATCHETED_TIER:-}"
    ((REVIEW_PASS_NUM++))
    RE_REVIEW_AGENT="$REVIEW_AGENT"
    RE_REVIEW_DEEP_FULL=false
-   if [[ "$REVIEW_PASS_NUM" -ge 3 ]]; then
-       # All tiers at pass 3+: run full deep-multi-reviewer path
-       # (3 parallel sonnet agents + opus synthesis) — NOT deep-arch alone
-       RE_REVIEW_DEEP_FULL=true
-   elif [[ "$REVIEW_PASS_NUM" -ge 2 ]] && [[ "$REVIEW_TIER" == "deep" ]]; then
+   if [[ "$REVIEW_PASS_NUM" -ge 2 ]] && [[ "$REVIEW_TIER" == "deep" ]]; then
        # Deep tier always requires full pipeline — opus arch without fresh
        # sonnet findings produces incomplete reviews (bug d7e6-216a)
        RE_REVIEW_DEEP_FULL=true
    elif [[ "$REVIEW_PASS_NUM" -ge 2 ]] && [[ "$REVIEW_TIER" == "light" ]]; then
        RE_REVIEW_AGENT="dso:code-reviewer-standard"
+   fi
+   # Apply RATCHETED_TIER: one-way floor from any prior ESCALATE_REVIEW dispatch (Step 4a).
+   # Ordinal mapping: light=1, standard=2, deep=3. Ratchet only goes up.
+   if [[ -n "$RATCHETED_TIER" ]]; then
+       _tier_ordinal() { case "$1" in light) echo 1;; standard) echo 2;; deep) echo 3;; *) echo 0;; esac; }
+       _current_tier="$REVIEW_TIER"
+       [[ "$RE_REVIEW_AGENT" == "dso:code-reviewer-standard" ]] && _current_tier="standard"
+       [[ "$RE_REVIEW_DEEP_FULL" == "true" ]] && _current_tier="deep"
+       if [[ $(_tier_ordinal "$RATCHETED_TIER") -gt $(_tier_ordinal "$_current_tier") ]]; then
+           case "$RATCHETED_TIER" in
+               standard)
+                   RE_REVIEW_AGENT="dso:code-reviewer-standard"
+                   RE_REVIEW_DEEP_FULL=false
+                   ;;
+               deep)
+                   RE_REVIEW_DEEP_FULL=true
+                   ;;
+           esac
+       fi
    fi
    # When RE_REVIEW_DEEP_FULL=true, dispatch the full Step 4 Deep Tier
    # sequence (3 parallel sonnet + opus synthesis) instead of a single agent.
