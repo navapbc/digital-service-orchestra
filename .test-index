@@ -86,6 +86,7 @@ plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-al
 plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-mechanical-amend-bypass.sh
 plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-pre-commit-review-gate.sh
 plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-pre-commit-test-gate.sh,tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-test-gate-fast-path.sh,tests/hooks/test-pre-commit-test-gate-resource-exhaustion.sh,tests/hooks/test-integration-eagain-full-path.sh
+plugins/dso/hooks/pre-commit-test-quality-gate.sh:tests/hooks/test-pre-commit-test-quality-gate.sh [test_gate_passes_behavioral_test]
 plugins/dso/hooks/pre-commit-ticket-gate.sh:tests/hooks/test-pre-commit-ticket-gate.sh
 plugins/dso/hooks/record-review.sh:tests/hooks/test-record-review.sh,tests/workflows/test-review-tier-enforcement-e2e.sh
 plugins/dso/hooks/record-test-status.sh:tests/hooks/test-eval-todo-guard.sh
@@ -129,6 +130,8 @@ plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test-scrutiny-pendi
 plugins/dso/skills/update-docs/SKILL.md:tests/hooks/test-sub-agent-guard.sh
 plugins/dso/scripts/overlay-dispatch.sh:tests/hooks/test-overlay-dispatch.sh
 plugins/dso/hooks/resolve-overlay-findings.sh:tests/hooks/test-overlay-resolution-integration.sh
+plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-test-quality-overlay.sh [test_classifier_sets_test_quality_overlay_for_test_file_diffs]
+plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-test-quality-overlay.sh [test_overlay_agent_file_exists]
 plugins/dso/scripts/gate-2d-dependency-check.sh:tests/scripts/test-gate-2d-dependency-check.sh
 plugins/dso/scripts/gate-2c-test-regression-check.py:tests/scripts/test_gate_2c_test_regression_check.py
 plugins/dso/scripts/gate-escalation-router.py:tests/scripts/test_gate_escalation_router.py
