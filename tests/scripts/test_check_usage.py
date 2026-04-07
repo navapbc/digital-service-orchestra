@@ -116,12 +116,30 @@ class TestCache:
 
     def test_cache_flock_uses_separate_lockfile(self, tmp_path: Path) -> None:
         """flock is acquired on .lock file, not the .json data file."""
+        import fcntl as _fcntl
+
         cache_file = str(tmp_path / "usage-cache.json")
         lock_file = cache_file + ".lock"
         data = {"five_hour": {"utilization": 0.1}, "seven_day": {"utilization": 0.1}}
-        write_cache(cache_file, data)
+
+        flock_calls: list[str] = []
+        original_flock = _fcntl.flock
+
+        def tracking_flock(fd: object, operation: int) -> None:
+            # Record the path of the file descriptor being locked
+            if hasattr(fd, "name"):
+                flock_calls.append(fd.name)  # type: ignore[union-attr]
+            original_flock(fd, operation)  # type: ignore[arg-type]
+
+        with mock.patch("fcntl.flock", side_effect=tracking_flock):
+            write_cache(cache_file, data)
+
         # The lock file should exist after a write (created during locking)
         assert Path(lock_file).exists(), "Lock file should be created alongside cache"
+        # flock must have been called on the .lock file, not the .json file
+        assert any(lock_file in call for call in flock_calls), (
+            f"flock should target {lock_file}, got calls on: {flock_calls}"
+        )
 
     def test_cache_ttl_expired(self, tmp_path: Path) -> None:
         """Cache older than 5 minutes (300s) is treated as stale."""
@@ -185,6 +203,9 @@ class TestHTTPErrorHandling:
         # Pre-populate cache with unlimited (below-threshold) data
         data = {"five_hour": {"utilization": 0.10}, "seven_day": {"utilization": 0.10}}
         write_cache(cache_file, data)
+        # Backdate cache so it's stale (poll will be attempted)
+        old_time = time.time() - 400
+        os.utime(cache_file, (old_time, old_time))
 
         with (
             mock.patch.object(_module, "get_oauth_token", return_value="fake-token"),
@@ -209,8 +230,9 @@ class TestHTTPErrorHandling:
             exit_code = main()
         assert exit_code == 1
 
-    def test_curl_timeout(self) -> None:
+    def test_curl_timeout(self, tmp_path: Path) -> None:
         """Request timeout is set to 8 seconds."""
+        cache_file = str(tmp_path / "test-cache.json")
         # Mock urllib/requests to capture the timeout parameter
         fake_token = "fake-token"
         with mock.patch.object(_module, "fetch_usage") as mock_fetch:
@@ -220,7 +242,7 @@ class TestHTTPErrorHandling:
             }
             with (
                 mock.patch.object(_module, "get_oauth_token", return_value=fake_token),
-                mock.patch.object(_module, "CACHE_PATH", "/tmp/test-cache.json"),
+                mock.patch.object(_module, "CACHE_PATH", cache_file),
             ):
                 main()
         # Verify fetch_usage was called with timeout=8
@@ -242,8 +264,11 @@ class TestHTTPErrorHandling:
 class TestTokenSecurity:
     """Verify OAuth tokens are never leaked to output."""
 
-    def test_token_not_logged(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_token_not_logged(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
         """Token value must never appear in stdout or stderr output."""
+        cache_file = str(tmp_path / "test-token-log.json")
         secret_token = "sk-ant-oauthsecret-SUPERSECRETVALUE123456789"
         with (
             mock.patch.object(_module, "get_oauth_token", return_value=secret_token),
@@ -255,7 +280,7 @@ class TestTokenSecurity:
                     "seven_day": {"utilization": 0.5},
                 },
             ),
-            mock.patch.object(_module, "CACHE_PATH", "/tmp/test-token-log.json"),
+            mock.patch.object(_module, "CACHE_PATH", cache_file),
         ):
             main()
         captured = capsys.readouterr()
