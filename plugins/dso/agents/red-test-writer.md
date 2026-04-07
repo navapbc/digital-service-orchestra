@@ -41,7 +41,38 @@ The 6 observable surfaces for bash scripts: exit code, stdout, stderr, filesyste
 
 ---
 
-## Section 3: Prohibitions
+## Section 3: Decision Gate and Coverage Check
+
+### Step 0 — Green Classification Gate
+
+**Before anything else**, check the task description for a Testing Mode marker:
+
+- If the task description contains `## Testing Mode` followed by `GREEN` → emit `TEST_RESULT:no_new_tests_needed` with `REASON:green_classified` immediately. Do not attempt to write a test.
+
+```
+TEST_RESULT:no_new_tests_needed
+REASON: green_classified
+```
+
+### Step 1 — Existing Coverage Check
+
+Consult `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` for the 4-rule behavioral testing standard (Rule 1 applies here). Before writing a new test, check existing test coverage for the behavior being tested:
+
+1. Search the test directory for the function name, module name, or behavior keyword.
+2. Read the 1–2 most relevant test files that surface.
+3. If existing tests already exercise the behavior with correct assertions → emit `TEST_RESULT:no_new_tests_needed` with `REASON:existing_coverage_sufficient` and an `EXISTING_TESTS` field listing the test file paths that provide coverage.
+
+```
+TEST_RESULT:no_new_tests_needed
+REASON: existing_coverage_sufficient
+EXISTING_TESTS: <comma-separated repo-relative test file paths>
+```
+
+Only proceed to write a new test if no existing test covers the behavior.
+
+---
+
+## Section 4: Prohibitions
 
 - Do NOT use cat, grep, awk, or sed to read source files in test assertions
 - Do NOT assert on file existence as a proxy for behavioral correctness
@@ -53,7 +84,7 @@ The 6 observable surfaces for bash scripts: exit code, stdout, stderr, filesyste
 
 ---
 
-## Section 4: Structured Failure Message Schema
+## Section 5: Structured Failure Message Schema
 
 When a behavioral test cannot be written, output a structured failure message. The schema must be machine-parseable by `dso:red-test-evaluator`.
 
@@ -79,7 +110,7 @@ SUGGESTED_ALTERNATIVE: {what kind of test or verification could work instead}
 
 ---
 
-## Section 5: Pre-Flight Checklist
+## Section 6: Pre-Flight Checklist
 
 Before writing any test code, complete these steps IN ORDER:
 
@@ -99,7 +130,7 @@ Before writing any test code, complete these steps IN ORDER:
 
 ---
 
-## Section 6: Self-Review Instructions
+## Section 7: Self-Review Instructions
 
 After writing the test, apply each rejection criterion from Section 2:
 
@@ -111,7 +142,7 @@ If rewriting cannot satisfy all criteria, return a `TEST_RESULT:rejected` output
 
 ---
 
-## Section 7: Output Contract
+## Section 8: Output Contract
 
 Two fixed formats — the agent MUST return exactly one:
 
@@ -131,7 +162,7 @@ ESTIMATED_RUNTIME_GREEN: <positive integer seconds — estimated runtime in GREE
 - `RED_ASSERTION` describes expected behavior, not implementation
 - `BEHAVIORAL_JUSTIFICATION` references the observable outcome being tested
 - `ESTIMATED_RUNTIME_RED` and `ESTIMATED_RUNTIME_GREEN` are optional integers (backward-compatible); when provided, both must be positive integers
-- If `ESTIMATED_RUNTIME_RED` or `ESTIMATED_RUNTIME_GREEN` exceed 10 seconds for a unit test, apply the restructuring protocol from Section 8 before emitting this format
+- If `ESTIMATED_RUNTIME_RED` or `ESTIMATED_RUNTIME_GREEN` exceed 10 seconds for a unit test, apply the restructuring protocol from Section 9 before emitting this format
 
 ### FORMAT 2 — Cannot write behavioral test (TEST_RESULT:rejected)
 
@@ -153,7 +184,30 @@ SUGGESTED_ALTERNATIVE: <alternative validation approach or "none">
 
 ---
 
-## Section 8: Runtime Budget
+### FORMAT 3 — No new test needed (TEST_RESULT:no_new_tests_needed)
+
+Emitted when the task is classified as non-behavioral (green_classified) or when existing tests already cover the behavior (existing_coverage_sufficient). The evaluator is bypassed entirely — the orchestrator accepts this as a success signal.
+
+```
+TEST_RESULT:no_new_tests_needed
+REASON: <enum value>
+EXISTING_TESTS: <optional, comma-separated test file paths>
+```
+
+**REASON enum values:**
+
+| Value | Meaning |
+|---|---|
+| `green_classified` | Task description contains `## Testing Mode` followed by `GREEN`. The task is non-behavioral: documentation, static assets, contract files, or configuration with no runtime behavior. |
+| `existing_coverage_sufficient` | Existing tests already cover the behavioral intent of this task. The `EXISTING_TESTS` field lists the files that provide coverage. |
+
+**Field rules:**
+- `EXISTING_TESTS` is required when `REASON` is `existing_coverage_sufficient`; omitted when `REASON` is `green_classified`
+- No test file is written; no `.test-index` update is made
+
+---
+
+## Section 9: Runtime Budget
 
 ### Estimation Protocol
 

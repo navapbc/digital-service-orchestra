@@ -1366,3 +1366,130 @@ class TestStep2AstGrepInvestigationPreLoading:
             "the file. The guidance must be co-located with investigation pre-loading "
             "instructions so agents encounter it at the right point in the workflow."
         )
+
+
+class TestTestingModeClassification:
+    """Tests asserting the fix-bug SKILL.md contains Step 4.75 Testing Mode Classification.
+
+    TDD spec for task 023f-c97b:
+    - plugins/dso/skills/fix-bug/SKILL.md must:
+      1. Contain a Step 4.75 testing_mode classification gate
+      2. Define GREEN/UPDATE/RED branching at Step 5
+      3. Include scaffolding test instructions
+      4. Reference the shared behavioral-testing-standard.md standard
+    """
+
+    def test_step_475_testing_mode_classification_gate_present(self) -> None:
+        """SKILL.md must contain a Step 4.75 testing_mode classification gate."""
+        content = _read_skill()
+        assert "Step 4.75" in content, (
+            "Expected fix-bug SKILL.md to contain 'Step 4.75' as the testing mode "
+            "classification gate between investigation and RED test dispatch. "
+            "This gate classifies the fix into GREEN, UPDATE, or RED testing modes."
+        )
+        assert "testing_mode" in content, (
+            "Expected fix-bug SKILL.md to contain 'testing_mode' as the classification "
+            "signal emitted at Step 4.75. The signal format is 'testing_mode=<GREEN|UPDATE|RED>'."
+        )
+
+    def test_step_475_emits_classification_signal(self) -> None:
+        """SKILL.md Step 4.75 must define the testing_mode=<GREEN|UPDATE|RED> signal format."""
+        content = _read_skill()
+        # Check the signal emission format is documented
+        assert any(
+            phrase in content
+            for phrase in (
+                "testing_mode=<GREEN|UPDATE|RED>",
+                "testing_mode=GREEN",
+                "testing_mode=UPDATE",
+                "testing_mode=RED",
+            )
+        ), (
+            "Expected fix-bug SKILL.md to define the testing_mode signal format "
+            "(e.g., 'testing_mode=<GREEN|UPDATE|RED>' or individual values like "
+            "'testing_mode=GREEN') so the orchestrator knows how to parse and route "
+            "based on the emitted classification."
+        )
+
+    def test_step5_green_update_red_branching_present(self) -> None:
+        """SKILL.md Step 5 must define distinct branches for GREEN, UPDATE, and RED testing modes."""
+        content = _read_skill()
+        # Find Step 5 section
+        step5_pos = content.find("### Step 5:")
+        assert step5_pos != -1, "Step 5 section not found"
+        # Find the end of Step 5 (Step 5.5 or Step 6)
+        step55_pos = content.find("### Step 5.5:", step5_pos + 1)
+        step6_pos = content.find("### Step 6:", step5_pos + 1)
+        candidates = [p for p in (step55_pos, step6_pos) if p != -1]
+        step5_end = min(candidates) if candidates else len(content)
+        step5_text = content[step5_pos:step5_end]
+
+        # All three branches must appear in Step 5
+        assert "testing_mode=GREEN" in step5_text, (
+            "Expected Step 5 of fix-bug SKILL.md to contain a 'testing_mode=GREEN' branch "
+            "describing the skip path when the fix changes implementation without changing "
+            "observable behavior."
+        )
+        assert "testing_mode=UPDATE" in step5_text, (
+            "Expected Step 5 of fix-bug SKILL.md to contain a 'testing_mode=UPDATE' branch "
+            "describing the path for modifying existing tests to assert new correct behavior."
+        )
+        assert "testing_mode=RED" in step5_text, (
+            "Expected Step 5 of fix-bug SKILL.md to contain a 'testing_mode=RED' branch "
+            "describing the path for dispatching red-test-writer to write a new failing test."
+        )
+
+    def test_scaffolding_test_instructions_present(self) -> None:
+        """SKILL.md must include scaffolding test instructions for hypothesis tests."""
+        content = _read_skill()
+        assert any(
+            phrase in content
+            for phrase in (
+                "Scaffolding test",
+                "Scaffolding Test",
+                "scaffolding test",
+                "scaffolding tests",
+            )
+        ), (
+            "Expected fix-bug SKILL.md to contain scaffolding test instructions for "
+            "hypothesis validation tests written during Step 3. Scaffolding tests are "
+            "temporary investigation artifacts marked for removal after fix validation."
+        )
+        # The scaffolding instructions must mention marking/removal
+        assert any(
+            phrase in content
+            for phrase in (
+                "remove after fix",
+                "remove after",
+                "Scaffolding Test — remove",
+                "remove scaffolding",
+            )
+        ), (
+            "Expected fix-bug SKILL.md scaffolding test instructions to include "
+            "language about removing scaffolding tests after fix validation "
+            "(e.g., 'remove after fix validation', '## Scaffolding Test — remove after fix validation'). "
+            "Scaffolding tests must not be committed to the permanent test suite."
+        )
+
+    def test_shared_behavioral_testing_standard_reference_present(self) -> None:
+        """SKILL.md Step 5 must reference the shared behavioral-testing-standard.md."""
+        content = _read_skill()
+        assert "behavioral-testing-standard.md" in content, (
+            "Expected fix-bug SKILL.md to reference 'behavioral-testing-standard.md' as the "
+            "shared standard for writing or modifying tests in Step 5. This shared standard "
+            "defines the four rules (coverage check, observable behavior, execute-don't-inspect, "
+            "refactoring litmus test) that must be applied to every test written or modified."
+        )
+        # The reference must be in the context of Step 5 specifically
+        step5_pos = content.find("### Step 5:")
+        assert step5_pos != -1, "Step 5 section not found (prerequisite check)"
+        # Find Step 6 as the upper bound
+        step6_pos = content.find("### Step 6:", step5_pos + 1)
+        assert step6_pos != -1, "Step 6 section not found (prerequisite check)"
+        step5_text = content[step5_pos:step6_pos]
+        assert "behavioral-testing-standard.md" in step5_text, (
+            "Expected the 'behavioral-testing-standard.md' reference to appear within "
+            "Step 5 of fix-bug SKILL.md (between Step 5 and Step 6). The standard "
+            "reference must be co-located with test writing instructions so agents "
+            "load it at the point where they write or modify tests."
+        )

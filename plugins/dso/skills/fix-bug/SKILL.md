@@ -523,6 +523,11 @@ echo '{"a.b": 1}' | python3 -c "import json,sys; d=json.load(sys.stdin); print('
 
 Tests that confirm a root cause increase confidence. Tests that disprove a root cause eliminate it from consideration.
 
+**Scaffolding test support**: Hypothesis validation tests written during Step 3 may be kept temporarily as scaffolding to support the fix implementation. If retained:
+- Mark the test with a `## Scaffolding Test — remove after fix validation` comment at the top of the test function/block so it is clearly identified as temporary.
+- Do NOT register scaffolding tests in `.test-index` with RED markers — they are temporary investigation artifacts, not part of the permanent TDD contract.
+- Scaffolding tests must be removed during Step 7 (fix verification). See Step 7 for the explicit removal instruction.
+
 ### Step 3.5: Hypothesis Validation Gate (/dso:fix-bug)
 
 Before proceeding to fix approval or fix implementation, validate the `hypothesis_tests` section of the investigation RESULT report.
@@ -610,11 +615,54 @@ Note for the re-dispatched agent (not actionable in the current dispatch): when 
 
 3. Stop — do NOT proceed to Step 5 or Step 6. The orchestrator receives this report and decides how to proceed (e.g., re-dispatch `/dso:fix-bug` at orchestrator level with full authority, or invoke `/dso:brainstorm` to create an epic).
 
+### Step 4.75: Testing Mode Classification (/dso:fix-bug)
+
+Before dispatching a RED test or modifying existing tests, classify the fix into one of three testing modes. This determines which Step 5 path to follow.
+
+**Examine the investigation RESULT root cause and the approved fix description from Step 4.**
+
+**Classification rules:**
+
+| testing_mode | Condition |
+|--------------|-----------|
+| `GREEN` | The fix changes implementation without changing observable behavior (e.g., performance optimization, internal restructuring, refactor). Existing tests remain valid and do not need modification. |
+| `UPDATE` | The fix changes observable behavior AND existing tests already cover the affected paths — but those tests currently assert the old (buggy) behavior. The existing tests need to be updated to assert the new correct behavior. |
+| `RED` | The fix changes observable behavior AND no existing tests cover the affected paths. A new failing test must be written before the fix is applied. |
+
+**Default**: `GREEN` — most bug fixes change implementation rather than observable behavior. Apply this default when the fix is an internal correction that does not alter public-facing outputs, return values, exit codes, or emitted events.
+
+**Emit the classification signal on its own line:**
+```
+testing_mode=<GREEN|UPDATE|RED>
+```
+
+Proceed to the corresponding Step 5 branch below.
+
 ### Step 5: RED Test (/dso:fix-bug)
+
+**Standard reference**: Load `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` before writing or modifying any test. Apply all four rules (coverage check, observable behavior, execute-don't-inspect, refactoring litmus test) to every test written or modified in this step.
 
 If the bug already causes an existing test to fail, skip this step — the existing test serves as the RED test.
 
-Otherwise, write a RED test by dispatching `dso:red-test-writer`. If the writer rejects the task, follow the three-tier escalation protocol.
+**Branch based on `testing_mode` from Step 4.75:**
+
+#### testing_mode=GREEN — Skip RED test
+The fix changes implementation without changing observable behavior. Existing tests validate fix correctness.
+
+Log: `Testing mode: GREEN — existing tests validate fix correctness. Proceeding to implementation.`
+
+Proceed directly to Step 6 (Fix Implementation). No RED test is written and the pre-fix gate (Step 5.5) is skipped — existing tests validate correctness after the fix is applied.
+
+#### testing_mode=UPDATE — Modify existing tests
+The fix changes observable behavior and existing tests cover the affected paths, but they assert old behavior.
+
+1. Identify the existing test(s) that cover the affected behavior.
+2. Update those tests to assert the new expected (correct) behavior BEFORE implementing the fix. The updated tests should now fail (they assert the new behavior, but the code still has the bug).
+3. Run the updated tests to confirm they fail (RED state).
+4. Proceed to Step 5.5 using the updated test(s) as the confirmation of the RED state — the gate will verify they are failing before fix dispatch.
+
+#### testing_mode=RED — Dispatch red-test-writer
+The fix changes observable behavior and no existing tests cover the affected paths. Write a new failing test before implementing the fix.
 
 ### RED Test Dispatch via dso:red-test-writer
 
@@ -700,6 +748,8 @@ $TEST_CMD           # RED tests should now PASS
 $LINT_CMD           # No lint regressions
 $FORMAT_CHECK_CMD   # No format regressions
 ```
+
+**Scaffolding test cleanup**: If any Step 3 hypothesis tests were retained as scaffolding (marked with `## Scaffolding Test — remove after fix validation`), remove them now — after the fix is verified GREEN. Do not commit scaffolding tests. Verify `$TEST_CMD` still passes after removal.
 
 **If verification fails**: return to Step 2 and escalate to the next investigation tier. Include the attempted fix and test results with the investigation prompt.
 
