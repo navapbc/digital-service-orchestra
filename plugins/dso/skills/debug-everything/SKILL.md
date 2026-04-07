@@ -570,7 +570,7 @@ Tier 7: Open ticket bugs — pre-existing tracked bugs not covered by tiers 0-6
 
 ### Batch Planning Within Tiers
 
-Within each tier, group independent fixes into batches of up to 5 sub-agents:
+Within each tier, group independent fixes into batches sized by the `MAX_AGENTS` value from the pre-batch check:
 1. Fixes that unblock other fixes (dependency order first)
 2. Fixes affecting the most files/tests (largest blast radius)
 3. Independent fixes that can be parallelized
@@ -625,14 +625,20 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check       # no --db for tiers 0-3
 ```
 
 The script outputs structured key-value pairs:
-- `MAX_AGENTS: 1 | 5` — use as `max_agents`
-- `SESSION_USAGE: normal | high`
+- `MAX_AGENTS: unlimited | N | 0` — dynamic batch size cap (see **MAX_AGENTS protocol** below)
+- `SESSION_USAGE: normal | high | critical`
 - `GIT_CLEAN: true | false` — if false, commit previous batch first
 - `DB_STATUS: running | stopped | skipped` — if stopped, run `make db-start`
 
 Exit 0 means all checks pass. Exit 1 means at least one check requires action (details in output).
 
-**Batch size limit**: Launch at most 5 Task calls in a single message, each with `run_in_background: true`. Before each batch, verify: how many tasks am I about to launch? If > 5, split into multiple batches.
+**MAX_AGENTS protocol** — the `MAX_AGENTS` value from `agent-batch-lifecycle.sh pre-check` determines batch sizing dynamically. Three cases:
+
+- **`MAX_AGENTS: unlimited`** — dispatch ALL candidates in a single batch with no artificial ceiling. Do NOT split into sub-batches or cap at any fixed number. Launch all Task calls in one message, each with `run_in_background: true`.
+- **`MAX_AGENTS: N`** (a positive integer, e.g., `1`, `3`, `5`) — cap each batch at N sub-agents. If the candidate count exceeds N, split into sequential batches of at most N. Launch all Task calls in the batch within a single message, each with `run_in_background: true`.
+- **`MAX_AGENTS: 0`** — skip sub-agent dispatch entirely. Do NOT launch any Task calls. Write a ticket comment on the epic noting dispatch was skipped due to resource constraints: `.claude/scripts/dso ticket comment <epic-id> "DISPATCH_SKIPPED: MAX_AGENTS=0 — resource constraints prevent sub-agent dispatch. Queued fixes: <list ticket IDs>"`. Proceed to Phase 9 (graceful shutdown).
+
+**Context-check integration rationale**: Unlike `/dso:sprint` (which runs `agent-batch-lifecycle.sh context-check` proactively between batches), `/dso:debug-everything` does NOT invoke `context-check` as a separate step. Instead, it relies on two mechanisms: (1) `_compute_max_agents()` inside `pre-check` already reads `CLAUDE_CONTEXT_WINDOW_USAGE` and throttles `MAX_AGENTS` to `1` when context >= 90%, and (2) Phase 6 Step 8 detects literal context-compaction event banners for graceful shutdown. Proactive context-check adds overhead per batch without benefit because the pre-check signal already covers the throttling case, and debug-everything's shutdown trigger is the compaction event itself (not a pre-emptive estimate).
 
 ### Claim Tasks
 

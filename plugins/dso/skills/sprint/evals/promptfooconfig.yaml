@@ -15,7 +15,7 @@ prompts:
 
     Key behaviors:
     - Preplanning gate: detect whether stories need decomposition before execution
-    - Batch management: group ready tasks into parallel batches (max 5)
+    - Batch management: group ready tasks into parallel batches sized by MAX_AGENTS (unlimited = all candidates with no cap, N = cap at N, 0 = skip dispatch and write utilization comment)
     - Sub-agent dispatch: each task runs as an independent sub-agent
     - Completion verification: dispatch dso:completion-verifier before closing stories
     - Gap classification: when validation fails, classify gaps as intent_gap or implementation_gap
@@ -438,3 +438,80 @@ tests:
              no crash — defaults to current RED flow)
           5. Does NOT require testing_mode to be present for the orchestrator to function
              correctly — absence is a valid state that maps to RED
+
+  # MAX_AGENTS eval tests below validate the 3-tier protocol (unlimited|N|0) documented in sprint SKILL.md Phase 3 Step 1.
+  - description: "MAX_AGENTS unlimited: sprint dispatches all ready tasks in a single batch with no cap"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the sprint orchestrator entering Phase 3 (batch formation).
+        The agent-batch-lifecycle.sh pre-check returned: MAX_AGENTS: unlimited
+        You have 12 ready tasks for epic payments-epic-3c4d.
+        How many sub-agents do you dispatch in this batch? Do you split into
+        multiple batches of 5? Cite the specific sprint SKILL.md instruction
+        that governs the MAX_AGENTS: unlimited case.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Dispatches all 12 ready tasks in a single batch — does NOT cap at 5
+          2. Explicitly references MAX_AGENTS: unlimited as the signal that removes
+             the batch size cap
+          3. Cites a specific sprint SKILL.md instruction, step, or section that
+             documents the unlimited dispatch behavior
+          4. Does NOT split into batches of 5 or reference a "max 5" batch size limit
+             when MAX_AGENTS is unlimited
+          5. Does NOT say the sprint instructions are silent on the unlimited case
+
+  - description: "MAX_AGENTS 0: sprint SKILL.md documents zero-dispatch behavior with explicit step reference"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the sprint orchestrator entering Phase 3 (batch formation).
+        The agent-batch-lifecycle.sh pre-check returned: MAX_AGENTS: 0
+        You have 4 ready tasks for epic auth-epic-7f2a.
+        How many sub-agents do you dispatch? What does MAX_AGENTS: 0 mean
+        for batch formation? Quote the exact sentence or bullet point from
+        sprint SKILL.md that documents MAX_AGENTS: 0 handling. Do not infer
+        or reason about what 0 should mean — only cite what is written.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Dispatches zero sub-agents — skips sub-agent dispatch entirely
+          2. Quotes or closely paraphrases a specific sentence from the sprint
+             orchestrator's documented instructions that explicitly mentions
+             MAX_AGENTS: 0 (or MAX_AGENTS=0) as a documented value, including
+             the skip-dispatch behavior and utilization comment
+          3. The cited text must be a real instruction from the skill's documented
+             behavior (system prompt or SKILL.md), not reasoning or inference
+          4. Mentions writing a utilization comment or ticket comment
+             (the documented behavior for MAX_AGENTS=0 — "write utilization comment" is sufficient)
+          5. Does NOT say "based on the general principle" or "logically, 0 means" —
+             must cite a real documented instruction for MAX_AGENTS: 0
+
+  - description: "Sprint batch formation does NOT hardcode batches of 5 when MAX_AGENTS varies"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the sprint orchestrator. Review your sprint SKILL.md instructions
+        regarding batch size limits. Does the skill instruct you to always form
+        "batches of 5" or limit to "5 sub-agents"? Or does it instruct you to
+        use the MAX_AGENTS value dynamically (which can be 0, 1, 5, or unlimited)?
+        Cite the exact batch sizing rule from sprint SKILL.md.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Confirms that batch size is determined dynamically by the MAX_AGENTS
+             value — NOT hardcoded to 5
+          2. Mentions that MAX_AGENTS can be 0 (skip dispatch), 1, 5, or unlimited
+             (no cap) — at minimum mentions unlimited and 0 as valid values
+          3. Does NOT describe the batch size rule as "always 5" or "max 5"
+          4. Cites a specific instruction from the sprint orchestrator's documented
+             behavior (system prompt or SKILL.md) that documents dynamic batch
+             sizing based on the MAX_AGENTS signal
+          5. Does NOT say the sprint instructions only support MAX_AGENTS: 1 | 5

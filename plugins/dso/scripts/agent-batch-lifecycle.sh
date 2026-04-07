@@ -33,6 +33,31 @@ if [ -z "$REPO_ROOT" ]; then
     exit 2
 fi
 
+# ─── Rate-limit sentinel ────────────────────────────────────────────────────
+# Default sentinel path; override via RATE_LIMIT_SENTINEL for test isolation.
+# Use an internal variable (_RL_SENTINEL) to capture the path so that it
+# persists when the script is sourced via `RATE_LIMIT_SENTINEL=val source ...`
+# (bash drops prefix-assigned vars of the same name after source returns,
+# but preserves assignments to different names).
+_RL_SENTINEL="${RATE_LIMIT_SENTINEL:-$HOME/.cache/claude/error-reactive-throttle}"
+
+# _check_rate_limit_error <text>
+#   Checks whether <text> contains quota-specific rate-limit keywords.
+#   Matches: rate.limit, usage.limit, quota.exceeded (case-insensitive).
+#   Does NOT match bare "429" without a quota keyword.
+#   On match: writes sentinel file with timestamp, returns 0.
+#   No match: returns 1 (sentinel not created).
+_check_rate_limit_error() {
+    local text="${1:-}"
+    if echo "$text" | grep -qiE 'rate.limit|usage.limit|quota.exceeded'; then
+        # Ensure parent directory exists
+        mkdir -p "$(dirname "$_RL_SENTINEL")"
+        date '+%s' > "$_RL_SENTINEL"
+        return 0
+    fi
+    return 1
+}
+
 # ─── Config helpers ──────────────────────────────────────────────────────────
 # _read_cfg <key> — read a config value, respecting WORKFLOW_CONFIG env var override.
 # When WORKFLOW_CONFIG is set, it is passed as the config-file argument to read-config.sh.
@@ -45,6 +70,83 @@ _read_cfg() {
     else
         bash "$SCRIPT_DIR/read-config.sh" "$key" 2>/dev/null || true
     fi
+}
+
+# _compute_max_agents — determine the maximum number of concurrent sub-agents.
+#
+# Combines three signals:
+#   1. check-usage.sh exit code: 0=unlimited, 1=throttled(1), 2=paused(0)
+#   2. orchestration.max_agents config value (caps unlimited when set)
+#   3. CLAUDE_CONTEXT_WINDOW_USAGE env var (>= 0.90 forces cap to 1)
+#
+# Precedence:
+#   - Paused (exit 2) always wins → "0"
+#   - Context window >= 90% → cap to "1"
+#   - Config cap: min(verdict, config) when both are numeric
+#   - No config + unlimited verdict → "unlimited"
+#
+# Output (stdout): a single bare string — "unlimited", "N", or "0"
+_compute_max_agents() {
+    # Step 1: Call check-usage.sh (resolved via PATH) and capture exit code
+    local usage_exit=0
+    check-usage.sh >/dev/null 2>&1 || usage_exit=$?
+
+    # Step 2: Map exit code to verdict
+    local verdict
+    case "$usage_exit" in
+        0) verdict="unlimited" ;;
+        1) verdict="1" ;;
+        2) verdict="0" ;;
+        *) verdict="unlimited" ;;  # unknown exit → safe fallback
+    esac
+
+    # Step 3: Paused always wins regardless of anything else
+    if [ "$verdict" = "0" ]; then
+        echo "0"
+        return 0
+    fi
+
+    # Step 4: Context window usage override (>= 0.90 → cap to 1)
+    if [ -n "${CLAUDE_CONTEXT_WINDOW_USAGE:-}" ]; then
+        local is_high
+        is_high=$(awk -v u="${CLAUDE_CONTEXT_WINDOW_USAGE}" 'BEGIN { print (u >= 0.90) ? 1 : 0 }' 2>/dev/null || echo 0)
+        if [ "$is_high" = "1" ]; then
+            # Context pressure caps at 1, regardless of usage verdict
+            echo "1"
+            return 0
+        fi
+    fi
+
+    # Step 5: Read orchestration.max_agents config
+    local config_cap
+    config_cap=$(_read_cfg "orchestration.max_agents")
+
+    # Step 6: Apply config cap
+    if [ -n "$config_cap" ]; then
+        # Validate config_cap is a positive integer
+        if ! [[ "$config_cap" =~ ^[0-9]+$ ]] || [ "$config_cap" -eq 0 ]; then
+            # Invalid or zero config → ignore, treat as unset
+            echo "$verdict"
+            return 0
+        fi
+        if [ "$verdict" = "unlimited" ]; then
+            # Config caps unlimited → use config value
+            echo "$config_cap"
+        else
+            # Both are numeric: min(verdict, config) wins
+            local v_num="$verdict"
+            if [ "$config_cap" -lt "$v_num" ] 2>/dev/null; then
+                echo "$config_cap"
+            else
+                echo "$v_num"
+            fi
+        fi
+    else
+        # No config cap → pass through verdict as-is
+        echo "$verdict"
+    fi
+
+    return 0
 }
 
 # Resolve APP_DIR from config (paths.app_dir, relative to REPO_ROOT)
@@ -67,8 +169,8 @@ _app_dir() {
 #   --db    Also check database status (for DB-dependent batches)
 #
 # Output:
-#   MAX_AGENTS: 1 | 5
-#   SESSION_USAGE: normal | high
+#   MAX_AGENTS: unlimited | N | 0
+#   SESSION_USAGE: normal | high | critical
 #   GIT_CLEAN: true | false
 #   DB_STATUS: running | stopped | skipped
 #
@@ -84,17 +186,45 @@ cmd_pre_check() {
 
     local any_fail=false
 
-    # Session usage — read-config.sh session.usage_check_cmd
-    local max_agents=5
-    local usage="normal"
-    local usage_check_cmd
-    usage_check_cmd=$(_read_cfg "session.usage_check_cmd")
-    if [ -n "$usage_check_cmd" ] && [ -x "$usage_check_cmd" ]; then
-        if "$usage_check_cmd" 2>/dev/null; then
-            max_agents=1
-            usage="high"
+    # Rate-limit sentinel override: if a recent sentinel exists (<5 min),
+    # force MAX_AGENTS to 1 regardless of check-usage.sh verdict.
+    local sentinel_override=false
+    if [ -f "$_RL_SENTINEL" ]; then
+        local sentinel_age_s=0
+        local sentinel_ts now_ts
+        sentinel_ts=$(cat "$_RL_SENTINEL" 2>/dev/null || echo "")
+        now_ts=$(date '+%s')
+        if [ -n "$sentinel_ts" ] && [ "$sentinel_ts" -gt 0 ] 2>/dev/null; then
+            # Sentinel contains a unix timestamp — use it directly
+            sentinel_age_s=$(( now_ts - sentinel_ts ))
+        else
+            # Sentinel exists but no valid timestamp — use file mtime
+            # stat -f%m works on macOS; stat -c%Y works on Linux
+            local mtime
+            mtime=$(stat -f%m "$_RL_SENTINEL" 2>/dev/null || stat -c%Y "$_RL_SENTINEL" 2>/dev/null || echo 0)
+            sentinel_age_s=$(( now_ts - mtime ))
+        fi
+        if [ "$sentinel_age_s" -le 300 ]; then
+            sentinel_override=true
+        else
+            # TTL expired — remove stale sentinel
+            rm -f "$_RL_SENTINEL"
         fi
     fi
+
+    # Session usage — 3-tier protocol via _compute_max_agents()
+    local max_agents
+    if $sentinel_override; then
+        max_agents="1"
+    else
+        max_agents=$(_compute_max_agents)
+    fi
+    local usage="normal"
+    case "$max_agents" in
+        unlimited) usage="normal" ;;
+        0)         usage="critical" ;;
+        *)         usage="high" ;;
+    esac
     echo "MAX_AGENTS: $max_agents"
     echo "SESSION_USAGE: $usage"
 
@@ -671,9 +801,35 @@ cmd_context_check() {
 
     case "$level" in
         medium) return 10 ;;  # 10 = compaction recommended
-        high)   return 11 ;;  # 11 = compaction recommended, limit agents
+        high)
+            echo "MAX_AGENTS: 1"
+            return 11 ;;  # 11 = compaction recommended, limit agents
         *)      return 0 ;;   #  0 = no compaction needed
     esac
+}
+
+# ─── check-error ─────────────────────────────────────────────────────────────
+#
+# Convenience subcommand: reads result text from stdin or first argument,
+# calls _check_rate_limit_error(), and outputs CHECK_ERROR: match|no_match.
+#
+# Usage:
+#   echo "some error text" | agent-batch-lifecycle.sh check-error
+#   agent-batch-lifecycle.sh check-error "some error text"
+#
+# Exit 0 always.
+
+cmd_check_error() {
+    local text="${1:-}"
+    if [ -z "$text" ] && [ ! -t 0 ]; then
+        text=$(cat)
+    fi
+    if _check_rate_limit_error "$text"; then
+        echo "CHECK_ERROR: match"
+    else
+        echo "CHECK_ERROR: no_match"
+    fi
+    return 0
 }
 
 # ─── Main ────────────────────────────────────────────────────────────────────
@@ -691,14 +847,16 @@ case "$CMD" in
     lock-status)                cmd_lock_status "$@" ;;
     cleanup-stale-containers)   cmd_cleanup_stale_containers "$@" ;;
     cleanup-discoveries)        cmd_cleanup_discoveries "$@" ;;
+    check-error)                cmd_check_error "$@" ;;
     *)
-        echo "Usage: agent-batch-lifecycle.sh {pre-check|preflight|file-overlap|context-check|lock-acquire|lock-release|lock-status|cleanup-stale-containers|cleanup-discoveries}"
+        echo "Usage: agent-batch-lifecycle.sh {pre-check|preflight|file-overlap|context-check|check-error|lock-acquire|lock-release|lock-status|cleanup-stale-containers|cleanup-discoveries}"
         echo ""
         echo "Subcommands:"
         echo "  pre-check [--db]                     Pre-batch safety checks"
         echo "  preflight [--start-db]               Pre-flight Docker & DB check"
         echo "  file-overlap --agent=id:f1,f2 ...    Detect file conflicts between agents"
         echo "  context-check                        Check context window usage level (exit 0=low, 10=medium, 11=high)"
+        echo "  check-error [text]                    Check result text for rate-limit errors (stdin or argument)"
         echo "  lock-acquire <label>                  Acquire session lock"
         echo "  lock-release <id> [reason]            Release session lock"
         echo "  lock-status <label>                   Check if session lock exists"

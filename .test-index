@@ -112,7 +112,7 @@ plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-v2-hooks-cl
 plugins/dso/scripts/skip-review-check.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/claude-safe:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/retro-gather.sh:tests/hooks/test-v2-hooks-cleanup.sh
-plugins/dso/scripts/sprint-next-batch.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/scripts/test-sprint-next-batch.sh,tests/scripts/test_sprint_next_batch_extra_dir_roots.py,tests/scripts/test-sprint-next-batch-design-filter.sh
+plugins/dso/scripts/sprint-next-batch.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/scripts/test-sprint-next-batch.sh,tests/scripts/test_sprint_next_batch_extra_dir_roots.py,tests/scripts/test-sprint-next-batch-design-filter.sh,tests/scripts/test-sprint-next-batch-limit.sh,tests/scripts/test-max-agents-unlimited-dispatch.sh
 plugins/dso/scripts/sprint-review-scope-check.sh:tests/scripts/test-sprint-review-scope-check.sh
 plugins/dso/skills/sprint/prompts/epic-validation-review.md:tests/scripts/test-v2-skills-cleanup.sh
 plugins/dso/scripts/purge-non-project-tickets.sh:tests/scripts/test-purge-non-project-tickets.sh
@@ -142,7 +142,7 @@ plugins/dso/hooks/run-hook.sh:tests/hooks/test-run-hook-relative-paths.sh,tests/
 plugins/dso/hooks/title-length-validator.sh:tests/hooks/test-title-length-validator.sh
 tests/lib/suite-engine.sh:tests/hooks/test-suite-engine-eagain.sh,tests/hooks/test-integration-eagain-full-path.sh
 plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py
-plugins/dso/scripts/agent-batch-lifecycle.sh:tests/scripts/test-validate-phase-v2-removal.sh
+plugins/dso/scripts/agent-batch-lifecycle.sh:tests/scripts/test-validate-phase-v2-removal.sh,tests/scripts/test-lifecycle-max-agents.sh,tests/scripts/test-lifecycle-error-reactive.sh
 plugins/dso/scripts/agent-profiles/prompts/explore-structured-output.md:tests/scripts/test-explore-dispatch-template.sh
 plugins/dso/scripts/blast-radius-score.py:tests/scripts/test-blast-radius-score.sh
 plugins/dso/scripts/build-review-agents.sh:tests/unit/scripts/test-build-review-agents.sh
@@ -367,3 +367,5 @@ plugins/dso/skills/verification-before-completion/SKILL.md:plugins/dso/tests/tes
 plugins/dso/skills/sprint/SKILL.md:tests/scripts/test-sprint-primary-ticket-model.sh
 plugins/dso/skills/shared/constants/figma-tags.conf:tests/skills/test-figma-tag-constants.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
+plugins/dso/scripts/check_usage.py: tests/scripts/test_check_usage.py
+plugins/dso/scripts/check-usage.sh: tests/scripts/test-check-usage.sh

@@ -742,8 +742,8 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check --db  # if batch includes DB-
 ```
 
 The script outputs structured key-value pairs:
-- `MAX_AGENTS: 1 | 5` — use as `max_agents`
-- `SESSION_USAGE: normal | high`
+- `MAX_AGENTS: unlimited | N | 0` — use as `max_agents` (see protocol below)
+- `SESSION_USAGE: normal | high | critical`
 - `GIT_CLEAN: true | false` — if false, commit previous batch first
 - `DB_STATUS: running | stopped | skipped` — if stopped, ask user to start DB
 
@@ -755,10 +755,15 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries  # shim-exempt: int
 
 Output: `DISCOVERIES_CLEANED: <N>`. Exit 0 always (best-effort).
 
-**Batch size limit**: Max 5 Task calls per message, each with `run_in_background: true`.
+**MAX_AGENTS protocol** (3-tier):
 
-When `max_agents=1`, re-run `sprint-next-batch.sh <epic-id> --limit=1` to get a
-single-task batch. Log: `"Session usage >90%, limiting to 1 sub-agent."`
+| `max_agents` value | Behavior |
+|---------------------|----------|
+| `unlimited` | Dispatch all ready tasks in a single batch with no artificial cap. Pass `--limit=unlimited` (or omit `--limit`) to `sprint-next-batch.sh`. |
+| `N` (positive integer) | Cap the batch at N sub-agents. Pass `--limit=N` to `sprint-next-batch.sh`. Log: `"Session usage elevated, limiting to N sub-agent(s)."` |
+| `0` | Skip sub-agent dispatch entirely. Write a ticket comment with utilization percentages and estimated reset time, then proceed to Phase 5 Step 13 (Continuation Decision). Log: `"MAX_AGENTS=0 — session at critical utilization, skipping dispatch."` Comment format: `.claude/scripts/dso ticket comment <epic-id> "BATCH_SKIPPED: MAX_AGENTS=0. Session utilization: <SESSION_USAGE>. Estimated reset: next session."` |
+
+All Task tool calls use `run_in_background: true`.
 
 ### Step 2: Claim Tasks
 
@@ -797,12 +802,17 @@ PRIOR_BATCH_DISCOVERIES=$(.claude/scripts/dso collect-discoveries.sh --format=pr
 Run the deterministic batch selector:
 
 ```bash
-.claude/scripts/dso sprint-next-batch.sh <epic-id> --limit=<max_agents>
+# When max_agents is "unlimited", omit --limit (or pass --limit=unlimited):
+.claude/scripts/dso sprint-next-batch.sh <epic-id>
+# When max_agents is a positive integer N:
+.claude/scripts/dso sprint-next-batch.sh <epic-id> --limit=N
+# When max_agents is 0: do NOT call sprint-next-batch.sh — skip dispatch (see Phase 3 Step 1 protocol)
 ```
 
-- **`max_agents`**: Determined by Step 1's pre-batch check. The pre-check may truncate to 1 if session
-  usage is >90% — in that case re-run with `--limit=1` (or manually discard extras).
-- **Omit `--limit`**: Returns the full non-conflicting pool (useful for `--dry-run`).
+- **`max_agents`**: Determined by Step 1's pre-batch check (3-tier: `unlimited`, `N`, or `0`).
+- **`unlimited`**: Returns the full non-conflicting pool — dispatch all candidates.
+- **`N`** (positive integer): Caps batch at N tasks.
+- **`0`**: Skip dispatch entirely — do not call `sprint-next-batch.sh`. Write the utilization comment per Phase 3 Step 1 protocol and proceed to Phase 5 Step 13.
 
 #### Output format
 
@@ -905,7 +915,7 @@ If `--dry-run` was specified:
 Do NOT implement any task directly using Edit, Write, or other file-modification tools. ALL implementation tasks must be dispatched to sub-agents via the Task tool — regardless of how small, simple, or obvious the change appears. "Small markdown edit", "single-line change", "user already approved", or "sub-agent dispatch is overhead" are not valid exceptions. Direct implementation by the orchestrator bypasses checkpoint protocol, code review, and acceptance criteria gates.
 </HARD-GATE>
 
-Launch up to `max_agents` sub-agents (1 or 5, determined in Phase 3 Step 1) via the Task tool. Each sub-agent gets a structured prompt:
+Launch up to `max_agents` sub-agents (determined by Phase 3 Step 1's MAX_AGENTS protocol — `unlimited`, `N`, or `0`) via the Task tool. When `max_agents=0`, this phase is skipped entirely (see Phase 3 Step 1). Each sub-agent gets a structured prompt:
 
 ### Display Batch Task List
 
@@ -1048,7 +1058,7 @@ context:
 
 **Agent description**: 3-5 word summary from ticket title (e.g., Fix review gate hash).
 
-**Important**: Launch ALL sub-agents in the batch within a single message, each with `run_in_background: true`. Maximum 5 Task calls per message.
+**Important**: Launch ALL sub-agents in the batch within a single message, each with `run_in_background: true`. The number of Task calls is governed by `max_agents` from Phase 3 Step 1 (unlimited = all candidates, N = cap at N, 0 = skip dispatch).
 
 **Worktree boundary**: If in a worktree, append to every sub-agent prompt: `"IMPORTANT: Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path."` When `ISOLATION_ENABLED=true`, also add `isolation: "worktree"` to the Task dispatch call (see Worktree Isolation Configuration above).
 
@@ -1161,7 +1171,7 @@ Check whether any sub-agent Task call returned an **infrastructure-level dispatc
 4. **If retry also fails**: Escalate model (sonnet → opus) and retry once more with `subagent_type="general-purpose"`. Log: `"Retry with general-purpose also failed for task <id> — escalating model to opus."`
 5. **If all retries fail**: Mark the task as failed and proceed to Step 9
 
-**Important**: Dispatch failure retries happen sequentially. Do not count retries toward the batch size limit.
+**Important**: Dispatch failure retries happen sequentially. Do not count retries toward the `max_agents` cap.
 
 ### Step 1: Verify Results (/dso:sprint)
 
@@ -1556,7 +1566,7 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?  # shi
    /compact
    ```
 5. After compaction, check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>`. **Continue directly to Phase 3.** Do NOT go to Phase 8.
-6. **Agent-count after compact (`high` case)**: No special action needed — Phase 3 Step 1's pre-check handles `MAX_AGENTS: 1` automatically.
+6. **Agent-count after compact**: No special action needed — Phase 3 Step 1's pre-check re-evaluates `MAX_AGENTS` (may return `unlimited`, `N`, or `0`) automatically.
 
 ---
 
