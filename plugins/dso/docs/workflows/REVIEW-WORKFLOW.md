@@ -363,6 +363,197 @@ Task tool:
 
 **NO-FIX RULE**: After dispatching the sub-agent in this step, you (the orchestrator) MUST NOT use Edit, Write, or Bash to modify any files until Step 5 is complete. Any file modification between dispatch and recording invalidates the diff hash and will be rejected by `--expected-hash`.
 
+## Step 4a: ESCALATE_REVIEW Dispatch (after reviewer return, before overlay)
+
+After Step 4 returns and before Step 4b overlay dispatch, check whether the reviewer requested escalation to a higher tier. Escalation may change finding severities, which affects whether overlays are warranted — this is why it runs before Step 4b.
+
+### 1. Parse escalate_review from reviewer-findings.json
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
+ARTIFACTS_DIR=$(get_artifacts_dir)
+FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
+
+ESCALATE_REVIEW=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$FINDINGS_FILE'))
+    v = d.get('escalate_review')
+    if v is None or not isinstance(v, list) or len(v) == 0:
+        print('none')
+    else:
+        # Validate each element: finding_index (int) + reason (non-empty string)
+        findings = d.get('findings', [])
+        valid = []
+        for e in v:
+            fi = e.get('finding_index')
+            reason = e.get('reason', '')
+            if isinstance(fi, int) and 0 <= fi < len(findings) and isinstance(reason, str) and reason.strip():
+                valid.append(e)
+            else:
+                print('WARN: malformed escalate_review element skipped: ' + str(e), file=sys.stderr)
+        print('none' if not valid else json.dumps(valid))
+except Exception as ex:
+    print('WARN: could not parse escalate_review: ' + str(ex), file=sys.stderr)
+    print('none')
+" 2>&1 | (grep -v '^WARN:' || true) | tail -1)
+# Capture any warnings to stderr so they are visible in debug output but do not block the workflow
+python3 -c "
+import json, sys
+try:
+    d = json.load(open('$FINDINGS_FILE'))
+    v = d.get('escalate_review')
+    if v is None or not isinstance(v, list) or len(v) == 0:
+        pass
+    else:
+        findings = d.get('findings', [])
+        for e in v:
+            fi = e.get('finding_index')
+            reason = e.get('reason', '')
+            if not (isinstance(fi, int) and 0 <= fi < len(findings) and isinstance(reason, str) and reason.strip()):
+                print('WARN: malformed escalate_review element (skipped): ' + str(e), file=sys.stderr)
+except Exception as ex:
+    print('WARN: could not parse escalate_review from reviewer-findings.json: ' + str(ex), file=sys.stderr)
+" 2>&1 >&2 || true
+```
+
+Contract reference: `plugins/dso/docs/contracts/escalate-review-signal.md` — defines the `escalate_review` field schema, validity rules, and fail-open failure contract.
+
+**Failure contract**: If `escalate_review` is `null`, malformed JSON, or contains invalid elements (empty `reason`, out-of-bounds `finding_index`), treat the entire field as absent (no escalation). Log a warning to stderr. Do NOT halt or block the review workflow.
+
+### 2. Skip if absent or empty
+
+If `ESCALATE_REVIEW` is `"none"` (field absent, empty array, or all elements invalid), skip Steps 4a.3–4a.5 and proceed directly to Step 4b.
+
+### 3. Determine escalation tier
+
+**OPUS GUARD**: If the current reviewer tier is opus (i.e., `REVIEW_TIER=deep` after opus arch synthesis, or the single reviewer was `dso:code-reviewer-deep-arch`), log the following and skip escalation entirely:
+
+```
+Opus reviewer emitted ESCALATE_REVIEW — ignoring (opus is terminal tier)
+```
+
+Opus is the highest available tier. There is no higher tier to escalate to. Proceed to Step 4b.
+
+Otherwise, apply the tier mapping to determine the escalation reviewer:
+
+| Current tier / reviewer | Escalation reviewer |
+|---|---|
+| `light` (`dso:code-reviewer-light`, haiku) | `dso:code-reviewer-standard` (sonnet) |
+| `standard` (`dso:code-reviewer-standard`, sonnet) | `dso:code-reviewer-deep-arch` (opus) — dispatched as a single opus reviewer with focused context |
+
+```bash
+case "$REVIEW_TIER" in
+    light)
+        ESCALATION_AGENT="dso:code-reviewer-standard"
+        ;;
+    standard)
+        ESCALATION_AGENT="dso:code-reviewer-deep-arch"
+        ;;
+    deep)
+        # Covered by OPUS GUARD above — skip escalation
+        ESCALATION_AGENT=""
+        ;;
+    *)
+        echo "WARN: unknown REVIEW_TIER '$REVIEW_TIER' for escalation — skipping"
+        ESCALATION_AGENT=""
+        ;;
+esac
+```
+
+### 4. Dispatch escalation reviewer with focused context
+
+Extract only the uncertain findings (those referenced by `finding_index` in `escalate_review`) and dispatch the escalation reviewer with focused context:
+
+```bash
+# Build focused findings subset for the escalation reviewer
+UNCERTAIN_FINDINGS=$(python3 -c "
+import json
+findings_file = '$FINDINGS_FILE'
+d = json.load(open(findings_file))
+all_findings = d.get('findings', [])
+escalate = json.loads('$ESCALATE_REVIEW')
+uncertain_indices = {e['finding_index'] for e in escalate}
+focused = [f for i, f in enumerate(all_findings) if i in uncertain_indices]
+reasons = {e['finding_index']: e['reason'] for e in escalate}
+print(json.dumps({'findings': focused, 'escalation_reasons': reasons}))
+")
+```
+
+Dispatch the escalation reviewer sub-agent with this focused context:
+
+```
+Task tool:
+  subagent_type: "{ESCALATION_AGENT}"
+  description: "Escalated review — uncertain findings"
+  prompt: |
+    You are being dispatched as an escalation reviewer. The primary reviewer flagged the following
+    findings as uncertain and requested a higher-tier review. Your task is to evaluate ONLY these
+    findings and provide definitive severity determinations.
+
+    DIFF_FILE: {DIFF_FILE from Step 2}
+    REPO_ROOT: {REPO_ROOT}
+
+    === DIFF STAT ===
+    {content of STAT_FILE from Step 2}
+
+    === UNCERTAIN FINDINGS (subset requiring escalation) ===
+    {UNCERTAIN_FINDINGS}
+
+    === ESCALATION CONTEXT ===
+    These findings were flagged for escalation by the primary reviewer. For each finding, the
+    primary reviewer's reason for requesting escalation is included in escalation_reasons (keyed
+    by finding index). Your severity determination for each finding replaces the primary reviewer's
+    uncertain severity in the final merged findings.
+
+    {issue_context}
+```
+
+**NEVER set `isolation: "worktree"` on this sub-agent.** It must access `reviewer-findings.json` in the shared working directory.
+
+### 5. Merge escalated severity determinations
+
+After the escalation reviewer returns, replace the severity of each uncertain finding in `reviewer-findings.json` with the escalated reviewer's determinations:
+
+```bash
+# Escalated severity determinations replace original uncertain finding severities
+python3 -c "
+import json
+findings_file = '$FINDINGS_FILE'
+d = json.load(open(findings_file))
+findings = d.get('findings', [])
+escalate = json.loads('$ESCALATE_REVIEW')
+# Parse escalation reviewer output for updated severities
+# (escalation reviewer returns findings in standard format — severity field per finding)
+# escalated_findings: list of findings from the escalation reviewer, in index order matching uncertain_indices
+uncertain_indices = sorted({e['finding_index'] for e in escalate})
+# Replace severities in original findings
+# (The escalation reviewer returns findings with updated severity — apply by position)
+# NOTE: escalation reviewer findings are expected to correspond 1:1 to the uncertain_indices list
+# If the escalation reviewer returns fewer findings, the remainder keep original severities
+# Implementation note: the orchestrator reads the escalation reviewer's REVIEW_RESULT output
+# and extracts severity updates before calling this merge step
+print('Merge step: apply escalated severities from escalation reviewer output to reviewer-findings.json')
+print('Uncertain finding indices: ' + str(uncertain_indices))
+"
+```
+
+**Severity replacement rule**: The escalated reviewer's severity determination for each uncertain finding is authoritative. It replaces the original finding's severity in the merged `reviewer-findings.json`. Findings not referenced in `escalate_review` retain their original severities unchanged.
+
+After merging, `reviewer-findings.json` reflects the escalated severities for uncertain findings. Proceed to Step 4b with the updated findings.
+
+### 6. Deep-Tier Deduplication
+
+**DEEP-TIER DEDUP** applies when `REVIEW_TIER=deep`. After the opus arch agent completes synthesis and writes the authoritative `reviewer-findings.json`, read `escalate_review` from the synthesized output. The arch agent is responsible for deduplicating escalation requests that refer to the same synthesized finding — the indices in the synthesized `reviewer-findings.json` reference the synthesized findings array, not the per-agent pre-synthesis indices.
+
+If the synthesized `reviewer-findings.json` contains a non-empty `escalate_review`:
+1. Apply the **OPUS GUARD** (Step 4a.3): since the arch agent is opus, log `"Opus reviewer emitted ESCALATE_REVIEW — ignoring (opus is terminal tier)"` and skip escalation.
+
+This means: for deep tier reviews, the OPUS GUARD always fires and no escalation dispatch occurs. The arch agent's synthesis is the terminal reviewer output.
+
+**Slot-path reference**: the three pre-synthesis findings files are `reviewer-findings-a.json`, `reviewer-findings-b.json`, `reviewer-findings-c.json`. These are consumed by the opus arch agent during synthesis. The `escalate_review` entries in these slot files contain pre-synthesis indices and are NOT parsed by Step 4a — the opus arch agent translates them to synthesized indices during the synthesis pass, and the OPUS GUARD suppresses further escalation.
+
 ## Step 4b: Overlay Dispatch (Conditional)
 
 After Step 4 returns, check whether security, performance, or test quality overlays are warranted. Overlay agents produce findings in standard `reviewer-findings.json` format, which are merged with the tier reviewer's findings before recording.

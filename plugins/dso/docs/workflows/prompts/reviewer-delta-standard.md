@@ -193,6 +193,16 @@ Apply the file-type sub-criteria above in addition to the generic checks here.
   event-append helpers) — direct writes to `.tickets-tracker/` bypass locking and
   the reducer contract
 
+### Escalation (ESCALATE_REVIEW)
+- [ ] If you are uncertain whether a finding should be `fragile` vs `minor`, or `important`
+  vs `minor`, add it to the `escalate_review` array with `finding_index` (zero-based index
+  into findings) and `reason`. A more capable model will make the final severity
+  determination.
+- [ ] Do NOT emit `escalate_review` for findings with high confidence in severity assignment.
+  Only escalate genuine uncertainty.
+
+---
+
 ## Overlay Classification
 
 Always evaluate these two items and include the results in your summary field text:

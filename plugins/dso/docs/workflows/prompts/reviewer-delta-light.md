@@ -85,6 +85,14 @@ Apply only the following highest-signal checks. Skip all other checks — do not
 - [ ] Skip unless a class interface or public method signature was changed in this diff
   (flag as `important` or `critical` if change breaks callers without migration)
 
+### Escalation (ESCALATE_REVIEW)
+- [ ] If you are uncertain whether a finding should be `fragile` vs `minor`, or `important`
+  vs `minor`, add it to the `escalate_review` array with `finding_index` (zero-based index
+  into findings) and `reason`. A more capable model will make the final severity
+  determination.
+- [ ] Do NOT emit `escalate_review` for findings with high confidence in severity assignment.
+  Only escalate genuine uncertainty.
+
 ---
 
 ## Linter Suppression Rules
