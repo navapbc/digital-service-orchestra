@@ -401,10 +401,11 @@ Compare each discovered failure against:
 
 If an open bug ticket already exists for a failure (by title similarity or matching error message), **skip ticket creation** — use the existing ticket. Only ONE ticket per unique failure across all iterations.
 
-For genuinely new failures (no matching open ticket exists), create a ticket:
+For genuinely new failures (no matching open ticket exists), create a ticket. Follow `plugins/dso/skills/create-bug/SKILL.md` for title and description format:
 
 ```bash
-.claude/scripts/dso ticket create bug "<failure-description>"
+# Title format: [Component]: [Condition] -> [Observed Result]
+.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..."
 ```
 
 Collect newly created ticket IDs as `NEW_BUG_TICKETS`.
