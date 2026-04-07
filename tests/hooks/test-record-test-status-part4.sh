@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # tests/hooks/test-record-test-status-part4.sh
-# Tests for hooks/record-test-status.sh — Part 4 of 4 (tests 26–33 + merge-commit + eval tests)
+# Tests for hooks/record-test-status.sh — Part 4 of 4 (tests 26–33 + merge-commit)
 # Covers: stale_red_marker_regression, progress_file_written_after_pass,
 #   sigurg_trap_writes_partial_not_passed, status_initialized_before_trap_registration,
 #   resume_skips_completed_tests, red_marker_survives_overwrite_by_unmarked_entry,
@@ -1043,69 +1043,5 @@ rm -rf "$TEST_REPO_CACHE" "$ARTIFACTS_CACHE"
 trap - EXIT
 
 assert_pass_if_clean "test_progress_cache_invalidated_on_test_index_change"
-
-# ============================================================
-# test_promptfooconfig_does_not_block_commit
-# Regression guard: staging a promptfooconfig.yaml (with or without
-# type: llm-rubric) must not block the commit. The eval config guard
-# was removed in epic 07cb-5477; this test confirms it stays gone.
-# ============================================================
-echo ""
-echo "=== test_promptfooconfig_does_not_block_commit ==="
-_snapshot_fail
-
-TEST_REPO_EGABSENT=$(create_test_repo)
-ARTIFACTS_EGABSENT=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
-trap 'rm -rf "$TEST_REPO_EGABSENT" "$ARTIFACTS_EGABSENT"' EXIT
-
-# Create a skill with an eval config that has tests: entries but no llm-rubric
-mkdir -p "$TEST_REPO_EGABSENT/plugins/dso/skills/my-eval-skill/evals"
-
-cat > "$TEST_REPO_EGABSENT/plugins/dso/skills/my-eval-skill/evals/promptfooconfig.yaml" << 'YAMLEOF'
-description: "My eval skill test"
-prompts:
-  - "Perform task: {{task}}"
-providers:
-  - openai:gpt-4
-tests:
-  - description: "basic behavior check"
-    vars:
-      task: "summarize this text"
-    assert:
-      - type: contains
-        value: "summary"
-YAMLEOF
-
-git -C "$TEST_REPO_EGABSENT" add -A
-git -C "$TEST_REPO_EGABSENT" commit -m "add eval skill" --quiet 2>/dev/null
-
-# Stage a change to the promptfooconfig.yaml
-echo "# updated" >> "$TEST_REPO_EGABSENT/plugins/dso/skills/my-eval-skill/evals/promptfooconfig.yaml"
-git -C "$TEST_REPO_EGABSENT" add -A
-
-# Mock pass runner for any tests discovered (none expected for eval-only file)
-MOCK_PASS_EGA=$(mktemp "${TMPDIR:-/tmp}/mock-pass-ega-XXXXXX")
-chmod +x "$MOCK_PASS_EGA"
-cat > "$MOCK_PASS_EGA" << 'MOCKEOF'
-#!/usr/bin/env bash
-exit 0
-MOCKEOF
-
-EXIT_EGABSENT=$(
-    cd "$TEST_REPO_EGABSENT"
-    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_EGABSENT" \
-    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
-    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_EGA" \
-    run_hook_exit
-)
-
-# Staging a promptfooconfig.yaml must not block the commit (guard removed)
-assert_eq "promptfooconfig_does_not_block: exits 0" "0" "$EXIT_EGABSENT"
-
-rm -f "$MOCK_PASS_EGA"
-rm -rf "$TEST_REPO_EGABSENT" "$ARTIFACTS_EGABSENT"
-trap - EXIT
-
-assert_pass_if_clean "test_promptfooconfig_does_not_block_commit"
 
 print_summary

@@ -3,19 +3,6 @@
 # Utility: discovers associated test files for staged source files, runs them,
 # and records pass/fail status with diff_hash to test-gate-status.
 #
-# REVIEW-DEFENSE: Finding 1 (reviewer: code-reviewer-standard, commit a515-e3a9):
-# CLAUDE.md still references the removed eval config guard behavior. That
-# documentation update is intentionally scoped to story b6aa-ae4c / task
-# 6956-10dd ("Update CLAUDE.md to remove eval references") which depends on
-# both the removal (23f2-3fed) and replacement (b9c8-43f2) stories completing.
-# Mixing doc updates with hook removals would break the dependency ordering.
-#
-# REVIEW-DEFENSE: Finding 3 (reviewer: code-reviewer-standard, commit a515-e3a9):
-# plugins/dso/docs/SKILL-EVALS-GUIDE.md still describes the deleted guard.
-# That file is deleted in its entirety in task 397c-7a52 (T3 of story
-# 23f2-3fed, comprehensive deletion sweep). It is intentionally out of scope
-# for this task to keep T2 focused on the hook change only.
-#
 # Mirrors the structure of record-review.sh. Called from COMMIT-WORKFLOW.md
 # before the commit step to ensure changed code passes its associated tests.
 #

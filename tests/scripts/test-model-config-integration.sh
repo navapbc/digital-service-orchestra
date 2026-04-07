@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # tests/scripts/test-model-config-integration.sh
-# RED-phase TDD tests: verify that enrich-file-impact.sh, semantic-conflict-check.py,
-# and generate-skill-eval.sh read model IDs from WORKFLOW_CONFIG_FILE config rather
-# than hardcoding them.
+# RED-phase TDD tests: verify that enrich-file-impact.sh and semantic-conflict-check.py
+# read model IDs from WORKFLOW_CONFIG_FILE config rather than hardcoding them.
 #
 # All tests are expected to FAIL in RED state because the scripts still hardcode model IDs.
 #
@@ -15,7 +14,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ENRICH_SCRIPT="$REPO_ROOT/plugins/dso/scripts/enrich-file-impact.sh"
 CONFLICT_SCRIPT="$REPO_ROOT/plugins/dso/scripts/semantic-conflict-check.py"
-EVAL_SCRIPT="$REPO_ROOT/plugins/dso/scripts/generate-skill-eval.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
@@ -82,24 +80,6 @@ esac
 BASHEOF
     chmod +x "$mock"
     printf '%s\n' "$mock"
-}
-
-# ── Helper: create a skill dir with a minimal SKILL.md for generate-skill-eval ──
-# Usage: _make_skill_dir <skills_root> <skill_name>
-_make_skill_dir() {
-    local skills_root="$1" skill_name="$2"
-    local skill_dir="$skills_root/$skill_name"
-    mkdir -p "$skill_dir"
-    cat > "$skill_dir/SKILL.md" <<'SKILLMD'
----
-description: "Test skill for model config integration"
-version: "1.0"
----
-# Test Skill
-
-## Test the model config integration
-SKILLMD
-    printf '%s\n' "$skill_dir"
 }
 
 # =============================================================================
@@ -226,77 +206,5 @@ except Exception:
 " 2>/dev/null <<< "$scc_with_haiku_output" || echo "parse-error")
 assert_eq "test_semantic_conflict_check_exits_zero_with_haiku_config_empty_diff: output is clean JSON" \
     "yes" "$scc_is_clean"
-
-# =============================================================================
-# Test 3: generate-skill-eval.sh uses config model ID in generated YAML
-# =============================================================================
-# When WORKFLOW_CONFIG_FILE points to a config with model.haiku=test-sentinel-id,
-# generate-skill-eval.sh must generate a YAML file whose provider references
-# the config model ID, not the hardcoded claude-haiku-4-5-20251001 string.
-# Also validates that the YAML parses with yaml.safe_load (YAML validity test).
-#
-# RED state: generate-skill-eval.sh hardcodes "claude-haiku-4-5-20251001" in
-# the generated YAML template, so the output will not contain our sentinel.
-# The test will FAIL in RED.
-
-echo ""
-echo "test_generate_skill_eval_uses_config_model_id"
-
-_EVAL_TMPDIR="$(mktemp -d)"
-_TEST_TMPDIRS+=("$_EVAL_TMPDIR")
-
-_EVAL_SENTINEL_MODEL="test-sentinel-haiku-id"
-_EVAL_CONFIG="$(_make_config_with_haiku "$_EVAL_TMPDIR" "$_EVAL_SENTINEL_MODEL")"
-
-_EVAL_SKILLS_ROOT="$_EVAL_TMPDIR/skills"
-mkdir -p "$_EVAL_SKILLS_ROOT"
-_make_skill_dir "$_EVAL_SKILLS_ROOT" "config-model-test-skill" > /dev/null
-
-eval_exit=0
-eval_output=""
-eval_output=$(
-    WORKFLOW_CONFIG_FILE="$_EVAL_CONFIG" \
-    bash "$EVAL_SCRIPT" \
-        --skills-root "$_EVAL_SKILLS_ROOT" \
-        "config-model-test-skill" 2>&1
-) || eval_exit=$?
-
-assert_eq "test_generate_skill_eval_uses_config_model_id: exits 0" "0" "$eval_exit"
-
-_EVAL_CONFIG_FILE="$_EVAL_SKILLS_ROOT/config-model-test-skill/evals/promptfooconfig.yaml"
-
-if [[ -f "$_EVAL_CONFIG_FILE" ]]; then
-    # Test: generated YAML contains the sentinel model ID from config
-    eval_has_sentinel=""
-    [[ "$(cat "$_EVAL_CONFIG_FILE")" == *"$_EVAL_SENTINEL_MODEL"* ]] && eval_has_sentinel="yes"
-    assert_eq "test_generate_skill_eval_uses_config_model_id: generated YAML contains config model ID" \
-        "yes" "$eval_has_sentinel"
-
-    # Test: generated YAML does NOT contain the hardcoded model ID
-    eval_has_hardcoded=""
-    [[ "$(cat "$_EVAL_CONFIG_FILE")" == *"claude-haiku-4-5-20251001"* ]] && eval_has_hardcoded="yes"
-    assert_eq "test_generate_skill_eval_uses_config_model_id: generated YAML does NOT contain hardcoded model ID" \
-        "" "$eval_has_hardcoded"
-
-    # YAML validity test: python3 yaml.safe_load must parse without error
-    yaml_valid_exit=0
-    yaml_valid_result=""
-    yaml_valid_result=$(python3 -c "
-import yaml, sys
-try:
-    data = yaml.safe_load(open('$_EVAL_CONFIG_FILE'))
-    print('valid')
-except yaml.YAMLError as e:
-    print('invalid: ' + str(e))
-    sys.exit(1)
-" 2>/dev/null) || yaml_valid_exit=$?
-    assert_eq "test_generate_skill_eval_uses_config_model_id: YAML is valid (yaml.safe_load)" \
-        "0" "$yaml_valid_exit"
-    assert_eq "test_generate_skill_eval_uses_config_model_id: yaml_valid result is 'valid'" \
-        "valid" "$yaml_valid_result"
-else
-    assert_eq "test_generate_skill_eval_uses_config_model_id: generated YAML file exists" \
-        "exists" "missing"
-fi
 
 print_summary

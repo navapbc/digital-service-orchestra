@@ -1091,8 +1091,6 @@ Route based on `TESTING_MODE`:
 
 **Backward compatibility**: When `TESTING_MODE` is absent or empty, treat as `RED` — dispatch `dso:red-test-writer` as normal.
 
-<!-- REVIEW-DEFENSE: Finding 2 (verification/no-test-coverage) — The Testing Mode Routing section is behavioral prompt guidance, not callable code. The appropriate verification layer for skill prompts is the eval suite, not structural unit tests. The sprint skill already has 16 passing evals (evals/promptfooconfig.yaml), including 3 evals that exercise testing_mode routing (RED/GREEN/UPDATE paths). A structural unit test that grep-checks section headings would be a change-detector anti-pattern: it would couple tests to formatting rather than behavior, and would not verify that the routing logic functions correctly. The eval suite is the correct and sufficient coverage vehicle for prompt-level behavioral changes. -->
-
 ---
 
 ### RED Task Dispatch — Escalation Protocol

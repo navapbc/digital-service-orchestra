@@ -11,17 +11,14 @@ set -uo pipefail
 #   - dso-config.conf  (canonical model ID definition — intentionally hardcodes IDs)
 #   - .test-index      (generated metadata, may reference IDs in RED markers)
 #   - tests/           (test fixture files legitimately reference model IDs)
-#   - SKILL-EVALS-GUIDE.md (documents patterns as examples)
-#   - promptfooconfig.yaml (managed by sync-eval-model-ids.sh — IDs sourced from config)
 #   - resolve-model-id.sh  (model ID management script — contains IDs in comments/patterns)
-#   - sync-eval-model-ids.sh (model ID sync script — contains IDs in regex patterns)
 #   - INSTALL.md       (documents model ID config keys with example values)
 #
 # Usage:
 #   check-model-id-lint.sh [--scan-dir <dir>] [file ...]
 #
 # When no file arguments are given, scans:
-#   plugins/dso/ and evals/ (*.yaml, *.sh, *.py, *.md)
+#   plugins/dso/ (*.yaml, *.sh, *.py, *.md)
 #
 # Exit codes:
 #   0 — No violations found
@@ -77,8 +74,8 @@ elif [[ -n "$_scan_dir" ]]; then
         -name "*.md" \
     \) 2>/dev/null)
 else
-    # Default mode: scan plugins/dso/ and evals/ under repo root
-    for _dir in "$_root/plugins/dso" "$_root/evals"; do
+    # Default mode: scan plugins/dso/ under repo root
+    for _dir in "$_root/plugins/dso"; do
         if [[ -d "$_dir" ]]; then
             while IFS= read -r _f; do
                 _scan_files+=("$_f")
@@ -108,10 +105,7 @@ _should_exclude() {
     case "$_basename" in
         dso-config.conf)       return 0 ;;
         .test-index)           return 0 ;;
-        SKILL-EVALS-GUIDE.md)  return 0 ;;
-        promptfooconfig.yaml)  return 0 ;;  # managed by sync-eval-model-ids.sh
         resolve-model-id.sh)   return 0 ;;  # model ID management script
-        sync-eval-model-ids.sh) return 0 ;; # model ID sync script
         INSTALL.md)            return 0 ;;  # documents config keys with examples
         bug-report-template.md) return 0 ;; # template with example model IDs
     esac

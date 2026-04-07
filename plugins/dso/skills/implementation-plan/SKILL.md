@@ -658,23 +658,6 @@ A task may omit the RED test task dependency (unit test level) only if **all** o
 
 All three criteria must be documented as a **justification requirement** in the task description, and the plan reviewer must validate the exemption during Step 4 review.
 
-**Skill/prompt file override**: If any source file in the task's file impact table is a `SKILL.md` or prompt file located under `plugins/dso/skills/`, check whether a sibling eval config exists:
-```bash
-test -f plugins/dso/skills/<skill-name>/evals/promptfooconfig.yaml
-```
-If the eval config exists, the unit test exemption does **not** apply — the file is behaviorally testable via `run-skill-evals.sh` and must NOT be treated as a static asset. Create a RED eval task instead (see Eval RED Task below). If no eval config exists, create a `generate-skill-eval.sh` scaffolding task first.
-
-#### Eval RED Task (Skill and Prompt Files)
-
-When the file impact table includes a `SKILL.md` or prompt file under `plugins/dso/skills/<skill-name>/` AND `plugins/dso/skills/<skill-name>/evals/promptfooconfig.yaml` exists:
-
-1. Create a RED eval task **before** the implementation task:
-   - Title: `RED: Run skill eval for <skill-name> before modifying <filename>`
-   - TDD requirement: Run `.claude/scripts/dso run-skill-evals.sh plugins/dso/skills/<skill-name>/SKILL.md` and confirm it exits 0 (establishing the GREEN baseline). Then add or modify a promptfoo eval test case that asserts the new expected behavior — this test case must FAIL (RED) against the current skill file, proving the behavioral change is detectable.
-   - Acceptance criterion (RED): The new eval test case FAILS against the current (unmodified) skill file, proving the behavioral change is detectable. The implementation task's acceptance criterion is that `run-skill-evals.sh` exits 0 after the skill file is modified (GREEN).
-2. The implementation task (modifying SKILL.md or the prompt file) must declare the eval RED task as a dependency.
-3. If no `evals/promptfooconfig.yaml` exists for the skill, create a `generate-skill-eval.sh` scaffolding task first and declare it as a dependency of the RED eval task.
-
 #### Integration Test Task Rule
 
 For tasks that cross an external boundary (database, external API, message queue, file system), include a dedicated **integration test task** that verifies the boundary interaction end-to-end. The integration test task does not require a RED-first dependency — it may be written after the implementation task.

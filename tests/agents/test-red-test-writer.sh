@@ -330,9 +330,7 @@ echo ""
 # are LLM instruction text, not executable code. The only way to verify the
 # prompt contains required output contract fields without dispatching the LLM
 # is structural text search. This falls under the "Metadata/schema validation"
-# exemption — the output contract is interface metadata. The behavioral test
-# is the agent-level eval (run via promptfoo), not this unit test.
-# See plugins/dso/docs/SKILL-EVALS-GUIDE.md for the distinction.
+# exemption — the output contract is interface metadata.
 #
 # REVIEW-DEFENSE [verification]: RED marker [test_no_new_tests_needed_green_classified]
 # is registered in .test-index at the red-test-writer.md source line. The RED
@@ -373,9 +371,7 @@ test_no_new_tests_needed_green_classified() {
 # are LLM instruction text, not executable code. The only way to verify the
 # prompt contains required output contract fields without dispatching the LLM
 # is structural text search. This falls under the "Metadata/schema validation"
-# exemption — the output contract is interface metadata. The behavioral test
-# is the agent-level eval (run via promptfoo), not this unit test.
-# See plugins/dso/docs/SKILL-EVALS-GUIDE.md for the distinction.
+# exemption — the output contract is interface metadata.
 #
 # REVIEW-DEFENSE [verification]: RED marker [test_no_new_tests_needed_existing_coverage_sufficient]
 # is registered in .test-index alongside [test_no_new_tests_needed_green_classified]
