@@ -1,1 +1,0 @@
-{"timestamp": 1775591286223935000, "uuid": "3127fc44-ef3f-481a-9a87-c472b8069d0b", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 4/6: All acceptance criteria verified \u2713 RATCHETED_TIER present, pass 3+ removed, pass 2 behavior preserved"}}
