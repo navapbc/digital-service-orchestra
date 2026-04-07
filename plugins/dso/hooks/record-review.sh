@@ -171,7 +171,7 @@ for key in required:
         print('    \"correctness\": <1-5 or \"N/A\">,')
         print('    \"verification\": <1-5 or \"N/A\">}')
         print('  },')
-        print('  \"findings\": [{\"severity\": \"critical|important|minor\", \"category\": \"<one of 5 score dims>\", \"file\": \"path\", \"description\": \"...\"}],')
+        print('  \"findings\": [{\"severity\": \"critical|important|minor|fragile\", \"category\": \"<one of 5 score dims>\", \"file\": \"path\", \"description\": \"...\"}],')
         print('  \"summary\": \"<10+ char assessment>\"')
         print('}')
         sys.exit(1)
@@ -189,7 +189,7 @@ if not summary or not isinstance(summary, str) or len(summary.strip()) < 10:
 
 # Cross-validate findings against scores
 valid_categories = set(required)
-valid_severities = {'critical', 'important', 'minor'}
+valid_severities = {'critical', 'important', 'minor', 'fragile'}
 for finding in data.get('findings', []):
     severity = finding.get('severity', '')
     category = finding.get('category', '')

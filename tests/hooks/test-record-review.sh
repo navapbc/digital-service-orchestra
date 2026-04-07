@@ -293,7 +293,8 @@ cat > "$FINDINGS_FILE" <<'EOFJ'
 EOFJ
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
 EXIT_CODE=0
-STDERR_OUT=$(bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+# isolation-ok: inject changed files to bypass real git diff (overlap check uses RECORD_REVIEW_CHANGED_FILES when set)
+STDERR_OUT=$(RECORD_REVIEW_CHANGED_FILES="src/foo.py" bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
 assert_eq "test_fragile_severity_accepted_no_validation_error: exits 0 (fragile accepted)" "0" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
@@ -317,7 +318,8 @@ cat > "$FINDINGS_FILE" <<'EOFJ'
 {"scores":{"hygiene":3,"design":3,"maintainability":3,"correctness":3,"verification":3},"findings":[{"severity":"fragile","category":"hygiene","file":"src/foo.py","description":"Fragile coupling between modules makes this brittle under change."}],"summary":"Minor issues found but overall acceptable for fragile dependencies."}
 EOFJ
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
-bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+# isolation-ok: inject changed files to bypass real git diff (overlap check uses RECORD_REVIEW_CHANGED_FILES when set)
+RECORD_REVIEW_CHANGED_FILES="src/foo.py" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
 REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
 if [[ -f "$REVIEW_STATUS_FILE" ]]; then
     FIRST_LINE=$(head -1 "$REVIEW_STATUS_FILE")
