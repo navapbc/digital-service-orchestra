@@ -1,1 +1,0 @@
-{"timestamp": 1775596373259604000, "uuid": "8c5f13ae-1720-4769-8668-7550774fb4be", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "worktree-isolation-guard: main session Agent dispatch with isolation:worktree -> blocked without auth marker"}}}
