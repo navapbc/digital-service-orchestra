@@ -1,0 +1,1 @@
+{"timestamp": 1775591757938954000, "uuid": "fb6f6a42-80a3-4b7d-9c56-902064e447ad", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "SUPERSEDED: approach_viability_concern uses summary-embedded pattern (like *_warranted), not optional_top. No schema validation changes needed."}}
