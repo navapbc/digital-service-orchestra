@@ -1,1 +1,0 @@
-{"timestamp": 1775519556200304000, "uuid": "cf59331c-d106-4c7e-8380-363e8a2c29cb", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "IMPORTANT: Integration test must use mock HTTP responses (stub curl or mock the Python HTTP layer). Never hit the real OAuth endpoint \u2014 it rate-limits aggressively."}}
