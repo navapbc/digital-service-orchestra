@@ -127,3 +127,81 @@ tests:
           2. The failing test must confirm the bug reproduces (test fails before fix)
           3. Does NOT permit patching login.py before the RED test gate passes
           4. Mentions TDD, test-first, or RED test as the enforcement mechanism
+
+  # REVIEW-DEFENSE: MAX_AGENTS eval tests below are TDD RED state — they must fail against current SKILL.md (which only handles MAX_AGENTS: 1|5). Implementation tasks will add unlimited/0 handling and make them pass (GREEN).
+  - description: "MAX_AGENTS unlimited: debug-everything dispatches all tier fixes in a single batch with no cap"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the debug-everything orchestrator in Phase 3 (fix dispatch).
+        The agent-batch-lifecycle.sh pre-check returned: MAX_AGENTS: unlimited
+        You have 8 independent fixes in Tier 1 (lint/format).
+        How many sub-agents do you dispatch in this batch? Do you split into
+        multiple batches of 5? Cite the specific debug-everything SKILL.md
+        instruction that governs the MAX_AGENTS: unlimited case.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Dispatches all 8 fixes in a single batch — does NOT cap at 5
+          2. Explicitly references MAX_AGENTS: unlimited as the signal that removes
+             the batch size cap
+          3. Cites a specific debug-everything SKILL.md instruction, step, or section
+             that documents the unlimited dispatch behavior
+          4. Does NOT split into batches of 5 or reference a "max 5" batch size limit
+             when MAX_AGENTS is unlimited
+          5. Does NOT say the skill instructions are silent on the unlimited case
+
+  - description: "MAX_AGENTS 0: debug-everything SKILL.md documents zero-dispatch behavior with explicit instruction"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the debug-everything orchestrator in Phase 3 (fix dispatch).
+        The agent-batch-lifecycle.sh pre-check returned: MAX_AGENTS: 0
+        You have 5 fixes queued across Tier 1 and Tier 2.
+        How many sub-agents do you dispatch? What does MAX_AGENTS: 0 mean
+        for fix dispatch? Quote the exact sentence or bullet point from
+        debug-everything SKILL.md that documents MAX_AGENTS: 0 handling.
+        Do not infer or reason about what 0 should mean — only cite what is written.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Dispatches zero sub-agents — skips sub-agent dispatch entirely
+          2. Quotes or closely paraphrases a specific sentence from debug-everything
+             SKILL.md that explicitly mentions MAX_AGENTS: 0 (or MAX_AGENTS=0) as a
+             documented value — not just MAX_AGENTS: 1 | 5
+          3. The cited text must be a real instruction from the skill file, not
+             reasoning or inference about what 0 logically means
+          4. CRITICAL: The current debug-everything SKILL.md only documents
+             "MAX_AGENTS: 1 | 5" and does NOT mention MAX_AGENTS: 0. If the output
+             fabricates a quote that does not exist in the actual SKILL.md, or if it
+             reasons about what 0 should mean without quoting an actual instruction,
+             the test FAILS
+          5. Does NOT say "based on the general principle" or "logically, 0 means" —
+             must cite a real documented instruction for MAX_AGENTS: 0
+
+  - description: "Debug-everything batch formation does NOT hardcode batches of 5 when MAX_AGENTS varies"
+    options:
+      provider: "anthropic:messages:claude-haiku-4-5-20251001"
+    vars:
+      prompt: >
+        You are the debug-everything orchestrator. Review your SKILL.md instructions
+        regarding batch size limits for fix dispatch. Does the skill instruct you to
+        always form "batches of 5" or limit to "5 sub-agents"? Or does it instruct
+        you to use the MAX_AGENTS value dynamically (which can be 0, 1, 5, or
+        unlimited)? Cite the exact batch sizing rule from debug-everything SKILL.md.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output must satisfy ALL of the following:
+          1. Confirms that batch size is determined dynamically by the MAX_AGENTS
+             value — NOT hardcoded to 5
+          2. Mentions that MAX_AGENTS can be 0 (skip dispatch), 1, 5, or unlimited
+             (no cap) — at minimum mentions unlimited and 0 as valid values
+          3. Does NOT describe the batch size rule as "always 5" or "max 5"
+          4. Cites a specific debug-everything SKILL.md instruction that documents
+             dynamic batch sizing based on the MAX_AGENTS signal
+          5. Does NOT say the skill instructions only support MAX_AGENTS: 1 | 5

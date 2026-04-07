@@ -99,7 +99,7 @@ already verified some domains.
    - Set `scopedDomains` to the list from the file. For any domain NOT in the
      list, skip its sub-agent and mark it as `SKIPPED (verified by caller)` in
      the final report.
-3. **If no scope file exists or all files are stale**: run all 5 sub-agents as
+3. **If no scope file exists or all files are stale**: run all sub-agents as
    normal. Set `scopedDomains = all`. This is the backward-compatible path.
 
 ### Step 0c: Check Staging Relevance (/dso:validate-work)
@@ -301,7 +301,7 @@ Aggregate all sub-agent results into a single report:
 | Staging deploy  | PASS/FAIL/SKIPPED | env health, endpoint status      |
 | Staging test    | PASS/FAIL/SKIPPED | phase results                    |
 
-### Overall: PASS / WARN / FAIL (X of 5 domains passing)
+### Overall: PASS / WARN / FAIL (X of N domains passing)
 
 **WARN** means static checks pass but E2E tests were skipped locally — regressions
 may only be caught by CI (adds ~15-30 min latency to regression discovery).
@@ -320,7 +320,7 @@ If Local checks = WARN:
 ```
 
 **Overall status rules:**
-- PASS: all 5 domains PASS (local checks must be PASS, not just WARN). Domains
+- PASS: all domains PASS (local checks must be PASS, not just WARN). Domains
   skipped due to non-deployment changes (Step 0c) or staging not configured
   (Step 0) count as PASS — they are correctly excluded, not missing.
 - WARN: no domain FAIL, but at least one domain is WARN (typically Local checks with E2E skip)
@@ -363,7 +363,7 @@ Each prompt file in `prompts/` contains a `## READ-ONLY ENFORCEMENT` section wit
 - **Never fix issues** — this skill is verification-only
 - **Never create issues** — only report findings for the user to act on
 - **Never modify code** — read-only operations only
-- **Max 5 sub-agents** — respects the project's concurrency limit (4 in Batch 1, 1 in Batch 2)
+- **Max sub-agents bounded by `orchestration.max_agents`** — respects the project's concurrency limit (see `dso-config.conf`; 4 in Batch 1, 1 in Batch 2)
 - **No commits between batches** — read-only skill, nothing to commit (Orchestrator Checkpoint Protocol acknowledged but N/A)
 - **Gate staging test on deploy health** — skip browser tests if staging is down
 - **Sub-agent model selection** — haiku for script-running sub-agents, sonnet for staging-test which requires judgment
