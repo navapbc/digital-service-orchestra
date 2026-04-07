@@ -4,6 +4,12 @@
 - Scope: ticket-system-v3 / bridge observability and recovery (epic w21-bwfw, story w21-qjcy)
 - Date: 2026-03-21
 
+## Purpose
+
+This document defines the emit/parse interface for the `REVERT` ticket event, which records that an earlier ticket event is being undone. The emitter (`ticket-revert.sh`) writes the event to the ticket's event log; parsers (`ticket-reducer.py` and `bridge-outbound.py`) read it to build compiled state and apply check-before-overwrite semantics when pushing the revert's outbound effect to Jira.
+
+---
+
 ## Signal Name
 
 `REVERT`
@@ -131,6 +137,12 @@ must not rely on the reducer to catch REVERT-of-REVERT; the emitter is the enfor
 **Rationale**: REVERT-of-REVERT creates ambiguous causality chains and makes compiled state
 difficult to reason about. If a revert itself needs to be undone, the correct action is to re-apply
 the original change as a new event (e.g., a new STATUS event), not to chain REVERTs.
+
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `REVERT` — the `event_type` field value. Any event file whose `event_type` equals `"REVERT"` (case-sensitive) is a valid REVERT event. File-level identification uses the filename suffix `-REVERT.json`.
 
 ---
 

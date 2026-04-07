@@ -83,6 +83,12 @@ alongside other event files.
 - `data.reason`: non-empty string; no length limit enforced, but must identify the alert class and
   the specific value(s) involved (e.g., `"Unknown status value: 'Waiting for approval'"`).
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `BRIDGE_ALERT` — the `event_type` field value. Any event file whose `event_type` equals `"BRIDGE_ALERT"` (case-sensitive) is a valid BRIDGE_ALERT event. File-level identification uses the filename suffix `-BRIDGE_ALERT.json`.
+
 ---
 
 ## Canonical Example

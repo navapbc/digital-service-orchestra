@@ -97,6 +97,12 @@ The emitter outputs a single JSON object on stdout. All fields are required.
 }
 ```
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `GATE_SIGNAL` — this contract defines a JSON stdout interface. The parser reads the full JSON object from each gate emitter's stdout and inspects the `triggered`, `signal_type`, and `confidence` fields. No line-prefix matching applies; the parser must deserialize the JSON object to determine routing.
+
 ---
 
 ## Exit Code Semantics

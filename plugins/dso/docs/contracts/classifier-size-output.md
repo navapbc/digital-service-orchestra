@@ -76,6 +76,12 @@ The size fields are included in the same JSON object as the tier fields:
 }
 ```
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `CLASSIFIER_SIZE_OUTPUT` — this contract defines a JSON stdout interface. The parser reads the full JSON object from the emitter's stdout and inspects the `size_action` and `is_merge_commit` fields. No line-prefix matching applies; the parser must deserialize the JSON object to access these fields.
+
 ---
 
 ## Re-Review Exemption Rule

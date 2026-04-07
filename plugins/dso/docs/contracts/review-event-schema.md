@@ -102,6 +102,12 @@ Emitted when an overlay review is triggered or explicitly skipped.
 | `trigger_source` | string | required | How the overlay was triggered: `classifier` (classifier flagged it), `reviewer` (tier reviewer flagged it during review), or `skipped` (evaluated but not triggered). |
 | `finding_count` | integer | optional | Number of findings from the overlay review. Present only when `triggered` is `true` and the overlay has completed. |
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `REVIEW_EVENT_SCHEMA` — this contract defines a JSONL append-only log format. Consumers parse the file line-by-line; each line is a complete JSON object. The `event_type` field discriminates between event types (`review_result`, `commit_workflow`, `tier_selection`, `overlay_trigger`). No line-prefix string matching applies — consumers must deserialize each JSON record and inspect `event_type` to route processing.
+
 ---
 
 ## Security Constraint

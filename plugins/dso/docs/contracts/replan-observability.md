@@ -159,7 +159,7 @@ The `INTERACTIVITY_DEFERRED` comment replaces `REPLAN_RESOLVED` in this case —
 
 ---
 
-## Canonical Parsing Prefix
+### Canonical parsing prefix
 
 Tooling that scans epic ticket comments for these signals MUST match against these canonical prefixes:
 

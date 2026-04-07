@@ -64,6 +64,12 @@ resolve(events: list[dict]) -> list[dict]
 | `events`  | `list[dict]`| Flat list of event dicts from one or more environments            |
 | returns   | `list[dict]`| Resolved (deduped and/or sorted) list ready for `reduce_ticket()` |
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `ReducerStrategy` — this contract defines a Python `typing.Protocol` interface, not a line-based signal. Callers detect conformance via structural subtyping: any object whose class provides a `resolve(self, events: list[dict]) -> list[dict]` method satisfies the protocol. No text prefix matching applies; conformance is checked via `isinstance(obj, ReducerStrategy)` when `@runtime_checkable` is active.
+
 ---
 
 ## Default Strategy: `LastTimestampWinsStrategy`

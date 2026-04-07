@@ -4,6 +4,12 @@
 - Scope: ticket-system-v3 / Jira bridge (epic w21-bwfw)
 - Date: 2026-03-21
 
+## Purpose
+
+This document defines the SYNC event payload format used by the Jira bridge to signal that a local ticket change is ready to be pushed to Jira. The outbound bridge (`bridge-outbound.py`) emits this payload; the inbound bridge consumes it to apply the change idempotently using `jira_key`, `local_id`, and `run_id` for correlation.
+
+---
+
 ## Signal Name
 
 `SYNC`
@@ -81,6 +87,12 @@ Example with empty `run_id` (emitted outside GHA context):
   "run_id": ""
 }
 ```
+
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `SYNC` — the `event_type` field value. Any SYNC payload whose `event_type` equals `"SYNC"` (case-sensitive) is a valid SYNC event. The parser must validate this field and reject payloads with any other value.
 
 ---
 
