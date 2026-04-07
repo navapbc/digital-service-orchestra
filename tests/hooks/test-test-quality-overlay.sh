@@ -79,9 +79,12 @@ extract_classifier_field() {
     local field="$2"
     python3 -c "
 import json, sys
-data = json.loads(sys.argv[1])
-val = data.get(sys.argv[2], 'FIELD_MISSING')
-print(str(val).lower())
+try:
+    data = json.loads(sys.argv[1])
+    val = data.get(sys.argv[2], 'FIELD_MISSING')
+    print(str(val).lower())
+except (json.JSONDecodeError, IndexError, TypeError, AttributeError):
+    print('FIELD_MISSING')
 " "$json" "$field"
 }
 
