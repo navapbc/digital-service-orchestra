@@ -47,6 +47,83 @@ _read_cfg() {
     fi
 }
 
+# _compute_max_agents — determine the maximum number of concurrent sub-agents.
+#
+# Combines three signals:
+#   1. check-usage.sh exit code: 0=unlimited, 1=throttled(1), 2=paused(0)
+#   2. orchestration.max_agents config value (caps unlimited when set)
+#   3. CLAUDE_CONTEXT_WINDOW_USAGE env var (>= 0.90 forces cap to 1)
+#
+# Precedence:
+#   - Paused (exit 2) always wins → "0"
+#   - Context window >= 90% → cap to "1"
+#   - Config cap: min(verdict, config) when both are numeric
+#   - No config + unlimited verdict → "unlimited"
+#
+# Output (stdout): a single bare string — "unlimited", "N", or "0"
+_compute_max_agents() {
+    # Step 1: Call check-usage.sh (resolved via PATH) and capture exit code
+    local usage_exit=0
+    check-usage.sh >/dev/null 2>&1 || usage_exit=$?
+
+    # Step 2: Map exit code to verdict
+    local verdict
+    case "$usage_exit" in
+        0) verdict="unlimited" ;;
+        1) verdict="1" ;;
+        2) verdict="0" ;;
+        *) verdict="unlimited" ;;  # unknown exit → safe fallback
+    esac
+
+    # Step 3: Paused always wins regardless of anything else
+    if [ "$verdict" = "0" ]; then
+        echo "0"
+        return 0
+    fi
+
+    # Step 4: Context window usage override (>= 0.90 → cap to 1)
+    if [ -n "${CLAUDE_CONTEXT_WINDOW_USAGE:-}" ]; then
+        local is_high
+        is_high=$(awk -v u="${CLAUDE_CONTEXT_WINDOW_USAGE}" 'BEGIN { print (u >= 0.90) ? 1 : 0 }' 2>/dev/null || echo 0)
+        if [ "$is_high" = "1" ]; then
+            # Context pressure caps at 1, regardless of usage verdict
+            echo "1"
+            return 0
+        fi
+    fi
+
+    # Step 5: Read orchestration.max_agents config
+    local config_cap
+    config_cap=$(_read_cfg "orchestration.max_agents")
+
+    # Step 6: Apply config cap
+    if [ -n "$config_cap" ]; then
+        # Validate config_cap is a positive integer
+        if ! [[ "$config_cap" =~ ^[0-9]+$ ]] || [ "$config_cap" -eq 0 ]; then
+            # Invalid or zero config → ignore, treat as unset
+            echo "$verdict"
+            return 0
+        fi
+        if [ "$verdict" = "unlimited" ]; then
+            # Config caps unlimited → use config value
+            echo "$config_cap"
+        else
+            # Both are numeric: min(verdict, config) wins
+            local v_num="$verdict"
+            if [ "$config_cap" -lt "$v_num" ] 2>/dev/null; then
+                echo "$config_cap"
+            else
+                echo "$v_num"
+            fi
+        fi
+    else
+        # No config cap → pass through verdict as-is
+        echo "$verdict"
+    fi
+
+    return 0
+}
+
 # Resolve APP_DIR from config (paths.app_dir, relative to REPO_ROOT)
 _app_dir() {
     local rel
@@ -67,8 +144,8 @@ _app_dir() {
 #   --db    Also check database status (for DB-dependent batches)
 #
 # Output:
-#   MAX_AGENTS: 1 | 5
-#   SESSION_USAGE: normal | high
+#   MAX_AGENTS: unlimited | N | 0
+#   SESSION_USAGE: normal | high | critical
 #   GIT_CLEAN: true | false
 #   DB_STATUS: running | stopped | skipped
 #
@@ -84,17 +161,15 @@ cmd_pre_check() {
 
     local any_fail=false
 
-    # Session usage — read-config.sh session.usage_check_cmd
-    local max_agents=5
+    # Session usage — 3-tier protocol via _compute_max_agents()
+    local max_agents
+    max_agents=$(_compute_max_agents)
     local usage="normal"
-    local usage_check_cmd
-    usage_check_cmd=$(_read_cfg "session.usage_check_cmd")
-    if [ -n "$usage_check_cmd" ] && [ -x "$usage_check_cmd" ]; then
-        if "$usage_check_cmd" 2>/dev/null; then
-            max_agents=1
-            usage="high"
-        fi
-    fi
+    case "$max_agents" in
+        unlimited) usage="normal" ;;
+        0)         usage="critical" ;;
+        *)         usage="high" ;;
+    esac
     echo "MAX_AGENTS: $max_agents"
     echo "SESSION_USAGE: $usage"
 
@@ -671,7 +746,9 @@ cmd_context_check() {
 
     case "$level" in
         medium) return 10 ;;  # 10 = compaction recommended
-        high)   return 11 ;;  # 11 = compaction recommended, limit agents
+        high)
+            echo "MAX_AGENTS: 1"
+            return 11 ;;  # 11 = compaction recommended, limit agents
         *)      return 0 ;;   #  0 = no compaction needed
     esac
 }

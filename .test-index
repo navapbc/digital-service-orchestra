@@ -139,7 +139,7 @@ plugins/dso/hooks/run-hook.sh:tests/hooks/test-run-hook-relative-paths.sh,tests/
 plugins/dso/hooks/title-length-validator.sh:tests/hooks/test-title-length-validator.sh
 tests/lib/suite-engine.sh:tests/hooks/test-suite-engine-eagain.sh,tests/hooks/test-integration-eagain-full-path.sh
 plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py
-plugins/dso/scripts/agent-batch-lifecycle.sh:tests/scripts/test-validate-phase-v2-removal.sh,tests/scripts/test-lifecycle-max-agents.sh [test_verdict_unlimited]
+plugins/dso/scripts/agent-batch-lifecycle.sh:tests/scripts/test-validate-phase-v2-removal.sh,tests/scripts/test-lifecycle-max-agents.sh
 plugins/dso/scripts/agent-profiles/prompts/explore-structured-output.md:tests/scripts/test-explore-dispatch-template.sh
 plugins/dso/scripts/blast-radius-score.py:tests/scripts/test-blast-radius-score.sh
 plugins/dso/scripts/build-review-agents.sh:tests/unit/scripts/test-build-review-agents.sh
