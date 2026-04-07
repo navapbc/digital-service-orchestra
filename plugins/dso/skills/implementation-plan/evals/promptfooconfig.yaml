@@ -32,6 +32,20 @@ prompts:
       after declaring cross-cutting escalation.
     - Scrutiny gate: Halt immediately if the epic has a scrutiny:pending tag. Tell the user
       to run /dso:brainstorm on the epic first to clear the scrutiny:pending tag.
+    - Testing mode classification: Every implementation task must carry an explicit testing_mode
+      field (RED, GREEN, or UPDATE). The testing_mode applies to the source file's implementation
+      task — it describes the relationship between the source file and its test coverage:
+        * RED — new source file (action=create, classification=needs-creation); the implementation
+          task is RED because no tests exist yet; it must be preceded by a failing test task
+        * UPDATE — existing file with observable behavior change (action=modify,
+          classification=needs-modification); existing tests must be updated before implementation
+        * GREEN — existing file with no observable behavior change (action=modify, pure refactor,
+          classification=still-valid); existing tests remain correct, no test changes needed
+      Emit testing_mode as a labeled per-task attribute (e.g., "testing_mode: RED").
+      The classification reflects what the code *does* (observable outputs, decisions, side
+      effects), not what text it contains. A new file that computes a value is RED. A refactor
+      that renames internals without changing observable behavior is GREEN. A behavior-changing
+      modification to an existing file with test coverage is UPDATE.
 
     Signal format contracts:
     - When success criteria cannot be satisfied given codebase constraints (e.g., a closed
@@ -395,6 +409,57 @@ tests:
           (5) escalate to the user after reaching the cycle limit — after 2 cycles without
           resolution, halt autonomous resolution and present the decision to the user
           rather than continuing indefinitely.
+
+  # REVIEW-DEFENSE: testing_mode eval test below is TDD RED state — it must fail against current implementation-plan SKILL.md (no per-task testing_mode classification step exists yet). Implementation tasks in the next batch will add the step and make it pass (GREEN). The .test-index entry maps this eval to run-skill-evals.sh, which is not on the pre-commit-test-gate critical path for eval files.
+  - description: "Classifies testing_mode per task: RED for new source file, GREEN for pure refactor, UPDATE for behavior modification with existing coverage"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6"
+    vars:
+      prompt: |
+        Please create an implementation plan for this user story:
+
+        Story: "As an API developer, I want the /api/users endpoint to support an optional
+        role query parameter for filtering, and I want the user service to be refactored
+        for readability while preserving existing behavior."
+
+        Context:
+        - The app has a Python Flask API with a GET /api/users endpoint in src/api/users.py.
+        - There is a UserService class in src/services/user_service.py with existing test
+          coverage in tests/test_user_service.py.
+        - There is an existing test file for the API: tests/test_users_api.py.
+        - The filtering feature requires adding a new src/filters/role_filter.py module
+          (this file does not exist yet).
+        - The refactor changes internal method names in user_service.py for clarity but
+          does NOT change any observable behavior — all existing tests pass unchanged.
+        - The filtering feature changes the observable behavior of GET /api/users
+          (it now accepts and acts on a role param), and tests/test_users_api.py
+          already exists with test coverage for the current behavior.
+
+        Do not ask for clarification — proceed directly to drafting the plan.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output produces an implementation plan for this story and assigns a
+          testing_mode field (with value RED, GREEN, or UPDATE) to each task in the
+          plan. The rubric checks that the classification matches the actual task
+          characteristics — not just that testing_mode text appears in the output.
+          It should:
+          (1) emit a testing_mode field explicitly for each task — the field must
+          appear as a labeled per-task attribute (e.g., "testing_mode: RED") rather
+          than being inferred from prose description alone,
+          (2) assign testing_mode=RED to the task that creates the new source file
+          (src/filters/role_filter.py) — this is a new file with no existing tests,
+          requiring a new failing test to be written before implementation,
+          (3) assign testing_mode=GREEN to the task that refactors user_service.py
+          for readability without changing observable behavior — existing tests in
+          tests/test_user_service.py remain valid and no new test task is needed,
+          (4) assign testing_mode=UPDATE to the task that modifies src/api/users.py
+          to support the role filter parameter — this changes observable behavior of
+          an existing file that already has test coverage in tests/test_users_api.py,
+          requiring the existing tests to be updated to assert the new behavior,
+          (5) NOT assign RED to the refactor task or to the behavior-modification task —
+          misclassifying either of those as RED would indicate the model is defaulting
+          to RED for all tasks rather than classifying based on task characteristics.
 
   - description: "Emits REPLAN_ESCALATE when success criteria cannot be satisfied"
     options:

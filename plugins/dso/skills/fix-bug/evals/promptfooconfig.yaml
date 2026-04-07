@@ -64,6 +64,33 @@ prompts:
     Step 6 fix dispatch) but NOT to diagnostic-only inline operations. Step 1
     intent-search and gate scripts run inline, not as isolated sub-agents.
 
+    Step 4.75 — Testing Mode Classification:
+    Before writing or modifying tests (Step 5), classify the fix into a testing mode.
+    Examine the investigation root cause and approved fix description.
+
+    Classification rules:
+    - testing_mode=GREEN: existing tests remain valid after the fix (they pass before and
+      after). Apply when existing_tests_pass_after_fix: true is present in the root cause
+      report, or when the fix corrects internal implementation logic and no test changes
+      are needed. DEFAULT for most bug fixes — most fixes correct logic without requiring
+      new tests or test updates because existing tests already cover the behavior.
+    - testing_mode=UPDATE: fix changes observable behavior AND existing tests cover the
+      affected paths but assert old (buggy) behavior — the tests need updating.
+      Indicated by: existing_test_file or existing_test_name provided but
+      existing_tests_pass_after_fix is NOT true.
+    - testing_mode=RED: fix introduces new observable behavior with NO existing coverage.
+      Indicated by: existing_test_coverage: false and no existing_test_file/test_name.
+
+    Emit the classification on its own line:
+    testing_mode=<GREEN|UPDATE|RED>
+
+    Step 5 branching based on testing_mode:
+    - testing_mode=GREEN: Log "Testing mode: GREEN — existing tests validate fix correctness.
+      Proceeding to implementation." Then skip RED test writing and proceed to implementation.
+    - testing_mode=UPDATE: Identify existing tests that assert old behavior, update them to
+      assert new expected behavior before implementing the fix (they should now fail = RED state).
+    - testing_mode=RED: Dispatch dso:red-test-writer to write a new failing test before the fix.
+
     Step 7.5 — Anti-Pattern Scan:
     When creating bug tickets during the anti-pattern scan phase, these are
     autonomously discovered defects. The CLI command is:
@@ -313,3 +340,98 @@ tests:
           when the config explicitly disables worktree isolation. This tests whether
           the fix-bug skill instructions document the conditional worktree isolation
           behavior — which they currently do not.
+
+  # REVIEW-DEFENSE: testing_mode eval tests below are TDD RED state — they must fail against current SKILL.md (no testing_mode classification step exists yet). Implementation tasks in the next batch will add the step and make them pass (GREEN). The .test-index entry maps these evals to run-skill-evals.sh, which is not on the pre-commit-test-gate critical path for eval files.
+  - description: "testing_mode=GREEN: impl-only fix (no behavior change) emits testing_mode=GREEN signal"
+    vars:
+      prompt: |
+        You are at Step 5 (RED Test) of the fix-bug workflow. The investigation
+        sub-agent has returned the following root cause report:
+
+        root_cause_report:
+          bug_id: BUG-9901
+          root_cause: "Off-by-one error in loop index in src/utils/paginator.py line 42.
+            The loop iterates range(len(items)) but should iterate range(len(items) - 1)
+            to avoid reading a stale final element."
+          fix_description: "Change range(len(items)) to range(len(items) - 1) in
+            paginator.py line 42."
+          existing_tests_pass_after_fix: true
+
+        Before proceeding, follow the fix-bug SKILL.md Step 5 instructions to classify
+        the testing_mode for this fix. Emit the testing_mode signal on its own line
+        in the format: testing_mode=<GREEN|UPDATE|RED>
+    assert:
+      - type: llm-rubric
+        value: >
+          The output MUST emit the literal signal "testing_mode=GREEN" on its own line.
+          "testing_mode=GREEN" means the fix does not change observable behavior and
+          existing tests remain valid, so no new RED test or test update is needed.
+          The output FAILS if it emits testing_mode=UPDATE or testing_mode=RED, or if
+          it does not emit any testing_mode= signal at all. The fix-bug SKILL.md
+          currently contains no testing_mode classification step, so without that step
+          documented in the skill, the model cannot follow instructions to emit this
+          specific structured signal — causing this test to FAIL against the current
+          SKILL.md. This is the RED state for this eval.
+
+  - description: "testing_mode=UPDATE: behavior change with existing coverage emits testing_mode=UPDATE signal"
+    vars:
+      prompt: |
+        You are at Step 5 (RED Test) of the fix-bug workflow. The investigation
+        sub-agent has returned the following root cause report:
+
+        root_cause_report:
+          bug_id: BUG-9902
+          root_cause: "src/api/formatter.py returns ISO 8601 timestamps but callers
+            expect Unix epoch integers. The formatter was recently changed."
+          fix_description: "Update formatter.py to return Unix epoch integers."
+          existing_test_file: "tests/unit/test_formatter.py"
+          existing_test_name: "test_format_timestamp"
+
+        Before proceeding, follow the fix-bug SKILL.md Step 5 instructions to classify
+        the testing_mode for this fix. Emit the testing_mode signal on its own line
+        in the format: testing_mode=<GREEN|UPDATE|RED>
+    assert:
+      - type: llm-rubric
+        value: >
+          The output MUST emit the literal signal "testing_mode=UPDATE" on its own line.
+          "testing_mode=UPDATE" means the fix changes observable behavior and existing
+          tests cover this behavior but assert old behavior — so the existing tests must
+          be updated rather than a new test written. The output FAILS if it emits
+          testing_mode=RED or testing_mode=GREEN, or if it does not emit any testing_mode=
+          signal at all. The fix-bug SKILL.md currently contains no testing_mode
+          classification step, so without that step documented in the skill, the model
+          cannot follow instructions to emit this specific structured signal — causing
+          this test to FAIL against the current SKILL.md. This is the RED state for
+          this eval.
+
+  - description: "testing_mode=RED: behavior change with no existing coverage emits testing_mode=RED signal"
+    vars:
+      prompt: |
+        You are at Step 5 (RED Test) of the fix-bug workflow. The investigation
+        sub-agent has returned the following root cause report:
+
+        root_cause_report:
+          bug_id: BUG-9903
+          root_cause: "src/notifications/dispatcher.py silently drops retry notifications
+            when the retry count exceeds the configured max_retries threshold, instead of
+            emitting a failure event."
+          fix_description: "Emit a NotificationFailureEvent when retry count exceeds
+            max_retries in dispatcher.py."
+          existing_test_coverage: false
+
+        Before proceeding, follow the fix-bug SKILL.md Step 5 instructions to classify
+        the testing_mode for this fix. Emit the testing_mode signal on its own line
+        in the format: testing_mode=<GREEN|UPDATE|RED>
+    assert:
+      - type: llm-rubric
+        value: >
+          The output MUST emit the literal signal "testing_mode=RED" on its own line.
+          "testing_mode=RED" means the fix changes observable behavior and there is no
+          existing test coverage — so a new RED test must be written by dispatching
+          dso:red-test-writer before the fix is applied. The output FAILS if it emits
+          testing_mode=GREEN or testing_mode=UPDATE, or if it does not emit any
+          testing_mode= signal at all. The fix-bug SKILL.md currently contains no
+          testing_mode classification step, so without that step documented in the skill,
+          the model cannot follow instructions to emit this specific structured signal —
+          causing this test to FAIL against the current SKILL.md. This is the RED state
+          for this eval.

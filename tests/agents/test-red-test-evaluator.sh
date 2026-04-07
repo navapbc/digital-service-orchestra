@@ -276,6 +276,54 @@ test_has_decision_logic_section() {
     assert_pass_if_clean "test_has_decision_logic_section"
 }
 
+# ============================================================
+# test_reject_criteria_includes_refactoring_survival
+# [evaluator_alignment] RED marker — criteria not yet in agent file.
+# REJECT decision logic must include a refactoring survival criterion:
+# a submitted RED test that would break under a semantics-preserving
+# refactoring (e.g., renaming an internal variable) should be rejected
+# because it tests implementation details rather than observable behavior.
+# ============================================================
+test_reject_criteria_includes_refactoring_survival() {
+    _snapshot_fail
+    if [[ ! -f "$AGENT_FILE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: agent file not found: %s\n" "$AGENT_FILE" >&2
+        assert_pass_if_clean "test_reject_criteria_includes_refactoring_survival"
+        return
+    fi
+    local _found=0
+    if grep -qi 'refactoring.survival\|refactoring_survival\|survives.*refactor\|refactor.*surviv' "$AGENT_FILE" 2>/dev/null; then
+        _found=1
+    fi
+    assert_eq "REJECT criteria includes refactoring survival check" "1" "$_found"
+    assert_pass_if_clean "test_reject_criteria_includes_refactoring_survival"
+}
+
+# ============================================================
+# test_reject_criteria_includes_suite_level_value
+# [evaluator_alignment] RED marker — criteria not yet in agent file.
+# REJECT decision logic must include a suite-level value criterion:
+# a submitted RED test that duplicates coverage already provided by an
+# existing test in the suite (same behavior already asserted) should be
+# rejected as providing no suite-level value.
+# ============================================================
+test_reject_criteria_includes_suite_level_value() {
+    _snapshot_fail
+    if [[ ! -f "$AGENT_FILE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: agent file not found: %s\n" "$AGENT_FILE" >&2
+        assert_pass_if_clean "test_reject_criteria_includes_suite_level_value"
+        return
+    fi
+    local _found=0
+    if grep -qi 'suite.level.value\|suite_level_value\|suite.*redundan\|redundan.*suite\|duplicate.*coverage\|coverage.*duplicate' "$AGENT_FILE" 2>/dev/null; then
+        _found=1
+    fi
+    assert_eq "REJECT criteria includes suite-level value check" "1" "$_found"
+    assert_pass_if_clean "test_reject_criteria_includes_suite_level_value"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 echo "--- test_frontmatter_has_name_red_test_evaluator ---"
 test_frontmatter_has_name_red_test_evaluator
@@ -323,6 +371,14 @@ echo ""
 
 echo "--- test_has_decision_logic_section ---"
 test_has_decision_logic_section
+echo ""
+
+echo "--- test_reject_criteria_includes_refactoring_survival ---"
+test_reject_criteria_includes_refactoring_survival
+echo ""
+
+echo "--- test_reject_criteria_includes_suite_level_value ---"
+test_reject_criteria_includes_suite_level_value
 echo ""
 
 # ── Summary ───────────────────────────────────────────────────────────────────

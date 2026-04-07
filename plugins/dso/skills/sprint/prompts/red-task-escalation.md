@@ -18,6 +18,7 @@ Parse the leading `TEST_RESULT:` line from the output:
 | Result | Action |
 |--------|--------|
 | `TEST_RESULT:written` | Success. Proceed to TDD setup using `TEST_FILE` and `RED_ASSERTION` fields. Do NOT escalate. |
+| `TEST_RESULT:no_new_tests_needed` | Success. No TDD setup needed. Do NOT escalate. Proceed to normal task execution without TDD setup. |
 | `TEST_RESULT:rejected` | Escalate to Tier 2. `TEST_RESULT:rejected` is **not** an infrastructure failure — it triggers this escalation protocol, not dispatch failure recovery (Phase 5 Step 0). |
 | Timeout / malformed / non-zero exit | Treat as `TEST_RESULT:rejected` with `REJECTION_REASON: ambiguous_spec` per the writer failure contract. Escalate to Tier 2. |
 
@@ -62,6 +63,7 @@ Parse the leading `TEST_RESULT:` line:
 | Result | Action |
 |--------|--------|
 | `TEST_RESULT:written` | Success. Proceed to TDD setup normally. |
+| `TEST_RESULT:no_new_tests_needed` | Success. No TDD setup needed. Do NOT escalate. Proceed to normal task execution without TDD setup. |
 | `TEST_RESULT:rejected` | Terminal failure. Escalate to the user with: the Tier 1 rejection payload, the Tier 2 `VERDICT:REJECT` reason, and the Tier 3 rejection payload. Do not retry further. |
 | Timeout / malformed / non-zero exit | Terminal failure. Escalate to the user. |
 
@@ -71,8 +73,9 @@ Parse the leading `TEST_RESULT:` line:
 
 ```
 Tier 1: dso:red-test-writer (sonnet)
-  → TEST_RESULT:written  ──────────────────────────────► TDD setup (done)
-  → TEST_RESULT:rejected ──────────────────────────────► Tier 2
+  → TEST_RESULT:written           ────────────────────► TDD setup (done)
+  → TEST_RESULT:no_new_tests_needed ──────────────────► Normal task execution, no TDD setup (done)
+  → TEST_RESULT:rejected          ────────────────────► Tier 2
 
 Tier 2: dso:red-test-evaluator (opus)
   → VERDICT:CONFIRM  ──────────────────────────────────► Close task (TDD infeasible)
@@ -80,8 +83,9 @@ Tier 2: dso:red-test-evaluator (opus)
   → VERDICT:REJECT   ──────────────────────────────────► Tier 3
 
 Tier 3: dso:red-test-writer (opus model override)
-  → TEST_RESULT:written  ──────────────────────────────► TDD setup (done)
-  → TEST_RESULT:rejected ──────────────────────────────► User escalation (terminal)
+  → TEST_RESULT:written           ────────────────────► TDD setup (done)
+  → TEST_RESULT:no_new_tests_needed ──────────────────► Normal task execution, no TDD setup (done)
+  → TEST_RESULT:rejected          ────────────────────► User escalation (terminal)
 ```
 
 ---

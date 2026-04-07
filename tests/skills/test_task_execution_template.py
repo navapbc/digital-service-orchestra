@@ -727,6 +727,54 @@ class TestTaskExecutionStep4ValidatesExistingTests:
         )
 
 
+class TestTaskExecutionBehavioralTestingStandardReference:
+    """task-execution.md Step 4 must reference the shared behavioral-testing-standard.md.
+
+    TDD spec for task 72db-3709: The test-writing step (Step 4) must direct
+    sub-agents to consult the shared behavioral testing standard at
+    plugins/dso/skills/shared/prompts/behavioral-testing-standard.md.
+    This ensures all sub-agents apply consistent 4-rule behavioral testing
+    conventions when writing or modifying tests.
+    """
+
+    def test_behavioral_testing_standard_referenced(self) -> None:
+        """task-execution.md must reference behavioral-testing-standard.md."""
+        content = _read_template()
+        assert "behavioral-testing-standard.md" in content, (
+            "task-execution.md must contain a reference to "
+            "'behavioral-testing-standard.md' so sub-agents consult the shared "
+            "4-rule behavioral testing standard when writing or modifying tests."
+        )
+
+    def test_behavioral_testing_standard_reference_in_step4(self) -> None:
+        """The behavioral-testing-standard.md reference must appear in Step 4 (test validation).
+
+        Step 4 is the test-writing gate. Referencing the standard elsewhere
+        (e.g., in a generic rules section) is insufficient — it must appear
+        in the step that instructs sub-agents to write or validate tests.
+        """
+        content = _read_template()
+        # Use a specific pattern to find step 4 (test validation), not just any "4."
+        step4_start = content.find("4. **Test validation**")
+        if step4_start == -1:
+            step4_start = content.find("4.")
+        step5_start = content.find("5.", step4_start + 2) if step4_start != -1 else -1
+
+        assert step4_start != -1, "task-execution.md must contain a step 4."
+        step4_content = (
+            content[step4_start:step5_start]
+            if step5_start != -1
+            else content[step4_start : step4_start + 800]
+        )
+
+        assert "behavioral-testing-standard.md" in step4_content, (
+            "task-execution.md Step 4 must reference 'behavioral-testing-standard.md' "
+            "so sub-agents apply the shared 4-rule behavioral testing standard when "
+            "writing or modifying tests. The reference was not found in Step 4 content. "
+            f"Step 4 content (first 400 chars): {step4_content[:400]!r}"
+        )
+
+
 class TestTaskExecutionCheckpoint2RecordsFilesAndExemplars:
     """task-execution.md CHECKPOINT 2/6 must record files and exemplars read.
 
