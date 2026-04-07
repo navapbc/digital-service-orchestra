@@ -1,1 +1,0 @@
-{"timestamp": 1775539668060384000, "uuid": "39ef5bc4-c04f-4539-9530-3d9939bbc388", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: llm-behavioral \u2014 dual-signal: ticket describes agent guidance gap (agents ignore bug-report-template.md) AND affected files are in skills/ and prompts/ directories"}}
