@@ -410,7 +410,7 @@ If changes are requested during discussion or after any re-run, revise the spec 
 
 After the user approves (option a), append a planning-intelligence log to the epic spec comment that will be written in Phase 3.
 
-Log format to append under the heading `### Planning Intelligence Log`:
+Log format to append (the heading is **Planning Intelligence Log**, level 3):
 
 ```
 ### Planning Intelligence Log
@@ -420,6 +420,9 @@ Log format to append under the heading `### Planning Intelligence Log`:
 - **Scenario analysis (Step 2.75)**: [not triggered | triggered | re-triggered via gate]
   - Scenarios surviving blue team filter: [count, or "skipped — ≤2 success criteria"]
 - **Practitioner-requested additional cycles**: [none | web research re-run N time(s) | scenario analysis re-run N time(s) | both re-run]
+- **Follow-on scrutiny (Step 0)**: [not triggered | triggered — depth: <follow_on_scrutiny_depth>]
+- **Feasibility resolution (Step 2.5)**: [not triggered | triggered — cycles: <feasibility_cycle_count>, gap: <triggering gap description>]
+- **LLM-instruction signal (Step 5)**: [not triggered | triggered — keyword: <matched_keyword>]
 ```
 
 ---
