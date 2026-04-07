@@ -28,15 +28,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 EPIC_ID=""
 REPO_PATH=""
+STATUS_FILTER=""
 
 for arg in "$@"; do
     case "$arg" in
         --repo=*)
             REPO_PATH="${arg#--repo=}"
             ;;
+        --status=*)
+            STATUS_FILTER="${arg#--status=}"
+            ;;
         --*)
             echo "Unknown option: $arg" >&2
-            echo "Usage: $(basename "$0") <epic-id> [--repo=<path>]" >&2
+            echo "Usage: $(basename "$0") <epic-id> [--repo=<path>] [--status=<open|in_progress|closed>]" >&2
             exit 2
             ;;
         *)
@@ -52,9 +56,19 @@ for arg in "$@"; do
 done
 
 if [[ -z "$EPIC_ID" ]]; then
-    echo "Usage: $(basename "$0") <epic-id> [--repo=<path>]" >&2
+    echo "Usage: $(basename "$0") <epic-id> [--repo=<path>] [--status=<open|in_progress|closed>]" >&2
     echo "Error: epic-id is required" >&2
     exit 1
+fi
+
+if [[ -n "$STATUS_FILTER" ]]; then
+    case "$STATUS_FILTER" in
+        open|in_progress|closed) ;;
+        *)
+            echo "Error: invalid --status value '$STATUS_FILTER'. Must be one of: open, in_progress, closed" >&2
+            exit 2
+            ;;
+    esac
 fi
 
 # ── Resolve repo path ─────────────────────────────────────────────────────────
@@ -171,6 +185,17 @@ PYEOF
 
 # List children of the epic
 children_json="$("$TICKET_CMD" list --parent="$EPIC_ID" 2>/dev/null || echo "[]")"
+
+# Filter children by status if --status was provided
+if [[ -n "$STATUS_FILTER" ]]; then
+    children_json=$(python3 -c "
+import json, sys
+children = json.loads(sys.argv[1])
+status_filter = sys.argv[2]
+filtered = [c for c in children if c.get('status') == status_filter]
+print(json.dumps(filtered))
+" "$children_json" "$STATUS_FILTER")
+fi
 
 # Check if children list is empty
 child_count=$(python3 -c "
