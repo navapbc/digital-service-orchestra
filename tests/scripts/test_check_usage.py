@@ -105,14 +105,19 @@ class TestCache:
     """Verify cache read/write, locking, and TTL behavior."""
 
     def test_cache_write_and_read(self, tmp_path: Path) -> None:
-        """Write cache then read -> values match."""
+        """Write cache then read -> flat field values match."""
         cache_file = str(tmp_path / "usage-cache.json")
         data = {"five_hour": {"utilization": 0.42}, "seven_day": {"utilization": 0.71}}
         write_cache(cache_file, data)
         result = read_cache(cache_file)
         assert result is not None
-        assert result["five_hour"]["utilization"] == pytest.approx(0.42)
-        assert result["seven_day"]["utilization"] == pytest.approx(0.71)
+        assert result["five_hour_pct"] == pytest.approx(0.42)
+        assert result["seven_day_pct"] == pytest.approx(0.71)
+        assert "timestamp" in result
+        assert "resets_at" in result
+        # Verify nested keys are NOT present (flat format)
+        assert "five_hour" not in result
+        assert "seven_day" not in result
 
     def test_cache_flock_uses_separate_lockfile(self, tmp_path: Path) -> None:
         """flock is acquired on .lock file, not the .json data file."""

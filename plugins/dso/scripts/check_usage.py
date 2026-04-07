@@ -8,9 +8,9 @@ Polls the Anthropic OAuth usage endpoint and computes a 3-tier verdict:
 
 Cache contract (JSON written to CACHE_PATH):
     {
+        "five_hour_pct": 0.85,         // flattened 5-hour utilization
+        "seven_day_pct": 0.72,         // flattened 7-day utilization
         "timestamp": 1234567890,       // epoch seconds at write time
-        "five_hour": {"utilization": 0.85},
-        "seven_day": {"utilization": 0.72},
         "resets_at": "2026-04-06T18:00:00Z"  // optional, from API response
     }
 
@@ -112,7 +112,8 @@ def fetch_usage(token: str, timeout: int = _DEFAULT_TIMEOUT) -> dict:
         timeout: HTTP timeout in seconds (default 8).
 
     Returns:
-        Parsed JSON dict with five_hour and seven_day utilization.
+        Raw API response dict with nested five_hour/seven_day objects.
+        write_cache() flattens these to five_hour_pct/seven_day_pct.
 
     Raises:
         Exception on HTTP errors (including 429) or timeouts.
@@ -176,8 +177,8 @@ def write_cache(cache_path: str, data: dict) -> None:
 
     Creates parent directories and lock file as needed.
 
-    Cache JSON format:
-        {"timestamp": <epoch>, "five_hour": {...}, "seven_day": {...}, "resets_at": ...}
+    Cache JSON format (flat fields):
+        {"five_hour_pct": 0.85, "seven_day_pct": 0.72, "timestamp": <epoch>, "resets_at": ...}
     """
     cache_dir = os.path.dirname(cache_path)
     if cache_dir:
@@ -185,9 +186,13 @@ def write_cache(cache_path: str, data: dict) -> None:
 
     lock_path = os.path.join(os.path.dirname(cache_path), "usage-cache.lock")
 
-    # Add timestamp to data
-    enriched = dict(data)
-    enriched["timestamp"] = int(time.time())
+    # Flatten nested API data into flat cache fields
+    enriched = {
+        "five_hour_pct": data.get("five_hour", {}).get("utilization", 0.0),
+        "seven_day_pct": data.get("seven_day", {}).get("utilization", 0.0),
+        "timestamp": int(time.time()),
+        "resets_at": data.get("resets_at", ""),
+    }
 
     # Acquire exclusive lock on the lock file (context manager ensures close)
     with open(lock_path, "w") as lock_fd:
@@ -283,8 +288,8 @@ def main() -> int:
 
     # Step 3: Check cache freshness — skip poll if cache is fresh
     if cached is not None and not is_cache_stale(cache_path):
-        five_hr = cached.get("five_hour", {}).get("utilization", 0.0)
-        seven_day = cached.get("seven_day", {}).get("utilization", 0.0)
+        five_hr = cached.get("five_hour_pct", 0.0)
+        seven_day = cached.get("seven_day_pct", 0.0)
         verdict = compute_verdict(five_hr, seven_day)
         print("USAGE_SOURCE: cache")
         print(f"USAGE_5HR: {five_hr:.0%}")
@@ -306,8 +311,8 @@ def main() -> int:
         # 429 or other error
         if cached is not None:
             # Serve cached data but degrade unlimited -> throttled (fail-closed)
-            five_hr = cached.get("five_hour", {}).get("utilization", 0.0)
-            seven_day = cached.get("seven_day", {}).get("utilization", 0.0)
+            five_hr = cached.get("five_hour_pct", 0.0)
+            seven_day = cached.get("seven_day_pct", 0.0)
             verdict = compute_verdict(five_hr, seven_day)
             if verdict == 0:
                 verdict = 1  # degrade unlimited to throttled
@@ -331,6 +336,9 @@ def main() -> int:
 
         five_hr = usage_data.get("five_hour", {}).get("utilization", 0.0)
         seven_day = usage_data.get("seven_day", {}).get("utilization", 0.0)
+        # Note: usage_data is the raw API response (nested format).
+        # write_cache() flattens it to five_hour_pct/seven_day_pct.
+        # We extract from raw here since we have it in hand.
     else:
         # Should not reach here, but fail-closed
         print("USAGE_SOURCE: unknown")
