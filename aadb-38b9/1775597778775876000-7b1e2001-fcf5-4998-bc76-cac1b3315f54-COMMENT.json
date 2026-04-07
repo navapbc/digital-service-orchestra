@@ -1,0 +1,1 @@
+{"timestamp": 1775597778775876000, "uuid": "7b1e2001-fcf5-4998-bc76-cac1b3315f54", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: llm-behavioral (dual-signal: ticket describes agent abandoning merge + affected is end-session skill behavior). Tags: LLM-behavioral. Gate 1a: no CLI_user tag."}}
