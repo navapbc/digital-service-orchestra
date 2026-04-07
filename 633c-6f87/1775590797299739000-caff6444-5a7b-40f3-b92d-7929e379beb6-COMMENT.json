@@ -1,1 +1,0 @@
-{"timestamp": 1775590797299739000, "uuid": "caff6444-5a7b-40f3-b92d-7929e379beb6", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 5/6: All acceptance criteria verified \u2713 \u2014 escalate_review present, opus guard documented, dedup documented, Step 4a before Step 4b (line 366 vs 557)"}}
