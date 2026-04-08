@@ -221,4 +221,185 @@ assert_eq "test_registry_has_add_parameter_typescript: exit 0" "0" "$has_ts_entr
 assert_contains "test_registry_has_add_parameter_typescript: found match" "OK: found" "$has_ts_entry_output"
 assert_pass_if_clean "test_registry_has_add_parameter_typescript"
 
+# ── test_registry_has_scaffold_route_flask ───────────────────────────────────
+# Given: recipes/recipe-registry.yaml has a unified scaffold-route entry
+# When:  we search for name=scaffold-route with recipe_type=generative
+# Then:  exactly one such entry is found and its capability_description mentions flask
+# NOTE: The registry now has a single scaffold-route entry that serves both flask
+# and nextjs — framework is selected at runtime via RECIPE_PARAM_FRAMEWORK rather
+# than via separate registry entries (avoids duplicate-name lookup failure).
+_snapshot_fail
+_tmpfile_scaffold_flask=$(mktemp /tmp/test-recipe-registry-scaffold-flask.XXXXXX.py)
+cat > "$_tmpfile_scaffold_flask" <<'PYEOF'
+import yaml, sys, os, subprocess
+
+repo_root = subprocess.check_output(
+    ["git", "rev-parse", "--show-toplevel"], text=True
+).strip()
+registry_path = os.path.join(repo_root, "recipes", "recipe-registry.yaml")
+
+if not os.path.exists(registry_path):
+    print(f"MISSING_REGISTRY: {registry_path}")
+    sys.exit(1)
+
+data = yaml.safe_load(open(registry_path))
+entries = data if isinstance(data, list) else data.get("recipes", [])
+
+matches = [
+    e for e in entries
+    if e.get("name") == "scaffold-route" and e.get("recipe_type") == "generative"
+]
+if not matches:
+    print("NOT_FOUND: no entry with name=scaffold-route and recipe_type=generative")
+    sys.exit(1)
+entry = matches[0]
+cap = entry.get("capability_description", "")
+if "flask" not in cap.lower():
+    print(f"MISSING_FLASK: capability_description does not mention flask: {cap}")
+    sys.exit(1)
+print(f"OK: found {len(matches)} match(es) with recipe_type=generative")
+PYEOF
+scaffold_flask_exit=0
+scaffold_flask_output=""
+scaffold_flask_output=$(python3 "$_tmpfile_scaffold_flask" 2>&1) || scaffold_flask_exit=$?
+rm -f "$_tmpfile_scaffold_flask"
+assert_eq "test_registry_has_scaffold_route_flask: exit 0" "0" "$scaffold_flask_exit"
+assert_contains "test_registry_has_scaffold_route_flask: found match" "OK: found" "$scaffold_flask_output"
+assert_pass_if_clean "test_registry_has_scaffold_route_flask"
+
+# ── test_registry_has_scaffold_route_nextjs ───────────────────────────────────
+# Given: recipes/recipe-registry.yaml has a unified scaffold-route entry
+# When:  we search for name=scaffold-route with recipe_type=generative
+# Then:  exactly one such entry is found and its capability_description mentions nextjs
+# NOTE: The registry now has a single scaffold-route entry that serves both flask
+# and nextjs — framework is selected at runtime via RECIPE_PARAM_FRAMEWORK rather
+# than via separate registry entries (avoids duplicate-name lookup failure).
+_snapshot_fail
+_tmpfile_scaffold_nextjs=$(mktemp /tmp/test-recipe-registry-scaffold-nextjs.XXXXXX.py)
+cat > "$_tmpfile_scaffold_nextjs" <<'PYEOF'
+import yaml, sys, os, subprocess
+
+repo_root = subprocess.check_output(
+    ["git", "rev-parse", "--show-toplevel"], text=True
+).strip()
+registry_path = os.path.join(repo_root, "recipes", "recipe-registry.yaml")
+
+if not os.path.exists(registry_path):
+    print(f"MISSING_REGISTRY: {registry_path}")
+    sys.exit(1)
+
+data = yaml.safe_load(open(registry_path))
+entries = data if isinstance(data, list) else data.get("recipes", [])
+
+matches = [
+    e for e in entries
+    if e.get("name") == "scaffold-route" and e.get("recipe_type") == "generative"
+]
+if not matches:
+    print("NOT_FOUND: no entry with name=scaffold-route and recipe_type=generative")
+    sys.exit(1)
+entry = matches[0]
+cap = entry.get("capability_description", "")
+if "nextjs" not in cap.lower():
+    print(f"MISSING_NEXTJS: capability_description does not mention nextjs: {cap}")
+    sys.exit(1)
+print(f"OK: found {len(matches)} match(es) with recipe_type=generative")
+PYEOF
+scaffold_nextjs_exit=0
+scaffold_nextjs_output=""
+scaffold_nextjs_output=$(python3 "$_tmpfile_scaffold_nextjs" 2>&1) || scaffold_nextjs_exit=$?
+rm -f "$_tmpfile_scaffold_nextjs"
+assert_eq "test_registry_has_scaffold_route_nextjs: exit 0" "0" "$scaffold_nextjs_exit"
+assert_contains "test_registry_has_scaffold_route_nextjs: found match" "OK: found" "$scaffold_nextjs_output"
+assert_pass_if_clean "test_registry_has_scaffold_route_nextjs"
+
+# ── test_generative_recipe_type_valid ────────────────────────────────────────
+# Given: a registry entry with recipe_type=generative
+# When:  we validate it against the schema
+# Then:  jsonschema exits 0 (validation succeeds)
+_snapshot_fail
+_tmpfile_generative=$(mktemp /tmp/test-recipe-registry-generative.XXXXXX.py)
+cat > "$_tmpfile_generative" <<'PYEOF'
+import json, sys, os, subprocess
+
+repo_root = subprocess.check_output(
+    ["git", "rev-parse", "--show-toplevel"], text=True
+).strip()
+schema_path = os.path.join(repo_root, "recipes", "schemas", "recipe-registry-schema.json")
+
+if not os.path.exists(schema_path):
+    print(f"MISSING_SCHEMA: {schema_path}")
+    sys.exit(1)
+
+generative_entry = {
+    "name": "scaffold-route",
+    "language": "python",
+    "framework": "flask",
+    "engine": "scaffold",
+    "adapter": "scaffold-adapter.sh",
+    "recipe_type": "generative",
+    "capability_description": "Generate Flask route boilerplate",
+    "scope": "generative",
+    "min_engine_version": "0.0.0",
+    "installation_instructions": "No external engine required"
+}
+
+schema = json.load(open(schema_path))
+
+import jsonschema
+jsonschema.validate(generative_entry, schema)
+print("OK")
+PYEOF
+generative_exit=0
+generative_output=""
+generative_output=$(python3 "$_tmpfile_generative" 2>&1) || generative_exit=$?
+rm -f "$_tmpfile_generative"
+assert_eq "test_generative_recipe_type_valid: exit 0" "0" "$generative_exit"
+assert_eq "test_generative_recipe_type_valid: output is OK" "OK" "$generative_output"
+assert_pass_if_clean "test_generative_recipe_type_valid"
+
+# ── test_transform_recipe_type_valid ─────────────────────────────────────────
+# Given: a registry entry with recipe_type=transform
+# When:  we validate it against the schema
+# Then:  jsonschema exits 0 (validation succeeds)
+_snapshot_fail
+_tmpfile_transform=$(mktemp /tmp/test-recipe-registry-transform.XXXXXX.py)
+cat > "$_tmpfile_transform" <<'PYEOF'
+import json, sys, os, subprocess
+
+repo_root = subprocess.check_output(
+    ["git", "rev-parse", "--show-toplevel"], text=True
+).strip()
+schema_path = os.path.join(repo_root, "recipes", "schemas", "recipe-registry-schema.json")
+
+if not os.path.exists(schema_path):
+    print(f"MISSING_SCHEMA: {schema_path}")
+    sys.exit(1)
+
+transform_entry = {
+    "name": "add-parameter",
+    "language": "python",
+    "engine": "rope",
+    "adapter": "rope-adapter.sh",
+    "recipe_type": "transform",
+    "capability_description": "Add a parameter to a function signature",
+    "scope": "cross-file",
+    "min_engine_version": "1.7.0",
+    "installation_instructions": "pip install rope>=1.7.0"
+}
+
+schema = json.load(open(schema_path))
+
+import jsonschema
+jsonschema.validate(transform_entry, schema)
+print("OK")
+PYEOF
+transform_exit=0
+transform_output=""
+transform_output=$(python3 "$_tmpfile_transform" 2>&1) || transform_exit=$?
+rm -f "$_tmpfile_transform"
+assert_eq "test_transform_recipe_type_valid: exit 0" "0" "$transform_exit"
+assert_eq "test_transform_recipe_type_valid: output is OK" "OK" "$transform_output"
+assert_pass_if_clean "test_transform_recipe_type_valid"
+
 print_summary

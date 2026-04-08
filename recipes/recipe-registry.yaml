@@ -22,3 +22,12 @@ recipes:
     scope: cross-file
     min_engine_version: "17.0.0"
     installation_instructions: "npm install ts-morph@>=17"
+  - name: scaffold-route
+    language: any
+    engine: scaffold
+    adapter: scaffold-adapter.sh
+    recipe_type: generative
+    capability_description: "Generate framework-specific route boilerplate (flask, nextjs) — specify framework via RECIPE_PARAM_FRAMEWORK"
+    scope: generative
+    min_engine_version: "0.0.0"
+    installation_instructions: "No external engine required — built-in template engine"

@@ -65,7 +65,7 @@ fi
 
 # Use python3 to parse YAML. Values passed via env vars (not interpolated into code string)
 # to prevent shell/Python injection from untrusted RECIPE_NAME or REGISTRY_PATH values.
-read -r ENGINE_NAME ADAPTER_FILE ENGINE_VERSION_MIN < <(
+read -r ENGINE_NAME ADAPTER_FILE ENGINE_VERSION_MIN RECIPE_TYPE_FIELD < <(
     _LOOKUP_REGISTRY="$REGISTRY_PATH" _LOOKUP_RECIPE="$RECIPE_NAME" python3 -c "
 import yaml, sys, os
 registry_path = os.environ['_LOOKUP_REGISTRY']
@@ -87,13 +87,14 @@ elif isinstance(recipes, list):
             break
 
 if entry is None:
-    print('__NOT_FOUND__ __NOT_FOUND__ __NOT_FOUND__')
+    print('__NOT_FOUND__ __NOT_FOUND__ __NOT_FOUND__ __NOT_FOUND__')
 else:
     engine = entry.get('engine', '')
     adapter = entry.get('adapter', '')
     version_min = entry.get('engine_version_min', '0.0.0')
-    print(engine + ' ' + adapter + ' ' + str(version_min))
-" 2>/dev/null || echo "__PARSE_ERROR__ __PARSE_ERROR__ __PARSE_ERROR__"
+    recipe_type = entry.get('recipe_type', 'transform')
+    print(engine + ' ' + adapter + ' ' + str(version_min) + ' ' + recipe_type)
+" 2>/dev/null || echo "__PARSE_ERROR__ __PARSE_ERROR__ __PARSE_ERROR__ __PARSE_ERROR__"
 )
 
 if [[ "$ENGINE_NAME" == "__NOT_FOUND__" ]]; then
@@ -105,6 +106,9 @@ if [[ "$ENGINE_NAME" == "__PARSE_ERROR__" ]]; then
     printf '{"files_changed":[],"transforms_applied":0,"errors":["failed to parse registry YAML: %s"],"exit_code":1}\n' "$REGISTRY_PATH"
     exit 1
 fi
+
+# Default recipe_type to "transform" if not set
+RECIPE_TYPE="${RECIPE_TYPE_FIELD:-transform}"
 
 # ── Locate adapter script ─────────────────────────────────────────────────────
 ADAPTER_PATH="$ADAPTERS_DIR/$ADAPTER_FILE"
@@ -136,6 +140,7 @@ done
 ENV_ARGS+=("RECIPE_TIMEOUT_SECONDS=600")
 ENV_ARGS+=("RECIPE_MIN_ENGINE_VERSION=$ENGINE_VERSION_MIN")
 ENV_ARGS+=("RECIPE_DRY_RUN=false")
+ENV_ARGS+=("RECIPE_TYPE=$RECIPE_TYPE")
 
 # ── Invoke adapter ────────────────────────────────────────────────────────────
 # Contract: set CWD to repo root before invoking adapter so relative paths resolve correctly.

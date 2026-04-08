@@ -260,4 +260,73 @@ assert params.get('function_name') == 'add_item', \
 }
 assert_pass_if_clean "test_executor_passes_params_via_env"
 
+# ── test_generative_recipe_rollback ──────────────────────────────────────────
+# Given: a registry entry with recipe_type=generative and an adapter that creates a
+#        file (tracked in CREATED_FILES) then fails
+# When:  recipe-executor.sh executes the recipe
+# Then:  the adapter's own EXIT trap deletes the created file on failure
+_snapshot_fail
+{
+    _tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$_tmpdir")
+    _adapters_dir="$_tmpdir/adapters"
+    mkdir -p "$_adapters_dir"
+
+    # Registry with recipe_type=generative
+    _registry_path="$_tmpdir/registry.yaml"
+    cat > "$_registry_path" <<YAML
+recipes:
+  - name: generative-fail-recipe
+    language: python
+    engine: scaffold
+    engine_version_min: "0.0.0"
+    adapter: generative-fail-adapter.sh
+    recipe_type: generative
+    description: "Generative recipe that creates a file then fails"
+    parameters: []
+YAML
+
+    # Adapter that creates a tracked file then exits non-zero.
+    # Uses the same CREATED_FILES + EXIT-trap pattern as scaffold-adapter.sh so that
+    # the adapter's own cleanup removes the file on failure (executor no longer uses
+    # find-based rollback).
+    _created_file="$_tmpdir/created-by-adapter.txt"
+    _adapter_path="$_adapters_dir/generative-fail-adapter.sh"
+    cat > "$_adapter_path" <<ADAPTER
+#!/usr/bin/env bash
+set -euo pipefail
+CREATED_FILES=()
+ADAPTER_FAILED=0
+cleanup() {
+    if [[ \$ADAPTER_FAILED -eq 1 ]]; then
+        for f in "\${CREATED_FILES[@]:-}"; do
+            [[ -n "\$f" ]] && rm -f "\$f" 2>/dev/null || true
+        done
+    fi
+}
+trap cleanup EXIT
+# Create a real file and track it for rollback
+touch "$_created_file"
+CREATED_FILES+=("$_created_file")
+# Now deliberately fail — EXIT trap must delete the file
+ADAPTER_FAILED=1
+echo '{"degraded":false,"engine_name":"scaffold","error":"deliberate failure","exit_code":1}' >&2
+exit 1
+ADAPTER
+    chmod +x "$_adapter_path"
+
+    rollback_exit=0
+    rollback_output=$(TEST_REGISTRY_PATH="$_registry_path" TEST_ADAPTERS_DIR="$_adapters_dir" \
+        bash "$SCRIPT" generative-fail-recipe 2>&1) || rollback_exit=$?
+
+    # Executor should exit non-zero
+    assert_ne "test_generative_recipe_rollback: executor exits non-zero" "0" "$rollback_exit"
+
+    # The created file should have been cleaned up by the adapter's EXIT trap
+    file_exists=0
+    [[ -f "$_created_file" ]] && file_exists=1 || true
+    assert_eq "test_generative_recipe_rollback: created file deleted by adapter EXIT trap" "0" "$file_exists"
+}
+assert_pass_if_clean "test_generative_recipe_rollback"
+
 print_summary

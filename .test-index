@@ -326,3 +326,6 @@ plugins/dso/scripts/check_usage.py:tests/scripts/test_check_usage.py
 plugins/dso/scripts/check-usage.sh:tests/scripts/test-check-usage.sh
 plugins/dso/scripts/check-referential-integrity.sh:tests/scripts/test-check-referential-integrity.sh
 plugins/dso/scripts/recipe-executor.sh:tests/scripts/test-recipe-executor.sh
+plugins/dso/scripts/recipe-adapters/scaffold-adapter.sh:tests/scripts/test-scaffold-templates.sh,tests/scripts/test-scaffold-adapter.sh
+recipes/templates/flask:tests/scripts/test-scaffold-templates.sh
+recipes/templates/nextjs:tests/scripts/test-scaffold-templates.sh

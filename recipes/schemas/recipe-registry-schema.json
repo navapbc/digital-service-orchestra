@@ -47,6 +47,15 @@
     "installation_instructions": {
       "type": "string",
       "description": "Instructions for installing the required engine (e.g., pip install rope>=1.7.0)"
+    },
+    "framework": {
+      "type": "string",
+      "description": "Target framework (e.g., flask, nextjs, django, react)"
+    },
+    "recipe_type": {
+      "type": "string",
+      "enum": ["transform", "generative"],
+      "description": "transform modifies existing files; generative creates new files"
     }
   },
   "not": {
