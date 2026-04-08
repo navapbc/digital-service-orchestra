@@ -193,13 +193,13 @@ If either sub-agent fails to return valid JSON, log: "Scenario analysis sub-agen
 Run the epic spec through three reviewers **in parallel** using the Task tool. For each reviewer:
 
 1. Read the reviewer prompt from `plugins/dso/skills/shared/docs/reviewers/` (relative to the repo root)
-2. Pass: the epic title, Context section, Success Criteria, Scenario Analysis section (from Step 3, if present), and (for Scope reviewer) titles of other open epics
+2. Pass: the epic title, Context section, Success Criteria, Scenario Analysis section (from Step 3, if present), and (for Scope reviewer) titles of other open epics and Part C covered_by_SC scan output (file_path, matching_line, covered_by_SC tuples)
 3. Instruct the reviewer to return JSON per the `REVIEW-SCHEMA.md` in the review-protocol skill
 
 | Reviewer | Prompt File | Perspective | Dimensions |
 |----------|-------------|------------|------------|
 | Senior Technical Program Manager | `plugins/dso/skills/shared/docs/reviewers/agent-clarity.md` | `"Agent Clarity"` | `self_contained`, `success_measurable` |
-| Senior Product Strategist | `plugins/dso/skills/shared/docs/reviewers/scope.md` | `"Scope"` | `right_sized`, `no_overlap`, `dependency_aware` |
+| Senior Product Strategist | `plugins/dso/skills/shared/docs/reviewers/scope.md` | `"Scope"` | `right_sized`, `no_overlap`, `dependency_aware`, `consumer_completeness` |
 | Senior Product Manager | `plugins/dso/skills/shared/docs/reviewers/value.md` | `"Value"` | `user_impact`, `validation_signal` |
 | Senior Integration Engineer | `dso:feasibility-reviewer` (dedicated agent) | `"Technical Feasibility"` | `technical_feasibility`, `integration_risk` |
 
