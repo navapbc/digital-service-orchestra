@@ -1,0 +1,1 @@
+{"timestamp": 1775619562609523000, "uuid": "11b4d043-95d1-45be-bf9f-37ac4701b816", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Follow-on stub from brainstorm session. Depends on: fed2-b1ce (Part C scan), 1f67-e7b2 (relates_to bridge infrastructure). Needs full /dso:brainstorm before implementation."}}
