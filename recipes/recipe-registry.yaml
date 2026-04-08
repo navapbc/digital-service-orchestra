@@ -14,3 +14,11 @@ recipes:
     scope: cross-file
     min_engine_version: "1.7.0"
     installation_instructions: "pip install rope>=1.7.0"
+  - name: add-parameter
+    language: typescript
+    engine: ts-morph
+    adapter: ts-morph-adapter.sh
+    capability_description: "Add a parameter to a TypeScript function signature and update all callers across the project using ts-morph's TS compiler reference graph"
+    scope: cross-file
+    min_engine_version: "17.0.0"
+    installation_instructions: "npm install ts-morph@>=17"

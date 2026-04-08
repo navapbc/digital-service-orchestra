@@ -178,4 +178,47 @@ assert_eq "test_registry_has_add_parameter_python: exit 0" "0" "$has_entry_exit"
 assert_contains "test_registry_has_add_parameter_python: found match" "OK: found" "$has_entry_output"
 assert_pass_if_clean "test_registry_has_add_parameter_python"
 
+# ── test_registry_has_add_parameter_typescript ───────────────────────────────
+# Given: recipes/recipe-registry.yaml exists and has been populated
+# When:  we search for an entry with name=add-parameter and language=typescript
+# Then:  exactly one such entry is found
+_snapshot_fail
+_tmpfile_registry_ts=$(mktemp /tmp/test-recipe-registry-ts-check.XXXXXX.py)
+cat > "$_tmpfile_registry_ts" <<'PYEOF'
+import yaml, sys, os, subprocess
+
+repo_root = subprocess.check_output(
+    ["git", "rev-parse", "--show-toplevel"], text=True
+).strip()
+registry_path = os.path.join(repo_root, "recipes", "recipe-registry.yaml")
+
+if not os.path.exists(registry_path):
+    print(f"MISSING_REGISTRY: {registry_path}")
+    sys.exit(1)
+
+data = yaml.safe_load(open(registry_path))
+if not isinstance(data, (list, dict)):
+    print(f"UNEXPECTED_FORMAT: expected list or dict, got {type(data)}")
+    sys.exit(1)
+
+# Support both top-level list and dict with 'recipes' key
+entries = data if isinstance(data, list) else data.get("recipes", [])
+
+matches = [
+    e for e in entries
+    if e.get("name") == "add-parameter" and e.get("language") == "typescript"
+]
+if not matches:
+    print("NOT_FOUND: no entry with name=add-parameter and language=typescript")
+    sys.exit(1)
+print(f"OK: found {len(matches)} match(es)")
+PYEOF
+has_ts_entry_exit=0
+has_ts_entry_output=""
+has_ts_entry_output=$(python3 "$_tmpfile_registry_ts" 2>&1) || has_ts_entry_exit=$?
+rm -f "$_tmpfile_registry_ts"
+assert_eq "test_registry_has_add_parameter_typescript: exit 0" "0" "$has_ts_entry_exit"
+assert_contains "test_registry_has_add_parameter_typescript: found match" "OK: found" "$has_ts_entry_output"
+assert_pass_if_clean "test_registry_has_add_parameter_typescript"
+
 print_summary
