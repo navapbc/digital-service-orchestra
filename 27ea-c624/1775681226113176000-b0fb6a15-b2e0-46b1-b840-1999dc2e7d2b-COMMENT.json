@@ -1,1 +1,0 @@
-{"timestamp": 1775681226113176000, "uuid": "b0fb6a15-b2e0-46b1-b840-1999dc2e7d2b", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT:batch-complete \u2014 Done \u2713 \u2014 Files: test-agent-standard-reference.sh (created), .test-index (modified). Tests: 7 pass, 0 fail."}}
