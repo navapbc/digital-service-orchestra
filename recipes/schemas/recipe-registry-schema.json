@@ -38,11 +38,11 @@
     },
     "scope": {
       "type": "string",
-      "description": "Scope of the recipe's effect (e.g., single-file, multi-file, cross-package, function, project)"
+      "description": "Scope of the recipe's effect (e.g., single-file, multi-file, cross-file, cross-package, function, project)"
     },
     "min_engine_version": {
       "type": "string",
-      "description": "Minimum required version of the engine (semver string)"
+      "description": "Minimum required version of the engine (semver string). Passed to adapters as the RECIPE_MIN_ENGINE_VERSION environment variable (see recipe-engine-adapter contract)."
     },
     "installation_instructions": {
       "type": "string",
@@ -58,6 +58,7 @@
       "description": "transform modifies existing files; generative creates new files"
     }
   },
+  "$comment": "The 'not' constraint below prohibits the 'cli_command_template' property entirely using JSON Schema Draft 7 semantics (not+required means invalid when the named property is present). This field is banned because recipe parameters MUST be passed via RECIPE_PARAM_* env vars, not CLI arguments, to avoid shell interpolation hazards. Removing or relaxing this constraint would break the env-var-only parameter protocol defined in the recipe engine adapter contract.",
   "not": {
     "required": ["cli_command_template"]
   },
