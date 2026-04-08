@@ -121,7 +121,7 @@ plugins/dso/skills/architect-foundation/SKILL.md:tests/hooks/test-sub-agent-guar
 tests/lib/markdown_helpers.py:tests/docs/test_extract_section_deduplication.py
 plugins/dso/scripts/ticket-unblock.py:tests/scripts/test_ticket_unblock.py
 plugins/dso/skills/shared/prompts/value-effort-scorer.md:tests/skills/test-value-effort-scorer-integration.sh
-plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:tests/skills/test-epic-scrutiny-pipeline.sh
+plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:tests/skills/test-epic-scrutiny-pipeline.sh [test_pipeline_contains_part_c_section]
 plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:tests/skills/test-prompt-alignment-step.sh
 plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:tests/skills/test-feasibility-resolution-gate.sh
 plugins/dso/skills/preplanning/SKILL.md:tests/skills/test-feasibility-resolution-gate.sh
