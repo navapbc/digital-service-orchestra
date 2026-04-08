@@ -1,0 +1,1 @@
+{"timestamp": 1775691346267079000, "uuid": "930ab861-4916-43a7-a879-228fb28bbeaa", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Duplicate of 1682-ac30 \u2014 same root cause (stale RED marker causes false failed status). Closing as duplicate."}}
