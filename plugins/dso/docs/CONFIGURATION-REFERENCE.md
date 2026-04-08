@@ -359,7 +359,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Name and version of the design system used by the project. |
 | **Accepted values** | String (e.g., `USWDS 3.x`, `Material UI 5`, `None (custom)`) |
 | **Default** | Absent — skill falls back to generic guidance |
-| **Used by** | Skills: `/dso:onboarding`, `/dso:design-review`, `/dso:design-wireframe` |
+| **Used by** | Skills: `/dso:onboarding`, `/dso:design-review`; Agent: `dso:ui-designer` (dispatched by `/dso:preplanning` Step 6) |
 
 ---
 
@@ -370,7 +370,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Component library identifier used for adapter selection in design skills and component lookup. |
 | **Accepted values** | `uswds`, `material`, `bootstrap`, `chakra`, `custom` |
 | **Default** | Absent |
-| **Used by** | Skills: `/dso:design-wireframe` |
+| **Used by** | Agent: `dso:ui-designer` (dispatched by `/dso:preplanning` Step 6) |
 
 ---
 
@@ -378,10 +378,10 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 | | |
 |---|---|
-| **Description** | Template engine used for rendering UI components. Used by design-wireframe for adapter selection. |
+| **Description** | Template engine used for rendering UI components. Used by dso:ui-designer for adapter selection via resolve-stack-adapter.sh. |
 | **Accepted values** | `jinja2`, `react`, `vue`, `svelte`, `handlebars` |
 | **Default** | Absent |
-| **Used by** | Skills: `/dso:design-wireframe` |
+| **Used by** | Agent: `dso:ui-designer` (dispatched by `/dso:preplanning` Step 6) |
 
 ---
 

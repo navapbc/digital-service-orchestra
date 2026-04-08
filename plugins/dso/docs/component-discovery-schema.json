@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/navapbc/digital-service-orchestra/component-discovery-schema.json",
   "title": "component-discovery-adapter",
-  "description": "Stack-agnostic interface for component discovery in design skills (design-wireframe, ui-discover). Each web framework implements this interface as a JSON adapter file. Skills dispatch through adapters based on the design.template_engine config value.",
+  "description": "Stack-agnostic interface for component discovery in design agents (dso:ui-designer, ui-discover). Each web framework implements this interface as a JSON adapter file. Agents dispatch through adapters based on the design.template_engine config value.",
   "type": "object",
   "required": ["name", "route_patterns", "component_file_patterns", "template_syntax", "framework_detection"],
   "additionalProperties": false,
