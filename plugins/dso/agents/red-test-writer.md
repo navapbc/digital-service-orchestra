@@ -56,7 +56,7 @@ REASON: green_classified
 
 ### Step 1 — Existing Coverage Check
 
-Consult `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` for the 4-rule behavioral testing standard (Rule 1 applies here). Before writing a new test, check existing test coverage for the behavior being tested:
+Consult `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` for the 5-rule behavioral testing standard (Rule 1 applies here). Before writing a new test, check existing test coverage for the behavior being tested:
 
 1. Search the test directory for the function name, module name, or behavior keyword.
 2. Read the 1–2 most relevant test files that surface.

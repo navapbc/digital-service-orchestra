@@ -7,7 +7,7 @@
 
 # Shared Behavioral Testing Standard
 
-Standalone prompt fragment for test-writing agents. Applies to all test creation and review tasks across any skill that writes or evaluates tests. The standard is grounded in four research references:
+Standalone prompt fragment for test-writing agents. Applies to all test creation and review tasks across any skill that writes or evaluates tests. This is a 5-rule standard grounded in four research references:
 
 - **Google's "unchanging test" principle** — a test should only change when the behavior it describes changes.
 - **Khorikov's "resistance to refactoring" pillar** — tests must survive implementation-preserving refactoring without modification.
@@ -104,6 +104,47 @@ If the answer is **yes**, the test is a change-detector, not a behavior-verifier
 
 ---
 
+## Rule 5 — Instruction Files: Test the Structural Boundary, Not the Content
+
+Non-executable LLM instruction files — skills, prompts, agent definitions, and hook behavioral logic — cannot be deterministically tested for behavioral correctness. An LLM's interpretation of an instruction is probabilistic; writing assertions about whether the instruction "works" produces tests that are either tautological or non-deterministic.
+
+**Testing boundary for non-executable artifacts:**
+
+Test ONLY at the deterministic integration interface. Acceptable structural test categories:
+
+| Category | What is tested | Example |
+|----------|---------------|---------|
+| **Contract schema validation** | Required section headings, mandatory fields, structural markers | `## Purpose` section exists in contract files |
+| **Referential integrity** | Paths referenced in instruction files point to files that exist | `check-referential-integrity.sh` on skills/prompts |
+| **Shim compliance** | No direct plugin script paths; use `.claude/scripts/dso <name>` shim | `check-shim-refs.sh` on instruction files |
+| **Syntax checks** | File is parseable as its format (YAML, JSON, Markdown) | `python3 -c "import yaml; yaml.safe_load(open(f))"` |
+| **Deployment prerequisites** | File is executable where required | `test -x script.sh` |
+
+**NOT acceptable for non-executable instruction files:**
+
+- `test -f <instruction-file>` as a standalone assertion — existence-only checks are change-detector tests that break when files are renamed or reorganized without changing behavior.
+- `grep`-based content assertions that check whether a specific phrase, word, or sentence appears in instruction file body text — these test the text of the implementation, not its behavioral contract. They break on any edit that preserves intent but changes wording.
+
+**What this rule prohibits and why:**
+
+```bash
+# PROHIBITED: grep on instruction content (tests wording, not behavior)
+grep -q "always use" plugins/dso/skills/sprint/SKILL.md
+
+# PROHIBITED: existence-only test with no structural contract purpose
+test -f plugins/dso/skills/sprint/SKILL.md
+
+# ALLOWED: structural contract check (section heading is the interface)
+grep -q "^## SUB-AGENT-GUARD" plugins/dso/skills/sprint/SKILL.md
+
+# ALLOWED: referential integrity (path existence is the contract)
+test -f "$(grep -oE 'plugins/dso/scripts/[^ ]+\.sh' SKILL.md | head -1)"  # shim-exempt: illustrative example in documentation
+```
+
+**Rationale:** Behavioral correctness for LLM instruction content cannot be deterministically tested — the LLM's response to an instruction depends on context, model version, and sampling parameters. Tests that assert on instruction wording produce false positives on safe edits and erode trust in the test suite. The structural boundary (schema, integrity, compliance, syntax) is deterministic and provides real regression protection.
+
+---
+
 ## Usage by Test-Writing Agents
 
 When dispatched to write tests for a story or task:
@@ -113,7 +154,8 @@ When dispatched to write tests for a story or task:
 3. Draft tests using Rule 2 (Given/When/Then, one behavior per test).
 4. Verify each test follows Rule 3 (execute, don't inspect; mock only external boundaries).
 5. Apply Rule 4 litmus test to every assertion before submitting.
-6. Include in your output a `behavioral_testing_compliance` block:
+6. If the artifact under test is a non-executable instruction file (skill, prompt, agent definition, hook behavioral logic), apply Rule 5: test only the structural boundary (contract schema, referential integrity, shim compliance, syntax checks, deployment prerequisites). Do NOT write content assertions or existence-only checks.
+7. Include in your output a `behavioral_testing_compliance` block:
 
 ```json
 {
@@ -124,7 +166,10 @@ When dispatched to write tests for a story or task:
     "rule3_no_source_reads": true,
     "rule3_mocks_at_boundaries_only": true,
     "rule4_litmus_passed": true,
-    "change_detectors_rewritten": 0
+    "change_detectors_rewritten": 0,
+    "rule5_applied": true,
+    "rule5_artifact_type": "executable | non-executable-instruction",
+    "rule5_structural_boundary_only": true
   }
 }
 ```

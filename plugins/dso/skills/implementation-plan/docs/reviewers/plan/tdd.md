@@ -17,6 +17,15 @@ plans where "write tests" is a vague afterthought rather than a driving force.
 | 1 | Unacceptable — fundamental problems requiring substantial redesign |
 | N/A | Not Applicable — this dimension does not apply |
 
+## Shared Behavioral Testing Standard
+
+This reviewer applies the shared behavioral testing standard at:
+`plugins/dso/skills/shared/prompts/behavioral-testing-standard.md`
+
+Read that file to load the full 5-rule standard before evaluating any plan. Rule 5 of that standard
+defines the testing boundary for non-executable LLM instruction files and governs how this reviewer
+scores instruction-file tasks (see "Instruction-File Task Scoring" below).
+
 ## TDD Exemption Criteria
 
 A task is exempt from the RED test requirement only when one of these criteria applies:
@@ -31,6 +40,38 @@ A task is exempt from the RED test requirement only when one of these criteria a
 2. The task is a **scaffolding task** (e.g., "create empty module", "add directory structure") with no behavioral contract to assert.
 
 Tasks claiming an exemption must cite the applicable criterion by name or number in their TDD requirement field.
+
+## Instruction-File Task Scoring
+
+When a task modifies **only non-executable LLM instruction files** — skills (`SKILL.md`), prompts
+(`plugins/dso/skills/shared/prompts/`), agent definitions (`plugins/dso/agents/`), or hook
+behavioral logic — apply Rule 5 of the shared behavioral testing standard (see path above).
+
+**Scoring guidance for instruction-file tasks:**
+
+- Accept tests that target the **structural boundary** (contract schema validation, referential
+  integrity, shim compliance, syntax checks, deployment prerequisites). These are the only
+  deterministically testable assertions for non-executable artifacts.
+- Do **not** demand behavioral correctness assertions (e.g., "assert the agent follows instruction X").
+  Such assertions are non-deterministic — the LLM's response depends on context, model version,
+  and sampling parameters.
+- Do **not** score a task below 3 solely because its tests are structural rather than behavioral,
+  provided those structural tests genuinely verify the artifact's contract.
+- An existence-only check (`test -f <file>`) with no structural contract purpose still scores
+  below 4 under `test_boundary_coverage` — Rule 5 prohibits standalone existence checks.
+
+**Deadlock prevention**: A plan targeting instruction-file stories should not be marked
+unacceptable solely because behavioral correctness tests are absent. If a plan provides sound
+structural boundary tests per Rule 5, the `tdd_discipline` and `test_boundary_coverage` dimensions
+must reflect that the correct standard is being applied, not that tests are missing.
+
+**Dimension adjustments for instruction-file tasks:**
+
+| Dimension | Adjustment |
+|-----------|-----------|
+| `tdd_discipline` | A task is adequately disciplined if it names a specific structural test (schema, integrity, compliance) per Rule 5 — not if it names a behavioral test that cannot be written |
+| `test_boundary_coverage` | Score against Rule 5's structural boundary categories; behavioral coverage is N/A for non-executable files |
+| `exemption_justification` | Tasks claiming exemption must cite criterion 3 ("static assets only / non-executable instruction files") OR Rule 5 of the shared behavioral testing standard by name |
 
 ## Your Dimensions
 

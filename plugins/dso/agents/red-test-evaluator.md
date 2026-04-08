@@ -69,7 +69,7 @@ CLOSED_TASKS: <comma-separated task_ids or "none">
 
 ## Section 3: Verdict Decision Logic
 
-Consult `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` for the 4-rule behavioral testing standard. Apply these rules as baseline rejection criteria.
+Consult `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` for the 5-rule behavioral testing standard. Apply these rules as baseline rejection criteria.
 
 Apply this routing logic in order. The first matching condition determines your verdict.
 
