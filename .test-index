@@ -129,6 +129,7 @@ plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:tests/skills/test-
 plugins/dso/skills/preplanning/SKILL.md:tests/skills/test-feasibility-resolution-gate.sh
 plugins/dso/skills/roadmap/SKILL.md:tests/skills/test-roadmap-scrutiny-opt-in.sh
 plugins/dso/skills/preplanning/SKILL.md:tests/skills/test-scrutiny-pending-gate.sh
+plugins/dso/skills/preplanning/SKILL.md:tests/skills/test-preplanning-ui-designer-dispatch.sh [test_validate_lists_ui_designer]
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test-scrutiny-pending-gate.sh
 plugins/dso/skills/update-docs/SKILL.md:tests/hooks/test-sub-agent-guard.sh
 plugins/dso/scripts/overlay-dispatch.sh:tests/hooks/test-overlay-dispatch.sh
@@ -199,7 +200,7 @@ plugins/dso/scripts/validate-gate-signal.py:tests/scripts/test_validate_gate_sig
 plugins/dso/scripts/validate-issues.sh:tests/scripts/test-validate-issues-timestamp.sh
 plugins/dso/scripts/validate-nava-platform-headless.sh:tests/scripts/test-validate-nava-platform-headless.sh
 plugins/dso/scripts/validate-phase.sh:tests/test-validate-phase-portability.sh,tests/scripts/test-validate-phase-v2-removal.sh,tests/scripts/test-validate-phase-missing-test-unit.sh
-plugins/dso/scripts/validate-review-output.sh:tests/hooks/test-validate-review-output.sh
+plugins/dso/scripts/validate-review-output.sh:tests/hooks/test-validate-review-output.sh,tests/skills/test-preplanning-ui-designer-dispatch.sh [test_validate_lists_ui_designer]
 plugins/dso/scripts/validate.sh:tests/plugin/test-validate-work-portability.sh,tests/hooks/test-validate-review-output.sh,tests/hooks/test-validate-crash-detection.sh,tests/scripts/test-validate-test-batched-integration.sh,tests/scripts/test-validate-flock-timeout.sh,tests/scripts/test-validate-background.sh,tests/scripts/test-validate-skip-ci-flag.sh,tests/scripts/test-validate-issues.sh,tests/scripts/test-validate-config.sh,tests/scripts/test-validate-script-writes-integration.sh,tests/scripts/test-validate-config-driven.sh,tests/scripts/test-validate-state-lifecycle.sh,tests/test-validate-phase-portability.sh,tests/scripts/test-validate-comment-accuracy.sh,tests/scripts/test-validate-e2e-missing-target.sh,tests/scripts/test-validate-shim-refs-integration.sh,tests/scripts/test-check-shim-refs.sh,tests/scripts/test-validate-contract-schemas-integration.sh,tests/scripts/test-validate-referential-integrity-integration.sh
 plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py
 plugins/dso/skills/batch-overlap-check/SKILL.md:plugins/dso/tests/test-sprint-skill-step10-no-merge-to-main.sh,tests/plugin/test-audit-skill-resolution.sh,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test-quick-ref-skill.sh,tests/skills/test-design-skills-cross-stack.sh
