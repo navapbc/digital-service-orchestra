@@ -641,7 +641,7 @@ Proceed to the corresponding Step 5 branch below.
 
 ### Step 5: RED Test (/dso:fix-bug)
 
-**Standard reference**: Load `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` before writing or modifying any test. Apply all four rules (coverage check, observable behavior, execute-don't-inspect, refactoring litmus test) to every test written or modified in this step.
+**Standard reference**: Load `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` before writing or modifying any test. Apply all five rules (coverage check, observable behavior, execute-don't-inspect, refactoring litmus test, instruction-file structural boundary) to every test written or modified in this step.
 
 If the bug already causes an existing test to fail, skip this step — the existing test serves as the RED test.
 

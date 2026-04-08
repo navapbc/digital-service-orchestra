@@ -31,7 +31,7 @@ If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and contin
 
    - **UPDATE**: Modify the existing test file(s) listed in the File Impact section to assert the new expected behavior **before** making any source code changes. The updated test must fail (RED) on the current code. Only after confirming the test fails should you implement the source change and verify the test passes (GREEN). Do NOT write a brand-new test file — update existing assertions in the identified test file(s).
 
-   When writing or modifying tests, consult `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` for the 4-rule behavioral testing standard.
+   When writing or modifying tests, consult `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` for the 5-rule behavioral testing standard.
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 3/6: Tests written ✓"` (if no tests required: `"CHECKPOINT 3/6: Tests written (none required) ✓"`)
 5. Implement the task following existing conventions
    - **Prior-art check**: Before writing new code, consult `plugins/dso/skills/shared/prompts/prior-art-search.md` for existing patterns (exempt: single-file logic fixes, formatting changes)

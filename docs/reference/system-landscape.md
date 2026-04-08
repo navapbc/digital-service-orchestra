@@ -113,7 +113,7 @@ The `dso:code-reviewer-test-quality` agent (opus) is an overlay reviewer that ev
 
 **Dispatch mode**: Parallel alongside the tier reviewer when classifier flags the overlay at classification time. Serial (after tier review) when the tier reviewer emits `test_quality_overlay_warranted: yes`. Overlay fallback (`overlay_dispatch_with_fallback`) ensures overlay failures do not block commits — findings are omitted and a warning is emitted.
 
-**Authority**: `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` (4-rule standard). Agent definition: `plugins/dso/agents/code-reviewer-test-quality.md`.
+**Authority**: `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` (5-rule standard). Agent definition: `plugins/dso/agents/code-reviewer-test-quality.md`.
 
 **Sprint integration**: The redundant sprint-level test coverage enforcement step (previously Step 1a2/1a3) has been removed. Test quality enforcement is now exclusively handled by this overlay, which fires on any diff touching test files regardless of whether the diff was produced by sprint, fix-bug, or any other path.
 
