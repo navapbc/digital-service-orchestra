@@ -14,8 +14,6 @@ DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 CANONICAL="$DSO_PLUGIN_DIR/scripts/resolve-stack-adapter.sh"
 UI_DISCOVER_SKILL="$DSO_PLUGIN_DIR/skills/ui-discover/SKILL.md"
-DESIGN_WIREFRAME_SKILL="$DSO_PLUGIN_DIR/skills/design-wireframe/SKILL.md"
-
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-resolve-stack-adapter.sh ==="
@@ -36,13 +34,16 @@ grep -q 'resolve-stack-adapter\.sh' "$UI_DISCOVER_SKILL" 2>/dev/null && ui_disco
 assert_eq "test_ui_discover_skill_references_script: ui-discover/SKILL.md references script" "1" "$ui_discover_refs"
 assert_pass_if_clean "test_ui_discover_skill_references_script"
 
-# ── test_design_wireframe_skill_references_script ─────────────────────────────
-# (c) design-wireframe/SKILL.md references resolve-stack-adapter.sh
+# ── test_ui_designer_agent_references_script ─────────────────────────────────
+# (c) dso:ui-designer agent references resolve-stack-adapter.sh
+# design-wireframe/SKILL.md is now a redirect stub (superseded by dso:ui-designer);
+# the adapter resolution logic moved to the ui-designer agent.
+UI_DESIGNER_AGENT="$DSO_PLUGIN_DIR/agents/ui-designer.md"
 _snapshot_fail
-design_wireframe_refs=0
-grep -q 'resolve-stack-adapter\.sh' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null && design_wireframe_refs=1
-assert_eq "test_design_wireframe_skill_references_script: design-wireframe/SKILL.md references script" "1" "$design_wireframe_refs"
-assert_pass_if_clean "test_design_wireframe_skill_references_script"
+ui_designer_refs=0
+grep -q 'resolve-stack-adapter\.sh' "$UI_DESIGNER_AGENT" 2>/dev/null && ui_designer_refs=1
+assert_eq "test_ui_designer_agent_references_script: ui-designer.md references script" "1" "$ui_designer_refs"
+assert_pass_if_clean "test_ui_designer_agent_references_script"
 
 # ── test_script_outputs_to_stdout ─────────────────────────────────────────────
 # (d) script outputs the adapter file path (or empty string) to stdout
