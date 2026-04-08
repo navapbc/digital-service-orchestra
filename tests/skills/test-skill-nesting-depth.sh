@@ -53,24 +53,27 @@ echo ""
 echo "-- design-wireframe review-protocol invocation --"
 
 # Test 4: design-wireframe must NOT say "Invoke /dso:review-protocol"
+# (redirect stub no longer dispatches sub-agents or reviews)
 if grep -q 'Invoke.*/dso:review-protocol' "$DESIGN_WF"; then
     fail "design-wireframe invokes /dso:review-protocol via Skill tool (creates 3+ level nesting)"
 else
     pass "design-wireframe does not invoke /dso:review-protocol via Skill tool"
 fi
 
-# Test 5: design-wireframe must reference REVIEW-PROTOCOL-WORKFLOW.md for its review
-if grep -q 'REVIEW-PROTOCOL-WORKFLOW.md' "$DESIGN_WF"; then
-    pass "design-wireframe references REVIEW-PROTOCOL-WORKFLOW.md (inline pattern)"
+# Test 5: design-wireframe must be a redirect stub (no longer contains full skill logic)
+# The skill was replaced with a redirect stub pointing to dso:ui-designer via preplanning.
+if grep -q 'dso:ui-designer' "$DESIGN_WF" && grep -q 'preplanning' "$DESIGN_WF"; then
+    pass "design-wireframe is a redirect stub pointing to dso:ui-designer via preplanning"
 else
-    fail "design-wireframe does not reference REVIEW-PROTOCOL-WORKFLOW.md"
+    fail "design-wireframe is not a redirect stub (must reference dso:ui-designer and preplanning)"
 fi
 
-# Test 6: design-wireframe Phase 5 must use "read and execute ... inline" pattern
-if grep -iq 'read and execute.*REVIEW-PROTOCOL-WORKFLOW' "$DESIGN_WF"; then
-    pass "design-wireframe Phase 5 uses 'read and execute ... inline' pattern"
+# Test 6: design-wireframe redirect stub must NOT have a sub-agent guard
+# (redirect stubs do not dispatch sub-agents, so the guard is not needed)
+if grep -q 'SUB-AGENT-GUARD' "$DESIGN_WF"; then
+    fail "design-wireframe redirect stub has SUB-AGENT-GUARD (should be removed from redirect stubs)"
 else
-    fail "design-wireframe Phase 5 does not use 'read and execute ... inline' pattern"
+    pass "design-wireframe redirect stub has no sub-agent guard (correct for redirect stubs)"
 fi
 
 echo ""
