@@ -64,7 +64,7 @@ PYEOF
 do_rollback() {
     local work_tree="${GIT_WORK_TREE:-}"
     if [[ -n "$work_tree" ]]; then
-        echo "rope-adapter: rolling back changes in $work_tree" >&2
+        echo "rope-adapter: rolling back changes (including untracked files) in $work_tree" >&2
         # Revert tracked file modifications
         git -C "$work_tree" checkout -- . 2>/dev/null || true
         # Remove only untracked files that were created during this rope run,
@@ -74,7 +74,10 @@ do_rollback() {
             is_pre=0
             if [[ ${#_pre_untracked[@]} -gt 0 ]]; then
                 for pre in "${_pre_untracked[@]}"; do
-                    [[ "$new_f" == "$pre" ]] && is_pre=1 && break
+                    if [[ "$new_f" == "$pre" ]]; then
+                        is_pre=1
+                        break
+                    fi
                 done
             fi
             if [[ $is_pre -eq 0 ]]; then
