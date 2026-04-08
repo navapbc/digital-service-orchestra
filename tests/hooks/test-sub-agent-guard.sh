@@ -86,7 +86,8 @@ check_guard_agent_tool "debug-everything"
 check_guard_agent_tool "brainstorm"
 check_guard_agent_tool "preplanning"
 check_guard_agent_tool "implementation-plan"
-check_guard_agent_tool "design-wireframe"
+# design-wireframe: redirect stub — no guard needed (skill no longer dispatches sub-agents;
+# design creation moved to dso:ui-designer agent dispatched by preplanning)
 check_guard_agent_tool "design-review"
 check_guard_agent_tool "roadmap"
 check_guard_agent_tool "plan-review"
@@ -228,8 +229,6 @@ _TEST_GATE_ANCHORS=(
     test_preplanning_guard_references_agent_tool
     test_implementation_plan_has_sub_agent_guard_marker
     test_implementation_plan_guard_references_agent_tool
-    test_design_wireframe_has_sub_agent_guard_marker
-    test_design_wireframe_guard_references_agent_tool
     test_design_review_has_sub_agent_guard_marker
     test_design_review_guard_references_agent_tool
     test_roadmap_has_sub_agent_guard_marker
