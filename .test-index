@@ -1,4 +1,15 @@
 
+plugins/dso/scripts/recipe-adapters/rope-adapter.sh: tests/scripts/test-rope-adapter.sh,tests/integration/test-add-parameter-integration.sh
+plugins/dso/scripts/recipe-adapters/ts-morph-adapter.sh: tests/scripts/test-ts-morph-adapter.sh,tests/integration/test-add-parameter-integration.sh,tests/integration/test-normalize-imports-integration.sh
+plugins/dso/scripts/recipe-adapters/synvert-adapter.sh: tests/scripts/test-synvert-adapter.sh,tests/scripts/test-recipe-registry.sh,tests/integration/test-add-parameter-integration.sh
+tests/integration/fixtures/python-project/src/aggregator.py: tests/integration/test-add-parameter-integration.sh
+tests/integration/fixtures/python-project/src/scorer.py: tests/integration/test-add-parameter-integration.sh
+tests/integration/fixtures/python-project/tests/test_callers.py: tests/integration/test-add-parameter-integration.sh
+plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs: tests/scripts/test-ts-morph-add-parameter.sh
+plugins/dso/scripts/recipe-adapters/isort-adapter.sh: tests/scripts/test-isort-adapter.sh,tests/integration/test-normalize-imports-integration.sh
+plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs: tests/scripts/test-ts-morph-normalize-imports.sh
+recipes/recipe-registry.yaml:tests/scripts/test-recipe-registry.sh
+recipes/schemas/recipe-registry-schema.json:tests/scripts/test-recipe-registry.sh
 .claude/commands/sprint.md:tests/scripts/test-wrapper-detection.sh
 .claude/commands/sprint.md:tests/scripts/test-wrapper-parity.sh
 .claude/docs/KNOWN-ISSUES.md:tests/scripts/test-known-issues-smoke.sh
@@ -320,3 +331,8 @@ plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
 plugins/dso/scripts/check_usage.py:tests/scripts/test_check_usage.py
 plugins/dso/scripts/check-usage.sh:tests/scripts/test-check-usage.sh
 plugins/dso/scripts/check-referential-integrity.sh:tests/scripts/test-check-referential-integrity.sh
+plugins/dso/scripts/recipe-executor.sh:tests/scripts/test-recipe-executor.sh,tests/integration/test-add-parameter-integration.sh
+plugins/dso/scripts/recipe-adapters/scaffold-adapter.sh:tests/scripts/test-scaffold-templates.sh,tests/scripts/test-scaffold-adapter.sh,tests/integration/test-scaffold-route-integration.sh
+recipes/templates/flask:tests/scripts/test-scaffold-templates.sh
+recipes/templates/nextjs:tests/scripts/test-scaffold-templates.sh
+tests/integration/setup-fixtures.sh:tests/integration/test-fixture-setup.sh

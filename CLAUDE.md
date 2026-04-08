@@ -35,6 +35,7 @@
 | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` |
 | Sync with Jira | `.claude/scripts/dso ticket sync` |
 | Review event stats | `.claude/scripts/dso review-stats.sh` |
+| Run a recipe transform | `.claude/scripts/dso recipe-executor.sh <recipe-name> [--param key=value ...]` |
 
 Less common: `check-skill-refs.sh`, `qualify-skill-refs.sh`.
 
@@ -52,6 +53,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 **Shim enforcement**: `check-shim-refs.sh` (registered as pre-commit hook and in `validate.sh`) blocks instruction files inside `plugins/dso/` from containing direct plugin script references. Three detection patterns: (1) literal `plugins/dso/scripts/` path, (2) PLUGIN_SCRIPTS-prefixed script paths, (3) CLAUDE_PLUGIN_ROOT-prefixed script paths. Use `.claude/scripts/dso <script-name>` shim instead. Inline suppression: append `# shim-exempt: <reason>` to exempt a line.
 **Contract schema validation**: `check-contract-schemas.sh` (registered as pre-commit hook and in `validate.sh`) enforces structural conformance on contract markdown files in `plugins/dso/docs/contracts/`. Universal rules: (1) level-1 heading starts with `# Contract:`, (2) `## Purpose` section present with non-empty content. Signal-contract-specific (when file contains `## Signal Format` or `## Signal Name`): (3) `### Canonical parsing prefix` section present. Scans `plugins/dso/docs/contracts/*.md` by default; accepts explicit file args for staged-file mode.
 **Referential integrity check**: `check-referential-integrity.sh` (registered as pre-commit hook and in `validate.sh`) verifies that path references in skill/agent/workflow/prompt markdown files point to files that actually exist. Scanned pattern: `plugins/dso/(scripts|agents|docs)/[^\s]+\.(sh|py|md)`. Exclusions: lines with `# shim-exempt:` and paths inside fenced code blocks. Scans `plugins/dso/{skills,agents,docs/workflows,docs/prompts}/**/*.md` plus `CLAUDE.md` by default.
+**Recipe registry and executor**: `recipes/recipe-registry.yaml` declares available recipes validated against `recipes/schemas/recipe-registry-schema.json` (JSON Schema Draft 7). CLI: `.claude/scripts/dso recipe-executor.sh <recipe-name> [--param key=value ...]`. Engine adapters live in `plugins/dso/scripts/recipe-adapters/`; supported engines: rope (Python AST), ts-morph (TypeScript AST), isort (Python imports), scaffold (file generation). Parameters are passed via RECIPE_PARAM_* env vars — never shell string interpolation. Transform recipes use git stash rollback on failure; generative recipes (`recipe_type: generative`) track and delete created files on failure.
 **Agent routing**: `discover-agents.sh` resolves routing categories to agents via `agent-routing.conf`; all fall back to `general-purpose`. See `plugins/dso/docs/INSTALL.md`. **Named-agent dispatch** (via `subagent_type`, defined in `plugins/dso/agents/`):
 
 | Agent | Model | Dispatched by |

@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "recipe-registry-entry-schema.json",
+  "$comment": "This schema validates an individual recipe entry object. The registry YAML file (recipe-registry.yaml) has a 'recipes' array at the top level; each element in that array must conform to this schema. Applying this schema to the full registry file will fail because the top-level object has a 'recipes' key rather than the 'name', 'language', etc. fields defined here. To validate the full file, use a wrapper schema that defines the top-level structure with 'recipes' as an array of items referencing this entry schema.",
+  "title": "Recipe Registry Entry",
+  "description": "JSON Schema Draft 7 for individual recipe entries in recipe-registry.yaml. Each element of the top-level 'recipes' array must conform to this schema.",
+  "type": "object",
+  "required": [
+    "name",
+    "language",
+    "engine",
+    "adapter",
+    "capability_description",
+    "scope",
+    "min_engine_version",
+    "installation_instructions"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Recipe identifier (e.g., add-parameter)"
+    },
+    "language": {
+      "type": "string",
+      "description": "Target programming language (e.g., python, typescript, ruby)"
+    },
+    "engine": {
+      "type": "string",
+      "description": "Refactoring engine used by this recipe (e.g., rope, ts-morph, synvert, ast)"
+    },
+    "adapter": {
+      "type": "string",
+      "description": "Path to adapter script relative to plugins/dso/scripts/recipe-adapters/ (e.g., rope-adapter.sh)"
+    },
+    "capability_description": {
+      "type": "string",
+      "description": "Human-readable description of what this recipe does, with explicit scope"
+    },
+    "scope": {
+      "type": "string",
+      "description": "Scope of the recipe's effect (e.g., single-file, multi-file, cross-package, function, project)"
+    },
+    "min_engine_version": {
+      "type": "string",
+      "description": "Minimum required version of the engine (semver string)"
+    },
+    "installation_instructions": {
+      "type": "string",
+      "description": "Instructions for installing the required engine (e.g., pip install rope>=1.7.0)"
+    },
+    "framework": {
+      "type": "string",
+      "description": "Target framework (e.g., flask, nextjs, django, react)"
+    },
+    "recipe_type": {
+      "type": "string",
+      "enum": ["transform", "generative"],
+      "description": "transform modifies existing files; generative creates new files"
+    }
+  },
+  "not": {
+    "required": ["cli_command_template"]
+  },
+  "additionalProperties": true
+}

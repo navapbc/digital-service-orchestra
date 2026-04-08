@@ -1,0 +1,57 @@
+# Recipe Registry
+# Each entry is a recipe that can be executed by recipe-executor.sh via an adapter script.
+# The 'adapter' field stores the exact adapter script filename as it appears in
+# plugins/dso/scripts/recipe-adapters/ (recipe-executor.sh appends this to ADAPTERS_DIR).
+#
+# Entry schema (validates individual items in the 'recipes' array): recipes/schemas/recipe-registry-schema.json
+
+recipes:
+  - name: add-parameter
+    language: python
+    engine: rope
+    adapter: rope-adapter.sh
+    capability_description: "Add a parameter to a function signature and update all callers across files using Rope's cross-file refactoring"
+    scope: cross-file
+    min_engine_version: "1.7.0"
+    installation_instructions: "pip install rope>=1.7.0"
+  - name: add-parameter
+    language: typescript
+    engine: ts-morph
+    adapter: ts-morph-adapter.sh
+    capability_description: "Add a parameter to a TypeScript function signature and update all callers across the project using ts-morph's TS compiler reference graph"
+    scope: cross-file
+    min_engine_version: "17.0.0"
+    installation_instructions: "npm install ts-morph@>=17"
+  - name: scaffold-route
+    language: any
+    engine: scaffold
+    adapter: scaffold-adapter.sh
+    recipe_type: generative
+    capability_description: "Generate framework-specific route boilerplate (flask, nextjs) — specify framework via RECIPE_PARAM_FRAMEWORK"
+    scope: generative
+    min_engine_version: "0.0.0"
+    installation_instructions: "No external engine required — built-in template engine"
+  - name: normalize-imports
+    language: python
+    engine: isort
+    adapter: isort-adapter.sh
+    capability_description: "Sort and deduplicate Python import statements following PEP 8/isort conventions"
+    scope: single-file
+    min_engine_version: "5.0.0"
+    installation_instructions: "pip install isort>=5"
+  - name: normalize-imports
+    language: typescript
+    engine: ts-morph
+    adapter: ts-morph-adapter.sh
+    capability_description: "Sort and deduplicate TypeScript import statements using ts-morph organizeImports"
+    scope: single-file
+    min_engine_version: "17.0.0"
+    installation_instructions: "npm install ts-morph@>=17"
+  - name: normalize-imports
+    language: ruby
+    engine: synvert
+    adapter: synvert-adapter.sh
+    capability_description: "Sort and deduplicate Ruby require/require_relative statements using Synvert's AST rewriter (stub — rewrite logic pending synvert CLI confirmation)"
+    scope: single-file
+    min_engine_version: "1.0.0"
+    installation_instructions: "gem install synvert"
