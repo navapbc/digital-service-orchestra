@@ -1,0 +1,1 @@
+{"timestamp": 1775687088027739000, "uuid": "7465ceaf-6ea6-4840-a68b-fd5801054a85", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "sprint/pre-agent.sh: worktree.isolation_enabled=true -> isolation still blocked by pre-agent hook"}}}
