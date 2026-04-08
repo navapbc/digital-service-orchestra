@@ -78,25 +78,25 @@ test_validate_accepts_ui_designer_review() {
     {
       "perspective": "Product Management",
       "status": "reviewed",
-      "dimensions": {"feasibility": 4, "scope": 4},
+      "dimensions": {"story_alignment": 4, "user_value": 4, "scope_appropriateness": 4, "consistency": 4, "epic_coherence": 4, "anti_pattern_compliance": 4},
       "findings": []
     },
     {
       "perspective": "Design Systems",
       "status": "reviewed",
-      "dimensions": {"consistency": 4, "components": 4},
+      "dimensions": {"component_reuse": 4, "visual_hierarchy": 4, "design_system_compliance": 4, "new_component_justification": 4, "cross_story_consistency": 4},
       "findings": []
     },
     {
       "perspective": "Accessibility",
       "status": "reviewed",
-      "dimensions": {"wcag": 4, "keyboard": 4},
+      "dimensions": {"wcag_compliance": 4, "keyboard_navigation": 4, "screen_reader_support": 4, "inclusive_design": 4, "hcd_heuristics": 4},
       "findings": []
     },
     {
       "perspective": "Frontend Engineering",
       "status": "reviewed",
-      "dimensions": {"implementation": 4, "performance": 4},
+      "dimensions": {"implementation_feasibility": 4, "performance": 4, "state_complexity": 4, "specification_clarity": 4},
       "findings": []
     }
   ],

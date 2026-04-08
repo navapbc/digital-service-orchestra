@@ -121,6 +121,11 @@ assert_contains \
     "preplanning" \
     "$CALLERS_OUTPUT"
 
+assert_contains \
+    "test_list_callers_shows_ui_designer: --list-callers includes ui-designer" \
+    "ui-designer" \
+    "$CALLERS_OUTPUT"
+
 CALLERS_EXIT=$(run_script --list-callers)
 assert_eq \
     "test_list_callers_exits_zero: --list-callers exits 0" \
