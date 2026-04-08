@@ -625,30 +625,18 @@ A RED test task:
 - Must fail (RED) before the implementation task runs
 - Is a standalone task in the plan, not embedded in the implementation task description
 - Uses `TEST_CMD` (resolved from `commands.test` in workflow-config) as the verify command
-- **Must be a behavioral test** — see Behavioral Test Requirement below
+- **Must be a behavioral test** — see [Shared Behavioral Testing Standard](../shared/prompts/behavioral-testing-standard.md)
 
 #### Behavioral Test Requirement
 
-RED tests must verify **behavior** (what the code does), not **presence** (that specific code text exists in a source file). A test that greps a source file for a function name, string pattern, or implementation detail is a **change-detector test** — it passes when the code is written and fails when it's deleted, regardless of whether the code actually works.
+RED tests must follow the [Shared Behavioral Testing Standard](../shared/prompts/behavioral-testing-standard.md). Read that file before writing any test task. The standard defines five rules covering coverage checks, observable-behavior assertions, execution requirements, the refactoring litmus test, and structural boundaries for non-executable instruction files.
 
-**A valid RED test must do at least one of:**
-- Execute the code under test and assert on its output, exit code, or side effects
-- Create test fixtures (files, repos, mock services) and verify the code handles them correctly
-- Import a module/function and call it with inputs, asserting the return value
+**Test approach framing**: Each task that produces a RED test must include a test approach sentence written in **Given / When / Then** format:
+- **Given**: the preconditions and inputs (test fixture, initial state)
+- **When**: the action or invocation (what the code under test is called with)
+- **Then**: the observable outcome asserted (return value, exit code, file written, or side effect)
 
-**Structural tests are acceptable ONLY for these categories:**
-- **Negative constraints** ("must NOT contain X") — e.g., no hardcoded paths after a migration, no relative paths in hook libs. These protect against regression to a known-bad state.
-- **Metadata/schema validation** — e.g., skill frontmatter has required fields, config file has required keys. These verify structure that has no executable behavior.
-- **Syntax checks** — `bash -n`, `python -m py_compile`, JSON schema validation. These verify the code is parseable.
-- **File existence/permissions** — `test -f`, `test -x`. These verify deployment prerequisites.
-
-**Structural tests are NOT acceptable for:**
-- Asserting that a function name appears in a source file (use: call the function)
-- Asserting that a string appears near another string via `sed -n` range extraction (use: create the scenario and verify the behavior)
-- Counting `grep -c` matches as a proxy for "feature is implemented" (use: exercise the feature)
-- Verifying a script handles edge cases by grepping for the edge case code (use: create the edge case input and verify the output)
-
-When the TDD task description specifies the RED test, it must include a **test approach** sentence explaining what the test executes and what output/behavior it asserts. If the test approach describes grepping a source file, the task must be revised to describe a behavioral assertion instead.
+If the test approach describes grepping a source file rather than invoking the code under test, the task must be revised to describe a behavioral assertion instead.
 
 #### Unit Test Exemption Criteria
 
