@@ -130,6 +130,8 @@ plugins/dso/skills/preplanning/SKILL.md:tests/skills/test-feasibility-resolution
 plugins/dso/skills/roadmap/SKILL.md:tests/skills/test-roadmap-scrutiny-opt-in.sh
 plugins/dso/skills/preplanning/SKILL.md:tests/skills/test-scrutiny-pending-gate.sh
 plugins/dso/skills/preplanning/SKILL.md:tests/skills/test-preplanning-ui-designer-dispatch.sh
+plugins/dso/skills/preplanning/SKILL.md:tests/skills/test-skill-nesting-depth.sh
+plugins/dso/skills/design-wireframe/SKILL.md:tests/skills/test-redirect-stubs.sh
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test-scrutiny-pending-gate.sh
 plugins/dso/skills/update-docs/SKILL.md:tests/hooks/test-sub-agent-guard.sh
 plugins/dso/scripts/overlay-dispatch.sh:tests/hooks/test-overlay-dispatch.sh
