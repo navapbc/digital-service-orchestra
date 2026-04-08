@@ -15,6 +15,7 @@
 | [Sub-Agents/Orchestration](#sub-agents-and-orchestration) | 3 | 2026-03 |
 | [Hooks/Gates](#hooks-and-gates) | 1 | 2026-03 |
 | [Tickets/Version Control](#tickets-and-version-control) | 1 | 2026-03 |
+| [Recipe Execution](#recipe-execution) | 1 | 2026-04 |
 
 ## Quick Reference by Incident ID
 
@@ -30,6 +31,7 @@
 | INC-008 | Ticket Index Merge Conflicts | Tickets/Version Control | ticket merge conflict, worktree-sync, orphan branch |
 | INC-009 | CLAUDE_PLUGIN_ROOT Unbound in Parallel Execution | Sub-Agents/Orchestration | CLAUDE_PLUGIN_ROOT, unbound variable, sub-agent, env var |
 | INC-010 | Cascading Failure Runaway | Timeouts/Performance | cascading failure, runaway, fix-cascade-recovery |
+| INC-018 | Recipe Engine Prerequisites | Recipe Execution | recipe, rope, ts-morph, isort, scaffold |
 
 ---
 
@@ -176,3 +178,21 @@
 - **Detection**: `record-review.sh` exits 1 with "Expected: <hash-A> / Current: <hash-B>" where both hashes are non-trivially different despite no visible code change.
 - **Fix**: Always use `plugins/dso/hooks/compute-diff-hash.sh` (or its shim equivalent) as the canonical hash capture method. Run it directly: `DIFF_HASH=$(bash "$PLUGIN_ROOT/hooks/compute-diff-hash.sh")`. Never substitute `git diff | sha256sum` — the exclusion pathspecs make them non-equivalent.
 - **Rule added**: Diff hash for review must always be captured via `compute-diff-hash.sh`, not via raw `git diff | sha256sum`. Tracked in ticket 0815-cee3 for REVIEW-WORKFLOW.md update and shim registration.
+
+---
+
+## Recipe Execution
+
+### INC-018: Engine Prerequisites for Recipe Adapters
+
+- **Date**: 2026-04
+- **Keywords**: recipe, rope, ts-morph, isort, scaffold, engine, command not found
+- **Symptom**: `recipe-executor.sh` exits with adapter error; error JSON contains engine-not-found message; 'command not found: rope' / 'Cannot find module ts-morph' / 'isort: command not found'
+- **Root cause**: Each recipe adapter requires its engine to be installed in the current environment. The executor does not auto-install engines.
+- **Required by engine**:
+  - **rope** (Python AST adapter): `pip install rope` or add to `pyproject.toml` dev dependencies
+  - **ts-morph** (TypeScript AST adapter): `npm install ts-morph` in the project root (ts-morph-adapter looks for node_modules/ts-morph relative to CWD)
+  - **isort** (Python import sorting): `pip install isort` or add to dev dependencies
+  - **scaffold** (file generation): No engine dependency — uses bash + template files in `recipes/templates/`
+- **Fix**: Install the required engine for the recipe being run. For CI: add engine installs to the CI job that runs recipes.
+- **Rule candidate**: 3+ failures → propose CLAUDE.md rule requiring engine prerequisite check before recipe execution.
