@@ -2,6 +2,8 @@
 plugins/dso/scripts/recipe-adapters/rope-adapter.sh: tests/scripts/test-rope-adapter.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-adapter.sh: tests/scripts/test-ts-morph-adapter.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs: tests/scripts/test-ts-morph-add-parameter.sh
+plugins/dso/scripts/recipe-adapters/isort-adapter.sh: tests/scripts/test-isort-adapter.sh
+plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs: tests/scripts/test-ts-morph-normalize-imports.sh
 recipes/recipe-registry.yaml:tests/scripts/test-recipe-registry.sh
 recipes/schemas/recipe-registry-schema.json:tests/scripts/test-recipe-registry.sh
 .claude/commands/sprint.md:tests/scripts/test-wrapper-detection.sh

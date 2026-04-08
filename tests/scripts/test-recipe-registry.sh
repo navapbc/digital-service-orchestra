@@ -402,4 +402,90 @@ assert_eq "test_transform_recipe_type_valid: exit 0" "0" "$transform_exit"
 assert_eq "test_transform_recipe_type_valid: output is OK" "OK" "$transform_output"
 assert_pass_if_clean "test_transform_recipe_type_valid"
 
+# ── test_registry_has_normalize_imports_python ────────────────────────────────
+# Given: recipes/recipe-registry.yaml exists and has normalize-imports entries
+# When:  we search for an entry with name=normalize-imports and language=python
+# Then:  exactly one such entry is found
+_snapshot_fail
+_tmpfile_normalize_py=$(mktemp /tmp/test-recipe-registry-normalize-py.XXXXXX.py)
+cat > "$_tmpfile_normalize_py" <<'PYEOF'
+import yaml, sys, os, subprocess
+
+repo_root = subprocess.check_output(
+    ["git", "rev-parse", "--show-toplevel"], text=True
+).strip()
+registry_path = os.path.join(repo_root, "recipes", "recipe-registry.yaml")
+
+if not os.path.exists(registry_path):
+    print(f"MISSING_REGISTRY: {registry_path}")
+    sys.exit(1)
+
+data = yaml.safe_load(open(registry_path))
+if not isinstance(data, (list, dict)):
+    print(f"UNEXPECTED_FORMAT: expected list or dict, got {type(data)}")
+    sys.exit(1)
+
+# Support both top-level list and dict with 'recipes' key
+entries = data if isinstance(data, list) else data.get("recipes", [])
+
+matches = [
+    e for e in entries
+    if e.get("name") == "normalize-imports" and e.get("language") == "python"
+]
+if not matches:
+    print("NOT_FOUND: no entry with name=normalize-imports and language=python")
+    sys.exit(1)
+print(f"OK: found {len(matches)} match(es)")
+PYEOF
+normalize_py_exit=0
+normalize_py_output=""
+normalize_py_output=$(python3 "$_tmpfile_normalize_py" 2>&1) || normalize_py_exit=$?
+rm -f "$_tmpfile_normalize_py"
+assert_eq "test_registry_has_normalize_imports_python: exit 0" "0" "$normalize_py_exit"
+assert_contains "test_registry_has_normalize_imports_python: found match" "OK: found" "$normalize_py_output"
+assert_pass_if_clean "test_registry_has_normalize_imports_python"
+
+# ── test_registry_has_normalize_imports_typescript ───────────────────────────
+# Given: recipes/recipe-registry.yaml exists and has normalize-imports entries
+# When:  we search for an entry with name=normalize-imports and language=typescript
+# Then:  exactly one such entry is found
+_snapshot_fail
+_tmpfile_normalize_ts=$(mktemp /tmp/test-recipe-registry-normalize-ts.XXXXXX.py)
+cat > "$_tmpfile_normalize_ts" <<'PYEOF'
+import yaml, sys, os, subprocess
+
+repo_root = subprocess.check_output(
+    ["git", "rev-parse", "--show-toplevel"], text=True
+).strip()
+registry_path = os.path.join(repo_root, "recipes", "recipe-registry.yaml")
+
+if not os.path.exists(registry_path):
+    print(f"MISSING_REGISTRY: {registry_path}")
+    sys.exit(1)
+
+data = yaml.safe_load(open(registry_path))
+if not isinstance(data, (list, dict)):
+    print(f"UNEXPECTED_FORMAT: expected list or dict, got {type(data)}")
+    sys.exit(1)
+
+# Support both top-level list and dict with 'recipes' key
+entries = data if isinstance(data, list) else data.get("recipes", [])
+
+matches = [
+    e for e in entries
+    if e.get("name") == "normalize-imports" and e.get("language") == "typescript"
+]
+if not matches:
+    print("NOT_FOUND: no entry with name=normalize-imports and language=typescript")
+    sys.exit(1)
+print(f"OK: found {len(matches)} match(es)")
+PYEOF
+normalize_ts_exit=0
+normalize_ts_output=""
+normalize_ts_output=$(python3 "$_tmpfile_normalize_ts" 2>&1) || normalize_ts_exit=$?
+rm -f "$_tmpfile_normalize_ts"
+assert_eq "test_registry_has_normalize_imports_typescript: exit 0" "0" "$normalize_ts_exit"
+assert_contains "test_registry_has_normalize_imports_typescript: found match" "OK: found" "$normalize_ts_output"
+assert_pass_if_clean "test_registry_has_normalize_imports_typescript"
+
 print_summary

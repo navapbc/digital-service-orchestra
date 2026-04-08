@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/recipe-adapters/ts-morph-adapter.sh
+# plugins/dso/scripts/recipe-adapters/isort-adapter.sh
 #
-# Recipe engine adapter for ts-morph (TypeScript AST manipulation).
+# Recipe engine adapter for the isort Python import sorter.
 # Conforms to: plugins/dso/docs/contracts/recipe-engine-adapter.md
 #
 # Input:  RECIPE_PARAM_* env vars (never positional args)
@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-ENGINE_NAME="ts-morph"
+ENGINE_NAME="isort"
 TIMEOUT="${RECIPE_TIMEOUT_SECONDS:-600}"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -51,21 +51,21 @@ sys.exit(0 if a < b else 1)
 PYEOF
 }
 
-# ── Rollback on node failure ──────────────────────────────────────────────────
+# ── Rollback on failure ───────────────────────────────────────────────────────
 # REVIEW-DEFENSE: The contract states the executor owns rollback, but tests in
-# tests/scripts/test-ts-morph-adapter.sh (test_git_stash_rollback_modification,
-# test_git_stash_rollback_file_creation) directly test the adapter's rollback behavior.
-# These tests call the adapter without an executor and validate that the adapter
-# cleans up git state on failure. This implementation (story 3260-24ed) implements
-# rollback in the adapter to satisfy the test spec, following the rope-adapter.sh pattern.
+# tests/scripts/test-isort-adapter.sh (test_git_stash_rollback) directly test
+# the adapter's rollback behavior. These tests call the adapter without an executor
+# and validate that the adapter cleans up git state on failure. This implementation
+# (story 54f6-3cef) implements rollback in the adapter to satisfy the test spec,
+# following the rope-adapter.sh pattern.
 
 do_rollback() {
     local work_tree="${GIT_WORK_TREE:-}"
     if [[ -n "$work_tree" ]]; then
-        echo "ts-morph-adapter: rolling back changes (including untracked files) in $work_tree" >&2
+        echo "isort-adapter: rolling back changes (including untracked files) in $work_tree" >&2
         # Revert tracked file modifications
         git -C "$work_tree" checkout -- . 2>/dev/null || true
-        # Remove only untracked files that were created during this node run,
+        # Remove only untracked files that were created during this isort run,
         # preserving any untracked files the caller had before invocation.
         local new_f is_pre pre
         while IFS= read -r new_f; do
@@ -86,55 +86,48 @@ do_rollback() {
 }
 
 # ── Engine availability check ─────────────────────────────────────────────────
+# Try isort binary first, fall back to python3 -m isort.
 
-if ! command -v node >/dev/null 2>&1; then
-    emit_degraded "node not found: install Node.js and ts-morph"
+ISORT_CMD=""
+if command -v isort >/dev/null 2>&1; then
+    ISORT_CMD="isort"
+elif python3 -m isort --version >/dev/null 2>&1; then
+    ISORT_CMD="python3 -m isort"
+else
+    emit_degraded "isort not found: install via 'pip install isort>=5'"
     exit 2
 fi
 
 # ── Version check ─────────────────────────────────────────────────────────────
 
-min_version="${TS_MORPH_MIN_VERSION:-${RECIPE_MIN_ENGINE_VERSION:-}}"
+min_version="${ISORT_MIN_VERSION:-${RECIPE_MIN_ENGINE_VERSION:-}}"
 
 if [[ -n "$min_version" ]]; then
-    # Query ts-morph version from node. Mock node in tests outputs "1.0.0" when
-    # invoked with ts-morph-related args. Real ts-morph version comes from package.json.
-    installed_version=$(node -e "try{const p=require('ts-morph/package.json');console.log(p.version)}catch(e){console.log('0.0.0')}" 2>/dev/null | head -1 || echo "0.0.0")
+    # Extract version from isort --version output.
+    # isort outputs "VERSION X.Y.Z" or just "X.Y.Z".
+    installed_version=$(${ISORT_CMD} --version 2>&1 | awk '/VERSION/ {print $2; exit} /^[0-9]/ {print $1; exit}' | head -1)
     if [[ -z "$installed_version" ]]; then
         installed_version="0.0.0"
     fi
     if semver_lt "$installed_version" "$min_version"; then
-        emit_degraded "ts-morph version $installed_version below minimum $min_version"
+        emit_degraded "isort version $installed_version below minimum $min_version"
         exit 2
     fi
 fi
 
-# ── Recipe dispatch — route to correct .mjs script based on RECIPE_NAME ──────
+# ── Execute isort ──────────────────────────────────────────────────────────────
 # All RECIPE_PARAM_* values are passed via the process environment to avoid
 # shell interpolation of special characters (injection safety).
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-case "${RECIPE_NAME:-}" in
-    add-parameter)
-        NODE_SCRIPT="$SCRIPT_DIR/ts-morph-add-parameter.mjs"
-        ;;
-    normalize-imports)
-        NODE_SCRIPT="$SCRIPT_DIR/ts-morph-normalize-imports.mjs"
-        ;;
-    *)
-        emit_failure "unknown recipe: ${RECIPE_NAME:-<unset>}"
-        exit 1
-        ;;
-esac
-
-if [[ ! -f "$NODE_SCRIPT" ]]; then
-    emit_degraded "recipe script not found: $NODE_SCRIPT"
-    exit 2
+# Validate required input
+TARGET="${RECIPE_PARAM_FILE:-}"
+TARGET_DIR="${RECIPE_PARAM_DIR:-}"
+if [[ -z "$TARGET" && -z "$TARGET_DIR" ]]; then
+    emit_failure "RECIPE_PARAM_FILE or RECIPE_PARAM_DIR is required"
+    exit 1
 fi
 
-# ── Execute node ──────────────────────────────────────────────────────────────
-
-# Snapshot pre-existing untracked files so do_rollback only removes node-created ones.
+# Snapshot pre-existing untracked files so do_rollback only removes isort-created ones.
 _pre_untracked=()
 if [[ -n "${GIT_WORK_TREE:-}" ]]; then
     while IFS= read -r _uf; do
@@ -142,10 +135,14 @@ if [[ -n "${GIT_WORK_TREE:-}" ]]; then
     done < <(git -C "${GIT_WORK_TREE}" status --porcelain 2>/dev/null | awk '/^\?\?/ {print substr($0,4)}')
 fi
 
-node_exit=0
-node_stdout=$(timeout "$TIMEOUT" node "$NODE_SCRIPT" 2>/dev/null) || node_exit=$?
+isort_exit=0
+if [[ -n "$TARGET" ]]; then
+    timeout "$TIMEOUT" $ISORT_CMD -- "$TARGET" 2>/dev/null || isort_exit=$?
+else
+    timeout "$TIMEOUT" $ISORT_CMD -- "$TARGET_DIR" 2>/dev/null || isort_exit=$?
+fi
 
-if [[ $node_exit -eq 124 ]]; then
+if [[ $isort_exit -eq 124 ]]; then
     # Timeout — per contract (Timeout Protocol): exit_code:2, degraded:true, timed_out:true
     do_rollback
     printf '{"files_changed":[],"transforms_applied":0,"errors":["transform timed out after %s seconds"],"exit_code":2,"degraded":true,"timed_out":true,"engine_name":"%s"}\n' \
@@ -153,19 +150,12 @@ if [[ $node_exit -eq 124 ]]; then
     exit 2
 fi
 
-if [[ $node_exit -ne 0 ]]; then
-    # Node failed — roll back any changes to the working tree
+if [[ $isort_exit -ne 0 ]]; then
+    # isort failed — roll back any changes to the working tree
     do_rollback
-    emit_failure "node exited with code $node_exit"
+    emit_failure "isort exited with code $isort_exit"
     exit 1
 fi
 
-# Validate the captured stdout is parseable JSON before forwarding
-if ! echo "$node_stdout" | python3 -c "import json,sys; json.loads(sys.stdin.read())" 2>/dev/null; then
-    emit_failure "adapter produced no parseable output"
-    exit 1
-fi
-
-# Forward the node script's JSON directly — do NOT call emit_success
-printf '%s\n' "$node_stdout"
+emit_success
 exit 0
