@@ -127,7 +127,7 @@ User requested rolling original principles 5 (mock only external boundaries) and
 ## Final Approved Spec
 
 ### Success Criteria (13)
-1. Shared 4-rule behavioral testing standard consumed by all test-writing paths
+1. Shared 5-rule behavioral testing standard consumed by all test-writing paths
 2. Implementation-plan RED/GREEN/UPDATE testing mode classification
 3. Sprint orchestrator consumes testing_mode field
 4. RED test writer "no new tests needed" exit path
