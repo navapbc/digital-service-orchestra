@@ -1,12 +1,8 @@
 """Parser module — has intentionally unsorted and duplicate imports for normalize-imports tests."""
-import sys
-import os
-import json
-import math
-import os  # duplicate import for normalize-imports testing
-import sys  # duplicate import for normalize-imports testing
 
-from src.utils import flatten, format_number
+import json
+
+from src.utils import flatten
 from src.calculator import add
 
 
@@ -40,3 +36,20 @@ def parse_json_safe(text):
         return json.loads(text)
     except (json.JSONDecodeError, TypeError):
         return None
+
+
+def parse_and_add(a_str, b_str):
+    """Parse two numeric strings and return their sum."""
+    a = parse_float(a_str)
+    b = parse_float(b_str)
+    if a is None or b is None:
+        return None
+    return add(a, b)
+
+
+def parse_offset(value_str, offset):
+    """Parse a numeric string and add a fixed offset."""
+    value = parse_float(value_str)
+    if value is None:
+        return None
+    return add(value, offset)

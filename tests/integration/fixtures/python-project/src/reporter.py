@@ -1,10 +1,9 @@
 """Reporter module that calls calculator, formatter, and validator."""
-import os
-import sys
+
 
 from src.calculator import add, multiply, power
 from src.formatter import format_sum, format_product, format_table
-from src.validator import is_positive, validate_ratio
+from src.validator import is_positive
 
 
 def report_sum(x, y):
@@ -29,3 +28,18 @@ def report_table(pairs):
 def report_power_series(base, max_exp):
     """Return a list of base^n for n in 0..max_exp."""
     return [power(base, n) for n in range(max_exp + 1)]
+
+
+def report_running_total(values):
+    """Return a report of running totals using add."""
+    total = 0
+    lines = []
+    for i, v in enumerate(values):
+        total = add(total, v)
+        lines.append(f"  [{i}] +{v} = {total}")
+    return "Running totals:\n" + "\n".join(lines)
+
+
+def report_pair_sums(pairs):
+    """Return a list of sum values for each pair."""
+    return [add(x, y) for x, y in pairs]

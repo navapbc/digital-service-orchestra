@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # tests/integration/setup-fixtures.sh
 # Ensures integration test fixture projects are available.
-# Uses synthetic fixtures committed to the repo — no network required.
+#
+# Fixtures are committed to the repo and model the structure and scale of real-world
+# open-source Python and TypeScript utility libraries. The Python fixture provides
+# 15+ callers of calculator.add() across 8 source files, representative of a
+# medium-sized utility library. The TypeScript fixture mirrors a similar structure.
 #
 # Env var override (for testing):
 #   FIXTURES_OVERRIDE — use this path as FIXTURES_DIR instead of the default

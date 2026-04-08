@@ -91,7 +91,7 @@ if entry is None:
 else:
     engine = entry.get('engine', '')
     adapter = entry.get('adapter', '')
-    version_min = entry.get('engine_version_min', '0.0.0')
+    version_min = entry.get('min_engine_version', '0.0.0')
     recipe_type = entry.get('recipe_type', 'transform')
     print(engine + ' ' + adapter + ' ' + str(version_min) + ' ' + recipe_type)
 " 2>/dev/null || echo "__PARSE_ERROR__ __PARSE_ERROR__ __PARSE_ERROR__ __PARSE_ERROR__"
@@ -142,6 +142,21 @@ ENV_ARGS+=("RECIPE_MIN_ENGINE_VERSION=$ENGINE_VERSION_MIN")
 ENV_ARGS+=("RECIPE_DRY_RUN=false")
 ENV_ARGS+=("RECIPE_TYPE=$RECIPE_TYPE")
 
+# ── Pre-adapter stash (executor owns rollback for transform recipes) ──────────
+# git stash push captures current working tree state before the adapter runs.
+# On failure the stash is popped to restore the pre-run state; on success it is
+# dropped so adapter changes are retained.  Skipped when GIT_WORK_TREE is unset
+# (e.g., unit tests that run without a real git repo context).
+_STASH_GIT_DIR="${GIT_WORK_TREE:-}"
+_STASH_REF=""
+if [[ "$RECIPE_TYPE" == "transform" ]] && [[ -n "$_STASH_GIT_DIR" ]] && \
+   git -C "$_STASH_GIT_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+    stash_output=$(git -C "$_STASH_GIT_DIR" stash push -u 2>&1) || true
+    if echo "$stash_output" | grep -q "Saved working directory"; then
+        _STASH_REF="stash@{0}"
+    fi
+fi
+
 # ── Invoke adapter ────────────────────────────────────────────────────────────
 # Contract: set CWD to repo root before invoking adapter so relative paths resolve correctly.
 cd "$REPO_ROOT"
@@ -156,7 +171,21 @@ adapter_stdout=$(env "${ENV_ARGS[@]}" bash "$ADAPTER_PATH" 2>/dev/null) || adapt
 
 # ── Parse and forward adapter output ─────────────────────────────────────────
 if [[ $adapter_exit -eq 0 ]]; then
-    # Success path — validate and forward JSON output
+    # Success path — pop pre-run stash to re-apply pre-existing uncommitted changes on
+    # top of adapter output. Per contract: stash pop (not drop) so user's prior work
+    # is preserved. On stash pop conflict: checkout -- . + drop + synthesize failure.
+    if [[ -n "$_STASH_REF" ]]; then
+        stash_pop_exit=0
+        git -C "$_STASH_GIT_DIR" stash pop "$_STASH_REF" --quiet 2>/dev/null || stash_pop_exit=$?
+        if [[ $stash_pop_exit -ne 0 ]]; then
+            git -C "$_STASH_GIT_DIR" checkout -- . 2>/dev/null || true
+            git -C "$_STASH_GIT_DIR" stash drop "$_STASH_REF" --quiet 2>/dev/null || true
+            printf '{"files_changed":[],"transforms_applied":0,"errors":["git stash pop conflict: pre-existing uncommitted changes overlap with adapter-modified files; manual merge required"],"exit_code":1,"degraded":false,"engine_name":"%s"}\n' \
+                "$ENGINE_NAME"
+            exit 1
+        fi
+    fi
+
     valid_json=0
     echo "$adapter_stdout" | python3 -c "import json,sys; json.load(sys.stdin)" 2>/dev/null && valid_json=1 || true
 
@@ -169,6 +198,25 @@ if [[ $adapter_exit -eq 0 ]]; then
         exit 1
     fi
 else
+    # Failure path — discard adapter's partial changes, then restore pre-existing state.
+    # Order: (1) checkout -- . to undo adapter modifications, (2) stash pop to restore
+    # any pre-existing uncommitted changes. Without step 1, adapter changes to files
+    # not covered by the stash would remain in the working tree.
+    if [[ -n "$_STASH_REF" ]]; then
+        git -C "$_STASH_GIT_DIR" checkout -- . 2>/dev/null || true
+        stash_pop_exit=0
+        git -C "$_STASH_GIT_DIR" stash pop "$_STASH_REF" --quiet 2>/dev/null || stash_pop_exit=$?
+        if [[ $stash_pop_exit -ne 0 ]]; then
+            # Stash pop conflict after checkout: drop the stash and leave tree clean
+            git -C "$_STASH_GIT_DIR" stash drop "$_STASH_REF" --quiet 2>/dev/null || true
+            printf '{"files_changed":[],"transforms_applied":0,"errors":["git stash pop conflict: pre-existing uncommitted changes overlap with adapter-modified files; manual merge required"],"exit_code":1,"degraded":false,"engine_name":"%s"}\n' \
+                "$ENGINE_NAME"
+            exit 1
+        fi
+    elif [[ -n "$_STASH_GIT_DIR" ]] && git -C "$_STASH_GIT_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+        # No stash created (tree was clean) — discard any partial adapter changes
+        git -C "$_STASH_GIT_DIR" checkout -- . 2>/dev/null || true
+    fi
     # Non-zero exit — synthesize degraded response using engine_name from registry
     # The adapter may have written degraded JSON to stderr (exit 127 = missing engine)
     # Per test contract: synthesize {"degraded":true,"engine_name":"<engine>","exit_code":1,...}

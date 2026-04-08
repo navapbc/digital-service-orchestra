@@ -1,6 +1,5 @@
 """Processor module that calls utils and reporter."""
-import os
-import sys
+
 
 from src.utils import flatten, safe_divide, format_number
 from src.reporter import report_sum, report_table, report_power_series
@@ -32,3 +31,17 @@ def process_flatten_and_sum(nested):
     """Flatten nested list and return sum."""
     flat = flatten(nested)
     return sum(flat)
+
+
+def process_increment(values, delta):
+    """Return a new list with each value incremented by delta using add."""
+    from src.calculator import add as _add
+
+    return [_add(v, delta) for v in values]
+
+
+def process_combine(batch_a, batch_b):
+    """Combine two batches element-wise using add."""
+    from src.calculator import add as _add
+
+    return [_add(a, b) for a, b in zip(batch_a, batch_b)]

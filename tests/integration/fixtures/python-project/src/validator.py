@@ -1,9 +1,7 @@
 """Validation module that calls calculator and utils functions."""
-import sys
-import os
-import math
 
-from src.calculator import add, subtract, divide
+
+from src.calculator import add, subtract
 from src.utils import clamp, safe_divide
 
 
@@ -34,3 +32,11 @@ def validate_difference(x, y, expected):
     """Return True if x - y equals expected."""
     result = subtract(x, y)
     return abs(result - expected) < 1e-9
+
+
+def validate_pair_sum(pairs, expected_total):
+    """Return True if the sum of all pair sums equals expected_total."""
+    total = 0
+    for x, y in pairs:
+        total = add(total, add(x, y))
+    return abs(total - expected_total) < 1e-9

@@ -81,7 +81,7 @@ recipes:
   ${recipe_name}:
     language: ${language}
     engine: ${engine}
-    engine_version_min: "0.0.1"
+    min_engine_version: "0.0.1"
     adapter: ${adapter_file}
     description: "Test recipe"
     parameters: []
@@ -151,6 +151,14 @@ test_python_add_parameter_updates_callers() {
     local files_changed_count=0
     files_changed_count=$(echo "$output" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('files_changed', [])))" 2>/dev/null || echo "0")
     assert_ne "test_python_add_parameter_updates_callers: files_changed non-empty" "0" "$files_changed_count"
+
+    # Run the fixture's own test suite to verify all callers still work after transform.
+    # This validates semantic correctness: add(x, y, z=0) still behaves as add(x, y) for all callers.
+    if command -v python3 >/dev/null 2>&1; then
+        local pytest_exit=0
+        python3 -m pytest "$workdir" -q --tb=short 2>/dev/null || pytest_exit=$?
+        assert_eq "test_python_add_parameter_updates_callers: fixture test suite passes after transform" "0" "$pytest_exit"
+    fi
 }
 
 # test_typescript_add_parameter_structure
@@ -311,11 +319,79 @@ test_rollback_on_failure() {
     fi
 }
 
+# test_rollback_restores_preexisting_changes
+# When an adapter fails, the executor must:
+#   1. Discard adapter's changes (checkout -- .)
+#   2. Restore pre-existing uncommitted changes (stash pop)
+# Verifies the pre-existing change is present and adapter change is absent.
+
+test_rollback_restores_preexisting_changes() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+
+    local work_dir="$tmpdir/work"
+    mkdir -p "$work_dir/src"
+    printf "original line\n" > "$work_dir/src/shared.py"
+    git -C "$work_dir" init -q
+    git -C "$work_dir" config user.email "test@test.com"
+    git -C "$work_dir" config user.name "Test"
+    git -C "$work_dir" add -A
+    git -C "$work_dir" commit -q -m "initial"
+
+    # Introduce pre-existing uncommitted change before executor runs (will be stashed)
+    printf "pre-existing change\n" >> "$work_dir/src/shared.py"
+
+    # Failing adapter that also modifies shared.py then exits non-zero
+    local adapters_dir="$tmpdir/adapters"
+    mkdir -p "$adapters_dir"
+    local fail_adapter="$adapters_dir/fail-adapter.sh"
+    cat > "$fail_adapter" <<'ADAPTER'
+#!/usr/bin/env bash
+WORK_DIR="${GIT_WORK_TREE:-$(pwd)}"
+echo "adapter change" >> "$WORK_DIR/src/shared.py"
+exit 1
+ADAPTER
+    chmod +x "$fail_adapter"
+
+    local registry_path
+    registry_path="$(_make_registry "$tmpdir" "fail-recipe" "fake-engine" "fail-adapter.sh" "any")"
+
+    local exit_code=0
+    GIT_WORK_TREE="$work_dir" TEST_REGISTRY_PATH="$registry_path" TEST_ADAPTERS_DIR="$adapters_dir" \
+        bash "$EXECUTOR" fail-recipe >/dev/null 2>&1 || exit_code=$?
+
+    # Executor must exit non-zero
+    assert_ne "test_rollback_restores_preexisting_changes: executor exits non-zero" "0" "$exit_code"
+
+    # Adapter change must NOT be present
+    local has_adapter_change=0
+    grep -q "adapter change" "$work_dir/src/shared.py" 2>/dev/null && has_adapter_change=1 || true
+    if [[ $has_adapter_change -eq 0 ]]; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: test_rollback_restores_preexisting_changes\n  adapter change found in working tree after rollback\n" >&2
+    fi
+
+    # Pre-existing change must be RESTORED
+    local has_preexisting=0
+    grep -q "pre-existing change" "$work_dir/src/shared.py" 2>/dev/null && has_preexisting=1 || true
+    if [[ $has_preexisting -eq 1 ]]; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: test_rollback_restores_preexisting_changes\n  pre-existing change not restored after rollback\n  content: %s\n" \
+            "$(cat "$work_dir/src/shared.py" 2>/dev/null)" >&2
+    fi
+}
+
 # Run all tests
 test_python_add_parameter_updates_callers
 test_typescript_add_parameter_structure
 test_add_parameter_idempotency
 test_add_parameter_determinism
 test_rollback_on_failure
+test_rollback_restores_preexisting_changes
 
 print_summary

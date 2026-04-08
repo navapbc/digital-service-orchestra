@@ -47,3 +47,11 @@ recipes:
     scope: single-file
     min_engine_version: "17.0.0"
     installation_instructions: "npm install ts-morph@>=17"
+  - name: normalize-imports
+    language: ruby
+    engine: synvert
+    adapter: synvert-adapter.sh
+    capability_description: "Sort and deduplicate Ruby require/require_relative statements using Synvert's AST rewriter (stub — rewrite logic pending synvert CLI confirmation)"
+    scope: single-file
+    min_engine_version: "1.0.0"
+    installation_instructions: "gem install synvert"

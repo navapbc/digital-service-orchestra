@@ -1,7 +1,6 @@
 """Calculator module with arithmetic operations."""
+
 import math
-import os
-import sys
 
 from src.utils import clamp, safe_divide
 
@@ -28,9 +27,9 @@ def divide(x, y):
 
 def power(base, exponent):
     """Raise base to exponent."""
-    return base ** exponent
+    return base**exponent
 
 
 def sqrt(value):
     """Return square root of value; clamp to 0 if negative."""
-    return math.sqrt(clamp(value, 0, float('inf')))
+    return math.sqrt(clamp(value, 0, float("inf")))

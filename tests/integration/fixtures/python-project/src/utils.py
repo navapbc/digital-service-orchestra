@@ -1,7 +1,5 @@
 """Utility functions for the fixture project."""
-import os
-import sys
-import math
+
 
 
 def clamp(value, minimum, maximum):
