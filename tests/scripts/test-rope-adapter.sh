@@ -100,7 +100,7 @@ output=$(RECIPE_NAME="rename_function" \
     RECIPE_PARAM_FILE="src/foo.py" \
     RECIPE_PARAM_FUNCTION="old_func" \
     RECIPE_PARAM_NAME="new_func" \
-    PATH="$TMPDIR_TEST/empty_bin" bash "$ADAPTER" 2>&1) || rc=$?
+    PATH="$TMPDIR_TEST/empty_bin" "$BASH" "$ADAPTER" 2>&1) || rc=$?
 
 # Must exit non-zero
 assert_ne "test_adapter_exits_nonzero_when_rope_cli_missing exit code" "0" "$rc"
@@ -215,16 +215,17 @@ output=$(RECIPE_NAME="rename_function" \
     run_adapter 2>&1) || rc=$?
 
 # Parse with python3 and verify each required field type
+# Use -c flag (not pipe+heredoc) to avoid platform-specific stdin routing conflicts
 json_check=0
-echo "$output" | python3 - <<'PYCHECK' 2>/dev/null || json_check=$?
+echo "$output" | python3 -c "
 import json, sys
 data = json.loads(sys.stdin.read())
-assert isinstance(data.get("files_changed"), list),      "files_changed must be an array"
-assert isinstance(data.get("transforms_applied"), int),  "transforms_applied must be an int"
-assert isinstance(data.get("errors"), list),             "errors must be an array"
-assert isinstance(data.get("exit_code"), int),           "exit_code must be an int"
-assert isinstance(data.get("engine_name"), str),         "engine_name must be a string"
-PYCHECK
+assert isinstance(data.get('files_changed'), list),      'files_changed must be an array'
+assert isinstance(data.get('transforms_applied'), int),  'transforms_applied must be an int'
+assert isinstance(data.get('errors'), list),             'errors must be an array'
+assert isinstance(data.get('exit_code'), int),           'exit_code must be an int'
+assert isinstance(data.get('engine_name'), str),         'engine_name must be a string'
+" 2>/dev/null || json_check=$?
 
 assert_eq "test_adapter_output_is_json all required fields present and typed correctly" "0" "$json_check"
 
