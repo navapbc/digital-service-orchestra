@@ -336,3 +336,7 @@ plugins/dso/scripts/recipe-adapters/scaffold-adapter.sh:tests/scripts/test-scaff
 recipes/templates/flask:tests/scripts/test-scaffold-templates.sh
 recipes/templates/nextjs:tests/scripts/test-scaffold-templates.sh
 tests/integration/setup-fixtures.sh:tests/integration/test-fixture-setup.sh
+
+plugins/dso/agents/red-test-writer.md:tests/hooks/test-agent-standard-reference.sh
+plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard-reference.sh
+plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-reference.sh
