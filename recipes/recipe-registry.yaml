@@ -1,0 +1,16 @@
+# Recipe Registry
+# Each entry is a recipe that can be executed by recipe-executor.sh via an adapter script.
+# The 'adapter' field stores the exact adapter script filename as it appears in
+# plugins/dso/scripts/recipe-adapters/ (recipe-executor.sh appends this to ADAPTERS_DIR).
+#
+# Entry schema (validates individual items in the 'recipes' array): recipes/schemas/recipe-registry-schema.json
+
+recipes:
+  - name: add-parameter
+    language: python
+    engine: rope
+    adapter: rope-adapter.sh
+    capability_description: "Add a parameter to a function signature and update all callers across files using Rope's cross-file refactoring"
+    scope: cross-file
+    min_engine_version: "1.7.0"
+    installation_instructions: "pip install rope>=1.7.0"

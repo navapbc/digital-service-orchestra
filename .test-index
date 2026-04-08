@@ -1,7 +1,7 @@
 
 plugins/dso/scripts/recipe-adapters/rope-adapter.sh: tests/scripts/test-rope-adapter.sh [test_adapter_exits_nonzero_when_rope_cli_missing]
-recipes/recipe-registry.yaml:tests/scripts/test-recipe-registry.sh [test_schema_file_exists]
-recipes/schemas/recipe-registry-schema.json:tests/scripts/test-recipe-registry.sh [test_schema_file_exists]
+recipes/recipe-registry.yaml:tests/scripts/test-recipe-registry.sh
+recipes/schemas/recipe-registry-schema.json:tests/scripts/test-recipe-registry.sh
 .claude/commands/sprint.md:tests/scripts/test-wrapper-detection.sh
 .claude/commands/sprint.md:tests/scripts/test-wrapper-parity.sh
 .claude/docs/KNOWN-ISSUES.md:tests/scripts/test-known-issues-smoke.sh
