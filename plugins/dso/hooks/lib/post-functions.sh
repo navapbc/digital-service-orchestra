@@ -156,7 +156,7 @@ print(json.dumps(entry))
     Long-running test commands MUST use test-batched.sh to avoid this.
 
     Example:
-      ${CLAUDE_PLUGIN_ROOT}/scripts/test-batched.sh --timeout=50 "make test-unit-only"
+      .claude/scripts/dso test-batched.sh --timeout=50 "make test-unit-only"
 
     See CLAUDE.md rule #16: "Use test-batched.sh for test commands expected to exceed 60 seconds."
     Re-run this command using test-batched.sh now.
@@ -248,6 +248,101 @@ hook_auto_format() {
 # Ticket sync infrastructure removed. Tickets now flow through normal git commits.
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# hook_extract_agent_suggestion
+# ---------------------------------------------------------------------------
+# PostToolUse hook: extract the first SUGGESTION: sentinel from an Agent tool
+# return and record it via suggestion-record.sh.
+#
+# Only fires on Agent tool returns. Extracts the first line matching:
+#   SUGGESTION: <text>
+# from the tool_response.output field. Calls suggestion-record.sh with the
+# extracted text. Warns to stderr on malformed sentinel (empty text after colon)
+# but does not crash.
+#
+# Uses python3 for output extraction (handles multi-line JSON strings reliably).
+hook_extract_agent_suggestion() {
+    local INPUT="$1"
+    trap 'return 0' ERR
+
+    # Only act on Agent tool returns
+    local TOOL_NAME
+    TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
+    if [[ "$TOOL_NAME" != "Agent" ]]; then
+        return 0
+    fi
+
+    # Extract output text using python3 (handles newline escapes in JSON strings)
+    local OUTPUT_TEXT=""
+    OUTPUT_TEXT=$(python3 -c "
+import json, sys
+try:
+    d = json.loads(sys.argv[1])
+    tr = d.get('tool_response', {})
+    out = tr.get('output', '') if isinstance(tr, dict) else ''
+    print(out)
+except Exception:
+    pass
+" "$INPUT" 2>/dev/null) || OUTPUT_TEXT=""
+
+    if [[ -z "$OUTPUT_TEXT" ]]; then
+        return 0
+    fi
+
+    # Find first line starting with SUGGESTION:
+    local SUGGESTION_LINE=""
+    while IFS= read -r _line; do
+        if [[ "$_line" == "SUGGESTION:"* ]]; then
+            SUGGESTION_LINE="$_line"
+            break
+        fi
+    done <<< "$OUTPUT_TEXT"
+
+    if [[ -z "$SUGGESTION_LINE" ]]; then
+        # No SUGGESTION: sentinel found — nothing to record
+        return 0
+    fi
+
+    # Extract text after "SUGGESTION: " (trim leading space)
+    local SUGGESTION_TEXT="${SUGGESTION_LINE#SUGGESTION:}"
+    # Trim leading whitespace
+    SUGGESTION_TEXT="${SUGGESTION_TEXT#"${SUGGESTION_TEXT%%[![:space:]]*}"}"
+
+    # Warn on malformed sentinel (empty text after colon)
+    if [[ -z "$SUGGESTION_TEXT" ]]; then
+        echo "post-agent hook: malformed SUGGESTION: sentinel — no text after colon (skipping)" >&2
+        return 0
+    fi
+
+    # Resolve suggestion-record command.
+    # DSO_SUGGESTION_RECORD_CMD overrides for testing (set to e.g. "/mock/dso suggestion-record").
+    # Otherwise: prefer .claude/scripts/dso shim (via git-resolved repo root),
+    # falling back to direct plugin script path.
+    local _SUGG_CMD=""
+    if [[ -n "${DSO_SUGGESTION_RECORD_CMD:-}" ]]; then
+        _SUGG_CMD="$DSO_SUGGESTION_RECORD_CMD"
+    else
+        local _REPO_ROOT_FOR_SHIM
+        _REPO_ROOT_FOR_SHIM=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+        if [[ -n "$_REPO_ROOT_FOR_SHIM" && -x "$_REPO_ROOT_FOR_SHIM/.claude/scripts/dso" ]]; then
+            _SUGG_CMD="$_REPO_ROOT_FOR_SHIM/.claude/scripts/dso suggestion-record"
+        elif [[ -x "$CLAUDE_PLUGIN_ROOT/scripts/suggestion-record.sh" ]]; then # shim-exempt: fallback for test environments without shim
+            _SUGG_CMD="$CLAUDE_PLUGIN_ROOT/scripts/suggestion-record.sh" # shim-exempt: fallback for test environments without shim
+        fi
+    fi
+
+    if [[ -n "$_SUGG_CMD" ]]; then
+        # shellcheck disable=SC2086
+        $_SUGG_CMD \
+            --source="post-agent-hook" \
+            --observation="$SUGGESTION_TEXT" \
+            2>/dev/null || true
+    fi
+
+    trap - ERR
+    return 0
+}
+
 # hook_tool_logging_pre
 # ---------------------------------------------------------------------------
 # PreToolUse hook: log tool call with MODE hardcoded to "pre".

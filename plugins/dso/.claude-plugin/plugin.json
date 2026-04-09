@@ -1,6 +1,6 @@
 {
   "name": "dso",
-  "version": "1.11.14",
+  "version": "1.11.15",
   "description": "Workflow infrastructure plugin for Claude Code projects",
   "commands": "./commands/",
   "skills": "./skills/",
@@ -97,6 +97,15 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/post-write.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/post-agent.sh"
           }
         ]
       }

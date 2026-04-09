@@ -130,3 +130,17 @@ Exit the loop as soon as the confidence test passes — do not ask more question
 **Proceed**: Once the confidence test passes, proceed immediately. Do not request explicit confirmation.
 
 **Dogfooding Evaluation**: Define *intent-match* as: the agent's final action matches the user's actual intent on the first attempt. Log each clarification loop entry and score intent-match after each interaction. Target: 80% intent-match rate across 20+ interactions. This measures success of the clarification loop.
+
+## Friction Recording
+
+When encountering repeated friction — unclear instructions, confusing skill steps, workflows that required workarounds, or patterns that slowed you down — consider calling the suggestion recorder to capture the observation for future improvement:
+
+```bash
+.claude/scripts/dso suggestion-record.sh \
+  --source "agent" \
+  --observation "<what happened or what was unclear>" \
+  --recommendation "<what would make this smoother>" \
+  --skill-name "using-lockpick"
+```
+
+This is advisory, not a gate. Use it when you notice something worth improving — repeated confusion about a step, a skill that gave ambiguous guidance, or a workaround you had to devise. These suggestions feed into the project's continuous improvement cycle.

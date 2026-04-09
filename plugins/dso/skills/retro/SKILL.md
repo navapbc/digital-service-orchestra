@@ -57,7 +57,12 @@ After reviewing the script output:
 
 1. **Error log triage**: For each unique error pattern in `HOOK_ERROR_LOG`, propose a ticket bug. Use AskUserQuestion to confirm which warrant creation. **After triage**, truncate the logs.
 2. **Plugin updates**: For any outdated plugins, never recommend `@latest` tags — always recommend specific pinned versions. Add as P3 cleanup items.
-3. **Report** the structured health inventory (validation status, ticket health, worktree count, dependency freshness, session usage, error triage summary, plugin versions).
+3. **Friction Suggestions**: If the output contains a `SUGGESTION_DATA` section, review the frequency-ranked clusters. Each cluster represents a recurring workflow friction point captured by `suggestion-record.sh`. For each cluster:
+   - Note the `file`, `pattern`, and `proposed_edit` fields.
+   - Clusters with `count >= 3` are high-signal and should become P2 improvement tasks.
+   - Clusters with `count < 3` are low-signal and can be grouped into a single P3 cleanup task.
+   - If no `SUGGESTION_DATA` section is present, skip this step.
+4. **Report** the structured health inventory (validation status, ticket health, worktree count, dependency freshness, session usage, error triage summary, plugin versions, friction suggestion summary).
 
 ---
 
