@@ -14,7 +14,7 @@ set -euo pipefail
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 
 REGISTRY_PATH="${TEST_REGISTRY_PATH:-$REPO_ROOT/recipes/recipe-registry.yaml}"
 ADAPTERS_DIR="${TEST_ADAPTERS_DIR:-$SCRIPT_DIR/recipe-adapters}"

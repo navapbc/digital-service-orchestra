@@ -48,7 +48,7 @@ referenced identifiers actually exist is part of your correctness mandate.
 - If the usage looks plausible but cannot be confirmed via Grep/Read: flag as `important`
 
 **Model identifiers and service endpoint strings**:
-- Any hardcoded model ID (e.g., `claude-sonnet-4-6-20260320`) or API endpoint URL must be
+- Any hardcoded model ID (e.g., `claude-MODEL-VERSION`) or API endpoint URL must be
   treated as potentially hallucinated unless verifiable via a constant, config file, or
   documented source in the repo
 - Flag unverifiable model IDs as `fragile` under `correctness`

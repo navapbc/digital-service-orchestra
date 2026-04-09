@@ -652,17 +652,24 @@ cmd_preflight() {
     done
 
     local any_fail=false
+    local docker_running=false
 
     # 1. Docker Desktop check
     if docker info &>/dev/null; then
         echo "DOCKER_STATUS: running"
+        docker_running=true
     else
         echo "DOCKER_STATUS: not_running"
-        any_fail=true
+        # Docker not running is only a hard failure when --start-db is given AND
+        # a database is actually configured. Without a DB configured, Docker status
+        # is informational only (tools like cleanup-stale-containers skip gracefully).
+        if $start_db && [ -n "$(_read_cfg "database.status_cmd")" ]; then
+            any_fail=true
+        fi
     fi
 
     # 1b. Clean up stale worktree containers (only if Docker is running)
-    if ! $any_fail; then
+    if $docker_running; then
         cmd_cleanup_stale_containers
     fi
 
