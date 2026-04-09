@@ -75,18 +75,17 @@ elif [[ -n "$_scan_dir" ]]; then
     \) 2>/dev/null)
 else
     # Default mode: scan plugins/dso/ under repo root
-    for _dir in "$_root/plugins/dso"; do
-        if [[ -d "$_dir" ]]; then
-            while IFS= read -r _f; do
-                _scan_files+=("$_f")
-            done < <(find "$_dir" -type f \( \
-                -name "*.yaml" -o \
-                -name "*.sh" -o \
-                -name "*.py" -o \
-                -name "*.md" \
-            \) 2>/dev/null)
-        fi
-    done
+    _dir="$_root/plugins/dso"
+    if [[ -d "$_dir" ]]; then
+        while IFS= read -r _f; do
+            _scan_files+=("$_f")
+        done < <(find "$_dir" -type f \( \
+            -name "*.yaml" -o \
+            -name "*.sh" -o \
+            -name "*.py" -o \
+            -name "*.md" \
+        \) 2>/dev/null)
+    fi
 fi
 
 if [[ ${#_scan_files[@]} -eq 0 ]]; then
