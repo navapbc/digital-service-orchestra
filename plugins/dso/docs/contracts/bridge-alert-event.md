@@ -26,6 +26,12 @@ processing for that ticket. Conditions include:
   non-empty local description, removed relationships, or downgraded the ticket type.
 - **Relationship rejection** (inbound): Jira rejected a relationship push; the local relationship
   is preserved unmodified.
+- **Link sync failure** (outbound): the bridge failed to create or remove a Jira issue link when
+  processing a `LINK` or `UNLINK` event (e.g., Jira API error, target issue not found, or link
+  type not supported). The local link state is preserved unmodified.
+- **Link target not found** (outbound): a `LINK` or `UNLINK` event references a `target_id` that
+  has no corresponding Jira key (no SYNC event exists for the target ticket). The link operation
+  is deferred; the alert serves as an operator signal to retry after the target ticket is synced.
 
 `BRIDGE_ALERT` events are **informational only** — they do not alter the compiled ticket state.
 Reducers and `.claude/scripts/dso ticket list` ignore them; operators must inspect them manually.
@@ -36,7 +42,7 @@ Reducers and `.claude/scripts/dso ticket list` ignore them; operators must inspe
 
 | Emitter | Function | Trigger condition |
 |---------|----------|-------------------|
-| `plugins/dso/scripts/bridge-outbound.py` # shim-exempt: internal implementation path | `write_bridge_alert()` | STATUS flap detected |
+| `plugins/dso/scripts/bridge-outbound.py` # shim-exempt: internal implementation path | `write_bridge_alert()` | STATUS flap detected; LINK/UNLINK sync failure; link target not found |
 | `plugins/dso/scripts/bridge-inbound.py` # shim-exempt: internal implementation path | `write_bridge_alert()` | Unmapped status, unmapped type, destructive change blocked, relationship rejection |
 
 ---

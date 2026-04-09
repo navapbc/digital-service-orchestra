@@ -33,12 +33,13 @@ Use a **GitHub Actions outbound bridge** composed of three parts:
    environment where Jira credentials are stored as repository secrets — never on developer
    machines.
 
-2. **Bridge script** (`plugins/dso/scripts/bridge-outbound.py`): Parses `git diff HEAD~1 HEAD
+2. **Bridge script** (`plugins/dso/scripts/bridge-outbound.py`): Parses `git diff HEAD~1 HEAD  # shim-exempt: ADR architecture reference
    --name-only` output to detect new ticket event files, filters out events that originated from
    the bridge itself (echo prevention via `env_id`), compiles the authoritative ticket state via
    `ticket-reducer.py` for STATUS events, and calls the ACLI integration layer for each change.
+   Supported outbound event types: `CREATE`, `STATUS`, `COMMENT`, `LINK`, `UNLINK`, `REVERT`.
 
-3. **ACLI integration layer** (`plugins/dso/scripts/acli-integration.py`): Wraps ACLI subprocess
+3. **ACLI integration layer** (`plugins/dso/scripts/acli-integration.py`): Wraps ACLI subprocess  # shim-exempt: ADR architecture reference
    calls (`createIssue`, `updateIssue`, `getIssue`) with retry logic and exponential backoff.
    Provides `create_issue`, `update_issue`, and `get_issue` as a clean interface callable from
    `bridge-outbound.py` via `importlib`.
@@ -117,8 +118,8 @@ Run the existing `.claude/scripts/dso ticket sync` command in a CI step instead 
 ## Links
 
 - SYNC event format contract: `plugins/dso/docs/contracts/sync-event-format.md`
-- Outbound bridge script: `plugins/dso/scripts/bridge-outbound.py`
-- ACLI integration layer: `plugins/dso/scripts/acli-integration.py`
+- Outbound bridge script: `plugins/dso/scripts/bridge-outbound.py`  # shim-exempt: ADR reference
+- ACLI integration layer: `plugins/dso/scripts/acli-integration.py`  # shim-exempt: ADR reference
 - GitHub Actions workflow: `.github/workflows/outbound-bridge.yml`
 - Inbound bridge story: w21-gykt
 - Parent epic: w21-8cw2
