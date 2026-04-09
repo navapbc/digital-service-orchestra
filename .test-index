@@ -348,3 +348,5 @@ tests/integration/setup-fixtures.sh:tests/integration/test-fixture-setup.sh
 plugins/dso/agents/red-test-writer.md:tests/hooks/test-agent-standard-reference.sh
 plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard-reference.sh
 plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-reference.sh
+
+plugins/dso/skills/using-lockpick/HOOK-INJECTION.md:tests/skills/test-using-lockpick-clarification.sh
