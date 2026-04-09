@@ -82,6 +82,48 @@ If gaps are found in either part, present them to the user and resolve before pr
 
 If Part C finds uncovered consumers (`covered_by_SC: false`), flag them as potential scope gaps for the fidelity review phase.
 
+**Part C Extension: Cross-Epic Relates_to Link Suggestion**
+
+After the Part C scan completes, check whether any of the artifact files discovered overlap with other open epics. This extension is additive — it does not modify Part C's existing output or behavior.
+
+*When to run*: Run this extension whenever Part C produced at least one consumer tuple. Skip and log `Part C relates_to scan skipped: no consumers found in Part C` when Part C was itself skipped or returned no tuples.
+
+1. **Query open epics**: Use the ticket CLI to list all open epics filtered for status=open (only suggest links to open tickets — exclude closed and archived epics):
+   ```bash
+   .claude/scripts/dso ticket list --type=epic --status=open
+   ```
+   Exclude the current epic and any of its direct children from the result set.
+
+2. **Check for artifact overlap**: For each open epic (excluding the current one), retrieve its details and check whether its Success Criteria or description references any of the same artifact files that Part C discovered. Use the same fuzzy-matching heuristics as Part A.
+
+3. **Compose relates_to link suggestions**: For each overlapping open epic found, compose a suggestion that includes:
+   - The overlapping epic ID and title
+   - The shared artifact file(s)
+   - A recommendation to create a relates_to link between the current epic and the overlapping epic
+
+   If no overlapping open epics are found, log `Part C relates_to scan: no cross-epic artifact overlap detected` and continue.
+
+4. **User approval gate — confirm before creating links**: Before creating any relates_to link, present all suggestions to the user via AskUserQuestion and wait for user approval:
+
+   ```
+   Cross-epic artifact overlap detected. The following open epics share artifacts with this epic:
+
+   - [epic-id]: [epic-title]
+     Shared artifacts: [file-path-1], [file-path-2]
+     Recommendation: Create a relates_to link between this epic and [epic-id]
+
+   Approve link creation? (list epic IDs to approve, or 'none' to skip all)
+   ```
+
+   Wait for the user's response. If the user approves one or more links, proceed. If the user declines all suggestions, log the decline and continue without creating any links.
+
+5. **Create approved relates_to links**: For each approved epic ID, create the link using the ticket link CLI command:
+   ```bash
+   .claude/scripts/dso ticket link <current-epic-id> <overlapping-epic-id> relates_to
+   ```
+
+   Log each link creation. Continue to the next pipeline step after all approved links are created (or after user declines all suggestions).
+
 ---
 
 ## Step 2: Web Research Phase
