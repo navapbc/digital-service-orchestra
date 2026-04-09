@@ -254,6 +254,33 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
    ```
 7. Proceed to Preplanning Gate.
 
+**Note:** `DRIFT_DETECTED` and `RELATES_TO_DRIFT` are independent signals — both may appear in the same `DRIFT_RESULT` output. Process each block that matches, in order. They are NOT mutually exclusive branches.
+
+**If `RELATES_TO_DRIFT` lines are present in `DRIFT_RESULT`:**
+
+1. Parse each `RELATES_TO_DRIFT: <epic-id> <summary>` line from `DRIFT_RESULT`.
+2. Log: `"Relates_to drift detected — related epic <epic-id> closed after implementation plan: <summary>"` for each line.
+3. Record a REPLAN_TRIGGER comment on the epic (see `plugins/dso/docs/contracts/replan-observability.md` for signal format): # shim-exempt: internal documentation reference
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Relates_to epic <closed-epic-id> closed after implementation plan. <summary>. Re-invoking implementation-plan for affected stories."
+   ```
+4. Identify which stories' tasks reference any of the drifted relates_to epics (inspect each child task's `## File Impact` or `## Files to Modify` section, or cross-reference the task's dependency/relates-to links).
+5. For each affected story, emit a SKILL_INVOKE breadcrumb and re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as DRIFT_DETECTED handling above).
+
+   <ORCHESTRATOR_RESUME>
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection (RELATES_TO_DRIFT). Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
+   Stopping here is a known bug (7d7a-b707). Do not stop.
+   </ORCHESTRATOR_RESUME>
+
+   - **On success (`STATUS:complete`)**: continue.
+   - **On `STATUS:blocked`**: surface the story as blocked for user input (same handling as Phase 2 blocked-stories list).
+   - **On `REPLAN_ESCALATE: brainstorm EXPLANATION:<text>`**: add the story and its explanation to the **replan-stories list** and route through the existing d-replan-collect cascade machinery (Phase 2 step d-replan-collect). The `replan_cycle_count` / `max_replan_cycles` initialized above are shared with Phase 2 — do not reinitialize them.
+6. After all re-invocations complete (and no REPLAN_ESCALATE is outstanding), record:
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: implementation-plan — Relates_to drift re-planning complete for <N> stories."
+   ```
+7. Proceed to Preplanning Gate.
+
 **If `NO_DRIFT`:**
 
 Log: `"No codebase drift detected — proceeding to Preplanning Gate."` Continue normally.
