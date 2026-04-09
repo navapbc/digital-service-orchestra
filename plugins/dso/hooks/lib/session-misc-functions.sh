@@ -20,6 +20,7 @@
 #   hook_plan_review_gate             — block ExitPlanMode without plan review
 #   hook_brainstorm_gate              — block EnterPlanMode without brainstorm sentinel
 #   hook_taskoutput_block_guard       — block TaskOutput calls with block=false
+#   hook_friction_suggestion_check    — record friction suggestion from tool logs at session end
 #
 # Usage:
 #   source hooks/lib/session-misc-functions.sh
@@ -961,4 +962,115 @@ hook_taskoutput_block_guard() {
     echo "Fix: Remove the block parameter (defaults to true) or set block=true." >&2
     echo "To check on a background task, use block=true with a short timeout instead." >&2
     return 2
+}
+
+# ---------------------------------------------------------------------------
+# hook_friction_suggestion_check
+# ---------------------------------------------------------------------------
+# Stop hook: scan tool-error-counter.json at session end. When total error
+# count exceeds suggestion.error_threshold OR timeout-category count exceeds
+# suggestion.timeout_threshold, call suggestion-record.sh with source=stop-hook.
+#
+# Thresholds are read from dso-config.conf via read-config.sh.
+# Defaults: error_threshold=10, timeout_threshold=3.
+#
+# Fail-open contract: any failure (missing file, malformed JSON, suggestion-record
+# error) must exit 0. Uses `timeout 10` wrapper on suggestion-record call to
+# guard against stalls.
+hook_friction_suggestion_check() {
+    # PATH-ANCHOR: _HOOK_LIB_DIR is anchored to plugins/dso/hooks/lib/ (this file's directory).
+    # read-config.sh lives in plugins/dso/scripts/, two levels up from hooks/lib/. # shim-exempt: comment explaining path resolution
+    # _PLUGIN_ROOT is resolved via CLAUDE_PLUGIN_ROOT (preferred) or by walking up two
+    # directories from _HOOK_LIB_DIR. This matches the pattern used by hook_track_tool_errors.
+    local _HOOK_LIB_DIR; _HOOK_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+    if [[ -z "$_PLUGIN_ROOT" || ! -d "$_PLUGIN_ROOT/hooks/lib" ]]; then
+        _PLUGIN_ROOT="$(cd "$(dirname "$(dirname "$_HOOK_LIB_DIR")")" && pwd)"
+    fi
+
+    check_tool python3 || return 0
+
+    local COUNTER_FILE="$HOME/.claude/tool-error-counter.json"
+    if [[ ! -f "$COUNTER_FILE" ]]; then
+        return 0
+    fi
+
+    # Read thresholds from config (fail-safe defaults)
+    local ERROR_THRESHOLD TIMEOUT_THRESHOLD
+    ERROR_THRESHOLD="${DSO_SUGGESTION_ERROR_THRESHOLD:-$(bash "$_PLUGIN_ROOT/scripts/read-config.sh" suggestion.error_threshold 2>/dev/null || echo "")}"
+    TIMEOUT_THRESHOLD="${DSO_SUGGESTION_TIMEOUT_THRESHOLD:-$(bash "$_PLUGIN_ROOT/scripts/read-config.sh" suggestion.timeout_threshold 2>/dev/null || echo "")}"
+    # Apply conservative defaults if config is missing
+    [[ -z "$ERROR_THRESHOLD" ]] && ERROR_THRESHOLD=10
+    [[ -z "$TIMEOUT_THRESHOLD" ]] && TIMEOUT_THRESHOLD=3
+
+    # Parse counter file — compute total error count and timeout-category count
+    local TOTAL_ERRORS TIMEOUT_ERRORS TRIGGER_REASON
+    local _PARSE_RESULT
+    _PARSE_RESULT=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+except (OSError, ValueError):
+    print('0 0')
+    sys.exit(0)
+index = data.get('index', {})
+total = sum(index.values())
+timeouts = index.get('timeout', 0)
+print(f'{total} {timeouts}')
+" "$COUNTER_FILE" 2>/dev/null || echo "0 0")
+
+    TOTAL_ERRORS=$(echo "$_PARSE_RESULT" | awk '{print $1}')
+    TIMEOUT_ERRORS=$(echo "$_PARSE_RESULT" | awk '{print $2}')
+    # Ensure numeric
+    [[ "$TOTAL_ERRORS" =~ ^[0-9]+$ ]] || TOTAL_ERRORS=0
+    [[ "$TIMEOUT_ERRORS" =~ ^[0-9]+$ ]] || TIMEOUT_ERRORS=0
+
+    # Check thresholds
+    local SHOULD_RECORD=false
+    if [[ "$TOTAL_ERRORS" -ge "$ERROR_THRESHOLD" ]]; then
+        TRIGGER_REASON="error_count:${TOTAL_ERRORS},threshold:${ERROR_THRESHOLD}"
+        SHOULD_RECORD=true
+    fi
+    if [[ "$TIMEOUT_ERRORS" -ge "$TIMEOUT_THRESHOLD" ]]; then
+        local _timeout_reason="timeout_count:${TIMEOUT_ERRORS},threshold:${TIMEOUT_THRESHOLD}"
+        TRIGGER_REASON="${TRIGGER_REASON:+${TRIGGER_REASON},}${_timeout_reason}"
+        SHOULD_RECORD=true
+    fi
+
+    if [[ "$SHOULD_RECORD" != "true" ]]; then
+        return 0
+    fi
+
+    # Build the suggestion message
+    local SUGGESTION_MSG
+    SUGGESTION_MSG="Session friction detected: ${TRIGGER_REASON}. Tool error counts from tool-error-counter.json exceeded thresholds."
+
+    # Resolve suggestion-record command.
+    # DSO_SUGGESTION_RECORD_CMD overrides for testing (set to e.g. "/mock/dso suggestion-record").
+    # Otherwise: prefer .claude/scripts/dso shim (via git-resolved repo root),
+    # falling back to direct plugin script path.
+    local _SUGG_CMD=""
+    if [[ -n "${DSO_SUGGESTION_RECORD_CMD:-}" ]]; then
+        _SUGG_CMD="$DSO_SUGGESTION_RECORD_CMD"
+    else
+        local REPO_ROOT_FOR_SHIM
+        REPO_ROOT_FOR_SHIM=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+        if [[ -n "$REPO_ROOT_FOR_SHIM" && -x "$REPO_ROOT_FOR_SHIM/.claude/scripts/dso" ]]; then
+            _SUGG_CMD="$REPO_ROOT_FOR_SHIM/.claude/scripts/dso suggestion-record"
+        elif [[ -x "$_PLUGIN_ROOT/scripts/suggestion-record.sh" ]]; then # shim-exempt: fallback for test environments without shim
+            _SUGG_CMD="$_PLUGIN_ROOT/scripts/suggestion-record.sh"
+        fi
+    fi
+
+    # Call suggestion-record with timeout wrapper (fail-open on any error)
+    if [[ -n "$_SUGG_CMD" ]]; then
+        # shellcheck disable=SC2086
+        timeout 10 $_SUGG_CMD \
+            --source="stop-hook" \
+            --observation="$SUGGESTION_MSG" \
+            2>/dev/null || true
+    fi
+
+    return 0
 }

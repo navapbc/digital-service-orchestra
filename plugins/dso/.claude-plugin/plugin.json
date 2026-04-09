@@ -99,6 +99,15 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/post-write.sh"
           }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/post-agent.sh"
+          }
+        ]
       }
     ],
     "Stop": [

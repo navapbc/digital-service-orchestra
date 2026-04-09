@@ -6,8 +6,9 @@
 #   run-hook.sh dispatchers/stop.sh
 #
 # Hook execution order:
-#   1. hook_review_stop_check    — warn about uncommitted unreviewed changes
-#   2. hook_tool_logging_summary — emit session tool usage summary
+#   1. hook_review_stop_check          — warn about uncommitted unreviewed changes
+#   2. hook_tool_logging_summary       — emit session tool usage summary
+#   3. hook_friction_suggestion_check  — record friction suggestion from tool logs
 #
 # Returns: 0 always (Stop hooks are informational; they output warnings but never block)
 
@@ -42,7 +43,8 @@ _stop_dispatch() {
 
     for _HOOK_FN in \
         hook_review_stop_check \
-        hook_tool_logging_summary
+        hook_tool_logging_summary \
+        hook_friction_suggestion_check
     do
         local _fn_exit=0
         _run_hook_fn "$_HOOK_FN" "$INPUT" || _fn_exit=$?
