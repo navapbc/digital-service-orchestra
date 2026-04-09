@@ -1,1 +1,0 @@
-{"timestamp": 1775708353069275000, "uuid": "9b4a839a-8ae6-4454-903d-851a24c04ec8", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: Structural boundary test for RELATES_TO_DRIFT handler added \u2014 8/8 e2e tests pass"}}
