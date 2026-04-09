@@ -405,3 +405,114 @@ def test_process_inbound_paginates_100_plus_issues(
     # Checkpoint should be updated
     updated_checkpoint = json.loads(checkpoint_file.read_text())
     assert updated_checkpoint["last_pull_ts"] != _LAST_PULL_TS
+
+
+# ---------------------------------------------------------------------------
+# Test: Inbound round-trip — Jira "Relates" link → local relates_to LINK event
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_inbound_round_trip_jira_relates_link_creates_local_relates_to(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Inbound sync of a Jira 'Relates' link creates a local relates_to LINK event.
+
+    Given: Two local ticket directories (jira-proj-1, jira-proj-2) each with a
+        SYNC event referencing their Jira keys (PROJ-1, PROJ-2), so the idempotency
+        guard does not attempt to re-create them.
+    When: Jira API returns PROJ-1 with an issuelinks payload containing a
+        'Relates' link to PROJ-2.
+    Then: A local LINK event with relation='relates_to' is written into the
+        jira-proj-1 ticket directory, linking jira-proj-1 → jira-proj-2.
+
+    This is a RED test: bridge-inbound.py currently calls set_relationship()
+    to push the link back to Jira (outbound) but does NOT write a local LINK
+    event, so this test is expected to FAIL until the inbound link handler
+    is implemented.
+    """
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+
+    checkpoint_file = tmp_path / "checkpoint.json"
+    checkpoint_file.write_text(json.dumps({"last_pull_ts": _LAST_PULL_TS}))
+
+    # --- Setup: create local ticket dirs with SYNC events ---
+    # These SYNC events make the idempotency guard skip CREATE for both tickets.
+    for jira_key, local_id in [("PROJ-1", "jira-proj-1"), ("PROJ-2", "jira-proj-2")]:
+        ticket_dir = tracker_dir / local_id
+        ticket_dir.mkdir()
+        sync_payload = {
+            "event_type": "SYNC",
+            "jira_key": jira_key,
+            "local_id": local_id,
+            "env_id": _BRIDGE_ENV_ID,
+            "timestamp": 1742605200,
+            "run_id": _RUN_ID,
+        }
+        sync_file = (
+            ticket_dir
+            / f"1742605200-deadbeef-0000-4000-8000-{local_id.replace('-', '')[:12].ljust(12, '0')}-SYNC.json"
+        )
+        sync_file.write_text(json.dumps(sync_payload))
+
+    # --- Build Jira issue for PROJ-1 with a 'Relates' issuelink to PROJ-2 ---
+    issue_with_relates_link = {
+        "key": "PROJ-1",
+        "fields": {
+            "summary": "First issue with relates link",
+            "status": {"name": "To Do"},
+            "issuetype": {"name": "Task"},
+            "created": "2026-03-20T08:00:00.000+0000",
+            "updated": "2026-03-21T10:00:00.000+0000",
+            "resolutiondate": None,
+            "issuelinks": [
+                {
+                    "type": {
+                        "name": "Relates",
+                        "inward": "relates to",
+                        "outward": "relates to",
+                    },
+                    "outwardIssue": {
+                        "key": "PROJ-2",
+                        "fields": {"summary": "Second issue"},
+                    },
+                }
+            ],
+        },
+    }
+
+    mock_acli = _make_mock_acli([issue_with_relates_link])
+    # set_relationship is available on the mock (MagicMock auto-creates it)
+    config = _make_config(str(checkpoint_file))
+
+    bridge.process_inbound(
+        tickets_root=tracker_dir,
+        acli_client=mock_acli,
+        last_pull_ts=_LAST_PULL_TS,
+        config=config,
+    )
+
+    # --- Assert: a local LINK event with relation='relates_to' must exist ---
+    # The inbound bridge must write a LINK event in jira-proj-1's directory
+    # that records a relates_to relationship pointing to jira-proj-2.
+    proj1_dir = tracker_dir / "jira-proj-1"
+    link_files = list(proj1_dir.glob("*-LINK.json"))
+    assert len(link_files) == 1, (
+        f"Expected exactly 1 LINK event in jira-proj-1/ after inbound sync of a Jira 'Relates' "
+        f"link, but found {len(link_files)}. bridge-inbound.py must write a local LINK event "
+        "for inbound Jira links (not just call set_relationship outbound)."
+    )
+
+    # Verify the LINK event content
+    link_data = json.loads(link_files[0].read_text())
+    assert link_data.get("event_type") == "LINK", (
+        f"Expected event_type='LINK', got {link_data.get('event_type')!r}"
+    )
+    assert link_data.get("data", {}).get("relation") == "relates_to", (
+        f"Expected relation='relates_to', got {link_data.get('data', {}).get('relation')!r}"
+    )
+    assert link_data.get("data", {}).get("target_id") == "jira-proj-2", (
+        f"Expected target_id='jira-proj-2', got {link_data.get('data', {}).get('target_id')!r}"
+    )

@@ -191,9 +191,13 @@ When `bridge-outbound.py` processes a REVERT event whose `data.target_event_type
    describing the divergence.
 4. **If Jira has not diverged**, push the revert's intended change to Jira.
 
-For REVERT events targeting other `event_type` values (e.g., `COMMENT`, `LINK`, `UNLINK`),
-`bridge-outbound.py` does not perform a Jira fetch — those event types either have no outbound Jira
-effect or are handled by separate mechanisms.
+For REVERT events targeting `COMMENT`, `bridge-outbound.py` does not perform a Jira fetch (no Jira
+deletion; orphaned comments are expected post-REVERT state as described below).
+
+For REVERT events targeting `LINK` or `UNLINK`, `bridge-outbound.py` pushes the corresponding
+inverse operation to Jira (remove the link for a reverted LINK; re-add the link for a reverted
+UNLINK) without a pre-fetch check. If the Jira link operation fails (e.g., the link was already
+removed or the target issue is not found), the bridge emits a `BRIDGE_ALERT` instead of retrying.
 
 ### Comment interaction
 
@@ -212,7 +216,7 @@ operators using `bridge-status` or `bridge-fsck` output.
 | `STATUS` | Primary REVERT target; bridge-outbound performs check-before-overwrite |
 | `SYNC` | Primary REVERT target; bridge-outbound performs check-before-overwrite |
 | `COMMENT` | Can be reverted (no Jira deletion; orphaned comments are expected post-REVERT state) |
-| `LINK` / `UNLINK` | Can be reverted; no Jira outbound check required |
+| `LINK` / `UNLINK` | Can be reverted; bridge-outbound pushes the inverse Jira link operation (no pre-fetch check); emits `BRIDGE_ALERT` on failure |
 | `CREATE` | Reverting a CREATE is not supported (use `ticket close` or `.claude/scripts/dso ticket fsck` for cleanup) |
 | `REVERT` | Cannot be reverted — REVERT-of-REVERT is rejected by the CLI |
 | `BRIDGE_ALERT` | Cannot be reverted — alerts are informational; use `bridge-fsck` for resolution |
