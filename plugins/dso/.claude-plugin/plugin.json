@@ -63,15 +63,6 @@
         ]
       },
       {
-        "matcher": "Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/pre-agent.sh"
-          }
-        ]
-      },
-      {
         "matcher": "TaskOutput",
         "hooks": [
           {

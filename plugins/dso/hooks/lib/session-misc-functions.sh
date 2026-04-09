@@ -19,7 +19,6 @@
 #   hook_track_tool_errors            — track and categorize tool use errors
 #   hook_plan_review_gate             — block ExitPlanMode without plan review
 #   hook_brainstorm_gate              — block EnterPlanMode without brainstorm sentinel
-#   hook_worktree_isolation_guard     — block Agent calls with worktree isolation
 #   hook_taskoutput_block_guard       — block TaskOutput calls with block=false
 #
 # Usage:
@@ -929,87 +928,6 @@ hook_brainstorm_gate() {
         echo "This ensures ideas are properly scoped and refined before planning begins." >&2
         echo "" >&2
         return 2
-    fi
-
-    return 0
-}
-
-# ---------------------------------------------------------------------------
-# hook_worktree_isolation_guard
-# ---------------------------------------------------------------------------
-# PreToolUse hook for Agent tool calls.
-# Blocks any Agent dispatch that uses isolation: "worktree".
-# NOTE: Uses python3 for JSON parsing (required for reliable nested JSON parsing
-# of Agent tool input, which can contain complex structured data).
-hook_worktree_isolation_guard() {
-    local INPUT="$1"
-
-    local TOOL_NAME
-    TOOL_NAME=$(echo "$INPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_name',''))" 2>/dev/null) || true
-    if [[ "$TOOL_NAME" != "Agent" ]]; then
-        return 0
-    fi
-
-    local HAS_ISOLATION
-    HAS_ISOLATION=$(echo "$INPUT" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-tool_input = data.get('tool_input', {})
-isolation = tool_input.get('isolation', '')
-print(isolation)
-" 2>/dev/null) || true
-
-    if [[ "$HAS_ISOLATION" == "worktree" ]]; then
-        # When worktree.isolation_enabled is not explicitly true, allow all worktree
-        # dispatches (main-session context — no orchestrator managing isolation).
-        # Env var override: WORKTREE_ISOLATION_ENABLED (for testing and orchestrator use)
-        local _ISOLATION_ENABLED="${WORKTREE_ISOLATION_ENABLED:-}"
-        if [[ -z "$_ISOLATION_ENABLED" ]]; then
-            local _REPO_ROOT
-            _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
-            if [[ -n "$_REPO_ROOT" ]] && [[ -x "$_REPO_ROOT/.claude/scripts/dso" ]]; then
-                _ISOLATION_ENABLED=$("$_REPO_ROOT/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null || true)
-            fi
-        fi
-        if [[ "$_ISOLATION_ENABLED" != "true" ]]; then
-            return 0
-        fi
-
-        # Check for auth marker files before denying.
-        # Format: /tmp/worktree-isolation-authorized-* containing a PID.
-        # Override for testing: WORKTREE_ISOLATION_MARKER_GLOB scopes the glob
-        # to a test-specific namespace so live session markers don't pollute tests.
-        local _MARKER_GLOB="${WORKTREE_ISOLATION_MARKER_GLOB:-/tmp/worktree-isolation-authorized-*}"
-        local _AUTHORIZED=0
-        local _MARKER _MARKER_PID
-        for _MARKER in $_MARKER_GLOB; do
-            # Skip glob literal when no files match
-            [[ -f "$_MARKER" ]] || continue
-            _MARKER_PID=$(cat "$_MARKER" 2>/dev/null) || continue
-            if kill -0 "$_MARKER_PID" 2>/dev/null; then
-                # PID is alive — this is a valid authorization
-                _AUTHORIZED=1
-            else
-                # PID is dead — stale marker; clean it up
-                rm -f "$_MARKER" 2>/dev/null || true
-            fi
-        done
-
-        if [[ "$_AUTHORIZED" -eq 1 ]]; then
-            # Valid auth marker present — allow
-            return 0
-        fi
-
-        cat <<'EOF'
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "permissionDecision": "deny",
-    "permissionDecisionReason": "Worktree isolation is disabled for sub-agents. Sub-agents must share the orchestrator's working directory to access shared state (artifacts dir, review findings, diff hashes). Remove the isolation: \"worktree\" parameter and re-dispatch."
-  }
-}
-EOF
-        return 0
     fi
 
     return 0

@@ -270,7 +270,6 @@ plugins/dso/skills/verification-before-completion/SKILL.md:plugins/dso/tests/tes
 tests/fixtures/playwright:tests/scripts/test-playwright-cli-validation.sh
 tests/scripts/test-merge-recovery-integration.sh:tests/scripts/test-merge-recovery-isolation.sh
 plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-sub-agent-guard.sh
-plugins/dso/hooks/worktree-isolation-guard.sh:tests/hooks/test-worktree-isolation-guard.sh
 plugins/dso/.claude-plugin/plugin.json:tests/plugin/test_fixture_minimal_plugin_consumer.py,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/hooks/test-plugin-docs.sh,tests/scripts/test-plugin-retro-gather.sh,tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-plugin-scripts.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-scripts-no-relative-paths.sh,tests/scripts/test-check-plugin-test-needed.sh,tests/scripts/test-plugin-dir-structure.sh,tests/scripts/test-plugin-reference-catalog.sh,tests/scripts/test-no-unguarded-plugin-refs.sh
 plugins/dso/agents/doc-writer.md:tests/scripts/test-doc-writer-agent.sh,tests/scripts/test-sprint-skill-doc-writer-dispatch.sh
 plugins/dso/agents/plan-review.md:tests/hooks/test-plan-review-gate.sh
