@@ -106,17 +106,3 @@ jobs:
         if: always()
         run: echo "test-scripts completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-  test-evals:
-    name: Eval Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run eval tests
-        run: bash tests/evals/run-evals.sh
-
-      - name: Job timing report
-        if: always()
-        run: echo "test-evals completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-

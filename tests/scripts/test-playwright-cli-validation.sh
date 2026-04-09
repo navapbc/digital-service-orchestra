@@ -17,6 +17,12 @@ REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 # Project-local @playwright/cli install lives in spike-env/node_modules/.bin/
 export PATH="$REPO_ROOT/spike-env/node_modules/.bin:$PATH"
 
+# Skip when @playwright/cli is not installed (e.g., CI)
+if ! command -v playwright-cli >/dev/null 2>&1; then
+    echo "SKIP: @playwright/cli not found — skipping test-playwright-cli-validation.sh"
+    exit 0
+fi
+
 source "$REPO_ROOT/tests/lib/assert.sh"
 
 echo "=== test-playwright-cli-validation.sh ==="
