@@ -1,0 +1,1 @@
+{"timestamp": 1775694825649718000, "uuid": "94318c94-ff38-4d01-b61f-040c6c0e8828", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "Skill dispatch: /dso:sprint Skill tool invocation loops indefinitely instead of executing skill content"}}}
