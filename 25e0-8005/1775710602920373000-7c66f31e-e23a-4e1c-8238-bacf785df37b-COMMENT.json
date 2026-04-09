@@ -1,0 +1,1 @@
+{"timestamp": 1775710602920373000, "uuid": "7c66f31e-e23a-4e1c-8238-bacf785df37b", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "AC amendment (gap analysis): RED test must pin return format \u2014 list of dicts with 'id' (str) and 'name' (str) fields matching Jira GET /rest/api/3/issueLinkType response shape."}}
