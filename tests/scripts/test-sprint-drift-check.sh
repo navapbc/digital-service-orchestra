@@ -358,5 +358,323 @@ _t9_closed_absent=0
 echo "$_t9_output" | grep -q "src/closed_file.py" && _t9_closed_absent=1 || true
 assert_eq "status-mixed-drift: closed file absent from drift output" "0" "$_t9_closed_absent"
 
+
+# ── Helper: extend _make_ticket_cli to support relates_to neighbors ───────────
+# Usage: _make_ticket_cli_with_relates_to <dir> <epic_id> <epic_json> \
+#           <children_json> <neighbor_id> <neighbor_json>
+# Creates <dir>/ticket that responds to:
+#   show <epic_id>         → epic_json (which includes a relates_to dep on neighbor_id)
+#   show <neighbor_id>     → neighbor_json
+#   show <child_id>        → dispatched from children_json
+#   list --parent <epic_id> → children_json
+_make_ticket_cli_with_relates_to() {
+    local dir="$1"
+    local epic_id="$2"
+    local epic_json="$3"
+    local children_json="$4"
+    local neighbor_id="$5"
+    local neighbor_json="$6"
+
+    mkdir -p "$dir"
+    cat > "$dir/ticket" << TICKET_SCRIPT
+#!/usr/bin/env bash
+SUBCMD="\${1:-}"
+shift || true
+case "\$SUBCMD" in
+    show)
+        TICKET_ID="\${1:-}"
+        if [[ "\$TICKET_ID" == "$epic_id" ]]; then
+            printf '%s\n' '$epic_json'
+            exit 0
+        fi
+        if [[ "\$TICKET_ID" == "$neighbor_id" ]]; then
+            printf '%s\n' '$neighbor_json'
+            exit 0
+        fi
+        # For child ticket show calls, dispatch from children array
+        python3 -c "
+import json, sys
+children = json.loads('''$children_json''')
+tid = sys.argv[1]
+for c in children:
+    if c.get('ticket_id') == tid:
+        print(json.dumps(c))
+        sys.exit(0)
+sys.exit(1)
+" "\$TICKET_ID"
+        exit \$?
+        ;;
+    list)
+        printf '%s\n' '$children_json'
+        exit 0
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+TICKET_SCRIPT
+    chmod +x "$dir/ticket"
+}
+
+# ── Helper: create a mock ticket CLI that fails for a specific ticket ID ──────
+# All show calls for <fail_id> exit 1 (simulating CLI failure).
+_make_ticket_cli_with_failing_neighbor() {
+    local dir="$1"
+    local epic_id="$2"
+    local epic_json="$3"
+    local children_json="$4"
+    local fail_id="$5"
+
+    mkdir -p "$dir"
+    cat > "$dir/ticket" << TICKET_SCRIPT
+#!/usr/bin/env bash
+SUBCMD="\${1:-}"
+shift || true
+case "\$SUBCMD" in
+    show)
+        TICKET_ID="\${1:-}"
+        if [[ "\$TICKET_ID" == "$epic_id" ]]; then
+            printf '%s\n' '$epic_json'
+            exit 0
+        fi
+        if [[ "\$TICKET_ID" == "$fail_id" ]]; then
+            echo "Error: ticket $fail_id not found" >&2
+            exit 1
+        fi
+        exit 1
+        ;;
+    list)
+        printf '%s\n' '$children_json'
+        exit 0
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+TICKET_SCRIPT
+    chmod +x "$dir/ticket"
+}
+
+# ── Test: test_relates_to_drift_neighbor_closed_after_impl_plan ──────────────
+# Given: epic has a relates_to dep on a neighbor epic that was closed AFTER
+#        the impl plan timestamp (i.e., after children were created)
+# When:  sprint-drift-check.sh runs
+# Then:  RELATES_TO_DRIFT is emitted containing the neighbor epic ID
+echo ""
+echo "Test: test_relates_to_drift_neighbor_closed_after_impl_plan — RELATES_TO_DRIFT emitted"
+
+_rt1_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_rt1_repo")
+_make_git_repo "$_rt1_repo"
+
+# Implementation plan timestamp: "now"
+_rt1_impl_plan_ts=$(date +%s)
+
+# Neighbor was closed AFTER the impl plan — add 100 seconds
+_rt1_neighbor_closed_at=$((_rt1_impl_plan_ts + 100))
+
+_rt1_ticket_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_rt1_ticket_dir")
+
+# The neighbor epic is closed; closed_at is after impl plan timestamp
+_rt1_neighbor_json='{"ticket_id":"rt1-neighbor","ticket_type":"epic","status":"closed","parent_id":null,"created_at":'"$((_rt1_impl_plan_ts - 200))"',"closed_at":'"$_rt1_neighbor_closed_at"',"title":"Neighbor Epic","description":"","comments":[],"deps":[]}'
+
+# The epic under test has a relates_to dep on rt1-neighbor
+# and a child whose created_at == impl plan timestamp
+_rt1_children_json='[{"ticket_id":"rt1-task-1","ticket_type":"task","status":"open","parent_id":"rt1-epic","created_at":'"$_rt1_impl_plan_ts"',"title":"Impl task","description":"## File Impact\n- src/app.py\n","comments":[],"deps":[]}]'
+_rt1_epic_json='{"ticket_id":"rt1-epic","ticket_type":"epic","status":"open","parent_id":null,"created_at":'"$((_rt1_impl_plan_ts - 300))"',"title":"Main Epic","description":"","comments":[],"deps":[{"target_id":"rt1-neighbor","relation":"relates_to","link_uuid":"aaaa-1111"}]}'
+
+_make_ticket_cli_with_relates_to "$_rt1_ticket_dir" "rt1-epic" "$_rt1_epic_json" "$_rt1_children_json" "rt1-neighbor" "$_rt1_neighbor_json"
+
+_rt1_exit=0
+_rt1_output=$(TICKET_CMD="$_rt1_ticket_dir/ticket" bash "$SCRIPT" "rt1-epic" --repo="$_rt1_repo" 2>&1) || _rt1_exit=$?
+
+assert_eq "rt-drift-after: exits 0" "0" "$_rt1_exit"
+assert_contains "rt-drift-after: RELATES_TO_DRIFT emitted" "RELATES_TO_DRIFT" "$_rt1_output"
+assert_contains "rt-drift-after: neighbor epic ID in output" "rt1-neighbor" "$_rt1_output"
+
+# ── Test: test_relates_to_no_drift_neighbor_closed_before_impl_plan ──────────
+# Given: epic has a relates_to dep on a neighbor closed BEFORE impl plan timestamp
+# When:  sprint-drift-check.sh runs
+# Then:  NO RELATES_TO_DRIFT emitted (pre-existing closure, not a new signal)
+echo ""
+echo "Test: test_relates_to_no_drift_neighbor_closed_before_impl_plan — no RELATES_TO_DRIFT"
+
+_rt2_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_rt2_repo")
+_make_git_repo "$_rt2_repo"
+
+_rt2_impl_plan_ts=$(date +%s)
+
+# Neighbor was closed BEFORE the impl plan (subtract 200 seconds)
+_rt2_neighbor_closed_at=$((_rt2_impl_plan_ts - 200))
+
+_rt2_ticket_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_rt2_ticket_dir")
+
+_rt2_neighbor_json='{"ticket_id":"rt2-neighbor","ticket_type":"epic","status":"closed","parent_id":null,"created_at":'"$((_rt2_impl_plan_ts - 500))"',"closed_at":'"$_rt2_neighbor_closed_at"',"title":"Neighbor Epic","description":"","comments":[],"deps":[]}'
+
+_rt2_children_json='[{"ticket_id":"rt2-task-1","ticket_type":"task","status":"open","parent_id":"rt2-epic","created_at":'"$_rt2_impl_plan_ts"',"title":"Impl task","description":"## File Impact\n- src/app.py\n","comments":[],"deps":[]}]'
+_rt2_epic_json='{"ticket_id":"rt2-epic","ticket_type":"epic","status":"open","parent_id":null,"created_at":'"$((_rt2_impl_plan_ts - 300))"',"title":"Main Epic","description":"","comments":[],"deps":[{"target_id":"rt2-neighbor","relation":"relates_to","link_uuid":"bbbb-2222"}]}'
+
+_make_ticket_cli_with_relates_to "$_rt2_ticket_dir" "rt2-epic" "$_rt2_epic_json" "$_rt2_children_json" "rt2-neighbor" "$_rt2_neighbor_json"
+
+_rt2_exit=0
+_rt2_output=$(TICKET_CMD="$_rt2_ticket_dir/ticket" bash "$SCRIPT" "rt2-epic" --repo="$_rt2_repo" 2>&1) || _rt2_exit=$?
+
+assert_eq "closed_before: exits 0" "0" "$_rt2_exit"
+# Pre-existing closure must NOT trigger RELATES_TO_DRIFT
+_rt2_drift_present=0
+echo "$_rt2_output" | grep -q "RELATES_TO_DRIFT" && _rt2_drift_present=1 || true
+assert_eq "closed_before: no RELATES_TO_DRIFT emitted" "0" "$_rt2_drift_present"
+
+# ── Test: test_empty_relates_to_set ──────────────────────────────────────────
+# Given: epic has no relates_to deps (deps array is empty)
+# When:  sprint-drift-check.sh runs
+# Then:  clean exit 0, no RELATES_TO_DRIFT emitted, existing behavior unchanged
+echo ""
+echo "Test: test_empty_relates_to_set — clean exit, no RELATES_TO_DRIFT"
+
+_rt3_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_rt3_repo")
+_make_git_repo "$_rt3_repo"
+
+_rt3_impl_plan_ts=$(date +%s)
+
+_rt3_ticket_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_rt3_ticket_dir")
+
+# Epic has no deps at all
+_rt3_children_json='[{"ticket_id":"rt3-task-1","ticket_type":"task","status":"open","parent_id":"rt3-epic","created_at":'"$_rt3_impl_plan_ts"',"title":"Impl task","description":"## File Impact\n- src/app.py\n","comments":[],"deps":[]}]'
+_rt3_epic_json='{"ticket_id":"rt3-epic","ticket_type":"epic","status":"open","parent_id":null,"created_at":'"$((_rt3_impl_plan_ts - 200))"',"title":"Main Epic","description":"","comments":[],"deps":[]}'
+
+_make_ticket_cli "$_rt3_ticket_dir" "rt3-epic" "$_rt3_epic_json" "$_rt3_children_json"
+
+_rt3_exit=0
+_rt3_output=$(TICKET_CMD="$_rt3_ticket_dir/ticket" bash "$SCRIPT" "rt3-epic" --repo="$_rt3_repo" 2>&1) || _rt3_exit=$?
+
+assert_eq "empty-relates-to: exits 0" "0" "$_rt3_exit"
+# No RELATES_TO_DRIFT when there are no relates_to links
+_rt3_drift_present=0
+echo "$_rt3_output" | grep -q "RELATES_TO_DRIFT" && _rt3_drift_present=1 || true
+assert_eq "empty-relates-to: no RELATES_TO_DRIFT emitted" "0" "$_rt3_drift_present"
+
+# ── Test: test_ticket_cli_failure_on_neighbor_warns_continues ────────────────
+# Given: epic has a relates_to dep on a neighbor, but ticket CLI fails on show
+# When:  sprint-drift-check.sh runs
+# Then:  warning emitted to stderr, script continues without error, exits 0
+echo ""
+echo "Test: test_ticket_cli_failure_on_neighbor_warns_continues — warn to stderr, exit 0"
+
+_rt4_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_rt4_repo")
+_make_git_repo "$_rt4_repo"
+
+_rt4_impl_plan_ts=$(date +%s)
+
+_rt4_ticket_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_rt4_ticket_dir")
+
+_rt4_children_json='[{"ticket_id":"rt4-task-1","ticket_type":"task","status":"open","parent_id":"rt4-epic","created_at":'"$_rt4_impl_plan_ts"',"title":"Impl task","description":"## File Impact\n- src/app.py\n","comments":[],"deps":[]}]'
+# Epic deps reference a neighbor "rt4-missing" that will fail on ticket show
+_rt4_epic_json='{"ticket_id":"rt4-epic","ticket_type":"epic","status":"open","parent_id":null,"created_at":'"$((_rt4_impl_plan_ts - 200))"',"title":"Main Epic","description":"","comments":[],"deps":[{"target_id":"rt4-missing","relation":"relates_to","link_uuid":"cccc-3333"}]}'
+
+_make_ticket_cli_with_failing_neighbor "$_rt4_ticket_dir" "rt4-epic" "$_rt4_epic_json" "$_rt4_children_json" "rt4-missing"
+
+_rt4_exit=0
+_rt4_stderr=$(mktemp)
+_CLEANUP_DIRS+=("$_rt4_stderr")
+_rt4_output=$(TICKET_CMD="$_rt4_ticket_dir/ticket" bash "$SCRIPT" "rt4-epic" --repo="$_rt4_repo" 2>"$_rt4_stderr") || _rt4_exit=$?
+_rt4_err_content=$(cat "$_rt4_stderr")
+
+assert_eq "cli-failure: exits 0 (continues on neighbor lookup failure)" "0" "$_rt4_exit"
+# Warning must be emitted to stderr
+assert_contains "cli-failure: warning emitted to stderr" "rt4-missing" "$_rt4_err_content"
+
+# ── Test: test_preplanning_context_timestamp_preferred_over_children ─────────
+# Given: epic has a PREPLANNING_CONTEXT comment (contains generatedAt timestamp)
+#        AND child tasks with a different (later) created_at
+# When:  sprint-drift-check.sh runs
+# Then:  PREPLANNING_CONTEXT generatedAt is used as impl plan timestamp
+#        (neighbor closed between PREPLANNING_CONTEXT and children.created_at triggers drift)
+echo ""
+echo "Test: test_preplanning_context_timestamp_preferred — PREPLANNING_CONTEXT generatedAt used"
+
+_rt5_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_rt5_repo")
+_make_git_repo "$_rt5_repo"
+
+# Timeline:
+#   T=1000: PREPLANNING_CONTEXT generatedAt (earliest child in theory too)
+#   T=1100: neighbor closed  ← after PREPLANNING_CONTEXT → should trigger RELATES_TO_DRIFT
+#   T=1200: child created_at ← if children ts used instead, neighbor would be "before" child → no drift
+# Using PREPLANNING_CONTEXT ts (T=1000) correctly detects drift; using children ts (T=1200) would miss it.
+_rt5_base_ts=1700000000
+_rt5_preplanning_ts=$((_rt5_base_ts + 1000))
+_rt5_neighbor_closed_at=$((_rt5_base_ts + 1100))
+_rt5_child_ts=$((_rt5_base_ts + 1200))
+
+_rt5_ticket_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_rt5_ticket_dir")
+
+_rt5_neighbor_json='{"ticket_id":"rt5-neighbor","ticket_type":"epic","status":"closed","parent_id":null,"created_at":'"$((_rt5_base_ts + 500))"',"closed_at":'"$_rt5_neighbor_closed_at"',"title":"Neighbor Epic","description":"","comments":[],"deps":[]}'
+
+# Epic includes a PREPLANNING_CONTEXT comment with generatedAt at T=1000
+_rt5_preplanning_iso=$(date -u -r "$_rt5_preplanning_ts" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d "@$_rt5_preplanning_ts" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "2023-11-14T18:46:40Z")
+_rt5_preplanning_payload="{\"generatedAt\":\"${_rt5_preplanning_iso}\",\"stories\":[]}"
+_rt5_preplanning_comment_body="PREPLANNING_CONTEXT: ${_rt5_preplanning_payload}"
+
+_rt5_children_json='[{"ticket_id":"rt5-task-1","ticket_type":"task","status":"open","parent_id":"rt5-epic","created_at":'"$_rt5_child_ts"',"title":"Impl task","description":"## File Impact\n- src/app.py\n","comments":[],"deps":[]}]'
+_rt5_epic_json='{"ticket_id":"rt5-epic","ticket_type":"epic","status":"open","parent_id":null,"created_at":'"$((_rt5_base_ts + 800))"',"title":"Main Epic","description":"","comments":[{"body":"'"$_rt5_preplanning_comment_body"'","author":"Test","created_at":'"$_rt5_preplanning_ts"'}],"deps":[{"target_id":"rt5-neighbor","relation":"relates_to","link_uuid":"dddd-4444"}]}'
+
+_make_ticket_cli_with_relates_to "$_rt5_ticket_dir" "rt5-epic" "$_rt5_epic_json" "$_rt5_children_json" "rt5-neighbor" "$_rt5_neighbor_json"
+
+_rt5_exit=0
+_rt5_output=$(TICKET_CMD="$_rt5_ticket_dir/ticket" bash "$SCRIPT" "rt5-epic" --repo="$_rt5_repo" 2>&1) || _rt5_exit=$?
+
+assert_eq "preplanning-ts-preferred: exits 0" "0" "$_rt5_exit"
+# PREPLANNING_CONTEXT ts (T=1000) < neighbor closed_at (T=1100) → RELATES_TO_DRIFT
+assert_contains "preplanning-ts-preferred: RELATES_TO_DRIFT emitted (PREPLANNING_CONTEXT ts used)" "RELATES_TO_DRIFT" "$_rt5_output"
+
+# ── Test: test_fallback_to_children_timestamp_when_no_preplanning_context ────
+# Given: epic has NO PREPLANNING_CONTEXT comment, only child tasks
+# When:  sprint-drift-check.sh runs
+# Then:  earliest child created_at is used as impl plan timestamp
+#        (neighbor closed before earliest child → no drift)
+echo ""
+echo "Test: test_fallback_to_children_timestamp — earliest child created_at used when no PREPLANNING_CONTEXT"
+
+_rt6_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_rt6_repo")
+_make_git_repo "$_rt6_repo"
+
+# Timeline:
+#   T=1000: neighbor closed
+#   T=1200: earliest child created_at (impl plan fallback ts)
+# neighbor closed BEFORE children → no RELATES_TO_DRIFT
+_rt6_base_ts=1700000000
+_rt6_neighbor_closed_at=$((_rt6_base_ts + 1000))
+_rt6_child_ts=$((_rt6_base_ts + 1200))
+
+_rt6_ticket_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_rt6_ticket_dir")
+
+_rt6_neighbor_json='{"ticket_id":"rt6-neighbor","ticket_type":"epic","status":"closed","parent_id":null,"created_at":'"$((_rt6_base_ts + 500))"',"closed_at":'"$_rt6_neighbor_closed_at"',"title":"Neighbor Epic","description":"","comments":[],"deps":[]}'
+
+# Epic has NO PREPLANNING_CONTEXT comment (empty comments array)
+_rt6_children_json='[{"ticket_id":"rt6-task-1","ticket_type":"task","status":"open","parent_id":"rt6-epic","created_at":'"$_rt6_child_ts"',"title":"Impl task","description":"## File Impact\n- src/app.py\n","comments":[],"deps":[]}]'
+_rt6_epic_json='{"ticket_id":"rt6-epic","ticket_type":"epic","status":"open","parent_id":null,"created_at":'"$((_rt6_base_ts + 800))"',"title":"Main Epic","description":"","comments":[],"deps":[{"target_id":"rt6-neighbor","relation":"relates_to","link_uuid":"eeee-5555"}]}'
+
+_make_ticket_cli_with_relates_to "$_rt6_ticket_dir" "rt6-epic" "$_rt6_epic_json" "$_rt6_children_json" "rt6-neighbor" "$_rt6_neighbor_json"
+
+_rt6_exit=0
+_rt6_output=$(TICKET_CMD="$_rt6_ticket_dir/ticket" bash "$SCRIPT" "rt6-epic" --repo="$_rt6_repo" 2>&1) || _rt6_exit=$?
+
+assert_eq "fallback-children-ts: exits 0" "0" "$_rt6_exit"
+# Neighbor closed BEFORE earliest child → no RELATES_TO_DRIFT when using children fallback ts
+_rt6_drift_present=0
+echo "$_rt6_output" | grep -q "RELATES_TO_DRIFT" && _rt6_drift_present=1 || true
+assert_eq "fallback-children-ts: no RELATES_TO_DRIFT (neighbor closed before children ts)" "0" "$_rt6_drift_present"
+
 echo ""
 print_summary
