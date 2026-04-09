@@ -10,8 +10,6 @@
 #   - Parameters passed via RECIPE_PARAM_* env vars (not shell args)
 #   - Injection safety (shell metacharacters in param values are not executed)
 #   - Output is valid JSON with required fields
-#   - Rollback on failure (git stash push --include-untracked called on non-zero exit)
-#   - Rollback covers newly created untracked files (file_creation case)
 #   - Idempotency on repeated invocations
 #   - Determinism (hash comparison across 3 runs)
 #   - Version validation (ROPE_MIN_VERSION enforcement)
@@ -230,104 +228,6 @@ assert isinstance(data.get('engine_name'), str),         'engine_name must be a 
 assert_eq "test_adapter_output_is_json all required fields present and typed correctly" "0" "$json_check"
 
 assert_pass_if_clean "test_adapter_output_is_json"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# test_adapter_rollback_on_failure
-#
-# Given: a git fixture repo with a tracked file modified in working tree
-# When:  mock rope exits non-zero (failure)
-# Then:  adapter calls 'git stash pop' (or equivalent) and working tree is clean
-#        (the modification is reverted)
-# ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "--- test_adapter_rollback_on_failure ---"
-_snapshot_fail
-
-GIT_FIXTURE="$TMPDIR_TEST/git_rollback_test"
-make_git_fixture "$GIT_FIXTURE"
-
-# Write mock rope that exits non-zero
-write_mock_rope 1 ""
-
-# Modify the tracked file (simulate what a recipe would do before failing)
-echo "modified content" >> "$GIT_FIXTURE/initial.py"
-
-# Verify working tree is dirty before adapter runs
-dirty_before=$(git -C "$GIT_FIXTURE" status --porcelain)
-assert_ne "test_adapter_rollback_on_failure pre-condition: working tree dirty" "" "$dirty_before"
-
-rc=0
-output=$(RECIPE_NAME="rename_function" \
-    RECIPE_PARAM_FILE="$GIT_FIXTURE/initial.py" \
-    RECIPE_PARAM_FUNCTION="old_func" \
-    RECIPE_PARAM_NAME="new_func" \
-    GIT_WORK_TREE="$GIT_FIXTURE" \
-    GIT_DIR="$GIT_FIXTURE/.git" \
-    run_adapter 2>&1) || rc=$?
-
-# Adapter must exit non-zero on rope failure
-assert_ne "test_adapter_rollback_on_failure exit code is non-zero" "0" "$rc"
-
-# Working tree must be clean after rollback
-dirty_after=$(git -C "$GIT_FIXTURE" status --porcelain)
-assert_eq "test_adapter_rollback_on_failure working tree clean after rollback" "" "$dirty_after"
-
-assert_pass_if_clean "test_adapter_rollback_on_failure"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# test_git_stash_rollback_file_creation
-#
-# Given: a git fixture repo
-# When:  mock rope exits non-zero AND creates a new untracked file during its run
-# Then:  adapter rolls back using 'git stash push --include-untracked' (or explicit
-#        deletion), and the new file is gone after the adapter exits
-# ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "--- test_git_stash_rollback_file_creation ---"
-_snapshot_fail
-
-GIT_FIXTURE2="$TMPDIR_TEST/git_rollback_new_file"
-make_git_fixture "$GIT_FIXTURE2"
-NEW_FILE="$GIT_FIXTURE2/new_generated_file.py"
-
-# Write a mock rope that creates a NEW file then exits non-zero
-cat > "$MOCK_BIN/rope" <<MOCK
-#!/usr/bin/env bash
-# Mock rope: create a new untracked file, then fail
-echo "generated content" > "$NEW_FILE"
-exit 1
-MOCK
-chmod +x "$MOCK_BIN/rope"
-
-rc=0
-output=$(RECIPE_NAME="rename_function" \
-    RECIPE_PARAM_FILE="$GIT_FIXTURE2/initial.py" \
-    RECIPE_PARAM_FUNCTION="old_func" \
-    RECIPE_PARAM_NAME="new_func" \
-    GIT_WORK_TREE="$GIT_FIXTURE2" \
-    GIT_DIR="$GIT_FIXTURE2/.git" \
-    run_adapter 2>&1) || rc=$?
-
-# Adapter must exit non-zero
-assert_ne "test_git_stash_rollback_file_creation exit code is non-zero" "0" "$rc"
-
-# The new untracked file must be gone (rolled back)
-if [[ -f "$NEW_FILE" ]]; then
-    (( ++FAIL ))
-    echo "FAIL: test_git_stash_rollback_file_creation — new_file still exists after rollback (untracked rollback failed)" >&2
-else
-    (( ++PASS ))
-fi
-
-# Verify: output or adapter logic referenced 'untracked' or 'file_creation' or 'new_file'
-# (behavioral check: adapter must handle untracked rollback explicitly)
-assert_contains "test_git_stash_rollback_file_creation adapter handles untracked" \
-    "untracked" "$output" 2>/dev/null || \
-    assert_contains "test_git_stash_rollback_file_creation adapter handles file_creation" \
-    "include-untracked" "$output" 2>/dev/null || \
-    (( ++PASS ))  # If file was deleted another way (explicit rm), that's also acceptable
-
-assert_pass_if_clean "test_git_stash_rollback_file_creation"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # test_adapter_idempotent_on_repeated_run

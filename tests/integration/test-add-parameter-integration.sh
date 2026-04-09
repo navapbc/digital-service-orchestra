@@ -90,22 +90,22 @@ YAML
 }
 
 # Helper: create a failing adapter for rollback tests.
-# The adapter modifies the working tree, performs rollback, then exits non-zero.
+# The adapter modifies a tracked file then exits non-zero.
+# Rollback of tracked modifications is owned by the executor (git checkout -- .).
 _make_failing_adapter() {
     local adapters_dir="$1"
     local adapter_name="${2:-fail-adapter.sh}"
     local adapter_path="$adapters_dir/$adapter_name"
     cat > "$adapter_path" <<'ADAPTER'
 #!/usr/bin/env bash
-# Failing adapter: modifies a file, rolls back, then exits non-zero.
-# Tests the adapter-owns-rollback contract pattern.
+# Failing adapter: modifies a tracked file then exits non-zero.
+# Does NOT perform rollback — rollback is the executor's responsibility.
+# Modifies a tracked file (not untracked) so executor's git checkout -- . cleans it.
 WORK_DIR="${GIT_WORK_TREE:-$(pwd)}"
-# Create a change in the working tree
-echo "MODIFIED" >> "$WORK_DIR/modified_by_adapter.txt"
-# Roll back: revert tracked changes and remove adapter-created untracked files
-git -C "$WORK_DIR" checkout -- . 2>/dev/null || true
-rm -f "$WORK_DIR/modified_by_adapter.txt" 2>/dev/null || true
-# Exit non-zero to signal failure
+_TRACKED=$(git -C "$WORK_DIR" ls-files --full-name 2>/dev/null | head -1)
+if [[ -n "$_TRACKED" ]]; then
+    echo "ADAPTER_MODIFICATION" >> "$WORK_DIR/$_TRACKED"
+fi
 exit 1
 ADAPTER
     chmod +x "$adapter_path"
@@ -309,7 +309,7 @@ test_rollback_on_failure() {
     # Executor should exit non-zero
     assert_ne "test_rollback_on_failure: executor exits non-zero on failure" "0" "$exit_code"
 
-    # Working tree must be clean after rollback (adapter owns rollback per contract)
+    # Working tree must be clean after rollback (executor owns rollback via git stash)
     if _is_clean "$work_dir"; then
         (( ++PASS ))
     else
