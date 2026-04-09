@@ -1,0 +1,1 @@
+{"timestamp": 1775748455857267000, "uuid": "b739d39e-b1ad-45a6-ad91-129d799beb89", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: llm-behavioral \u2014 ticket describes agent behavior ignoring format warnings; fix requires prompt/skill guidance change"}}
