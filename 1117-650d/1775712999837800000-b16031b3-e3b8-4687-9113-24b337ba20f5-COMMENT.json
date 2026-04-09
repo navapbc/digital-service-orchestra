@@ -1,0 +1,1 @@
+{"timestamp": 1775712999837800000, "uuid": "b16031b3-e3b8-4687-9113-24b337ba20f5", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: behavioral, Score: 5 (INTERMEDIATE). Severity: 2, Complexity: 2, Environment: 1, Intermittent: 0"}}
