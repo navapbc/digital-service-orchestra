@@ -36,7 +36,8 @@ if [[ -z "${_CLEANUP_DIRS+set}" ]]; then
 fi
 
 # Global: path to the cached template repo (empty = not yet created)
-: "${_GIT_FIXTURE_TEMPLATE_DIR:=}"
+# Unconditional reset — prevents inherited env from batch runner restarts (e26c-fce4)
+_GIT_FIXTURE_TEMPLATE_DIR=""
 
 _ensure_git_fixture_template() {
     if [ -n "$_GIT_FIXTURE_TEMPLATE_DIR" ] && [ -d "$_GIT_FIXTURE_TEMPLATE_DIR/.git" ]; then
