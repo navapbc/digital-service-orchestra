@@ -1,0 +1,1 @@
+{"timestamp": 1775700587206635000, "uuid": "69adba0b-11da-409e-a754-8dc1fc638fa0", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: llm-behavioral \u2014 stale skill reference in skills/implementation-plan/SKILL.md affects agent guidance when LLM follows the /dso:design-wireframe reference"}}
