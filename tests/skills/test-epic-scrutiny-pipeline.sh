@@ -149,6 +149,46 @@ test_pipeline_contains_fidelity_review_with_feasibility() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 8: Shared pipeline contains a Part C section
+# (Rule 5 boundary test — asserts structural section existence, not content)
+# ---------------------------------------------------------------------------
+test_pipeline_contains_part_c_section() {
+  echo ""
+  echo "=== test_pipeline_contains_part_c_section ==="
+
+  if [ ! -f "$PIPELINE_MD" ]; then
+    fail "Shared pipeline file missing — cannot check for Part C section"
+    return
+  fi
+
+  if grep -q "^### Part C" "$PIPELINE_MD"; then
+    pass "Shared pipeline contains '### Part C' section header"
+  else
+    fail "Shared pipeline missing '### Part C' section header (grep: '^### Part C')"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Test 9: Part C output format references covered_by_SC
+# (Rule 5 boundary test — asserts output format marker is present)
+# ---------------------------------------------------------------------------
+test_pipeline_part_c_output_format() {
+  echo ""
+  echo "=== test_pipeline_part_c_output_format ==="
+
+  if [ ! -f "$PIPELINE_MD" ]; then
+    fail "Shared pipeline file missing — cannot check for Part C output format"
+    return
+  fi
+
+  if grep -q "covered_by_SC" "$PIPELINE_MD"; then
+    pass "Shared pipeline contains output format marker 'covered_by_SC' in Part C"
+  else
+    fail "Shared pipeline missing output format marker 'covered_by_SC' (Part C output format)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 test_shared_pipeline_file_exists
@@ -158,6 +198,8 @@ test_pipeline_contains_gap_analysis
 test_pipeline_contains_web_research
 test_pipeline_contains_scenario_analysis
 test_pipeline_contains_fidelity_review_with_feasibility
+test_pipeline_contains_part_c_section
+test_pipeline_part_c_output_format
 
 # ---------------------------------------------------------------------------
 # Summary
