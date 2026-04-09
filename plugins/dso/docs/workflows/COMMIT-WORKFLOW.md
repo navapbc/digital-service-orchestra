@@ -53,6 +53,9 @@ if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
 fi
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 ARTIFACTS_DIR=$(get_artifacts_dir)
+# Note: ARTIFACTS_DIR is computed from the repo root SHA hash by get_artifacts_dir().
+# To override the artifacts path, use WORKFLOW_PLUGIN_ARTIFACTS_DIR=<path> — NOT ARTIFACTS_DIR.
+# Setting ARTIFACTS_DIR externally has no effect; get_artifacts_dir() ignores it.
 mkdir -p "$ARTIFACTS_DIR"
 : > "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```

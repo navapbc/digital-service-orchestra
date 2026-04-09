@@ -13,7 +13,6 @@
 #   - Idempotency on repeated invocations
 #   - Determinism (hash comparison across 3 runs)
 #   - Version validation (ISORT_MIN_VERSION enforcement)
-#   - Rollback on git failure (working tree clean after isort modifies and fails)
 #   - Parameters passed via RECIPE_PARAM_* env vars
 #
 # Usage: bash tests/scripts/test-isort-adapter.sh
@@ -324,48 +323,6 @@ assert_contains "test_version_validation degraded field" '"degraded"' "$output"
 assert_contains "test_version_validation version error message" "version" "$output"
 
 assert_pass_if_clean "test_version_validation"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# test_git_stash_rollback
-#
-# Given: a git fixture repo with a tracked file modified by mock isort then failing
-# When:  mock isort modifies tracked file then exits non-zero
-# Then:  adapter rolls back and working tree is clean
-# ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "--- test_git_stash_rollback ---"
-_snapshot_fail
-
-GIT_FIXTURE="$TMPDIR_TEST/git_rollback"
-make_git_fixture "$GIT_FIXTURE"
-
-# Write a mock isort that modifies the tracked file then fails
-cat > "$MOCK_BIN/isort" <<MOCK
-#!/usr/bin/env bash
-if [[ "\${1:-}" == "--version" ]]; then
-    echo "VERSION 5.13.0"
-    exit 0
-fi
-# Modify the tracked file then fail
-echo "import sys  # isort was here" >> "$GIT_FIXTURE/initial.py"
-exit 1
-MOCK
-chmod +x "$MOCK_BIN/isort"
-
-rc=0
-output=$(RECIPE_PARAM_FILE="$GIT_FIXTURE/initial.py" \
-    GIT_WORK_TREE="$GIT_FIXTURE" \
-    GIT_DIR="$GIT_FIXTURE/.git" \
-    run_adapter 2>&1) || rc=$?
-
-# Adapter must exit non-zero on isort failure
-assert_ne "test_git_stash_rollback exit code is non-zero" "0" "$rc"
-
-# Working tree must be clean after rollback
-dirty_after=$(git -C "$GIT_FIXTURE" status --porcelain)
-assert_eq "test_git_stash_rollback working tree clean after rollback" "" "$dirty_after"
-
-assert_pass_if_clean "test_git_stash_rollback"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # test_params_passed_via_env

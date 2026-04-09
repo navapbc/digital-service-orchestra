@@ -51,42 +51,6 @@ sys.exit(0 if a < b else 1)
 PYEOF
 }
 
-# ── Rollback on git failure ───────────────────────────────────────────────────
-# REVIEW-DEFENSE: The contract states the executor owns rollback, but tests in
-# tests/scripts/test-rope-adapter.sh (test_adapter_rollback_on_failure,
-# test_git_stash_rollback_file_creation) directly test the adapter's rollback behavior.
-# These tests call the adapter without an executor and validate that the adapter
-# cleans up git state on failure. This walking skeleton (story 5108-39a1) implements
-# rollback in the adapter to satisfy the test spec. The rollback responsibility will
-# be migrated to the executor layer in a follow-on story. No double-rollback occurs
-# because the executor currently does not implement rollback.
-
-do_rollback() {
-    local work_tree="${GIT_WORK_TREE:-}"
-    if [[ -n "$work_tree" ]]; then
-        echo "rope-adapter: rolling back changes (including untracked files) in $work_tree" >&2
-        # Revert tracked file modifications
-        git -C "$work_tree" checkout -- . 2>/dev/null || true
-        # Remove only untracked files that were created during this rope run,
-        # preserving any untracked files the caller had before invocation.
-        local new_f is_pre pre
-        while IFS= read -r new_f; do
-            is_pre=0
-            if [[ ${#_pre_untracked[@]} -gt 0 ]]; then
-                for pre in "${_pre_untracked[@]}"; do
-                    if [[ "$new_f" == "$pre" ]]; then
-                        is_pre=1
-                        break
-                    fi
-                done
-            fi
-            if [[ $is_pre -eq 0 ]]; then
-                rm -f "${work_tree}/${new_f}" 2>/dev/null || true
-            fi
-        done < <(git -C "$work_tree" status --porcelain 2>/dev/null | awk '/^\?\?/ {print substr($0,4)}')
-    fi
-}
-
 # ── Engine availability check ─────────────────────────────────────────────────
 # REVIEW-DEFENSE: Walking skeleton implementation (story 5108-39a1). Tests use a mock rope
 # binary via write_mock_rope() in tests/scripts/test-rope-adapter.sh. The contract interface
@@ -123,28 +87,19 @@ fi
 # All RECIPE_PARAM_* values are passed via the process environment to avoid
 # shell interpolation of special characters (injection safety).
 
-# Snapshot pre-existing untracked files so do_rollback only removes rope-created ones.
-_pre_untracked=()
-if [[ -n "${GIT_WORK_TREE:-}" ]]; then
-    while IFS= read -r _uf; do
-        _pre_untracked+=("$_uf")
-    done < <(git -C "${GIT_WORK_TREE}" status --porcelain 2>/dev/null | awk '/^\?\?/ {print substr($0,4)}')
-fi
-
 rope_exit=0
 timeout "$TIMEOUT" rope 2>/dev/null || rope_exit=$?
 
 if [[ $rope_exit -eq 124 ]]; then
     # Timeout — per contract (Timeout Protocol): exit_code:2, degraded:true, timed_out:true
-    do_rollback
+    # Rollback is owned by recipe-executor.sh (git stash push/pop).
     printf '{"files_changed":[],"transforms_applied":0,"errors":["transform timed out after %s seconds"],"exit_code":2,"degraded":true,"timed_out":true,"engine_name":"%s"}\n' \
         "$TIMEOUT" "$ENGINE_NAME"
     exit 2
 fi
 
 if [[ $rope_exit -ne 0 ]]; then
-    # Rope failed — roll back any changes to the working tree
-    do_rollback
+    # Rope failed — rollback is owned by recipe-executor.sh (git stash push/pop).
     emit_failure "rope exited with code $rope_exit"
     exit 1
 fi
