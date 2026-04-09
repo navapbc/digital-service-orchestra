@@ -328,6 +328,127 @@ def test_echo_prevention_preexisting_sync(
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Test: Outbound round-trip — local relates_to link → Jira Relates link
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_outbound_relates_to_jira_round_trip(
+    tmp_path: Path, bridge: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Integration test for the outbound round-trip: a local relates_to LINK
+    event causes set_relationship(PROJ-1, PROJ-2, "Relates") to be called.
+
+    Given:
+      - Two local tickets each with SYNC events mapping to PROJ-1 and PROJ-2.
+      - A mock AcliClient configured with the "Relates" link type available.
+    When:
+      - A relates_to LINK event file is written in the source ticket directory,
+        then process_outbound() is called with that event.
+    Then:
+      - acli_client.set_relationship(PROJ-1, PROJ-2, "Relates") is called once,
+        confirming the link would appear in Jira.
+    """
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    monkeypatch.chdir(tmp_path)
+    _write_env_id_file(tracker_dir, _BRIDGE_ENV_ID)
+
+    source_id = "rt-src1"
+    target_id = "rt-tgt1"
+    source_jira_key = "PROJ-1"
+    target_jira_key = "PROJ-2"
+
+    # Create ticket directories
+    source_dir = tracker_dir / source_id
+    source_dir.mkdir(parents=True, exist_ok=True)
+    target_dir = tracker_dir / target_id
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write SYNC event for source ticket (maps source_id → PROJ-1)
+    source_sync = {
+        "event_type": "SYNC",
+        "jira_key": source_jira_key,
+        "local_id": source_id,
+        "env_id": _BRIDGE_ENV_ID,
+        "timestamp": 1742605100,
+        "run_id": _RUN_ID,
+    }
+    (
+        source_dir / "1742605100-aaaa0001-0001-4000-8000-000000000001-SYNC.json"
+    ).write_text(json.dumps(source_sync))
+
+    # Write SYNC event for target ticket (maps target_id → PROJ-2)
+    target_sync = {
+        "event_type": "SYNC",
+        "jira_key": target_jira_key,
+        "local_id": target_id,
+        "env_id": _BRIDGE_ENV_ID,
+        "timestamp": 1742605100,
+        "run_id": _RUN_ID,
+    }
+    (
+        target_dir / "1742605100-aaaa0002-0002-4000-8000-000000000002-SYNC.json"
+    ).write_text(json.dumps(target_sync))
+
+    # Write LINK event in source ticket directory
+    link_uuid = "aaaa0003-0003-4000-8000-000000000003"
+    link_timestamp = 1742605200
+    link_event = {
+        "event_type": "LINK",
+        "uuid": link_uuid,
+        "timestamp": link_timestamp,
+        "author": "integration-test",
+        "env_id": _OTHER_ENV_ID,
+        "data": {
+            "relation": "relates_to",
+            "source_id": source_id,
+            "target_id": target_id,
+        },
+    }
+    link_filename = f"{link_timestamp}-{link_uuid}-LINK.json"
+    link_file = source_dir / link_filename
+    link_file.write_text(json.dumps(link_event))
+
+    # Build mock ACLI client with "Relates" link type and no pre-existing links
+    mock_acli = MagicMock()
+    mock_acli.get_issue_link_types = MagicMock(
+        return_value=[{"name": "Relates"}, {"name": "Blocks"}, {"name": "Duplicates"}]
+    )
+    mock_acli.get_issue_links = MagicMock(return_value=[])
+    mock_acli.set_relationship = MagicMock(return_value=None)
+
+    # git diff output referencing the LINK event file
+    git_diff = f".tickets-tracker/{source_id}/{link_filename}\n"
+
+    syncs = bridge.process_events(
+        tickets_dir=str(tracker_dir),
+        acli_client=mock_acli,
+        git_diff_output=git_diff,
+        bridge_env_id=_BRIDGE_ENV_ID,
+        run_id=_RUN_ID,
+    )
+
+    # set_relationship must have been called with correct Jira keys and type
+    mock_acli.set_relationship.assert_called_once_with(
+        source_jira_key, target_jira_key, "Relates"
+    )
+
+    # A SYNC event should be written for the source ticket (audit trail)
+    assert len(syncs) == 1, f"Expected 1 SYNC event written, got {len(syncs)}"
+    assert syncs[0]["jira_key"] == source_jira_key
+    assert syncs[0]["local_id"] == source_id
+
+    # Verify SYNC file exists on disk in source ticket dir
+    sync_files = sorted(source_dir.glob("*-SYNC.json"))
+    # There should be 2 SYNC files: the pre-existing one + the one written after link
+    assert len(sync_files) == 2, (
+        f"Expected 2 SYNC files (pre-existing + post-link), got {len(sync_files)}"
+    )
+
+
 @pytest.mark.integration
 @pytest.mark.scripts
 def test_end_to_end_multiple_tickets(
