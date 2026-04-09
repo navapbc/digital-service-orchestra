@@ -1,1 +1,0 @@
-{"timestamp": 1775675754109485000, "uuid": "efb291d7-bb32-468c-83b7-117702d0dc81", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "Validation logger: format check outcome -> logfile field always 'unknown' in untracked-validation-failures.log"}}}
