@@ -1096,10 +1096,12 @@ After the fix is verified GREEN and before committing, check whether the source 
 
 ### Step 8: Commit and Close (/dso:fix-bug)
 
+**NEVER close a bug with reason `Escalated to user:` unless the user has explicitly authorized closure in this interactive session (i.e., the user said "close this ticket").** When no code fix is possible, add investigation findings as a ticket comment and leave the ticket OPEN — closing removes it from `ticket list` visibility. Surface unfixable bugs in the session summary instead.
+
 **When running as orchestrator (not a sub-agent)**:
 
 1. Complete the commit workflow per `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
-2. Close the bug ticket:
+2. Close the bug ticket only after a successful code fix:
    ```bash
    ticket transition <BUG_TICKET_ID> in_progress closed --reason="Fixed: <one-line summary of the fix>"
    ```

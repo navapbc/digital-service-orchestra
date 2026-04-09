@@ -27,7 +27,20 @@ Based on the config value:
 
 **When `ISOLATION_ENABLED` equals `true`:**
 
-Add `isolation: "worktree"` to the Agent/Task dispatch parameters so each sub-agent receives a sandboxed working directory independent of the orchestrator's directory.
+Before dispatching, write an auth marker file so the pre-agent isolation guard can verify this is an authorized dispatch. The marker contains the orchestrator's PID; the guard validates PID liveness to reject stale markers:
+
+```bash
+_AUTH_MARKER="/tmp/worktree-isolation-authorized-$(uuidgen 2>/dev/null || date +%s$$)"
+echo "$$" > "$_AUTH_MARKER"
+```
+
+Remove the marker file after all sub-agents in the current batch have been dispatched (cleanup is optional but avoids stale marker accumulation):
+
+```bash
+rm -f "$_AUTH_MARKER" 2>/dev/null || true
+```
+
+Then add `isolation: "worktree"` to the Agent/Task dispatch parameters so each sub-agent receives a sandboxed working directory independent of the orchestrator's directory.
 
 Example dispatch with isolation enabled:
 

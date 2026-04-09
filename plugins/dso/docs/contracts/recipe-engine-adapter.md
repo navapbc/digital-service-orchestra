@@ -45,7 +45,7 @@ The following variables are set by the executor before invoking any adapter:
 |---|---|---|
 | `RECIPE_PARAM_*` | string | One variable per recipe field, uppercased (see naming convention above). |
 | `RECIPE_TIMEOUT_SECONDS` | integer | Maximum seconds the adapter may run. Default: `600`. Adapter MUST self-terminate and emit a degraded result if this limit is exceeded. |
-| `RECIPE_MIN_ENGINE_VERSION` | string | Minimum required engine version (semver string, e.g., `5.0.0`). Adapter MUST validate the installed engine version against this before executing transforms. |
+| `RECIPE_MIN_ENGINE_VERSION` | string | Minimum required engine version (semver string, e.g., `5.0.0`). Corresponds to the `min_engine_version` field in the recipe registry schema. Adapter MUST validate the installed engine version against this before executing transforms. If this variable is unset or empty, the adapter MUST skip version checking and proceed. |
 | `RECIPE_DRY_RUN` | boolean (`true`/`false`) | When `true`, the adapter reports what would change without writing any files. |
 
 ### Working Directory Convention
@@ -61,6 +61,8 @@ Before executing any transforms, the adapter MUST:
 1. Detect the installed engine binary (e.g., `node`, `ts-node`, custom binary).
 2. Extract the engine's reported version string.
 3. Compare the installed version against `RECIPE_MIN_ENGINE_VERSION` using semver comparison (major.minor.patch).
+
+If `RECIPE_MIN_ENGINE_VERSION` is unset or empty, the adapter MUST skip version checking and proceed with the transform (treat as "any version accepted").
 
 If the engine binary is absent or the installed version is below `RECIPE_MIN_ENGINE_VERSION`, the adapter MUST immediately emit the degraded JSON output (see Output Format below) with `exit_code: 2` and `degraded: true`, then exit. No transforms are attempted.
 
@@ -135,7 +137,7 @@ The `timed_out` field is optional and only present when `exit_code` is `2` and `
 |---|---|---|---|
 | `0` | All transforms applied successfully | `false` | Populated |
 | `1` | One or more transforms failed; partial results may apply | `false` | May be non-empty (partial success) |
-| `2` | Engine unavailable or below minimum version; no transforms attempted | `true` | Empty |
+| `2` | Engine unavailable, below minimum version, or timed out; no transforms attempted | `true` | Empty |
 
 ---
 

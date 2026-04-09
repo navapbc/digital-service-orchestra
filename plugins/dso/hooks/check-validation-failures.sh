@@ -68,7 +68,12 @@ fi
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 ARTIFACTS_DIR=$(get_artifacts_dir)
 VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
-LOGFILE=$(grep '^logfile=' "$VALIDATION_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+# Parse logfile from validate.sh stdout ("Some checks failed. Details: /path/to/file")
+# Fall back to state file (written by validate.sh on exit) if stdout parse fails.
+LOGFILE=$(echo "$STDOUT" | grep -oE 'Details: /[^[:space:]]+' | head -1 | sed 's/^Details: //' | tr -d '\r\n')
+if [[ -z "$LOGFILE" ]]; then
+    LOGFILE=$(grep '^logfile=' "$VALIDATION_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+fi
 
 declare -a UNTRACKED=()
 

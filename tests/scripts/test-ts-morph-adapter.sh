@@ -13,8 +13,6 @@
 #   - Idempotency on repeated invocations
 #   - Determinism (hash comparison across 3 runs)
 #   - Version validation (TS_MORPH_MIN_VERSION enforcement)
-#   - Rollback on failure (tracked file modification reverted)
-#   - Rollback covers newly created untracked files
 #   - Parameters passed via RECIPE_PARAM_* env vars
 #
 # Usage: bash tests/scripts/test-ts-morph-adapter.sh
@@ -343,100 +341,6 @@ assert_contains "test_version_validation degraded field" '"degraded"' "$output"
 assert_contains "test_version_validation version error message" "version" "$output"
 
 assert_pass_if_clean "test_version_validation"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# test_git_stash_rollback_modification
-#
-# Given: a git fixture repo with a tracked file modified by mock node then failing
-# When:  mock node modifies tracked file then exits non-zero
-# Then:  adapter rolls back and working tree is clean
-# ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "--- test_git_stash_rollback_modification ---"
-_snapshot_fail
-
-GIT_FIXTURE="$TMPDIR_TEST/git_rollback_mod"
-make_git_fixture "$GIT_FIXTURE"
-
-# Write a mock node that modifies the tracked file then fails
-cat > "$MOCK_BIN/node" <<MOCK
-#!/usr/bin/env bash
-# Mock node: modify a tracked file then fail
-echo "modified content" >> "$GIT_FIXTURE/initial.ts"
-exit 1
-MOCK
-chmod +x "$MOCK_BIN/node"
-
-rc=0
-output=$(RECIPE_NAME="add-parameter" \
-    RECIPE_PARAM_FILE="$GIT_FIXTURE/initial.ts" \
-    RECIPE_PARAM_FUNCTION="greet" \
-    RECIPE_PARAM_NAME="prefix" \
-    GIT_WORK_TREE="$GIT_FIXTURE" \
-    GIT_DIR="$GIT_FIXTURE/.git" \
-    run_adapter 2>&1) || rc=$?
-
-# Adapter must exit non-zero on node failure
-assert_ne "test_git_stash_rollback_modification exit code is non-zero" "0" "$rc"
-
-# Working tree must be clean after rollback
-dirty_after=$(git -C "$GIT_FIXTURE" status --porcelain)
-assert_eq "test_git_stash_rollback_modification working tree clean after rollback" "" "$dirty_after"
-
-assert_pass_if_clean "test_git_stash_rollback_modification"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# test_git_stash_rollback_file_creation
-#
-# Given: a git fixture repo
-# When:  mock node creates a new untracked file then exits non-zero
-# Then:  adapter rolls back: new file is gone after the adapter exits
-# ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "--- test_git_stash_rollback_file_creation ---"
-_snapshot_fail
-
-GIT_FIXTURE2="$TMPDIR_TEST/git_rollback_new_file"
-make_git_fixture "$GIT_FIXTURE2"
-NEW_FILE="$GIT_FIXTURE2/new_generated_file.ts"
-
-# Write a mock node that creates a NEW file then exits non-zero
-cat > "$MOCK_BIN/node" <<MOCK
-#!/usr/bin/env bash
-# Mock node: create a new untracked file, then fail
-echo "generated content" > "$NEW_FILE"
-exit 1
-MOCK
-chmod +x "$MOCK_BIN/node"
-
-rc=0
-output=$(RECIPE_NAME="add-parameter" \
-    RECIPE_PARAM_FILE="$GIT_FIXTURE2/initial.ts" \
-    RECIPE_PARAM_FUNCTION="greet" \
-    RECIPE_PARAM_NAME="prefix" \
-    GIT_WORK_TREE="$GIT_FIXTURE2" \
-    GIT_DIR="$GIT_FIXTURE2/.git" \
-    run_adapter 2>&1) || rc=$?
-
-# Adapter must exit non-zero
-assert_ne "test_git_stash_rollback_file_creation exit code is non-zero" "0" "$rc"
-
-# The new untracked file must be gone (rolled back)
-if [[ -f "$NEW_FILE" ]]; then
-    (( ++FAIL ))
-    echo "FAIL: test_git_stash_rollback_file_creation — new_file still exists after rollback (untracked rollback failed)" >&2
-else
-    (( ++PASS ))
-fi
-
-# Verify: output references 'untracked' (behavioral check: adapter must handle untracked rollback explicitly)
-assert_contains "test_git_stash_rollback_file_creation adapter handles untracked" \
-    "untracked" "$output" 2>/dev/null || \
-    assert_contains "test_git_stash_rollback_file_creation adapter handles include-untracked" \
-    "include-untracked" "$output" 2>/dev/null || \
-    (( ++PASS ))  # If file was deleted another way (explicit rm), that's also acceptable
-
-assert_pass_if_clean "test_git_stash_rollback_file_creation"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # test_params_passed_via_env

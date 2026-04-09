@@ -107,7 +107,7 @@ method below. Unverifiable references indicate hallucination risk and must be fl
   via Grep/Read: flag as `important` under `correctness`
 
 **Model identifiers and service endpoint strings**:
-- Any hardcoded model ID (e.g., `claude-sonnet-4-6-20260320`) or API endpoint URL must be
+- Any hardcoded model ID (e.g., `claude-MODEL-VERSION`) or API endpoint URL must be
   treated as potentially hallucinated unless verifiable via a constant, config file, or
   documented source in the repo
 - Flag unverifiable model IDs as `fragile` under `correctness`

@@ -1808,12 +1808,15 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
    - Epic ID and title
    - Total tasks completed this session
    - Validation score: 5/5
-4. Invoke `/dso:end-session` with `--bump minor`:
+4. Invoke `/dso:end-session --bump minor` via the Skill tool:
    ```
-   /dso:end-session --bump minor
+   Skill({skill: "dso:end-session", args: "--bump minor"})
    ```
-   If `version.file_path` is not configured in `dso-config.conf`, the flag is a no-op.
+   If `version.file_path` is not configured in `dso-config.conf`, the `--bump minor` flag is a no-op.
    <HARD-GATE>
+   This MUST be done using the Skill tool — not interpreted as a bash command, not
+   printed as text, and not deferred for the user to run. The slash-command notation
+   above is a Skill tool invocation shorthand. Use the Skill tool directly.
    Do NOT ask the user whether to run /dso:end-session. Invoke it directly.
    Asking "Would you like me to..." is a known anti-pattern (c26f-be3f) that adds
    friction. This is an unconditional directive — execute immediately after the
@@ -1837,8 +1840,13 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
    - Tasks completed this session
    - Tasks remaining (with IDs and titles)
    - Resume command: `/dso:sprint <epic-id>`
-6. Invoke `/dso:end-session --bump minor` if the epic reached Phase 6 completion-verifier PASS this session; otherwise invoke `/dso:end-session` without `--bump` (incomplete sprint does not earn a version bump).
+6. Invoke `/dso:end-session` via the Skill tool. Pass `--bump minor` if the epic reached Phase 6 completion-verifier PASS this session; omit `--bump` for incomplete sprints (no version bump earned):
+   ```
+   Skill({skill: "dso:end-session", args: "--bump minor"})   # on success
+   Skill({skill: "dso:end-session"})                         # on graceful shutdown
+   ```
    <HARD-GATE>
+   This MUST be done using the Skill tool — not interpreted as a bash command.
    Do NOT ask the user whether to run /dso:end-session. Invoke it directly.
    </HARD-GATE>
 

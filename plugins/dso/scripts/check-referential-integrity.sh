@@ -42,12 +42,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Default REPO_ROOT: git rev-parse or infer from script location
+# Default REPO_ROOT: derive from git repo root
 if [[ -z "$REPO_ROOT" ]]; then
-    REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
-        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-    }
+    REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || true
+    if [[ -z "$REPO_ROOT" ]]; then
+        echo "check-referential-integrity: not in a git repository and --repo-root not provided" >&2
+        exit 0
+    fi
 fi
 
 PLUGIN_DIR="$REPO_ROOT/plugins/dso"

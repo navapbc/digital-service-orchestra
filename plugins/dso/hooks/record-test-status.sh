@@ -1056,6 +1056,12 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
         if [[ "$STATUS" != "timeout" ]]; then
             STATUS="failed"
         fi
+        # Include in FAILED_TESTS_LIST so the test gate shows which file has the stale marker
+        if [[ -n "$FAILED_TESTS_LIST" ]]; then
+            FAILED_TESTS_LIST="${FAILED_TESTS_LIST},${test_file}[stale-red-marker:${red_marker}]"
+        else
+            FAILED_TESTS_LIST="${test_file}[stale-red-marker:${red_marker}]"
+        fi
         continue
     fi
 
