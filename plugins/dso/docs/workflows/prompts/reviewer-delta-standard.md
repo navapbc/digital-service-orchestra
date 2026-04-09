@@ -84,6 +84,40 @@ diff — apply all relevant sections.
 
 ---
 
+## External Reference Verification
+
+Before scoring, scan the diff for external API calls, model names, library functions, and
+internal helper invocations. For each reference found, apply the appropriate verification
+method below. Unverifiable references indicate hallucination risk and must be flagged.
+
+**Internal APIs** (functions, classes, helpers defined within this repo):
+- Use Grep to search for the definition: `grep -r "def <function_name>" plugins/ app/ tests/`
+- Use Glob to check that the referenced file exists at the path specified
+- If the reference is not found in the repo: flag as `fragile` under `correctness` (high
+  confidence it does not exist or is misspelled)
+- If found but the signature differs from usage: flag as `important` under `correctness`
+
+**External library APIs** (third-party packages, stdlib modules):
+- Verify the import is present in the diff or in surrounding code via Read/Grep
+- Check that the function/method name matches documented API (e.g., verify `subprocess.run`
+  not `subprocess.execute`; `yaml.safe_load` not `yaml.safe_open`)
+- If the function/class name is unrecognizable and cannot be traced to a known import or
+  stdlib: flag as `fragile` under `correctness`
+- If the usage (argument order, keyword arguments) looks plausible but cannot be confirmed
+  via Grep/Read: flag as `important` under `correctness`
+
+**Model identifiers and service endpoint strings**:
+- Any hardcoded model ID (e.g., `claude-MODEL-VERSION`) or API endpoint URL must be
+  treated as potentially hallucinated unless verifiable via a constant, config file, or
+  documented source in the repo
+- Flag unverifiable model IDs as `fragile` under `correctness`
+
+**Severity mapping for unverifiable references**:
+- `fragile`: high confidence the referenced identifier does not exist or is misspelled
+- `important`: moderate confidence — plausible but not confirmed via Grep/Read
+
+---
+
 ## Standard Checklist (Step 2 scope — all dimensions)
 
 Apply all checks below. Use Read, Grep, and Glob as needed to verify findings.
@@ -158,6 +192,31 @@ Apply the file-type sub-criteria above in addition to the generic checks here.
 - [ ] Ticket event writes must go through the ticket dispatcher (`ticket` CLI or
   event-append helpers) — direct writes to `.tickets-tracker/` bypass locking and
   the reducer contract
+
+### Escalation (ESCALATE_REVIEW)
+- [ ] If you are uncertain whether a finding should be `fragile` vs `minor`, or `important`
+  vs `minor`, add it to the `escalate_review` array with `finding_index` (zero-based index
+  into findings) and `reason`. A more capable model will make the final severity
+  determination.
+- [ ] Do NOT emit `escalate_review` for findings with high confidence in severity assignment.
+  Only escalate genuine uncertainty.
+
+### Approach Viability (approach_viability_concern)
+- [ ] After completing the checklist, review your findings as a whole. If you detect a
+  **PATTERN** (not an isolated instance) of hallucinated references or fragile workarounds
+  across multiple findings in the same diff — for example, three or more `fragile` findings
+  pointing to non-existent identifiers, or multiple findings where the implementation works
+  around a missing abstraction rather than using one — set `approach_viability_concern: true`
+  in your summary field text. This signals to the orchestrator that incremental fixes may be
+  futile and the implementation approach itself may need revision.
+- [ ] Do NOT set `approach_viability_concern: true` for isolated findings, even critical ones.
+  The signal is reserved for cross-cutting patterns where the implementation strategy appears
+  fundamentally misaligned with the codebase.
+- [ ] When set to true, briefly note the pattern in the summary (e.g., "approach_viability_concern:
+  true — 4 fragile findings all reference non-existent hook helpers, suggesting the chosen
+  extension point does not exist").
+
+---
 
 ## Overlay Classification
 

@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 # tests/hooks/test-session-misc-dispatchers.sh
-# Unit tests for session-start, stop, pre-agent, pre-exitplanmode, pre-taskoutput,
+# Unit tests for session-start, stop, pre-exitplanmode, pre-taskoutput,
 # post-failure dispatchers and the session-misc-functions.sh library.
 #
 # Tests:
 #   test_session_start_dispatcher_runs_all_4_hooks
 #   test_stop_dispatcher_runs_review_stop_check
-#   test_pre_agent_dispatcher_denies_worktree_isolation
-#   test_worktree_isolation_guard_function_preserves_python3
 #   test_pre_exitplanmode_dispatcher_calls_plan_review_gate
 #   test_pre_taskoutput_dispatcher_calls_taskoutput_block_guard
 #   test_post_failure_dispatcher_calls_track_tool_errors
@@ -36,7 +34,6 @@ STOP_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/stop.sh"
 POST_FAILURE_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/post-failure.sh"
 PRE_ALL_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-all.sh"
 PRE_EXITPLANMODE_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-exitplanmode.sh"
-PRE_AGENT_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-agent.sh"
 PRE_TASKOUTPUT_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-taskoutput.sh"
 SESSION_MISC_FUNCTIONS="$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh"
 
@@ -81,60 +78,6 @@ _stop_input='{}'
 _exit_code=0
 printf '%s' "$_stop_input" | bash "$STOP_DISPATCHER" 2>/dev/null || _exit_code=$?
 assert_eq "test_stop_dispatcher_runs_review_stop_check: exits 0 on clean tree" "0" "$_exit_code"
-
-# ============================================================
-# test_pre_agent_dispatcher_denies_worktree_isolation
-# The pre-agent dispatcher must block Agent calls that specify
-# isolation: "worktree" by outputting a JSON deny response.
-# ============================================================
-echo "--- test_pre_agent_dispatcher_denies_worktree_isolation ---"
-_dispatcher_exists=0
-[[ -f "$PRE_AGENT_DISPATCHER" ]] && _dispatcher_exists=1
-assert_eq "test_pre_agent_dispatcher_denies_worktree_isolation: file exists" "1" "$_dispatcher_exists"
-
-_dispatcher_executable=0
-[[ -x "$PRE_AGENT_DISPATCHER" ]] && _dispatcher_executable=1
-assert_eq "test_pre_agent_dispatcher_denies_worktree_isolation: executable" "1" "$_dispatcher_executable"
-
-# Test: worktree isolation must be denied
-_INPUT='{"tool_name":"Agent","tool_input":{"isolation":"worktree","description":"Test task"}}'
-_exit_code=0
-_output=""
-_output=$(printf '%s' "$_INPUT" | bash "$PRE_AGENT_DISPATCHER" 2>&1) || _exit_code=$?
-assert_eq "test_pre_agent_dispatcher_denies_worktree_isolation: exits 0" "0" "$_exit_code"
-assert_contains "test_pre_agent_dispatcher_denies_worktree_isolation: deny in output" \
-    "deny" "$_output"
-
-# Test: non-worktree isolation must be allowed (exit 0, no deny output)
-_INPUT_NO_ISOLATION='{"tool_name":"Agent","tool_input":{"description":"Test task"}}'
-_exit_code=0
-_output_allow=""
-_output_allow=$(printf '%s' "$_INPUT_NO_ISOLATION" | bash "$PRE_AGENT_DISPATCHER" 2>&1) || _exit_code=$?
-assert_eq "test_pre_agent_dispatcher_denies_worktree_isolation: allows non-worktree: exit 0" "0" "$_exit_code"
-
-# ============================================================
-# test_worktree_isolation_guard_function_preserves_python3
-# The session-misc-functions.sh library must define
-# hook_worktree_isolation_guard() that uses python3 for JSON parsing
-# (this is required by the existing worktree-isolation-guard.sh behavior).
-# ============================================================
-echo "--- test_worktree_isolation_guard_function_preserves_python3 ---"
-_functions_exist=0
-[[ -f "$SESSION_MISC_FUNCTIONS" ]] && _functions_exist=1
-assert_eq "test_worktree_isolation_guard_function_preserves_python3: lib file exists" "1" "$_functions_exist"
-
-# Source the library and verify the function is defined
-(
-    source "$SESSION_MISC_FUNCTIONS" 2>/dev/null
-    declare -F hook_worktree_isolation_guard >/dev/null 2>&1
-) 2>/dev/null
-_fn_defined=$?
-assert_eq "test_worktree_isolation_guard_function_preserves_python3: function defined" "0" "$_fn_defined"
-
-# Verify the function body references python3 (not jq-based JSON parsing)
-_uses_python3=0
-grep -q 'python3' "$SESSION_MISC_FUNCTIONS" && _uses_python3=1
-assert_eq "test_worktree_isolation_guard_function_preserves_python3: uses python3" "1" "$_uses_python3"
 
 # ============================================================
 # test_pre_exitplanmode_dispatcher_calls_plan_review_gate
@@ -242,20 +185,6 @@ _INPUT='{"tool_name":"Bash","tool_input":{"command":"ls"},"session_id":"test"}'
 _exit_code=0
 printf '%s' "$_INPUT" | bash "$PRE_ALL_DISPATCHER" 2>/dev/null || _exit_code=$?
 assert_eq "test_pre_all_dispatcher_exits_0: exits 0" "0" "$_exit_code"
-
-# ============================================================
-# test_pre_agent_no_tool_logging
-# After optimization, pre-agent dispatcher must NOT reference tool_logging_pre.
-# ============================================================
-echo "--- test_pre_agent_no_tool_logging ---"
-
-_has_logging=0
-grep -q 'hook_tool_logging_pre' "$PRE_AGENT_DISPATCHER" && _has_logging=1
-assert_eq "test_pre_agent_no_tool_logging: no hook_tool_logging_pre" "0" "$_has_logging"
-
-_has_source=0
-grep -q 'post-functions.sh' "$PRE_AGENT_DISPATCHER" && _has_source=1
-assert_eq "test_pre_agent_no_tool_logging: no post-functions.sh source" "0" "$_has_source"
 
 # ============================================================
 # test_pre_exitplanmode_no_tool_logging

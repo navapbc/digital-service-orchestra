@@ -20,6 +20,7 @@ set -euo pipefail
 #   roadmap                f4e5f5a355e4c145
 #   brainstorm             f4e5f5a355e4c145
 #   design-wireframe       bd60a68f8060f939
+#   ui-designer            2c3ece1bc2820109
 #   implementation-plan    0271e511c0161eec
 #   retro                  8a1a3dd74e54f101
 #   design-review          1a50fe899037ef49
@@ -56,6 +57,7 @@ HASH_PLAN_REVIEW="9dba6875b85b7bc3"
 HASH_CALLER_ROADMAP="f4e5f5a355e4c145"
 HASH_CALLER_BRAINSTORM="f4e5f5a355e4c145"
 HASH_CALLER_DESIGN_WIREFRAME="bd60a68f8060f939"
+HASH_CALLER_UI_DESIGNER="2c3ece1bc2820109"
 HASH_CALLER_IMPLEMENTATION_PLAN="0271e511c0161eec"
 HASH_CALLER_RETRO="8a1a3dd74e54f101"
 HASH_CALLER_DESIGN_REVIEW="1a50fe899037ef49"
@@ -97,6 +99,7 @@ Caller IDs (use with: review-protocol <file> --caller <id>):
   roadmap                ${HASH_CALLER_ROADMAP}
   brainstorm             ${HASH_CALLER_BRAINSTORM}
   design-wireframe       ${HASH_CALLER_DESIGN_WIREFRAME}
+  ui-designer            ${HASH_CALLER_UI_DESIGNER}
   implementation-plan    ${HASH_CALLER_IMPLEMENTATION_PLAN}
   retro                  ${HASH_CALLER_RETRO}
   design-review          ${HASH_CALLER_DESIGN_REVIEW}
@@ -122,6 +125,7 @@ if [[ "$1" == "--list-callers" ]]; then
     echo "roadmap                ${HASH_CALLER_ROADMAP}"
     echo "brainstorm             ${HASH_CALLER_BRAINSTORM}"
     echo "design-wireframe       ${HASH_CALLER_DESIGN_WIREFRAME}"
+    echo "ui-designer            ${HASH_CALLER_UI_DESIGNER}"
     echo "implementation-plan    ${HASH_CALLER_IMPLEMENTATION_PLAN}"
     echo "retro                  ${HASH_CALLER_RETRO}"
     echo "design-review          ${HASH_CALLER_DESIGN_REVIEW}"
@@ -179,7 +183,7 @@ fi
 # Validate known caller IDs
 if [[ -n "$CALLER_ID" ]]; then
     case "$CALLER_ID" in
-        roadmap|brainstorm|design-wireframe|implementation-plan|retro|design-review|dev-onboarding|architect-foundation|preplanning) ;;
+        roadmap|brainstorm|design-wireframe|ui-designer|implementation-plan|retro|design-review|dev-onboarding|architect-foundation|preplanning) ;;
         *)
             echo "ERROR: unknown caller-id: '$CALLER_ID'" >&2
             echo "Run '$SCRIPT_NAME --list-callers' to see valid caller IDs." >&2
@@ -214,9 +218,9 @@ with open(output_file) as f:
 
 errors = []
 
-# Must have required top-level keys; review_tier is optional
+# Must have required top-level keys; review_tier and escalate_review are optional
 required_top = {"scores", "findings", "summary"}
-optional_top = {"review_tier"}
+optional_top = {"review_tier", "escalate_review"}
 allowed_top = required_top | optional_top
 actual_top = set(data.keys())
 extra = actual_top - allowed_top
@@ -256,7 +260,7 @@ if findings is None:
 elif not isinstance(findings, list):
     errors.append("'findings' must be an array")
 else:
-    valid_severities = {"critical", "important", "minor"}
+    valid_severities = {"critical", "important", "minor", "fragile"}
     valid_categories = {"hygiene", "design", "maintainability", "correctness", "verification"}
     for i, finding in enumerate(findings):
         prefix = f"findings[{i}]"
@@ -295,7 +299,7 @@ if isinstance(findings, list) and isinstance(scores, dict):
             errors.append(f"score '{dim}'={score}: no findings requires score 5")
         elif sevs == {"minor"} and score != 4:
             errors.append(f"score '{dim}'={score}: minor-only findings requires score 4")
-        elif "important" in sevs and "critical" not in sevs and score != 3:
+        elif ("important" in sevs or "fragile" in sevs) and "critical" not in sevs and score != 3:
             errors.append(f"score '{dim}'={score}: important (no critical) findings requires score 3")
 
 # Validate summary
@@ -304,6 +308,33 @@ if summary is None:
     errors.append("missing 'summary' field")
 elif not isinstance(summary, str) or len(summary.strip()) < 10:
     errors.append("'summary' must be a non-empty string (min 10 chars)")
+
+# Validate escalate_review if present
+if "escalate_review" in data:
+    escalate = data["escalate_review"]
+    if not isinstance(escalate, list):
+        errors.append("'escalate_review' must be an array")
+    else:
+        findings_count = len(findings) if isinstance(findings, list) else 0
+        for i, item in enumerate(escalate):
+            prefix = f"escalate_review[{i}]"
+            if not isinstance(item, dict):
+                errors.append(f"{prefix}: must be an object")
+                continue
+            if "finding_index" not in item:
+                errors.append(f"{prefix}: missing required field 'finding_index'")
+            else:
+                idx = item["finding_index"]
+                if not isinstance(idx, int):
+                    errors.append(f"{prefix}.finding_index: must be an integer, got: {idx!r}")
+                elif not (0 <= idx < findings_count):
+                    errors.append(f"{prefix}.finding_index: {idx} is out of bounds (findings has {findings_count} elements)")
+            if "reason" not in item:
+                errors.append(f"{prefix}: missing required field 'reason'")
+            else:
+                reason = item["reason"]
+                if not isinstance(reason, str) or not reason.strip():
+                    errors.append(f"{prefix}.reason: must be a non-empty string")
 
 if errors:
     for e in errors:
@@ -513,6 +544,31 @@ CALLER_SCHEMAS = {
                 "required_finding_fields": [
                     {"field": "complexity_estimate", "type": "enum", "enum_values": ["low", "medium", "high"], "when": "all", "optional": False},
                 ],
+            },
+        ],
+    },
+    "ui-designer": {
+        "schema_hash": "2c3ece1bc2820109",
+        "perspectives": [
+            {
+                "perspective": "Product Management",
+                "required_dimensions": ["story_alignment", "user_value", "scope_appropriateness", "consistency", "epic_coherence", "anti_pattern_compliance"],
+                "required_finding_fields": [],
+            },
+            {
+                "perspective": "Design Systems",
+                "required_dimensions": ["component_reuse", "visual_hierarchy", "design_system_compliance", "new_component_justification", "cross_story_consistency"],
+                "required_finding_fields": [],
+            },
+            {
+                "perspective": "Accessibility",
+                "required_dimensions": ["wcag_compliance", "keyboard_navigation", "screen_reader_support", "inclusive_design", "hcd_heuristics"],
+                "required_finding_fields": [],
+            },
+            {
+                "perspective": "Frontend Engineering",
+                "required_dimensions": ["implementation_feasibility", "performance", "state_complexity", "specification_clarity"],
+                "required_finding_fields": [],
             },
         ],
     },
@@ -948,6 +1004,7 @@ case "$PROMPT_ID" in
                 roadmap)              CALLER_HASH="$HASH_CALLER_ROADMAP" ;;
                 brainstorm)           CALLER_HASH="$HASH_CALLER_BRAINSTORM" ;;
                 design-wireframe)     CALLER_HASH="$HASH_CALLER_DESIGN_WIREFRAME" ;;
+                ui-designer)          CALLER_HASH="$HASH_CALLER_UI_DESIGNER" ;;
                 implementation-plan)  CALLER_HASH="$HASH_CALLER_IMPLEMENTATION_PLAN" ;;
                 retro)                CALLER_HASH="$HASH_CALLER_RETRO" ;;
                 design-review)        CALLER_HASH="$HASH_CALLER_DESIGN_REVIEW" ;;

@@ -46,7 +46,7 @@ REPLAN_TRIGGER: <type> — <description>
 
 | Type | When to Use |
 |---|---|
-| `drift` | Codebase drift detected — files modified since task creation that affect one or more stories' tasks. Triggers re-invocation of implementation-plan for affected stories. |
+| `drift` | Codebase drift detected — files modified since task creation that affect one or more stories' tasks. Triggers re-invocation of implementation-plan for affected stories. Also emitted as `RELATES_TO_DRIFT` sub-variant when a `relates_to`-linked epic closes after implementation planning for a story. |
 | `failure` | A story accumulated 2+ UNCERTAIN confidence signals on `STATUS:pass` tasks, indicating low confidence in the implementation. Triggers re-invocation of implementation-plan for the story. |
 | `validation` | A story's done definition failed validation despite all tasks being closed. Triggers creation of TDD remediation tasks via implementation-plan. |
 | `review` | A code review identified out-of-scope files — the implementation touched files outside the story's defined scope. Triggers re-invocation of implementation-plan to create tasks covering the review feedback. |
@@ -109,6 +109,12 @@ The `INTERACTIVITY_DEFERRED` comment replaces `REPLAN_RESOLVED` in this case —
 .claude/scripts/dso ticket comment epic-1234 "REPLAN_TRIGGER: drift — Files drifted: plugins/dso/hooks/pre-bash.sh, plugins/dso/hooks/post-bash.sh. Re-invoking implementation-plan for 2 affected stories."
 ```
 
+### relates_to drift trigger
+
+```bash
+.claude/scripts/dso ticket comment epic-1234 "REPLAN_TRIGGER: drift — RELATES_TO_DRIFT: related epic epic-5678 closed after implementation planning for story story-9012. Re-invoking implementation-plan to re-evaluate task alignment."
+```
+
 ### failure trigger
 
 ```bash
@@ -159,7 +165,7 @@ The `INTERACTIVITY_DEFERRED` comment replaces `REPLAN_RESOLVED` in this case —
 
 ---
 
-## Canonical Parsing Prefix
+### Canonical parsing prefix
 
 Tooling that scans epic ticket comments for these signals MUST match against these canonical prefixes:
 
@@ -206,4 +212,5 @@ This contract is versioned. Breaking changes (format changes, enum value changes
 
 ### Change Log
 
+- **2026-04-08**: Additive — documents `RELATES_TO_DRIFT` sub-variant of the `drift` trigger type: emitted when a `relates_to`-linked epic closes after implementation planning, detected by `sprint-drift-check.sh`.
 - **2026-04-04**: Initial version — defines REPLAN_TRIGGER/REPLAN_RESOLVED observability signal formats for the sprint self-healing loop. Covers all 4 trigger types (drift, failure, validation, review), both resolved tiers (implementation-plan, brainstorm), and INTERACTIVITY_DEFERRED handling for non-interactive mode.

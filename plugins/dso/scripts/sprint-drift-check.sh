@@ -28,15 +28,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 EPIC_ID=""
 REPO_PATH=""
+STATUS_FILTER=""
 
 for arg in "$@"; do
     case "$arg" in
         --repo=*)
             REPO_PATH="${arg#--repo=}"
             ;;
+        --status=*)
+            STATUS_FILTER="${arg#--status=}"
+            ;;
         --*)
             echo "Unknown option: $arg" >&2
-            echo "Usage: $(basename "$0") <epic-id> [--repo=<path>]" >&2
+            echo "Usage: $(basename "$0") <epic-id> [--repo=<path>] [--status=<open|in_progress|closed>]" >&2
             exit 2
             ;;
         *)
@@ -52,9 +56,19 @@ for arg in "$@"; do
 done
 
 if [[ -z "$EPIC_ID" ]]; then
-    echo "Usage: $(basename "$0") <epic-id> [--repo=<path>]" >&2
+    echo "Usage: $(basename "$0") <epic-id> [--repo=<path>] [--status=<open|in_progress|closed>]" >&2
     echo "Error: epic-id is required" >&2
     exit 1
+fi
+
+if [[ -n "$STATUS_FILTER" ]]; then
+    case "$STATUS_FILTER" in
+        open|in_progress|closed) ;;
+        *)
+            echo "Error: invalid --status value '$STATUS_FILTER'. Must be one of: open, in_progress, closed" >&2
+            exit 2
+            ;;
+    esac
 fi
 
 # ── Resolve repo path ─────────────────────────────────────────────────────────
@@ -167,10 +181,173 @@ for f in files:
 PYEOF
 }
 
+# ── Helper: check relates_to drift ───────────────────────────────────────────
+# Detects when a related epic (via relates_to link) has closed after the
+# implementation plan was created.
+#
+# Usage: _check_relates_to_drift <epic_id> <children_json>
+# Outputs: RELATES_TO_DRIFT: <neighbor-id> <summary> for each neighbor that
+#          closed after the impl plan timestamp.
+# On CLI failure for a neighbor: warn to stderr, continue.
+# On empty relates_to set: exits immediately with no output.
+_check_relates_to_drift() {
+    local epic_id="$1"
+    local children_json_arg="$2"
+
+    # Get epic's raw ticket output.
+    # NOTE: The raw output may contain invalid JSON because ticket comment bodies
+    # can contain unescaped JSON objects (e.g., PREPLANNING_CONTEXT payloads).
+    # All extraction below uses regex-based approaches that tolerate this.
+    local epic_raw
+    epic_raw=$("$TICKET_CMD" show "$epic_id" 2>/dev/null) || {
+        echo "WARNING: _check_relates_to_drift: could not fetch epic $epic_id; skipping relates_to check" >&2
+        return 0
+    }
+
+    # Extract relates_to neighbor IDs from deps array using regex.
+    # The deps array contains simple fields (no free-text) so we can extract
+    # it as a substring and parse just that array with json.loads.
+    local relates_to_ids
+    relates_to_ids=$(python3 - "$epic_raw" << 'PYEOF'
+import json, sys, re
+
+raw = sys.argv[1]
+
+# Extract the "deps" array value from the raw text.
+# Match "deps": [ ... ] — deps entries are simple objects without nested free-text.
+m = re.search(r'"deps"\s*:\s*(\[.*?\])', raw, re.DOTALL)
+if not m:
+    sys.exit(0)
+
+try:
+    deps = json.loads(m.group(1))
+    for dep in deps:
+        if dep.get('relation') == 'relates_to':
+            target = dep.get('target_id', '').strip()
+            if target:
+                print(target)
+except Exception:
+    pass
+PYEOF
+)
+
+    # Guard clause: empty relates_to set — exit immediately
+    if [[ -z "$relates_to_ids" ]]; then
+        return 0
+    fi
+
+    # Determine impl plan timestamp:
+    # 1. Preferred: PREPLANNING_CONTEXT comment's generatedAt field.
+    #    Use regex search on the raw epic output — avoids full JSON parse failure
+    #    caused by unescaped quotes inside comment body strings.
+    # 2. Fallback: earliest child created_at from children_json_arg.
+    local impl_plan_ts
+    impl_plan_ts=$(python3 - "$epic_raw" "$children_json_arg" << 'PYEOF'
+import json, sys, re
+from datetime import datetime, timezone
+
+epic_raw = sys.argv[1]
+children_json = sys.argv[2]
+
+ts = None
+
+# Try PREPLANNING_CONTEXT generatedAt via regex on raw epic output.
+# Pattern: PREPLANNING_CONTEXT: { ... "generatedAt": "<iso>" ... }
+m = re.search(r'PREPLANNING_CONTEXT:\s*\{[^}]*"generatedAt"\s*:\s*"([^"]+)"', epic_raw)
+if m:
+    generated_at = m.group(1)
+    try:
+        dt_str = generated_at.replace('Z', '+00:00')
+        try:
+            dt = datetime.fromisoformat(dt_str)
+        except ValueError:
+            dt = datetime.strptime(generated_at, '%Y-%m-%dT%H:%M:%SZ')
+            dt = dt.replace(tzinfo=timezone.utc)
+        ts = int(dt.timestamp())
+    except (ValueError, Exception):
+        pass
+
+# Fallback: earliest child created_at
+if ts is None:
+    try:
+        children = json.loads(children_json)
+        times = [c.get('created_at', 0) for c in children if c.get('created_at', 0) > 0]
+        if times:
+            ts = min(times)
+    except Exception:
+        pass
+
+if ts is not None:
+    print(ts)
+PYEOF
+)
+
+    # If we couldn't determine a timestamp, skip the check
+    if [[ -z "$impl_plan_ts" ]]; then
+        return 0
+    fi
+
+    # Check each relates_to neighbor for closure after impl plan timestamp.
+    # Neighbor JSON is simple (no free-text in comment bodies in standard usage),
+    # so json.loads works. Regex fallback handles edge cases.
+    while IFS= read -r neighbor_id; do
+        [[ -z "$neighbor_id" ]] && continue
+
+        local neighbor_raw
+        if ! neighbor_raw=$("$TICKET_CMD" show "$neighbor_id" 2>/dev/null); then
+            echo "WARNING: _check_relates_to_drift: could not fetch neighbor $neighbor_id; skipping" >&2
+            continue
+        fi
+
+        python3 - "$neighbor_raw" "$impl_plan_ts" "$neighbor_id" << 'PYEOF'
+import json, sys, re
+
+neighbor_raw = sys.argv[1]
+impl_plan_ts = int(sys.argv[2])
+neighbor_id = sys.argv[3]
+
+# Try full JSON parse; fallback to regex for robustness
+try:
+    neighbor = json.loads(neighbor_raw)
+    status = neighbor.get('status', '')
+    closed_at = int(neighbor.get('closed_at', 0) or 0)
+    title = neighbor.get('title', '')
+except Exception:
+    m_status = re.search(r'"status"\s*:\s*"([^"]+)"', neighbor_raw)
+    m_closed = re.search(r'"closed_at"\s*:\s*(\d+)', neighbor_raw)
+    m_title = re.search(r'"title"\s*:\s*"([^"]*)"', neighbor_raw)
+    status = m_status.group(1) if m_status else ''
+    closed_at = int(m_closed.group(1)) if m_closed else 0
+    title = m_title.group(1) if m_title else ''
+
+if status != 'closed':
+    sys.exit(0)
+if not closed_at:
+    sys.exit(0)
+if closed_at > impl_plan_ts:
+    print('RELATES_TO_DRIFT: {} \u2014 related epic closed after impl plan (closed_at={}, impl_plan_ts={}, title={})'.format(
+        neighbor_id, closed_at, impl_plan_ts, title
+    ))
+PYEOF
+
+    done <<< "$relates_to_ids"
+}
+
 # ── Main logic ────────────────────────────────────────────────────────────────
 
 # List children of the epic
 children_json="$("$TICKET_CMD" list --parent="$EPIC_ID" 2>/dev/null || echo "[]")"
+
+# Filter children by status if --status was provided
+if [[ -n "$STATUS_FILTER" ]]; then
+    children_json=$(python3 -c "
+import json, sys
+children = json.loads(sys.argv[1])
+status_filter = sys.argv[2]
+filtered = [c for c in children if c.get('status') == status_filter]
+print(json.dumps(filtered))
+" "$children_json" "$STATUS_FILTER")
+fi
 
 # Check if children list is empty
 child_count=$(python3 -c "
@@ -280,5 +457,8 @@ else
     unique_files=$(printf '%s\n' "${drifted_files[@]}" | sort -u | tr '\n' ',' | sed 's/,$//')
     echo "DRIFT_DETECTED: ${unique_files}"
 fi
+
+# Check relates_to neighbors for drift (additive — appended after file-drift output)
+_check_relates_to_drift "$EPIC_ID" "$children_json"
 
 exit 0

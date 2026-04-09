@@ -89,6 +89,23 @@ changes before applying them.
 > **Note**: `/dso:init` is also available as a lighter alternative that validates your setup and
 > reports detected commands without generating `.claude/dso-config.conf` interactively.
 
+### Step 6 — (Optional) Run /dso:architect-foundation
+
+After onboarding, you can scaffold enforcement infrastructure for your project:
+
+```
+/dso:architect-foundation
+```
+
+`/dso:architect-foundation` reads `.claude/project-understanding.md` (written by `/dso:onboarding`
+in Step 5), uses Socratic dialogue to uncover enforcement preferences and anti-pattern risks, then
+generates targeted scaffolding (pre-commit hooks, CI configuration, test infrastructure). It presents
+recommendations one-at-a-time and shows diffs before overwriting existing files. Supports
+`/dso:dryrun /dso:architect-foundation` to preview without changes.
+
+> **Note**: This step is optional. It is most useful for new projects that need enforcement
+> scaffolding (linting, formatting, test gates) set up from scratch.
+
 ---
 
 ## Path Resolution

@@ -56,30 +56,26 @@ test_sprint_summary_mentions_tier_upgrade() {
     assert_pass_if_clean "test_sprint_summary_mentions_tier_upgrade"
 }
 
-# Verify escalation table routes ALL tiers (not just deep) to full deep path at PASS_NUM 3+
-test_escalation_table_all_tiers_full_deep() {
+# Verify escalation table uses RATCHETED_TIER (replacing pass 3+ auto-escalation)
+test_escalation_table_uses_ratchet() {
     _snapshot_fail
     if [[ ! -f "$REVIEW_WF" ]]; then
         (( ++FAIL ))
         printf "FAIL: REVIEW-WORKFLOW.md not found\n" >&2
-        assert_pass_if_clean "test_escalation_table_all_tiers_full_deep"
+        assert_pass_if_clean "test_escalation_table_uses_ratchet"
         return
     fi
-    # The PASS_NUM 3+ row must NOT route light/standard to deep-arch alone
-    # It must route ALL tiers to the full deep-multi-reviewer path
-    local _table_row
-    _table_row=$(grep -A1 '3+' "$REVIEW_WF" | grep -i 'upgrade\|light.*standard' 2>/dev/null || echo "")
-    local _routes_all_to_full=0
-    # The row should mention all tiers going to full deep path, not deep-arch alone for light/standard
-    if grep -qiE 'light/standard/deep.*full deep|all.*full deep' <<< "$_table_row"; then
-        _routes_all_to_full=1
+    # The escalation table must mention RATCHETED_TIER (replacing the old pass 3+ row)
+    local _has_ratchet=0
+    if grep -qiE 'RATCHETED_TIER' "$REVIEW_WF"; then
+        _has_ratchet=1
     fi
-    assert_eq "escalation table routes ALL tiers to full deep path at PASS_NUM 3+ (not deep-arch alone)" "1" "$_routes_all_to_full"
-    assert_pass_if_clean "test_escalation_table_all_tiers_full_deep"
+    assert_eq "escalation table uses RATCHETED_TIER for one-way ratchet (replacing pass 3+)" "1" "$_has_ratchet"
+    assert_pass_if_clean "test_escalation_table_uses_ratchet"
 }
 
-echo "--- test_escalation_table_all_tiers_full_deep ---"
-test_escalation_table_all_tiers_full_deep
+echo "--- test_escalation_table_uses_ratchet ---"
+test_escalation_table_uses_ratchet
 echo ""
 
 echo "--- test_review_wf_tier_gate_before_user_escalation ---"

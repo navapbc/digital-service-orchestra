@@ -232,7 +232,7 @@ For each qualifying story:
    - [Integration] NOT verified: <tool> does not appear to support <capability>
    ```
 4. If no sandbox or test environment is available for integration testing, flag this to the user during preplanning: "No sandbox available for <tool> — integration testing will require a live environment."
-5. If research finds no verified code or capabilities for a story's integration, flag the story as **high-risk** and recommend spike-task creation before implementation: "Story <id> references <tool> but no verified working code was found — recommend creating a spike task to validate capabilities before implementation."
+5. If research finds no verified code or capabilities for a story's integration, emit `REPLAN_ESCALATE: brainstorm` with explanation of the unresolved gap. Sprint's replan machinery routes this signal. Track the current iteration in `feasibility_cycle_count` (state variable exposed for planning-intelligence log consumption).
 
 ### Skip Condition
 
@@ -382,7 +382,7 @@ For each split:
 - Add dependency: `.claude/scripts/dso ticket link <enhancement-id> <foundation-id> depends_on`
 - Both trace to the same epic criterion
 
-**Note**: `/dso:design-wireframe` has its own Pragmatic Scope Splitter (Step 10) that may trigger UI-specific splits during design. If preplanning already split a story, the design agent works within the Foundation story's scope.
+**Note**: `dso:ui-designer` has its own Pragmatic Scope Splitter (Phase 3 Step 10) that may trigger UI-specific splits during design. If preplanning already split a story, the design agent works within the Foundation story's scope. **Enforcement**: the splitRole guard in `ui-designer-dispatch-protocol.md` Section 5 enforces this precedence rule — agent `scope_split_proposals` are skipped entirely when a `splitRole: Foundation` or `splitRole: Enhancement` marker is detected on the story.
 
 ---
 
@@ -747,7 +747,10 @@ Log: `"Planning context written to epic ticket <epic-id> as PREPLANNING_CONTEXT 
 
 ### Step 6: Design Wireframes for UI Stories (/dso:preplanning)
 
-After the user approves the story map, invoke `/dso:design-wireframe` for **any story that involves UI changes**. The `/dso:design-wireframe` skill will determine whether new UI components, layouts, or wireframes are actually needed — your job is only to identify candidates and pass them through.
+After the user approves the story map, dispatch `dso:ui-designer` for **any
+story that involves UI changes**. The agent determines whether new components,
+layouts, or wireframes are actually needed — your job is only to identify
+candidates and dispatch them.
 
 A story is a candidate if it:
 - Mentions user-facing screens, pages, views, or components
@@ -759,52 +762,32 @@ Stories that are purely backend, infrastructure, testing-only, or documentation 
 
 **Skip if**: No stories in the plan involve UI changes. Document this: "No UI stories identified — skipping wireframe phase."
 
-#### Wireframe Session File Lifecycle
+#### Dispatch Protocol
 
-When multiple UI stories need wireframes, create a **session file** to avoid
-redundant reads across serial `/dso:design-wireframe` invocations.
+**Before the loop**: Read the inline dispatch protocol once using the Read tool:
+`plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md`
 
-**Before the first wireframe invocation**:
+**For each qualifying story**, follow the six protocol steps in order:
+1. Input payload construction and session file initialization
+2. Agent dispatch via the Agent tool (`subagent_type: "dso:ui-designer"`)
+3. CACHE_MISSING retry loop (2 retry attempts; up to 3 total CACHE_MISSING
+   returns before the retry cap is exceeded)
+4. Review loop (orchestrator-managed: invoke `/dso:review-protocol` on design
+   artifacts; max 3 cycles; REVIEW_PASS → tag `design:approved` and proceed;
+   REVIEW_FAIL → re-dispatch ui-designer with feedback; at max cycles:
+   interactive → ask user; non-interactive → emit INTERACTIVITY_DEFERRED,
+   tag `design:pending_review`, and proceed)
+5. Scope-split handling (interactive or INTERACTIVITY_DEFERRED)
+6. Session file updates (`processedStories` and `siblingDesigns`)
 
-1. Read `.claude/design-notes.md` content (if it exists).
-2. Create `/tmp/wireframe-session-<epic-id>.json`:
-   ```json
-   {
-     "version": 1,
-     "epicId": "<epic-id>",
-     "createdAt": "<ISO-8601 timestamp>",
-     "designNotes": {
-       "exists": true,
-       "content": "<full .claude/design-notes.md content or null if missing>"
-     },
-     "processedStories": [],
-     "siblingDesigns": []
-   }
-   ```
-3. Log: `"Created wireframe session file for epic <epic-id> with <N> UI stories
-   to process."`
+**NESTING PROHIBITION**: Dispatch `dso:ui-designer` via the **Agent tool only**.
+Do NOT use the Skill tool — that would create illegal Skill-tool nesting
+(preplanning → Skill → ui-designer) which causes
+`[Tool result missing due to internal error]` failures.
 
-**For each qualifying story**, invoke `/dso:design-wireframe`:
-
-```
-/dso:design-wireframe <story-id>
-```
-
-**After each `/dso:design-wireframe` completes**:
-
-1. Read the design manifest path from the story's `design` field:
-   `.claude/scripts/dso ticket show <story-id>`
-2. Append the story to the session file's `processedStories` array:
-   ```json
-   {
-     "storyId": "<story-id>",
-     "designManifestPath": "<path from design field>",
-     "completedAt": "<ISO-8601 timestamp>"
-   }
-   ```
-3. Append the manifest path to the `siblingDesigns` array (for subsequent
-   invocations to read without re-scanning).
-4. Log: `"Updated wireframe session: <N>/<total> stories processed."`
+Parse the agent return value for the `UI_DESIGNER_PAYLOAD:` prefix and extract
+the JSON object that follows. Route all subsequent decisions (tagging, scope
+splits, session file updates) based on that object's fields.
 
 **Order**: Process stories in dependency order (stories with no blockers first,
 then stories that depend on them). This ensures base wireframes exist before
@@ -918,7 +901,7 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 | 2: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
 | 2.5: Adversarial Review | Red team attack on story map, blue team filter findings (skip if < 3 stories) | `Task` (opus red team, sonnet blue team) |
 | 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `.claude/scripts/dso ticket link` |
-| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket comment`, `validate-issues.sh`, `/dso:design-wireframe` |
+| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket comment`, `validate-issues.sh`, `dso:ui-designer` (via Agent tool), `.claude/scripts/dso ticket edit --tags` (design:approved on REVIEW_PASS; design:pending_review on deferred/failed review) |
 
 ## Example: Reconciliation + Story Creation
 

@@ -138,6 +138,7 @@ output=""
 output=$(
     VALIDATE_TEST_STATE_FILE="$_partial_state_file" \
     VALIDATE_TEST_BATCHED_SCRIPT="$_stub_dir/test-batched.sh" \
+    VALIDATE_SKIP_PLUGIN_CHECKS=1 \
     CONFIG_FILE="$_stub_config" \
     bash "$VALIDATE_SCRIPT" \
     2>&1
@@ -308,6 +309,7 @@ output_e2=""
 output_e2=$(
     VALIDATE_TEST_STATE_FILE="$_partial_state_file_e2" \
     VALIDATE_TEST_BATCHED_SCRIPT="$_stub_dir_e2/test-batched.sh" \
+    VALIDATE_SKIP_PLUGIN_CHECKS=1 \
     CONFIG_FILE="$_stub_config_e2" \
     bash "$VALIDATE_SCRIPT" \
     2>&1

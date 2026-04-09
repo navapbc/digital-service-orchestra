@@ -86,7 +86,8 @@ check_guard_agent_tool "debug-everything"
 check_guard_agent_tool "brainstorm"
 check_guard_agent_tool "preplanning"
 check_guard_agent_tool "implementation-plan"
-check_guard_agent_tool "design-wireframe"
+# design-wireframe: redirect stub — no guard needed (skill no longer dispatches sub-agents;
+# design creation moved to dso:ui-designer agent dispatched by preplanning)
 check_guard_agent_tool "design-review"
 check_guard_agent_tool "roadmap"
 check_guard_agent_tool "plan-review"
@@ -112,99 +113,45 @@ check_guard_orchestrator_signal "end-session"
 check_guard_orchestrator_signal "onboarding"
 
 # ===========================================================================
-# Group 3: hook_worktree_isolation_guard function — auth-file allowlist behavior
-# Tests source session-misc-functions.sh and call the function directly.
-# RED phase: test_function_allows_with_valid_marker fails against the current
-# function, which categorically denies isolation:worktree with no auth-file check.
+# Group 3: worktree isolation guard removed (bugs 1fd7-7235)
+# The platform already prevents sub-agents from using the Agent tool, so the
+# hook_worktree_isolation_guard function and auth marker pattern are dead code.
 # ===========================================================================
 
-# Cleanup: remove any marker files created by these tests
-trap 'rm -f /tmp/worktree-isolation-authorized-func-* 2>/dev/null; true' EXIT
-
-# Helper: source the functions and call hook_worktree_isolation_guard, writing
-# stdout to a temp file (avoids multi-line grep problems).
-# Usage: _run_isolation_fn <marker_pid|"none"|"stale"> <tmp_out_file>
-_run_isolation_fn() {
-    local mode="$1"
-    local out_file="$2"
-    local _INPUT='{"tool_name":"Agent","tool_input":{"isolation":"worktree","prompt":"test dispatch"}}'
-
-    # Run in a subshell so sourcing doesn't pollute the outer environment.
-    # The subshell writes function stdout to out_file and exit code to out_file.exit.
-    (
-        # Suppress the "no such file: deps.sh" error from sourcing in a worktree context;
-        # the function itself does not depend on deps.sh at call time.
-        source "$PLUGIN_ROOT/plugins/dso/hooks/lib/session-misc-functions.sh" 2>/dev/null
-
-        # Set up marker file based on mode
-        case "$mode" in
-            valid)
-                _MARKER="/tmp/worktree-isolation-authorized-func-$$"
-                echo "$$" > "$_MARKER"
-                trap "rm -f '$_MARKER' 2>/dev/null; true" EXIT
-                ;;
-            stale)
-                # PID beyond any OS limit — guaranteed not running
-                _DEAD_PID=9999999
-                _MARKER="/tmp/worktree-isolation-authorized-func-${_DEAD_PID}"
-                echo "$_DEAD_PID" > "$_MARKER"
-                trap "rm -f '$_MARKER' 2>/dev/null; true" EXIT
-                ;;
-            none)
-                rm -f /tmp/worktree-isolation-authorized-func-* 2>/dev/null
-                ;;
-        esac
-
-        hook_worktree_isolation_guard "$_INPUT" 2>/dev/null > "$out_file"
-        echo $? > "${out_file}.exit"
-    )
-}
-
 # ---------------------------------------------------------------------------
-# test_function_allows_with_valid_marker
-# With a valid auth marker (PID = current process), function must allow:
-#   return 0, no deny JSON in stdout.
-# RED against current implementation: current function always outputs deny JSON.
+# test_worktree_isolation_guard_removed
+# hook_worktree_isolation_guard must NOT be defined in session-misc-functions.sh
+# — the platform prevents sub-agents from dispatching Agent calls, making the
+# guard redundant. RED until the function is removed.
 # ---------------------------------------------------------------------------
-echo "--- test_function_allows_with_valid_marker ---"
-_out_f1="/tmp/_wisog_test1_$$"
-_run_isolation_fn "valid" "$_out_f1"
-_fn1_stdout=$(cat "$_out_f1" 2>/dev/null)
-_fn1_ret=$(cat "${_out_f1}.exit" 2>/dev/null)
-rm -f "$_out_f1" "${_out_f1}.exit" 2>/dev/null
-
-assert_eq "test_function_allows_with_valid_marker: returns 0" "0" "${_fn1_ret:-0}"
-# assert_not_contains: the deny JSON must NOT appear in stdout when a valid marker exists.
-# assert_ne does exact equality, not substring — use inline containment check instead.
-if [[ "$_fn1_stdout" == *'"permissionDecision": "deny"'* ]]; then
-    assert_eq "test_function_allows_with_valid_marker: no deny output" "no_deny" "deny_found"
+_SESSION_MISC="$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh"
+if grep -q "^hook_worktree_isolation_guard" "$_SESSION_MISC" 2>/dev/null; then
+    assert_eq "test_worktree_isolation_guard_removed: function absent from session-misc-functions.sh" "absent" "present"
 else
-    assert_eq "test_function_allows_with_valid_marker: no deny output" "no_deny" "no_deny"
+    assert_eq "test_worktree_isolation_guard_removed: function absent from session-misc-functions.sh" "absent" "absent"
 fi
 
 # ---------------------------------------------------------------------------
-# test_function_blocks_without_marker
-# Without an auth marker, isolation:worktree must be denied (deny JSON in stdout).
+# test_pre_agent_dispatcher_removed
+# pre-agent.sh must NOT exist — its only purpose was to call the removed guard.
 # ---------------------------------------------------------------------------
-echo "--- test_function_blocks_without_marker ---"
-_out_f2="/tmp/_wisog_test2_$$"
-_run_isolation_fn "none" "$_out_f2"
-_fn2_stdout=$(cat "$_out_f2" 2>/dev/null)
-rm -f "$_out_f2" "${_out_f2}.exit" 2>/dev/null
-
-assert_contains "test_function_blocks_without_marker: deny output present" '"permissionDecision": "deny"' "$_fn2_stdout"
+_PRE_AGENT="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-agent.sh"
+if [[ -f "$_PRE_AGENT" ]]; then
+    assert_eq "test_pre_agent_dispatcher_removed: dispatcher absent" "absent" "present"
+else
+    assert_eq "test_pre_agent_dispatcher_removed: dispatcher absent" "absent" "absent"
+fi
 
 # ---------------------------------------------------------------------------
-# test_function_blocks_stale_marker
-# A marker file whose PID is no longer running must still produce deny output.
+# test_auth_marker_pattern_removed_from_worktree_dispatch
+# worktree-dispatch.md must NOT contain auth marker creation instructions.
 # ---------------------------------------------------------------------------
-echo "--- test_function_blocks_stale_marker ---"
-_out_f3="/tmp/_wisog_test3_$$"
-_run_isolation_fn "stale" "$_out_f3"
-_fn3_stdout=$(cat "$_out_f3" 2>/dev/null)
-rm -f "$_out_f3" "${_out_f3}.exit" 2>/dev/null
-
-assert_contains "test_function_blocks_stale_marker: deny output present" '"permissionDecision": "deny"' "$_fn3_stdout"
+_DISPATCH_MD="$DSO_PLUGIN_DIR/skills/shared/prompts/worktree-dispatch.md"
+if grep -q "worktree-isolation-authorized" "$_DISPATCH_MD" 2>/dev/null; then
+    assert_eq "test_auth_marker_pattern_removed_from_worktree_dispatch: auth marker absent" "absent" "present"
+else
+    assert_eq "test_auth_marker_pattern_removed_from_worktree_dispatch: auth marker absent" "absent" "absent"
+fi
 
 print_summary
 
@@ -226,8 +173,6 @@ _TEST_GATE_ANCHORS=(
     test_preplanning_guard_references_agent_tool
     test_implementation_plan_has_sub_agent_guard_marker
     test_implementation_plan_guard_references_agent_tool
-    test_design_wireframe_has_sub_agent_guard_marker
-    test_design_wireframe_guard_references_agent_tool
     test_design_review_has_sub_agent_guard_marker
     test_design_review_guard_references_agent_tool
     test_roadmap_has_sub_agent_guard_marker
@@ -258,7 +203,7 @@ _TEST_GATE_ANCHORS=(
     test_design_onboarding_guard_references_orchestrator_signal
     test_onboarding_has_sub_agent_guard_marker
     test_onboarding_guard_references_orchestrator_signal
-    test_function_allows_with_valid_marker
-    test_function_blocks_without_marker
-    test_function_blocks_stale_marker
+    test_worktree_isolation_guard_removed
+    test_pre_agent_dispatcher_removed
+    test_auth_marker_pattern_removed_from_worktree_dispatch
 )

@@ -7,14 +7,17 @@ README.md | nav | Project orientation (stub — see CLAUDE.md)
 
 ## Tier 3: Living Reference
 docs/reference/system-landscape.md | reference | Plugin root resolution order, command wrappers, portability lint, agent fallback, test quality overlay, pre-commit test quality gate
-docs/reference/domain-logic.md | reference | Fix-bug gate pipeline, gate signal contract, escalation router
+docs/reference/domain-logic.md | reference | Fix-bug gate pipeline, gate signal contract, escalation router; brainstorm planning pipeline (follow-on scrutiny, feasibility-resolution gate, prompt-alignment step)
 
 ## Tier 4: ADRs
 docs/adr/0001-shim-sentinel-self-detection.md | adr | Why shim step 3 (sentinel self-detection) was added
 docs/adr/0002-sprint-gap-detection-and-routing.md | adr | Why sprint self-healing checkpoints and confidence signal routing were added
+docs/adr/0003-brainstorm-planning-pipeline-hardening.md | adr | Why follow-on epic scrutiny, feasibility-resolution gate, and prompt-alignment step were added to brainstorm
 
 ## Plugin Source
 plugins/dso/scripts/check-portability.sh | source | Pre-commit portability lint (flags /Users/ and /home/ hardcoded paths)
+plugins/dso/scripts/check-contract-schemas.sh | source | Pre-commit contract schema validation (enforces # Contract: heading, Purpose section, canonical parsing prefix for signal contracts)
+plugins/dso/scripts/check-referential-integrity.sh | source | Pre-commit referential integrity check (verifies path references in skill/agent/workflow docs point to real files)
 plugins/dso/hooks/pre-commit-test-quality-gate.sh | source | Pre-commit test quality gate (blocks anti-pattern tests; configurable via test_quality.* in dso-config.conf)
 plugins/dso/hooks/semgrep-rules/test-anti-patterns.yaml | source | Semgrep custom rules for test anti-pattern detection
 plugins/dso/agents/code-reviewer-test-quality.md | source | Test quality overlay agent (opus); evaluates test bloat patterns in review diffs

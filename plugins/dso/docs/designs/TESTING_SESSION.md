@@ -29,7 +29,7 @@ Tests are primarily written by: RED test writer agent, fix-bug skill, implementa
 - 289 in tests/scripts/, 123 in tests/hooks/, 104 in tests/skills/, 9 in tests/agents/
 - ~40+ tests in tests/skills/ and tests/agents/ are pure change-detection
 
-### Bloat Examples Identified
+### Bloat Examples Identified (deleted in Epic 902a-393b)
 1. `test_fix_bug_skill.py` (1,368 lines) — 20+ tests all grepping SKILL.md for string presence
 2. `test_brainstorm_gap_analysis.py` (197 lines) — fuzzy phrase matching on markdown
 3. `test-reviewer-dimension-names.sh` (50 lines) — grepping agent .md for quoted dimension names
@@ -127,7 +127,7 @@ User requested rolling original principles 5 (mock only external boundaries) and
 ## Final Approved Spec
 
 ### Success Criteria (13)
-1. Shared 4-rule behavioral testing standard consumed by all test-writing paths
+1. Shared 5-rule behavioral testing standard consumed by all test-writing paths
 2. Implementation-plan RED/GREEN/UPDATE testing mode classification
 3. Sprint orchestrator consumes testing_mode field
 4. RED test writer "no new tests needed" exit path

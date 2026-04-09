@@ -57,8 +57,14 @@ def test_sub_agent_boundaries_does_not_define_extract_section_locally() -> None:
 
 
 def test_task_execution_template_does_not_define_extract_section_locally() -> None:
-    """test_task_execution_template.py must import, not define, _extract_section_from_template."""
+    """test_task_execution_template.py must import, not define, _extract_section_from_template.
+
+    If the file was deleted (change-detection test cleanup), this test is
+    vacuously satisfied — the duplication is gone.
+    """
     filepath = REPO_ROOT / "tests" / "skills" / "test_task_execution_template.py"
+    if not filepath.exists():
+        return  # File deleted — deduplication concern no longer applies
     names = _get_local_function_names(filepath)
     assert "_extract_section_from_template" not in names, (
         f"{filepath.name} still defines _extract_section_from_template locally. "

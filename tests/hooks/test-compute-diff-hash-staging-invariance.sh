@@ -107,6 +107,9 @@ assert_ne "clean hash is non-empty" "" "$HASH_CLEAN"
 echo "def hello(): return 'world'" > "$TMPDIR_TEST/new_feature.py"
 git add "$TMPDIR_TEST/new_feature.py"
 
+# Ensure git index mtime advances past seconds-resolution cache key (CI race fix)
+sleep 1
+
 # Hash at review time (file is staged)
 HASH_AT_REVIEW=$(bash "$HOOK" 2>/dev/null)
 assert_ne "hash with staged new file is non-empty (dso-g8cz)" "" "$HASH_AT_REVIEW"

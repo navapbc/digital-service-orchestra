@@ -89,6 +89,12 @@ Floor rules applied by the classifier may raise `selected_tier` above the thresh
 }
 ```
 
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `CLASSIFIER_TIER_OUTPUT` — this contract defines a JSON stdout interface. The parser reads the full JSON object from the emitter's stdout and inspects the `selected_tier`, `security_overlay`, `performance_overlay`, and `test_quality_overlay` fields. No line-prefix matching applies; the parser must deserialize the JSON object to access these fields.
+
 ---
 
 ## Exit Code Semantics

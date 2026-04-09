@@ -641,7 +641,7 @@ Proceed to the corresponding Step 5 branch below.
 
 ### Step 5: RED Test (/dso:fix-bug)
 
-**Standard reference**: Load `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` before writing or modifying any test. Apply all four rules (coverage check, observable behavior, execute-don't-inspect, refactoring litmus test) to every test written or modified in this step.
+**Standard reference**: Load `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` before writing or modifying any test. Apply all five rules (coverage check, observable behavior, execute-don't-inspect, refactoring litmus test, instruction-file structural boundary) to every test written or modified in this step.
 
 If the bug already causes an existing test to fail, skip this step — the existing test serves as the RED test.
 
@@ -1096,10 +1096,12 @@ After the fix is verified GREEN and before committing, check whether the source 
 
 ### Step 8: Commit and Close (/dso:fix-bug)
 
+**NEVER close a bug with reason `Escalated to user:` unless the user has explicitly authorized closure in this interactive session (i.e., the user said "close this ticket").** When no code fix is possible, add investigation findings as a ticket comment and leave the ticket OPEN — closing removes it from `ticket list` visibility. Surface unfixable bugs in the session summary instead.
+
 **When running as orchestrator (not a sub-agent)**:
 
 1. Complete the commit workflow per `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
-2. Close the bug ticket:
+2. Close the bug ticket only after a successful code fix:
    ```bash
    ticket transition <BUG_TICKET_ID> in_progress closed --reason="Fixed: <one-line summary of the fix>"
    ```

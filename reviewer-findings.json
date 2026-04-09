@@ -1,0 +1,13 @@
+{
+  "reviewer": "dso:code-reviewer-light",
+  "review_tier": "light",
+  "scores": {
+    "correctness": 5,
+    "verification": 5,
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5
+  },
+  "findings": [],
+  "summary": "Adds explicit agent-unavailable fallback to sprint SKILL.md Step 10a and Phase 6 Step 0.75 for dso:completion-verifier dispatch, directing the orchestrator to use general-purpose with the agent definition inline instead of skipping the step. Structural test added to verify both fallback blocks are present. Matches pattern already established for dso:complexity-evaluator fallback."
+}

@@ -2,11 +2,12 @@
 # tests/run-all.sh
 # Top-level regression runner: orchestrates all plugin test suites.
 #
-# Runs all four suites concurrently (sequential fallback via SERIAL_SUITES=1):
-#   1. tests/hooks/run-hook-tests.sh     \
-#   2. tests/scripts/run-script-tests.sh  |  concurrent
-#   3. tests/evals/run-evals.sh           |
-#   4. tests/skills/run-python-tests.sh  /
+# Runs all five suites concurrently (sequential fallback via SERIAL_SUITES=1):
+#   1. tests/hooks/run-hook-tests.sh          \
+#   2. tests/scripts/run-script-tests.sh       |  concurrent
+#   3. tests/evals/run-evals.sh                |
+#   4. tests/skills/run-python-tests.sh        |
+#   5. tests/skills/run-skill-bash-tests.sh   /
 #
 # Produces a combined PASS/FAIL summary across all suites.
 # Exits 0 only if ALL suites exit 0; exits 1 otherwise.
@@ -105,6 +106,7 @@ HOOKS_RUNNER="$SCRIPT_DIR/hooks/run-hook-tests.sh"
 SCRIPTS_RUNNER="$SCRIPT_DIR/scripts/run-script-tests.sh"
 EVALS_RUNNER="$SCRIPT_DIR/evals/run-evals.sh"
 PYTHON_RUNNER="$SCRIPT_DIR/skills/run-python-tests.sh"
+SKILL_BASH_RUNNER="$SCRIPT_DIR/skills/run-skill-bash-tests.sh"
 
 # --- Per-suite timeout (seconds). Override with --suite-timeout <N>. ---
 SUITE_TIMEOUT="${SUITE_TIMEOUT:-600}"
@@ -141,6 +143,8 @@ while [[ $# -gt 0 ]]; do
             EVALS_RUNNER="$2"; shift 2 ;;
         --python-runner)
             PYTHON_RUNNER="$2"; shift 2 ;;
+        --skill-bash-runner)
+            SKILL_BASH_RUNNER="$2"; shift 2 ;;
         --suite-timeout)
             SUITE_TIMEOUT="$2"; shift 2 ;;
         *)
@@ -172,6 +176,7 @@ EVALS_EXIT=0
 HOOKS_EXIT=0
 SCRIPTS_EXIT=0
 PYTHON_EXIT=0
+SKILL_BASH_EXIT=0
 
 # --- Run all four suites ---
 # SERIAL_SUITES=1 runs all suites sequentially (lower peak memory for CI).
@@ -201,6 +206,12 @@ if [ "${SERIAL_SUITES:-0}" = "1" ]; then
     echo "Suite: Python Skill/Doc Tests"
     echo "========================================"
     _run_with_timeout "$SUITE_TIMEOUT" bash "$PYTHON_RUNNER" </dev/null || PYTHON_EXIT=$?
+
+    echo ""
+    echo "========================================"
+    echo "Suite: Skill Bash Tests"
+    echo "========================================"
+    _run_with_timeout "$SUITE_TIMEOUT" bash "$SKILL_BASH_RUNNER" </dev/null || SKILL_BASH_EXIT=$?
 else
     # --- Concurrent mode (all four suites in parallel) ---
     _HOOKS_OUT=$(mktemp)
@@ -211,6 +222,8 @@ else
     _EVALS_EXIT_FILE=$(mktemp)
     _PYTHON_OUT=$(mktemp)
     _PYTHON_EXIT_FILE=$(mktemp)
+    _SKILL_BASH_OUT=$(mktemp)
+    _SKILL_BASH_EXIT_FILE=$(mktemp)
 
     run_suite_to_file "Hook Tests" "$HOOKS_RUNNER" "$_HOOKS_OUT" "$_HOOKS_EXIT_FILE" &
     _HOOKS_PID=$!
@@ -220,16 +233,19 @@ else
     _EVALS_PID=$!
     run_suite_to_file "Python Skill/Doc Tests" "$PYTHON_RUNNER" "$_PYTHON_OUT" "$_PYTHON_EXIT_FILE" &
     _PYTHON_PID=$!
+    run_suite_to_file "Skill Bash Tests" "$SKILL_BASH_RUNNER" "$_SKILL_BASH_OUT" "$_SKILL_BASH_EXIT_FILE" &
+    _SKILL_BASH_PID=$!
 
     # Propagate signals to background suite runners so they don't orphan when
     # the parent is killed (by CI timeout, cancel-in-progress, or the 720s wrapper).
-    _kill_suites() { kill "$_HOOKS_PID" "$_SCRIPTS_PID" "$_EVALS_PID" "$_PYTHON_PID" 2>/dev/null || true; }
+    _kill_suites() { kill "$_HOOKS_PID" "$_SCRIPTS_PID" "$_EVALS_PID" "$_PYTHON_PID" "$_SKILL_BASH_PID" 2>/dev/null || true; }
     trap '_kill_suites' TERM INT
 
     wait "$_HOOKS_PID"
     wait "$_SCRIPTS_PID"
     wait "$_EVALS_PID"
     wait "$_PYTHON_PID"
+    wait "$_SKILL_BASH_PID"
 
     trap - TERM INT
 
@@ -238,6 +254,7 @@ else
     cat "$_SCRIPTS_OUT"
     cat "$_EVALS_OUT"
     cat "$_PYTHON_OUT"
+    cat "$_SKILL_BASH_OUT"
 
     # Default to exit 1 if the exit file is missing/empty (e.g., suite killed by signal
     # before it could write the exit code).
@@ -245,12 +262,15 @@ else
     SCRIPTS_EXIT=$(cat "$_SCRIPTS_EXIT_FILE" 2>/dev/null)
     EVALS_EXIT=$(cat "$_EVALS_EXIT_FILE" 2>/dev/null)
     PYTHON_EXIT=$(cat "$_PYTHON_EXIT_FILE" 2>/dev/null)
+    SKILL_BASH_EXIT=$(cat "$_SKILL_BASH_EXIT_FILE" 2>/dev/null)
     : "${HOOKS_EXIT:=1}"
     : "${SCRIPTS_EXIT:=1}"
     : "${EVALS_EXIT:=1}"
     : "${PYTHON_EXIT:=1}"
+    : "${SKILL_BASH_EXIT:=1}"
     rm -f "$_HOOKS_OUT" "$_HOOKS_EXIT_FILE" "$_SCRIPTS_OUT" "$_SCRIPTS_EXIT_FILE" \
-          "$_EVALS_OUT" "$_EVALS_EXIT_FILE" "$_PYTHON_OUT" "$_PYTHON_EXIT_FILE"
+          "$_EVALS_OUT" "$_EVALS_EXIT_FILE" "$_PYTHON_OUT" "$_PYTHON_EXIT_FILE" \
+          "$_SKILL_BASH_OUT" "$_SKILL_BASH_EXIT_FILE"
 fi
 
 # --- Combined summary ---
@@ -265,10 +285,11 @@ printf "  Evals:             %s\n" "$(suite_pass $EVALS_EXIT)"
 printf "  Hook Tests:        %s\n" "$(suite_pass $HOOKS_EXIT)"
 printf "  Script Tests:      %s\n" "$(suite_pass $SCRIPTS_EXIT)"
 printf "  Python Skill/Docs: %s\n" "$(suite_pass $PYTHON_EXIT)"
+printf "  Skill Bash Tests:  %s\n" "$(suite_pass $SKILL_BASH_EXIT)"
 echo ""
 
 OVERALL_EXIT=0
-if [ "$EVALS_EXIT" -ne 0 ] || [ "$HOOKS_EXIT" -ne 0 ] || [ "$SCRIPTS_EXIT" -ne 0 ] || [ "$PYTHON_EXIT" -ne 0 ]; then
+if [ "$EVALS_EXIT" -ne 0 ] || [ "$HOOKS_EXIT" -ne 0 ] || [ "$SCRIPTS_EXIT" -ne 0 ] || [ "$PYTHON_EXIT" -ne 0 ] || [ "$SKILL_BASH_EXIT" -ne 0 ]; then
     OVERALL_EXIT=1
 fi
 

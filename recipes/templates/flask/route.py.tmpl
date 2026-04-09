@@ -1,0 +1,8 @@
+from flask import Blueprint, jsonify
+
+{{ROUTE_NAME}}_blueprint = Blueprint('{{ROUTE_NAME}}', __name__, url_prefix='/{{ROUTE_NAME}}')
+
+@{{ROUTE_NAME}}_blueprint.route('/', methods=['GET'])
+def list_{{ROUTE_NAME}}():
+    """List {{ROUTE_NAME}} resources."""
+    return jsonify({'{{ROUTE_NAME}}': []})

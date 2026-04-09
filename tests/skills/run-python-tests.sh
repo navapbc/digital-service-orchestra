@@ -27,10 +27,6 @@ echo ""
 # excluded to prevent noise until their owning story marks them RED.
 # Format: pytest node-id fragment matched with -k "not (<fragments joined by or>)"
 KNOWN_FAILING=(
-    # tools: field missing from conflict-analyzer.md frontmatter (pre-existing gap)
-    "test_conflict_analyzer_frontmatter_tools_field"
-    # resolve-conflicts SKILL.md missing explicit ticket-.md confirmation requirement
-    "test_user_confirmation_required_for_ticket_md_conflicts"
 )
 
 # --- Collect RED-phase markers from .test-index ---

@@ -115,11 +115,45 @@ test_wrapper_references_correct_skill() {
     done
 }
 
+# ── test_wrappers_contain_skill_tool_failure_fallback ────────────────────────
+# Every .claude/commands/<skill>.md must contain a fallback instruction for when
+# the Skill tool fails (e.g., "Unknown skill" error). Without this fallback,
+# a PLUGIN_DETECTED + Skill-tool-failure scenario causes an infinite loop.
+# Structural boundary test per behavioral-testing-standard Rule 5.
+test_wrappers_contain_skill_tool_failure_fallback() {
+    local commands_dir="$PLUGIN_ROOT/.claude/commands"
+    local missing=()
+
+    for wrapper in "$commands_dir"/*.md; do
+        [[ -f "$wrapper" ]] || continue
+        local name
+        name="$(basename "$wrapper" .md)"
+
+        # Each wrapper that uses the PLUGIN_DETECTED/Skill tool path must also
+        # have a fallback for Skill tool failure (e.g., "Unknown skill", error).
+        if grep -q "PLUGIN_DETECTED" "$wrapper" && ! grep -qi "fail\|error\|unknown skill\|does not work\|cannot\|unable" "$wrapper"; then
+            missing+=("$name")
+        fi
+    done
+
+    if [[ "${#missing[@]}" -eq 0 ]]; then
+        (( ++PASS ))
+        echo "test_wrappers_contain_skill_tool_failure_fallback ... PASS"
+    else
+        (( ++FAIL ))
+        printf "FAIL: test_wrappers_contain_skill_tool_failure_fallback\n" >&2
+        for name in "${missing[@]}"; do
+            printf "  %s.md has PLUGIN_DETECTED but no Skill tool failure fallback\n" "$name" >&2
+        done
+    fi
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_detection_finds_installed_plugin
 test_detection_falls_back_when_no_plugin
 test_detection_falls_back_on_command_failure
 test_detection_falls_back_when_no_binary
 test_wrapper_references_correct_skill
+test_wrappers_contain_skill_tool_failure_fallback
 
 print_summary

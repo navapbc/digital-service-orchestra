@@ -206,7 +206,8 @@ assert_pass_if_clean "test_sc5_jira_project_key_absent"
 # test_sc5_design_system_name_not_bare: design.system without _name suffix must NOT
 # appear as a standalone config key (SC5). Correct key is design.system_name.
 _snapshot_fail
-_tmp=$(grep -E "design\.system[^_]" "$SKILL_MD" 2>/dev/null); if grep -qv "^#" <<< "$_tmp"; then
+_tmp=$(grep -E "design\.system[^_]" "$SKILL_MD" 2>/dev/null)
+if [[ -n "$_tmp" ]] && grep -qv "^#" <<< "$_tmp"; then
     has_bare_design_system="found"
 else
     has_bare_design_system="absent"

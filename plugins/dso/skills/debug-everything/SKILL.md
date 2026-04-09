@@ -859,10 +859,16 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/post-batch-
 | Failure | `.claude/scripts/dso ticket transition <id> open` then `.claude/scripts/dso ticket comment <id> "Failed: <error>."` |
 | Regression | Revert changes (`git checkout -- <files>`), reopen, note regression |
 
-**Bug close constraint (enforced by hookify)**: Only close a bug issue if the note references specific changed files (code fix) OR explicitly escalates to the user. Investigation findings alone are never sufficient.
-- `.claude/scripts/dso ticket comment <id> "Fixed: added comment_penalty to quality_helpers.py"` (code change)
-- `.claude/scripts/dso ticket comment <id> "Escalated to user: code path is correct, no fix possible"` (escalation)
-- Do NOT close with only `.claude/scripts/dso ticket comment <id> "Investigated: code path is correct"` — use add-note for findings, then escalate or fix before closing
+**Bug close constraint**: Only close a bug when there is an actual code change that fixes it. **NEVER close a bug with reason `Escalated to user:` — closing removes the bug from `ticket list` visibility, which is the opposite of escalation.** When no code fix is possible:
+1. Add investigation findings as a ticket comment: `.claude/scripts/dso ticket comment <id> "Investigated: <findings> — no code fix possible."`
+2. Leave the ticket **OPEN** (do NOT transition to closed)
+3. Surface the ticket in the session summary under the `ESCALATED BUGS` section so the user sees it
+
+Valid close example (after code fix):
+- `.claude/scripts/dso ticket transition <id> in_progress closed --reason="Fixed: added comment_penalty to quality_helpers.py"`
+
+Invalid (prohibited — do NOT do this):
+- ~~`.claude/scripts/dso ticket transition <id> in_progress closed --reason="Escalated to user: code path is correct, no fix possible"`~~
 
 ### Step 3a: COMPLEX Escalation Handling (/dso:debug-everything)
 

@@ -28,6 +28,13 @@
 #     executable-guard:      5s
 #     check-assertion-density: 15s
 #     pre-commit-test-gate: 10s
+#     pre-commit-test-quality-gate: 15s
+#     pre-commit-review-gate: 10s
+#     pre-commit-ticket-gate: 10s
+#     portability-check:      5s
+#     shim-refs-check:        5s
+#     contract-schema-check:  5s
+#     referential-integrity-check: 10s
 #
 #   Claude Code ceiling: ~73s per tool call. Pre-commit hooks check staged
 #   files only for fast feedback (~30s total). Full-tree format/lint checks
@@ -176,6 +183,33 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/
 
+      # Contract schema validation (timeout: 5s)
+      # Validates that contract markdown files have required sections (Purpose, Schema, etc.)
+      # Debug command: DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && "$DSO_ROOT/scripts/check-contract-schemas.sh"
+      # REVIEW-DEFENSE: resolve-dso-plugin.sh is a consuming-project responsibility, not a DSO plugin artifact.
+      # This is the established convention throughout this example file (see shim-refs-check, pre-commit-test-gate,
+      # review-gate, and all other hooks above). Consuming projects implement resolve-dso-plugin.sh to locate their
+      # DSO plugin installation; the DSO plugin intentionally does not ship this script. The comment above the entry
+      # makes this clear. See also examples/README or INSTALL.md for the onboarding path.
+      - id: contract-schema-check
+        name: Contract Schema Check (5s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh contract-schema-check 5 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/scripts/check-contract-schemas.sh\""
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/docs/contracts/
+
+      # Referential integrity check (timeout: 10s)
+      # Validates that skill/agent files reference existing scripts, agents, and contracts.
+      # Debug command: DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && "$DSO_ROOT/scripts/check-referential-integrity.sh"
+      - id: referential-integrity-check
+        name: Referential Integrity Check (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh referential-integrity-check 10 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/scripts/check-referential-integrity.sh\""
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/(skills|agents)/
+
       # Assertion density check
       # Debug command: python scripts/check_assertion_density.py app/tests/ --min-density 1.0
       - id: check-assertion-density
@@ -211,6 +245,20 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+
+      # Test quality gate (timeout: 15s)
+      # Detects test anti-patterns (source-file-grepping, tautological tests, change-detector
+      # tests, implementation-coupled assertions, existence-only assertions) in staged test files.
+      # Scoped to files matching ^tests/. Config: test_quality.enabled (default: true),
+      # test_quality.tool (bash-grep | semgrep | disabled).
+      # Debug command: DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && "$DSO_ROOT/hooks/pre-commit-test-quality-gate.sh"
+      - id: pre-commit-test-quality-gate
+        name: Test Quality Gate (15s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh pre-commit-test-quality-gate 15 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/hooks/pre-commit-test-quality-gate.sh\""
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^tests/
 
       # Ticket gate (commit-msg stage, timeout: 10s)
       # Blocks commits lacking a valid v3 ticket ID when non-allowlisted files are staged.

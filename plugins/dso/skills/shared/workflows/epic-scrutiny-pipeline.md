@@ -63,6 +63,67 @@ After resolving any artifact gaps, think carefully about the proposed approach:
 
 If gaps are found in either part, present them to the user and resolve before proceeding to the web research phase.
 
+### Part C: Shared Artifact Impact Analysis
+
+**When Part C triggers**: Part C activates only when the Success Criteria section (not the original user request) references creating or modifying a file that is consumed by "2+ other files" outside its own directory. Identify the artifact from the SC section first (same fuzzy-matching heuristics as Part A — this is Part C's scope, not Part A's).
+
+**If the artifact is not yet in the codebase** or a scan produces no results, skip Part C and log: `Part C scan skipped: no consumers found or scan unavailable`.
+
+**Scanning**: Use Grep/Glob to find all files that reference the artifact — path references, import statements, source/include directives. Count only consumers outside the artifact's own directory.
+
+**Cross-referencing**: For each discovered consumer, check whether it is covered by any success criterion in the epic spec. Assign `covered_by_SC: true` if the consumer appears in any SC, `covered_by_SC: false` if not (boolean — not a string).
+
+**Output**: Present a raw list of `(file_path, matching_line, covered_by_SC)` tuples to downstream consumers. Do NOT curate or summarize — pass the raw scan output. Example:
+
+```
+- file_path: src/hooks/use-auth.ts, matching_line: import { getUser } from './user-service', covered_by_SC: false
+- file_path: tests/unit/test-auth.test.ts, matching_line: import { getUser } from '../../src/user-service', covered_by_SC: true
+```
+
+If Part C finds uncovered consumers (`covered_by_SC: false`), flag them as potential scope gaps for the fidelity review phase.
+
+**Part C Extension: Cross-Epic Relates_to Link Suggestion**
+
+After the Part C scan completes, check whether any of the artifact files discovered overlap with other open epics. This extension is additive — it does not modify Part C's existing output or behavior.
+
+*When to run*: Run this extension whenever Part C produced at least one consumer tuple. Skip and log `Part C relates_to scan skipped: no consumers found in Part C` when Part C was itself skipped or returned no tuples.
+
+1. **Query open epics**: Use the ticket CLI to list all open epics filtered for status=open (only suggest links to open tickets — exclude closed and archived epics):
+   ```bash
+   .claude/scripts/dso ticket list --type=epic --status=open
+   ```
+   Exclude the current epic and any of its direct children from the result set.
+
+2. **Check for artifact overlap**: For each open epic (excluding the current one), retrieve its details and check whether its Success Criteria or description references any of the same artifact files that Part C discovered. Use the same fuzzy-matching heuristics as Part A.
+
+3. **Compose relates_to link suggestions**: For each overlapping open epic found, compose a suggestion that includes:
+   - The overlapping epic ID and title
+   - The shared artifact file(s)
+   - A recommendation to create a relates_to link between the current epic and the overlapping epic
+
+   If no overlapping open epics are found, log `Part C relates_to scan: no cross-epic artifact overlap detected` and continue.
+
+4. **User approval gate — confirm before creating links**: Before creating any relates_to link, present all suggestions to the user via AskUserQuestion and wait for user approval:
+
+   ```
+   Cross-epic artifact overlap detected. The following open epics share artifacts with this epic:
+
+   - [epic-id]: [epic-title]
+     Shared artifacts: [file-path-1], [file-path-2]
+     Recommendation: Create a relates_to link between this epic and [epic-id]
+
+   Approve link creation? (list epic IDs to approve, or 'none' to skip all)
+   ```
+
+   Wait for the user's response. If the user approves one or more links, proceed. If the user declines all suggestions, log the decline and continue without creating any links.
+
+5. **Create approved relates_to links**: For each approved epic ID, create the link using the ticket link CLI command:
+   ```bash
+   .claude/scripts/dso ticket link <current-epic-id> <overlapping-epic-id> relates_to
+   ```
+
+   Log each link creation. Continue to the next pipeline step after all approved links are created (or after user declines all suggestions).
+
 ---
 
 ## Step 2: Web Research Phase
@@ -174,13 +235,13 @@ If either sub-agent fails to return valid JSON, log: "Scenario analysis sub-agen
 Run the epic spec through three reviewers **in parallel** using the Task tool. For each reviewer:
 
 1. Read the reviewer prompt from `plugins/dso/skills/shared/docs/reviewers/` (relative to the repo root)
-2. Pass: the epic title, Context section, Success Criteria, Scenario Analysis section (from Step 3, if present), and (for Scope reviewer) titles of other open epics
+2. Pass: the epic title, Context section, Success Criteria, Scenario Analysis section (from Step 3, if present), and (for Scope reviewer) titles of other open epics and Part C covered_by_SC scan output (file_path, matching_line, covered_by_SC tuples)
 3. Instruct the reviewer to return JSON per the `REVIEW-SCHEMA.md` in the review-protocol skill
 
 | Reviewer | Prompt File | Perspective | Dimensions |
 |----------|-------------|------------|------------|
 | Senior Technical Program Manager | `plugins/dso/skills/shared/docs/reviewers/agent-clarity.md` | `"Agent Clarity"` | `self_contained`, `success_measurable` |
-| Senior Product Strategist | `plugins/dso/skills/shared/docs/reviewers/scope.md` | `"Scope"` | `right_sized`, `no_overlap`, `dependency_aware` |
+| Senior Product Strategist | `plugins/dso/skills/shared/docs/reviewers/scope.md` | `"Scope"` | `right_sized`, `no_overlap`, `dependency_aware`, `consumer_completeness` |
 | Senior Product Manager | `plugins/dso/skills/shared/docs/reviewers/value.md` | `"Value"` | `user_impact`, `validation_signal` |
 | Senior Integration Engineer | `dso:feasibility-reviewer` (dedicated agent) | `"Technical Feasibility"` | `technical_feasibility`, `integration_risk` |
 
@@ -201,7 +262,7 @@ The three core reviewers (Agent Clarity, Scope, Value) **always run in parallel*
 
 **Pass threshold**: All dimensions must score 4 or above. When the feasibility reviewer runs, `technical_feasibility` and `integration_risk` are also included in the pass threshold check.
 
-**Feasibility critical findings**: If the feasibility reviewer reports any score below 3, add a note to the epic spec recommending a spike task to de-risk the integration before implementation begins.
+**Feasibility critical findings**: If the feasibility reviewer reports any score below 3, annotate the epic spec with a `## FEASIBILITY_GAP` section identifying the unresolved capability gap and return control to the caller. The caller is responsible for handling this annotation — e.g., brainstorm re-enters its understanding loop bounded by `brainstorm.max_feasibility_cycles`, while other callers may implement their own resolution strategy. The pipeline itself takes no further action beyond the annotation.
 
 **Validate the review output:**
 ```bash
@@ -242,11 +303,65 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 ---
 
+## Step 5: Prompt Alignment
+
+When an epic modifies LLM-facing instructions, validate that prompt changes are well-grounded in prior art and reviewed for behavioral soundness. This step detects LLM-instruction signals in the epic spec, searches for prior art, and dispatches the bot-psychologist for review.
+
+### LLM-Instruction Signal Detection
+
+Scan the epic spec (Context + Success Criteria + Approach sections) for the following canonical keyword list using case-insensitive matching:
+
+- **skill file modifications** — changes to `SKILL.md` or skill workflow files
+- **agent definitions** — new or modified agent prompts, `subagent_type` declarations, or agent routing changes
+- **prompt templates** — changes to prompt files, instruction text, or LLM-facing guidance documents
+- **hook behavioral logic** — modifications to hook dispatchers, pre/post tool-use hooks, or enforcement gate behavior
+
+If none of the canonical keywords match, skip the remainder of Step 5 and proceed to Pipeline Output. Log: "No LLM-instruction signals detected — skipping prompt alignment."
+
+Set `matched_keyword = <first matched keyword category>` as a state variable for planning-intelligence log consumption. When multiple categories match, use the first match in the canonical order above.
+
+### Doc-Epic Exclusion
+
+Before proceeding with the full prompt alignment workflow, check the Approach section for file references. If the Approach section references **only** documentation files (`.md` files, documentation paths, or doc-only changes) and no code or configuration files, skip prompt alignment. Log: "Doc-epic exclusion — skipping prompt alignment."
+
+### GitHub Prior-Art Search
+
+If the signal fires and the doc-epic exclusion does not apply:
+
+1. Use **WebSearch** to run a provider-agnostic GitHub prior-art search for similar prompts, instruction patterns, or agent behavioral specifications in popular AI/LLM projects. Focus queries on the matched keyword category — e.g., if "agent definitions" matched, search for agent definition patterns in well-known AI orchestration repos.
+2. Limit to 2-3 focused queries. Stop when key patterns are identified.
+3. Present findings to the user for collaborative prompt drafting — highlight patterns that align with or diverge from the proposed approach.
+
+### Bot-Psychologist Dispatch
+
+After prior-art findings are gathered:
+
+1. Dispatch `dso:bot-psychologist` via the Agent tool (model: sonnet) to review the draft prompt text or LLM-facing instruction changes described in the epic spec.
+2. Pass the matched keyword category, the epic's Approach section, and any prior-art findings as context.
+3. Incorporate the bot-psychologist's behavioral analysis findings into the epic spec.
+
+### Graceful Degradation
+
+- **WebSearch failure**: If WebSearch fails (tool unavailable, network error, or returns no useful results), log: "Prompt alignment prior-art search skipped: WebSearch unavailable or returned no results." Continue without prior-art findings — proceed directly to bot-psychologist dispatch.
+- **Bot-psychologist failure**: If the bot-psychologist Agent dispatch fails (SUB-AGENT-GUARD rejection, dispatch timeout, or returns no usable analysis), log: "Prompt alignment bot-psychologist review skipped: dispatch failed or returned no results." Continue without bot-psychologist findings — do not block pipeline completion.
+
+### Prompt Alignment Findings
+
+If prompt alignment produced findings (from prior-art search, bot-psychologist review, or both), record them in the epic spec under a `## Prompt Alignment Findings` section:
+
+- **Matched signal**: Which canonical keyword category triggered prompt alignment
+- **Prior-art patterns**: Key patterns found in similar projects (if WebSearch succeeded)
+- **Behavioral review**: Bot-psychologist analysis summary (if dispatch succeeded)
+- **Recommendations**: Specific prompt improvements or cautions for the implementation plan
+
+---
+
 ## Pipeline Output
 
 After all steps complete, the caller receives an updated epic spec with any or all of these additional sections populated:
 
 - `## Research Findings` — if web research ran and produced findings
 - `## Scenario Analysis` — if scenario analysis ran and produced surviving scenarios
+- `## Prompt Alignment Findings` — if prompt alignment ran and produced findings (LLM-instruction signal detected)
 
 The caller is responsible for presenting the final spec to the user for approval.

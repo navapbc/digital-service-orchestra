@@ -41,7 +41,6 @@ Resolved commands used in this skill:
 /dso:sprint                     # Interactive epic selection
 /dso:sprint <epic-id>           # Execute specific epic
 /dso:sprint <epic-id> --dry-run # Plan batches without executing
-/dso:sprint <epic-id> --resume  # Resume interrupted epic
 ```
 
 ## Orchestration Flow
@@ -70,7 +69,6 @@ Flow: P1 (Init) → Preplanning Gate
 
 - `<primary-ticket-id>`: The primary ticket to execute (any type: epic, story, task, or bug)
 - `--dry-run`: Output batch plan without executing any sub-agents
-- `--resume`: Resume interrupted primary ticket (skip to Phase 3 Batch Preparation)
 
 ### If No Primary Ticket ID Provided
 
@@ -100,7 +98,7 @@ Flow: P1 (Init) → Preplanning Gate
    - If there are 0-child epics that were filtered out, show: "There are N epics with no children yet. Run `/dso:brainstorm` on one to decompose it into stories before executing."
    - Exit.
 
-2. Parse the output and print a numbered list. Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**. Below the list, if `hidden_count > 0`, append a note:
+2. Parse the output and print a numbered list. **CRITICAL: You MUST output the formatted list as visible text BEFORE invoking any tool call.** Do NOT pass epics as `options` to `AskUserQuestion` — the `options` field is limited to 4 items and cannot display blocked epics or the hidden-count note. Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**. Below the list, if `hidden_count > 0`, append a note:
    ```
    In-progress epics:
 
@@ -119,7 +117,7 @@ Flow: P1 (Init) → Preplanning Gate
    (N epics with zero children are hidden. Run `/dso:brainstorm` on one to create stories.)
    ```
    Omit the hidden-epics note when `hidden_count == 0`.
-3. Ask the user: "Enter the number or epic ID to execute:" and wait for their text input
+3. Ask the user: "Enter the number or epic ID to execute:" and wait for their text input. Use `AskUserQuestion` with a free-text prompt only — do not pass epics as options.
 4. Map the user's response (number or epic ID) back to the corresponding epic and proceed
 
 ### Validate Primary Ticket
@@ -127,6 +125,38 @@ Flow: P1 (Init) → Preplanning Gate
 Set `primary_ticket_id = <the resolved ticket ID>`.
 
 1. Run `.claude/scripts/dso ticket show <primary_ticket_id>` — confirm status is `open` or `in_progress` (any ticket type is accepted)
+
+#### Auto-Resume Detection
+
+If the ticket type is `epic` AND status is `in_progress`:
+
+(a) Print: `"Epic <primary_ticket_id> is in_progress — resuming from checkpoint scan."`
+
+(b) Run `.claude/scripts/dso ticket deps <primary_ticket_id>` to check for children.
+
+(c) **If zero children**: Log `"No children found — falling through to Preplanning Gate."` and continue to Drift Detection → Preplanning Gate normally (scenario: abandoned mid-preplanning, skip checkpoint resume).
+
+(d) **If children exist**:
+   - Run drift detection with `--status=open` filter:
+     ```
+     DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <primary_ticket_id> --status=open)
+     ```
+   - Handle `DRIFT_DETECTED` / `NO_DRIFT` the same as the existing Drift Detection Check section below.
+   - Then apply checkpoint resume rules:
+     1. Run `.claude/scripts/dso ticket list` and filter for in-progress tasks under `<primary_ticket_id>` for interrupted tasks
+     2. For each in-progress task, run `.claude/scripts/dso ticket show <id>` and parse its notes for CHECKPOINT lines
+     3. Apply checkpoint resume rules:
+        - **CHECKPOINT 6/6 ✓** — task is fully done; fast-close: verify files exist, then `.claude/scripts/dso ticket transition <id> open closed --reason="Fixed: <summary>"`
+        - **CHECKPOINT 5/6 ✓** — near-complete; fast-close: spot-check files and close without re-execution
+        - **CHECKPOINT 3/6 ✓ or 4/6 ✓** — partial progress; re-dispatch with resume context: include the highest checkpoint note in the sub-agent prompt so it can continue from that substep
+        - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `.claude/scripts/dso ticket transition <id> open` for full re-execution
+        - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
+     4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
+     5. **Backward compatibility**: Sprint reads old positional-counter checkpoints (CHECKPOINT N/6) without error and resumes from the last completed phase — no migration of existing checkpoint notes is required. Semantic-named checkpoints (CHECKPOINT:batch-complete, CHECKPOINT:review-passed, CHECKPOINT:validation-passed) are equivalent in resume logic.
+   - After checkpoint processing, proceed to Phase 3.
+
+(e) **Non-epic tickets** (story, task, bug) with `in_progress` status are NOT affected by auto-resume detection — they proceed through Non-Epic Routing as before. Auto-resume only applies to epic-type tickets.
+
 2. Run `.claude/scripts/dso ticket deps <primary_ticket_id>` — if 100% complete, skip to Phase 6 (validation)
 3. Mark ticket in-progress: `.claude/scripts/dso ticket transition <primary_ticket_id> in_progress`
 4. Mark the **Select and validate primary ticket** todo item `completed`.
@@ -160,7 +190,7 @@ When ticket type is `story` or `task`:
 1. Log: `"Primary ticket <primary_ticket_id> is a <type> — running complexity evaluation."`
 2. Dispatch `subagent_type: dso:complexity-evaluator` (model: haiku) with `tier_schema=TRIVIAL` to classify the ticket.
 3. Route based on the complexity classification:
-   - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Proceed directly to Phase 3 (Batch Preparation) with the ticket as the sole task.
+   - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Before proceeding, run a **file-count guard**: estimate the number of files the task will touch by running `enrich-file-impact.sh` or by counting file paths mentioned in the ticket description. If the estimated file count exceeds 30, split the task into parallel sub-tasks by directory or alphabetical range (each sub-task ≤ 30 files), create child task tickets for each subset, and proceed to Phase 3 with the split tasks. If ≤ 30 files, proceed directly to Phase 3 (Batch Preparation) with the ticket as the sole task.
    - **TRIVIAL (medium)** or **MODERATE/COMPLEX (any)**: Invoke `/dso:implementation-plan <primary_ticket_id>` via Skill tool.
 <!-- REVIEW-DEFENSE: Finding — "TRIVIAL (medium) treated as MODERATE but evaluator contract says medium→COMPLEX."
      The TRIVIAL (medium) branch is a deliberate routing policy decision, not a contract violation. The
@@ -221,6 +251,33 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
 6. After all re-invocations complete (and no REPLAN_ESCALATE is outstanding), record:
    ```bash
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: implementation-plan — Drift re-planning complete for <N> stories."
+   ```
+7. Proceed to Preplanning Gate.
+
+**Note:** `DRIFT_DETECTED` and `RELATES_TO_DRIFT` are independent signals — both may appear in the same `DRIFT_RESULT` output. Process each block that matches, in order. They are NOT mutually exclusive branches.
+
+**If `RELATES_TO_DRIFT` lines are present in `DRIFT_RESULT`:**
+
+1. Parse each `RELATES_TO_DRIFT: <epic-id> <summary>` line from `DRIFT_RESULT`.
+2. Log: `"Relates_to drift detected — related epic <epic-id> closed after implementation plan: <summary>"` for each line.
+3. Record a REPLAN_TRIGGER comment on the epic (see `plugins/dso/docs/contracts/replan-observability.md` for signal format): # shim-exempt: internal documentation reference
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Relates_to epic <closed-epic-id> closed after implementation plan. <summary>. Re-invoking implementation-plan for affected stories."
+   ```
+4. Identify which stories' tasks reference any of the drifted relates_to epics (inspect each child task's `## File Impact` or `## Files to Modify` section, or cross-reference the task's dependency/relates-to links).
+5. For each affected story, emit a SKILL_INVOKE breadcrumb and re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as DRIFT_DETECTED handling above).
+
+   <ORCHESTRATOR_RESUME>
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection (RELATES_TO_DRIFT). Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
+   Stopping here is a known bug (7d7a-b707). Do not stop.
+   </ORCHESTRATOR_RESUME>
+
+   - **On success (`STATUS:complete`)**: continue.
+   - **On `STATUS:blocked`**: surface the story as blocked for user input (same handling as Phase 2 blocked-stories list).
+   - **On `REPLAN_ESCALATE: brainstorm EXPLANATION:<text>`**: add the story and its explanation to the **replan-stories list** and route through the existing d-replan-collect cascade machinery (Phase 2 step d-replan-collect). The `replan_cycle_count` / `max_replan_cycles` initialized above are shared with Phase 2 — do not reinitialize them.
+6. After all re-invocations complete (and no REPLAN_ESCALATE is outstanding), record:
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: implementation-plan — Relates_to drift re-planning complete for <N> stories."
    ```
 7. Proceed to Preplanning Gate.
 
@@ -299,21 +356,6 @@ Wait for user response and route accordingly:
 - At least 5 lines of description
 
 **File impact enrichment**: If a ticket is missing a file impact section, run `.claude/scripts/dso enrich-file-impact.sh <id>` to auto-generate it. Use `--dry-run` to preview. Gracefully degrades if `ANTHROPIC_API_KEY` is unset.
-
-### If `--resume` Flag
-
-1. Run `.claude/scripts/dso ticket list` and filter for in-progress tasks under `<epic-id>` for interrupted tasks
-2. For each in-progress task, run `.claude/scripts/dso ticket show <id>` and parse its notes for CHECKPOINT lines
-3. Apply checkpoint resume rules:
-   - **CHECKPOINT 6/6 ✓** — task is fully done; fast-close: verify files exist, then `.claude/scripts/dso ticket transition <id> open closed --reason="Fixed: <summary>"`
-   - **CHECKPOINT 5/6 ✓** — near-complete; fast-close: spot-check files and close without re-execution
-   - **CHECKPOINT 3/6 ✓ or 4/6 ✓** — partial progress; re-dispatch with resume context: include the highest checkpoint note in the sub-agent prompt so it can continue from that substep
-   - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `.claude/scripts/dso ticket transition <id> open` for full re-execution
-   - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
-4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
-5. **Backward compatibility**: Sprint reads old positional-counter checkpoints (CHECKPOINT N/6) without error and resumes from the last completed phase — no migration of existing checkpoint notes is required. Semantic-named checkpoints (CHECKPOINT:batch-complete, CHECKPOINT:review-passed, CHECKPOINT:validation-passed) are equivalent in resume logic.
-<!-- REVIEW-DEFENSE finding-2: The resume rules intentionally retain positional-counter format only (CHECKPOINT 6/6, 5/6, 3/6, 1/6). SC5 states semantic checkpoints are "equivalent in resume logic" — meaning the existing positional rules apply to them without adding duplicate semantic-specific rules. An agent encountering CHECKPOINT:batch-complete treats it as equivalent to CHECKPOINT 6/6 (complete), CHECKPOINT:review-passed as equivalent to CHECKPOINT 5/6, and CHECKPOINT:validation-passed as equivalent to CHECKPOINT 6/6. No new resume rules are required; the backward-compat clause is sufficient. -->
-6. Proceed to Phase 3
 
 ### Preplanning Gate
 
@@ -544,7 +586,7 @@ For each ready task from `.claude/scripts/dso ticket list` (filtered by parent):
 
 | Classification | Confidence | Action |
 |---------------|------------|--------|
-| TRIVIAL | high | Skip `/dso:implementation-plan` — log: `"Story <id> classified as TRIVIAL — skipping /dso:implementation-plan"` |
+| TRIVIAL | high | Skip `/dso:implementation-plan`. **File-count guard**: estimate the file count from the story description or `enrich-file-impact.sh`. If > 30 files, split into child tasks (≤ 30 files each) by directory or alphabetical range before proceeding. Log: `"Story <id> classified as TRIVIAL — skipping /dso:implementation-plan"` |
 | TRIVIAL | medium | Treat as COMPLEX (medium confidence = plan) |
 | COMPLEX | any | Run `/dso:implementation-plan` via Skill tool (see Step 2) |
 
@@ -1512,6 +1554,7 @@ After the batch commit and `git push -u origin HEAD` succeed, close each task wh
 **MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the story ID (CLAUDE.md rule #24 — no inline verification substitute).
 - `overall_verdict: PASS` → proceed with closure
 - `overall_verdict: FAIL` → see branching logic below
+- **Fallback (agent unavailable)**: If dispatch fails with "Agent type not found" or "Unknown agent", fall back per CLAUDE.md Agent fallback rule — dispatch `subagent_type: general-purpose` and read `plugins/dso/agents/completion-verifier.md` inline as the system prompt. This is NOT permission to skip the step.
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
 
 **Story validation failure detection** — when `overall_verdict: FAIL`:
@@ -1700,6 +1743,7 @@ Read and execute `prompts/phase6-ci-gates.md` for the integration test gate, CI 
 **MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the epic ID (CLAUDE.md rule #24).
 - `overall_verdict: PASS` → proceed to Step 1
 - `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3 (Batch Preparation)
+- **Fallback (agent unavailable)**: If dispatch fails with "Agent type not found" or "Unknown agent", fall back per CLAUDE.md Agent fallback rule — dispatch `subagent_type: general-purpose` and read `plugins/dso/agents/completion-verifier.md` inline as the system prompt. This is NOT permission to skip the step.
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 1.
 
 <HARD-GATE>
@@ -1793,11 +1837,20 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
    - Epic ID and title
    - Total tasks completed this session
    - Validation score: 5/5
-4. Invoke `/dso:end-session` with `--bump minor`:
+4. Invoke `/dso:end-session --bump minor` via the Skill tool:
    ```
-   /dso:end-session --bump minor
+   Skill({skill: "dso:end-session", args: "--bump minor"})
    ```
-   If `version.file_path` is not configured in `dso-config.conf`, the flag is a no-op.
+   If `version.file_path` is not configured in `dso-config.conf`, the `--bump minor` flag is a no-op.
+   <HARD-GATE>
+   This MUST be done using the Skill tool — not interpreted as a bash command, not
+   printed as text, and not deferred for the user to run. The slash-command notation
+   above is a Skill tool invocation shorthand. Use the Skill tool directly.
+   Do NOT ask the user whether to run /dso:end-session. Invoke it directly.
+   Asking "Would you like me to..." is a known anti-pattern (c26f-be3f) that adds
+   friction. This is an unconditional directive — execute immediately after the
+   epic closes.
+   </HARD-GATE>
 
 ### On Graceful Shutdown (Compaction, Failures)
 
@@ -1815,8 +1868,16 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
 5. Set sprint context for `/dso:end-session` report:
    - Tasks completed this session
    - Tasks remaining (with IDs and titles)
-   - Resume command: `/dso:sprint <epic-id> --resume`
-6. Invoke `/dso:end-session --bump minor` if the epic reached Phase 6 completion-verifier PASS this session; otherwise invoke `/dso:end-session` without `--bump` (incomplete sprint does not earn a version bump)
+   - Resume command: `/dso:sprint <epic-id>`
+6. Invoke `/dso:end-session` via the Skill tool. Pass `--bump minor` if the epic reached Phase 6 completion-verifier PASS this session; omit `--bump` for incomplete sprints (no version bump earned):
+   ```
+   Skill({skill: "dso:end-session", args: "--bump minor"})   # on success
+   Skill({skill: "dso:end-session"})                         # on graceful shutdown
+   ```
+   <HARD-GATE>
+   This MUST be done using the Skill tool — not interpreted as a bash command.
+   Do NOT ask the user whether to run /dso:end-session. Invoke it directly.
+   </HARD-GATE>
 
 ---
 

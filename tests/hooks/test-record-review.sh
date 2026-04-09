@@ -274,4 +274,58 @@ else
 fi
 assert_eq "test_tier_missing_review_tier_fail_open: tier_verified=false in review-status" "yes" "$TIER_VERIFIED_PRESENT"
 
+# ---------------------------------------------------------------------------
+# test_fragile_severity_accepted_no_validation_error
+#
+# Given: reviewer-findings.json with a finding of severity "fragile" and
+#        scores where min=3 (below pass threshold of 4).
+# When:  record-review.sh is invoked with the correct reviewer-hash.
+# Then:  The script exits 0 (fragile is a valid severity — no validation error).
+#        STATUS=failed is written to review-status because min_score=3 < 4.
+#
+# RED: Currently exits non-zero because "fragile" is not in valid_severities
+#      {'critical', 'important', 'minor'} — the severity validation rejects it.
+# ---------------------------------------------------------------------------
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOFJ'
+{"scores":{"hygiene":3,"design":3,"maintainability":3,"correctness":3,"verification":3},"findings":[{"severity":"fragile","category":"hygiene","file":"src/foo.py","description":"Fragile coupling between modules makes this brittle under change."}],"summary":"Minor issues found but overall acceptable for fragile dependencies."}
+EOFJ
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+EXIT_CODE=0
+# isolation-ok: inject changed files to bypass real git diff (overlap check uses RECORD_REVIEW_CHANGED_FILES when set)
+STDERR_OUT=$(RECORD_REVIEW_CHANGED_FILES="src/foo.py" bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+assert_eq "test_fragile_severity_accepted_no_validation_error: exits 0 (fragile accepted)" "0" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
+# test_fragile_severity_produces_failed_status
+#
+# Given: reviewer-findings.json with a finding of severity "fragile" and
+#        min_score=3 (below pass threshold of 4).
+# When:  record-review.sh runs successfully (after fragile severity is accepted).
+# Then:  review-status file contains "failed" on its first line because
+#        min_score=3 is below the pass threshold of 4.
+#
+# RED: Currently the script exits non-zero at severity validation (fragile
+#      not in valid_severities), so review-status is never written from this
+#      invocation. The assertion checks the first line is "failed" — if the
+#      script errors out, no status file is written by this run.
+# ---------------------------------------------------------------------------
+cleanup
+rm -f "$ARTIFACTS_DIR/review-status"
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOFJ'
+{"scores":{"hygiene":3,"design":3,"maintainability":3,"correctness":3,"verification":3},"findings":[{"severity":"fragile","category":"hygiene","file":"src/foo.py","description":"Fragile coupling between modules makes this brittle under change."}],"summary":"Minor issues found but overall acceptable for fragile dependencies."}
+EOFJ
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+# isolation-ok: inject changed files to bypass real git diff (overlap check uses RECORD_REVIEW_CHANGED_FILES when set)
+RECORD_REVIEW_CHANGED_FILES="src/foo.py" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+if [[ -f "$REVIEW_STATUS_FILE" ]]; then
+    FIRST_LINE=$(head -1 "$REVIEW_STATUS_FILE")
+else
+    FIRST_LINE="not_written"
+fi
+assert_eq "test_fragile_severity_produces_failed_status: review-status first line is 'failed'" "failed" "$FIRST_LINE"
+
 print_summary

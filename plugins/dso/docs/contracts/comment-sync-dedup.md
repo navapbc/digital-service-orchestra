@@ -4,6 +4,12 @@
 - Scope: ticket-system-v3 / Jira bridge (epic w21-bwfw)
 - Date: 2026-03-21
 
+## Purpose
+
+This document defines the dedup interface between the outbound Jira bridge (emitter) and the inbound Jira bridge (parser) for preventing echo-imported comments. The outbound bridge embeds a UUID marker in each Jira comment it pushes; the inbound bridge uses Jira comment IDs and the per-ticket dedup state file to skip re-importing comments that originated locally.
+
+---
+
 ## Signal Name
 
 `COMMENT` (outbound emitter) / `getComments` (inbound parser via ACLI)
@@ -48,6 +54,12 @@ body text returned by `getComments`.
 **Stripping risk**: Jira's rich-text editor may strip the HTML comment when a user edits the Jira
 comment. Inbound parsers MUST NOT rely on the marker being present for dedup correctness; it is used
 only as secondary confirmation.
+
+### Canonical parsing prefix
+
+The parser MUST match against:
+
+- `<!-- origin-uuid:` — prefix match on the last line of a Jira comment body. Any line beginning with `<!-- origin-uuid:` is a valid UUID marker embedded by the outbound bridge. The UUID follows immediately after the space: `<!-- origin-uuid: {event_uuid} -->`.
 
 ---
 

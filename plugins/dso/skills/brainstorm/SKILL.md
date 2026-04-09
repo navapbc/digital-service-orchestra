@@ -337,6 +337,20 @@ fi
 
 Graceful degradation: if `sg` is not installed, use the Grep tool (preferred in Claude Code) or `grep -r` as an equivalent fallback. Do not block the review if neither produces results — log the pattern attempted and continue.
 
+#### FEASIBILITY_GAP Handler (post-pipeline)
+
+After the scrutiny pipeline returns, check whether the epic spec contains a `## FEASIBILITY_GAP` section (annotated by the pipeline's Step 4 when the feasibility reviewer reports any score below 3).
+
+**If FEASIBILITY_GAP is present:**
+
+1. Read `brainstorm.max_feasibility_cycles` from `dso-config.conf` (default: 2 when absent).
+2. Initialize or increment `feasibility_cycle_count` (starts at 0, incremented on each re-entry).
+3. **If `feasibility_cycle_count < max_feasibility_cycles`**: Re-enter Phase 1 (understanding loop) with the gap context as seeding material. Log: `"FEASIBILITY_GAP detected — re-entering Phase 1 understanding loop (cycle {feasibility_cycle_count}/{max_feasibility_cycles})."` After the user provides additional context or clarification, re-run the scrutiny pipeline and check again.
+4. **If `feasibility_cycle_count >= max_feasibility_cycles`**: Escalate to the user. Present the unresolved gap and ask whether to proceed with the gap noted, abort, or manually adjust the spec. Log: `"FEASIBILITY_GAP unresolved after {max_feasibility_cycles} cycles — escalating to user."`
+5. Expose `feasibility_cycle_count` as a named state variable for Story 4 (7067-dae6) to consume in the log extensions.
+
+**If FEASIBILITY_GAP is NOT present:** Continue to Step 4 (Approval Gate) normally.
+
 ### Step 4: Approval Gate
 
 Present the validated spec to the user using **AskUserQuestion** with 4 options. Label options (b) and (c) based on whether the corresponding phase already ran in this session:
@@ -396,7 +410,7 @@ If changes are requested during discussion or after any re-run, revise the spec 
 
 After the user approves (option a), append a planning-intelligence log to the epic spec comment that will be written in Phase 3.
 
-Log format to append under the heading `### Planning Intelligence Log`:
+Log format to append (the heading is **Planning Intelligence Log**, level 3):
 
 ```
 ### Planning Intelligence Log
@@ -406,6 +420,9 @@ Log format to append under the heading `### Planning Intelligence Log`:
 - **Scenario analysis (Step 2.75)**: [not triggered | triggered | re-triggered via gate]
   - Scenarios surviving blue team filter: [count, or "skipped — ≤2 success criteria"]
 - **Practitioner-requested additional cycles**: [none | web research re-run N time(s) | scenario analysis re-run N time(s) | both re-run]
+- **Follow-on scrutiny (Step 0)**: [not triggered | triggered — depth: <follow_on_scrutiny_depth>]
+- **Feasibility resolution (Step 2.5)**: [not triggered | triggered — cycles: <feasibility_cycle_count>, gap: <triggering gap description>]
+- **LLM-instruction signal (Step 5)**: [not triggered | triggered — keyword: <matched_keyword>]
 ```
 
 ---
@@ -428,17 +445,44 @@ Do NOT call `ticket create` for any follow-on or derivative epic until the user 
 - You identified a related epic during Phase 1 or Phase 2 that was out of scope for the primary epic.
 
 **Procedure for each follow-on epic** (execute before Step 1 for each follow-on, one at a time):
-1. **Draft the follow-on epic spec**: title, 1-2 sentence context, and 2-4 proposed success criteria. Seed from the scope reviewer's recommendation or the user's directional statement — do not invent scope.
-2. **Present and wait for explicit approval**:
+
+**State variables** (initialize at the start of each follow-on):
+- `request_origin`: set to `"scope-split"` if the scope reviewer recommended splitting the primary epic (Part A / Part B pattern); set to `"user"` otherwise (user directional statement or agent-identified related epic).
+- `follow_on_depth`: set to `0` for direct follow-on epics spawned from the primary brainstorm session. If this brainstorm session was itself invoked on a follow-on epic, increment from the parent session's depth (i.e., `follow_on_depth = parent_depth + 1`). Default: `follow_on_depth = 0`.
+
+**Depth cap — stub path (follow_on_depth >= 1)**:
+If `follow_on_depth >= 1`, do NOT run the scrutiny pipeline. Present the follow-on as a stub with this stub title and context format:
+```
+Follow-on epic stub: "[Title]"
+Context: [1-2 sentence description]
+Proposed success criteria:
+- [criterion 1]
+- [criterion 2]
+Note: This follow-on epic needs `/dso:brainstorm` before implementation (depth-capped stub — scrutiny skipped).
+Shall I create this as a ticket stub? (yes / no / let's refine it)
+```
+Wait for the user's response before calling `ticket create`. If approved, create the epic ticket without running scrutiny. If the user says "no" or requests refinement, update the spec or skip creation accordingly.
+
+**Full scrutiny path (follow_on_depth == 0)**:
+1. **Determine request_origin and pre-strip Part A artifacts if needed**: If `request_origin` is `"scope-split"`, pre-strip Part A artifact references from the seeding material before drafting the follow-on spec. This prevents the primary epic's (Part A) content from bleeding into the follow-on scope. Exclude or skip Part A content when seeding the follow-on spec — only use Part B and scope-reviewer recommendations.
+2. **Draft the follow-on epic spec**: title, 1-2 sentence context, and 2-4 proposed success criteria. Seed from the scope reviewer's recommendation or the user's directional statement — do not invent scope.
+3. **Invoke the epic scrutiny pipeline**: Run the shared scrutiny pipeline at `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md` on the drafted follow-on epic spec, passing:
+   - `{caller_name}` = `brainstorm`
+   - `{caller_prompts_dir}` = `$REPO_ROOT/plugins/dso/skills/brainstorm/prompts`
+4. **Present with scrutiny results and wait for explicit approval**:
    ```
    Follow-on epic proposed: "[Title]"
    Context: [1-2 sentence description]
    Proposed success criteria:
    - [criterion 1]
    - [criterion 2]
+   Scrutiny results: [summary of gap analysis, scenario analysis findings]
    Shall I create this as a separate epic? (yes / no / let's refine it)
    ```
    Wait for the user's response before calling `ticket create`. If the user says "no" or requests refinement, update the spec or skip creation accordingly.
+
+**Planning-intelligence log entry**: After processing each follow-on epic, record:
+- `follow_on_scrutiny_depth` = `<follow_on_depth value>` (named state variable for orchestrator/sub-agent inspection)
 
 ### Step 1: Create or Update the Epic
 

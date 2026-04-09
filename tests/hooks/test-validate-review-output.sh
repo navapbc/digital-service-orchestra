@@ -121,6 +121,11 @@ assert_contains \
     "preplanning" \
     "$CALLERS_OUTPUT"
 
+assert_contains \
+    "test_list_callers_shows_ui_designer: --list-callers includes ui-designer" \
+    "ui-designer" \
+    "$CALLERS_OUTPUT"
+
 CALLERS_EXIT=$(run_script --list-callers)
 assert_eq \
     "test_list_callers_exits_zero: --list-callers exits 0" \
@@ -1107,5 +1112,223 @@ _REVIEW_TIER_INVALID_EXIT=$(run_script code-review-dispatch "$_REVIEW_TIER_INVAL
 assert_ne "test_review_tier_invalid_value_fails" "0" "$_REVIEW_TIER_INVALID_EXIT"
 
 assert_pass_if_clean "test_review_tier_invalid_value_fails"
+
+# =============================================================================
+# Tests: fragile severity support in code-review-dispatch (3b1c-1323)
+#
+# RED tests — fail against current validate-review-output.sh because
+# valid_severities = {"critical", "important", "minor"} does not include "fragile".
+# These pass once fragile is added to valid_severities with score mapping score=3.
+# =============================================================================
+
+# Test: fragile finding passes code-review-dispatch validation
+# RED: current valid_severities excludes fragile → exits non-zero; test asserts exit 0
+echo ""
+echo "--- test_fragile_severity_passes_crd_validation ---"
+_snapshot_fail
+
+_FRAGILE_VALID_FILE=$(write_fixture "fragile_valid.json" '{
+  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 3, "verification": 5},
+  "findings": [
+    {"severity": "fragile", "category": "correctness", "description": "Edge case in error path not covered by tests.", "file": "app/src/handler.py"}
+  ],
+  "summary": "One fragile finding in correctness dimension; score correctly set to 3."
+}')
+_FRAGILE_VALID_EXIT=$(run_script code-review-dispatch "$_FRAGILE_VALID_FILE")
+assert_eq "test_fragile_severity_passes_crd_validation" "0" "$_FRAGILE_VALID_EXIT"
+
+assert_pass_if_clean "test_fragile_severity_passes_crd_validation"
+
+# Test: fragile finding with score 3 passes score-severity consistency
+# RED: current validator rejects fragile as an invalid severity before reaching
+# score-consistency checks; test asserts exit 0
+echo ""
+echo "--- test_fragile_finding_score_3_passes_consistency ---"
+_snapshot_fail
+
+_FRAGILE_SCORE_3_FILE=$(write_fixture "fragile_score_3.json" '{
+  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 3, "verification": 5},
+  "findings": [
+    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption about input ordering in merge logic.", "file": "app/src/merge.py"}
+  ],
+  "summary": "Fragile finding in correctness dimension with score 3 as required by fragile severity rule."
+}')
+_FRAGILE_SCORE_3_EXIT=$(run_script code-review-dispatch "$_FRAGILE_SCORE_3_FILE")
+assert_eq "test_fragile_finding_score_3_passes_consistency" "0" "$_FRAGILE_SCORE_3_EXIT"
+
+assert_pass_if_clean "test_fragile_finding_score_3_passes_consistency"
+
+# Test: fragile finding with score 4 fails score-severity consistency
+# RED: current validator rejects fragile as an invalid severity (not a score-consistency
+# error); test asserts the output contains a score-consistency message about score=4,
+# which is only emitted once fragile is a valid severity and triggers the consistency check
+echo ""
+echo "--- test_fragile_finding_score_4_fails_consistency ---"
+_snapshot_fail
+
+_FRAGILE_SCORE_4_FILE=$(write_fixture "fragile_score_4.json" '{
+  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 4, "verification": 5},
+  "findings": [
+    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption about input ordering that may fail under load.", "file": "app/src/merge.py"}
+  ],
+  "summary": "Fragile finding in correctness dimension with incorrectly high score of 4."
+}')
+_FRAGILE_SCORE_4_OUTPUT=$(bash "$SCRIPT" code-review-dispatch "$_FRAGILE_SCORE_4_FILE" 2>&1 || true)
+assert_contains "test_fragile_finding_score_4_fails_consistency_score_msg" "score 'correctness'=4" "$_FRAGILE_SCORE_4_OUTPUT"
+_FRAGILE_SCORE_4_EXIT=$(run_script code-review-dispatch "$_FRAGILE_SCORE_4_FILE")
+assert_ne "test_fragile_finding_score_4_fails_consistency_nonzero" "0" "$_FRAGILE_SCORE_4_EXIT"
+
+assert_pass_if_clean "test_fragile_finding_score_4_fails_consistency"
+
+# Test: integration — fragile finding piped through write-reviewer-findings.sh succeeds
+# RED: write-reviewer-findings.sh calls validate-review-output.sh code-review-dispatch,
+# which rejects fragile → exit 1; test asserts exit 0 and a hash on stdout
+echo ""
+echo "--- test_fragile_severity_write_reviewer_findings_integration ---"
+_snapshot_fail
+
+WRITE_SCRIPT="$DSO_PLUGIN_DIR/scripts/write-reviewer-findings.sh"
+_FRAGILE_INTEGRATION_FILE=$(write_fixture "fragile_integration.json" '{
+  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 3, "verification": 5},
+  "findings": [
+    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption in retry logic; may fail under concurrent load.", "file": "app/src/retry.py"}
+  ],
+  "summary": "One fragile correctness finding; all other dimensions are clean."
+}')
+_FRAGILE_INTEGRATION_EXIT=0
+_FRAGILE_INTEGRATION_OUTPUT=$(cat "$_FRAGILE_INTEGRATION_FILE" | bash "$WRITE_SCRIPT" --output "$TMP_DIR/fragile-findings-out.json" 2>/dev/null) || _FRAGILE_INTEGRATION_EXIT=$?
+assert_eq "test_fragile_severity_write_reviewer_findings_integration" "0" "$_FRAGILE_INTEGRATION_EXIT"
+
+assert_pass_if_clean "test_fragile_severity_write_reviewer_findings_integration"
+
+# ============================================================
+# Tests: escalate_review optional field validation
+# ============================================================
+
+# Test: findings JSON with valid escalate_review array passes validation
+# RED: current validator rejects escalate_review as an unexpected top-level key → exits 1.
+# After GREEN: escalate_review is in optional_top, valid array with required fields → exit 0.
+echo ""
+echo "--- test_escalate_review_valid_array_passes_validation ---"
+_snapshot_fail
+
+_ESC_VALID_FILE=$(write_fixture "escalate_review_valid.json" '{
+  "scores": {
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 4,
+    "verification": 5
+  },
+  "findings": [{"severity": "minor", "category": "correctness", "file": "src/foo.py", "description": "uncertain severity assignment"}],
+  "summary": "One finding with uncertain severity; escalation requested.",
+  "escalate_review": [{"finding_index": 0, "reason": "uncertain severity"}]
+}')
+_ESC_VALID_EXIT=$(run_script code-review-dispatch "$_ESC_VALID_FILE")
+assert_eq "test_escalate_review_valid_array_passes_validation" "0" "$_ESC_VALID_EXIT"
+
+assert_pass_if_clean "test_escalate_review_valid_array_passes_validation"
+
+# Test: findings JSON without escalate_review field passes (field is optional)
+# This is a behavioral GREEN test confirming the absence of escalate_review is accepted.
+# Placed here as documentation of the contract; no _snapshot_fail needed.
+_ESC_ABSENT_FILE=$(write_fixture "escalate_review_absent.json" '{
+  "scores": {
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
+  },
+  "findings": [],
+  "summary": "All dimensions clean; no escalation field present."
+}')
+_ESC_ABSENT_EXIT=$(run_script code-review-dispatch "$_ESC_ABSENT_FILE")
+assert_eq \
+    "test_escalate_review_absent_passes_validation: no escalate_review field is accepted" \
+    "0" \
+    "$_ESC_ABSENT_EXIT"
+
+# Test: findings JSON with escalate_review as a string (not array) fails validation
+# RED: current validator raises "unexpected top-level keys" error, which does not contain
+# the content-validation message "'escalate_review' must be an array". After GREEN, the
+# field is recognized and content-validation emits that specific message → assertion passes.
+echo ""
+echo "--- test_escalate_review_string_fails_with_type_error_message ---"
+_snapshot_fail
+
+_ESC_STRING_FILE=$(write_fixture "escalate_review_string.json" '{
+  "scores": {
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
+  },
+  "findings": [],
+  "summary": "All dimensions clean but escalate_review is malformed as a string.",
+  "escalate_review": "uncertain severity"
+}')
+_ESC_STRING_OUTPUT=$(bash "$SCRIPT" code-review-dispatch "$_ESC_STRING_FILE" 2>&1 || true)
+assert_contains \
+    "test_escalate_review_string_fails_with_type_error_message" \
+    "'escalate_review' must be an array" \
+    "$_ESC_STRING_OUTPUT"
+
+assert_pass_if_clean "test_escalate_review_string_fails_with_type_error_message"
+
+# Test: findings JSON with escalate_review element missing finding_index fails validation
+# RED: current validator raises "unexpected top-level keys" error, which does not contain
+# the content-validation message "missing required field 'finding_index'". After GREEN,
+# the field is recognized and per-element validation emits that specific message.
+echo ""
+echo "--- test_escalate_review_element_missing_finding_index_fails_validation ---"
+_snapshot_fail
+
+_ESC_MISSING_IDX_FILE=$(write_fixture "escalate_review_missing_index.json" '{
+  "scores": {
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
+  },
+  "findings": [],
+  "summary": "All dimensions clean but escalate_review element is missing finding_index.",
+  "escalate_review": [{"reason": "uncertain severity"}]
+}')
+_ESC_MISSING_IDX_OUTPUT=$(bash "$SCRIPT" code-review-dispatch "$_ESC_MISSING_IDX_FILE" 2>&1 || true)
+assert_contains \
+    "test_escalate_review_element_missing_finding_index_fails_validation" \
+    "missing required field 'finding_index'" \
+    "$_ESC_MISSING_IDX_OUTPUT"
+
+assert_pass_if_clean "test_escalate_review_element_missing_finding_index_fails_validation"
+
+# ============================================================
+# approach_viability_concern: summary-embedded boolean signal
+# (follows *_warranted pattern — not a top-level JSON key)
+# No schema validation tests needed since it's parsed from summary text.
+# ============================================================
+
+# Test: findings JSON without approach_viability_concern passes (optional field)
+# This test is GREEN immediately: absent optional fields are not flagged as errors.
+_AVC_ABSENT_FILE=$(write_fixture "approach_viability_concern_absent.json" '{
+  "scores": {
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
+  },
+  "findings": [],
+  "summary": "No approach_viability_concern field present at all."
+}')
+_AVC_ABSENT_EXIT=0
+bash "$SCRIPT" code-review-dispatch "$_AVC_ABSENT_FILE" >/dev/null 2>&1 || _AVC_ABSENT_EXIT=$?
+assert_eq \
+    "test_approach_viability_concern_absent_passes" \
+    "0" \
+    "$_AVC_ABSENT_EXIT"
 
 print_summary

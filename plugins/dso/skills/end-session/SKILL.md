@@ -219,7 +219,7 @@ sweep_validation_failures
 1. Read baseline dir from config: `BASELINE_DIR=$(".claude/scripts/dso read-config.sh" visual.baseline_directory 2>/dev/null || true)` — if empty, skip this step (no visual config). Otherwise run `git diff main -- "$BASELINE_DIR" --stat` — if empty, skip this step.
 2. Run `.claude/scripts/dso verify-baseline-intent.sh`
 3. **Exit 0** → proceed, report the intended baseline changes in the session summary.
-4. **Exit 2** → baseline changes with no design manifests. Debug using `/dso:playwright-debug` (Playwright MCP authorized). If regression confirmed: `.claude/scripts/dso ticket create bug "Visual regression: <details>" -p 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/dso:design-wireframe` or create manifest retroactively.
+4. **Exit 2** → baseline changes with no design manifests. Debug using `/dso:playwright-debug` (Playwright MCP authorized). If regression confirmed: `.claude/scripts/dso ticket create bug "Visual regression: <details>" -p 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/dso:preplanning` on the story (which dispatches `dso:ui-designer` to generate design artifacts) or create the manifest retroactively.
 
 ### 4. Sync Tickets and Merge to Main
 
@@ -252,7 +252,21 @@ If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non
 3. If resolution succeeds: continue to Step 5.
 4. If resolution is abandoned (merge aborted): run `git status --short` immediately and report ALL dirty files to the user before proceeding. Do NOT continue to Step 4.75 silently — the user must confirm their work is intact.
 
-If the script reports a non-conflict ERROR: relay the error message to the user and stop.
+If the script reports a non-conflict ERROR:
+1. **Before giving up, diagnose the main repo state.** Run:
+   ```bash
+   MAIN_REPO=$(dirname "$(git rev-parse --git-common-dir)")
+   git -C "$MAIN_REPO" status --short
+   ```
+2. If the output shows staged or modified files (lines beginning with `M`, `A`, `D`, `R`, `C`, or `??` for non-`.tickets-tracker/` paths):
+   - Run `git -C "$MAIN_REPO" reset HEAD` to unstage all staged files.
+   - Run `git -C "$MAIN_REPO" checkout .` to discard tracked modifications.
+   - Run `git -C "$MAIN_REPO" clean -fd` to remove untracked files.
+   - Report to the user: "Cleared stale main repo git state (staged/dirty index). Retrying merge."
+   - Retry: `.claude/scripts/dso merge-to-main.sh ${BUMP_ARG:-}`
+   - If the retry succeeds: continue to Step 5.
+   - If the retry fails: relay the new error message to the user and stop.
+3. If the main repo is clean and the error persists: relay the original error message to the user and stop.
 
 > **CRITICAL**: When resolving merge conflicts that involve `.tickets-tracker/` event files, do NOT use `git merge -X ours` — this would silently discard incoming ticket events from main and corrupt the event log. Instead, resolve `.tickets-tracker/` conflicts per-file using `git checkout --ours` on each conflicted JSON event file individually (they are append-only and safe to accept ours per-file). `/dso:resolve-conflicts` handles this automatically.
 
@@ -384,7 +398,7 @@ Display each category from `LEARNINGS_FROM_2_8`:
   - `git log main..HEAD --oneline` (unmerged commits on this branch)
   - If empty (already merged): `git log --oneline -20 main` and identify commits from this worktree branch by their merge commit messages
 - Tasks remaining (if context is available: IDs, titles, blocked status)
-- Resume command (if work remains): `/dso:sprint <epic-id> --resume` or "Run `/dso:debug-everything` again"
+- Resume command (if work remains): `/dso:sprint <epic-id>` or "Run `/dso:debug-everything` again"
 
 **Session Summary**:
 - Issues closed (count, with IDs)
