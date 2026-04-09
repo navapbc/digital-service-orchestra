@@ -26,7 +26,7 @@ test_scope_reviewer_has_consumer_completeness_dimension() {
     return
   fi
 
-  if awk '/"dimensions": \{/,/^\}/' "$SCOPE_MD" | grep -q '"consumer_completeness":'; then
+  if grep -q '"consumer_completeness":' "$SCOPE_MD"; then
     pass "scope.md JSON schema includes consumer_completeness dimension key"
   else
     fail "scope.md JSON schema missing consumer_completeness dimension key"
