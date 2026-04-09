@@ -567,6 +567,33 @@ class AcliClient:
         """Add a comment to a Jira issue via ACLI."""
         return add_comment(jira_key, body, acli_cmd=self._acli_cmd)
 
+    def get_issue_link_types(self) -> list[dict[str, Any]]:
+        """Return all available Jira issue link types via ACLI.
+
+        Uses ``jira workitem link type list --json`` to query Jira for the
+        full set of configured link types. Returns a list of dicts, each
+        containing at minimum ``id`` and ``name`` fields (plus ``inward``
+        and ``outward`` when the ACLI response includes them).
+
+        Raises subprocess.CalledProcessError on ACLI failure.
+        """
+        cmd = [
+            "jira",
+            "workitem",
+            "link",
+            "type",
+            "list",
+            "--json",
+        ]
+        result = self._run(cmd)
+        parsed = json.loads(result.stdout or "[]")
+        if isinstance(parsed, list):
+            return parsed
+        # Some ACLI versions wrap the list in a dict under "issueLinkTypes"
+        if isinstance(parsed, dict) and "issueLinkTypes" in parsed:
+            return parsed["issueLinkTypes"]
+        return []
+
     def search_issues(
         self,
         jql: str,
@@ -656,3 +683,49 @@ class AcliClient:
         ]
         self._run(cmd)  # raises on failure — no silent swallowing
         return {"status": "created", "from": from_key, "to": to_key}
+
+    def get_issue_links(self, jira_key: str) -> list[dict[str, Any]]:
+        """Get existing issue links for a Jira issue.
+
+        Returns a list of link dicts matching the Jira REST API format:
+        ``[{"type": {"name": ...}, "inwardIssue": {...}|None, "outwardIssue": {...}|None}]``
+
+        Used by the LINK handler for pre-create deduplication.
+        Raises subprocess.CalledProcessError on ACLI failure.
+        """
+        cmd = [
+            "jira",
+            "workitem",
+            "link",
+            "list",
+            "--key",
+            jira_key,
+            "--json",
+        ]
+        result = self._run(cmd)
+        parsed = json.loads(result.stdout or "[]")
+        if isinstance(parsed, list):
+            return parsed
+        # Some ACLI versions wrap results in a dict with an "issuelinks" key
+        if isinstance(parsed, dict):
+            return parsed.get("issuelinks", [])
+        return []
+
+    def delete_issue_link(self, link_id: str) -> dict[str, Any]:
+        """Delete a Jira issue link by its ID via ACLI.
+
+        Uses ``jira workitem link delete --id LINK_ID`` to remove the link.
+        Raises subprocess.CalledProcessError on ACLI failure (e.g. 404 if
+        the link was already deleted, or 409 on concurrent modification).
+        Callers should treat 404/409 as idempotent success.
+        """
+        cmd = [
+            "jira",
+            "workitem",
+            "link",
+            "delete",
+            "--id",
+            link_id,
+        ]
+        self._run(cmd)
+        return {"status": "deleted", "link_id": link_id}

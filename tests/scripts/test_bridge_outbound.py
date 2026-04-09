@@ -784,3 +784,400 @@ def test_process_outbound_halts_status_push_for_flapping_ticket(
 
     # update_issue must NEVER be called when flap is detected
     mock_client.update_issue.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# AcliClient.get_issue_link_types() — happy path and error path
+# ---------------------------------------------------------------------------
+
+_ACLI_SCRIPT_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "acli-integration.py"
+
+
+def _load_acli_module() -> ModuleType:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("acli_integration", _ACLI_SCRIPT_PATH)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+@pytest.fixture(scope="module")
+def acli_mod() -> ModuleType:
+    """Return the acli-integration module for AcliClient tests."""
+    if not _ACLI_SCRIPT_PATH.exists():
+        pytest.fail(
+            f"acli-integration.py not found at {_ACLI_SCRIPT_PATH} — "
+            "implement the module to make these tests pass."
+        )
+    return _load_acli_module()
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_issue_link_types_returns_list_of_dicts(acli_mod: ModuleType) -> None:
+    """Given ACLI returns a JSON array of link type objects,
+    when AcliClient.get_issue_link_types() is called,
+    then it returns a list of dicts each with 'id' (str) and 'name' (str) fields.
+    """
+    from unittest.mock import patch
+
+    link_types_response = [
+        {
+            "id": "10003",
+            "name": "Relates",
+            "inward": "relates to",
+            "outward": "relates to",
+        }
+    ]
+    mock_result = MagicMock(
+        returncode=0,
+        stdout=__import__("json").dumps(link_types_response),
+        stderr="",
+    )
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = client.get_issue_link_types()
+
+    assert isinstance(result, list), "get_issue_link_types must return a list"
+    assert len(result) == 1, "must return one link type"
+    first = result[0]
+    assert isinstance(first.get("id"), str), "each dict must have 'id' as str"
+    assert isinstance(first.get("name"), str), "each dict must have 'name' as str"
+    assert first["name"] == "Relates"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_issue_link_types_raises_on_acli_error(acli_mod: ModuleType) -> None:
+    """Given ACLI returns a non-zero exit code,
+    when AcliClient.get_issue_link_types() is called,
+    then it raises subprocess.CalledProcessError (consistent with existing patterns).
+    """
+    import subprocess
+    from unittest.mock import patch
+
+    error = subprocess.CalledProcessError(
+        returncode=1,
+        cmd=["acli", "jira", "workitem", "link", "type", "list", "--json"],
+        stderr="connection refused",
+    )
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", side_effect=error):
+        with pytest.raises(subprocess.CalledProcessError):
+            client.get_issue_link_types()
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_issue_link_types_dict_wrapped_response(acli_mod: ModuleType) -> None:
+    """Given ACLI returns a dict with an 'issueLinkTypes' key,
+    when AcliClient.get_issue_link_types() is called,
+    then it unwraps and returns the inner list.
+    """
+    from unittest.mock import patch
+
+    link_types_response = {
+        "issueLinkTypes": [
+            {
+                "id": "10001",
+                "name": "Blocks",
+                "inward": "is blocked by",
+                "outward": "blocks",
+            },
+            {
+                "id": "10002",
+                "name": "Clones",
+                "inward": "is cloned by",
+                "outward": "clones",
+            },
+        ]
+    }
+    mock_result = MagicMock(
+        returncode=0,
+        stdout=__import__("json").dumps(link_types_response),
+        stderr="",
+    )
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = client.get_issue_link_types()
+
+    assert isinstance(result, list), "must return a list when dict-wrapped"
+    assert len(result) == 2, "must unwrap all link types from dict response"
+    names = [lt["name"] for lt in result]
+    assert "Blocks" in names
+    assert "Clones" in names
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_issue_link_types_empty_stdout_returns_empty_list(
+    acli_mod: ModuleType,
+) -> None:
+    """Given ACLI exits 0 but emits empty stdout,
+    when AcliClient.get_issue_link_types() is called,
+    then it returns an empty list without raising JSONDecodeError.
+    """
+    from unittest.mock import patch
+
+    mock_result = MagicMock(returncode=0, stdout="", stderr="")
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = client.get_issue_link_types()
+
+    assert result == [], (
+        "empty stdout must return empty list, not raise JSONDecodeError"
+    )
+
+
+# ---------------------------------------------------------------------------
+# AcliClient.get_issue_links() — happy path, dict-wrapped, and error path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_issue_links_returns_list_on_happy_path(acli_mod: ModuleType) -> None:
+    """Given ACLI returns a JSON array of issue link objects,
+    when AcliClient.get_issue_links() is called,
+    then it returns a list of dicts matching the Jira REST API format.
+    """
+    from unittest.mock import patch
+
+    links_response = [
+        {
+            "type": {"name": "Blocks", "inward": "is blocked by", "outward": "blocks"},
+            "inwardIssue": None,
+            "outwardIssue": {
+                "key": "DSO-10",
+                "fields": {"summary": "Downstream ticket"},
+            },
+        }
+    ]
+    mock_result = MagicMock(
+        returncode=0,
+        stdout=__import__("json").dumps(links_response),
+        stderr="",
+    )
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = client.get_issue_links("DSO-5")
+
+    assert isinstance(result, list), "get_issue_links must return a list"
+    assert len(result) == 1, "must return all links from the array response"
+    link = result[0]
+    assert "type" in link, "each link must have a 'type' key"
+    assert link["type"]["name"] == "Blocks"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_issue_links_dict_wrapped_response(acli_mod: ModuleType) -> None:
+    """Given ACLI returns a dict with an 'issuelinks' key,
+    when AcliClient.get_issue_links() is called,
+    then it unwraps and returns the inner list.
+    """
+    from unittest.mock import patch
+
+    links_response = {
+        "issuelinks": [
+            {
+                "type": {
+                    "name": "Relates",
+                    "inward": "relates to",
+                    "outward": "relates to",
+                },
+                "inwardIssue": {"key": "DSO-20"},
+                "outwardIssue": None,
+            }
+        ]
+    }
+    mock_result = MagicMock(
+        returncode=0,
+        stdout=__import__("json").dumps(links_response),
+        stderr="",
+    )
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = client.get_issue_links("DSO-5")
+
+    assert isinstance(result, list), "must return a list when dict-wrapped"
+    assert len(result) == 1, "must unwrap links from dict response"
+    assert result[0]["type"]["name"] == "Relates"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_issue_links_empty_stdout_returns_empty_list(acli_mod: ModuleType) -> None:
+    """Given ACLI exits 0 but emits empty stdout,
+    when AcliClient.get_issue_links() is called,
+    then it returns an empty list without raising JSONDecodeError.
+    """
+    from unittest.mock import patch
+
+    mock_result = MagicMock(returncode=0, stdout="", stderr="")
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = client.get_issue_links("DSO-5")
+
+    assert result == [], (
+        "empty stdout must return empty list, not raise JSONDecodeError"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_issue_links_raises_on_acli_error(acli_mod: ModuleType) -> None:
+    """Given ACLI returns a non-zero exit code,
+    when AcliClient.get_issue_links() is called,
+    then it raises subprocess.CalledProcessError.
+    """
+    import subprocess
+    from unittest.mock import patch
+
+    error = subprocess.CalledProcessError(
+        returncode=1,
+        cmd=["acli", "jira", "workitem", "link", "list", "--key", "DSO-5", "--json"],
+        stderr="not found",
+    )
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", side_effect=error):
+        with pytest.raises(subprocess.CalledProcessError):
+            client.get_issue_links("DSO-5")
+
+
+# ---------------------------------------------------------------------------
+# AcliClient.delete_issue_link tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_delete_issue_link_calls_acli_with_link_id(acli_mod: ModuleType) -> None:
+    """Given a valid link ID,
+    when AcliClient.delete_issue_link() is called,
+    then it invokes ACLI with the expected command containing the link ID.
+    """
+    from unittest.mock import patch
+
+    mock_result = MagicMock(returncode=0, stdout="", stderr="")
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
+        client.delete_issue_link("link-id-123")
+
+    assert mock_run.call_count == 1, "subprocess.run must be called once"
+    called_cmd = mock_run.call_args[0][0]
+    assert "link-id-123" in called_cmd, (
+        "delete_issue_link must pass the link ID to the ACLI command"
+    )
+    assert "delete" in called_cmd, (
+        "delete_issue_link must use 'delete' in the ACLI command"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_delete_issue_link_returns_deleted_status(acli_mod: ModuleType) -> None:
+    """Given ACLI succeeds,
+    when AcliClient.delete_issue_link() is called,
+    then it returns a dict with status 'deleted'.
+    """
+    from unittest.mock import patch
+
+    mock_result = MagicMock(returncode=0, stdout="", stderr="")
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = client.delete_issue_link("link-id-456")
+
+    assert isinstance(result, dict), "delete_issue_link must return a dict"
+    assert result.get("status") == "deleted", (
+        "delete_issue_link must return {'status': 'deleted', ...} on success"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_delete_issue_link_raises_on_acli_error(acli_mod: ModuleType) -> None:
+    """Given ACLI returns a non-zero exit code,
+    when AcliClient.delete_issue_link() is called,
+    then it raises subprocess.CalledProcessError.
+    """
+    import subprocess
+    from unittest.mock import patch
+
+    error = subprocess.CalledProcessError(
+        returncode=1,
+        cmd=["acli", "jira", "workitem", "link", "delete", "--id", "link-bad"],
+        stderr="Internal server error",
+    )
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", side_effect=error):
+        with pytest.raises(subprocess.CalledProcessError):
+            client.delete_issue_link("link-bad")
