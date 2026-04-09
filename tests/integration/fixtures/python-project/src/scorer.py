@@ -1,6 +1,5 @@
 """Scorer module for computing weighted scores using add operations."""
 
-
 from src.calculator import add
 
 

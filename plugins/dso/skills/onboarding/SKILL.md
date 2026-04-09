@@ -968,6 +968,25 @@ else
 fi
 ```
 
+#### Prettier Ignore Configuration
+
+If the host project uses Prettier (detected by the presence of `.prettierrc`, `.prettierrc.json`, `.prettierrc.js`, `prettier.config.js`, or `.prettierignore`), add DSO infrastructure directories to `.prettierignore` to prevent Prettier from attempting to format ticket event files and UI discovery cache:
+
+```bash
+if [ -f ".prettierignore" ] || [ -f ".prettierrc" ] || [ -f ".prettierrc.json" ] || [ -f ".prettierrc.js" ] || [ -f "prettier.config.js" ]; then
+    PRETTIERIGNORE="${PRETTIERIGNORE:-.prettierignore}"
+    touch "$PRETTIERIGNORE"
+    for dir in ".tickets-tracker/" ".ui-discovery-cache/"; do
+        if ! grep -qF "$dir" "$PRETTIERIGNORE"; then
+            echo "$dir" >> "$PRETTIERIGNORE"
+            echo "Added $dir to .prettierignore"
+        fi
+    done
+fi
+```
+
+This prevents Prettier from attempting to format the ticket event store and UI discovery cache, which contain JSON/YAML that Prettier may reformat in ways that break the ticket CLI's parsing.
+
 #### Ticket Smoke Test
 
 After initialization, perform a ticket smoke test to verify the system works end-to-end. Create a test ticket and read it back:

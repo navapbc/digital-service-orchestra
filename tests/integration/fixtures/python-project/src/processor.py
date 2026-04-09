@@ -1,6 +1,5 @@
 """Processor module that calls utils and reporter."""
 
-
 from src.utils import flatten, safe_divide, format_number
 from src.reporter import report_sum, report_table, report_power_series
 

@@ -1,7 +1,6 @@
 """Utility functions for the fixture project."""
 
 
-
 def clamp(value, minimum, maximum):
     """Return value clamped between minimum and maximum."""
     return max(minimum, min(maximum, value))

@@ -1,6 +1,5 @@
 """Tests for modules that call calculator.add — verifies callers work after add-parameter transform."""
 
-
 from src.formatter import format_sum, format_offset, format_cumulative, format_delta
 from src.reporter import report_sum, report_running_total, report_pair_sums
 from src.validator import validate_sum, validate_pair_sum

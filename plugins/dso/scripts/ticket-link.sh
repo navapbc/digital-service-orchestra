@@ -141,6 +141,19 @@ _write_link_event() {
     _check_ticket_exists "$source_id"
     _check_ticket_exists "$target_id"
 
+    # Guard: cannot write any LINK event for a closed source ticket
+    # A closed ticket is frozen — adding new dependency/relation events to it
+    # bypasses the closed-ticket invariant and can introduce children after close.
+    # Fail-open: if ticket_read_status fails (reducer unavailable or old format),
+    # source_status will be empty and we allow the link rather than blocking valid
+    # operations due to a transient read failure.
+    local source_status
+    source_status=$(ticket_read_status "$TRACKER_DIR" "$source_id" 2>/dev/null) || source_status=""
+    if [ -n "$source_status" ] && [ "$source_status" = "closed" ]; then
+        echo "Error: cannot create $relation link — source ticket '$source_id' is closed. Reopen it first with: ticket transition $source_id closed open" >&2
+        exit 1
+    fi
+
     # Guard: depends_on to a closed ticket is not allowed
     if [ "$relation" = "depends_on" ]; then
         local target_status
