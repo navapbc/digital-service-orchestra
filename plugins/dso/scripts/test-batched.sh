@@ -130,7 +130,7 @@ trap '_signal_handler INT'  SIGINT
 trap '_signal_handler URG'  SIGURG
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-DEFAULT_TIMEOUT=50
+DEFAULT_TIMEOUT=40
 DEFAULT_STATE_TTL=14400  # 4 hours in seconds
 
 # Derive a repo/worktree-isolated default state file path.
