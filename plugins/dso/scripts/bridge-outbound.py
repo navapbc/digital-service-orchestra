@@ -262,6 +262,21 @@ def detect_status_flap(
     return flap_count >= flap_threshold
 
 
+def _resolve_jira_key(ticket_dir: Path) -> str | None:
+    """Resolve the Jira issue key for a ticket from its latest SYNC event file.
+
+    Returns the jira_key string, or None if no SYNC file exists or the file
+    cannot be read or contains no jira_key field.
+    """
+    sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
+    if not sync_files:
+        return None
+    sync_data = _read_event_file(sync_files[-1])
+    if not sync_data:
+        return None
+    return sync_data.get("jira_key") or None
+
+
 def write_bridge_alert(
     ticket_dir: Path,
     ticket_id: str,
@@ -323,6 +338,13 @@ def process_outbound(
     # already pushed in this run to avoid duplicate Jira updates when the
     # same ticket appears multiple times in the event stream.
     _status_updated: set[str] = set()
+
+    # LINK/UNLINK caches: local to this process_outbound call
+    # _link_types_cache: None = not yet fetched, list = fetched result
+    _link_types_cache: list[dict[str, Any]] | None = None
+    # _created_link_pairs: frozensets of (source_jira_key, target_jira_key) pairs
+    # created in this run, for in-run reciprocal dedup
+    _created_link_pairs: set[frozenset] = set()
 
     for event in filtered:
         ticket_id = event.get("ticket_id", "")
@@ -596,6 +618,231 @@ def process_outbound(
                 dedup_map["uuid_to_jira_id"] = uuid_to_jira
                 dedup_map["jira_id_to_uuid"] = jira_id_to_uuid
                 _write_dedup_map(ticket_dir, dedup_map)
+
+        elif event_type == "LINK":
+            # Read event file to get relation, source_id, target_id
+            event_data = _read_event_file(event.get("file_path", ""))
+            if not event_data:
+                continue
+
+            link_data = event_data.get("data", {})
+            relation = link_data.get("relation", "")
+
+            # Only process relates_to relation
+            if relation != "relates_to":
+                continue
+
+            target_id = link_data.get("target_id", "")
+
+            # Resolve source Jira key from SYNC file
+            source_jira_key = _resolve_jira_key(ticket_dir)
+            if not source_jira_key:
+                continue
+
+            # Resolve target Jira key from target ticket's SYNC file
+            if not target_id:
+                write_bridge_alert(
+                    ticket_dir,
+                    ticket_id=ticket_id,
+                    reason="LINK event missing target_id — skipping",
+                    bridge_env_id=bridge_env_id,
+                )
+                continue
+            target_dir = tickets_root / target_id
+            target_jira_key = _resolve_jira_key(target_dir)
+            if target_jira_key is None:
+                # Distinguish between missing SYNC and missing jira_key by checking sync files
+                target_sync_files = sorted(target_dir.glob("*-SYNC.json"))
+                if not target_sync_files:
+                    reason = f"LINK event: target ticket {target_id} has no SYNC file (not yet synced to Jira) — skipping"
+                else:
+                    target_sync_data = _read_event_file(target_sync_files[-1])
+                    if not target_sync_data:
+                        reason = f"LINK event: target ticket {target_id} SYNC file unreadable — skipping"
+                    else:
+                        reason = f"LINK event: target ticket {target_id} SYNC file has no jira_key — skipping"
+                write_bridge_alert(
+                    ticket_dir,
+                    ticket_id=ticket_id,
+                    reason=reason,
+                    bridge_env_id=bridge_env_id,
+                )
+                continue
+
+            # Validate link type: cache get_issue_link_types result per run
+            if _link_types_cache is None:
+                _link_types_cache = acli_client.get_issue_link_types()
+            link_types = _link_types_cache
+
+            relates_type = next(
+                (lt for lt in link_types if lt.get("name") == "Relates"), None
+            )
+            if relates_type is None:
+                available = ", ".join(
+                    lt.get("name", "") for lt in link_types if lt.get("name")
+                )
+                write_bridge_alert(
+                    ticket_dir,
+                    ticket_id=ticket_id,
+                    reason=(
+                        f"LINK event: 'Relates' link type not found in Jira instance. "
+                        f"Available types: {available}"
+                    ),
+                    bridge_env_id=bridge_env_id,
+                )
+                continue
+
+            # In-run reciprocal dedup: track created pairs as frozenset
+            pair = frozenset([source_jira_key, target_jira_key])
+            if pair in _created_link_pairs:
+                continue
+
+            # Pre-create dedup: check if Relates link already exists
+            existing_links = acli_client.get_issue_links(source_jira_key)
+            already_exists = False
+            for link in existing_links:
+                if link.get("type", {}).get("name") == "Relates":
+                    outward = link.get("outwardIssue") or {}
+                    inward = link.get("inwardIssue") or {}
+                    if (
+                        outward.get("key") == target_jira_key
+                        or inward.get("key") == target_jira_key
+                    ):
+                        already_exists = True
+                        break
+            if already_exists:
+                _created_link_pairs.add(pair)
+                continue
+
+            # Create link via set_relationship
+            try:
+                acli_client.set_relationship(
+                    source_jira_key, target_jira_key, "Relates"
+                )
+                _created_link_pairs.add(pair)
+                # Write SYNC event for traceability
+                _write_sync_event(
+                    ticket_dir,
+                    jira_key=source_jira_key,
+                    local_id=ticket_id,
+                    bridge_env_id=bridge_env_id,
+                    run_id=run_id,
+                )
+                syncs_written.append(
+                    {
+                        "event_type": "SYNC",
+                        "jira_key": source_jira_key,
+                        "local_id": ticket_id,
+                    }
+                )
+            except subprocess.CalledProcessError as exc:
+                logger.warning(
+                    "LINK event: set_relationship(%s, %s) failed: %s — writing BRIDGE_ALERT",
+                    source_jira_key,
+                    target_jira_key,
+                    exc,
+                )
+                write_bridge_alert(
+                    ticket_dir,
+                    ticket_id=ticket_id,
+                    reason=(
+                        f"LINK sync failed for {source_jira_key} -> {target_jira_key}: "
+                        f"{exc.stderr or str(exc)}"
+                    ),
+                    bridge_env_id=bridge_env_id,
+                )
+
+        elif event_type == "UNLINK":
+            # Read event file to get relation, source_id, target_id
+            event_data = _read_event_file(event.get("file_path", ""))
+            if not event_data:
+                continue
+
+            link_data = event_data.get("data", {})
+            relation = link_data.get("relation", "")
+
+            # Only process relates_to relation
+            if relation != "relates_to":
+                continue
+
+            target_id = link_data.get("target_id", "")
+
+            # Resolve source Jira key from SYNC file
+            source_jira_key = _resolve_jira_key(ticket_dir)
+            if not source_jira_key:
+                continue
+
+            # Resolve target Jira key from target ticket's SYNC file
+            if not target_id:
+                continue
+            target_dir = tickets_root / target_id
+            target_jira_key = _resolve_jira_key(target_dir)
+            if not target_jira_key:
+                continue
+
+            # Read-before-delete: get existing links for the source issue
+            try:
+                existing_links = acli_client.get_issue_links(source_jira_key)
+            except subprocess.CalledProcessError:
+                # Any ACLI error (e.g. source issue not found): treat as "already gone"
+                continue
+
+            # Find the matching link ID
+            link_id_to_delete: str | None = None
+            for link in existing_links:
+                if link.get("type", {}).get("name") == "Relates":
+                    outward = link.get("outwardIssue") or {}
+                    inward = link.get("inwardIssue") or {}
+                    if (
+                        outward.get("key") == target_jira_key
+                        or inward.get("key") == target_jira_key
+                    ):
+                        link_id_to_delete = link.get("id")
+                        break
+
+            if link_id_to_delete is None:
+                # No matching link found — already gone or never created
+                continue
+
+            # Delete the link
+            try:
+                acli_client.delete_issue_link(link_id_to_delete)
+                # Write SYNC event for audit trail after successful deletion
+                _write_sync_event(
+                    ticket_dir,
+                    jira_key=source_jira_key,
+                    local_id=ticket_id,
+                    bridge_env_id=bridge_env_id,
+                    run_id=run_id,
+                )
+                syncs_written.append(
+                    {
+                        "event_type": "SYNC",
+                        "jira_key": source_jira_key,
+                        "local_id": ticket_id,
+                    }
+                )
+            except subprocess.CalledProcessError as exc:
+                # 404 or 409: treat as "already gone" (concurrent deletion is idempotent).
+                # ACLI Go process exit codes do not encode HTTP status — check stderr/stdout
+                # for "not found" or "404" patterns to detect these cases.
+                err_text = (exc.stderr or "") + (exc.stdout or "")
+                if (
+                    "404" in err_text
+                    or "not found" in err_text.lower()
+                    or "409" in err_text
+                ):
+                    continue
+                # Other errors: write BRIDGE_ALERT and continue
+                write_bridge_alert(
+                    ticket_dir,
+                    ticket_id=ticket_id,
+                    reason=(
+                        f"UNLINK sync failed for {source_jira_key} -> {target_jira_key}: "
+                        f"{exc.stderr or str(exc)}"
+                    ),
+                    bridge_env_id=bridge_env_id,
+                )
 
         elif event_type == "EDIT":
             # Read event file to get edited fields and env_id

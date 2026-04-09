@@ -710,3 +710,22 @@ class AcliClient:
         if isinstance(parsed, dict):
             return parsed.get("issuelinks", [])
         return []
+
+    def delete_issue_link(self, link_id: str) -> dict[str, Any]:
+        """Delete a Jira issue link by its ID via ACLI.
+
+        Uses ``jira workitem link delete --id LINK_ID`` to remove the link.
+        Raises subprocess.CalledProcessError on ACLI failure (e.g. 404 if
+        the link was already deleted, or 409 on concurrent modification).
+        Callers should treat 404/409 as idempotent success.
+        """
+        cmd = [
+            "jira",
+            "workitem",
+            "link",
+            "delete",
+            "--id",
+            link_id,
+        ]
+        self._run(cmd)
+        return {"status": "deleted", "link_id": link_id}

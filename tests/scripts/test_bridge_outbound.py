@@ -1093,3 +1093,91 @@ def test_get_issue_links_raises_on_acli_error(acli_mod: ModuleType) -> None:
     with patch("subprocess.run", side_effect=error):
         with pytest.raises(subprocess.CalledProcessError):
             client.get_issue_links("DSO-5")
+
+
+# ---------------------------------------------------------------------------
+# AcliClient.delete_issue_link tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_delete_issue_link_calls_acli_with_link_id(acli_mod: ModuleType) -> None:
+    """Given a valid link ID,
+    when AcliClient.delete_issue_link() is called,
+    then it invokes ACLI with the expected command containing the link ID.
+    """
+    from unittest.mock import patch
+
+    mock_result = MagicMock(returncode=0, stdout="", stderr="")
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
+        client.delete_issue_link("link-id-123")
+
+    assert mock_run.call_count == 1, "subprocess.run must be called once"
+    called_cmd = mock_run.call_args[0][0]
+    assert "link-id-123" in called_cmd, (
+        "delete_issue_link must pass the link ID to the ACLI command"
+    )
+    assert "delete" in called_cmd, (
+        "delete_issue_link must use 'delete' in the ACLI command"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_delete_issue_link_returns_deleted_status(acli_mod: ModuleType) -> None:
+    """Given ACLI succeeds,
+    when AcliClient.delete_issue_link() is called,
+    then it returns a dict with status 'deleted'.
+    """
+    from unittest.mock import patch
+
+    mock_result = MagicMock(returncode=0, stdout="", stderr="")
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = client.delete_issue_link("link-id-456")
+
+    assert isinstance(result, dict), "delete_issue_link must return a dict"
+    assert result.get("status") == "deleted", (
+        "delete_issue_link must return {'status': 'deleted', ...} on success"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_delete_issue_link_raises_on_acli_error(acli_mod: ModuleType) -> None:
+    """Given ACLI returns a non-zero exit code,
+    when AcliClient.delete_issue_link() is called,
+    then it raises subprocess.CalledProcessError.
+    """
+    import subprocess
+    from unittest.mock import patch
+
+    error = subprocess.CalledProcessError(
+        returncode=1,
+        cmd=["acli", "jira", "workitem", "link", "delete", "--id", "link-bad"],
+        stderr="Internal server error",
+    )
+
+    client = acli_mod.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", side_effect=error):
+        with pytest.raises(subprocess.CalledProcessError):
+            client.delete_issue_link("link-bad")
