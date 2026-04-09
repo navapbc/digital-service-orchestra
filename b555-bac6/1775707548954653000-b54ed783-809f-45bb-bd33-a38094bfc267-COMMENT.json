@@ -1,0 +1,1 @@
+{"timestamp": 1775707548954653000, "uuid": "b54ed783-809f-45bb-bd33-a38094bfc267", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "REPLAN_RESOLVED: implementation-plan \u2014 Remediation tasks created for story 89cb-a606: 1a04-5fe4 (RELATES_TO_DRIFT handler), adae-6fb7 (e2e test update)."}}
