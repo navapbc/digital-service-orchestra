@@ -977,9 +977,12 @@ print(isolation)
 
         # Check for auth marker files before denying.
         # Format: /tmp/worktree-isolation-authorized-* containing a PID.
+        # Override for testing: WORKTREE_ISOLATION_MARKER_GLOB scopes the glob
+        # to a test-specific namespace so live session markers don't pollute tests.
+        local _MARKER_GLOB="${WORKTREE_ISOLATION_MARKER_GLOB:-/tmp/worktree-isolation-authorized-*}"
         local _AUTHORIZED=0
         local _MARKER _MARKER_PID
-        for _MARKER in /tmp/worktree-isolation-authorized-*; do
+        for _MARKER in $_MARKER_GLOB; do
             # Skip glob literal when no files match
             [[ -f "$_MARKER" ]] || continue
             _MARKER_PID=$(cat "$_MARKER" 2>/dev/null) || continue

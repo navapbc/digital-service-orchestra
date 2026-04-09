@@ -135,6 +135,9 @@ _run_isolation_fn() {
     (
         # Enable isolation enforcement so tests exercise the auth marker path
         export WORKTREE_ISOLATION_ENABLED=true
+        # Scope the marker glob to test-specific files so live session markers
+        # (from the Claude Code process) don't pollute the deny/allow decisions.
+        export WORKTREE_ISOLATION_MARKER_GLOB="/tmp/worktree-isolation-authorized-func-*"
         # Suppress the "no such file: deps.sh" error from sourcing in a worktree context;
         # the function itself does not depend on deps.sh at call time.
         source "$PLUGIN_ROOT/plugins/dso/hooks/lib/session-misc-functions.sh" 2>/dev/null
