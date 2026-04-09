@@ -63,6 +63,25 @@ After resolving any artifact gaps, think carefully about the proposed approach:
 
 If gaps are found in either part, present them to the user and resolve before proceeding to the web research phase.
 
+### Part C: Shared Artifact Impact Analysis
+
+**When Part C triggers**: Part C activates only when the Success Criteria section (not the original user request) references creating or modifying a file that is consumed by "2+ other files" outside its own directory. Identify the artifact from the SC section first (same fuzzy-matching heuristics as Part A — this is Part C's scope, not Part A's).
+
+**If the artifact is not yet in the codebase** or a scan produces no results, skip Part C and log: `Part C scan skipped: no consumers found or scan unavailable`.
+
+**Scanning**: Use Grep/Glob to find all files that reference the artifact — path references, import statements, source/include directives. Count only consumers outside the artifact's own directory.
+
+**Cross-referencing**: For each discovered consumer, check whether it is covered by any success criterion in the epic spec. Assign `covered_by_SC: true` if the consumer appears in any SC, `covered_by_SC: false` if not (boolean — not a string).
+
+**Output**: Present a raw list of `(file_path, matching_line, covered_by_SC)` tuples to downstream consumers. Do NOT curate or summarize — pass the raw scan output. Example:
+
+```
+- file_path: src/hooks/use-auth.ts, matching_line: import { getUser } from './user-service', covered_by_SC: false
+- file_path: tests/unit/test-auth.test.ts, matching_line: import { getUser } from '../../src/user-service', covered_by_SC: true
+```
+
+If Part C finds uncovered consumers (`covered_by_SC: false`), flag them as potential scope gaps for the fidelity review phase.
+
 ---
 
 ## Step 2: Web Research Phase
@@ -174,13 +193,13 @@ If either sub-agent fails to return valid JSON, log: "Scenario analysis sub-agen
 Run the epic spec through three reviewers **in parallel** using the Task tool. For each reviewer:
 
 1. Read the reviewer prompt from `plugins/dso/skills/shared/docs/reviewers/` (relative to the repo root)
-2. Pass: the epic title, Context section, Success Criteria, Scenario Analysis section (from Step 3, if present), and (for Scope reviewer) titles of other open epics
+2. Pass: the epic title, Context section, Success Criteria, Scenario Analysis section (from Step 3, if present), and (for Scope reviewer) titles of other open epics and Part C covered_by_SC scan output (file_path, matching_line, covered_by_SC tuples)
 3. Instruct the reviewer to return JSON per the `REVIEW-SCHEMA.md` in the review-protocol skill
 
 | Reviewer | Prompt File | Perspective | Dimensions |
 |----------|-------------|------------|------------|
 | Senior Technical Program Manager | `plugins/dso/skills/shared/docs/reviewers/agent-clarity.md` | `"Agent Clarity"` | `self_contained`, `success_measurable` |
-| Senior Product Strategist | `plugins/dso/skills/shared/docs/reviewers/scope.md` | `"Scope"` | `right_sized`, `no_overlap`, `dependency_aware` |
+| Senior Product Strategist | `plugins/dso/skills/shared/docs/reviewers/scope.md` | `"Scope"` | `right_sized`, `no_overlap`, `dependency_aware`, `consumer_completeness` |
 | Senior Product Manager | `plugins/dso/skills/shared/docs/reviewers/value.md` | `"Value"` | `user_impact`, `validation_signal` |
 | Senior Integration Engineer | `dso:feasibility-reviewer` (dedicated agent) | `"Technical Feasibility"` | `technical_feasibility`, `integration_risk` |
 
