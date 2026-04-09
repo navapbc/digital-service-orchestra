@@ -163,8 +163,40 @@ review_feedback = null
    - `artifact`: the full content of the design manifest at `design_artifacts.manifest`
      (read it with the Read tool and pass the content inline, not just the path)
    - `subject`: the manifest path from `design_artifacts.manifest` in the payload
-   - `caller`: `ui-designer`
-   - `perspectives`: `["Product Management", "Design Systems", "Accessibility", "Frontend Engineering"]`
+   - `caller_id`: `ui-designer`
+   - `perspectives`: array of perspective definition objects:
+     ```json
+     [
+       {
+         "name": "Product Management",
+         "dimensions": {
+           "user_value": "Design clearly communicates user value and addresses story acceptance criteria",
+           "scope_alignment": "Design scope matches story boundaries — no scope creep or under-delivery"
+         }
+       },
+       {
+         "name": "Design Systems",
+         "dimensions": {
+           "component_reuse": "Design leverages existing system components rather than introducing redundant new ones",
+           "token_compliance": "Colors, typography, and spacing reference design system tokens, not hard-coded values"
+         }
+       },
+       {
+         "name": "Accessibility",
+         "dimensions": {
+           "contrast_hierarchy": "Visual hierarchy and contrast ratios meet WCAG 2.1 AA requirements",
+           "interaction_a11y": "Interactive elements have keyboard-accessible targets and focus indicators specified"
+         }
+       },
+       {
+         "name": "Frontend Engineering",
+         "dimensions": {
+           "implementation_feasibility": "Design is implementable with existing frontend stack without custom one-off solutions",
+           "responsive_clarity": "Breakpoint behavior and responsive layout intent is clearly specified"
+         }
+       }
+     ]
+     ```
    - If `review_feedback` is non-null (cycle 2+), include it as context for
      the reviewer so they can evaluate whether prior findings were addressed.
 
