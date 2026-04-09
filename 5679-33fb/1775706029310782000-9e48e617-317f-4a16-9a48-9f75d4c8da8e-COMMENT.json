@@ -1,0 +1,1 @@
+{"timestamp": 1775706029310782000, "uuid": "9e48e617-317f-4a16-9a48-9f75d4c8da8e", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: RED tests for relates_to drift detection written \u2014 6 test scenarios covering all done definitions"}}
