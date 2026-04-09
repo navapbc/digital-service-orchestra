@@ -1,6 +1,6 @@
 {
   "name": "dso",
-  "version": "1.11.8",
+  "version": "1.11.9",
   "description": "Workflow infrastructure plugin for Claude Code projects",
   "commands": "./commands/",
   "skills": "./skills/",
@@ -59,15 +59,6 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/pre-exitplanmode.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/pre-agent.sh"
           }
         ]
       },

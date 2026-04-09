@@ -98,7 +98,7 @@ Flow: P1 (Init) → Preplanning Gate
    - If there are 0-child epics that were filtered out, show: "There are N epics with no children yet. Run `/dso:brainstorm` on one to decompose it into stories before executing."
    - Exit.
 
-2. Parse the output and print a numbered list. Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**. Below the list, if `hidden_count > 0`, append a note:
+2. Parse the output and print a numbered list. **CRITICAL: You MUST output the formatted list as visible text BEFORE invoking any tool call.** Do NOT pass epics as `options` to `AskUserQuestion` — the `options` field is limited to 4 items and cannot display blocked epics or the hidden-count note. Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**. Below the list, if `hidden_count > 0`, append a note:
    ```
    In-progress epics:
 
@@ -117,7 +117,7 @@ Flow: P1 (Init) → Preplanning Gate
    (N epics with zero children are hidden. Run `/dso:brainstorm` on one to create stories.)
    ```
    Omit the hidden-epics note when `hidden_count == 0`.
-3. Ask the user: "Enter the number or epic ID to execute:" and wait for their text input
+3. Ask the user: "Enter the number or epic ID to execute:" and wait for their text input. Use `AskUserQuestion` with a free-text prompt only — do not pass epics as options.
 4. Map the user's response (number or epic ID) back to the corresponding epic and proceed
 
 ### Validate Primary Ticket
@@ -1527,6 +1527,7 @@ After the batch commit and `git push -u origin HEAD` succeed, close each task wh
 **MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the story ID (CLAUDE.md rule #24 — no inline verification substitute).
 - `overall_verdict: PASS` → proceed with closure
 - `overall_verdict: FAIL` → see branching logic below
+- **Fallback (agent unavailable)**: If dispatch fails with "Agent type not found" or "Unknown agent", fall back per CLAUDE.md Agent fallback rule — dispatch `subagent_type: general-purpose` and read `plugins/dso/agents/completion-verifier.md` inline as the system prompt. This is NOT permission to skip the step.
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
 
 **Story validation failure detection** — when `overall_verdict: FAIL`:
@@ -1715,6 +1716,7 @@ Read and execute `prompts/phase6-ci-gates.md` for the integration test gate, CI 
 **MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the epic ID (CLAUDE.md rule #24).
 - `overall_verdict: PASS` → proceed to Step 1
 - `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3 (Batch Preparation)
+- **Fallback (agent unavailable)**: If dispatch fails with "Agent type not found" or "Unknown agent", fall back per CLAUDE.md Agent fallback rule — dispatch `subagent_type: general-purpose` and read `plugins/dso/agents/completion-verifier.md` inline as the system prompt. This is NOT permission to skip the step.
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 1.
 
 <HARD-GATE>

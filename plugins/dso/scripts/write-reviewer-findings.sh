@@ -80,14 +80,27 @@ fi
 # Normalize 'dimensions' → 'scores' key if the LLM used the wrong top-level key name.
 # The light reviewer (haiku) sometimes writes "dimensions" instead of "scores" due to
 # positional bias in the agent prompt — the concept word "dimensions" competes with the
-# JSON key name "scores". This normalization makes the pipeline robust to that deviation.
+# JSON key name "scores". Also normalize nested score objects: the LLM sometimes writes
+# { "dimensions": { "correctness": { "score": 4, "rationale": "..." } } } instead of
+# flat integers — flatten { "score": N } values to just N (bug 8e5d-ade1).
 python3 -c "
 import json, sys
 with open(sys.argv[1], 'r') as f:
     data = json.load(f)
+changed = False
+# Normalize top-level 'dimensions' key to 'scores'
 if 'dimensions' in data and 'scores' not in data:
     print('WARNING: Normalizing top-level key \"dimensions\" to \"scores\"', file=sys.stderr)
     data['scores'] = data.pop('dimensions')
+    changed = True
+# Normalize nested score objects: { 'score': N, 'rationale': '...' } -> N
+if isinstance(data.get('scores'), dict):
+    for k, v in list(data['scores'].items()):
+        if isinstance(v, dict) and 'score' in v:
+            print(f'WARNING: Flattening nested score object for \"{k}\"', file=sys.stderr)
+            data['scores'][k] = v['score']
+            changed = True
+if changed:
     with open(sys.argv[1], 'w') as f:
         json.dump(data, f, indent=2)
 " "$PENDING_FILE" 2>&1 || true  # normalization failure is non-fatal

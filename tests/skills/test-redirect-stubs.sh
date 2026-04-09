@@ -69,5 +69,34 @@ else
     assert_eq "test_design_wireframe_redirect_references_preplanning" "present" "missing"
 fi
 
+# ==========================================================================
+# Stale design-wireframe references in consuming skills
+# Bugs: 27de-979d, 811d-09f5, dbfa-7d0b
+# Consumer skills must NOT instruct users to run /dso:design-wireframe
+# directly — design creation is now handled by dso:ui-designer dispatched
+# by /dso:preplanning Step 6.
+# ==========================================================================
+echo ""
+echo "--- stale design-wireframe references in consuming skills ---"
+
+UI_DISCOVER_SKILL="$DSO_PLUGIN_DIR/skills/ui-discover/SKILL.md"
+END_SESSION_SKILL="$DSO_PLUGIN_DIR/skills/end-session/SKILL.md"
+
+# test_ui_discover_no_design_wireframe_invocation
+# ui-discover SKILL.md must NOT instruct users to run /dso:design-wireframe
+if [[ -f "$UI_DISCOVER_SKILL" ]] && grep -q 'run `/dso:design-wireframe' "$UI_DISCOVER_SKILL"; then
+    assert_eq "test_ui_discover_no_design_wireframe_invocation" "absent" "present"
+else
+    assert_eq "test_ui_discover_no_design_wireframe_invocation" "absent" "absent"
+fi
+
+# test_end_session_no_design_wireframe_invocation
+# end-session SKILL.md must NOT instruct users to run /dso:design-wireframe
+if [[ -f "$END_SESSION_SKILL" ]] && grep -q '/dso:design-wireframe' "$END_SESSION_SKILL"; then
+    assert_eq "test_end_session_no_design_wireframe_invocation" "absent" "present"
+else
+    assert_eq "test_end_session_no_design_wireframe_invocation" "absent" "absent"
+fi
+
 echo ""
 print_summary

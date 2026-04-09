@@ -224,4 +224,37 @@ fi
 assert_eq "test_hook_md_has_probing_areas" "found" "$hook_probing_found"
 assert_pass_if_clean "test_hook_md_has_probing_areas"
 
+# test_hook_md_has_unknown_skill_fallback (bugs 47fb-23f7, db64-18d7)
+# HOOK-INJECTION.md must contain explicit fallback guidance for when the Skill
+# tool returns "Unknown skill" — directing Claude to read the SKILL.md directly
+# rather than stopping or reporting failure to the user.
+_snapshot_fail
+if grep -qiE "Unknown skill|Skill tool fails|skill.*not found|skill.*unavailable" "$HOOK_MD" 2>/dev/null; then
+    hook_unknown_skill="found"
+else
+    hook_unknown_skill="missing"
+fi
+assert_eq "test_hook_md_has_unknown_skill_fallback" "found" "$hook_unknown_skill"
+assert_pass_if_clean "test_hook_md_has_unknown_skill_fallback"
+
 print_summary
+
+# ---------------------------------------------------------------------------
+# Test-gate anchor block — literal test names for record-test-status.sh
+# ---------------------------------------------------------------------------
+_TEST_GATE_ANCHORS=(
+    test_skill_md_has_clarification_section
+    test_skill_md_has_confidence_test
+    test_skill_md_has_silent_investigation
+    test_skill_md_has_intent_probing
+    test_skill_md_has_scope_probing
+    test_skill_md_has_risks_probing
+    test_skill_md_has_interaction_style
+    test_skill_md_preserves_existing_routing
+    test_skill_md_has_dogfooding_guidance
+    test_skill_md_clarification_after_user_instructions
+    test_hook_md_has_clarification_section
+    test_hook_md_has_confidence_test
+    test_hook_md_has_probing_areas
+    test_hook_md_has_unknown_skill_fallback
+)

@@ -485,5 +485,24 @@ assert_eq "test_state_write_is_atomic: _state_write wrote correct new data" \
 rm -rf "$TMPDIR_ATOMIC"
 assert_pass_if_clean "test_state_write_is_atomic"
 
+# ── test_default_timeout_below_platform_ceiling ───────────────────────────────
+# DEFAULT_TIMEOUT must be ≤ 45 seconds to ensure test-batched.sh's internal
+# save-state fires BEFORE the Claude Code tool timeout ceiling (~48s without
+# explicit timeout: 600000 override). If DEFAULT_TIMEOUT ≥ 48s, SIGURG arrives
+# before save-state runs, killing test-batched.sh with exit 144 (bug 8141-41eb).
+echo ""
+echo "--- test_default_timeout_below_platform_ceiling ---"
+
+_actual_default_timeout=$(grep '^DEFAULT_TIMEOUT=' "$SCRIPT" 2>/dev/null | head -1 | cut -d= -f2)
+_max_allowed=45
+
+if [[ -n "$_actual_default_timeout" ]] && [[ "$_actual_default_timeout" -le "$_max_allowed" ]] 2>/dev/null; then
+    (( ++PASS ))
+    echo "  PASS: DEFAULT_TIMEOUT=$_actual_default_timeout (≤ $_max_allowed — below ~48s platform ceiling)"
+else
+    (( ++FAIL ))
+    echo "  FAIL: DEFAULT_TIMEOUT=$_actual_default_timeout exceeds $_max_allowed — risk of platform SIGURG before save-state fires (bug 8141-41eb)" >&2
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
