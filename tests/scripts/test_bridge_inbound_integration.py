@@ -414,9 +414,6 @@ def test_process_inbound_paginates_100_plus_issues(
 
 @pytest.mark.integration
 @pytest.mark.scripts
-@pytest.mark.xfail(
-    reason="Inbound bridge does not yet write local LINK events for Jira Relates links"
-)
 def test_inbound_round_trip_jira_relates_link_creates_local_relates_to(
     tmp_path: Path, bridge: ModuleType
 ) -> None:

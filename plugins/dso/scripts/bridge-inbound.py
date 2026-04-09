@@ -845,9 +845,10 @@ def process_inbound(
                 bridge_env_id=bridge_env_id,
             )
 
-        # Process Jira issue links — attempt to set relationships in Jira
+        # Process Jira issue links — write local LINK events for "Relates" links;
+        # attempt to set relationships in Jira for all other link types.
         issue_links = fields.get("issuelinks", [])
-        if issue_links and hasattr(acli_client, "set_relationship"):
+        if issue_links:
             jira_key_for_links = issue.get("key", "")
             if jira_key_for_links:
                 local_id_for_links = f"jira-{jira_key_for_links.lower()}"
@@ -861,23 +862,68 @@ def process_inbound(
                     elif "inwardIssue" in link:
                         target_key = link["inwardIssue"].get("key", "")
                     if link_type and target_key:
-                        try:
-                            acli_client.set_relationship(
-                                jira_key_for_links, target_key, link_type
+                        if link_type == "Relates":
+                            # Write a local LINK event for "Relates" links rather than
+                            # pushing the relationship back to Jira via set_relationship.
+                            target_local_id = f"jira-{target_key.lower()}"
+                            ts = int(time.time())
+                            event_uuid = str(uuid.uuid4())
+                            filename = f"{ts}-{event_uuid[:8]}-LINK.json"
+                            link_event: dict[str, Any] = {
+                                "event_type": "LINK",
+                                "ticket_id": local_id_for_links,
+                                "timestamp": ts,
+                                "uuid": event_uuid,
+                                "env_id": bridge_env_id,
+                                "data": {
+                                    "source_id": local_id_for_links,
+                                    "target_id": target_local_id,
+                                    "relation": "relates_to",
+                                },
+                            }
+                            (ticket_dir_for_links / filename).write_text(
+                                json.dumps(link_event)
                             )
-                        except Exception as rel_exc:
-                            reason = str(rel_exc)
-                            persist_relationship_rejection(
-                                ticket_id=local_id_for_links,
-                                ticket_dir=ticket_dir_for_links,
-                                reason=reason,
+                            # Write reciprocal LINK event in the target ticket's
+                            # directory (canonical bidirectional relates_to pattern,
+                            # matching ticket-graph.py add_dependency behaviour).
+                            target_dir = tickets_root / target_local_id
+                            target_dir.mkdir(parents=True, exist_ok=True)
+                            recip_uuid = str(uuid.uuid4())
+                            recip_filename = f"{ts}-{recip_uuid[:8]}-LINK.json"
+                            recip_link_event: dict[str, Any] = {
+                                "event_type": "LINK",
+                                "ticket_id": target_local_id,
+                                "timestamp": ts,
+                                "uuid": recip_uuid,
+                                "env_id": bridge_env_id,
+                                "data": {
+                                    "source_id": target_local_id,
+                                    "target_id": local_id_for_links,
+                                    "relation": "relates_to",
+                                },
+                            }
+                            (target_dir / recip_filename).write_text(
+                                json.dumps(recip_link_event)
                             )
-                            write_bridge_alert(
-                                ticket_id=local_id_for_links,
-                                reason=f"Jira rejected relationship: {reason}",
-                                tickets_root=tickets_root,
-                                bridge_env_id=bridge_env_id,
-                            )
+                        elif hasattr(acli_client, "set_relationship"):
+                            try:
+                                acli_client.set_relationship(
+                                    jira_key_for_links, target_key, link_type
+                                )
+                            except Exception as rel_exc:
+                                reason = str(rel_exc)
+                                persist_relationship_rejection(
+                                    ticket_id=local_id_for_links,
+                                    ticket_dir=ticket_dir_for_links,
+                                    reason=reason,
+                                )
+                                write_bridge_alert(
+                                    ticket_id=local_id_for_links,
+                                    reason=f"Jira rejected relationship: {reason}",
+                                    tickets_root=tickets_root,
+                                    bridge_env_id=bridge_env_id,
+                                )
 
     # Write CREATE events for new issues
     write_create_events(
