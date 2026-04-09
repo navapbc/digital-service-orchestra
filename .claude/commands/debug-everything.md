@@ -2,4 +2,6 @@
 
 If the line above shows PLUGIN_DETECTED: Use the Skill tool to invoke `/dso:debug-everything` with arguments: $ARGUMENTS
 
+If the Skill tool fails or returns an error (e.g., "Unknown skill"): Read the skill file at `plugins/dso/skills/debug-everything/SKILL.md` and follow its instructions with arguments: $ARGUMENTS
+
 If the line above shows LOCAL_FALLBACK: Read the skill file at `plugins/dso/skills/debug-everything/SKILL.md` and follow its instructions with arguments: $ARGUMENTS

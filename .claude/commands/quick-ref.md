@@ -2,4 +2,6 @@
 
 If the line above shows PLUGIN_DETECTED: Use the Skill tool to invoke `/dso:quick-ref` with arguments: $ARGUMENTS
 
+If the Skill tool fails or returns an error (e.g., "Unknown skill"): Read the skill file at `plugins/dso/skills/quick-ref/SKILL.md` and follow its instructions with arguments: $ARGUMENTS
+
 If the line above shows LOCAL_FALLBACK: Read the skill file at `plugins/dso/skills/quick-ref/SKILL.md` and follow its instructions with arguments: $ARGUMENTS
