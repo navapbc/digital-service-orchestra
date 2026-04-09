@@ -1134,6 +1134,14 @@ _phase_version_bump() {
         if ! bash "$_bs" "$_bf" 2>&1; then echo 'ERROR: bump-version.sh failed. Fix version file before pushing.'; exit 1; fi
     fi
     echo "OK: Version bumped."
+    # If version file is package.json, sync package-lock.json (f1d9-5071)
+    if [[ "${_vf}" == *"package.json" ]] && command -v npm >/dev/null 2>&1; then
+        local _pkg_dir
+        _pkg_dir=$(dirname "${_vf}")
+        echo "version_bump: running npm install --package-lock-only to sync package-lock.json"
+        (cd "$_pkg_dir" && npm install --package-lock-only --quiet 2>/dev/null) || \
+            echo "WARNING: npm install --package-lock-only failed — package-lock.json may be out of sync"
+    fi
     git add -u 2>/dev/null || true
     if ! git diff --cached --quiet 2>/dev/null; then
         DSO_MECHANICAL_AMEND=1 git commit --amend --no-edit --quiet

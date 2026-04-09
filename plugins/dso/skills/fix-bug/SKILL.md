@@ -166,8 +166,23 @@ Ensure a bug ticket exists and is set to in-progress before investigation begins
    - If no match: create a new bug ticket. Read `plugins/dso/skills/create-bug/SKILL.md` for the required title and description format. At minimum supply `-d` with Section 2 (Incident Overview):
      ```bash
      # Title format: [Component]: [Condition] -> [Observed Result]
-     ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..."
+     # Capture both stdout and stderr to enable post-creation title validation
+     BUG_CREATE_OUT=$(.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..." 2>/tmp/ticket_create_stderr.tmp)
+     BUG_CREATE_ERR=$(cat /tmp/ticket_create_stderr.tmp); rm -f /tmp/ticket_create_stderr.tmp
+     BUG_TICKET_ID=$(echo "$BUG_CREATE_OUT" | grep -oE '[0-9a-f]{4}-[0-9a-f]{4}' | head -1)
      ```
+
+     **Post-creation title validation:** After creating a bug ticket, check stderr for the title format warning:
+
+     ```bash
+     if echo "$BUG_CREATE_ERR" | grep -q "does not match recommended pattern"; then
+         # Re-title immediately using [Component]: [Condition] -> [Observed Result] format
+         .claude/scripts/dso ticket edit "$BUG_TICKET_ID" --title="[Component]: [Condition] -> [Observed Result]"
+     fi
+     ```
+
+     The title format MUST follow `[Component]: [Condition] -> [Observed Result]`. Do not proceed with a non-conforming title.
+
 3. **Set the ticket to in-progress** (check current status first to avoid optimistic concurrency errors):
    ```bash
    CURRENT_STATUS=$(ticket show <id> | python3 -c "import json,sys; print(json.load(sys.stdin).get('status','open'))")
@@ -184,8 +199,24 @@ Store the ticket ID as `BUG_TICKET_ID` for use throughout the workflow.
 2. Classify: **mechanical**, **behavioral**, or **llm-behavioral** (see Error Type Classification above)
 3. If mechanical: follow the Mechanical Fix Path, then skip to Step 8
 4. If llm-behavioral (dual-signal detected — ticket references LLM behavior AND affected file is in `skills/`, `agents/`, or `prompts/`): record the classification: `ticket comment <BUG_TICKET_ID> "Classification: llm-behavioral"`, then dispatch `dso:bot-psychologist` via the LLM-Behavioral Fix Path (see above), then skip to Step 8
-5. If behavioral: apply the Scoring Rubric to determine investigation tier
+5. If behavioral: proceed to Sub-step 1a (compound bug detection) before applying the Scoring Rubric
 6. Record the classification and score in a ticket note: `ticket comment <BUG_TICKET_ID> "Classification: behavioral, Score: <N> (<tier>)"`
+
+#### Sub-step 1a: Compound Bug Detection
+
+Before applying the scoring rubric, check whether this ticket describes multiple independent sub-issues.
+
+**Compound bug signals** — the ticket is compound if it lists 2+ of the following that have no shared root cause:
+- Distinct error types in different subsystems (e.g., "eval tests fail" AND "hook tests fail")
+- Distinct failure modes in unrelated files
+- Numbered or bulleted list of 3+ independent failure items
+
+**If compound detected:**
+1. Record: `.claude/scripts/dso ticket comment <BUG_TICKET_ID> "Classification: compound bug — <N> independent sub-issues detected: <list>. Routing to cluster investigation."`
+2. Route directly to **Cluster Investigation Mode** (see bottom of SKILL.md) — treat sub-issues as separate ticket IDs
+3. Skip the standard per-tier single-agent dispatch in Step 2
+
+**If not compound (single coherent issue):** Continue to scoring rubric below.
 
 ### Step 1.5: Gate 1a — Intent Search (/dso:fix-bug)
 
@@ -229,6 +260,8 @@ inputs:
   ticket_id: <BUG_TICKET_ID>
   intent_search_budget: <INTENT_SEARCH_BUDGET>
 ```
+
+**Inline fallback**: If the Agent tool rejects the `dso:intent-search` subagent type (e.g., "Unknown agent type", "not supported", or any dispatch failure before the agent runs), read `plugins/dso/agents/intent-search.md` inline and execute its instructions directly with the same `ticket_id` and `intent_search_budget` inputs. This fallback covers the case where plugin agent types are not available in the current Claude Code configuration.
 
 The agent returns a gate signal conforming to the shared contract defined in `plugins/dso/docs/contracts/gate-signal-schema.md`.
 

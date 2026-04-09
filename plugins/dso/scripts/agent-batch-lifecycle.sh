@@ -381,8 +381,11 @@ cmd_file_overlap() {
 cmd_lock_acquire() {
     local label="${1:?Missing lock label}"
 
-    # Check for existing lock using ticket CLI (v3): list all tickets, find in_progress
-    # lock tasks matching the label.
+    # Check for existing lock using ticket CLI (v3): list all tickets, find open OR
+    # in_progress lock tasks matching the label. Checking both statuses eliminates the
+    # TOCTOU race window where a ticket is created (open) but not yet transitioned to
+    # in_progress — two sessions could otherwise both see no in_progress lock and both
+    # create duplicates.
     local lock_id=""
     lock_id=$(export LOCK_LABEL="$label"; "$TICKET_CMD" list 2>/dev/null | python3 -c "
 import json, sys, os
@@ -390,7 +393,7 @@ label = os.environ.get('LOCK_LABEL', '')
 tickets = json.load(sys.stdin)
 for t in tickets:
     if (t.get('ticket_type') == 'task'
-            and t.get('status') == 'in_progress'
+            and t.get('status') in ('open', 'in_progress')
             and t.get('title', '') == '[LOCK] ' + label):
         print(t['ticket_id'])
         break
@@ -458,6 +461,7 @@ for c in t.get('comments', []):
 cmd_lock_release() {
     local lock_id="${1:?Missing lock ticket ID}"
     local reason="${2:-Session complete}"
+    local label="${3:-}"
 
     # Comment before close (ticket CLI rejects comments on closed tickets)
     "$TICKET_CMD" comment "$lock_id" "Closed: $reason" 2>/dev/null || true
@@ -466,6 +470,63 @@ cmd_lock_release() {
     current_status=$("$TICKET_CMD" show "$lock_id" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('status','in_progress'))" 2>/dev/null || echo "in_progress")
     "$TICKET_CMD" transition "$lock_id" "$current_status" closed 2>/dev/null || true
     echo "LOCK_RELEASED: $lock_id"
+
+    # Sweep: close all remaining orphaned LOCK tickets for this label.
+    # Orphaned tickets accumulate from crashed sessions or TOCTOU races.
+    # If no label provided, derive it from the ticket title.
+    local sweep_label="$label"
+    if [ -z "$sweep_label" ]; then
+        sweep_label=$("$TICKET_CMD" show "$lock_id" 2>/dev/null | python3 -c "
+import json, sys
+t = json.load(sys.stdin)
+title = t.get('title', '')
+if title.startswith('[LOCK] '):
+    print(title[len('[LOCK] '):])
+" 2>/dev/null || echo "")
+    fi
+
+    if [ -n "$sweep_label" ]; then
+        local _orphan_ids
+        # Collect orphaned open tickets
+        _orphan_ids=$(export SWEEP_LABEL="$sweep_label" SWEEP_LOCK_ID="$lock_id"; {
+            "$TICKET_CMD" list --status=open 2>/dev/null || echo "[]"
+            "$TICKET_CMD" list --status=in_progress 2>/dev/null || echo "[]"
+        } | python3 -c "
+import json, sys, os
+label = os.environ.get('SWEEP_LABEL', '')
+exclude_id = os.environ.get('SWEEP_LOCK_ID', '')
+all_tickets = []
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        all_tickets.extend(json.loads(line))
+    except Exception:
+        pass
+seen = set()
+for t in all_tickets:
+    tid = t.get('ticket_id', '')
+    if (t.get('ticket_type') == 'task'
+            and t.get('status') in ('open', 'in_progress')
+            and t.get('title', '') == '[LOCK] ' + label
+            and tid != exclude_id
+            and tid not in seen):
+        seen.add(tid)
+        print(tid)
+" 2>/dev/null || true)
+
+        local _orphan_id
+        while IFS= read -r _orphan_id; do
+            [ -z "$_orphan_id" ] && continue
+            local _orphan_status
+            _orphan_status=$("$TICKET_CMD" show "$_orphan_id" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('status','open'))" 2>/dev/null || echo "open")
+            "$TICKET_CMD" comment "$_orphan_id" "Stale lock swept by lock-release: $reason" 2>/dev/null || true
+            "$TICKET_CMD" transition "$_orphan_id" "$_orphan_status" closed \
+                --reason="Fixed: stale LOCK ticket swept by lock-release" 2>/dev/null || true
+        done <<< "$_orphan_ids"
+    fi
+
     return 0
 }
 

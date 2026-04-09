@@ -1042,4 +1042,69 @@ test_close_no_2n_spawns() {
 }
 test_close_no_2n_spawns
 
+# ── Test 20 (RED): close fails even when DSO_UNBLOCK_SCRIPT is broken, if children exist ─
+echo "Test 20 (RED): close exits non-zero even when DSO_UNBLOCK_SCRIPT fails, if parent has open children"
+test_close_blocked_even_when_unblock_script_broken() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a parent epic with one open child
+    local parent_id
+    parent_id=$(_create_ticket "$repo" epic "Epic with open child (unblock broken)")
+
+    if [ -z "$parent_id" ]; then
+        assert_eq "setup: parent epic created" "non-empty" "empty"
+        assert_pass_if_clean "test_close_blocked_even_when_unblock_script_broken"
+        return
+    fi
+
+    local child_id
+    child_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Open child" --parent "$parent_id" 2>/dev/null) || true
+    child_id=$(echo "$child_id" | tail -1)
+
+    if [ -z "$child_id" ]; then
+        assert_eq "setup: child task created under parent" "non-empty" "empty"
+        assert_pass_if_clean "test_close_blocked_even_when_unblock_script_broken"
+        return
+    fi
+
+    # Create a broken unblock script that always exits non-zero (simulates script failure)
+    local fake_bin
+    fake_bin=$(mktemp -d)
+    _CLEANUP_DIRS+=("$fake_bin")
+    local fake_script="$fake_bin/ticket-unblock.py"
+    cat > "$fake_script" <<'PYEOF'
+#!/usr/bin/env python3
+import sys
+print("simulated unblock failure — script broken", file=sys.stderr)
+sys.exit(1)
+PYEOF
+    chmod +x "$fake_script"
+
+    # Attempt to close the parent with the broken unblock script
+    # BUG: current code does `|| true` on the unblock call, so batch_close_json is empty
+    # and open_children is empty — the close SUCCEEDS silently (exit 0).
+    # FIX: the close must exit non-zero because the parent has open children,
+    # regardless of whether the unblock script works.
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && DSO_UNBLOCK_SCRIPT="$fake_script" \
+        bash "$TICKET_SCRIPT" transition "$parent_id" open closed 2>&1) || exit_code=$?
+
+    # Assert: exits non-zero (child guard must fire even if unblock detection fails)
+    # RED: currently exits 0 because || true silently allows close when unblock fails
+    assert_eq "unblock-broken-with-children: exits non-zero" "1" \
+        "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: parent status is still open (transition was blocked)
+    local compiled_status
+    compiled_status=$(_get_ticket_status "$repo" "$parent_id")
+    assert_eq "unblock-broken-with-children: parent status still open" "open" "$compiled_status"
+
+    assert_pass_if_clean "test_close_blocked_even_when_unblock_script_broken"
+}
+test_close_blocked_even_when_unblock_script_broken
+
 print_summary

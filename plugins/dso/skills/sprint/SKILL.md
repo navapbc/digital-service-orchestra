@@ -698,6 +698,16 @@ d. For each skill result, **parse STATUS:**
        echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
        ```
      - If retry also produces no children → revert story to open (`.claude/scripts/dso ticket transition <story-id> open`); log: `"ERROR: /dso:implementation-plan failed for story <id> after retry — story reverted to open"`; skip to next story
+
+**Skill unavailability terminal condition:** If the retry also produces no children and this is the second consecutive skill-load failure (i.e., the initial attempt AND the retry both produced no children), do NOT retry again. Emit a terminal error and stop:
+
+```
+SKILL_LOAD_ERROR: dso:sprint skill file could not be loaded after 2 attempts.
+Resolution: Verify that plugins/dso/skills/sprint/SKILL.md exists and is readable. Run: ls -la plugins/dso/skills/sprint/SKILL.md
+Do NOT continue looping — this sprint session has ended due to skill unavailability.
+```
+
+Exit the skill immediately. Do not invoke any further skill steps.
 d-collect. **Collect and present blocked-layer stories** — after the full layer batch completes, for each story with `STATUS:blocked`:
    - **Parsing STATUS:blocked**: When `/dso:implementation-plan` returns `STATUS:blocked QUESTIONS:[...]`, parse the JSON array and present each question in human-readable format:
      1. Separate questions by kind: "blocking" (must be answered before proceeding) vs "defaultable" (have a default, can be skipped)
@@ -981,6 +991,14 @@ If `--dry-run` was specified:
 Do NOT implement any task directly using Edit, Write, or other file-modification tools. ALL implementation tasks must be dispatched to sub-agents via the Task tool — regardless of how small, simple, or obvious the change appears. "Small markdown edit", "single-line change", "user already approved", or "sub-agent dispatch is overhead" are not valid exceptions. Direct implementation by the orchestrator bypasses checkpoint protocol, code review, and acceptance criteria gates.
 </HARD-GATE>
 
+**Explore dispatch parallelism rule (7c45-ee60):** When dispatching Explore sub-agents for search tasks, each Explore call MUST be scoped to a single, targeted search objective. Do NOT dispatch a single Explore sub-agent to search for multiple unrelated code patterns, files, or references in one call.
+
+Instead, parallelize: dispatch one Explore sub-agent per distinct search objective within the same message using `run_in_background: true`. For example:
+- BAD: Single Explore dispatched to "find isolation guard code AND all references to it"
+- GOOD: Two parallel Explore dispatches — one for "find isolation guard code" and one for "find all references to isolation guard"
+
+A single broad Explore dispatch is a known anti-pattern that produces lower quality results and misses edge cases. Always parallelize independent search objectives.
+
 Launch up to `max_agents` sub-agents (determined by Phase 3 Step 1's MAX_AGENTS protocol — `unlimited`, `N`, or `0`) via the Task tool. When `max_agents=0`, this phase is skipped entirely (see Phase 3 Step 1). Each sub-agent gets a structured prompt:
 
 ### Display Batch Task List
@@ -1099,6 +1117,20 @@ When launching each Task tool call, set `subagent_type` and `model` from the TAS
 | any | not COMPLEX | any | any other | No change — use `model` and `subagent` from TASK line as-is. |
 
 **Doc-story title match**: Task title or parent story title matches `Update project docs to reflect`.
+
+**Doc-story detection heuristics (apply ALL of these — not just title match):**
+A story is a documentation story if ANY of the following are true:
+1. Story title contains "doc", "document", "update", "add to", "CLAUDE.md", "KNOWN-ISSUES", "design-notes", "README"
+2. Story title starts with "As a" AND acceptance criteria mention documentation files
+3. Any child task references a `.md` file in `.claude/docs/`, `plugins/dso/docs/`, or the repo root
+
+**CLAUDE.md-specific rule (79d9-f97a):** When the target file is `CLAUDE.md`, the `dso:doc-writer` dispatch MUST include a bloat-review flag in the task context:
+```
+doc_target: CLAUDE.md
+bloat_review_required: true
+max_tokens_budget: 12000
+```
+The doc-writer agent enforces its CLAUDE.md Read-Only Guard. Do NOT edit CLAUDE.md directly — always route through dso:doc-writer. Direct CLAUDE.md edits are blocked by this rule.
 
 **COMPLEX detection and escalation policy extraction**: Run `.claude/scripts/dso ticket show <task-id>` and read the `parent` field; if a parent story ID exists, run `.claude/scripts/dso ticket show <parent-story-id>` and from that output: (1) grep with `grep -Fx "COMPLEXITY_CLASSIFICATION: COMPLEX"` (exact full-line match to avoid false positives); (2) extract the `## Escalation Policy` section by capturing all lines between `## Escalation Policy` and the next `##` heading (or end of description). Store the extracted text as `escalation_policy_text`. If no `## Escalation Policy` section is present (Autonomous mode omits it), set `escalation_policy_text` to `"Proceed with best judgment. Make and document reasonable assumptions. Do not escalate for uncertainty."` When populating `task-execution.md`, replace `{escalation_policy}` with `escalation_policy_text`.
 
@@ -1551,6 +1583,35 @@ After `git push -u origin HEAD` and blackboard cleanup are done, proceed to **St
 
 After the batch commit and `git push -u origin HEAD` succeed, close each task whose code was successfully committed:
 
+**Pre-dispatch child closure check (Step 10a prerequisite):**
+Before dispatching dso:completion-verifier, verify all child tasks of this story are closed:
+
+```bash
+OPEN_CHILDREN=$(.claude/scripts/dso ticket list --status=open 2>/dev/null | \
+    python3 -c "import json,sys; data=json.load(sys.stdin); \
+    children=[t for t in data if t.get('parent_id')=='<story-id>']; \
+    print(len(children))")
+```
+
+If OPEN_CHILDREN > 0:
+- Do NOT dispatch dso:completion-verifier
+- Do NOT close the story
+- Transition story back to in_progress: `.claude/scripts/dso ticket transition <story-id> in_progress`
+- Add a comment: `.claude/scripts/dso ticket comment <story-id> "Step 10a blocked: <N> child tasks still open: <list IDs>. Complete them before closure."`
+- Resume Phase 3 to close the remaining tasks
+
+Only when OPEN_CHILDREN == 0, proceed to dispatch dso:completion-verifier.
+
+<HARD-GATE>
+Do NOT close this story, do NOT transition it to closed, and do NOT proceed to Step 11 until dso:completion-verifier has been dispatched via Task tool and its verdict received. This gate applies regardless of whether:
+- All RED tests are GREEN
+- All child tasks are closed
+- CI passes
+- The orchestrator believes the story is complete
+
+"All tests pass" is not a substitute for the completion-verifier dispatch. Dispatch the verifier NOW before reading any further.
+</HARD-GATE>
+
 **MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the story ID (CLAUDE.md rule #24 — no inline verification substitute).
 - `overall_verdict: PASS` → proceed with closure
 - `overall_verdict: FAIL` → see branching logic below
@@ -1822,6 +1883,14 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
 ### On Success (Score = 5)
 
 **Pre-condition**: Phase 6 Step 0.75 must have returned `overall_verdict: PASS` during this session. If the completion-verifier returned FAIL at any point and no remediation batch was executed after the FAIL (i.e., the FAIL was not addressed via Phase 3 re-entry), do NOT proceed with epic closure — return to Phase 3 to address the FAIL findings first.
+
+**FAIL is unconditionally blocking.** If the completion-verifier returned `overall_verdict: FAIL` at any point (Step 10a story-level or Phase 6 Step 0.75 epic-level) and no subsequent remediation batch resolved the FAIL findings, do NOT proceed to epic closure. Do NOT:
+- Present the FAIL verdict to the user with rationalizations
+- Ask the user whether failing criteria can be waived
+- Suggest that "most" criteria passing is sufficient
+- Offer to close the epic with caveats
+
+The only valid actions on FAIL are: (a) return to Phase 3 to address the findings, or (b) explicitly confirm with the user that they want to STOP the sprint entirely (not close the epic as "done").
 
 1. **Verify all changes are merged before closing the epic** (399f-abad):
    ```bash

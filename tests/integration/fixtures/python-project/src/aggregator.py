@@ -1,6 +1,5 @@
 """Aggregator module that combines results from multiple calculator operations."""
 
-
 from src.calculator import add
 
 
