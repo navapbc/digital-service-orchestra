@@ -177,7 +177,8 @@ stderr_output=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tm
 
 # Count lines matching the format pattern
 match_count=$(echo "$stderr_output" | grep -cE '\[agent-dispatch\] category=.*routed=.*reason=(available|fallback)') || true
-assert_eq "test_stderr_logging_format: 10 log lines" "10" "$match_count"
+expected_log_count=$(grep -cE '^[a-z_]+=.+\|general-purpose$' "$tmpdir/agent-routing.conf")
+assert_eq "test_stderr_logging_format: ${expected_log_count} log lines" "$expected_log_count" "$match_count"
 assert_pass_if_clean "test_stderr_logging_format"
 rm -rf "$tmpdir"
 

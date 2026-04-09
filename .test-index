@@ -39,12 +39,10 @@ recipes/schemas/recipe-registry-schema.json:tests/scripts/test-recipe-registry.s
 # tests/workflows/test-review-workflow-size-thresholds.sh (not test-review-workflow-no-snapshot.sh
 # the user has chosen to leave in place rather than complete the GREEN cleanup story. This is
 # This is a legitimate bulk GREEN promotion at user request, not a TDD protocol violation.
-CLAUDE.md:tests/docs/test-playwright-doc-refs.sh
 CLAUDE.md:tests/scripts/test-claude-md-cli-user-guidance.sh
 CLAUDE.md:tests/scripts/test-claude-md-fix-bug-gates.sh
 CLAUDE.md:tests/scripts/test-claude-md-replan-safety.sh
 CLAUDE.md:tests/scripts/test-no-v2-refs-in-claude-md.sh,tests/scripts/test-claude-md-fix-bug-gates.sh,tests/scripts/test-claude-md-rule18-task-auth.sh,tests/scripts/test-escalation-close-prohibition.sh
-CLAUDE.md:tests/skills/test-shared-subworkflow-docs.sh
 config/agent-routing.conf:tests/scripts/test-agent-routing-conf.sh
 examples/ci.example.yml:tests/scripts/test-ci-no-v2-paths.sh
 examples/pre-commit-config.example.yaml:tests/scripts/test-ci-no-v2-paths.sh
@@ -61,9 +59,7 @@ plugins/dso/config/template-registry.yaml:tests/scripts/test-template-validate-i
 plugins/dso/docs/adapters/flask-jinja2.json:tests/plugin/test_flask_jinja2_adapter_yaml.py
 plugins/dso/docs/component-discovery-schema.json:tests/plugin/test_component_discovery_schema.py
 plugins/dso/docs/CONFIG-RESOLUTION.md:tests/scripts/test-config-resolution-doc-accuracy.sh
-plugins/dso/docs/CONFIGURATION-REFERENCE.md:tests/docs/test-playwright-doc-refs.sh
 plugins/dso/docs/decisions/adr-config-system.md:tests/scripts/test-adr-config-system.sh
-plugins/dso/docs/INSTALL.md:tests/docs/test-playwright-doc-refs.sh
 plugins/dso/docs/INSTALL.md:tests/scripts/test-reinstall-hooks-config-paths.sh,tests/scripts/test-reinstall-hooks.sh
 plugins/dso/docs/MIGRATION.md:tests/hooks/test-state-dir-migration.sh,tests/scripts/test-doc-migration.sh
 plugins/dso/docs/PLAYWRIGHT-CLI-GUIDE.md:tests/skills/test-playwright-cli-guide.sh

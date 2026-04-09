@@ -56,8 +56,8 @@ assert_eq "test_routing_conf_format_valid: all data lines match format" "valid" 
 assert_pass_if_clean "test_routing_conf_format_valid"
 
 # ── test_all_expected_categories_present ─────────────────────────────────────
-# All 8 categories must be defined.
-EXPECTED_CATEGORIES=(test_fix_unit test_fix_e_to_e test_write mechanical_fix complex_debug code_simplify security_audit llm_behavioral)
+# All 11 categories must be defined.
+EXPECTED_CATEGORIES=(test_fix_unit test_fix_e_to_e test_write mechanical_fix complex_debug code_simplify security_audit llm_behavioral approach_evaluation test_quality_review design_creation)
 _snapshot_fail
 for cat in "${EXPECTED_CATEGORIES[@]}"; do
     if [[ -f "$CONF_FILE" ]] && grep -qE "^${cat}=" "$CONF_FILE"; then
