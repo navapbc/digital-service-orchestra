@@ -1,6 +1,5 @@
 """Formatting module that uses calculator functions."""
 
-
 from src.calculator import add, multiply, divide
 from src.utils import format_number
 

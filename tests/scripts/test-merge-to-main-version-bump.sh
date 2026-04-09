@@ -516,4 +516,133 @@ assert_pass_if_clean "test_version_bump_skips_when_no_bump_type_and_no_version_f
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
+# Test 10: test_version_bump_syncs_package_lock_json_when_version_file_is_package_json
+# When VERSION_FILE_PATH ends in package.json, _phase_version_bump must run
+# npm install --package-lock-only after bump-version.sh to sync package-lock.json.
+# MUST FAIL (RED): current code does not run npm install --package-lock-only.
+# =============================================================================
+echo ""
+echo "--- test_version_bump_syncs_package_lock_json_when_version_file_is_package_json ---"
+_snapshot_fail
+
+_setup_test_repo
+_T10_MOCK_DIR="$_TEST_BASE/mock-bin"
+_T10_CALL_LOG="$_TEST_BASE/npm-calls.txt"
+mkdir -p "$_T10_MOCK_DIR"
+
+# Create package.json with version 1.0.0 in the git repo
+cat > "$_WORK_DIR/package.json" << 'PKG_EOF'
+{
+  "name": "test-pkg",
+  "version": "1.0.0"
+}
+PKG_EOF
+
+# Create package-lock.json with version 1.0.0 (simulating stale lock file)
+cat > "$_WORK_DIR/package-lock.json" << 'LOCK_EOF'
+{
+  "name": "test-pkg",
+  "version": "1.0.0",
+  "lockfileVersion": 2
+}
+LOCK_EOF
+
+# Commit both files to git so git diff works
+(cd "$_WORK_DIR" && git add package.json package-lock.json && git commit -m "add package files" --quiet) 2>/dev/null
+
+# Mock bump-version.sh: updates package.json version to 1.0.1
+cat > "$_T10_MOCK_DIR/bump-version.sh" << 'BUMP_MOCK_EOF'
+#!/usr/bin/env bash
+# Find and update the package.json in cwd
+PKG_FILE="$(pwd)/package.json"
+if [[ -f "$PKG_FILE" ]]; then
+    python3 -c "
+import json, sys
+with open('$PKG_FILE') as f:
+    d = json.load(f)
+d['version'] = '1.0.1'
+with open('$PKG_FILE', 'w') as f:
+    json.dump(d, f, indent=2)
+"
+fi
+exit 0
+BUMP_MOCK_EOF
+chmod +x "$_T10_MOCK_DIR/bump-version.sh"
+
+# Mock npm: when called with "install --package-lock-only", updates package-lock.json
+# to reflect the new version from package.json
+cat > "$_T10_MOCK_DIR/npm" << 'NPM_MOCK_EOF'
+#!/usr/bin/env bash
+# Record call
+echo "$@" >> "$_T10_NPM_CALL_LOG"
+# If called with install --package-lock-only, update package-lock.json to match package.json version
+if [[ "$*" == *"--package-lock-only"* ]]; then
+    PKG_FILE="$(pwd)/package.json"
+    LOCK_FILE="$(pwd)/package-lock.json"
+    if [[ -f "$PKG_FILE" && -f "$LOCK_FILE" ]]; then
+        python3 -c "
+import json
+with open('$PKG_FILE') as f:
+    pkg = json.load(f)
+with open('$LOCK_FILE') as f:
+    lock = json.load(f)
+lock['version'] = pkg['version']
+with open('$LOCK_FILE', 'w') as f:
+    json.dump(lock, f, indent=2)
+"
+    fi
+fi
+exit 0
+NPM_MOCK_EOF
+chmod +x "$_T10_MOCK_DIR/npm"
+
+export _T10_NPM_CALL_LOG="$_T10_CALL_LOG"
+
+# Set VERSION_FILE_PATH to package.json path (relative to MAIN_REPO)
+export VERSION_FILE_PATH="$_WORK_DIR/package.json"
+
+_PHASE_FN_BODY=$(_extract_fn "_phase_version_bump" 2>/dev/null || echo "")
+
+_T10_RC=0
+_T10_OUTPUT=$(
+    cd "$_WORK_DIR"
+    export PATH="$_T10_MOCK_DIR:$PATH"
+    export BUMP_TYPE="patch"
+    export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
+    export MAIN_REPO="$_WORK_DIR"
+    export VERSION_FILE_PATH="$_WORK_DIR/package.json"
+    export _T10_NPM_CALL_LOG="$_T10_CALL_LOG"
+    _state_init 2>/dev/null || true
+    if [[ -n "$_PHASE_FN_BODY" ]]; then
+        eval "$_PHASE_FN_BODY"
+        _phase_version_bump 2>&1
+    else
+        echo "FUNCTION_NOT_FOUND"
+        exit 1
+    fi
+) || _T10_RC=$?
+
+# Assert: npm was called with --package-lock-only
+if [[ -f "$_T10_CALL_LOG" ]]; then
+    _T10_NPM_ARGS=$(cat "$_T10_CALL_LOG")
+else
+    _T10_NPM_ARGS=""
+fi
+assert_contains "test_version_bump_calls_npm_package_lock_only" "--package-lock-only" "$_T10_NPM_ARGS"
+
+# Assert: package-lock.json now has version 1.0.1
+_T10_LOCK_VERSION=$(python3 -c "
+import json
+with open('$_WORK_DIR/package-lock.json') as f:
+    d = json.load(f)
+print(d.get('version', 'MISSING'))
+" 2>/dev/null || echo "READ_ERROR")
+assert_eq "test_version_bump_lock_version_updated" "1.0.1" "$_T10_LOCK_VERSION"
+
+assert_eq "test_version_bump_package_lock_sync_exits_0" "0" "$_T10_RC"
+
+assert_pass_if_clean "test_version_bump_syncs_package_lock_json_when_version_file_is_package_json"
+rm -rf "$_TEST_BASE"
+
+# =============================================================================
 print_summary

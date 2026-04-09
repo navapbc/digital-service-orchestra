@@ -1,6 +1,5 @@
 """Reporter module that calls calculator, formatter, and validator."""
 
-
 from src.calculator import add, multiply, power
 from src.formatter import format_sum, format_product, format_table
 from src.validator import is_positive

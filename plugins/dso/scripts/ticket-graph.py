@@ -583,6 +583,18 @@ def add_dependency(
             f"Adding {source_id} → {target_id} ({relation}) would create a cycle"
         )
 
+    # Guard: cannot write any LINK event for a closed source ticket.
+    # A closed ticket is frozen — adding new dependency/relation events to it
+    # bypasses the closed-ticket invariant and can introduce children after close.
+    # Fail-open: _get_ticket_status treats missing tickets as "closed", so we
+    # only block when the status is explicitly "closed" from a readable state.
+    source_status = _get_ticket_status(source_id, tracker_dir)
+    if source_status == "closed":
+        raise ValueError(
+            f"cannot create {relation} link — source ticket '{source_id}' is closed. "
+            f"Reopen it first with: ticket transition {source_id} closed open"
+        )
+
     # Guard: cannot create a depends_on link to a closed ticket
     if relation == "depends_on":
         target_status = _get_ticket_status(target_id, tracker_dir)

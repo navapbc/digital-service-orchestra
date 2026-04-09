@@ -943,4 +943,70 @@ test_link_relates_to_closed_target_allowed() {
 }
 test_link_relates_to_closed_target_allowed
 
+# ── Test 12 (RED): cannot create LINK from a closed source ticket ──────────────
+echo "Test 12 (RED): ticket link <closed_source> <target> blocks exits non-zero"
+test_link_blocks_from_closed_source_blocked() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create source (to be closed) and target tickets
+    local source_id
+    source_id=$(_create_ticket "$repo" story "Story to be closed (blocks source)")
+
+    local target_id
+    target_id=$(_create_ticket "$repo" task "Open task (blocks target)")
+
+    if [ -z "$source_id" ] || [ -z "$target_id" ]; then
+        assert_eq "tickets created for blocks-from-closed-source test" "non-empty" "empty"
+        assert_pass_if_clean "test_link_blocks_from_closed_source_blocked"
+        return
+    fi
+
+    # Close the source ticket
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$source_id" open closed 2>/dev/null) || true
+
+    # Verify source is actually closed
+    local source_status
+    source_status=$(python3 "$REPO_ROOT/plugins/dso/scripts/ticket-reducer.py" \
+        "$tracker_dir/$source_id" 2>/dev/null \
+        | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('status',''))" 2>/dev/null) || true
+
+    if [ "$source_status" != "closed" ]; then
+        assert_eq "link-blocks-from-closed-source: source is closed before test" "closed" "$source_status"
+        assert_pass_if_clean "test_link_blocks_from_closed_source_blocked"
+        return
+    fi
+
+    # Attempt to link closed source blocks open target — must exit non-zero
+    # BUG: current ticket-link.sh only checks depends_on target status, not
+    # the source ticket status. Writing LINK events from a closed source ticket
+    # is allowed and bypasses the closed-ticket guard.
+    # FIX: any LINK event written to a closed source ticket must be rejected.
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" link "$source_id" "$target_id" blocks 2>&1) || exit_code=$?
+
+    # Assert: exits non-zero (guard not yet implemented → currently exits 0, so FAILS RED)
+    assert_eq "link-blocks-from-closed-source: exits non-zero" "1" \
+        "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: error message mentions closed or source
+    if [[ "${stderr_out,,}" =~ closed|cannot|not\ allowed|source ]]; then
+        assert_eq "link-blocks-from-closed-source: error mentions closed source" "has-closed-hint" "has-closed-hint"
+    else
+        assert_eq "link-blocks-from-closed-source: error mentions closed source" "has-closed-hint" "no-hint: $stderr_out"
+    fi
+
+    # Assert: no LINK event was written in source_id dir
+    local link_count
+    link_count=$(_count_link_events "$tracker_dir" "$source_id")
+    assert_eq "link-blocks-from-closed-source: no LINK event written" "0" "$link_count"
+
+    assert_pass_if_clean "test_link_blocks_from_closed_source_blocked"
+}
+test_link_blocks_from_closed_source_blocked
+
 print_summary

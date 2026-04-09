@@ -405,8 +405,18 @@ For genuinely new failures (no matching open ticket exists), create a ticket. Fo
 
 ```bash
 # Title format: [Component]: [Condition] -> [Observed Result]
-.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..."
+# Capture both stdout and stderr to enable post-creation title validation
+BUG_CREATE_OUT=$(.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..." 2>/tmp/ticket_create_stderr.tmp)
+BUG_CREATE_ERR=$(cat /tmp/ticket_create_stderr.tmp); rm -f /tmp/ticket_create_stderr.tmp
+NEW_TICKET_ID=$(echo "$BUG_CREATE_OUT" | grep -oE '[0-9a-f]{4}-[0-9a-f]{4}' | head -1)
+
+# Post-creation title validation: fix non-conforming titles immediately
+if echo "$BUG_CREATE_ERR" | grep -q "does not match recommended pattern"; then
+    .claude/scripts/dso ticket edit "$NEW_TICKET_ID" --title="[Component]: [Condition] -> [Observed Result]"
+fi
 ```
+
+The title format MUST follow `[Component]: [Condition] -> [Observed Result]`. Do not proceed with a non-conforming title.
 
 Collect newly created ticket IDs as `NEW_BUG_TICKETS`.
 

@@ -1,6 +1,5 @@
 """Validation module that calls calculator and utils functions."""
 
-
 from src.calculator import add, subtract
 from src.utils import clamp, safe_divide
 

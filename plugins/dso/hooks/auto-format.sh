@@ -130,33 +130,42 @@ fi
 REL_PATH="${FILE_PATH#"$APP_DIR/"}"
 
 # ── Format the file ──────────────────────────────────────────────────────────
-# For .py files: use ruff (import sort + format), single-file targeted.
-# For other extensions configured via format.extensions: attempt the project
-# format command if available, otherwise skip silently.
+# Read commands.format from config and use it for all matched extensions.
+# If commands.format is not configured and the file is .py, fall back to
+# `poetry run ruff` for backward compatibility (if available).
 #
 # Suppress output — chatty messages would clutter the agent's context.
 # Syntax errors mid-edit are expected (file may be incomplete); don't alarm on those.
 
-if [[ "$FILE_PATH" == *.py ]]; then
+# Read commands.format from config (applies to all extension types including .py).
+# Try read-config.sh first (supports YAML and conf formats); fall back to direct grep
+# on the conf file so tests with minimal plugin roots still work.
+FORMAT_CMD=""
+if [[ -n "$CONFIG_FILE" ]]; then
+    if [[ -x "$SCRIPTS_DIR/read-config.sh" ]]; then
+        FORMAT_CMD=$("$SCRIPTS_DIR/read-config.sh" commands.format "$CONFIG_FILE" 2>/dev/null || echo '')
+    else
+        # Fallback: direct grep for flat KEY=VALUE conf files
+        FORMAT_CMD=$(grep '^commands\.format=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2- || true)
+    fi
+fi
+
+if [[ -n "$FORMAT_CMD" ]]; then
+    # Config-driven format command: use for all matched extensions
+    if ! eval "$FORMAT_CMD" >/dev/null 2>&1; then
+        _HOOK_HAS_OUTPUT=1
+        echo "auto-format: failed on $FILE_PATH — run format manually if needed"
+    fi
+elif [[ "$FILE_PATH" == *.py ]]; then
+    # No commands.format configured: fall back to poetry run ruff for .py files
+    # (backward compatibility for projects that have not yet set commands.format)
     if ! (cd "$APP_DIR" && poetry run ruff check --select I --fix "$REL_PATH" && poetry run ruff format "$REL_PATH") >/dev/null 2>&1; then
         _HOOK_HAS_OUTPUT=1
         echo "auto-format: failed on $REL_PATH — run 'make format' manually if needed"
     fi
 else
-    # Non-.py extension: read commands.format from config and attempt single-file format
-    FORMAT_CMD=""
-    if [[ -n "$CONFIG_FILE" ]]; then
-        FORMAT_CMD=$("$SCRIPTS_DIR/read-config.sh" commands.format "$CONFIG_FILE" 2>/dev/null || echo '')
-    fi
-    # Only attempt if a format command is configured
-    if [[ -n "$FORMAT_CMD" ]]; then
-        if ! eval "$FORMAT_CMD" >/dev/null 2>&1; then
-            _HOOK_HAS_OUTPUT=1
-            echo "auto-format: failed on $FILE_PATH — run format manually if needed"
-        fi
-    else
-        _HOOK_HAS_OUTPUT=1
-    fi
+    # No format command configured for this extension — skip silently
+    _HOOK_HAS_OUTPUT=1
 fi
 
 exit 0

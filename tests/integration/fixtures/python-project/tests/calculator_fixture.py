@@ -1,6 +1,5 @@
 """Tests for calculator.py functions."""
 
-
 from src.calculator import add, subtract, multiply, divide, power, sqrt
 
 

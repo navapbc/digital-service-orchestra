@@ -106,35 +106,72 @@ fi
 # not reads. Tightening this would require a separate lock on child creation, which
 # adds complexity disproportionate to the risk.
 #
-# batch_close_json is captured here (read-only) and reused in Step 4 to avoid
-# a second Python process spawn for unblock detection.
+# The open-children check runs via ticket-reducer.py directly (mandatory, fail-loud).
+# batch_close_json is captured separately via the unblock script (non-critical, || true)
+# and reused in Step 4 for unblock detection only — NOT for open-children detection.
 batch_close_json=""
 if [ "$target_status" = "closed" ]; then
-    unblock_script="${DSO_UNBLOCK_SCRIPT:-$SCRIPT_DIR/ticket-unblock.py}"
-    batch_close_json=$(python3 "$unblock_script" --batch-close "$TRACKER_DIR" "$ticket_id" 2>/dev/null) || true
+    # ── Open-children guard: mandatory check via reducer (must NOT use || true) ──
+    # Use ticket-reducer.py directly to find open children. This path is independent
+    # of ticket-unblock.py so a broken/absent unblock script cannot mask children.
+    open_children_check_exit=0
+    open_children=$(python3 - "$TRACKER_DIR" "$ticket_id" "$REDUCER" <<'PYEOF' 2>&1) || open_children_check_exit=$?
+import json, os, subprocess, sys
 
-    # Parse open_children from batch_close JSON — fail loudly on parse error
-    # to prevent silently allowing close of a ticket with open children.
-    open_children=""
-    if [ -n "$batch_close_json" ]; then
-        open_children=$(echo "$batch_close_json" | python3 -c "
-import json, sys
-d = json.loads(sys.stdin.read())
-children = d.get('open_children', [])
-if children:
-    print('\n'.join(children))
-") || {
-            echo "Warning: failed to parse batch_close_operations output — falling back to allow close" >&2
-            open_children=""
-        }
+tracker_dir = sys.argv[1]
+ticket_id = sys.argv[2]
+reducer_path = sys.argv[3]
+
+# Scan all ticket directories for open children (parent_id == ticket_id).
+open_children = []
+try:
+    for entry in os.scandir(tracker_dir):
+        if not entry.is_dir():
+            continue
+        tid = entry.name
+        try:
+            result = subprocess.run(
+                ['python3', reducer_path, entry.path],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode != 0:
+                continue
+            state = json.loads(result.stdout)
+        except Exception:
+            continue
+        if state.get('parent_id') != ticket_id:
+            continue
+        status = state.get('status', 'open')
+        if status not in ('closed', 'done', 'resolved', 'cancelled', 'wont_fix', 'archived'):
+            open_children.append(tid)
+except Exception as e:
+    print(f'Error: open-children scan failed: {e}', file=sys.stderr)
+    sys.exit(2)
+
+if open_children:
+    print('\n'.join(open_children))
+PYEOF
+
+    if [ "$open_children_check_exit" -ne 0 ]; then
+        echo "Error: open-children check failed — cannot safely close ticket '$ticket_id'" >&2
+        echo "$open_children" >&2
+        exit 1
     fi
 
     if [ -n "$open_children" ]; then
-        echo "Error: cannot close ticket '$ticket_id' while it has open children." >&2
+        open_children_count=$(echo "$open_children" | wc -l | tr -d ' ')
+        echo "Error: cannot close ticket '$ticket_id' while it has ${open_children_count} open child ticket(s)." >&2
         echo "Close the following children first:" >&2
         echo "$open_children" >&2
         exit 1
     fi
+
+    # ── Unblock detection: run ticket-unblock.py for newly_unblocked computation ─
+    # This is non-critical — if the unblock script fails, the close still proceeds
+    # (children were already verified absent above). batch_close_json is only used
+    # in Step 4 for UNBLOCKED output, not for open-children detection.
+    unblock_script="${DSO_UNBLOCK_SCRIPT:-$SCRIPT_DIR/ticket-unblock.py}"
+    batch_close_json=$(python3 "$unblock_script" --batch-close "$TRACKER_DIR" "$ticket_id" 2>/dev/null) || true
 fi
 
 # ── Step 2-3: Acquire flock, read-verify-write inside lock ───────────────────
