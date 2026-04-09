@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
 # retro-gather.sh — Collect all Phase 1 health metrics for /dso:retro.
 #
 # Extracts the deterministic data-collection steps from retro SKILL.md Phase 1
@@ -45,6 +44,69 @@ fi
 section() {
     echo "=== $1 ==="
 }
+
+# --- Friction Suggestions (fast — emitted before slow validation) ---
+# Reads .tickets-tracker/.suggestions/*.json, groups by affected_file/skill_name,
+# and outputs frequency-ranked clusters. Section omitted when no suggestions exist.
+TRACKER_DIR="${TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
+SUGGESTIONS_DIR="$TRACKER_DIR/.suggestions"
+if [ -d "$SUGGESTIONS_DIR" ] && compgen -G "$SUGGESTIONS_DIR/*.json" > /dev/null 2>&1; then
+    section "SUGGESTION_DATA"
+    python3 - "$SUGGESTIONS_DIR" <<'PYEOF'
+import json, os, sys, collections
+
+suggestions_dir = sys.argv[1]
+
+# Load all suggestion records
+records = []
+for fname in sorted(os.listdir(suggestions_dir)):
+    if not fname.endswith('.json'):
+        continue
+    fpath = os.path.join(suggestions_dir, fname)
+    try:
+        with open(fpath, encoding='utf-8') as f:
+            data = json.load(f)
+        records.append(data)
+    except Exception:
+        pass  # Skip malformed files
+
+if not records:
+    sys.exit(0)
+
+# Group by (affected_file, skill_name) as the cluster key
+cluster_counts = collections.Counter()
+cluster_recommendations = collections.defaultdict(list)
+
+for rec in records:
+    affected_file = rec.get('affected_file') or '(unknown)'
+    skill_name = rec.get('skill_name') or rec.get('pattern') or '(unknown)'
+    key = (affected_file, skill_name)
+    cluster_counts[key] += 1
+    rec_text = rec.get('recommendation') or rec.get('observation') or ''
+    if rec_text:
+        cluster_recommendations[key].append(rec_text)
+
+# Output clusters ranked by frequency (highest first)
+print(f"Total suggestion records: {len(records)}")
+print(f"Distinct clusters: {len(cluster_counts)}")
+print("")
+
+for (affected_file, skill_name), count in cluster_counts.most_common():
+    key = (affected_file, skill_name)
+    recs = cluster_recommendations[key]
+    # Deduplicate recommendations, keep insertion order
+    seen = set()
+    unique_recs = []
+    for r in recs:
+        if r not in seen:
+            seen.add(r)
+            unique_recs.append(r)
+    proposed_edit = unique_recs[0] if unique_recs else '(no recommendation)'
+    print(f"  count={count}  file={affected_file}  pattern={skill_name}")
+    print(f"    proposed_edit: {proposed_edit}")
+
+PYEOF
+fi
 
 # --- Step 1: Cleanup + Validation ---
 section "CLEANUP"
@@ -198,7 +260,7 @@ for log_dir in /tmp/"${ARTIFACT_PREFIX}"-*/; do
         fi
     done
 done
-if ! ls /tmp/"${ARTIFACT_PREFIX}"-*/ >/dev/null 2>&1; then
+if ! compgen -G "/tmp/${ARTIFACT_PREFIX}-*/" > /dev/null 2>&1; then
     echo "No timeout logs found for prefix ${ARTIFACT_PREFIX}"
 fi
 
