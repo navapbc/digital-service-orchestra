@@ -1,1 +1,0 @@
-{"timestamp": 1775748457603634000, "uuid": "f84c4dfe-3de2-4928-9c2a-2ffe1e52ba5e", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: behavioral, Score: 2 (BASIC) \u2014 ticket system script accepts operations on closed tickets"}}
