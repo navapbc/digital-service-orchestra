@@ -160,15 +160,17 @@ assert_pass_if_clean "test_empty_template_engine_no_crash"
 echo ""
 echo "--- AC2: Skills handle unrecognized adapter gracefully ---"
 
-# test_design_wireframe_has_fallback_warning: SKILL.md documents the fallback warning
+# test_design_wireframe_is_redirect_stub: design-wireframe SKILL.md is now a redirect stub
+# pointing to dso:ui-designer dispatched by preplanning (not a full skill).
 _snapshot_fail
-if grep -q 'WARNING: No stack adapter found' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
-    has_fallback="has_fallback"
+if grep -q 'dso:ui-designer' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null && \
+   grep -q 'preplanning' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
+    is_redirect="is_redirect_stub"
 else
-    has_fallback="missing_fallback"
+    is_redirect="not_redirect_stub"
 fi
-assert_eq "test_design_wireframe_has_fallback_warning" "has_fallback" "$has_fallback"
-assert_pass_if_clean "test_design_wireframe_has_fallback_warning"
+assert_eq "test_design_wireframe_is_redirect_stub" "is_redirect_stub" "$is_redirect"
+assert_pass_if_clean "test_design_wireframe_is_redirect_stub"
 
 # test_ui_discover_has_fallback_warning: SKILL.md documents the fallback warning
 _snapshot_fail
@@ -180,15 +182,16 @@ fi
 assert_eq "test_ui_discover_has_fallback_warning" "has_fallback" "$has_fallback"
 assert_pass_if_clean "test_ui_discover_has_fallback_warning"
 
-# test_design_wireframe_has_generic_glob_fallback: SKILL.md has generic globs for no-adapter case
+# test_design_wireframe_no_sub_agent_guard: redirect stub must not have SUB-AGENT-GUARD
+# (redirect stubs do not dispatch sub-agents)
 _snapshot_fail
-if grep -q '\*\*/\*.html' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
-    has_generic="has_generic_globs"
+if grep -q 'SUB-AGENT-GUARD' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
+    has_guard="has_guard"
 else
-    has_generic="missing_generic_globs"
+    has_guard="no_guard"
 fi
-assert_eq "test_design_wireframe_has_generic_glob_fallback" "has_generic_globs" "$has_generic"
-assert_pass_if_clean "test_design_wireframe_has_generic_glob_fallback"
+assert_eq "test_design_wireframe_no_sub_agent_guard" "no_guard" "$has_guard"
+assert_pass_if_clean "test_design_wireframe_no_sub_agent_guard"
 
 # test_ui_discover_has_generic_glob_fallback: SKILL.md has generic globs for no-adapter case
 _snapshot_fail
@@ -200,15 +203,15 @@ fi
 assert_eq "test_ui_discover_has_generic_glob_fallback" "has_generic_globs" "$has_generic"
 assert_pass_if_clean "test_ui_discover_has_generic_glob_fallback"
 
-# test_design_wireframe_has_heuristic_fallback: mentions heuristic pattern matching
+# test_design_wireframe_redirect_explains_nesting: redirect stub explains why the skill was replaced
 _snapshot_fail
-if grep -q 'heuristic' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
-    has_heuristic="has_heuristic"
+if grep -q 'nesting\|nested\|Skill-tool' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
+    has_explanation="has_nesting_explanation"
 else
-    has_heuristic="missing_heuristic"
+    has_explanation="missing_nesting_explanation"
 fi
-assert_eq "test_design_wireframe_has_heuristic_fallback" "has_heuristic" "$has_heuristic"
-assert_pass_if_clean "test_design_wireframe_has_heuristic_fallback"
+assert_eq "test_design_wireframe_redirect_explains_nesting" "has_nesting_explanation" "$has_explanation"
+assert_pass_if_clean "test_design_wireframe_redirect_explains_nesting"
 
 # test_ui_discover_has_heuristic_fallback: mentions heuristic pattern matching
 _snapshot_fail
@@ -316,15 +319,15 @@ fi
 assert_eq "test_flask_jinja2_adapter_has_framework_detection" "has_framework_detection" "$has_fd"
 assert_pass_if_clean "test_flask_jinja2_adapter_has_framework_detection"
 
-# test_design_wireframe_references_adapter_loaded: SKILL.md documents adapter-loaded path
+# test_design_wireframe_redirect_has_new_workflow_steps: redirect stub shows how to use new workflow
 _snapshot_fail
-if grep -q 'If.*ADAPTER_FILE.*is set' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
-    has_loaded_path="has_loaded_path"
+if grep -q 'dso:ui-designer.*agent\|Agent tool\|ui-designer-dispatch-protocol' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
+    has_workflow="has_new_workflow"
 else
-    has_loaded_path="missing_loaded_path"
+    has_workflow="missing_new_workflow"
 fi
-assert_eq "test_design_wireframe_references_adapter_loaded" "has_loaded_path" "$has_loaded_path"
-assert_pass_if_clean "test_design_wireframe_references_adapter_loaded"
+assert_eq "test_design_wireframe_redirect_has_new_workflow_steps" "has_new_workflow" "$has_workflow"
+assert_pass_if_clean "test_design_wireframe_redirect_has_new_workflow_steps"
 
 # test_ui_discover_references_adapter_loaded: SKILL.md documents adapter-loaded path
 _snapshot_fail
@@ -403,15 +406,17 @@ fi
 assert_eq "test_ui_discover_no_hardcoded_jinja2" "no_hardcoded_jinja2" "$no_hardcoded"
 assert_pass_if_clean "test_ui_discover_no_hardcoded_jinja2"
 
-# test_design_wireframe_uses_config_driven_adapter: SKILL.md mentions config-driven
+# test_design_wireframe_redirect_points_to_preplanning: redirect stub directs users to preplanning
+# (design-wireframe is now a redirect stub; the config-driven adapter is in dso:ui-designer)
 _snapshot_fail
-if grep -q 'config-driven stack adapter' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
-    config_driven="config_driven"
+if grep -q '/dso:preplanning' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null || \
+   grep -q 'preplanning' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
+    redirect_ok="redirect_ok"
 else
-    config_driven="not_config_driven"
+    redirect_ok="redirect_missing"
 fi
-assert_eq "test_design_wireframe_uses_config_driven_adapter" "config_driven" "$config_driven"
-assert_pass_if_clean "test_design_wireframe_uses_config_driven_adapter"
+assert_eq "test_design_wireframe_redirect_points_to_preplanning" "redirect_ok" "$redirect_ok"
+assert_pass_if_clean "test_design_wireframe_redirect_points_to_preplanning"
 
 # test_ui_discover_uses_config_driven_adapter: SKILL.md mentions config-driven
 _snapshot_fail

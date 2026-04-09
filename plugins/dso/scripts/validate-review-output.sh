@@ -20,6 +20,7 @@ set -euo pipefail
 #   roadmap                f4e5f5a355e4c145
 #   brainstorm             f4e5f5a355e4c145
 #   design-wireframe       bd60a68f8060f939
+#   ui-designer            2c3ece1bc2820109
 #   implementation-plan    0271e511c0161eec
 #   retro                  8a1a3dd74e54f101
 #   design-review          1a50fe899037ef49
@@ -56,6 +57,7 @@ HASH_PLAN_REVIEW="9dba6875b85b7bc3"
 HASH_CALLER_ROADMAP="f4e5f5a355e4c145"
 HASH_CALLER_BRAINSTORM="f4e5f5a355e4c145"
 HASH_CALLER_DESIGN_WIREFRAME="bd60a68f8060f939"
+HASH_CALLER_UI_DESIGNER="2c3ece1bc2820109"
 HASH_CALLER_IMPLEMENTATION_PLAN="0271e511c0161eec"
 HASH_CALLER_RETRO="8a1a3dd74e54f101"
 HASH_CALLER_DESIGN_REVIEW="1a50fe899037ef49"
@@ -97,6 +99,7 @@ Caller IDs (use with: review-protocol <file> --caller <id>):
   roadmap                ${HASH_CALLER_ROADMAP}
   brainstorm             ${HASH_CALLER_BRAINSTORM}
   design-wireframe       ${HASH_CALLER_DESIGN_WIREFRAME}
+  ui-designer            ${HASH_CALLER_UI_DESIGNER}
   implementation-plan    ${HASH_CALLER_IMPLEMENTATION_PLAN}
   retro                  ${HASH_CALLER_RETRO}
   design-review          ${HASH_CALLER_DESIGN_REVIEW}
@@ -122,6 +125,7 @@ if [[ "$1" == "--list-callers" ]]; then
     echo "roadmap                ${HASH_CALLER_ROADMAP}"
     echo "brainstorm             ${HASH_CALLER_BRAINSTORM}"
     echo "design-wireframe       ${HASH_CALLER_DESIGN_WIREFRAME}"
+    echo "ui-designer            ${HASH_CALLER_UI_DESIGNER}"
     echo "implementation-plan    ${HASH_CALLER_IMPLEMENTATION_PLAN}"
     echo "retro                  ${HASH_CALLER_RETRO}"
     echo "design-review          ${HASH_CALLER_DESIGN_REVIEW}"
@@ -179,7 +183,7 @@ fi
 # Validate known caller IDs
 if [[ -n "$CALLER_ID" ]]; then
     case "$CALLER_ID" in
-        roadmap|brainstorm|design-wireframe|implementation-plan|retro|design-review|dev-onboarding|architect-foundation|preplanning) ;;
+        roadmap|brainstorm|design-wireframe|ui-designer|implementation-plan|retro|design-review|dev-onboarding|architect-foundation|preplanning) ;;
         *)
             echo "ERROR: unknown caller-id: '$CALLER_ID'" >&2
             echo "Run '$SCRIPT_NAME --list-callers' to see valid caller IDs." >&2
@@ -540,6 +544,31 @@ CALLER_SCHEMAS = {
                 "required_finding_fields": [
                     {"field": "complexity_estimate", "type": "enum", "enum_values": ["low", "medium", "high"], "when": "all", "optional": False},
                 ],
+            },
+        ],
+    },
+    "ui-designer": {
+        "schema_hash": "2c3ece1bc2820109",
+        "perspectives": [
+            {
+                "perspective": "Product Management",
+                "required_dimensions": ["story_alignment", "user_value", "scope_appropriateness", "consistency", "epic_coherence", "anti_pattern_compliance"],
+                "required_finding_fields": [],
+            },
+            {
+                "perspective": "Design Systems",
+                "required_dimensions": ["component_reuse", "visual_hierarchy", "design_system_compliance", "new_component_justification", "cross_story_consistency"],
+                "required_finding_fields": [],
+            },
+            {
+                "perspective": "Accessibility",
+                "required_dimensions": ["wcag_compliance", "keyboard_navigation", "screen_reader_support", "inclusive_design", "hcd_heuristics"],
+                "required_finding_fields": [],
+            },
+            {
+                "perspective": "Frontend Engineering",
+                "required_dimensions": ["implementation_feasibility", "performance", "state_complexity", "specification_clarity"],
+                "required_finding_fields": [],
             },
         ],
     },
@@ -975,6 +1004,7 @@ case "$PROMPT_ID" in
                 roadmap)              CALLER_HASH="$HASH_CALLER_ROADMAP" ;;
                 brainstorm)           CALLER_HASH="$HASH_CALLER_BRAINSTORM" ;;
                 design-wireframe)     CALLER_HASH="$HASH_CALLER_DESIGN_WIREFRAME" ;;
+                ui-designer)          CALLER_HASH="$HASH_CALLER_UI_DESIGNER" ;;
                 implementation-plan)  CALLER_HASH="$HASH_CALLER_IMPLEMENTATION_PLAN" ;;
                 retro)                CALLER_HASH="$HASH_CALLER_RETRO" ;;
                 design-review)        CALLER_HASH="$HASH_CALLER_DESIGN_REVIEW" ;;
