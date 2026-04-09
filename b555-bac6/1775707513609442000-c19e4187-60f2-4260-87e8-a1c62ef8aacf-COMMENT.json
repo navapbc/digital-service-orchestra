@@ -1,1 +1,0 @@
-{"timestamp": 1775707513609442000, "uuid": "c19e4187-60f2-4260-87e8-a1c62ef8aacf", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "REPLAN_TRIGGER: validation \u2014 Story 89cb-a606 validation failed: sprint SKILL.md has no RELATES_TO_DRIFT handler to emit REPLAN_TRIGGER. Creating TDD remediation tasks."}}
