@@ -321,4 +321,49 @@ rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 echo "$OLD_DIM_JSON" | "$SCRIPT" 2>/dev/null && old_exit_code=0 || old_exit_code=$?
 assert_eq "test_write_old_dimension_names_rejected" "1" "$old_exit_code"
 
+# ---------------------------------------------------------------------------
+# test_dimensions_nested_scores_normalized (bug 8e5d-ade1)
+# LLM sometimes writes { "dimensions": { "correctness": { "score": 4, "rationale": "..." } } }
+# (nested object per dimension) instead of flat integers.
+# The normalizer should handle both: rename 'dimensions'→'scores' AND flatten
+# nested { "score": N } objects to integers.
+# ---------------------------------------------------------------------------
+NESTED_DIM_JSON='{
+  "dimensions": {
+    "hygiene": { "score": 5, "rationale": "Clean code" },
+    "design": { "score": 5, "rationale": "Good structure" },
+    "maintainability": { "score": 5, "rationale": "Easy to maintain" },
+    "correctness": { "score": 5, "rationale": "Correct logic" },
+    "verification": { "score": 5, "rationale": "Well tested" }
+  },
+  "findings": [],
+  "summary": "Test that nested dimension score objects are flattened to integers."
+}'
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+nested_dim_exit=1
+nested_dim_output=$(echo "$NESTED_DIM_JSON" | "$SCRIPT" 2>/dev/null) && nested_dim_exit=0 || true
+assert_eq "test_dimensions_nested_scores_normalized_exit_code" "0" "$nested_dim_exit"
+
+if [[ -f "$ARTIFACTS_DIR/reviewer-findings.json" ]]; then
+    if python3 -c "
+import json
+d = json.load(open('$ARTIFACTS_DIR/reviewer-findings.json'))
+# Must have 'scores' not 'dimensions'
+assert 'scores' in d and 'dimensions' not in d, 'dimensions key not renamed'
+# All score values must be integers, not objects
+for k, v in d['scores'].items():
+    assert isinstance(v, int), f'{k} is {type(v).__name__}, expected int'
+" 2>/dev/null; then
+        nested_dim_schema="valid"
+    else
+        nested_dim_schema="invalid"
+    fi
+else
+    nested_dim_schema="no_file"
+fi
+assert_eq "test_dimensions_nested_scores_normalized_schema" "valid" "$nested_dim_schema"
+
+# Clean up
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+
 print_summary

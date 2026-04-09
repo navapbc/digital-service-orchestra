@@ -127,7 +127,6 @@ WORKTREES_PRUNED=0
 PLAYWRIGHT_CLEANED=0
 TMP_DIRS_CLEANED=0
 STATE_FILES_CLEANED=0
-AUTH_MARKERS_CLEANED=0
 
 # gc_stale_state_files
 # Removes state files older than 24 hours from /tmp/workflow-plugin-*/
@@ -612,43 +611,8 @@ else
     fi
 fi
 
-# 15. Clean up stale worktree isolation auth marker files
-# /tmp/worktree-isolation-authorized-* files are created by the isolation hook
-# and contain the PID of the process that requested authorization. Remove them
-# when the PID is dead (kill -0 fails), preserving markers for live sessions.
-log ""
-log "Checking for stale worktree isolation auth markers..."
-
-for marker in /tmp/worktree-isolation-authorized-* ; do
-    [ -f "$marker" ] || continue
-    marker_pid=$(cat "$marker" 2>/dev/null | tr -d '[:space:]' || true)
-    if [ -z "$marker_pid" ]; then
-        # Empty or unreadable marker — safe to remove
-        AUTH_MARKERS_CLEANED=$((AUTH_MARKERS_CLEANED + 1))
-        if [ $DRY_RUN -eq 0 ]; then
-            rm -f "$marker"
-            log_action "  Removed empty auth marker: $marker"
-        else
-            log_action "  Would remove empty auth marker: $marker"
-        fi
-    elif ! kill -0 "$marker_pid" 2>/dev/null; then
-        # PID is dead — remove the stale marker
-        AUTH_MARKERS_CLEANED=$((AUTH_MARKERS_CLEANED + 1))
-        if [ $DRY_RUN -eq 0 ]; then
-            rm -f "$marker"
-            log_action "  Removed stale auth marker (dead PID $marker_pid): $marker"
-        else
-            log_action "  Would remove stale auth marker (dead PID $marker_pid): $marker"
-        fi
-    fi
-done
-
-if [ $AUTH_MARKERS_CLEANED -eq 0 ]; then
-    log "  No stale auth markers found"
-fi
-
 # Summary
-TOTAL_CLEANED=$((PROCS_KILLED + LOGS_CLEANED + TASKS_CLEANED + CASCADE_CLEANED + VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED + DEBUG_LOGS_CLEANED + WORKTREES_PRUNED + PLAYWRIGHT_CLEANED + TMP_DIRS_CLEANED + STATE_FILES_CLEANED + AUTH_MARKERS_CLEANED))
+TOTAL_CLEANED=$((PROCS_KILLED + LOGS_CLEANED + TASKS_CLEANED + CASCADE_CLEANED + VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED + DEBUG_LOGS_CLEANED + WORKTREES_PRUNED + PLAYWRIGHT_CLEANED + TMP_DIRS_CLEANED + STATE_FILES_CLEANED))
 
 if [ $SUMMARY_ONLY -eq 1 ] && [ $QUIET -eq 0 ]; then
     # Summary-only mode: single line when clean, brief list when not
@@ -662,7 +626,6 @@ if [ $SUMMARY_ONLY -eq 1 ] && [ $QUIET -eq 0 ]; then
         [ $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) -gt 0 ] && echo "  Dead worktree state removed: $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) dirs"
         [ "$DEBUG_LOGS_CLEANED" -gt 0 ] && echo "  Debug logs removed: $DEBUG_LOGS_CLEANED"
         [ "$WORKTREES_PRUNED" -gt 0 ] && echo "  Worktrees pruned: $WORKTREES_PRUNED"
-        [ "$AUTH_MARKERS_CLEANED" -gt 0 ] && echo "  Auth markers removed: $AUTH_MARKERS_CLEANED"
         [ "$TIMEOUT_ENTRIES" -gt 0 ] && echo "  Timeout events found: $TIMEOUT_ENTRIES (use /dso:retro to triage)"
     fi
 else
@@ -678,7 +641,6 @@ else
     log "  Dead worktree state:      $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) dirs"
     log "  Debug logs removed:       $DEBUG_LOGS_CLEANED"
     log "  Worktrees pruned:         $WORKTREES_PRUNED"
-    log "  Auth markers removed:     $AUTH_MARKERS_CLEANED"
     log "  Timeout events found:     $TIMEOUT_ENTRIES (not reset — use /dso:retro to triage)"
     log "========================"
     if [ $TOTAL_CLEANED -eq 0 ]; then

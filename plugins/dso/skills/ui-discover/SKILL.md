@@ -578,7 +578,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/lock.sh release
 - Whether Playwright was used
 - Total cache files written
 - How to validate: `bash .ui-discovery-cache/validate-ui-cache.sh`
-- How to use: run `/dso:design-wireframe <story-id>` and it will load from cache
+- How to use: run `/dso:preplanning` on the story — `dso:ui-designer` will load the cached discovery data to generate design artifacts
 
 ---
 

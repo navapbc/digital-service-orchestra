@@ -116,15 +116,6 @@
         ]
       },
       {
-        "matcher": "Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/worktree-isolation-guard.sh"
-          }
-        ]
-      },
-      {
         "matcher": "TaskOutput",
         "hooks": [
           {
