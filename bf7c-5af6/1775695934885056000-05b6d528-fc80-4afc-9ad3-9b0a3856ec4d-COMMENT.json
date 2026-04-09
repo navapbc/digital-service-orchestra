@@ -1,1 +1,0 @@
-{"timestamp": 1775695934885056000, "uuid": "05b6d528-fc80-4afc-9ad3-9b0a3856ec4d", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Anti-pattern scan: all 23 .claude/commands/*.md stubs fixed in this batch \u2014 zero remaining candidates."}}
