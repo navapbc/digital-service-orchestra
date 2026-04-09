@@ -346,6 +346,22 @@ def process_outbound(
     # created in this run, for in-run reciprocal dedup
     _created_link_pairs: set[frozenset] = set()
 
+    # Sort LINK/UNLINK events by timestamp before the main loop to ensure
+    # chronological processing order and prevent state inconsistencies.
+    # Non-LINK/UNLINK events use a large sentinel so their original relative
+    # order is preserved (stable sort) and they appear after any LINK/UNLINK
+    # event with an earlier timestamp.
+    _SORT_SENTINEL = 2**62
+
+    def _event_sort_key(ev: dict[str, Any]) -> int:
+        if ev.get("event_type") in ("LINK", "UNLINK"):
+            ev_data = _read_event_file(ev.get("file_path", ""))
+            if ev_data:
+                return int(ev_data.get("timestamp", _SORT_SENTINEL))
+        return _SORT_SENTINEL
+
+    filtered = sorted(filtered, key=_event_sort_key)
+
     for event in filtered:
         ticket_id = event.get("ticket_id", "")
         event_type = event.get("event_type", "")
