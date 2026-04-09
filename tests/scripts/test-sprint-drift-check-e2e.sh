@@ -192,5 +192,37 @@ else
     fi
 fi
 
+# ── Test: test_sprint_skill_relates_to_drift_handler_structural_boundary ─────
+# Given: plugins/dso/skills/sprint/SKILL.md exists with a RELATES_TO_DRIFT handler.
+# When:  The file is inspected for the RELATES_TO_DRIFT section and its content.
+# Then:  RELATES_TO_DRIFT is present AND the handler references REPLAN_TRIGGER.
+#
+# Rule 5 compliance: This test checks structural markers in a non-executable
+# instruction document. The presence of RELATES_TO_DRIFT and its reference to
+# REPLAN_TRIGGER constitutes the deterministic structural boundary contract
+# consumed by LLM agents at sprint runtime.
+echo ""
+echo "Test: test_sprint_skill_relates_to_drift_handler_structural_boundary — sprint SKILL.md contains RELATES_TO_DRIFT referencing REPLAN_TRIGGER"
+
+_sprint_skill_md="$REPO_ROOT/plugins/dso/skills/sprint/SKILL.md"
+
+if [[ ! -f "$_sprint_skill_md" ]]; then
+    (( ++FAIL ))
+    echo "FAIL: e2e3: sprint SKILL.md not found at $_sprint_skill_md" >&2
+else
+    # Assert 1: RELATES_TO_DRIFT handler section exists
+    _e2e3_has_relates_to_drift=0
+    grep -qF "RELATES_TO_DRIFT" "$_sprint_skill_md" && _e2e3_has_relates_to_drift=1 || true
+    assert_eq "e2e3: sprint SKILL.md contains RELATES_TO_DRIFT" "1" "$_e2e3_has_relates_to_drift"
+
+    # Assert 2: The RELATES_TO_DRIFT section references REPLAN_TRIGGER
+    # Extract the RELATES_TO_DRIFT handler block (from the header line to the next
+    # blank-line-terminated section boundary or the next bold heading).
+    _e2e3_section=$(awk '/\*\*If `RELATES_TO_DRIFT`/{found=1} found && /^\*\*If `(NO_DRIFT|DRIFT_DETECTED)`/{exit} found{print}' "$_sprint_skill_md")
+    _e2e3_has_replan_trigger=0
+    echo "$_e2e3_section" | grep -qF "REPLAN_TRIGGER" && _e2e3_has_replan_trigger=1 || true
+    assert_eq "e2e3: RELATES_TO_DRIFT section references REPLAN_TRIGGER" "1" "$_e2e3_has_replan_trigger"
+fi
+
 echo ""
 print_summary
