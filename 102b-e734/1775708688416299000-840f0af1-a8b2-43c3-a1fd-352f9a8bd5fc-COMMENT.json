@@ -1,0 +1,1 @@
+{"timestamp": 1775708688416299000, "uuid": "840f0af1-a8b2-43c3-a1fd-352f9a8bd5fc", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: Documentation accurately describes relates_to drift detection and brainstorm Part C link suggestion in CLAUDE.md and replan-observability contract"}}
