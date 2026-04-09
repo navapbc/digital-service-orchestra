@@ -144,24 +144,103 @@ re-dispatching.
 
 ---
 
-## 4. Review Loop (Phase 5 Excluded)
+## 4. Review Loop (Orchestrator-Managed)
 
-**Phase 5 (Design Review) is NOT part of this dispatch protocol.** It was moved
-out of the `dso:ui-designer` agent and is handled separately by the preplanning
-orchestrator after receiving the payload.
+After receiving a successful payload (non-null `design_artifacts`, no error),
+run an orchestrator-managed design review loop before proceeding to Section 5.
 
-After receiving a successful payload (non-null `design_artifacts`, no error):
+**State variables** (initialize before the loop):
+```
+review_cycle_count = 0
+max_review_cycles = 3
+review_feedback = null
+```
 
-1. Tag the story with `design:pending_review` using a read-modify-write to preserve
-   existing tags:
-   ```bash
-   EXISTING_TAGS=$(.claude/scripts/dso ticket show <story-id> | python3 -c "import sys,json; t=json.load(sys.stdin).get('tags',[]); print(','.join(t))")
-   NEW_TAGS="${EXISTING_TAGS:+${EXISTING_TAGS},}design:pending_review"
-   .claude/scripts/dso ticket edit <story-id> "--tags=${NEW_TAGS}"
-   ```
-2. Log: `"Design artifacts received for story <story-id>. Tagged design:pending_review. Design review will be handled in a later stage."`
-3. Do NOT invoke `/dso:review`, `/dso:plan-review`, or any inline review logic
-   here. The design review is orchestrated at a later stage outside this protocol.
+**Loop**:
+
+1. Invoke `/dso:review-protocol` via the Skill tool, passing the design
+   artifacts produced by `dso:ui-designer` as the review subject:
+   - `artifact`: the full content of the design manifest at `design_artifacts.manifest`
+     (read it with the Read tool and pass the content inline, not just the path)
+   - `subject`: the manifest path from `design_artifacts.manifest` in the payload
+   - `caller_id`: `ui-designer`
+   - `perspectives`: array of perspective definition objects:
+     ```json
+     [
+       {
+         "name": "Product Management",
+         "dimensions": {
+           "user_value": "Design clearly communicates user value and addresses story acceptance criteria",
+           "scope_alignment": "Design scope matches story boundaries — no scope creep or under-delivery"
+         }
+       },
+       {
+         "name": "Design Systems",
+         "dimensions": {
+           "component_reuse": "Design leverages existing system components rather than introducing redundant new ones",
+           "token_compliance": "Colors, typography, and spacing reference design system tokens, not hard-coded values"
+         }
+       },
+       {
+         "name": "Accessibility",
+         "dimensions": {
+           "contrast_hierarchy": "Visual hierarchy and contrast ratios meet WCAG 2.1 AA requirements",
+           "interaction_a11y": "Interactive elements have keyboard-accessible targets and focus indicators specified"
+         }
+       },
+       {
+         "name": "Frontend Engineering",
+         "dimensions": {
+           "implementation_feasibility": "Design is implementable with existing frontend stack without custom one-off solutions",
+           "responsive_clarity": "Breakpoint behavior and responsive layout intent is clearly specified"
+         }
+       }
+     ]
+     ```
+   - If `review_feedback` is non-null (cycle 2+), include it as context for
+     the reviewer so they can evaluate whether prior findings were addressed.
+
+2. Parse the `/dso:review-protocol` output for the result signal:
+   - **`REVIEW_PASS`** (all perspectives approved, no blocking findings):
+     - Log: `"Design review passed for story <story-id> (cycle <review_cycle_count + 1>)."`
+     - Break out of the loop and proceed to Section 5.
+   - **`REVIEW_FAIL`** (one or more blocking findings remain):
+     - Increment `review_cycle_count` by 1.
+     - Capture the consolidated feedback from the review output as
+       `review_feedback` (the list of blocking findings and recommendations).
+     - **If `review_cycle_count < max_review_cycles`**:
+       - Log: `"Design review cycle <review_cycle_count> failed for story <story-id>. Re-dispatching dso:ui-designer with feedback."`
+       - Re-dispatch `dso:ui-designer` via the Agent tool (Section 2),
+         appending `review_feedback` to the payload as a `revision_notes` field
+         so the designer can address the findings.
+       - After receiving the updated payload, return to step 1 of this loop.
+     - **If `review_cycle_count >= max_review_cycles`** (max cycles exhausted):
+       - **Interactive mode**: Use `AskUserQuestion` to escalate:
+         > "Design review for story `<story-id>` has not passed after
+         > `<max_review_cycles>` cycles. Blocking findings:
+         > `<review_feedback>`
+         >
+         > Options:
+         > 1. Accept the current design and proceed (tag design:approved)
+         > 2. Abandon design artifacts for this story (tag design:pending_review)
+         > 3. Re-dispatch the designer with additional manual guidance"
+         Apply the user's chosen action and continue to Section 5.
+       - **Non-interactive mode**: Write a comment to the epic ticket and tag
+         the story `design:pending_review`, then continue to Section 5:
+         ```bash
+         .claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: design review for story <story-id> did not pass after <max_review_cycles> cycles. Blocking findings: <review_feedback>. Manual review required: run /dso:review-protocol on <design_artifacts.manifest> and resolve findings before sprint."
+         EXISTING_TAGS=$(.claude/scripts/dso ticket show <story-id> | python3 -c "import sys,json; t=json.load(sys.stdin).get('tags',[]); print(','.join(t))")
+         NEW_TAGS="${EXISTING_TAGS:+${EXISTING_TAGS},}design:pending_review"
+         .claude/scripts/dso ticket edit <story-id> "--tags=${NEW_TAGS}"
+         ```
+
+**REVIEW_PASS path** — tag the story `design:approved` after the loop exits:
+```bash
+EXISTING_TAGS=$(.claude/scripts/dso ticket show <story-id> | python3 -c "import sys,json; t=json.load(sys.stdin).get('tags',[]); print(','.join(t))")
+NEW_TAGS="${EXISTING_TAGS:+${EXISTING_TAGS},}design:approved"
+.claude/scripts/dso ticket edit <story-id> "--tags=${NEW_TAGS}"
+```
+Log: `"Design artifacts approved for story <story-id> after <review_cycle_count + 1> review cycle(s)."`
 
 **Important**: The `REVIEW_DECISION` signal referenced in earlier design-wireframe
 documentation does NOT apply here. The ui-designer agent does not emit
@@ -171,6 +250,32 @@ the old Phase 5 that was removed from the agent.
 ---
 
 ## 5. Scope-Split Handling
+
+### splitRole Guard (precedence check — evaluate FIRST)
+
+Before processing any `scope_split_proposals` from the agent payload, check
+whether preplanning has **already split this story**. Preplanning's
+Foundation/Enhancement split is **authoritative**; agent scope-split proposals
+are only evaluated when preplanning has NOT already split the story.
+
+**How to detect a preplanning split**: The story's description or metadata
+contains a `splitRole` marker — specifically `splitRole: Foundation` or
+`splitRole: Enhancement` — added by preplanning Phase 3 when it performed its
+own story split.
+
+```
+Check story description/metadata for: splitRole: Foundation  OR  splitRole: Enhancement
+```
+
+**If `splitRole` is present** (preplanning already split this story):
+- Skip the agent `scope_split_proposals` entirely.
+- Log: `"splitRole guard: preplanning already split story <story-id> (role: <splitRole value>). Agent scope-split proposals skipped — preplanning split is authoritative."`
+- Proceed directly to Section 6 (Session File Updates).
+
+**If `splitRole` is absent** (preplanning did NOT split this story):
+- Continue below and process the agent's `scope_split_proposals` normally.
+
+---
 
 When the returned payload contains a non-null `scope_split_proposals` array, the
 agent's Pragmatic Scope Splitter (Phase 3 Step 10) determined the story should be
