@@ -69,6 +69,22 @@ test_epic_selection_text_output_required() {
 test_epic_selection_prohibits_ask_options
 test_epic_selection_text_output_required
 
+# ---------------------------------------------------------------------------
+# test_completion_verifier_has_agent_unavailable_fallback (bug 808f-aef3)
+# Sprint SKILL.md Step 10a and Phase 6 Step 0.75 must contain explicit
+# "agent unavailable" fallback language for dso:completion-verifier dispatch.
+# The general-purpose fallback must be documented for "Agent type not found"
+# errors (distinct from timeout/JSON technical failure).
+# ---------------------------------------------------------------------------
+test_completion_verifier_has_agent_unavailable_fallback() {
+    local match=0
+    match=$(grep -c "Fallback.*agent unavailable" "$SKILL_FILE" 2>/dev/null) || match=0
+    [[ "$match" -ge 2 ]] && match=2  # Must appear in both Step 10a and Phase 6 Step 0.75
+    assert_eq "test_completion_verifier_has_agent_unavailable_fallback: both Step 10a and Phase 6 Step 0.75 have fallback" "2" "$match"
+}
+
+test_completion_verifier_has_agent_unavailable_fallback
+
 print_summary
 
 # ---------------------------------------------------------------------------
@@ -77,4 +93,5 @@ print_summary
 _TEST_GATE_ANCHORS=(
     test_epic_selection_prohibits_ask_options
     test_epic_selection_text_output_required
+    test_completion_verifier_has_agent_unavailable_fallback
 )

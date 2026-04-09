@@ -1527,6 +1527,7 @@ After the batch commit and `git push -u origin HEAD` succeed, close each task wh
 **MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the story ID (CLAUDE.md rule #24 — no inline verification substitute).
 - `overall_verdict: PASS` → proceed with closure
 - `overall_verdict: FAIL` → see branching logic below
+- **Fallback (agent unavailable)**: If dispatch fails with "Agent type not found" or "Unknown agent", fall back per CLAUDE.md Agent fallback rule — dispatch `subagent_type: general-purpose` and read `plugins/dso/agents/completion-verifier.md` inline as the system prompt. This is NOT permission to skip the step.
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
 
 **Story validation failure detection** — when `overall_verdict: FAIL`:
@@ -1715,6 +1716,7 @@ Read and execute `prompts/phase6-ci-gates.md` for the integration test gate, CI 
 **MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the epic ID (CLAUDE.md rule #24).
 - `overall_verdict: PASS` → proceed to Step 1
 - `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3 (Batch Preparation)
+- **Fallback (agent unavailable)**: If dispatch fails with "Agent type not found" or "Unknown agent", fall back per CLAUDE.md Agent fallback rule — dispatch `subagent_type: general-purpose` and read `plugins/dso/agents/completion-verifier.md` inline as the system prompt. This is NOT permission to skip the step.
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 1.
 
 <HARD-GATE>
