@@ -1468,3 +1468,241 @@ def test_link_multiple_jira_failures_each_write_bridge_alert_independently(
         "BRIDGE_ALERT must be written for second LINK event failure (src-fail-b) -- "
         "first failure must not block the second"
     )
+
+
+# ---------------------------------------------------------------------------
+# LINK test 16: timestamp ordering -- LINK/UNLINK processed in timestamp order
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_link_unlink_events_processed_in_timestamp_order(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Given a batch of LINK/UNLINK events with out-of-order timestamps [t3, t1, t2],
+    when process_outbound() is called,
+    then the events are processed in ascending timestamp order (t1, t2, t3),
+    verified by checking the order of acli_client method calls.
+
+    This test is RED: timestamp ordering is not yet implemented in process_outbound.
+    Currently events are processed in the order they appear in the input list.
+    """
+    src_a_dir = tmp_path / "ts-src-a"
+    tgt_a_dir = tmp_path / "ts-tgt-a"
+    src_b_dir = tmp_path / "ts-src-b"
+    tgt_b_dir = tmp_path / "ts-tgt-b"
+    src_c_dir = tmp_path / "ts-src-c"
+    tgt_c_dir = tmp_path / "ts-tgt-c"
+    for d in [src_a_dir, tgt_a_dir, src_b_dir, tgt_b_dir, src_c_dir, tgt_c_dir]:
+        d.mkdir()
+
+    # Jira keys: A=earliest (t1), B=middle (t2), C=latest (t3)
+    _write_sync_for(src_a_dir, "DSO-2010", "ts-src-a")
+    _write_sync_for(tgt_a_dir, "DSO-2011", "ts-tgt-a")
+    _write_sync_for(src_b_dir, "DSO-2020", "ts-src-b")
+    _write_sync_for(tgt_b_dir, "DSO-2021", "ts-tgt-b")
+    _write_sync_for(src_c_dir, "DSO-2030", "ts-src-c")
+    _write_sync_for(tgt_c_dir, "DSO-2031", "ts-tgt-c")
+
+    # Timestamps: t1=100, t2=200, t3=300
+    # Events created with out-of-order timestamps: t3 first, then t1, then t2
+    t1, t2, t3 = 1742700100, 1742700200, 1742700300
+
+    # t3 event (latest) -- written first in the events list
+    link_file_c = _write_link_event(
+        src_c_dir,
+        timestamp=t3,
+        uuid="ts000003-0000-0000-0000-000000000003",
+        event_type="LINK",
+        source_id="ts-src-c",
+        target_id="ts-tgt-c",
+        relation="relates_to",
+    )
+    # t1 event (earliest) -- written second in the events list
+    link_file_a = _write_link_event(
+        src_a_dir,
+        timestamp=t1,
+        uuid="ts000001-0000-0000-0000-000000000001",
+        event_type="LINK",
+        source_id="ts-src-a",
+        target_id="ts-tgt-a",
+        relation="relates_to",
+    )
+    # t2 event (middle) -- written third in the events list
+    link_file_b = _write_link_event(
+        src_b_dir,
+        timestamp=t2,
+        uuid="ts000002-0000-0000-0000-000000000002",
+        event_type="LINK",
+        source_id="ts-src-b",
+        target_id="ts-tgt-b",
+        relation="relates_to",
+    )
+
+    # Input order: [t3, t1, t2] — out of order
+    events = [
+        {"ticket_id": "ts-src-c", "event_type": "LINK", "file_path": str(link_file_c)},
+        {"ticket_id": "ts-src-a", "event_type": "LINK", "file_path": str(link_file_a)},
+        {"ticket_id": "ts-src-b", "event_type": "LINK", "file_path": str(link_file_b)},
+    ]
+
+    call_order: list[str] = []
+
+    def set_relationship_side_effect(
+        from_key: str, to_key: str, link_type: str
+    ) -> dict:
+        call_order.append(from_key)
+        return {"status": "created"}
+
+    mock_client = MagicMock()
+    mock_client.get_issue_link_types = MagicMock(
+        return_value=[
+            {"name": "Relates", "inward": "relates to", "outward": "relates to"}
+        ]
+    )
+    mock_client.get_issue_links = MagicMock(return_value=[])
+    mock_client.set_relationship = MagicMock(side_effect=set_relationship_side_effect)
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert len(call_order) == 3, (
+        f"Expected 3 set_relationship calls, got {len(call_order)}: {call_order}"
+    )
+    # Expected order: t1 (DSO-2010), t2 (DSO-2020), t3 (DSO-2030)
+    assert call_order == ["DSO-2010", "DSO-2020", "DSO-2030"], (
+        f"LINK events must be processed in timestamp order (t1, t2, t3); "
+        f"actual call order: {call_order}. "
+        f"Input was [t3={t3}, t1={t1}, t2={t2}] — timestamp ordering not yet implemented."
+    )
+
+
+# ---------------------------------------------------------------------------
+# LINK test 17: timestamp ordering -- mixed event types: LINK/UNLINK sorted,
+#               non-LINK events maintain original order
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_link_unlink_sorted_while_non_link_events_maintain_original_order(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Given a batch with mixed event types (CREATE at t2, LINK at t1, STATUS at t3),
+    when process_outbound() is called,
+    then LINK/UNLINK events are sorted by timestamp (t1 before t2-CREATE),
+    while non-LINK events maintain their original relative order.
+
+    This verifies that sorting is scoped to LINK/UNLINK events only and does not
+    reorder unrelated event types.
+
+    This test is RED: timestamp ordering is not yet implemented in process_outbound.
+    """
+    src_link_dir = tmp_path / "mix-src-link"
+    tgt_link_dir = tmp_path / "mix-tgt-link"
+    create_dir = tmp_path / "mix-create"
+    status_dir = tmp_path / "mix-status"
+    for d in [src_link_dir, tgt_link_dir, create_dir, status_dir]:
+        d.mkdir()
+
+    # LINK at t1 (earliest) — should be processed before the CREATE at t2
+    t1_link = 1742800100
+    t2_create = 1742800200
+
+    _write_sync_for(src_link_dir, "DSO-3010", "mix-src-link")
+    _write_sync_for(tgt_link_dir, "DSO-3020", "mix-tgt-link")
+
+    link_file = _write_link_event(
+        src_link_dir,
+        timestamp=t1_link,
+        uuid="mx000001-0000-0000-0000-000000000001",
+        event_type="LINK",
+        source_id="mix-src-link",
+        target_id="mix-tgt-link",
+        relation="relates_to",
+    )
+
+    # CREATE event at t2 — not a LINK/UNLINK event
+    create_uuid = "mx000002-0000-0000-0000-000000000002"
+    create_payload = {
+        "timestamp": t2_create,
+        "uuid": create_uuid,
+        "event_type": "CREATE",
+        "env_id": _OTHER_ENV_ID,
+        "author": "Test User",
+        "data": {
+            "title": "Mix Create Ticket",
+            "ticket_type": "task",
+            "priority": 2,
+        },
+    }
+    create_file = create_dir / f"{t2_create}-{create_uuid}-CREATE.json"
+    create_file.write_text(json.dumps(create_payload))
+
+    # Input order: [CREATE at t2, LINK at t1] — LINK comes later in list
+    # but has earlier timestamp; LINK should be processed first
+    events = [
+        {
+            "ticket_id": "mix-create",
+            "event_type": "CREATE",
+            "file_path": str(create_file),
+        },
+        {
+            "ticket_id": "mix-src-link",
+            "event_type": "LINK",
+            "file_path": str(link_file),
+        },
+    ]
+
+    call_order: list[str] = []
+
+    def create_issue_side_effect(ticket_data: dict) -> dict:
+        call_order.append("CREATE")
+        return {"key": "DSO-3030"}
+
+    def set_relationship_side_effect(
+        from_key: str, to_key: str, link_type: str
+    ) -> dict:
+        call_order.append(f"LINK:{from_key}")
+        return {"status": "created"}
+
+    mock_client = MagicMock()
+    mock_client.get_issue_link_types = MagicMock(
+        return_value=[
+            {"name": "Relates", "inward": "relates to", "outward": "relates to"}
+        ]
+    )
+    mock_client.get_issue_links = MagicMock(return_value=[])
+    mock_client.create_issue = MagicMock(side_effect=create_issue_side_effect)
+    mock_client.set_relationship = MagicMock(side_effect=set_relationship_side_effect)
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    # Both LINK and CREATE events must be observed — if either is silently skipped,
+    # the ordering assertion would be vacuously true.
+    assert "LINK:DSO-3010" in call_order, (
+        f"set_relationship must be called for the LINK event; call_order={call_order}"
+    )
+    assert "CREATE" in call_order, (
+        f"create_issue must be called for the CREATE event; call_order={call_order}"
+    )
+
+    # LINK at t1 must be processed before CREATE at t2 (earlier timestamp = earlier processing).
+    link_idx = call_order.index("LINK:DSO-3010")
+    create_idx = call_order.index("CREATE")
+    assert link_idx < create_idx, (
+        f"LINK event (timestamp={t1_link}) must be processed before CREATE event "
+        f"(timestamp={t2_create}) when LINK has an earlier timestamp. "
+        f"Actual call order: {call_order}. "
+        f"Timestamp ordering not yet implemented in process_outbound."
+    )
