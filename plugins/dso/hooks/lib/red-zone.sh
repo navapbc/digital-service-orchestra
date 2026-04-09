@@ -111,6 +111,7 @@ get_red_zone_line_number() {
 # Supports:
 #   - Bash-style: "test_name: FAIL..." lines
 #   - Pytest FAILED lines: "FAILED path/to/test.py::test_name"
+#   - Jest-style: "● Suite > test name" or "✕ test name"
 # Returns one test name per line on stdout.
 parse_failing_tests_from_output() {
     local output_file="$1"
@@ -137,6 +138,18 @@ parse_failing_tests_from_output() {
     # Extract the last ::segment to handle class-based tests
     grep -oE '^FAILED [^[:space:]]+::[a-zA-Z_][a-zA-Z0-9_]*(::[a-zA-Z_][a-zA-Z0-9_]*)?' "$output_file" \
         | sed 's/^FAILED .*:://' \
+        || true
+
+    # Jest-style verbose: "● Suite > test name" — extract segment after last " > "
+    grep -E '^[[:space:]]*● ' "$output_file" \
+        | sed 's/.*>[[:space:]]*//' \
+        | sed 's/[[:space:]]*$//' \
+        || true
+
+    # Jest-style compact: "✕ test name" — extract the test name after ✕
+    grep -E '^[[:space:]]*✕ ' "$output_file" \
+        | sed 's/^[[:space:]]*✕[[:space:]]*//' \
+        | sed 's/[[:space:]]*$//' \
         || true
 }
 

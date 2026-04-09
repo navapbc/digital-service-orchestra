@@ -834,12 +834,15 @@ fi
 # Track launched checks for crash detection (missing .rc file = process crash)
 # REVIEW-DEFENSE: Keep this list in sync with the run_check/check_* calls below.
 # Each name must match the first argument passed to run_check or check_*.
-LAUNCHED_CHECKS="syntax format ruff mypy tests migrate skill-refs hook-drift"
+LAUNCHED_CHECKS="syntax format ruff mypy tests migrate hook-drift"
 [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS script-writes"
-[ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS shim-refs"
-[ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS model-id-lint"
-[ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS contract-schema"
-[ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS referential-integrity"
+if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
+    LAUNCHED_CHECKS="$LAUNCHED_CHECKS skill-refs"
+    [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS shim-refs"
+    [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS model-id-lint"
+    [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS contract-schema"
+    [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS referential-integrity"
+fi
 # REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
 # This is the standard bash pattern for stored multi-word commands.
@@ -858,18 +861,20 @@ check_migrations &
 if [ -n "$SCRIPT_WRITE_SCAN_DIR" ]; then
     (cd "$REPO_ROOT" && run_check "script-writes" "$TIMEOUT_SYNTAX" python3 "$PLUGIN_SCRIPTS/check-script-writes.py" --scan-dir="$SCRIPT_WRITE_SCAN_DIR") &
 fi
-(cd "$REPO_ROOT" && run_check "skill-refs" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-skill-refs.sh") &
-if [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ]; then
-    (cd "$REPO_ROOT" && run_check "shim-refs" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-shim-refs.sh") &
-fi
-if [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ]; then
-    (cd "$REPO_ROOT" && run_check "model-id-lint" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-model-id-lint.sh") &
-fi
-if [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ]; then
-    (cd "$REPO_ROOT" && run_check "contract-schema" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-contract-schemas.sh") &
-fi
-if [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ]; then
-    (cd "$REPO_ROOT" && run_check "referential-integrity" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-referential-integrity.sh") &
+if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
+    (cd "$REPO_ROOT" && run_check "skill-refs" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-skill-refs.sh") &
+    if [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ]; then
+        (cd "$REPO_ROOT" && run_check "shim-refs" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-shim-refs.sh") &
+    fi
+    if [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ]; then
+        (cd "$REPO_ROOT" && run_check "model-id-lint" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-model-id-lint.sh") &
+    fi
+    if [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ]; then
+        (cd "$REPO_ROOT" && run_check "contract-schema" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-contract-schemas.sh") &
+    fi
+    if [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ]; then
+        (cd "$REPO_ROOT" && run_check "referential-integrity" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-referential-integrity.sh") &
+    fi
 fi
 check_hook_drift &
 if [ $CHECK_CI -eq 1 ]; then
@@ -922,6 +927,8 @@ report_check() {
 
     if [ "$rc" = "0" ]; then
         printf "  %-8s PASS\n" "${label}:"
+    elif [ "$rc" = "skip" ]; then
+        printf "  %-8s SKIP\n" "${label}:"
     elif [ "$rc" = "42" ] && [ "$name" = "tests" ]; then
         # rc=42: test-batched.sh reported partial progress (ACTION REQUIRED block in output).
         # Tests are not done yet — the orchestrator must run validate.sh again.
@@ -988,6 +995,9 @@ tally_check() {
         # Pending — verbose mode already printed the PENDING label via run_test_check.
         # Tally it as pending (not failed, not passed).
         TESTS_PENDING=1
+    elif [ "$rc" = "skip" ]; then
+        # Skipped — verbose mode already printed the SKIP label.
+        :  # no tally for skipped checks
     elif [ "$rc" != "0" ]; then
         cat "$CHECK_DIR/${name}.log" >> "$LOGFILE" 2>/dev/null || true
         FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}$label"
@@ -1002,11 +1012,13 @@ if [ "$VERBOSE" = "0" ]; then
     report_check "mypy" "mypy" "$TIMEOUT_MYPY"
     report_check "tests" "tests" "$TIMEOUT_TESTS"
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && report_check "script-writes" "script-writes" "$TIMEOUT_SYNTAX" "python3 $PLUGIN_SCRIPTS/check-script-writes.py --scan-dir=$SCRIPT_WRITE_SCAN_DIR"
-    report_check "skill-refs" "skill-refs" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-skill-refs.sh"
-    [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && report_check "shim-refs" "shim-refs" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-shim-refs.sh"
-    [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && report_check "model-id-lint" "model-id-lint" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-model-id-lint.sh"
-    [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && report_check "contract-schema" "contract-schema" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-contract-schemas.sh"
-    [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && report_check "referential-integrity" "referential-integrity" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-referential-integrity.sh"
+    if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
+        report_check "skill-refs" "skill-refs" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-skill-refs.sh"
+        [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && report_check "shim-refs" "shim-refs" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-shim-refs.sh"
+        [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && report_check "model-id-lint" "model-id-lint" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-model-id-lint.sh"
+        [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && report_check "contract-schema" "contract-schema" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-contract-schemas.sh"
+        [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && report_check "referential-integrity" "referential-integrity" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-referential-integrity.sh"
+    fi
     report_check "hook-drift" "hook-drift" "$TIMEOUT_SYNTAX" "diff <(grep 'id:' .pre-commit-config.yaml) <(grep 'id:' examples/pre-commit-config.example.yaml)"
 else
     tally_check "syntax" "syntax"
@@ -1015,11 +1027,13 @@ else
     tally_check "mypy" "mypy"
     tally_check "tests" "tests"
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && tally_check "script-writes" "script-writes"
-    tally_check "skill-refs" "skill-refs"
-    [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && tally_check "shim-refs" "shim-refs"
-    [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && tally_check "model-id-lint" "model-id-lint"
-    [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && tally_check "contract-schema" "contract-schema"
-    [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && tally_check "referential-integrity" "referential-integrity"
+    if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
+        tally_check "skill-refs" "skill-refs"
+        [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && tally_check "shim-refs" "shim-refs"
+        [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && tally_check "model-id-lint" "model-id-lint"
+        [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && tally_check "contract-schema" "contract-schema"
+        [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && tally_check "referential-integrity" "referential-integrity"
+    fi
     tally_check "hook-drift" "hook-drift"
 fi
 
