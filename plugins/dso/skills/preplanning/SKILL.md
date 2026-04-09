@@ -382,7 +382,7 @@ For each split:
 - Add dependency: `.claude/scripts/dso ticket link <enhancement-id> <foundation-id> depends_on`
 - Both trace to the same epic criterion
 
-**Note**: `dso:ui-designer` has its own Pragmatic Scope Splitter (Phase 3 Step 10) that may trigger UI-specific splits during design. If preplanning already split a story, the design agent works within the Foundation story's scope.
+**Note**: `dso:ui-designer` has its own Pragmatic Scope Splitter (Phase 3 Step 10) that may trigger UI-specific splits during design. If preplanning already split a story, the design agent works within the Foundation story's scope. **Enforcement**: the splitRole guard in `ui-designer-dispatch-protocol.md` Section 5 enforces this precedence rule — agent `scope_split_proposals` are skipped entirely when a `splitRole: Foundation` or `splitRole: Enhancement` marker is detected on the story.
 
 ---
 
@@ -772,8 +772,11 @@ Stories that are purely backend, infrastructure, testing-only, or documentation 
 2. Agent dispatch via the Agent tool (`subagent_type: "dso:ui-designer"`)
 3. CACHE_MISSING retry loop (2 retry attempts; up to 3 total CACHE_MISSING
    returns before the retry cap is exceeded)
-4. Review loop (Phase 5 excluded — tag story `design:pending_review` via
-   read-modify-write: `ticket show | python3` + `ticket edit --tags`)
+4. Review loop (orchestrator-managed: invoke `/dso:review-protocol` on design
+   artifacts; max 3 cycles; REVIEW_PASS → tag `design:approved` and proceed;
+   REVIEW_FAIL → re-dispatch ui-designer with feedback; at max cycles:
+   interactive → ask user; non-interactive → emit INTERACTIVITY_DEFERRED,
+   tag `design:pending_review`, and proceed)
 5. Scope-split handling (interactive or INTERACTIVITY_DEFERRED)
 6. Session file updates (`processedStories` and `siblingDesigns`)
 
@@ -898,7 +901,7 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 | 2: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
 | 2.5: Adversarial Review | Red team attack on story map, blue team filter findings (skip if < 3 stories) | `Task` (opus red team, sonnet blue team) |
 | 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `.claude/scripts/dso ticket link` |
-| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket comment`, `validate-issues.sh`, `dso:ui-designer` (via Agent tool), `.claude/scripts/dso ticket edit --tags` (design:pending_review) |
+| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket comment`, `validate-issues.sh`, `dso:ui-designer` (via Agent tool), `.claude/scripts/dso ticket edit --tags` (design:approved on REVIEW_PASS; design:pending_review on deferred/failed review) |
 
 ## Example: Reconciliation + Story Creation
 
