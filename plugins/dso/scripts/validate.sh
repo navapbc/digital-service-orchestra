@@ -927,6 +927,8 @@ report_check() {
 
     if [ "$rc" = "0" ]; then
         printf "  %-8s PASS\n" "${label}:"
+    elif [ "$rc" = "skip" ]; then
+        printf "  %-8s SKIP\n" "${label}:"
     elif [ "$rc" = "42" ] && [ "$name" = "tests" ]; then
         # rc=42: test-batched.sh reported partial progress (ACTION REQUIRED block in output).
         # Tests are not done yet — the orchestrator must run validate.sh again.
@@ -993,6 +995,9 @@ tally_check() {
         # Pending — verbose mode already printed the PENDING label via run_test_check.
         # Tally it as pending (not failed, not passed).
         TESTS_PENDING=1
+    elif [ "$rc" = "skip" ]; then
+        # Skipped — verbose mode already printed the SKIP label.
+        :  # no tally for skipped checks
     elif [ "$rc" != "0" ]; then
         cat "$CHECK_DIR/${name}.log" >> "$LOGFILE" 2>/dev/null || true
         FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}$label"
