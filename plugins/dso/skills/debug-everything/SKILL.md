@@ -868,6 +868,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/post-batch-
 | Partial success | `.claude/scripts/dso ticket comment <id> "Partial: <details>."` |
 | Failure | `.claude/scripts/dso ticket transition <id> open` then `.claude/scripts/dso ticket comment <id> "Failed: <error>."` |
 | Regression | Revert changes (`git checkout -- <files>`), reopen, note regression |
+| `FIX_RESULT: unresolved` | Leave ticket **OPEN**. Add comment: `.claude/scripts/dso ticket comment <id> "Investigated: <investigation_summary> — could not fix. <reason>"`. Surface in session summary under **ESCALATED BUGS**. |
 
 **Bug close constraint**: Only close a bug when there is an actual code change that fixes it. **NEVER close a bug with reason `Escalated to user:` — closing removes the bug from `ticket list` visibility, which is the opposite of escalation.** When no code fix is possible:
 1. Add investigation findings as a ticket comment: `.claude/scripts/dso ticket comment <id> "Investigated: <findings> — no code fix possible."`

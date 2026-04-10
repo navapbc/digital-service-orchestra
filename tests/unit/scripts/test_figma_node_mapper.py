@@ -610,3 +610,268 @@ class TestArgparseCLIInterface:
             assert "components" in output_data, (
                 "Output JSON must contain 'components' key"
             )
+
+
+# ---------------------------------------------------------------------------
+# NM-9b: CLI --story-id/--design-id/--layout flags produce schema fields
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+class TestSchemaFieldCLIFlags:
+    """NM-9b: CLI flags --story-id, --design-id, --layout write schema-required top-level fields."""
+
+    def _make_figma_json(self) -> dict:
+        return {
+            "document": {
+                "id": "0:0",
+                "name": "Doc",
+                "type": "DOCUMENT",
+                "children": [],
+            }
+        }
+
+    def test_NM9b_story_id_flag_appears_in_output(self) -> None:
+        """NM-9b-1: --story-id flag writes storyId to the output JSON."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "figma.json"
+            output_path = Path(tmpdir) / "out.json"
+            input_path.write_text(json.dumps(self._make_figma_json()))
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--figma-response",
+                    str(input_path),
+                    "--manifest-dir",
+                    tmpdir,
+                    "--output",
+                    str(output_path),
+                    "--story-id",
+                    "test-story-abc",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 0, f"Expected exit 0. stderr: {result.stderr!r}"
+            data = json.loads(output_path.read_text())
+            assert data.get("storyId") == "test-story-abc", (
+                f"Expected storyId='test-story-abc', got: {data.get('storyId')!r}"
+            )
+
+    def test_NM9b_design_id_flag_appears_in_output(self) -> None:
+        """NM-9b-2: --design-id flag writes designId to the output JSON."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "figma.json"
+            output_path = Path(tmpdir) / "out.json"
+            input_path.write_text(json.dumps(self._make_figma_json()))
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--figma-response",
+                    str(input_path),
+                    "--manifest-dir",
+                    tmpdir,
+                    "--output",
+                    str(output_path),
+                    "--design-id",
+                    "d1234-5678",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 0, f"Expected exit 0. stderr: {result.stderr!r}"
+            data = json.loads(output_path.read_text())
+            assert data.get("designId") == "d1234-5678", (
+                f"Expected designId='d1234-5678', got: {data.get('designId')!r}"
+            )
+
+    def test_NM9b_layout_flag_appears_in_output(self) -> None:
+        """NM-9b-3: --layout flag writes layout to the output JSON."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "figma.json"
+            output_path = Path(tmpdir) / "out.json"
+            input_path.write_text(json.dumps(self._make_figma_json()))
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--figma-response",
+                    str(input_path),
+                    "--manifest-dir",
+                    tmpdir,
+                    "--output",
+                    str(output_path),
+                    "--layout",
+                    "StickyHeader-Main-Footer",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 0, f"Expected exit 0. stderr: {result.stderr!r}"
+            data = json.loads(output_path.read_text())
+            assert data.get("layout") == "StickyHeader-Main-Footer", (
+                f"Expected layout='StickyHeader-Main-Footer', got: {data.get('layout')!r}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# NM-9: FRAME node with effects → props.effects on output component
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+class TestEffectsFieldMapping:
+    """NM-9: FRAME node with effects array maps effects to props.effects."""
+
+    def test_NM9_frame_node_with_effects_maps_to_props_effects(
+        self, mapper: ModuleType
+    ) -> None:
+        """NM-9: effects array from Figma node is mapped to component props.effects."""
+        figma_json = {
+            "document": {
+                "id": "0:0",
+                "name": "Document",
+                "type": "DOCUMENT",
+                "children": [
+                    {
+                        "id": "1:1",
+                        "name": "Frame",
+                        "type": "FRAME",
+                        "effects": [
+                            {
+                                "type": "DROP_SHADOW",
+                                "color": {"r": 0, "g": 0, "b": 0, "a": 0.25},
+                                "offset": {"x": 0, "y": 2},
+                                "radius": 4,
+                                "visible": True,
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+        components = mapper.map_nodes(figma_json)
+        assert len(components) == 1
+        component = components[0]
+        assert "props" in component, (
+            "FRAME node with effects must have 'props' key in output"
+        )
+        assert "effects" in component["props"], (
+            "props.effects must be present when node has effects array"
+        )
+        assert len(component["props"]["effects"]) == 1
+        assert component["props"]["effects"][0]["type"] == "DROP_SHADOW"
+
+
+# ---------------------------------------------------------------------------
+# NM-10: FRAME node with layoutMode → props.responsive_hints
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+class TestLayoutModeMapping:
+    """NM-10: FRAME node with layoutMode maps to props.responsive_hints."""
+
+    def test_NM10_frame_node_with_layout_mode_maps_to_responsive_hints(
+        self, mapper: ModuleType
+    ) -> None:
+        """NM-10: layoutMode field from FRAME node is mapped to props.responsive_hints."""
+        figma_json = {
+            "document": {
+                "id": "0:0",
+                "name": "Document",
+                "type": "DOCUMENT",
+                "children": [
+                    {
+                        "id": "1:1",
+                        "name": "AutoLayoutFrame",
+                        "type": "FRAME",
+                        "layoutMode": "HORIZONTAL",
+                    }
+                ],
+            }
+        }
+        components = mapper.map_nodes(figma_json)
+        assert len(components) == 1
+        component = components[0]
+        assert "props" in component, (
+            "FRAME node with layoutMode must have 'props' key in output"
+        )
+        assert "responsive_hints" in component["props"], (
+            "props.responsive_hints must be present when node has layoutMode"
+        )
+        assert component["props"]["responsive_hints"] == "HORIZONTAL", (
+            "responsive_hints must contain the layoutMode value"
+        )
+
+    def test_NM10b_frame_node_with_both_effects_and_layout_mode(
+        self, mapper: ModuleType
+    ) -> None:
+        """NM-10b: FRAME node with both effects and layoutMode produces both in props."""
+        figma_json = {
+            "document": {
+                "id": "0:0",
+                "name": "Document",
+                "type": "DOCUMENT",
+                "children": [
+                    {
+                        "id": "1:1",
+                        "name": "AutoLayoutWithShadow",
+                        "type": "FRAME",
+                        "effects": [{"type": "DROP_SHADOW", "visible": True}],
+                        "layoutMode": "VERTICAL",
+                    }
+                ],
+            }
+        }
+        components = mapper.map_nodes(figma_json)
+        assert len(components) == 1
+        component = components[0]
+        assert "props" in component
+        assert "effects" in component["props"], (
+            "props.effects must be present when node has effects"
+        )
+        assert "responsive_hints" in component["props"], (
+            "props.responsive_hints must be present when node has layoutMode"
+        )
+        assert component["props"]["effects"][0]["type"] == "DROP_SHADOW"
+        assert component["props"]["responsive_hints"] == "VERTICAL"
+
+    def test_NM10c_frame_node_with_empty_effects_still_maps_prop(
+        self, mapper: ModuleType
+    ) -> None:
+        """NM-10c: FRAME node with empty effects list still produces props.effects=[]."""
+        figma_json = {
+            "document": {
+                "id": "0:0",
+                "name": "Document",
+                "type": "DOCUMENT",
+                "children": [
+                    {
+                        "id": "1:1",
+                        "name": "FrameEmptyEffects",
+                        "type": "FRAME",
+                        "effects": [],
+                    }
+                ],
+            }
+        }
+        components = mapper.map_nodes(figma_json)
+        assert len(components) == 1
+        component = components[0]
+        # 'effects' key present but empty list → props.effects = []
+        assert "props" in component, (
+            "FRAME node with empty effects must still have 'props' key"
+        )
+        assert "effects" in component["props"], (
+            "props.effects must be present even when effects list is empty"
+        )
+        assert component["props"]["effects"] == []

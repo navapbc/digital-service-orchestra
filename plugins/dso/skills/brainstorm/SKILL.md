@@ -393,13 +393,16 @@ Note: summary confirmation (Phase 1 Gate Step 1) does NOT collapse with gap anal
 [narrative]
 
 ## Success Criteria
-- [...]
+- **[inferred or researched criterion — bold because it requires user review]**
+- [explicit or confirmed criterion — plain text]
 
 ## Scenario Analysis
 [if ran]
 
 ## Dependencies
 [...]
+
+_N of M criteria confirmed; K inferred requiring review_
 
 Please choose how to proceed:
 

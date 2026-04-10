@@ -219,6 +219,39 @@ else
 fi
 _smoke_cleanup
 
+# ── Test 14: CWD of post_create_cmd is WORKTREE_PATH, not REPO_ROOT ──────────
+# Bug e1b6-a78c: worktree-create.sh ran the hook from cd "$REPO_ROOT"; it must
+# run from cd "$WORKTREE_PATH" so CWD-sensitive commands (e.g. npm install) act
+# on the newly-created worktree.
+echo "Test 14: post_create_cmd CWD is WORKTREE_PATH not REPO_ROOT"
+_smoke_setup
+mkdir -p "$SMOKE_REPO/scripts"
+mkdir -p "$SMOKE_REPO/.claude"
+cp "$DSO_PLUGIN_DIR/scripts/read-config.sh" "$SMOKE_REPO/scripts/read-config.sh"
+# Command writes its actual CWD to a known temp file (no $WORKTREE_PATH prefix).
+CWD_CAPTURE_FILE=$(mktemp)
+_CLEANUP_DIRS+=("$CWD_CAPTURE_FILE")
+cat > "$SMOKE_REPO/.claude/dso-config.conf" <<CONF
+worktree.post_create_cmd=pwd > $CWD_CAPTURE_FILE
+CONF
+smoke_exit=0
+smoke_output=""
+smoke_output=$(cd "$SMOKE_REPO" && bash "$SCRIPT" --name=smoke-cwd --dir="$SMOKE_WORKTREES" --skip-pull 2>&1) || smoke_exit=$?
+EXPECTED_WORKTREE="$SMOKE_WORKTREES/smoke-cwd"
+ACTUAL_CWD=$(cat "$CWD_CAPTURE_FILE" 2>/dev/null | tr -d '\n')
+if [ "$smoke_exit" -eq 0 ] && [ "$ACTUAL_CWD" = "$EXPECTED_WORKTREE" ]; then
+    echo "  PASS: post_create_cmd CWD is WORKTREE_PATH ($ACTUAL_CWD)"
+    (( PASS++ ))
+elif [ "$smoke_exit" -ne 0 ]; then
+    echo "  FAIL: worktree creation failed (exit $smoke_exit)" >&2
+    echo "  Output: $smoke_output" >&2
+    (( FAIL++ ))
+else
+    echo "  FAIL: post_create_cmd ran in '$ACTUAL_CWD' (expected '$EXPECTED_WORKTREE')" >&2
+    (( FAIL++ ))
+fi
+_smoke_cleanup
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

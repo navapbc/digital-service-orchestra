@@ -1152,7 +1152,21 @@ fix_summary: <one-line description of what was fixed>
 files_changed: <comma-separated list of modified files>
 ```
 
-The orchestrator receives this result and is responsible for committing the changes and closing the ticket.
+If the bug CANNOT be fixed (all investigation tiers exhausted, COMPLEX escalation, LLM-behavioral with no testable surface, etc.), return the unresolved signal instead — do NOT close the ticket:
+
+```
+FIX_RESULT: unresolved
+BUG_TICKET_ID: <ticket-id>
+reason: <why it could not be fixed — e.g., COMPLEX escalation, ESCALATED terminal condition, LLM-behavioral without testable surface>
+investigation_summary: <brief findings to preserve for the user>
+```
+
+The orchestrator receiving `FIX_RESULT: unresolved` MUST:
+1. Add a comment to the ticket: `.claude/scripts/dso ticket comment <id> "Investigated: <investigation_summary> — could not fix. <reason>"`
+2. Leave the ticket **OPEN** — do NOT transition to closed, do NOT use `--reason="Escalated to user:"` autonomously
+3. Surface the ticket in the session summary under **ESCALATED BUGS** so the user sees it
+
+The orchestrator receives this result and is responsible for committing the changes and closing the ticket (when resolved) or leaving it open (when unresolved).
 
 ## Cluster Investigation Mode
 

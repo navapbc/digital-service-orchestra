@@ -126,6 +126,9 @@ CMD_TEST_UNIT="${VALIDATE_CMD_TEST:-$(_cfg "commands.test_unit" "make test-unit-
 SCRIPT_WRITE_SCAN_DIR=$(_cfg "checks.script_write_scan_dir" "")
 PLUGIN_SCRIPTS="$SCRIPT_DIR"
 CMD_TEST_E2E=$(_cfg "commands.test_e2e" "make test-e2e")
+# Optional: run a build/compile step (e.g., npm run build, poetry build).
+# Empty string (default) disables the build check — no impact on repos without a build step.
+CMD_BUILD=$(_cfg "commands.build" "")
 
 # Detect if running in a worktree
 if [ -f "$REPO_ROOT/.git" ]; then
@@ -843,6 +846,7 @@ if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS contract-schema"
     [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS referential-integrity"
 fi
+[ -n "$CMD_BUILD" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS build"
 # REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
 # This is the standard bash pattern for stored multi-word commands.
@@ -877,6 +881,8 @@ if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     fi
 fi
 check_hook_drift &
+# shellcheck disable=SC2086
+[ -n "$CMD_BUILD" ] && run_check "build" "$TIMEOUT_FORMAT" $CMD_BUILD &
 if [ $CHECK_CI -eq 1 ]; then
     check_ci &
     # When CI definitively fails, start E2E immediately in parallel rather than

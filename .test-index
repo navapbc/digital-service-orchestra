@@ -346,6 +346,7 @@ plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard
 plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-reference.sh
 
 plugins/dso/skills/using-lockpick/HOOK-INJECTION.md:tests/skills/test-using-lockpick-clarification.sh
+plugins/dso/scripts/validate.sh:tests/scripts/test-validate-build-step.sh
 tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh
 
 plugins/dso/scripts/figma_merge/identity.py:tests/unit/test_figma_merge_identity.py
