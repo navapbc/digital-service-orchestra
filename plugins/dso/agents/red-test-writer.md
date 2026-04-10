@@ -255,13 +255,26 @@ When adding a test to an existing test file:
 
 - **APPEND ONLY**: Add new test functions at the END of the file, after all existing test functions. Do NOT insert inline or between existing tests.
 - **DO NOT modify existing test functions**: Existing passing tests must be left exactly as-is. You may only add new functions.
-- **Update `.test-index`**: After writing the test, add or update the entry for the source file with the RED marker:
-  ```
-  source/path.ext: test/path.ext [new_test_function_name]
-  ```
-  The `[marker]` name must match the first new function expected to fail. The marker separates GREEN tests (above) from RED tests (at end). The `TEST_FILE` field in your output must reference the test file you appended to.
+- **Update `.test-index` with a RED marker — MANDATORY before emitting TEST_RESULT:written**: After writing the test, you MUST add or update the `.test-index` entry for the source file to include the RED marker. The pre-commit hook will block the commit if the RED marker is absent.
 
-When creating a new test file, the same append-only rule applies to subsequent invocations. Always register the new file in `.test-index` with the marker.
+  **Steps (execute in order)**:
+  1. Locate the `.test-index` file at the repo root (`$(git rev-parse --show-toplevel)/.test-index`). If it does not exist, create it.
+  2. Find the line for the source file being tested (format: `source/path.ext: test/path.ext`). If the source file has no entry, add one. If the test file is not yet listed for that source, append it.
+  3. Append the RED marker with the **actual function name** after the test file path on the same line. For example, if the function is named `test_widget_returns_error`:
+     ```
+     source/path.ext: test/path.ext [test_widget_returns_error]
+     ```
+  4. Verify the marker was written — substitute the actual function name in the grep:
+     ```bash
+     grep '\[test_widget_returns_error\]' .test-index
+     ```
+     Replace `test_widget_returns_error` with the real function name you used in step 3. Do NOT search for the literal placeholder text.
+
+  The `[marker]` name must match exactly the first new test function (bash: function name; Python: `def test_...` name) that is expected to fail in RED phase.
+
+  **When the source file mapping is ambiguous** (e.g., the test covers a behavior spanning multiple source files): use the primary source file that the implementation task targets. If unclear, use the test file path itself as both source and test (`test/path.ext: test/path.ext [marker]`) — this is a valid fallback that still satisfies the gate.
+
+When creating a new test file, the same RED marker registration steps apply. Always register the new file in `.test-index` with the marker. Do NOT emit `TEST_RESULT:written` until `.test-index` has been updated and verified.
 
 ---
 

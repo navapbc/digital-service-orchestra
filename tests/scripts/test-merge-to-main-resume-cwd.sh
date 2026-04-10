@@ -122,6 +122,7 @@ echo ""
 # RED: absent before reviewer fix; GREEN after adding the cd guard.
 # ---------------------------------------------------------------------------
 echo "--- test_phase_version_bump_has_standalone_cd_main_repo ---"
+_snapshot_fail
 
 _BUMP_BODY=$(_extract_fn "_phase_version_bump" 2>/dev/null || echo "")
 # Check for standalone 'cd "$MAIN_REPO"' lines (not inside subshells like (cd ...))
@@ -131,6 +132,89 @@ if echo "$_BUMP_BODY" | grep -qE '^[[:space:]]*cd[[:space:]]+"?\$MAIN_REPO"?' 2>
 fi
 assert_eq "test_phase_version_bump_has_standalone_cd_main_repo" "yes" "$_BUMP_HAS_STANDALONE_CD"
 
+assert_pass_if_clean "test_phase_version_bump_has_standalone_cd_main_repo"
+echo ""
+
+# ---------------------------------------------------------------------------
+# test_phase_version_bump_executes_bump_from_main_repo_cwd
+#
+# Behavioral: when _phase_version_bump is invoked with CWD ≠ MAIN_REPO
+# (simulating a resume from a worktree directory), bump-version.sh must
+# execute from MAIN_REPO, not from the caller's directory.
+# The mock bump-version.sh records $(pwd) to a log file.
+# RED: before the cd "$MAIN_REPO" guard, bump ran from the worktree dir.
+# GREEN: the cd guard redirects CWD to MAIN_REPO before bump is called.
+# ---------------------------------------------------------------------------
+echo "--- test_phase_version_bump_executes_bump_from_main_repo_cwd ---"
+_snapshot_fail
+
+_CWD_TEST_BASE=$(mktemp -d)
+_CWD_MAIN_REPO="$_CWD_TEST_BASE/main-repo"
+_CWD_WORKTREE="$_CWD_TEST_BASE/worktree"
+_CWD_PWD_LOG="$_CWD_TEST_BASE/pwd.log"
+_CWD_MOCK_BIN="$_CWD_TEST_BASE/mock-bin"
+mkdir -p "$_CWD_MAIN_REPO" "$_CWD_WORKTREE" "$_CWD_MOCK_BIN"
+
+# Mock bump-version.sh records its CWD via $(pwd)
+cat > "$_CWD_MOCK_BIN/bump-version.sh" << 'CWD_MOCK_EOF'
+#!/usr/bin/env bash
+pwd >> "$_CWD_PWD_LOG"
+exit 0
+CWD_MOCK_EOF
+chmod +x "$_CWD_MOCK_BIN/bump-version.sh"
+
+export _CWD_PWD_LOG
+
+# Set up MAIN_REPO as a minimal git repo
+(
+    cd "$_CWD_MAIN_REPO"
+    git init -b main --quiet
+    git config user.email "test@test.com"
+    git config user.name "Test"
+    echo "1.0.0" > VERSION
+    git add VERSION
+    git commit -m "initial" --quiet
+) 2>/dev/null
+
+_CWD_BUMP_BODY=$(_extract_fn "_phase_version_bump" 2>/dev/null || echo "")
+
+_CWD_TEST_RC=0
+(
+    # Start from WORKTREE dir (not MAIN_REPO) — simulates the resume scenario
+    cd "$_CWD_WORKTREE"
+    export PATH="$_CWD_MOCK_BIN:$PATH"
+    export BUMP_TYPE="patch"
+    export VERSION_FILE_PATH="$_CWD_MAIN_REPO/VERSION"
+    export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
+    export MAIN_REPO="$_CWD_MAIN_REPO"
+    export BRANCH="test-cwd-$$"
+    export _CWD_PWD_LOG
+
+    # Eval state management functions needed by _phase_version_bump
+    eval "$(_extract_fn "_state_file_path" 2>/dev/null || echo "")" 2>/dev/null || true
+    eval "$(_extract_fn "_state_is_fresh" 2>/dev/null || echo "")" 2>/dev/null || true
+    eval "$(_extract_fn "_state_init" 2>/dev/null || echo "")" 2>/dev/null || true
+    eval "$(_extract_fn "_state_write_phase" 2>/dev/null || echo "")" 2>/dev/null || true
+    eval "$(_extract_fn "_state_mark_complete" 2>/dev/null || echo "")" 2>/dev/null || true
+    eval "$(_extract_fn "_set_phase_status" 2>/dev/null || echo "")" 2>/dev/null || true
+    _state_init 2>/dev/null || true
+
+    if [[ -n "$_CWD_BUMP_BODY" ]]; then
+        eval "$_CWD_BUMP_BODY"
+        _phase_version_bump 2>/dev/null
+    else
+        echo "FUNCTION_NOT_FOUND" >&2
+        exit 1
+    fi
+) || _CWD_TEST_RC=$?
+
+_BUMP_CWD=$(cat "$_CWD_PWD_LOG" 2>/dev/null | head -1 || echo "NO_LOG")
+assert_eq "test_phase_version_bump_executes_bump_from_main_repo_cwd" \
+    "$_CWD_MAIN_REPO" "$_BUMP_CWD"
+assert_eq "test_phase_version_bump_cwd_test_exits_0" "0" "$_CWD_TEST_RC"
+
+assert_pass_if_clean "test_phase_version_bump_executes_bump_from_main_repo_cwd"
+rm -rf "$_CWD_TEST_BASE"
 echo ""
 
 # ---------------------------------------------------------------------------

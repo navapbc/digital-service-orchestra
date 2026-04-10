@@ -31,6 +31,8 @@ Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write 
 /dso:brainstorm <ticket-id>        # Works with any ticket type (epic, story, task, bug)
 ```
 
+When invoked with a free-text description (argument present but does not match the ticket ID format `[a-z0-9]{4}-[a-z0-9]{4}`), treat the argument as seeding context and immediately begin the Socratic dialogue at Phase 1. Do NOT show the epic selection list. Open with: *"Got it — I'll use that as our starting point. Let me ask a few questions to sharpen the scope."* then proceed to Phase 1 Step 2 with the user's text as the established problem statement seed.
+
 When invoked without a ticket ID, run:
 
 ```bash
@@ -353,12 +355,22 @@ After the scrutiny pipeline returns, check whether the epic spec contains a `## 
 
 ### Step 4: Approval Gate
 
-Present the validated spec to the user using **AskUserQuestion** with 4 options. Label options (b) and (c) based on whether the corresponding phase already ran in this session:
+<HARD-GATE>
+Do NOT present this gate unless ALL of the following have completed or gracefully degraded with a logged rationale:
+- Step 2.5: Gap analysis (self-review)
+- Step 2.6: Web research phase (run OR skipped with a logged rationale per Step 2.6 graceful degradation rules)
+- Step 2.75: Scenario analysis (run OR skipped because ≤2 success criteria)
+- Step 3: Fidelity review (all three core reviewers completed or escalated to user)
 
-- **If web research (Step 2.6) has NOT yet run this session**: label (c) as "Perform additional web research"
-- **If web research already ran this session**: label (c) as "Re-run web research phase"
-- **If scenario analysis (Step 2.75) has NOT yet run this session**: label (b) as "Perform red/blue team review cycle"
-- **If scenario analysis already ran this session**: label (b) as "Re-run red/blue team review cycle"
+If any of the above has NOT completed, stop and execute it before presenting this gate. The user's ability to request a re-run via option (b) or (c) is for second-pass cycles only — it does not substitute for a mandatory first pass.
+</HARD-GATE>
+
+Present the validated spec to the user using **AskUserQuestion** with 4 options. Label options (b) and (c) to reflect whether this is a first re-run or subsequent re-run (the scrutiny pipeline must complete before this gate; these labels apply only to gate-triggered re-runs):
+
+- **If web research (Step 2.6) ran during the mandatory pipeline pass**: label (c) as "Re-run web research phase"
+- **If web research was skipped via graceful degradation (no bright-line triggers fired)**: label (c) as "Perform additional web research" (note: this is a first-time run, not a re-run)
+- **If scenario analysis (Step 2.75) ran during the mandatory pipeline pass**: label (b) as "Re-run red/blue team review cycle"
+- **If scenario analysis was skipped via graceful degradation (≤2 success criteria)**: label (b) as "Perform red/blue team review cycle" (note: this epic has ≤2 success criteria — consider adding more before running scenario analysis)
 
 **Provenance annotation rendering**: Before presenting success criteria, render each criterion with a bold/normal annotation based on its provenance:
 - **inferred** or **researched** criteria → render in **bold** (visually prominent — these require user review)
@@ -448,7 +460,7 @@ Do NOT call `ticket create` for any follow-on or derivative epic until the user 
 
 **State variables** (initialize at the start of each follow-on):
 - `request_origin`: set to `"scope-split"` if the scope reviewer recommended splitting the primary epic (Part A / Part B pattern); set to `"user"` otherwise (user directional statement or agent-identified related epic).
-- `follow_on_depth`: set to `0` for direct follow-on epics spawned from the primary brainstorm session. If this brainstorm session was itself invoked on a follow-on epic, increment from the parent session's depth (i.e., `follow_on_depth = parent_depth + 1`). Default: `follow_on_depth = 0`.
+- `follow_on_depth`: **Always reset to `0` before processing each follow-on epic in this session.** Exception: if this brainstorm session was itself invoked on a follow-on epic (i.e., `/dso:brainstorm` was called from within a follow-on epic context), set `follow_on_depth = parent_depth + 1` instead. Within a single session, every follow-on is a direct follow-on at depth 0 — do NOT carry over the depth value from the previous follow-on you just processed. Default: `follow_on_depth = 0`.
 
 **Depth cap — stub path (follow_on_depth >= 1)**:
 If `follow_on_depth >= 1`, do NOT run the scrutiny pipeline. Present the follow-on as a stub with this stub title and context format:

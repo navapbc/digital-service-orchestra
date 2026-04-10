@@ -382,11 +382,14 @@ def reduce_ticket(
             else:
                 state["status"] = data.get("status", state["status"])
         elif event_type == "COMMENT":
-            _raw_body = data.get("body", "")
+            _raw_body = data.get("body")
             # Coerce non-string bodies (e.g. Jira ADF dicts) to JSON string so
             # downstream string-parsing consumers never receive a dict (b108-f088).
-            if not isinstance(_raw_body, str):
-                _raw_body = json.dumps(_raw_body) if _raw_body else ""
+            # Use explicit None check — truthiness check treats {} as absent (6bc8-91bc).
+            if _raw_body is None:
+                _raw_body = ""
+            elif not isinstance(_raw_body, str):
+                _raw_body = json.dumps(_raw_body)
             state["comments"].append(
                 {
                     "body": _raw_body,

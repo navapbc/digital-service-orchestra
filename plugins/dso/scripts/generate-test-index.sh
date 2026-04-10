@@ -148,7 +148,8 @@ _broader_scan_find_tests() {
     # Safety: need at least one token
     [[ ${#tokens[@]} -eq 0 ]] && return 0
 
-    # Scan entire repo for test files
+    # Scan cached file list — _all_repo_files is populated once before the main
+    # source-file loop to avoid O(n*m) find calls (fixes w20-gm71).
     while IFS= read -r test_file; do
         [[ -z "$test_file" ]] && continue
         local test_base="${test_file##*/}"
@@ -179,16 +180,7 @@ _broader_scan_find_tests() {
         if [[ "$all_match" == "true" ]]; then
             echo "${test_file#"$repo_root/"}"
         fi
-    done < <(find "$repo_root" -type f \
-        -not -path '*/node_modules/*' \
-        -not -path '*/.venv/*' \
-        -not -path '*/vendor/*' \
-        -not -path '*/bower_components/*' \
-        -not -path '*/__pypackages__/*' \
-        -not -path '*/.gradle/*' \
-        -not -path '*/Pods/*' \
-        -not -path '*/.git/*' \
-        2>/dev/null)
+    done < <(printf '%s\n' "${_all_repo_files[@]}")
 }
 
 # --- Main scan ---
@@ -198,6 +190,22 @@ count_nocoverage=0
 
 # Associative array for index entries: source -> comma-separated test paths
 declare -A index_entries
+
+# Cache all repo files once so _broader_scan_find_tests can iterate the list
+# without re-running find for each source file (fixes O(n*m) performance, w20-gm71).
+_all_repo_files=()
+while IFS= read -r _f; do
+    [[ -n "$_f" ]] && _all_repo_files+=("$_f")
+done < <(find "$REPO_ROOT" -type f \
+    -not -path '*/node_modules/*' \
+    -not -path '*/.venv/*' \
+    -not -path '*/vendor/*' \
+    -not -path '*/bower_components/*' \
+    -not -path '*/__pypackages__/*' \
+    -not -path '*/.gradle/*' \
+    -not -path '*/Pods/*' \
+    -not -path '*/.git/*' \
+    2>/dev/null)
 
 for src_file in "${src_files[@]}"; do
     # Skip test files

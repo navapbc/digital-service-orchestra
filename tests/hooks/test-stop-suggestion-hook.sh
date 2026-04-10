@@ -332,7 +332,7 @@ rm -f "$COUNTER_FILE" "$_JSONL_FILE2"
 # test_stop_hook_no_crash_when_jsonl_absent
 # No tool-use-*.jsonl file exists. Must not crash — fail-open contract.
 # ---------------------------------------------------------------------------
-rm -f "$TEST_HOME/.claude/logs/tool-use-"*.jsonl 2>/dev/null || true
+find "$TEST_HOME/.claude/logs" -name "tool-use-*.jsonl" -delete 2>/dev/null || true
 echo '{"index":{},"errors":[]}' > "$COUNTER_FILE"
 
 _STOP_EXIT4=0

@@ -2448,3 +2448,54 @@ def test_comment_body_with_embedded_json_survives_round_trip(
         f"Embedded JSON body must survive round-trip unchanged. "
         f"Expected {embedded!r}, got {body!r} (6831-8a22)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test (RED — 6bc8-91bc): COMMENT handler must coerce falsy non-string bodies
+# The old guard used `if _raw_body else ""` which treats {} as falsy and
+# silently converts it to "" instead of json.dumps({}) = "{}".
+# Fix: use explicit `is None` check to distinguish None from other falsy values.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_comment_empty_dict_body_coerced_to_json_string(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """COMMENT event with empty dict body {} must be coerced to '{}', not ''.
+
+    RED: current code uses `if _raw_body else ""` which treats {} as falsy
+    and returns '' instead of json.dumps({}) = '{}'. This imprecision loses
+    the structural indicator that a non-null body was present (6bc8-91bc).
+    Fix: replace `if _raw_body else ""` with explicit `is None` guard.
+    """
+    ticket_dir = tmp_path / "tkt-empty-dict-body"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={"ticket_type": "bug", "title": "Empty dict body test"},
+    )
+    _write_event(
+        ticket_dir,
+        timestamp=1742605201,
+        uuid="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        event_type="COMMENT",
+        data={"body": {}},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None
+    assert len(state["comments"]) == 1
+    body = state["comments"][0]["body"]
+    assert isinstance(body, str), (
+        f"comment body must be a string, not {type(body).__name__!r}"
+    )
+    assert body == "{}", (
+        f"empty dict body must be coerced to '{{}}' via json.dumps, not {body!r} (6bc8-91bc)"
+    )

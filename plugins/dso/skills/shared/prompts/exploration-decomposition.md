@@ -68,6 +68,14 @@ sub_questions:
 
 The caller receives this signal and re-dispatches sub-questions before synthesizing a final answer. Re-decomposition is bounded to **1 level** — sub-questions emitted via DECOMPOSE_RECOMMENDED must be answerable without further DECOMPOSE_RECOMMENDED emissions. If a sub-question is still too broad, the agent must narrow it before emitting, not defer the problem to the caller.
 
+### Caller Dispatch Protocol (MULTI_SOURCE)
+
+When a caller receives `DECOMPOSE_RECOMMENDED`:
+
+1. **Dispatch in parallel** — dispatch each sub-question as a separate, concurrent Agent tool call. Do NOT answer sub-questions inline in the same agent context. Do NOT dispatch them sequentially (one after another, waiting for each result before starting the next).
+2. **Synthesize after all return** — collect all FINDING responses from the parallel sub-agents before producing a synthesized answer.
+3. **Serial fallback** — when the Agent tool is unavailable (sub-agent context, guard blocked), process sub-questions sequentially inline and note `dispatch_mode: serial_fallback` in the synthesized FINDING.
+
 ---
 
 ## Structured Finding Format
