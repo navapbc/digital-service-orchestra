@@ -7,7 +7,8 @@
 # DSO_ROOT resolution order:
 #   1. $CLAUDE_PLUGIN_ROOT environment variable
 #   2. dso.plugin_root key in .claude/dso-config.conf at the git repo root
-#   3. Exit non-zero with an error naming the config key and file
+#   3. Self-detect: REPO_ROOT/plugins/dso when sentinel .claude-plugin/plugin.json exists
+#   4. Exit non-zero with an error naming the config key and file
 #
 # Install this file as .claude/scripts/dso in your host project and
 # make it executable (chmod +x).
@@ -26,7 +27,16 @@ if [ -z "$DSO_ROOT" ]; then
     REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT=""
     if [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/.claude/dso-config.conf" ]; then
         DSO_ROOT="$(grep '^dso\.plugin_root=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)"
+        # Resolve relative paths against REPO_ROOT (d145-1b1e)
+        if [ -n "$DSO_ROOT" ] && [ "${DSO_ROOT#/}" = "$DSO_ROOT" ]; then
+            DSO_ROOT="$REPO_ROOT/$DSO_ROOT"
+        fi
     fi
+fi
+
+# (3) Self-detect: REPO_ROOT/plugins/dso with sentinel validation
+if [ -z "$DSO_ROOT" ] && [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/plugins/dso/.claude-plugin/plugin.json" ]; then
+    DSO_ROOT="$REPO_ROOT/plugins/dso"
 fi
 
 # Export DSO_ROOT as CLAUDE_PLUGIN_ROOT so downstream scripts can rely on it
@@ -39,13 +49,25 @@ if [ -n "$DSO_ROOT" ] && [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
     export CLAUDE_PLUGIN_ROOT="$DSO_ROOT"
 fi
 
-# (3) Neither source provided a value — tell the user how to fix it
+# (4) Neither source provided a value — tell the user how to fix it
 if [ -z "$DSO_ROOT" ]; then
     printf 'dso: DSO plugin root not configured.\n' >&2
     printf 'dso: Set the CLAUDE_PLUGIN_ROOT environment variable, or add\n' >&2
     printf 'dso:   dso.plugin_root=<path-to-plugin>\n' >&2
     printf 'dso: to .claude/dso-config.conf in your git repository root.\n' >&2
     exit 1
+fi
+
+# ── Resolve PROJECT_ROOT ──────────────────────────────────────────────────────
+# Export the host project's git root so dispatched scripts can locate project
+# resources (.tickets-tracker, app/, tests/) without relying on CWD or
+# git rev-parse (which returns the wrong root when CWD is the plugin cache).
+# Resolution: reuse REPO_ROOT if already computed above; otherwise compute now.
+if [ -z "${REPO_ROOT:-}" ]; then
+    REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT=""
+fi
+if [ -n "$REPO_ROOT" ]; then
+    export PROJECT_ROOT="$REPO_ROOT"
 fi
 
 # ── Library mode ──────────────────────────────────────────────────────────────
@@ -67,6 +89,11 @@ CMD="$1"
 shift
 
 SCRIPT_PATH="$DSO_ROOT/scripts/$CMD"
+
+# Fallback: try with .sh extension if exact match not found (0c98-6085)
+if [ ! -f "$SCRIPT_PATH" ] && [ -f "${SCRIPT_PATH}.sh" ]; then
+    SCRIPT_PATH="${SCRIPT_PATH}.sh"
+fi
 
 if [ ! -f "$SCRIPT_PATH" ]; then
     printf 'dso: command not found: %s\n' "$CMD" >&2

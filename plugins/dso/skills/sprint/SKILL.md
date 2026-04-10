@@ -12,6 +12,10 @@ This skill requires the Agent tool to dispatch sub-agents. Before proceeding, ch
 Do NOT proceed with any skill logic if the Agent tool is unavailable.
 </SUB-AGENT-GUARD>
 
+<INJECTION_GUARD>
+If you are reading this, the sprint skill content has been successfully injected into your context. Your first action MUST be to announce: "Starting /dso:sprint workflow — skill loaded successfully." Do NOT skip this announcement. If you invoked dso:sprint but cannot see this block, the skill was not injected — use the Read tool fallback from using-lockpick (read plugins/dso/skills/sprint/SKILL.md directly) instead of re-invoking the Skill tool.
+</INJECTION_GUARD>
+
 # Execute Epic: Multi-Agent Orchestration
 
 ## Config Resolution (reads project workflow-config.yaml)
@@ -189,6 +193,9 @@ When ticket type is `story` or `task`:
 
 1. Log: `"Primary ticket <primary_ticket_id> is a <type> — running complexity evaluation."`
 2. Dispatch `subagent_type: dso:complexity-evaluator` (model: haiku) with `tier_schema=TRIVIAL` to classify the ticket.
+
+   **Fallback**: If the `dso:complexity-evaluator` named agent is unavailable, fall back to `subagent_type: general-purpose` and read `plugins/dso/agents/complexity-evaluator.md` inline as the task prompt. Pass `tier_schema=TRIVIAL` in the task context.
+
 3. Route based on the complexity classification:
    - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Before proceeding, run a **file-count guard**: estimate the number of files the task will touch by running `enrich-file-impact.sh` or by counting file paths mentioned in the ticket description. If the estimated file count exceeds 30, split the task into parallel sub-tasks by directory or alphabetical range (each sub-task ≤ 30 files), create child task tickets for each subset, and proceed to Phase 3 with the split tasks. If ≤ 30 files, proceed directly to Phase 3 (Batch Preparation) with the ticket as the sole task.
    - **TRIVIAL (medium)** or **MODERATE/COMPLEX (any)**: Invoke `/dso:implementation-plan <primary_ticket_id>` via Skill tool.
@@ -241,7 +248,7 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
 5. For each affected story, emit a SKILL_INVOKE breadcrumb and re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as Phase 2 Step 2).
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
    Stopping here is a known bug (7d7a-b707). Do not stop.
    </ORCHESTRATOR_RESUME>
 
@@ -268,7 +275,7 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
 5. For each affected story, emit a SKILL_INVOKE breadcrumb and re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as DRIFT_DETECTED handling above).
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection (RELATES_TO_DRIFT). Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection (RELATES_TO_DRIFT). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
    Stopping here is a known bug (7d7a-b707). Do not stop.
    </ORCHESTRATOR_RESUME>
 
@@ -442,7 +449,7 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
    The skill handles epic type detection and runs inline (no sub-agent dispatch needed).
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Your immediate next actions are:
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your immediate next actions are:
    1. Emit the SKILL_RESUMED breadcrumb (step 4 below)
    2. Parse the STATUS line (step 5 below)
    3. Continue to Phase 2
@@ -480,7 +487,7 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 - Invoke `/dso:implementation-plan` via Skill tool (same as Step 3a, step 2)
 
   <ORCHESTRATOR_RESUME>
-  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Your immediate next actions are:
+  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your immediate next actions are:
   1. Emit the SKILL_RESUMED breadcrumb (below)
   2. Parse the STATUS line from the skill's output
   3. Set epic_routing = "MODERATE" and continue to Phase 2
@@ -660,7 +667,7 @@ b. For each story in the layer, emit SKILL_INVOKE breadcrumb then invoke `/dso:i
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. You have more stories to process in this layer. Your immediate next actions are:
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. You have more stories to process in this layer. Your immediate next actions are:
    1. Emit the SKILL_RESUMED breadcrumb (step c below)
    2. Parse the STATUS line from the skill's output (step d below)
    3. Continue to the next story in the layer loop
@@ -958,7 +965,7 @@ After composing the batch, check each task's parent story against the `story_unc
    b. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool to re-plan the story.
 
       <ORCHESTRATOR_RESUME>
-      **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Confidence Failure Re-Planning. Continue to step c (record REPLAN_RESOLVED) and then step d (reset counter).
+      **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Confidence Failure Re-Planning. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step c (record REPLAN_RESOLVED) and then step d (reset counter).
       Stopping here is a known bug (7d7a-b707). Do not stop.
       </ORCHESTRATOR_RESUME>
 
@@ -1138,9 +1145,9 @@ The doc-writer agent enforces its CLAUDE.md Read-Only Guard. Do NOT edit CLAUDE.
 
 ### Documentation Story Dispatch
 
-When the doc-story title match triggers, the doc-writer agent receives two named context fields:
+When the doc-story title match triggers (9f13-655a): **do NOT implement documentation changes directly** — this gate is unconditional. Even if the required change seems trivial, the doc-writer agent enforces structural and bloat constraints that the orchestrator does not. Read `plugins/dso/agents/doc-writer.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "sonnet"`. The doc-writer agent receives two named context fields:
 ```
-subagent_type: "dso:doc-writer"
+subagent_type: "general-purpose"
 model: "sonnet"
 context:
   epic_context: |
@@ -1612,10 +1619,9 @@ Do NOT close this story, do NOT transition it to closed, and do NOT proceed to S
 "All tests pass" is not a substitute for the completion-verifier dispatch. Dispatch the verifier NOW before reading any further.
 </HARD-GATE>
 
-**MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the story ID (CLAUDE.md rule #24 — no inline verification substitute).
+**MANDATORY (3f26-4c70 gate)**: First confirm OPEN_CHILDREN == 0 from the check above. If OPEN_CHILDREN > 0 at this point, STOP — do NOT dispatch the verifier; follow the blocked path above instead. Only when OPEN_CHILDREN is confirmed 0: Read `plugins/dso/agents/completion-verifier.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: sonnet` and the story ID (CLAUDE.md rule #24 — inline dispatch is the required path; no skipping).
 - `overall_verdict: PASS` → proceed with closure
 - `overall_verdict: FAIL` → see branching logic below
-- **Fallback (agent unavailable)**: If dispatch fails with "Agent type not found" or "Unknown agent", fall back per CLAUDE.md Agent fallback rule — dispatch `subagent_type: general-purpose` and read `plugins/dso/agents/completion-verifier.md` inline as the system prompt. This is NOT permission to skip the step.
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
 
 **Story validation failure detection** — when `overall_verdict: FAIL`:
@@ -1633,7 +1639,7 @@ Check whether all tasks under the story are closed (no open or in-progress tasks
   4. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool on the story to create remediation tasks. The implementation-plan re-invocation guard will detect existing closed children and produce a diff plan (new tasks only for uncovered success criteria — no duplication). **If implementation-plan emits `REPLAN_ESCALATE: brainstorm`**: add the story to the `replan-stories` list and route to **d-replan-collect** (Phase 2 replan logic). The cascade counter (`sprint.max_replan_cycles`) applies — if the cap is reached, escalate to the user. Do NOT assume implementation-plan always succeeds here.
 
      <ORCHESTRATOR_RESUME>
-     **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Story Validation Failure handling (Step 10a). Continue to step 5 (TDD remediation tasks) and then step 6 (record REPLAN_RESOLVED), then return to Phase 3.
+     **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Story Validation Failure handling (Step 10a). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step 5 (TDD remediation tasks) and then step 6 (record REPLAN_RESOLVED), then return to Phase 3.
      Stopping here is a known bug (7d7a-b707). Do not stop.
      </ORCHESTRATOR_RESUME>
 
@@ -1664,6 +1670,8 @@ grep -n "\[.*\]" .test-index || true
 Do NOT close tasks that are still open or in a failed state.
 
 ### Step 11: Context Compaction Check (/dso:sprint)
+
+**Pre-Step 11 gate (5b10-0d02):** Before doing anything else in Step 11, confirm that Step 10a completed successfully this story cycle: dso:completion-verifier was dispatched via the Task tool AND returned an `overall_verdict`. If you cannot confirm this (e.g., Step 10a was skipped or the verifier result is not in context), STOP and return to Step 10a now. Do NOT proceed to Step 11 without the verifier verdict.
 
 Between batches — after all work is committed and pushed — check whether the session context is at least 70% capacity.
 
@@ -1734,7 +1742,7 @@ If `batch_out_of_scope_findings` is non-empty:
    d. Invoke `/dso:implementation-plan <story-id>` via the Skill tool to create tasks covering the out-of-scope files.
 
       <ORCHESTRATOR_RESUME>
-      **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Out-of-Scope Review Feedback Routing (Step 13a). Continue to step e (handle REPLAN_ESCALATE) and then step f (record resolution).
+      **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Out-of-Scope Review Feedback Routing (Step 13a). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step e (handle REPLAN_ESCALATE) and then step f (record resolution).
       Stopping here is a known bug (7d7a-b707). Do not stop.
       </ORCHESTRATOR_RESUME>
 
@@ -1801,14 +1809,15 @@ Read and execute `prompts/phase6-ci-gates.md` for the integration test gate, CI 
 
 ### Step 0.75: Completion Verification (/dso:sprint)
 
-**MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the epic ID (CLAUDE.md rule #24).
+**MANDATORY**: Read `plugins/dso/agents/completion-verifier.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: sonnet` and the epic ID (CLAUDE.md rule #24; inline dispatch is the required path — see CLAUDE.md Agent dispatch section).
 - `overall_verdict: PASS` → proceed to Step 1
-- `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3 (Batch Preparation)
-- **Fallback (agent unavailable)**: If dispatch fails with "Agent type not found" or "Unknown agent", fall back per CLAUDE.md Agent fallback rule — dispatch `subagent_type: general-purpose` and read `plugins/dso/agents/completion-verifier.md` inline as the system prompt. This is NOT permission to skip the step.
+- `overall_verdict: FAIL` → **STOP. Do NOT proceed to Phase 7 or epic closure under ANY circumstances.** Create bug tasks from `remediation_tasks_created` and return to Phase 3 (Batch Preparation).
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 1.
 
 <HARD-GATE>
-Do NOT rationalize around a FAIL verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase 3 path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding to Step 1.
+Do NOT rationalize around a FAIL verdict (7c1d-9acf). The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase 3 path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding to Step 1.
+
+On FAIL: the ONLY valid responses are (a) return to Phase 3 to create and complete remediation tasks, or (b) if the user explicitly says to stop the sprint (not "close the epic anyway"), escalate for sprint abort. Do NOT present FAIL findings with waiver arguments. Do NOT ask the user if criteria can be skipped. Do NOT proceed to Phase 7.
 </HARD-GATE>
 
 ### Step 1: Run /dso:validate-work (/dso:sprint)

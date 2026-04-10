@@ -102,7 +102,7 @@ gate_patterns = [
     r'type.check.*gate',
     r'TYPE.DETECTION.GATE',
 ]
-phase1_pattern = r'Phase 1'
+phase1_pattern = r'^## Phase 1'  # Match the section heading, not forward-references
 
 gate_pos = None
 for pat in gate_patterns:
@@ -111,7 +111,7 @@ for pat in gate_patterns:
         gate_pos = m.start()
         break
 
-phase1_match = re.search(phase1_pattern, content)
+phase1_match = re.search(phase1_pattern, content, re.MULTILINE)
 phase1_pos = phase1_match.start() if phase1_match else None
 
 if gate_pos is not None and phase1_pos is not None and gate_pos < phase1_pos:

@@ -71,16 +71,17 @@ test_epic_selection_text_output_required
 
 # ---------------------------------------------------------------------------
 # test_completion_verifier_has_agent_unavailable_fallback (bug 808f-aef3)
-# Sprint SKILL.md Step 10a and Phase 6 Step 0.75 must contain explicit
-# "agent unavailable" fallback language for dso:completion-verifier dispatch.
-# The general-purpose fallback must be documented for "Agent type not found"
-# errors (distinct from timeout/JSON technical failure).
+# Sprint SKILL.md Step 10a and Phase 6 Step 0.75 must dispatch
+# dso:completion-verifier via inline general-purpose dispatch (CLAUDE.md rule:
+# dso:* subagent_type values are invalid; always use general-purpose + inline).
+# Both locations must read completion-verifier.md inline and dispatch as
+# general-purpose (not use dso:completion-verifier as subagent_type).
 # ---------------------------------------------------------------------------
 test_completion_verifier_has_agent_unavailable_fallback() {
     local match=0
-    match=$(grep -c "Fallback.*agent unavailable" "$SKILL_FILE" 2>/dev/null) || match=0
+    match=$(grep -c "completion-verifier.md.*inline\|inline.*completion-verifier.md" "$SKILL_FILE" 2>/dev/null) || match=0
     [[ "$match" -ge 2 ]] && match=2  # Must appear in both Step 10a and Phase 6 Step 0.75
-    assert_eq "test_completion_verifier_has_agent_unavailable_fallback: both Step 10a and Phase 6 Step 0.75 have fallback" "2" "$match"
+    assert_eq "test_completion_verifier_has_agent_unavailable_fallback: both Step 10a and Phase 6 Step 0.75 have inline dispatch" "2" "$match"
 }
 
 test_completion_verifier_has_agent_unavailable_fallback

@@ -628,6 +628,11 @@ A RED test task:
 - Is a standalone task in the plan, not embedded in the implementation task description
 - Uses `TEST_CMD` (resolved from `commands.test` in workflow-config) as the verify command
 - **Must be a behavioral test** — see [Shared Behavioral Testing Standard](../shared/prompts/behavioral-testing-standard.md)
+- **Must update `.test-index` with a `[test_function_name]` RED marker** for the source file before committing the RED test — the pre-commit test gate blocks commits that include a failing test without a matching RED marker. The acceptance criteria for every RED test task must include:
+  ```
+  - [ ] `.test-index` updated with RED marker `[<test_function_name>]` for `<source-file>`
+    Verify: grep '\[<test_function_name>\]' $(git rev-parse --show-toplevel)/.test-index
+  ```
 
 #### Behavioral Test Requirement
 
@@ -1076,4 +1081,4 @@ REPLAN_ESCALATE: brainstorm EXPLANATION:<explanation>
 
 Emitted when success criteria cannot be satisfied given the current codebase state — they are actively contradicted, internally contradictory, or unsatisfiable regardless of implementation approach. This is a terminal signal — do not emit STATUS:complete or STATUS:blocked after it. No tasks are created. The calling orchestrator (e.g., `/dso:sprint`) routes this signal to `/dso:brainstorm` on the story rather than proceeding to implementation batches.
 
-**Termination directive**: After emitting a STATUS line, emit no further prose, questions, or options. The STATUS line is your final output for this skill. **Do NOT halt the session under any circumstances** — whether invoked interactively or from `/dso:sprint`, halting after emitting STATUS is always wrong. The calling context (sprint orchestrator or user) decides what happens next; this skill's only job is to emit the STATUS line and stop generating. Never treat STATUS:complete as a session-ending signal — it is a return-to-caller signal.
+**Termination directive**: After emitting a STATUS line, emit no further prose, questions, or options within this skill — the STATUS line is your final output for this skill invocation only, not a directive to halt the calling session. **Do NOT halt the session under any circumstances** — whether invoked interactively or from `/dso:sprint`, halting after emitting STATUS is always wrong. The calling context (sprint orchestrator or user) decides what happens next; this skill's only job is to emit the STATUS line and stop generating. Never treat STATUS:complete as a session-ending signal — it is a return-to-caller signal.

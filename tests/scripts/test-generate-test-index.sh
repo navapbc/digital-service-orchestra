@@ -328,4 +328,33 @@ assert_pass_if_clean "test_scanner_excludes_dependency_dirs"
 # ─────────────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────────────
+# TEST: test_scanner_broader_scan_finds_multiple_source_files_consistently
+# When multiple source files each have a test discovered only via broader scan,
+# the scanner must write ALL of them to .test-index in a single run.
+# This verifies the cached find approach (w20-gm71) does not scope or exhaust
+# the file list after the first source file processes it.
+# ─────────────────────────────────────────────────────────────────────────────
+_snapshot_fail
+if _red_guard "test_scanner_broader_scan_finds_multiple_source_files_consistently"; then
+    setup_repo "multi_source_cache"
+    # Three source files
+    create_file "$REPO/src/alpha.py" "pass"
+    create_file "$REPO/src/beta.py" "pass"
+    create_file "$REPO/src/gamma.py" "pass"
+    # Corresponding tests in a non-configured dir (broader scan only)
+    create_file "$REPO/specs/test_alpha.py" "pass"
+    create_file "$REPO/specs/test_beta.py" "pass"
+    create_file "$REPO/specs/test_gamma.py" "pass"
+    mkdir -p "$REPO/tests"
+
+    bash "$SCANNER" --repo-root "$REPO" --test-dirs "tests" 2>/dev/null
+
+    index_content=$(cat "$REPO/.test-index" 2>/dev/null || true)
+    assert_contains "test_scanner_multi_cache: alpha found" "alpha.py" "$index_content"
+    assert_contains "test_scanner_multi_cache: beta found" "beta.py" "$index_content"
+    assert_contains "test_scanner_multi_cache: gamma found" "gamma.py" "$index_content"
+fi
+assert_pass_if_clean "test_scanner_broader_scan_finds_multiple_source_files_consistently"
+
+# ─────────────────────────────────────────────────────────────────────────────
 print_summary
