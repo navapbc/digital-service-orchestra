@@ -1,1 +1,0 @@
-{"timestamp": 1774201548, "uuid": "91290975-55ff-406d-8caf-8fbfed59f9e7", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Update REVIEW-WORKFLOW.md Step 3 to handle size rejection and model override", "parent_id": "w21-nv42  # As a DSO practitioner, oversized diffs are rejected with actionable guidance", "priority": 2, "assignee": "Joe Oakhart"}}
