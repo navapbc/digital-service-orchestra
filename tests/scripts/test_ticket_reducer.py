@@ -2344,3 +2344,107 @@ def test_create_event_without_tags(tmp_path: Path, reducer: ModuleType) -> None:
     assert state is not None, "reduce_ticket must return a dict for a CREATE event"
     assert "tags" in state, "state must include a 'tags' field (default empty list)"
     assert state["tags"] == [], f"Expected tags=[], got {state.get('tags')!r}"
+
+
+# ---------------------------------------------------------------------------
+# Test (RED — b108-f088): COMMENT handler must coerce ADF dict body to string
+# When Jira sync writes a COMMENT event with an ADF dict as the body field,
+# the reducer must store it as a string so downstream consumers don't receive a dict.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_comment_adf_dict_body_coerced_to_string(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """COMMENT event with ADF dict body must store body as string, not dict.
+
+    RED: currently fails because reducer stores data.get('body', '') verbatim,
+    passing through the ADF dict without coercion.
+    """
+    ticket_dir = tmp_path / "tkt-adf-comment"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={"ticket_type": "bug", "title": "ADF body test"},
+    )
+    adf_body = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "hello"}]}
+        ],
+    }
+    _write_event(
+        ticket_dir,
+        timestamp=1742605201,
+        uuid="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        event_type="COMMENT",
+        data={"body": adf_body},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None
+    assert len(state["comments"]) == 1, "COMMENT event must produce one comment"
+    body = state["comments"][0]["body"]
+    assert isinstance(body, str), (
+        f"comment body must be a string, not {type(body).__name__!r} — "
+        f"ADF dict from Jira sync must be coerced to string (b108-f088)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test (RED — 6831-8a22): COMMENT handler round-trips embedded JSON in body
+# When a comment body contains a JSON-serialized string (e.g. a CHECKPOINT log),
+# the round-trip through reduce_ticket must preserve the body as-is.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_comment_body_with_embedded_json_survives_round_trip(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """COMMENT body containing embedded JSON must survive reduce_ticket round-trip unchanged.
+
+    This covers the case where agents write structured data (e.g. CHECKPOINT JSON)
+    as comment bodies. The reducer must not alter string bodies that happen to contain
+    JSON content.
+    """
+    ticket_dir = tmp_path / "tkt-json-comment"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Embedded JSON test"},
+    )
+    embedded = (
+        '{"checkpoint": 3, "status": "ok", "details": {"files": ["a.py", "b.py"]}}'
+    )
+    _write_event(
+        ticket_dir,
+        timestamp=1742605201,
+        uuid="cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        event_type="COMMENT",
+        data={"body": embedded},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None
+    assert len(state["comments"]) == 1
+    body = state["comments"][0]["body"]
+    assert isinstance(body, str), "body must be a string"
+    assert body == embedded, (
+        f"Embedded JSON body must survive round-trip unchanged. "
+        f"Expected {embedded!r}, got {body!r} (6831-8a22)"
+    )

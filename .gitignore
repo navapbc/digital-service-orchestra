@@ -38,3 +38,4 @@ tests/scripts/fixtures/isolation-rules/tmp-*
 
 # Ticket system worktree
 .tickets-tracker/
+.disable-precompact-checkpoint

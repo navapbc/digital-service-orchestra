@@ -97,7 +97,7 @@ jobs:
           python-version: '3.13'
 
       - name: Install Python dependencies
-        run: pip install ruff pyyaml
+        run: pip install ruff pyyaml jsonschema
 
       - name: Run script tests
         run: bash tests/scripts/run-script-tests.sh

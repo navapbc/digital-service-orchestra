@@ -990,11 +990,6 @@ hook_friction_suggestion_check() {
 
     check_tool python3 || return 0
 
-    local COUNTER_FILE="$HOME/.claude/tool-error-counter.json"
-    if [[ ! -f "$COUNTER_FILE" ]]; then
-        return 0
-    fi
-
     # Read thresholds from config (fail-safe defaults)
     local ERROR_THRESHOLD TIMEOUT_THRESHOLD
     ERROR_THRESHOLD="${DSO_SUGGESTION_ERROR_THRESHOLD:-$(bash "$_PLUGIN_ROOT/scripts/read-config.sh" suggestion.error_threshold 2>/dev/null || echo "")}"
@@ -1003,10 +998,17 @@ hook_friction_suggestion_check() {
     [[ -z "$ERROR_THRESHOLD" ]] && ERROR_THRESHOLD=10
     [[ -z "$TIMEOUT_THRESHOLD" ]] && TIMEOUT_THRESHOLD=3
 
-    # Parse counter file — compute total error count and timeout-category count
-    local TOTAL_ERRORS TIMEOUT_ERRORS TRIGGER_REASON
-    local _PARSE_RESULT
-    _PARSE_RESULT=$(python3 -c "
+    local SHOULD_RECORD=false
+    local TRIGGER_REASON=""
+
+    # Parse counter file — compute total error count and timeout-category count.
+    # This block runs only when the counter file exists; the JSONL scan below
+    # runs independently so high-volume sessions with 0 errors are not skipped.
+    local COUNTER_FILE="$HOME/.claude/tool-error-counter.json"
+    if [[ -f "$COUNTER_FILE" ]]; then
+        local TOTAL_ERRORS TIMEOUT_ERRORS
+        local _PARSE_RESULT
+        _PARSE_RESULT=$(python3 -c "
 import json, sys
 try:
     with open(sys.argv[1]) as f:
@@ -1020,22 +1022,61 @@ timeouts = index.get('timeout', 0)
 print(f'{total} {timeouts}')
 " "$COUNTER_FILE" 2>/dev/null || echo "0 0")
 
-    TOTAL_ERRORS=$(echo "$_PARSE_RESULT" | awk '{print $1}')
-    TIMEOUT_ERRORS=$(echo "$_PARSE_RESULT" | awk '{print $2}')
-    # Ensure numeric
-    [[ "$TOTAL_ERRORS" =~ ^[0-9]+$ ]] || TOTAL_ERRORS=0
-    [[ "$TIMEOUT_ERRORS" =~ ^[0-9]+$ ]] || TIMEOUT_ERRORS=0
+        TOTAL_ERRORS=$(echo "$_PARSE_RESULT" | awk '{print $1}')
+        TIMEOUT_ERRORS=$(echo "$_PARSE_RESULT" | awk '{print $2}')
+        # Ensure numeric
+        [[ "$TOTAL_ERRORS" =~ ^[0-9]+$ ]] || TOTAL_ERRORS=0
+        [[ "$TIMEOUT_ERRORS" =~ ^[0-9]+$ ]] || TIMEOUT_ERRORS=0
 
-    # Check thresholds
-    local SHOULD_RECORD=false
-    if [[ "$TOTAL_ERRORS" -ge "$ERROR_THRESHOLD" ]]; then
-        TRIGGER_REASON="error_count:${TOTAL_ERRORS},threshold:${ERROR_THRESHOLD}"
-        SHOULD_RECORD=true
+        # Check thresholds
+        if [[ "$TOTAL_ERRORS" -ge "$ERROR_THRESHOLD" ]]; then
+            TRIGGER_REASON="error_count:${TOTAL_ERRORS},threshold:${ERROR_THRESHOLD}"
+            SHOULD_RECORD=true
+        fi
+        if [[ "$TIMEOUT_ERRORS" -ge "$TIMEOUT_THRESHOLD" ]]; then
+            local _timeout_reason="timeout_count:${TIMEOUT_ERRORS},threshold:${TIMEOUT_THRESHOLD}"
+            TRIGGER_REASON="${TRIGGER_REASON:+${TRIGGER_REASON},}${_timeout_reason}"
+            SHOULD_RECORD=true
+        fi
     fi
-    if [[ "$TIMEOUT_ERRORS" -ge "$TIMEOUT_THRESHOLD" ]]; then
-        local _timeout_reason="timeout_count:${TIMEOUT_ERRORS},threshold:${TIMEOUT_THRESHOLD}"
-        TRIGGER_REASON="${TRIGGER_REASON:+${TRIGGER_REASON},}${_timeout_reason}"
-        SHOULD_RECORD=true
+
+    # Scan tool-use-*.jsonl for high-volume tool-call sessions (story d6b4-3217 DD).
+    # Runs independently of counter file — sessions with 0 errors but high tool-use
+    # volume must still be able to trigger a suggestion.
+    local TOOL_USE_THRESHOLD
+    TOOL_USE_THRESHOLD="${DSO_SUGGESTION_TOOL_USE_THRESHOLD:-$(bash "$_PLUGIN_ROOT/scripts/read-config.sh" suggestion.tool_use_count_threshold 2>/dev/null || echo "")}"
+    [[ -z "$TOOL_USE_THRESHOLD" ]] && TOOL_USE_THRESHOLD=200
+    # REVIEW-DEFENSE: Using today's date is a deliberate design tradeoff. JSONL files are named
+    # by calendar day (tool-use-YYYY-MM-DD.jsonl) — this convention is used consistently across
+    # all hooks that read tool-use logs. Sessions spanning midnight are a rare edge case; scanning
+    # yesterday's file would require probing two paths and merging counts for marginal benefit.
+    # The suggestion system is fail-open: missing a suggestion trigger is non-blocking and only
+    # causes an under-count, never a false positive. This limitation is accepted by design.
+    local _JSONL_FILE="$HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
+    if [[ -f "$_JSONL_FILE" ]]; then
+        local _TOOL_USE_COUNT
+        _TOOL_USE_COUNT=$(python3 -c "
+import json, sys
+count = 0
+try:
+    with open(sys.argv[1]) as f:
+        for line in f:
+            try:
+                obj = json.loads(line.strip())
+                if obj.get('hook_type') == 'post':
+                    count += 1
+            except (ValueError, KeyError):
+                pass
+except OSError:
+    pass
+print(count)
+" "$_JSONL_FILE" 2>/dev/null || echo "0")
+        [[ "$_TOOL_USE_COUNT" =~ ^[0-9]+$ ]] || _TOOL_USE_COUNT=0
+        if [[ "$_TOOL_USE_COUNT" -ge "$TOOL_USE_THRESHOLD" ]]; then
+            local _jsonl_reason="tool_use_count:${_TOOL_USE_COUNT},threshold:${TOOL_USE_THRESHOLD}"
+            TRIGGER_REASON="${TRIGGER_REASON:+${TRIGGER_REASON},}${_jsonl_reason}"
+            SHOULD_RECORD=true
+        fi
     fi
 
     if [[ "$SHOULD_RECORD" != "true" ]]; then
@@ -1044,7 +1085,7 @@ print(f'{total} {timeouts}')
 
     # Build the suggestion message
     local SUGGESTION_MSG
-    SUGGESTION_MSG="Session friction detected: ${TRIGGER_REASON}. Tool error counts from tool-error-counter.json exceeded thresholds."
+    SUGGESTION_MSG="Session friction detected: ${TRIGGER_REASON}. Sources: tool-error-counter.json and tool-use-*.jsonl."
 
     # Resolve suggestion-record command.
     # DSO_SUGGESTION_RECORD_CMD overrides for testing (set to e.g. "/mock/dso suggestion-record").
