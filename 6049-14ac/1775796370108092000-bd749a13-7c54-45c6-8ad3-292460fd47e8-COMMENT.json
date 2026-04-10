@@ -1,0 +1,1 @@
+{"timestamp": 1775796370108092000, "uuid": "bd749a13-7c54-45c6-8ad3-292460fd47e8", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: behavioral (test bug). Gate 1a: skipped \u2014 no CLI_user tag."}}
