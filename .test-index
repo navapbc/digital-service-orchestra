@@ -358,3 +358,4 @@ plugins/dso/scripts/figma_node_mapper.py:tests/unit/scripts/test_figma_node_mapp
 plugins/dso/scripts/figma_resync.py:tests/unit/test_figma_resync.py
 plugins/dso/scripts/figma-resync.py:tests/unit/test_figma_resync.py
 plugins/dso/scripts/figma-url-store.sh:tests/scripts/test-figma-url-store.sh
+plugins/dso/skills/sprint/docs/cascade-replan-protocol.md:tests/skills/test-plugin-boundary-migration.sh [test_plugin_boundary_migration]
