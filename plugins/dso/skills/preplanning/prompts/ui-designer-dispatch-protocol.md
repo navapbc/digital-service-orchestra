@@ -88,7 +88,7 @@ session_file_path: <absolute path to session file, or null>
 The agent will:
 1. Check the UI Discovery Cache (`.ui-discovery-cache/manifest.json`).
 2. Classify the story (Lite or Full track).
-3. Produce design artifacts in `docs/designs/<uuid>/`. **NEVER write design artifacts to `plugins/dso/` — design artifacts are project-local dev-team work and belong in `docs/designs/`.**
+3. Produce design artifacts in `docs/designs/<uuid>/`.
 4. Return a `UI_DESIGNER_PAYLOAD` JSON block.
 
 Parse the returned output for the `UI_DESIGNER_PAYLOAD:` prefix and extract the
