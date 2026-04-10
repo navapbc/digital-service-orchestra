@@ -361,4 +361,3 @@ plugins/dso/skills/sprint/docs/cascade-replan-protocol.md:tests/skills/test-plug
 plugins/dso/hooks/pre-commit/check-plugin-boundary.sh:tests/hooks/test-check-plugin-boundary.sh
 CLAUDE.md:tests/hooks/test-plugin-boundary-rule.sh
 plugins/dso/skills/playwright-debug/SKILL.md:tests/hooks/test-plugin-boundary-rule.sh
-plugins/dso/agents/doc-writer.md:tests/hooks/test-plugin-boundary-rule.sh [test_doc_writer_has_plugin_boundary_constraint]

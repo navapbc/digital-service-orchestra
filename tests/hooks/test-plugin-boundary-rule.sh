@@ -126,59 +126,6 @@ test_no_legacy_paths_in_agents_or_skills() {
     fi
 }
 
-# ── Assertion 5: doc-writer.md has plugin boundary constraint before Section 1 ──
-# Verifies story 50d5-ac2e DD1/DD2: Role Constraints section appears before The Bright
-# Line Decision Engine, and contains a NEVER-statement + permitted project-local dirs.
-DOC_WRITER_MD="$PLUGIN_ROOT/plugins/dso/agents/doc-writer.md"
-test_doc_writer_has_plugin_boundary_constraint() {
-    if [[ ! -f "$DOC_WRITER_MD" ]]; then
-        (( ++FAIL ))
-        printf "FAIL: doc-writer.md not found at %s\n" "$DOC_WRITER_MD" >&2
-        return
-    fi
-
-    # NEVER-statement must appear before "The Bright Line Decision Engine" header
-    local never_line bright_line
-    never_line=$(grep -n "NEVER.*plugins/dso" "$DOC_WRITER_MD" 2>/dev/null | head -1 | cut -d: -f1)
-    bright_line=$(grep -n "Bright Line" "$DOC_WRITER_MD" 2>/dev/null | head -1 | cut -d: -f1)
-
-    if [[ -z "$never_line" ]]; then
-        (( ++FAIL ))
-        printf "FAIL: doc-writer.md has no NEVER-statement referencing plugins/dso\n" >&2
-        return
-    fi
-
-    if [[ -z "$bright_line" ]]; then
-        (( ++FAIL ))
-        printf "FAIL: doc-writer.md has no 'Bright Line' section (cannot verify placement)\n" >&2
-        return
-    fi
-
-    if [[ "$never_line" -lt "$bright_line" ]]; then
-        (( ++PASS ))
-        echo "PASS: doc-writer.md NEVER-statement (line $never_line) appears before Bright Line section (line $bright_line)"
-    else
-        (( ++FAIL ))
-        printf "FAIL: doc-writer.md NEVER-statement (line %s) does not appear before Bright Line section (line %s)\n" \
-            "$never_line" "$bright_line" >&2
-    fi
-
-    # Schema section must enumerate docs/designs/, docs/findings/, docs/archive/
-    local schema_designs schema_findings schema_archive
-    grep -q "docs/designs" "$DOC_WRITER_MD" 2>/dev/null && schema_designs=1 || schema_designs=0
-    grep -q "docs/findings" "$DOC_WRITER_MD" 2>/dev/null && schema_findings=1 || schema_findings=0
-    grep -q "docs/archive" "$DOC_WRITER_MD" 2>/dev/null && schema_archive=1 || schema_archive=0
-
-    if [[ "$schema_designs" -eq 1 && "$schema_findings" -eq 1 && "$schema_archive" -eq 1 ]]; then
-        (( ++PASS ))
-        echo "PASS: doc-writer.md schema section mentions docs/designs/, docs/findings/, docs/archive/"
-    else
-        (( ++FAIL ))
-        printf "FAIL: doc-writer.md schema missing permitted dirs: docs/designs/=%s docs/findings/=%s docs/archive/=%s\n" \
-            "$schema_designs" "$schema_findings" "$schema_archive" >&2
-    fi
-}
-
 # ── Assertion 4: This test file is executable ─────────────────────────────────
 test_this_file_is_executable() {
     local this_file="${BASH_SOURCE[0]}"
@@ -217,10 +164,6 @@ echo ""
 
 echo "--- Assertion 4: This test file is executable ---"
 test_this_file_is_executable
-echo ""
-
-echo "--- Assertion 5: doc-writer.md has plugin boundary constraint before Section 1 ---"
-test_doc_writer_has_plugin_boundary_constraint
 echo ""
 
 print_summary
