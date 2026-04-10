@@ -2,6 +2,7 @@
 name: architect-foundation
 description: Deep-dive architectural scaffolding for an existing project — reads .claude/project-understanding.md (written by /dso:onboarding), uses Socratic dialogue to uncover enforcement preferences and anti-pattern risks, and generates targeted scaffolding without re-running project detection.
 user-invocable: true
+allowed-tools:
 ---
 
 <SUB-AGENT-GUARD>
