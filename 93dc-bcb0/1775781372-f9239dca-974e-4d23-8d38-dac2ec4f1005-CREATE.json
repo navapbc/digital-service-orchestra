@@ -1,1 +1,0 @@
-{"timestamp": 1775781372, "uuid": "f9239dca-974e-4d23-8d38-dac2ec4f1005", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "task", "title": "[LOCK] debug-everything", "parent_id": "", "description": "", "tags": [], "priority": 2, "assignee": "Test"}}
