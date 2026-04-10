@@ -1,1 +1,0 @@
-{"timestamp": 1774201580, "uuid": "77b7c19c-c259-4d08-bb65-62b8d7ad86d3", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Update .test-index and validate test gate associations for w21-nv42", "parent_id": "w21-nv42  # As a DSO practitioner, oversized diffs are rejected with actionable guidance", "priority": 2, "assignee": "Joe Oakhart"}}
