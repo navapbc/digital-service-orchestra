@@ -1,1 +1,0 @@
-{"timestamp": 1775846636833832000, "uuid": "86b76f9d-0bd8-41f0-b56a-bea47210a78a", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Closed: stale lock from prior compacted session"}}
