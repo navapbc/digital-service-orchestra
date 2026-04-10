@@ -1,1 +1,0 @@
-{"timestamp": 1774125416, "uuid": "274359e9-4df0-4813-80e1-6d976dc1351d", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "generate-test-index.sh broader scan is O(n*m) — extremely slow on repos with many files", "parent_id": "w22-ku13", "priority": 3, "assignee": "Joe Oakhart"}}
