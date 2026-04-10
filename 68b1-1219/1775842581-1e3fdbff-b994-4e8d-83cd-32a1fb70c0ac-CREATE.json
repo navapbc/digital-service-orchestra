@@ -1,1 +1,0 @@
-{"timestamp": 1775842581, "uuid": "1e3fdbff-b994-4e8d-83cd-32a1fb70c0ac", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "bug", "title": "Fix: document first-match semantics in _extract_file_key() for figma_resync", "parent_id": "", "description": "", "tags": ["5250-e85b"], "priority": 2, "assignee": "Test"}}
