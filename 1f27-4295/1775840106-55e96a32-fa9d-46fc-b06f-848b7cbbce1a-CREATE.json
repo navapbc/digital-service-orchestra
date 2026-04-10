@@ -1,0 +1,1 @@
+{"timestamp": 1775840106, "uuid": "55e96a32-fa9d-46fc-b06f-848b7cbbce1a", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "bug", "title": "debug-everything does not run a build to verify build process succeeds", "parent_id": "", "description": "", "tags": ["CLI_user"], "priority": 2, "assignee": "Test"}}
