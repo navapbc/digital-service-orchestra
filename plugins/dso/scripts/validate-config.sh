@@ -94,6 +94,7 @@ KNOWN_KEYS=(
     design.template_engine
     design.design_notes_path
     design.manifest_patterns
+    design.figma_pat
 
     # Merge
     merge.visual_baseline_path

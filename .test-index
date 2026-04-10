@@ -1,13 +1,13 @@
 
-plugins/dso/scripts/recipe-adapters/rope-adapter.sh: tests/scripts/test-rope-adapter.sh,tests/integration/test-add-parameter-integration.sh
-plugins/dso/scripts/recipe-adapters/ts-morph-adapter.sh: tests/scripts/test-ts-morph-adapter.sh,tests/integration/test-add-parameter-integration.sh,tests/integration/test-normalize-imports-integration.sh
-plugins/dso/scripts/recipe-adapters/synvert-adapter.sh: tests/scripts/test-synvert-adapter.sh,tests/scripts/test-recipe-registry.sh,tests/integration/test-add-parameter-integration.sh
-tests/integration/fixtures/python-project/src/aggregator.py: tests/integration/test-add-parameter-integration.sh
-tests/integration/fixtures/python-project/src/scorer.py: tests/integration/test-add-parameter-integration.sh
-tests/integration/fixtures/python-project/tests/test_callers.py: tests/integration/test-add-parameter-integration.sh
-plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs: tests/scripts/test-ts-morph-add-parameter.sh
-plugins/dso/scripts/recipe-adapters/isort-adapter.sh: tests/scripts/test-isort-adapter.sh,tests/integration/test-normalize-imports-integration.sh
-plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs: tests/scripts/test-ts-morph-normalize-imports.sh
+plugins/dso/scripts/recipe-adapters/rope-adapter.sh:tests/scripts/test-rope-adapter.sh,tests/integration/test-add-parameter-integration.sh
+plugins/dso/scripts/recipe-adapters/ts-morph-adapter.sh:tests/scripts/test-ts-morph-adapter.sh,tests/integration/test-add-parameter-integration.sh,tests/integration/test-normalize-imports-integration.sh
+plugins/dso/scripts/recipe-adapters/synvert-adapter.sh:tests/scripts/test-synvert-adapter.sh,tests/scripts/test-recipe-registry.sh,tests/integration/test-add-parameter-integration.sh
+tests/integration/fixtures/python-project/src/aggregator.py:tests/integration/test-add-parameter-integration.sh
+tests/integration/fixtures/python-project/src/scorer.py:tests/integration/test-add-parameter-integration.sh
+tests/integration/fixtures/python-project/tests/test_callers.py:tests/integration/test-add-parameter-integration.sh
+plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
+plugins/dso/scripts/recipe-adapters/isort-adapter.sh:tests/scripts/test-isort-adapter.sh,tests/integration/test-normalize-imports-integration.sh
+plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts/test-ts-morph-normalize-imports.sh
 recipes/recipe-registry.yaml:tests/scripts/test-recipe-registry.sh
 recipes/schemas/recipe-registry-schema.json:tests/scripts/test-recipe-registry.sh
 .claude/commands/sprint.md:tests/scripts/test-wrapper-detection.sh
