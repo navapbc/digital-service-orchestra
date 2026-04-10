@@ -1,1 +1,0 @@
-{"timestamp": 1775831490605062000, "uuid": "d64444dc-077d-4bf7-89af-ec5b6172ff02", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: behavioral, Score: 8 (ADVANCED) \u2014 severity=2, complexity=2, environment=2, intermittent=2. Gate 1a: skipped \u2014 CLI_user tag present; intent-aligned assumed."}}
