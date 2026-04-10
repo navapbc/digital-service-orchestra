@@ -1,0 +1,121 @@
+{
+  "document": {
+    "id": "0:0",
+    "name": "Document",
+    "type": "DOCUMENT",
+    "children": [
+      {
+        "id": "2:1",
+        "name": "Main Frame",
+        "type": "FRAME",
+        "absoluteBoundingBox": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 900
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "type": "SOLID",
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 }
+          }
+        ],
+        "strokes": [],
+        "children": [
+          {
+            "id": "2:2",
+            "name": "Heading",
+            "type": "TEXT",
+            "absoluteBoundingBox": {
+              "x": 40,
+              "y": 40,
+              "width": 320,
+              "height": 48
+            },
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "type": "SOLID",
+                "color": { "r": 0.1, "g": 0.1, "b": 0.1, "a": 1 }
+              }
+            ],
+            "strokes": [],
+            "characters": "Welcome to the Design System"
+          },
+          {
+            "id": "2:3",
+            "name": "Divider",
+            "type": "RECTANGLE",
+            "absoluteBoundingBox": {
+              "x": 40,
+              "y": 100,
+              "width": 1360,
+              "height": 2
+            },
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "type": "SOLID",
+                "color": { "r": 0.9, "g": 0.9, "b": 0.9, "a": 1 }
+              }
+            ],
+            "strokes": [
+              {
+                "blendMode": "NORMAL",
+                "type": "SOLID",
+                "color": { "r": 0.8, "g": 0.8, "b": 0.8, "a": 1 }
+              }
+            ]
+          },
+          {
+            "id": "2:4",
+            "name": "PrimaryButton",
+            "type": "COMPONENT",
+            "componentId": "component:primary-button-v1",
+            "absoluteBoundingBox": {
+              "x": 40,
+              "y": 120,
+              "width": 160,
+              "height": 48
+            },
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "type": "SOLID",
+                "color": { "r": 0.18, "g": 0.45, "b": 0.96, "a": 1 }
+              }
+            ],
+            "strokes": []
+          },
+          {
+            "id": "2:5",
+            "name": "PrimaryButton Instance",
+            "type": "INSTANCE",
+            "absoluteBoundingBox": {
+              "x": 220,
+              "y": 120,
+              "width": 160,
+              "height": 48
+            },
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "type": "SOLID",
+                "color": { "r": 0.18, "g": 0.45, "b": 0.96, "a": 1 }
+              }
+            ],
+            "strokes": []
+          }
+        ]
+      }
+    ]
+  },
+  "name": "Design System — Component Library",
+  "lastModified": "2026-04-09T12:00:00Z",
+  "thumbnailUrl": "https://figma-alpha-api.s3.us-west-2.amazonaws.com/img/example-thumbnail.png",
+  "version": "1234567890",
+  "role": "owner",
+  "editorType": "figma",
+  "linkAccess": "org_view"
+}
