@@ -5,6 +5,9 @@ Orchestrates the full pull-back pipeline: loads original manifest artifacts,
 merges Figma-derived visual changes while preserving behavioral specs, validates
 ID-linkage, and writes updated artifacts to disk.
 
+Emits FIGMA_MERGE_OUTPUT JSON to stdout on success and error.
+See: plugins/dso/docs/contracts/figma-merge-output.md
+
 Usage:
     python3 figma-merge.py \\
         --manifest-dir <dir>       # directory with spatial-layout.json, wireframe.svg, tokens.md
@@ -51,6 +54,68 @@ def _write_json(path: Path, data: dict) -> None:
 def _write_text(path: Path, content: str) -> None:
     with path.open("w", encoding="utf-8") as f:
         f.write(content)
+
+
+def _emit_output(
+    status: str,
+    components_added: int = 0,
+    components_modified: int = 0,
+    components_removed: int = 0,
+    behavioral_specs_preserved: int = 0,
+    warnings: list[str] | None = None,
+    error_message: str | None = None,
+) -> None:
+    """Emit FIGMA_MERGE_OUTPUT JSON to stdout (contract: figma-merge-output.md)."""
+    payload: dict = {
+        "status": status,
+        "components_added": components_added,
+        "components_modified": components_modified,
+        "components_removed": components_removed,
+        "behavioral_specs_preserved": behavioral_specs_preserved,
+        "warnings": warnings or [],
+    }
+    if error_message is not None:
+        payload["error_message"] = error_message
+    print(json.dumps(payload))
+
+
+def _count_visual_modifications(
+    matched: list[tuple[str, str]],
+    original_by_id: dict[str, dict],
+    figma_by_id: dict[str, dict],
+) -> int:
+    """Count matched components where at least one visual field changed."""
+    modified = 0
+    for figma_id, orig_id in matched:
+        orig = original_by_id.get(orig_id, {})
+        figma = figma_by_id.get(figma_id, {})
+        changed = False
+        if "spatial_hint" in figma and figma["spatial_hint"] != orig.get(
+            "spatial_hint"
+        ):
+            changed = True
+        if not changed:
+            figma_props = figma.get("props", {})
+            orig_props = orig.get("props", {})
+            if "fills" in figma_props and figma_props["fills"] != orig_props.get(
+                "fills"
+            ):
+                changed = True
+            if (
+                not changed
+                and "strokes" in figma_props
+                and figma_props["strokes"] != orig_props.get("strokes")
+            ):
+                changed = True
+        if (
+            not changed
+            and "characters" in figma
+            and figma["characters"] != orig.get("characters")
+        ):
+            changed = True
+        if changed:
+            modified += 1
+    return modified
 
 
 def main(argv: list[str] | None = None) -> int:  # noqa: C901
@@ -105,6 +170,10 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
                 f"artifact='{v.get('artifact')}' type='{v.get('violation_type')}'",
                 file=sys.stderr,
             )
+        _emit_output(
+            "error",
+            error_message="Input ID-linkage violation detected — see stderr for details",
+        )
         return 1
 
     # --- Match components ---
@@ -160,6 +229,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
             answer = "n"
         if answer != "y":
             print("Merge cancelled.", file=sys.stderr)
+            _emit_output("error", error_message="Merge cancelled by user")
             return 1
 
     # --- Build merged spatial manifest ---
@@ -201,7 +271,26 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
                 )
         svg_only = [v for v in svg_violations if v.get("artifact") != "tokens.md"]
         if svg_only:
+            _emit_output(
+                "error",
+                error_message="Post-merge ID-linkage violation — see stderr for details",
+            )
             return 1
+
+    # --- Compute output counts ---
+    original_by_id: dict[str, dict] = {c.get("id", ""): c for c in original_components}
+    figma_by_id: dict[str, dict] = {c.get("id", ""): c for c in figma_components}
+
+    components_added = len(unmatched_new_ids)
+    components_removed = len(unmatched_original_ids)
+    components_modified = _count_visual_modifications(
+        matched, original_by_id, figma_by_id
+    )
+    behavioral_specs_preserved = sum(
+        1
+        for _figma_id, orig_id in matched
+        if original_by_id.get(orig_id, {}).get("behavioral_spec_status") == "COMPLETE"
+    )
 
     # --- Write outputs ---
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -209,6 +298,14 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
     _write_text(output_dir / "wireframe.svg", merged_svg)
     _write_text(output_dir / "tokens.md", merged_tokens_md)
 
+    _emit_output(
+        "success",
+        components_added=components_added,
+        components_modified=components_modified,
+        components_removed=components_removed,
+        behavioral_specs_preserved=behavioral_specs_preserved,
+        warnings=warnings,
+    )
     return 0
 
 
