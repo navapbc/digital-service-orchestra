@@ -8,6 +8,7 @@ Tests cover:
   - NM-5: INSTANCE node → type indicates instance
   - NM-6: Depth-limited traversal — nodes beyond depth_limit are not visited
   - NM-7: Name-based component linking — node name matching a component id links them
+  - NM-8: CLI accepts --figma-response / --manifest-dir / --output flags (argparse interface)
 
 All tests are expected to FAIL (ImportError / ModuleNotFoundError) because
 figma_node_mapper.py does not exist yet (RED phase of TDD).
@@ -16,6 +17,10 @@ figma_node_mapper.py does not exist yet (RED phase of TDD).
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 from types import ModuleType
 
@@ -502,4 +507,106 @@ class TestNameBasedComponentLinking:
             assert (
                 "linked_component" not in component
                 or component["linked_component"] is None
+            )
+
+
+# ---------------------------------------------------------------------------
+# NM-8: CLI accepts --figma-response / --manifest-dir / --output flags
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+class TestArgparseCLIInterface:
+    """NM-8: figma_node_mapper.py CLI accepts flag-based arguments used by figma_resync.py.
+
+    figma_resync.py._run_pull() invokes figma-node-mapper.py with:
+        --figma-response <raw.json>
+        --manifest-dir   <dir>
+        --output         <revised-spatial.json>
+
+    The script must accept these flags (in addition to the legacy positional form).
+    """
+
+    def _make_figma_json(self) -> dict:
+        return {
+            "document": {
+                "id": "0:0",
+                "name": "Document",
+                "type": "DOCUMENT",
+                "children": [
+                    {
+                        "id": "8:1",
+                        "name": "TestFrame",
+                        "type": "FRAME",
+                        "absoluteBoundingBox": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 320,
+                            "height": 240,
+                        },
+                        "children": [],
+                    }
+                ],
+            }
+        }
+
+    def test_NM8_flag_based_invocation_exits_0(self) -> None:
+        """NM-8a: --figma-response / --manifest-dir / --output flags → exit code 0."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "figma-raw.json"
+            output_path = Path(tmpdir) / "figma-revised-spatial.json"
+            manifest_dir = tmpdir
+
+            input_path.write_text(json.dumps(self._make_figma_json()))
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--figma-response",
+                    str(input_path),
+                    "--manifest-dir",
+                    manifest_dir,
+                    "--output",
+                    str(output_path),
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+            assert result.returncode == 0, (
+                f"Expected exit 0 for flag-based invocation. stderr: {result.stderr!r}"
+            )
+
+    def test_NM8_flag_based_invocation_writes_output_file(self) -> None:
+        """NM-8b: Flag-based invocation writes the output JSON with a 'components' key."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "figma-raw.json"
+            output_path = Path(tmpdir) / "figma-revised-spatial.json"
+            manifest_dir = tmpdir
+
+            input_path.write_text(json.dumps(self._make_figma_json()))
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--figma-response",
+                    str(input_path),
+                    "--manifest-dir",
+                    manifest_dir,
+                    "--output",
+                    str(output_path),
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+            assert output_path.exists(), (
+                "Output file must be created by flag-based invocation"
+            )
+            output_data = json.loads(output_path.read_text())
+            assert "components" in output_data, (
+                "Output JSON must contain 'components' key"
             )

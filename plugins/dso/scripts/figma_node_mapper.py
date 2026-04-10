@@ -142,16 +142,55 @@ def map_nodes(figma_json: dict, depth_limit: int = 20) -> list[dict]:
 
 
 def main() -> int:
-    """CLI entry point: python3 figma_node_mapper.py <input_file> <output_file>"""
-    if len(sys.argv) < 3:
-        print(
-            f"Usage: {sys.argv[0]} <input_file> <output_file>",
-            file=sys.stderr,
-        )
-        return 1
+    """CLI entry point.
 
-    input_path = Path(sys.argv[1])
-    output_path = Path(sys.argv[2])
+    Supports two calling conventions:
+
+    Legacy positional form (backward-compatible):
+        python3 figma_node_mapper.py <input_file> <output_file>
+
+    Flag form used by figma_resync.py._run_pull():
+        python3 figma_node_mapper.py --figma-response <file> \
+            --manifest-dir <dir> --output <file>
+    """
+    import argparse
+
+    # Detect flag-based invocation: any arg starts with '--'
+    if any(a.startswith("--") for a in sys.argv[1:]):
+        parser = argparse.ArgumentParser(
+            description="Map Figma JSON to spatial layout JSON."
+        )
+        parser.add_argument(
+            "--figma-response",
+            required=True,
+            metavar="FILE",
+            help="Path to raw Figma API response JSON.",
+        )
+        parser.add_argument(
+            "--manifest-dir",
+            default=None,
+            metavar="DIR",
+            help="Manifest directory (for identity context; currently informational).",
+        )
+        parser.add_argument(
+            "--output",
+            required=True,
+            metavar="FILE",
+            help="Path to write the revised spatial layout JSON.",
+        )
+        args = parser.parse_args()
+        input_path = Path(args.figma_response)
+        output_path = Path(args.output)
+    else:
+        # Legacy positional form
+        if len(sys.argv) < 3:
+            print(
+                f"Usage: {sys.argv[0]} <input_file> <output_file>",
+                file=sys.stderr,
+            )
+            return 1
+        input_path = Path(sys.argv[1])
+        output_path = Path(sys.argv[2])
 
     try:
         with open(input_path) as f:
