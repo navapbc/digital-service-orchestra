@@ -403,6 +403,8 @@ Dispatch the `dso:approach-decision-maker` agent (subagent_type, model: opus, ti
 - Story success criteria and done definitions
 - Current codebase context (architecture notes, existing patterns)
 
+**Inline fallback**: If the Agent tool rejects the `dso:approach-decision-maker` subagent type (e.g., "Unknown agent type", "not supported", or any dispatch failure before the agent runs), read `plugins/dso/agents/approach-decision-maker.md` inline and execute its evaluation instructions directly with the same proposal set, success criteria, and codebase context as inputs. This fallback covers the case where plugin agent types are not available in the current Claude Code configuration. The inline execution must still produce a valid `APPROACH_DECISION:` output conforming to `plugins/dso/docs/contracts/approach-decision-output.md`.
+
 #### Parse Response
 
 Scan the agent output for the `APPROACH_DECISION:` prefix line per the contract at `plugins/dso/docs/contracts/approach-decision-output.md`. Extract the JSON block between the opening ` ```json ` and closing ` ``` ` fences. Validate the `mode` field before acting.
@@ -789,12 +791,14 @@ Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.
 - **artifact**: The user story (title + full description) plus the numbered task list with titles, descriptions, TDD requirements, and dependencies
 - **pass_threshold**: 5 (this plan must be safe for unsupervised agent execution)
 - **start_stage**: 1
-- **perspectives**: Read from reviewer files in `docs/reviewers/plan/`:
-  - [docs/reviewers/plan/task-design.md](docs/reviewers/plan/task-design.md) — perspective: `"Task Design"`
-  - [docs/reviewers/plan/tdd.md](docs/reviewers/plan/tdd.md) — perspective: `"TDD"`
-  - [docs/reviewers/plan/safety.md](docs/reviewers/plan/safety.md) — perspective: `"Safety"`
-  - [docs/reviewers/plan/dependencies.md](docs/reviewers/plan/dependencies.md) — perspective: `"Dependencies"`
-  - [docs/reviewers/plan/completeness.md](docs/reviewers/plan/completeness.md) — perspective: `"Completeness"`
+- **perspectives**: Read from reviewer files using the full anchored path `${CLAUDE_PLUGIN_ROOT}/skills/implementation-plan/docs/reviewers/plan/`:
+  - `${CLAUDE_PLUGIN_ROOT}/skills/implementation-plan/docs/reviewers/plan/task-design.md` — perspective: `"Task Design"`
+  - `${CLAUDE_PLUGIN_ROOT}/skills/implementation-plan/docs/reviewers/plan/tdd.md` — perspective: `"TDD"`
+  - `${CLAUDE_PLUGIN_ROOT}/skills/implementation-plan/docs/reviewers/plan/safety.md` — perspective: `"Safety"`
+  - `${CLAUDE_PLUGIN_ROOT}/skills/implementation-plan/docs/reviewers/plan/dependencies.md` — perspective: `"Dependencies"`
+  - `${CLAUDE_PLUGIN_ROOT}/skills/implementation-plan/docs/reviewers/plan/completeness.md` — perspective: `"Completeness"`
+
+  **If any reviewer file cannot be read: HALT immediately. Do NOT synthesize inline perspectives or construct an ad-hoc rubric. Report: "Step 4 blocked: reviewer file `<path>` not found — create the missing reviewer file before proceeding."**
 
 ### Optimization
 

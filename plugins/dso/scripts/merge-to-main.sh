@@ -1033,6 +1033,14 @@ _phase_merge() {
     _CURRENT_PHASE="merge"
     _state_write_phase "merge"
 
+    # Ensure we are in the main repo directory. cd "$MAIN_REPO" normally happens
+    # inside _phase_sync (line 938), but --resume skips _phase_sync when sync is
+    # already complete, leaving CWD in the worktree. All git operations in
+    # _phase_merge, _phase_version_bump, _phase_validate, and _phase_push must
+    # run from MAIN_REPO — make the cd explicit here so the invariant holds
+    # regardless of how the phase was reached. (Fixes 34cc-526c, 687d-b448.)
+    cd "$MAIN_REPO"
+
     # Find the last meaningful commit message from the worktree branch (skip chore/cleanup commits)
     if [ -n "$MSG_EXCLUSION_PATTERN" ]; then
         LAST_MSG=$(git log "$BRANCH" --format='%s' --no-merges -- \
@@ -1097,6 +1105,11 @@ _phase_merge() {
 # --- 3.25) Version bump (between merge and validate) ---
 _phase_version_bump() {
     _CURRENT_PHASE="version_bump"; _state_write_phase "version_bump"
+    # Ensure CWD is the main repo — --resume may skip _phase_merge (when merge is
+    # already complete), so the cd "$MAIN_REPO" in _phase_merge would not run.
+    # All git operations (git diff, git add -u, git commit --amend) must target
+    # MAIN_REPO HEAD, not the worktree. (Fixes resume-from-version_bump gap.)
+    cd "$MAIN_REPO"
     # Idempotency: skip if completed in state AND _state_init not called in this process.
     # The marker file records the PID of the process that ran _state_init; if the current
     # process did not call _state_init (i.e. PIDs differ), a prior run may have already
@@ -1153,6 +1166,10 @@ _phase_version_bump() {
 _phase_validate() {
     _CURRENT_PHASE="validate"
     _state_write_phase "validate"
+    # Ensure CWD is the main repo — --resume may skip _phase_merge, so bare git
+    # operations (git add .gitignore, git diff --cached, git commit --amend) must
+    # run from MAIN_REPO. (Fixes resume-from-validate gap.)
+    cd "$MAIN_REPO"
 
     # Pre-commit hooks use stages: [commit] which excludes merge commits.
     # Run format-check and lint here to catch issues that bypass pre-commit via merge.
@@ -1227,6 +1244,9 @@ _phase_validate() {
 _phase_push() {
     _CURRENT_PHASE="push"
     _state_write_phase "push"
+    # Ensure CWD is the main repo — --resume may skip _phase_merge, so bare
+    # git push must run from MAIN_REPO. (Fixes resume-from-push gap.)
+    cd "$MAIN_REPO"
 
     echo "Pushing main..."
     if ! _check_push_needed; then

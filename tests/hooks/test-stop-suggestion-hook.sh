@@ -273,4 +273,72 @@ assert_eq "test_stop_hook_no_crash_when_counter_malformed_json" "0" "$_STOP_EXIT
 
 rm -f "$COUNTER_FILE"
 
+# ---------------------------------------------------------------------------
+# test_stop_hook_suggestion_when_tool_use_count_exceeds_threshold
+# tool-use-*.jsonl has >= suggestion.tool_use_count_threshold (200 default) post entries.
+# Counter file is absent (no error/timeout signal). Must call suggestion-record via JSONL path.
+# RED: currently fails because hook_friction_suggestion_check does not scan tool-use-*.jsonl.
+# ---------------------------------------------------------------------------
+_JSONL_FILE="$TEST_HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
+python3 -c "
+import json, sys
+session_id = 'test-session-7fcd'
+for i in range(210):
+    entry = {'ts': '2026-04-09T17:00:00Z', 'epoch_ms': 1775790000000 + i*1000,
+             'session_id': session_id, 'tool_name': 'Bash', 'hook_type': 'post',
+             'tool_input_summary': 'cmd_' + str(i)}
+    print(json.dumps(entry))
+" > "$_JSONL_FILE"
+echo '{"index":{},"errors":[]}' > "$COUNTER_FILE"  # below error threshold
+_setup_mock
+
+_run_hook
+
+_CALLED="no"
+if [[ -f "$_CALL_LOG" ]]; then _CALLED="yes"; fi
+assert_eq "test_stop_hook_suggestion_when_tool_use_count_exceeds_threshold" "yes" "$_CALLED"
+
+_teardown_mock
+rm -f "$COUNTER_FILE" "$_JSONL_FILE"
+
+# ---------------------------------------------------------------------------
+# test_stop_hook_no_suggestion_below_tool_use_threshold
+# tool-use-*.jsonl has post entries below threshold (50 < 200 default).
+# Must NOT call suggestion-record via JSONL path.
+# ---------------------------------------------------------------------------
+_JSONL_FILE2="$TEST_HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
+python3 -c "
+import json
+session_id = 'test-session-7fcd-low'
+for i in range(50):
+    entry = {'ts': '2026-04-09T17:00:00Z', 'epoch_ms': 1775790000000 + i*1000,
+             'session_id': session_id, 'tool_name': 'Read', 'hook_type': 'post',
+             'tool_input_summary': 'file_' + str(i)}
+    print(json.dumps(entry))
+" > "$_JSONL_FILE2"
+echo '{"index":{},"errors":[]}' > "$COUNTER_FILE"
+_setup_mock
+
+_run_hook
+
+_CALLED2="no"
+if [[ -f "$_CALL_LOG" ]]; then _CALLED2="yes"; fi
+assert_eq "test_stop_hook_no_suggestion_below_tool_use_threshold" "no" "$_CALLED2"
+
+_teardown_mock
+rm -f "$COUNTER_FILE" "$_JSONL_FILE2"
+
+# ---------------------------------------------------------------------------
+# test_stop_hook_no_crash_when_jsonl_absent
+# No tool-use-*.jsonl file exists. Must not crash — fail-open contract.
+# ---------------------------------------------------------------------------
+rm -f "$TEST_HOME/.claude/logs/tool-use-"*.jsonl 2>/dev/null || true
+echo '{"index":{},"errors":[]}' > "$COUNTER_FILE"
+
+_STOP_EXIT4=0
+_run_hook || _STOP_EXIT4=$?
+assert_eq "test_stop_hook_no_crash_when_jsonl_absent" "0" "$_STOP_EXIT4"
+
+rm -f "$COUNTER_FILE"
+
 print_summary

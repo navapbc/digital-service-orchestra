@@ -15,6 +15,8 @@ This is not negotiable. This is not optional. You cannot rationalize your way ou
 
 **In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
 
+**When the Skill tool returns `Successfully loaded skill`:** The skill content IS now available — it appears in a `<system-reminder>` block in your context (look for "The following skills were invoked in this session"). Do NOT invoke the Skill tool a second time. Do NOT use the Read tool to read the skill file. The content is in context; proceed to follow it directly.
+
 **If the Skill tool fails with "Unknown skill":** Read the skill file directly at `plugins/dso/skills/<skill-name>/SKILL.md` (strip the `dso:` prefix to get the directory name) and follow its instructions. Do NOT stop or report failure — the fallback is always available. This is a session-state issue (skill registry drift under long context), not a missing-skill problem.
 
 ## The Rule

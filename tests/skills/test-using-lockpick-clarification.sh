@@ -237,6 +237,36 @@ fi
 assert_eq "test_hook_md_has_unknown_skill_fallback" "found" "$hook_unknown_skill"
 assert_pass_if_clean "test_hook_md_has_unknown_skill_fallback"
 
+# test_hook_md_has_successfully_loaded_guidance (bug 8985-4efc)
+# HOOK-INJECTION.md must explain what to do when the Skill tool returns
+# "Successfully loaded skill" without visible content. Without this, the model
+# interprets the confirmation as a loading step and falls back to reading the
+# SKILL.md file directly — bypassing skill isolation and tool restrictions.
+# The guidance must clarify: the content IS in context (system-reminder), do
+# NOT re-invoke the Skill tool, do NOT use Read to fetch the skill file.
+# Before fix: no such guidance → model falls back to Read → RED (test fails).
+# After fix:  guidance present in HOOK-INJECTION.md → GREEN (test passes).
+_snapshot_fail
+if grep -qiE "Successfully loaded skill|loaded skill.*system.reminder|skill.*content.*system|system.reminder.*skill.*content" "$HOOK_MD" 2>/dev/null; then
+    hook_loaded_guidance="found"
+else
+    hook_loaded_guidance="missing"
+fi
+assert_eq "test_hook_md_has_successfully_loaded_guidance" "found" "$hook_loaded_guidance"
+assert_pass_if_clean "test_hook_md_has_successfully_loaded_guidance"
+
+# test_skill_md_has_successfully_loaded_guidance (bug 8985-4efc)
+# SKILL.md must also explain the "Successfully loaded skill" return value behavior
+# so that the guidance persists in the full skill file (not just the injected hook).
+_snapshot_fail
+if grep -qiE "Successfully loaded skill|loaded skill.*system.reminder|skill.*content.*system|system.reminder.*skill.*content" "$SKILL_MD" 2>/dev/null; then
+    skill_loaded_guidance="found"
+else
+    skill_loaded_guidance="missing"
+fi
+assert_eq "test_skill_md_has_successfully_loaded_guidance" "found" "$skill_loaded_guidance"
+assert_pass_if_clean "test_skill_md_has_successfully_loaded_guidance"
+
 print_summary
 
 # ---------------------------------------------------------------------------

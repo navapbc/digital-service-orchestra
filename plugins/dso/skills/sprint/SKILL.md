@@ -1892,6 +1892,10 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
 
 The only valid actions on FAIL are: (a) return to Phase 3 to address the findings, or (b) explicitly confirm with the user that they want to STOP the sprint entirely (not close the epic as "done").
 
+<HARD-GATE>
+Before closing the epic, confirm that dso:completion-verifier was dispatched at Phase 6 Step 0.75 with the EPIC ID (not a story ID) and returned overall_verdict: PASS during THIS session. Story-level verifier results from Step 10a do NOT satisfy this requirement — each story verifier runs against one story's done definition; only the epic-level verifier (Step 0.75) runs against all epic-level success criteria simultaneously. If Step 0.75 has not yet been dispatched for the epic, stop and return to Phase 6 Step 0.75 NOW. Do NOT proceed to epic closure until the epic-level verifier verdict is received.
+</HARD-GATE>
+
 1. **Verify all changes are merged before closing the epic** (399f-abad):
    ```bash
    git merge-base --is-ancestor HEAD main
