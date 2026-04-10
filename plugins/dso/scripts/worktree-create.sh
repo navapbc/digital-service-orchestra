@@ -192,7 +192,7 @@ if [ -n "$POST_CREATE_CMD" ]; then
     export WORKTREE_PATH
     HOOK_STDERR=""
     HOOK_RC=0
-    HOOK_STDERR=$(cd "$REPO_ROOT" && eval "$POST_CREATE_CMD" 2>&1 >/dev/null) || HOOK_RC=$?
+    HOOK_STDERR=$(cd "$WORKTREE_PATH" && eval "$POST_CREATE_CMD" 2>&1 >/dev/null) || HOOK_RC=$?
 
     if [ "$HOOK_RC" -ne 0 ]; then
         echo "  ERROR: Post-create hook failed (exit $HOOK_RC)" >&2

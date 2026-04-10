@@ -275,7 +275,14 @@ def _record_metadata(ticket_id: str, metadata: dict) -> None:
 
 
 def _extract_file_key(ticket: dict) -> str | None:
-    """Extract Figma file key from ticket comments."""
+    """Extract Figma file key from ticket comments.
+
+    Scans all comments in insertion order and returns the **first** line that
+    starts with ``figma_file_key:``.  When a ticket has been through multiple
+    design iterations (each adding a new ``figma_file_key:`` comment), only
+    the chronologically first entry is used.  If a different file key is
+    needed, remove or edit the earlier comment before calling this function.
+    """
     for comment in ticket.get("comments", []):
         body = comment.get("body", "") if isinstance(comment, dict) else ""
         for line in body.splitlines():

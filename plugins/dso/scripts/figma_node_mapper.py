@@ -54,6 +54,13 @@ def _map_single_node(node: dict, node_type: str, component_ids: set) -> dict:
 
     if node_type in ("FRAME", "GROUP"):
         component["type"] = "Section"
+        frame_props: dict[str, Any] = {}
+        if "effects" in node:
+            frame_props["effects"] = node["effects"]
+        if "layoutMode" in node:
+            frame_props["responsive_hints"] = node["layoutMode"]
+        if frame_props:
+            component["props"] = frame_props
 
     elif node_type == "TEXT":
         component["type"] = "TextNode"
@@ -155,6 +162,11 @@ def main() -> int:
     """
     import argparse
 
+    # Schema-optional context fields (populated from CLI flags in flag-based mode)
+    story_id: str | None = None
+    design_id: str | None = None
+    layout_pattern: str | None = None
+
     # Detect flag-based invocation: any arg starts with '--'
     if any(a.startswith("--") for a in sys.argv[1:]):
         parser = argparse.ArgumentParser(
@@ -178,9 +190,30 @@ def main() -> int:
             metavar="FILE",
             help="Path to write the revised spatial layout JSON.",
         )
+        parser.add_argument(
+            "--story-id",
+            default=None,
+            metavar="ID",
+            help="Story ticket ID for spatial-layout.json storyId field (schema compliance).",
+        )
+        parser.add_argument(
+            "--design-id",
+            default=None,
+            metavar="ID",
+            help="Design UUID for spatial-layout.json designId field (schema compliance).",
+        )
+        parser.add_argument(
+            "--layout",
+            default=None,
+            metavar="LAYOUT",
+            help="Top-level layout pattern for spatial-layout.json layout field.",
+        )
         args = parser.parse_args()
         input_path = Path(args.figma_response)
         output_path = Path(args.output)
+        story_id = args.story_id
+        design_id = args.design_id
+        layout_pattern = args.layout
     else:
         # Legacy positional form
         if len(sys.argv) < 3:
@@ -204,7 +237,7 @@ def main() -> int:
 
     components = map_nodes(figma_json)
 
-    output = {
+    output: dict[str, Any] = {
         "metadata": {
             "source": "figma",
             "figma_name": figma_json.get("name", ""),
@@ -213,6 +246,14 @@ def main() -> int:
         },
         "components": components,
     }
+
+    # Add schema-required fields when provided via CLI flags
+    if story_id is not None:
+        output["storyId"] = story_id
+    if design_id is not None:
+        output["designId"] = design_id
+    if layout_pattern is not None:
+        output["layout"] = layout_pattern
 
     try:
         with open(output_path, "w") as f:
