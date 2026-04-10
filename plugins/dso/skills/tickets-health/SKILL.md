@@ -2,6 +2,7 @@
 name: tickets-health
 description: Issue health validation and remediation
 user-invocable: true
+allowed-tools:
 ---
 
 # Issue Health Validation

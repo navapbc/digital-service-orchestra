@@ -2,6 +2,7 @@
 name: end-session
 description: End Session - Worktree Cleanup and Task Summary
 user-invocable: true
+allowed-tools:
 ---
 
 <SUB-AGENT-GUARD>

@@ -2,6 +2,7 @@
 name: dryrun
 description: Use when the user wants to preview what a skill would do without making changes to tickets, the file system, or git
 user-invocable: true
+allowed-tools:
 ---
 
 # Dryrun Mode
