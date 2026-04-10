@@ -424,10 +424,21 @@ class TestRemovedComponentEntriesDeleted:
         }
         result = merge_tokens(FULL_TOKENS_MD, figma_data)
 
-        # CardContainer should be gone from the visual sections
-        assert "CardContainer" not in result, (
-            "CardContainer was removed from Figma data; its token entries must be "
-            "removed from the output"
+        # CardContainer should be gone from the visual sections (Component Inventory
+        # and Visual Properties). Behavioral sections are preserved verbatim per TM-2..5.
+        visual_inventory = _extract_section(result, "## Component Inventory")
+        visual_props = _extract_section(result, "## Visual Properties")
+        assert visual_inventory is not None, (
+            "Component Inventory section must be present"
+        )
+        assert visual_props is not None, "Visual Properties section must be present"
+        assert "CardContainer" not in (visual_inventory or ""), (
+            "CardContainer was removed from Figma data; its entry must be "
+            "absent from the Component Inventory visual section"
+        )
+        assert "CardContainer" not in (visual_props or ""), (
+            "CardContainer was removed from Figma data; its entry must be "
+            "absent from the Visual Properties visual section"
         )
 
     def test_retained_component_still_present_after_removal(self) -> None:

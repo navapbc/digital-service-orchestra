@@ -346,3 +346,8 @@ plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-referen
 
 plugins/dso/skills/using-lockpick/HOOK-INJECTION.md:tests/skills/test-using-lockpick-clarification.sh
 tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh
+
+plugins/dso/scripts/figma_merge/identity.py:tests/unit/test_figma_merge_identity.py
+plugins/dso/scripts/figma_merge/svg_gen.py:tests/unit/test_figma_merge_svg.py
+plugins/dso/scripts/figma_merge/tokens_merge.py:tests/unit/test_figma_merge_tokens.py
+plugins/dso/scripts/figma_merge/id_validate.py:tests/unit/test_figma_merge_id_validate.py
