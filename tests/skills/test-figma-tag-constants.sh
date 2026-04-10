@@ -6,10 +6,12 @@
 # Tests:
 #   (a) File exists at expected path
 #   (b) Contains TAG_AWAITING_IMPORT=design:awaiting_import
-#   (c) Contains TAG_APPROVED=design:approved
-#   (d) File is sourceable in bash without errors
-#   (e) Sourcing sets TAG_AWAITING_IMPORT to expected value
-#   (f) Sourcing sets TAG_APPROVED to expected value
+#   (c) Contains TAG_AWAITING_REVIEW=design:awaiting_review
+#   (d) Contains TAG_APPROVED=design:approved
+#   (e) File is sourceable in bash without errors
+#   (f) Sourcing sets TAG_AWAITING_IMPORT to expected value
+#   (g) Sourcing sets TAG_AWAITING_REVIEW to expected value
+#   (h) Sourcing sets TAG_APPROVED to expected value
 set -uo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -54,7 +56,26 @@ test_contains_awaiting_import() {
 }
 
 # ---------------------------------------------------------------------------
-# Test (c): Contains TAG_APPROVED=design:approved
+# Test (c): Contains TAG_AWAITING_REVIEW=design:awaiting_review
+# ---------------------------------------------------------------------------
+test_contains_awaiting_review() {
+  echo ""
+  echo "=== test_contains_awaiting_review ==="
+
+  if [ ! -f "$CONSTANTS_FILE" ]; then
+    fail "Constants file missing — cannot check TAG_AWAITING_REVIEW definition"
+    return
+  fi
+
+  if grep -qF "TAG_AWAITING_REVIEW=design:awaiting_review" "$CONSTANTS_FILE"; then
+    pass "Constants file contains TAG_AWAITING_REVIEW=design:awaiting_review"
+  else
+    fail "Constants file missing TAG_AWAITING_REVIEW=design:awaiting_review"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Test (d): Contains TAG_APPROVED=design:approved
 # ---------------------------------------------------------------------------
 test_contains_approved() {
   echo ""
@@ -73,7 +94,7 @@ test_contains_approved() {
 }
 
 # ---------------------------------------------------------------------------
-# Test (d): File is sourceable in bash without errors
+# Test (e): File is sourceable in bash without errors
 # ---------------------------------------------------------------------------
 test_file_sourceable() {
   echo ""
@@ -92,7 +113,7 @@ test_file_sourceable() {
 }
 
 # ---------------------------------------------------------------------------
-# Test (e): Sourcing sets TAG_AWAITING_IMPORT to expected value
+# Test (f): Sourcing sets TAG_AWAITING_IMPORT to expected value
 # ---------------------------------------------------------------------------
 test_awaiting_import_value() {
   echo ""
@@ -112,7 +133,27 @@ test_awaiting_import_value() {
 }
 
 # ---------------------------------------------------------------------------
-# Test (f): Sourcing sets TAG_APPROVED to expected value
+# Test (g): Sourcing sets TAG_AWAITING_REVIEW to expected value
+# ---------------------------------------------------------------------------
+test_awaiting_review_value() {
+  echo ""
+  echo "=== test_awaiting_review_value ==="
+
+  if [ ! -f "$CONSTANTS_FILE" ]; then
+    fail "Constants file missing — cannot test TAG_AWAITING_REVIEW value"
+    return
+  fi
+
+  actual=$(bash -c "source '$CONSTANTS_FILE' && printf '%s' \"\$TAG_AWAITING_REVIEW\"" 2>/dev/null)
+  if [ "$actual" = "design:awaiting_review" ]; then
+    pass "Sourcing sets TAG_AWAITING_REVIEW to 'design:awaiting_review'"
+  else
+    fail "TAG_AWAITING_REVIEW expected 'design:awaiting_review', got '${actual}'"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Test (h): Sourcing sets TAG_APPROVED to expected value
 # ---------------------------------------------------------------------------
 test_approved_value() {
   echo ""
@@ -136,9 +177,11 @@ test_approved_value() {
 # ---------------------------------------------------------------------------
 test_file_exists
 test_contains_awaiting_import
+test_contains_awaiting_review
 test_contains_approved
 test_file_sourceable
 test_awaiting_import_value
+test_awaiting_review_value
 test_approved_value
 
 # ---------------------------------------------------------------------------

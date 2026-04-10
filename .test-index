@@ -1,13 +1,13 @@
 
-plugins/dso/scripts/recipe-adapters/rope-adapter.sh: tests/scripts/test-rope-adapter.sh,tests/integration/test-add-parameter-integration.sh
-plugins/dso/scripts/recipe-adapters/ts-morph-adapter.sh: tests/scripts/test-ts-morph-adapter.sh,tests/integration/test-add-parameter-integration.sh,tests/integration/test-normalize-imports-integration.sh
-plugins/dso/scripts/recipe-adapters/synvert-adapter.sh: tests/scripts/test-synvert-adapter.sh,tests/scripts/test-recipe-registry.sh,tests/integration/test-add-parameter-integration.sh
-tests/integration/fixtures/python-project/src/aggregator.py: tests/integration/test-add-parameter-integration.sh
-tests/integration/fixtures/python-project/src/scorer.py: tests/integration/test-add-parameter-integration.sh
-tests/integration/fixtures/python-project/tests/test_callers.py: tests/integration/test-add-parameter-integration.sh
-plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs: tests/scripts/test-ts-morph-add-parameter.sh
-plugins/dso/scripts/recipe-adapters/isort-adapter.sh: tests/scripts/test-isort-adapter.sh,tests/integration/test-normalize-imports-integration.sh
-plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs: tests/scripts/test-ts-morph-normalize-imports.sh
+plugins/dso/scripts/recipe-adapters/rope-adapter.sh:tests/scripts/test-rope-adapter.sh,tests/integration/test-add-parameter-integration.sh
+plugins/dso/scripts/recipe-adapters/ts-morph-adapter.sh:tests/scripts/test-ts-morph-adapter.sh,tests/integration/test-add-parameter-integration.sh,tests/integration/test-normalize-imports-integration.sh
+plugins/dso/scripts/recipe-adapters/synvert-adapter.sh:tests/scripts/test-synvert-adapter.sh,tests/scripts/test-recipe-registry.sh,tests/integration/test-add-parameter-integration.sh
+tests/integration/fixtures/python-project/src/aggregator.py:tests/integration/test-add-parameter-integration.sh
+tests/integration/fixtures/python-project/src/scorer.py:tests/integration/test-add-parameter-integration.sh
+tests/integration/fixtures/python-project/tests/test_callers.py:tests/integration/test-add-parameter-integration.sh
+plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
+plugins/dso/scripts/recipe-adapters/isort-adapter.sh:tests/scripts/test-isort-adapter.sh,tests/integration/test-normalize-imports-integration.sh
+plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts/test-ts-morph-normalize-imports.sh
 recipes/recipe-registry.yaml:tests/scripts/test-recipe-registry.sh
 recipes/schemas/recipe-registry-schema.json:tests/scripts/test-recipe-registry.sh
 .claude/commands/sprint.md:tests/scripts/test-wrapper-detection.sh
@@ -347,3 +347,15 @@ plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-referen
 
 plugins/dso/skills/using-lockpick/HOOK-INJECTION.md:tests/skills/test-using-lockpick-clarification.sh
 plugins/dso/scripts/validate.sh:tests/scripts/test-validate-build-step.sh
+tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh
+
+plugins/dso/scripts/figma_merge/identity.py:tests/unit/test_figma_merge_identity.py
+plugins/dso/scripts/figma_merge/svg_gen.py:tests/unit/test_figma_merge_svg.py
+plugins/dso/scripts/figma_merge/tokens_merge.py:tests/unit/test_figma_merge_tokens.py
+plugins/dso/scripts/figma_merge/id_validate.py:tests/unit/test_figma_merge_id_validate.py
+plugins/dso/scripts/figma_merge/spatial_merge.py:tests/unit/test_figma_merge_spatial.py
+plugins/dso/scripts/figma-merge.py:tests/integration/test-figma-merge-integration.sh
+plugins/dso/scripts/figma_node_mapper.py:tests/unit/scripts/test_figma_node_mapper.py
+plugins/dso/scripts/figma_resync.py:tests/unit/test_figma_resync.py
+plugins/dso/scripts/figma-resync.py:tests/unit/test_figma_resync.py
+plugins/dso/scripts/figma-url-store.sh:tests/scripts/test-figma-url-store.sh

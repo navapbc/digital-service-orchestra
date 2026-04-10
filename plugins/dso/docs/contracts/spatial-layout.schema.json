@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["storyId", "designId", "layout", "components"],
+  "properties": {
+    "storyId": {
+      "type": "string",
+      "description": "The ticket story ID this design addresses"
+    },
+    "designId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID of this design"
+    },
+    "layout": {
+      "type": "string",
+      "description": "Top-level layout pattern, e.g. 'StickyHeader-Main-Footer', 'Sidebar-Content', 'TopNav-Sidebar-Main'"
+    },
+    "breakpoints": {
+      "type": "object",
+      "description": "Responsive breakpoint definitions used in responsive overrides",
+      "properties": {
+        "sm": { "type": "string", "default": "640px" },
+        "md": { "type": "string", "default": "768px" },
+        "lg": { "type": "string", "default": "1024px" },
+        "xl": { "type": "string", "default": "1280px" }
+      }
+    },
+    "components": {
+      "type": "array",
+      "description": "Top-level component nodes; nesting is expressed via children",
+      "items": { "$ref": "#/definitions/component" }
+    }
+  },
+  "definitions": {
+    "component": {
+      "type": "object",
+      "required": ["id", "type", "tag"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier. MUST match the corresponding SVG element ID and token overlay element references."
+        },
+        "type": {
+          "type": "string",
+          "description": "Component type name, e.g. 'Button', 'SearchInput', 'DataTable'"
+        },
+        "tag": {
+          "type": "string",
+          "enum": ["EXISTING", "MODIFIED", "NEW"],
+          "description": "EXISTING = use as-is. MODIFIED = needs prop/variant changes. NEW = must be created."
+        },
+        "design_system_ref": {
+          "type": "string",
+          "description": "Path in the design system, e.g. 'Components/Forms/SearchInput'. Omit for NEW components."
+        },
+        "spatial_hint": {
+          "type": "string",
+          "description": "Positioning guidance: 'Top-right, 24px margin', 'Flex-grow, centered', 'Grid col 2-4, row 1'"
+        },
+        "props": {
+          "type": "object",
+          "description": "Component props/configuration to pass"
+        },
+        "modification_notes": {
+          "type": "string",
+          "description": "For MODIFIED components only: what changes are needed and why"
+        },
+        "justification": {
+          "type": "string",
+          "description": "For NEW components only: why no existing component works"
+        },
+        "responsive": {
+          "type": "object",
+          "description": "Breakpoint-specific property overrides. Keys are breakpoint names from the breakpoints object.",
+          "additionalProperties": {
+            "type": "object",
+            "description": "Overrides to spatial_hint, props, or visibility at this breakpoint"
+          }
+        },
+        "aria": {
+          "type": "object",
+          "description": "Accessibility attributes. Every interactive element MUST have at minimum a role and label.",
+          "properties": {
+            "role": { "type": "string" },
+            "label": { "type": "string" },
+            "describedby": { "type": "string" },
+            "live": { "type": "string", "enum": ["polite", "assertive", "off"] },
+            "expanded": { "type": "boolean" },
+            "controls": { "type": "string" },
+            "haspopup": { "type": "string" }
+          }
+        },
+        "children": {
+          "type": "array",
+          "description": "Nested child components",
+          "items": { "$ref": "#/definitions/component" }
+        },
+        "designer_added": {
+          "type": "boolean",
+          "description": "True when component added by designer in Figma (not in original manifest)"
+        },
+        "behavioral_spec_status": {
+          "type": "string",
+          "enum": ["COMPLETE", "INCOMPLETE", "PENDING"],
+          "description": "COMPLETE when behavioral specs are fully defined; INCOMPLETE for designer-added components awaiting spec authoring; PENDING for components in progress"
+        }
+      }
+    }
+  }
+}

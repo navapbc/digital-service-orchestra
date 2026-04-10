@@ -407,6 +407,17 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ---
 
+### `design.figma_pat`
+
+| | |
+|---|---|
+| **Description** | Personal Access Token for Figma REST API. Used by `figma-auth.sh` to authenticate pull-back requests. Read from this config key; `FIGMA_PAT` environment variable takes precedence if set. Do not commit actual PAT values — use the `FIGMA_PAT` env var or a `.gitignore`-d local config override instead. |
+| **Accepted values** | Figma PAT string (typically prefixed `figd_`); optional when `FIGMA_PAT` env var is set |
+| **Default** | Absent — `FIGMA_PAT` env var is the fallback; missing PAT produces a clear error with configuration instructions |
+| **Used by** | `plugins/dso/scripts/figma-auth.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
 ### `visual.baseline_directory`
 
 | | |

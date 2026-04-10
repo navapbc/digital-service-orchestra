@@ -23,6 +23,7 @@
 | Review plans/designs | `/dso:plan-review` |
 | Update project docs | `/dso:update-docs` |
 | Approve Figma design for a story | `plugins/dso/scripts/design-approve.sh <story-id>` |
+| Re-sync Figma design to manifest (pull-back) | `python3 plugins/dso/scripts/figma-resync.py <ticket-id> [--non-interactive]` |
 | Clean session close | `/dso:end` |
 | Full validation suite | `plugins/dso/scripts/validate.sh --ci` |
 | Merge worktree to main | `.claude/scripts/dso merge-to-main.sh` |
@@ -85,7 +86,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 **Re-invocation guard (implementation-plan)**: Safe to re-invoke mid-implementation — produces diff plan, not duplicates. Emits `REPLAN_ESCALATE: brainstorm` when success criteria unresolvable (contract: `plugins/dso/docs/contracts/replan-escalate-signal.md`). Cascade: brainstorm → preplanning → implementation-plan; bounded by `sprint.max_replan_cycles`. **GAP_CLASSIFICATION** (contract: `plugins/dso/docs/contracts/gap-classification-output.md`): `intent_gap` → brainstorm (with user confirmation), `implementation_gap` → remediation (`ROUTING: implementation-plan` is a signal label, NOT a direct skill invocation).
 **Proposal generation and resolution loop (implementation-plan)**: See implementation-plan SKILL.md. Emits `APPROACH_DECISION` signal (contract: `plugins/dso/docs/contracts/approach-decision-output.md`).
 **Sprint self-healing loop**: 4 checkpoints (drift detection, confidence signals, validation failure, out-of-scope review). All re-planning writes `REPLAN_TRIGGER` / `REPLAN_RESOLVED` to epic ticket. Non-interactive mode writes `INTERACTIVITY_DEFERRED: brainstorm`. See sprint SKILL.md.
-**Figma design collaboration** (config-gated, `design.figma_collaboration`; default false): Sprint filters `design:awaiting_import` stories from batch execution. See sprint SKILL.md and preplanning SKILL.md for details.
+**Figma design collaboration** (config-gated, `design.figma_collaboration`; default false): Sprint filters `design:awaiting_import` stories from batch execution. See sprint SKILL.md and preplanning SKILL.md for details. **Pull-back workflow**: when a story has `design:awaiting_review`, run `figma-resync.py <ticket-id>` to pull Figma changes via REST API (requires `design.figma_pat` or `FIGMA_PAT` env var), merge visual updates into the 3-artifact manifest (spatial-layout.json, wireframe.svg, tokens.md) while preserving behavioral specs, confirm with the designer, then swap tag to `design:approved`. Use `--non-interactive` in CI. The merge uses an advisory file lock (30-min TTL, stale-lock auto-cleanup) to prevent concurrent re-syncs on the same ticket. Schema fields added by pull-back: `designer_added` (boolean) and `behavioral_spec_status` (COMPLETE/INCOMPLETE/PENDING) on each component in spatial-layout.json.
 Config keys: see `plugins/dso/docs/CONFIGURATION-REFERENCE.md`. Merge-to-main phases: `sync → merge → version_bump → validate → push → archive → ci_trigger`; state file `/tmp/merge-to-main-state-<branch>.json` (4h TTL); `--resume` continues from checkpoint.
 
 
