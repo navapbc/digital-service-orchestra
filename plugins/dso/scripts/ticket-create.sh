@@ -179,24 +179,39 @@ timestamp=$(echo "$event_meta" | sed -n '3p')
 
 # ── Build CREATE event JSON via python3 ───────────────────────────────────────
 temp_event=$(mktemp "$TRACKER_DIR/.tmp-create-XXXXXX")
+# Write description to temp file to avoid ARG_MAX limits on large payloads (195e-b410)
+desc_file=$(mktemp "$TRACKER_DIR/.tmp-desc-XXXXXX")
+# Ensure both temp files are cleaned up on any exit path.
+# REVIEW-DEFENSE: The trap EXIT is the safety net for unexpected exits (signal, set -e, unhandled error).
+# The explicit rm -f calls in error blocks below are intentional belt-and-suspenders: they make the
+# cleanup intent visible at the failure site and run before `exit 1` in the normal error path.
+# rm -f is idempotent so double-cleanup is harmless. The pattern is: trap covers unexpected paths;
+# explicit rm covers expected error paths. Both are needed for clarity and correctness.
+trap 'rm -f "$temp_event" "$desc_file"' EXIT
+printf '%s' "$description" > "$desc_file"
 
 python3 -c "
 import json, sys
 
-tags_str = sys.argv[11]
+tags_str = sys.argv[10]
 tags_list = [t.strip() for t in tags_str.split(',') if t.strip()] if tags_str else []
+
+with open(sys.argv[9], 'r', encoding='utf-8') as df:
+    description = df.read()
 
 data = {
     'ticket_type': sys.argv[5],
     'title': sys.argv[6],
     'parent_id': sys.argv[7] if sys.argv[7] else '',
-    'description': sys.argv[10],
+    'description': description,
     'tags': tags_list
 }
 if sys.argv[8]:
     data['priority'] = int(sys.argv[8])
-if sys.argv[9]:
-    data['assignee'] = sys.argv[9]
+
+assignee_arg = sys.argv[11] if len(sys.argv) > 11 else ''
+if assignee_arg:
+    data['assignee'] = assignee_arg
 
 event = {
     'timestamp': int(sys.argv[1]),
@@ -209,11 +224,12 @@ event = {
 
 with open(sys.argv[12], 'w', encoding='utf-8') as f:
     json.dump(event, f, ensure_ascii=False)
-" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$assignee" "$description" "$tags" "$temp_event" || {
-    rm -f "$temp_event"
+" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$desc_file" "$tags" "$assignee" "$temp_event" || {
+    rm -f "$temp_event" "$desc_file"
     echo "Error: failed to build CREATE event JSON" >&2
     exit 1
 }
+rm -f "$desc_file"
 
 # ── Write and commit via ticket-lib.sh ────────────────────────────────────────
 write_commit_event "$ticket_id" "$temp_event" || {

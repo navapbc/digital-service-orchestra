@@ -1145,9 +1145,9 @@ The doc-writer agent enforces its CLAUDE.md Read-Only Guard. Do NOT edit CLAUDE.
 
 ### Documentation Story Dispatch
 
-When the doc-story title match triggers, the doc-writer agent receives two named context fields:
+When the doc-story title match triggers (9f13-655a): **do NOT implement documentation changes directly** — this gate is unconditional. Even if the required change seems trivial, the doc-writer agent enforces structural and bloat constraints that the orchestrator does not. Read `plugins/dso/agents/doc-writer.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "sonnet"`. The doc-writer agent receives two named context fields:
 ```
-subagent_type: "dso:doc-writer"
+subagent_type: "general-purpose"
 model: "sonnet"
 context:
   epic_context: |
@@ -1619,10 +1619,9 @@ Do NOT close this story, do NOT transition it to closed, and do NOT proceed to S
 "All tests pass" is not a substitute for the completion-verifier dispatch. Dispatch the verifier NOW before reading any further.
 </HARD-GATE>
 
-**MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the story ID (CLAUDE.md rule #24 — no inline verification substitute).
+**MANDATORY (3f26-4c70 gate)**: First confirm OPEN_CHILDREN == 0 from the check above. If OPEN_CHILDREN > 0 at this point, STOP — do NOT dispatch the verifier; follow the blocked path above instead. Only when OPEN_CHILDREN is confirmed 0: Read `plugins/dso/agents/completion-verifier.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: sonnet` and the story ID (CLAUDE.md rule #24 — inline dispatch is the required path; no skipping).
 - `overall_verdict: PASS` → proceed with closure
 - `overall_verdict: FAIL` → see branching logic below
-- **Fallback (agent unavailable)**: If dispatch fails with "Agent type not found" or "Unknown agent", fall back per CLAUDE.md Agent fallback rule — dispatch `subagent_type: general-purpose` and read `plugins/dso/agents/completion-verifier.md` inline as the system prompt. This is NOT permission to skip the step.
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
 
 **Story validation failure detection** — when `overall_verdict: FAIL`:
@@ -1671,6 +1670,8 @@ grep -n "\[.*\]" .test-index || true
 Do NOT close tasks that are still open or in a failed state.
 
 ### Step 11: Context Compaction Check (/dso:sprint)
+
+**Pre-Step 11 gate (5b10-0d02):** Before doing anything else in Step 11, confirm that Step 10a completed successfully this story cycle: dso:completion-verifier was dispatched via the Task tool AND returned an `overall_verdict`. If you cannot confirm this (e.g., Step 10a was skipped or the verifier result is not in context), STOP and return to Step 10a now. Do NOT proceed to Step 11 without the verifier verdict.
 
 Between batches — after all work is committed and pushed — check whether the session context is at least 70% capacity.
 
@@ -1808,14 +1809,15 @@ Read and execute `prompts/phase6-ci-gates.md` for the integration test gate, CI 
 
 ### Step 0.75: Completion Verification (/dso:sprint)
 
-**MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the epic ID (CLAUDE.md rule #24).
+**MANDATORY**: Read `plugins/dso/agents/completion-verifier.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: sonnet` and the epic ID (CLAUDE.md rule #24; inline dispatch is the required path — see CLAUDE.md Agent dispatch section).
 - `overall_verdict: PASS` → proceed to Step 1
-- `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3 (Batch Preparation)
-- **Fallback (agent unavailable)**: If dispatch fails with "Agent type not found" or "Unknown agent", fall back per CLAUDE.md Agent fallback rule — dispatch `subagent_type: general-purpose` and read `plugins/dso/agents/completion-verifier.md` inline as the system prompt. This is NOT permission to skip the step.
+- `overall_verdict: FAIL` → **STOP. Do NOT proceed to Phase 7 or epic closure under ANY circumstances.** Create bug tasks from `remediation_tasks_created` and return to Phase 3 (Batch Preparation).
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 1.
 
 <HARD-GATE>
-Do NOT rationalize around a FAIL verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase 3 path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding to Step 1.
+Do NOT rationalize around a FAIL verdict (7c1d-9acf). The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase 3 path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding to Step 1.
+
+On FAIL: the ONLY valid responses are (a) return to Phase 3 to create and complete remediation tasks, or (b) if the user explicitly says to stop the sprint (not "close the epic anyway"), escalate for sprint abort. Do NOT present FAIL findings with waiver arguments. Do NOT ask the user if criteria can be skipped. Do NOT proceed to Phase 7.
 </HARD-GATE>
 
 ### Step 1: Run /dso:validate-work (/dso:sprint)

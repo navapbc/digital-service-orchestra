@@ -328,7 +328,9 @@ Before proceeding with the full prompt alignment workflow, check the Approach se
 
 If the signal fires and the doc-epic exclusion does not apply:
 
-1. Use **WebSearch** to run a provider-agnostic GitHub prior-art search for similar prompts, instruction patterns, or agent behavioral specifications in popular AI/LLM projects. Focus queries on the matched keyword category — e.g., if "agent definitions" matched, search for agent definition patterns in well-known AI orchestration repos.
+**Search subject decision**: If Step 2 (Web Research Phase) fired an external integration signal for a named third-party tool, API, or service, prioritize that integration name as the primary search subject (e.g., search for "Stripe webhook prompt patterns" rather than the generic "agent definitions"). If Step 2 did not fire an external integration signal, use the matched keyword category as the search subject.
+
+1. Use **WebSearch** to run a provider-agnostic GitHub prior-art search for similar prompts, instruction patterns, or agent behavioral specifications in popular AI/LLM projects. Focus queries on the search subject determined above.
 2. Limit to 2-3 focused queries. Stop when key patterns are identified.
 3. Present findings to the user for collaborative prompt drafting — highlight patterns that align with or diverge from the proposed approach.
 
