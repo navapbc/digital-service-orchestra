@@ -345,10 +345,4 @@ plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard
 plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-reference.sh
 
 plugins/dso/skills/using-lockpick/HOOK-INJECTION.md:tests/skills/test-using-lockpick-clarification.sh
-tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh [test_fp_map_1_valid_json]
-tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh [test_fp_map_2_frame_mapping]
-tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh [test_fp_map_3_text_mapping]
-tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh [test_fp_map_4_rectangle_mapping]
-tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh [test_fp_map_5_component_mapping]
-tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh [test_fp_map_6_instance_mapping]
-tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh [test_fp_map_7_invalid_json]
+tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh
