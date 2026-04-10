@@ -297,6 +297,11 @@ if git merge-base --is-ancestor "$BRANCH" main 2>/dev/null; then
     echo "MERGED"
 elif git log main --oneline --grep="(merge $BRANCH)" -1 2>/dev/null | grep -q .; then
     echo "MERGED (via merge commit message fallback)"
+elif git fetch origin main:main 2>/dev/null && git merge-base --is-ancestor "$BRANCH" main 2>/dev/null; then
+    echo "MERGED (local main ref synced from origin — was out of sync after direct push)"
+    # Note: if git fetch fails (e.g., no network access), this elif is not entered and
+    # the branch reports NOT MERGED — a conservative fail-safe that prevents incorrect
+    # worktree auto-removal. The worktree remains until the next session with network access.
 else
     echo "NOT MERGED"
 fi

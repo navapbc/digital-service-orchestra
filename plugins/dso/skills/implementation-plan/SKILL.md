@@ -628,6 +628,11 @@ A RED test task:
 - Is a standalone task in the plan, not embedded in the implementation task description
 - Uses `TEST_CMD` (resolved from `commands.test` in workflow-config) as the verify command
 - **Must be a behavioral test** — see [Shared Behavioral Testing Standard](../shared/prompts/behavioral-testing-standard.md)
+- **Must update `.test-index` with a `[test_function_name]` RED marker** for the source file before committing the RED test — the pre-commit test gate blocks commits that include a failing test without a matching RED marker. The acceptance criteria for every RED test task must include:
+  ```
+  - [ ] `.test-index` updated with RED marker `[<test_function_name>]` for `<source-file>`
+    Verify: grep '\[<test_function_name>\]' $(git rev-parse --show-toplevel)/.test-index
+  ```
 
 #### Behavioral Test Requirement
 
