@@ -1,0 +1,1 @@
+{"timestamp": 1775796327426699000, "uuid": "eb56bbe5-d661-42db-95d2-0c2a49398b7d", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: llm-behavioral \u2014 ticket references agent guidance/skill behavior gap. Gate 1a: skipped \u2014 CLI_user tag present; intent-aligned assumed."}}
