@@ -1,0 +1,1 @@
+{"timestamp": 1775796800, "uuid": "19c2d2da-dbb3-4cd8-ad76-0e42904e7ba4", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "story", "title": "Update project docs to reflect plugin boundary enforcement", "parent_id": "9b59-bac7", "description": "", "tags": [], "priority": 3, "assignee": "Test"}}
