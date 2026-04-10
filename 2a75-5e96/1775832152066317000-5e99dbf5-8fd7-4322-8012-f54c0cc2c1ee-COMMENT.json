@@ -1,1 +1,0 @@
-{"timestamp": 1775832152066317000, "uuid": "5e99dbf5-8fd7-4322-8012-f54c0cc2c1ee", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Covered by fix for 354b-7857: using-lockpick now explicitly handles terse 'Launching skill:' response as silent injection failure, with immediate Read tool fallback."}}
