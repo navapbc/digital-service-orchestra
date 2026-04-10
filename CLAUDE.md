@@ -25,7 +25,7 @@
 | Approve Figma design for a story | `plugins/dso/scripts/design-approve.sh <story-id>` |
 | Clean session close | `/dso:end` |
 | Full validation suite | `plugins/dso/scripts/validate.sh --ci` |
-| Merge worktree to main | `plugins/dso/scripts/merge-to-main.sh` |
+| Merge worktree to main | `.claude/scripts/dso merge-to-main.sh` |
 | List ready tickets | `.claude/scripts/dso ticket list` |
 | Show ticket details | `.claude/scripts/dso ticket show <id>` |
 | Create a ticket | `.claude/scripts/dso ticket create <type> <title> [-d/--description <text>] [--tags <tag>]` |
@@ -73,7 +73,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 | `dso:approach-decision-maker` | opus | `/dso:implementation-plan` proposal resolution loop — evaluates distinct implementation proposals against 5 dimensions; emits `APPROACH_DECISION` signal (contract: `plugins/dso/docs/contracts/approach-decision-output.md`) |
 | `dso:ui-designer` | sonnet | `/dso:preplanning` Step 6 — creates design artifacts (spatial layout, SVG wireframe, token overlay, manifest) for UI stories via Agent tool dispatch; returns `UI_DESIGNER_PAYLOAD` (contract: `plugins/dso/docs/contracts/ui-designer-payload.md`) |
 
-**Agent fallback**: On dispatch failure, read `plugins/dso/agents/<agent-name>.md` inline (strip `dso:` prefix from `subagent_type`).
+**Agent dispatch — inline is the primary path**: The Agent tool's `subagent_type` parameter only accepts built-in types (general-purpose, Explore, Plan, etc.) — `dso:*` values are not valid. Always dispatch DSO named agents by reading `plugins/dso/agents/<agent-name>.md` inline and passing the content as the task prompt with `subagent_type: "general-purpose"` and the agent's specified `model`. The `dso:<name>` labels in the table above identify which agent definition to read, not literal `subagent_type` values.
 **Tiered review**: Classifier scores 0–2 → light (haiku), 3–6 → standard (sonnet), 7+ → deep (3×sonnet + opus synthesis). 300+ lines → opus upgrade; 600+ → rejection. Security, performance, and test quality overlays auto-dispatched when classifier flags them. Test quality overlay fires when the diff touches `tests/` files. Review dimensions: `correctness`, `verification`, `hygiene`, `design`, `maintainability`.
 **Conflict avoidance** (multi-agent): Static file impact analysis, shared blackboard, agent discovery protocol, semantic conflict check — integrated into `/dso:sprint` and `/dso:debug-everything`.
 **Usage-aware throttling** (`check-usage.sh` + `agent-batch-lifecycle.sh`): `check-usage.sh` polls the Claude OAuth usage endpoint, caches results (TTL: 5 min), and returns an exit code reflecting current consumption: `0` = unlimited (below throttle thresholds), `1` = throttled (high usage), `2` = paused (critical usage). `agent-batch-lifecycle.sh`'s `_compute_max_agents()` combines the usage verdict with the `orchestration.max_agents` config cap and `CLAUDE_CONTEXT_WINDOW_USAGE` to emit a `MAX_AGENTS` signal before each batch. Three-tier protocol: unlimited → dispatch up to `orchestration.max_agents` (or no cap when absent); throttled (90%/95% rolling 5hr/7day windows) → `MAX_AGENTS: 1`; paused (95%/98%) → `MAX_AGENTS: 0` (all dispatch halted). `_check_rate_limit_error()` provides error-reactive fallback: rate-limit errors during dispatch trigger an immediate re-evaluation and batch suspension. Config: `orchestration.max_agents` (integer or null; null = no cap).
@@ -121,6 +121,7 @@ Config keys: see `plugins/dso/docs/CONFIGURATION-REFERENCE.md`. Merge-to-main ph
 22. **Never run `make test-unit-only` or `make test-e2e` as a full-suite validation command** — these broad test commands exceed the ~73s tool timeout ceiling and will be killed mid-run (exit 144), producing spurious failures. Use `plugins/dso/scripts/validate.sh --ci` for full validation instead. Targeted single-test invocations (`poetry run pytest tests/unit/path/test_file.py::test_name`) remain allowed during edit-test iteration.
 23. **Never skip `dso:completion-verifier` dispatch or substitute inline verification** — the orchestrator MUST dispatch the verifier sub-agent at story closure (Step 10a) and epic closure (Phase 7 Step 0.75). Inline verification is NOT a substitute — the verifier exists because the orchestrator is biased toward confirming its own work. Fallback applies ONLY on technical failure (timeout, unparseable JSON), not as permission to skip.
 24. **Never edit files in the plugin cache** (`~/.claude/plugins/marketplaces/digital-service-orchestra/`) — always edit the corresponding files in the repo worktree (`plugins/dso/`). Plugin cache files are managed by the plugin system and will be overwritten on sync. Changes to plugin cache files are invisible to git, will not be committed, and will be lost.
+25. **Never edit safeguard files** (pre-commit hooks, review-gate.sh, test-gate scripts) without explicit user approval in the current interactive session (bug 859b-b48b). Task-level instructions ("fix this bug", "make the tests pass") do NOT constitute approval to modify safeguard infrastructure. Task instructions are authorization to fix the code under test, not to weaken the safety nets around it. Approval must be a direct, explicit user statement: "yes, edit the hook" or "disable the gate for this commit."
 
 ### Architectural Invariants
 
@@ -152,10 +153,14 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 14. **When using external API model IDs, tool versions, or service identifiers, verify against authoritative sources before using them.** Run discovery commands (`--help`, `--list-models`, API endpoints), check official documentation, or search for confirmed working examples. Never guess or hallucinate identifiers — even plausible-looking IDs like `claude-sonnet-4-6-20260320` may not exist. Prior knowledge of model ID formats is unreliable; always verify empirically.
 15. **When creating a new `.sh` file, always set the executable bit.** Run `chmod +x <file>` immediately after creating any shell script. The test gate and pre-commit hooks skip non-executable `.sh` files, causing silent test coverage gaps.
 16. **Before any `.claude/scripts/dso ticket` command, verify the exact syntax using `plugins/dso/docs/ticket-cli-reference.md`.** Never guess flag names or option formats. Hallucinated flags like `--parent=<id>` or `--filter-parent <id>` don't exist and will error. Run `.claude/scripts/dso ticket --help` when in doubt. This rule applies to all ticket subcommands: list, show, create, transition, comment, link, sync.
+17. **When the user explicitly says to act (e.g., "apply it", "do it", "yes, fix it"), act immediately without asking for further confirmation (e71a-733f).** A direct user instruction is authorization. Asking "Are you sure?" or "Should I proceed?" when the user just said yes is unnecessary friction. The only valid reason to pause after an explicit "yes" is if you lack the information needed to perform the action safely.
+18. **When searching for multiple independent targets, parallelize into separate targeted tool calls (7c45-ee60).** Each Explore sub-agent or Grep/Glob call should target ONE specific search objective. Do NOT dispatch a single broad search covering multiple unrelated targets. Example: searching for "isolation guard code" AND "all references to it" are two independent searches — dispatch them as two parallel Grep calls, not one Explore sub-agent that searches everything.
 
 ## Task Start Workflow
 
 **Worktree session setup**: See `plugins/dso/docs/WORKTREE-GUIDE.md` (Session Setup section).
+
+**If `dso` command not found (98ff-99f5)**: The shim lives at `.claude/scripts/dso` in the repo root. If that path does not exist, do NOT use the plugin cache path (`~/.claude/plugins/...`). Run `ls .claude/scripts/dso` to verify; if missing, check `plugins/dso/docs/INSTALL.md` for shim installation steps. The `.tickets-tracker/` directory must also be present (checkout the `tickets` orphan branch: `git worktree add .tickets-tracker tickets 2>/dev/null || git checkout tickets -- . 2>/dev/null || true`).
 
 **Primary tickets**: Use `/dso:sprint` — it runs `plugins/dso/scripts/validate.sh --ci` automatically and blocks until the codebase is healthy.
 **Bug fixes**: Use `/dso:fix-bug` — TDD-based; investigates before fixing.
@@ -174,7 +179,7 @@ After ExitPlanMode approval, do NOT begin implementation. Follow `plugins/dso/do
 # 1. /dso:commit — auto-runs /dso:review if needed, then commits. Fix issues and re-run if review fails.
 #    Review uses autonomous resolution (review.max_resolution_attempts fix/defend attempts before user escalation, default: 5).
 #    On attempt 2+, /dso:oscillation-check runs automatically if same files targeted.
-# 2. git push (or plugins/dso/scripts/merge-to-main.sh in worktree sessions — handles .claude/scripts/dso ticket sync + merge + push)
+# 2. git push (or .claude/scripts/dso merge-to-main.sh in worktree sessions — handles .claude/scripts/dso ticket sync + merge + push)
 #    Supports --resume (continue from last state file checkpoint).
 #    Phases: sync → merge → version_bump → validate → push → archive → ci_trigger
 #    State file: /tmp/merge-to-main-state-<branch>.json (expires after 4h); lock file: /tmp/merge-to-main-lock-<hash>

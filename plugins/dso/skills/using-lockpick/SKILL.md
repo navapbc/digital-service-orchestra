@@ -13,9 +13,13 @@ This is not negotiable. This is not optional. You cannot rationalize your way ou
 
 ## How to Access Skills
 
-**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
+**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files unless the Skill tool's injection has silently failed (see below).
 
-**When the Skill tool returns `Successfully loaded skill`:** The skill content IS now available — it appears in a `<system-reminder>` block in your context (look for "The following skills were invoked in this session"). Do NOT invoke the Skill tool a second time. Do NOT use the Read tool to read the skill file. The content is in context; proceed to follow it directly.
+**When the Skill tool returns `Successfully loaded skill`:** The skill content should now be available in a `<system-reminder>` block in your context. **Verify it is present** by checking whether the skill's first section or phase instructions are visible. If skill instructions ARE visible, follow them directly — do NOT re-invoke the Skill tool or use the Read tool. **If skill instructions are NOT visible in context** (Skill tool succeeded but no content appeared), this is a silent injection failure — fall back immediately: read the skill file directly at `plugins/dso/skills/<skill-name>/SKILL.md` (strip the `dso:` prefix to get the directory name) and follow its instructions. Do NOT re-invoke the Skill tool — re-invocation cannot fix a context injection failure and will loop indefinitely.
+
+**If the Skill tool returns only a brief terse string** (e.g., `"Launching skill: dso:sprint"`) with no follow-on content or instructions: this is also a silent injection failure. Use the Read tool fallback immediately — do NOT wait or re-invoke.
+
+**If the Skill tool fails with "Unknown skill":** Read the skill file directly at `plugins/dso/skills/<skill-name>/SKILL.md` (strip the `dso:` prefix to get the directory name) and follow its instructions. Do NOT stop or report failure — the fallback is always available. This is a session-state issue (skill registry drift under long context), not a missing-skill problem.
 
 ## The Rule
 

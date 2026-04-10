@@ -156,6 +156,50 @@ test_ticket_show_output_is_valid_json() {
 }
 test_ticket_show_output_is_valid_json
 
+# ── Test 3b: ticket show output is valid JSON when comments contain embedded JSON ─
+echo "Test 3b: ticket show output is valid JSON when comments contain embedded JSON (a41d-9b23)"
+test_ticket_show_valid_json_with_embedded_json_comments() {
+    if [ ! -f "$TICKET_SHOW_SCRIPT" ]; then
+        assert_eq "ticket-show.sh exists" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a ticket
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Embedded JSON comment test" 2>/dev/null) || true
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for embedded JSON test" "non-empty" "empty"
+        return
+    fi
+
+    # Add a comment containing embedded JSON (simulates PREPLANNING_CONTEXT payloads)
+    local embedded_json='{"type":"PREPLANNING_CONTEXT","data":{"epic_id":"test-1234","stories":[{"id":"s1","title":"Story with \"quotes\" and\nnewlines","criteria":["done when x > 0"]}]}}'
+    (cd "$repo" && bash "$TICKET_SCRIPT" comment "$ticket_id" "$embedded_json" >/dev/null 2>/dev/null) || true
+
+    # Run ticket show and verify valid JSON
+    local parse_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) | python3 -m json.tool >/dev/null 2>/dev/null || parse_exit=$?
+
+    assert_eq "ticket show output is valid JSON with embedded JSON comment" "0" "$parse_exit"
+
+    # Also verify the comment body is preserved in output
+    local body_check=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) | python3 -c "
+import json, sys
+state = json.load(sys.stdin)
+comments = state.get('comments', [])
+found = any('PREPLANNING_CONTEXT' in c.get('body', '') for c in comments)
+sys.exit(0 if found else 1)
+" 2>/dev/null || body_check=$?
+
+    assert_eq "embedded JSON comment body is preserved in ticket show output" "0" "$body_check"
+}
+test_ticket_show_valid_json_with_embedded_json_comments
+
 # ── Test 4: ticket show --format=llm outputs minified single-line JSON ────────
 echo "Test 4: ticket show --format=llm outputs minified single-line JSON"
 test_ticket_show_llm_format_minified() {

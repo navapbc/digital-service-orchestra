@@ -39,3 +39,7 @@ tests/scripts/fixtures/isolation-rules/tmp-*
 # Ticket system worktree
 .tickets-tracker/
 .disable-precompact-checkpoint
+
+# Checkpoint runtime artifacts (used by review gate as sentinels — filesystem-only, not committed)
+.checkpoint-needs-review
+.checkpoint-pending-rollback

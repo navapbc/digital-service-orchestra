@@ -90,6 +90,11 @@ shift
 
 SCRIPT_PATH="$DSO_ROOT/scripts/$CMD"
 
+# Fallback: try with .sh extension if exact match not found (0c98-6085)
+if [ ! -f "$SCRIPT_PATH" ] && [ -f "${SCRIPT_PATH}.sh" ]; then
+    SCRIPT_PATH="${SCRIPT_PATH}.sh"
+fi
+
 if [ ! -f "$SCRIPT_PATH" ]; then
     printf 'dso: command not found: %s\n' "$CMD" >&2
     printf 'dso: (looked for %s)\n' "$SCRIPT_PATH" >&2

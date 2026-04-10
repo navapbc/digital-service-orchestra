@@ -258,7 +258,9 @@ Dispatch via `subagent_type: "dso:red-team-reviewer"` with `model: opus`. The ag
 
 The red team sub-agent returns a JSON `findings` array. Parse the response and validate it contains well-formed JSON with the expected schema (array of objects with `type`, `target_story_id`, `title`, `description`, `rationale`, `taxonomy_category` fields).
 
-**Fallback**: If the red team sub-agent times out, returns malformed output, or fails to produce valid JSON, log a warning: `"Red team review failed: <reason>. Skipping adversarial review, proceeding to Phase 3."` and skip directly to Phase 3.
+**Fallback — two-path protocol**:
+- **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `plugins/dso/agents/red-team-reviewer.md` inline and re-dispatch as a general-purpose agent using that content as the prompt. Do NOT perform the review inline — the agent must do it.
+- **Execution failure** (timeout, malformed output, or fails to produce valid JSON): Log a warning `"Red team review failed: <reason>. Skipping adversarial review, proceeding to Phase 3."` and skip directly to Phase 3.
 
 ### Step 2: Blue Team Dispatch (/dso:preplanning)
 
@@ -273,7 +275,9 @@ The blue team sub-agent returns a filtered JSON object with `findings` (accepted
 
 **If red team returned zero findings**: Skip the blue team dispatch entirely. Log: `"Red team found no cross-story gaps. Skipping blue team filter."` and proceed to Phase 3.
 
-**Partial failure**: If the red team succeeds but the blue team fails (timeout, malformed output, or error), **discard all unfiltered findings** and proceed to Phase 3. Do NOT apply unfiltered red team findings -- the blue team filter exists to prevent false positives from polluting the story map. Log: `"Blue team filter failed: <reason>. Discarding unfiltered red team findings, proceeding to Phase 3."`
+**Partial failure — two-path protocol**:
+- **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `plugins/dso/agents/blue-team-filter.md` inline and re-dispatch as a general-purpose agent using that content as the prompt. Do NOT perform the filtering inline — the agent must do it; inline filtering by the orchestrator defeats the purpose of the impartial blue team.
+- **Execution failure** (timeout, malformed output, or error): **Discard all unfiltered findings** and proceed to Phase 3. Do NOT apply unfiltered red team findings — the blue team filter exists to prevent false positives from polluting the story map. Log: `"Blue team filter failed: <reason>. Discarding unfiltered red team findings, proceeding to Phase 3."`
 
 ### Step 3: Apply Surviving Findings (/dso:preplanning)
 

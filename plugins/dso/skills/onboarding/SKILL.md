@@ -940,6 +940,8 @@ Install the DSO git pre-commit hooks (`pre-commit-test-gate.sh` and `pre-commit-
    echo 'bash "$(git rev-parse --git-common-dir)/hooks/pre-commit-review-gate"' >> "$PRECOMMIT_HOOK"
    ```
 
+**lint-staged guard (1c71-2e90):** If adding `npx lint-staged` to any pre-commit hook (Husky or bare), first verify that lint-staged is configured — check for a `"lint-staged"` key in `package.json` or a `.lintstagedrc` / `lint-staged.config.js` file. If no lint-staged configuration exists, do NOT add the `npx lint-staged` call to the hook without also adding a configuration. Either (a) ask the user what linters to run on staged files and add a `"lint-staged"` key to `package.json`, or (b) skip the lint-staged hook call entirely. Adding `npx lint-staged` without configuration causes silent no-op pre-commit hooks.
+
 After hook installation, confirm with the user which hook manager was used and where the hooks were installed.
 
 #### Ticket System Initialization

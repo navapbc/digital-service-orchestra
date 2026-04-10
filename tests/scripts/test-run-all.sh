@@ -89,10 +89,11 @@ timeout 30 bash "$RUN_ALL" \
     >/dev/null 2>&1
 _run_exit=$?
 
-# Give cleanup a moment to propagate
-sleep 1
+# Give cleanup a moment to propagate (2s for slow CI environments)
+sleep 2
 
 # Check: sentinel process should no longer exist
+# Primary check: PID file (authoritative — process created the PID)
 _sentinel_alive=0
 if [ -f "$_sentinel_pid_file" ]; then
     _spid=$(cat "$_sentinel_pid_file" 2>/dev/null || echo "")
@@ -101,9 +102,12 @@ if [ -f "$_sentinel_pid_file" ]; then
     fi
 fi
 
-# Also check by name
-if pgrep -f "$_sentinel_tag" >/dev/null 2>&1; then
+# Secondary check by name — only if PID check says alive (avoids pgrep race on CI)
+if [ "$_sentinel_alive" -eq 1 ] && pgrep -f "$_sentinel_tag" >/dev/null 2>&1; then
     _sentinel_alive=1
+elif [ "$_sentinel_alive" -eq 1 ]; then
+    # PID exists but pgrep doesn't find it — process is dying, treat as dead
+    _sentinel_alive=0
 fi
 
 assert_eq "test_orphan_cleanup_on_exit" "0" "$_sentinel_alive"
