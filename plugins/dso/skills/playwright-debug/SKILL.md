@@ -465,8 +465,6 @@ echo "$rc_output"
 
 ## Reference
 
-For CLI command patterns and session management, see the spike report at `docs/designs/playwright-cli-spike-report.md`.
-
 For additional browser interaction patterns and sandbox restrictions, see the CLI guide:
 
 ```bash

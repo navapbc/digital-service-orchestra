@@ -359,5 +359,5 @@ plugins/dso/scripts/figma-resync.py:tests/unit/test_figma_resync.py
 plugins/dso/scripts/figma-url-store.sh:tests/scripts/test-figma-url-store.sh
 plugins/dso/skills/sprint/docs/cascade-replan-protocol.md:tests/skills/test-plugin-boundary-migration.sh
 plugins/dso/hooks/pre-commit/check-plugin-boundary.sh:tests/hooks/test-check-plugin-boundary.sh
-CLAUDE.md:tests/hooks/test-plugin-boundary-rule.sh [test_claude_md_contains_never_statement]
-plugins/dso/skills/playwright-debug/SKILL.md:tests/hooks/test-plugin-boundary-rule.sh [test_playwright_debug_has_no_spike_report_ref]
+CLAUDE.md:tests/hooks/test-plugin-boundary-rule.sh
+plugins/dso/skills/playwright-debug/SKILL.md:tests/hooks/test-plugin-boundary-rule.sh
