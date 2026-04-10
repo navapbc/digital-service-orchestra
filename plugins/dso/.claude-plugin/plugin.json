@@ -1,9 +1,10 @@
 {
   "name": "dso",
-  "version": "1.11.21",
+  "version": "1.11.22",
   "description": "Workflow infrastructure plugin for Claude Code projects",
   "commands": "./commands/",
   "skills": "./skills/",
+  "agents": "./agents/",
   "hooks": {
     "SessionStart": [
       {
