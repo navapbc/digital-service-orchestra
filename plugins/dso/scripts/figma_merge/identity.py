@@ -47,13 +47,17 @@ def identity_match(
                 break
 
         if not matched:
-            # Fallback: structural position match
-            if idx < len(original_components):
-                orig_comp = original_components[idx]
-                orig_id = orig_comp.get("id", "")
-                matched_map[node_id] = orig_id
-                matched_original_ids.add(orig_id)
-            else:
+            # Fallback: structural position match (skip already-matched slots)
+            fallback_found = False
+            for fallback_idx in range(idx, len(original_components)):
+                candidate = original_components[fallback_idx]
+                candidate_id = candidate.get("id", "")
+                if candidate_id not in matched_original_ids:
+                    matched_map[node_id] = candidate_id
+                    matched_original_ids.add(candidate_id)
+                    fallback_found = True
+                    break
+            if not fallback_found:
                 node_copy = dict(node)
                 node_copy["unmatched_new"] = True
                 unmatched_new.append(node_copy)

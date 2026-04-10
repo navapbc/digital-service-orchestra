@@ -71,7 +71,12 @@ class TestFrameNodeBoundingBox:
                         "id": "1:1",
                         "name": "Frame",
                         "type": "FRAME",
-                        "absoluteBoundingBox": {"x": 0, "y": 0, "width": 1440, "height": 900},
+                        "absoluteBoundingBox": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 1440,
+                            "height": 900,
+                        },
                         "children": [],
                     }
                 ],
@@ -102,7 +107,12 @@ class TestFrameNodeBoundingBox:
                         "id": "1:2",
                         "name": "Offset Frame",
                         "type": "FRAME",
-                        "absoluteBoundingBox": {"x": 100, "y": 200, "width": 800, "height": 600},
+                        "absoluteBoundingBox": {
+                            "x": 100,
+                            "y": 200,
+                            "width": 800,
+                            "height": 600,
+                        },
                         "children": [],
                     }
                 ],
@@ -129,9 +139,7 @@ class TestFrameNodeBoundingBox:
 class TestTextNodeCharacters:
     """NM-2: TEXT node with characters field maps to component with text field."""
 
-    def test_text_node_produces_component_with_text(
-        self, mapper: ModuleType
-    ) -> None:
+    def test_text_node_produces_component_with_text(self, mapper: ModuleType) -> None:
         figma_json = {
             "document": {
                 "id": "0:0",
@@ -368,9 +376,7 @@ class TestDepthLimitedTraversal:
             }
         }
 
-    def test_nodes_beyond_depth_limit_not_in_output(
-        self, mapper: ModuleType
-    ) -> None:
+    def test_nodes_beyond_depth_limit_not_in_output(self, mapper: ModuleType) -> None:
         """A 30-level tree with depth_limit=20 must not include nodes at levels 21-30."""
         figma_json = self._build_deep_tree(30)
         result = mapper.map_nodes(figma_json, depth_limit=20)
@@ -382,9 +388,7 @@ class TestDepthLimitedTraversal:
                 f"Level-{level} node should not appear when depth_limit=20"
             )
 
-    def test_nodes_within_depth_limit_are_in_output(
-        self, mapper: ModuleType
-    ) -> None:
+    def test_nodes_within_depth_limit_are_in_output(self, mapper: ModuleType) -> None:
         """Nodes at or within depth_limit must appear in output."""
         figma_json = self._build_deep_tree(30)
         result = mapper.map_nodes(figma_json, depth_limit=20)
@@ -392,9 +396,7 @@ class TestDepthLimitedTraversal:
         names = {c.get("name", "") for c in result}
         assert "Level-1" in names, "Root-level node must appear in output"
 
-    def test_default_traversal_includes_shallow_tree(
-        self, mapper: ModuleType
-    ) -> None:
+    def test_default_traversal_includes_shallow_tree(self, mapper: ModuleType) -> None:
         """A 5-level tree without depth_limit (or large limit) includes all nodes."""
         figma_json = self._build_deep_tree(5)
         result = mapper.map_nodes(figma_json)
@@ -438,7 +440,12 @@ class TestNameBasedComponentLinking:
                         "id": "7:2",
                         "name": "primary-button",  # name matches component id above
                         "type": "FRAME",
-                        "absoluteBoundingBox": {"x": 0, "y": 0, "width": 200, "height": 50},
+                        "absoluteBoundingBox": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 200,
+                            "height": 50,
+                        },
                         "children": [],
                     },
                 ],
@@ -450,7 +457,8 @@ class TestNameBasedComponentLinking:
         # The FRAME node whose name matches the COMPONENT's id should be linked
         # Fallback: look for any non-component output that carries a link field
         linked = [
-            c for c in result
+            c
+            for c in result
             if c.get("link_to") == "primary-button"
             or c.get("linked_component") == "primary-button"
         ]
@@ -473,7 +481,12 @@ class TestNameBasedComponentLinking:
                         "id": "7:3",
                         "name": "unique-unnamed-frame",
                         "type": "FRAME",
-                        "absoluteBoundingBox": {"x": 0, "y": 0, "width": 100, "height": 100},
+                        "absoluteBoundingBox": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 100,
+                            "height": 100,
+                        },
                         "children": [],
                     }
                 ],
@@ -486,4 +499,7 @@ class TestNameBasedComponentLinking:
             assert "link_to" not in component or component["link_to"] is None, (
                 "Component with unmatched name should not have a link_to field"
             )
-            assert "linked_component" not in component or component["linked_component"] is None
+            assert (
+                "linked_component" not in component
+                or component["linked_component"] is None
+            )

@@ -351,3 +351,5 @@ plugins/dso/scripts/figma_merge/identity.py:tests/unit/test_figma_merge_identity
 plugins/dso/scripts/figma_merge/svg_gen.py:tests/unit/test_figma_merge_svg.py
 plugins/dso/scripts/figma_merge/tokens_merge.py:tests/unit/test_figma_merge_tokens.py
 plugins/dso/scripts/figma_merge/id_validate.py:tests/unit/test_figma_merge_id_validate.py
+plugins/dso/scripts/figma_merge/spatial_merge.py:tests/unit/test_figma_merge_spatial.py
+plugins/dso/scripts/figma-merge.py:tests/integration/test-figma-merge-integration.sh

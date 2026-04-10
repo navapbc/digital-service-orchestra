@@ -95,6 +95,15 @@
           "type": "array",
           "description": "Nested child components",
           "items": { "$ref": "#/definitions/component" }
+        },
+        "designer_added": {
+          "type": "boolean",
+          "description": "True when component added by designer in Figma (not in original manifest)"
+        },
+        "behavioral_spec_status": {
+          "type": "string",
+          "enum": ["COMPLETE", "INCOMPLETE", "PENDING"],
+          "description": "COMPLETE when behavioral specs are fully defined; INCOMPLETE for designer-added components awaiting spec authoring; PENDING for components in progress"
         }
       }
     }
