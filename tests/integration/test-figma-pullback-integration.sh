@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
 # tests/integration/test-figma-pullback-integration.sh
-# Integration tests for Figma URL parsing, PAT authentication, and node mapping.
+# Integration tests for Figma URL parsing, PAT authentication, node mapping,
+# merge algorithm, and ID-linkage validation.
 #
 # Tests: FP-URL-1 through FP-URL-4 (URL parsing), FP-AUTH-1 through FP-AUTH-3 (PAT auth),
-#        FP-MAP-1 through FP-MAP-7 (node mapping to spatial-layout.json)
+#        FP-MAP-1 through FP-MAP-7 (node mapping to spatial-layout.json),
+#        FP-MERGE-1 through FP-MERGE-4 (merge algorithm),
+#        FP-LINK-1 through FP-LINK-2 (ID-linkage validation)
 #
-# RED state: These tests MUST FAIL until figma-url-parse.sh, figma-auth.sh, and
-#            figma-node-mapper.sh are implemented.
+# RED state: These tests MUST FAIL until figma-url-parse.sh, figma-auth.sh,
+#            figma-node-mapper.sh, figma-merge.sh, and figma-id-validate.sh are implemented.
 # Script-not-found is the expected failure mode — do NOT skip on missing scripts.
+#
+# REVIEW-DEFENSE: FP-MERGE-1..4 and FP-LINK-1..2 intentionally target figma-merge.sh and
+# figma-id-validate.sh (bash scripts), not figma-merge.py (Python CLI). This is a deliberate
+# dual-implementation design: figma-merge.sh covers the pullback pipeline's merge algorithm
+# (story f921-e2d6), while figma-merge.py covers the interactive manifest-merge CLI workflow
+# (story 3042-e00d). Both implementations are planned deliverables; each integration test file
+# targets its own surface. The apparent naming inconsistency is intentional — not a split.
 #
 # Usage: bash tests/integration/test-figma-pullback-integration.sh
 # Returns: exit 0 if all pass, exit 1 if any fail (RED state expected until implementation)
@@ -35,6 +45,8 @@ trap _cleanup EXIT
 # Script paths under test (do NOT create these — they must not exist for RED state)
 FIGMA_URL_PARSE="$REPO_ROOT/plugins/dso/scripts/figma-url-parse.sh"
 FIGMA_AUTH="$REPO_ROOT/plugins/dso/scripts/figma-auth.sh"
+FIGMA_MERGE="$REPO_ROOT/plugins/dso/scripts/figma-merge.sh"
+FIGMA_ID_VALIDATE="$REPO_ROOT/plugins/dso/scripts/figma-id-validate.sh"
 # figma-node-mapper: check bash first, fall back to python
 if [[ -f "$REPO_ROOT/plugins/dso/scripts/figma-node-mapper.sh" ]]; then
     FIGMA_NODE_MAPPER="$REPO_ROOT/plugins/dso/scripts/figma-node-mapper.sh"
@@ -507,6 +519,437 @@ test_fp_map_7_invalid_json() {
 }
 
 # ---------------------------------------------------------------------------
+# Merge Algorithm Tests (FP-MERGE-1 through FP-MERGE-4)
+# ---------------------------------------------------------------------------
+
+# FP-MERGE-1: Given an original manifest and a Figma-derived spatial-layout.json
+# with a new component, when figma-merge.sh runs, then the new component appears
+# with tag:NEW, designer_added:true, behavioral_spec_status:INCOMPLETE in the output.
+test_fp_merge_1_new_component_tagged() {
+    if [[ ! -f "$FIGMA_MERGE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-MERGE-1 — figma-merge.sh not found at %s\n" "$FIGMA_MERGE" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+
+    local original_manifest="$tmpdir/original-manifest.json"
+    local new_spatial="$tmpdir/new-spatial-layout.json"
+    local output_file="$tmpdir/merged-output.json"
+
+    # Original manifest: one existing component
+    cat > "$original_manifest" <<'JSON'
+{
+  "components": [
+    {
+      "id": "2:1",
+      "name": "ExistingButton",
+      "type": "COMPONENT",
+      "behavioral_spec_status": "COMPLETE",
+      "behavioral_spec": "Handles click events"
+    }
+  ]
+}
+JSON
+
+    # New Figma spatial-layout: same component plus a brand-new one
+    cat > "$new_spatial" <<'JSON'
+{
+  "components": [
+    {
+      "id": "2:1",
+      "name": "ExistingButton",
+      "type": "COMPONENT",
+      "spatial_hint": {"x": 0, "y": 0, "width": 120, "height": 40}
+    },
+    {
+      "id": "3:1",
+      "name": "NewCard",
+      "type": "COMPONENT",
+      "spatial_hint": {"x": 200, "y": 0, "width": 300, "height": 200}
+    }
+  ]
+}
+JSON
+
+    local exit_code=0
+    bash "$FIGMA_MERGE" "$original_manifest" "$new_spatial" "$output_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "FP-MERGE-1: exits 0" "0" "$exit_code"
+
+    local merge_check=0
+    python3 - "$output_file" <<'PYEOF' 2>/dev/null || merge_check=1
+import sys, json
+d = json.load(open(sys.argv[1]))
+components = d.get("components", [])
+new_comp = next((c for c in components if c.get("id") == "3:1"), None)
+assert new_comp is not None, "new component 3:1 not found in output"
+assert new_comp.get("tag") == "NEW" or new_comp.get("tags", []) == ["NEW"] or "NEW" in str(new_comp.get("tag", "")), \
+    f"tag:NEW not present: {new_comp}"
+assert new_comp.get("designer_added") == True, f"designer_added:true not set: {new_comp}"
+assert new_comp.get("behavioral_spec_status") == "INCOMPLETE", \
+    f"behavioral_spec_status:INCOMPLETE not set: {new_comp}"
+PYEOF
+
+    assert_eq "FP-MERGE-1: new component has tag:NEW, designer_added:true, behavioral_spec_status:INCOMPLETE" "0" "$merge_check"
+}
+
+# FP-MERGE-2: Given an original manifest with a COMPLETE-spec component and a Figma
+# spatial-layout.json missing that component, when figma-merge.sh runs, then the
+# component is removed from the output AND stderr contains a warning about the
+# COMPLETE behavioral spec being deleted.
+test_fp_merge_2_complete_spec_removal_warns() {
+    if [[ ! -f "$FIGMA_MERGE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-MERGE-2 — figma-merge.sh not found at %s\n" "$FIGMA_MERGE" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+
+    local original_manifest="$tmpdir/original-manifest.json"
+    local new_spatial="$tmpdir/new-spatial-layout.json"
+    local output_file="$tmpdir/merged-output.json"
+
+    # Original manifest: component with COMPLETE spec
+    cat > "$original_manifest" <<'JSON'
+{
+  "components": [
+    {
+      "id": "2:1",
+      "name": "CompleteButton",
+      "type": "COMPONENT",
+      "behavioral_spec_status": "COMPLETE",
+      "behavioral_spec": "Handles click with full a11y"
+    },
+    {
+      "id": "2:2",
+      "name": "StillPresentCard",
+      "type": "COMPONENT",
+      "behavioral_spec_status": "INCOMPLETE"
+    }
+  ]
+}
+JSON
+
+    # New Figma spatial-layout: COMPLETE component is missing (removed in Figma)
+    cat > "$new_spatial" <<'JSON'
+{
+  "components": [
+    {
+      "id": "2:2",
+      "name": "StillPresentCard",
+      "type": "COMPONENT",
+      "spatial_hint": {"x": 0, "y": 0, "width": 200, "height": 100}
+    }
+  ]
+}
+JSON
+
+    local stderr_output exit_code=0
+    stderr_output=$(bash "$FIGMA_MERGE" "$original_manifest" "$new_spatial" "$output_file" 2>&1 >/dev/null) || exit_code=$?
+
+    # Run again to get exit code without capturing stderr
+    local exit_code2=0
+    bash "$FIGMA_MERGE" "$original_manifest" "$new_spatial" "$output_file" 2>/dev/null || exit_code2=$?
+
+    assert_eq "FP-MERGE-2: exits 0 after removal with warning" "0" "$exit_code2"
+
+    # The removed COMPLETE component must not appear in output
+    local removal_check=0
+    python3 - "$output_file" <<'PYEOF' 2>/dev/null || removal_check=1
+import sys, json
+d = json.load(open(sys.argv[1]))
+components = d.get("components", [])
+removed = next((c for c in components if c.get("id") == "2:1"), None)
+assert removed is None, f"removed COMPLETE component 2:1 still present: {removed}"
+PYEOF
+
+    assert_eq "FP-MERGE-2: COMPLETE-spec component removed from output" "0" "$removal_check"
+    assert_contains "FP-MERGE-2: stderr warns about COMPLETE behavioral spec deletion" "COMPLETE" "$stderr_output"
+}
+
+# FP-MERGE-3: Given a component with updated absoluteBoundingBox in the new Figma
+# data, when figma-merge.sh runs, then the output spatial_hint reflects the new
+# dimensions while the behavioral spec sections are unchanged.
+test_fp_merge_3_spatial_update_preserves_spec() {
+    if [[ ! -f "$FIGMA_MERGE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-MERGE-3 — figma-merge.sh not found at %s\n" "$FIGMA_MERGE" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+
+    local original_manifest="$tmpdir/original-manifest.json"
+    local new_spatial="$tmpdir/new-spatial-layout.json"
+    local output_file="$tmpdir/merged-output.json"
+
+    # Original manifest: component with full behavioral spec sections
+    cat > "$original_manifest" <<'JSON'
+{
+  "components": [
+    {
+      "id": "2:1",
+      "name": "ResizablePanel",
+      "type": "COMPONENT",
+      "spatial_hint": {"x": 0, "y": 0, "width": 200, "height": 100},
+      "behavioral_spec_status": "COMPLETE",
+      "Interaction Behaviors": "Responds to pointer events",
+      "Responsive Rules": "Scales with viewport",
+      "Accessibility Specification": "role=region aria-label=panel",
+      "State Definitions": "default, hover, focused"
+    }
+  ]
+}
+JSON
+
+    # New Figma spatial-layout: updated bounding box (width/height changed)
+    cat > "$new_spatial" <<'JSON'
+{
+  "components": [
+    {
+      "id": "2:1",
+      "name": "ResizablePanel",
+      "type": "COMPONENT",
+      "spatial_hint": {"x": 10, "y": 20, "width": 400, "height": 250}
+    }
+  ]
+}
+JSON
+
+    local exit_code=0
+    bash "$FIGMA_MERGE" "$original_manifest" "$new_spatial" "$output_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "FP-MERGE-3: exits 0" "0" "$exit_code"
+
+    local spec_check=0
+    python3 - "$output_file" <<'PYEOF' 2>/dev/null || spec_check=1
+import sys, json
+d = json.load(open(sys.argv[1]))
+components = d.get("components", [])
+comp = next((c for c in components if c.get("id") == "2:1"), None)
+assert comp is not None, "component 2:1 not found"
+# spatial_hint must reflect new dimensions
+sh = comp.get("spatial_hint", {})
+assert sh.get("width") == 400, f"width not updated: {sh}"
+assert sh.get("height") == 250, f"height not updated: {sh}"
+# behavioral spec sections must be preserved
+assert comp.get("Interaction Behaviors") == "Responds to pointer events", \
+    f"Interaction Behaviors changed: {comp.get('Interaction Behaviors')}"
+assert comp.get("Responsive Rules") == "Scales with viewport", \
+    f"Responsive Rules changed: {comp.get('Responsive Rules')}"
+assert comp.get("Accessibility Specification") == "role=region aria-label=panel", \
+    f"Accessibility Specification changed: {comp.get('Accessibility Specification')}"
+assert comp.get("State Definitions") == "default, hover, focused", \
+    f"State Definitions changed: {comp.get('State Definitions')}"
+PYEOF
+
+    assert_eq "FP-MERGE-3: spatial_hint updated; Interaction Behaviors, Responsive Rules, Accessibility Specification, State Definitions preserved" "0" "$spec_check"
+}
+
+# FP-MERGE-4: Given an updated TEXT node, when figma-merge.sh runs,
+# then the text content is updated while behavioral specs are preserved.
+test_fp_merge_4_text_content_update_preserves_spec() {
+    if [[ ! -f "$FIGMA_MERGE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-MERGE-4 — figma-merge.sh not found at %s\n" "$FIGMA_MERGE" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+
+    local original_manifest="$tmpdir/original-manifest.json"
+    local new_spatial="$tmpdir/new-spatial-layout.json"
+    local output_file="$tmpdir/merged-output.json"
+
+    # Original manifest: TEXT node with behavioral spec
+    cat > "$original_manifest" <<'JSON'
+{
+  "components": [
+    {
+      "id": "2:2",
+      "name": "HeadingText",
+      "type": "TEXT",
+      "text_content": "Old Heading",
+      "behavioral_spec_status": "COMPLETE",
+      "Interaction Behaviors": "Read-only display",
+      "Responsive Rules": "Truncates with ellipsis at 320px",
+      "Accessibility Specification": "role=heading aria-level=1",
+      "State Definitions": "default"
+    }
+  ]
+}
+JSON
+
+    # New Figma spatial-layout: TEXT node with updated text content
+    cat > "$new_spatial" <<'JSON'
+{
+  "components": [
+    {
+      "id": "2:2",
+      "name": "HeadingText",
+      "type": "TEXT",
+      "text_content": "Updated Heading Text",
+      "spatial_hint": {"x": 0, "y": 0, "width": 500, "height": 60}
+    }
+  ]
+}
+JSON
+
+    local exit_code=0
+    bash "$FIGMA_MERGE" "$original_manifest" "$new_spatial" "$output_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "FP-MERGE-4: exits 0" "0" "$exit_code"
+
+    local text_check=0
+    python3 - "$output_file" <<'PYEOF' 2>/dev/null || text_check=1
+import sys, json
+d = json.load(open(sys.argv[1]))
+components = d.get("components", [])
+comp = next((c for c in components if c.get("id") == "2:2"), None)
+assert comp is not None, "TEXT node 2:2 not found"
+# text content must be updated
+text = comp.get("text_content") or comp.get("characters") or ""
+assert "Updated Heading Text" in text, f"text_content not updated: {text!r}"
+# behavioral spec sections must be preserved
+assert comp.get("Interaction Behaviors") == "Read-only display", \
+    f"Interaction Behaviors changed: {comp.get('Interaction Behaviors')}"
+assert comp.get("Responsive Rules") == "Truncates with ellipsis at 320px", \
+    f"Responsive Rules changed: {comp.get('Responsive Rules')}"
+assert comp.get("Accessibility Specification") == "role=heading aria-level=1", \
+    f"Accessibility Specification changed: {comp.get('Accessibility Specification')}"
+assert comp.get("State Definitions") == "default", \
+    f"State Definitions changed: {comp.get('State Definitions')}"
+PYEOF
+
+    assert_eq "FP-MERGE-4: text_content updated; behavioral spec sections preserved" "0" "$text_check"
+}
+
+# ---------------------------------------------------------------------------
+# ID-Linkage Validation Tests (FP-LINK-1 through FP-LINK-2)
+# ---------------------------------------------------------------------------
+
+# FP-LINK-1: Given a 3-artifact manifest where all IDs in spatial-layout.json exist
+# in wireframe.svg and tokens.md, when figma-id-validate.sh runs, then exits 0.
+test_fp_link_1_all_ids_present() {
+    if [[ ! -f "$FIGMA_ID_VALIDATE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-LINK-1 — figma-id-validate.sh not found at %s\n" "$FIGMA_ID_VALIDATE" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+
+    local spatial_layout="$tmpdir/spatial-layout.json"
+    local wireframe_svg="$tmpdir/wireframe.svg"
+    local tokens_md="$tmpdir/tokens.md"
+
+    # spatial-layout.json with two component IDs
+    cat > "$spatial_layout" <<'JSON'
+{
+  "components": [
+    {"id": "2:1", "name": "PrimaryButton"},
+    {"id": "2:2", "name": "InputField"}
+  ]
+}
+JSON
+
+    # wireframe.svg referencing both IDs
+    cat > "$wireframe_svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900">
+  <g id="2:1" data-component="PrimaryButton">
+    <rect width="120" height="40" fill="#0055CC"/>
+  </g>
+  <g id="2:2" data-component="InputField">
+    <rect width="300" height="40" fill="#FFFFFF" stroke="#CCCCCC"/>
+  </g>
+</svg>
+SVG
+
+    # tokens.md referencing both IDs
+    cat > "$tokens_md" <<'MD'
+# Design Tokens
+
+## Component: 2:1 PrimaryButton
+- color: #0055CC
+- border-radius: 4px
+
+## Component: 2:2 InputField
+- border-color: #CCCCCC
+- padding: 8px 12px
+MD
+
+    local exit_code=0
+    bash "$FIGMA_ID_VALIDATE" "$spatial_layout" "$wireframe_svg" "$tokens_md" 2>/dev/null || exit_code=$?
+
+    assert_eq "FP-LINK-1: exits 0 when all IDs present in wireframe.svg and tokens.md" "0" "$exit_code"
+}
+
+# FP-LINK-2: Given a 3-artifact manifest with an orphaned ID (present in
+# spatial-layout.json, absent from wireframe.svg), when figma-id-validate.sh runs,
+# then exits 1 with the orphaned ID listed on stderr.
+test_fp_link_2_orphaned_id_reported() {
+    if [[ ! -f "$FIGMA_ID_VALIDATE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-LINK-2 — figma-id-validate.sh not found at %s\n" "$FIGMA_ID_VALIDATE" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+
+    local spatial_layout="$tmpdir/spatial-layout.json"
+    local wireframe_svg="$tmpdir/wireframe.svg"
+    local tokens_md="$tmpdir/tokens.md"
+
+    # spatial-layout.json with two component IDs
+    cat > "$spatial_layout" <<'JSON'
+{
+  "components": [
+    {"id": "2:1", "name": "PrimaryButton"},
+    {"id": "3:99", "name": "OrphanedWidget"}
+  ]
+}
+JSON
+
+    # wireframe.svg: only has 2:1; 3:99 is absent (orphaned)
+    cat > "$wireframe_svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900">
+  <g id="2:1" data-component="PrimaryButton">
+    <rect width="120" height="40" fill="#0055CC"/>
+  </g>
+</svg>
+SVG
+
+    # tokens.md: also only references 2:1
+    cat > "$tokens_md" <<'MD'
+# Design Tokens
+
+## Component: 2:1 PrimaryButton
+- color: #0055CC
+MD
+
+    local stderr_output exit_code=0
+    stderr_output=$(bash "$FIGMA_ID_VALIDATE" "$spatial_layout" "$wireframe_svg" "$tokens_md" 2>&1 >/dev/null) || exit_code=$?
+
+    assert_ne "FP-LINK-2: exits non-zero when orphaned ID detected" "0" "$exit_code"
+    assert_contains "FP-LINK-2: orphaned ID 3:99 listed on stderr" "3:99" "$stderr_output"
+}
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 test_fp_url_1_design_format
@@ -523,5 +966,11 @@ test_fp_map_4_rectangle_mapping
 test_fp_map_5_component_mapping
 test_fp_map_6_instance_mapping
 test_fp_map_7_invalid_json
+test_fp_merge_1_new_component_tagged
+test_fp_merge_2_complete_spec_removal_warns
+test_fp_merge_3_spatial_update_preserves_spec
+test_fp_merge_4_text_content_update_preserves_spec
+test_fp_link_1_all_ids_present
+test_fp_link_2_orphaned_id_reported
 
 print_summary

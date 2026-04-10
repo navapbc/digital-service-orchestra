@@ -1,0 +1,48 @@
+{
+  "metadata": {
+    "schema_version": "1.0",
+    "generated_at": "2026-04-09T00:00:00Z",
+    "source": "figma"
+  },
+  "components": [
+    {
+      "id": "comp-header",
+      "name": "Header",
+      "type": "FRAME",
+      "spatial_hint": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 80
+      },
+      "behavioral_spec_status": "COMPLETE",
+      "tag": "EXISTING"
+    },
+    {
+      "id": "comp-nav",
+      "name": "Navigation",
+      "type": "FRAME",
+      "spatial_hint": {
+        "x": 0,
+        "y": 80,
+        "width": 240,
+        "height": 820
+      },
+      "behavioral_spec_status": "PENDING",
+      "tag": "EXISTING"
+    },
+    {
+      "id": "comp-footer",
+      "name": "Footer",
+      "type": "FRAME",
+      "spatial_hint": {
+        "x": 0,
+        "y": 820,
+        "width": 1440,
+        "height": 80
+      },
+      "behavioral_spec_status": "PENDING",
+      "tag": "EXISTING"
+    }
+  ]
+}
