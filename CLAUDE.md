@@ -25,7 +25,7 @@
 | Approve Figma design for a story | `plugins/dso/scripts/design-approve.sh <story-id>` |
 | Clean session close | `/dso:end` |
 | Full validation suite | `plugins/dso/scripts/validate.sh --ci` |
-| Merge worktree to main | `plugins/dso/scripts/merge-to-main.sh` |
+| Merge worktree to main | `.claude/scripts/dso merge-to-main.sh` |
 | List ready tickets | `.claude/scripts/dso ticket list` |
 | Show ticket details | `.claude/scripts/dso ticket show <id>` |
 | Create a ticket | `.claude/scripts/dso ticket create <type> <title> [-d/--description <text>] [--tags <tag>]` |
@@ -174,7 +174,7 @@ After ExitPlanMode approval, do NOT begin implementation. Follow `plugins/dso/do
 # 1. /dso:commit — auto-runs /dso:review if needed, then commits. Fix issues and re-run if review fails.
 #    Review uses autonomous resolution (review.max_resolution_attempts fix/defend attempts before user escalation, default: 5).
 #    On attempt 2+, /dso:oscillation-check runs automatically if same files targeted.
-# 2. git push (or plugins/dso/scripts/merge-to-main.sh in worktree sessions — handles .claude/scripts/dso ticket sync + merge + push)
+# 2. git push (or .claude/scripts/dso merge-to-main.sh in worktree sessions — handles .claude/scripts/dso ticket sync + merge + push)
 #    Supports --resume (continue from last state file checkpoint).
 #    Phases: sync → merge → version_bump → validate → push → archive → ci_trigger
 #    State file: /tmp/merge-to-main-state-<branch>.json (expires after 4h); lock file: /tmp/merge-to-main-lock-<hash>

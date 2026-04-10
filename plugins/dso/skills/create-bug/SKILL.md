@@ -92,8 +92,16 @@ Include optional sections (Technical Environment, Action History, Logs) when the
 
 ### Step 3: Create the Ticket
 
+**TITLE FORMAT GATE — do not proceed until this passes:** Verify your title matches `[Component]: [Condition] -> [Observed Result]` exactly. Check:
+- Starts with `[Component]` in square brackets (e.g., `[ticket-transition.sh]`, `[sprint Phase 2]`, `[figma_node_mapper.py]`)
+- Followed by `: [Condition]` — the action attempted
+- Followed by ` -> [Observed Result]` — the raw factual output
+- Bad: `"figma_node_mapper.py: effects not mapped"` (missing brackets, no `->`)
+- Good: `"[figma_node_mapper.py]: _map_single_node() called -> effects field absent from output"`
+
 ```bash
-.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" \
+# Capture both stdout and stderr to enable post-creation title validation
+BUG_CREATE_OUT=$(.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" \
   -p <priority> \
   -d "$(cat <<'DESC'
 ### 2. Incident Overview
@@ -108,18 +116,29 @@ Include optional sections (Technical Environment, Action History, Logs) when the
 
 [What was observed]
 DESC
-)"
+)" 2>/tmp/bug_create_stderr.tmp)
+BUG_CREATE_ERR=$(cat /tmp/bug_create_stderr.tmp); rm -f /tmp/bug_create_stderr.tmp
+BUG_TICKET_ID=$(echo "$BUG_CREATE_OUT" | grep -oE '[0-9a-f]{4}-[0-9a-f]{4}' | head -1)
 ```
 
-### Step 4: Validate
+### Step 4: Validate and Fix Title
 
-After creating the ticket, run:
+**Post-creation title fix (mandatory):** Check stderr for the title format warning and fix immediately if present:
 
 ```bash
-.claude/scripts/dso ticket show <ticket-id>
+if echo "$BUG_CREATE_ERR" | grep -q "does not match recommended pattern"; then
+    # Fix the title NOW — do not skip this step
+    .claude/scripts/dso ticket edit "$BUG_TICKET_ID" --title="[Component]: [Condition] -> [Observed Result]"
+fi
 ```
 
-Confirm the title, priority, and description are correctly populated.
+Then confirm the ticket was created correctly:
+
+```bash
+.claude/scripts/dso ticket show "$BUG_TICKET_ID"
+```
+
+Confirm the title starts with `[Component]:` and contains `->`. If it does not, edit it before proceeding.
 
 ## CLI_user Tag Policy
 

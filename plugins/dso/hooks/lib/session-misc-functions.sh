@@ -1052,7 +1052,8 @@ print(f'{total} {timeouts}')
     # yesterday's file would require probing two paths and merging counts for marginal benefit.
     # The suggestion system is fail-open: missing a suggestion trigger is non-blocking and only
     # causes an under-count, never a false positive. This limitation is accepted by design.
-    local _JSONL_FILE="$HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
+    local _JSONL_FILE
+    _JSONL_FILE="$HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
     if [[ -f "$_JSONL_FILE" ]]; then
         local _TOOL_USE_COUNT
         _TOOL_USE_COUNT=$(python3 -c "

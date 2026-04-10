@@ -12,6 +12,10 @@ This skill requires the Agent tool to dispatch sub-agents. Before proceeding, ch
 Do NOT proceed with any skill logic if the Agent tool is unavailable.
 </SUB-AGENT-GUARD>
 
+<INJECTION_GUARD>
+If you are reading this, the sprint skill content has been successfully injected into your context. Your first action MUST be to announce: "Starting /dso:sprint workflow — skill loaded successfully." Do NOT skip this announcement. If you invoked dso:sprint but cannot see this block, the skill was not injected — use the Read tool fallback from using-lockpick (read plugins/dso/skills/sprint/SKILL.md directly) instead of re-invoking the Skill tool.
+</INJECTION_GUARD>
+
 # Execute Epic: Multi-Agent Orchestration
 
 ## Config Resolution (reads project workflow-config.yaml)
@@ -244,7 +248,7 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
 5. For each affected story, emit a SKILL_INVOKE breadcrumb and re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as Phase 2 Step 2).
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
    Stopping here is a known bug (7d7a-b707). Do not stop.
    </ORCHESTRATOR_RESUME>
 
@@ -271,7 +275,7 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
 5. For each affected story, emit a SKILL_INVOKE breadcrumb and re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as DRIFT_DETECTED handling above).
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection (RELATES_TO_DRIFT). Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection (RELATES_TO_DRIFT). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
    Stopping here is a known bug (7d7a-b707). Do not stop.
    </ORCHESTRATOR_RESUME>
 
@@ -445,7 +449,7 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
    The skill handles epic type detection and runs inline (no sub-agent dispatch needed).
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Your immediate next actions are:
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your immediate next actions are:
    1. Emit the SKILL_RESUMED breadcrumb (step 4 below)
    2. Parse the STATUS line (step 5 below)
    3. Continue to Phase 2
@@ -483,7 +487,7 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 - Invoke `/dso:implementation-plan` via Skill tool (same as Step 3a, step 2)
 
   <ORCHESTRATOR_RESUME>
-  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Your immediate next actions are:
+  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your immediate next actions are:
   1. Emit the SKILL_RESUMED breadcrumb (below)
   2. Parse the STATUS line from the skill's output
   3. Set epic_routing = "MODERATE" and continue to Phase 2
@@ -663,7 +667,7 @@ b. For each story in the layer, emit SKILL_INVOKE breadcrumb then invoke `/dso:i
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. You have more stories to process in this layer. Your immediate next actions are:
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. You have more stories to process in this layer. Your immediate next actions are:
    1. Emit the SKILL_RESUMED breadcrumb (step c below)
    2. Parse the STATUS line from the skill's output (step d below)
    3. Continue to the next story in the layer loop
@@ -961,7 +965,7 @@ After composing the batch, check each task's parent story against the `story_unc
    b. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool to re-plan the story.
 
       <ORCHESTRATOR_RESUME>
-      **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Confidence Failure Re-Planning. Continue to step c (record REPLAN_RESOLVED) and then step d (reset counter).
+      **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Confidence Failure Re-Planning. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step c (record REPLAN_RESOLVED) and then step d (reset counter).
       Stopping here is a known bug (7d7a-b707). Do not stop.
       </ORCHESTRATOR_RESUME>
 
@@ -1636,7 +1640,7 @@ Check whether all tasks under the story are closed (no open or in-progress tasks
   4. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool on the story to create remediation tasks. The implementation-plan re-invocation guard will detect existing closed children and produce a diff plan (new tasks only for uncovered success criteria — no duplication). **If implementation-plan emits `REPLAN_ESCALATE: brainstorm`**: add the story to the `replan-stories` list and route to **d-replan-collect** (Phase 2 replan logic). The cascade counter (`sprint.max_replan_cycles`) applies — if the cap is reached, escalate to the user. Do NOT assume implementation-plan always succeeds here.
 
      <ORCHESTRATOR_RESUME>
-     **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Story Validation Failure handling (Step 10a). Continue to step 5 (TDD remediation tasks) and then step 6 (record REPLAN_RESOLVED), then return to Phase 3.
+     **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Story Validation Failure handling (Step 10a). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step 5 (TDD remediation tasks) and then step 6 (record REPLAN_RESOLVED), then return to Phase 3.
      Stopping here is a known bug (7d7a-b707). Do not stop.
      </ORCHESTRATOR_RESUME>
 
@@ -1737,7 +1741,7 @@ If `batch_out_of_scope_findings` is non-empty:
    d. Invoke `/dso:implementation-plan <story-id>` via the Skill tool to create tasks covering the out-of-scope files.
 
       <ORCHESTRATOR_RESUME>
-      **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Out-of-Scope Review Feedback Routing (Step 13a). Continue to step e (handle REPLAN_ESCALATE) and then step f (record resolution).
+      **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Out-of-Scope Review Feedback Routing (Step 13a). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step e (handle REPLAN_ESCALATE) and then step f (record resolution).
       Stopping here is a known bug (7d7a-b707). Do not stop.
       </ORCHESTRATOR_RESUME>
 

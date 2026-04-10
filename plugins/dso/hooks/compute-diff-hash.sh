@@ -20,12 +20,16 @@ _GIT_DIR_EARLY=$(git rev-parse --git-dir 2>/dev/null || echo ".git")
 _REPO_ID=$(git rev-parse --show-toplevel 2>/dev/null | shasum -a 256 | cut -c1-12)
 if [[ "$(uname)" == "Darwin" ]]; then
     _INDEX_MTIME=$(stat -f '%m' "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
+    _INDEX_SIZE=$(stat -f '%z' "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
 else
     _INDEX_MTIME=$(stat -c '%Y' "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
+    _INDEX_SIZE=$(stat -c '%s' "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
 fi
 _CACHE_DIR="${TMPDIR:-/tmp}/compute-diff-hash-cache-${_REPO_ID}"
 mkdir -p "$_CACHE_DIR" 2>/dev/null || true
-_CACHE_KEY="${_CACHE_DIR}/hash-${_INDEX_MTIME}"
+# Cache key includes both mtime and file size to prevent second-resolution collisions
+# when two git add operations occur within the same second (c3b6-7462)
+_CACHE_KEY="${_CACHE_DIR}/hash-${_INDEX_MTIME}-${_INDEX_SIZE}"
 if [ -f "$_CACHE_KEY" ]; then
     cat "$_CACHE_KEY"
     exit 0

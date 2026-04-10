@@ -116,33 +116,56 @@ if [ "$target_status" = "closed" ]; then
     # of ticket-unblock.py so a broken/absent unblock script cannot mask children.
     open_children_check_exit=0
     open_children=$(python3 - "$TRACKER_DIR" "$ticket_id" "$REDUCER" <<'PYEOF' 2>&1) || open_children_check_exit=$?
-import json, os, subprocess, sys
+import glob, json, os, subprocess, sys
 
 tracker_dir = sys.argv[1]
 ticket_id = sys.argv[2]
 reducer_path = sys.argv[3]
 
-# Scan all ticket directories for open children (parent_id == ticket_id).
+CLOSED_STATUSES = frozenset(('closed', 'done', 'resolved', 'cancelled', 'wont_fix', 'archived'))
+
+def read_state_from_snapshot(ticket_dir):
+    """Read compiled state from the newest *-SNAPSHOT.json event file. Returns dict or None."""
+    snapshots = sorted(glob.glob(os.path.join(ticket_dir, '*-SNAPSHOT.json')))
+    if not snapshots:
+        return None
+    try:
+        with open(snapshots[-1]) as f:
+            event = json.load(f)
+        return event.get('data', {}).get('compiled_state')
+    except Exception:
+        return None
+
+def read_state_via_reducer(ticket_dir):
+    """Fallback: invoke reducer subprocess for tickets without a SNAPSHOT."""
+    try:
+        result = subprocess.run(
+            ['python3', reducer_path, ticket_dir],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return None
+        return json.loads(result.stdout)
+    except Exception:
+        return None
+
+# Scan all ticket directories for open children.
+# Fast path: read *-SNAPSHOT.json files directly (no subprocess per ticket).
+# Slow path fallback: invoke reducer for tickets lacking a SNAPSHOT file.
 open_children = []
 try:
     for entry in os.scandir(tracker_dir):
         if not entry.is_dir():
             continue
         tid = entry.name
-        try:
-            result = subprocess.run(
-                ['python3', reducer_path, entry.path],
-                capture_output=True, text=True, timeout=10,
-            )
-            if result.returncode != 0:
-                continue
-            state = json.loads(result.stdout)
-        except Exception:
+        state = read_state_from_snapshot(entry.path)
+        if state is None:
+            state = read_state_via_reducer(entry.path)
+        if state is None:
             continue
         if state.get('parent_id') != ticket_id:
             continue
-        status = state.get('status', 'open')
-        if status not in ('closed', 'done', 'resolved', 'cancelled', 'wont_fix', 'archived'):
+        if state.get('status', 'open') not in CLOSED_STATUSES:
             open_children.append(tid)
 except Exception as e:
     print(f'Error: open-children scan failed: {e}', file=sys.stderr)
