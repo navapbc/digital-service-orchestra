@@ -1,1 +1,0 @@
-{"timestamp": 1775795904406834000, "uuid": "6c159e58-0ed2-45fe-90f3-af280da4920d", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 4/6: Implementation complete \u2713 (added TAG_AWAITING_REVIEW=design:awaiting_review to figma-tags.conf; updated test file with 2 new assertions covering the new constant)"}}
