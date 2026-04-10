@@ -1,0 +1,1 @@
+{"timestamp": 1775847341139881000, "uuid": "ce1cc948-fc8d-42a1-a51f-70a6bb4cb3be", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Duplicate of 1f27-4295. Fix implemented in validate.sh (CMD_BUILD) and dso-config.conf. Closing as duplicate."}}
