@@ -345,3 +345,4 @@ plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard
 plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-reference.sh
 
 plugins/dso/skills/using-lockpick/HOOK-INJECTION.md:tests/skills/test-using-lockpick-clarification.sh
+tests/integration/test-figma-pullback-integration.sh: tests/integration/test-figma-pullback-integration.sh [test_fp_auth_1_valid_pat] [test_fp_auth_2_invalid_pat] [test_fp_auth_3_env_var_fallback]
