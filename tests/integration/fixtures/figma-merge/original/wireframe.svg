@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900">
+  <g id="comp-header" transform="translate(0,0)">
+    <rect x="0" y="0" width="1440" height="80" fill="#E8E8E8" stroke="#CCCCCC"/>
+    <text x="720" y="45" text-anchor="middle" font-size="18">Header</text>
+  </g>
+  <g id="comp-nav" transform="translate(0,80)">
+    <rect x="0" y="0" width="240" height="820" fill="#F0F0F0" stroke="#CCCCCC"/>
+    <text x="120" y="40" text-anchor="middle" font-size="14">Navigation</text>
+  </g>
+  <g id="comp-footer" transform="translate(0,820)">
+    <rect x="0" y="0" width="1440" height="80" fill="#E8E8E8" stroke="#CCCCCC"/>
+    <text x="720" y="45" text-anchor="middle" font-size="14">Footer</text>
+  </g>
+</svg>

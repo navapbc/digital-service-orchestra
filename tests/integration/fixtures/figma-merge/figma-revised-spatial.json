@@ -1,0 +1,49 @@
+{
+  "metadata": {
+    "schema_version": "1.0",
+    "generated_at": "2026-04-10T00:00:00Z",
+    "source": "figma"
+  },
+  "components": [
+    {
+      "id": "comp-nav",
+      "name": "Navigation",
+      "type": "FRAME",
+      "spatial_hint": {
+        "x": 0,
+        "y": 100,
+        "width": 260,
+        "height": 800
+      },
+      "behavioral_spec_status": "PENDING",
+      "tag": "EXISTING"
+    },
+    {
+      "id": "comp-footer",
+      "name": "Footer",
+      "type": "FRAME",
+      "spatial_hint": {
+        "x": 0,
+        "y": 820,
+        "width": 1440,
+        "height": 80
+      },
+      "behavioral_spec_status": "PENDING",
+      "tag": "EXISTING"
+    },
+    {
+      "id": "comp-hero",
+      "name": "Hero Banner",
+      "type": "FRAME",
+      "spatial_hint": {
+        "x": 240,
+        "y": 100,
+        "width": 1200,
+        "height": 400
+      },
+      "behavioral_spec_status": "PENDING",
+      "designer_added": true,
+      "tag": "NEW"
+    }
+  ]
+}
