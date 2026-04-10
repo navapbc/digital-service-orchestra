@@ -1,1 +1,0 @@
-{"timestamp": 1775842593, "uuid": "8c355966-0cf8-4b66-8cce-5e42c05f3bbe", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "bug", "title": "Fix: add test for missing figma_file_key path in figma_resync.run()", "parent_id": "", "description": "", "tags": ["5250-e85b"], "priority": 2, "assignee": "Test"}}
