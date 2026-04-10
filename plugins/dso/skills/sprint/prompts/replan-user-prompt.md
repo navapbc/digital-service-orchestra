@@ -39,7 +39,7 @@ Options:
   (c) Manual adjustment — edit the relevant story or epic tickets manually, then resume the sprint
 ```
 
-Wait for user input. Act on their choice. Do NOT enter the cascade. See `plugins/dso/docs/designs/cascade-replan-protocol.md` for context.
+Wait for user input. Act on their choice. Do NOT enter the cascade. See `plugins/dso/skills/sprint/docs/cascade-replan-protocol.md` for context.
 
 ---
 

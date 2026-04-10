@@ -12,11 +12,13 @@ PASS=0
 FAIL=0
 
 # Assertion 1: No references to old design/findings/archive paths in *.md *.sh
+# Exclude this test file itself (it contains the patterns as search terms, not real references)
+SELF=$(basename "$0")
 if ! git -C "$REPO_ROOT" grep -rn \
      -e 'plugins/dso/docs/designs' \
      -e 'plugins/dso/docs/findings' \
      -e 'plugins/dso/docs/archive' \
-     -- '*.md' '*.sh' 2>/dev/null; then
+     -- '*.md' '*.sh' 2>/dev/null | grep -v "$SELF"; then
   echo "PASS: no old path references in *.md/*.sh"
   PASS=$((PASS+1))
 else

@@ -160,7 +160,7 @@ python3 -c "import uuid; print(uuid.uuid4())"
 
 Resolve the design root:
 ```bash
-DESIGN_ROOT=$(git rev-parse --show-toplevel)/plugins/dso/docs/designs
+DESIGN_ROOT=$(git rev-parse --show-toplevel)/docs/designs
 mkdir -p "$DESIGN_ROOT/<uuid>"
 ```
 
@@ -234,7 +234,7 @@ Fix any issues found. No multi-reviewer committee is needed for Lite track.
 
 Link the brief to the story:
 ```
-.claude/scripts/dso ticket comment <story-id> "Design Brief: plugins/dso/docs/designs/<uuid>/brief.md"
+.claude/scripts/dso ticket comment <story-id> "Design Brief: docs/designs/<uuid>/brief.md"
 ```
 
 **End of Lite Track.** Proceed directly to **Return Payload** below (do not enter
@@ -381,7 +381,7 @@ If a split is not needed, proceed with the Ideal UX as the single design.
 
 ```bash
 python3 -c "import uuid; print(uuid.uuid4())"
-DESIGN_ROOT=$(git rev-parse --show-toplevel)/plugins/dso/docs/designs
+DESIGN_ROOT=$(git rev-parse --show-toplevel)/docs/designs
 mkdir -p "$DESIGN_ROOT/<uuid>/screenshots"
 ```
 
@@ -484,7 +484,7 @@ to Phase 6.
 
 Link the approved design artifacts to the story:
 ```
-.claude/scripts/dso ticket comment <story-id> "Design Manifest: plugins/dso/docs/designs/<uuid>/manifest.md | Spatial Layout: plugins/dso/docs/designs/<uuid>/spatial-layout.json | Wireframe: plugins/dso/docs/designs/<uuid>/wireframe.svg | Token Overlay: plugins/dso/docs/designs/<uuid>/tokens.md"
+.claude/scripts/dso ticket comment <story-id> "Design Manifest: docs/designs/<uuid>/manifest.md | Spatial Layout: docs/designs/<uuid>/spatial-layout.json | Wireframe: docs/designs/<uuid>/wireframe.svg | Token Overlay: docs/designs/<uuid>/tokens.md"
 ```
 
 If the story was split in Step 10, also create the enhancement story:
@@ -548,11 +548,11 @@ UI_DESIGNER_PAYLOAD:
 {
   "design_artifacts": {
     "design_uuid": "<uuid>",
-    "spatial_layout": "plugins/dso/docs/designs/<uuid>/spatial-layout.json",
-    "wireframe_svg": "plugins/dso/docs/designs/<uuid>/wireframe.svg",
-    "token_overlay": "plugins/dso/docs/designs/<uuid>/tokens.md",
-    "manifest": "plugins/dso/docs/designs/<uuid>/manifest.md",
-    "brief": "plugins/dso/docs/designs/<uuid>/brief.md"
+    "spatial_layout": "docs/designs/<uuid>/spatial-layout.json",
+    "wireframe_svg": "docs/designs/<uuid>/wireframe.svg",
+    "token_overlay": "docs/designs/<uuid>/tokens.md",
+    "manifest": "docs/designs/<uuid>/manifest.md",
+    "brief": "docs/designs/<uuid>/brief.md"
   },
   "cache_status": "CACHE_VALID",
   "scope_split_proposals": null,

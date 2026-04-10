@@ -93,7 +93,7 @@ Config keys: see `plugins/dso/docs/CONFIGURATION-REFERENCE.md`. Merge-to-main ph
 **Worktree lifecycle** (`claude-safe`): After Claude exits, `_offer_worktree_cleanup` auto-removes the worktree if: (1) branch is ancestor of main (`is_merged`), AND (2) `git status --porcelain` is empty (`is_clean`). No special filtering — `.tickets-tracker/` files block removal like any other dirty file. `/dso:end` ensures the worktree meets these criteria by: generating technical learnings (Step 2.8) and creating bug tickets (Step 2.85) before commit/merge, and verifying `is_merged` + `is_clean` (Step 4.75) before session summary.
 **Worktree isolation** (`worktree.isolation_enabled`, default: true): Sprint, fix-bug, and debug-everything dispatch implementation sub-agents with `isolation: worktree`, giving each agent its own working directory. Orchestrator reviews and commits each worktree serially via `per-worktree-review-commit.md`, then merges into session branch. See `plugins/dso/skills/shared/prompts/worktree-dispatch.md`.
 
-**File placement**: Design documents go in `plugins/dso/docs/designs/` — not bare `designs/` at repo root (review-gate blocks it).
+**File placement**: Design documents go in `docs/designs/` (project-local) or `plugins/dso/skills/<skill>/docs/` (plugin-local) — not bare `designs/` at repo root.
 
 ## Critical Rules
 

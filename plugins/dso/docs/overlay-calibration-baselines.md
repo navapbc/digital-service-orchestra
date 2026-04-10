@@ -104,7 +104,7 @@ performance patterns are classified as **minor**. No findings are classified as
   - `plugins/dso/agents/code-reviewer-security-red-team.md`
   - `plugins/dso/agents/code-reviewer-standard.md`
   - `plugins/dso/docs/contracts/security-red-team-output.md`
-  - `plugins/dso/docs/designs/test-failure-subagent-strategy.md`
+  - `docs/designs/test-failure-subagent-strategy.md`
   - `plugins/dso/docs/overlay-calibration-baselines.md`
   - `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md`
   - `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md`
@@ -139,7 +139,7 @@ performance patterns are classified as **minor**. No findings are classified as
   - `plugins/dso/agents/code-reviewer-security-red-team.md`
   - `plugins/dso/agents/code-reviewer-standard.md`
   - `plugins/dso/docs/contracts/security-red-team-output.md`
-  - `plugins/dso/docs/designs/test-failure-subagent-strategy.md`
+  - `docs/designs/test-failure-subagent-strategy.md`
   - `plugins/dso/docs/overlay-calibration-baselines.md`
   - `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md`
   - `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md`
