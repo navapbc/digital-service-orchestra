@@ -1,1 +1,0 @@
-{"timestamp": 1774201515, "uuid": "ebb71e14-8f73-441d-80a5-973b47212278", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Add diff-size threshold logic to review-complexity-classifier.sh", "parent_id": "w21-nv42  # As a DSO practitioner, oversized diffs are rejected with actionable guidance", "priority": 2, "assignee": "Joe Oakhart"}}
