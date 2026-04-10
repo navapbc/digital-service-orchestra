@@ -173,7 +173,7 @@ test_hook_exits_0_for_allowed_content() {
         return
     fi
 
-    # Stage a file that should be permitted — a shell script in plugins/dso/scripts/
+    # Stage files that should be permitted — a shell script in scripts/ and a root docs/ file
     local test_repo
     test_repo=$(make_test_repo)
 
@@ -184,10 +184,14 @@ test_hook_exits_0_for_allowed_content() {
         mkdir -p "plugins/dso/scripts"
         echo "#!/usr/bin/env bash" > "plugins/dso/scripts/example-tool.sh"
         git add "plugins/dso/scripts/example-tool.sh" 2>/dev/null
+        # Also stage a root-level docs/*.md file (covers the docs/ root-level pattern)
+        mkdir -p "plugins/dso/docs"
+        echo "# Reference doc" > "plugins/dso/docs/INSTALL.md"
+        git add "plugins/dso/docs/INSTALL.md" 2>/dev/null
         bash "$HOOK" 2>&1
     ) || exit_code=$?
 
-    assert_eq "hook exits 0 for permitted staged file" "0" "$exit_code"
+    assert_eq "hook exits 0 for permitted staged files (scripts/ and docs/*.md)" "0" "$exit_code"
 }
 
 # ── Assertion 5: Hook exits non-zero for plugins/dso/docs/designs/test.md ─────
@@ -284,6 +288,46 @@ test_this_file_is_executable() {
     fi
 }
 
+# ── Assertion 9: docs root-level files allowed, docs subdirectory files blocked ──
+# Verifies glob_to_regex semantics: * does not match /, ** does.
+# Pins the fix for bash case glob regression (false match of docs/*.md on docs/designs/test.md).
+test_docs_root_level_allowed_subdirectory_blocked() {
+    if [[ ! -f "$HOOK" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: cannot test docs glob — hook missing: %s\n" "$HOOK" >&2
+        return
+    fi
+
+    local test_repo
+    test_repo=$(make_test_repo)
+
+    # docs/INSTALL.md (root-level) must be allowed
+    local exit_code_allowed=0
+    (
+        cd "$test_repo"
+        mkdir -p "plugins/dso/docs"
+        echo "# Reference doc" > "plugins/dso/docs/INSTALL.md"
+        git add "plugins/dso/docs/INSTALL.md" 2>/dev/null
+        bash "$HOOK" 2>&1
+    ) || exit_code_allowed=$?
+
+    assert_eq "docs/*.md allows root-level docs/INSTALL.md" "0" "$exit_code_allowed"
+
+    # docs/designs/test.md (subdirectory) must be blocked
+    local test_repo2
+    test_repo2=$(make_test_repo)
+    local exit_code_blocked=0
+    (
+        cd "$test_repo2"
+        mkdir -p "plugins/dso/docs/designs"
+        echo "# Bad doc" > "plugins/dso/docs/designs/test.md"
+        git add "plugins/dso/docs/designs/test.md" 2>/dev/null
+        bash "$HOOK" 2>&1
+    ) || exit_code_blocked=$?
+
+    assert_ne "docs/*.md blocks docs/designs/test.md (subdirectory)" "0" "$exit_code_blocked"
+}
+
 # ── Run all assertions ────────────────────────────────────────────────────────
 echo "=== test-check-plugin-boundary ==="
 echo ""
@@ -318,6 +362,10 @@ echo ""
 
 echo "--- Assertion 8: This test file is executable ---"
 test_this_file_is_executable
+echo ""
+
+echo "--- Assertion 9: docs root-level allowed, subdirectory blocked ---"
+test_docs_root_level_allowed_subdirectory_blocked
 echo ""
 
 print_summary
