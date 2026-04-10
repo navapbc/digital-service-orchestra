@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # tests/integration/test-figma-pullback-integration.sh
-# Integration tests for Figma URL parsing and PAT authentication.
+# Integration tests for Figma URL parsing, PAT authentication, and node mapping.
 #
-# Tests: FP-URL-1 through FP-URL-4 (URL parsing), FP-AUTH-1 through FP-AUTH-3 (PAT auth)
+# Tests: FP-URL-1 through FP-URL-4 (URL parsing), FP-AUTH-1 through FP-AUTH-3 (PAT auth),
+#        FP-MAP-1 through FP-MAP-7 (node mapping to spatial-layout.json)
 #
-# RED state: These tests MUST FAIL until figma-url-parse.sh and figma-auth.sh are implemented.
+# RED state: These tests MUST FAIL until figma-url-parse.sh, figma-auth.sh, and
+#            figma-node-mapper.sh are implemented.
 # Script-not-found is the expected failure mode — do NOT skip on missing scripts.
 #
 # Usage: bash tests/integration/test-figma-pullback-integration.sh
@@ -33,6 +35,17 @@ trap _cleanup EXIT
 # Script paths under test (do NOT create these — they must not exist for RED state)
 FIGMA_URL_PARSE="$REPO_ROOT/plugins/dso/scripts/figma-url-parse.sh"
 FIGMA_AUTH="$REPO_ROOT/plugins/dso/scripts/figma-auth.sh"
+# figma-node-mapper: check bash first, fall back to python
+if [[ -f "$REPO_ROOT/plugins/dso/scripts/figma-node-mapper.sh" ]]; then
+    FIGMA_NODE_MAPPER="$REPO_ROOT/plugins/dso/scripts/figma-node-mapper.sh"
+    FIGMA_NODE_MAPPER_CMD="bash"
+elif [[ -f "$REPO_ROOT/plugins/dso/scripts/figma-node-mapper.py" ]]; then
+    FIGMA_NODE_MAPPER="$REPO_ROOT/plugins/dso/scripts/figma-node-mapper.py"
+    FIGMA_NODE_MAPPER_CMD="python3"
+else
+    FIGMA_NODE_MAPPER="$REPO_ROOT/plugins/dso/scripts/figma-node-mapper.sh"
+    FIGMA_NODE_MAPPER_CMD="bash"
+fi
 
 # Fixtures
 FIXTURES_DIR="$SCRIPT_DIR/fixtures/figma"
@@ -243,6 +256,257 @@ JSON
 }
 
 # ---------------------------------------------------------------------------
+# Node Mapping Tests (FP-MAP-1 through FP-MAP-7)
+# ---------------------------------------------------------------------------
+
+# FP-MAP-1: Given tests/integration/fixtures/figma/figma-file-response.json,
+# when figma-node-mapper.sh processes it,
+# then outputs valid spatial-layout.json (parseable JSON with required fields:
+# components array, metadata).
+test_fp_map_1_valid_json() {
+    if [[ ! -f "$FIGMA_NODE_MAPPER" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-MAP-1 — figma-node-mapper not found at %s\n" "$FIGMA_NODE_MAPPER" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local output_file="$tmpdir/spatial-layout.json"
+
+    local exit_code=0
+    "$FIGMA_NODE_MAPPER_CMD" "$FIGMA_NODE_MAPPER" \
+        "$FIXTURES_DIR/figma-file-response.json" \
+        "$output_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "FP-MAP-1: exits 0 for valid fixture" "0" "$exit_code"
+
+    local parsed_ok=0
+    python3 -c "import sys,json; d=json.load(open('$output_file')); assert 'components' in d; assert 'metadata' in d" \
+        2>/dev/null || parsed_ok=1
+
+    assert_eq "FP-MAP-1: output is parseable JSON with components and metadata fields" "0" "$parsed_ok"
+}
+
+# FP-MAP-2: Given a FRAME node (id "2:1", name "Main Frame") in the fixture,
+# when mapped, then output contains a section entry with id="2:1", name="Main Frame",
+# spatial_hint with x=0, y=0, width=1440, height=900.
+test_fp_map_2_frame_mapping() {
+    if [[ ! -f "$FIGMA_NODE_MAPPER" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-MAP-2 — figma-node-mapper not found at %s\n" "$FIGMA_NODE_MAPPER" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local output_file="$tmpdir/spatial-layout.json"
+
+    local exit_code=0
+    "$FIGMA_NODE_MAPPER_CMD" "$FIGMA_NODE_MAPPER" \
+        "$FIXTURES_DIR/figma-file-response.json" \
+        "$output_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "FP-MAP-2: exits 0" "0" "$exit_code"
+
+    local frame_check=0
+    python3 - "$output_file" <<'PYEOF' 2>/dev/null || frame_check=1
+import sys, json
+d = json.load(open(sys.argv[1]))
+components = d.get("components", [])
+frame = next((c for c in components if c.get("id") == "2:1"), None)
+assert frame is not None, "no component with id 2:1"
+assert frame.get("name") == "Main Frame", f"name mismatch: {frame.get('name')}"
+sh = frame.get("spatial_hint", {})
+assert sh.get("x") == 0,      f"x={sh.get('x')}"
+assert sh.get("y") == 0,      f"y={sh.get('y')}"
+assert sh.get("width") == 1440,  f"width={sh.get('width')}"
+assert sh.get("height") == 900,  f"height={sh.get('height')}"
+PYEOF
+
+    assert_eq "FP-MAP-2: FRAME node mapped with correct id, name, and spatial_hint" "0" "$frame_check"
+}
+
+# FP-MAP-3: Given a TEXT node (id "2:2", name "Heading",
+# characters "Welcome to the Design System"), when mapped,
+# then output contains text content in the component entry.
+test_fp_map_3_text_mapping() {
+    if [[ ! -f "$FIGMA_NODE_MAPPER" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-MAP-3 — figma-node-mapper not found at %s\n" "$FIGMA_NODE_MAPPER" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local output_file="$tmpdir/spatial-layout.json"
+
+    local exit_code=0
+    "$FIGMA_NODE_MAPPER_CMD" "$FIGMA_NODE_MAPPER" \
+        "$FIXTURES_DIR/figma-file-response.json" \
+        "$output_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "FP-MAP-3: exits 0" "0" "$exit_code"
+
+    local text_check=0
+    python3 - "$output_file" <<'PYEOF' 2>/dev/null || text_check=1
+import sys, json
+d = json.load(open(sys.argv[1]))
+components = d.get("components", [])
+text_node = next((c for c in components if c.get("id") == "2:2"), None)
+assert text_node is not None, "no component with id 2:2"
+assert text_node.get("name") == "Heading", f"name={text_node.get('name')}"
+content = text_node.get("text_content", "") or text_node.get("characters", "") or str(text_node)
+assert "Welcome to the Design System" in content, f"text content missing: {text_node}"
+PYEOF
+
+    assert_eq "FP-MAP-3: TEXT node contains text content 'Welcome to the Design System'" "0" "$text_check"
+}
+
+# FP-MAP-4: Given a RECTANGLE node (id "2:3", name "Divider"), when mapped,
+# then output contains it as a component entry with appropriate type.
+test_fp_map_4_rectangle_mapping() {
+    if [[ ! -f "$FIGMA_NODE_MAPPER" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-MAP-4 — figma-node-mapper not found at %s\n" "$FIGMA_NODE_MAPPER" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local output_file="$tmpdir/spatial-layout.json"
+
+    local exit_code=0
+    "$FIGMA_NODE_MAPPER_CMD" "$FIGMA_NODE_MAPPER" \
+        "$FIXTURES_DIR/figma-file-response.json" \
+        "$output_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "FP-MAP-4: exits 0" "0" "$exit_code"
+
+    local rect_check=0
+    python3 - "$output_file" <<'PYEOF' 2>/dev/null || rect_check=1
+import sys, json
+d = json.load(open(sys.argv[1]))
+components = d.get("components", [])
+rect_node = next((c for c in components if c.get("id") == "2:3"), None)
+assert rect_node is not None, "no component with id 2:3"
+assert rect_node.get("name") == "Divider", f"name={rect_node.get('name')}"
+# type field must be present and non-empty
+node_type = rect_node.get("type", "")
+assert node_type, f"type field missing or empty: {rect_node}"
+PYEOF
+
+    assert_eq "FP-MAP-4: RECTANGLE node mapped as component entry with non-empty type" "0" "$rect_check"
+}
+
+# FP-MAP-5: Given a COMPONENT node (id "2:4", name "PrimaryButton",
+# componentId "component:primary-button-v1"), when mapped,
+# then output contains component with COMPLETE behavioral spec placeholder.
+test_fp_map_5_component_mapping() {
+    if [[ ! -f "$FIGMA_NODE_MAPPER" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-MAP-5 — figma-node-mapper not found at %s\n" "$FIGMA_NODE_MAPPER" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local output_file="$tmpdir/spatial-layout.json"
+
+    local exit_code=0
+    "$FIGMA_NODE_MAPPER_CMD" "$FIGMA_NODE_MAPPER" \
+        "$FIXTURES_DIR/figma-file-response.json" \
+        "$output_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "FP-MAP-5: exits 0" "0" "$exit_code"
+
+    local comp_check=0
+    python3 - "$output_file" <<'PYEOF' 2>/dev/null || comp_check=1
+import sys, json
+d = json.load(open(sys.argv[1]))
+components = d.get("components", [])
+comp_node = next((c for c in components if c.get("id") == "2:4"), None)
+assert comp_node is not None, "no component with id 2:4"
+assert comp_node.get("name") == "PrimaryButton", f"name={comp_node.get('name')}"
+# Must have a behavioral_spec or behavioral_spec_placeholder field (non-empty)
+spec = comp_node.get("behavioral_spec") or comp_node.get("behavioral_spec_placeholder") or ""
+assert spec, f"behavioral spec placeholder missing: {comp_node}"
+PYEOF
+
+    assert_eq "FP-MAP-5: COMPONENT node has behavioral spec placeholder" "0" "$comp_check"
+}
+
+# FP-MAP-6: Given an INSTANCE node (id "2:5", name "PrimaryButton Instance"),
+# when mapped, then output contains an instance entry referencing the source component.
+test_fp_map_6_instance_mapping() {
+    if [[ ! -f "$FIGMA_NODE_MAPPER" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-MAP-6 — figma-node-mapper not found at %s\n" "$FIGMA_NODE_MAPPER" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local output_file="$tmpdir/spatial-layout.json"
+
+    local exit_code=0
+    "$FIGMA_NODE_MAPPER_CMD" "$FIGMA_NODE_MAPPER" \
+        "$FIXTURES_DIR/figma-file-response.json" \
+        "$output_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "FP-MAP-6: exits 0" "0" "$exit_code"
+
+    local inst_check=0
+    python3 - "$output_file" <<'PYEOF' 2>/dev/null || inst_check=1
+import sys, json
+d = json.load(open(sys.argv[1]))
+components = d.get("components", [])
+inst_node = next((c for c in components if c.get("id") == "2:5"), None)
+assert inst_node is not None, "no component with id 2:5"
+assert inst_node.get("name") == "PrimaryButton Instance", f"name={inst_node.get('name')}"
+# Must reference a source component via component_ref, source_component_id, or similar
+ref = (inst_node.get("component_ref") or inst_node.get("source_component_id")
+       or inst_node.get("instance_of") or "")
+assert ref, f"instance has no source component reference: {inst_node}"
+PYEOF
+
+    assert_eq "FP-MAP-6: INSTANCE node contains reference to source component" "0" "$inst_check"
+}
+
+# FP-MAP-7: Given invalid/malformed JSON input, when figma-node-mapper.sh processes it,
+# then exits 1 with error on stderr.
+test_fp_map_7_invalid_json() {
+    if [[ ! -f "$FIGMA_NODE_MAPPER" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: FP-MAP-7 — figma-node-mapper not found at %s\n" "$FIGMA_NODE_MAPPER" >&2
+        return
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
+    local bad_input="$tmpdir/bad-input.json"
+    local output_file="$tmpdir/spatial-layout.json"
+
+    # Write deliberately malformed JSON
+    printf '{ "document": { BROKEN JSON !!! \n' > "$bad_input"
+
+    local stderr_output exit_code=0
+    stderr_output=$("$FIGMA_NODE_MAPPER_CMD" "$FIGMA_NODE_MAPPER" \
+        "$bad_input" \
+        "$output_file" 2>&1 >/dev/null) || exit_code=$?
+
+    assert_ne "FP-MAP-7: exits non-zero for malformed JSON input" "0" "$exit_code"
+    assert_ne "FP-MAP-7: emits error message on stderr for malformed JSON" "" "$stderr_output"
+}
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 test_fp_url_1_design_format
@@ -252,5 +516,12 @@ test_fp_url_4_invalid_url
 test_fp_auth_1_valid_pat
 test_fp_auth_2_invalid_pat
 test_fp_auth_3_env_var_fallback
+test_fp_map_1_valid_json
+test_fp_map_2_frame_mapping
+test_fp_map_3_text_mapping
+test_fp_map_4_rectangle_mapping
+test_fp_map_5_component_mapping
+test_fp_map_6_instance_mapping
+test_fp_map_7_invalid_json
 
 print_summary
