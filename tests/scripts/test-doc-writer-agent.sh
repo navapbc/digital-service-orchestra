@@ -285,5 +285,12 @@ assert_eq "test_inputs_epic_context_and_git_diff: epic context input referenced"
 assert_eq "test_inputs_epic_context_and_git_diff: git diff input referenced" "present" "$actual_diff"
 assert_pass_if_clean "test_inputs_epic_context_and_git_diff"
 
+# ── Output Scope section — behavioral test exemption ─────────────────────────
+# The Output Scope halt condition (task 089c-0a1d) was evaluated for testability
+# by dso:red-test-evaluator (task f4cf-1d33, VERDICT:CONFIRM). Behavioral assertions
+# on non-executable agent instruction files are prohibited by the behavioral testing
+# standard Rule 5. The structural boundary (docs/designs/, docs/findings/,
+# docs/archive/) is tested via tests/hooks/test-plugin-boundary-refs.sh.
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 print_summary

@@ -61,7 +61,7 @@ import json, sys
 tickets = json.load(sys.stdin)
 epic_id = sys.argv[1]
 for t in tickets:
-    if t.get('parent_id') == epic_id and t.get('status') in ('open', 'in_progress', 'ready'):
+    if t.get('parent_id') == epic_id and t.get('status') in ('open', 'in_progress'):
         print(t['ticket_id'])
 " "$epic_id" || true)
 

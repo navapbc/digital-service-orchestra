@@ -275,6 +275,8 @@ Agent tool:
 
 **NEVER set `isolation: "worktree"` on this sub-agent.** The reviewer must read `reviewer-findings.json` and run `write-reviewer-findings.sh` in the same working directory as the orchestrator. Worktree isolation gives the agent a separate branch where those files are not present, causing the review to fail.
 
+**Per-worktree context note**: When dispatching from `per-worktree-review-commit.md`, the orchestrator runs all CWD-sensitive steps (0–3 and post-review Step 5) as its own Bash calls prefixed with `cd $WORKTREE_PATH &&`. Only the code analysis sub-agent (Step 4) is dispatched via the Agent tool. Since sub-agents always start in the orchestrator's primary CWD (not the worktree), the orchestrator passes `WORKFLOW_PLUGIN_ARTIFACTS_DIR=<worktree-artifacts-path>` in the sub-agent prompt so `write-reviewer-findings.sh` writes to the correct artifacts directory. The diff file is an absolute path with no CWD dependency.
+
 ### Deep Tier: 3 Parallel Sonnet Dispatch
 
 When `REVIEW_TIER` is `deep`, dispatch 3 parallel sonnet sub-agents in a single message. Each agent focuses on a different review dimension. All three receive the same `DIFF_FILE`, `REPO_ROOT`, and `STAT_FILE` — no issue-context sharing is needed between them.

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # tests/hooks/test-check-plugin-boundary.sh
-# Tests for plugins/dso/hooks/pre-commit/check-plugin-boundary.sh
+# Tests for .claude/hooks/pre-commit/check-plugin-boundary.sh
 #
 # Verifies all 8 done definitions from story c73a-1918:
 #   1. Hook file exists and is executable
 #   2. Allowlist config file exists
 #   3. Allowlist config contains a comment block explaining how to add permitted paths
 #   4. Hook exits 0 against current post-S1 plugins/dso/ dir (no violations)
-#   5. Hook exits non-zero for a staged file at plugins/dso/docs/designs/test.md
+#   5. Hook exits non-zero for a staged file at plugins/dso/docs/findings/test.md
 #      AND output contains "plugin-boundary-allowlist.conf"
 #   6. Hook exits 0 (fail-open) when the allowlist file is missing
 #   7. .pre-commit-config.yaml contains an entry referencing "check-plugin-boundary"
@@ -27,8 +27,8 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git -C "$PLUGIN_ROOT" rev-parse --show-toplevel)"
 
-HOOK="$DSO_PLUGIN_DIR/hooks/pre-commit/check-plugin-boundary.sh"
-ALLOWLIST="$DSO_PLUGIN_DIR/hooks/pre-commit/plugin-boundary-allowlist.conf"
+HOOK="$REPO_ROOT/.claude/hooks/pre-commit/check-plugin-boundary.sh"
+ALLOWLIST="$REPO_ROOT/.claude/hooks/pre-commit/plugin-boundary-allowlist.conf"
 PRE_COMMIT_CONFIG="$REPO_ROOT/.pre-commit-config.yaml"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -56,52 +56,6 @@ make_test_repo() {
     git -C "$tmpdir" add README.md
     git -C "$tmpdir" commit -q -m "init"
     echo "$tmpdir"
-}
-
-# ── Helper: run the hook from within a temp git repo ─────────────────────────
-# Stages the given file path (relative to test repo) and invokes the hook.
-# Returns both exit code and combined stdout+stderr.
-# Usage:
-#   output=$(run_hook_with_staged_file <test_repo> <relative_staged_path> [<allowlist_override>])
-#   hook_exit=$?
-#
-# If <allowlist_override> is provided, it sets PLUGIN_BOUNDARY_ALLOWLIST env var
-# so the hook uses that path instead of the default.
-run_hook_with_staged_file() {
-    local repo_dir="$1"
-    local staged_rel_path="$2"
-    local allowlist_override="${3:-}"
-
-    local exit_code=0
-    (
-        cd "$repo_dir"
-        # Create the file so we can stage it
-        mkdir -p "$(dirname "$staged_rel_path")"
-        echo "test content" > "$staged_rel_path"
-        git add "$staged_rel_path" 2>/dev/null
-
-        if [[ -n "$allowlist_override" ]]; then
-            export PLUGIN_BOUNDARY_ALLOWLIST="$allowlist_override"
-        fi
-        bash "$HOOK" 2>&1
-    ) || exit_code=$?
-    return "$exit_code"
-}
-
-# ── Helper: run the hook with no staged files ─────────────────────────────────
-run_hook_no_staged_files() {
-    local repo_dir="$1"
-    local allowlist_override="${2:-}"
-
-    local exit_code=0
-    (
-        cd "$repo_dir"
-        if [[ -n "$allowlist_override" ]]; then
-            export PLUGIN_BOUNDARY_ALLOWLIST="$allowlist_override"
-        fi
-        bash "$HOOK" 2>&1
-    ) || exit_code=$?
-    return "$exit_code"
 }
 
 # ── Assertion 1: Hook file exists and is executable ───────────────────────────
@@ -188,13 +142,13 @@ test_hook_exits_0_for_allowed_content() {
         mkdir -p "plugins/dso/docs"
         echo "# Reference doc" > "plugins/dso/docs/INSTALL.md"
         git add "plugins/dso/docs/INSTALL.md" 2>/dev/null
-        bash "$HOOK" 2>&1
+        ALLOWLIST_FILE="$ALLOWLIST" bash "$HOOK" 2>&1
     ) || exit_code=$?
 
     assert_eq "hook exits 0 for permitted staged files (scripts/ and docs/*.md)" "0" "$exit_code"
 }
 
-# ── Assertion 5: Hook exits non-zero for plugins/dso/docs/designs/test.md ─────
+# ── Assertion 5: Hook exits non-zero for plugins/dso/docs/findings/test.md ────
 # AND output contains "plugin-boundary-allowlist.conf"
 test_hook_blocks_unpermitted_path_and_names_allowlist() {
     if [[ ! -f "$HOOK" ]]; then
@@ -210,13 +164,13 @@ test_hook_blocks_unpermitted_path_and_names_allowlist() {
     local output
     output=$(
         cd "$test_repo"
-        mkdir -p "plugins/dso/docs/designs"
-        echo "# Test design doc" > "plugins/dso/docs/designs/test.md"
-        git add "plugins/dso/docs/designs/test.md" 2>/dev/null
-        bash "$HOOK" 2>&1
+        mkdir -p "plugins/dso/docs/findings"
+        echo "# Test finding doc" > "plugins/dso/docs/findings/test.md"
+        git add "plugins/dso/docs/findings/test.md" 2>/dev/null
+        ALLOWLIST_FILE="$ALLOWLIST" bash "$HOOK" 2>&1
     ) || exit_code=$?
 
-    assert_ne "hook exits non-zero for plugins/dso/docs/designs/test.md" "0" "$exit_code"
+    assert_ne "hook exits non-zero for plugins/dso/docs/findings/test.md" "0" "$exit_code"
     assert_contains "hook output names plugin-boundary-allowlist.conf" \
         "plugin-boundary-allowlist.conf" "$output"
 }
@@ -241,11 +195,10 @@ test_hook_fails_open_when_allowlist_missing() {
     local exit_code=0
     (
         cd "$test_repo"
-        mkdir -p "plugins/dso/docs/designs"
-        echo "# Test design doc" > "plugins/dso/docs/designs/test.md"
-        git add "plugins/dso/docs/designs/test.md" 2>/dev/null
-        export PLUGIN_BOUNDARY_ALLOWLIST="$missing_allowlist"
-        bash "$HOOK" 2>&1
+        mkdir -p "plugins/dso/docs/findings"
+        echo "# Test finding doc" > "plugins/dso/docs/findings/test.md"
+        git add "plugins/dso/docs/findings/test.md" 2>/dev/null
+        ALLOWLIST_FILE="$missing_allowlist" bash "$HOOK" 2>&1
     ) || exit_code=$?
 
     assert_eq "hook exits 0 (fail-open) when allowlist is missing" "0" "$exit_code"
@@ -308,7 +261,7 @@ test_docs_root_level_allowed_subdirectory_blocked() {
         mkdir -p "plugins/dso/docs"
         echo "# Reference doc" > "plugins/dso/docs/INSTALL.md"
         git add "plugins/dso/docs/INSTALL.md" 2>/dev/null
-        bash "$HOOK" 2>&1
+        ALLOWLIST_FILE="$ALLOWLIST" bash "$HOOK" 2>&1
     ) || exit_code_allowed=$?
 
     assert_eq "docs/*.md allows root-level docs/INSTALL.md" "0" "$exit_code_allowed"
@@ -322,7 +275,7 @@ test_docs_root_level_allowed_subdirectory_blocked() {
         mkdir -p "plugins/dso/docs/designs"
         echo "# Bad doc" > "plugins/dso/docs/designs/test.md"
         git add "plugins/dso/docs/designs/test.md" 2>/dev/null
-        bash "$HOOK" 2>&1
+        ALLOWLIST_FILE="$ALLOWLIST" bash "$HOOK" 2>&1
     ) || exit_code_blocked=$?
 
     assert_ne "docs/*.md blocks docs/designs/test.md (subdirectory)" "0" "$exit_code_blocked"

@@ -61,7 +61,7 @@ def _get_reducer():
 # ---------------------------------------------------------------------------
 
 _BLOCKING_RELATIONS = {"blocks", "depends_on"}
-_CLOSED_STATUSES = {"closed", "done", "resolved", "cancelled", "wont_fix"}
+_CLOSED_STATUSES = {"closed"}
 _VALID_EVENT_SOURCES = {"local-close", "sync-resolution"}
 
 
