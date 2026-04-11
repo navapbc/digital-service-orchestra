@@ -6,7 +6,7 @@ merges Figma-derived visual changes while preserving behavioral specs, validates
 ID-linkage, and writes updated artifacts to disk.
 
 Emits FIGMA_MERGE_OUTPUT JSON to stdout on success and error.
-See: plugins/dso/docs/contracts/figma-merge-output.md
+See: docs/contracts/figma-merge-output.md
 
 Usage:
     python3 figma-merge.py \\

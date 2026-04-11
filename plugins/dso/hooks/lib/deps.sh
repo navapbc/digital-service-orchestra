@@ -401,8 +401,8 @@ resolve_repo_root() {
 # Result is cached in _RESOLVED_PLUGIN_ROOT after first call.
 #
 # Fallback chain:
-#   1. CLAUDE_PLUGIN_ROOT (if set and contains plugin.json or hooks/)
-#   2. REPO_ROOT/plugins/dso (if REPO_ROOT known)
+#   1. CLAUDE_PLUGIN_ROOT (if set and contains hooks/)
+#   2. Self-location via BASH_SOURCE[0] (hooks/lib/deps.sh → ../../ = plugin root)
 #
 # Usage:
 #   PLUGIN_ROOT=$(resolve_plugin_root)
@@ -419,12 +419,12 @@ resolve_plugin_root() {
         root="$CLAUDE_PLUGIN_ROOT"
     fi
 
-    # 2. Derive from repo root
+    # 2. Derive from this file's location (hooks/lib/deps.sh → ../../ = plugin root)
     if [[ -z "$root" ]]; then
-        local repo_root
-        repo_root=$(resolve_repo_root)
-        if [[ -n "$repo_root" && -d "$repo_root/plugins/dso/hooks" ]]; then
-            root="$repo_root/plugins/dso"
+        local self_root
+        self_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+        if [[ -d "$self_root/hooks" ]]; then
+            root="$self_root"
         fi
     fi
 

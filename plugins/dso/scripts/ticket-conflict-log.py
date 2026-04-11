@@ -8,7 +8,7 @@ most-status-events-wins strategy.
 Module interface (importlib required for hyphenated filename):
     import importlib.util
     spec = importlib.util.spec_from_file_location(
-        "ticket_conflict_log", "plugins/dso/scripts/ticket-conflict-log.py"
+        "ticket_conflict_log", __file__
     )
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
