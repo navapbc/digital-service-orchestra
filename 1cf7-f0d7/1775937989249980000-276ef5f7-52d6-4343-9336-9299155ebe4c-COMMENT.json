@@ -1,1 +1,0 @@
-{"timestamp": 1775937989249980000, "uuid": "276ef5f7-52d6-4343-9336-9299155ebe4c", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: mechanical \u2014 narrowing _CLOSED_STATUSES to {\"closed\"} only; v2 artifacts ('done', 'resolved', 'cancelled', 'wont_fix') removed"}}
