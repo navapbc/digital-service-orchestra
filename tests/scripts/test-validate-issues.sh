@@ -375,6 +375,60 @@ else
     (( PASS++ ))
 fi
 
+# ── Test 15: child_of relation is NOT a false-positive CRITICAL ───────────────
+# Regression test for bug cf48-6b3d: v3 tickets use relation: "child_of" in deps
+# to record the structural parent-child link. get_shared_issues_json() was passing
+# dep_type = "child_of" verbatim, causing check_child_parent_deps() to fire a
+# false-positive CRITICAL because it only recognised "parent-child" as the
+# sentinel that marks an allowed parent-child dep.
+echo "Test 15: check_child_parent_deps — child_of relation is NOT flagged as CRITICAL"
+CHILDOF_EPIC=$(python3 -c "
+import json
+t = {
+    'ticket_id': 'test-childof-epic',
+    'status': 'open',
+    'ticket_type': 'epic',
+    'title': 'Parent Epic',
+    'parent_id': None,
+    'description': 'yes',
+    'notes': '',
+    'deps': [],
+    'created_at': '2026-01-01T00:00:00Z',
+}
+print(json.dumps(t))
+")
+# Child task has parent_id pointing at the epic AND a dep entry with
+# relation: "child_of" pointing at the same epic (v3 canonical format).
+# This should NOT be flagged as a child->parent anti-pattern dependency.
+CHILDOF_TASK=$(python3 -c "
+import json
+t = {
+    'ticket_id': 'test-childof-task',
+    'status': 'open',
+    'ticket_type': 'task',
+    'title': 'Child Task With child_of Dep',
+    'parent_id': 'test-childof-epic',
+    'description': 'yes',
+    'notes': '',
+    'deps': [{'target_id': 'test-childof-epic', 'relation': 'child_of'}],
+    'created_at': '2026-01-01T00:00:00Z',
+}
+print(json.dumps(t))
+")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$CHILDOF_EPIC,$CHILDOF_TASK]")
+
+output=""
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
+
+if [[ "${output,,}" =~ \[critical\].*test-childof-task|\[critical\].*child.*parent ]]; then
+    echo "  FAIL: child_of relation was incorrectly flagged as CRITICAL (false positive)" >&2
+    echo "  Output: $output" >&2
+    (( FAIL++ ))
+else
+    echo "  PASS: child_of relation did not produce a false-positive CRITICAL"
+    (( PASS++ ))
+fi
+
 # ── Results ───────────────────────────────────────────────────────────────────
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
