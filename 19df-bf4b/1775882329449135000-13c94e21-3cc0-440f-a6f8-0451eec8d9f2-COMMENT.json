@@ -1,0 +1,1 @@
+{"timestamp": 1775882329449135000, "uuid": "13c94e21-3cc0-440f-a6f8-0451eec8d9f2", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Duplicate of bfba-58f3 (same title, bfba-58f3 has full context). Working bfba-58f3 as primary. This ticket will be closed when bfba-58f3 is resolved."}}
