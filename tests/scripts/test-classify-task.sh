@@ -322,11 +322,6 @@ JSON
 {"event_type":"CREATE","ticket_id":"$_story_id","data":{"ticket_type":"story","title":"Implement v3 widget parser","status":"open","priority":2,"parent_id":"$_epic_id"},"created_at":"2026-01-01T00:00:01Z","env_id":"test"}
 JSON
 
-    # STATUS event — move story to ready
-    cat > "$_tracker_dir/$_story_id/20260101T000002Z_STATUS.json" <<JSON
-{"event_type":"STATUS","ticket_id":"$_story_id","data":{"status":"ready"},"created_at":"2026-01-01T00:00:02Z","env_id":"test"}
-JSON
-
     # Create a fake `ticket` stub that serves both `ticket list` and `ticket show <id>`.
     # list: returns JSON array with parent_id included so the Python filter matches.
     # show: reads from the tracker dir via ticket-reducer.py.
@@ -338,7 +333,7 @@ case "\$SUBCOMMAND" in
         python3 "${SCRIPT_DIR}/../../plugins/dso/scripts/ticket-reducer.py" "$_tracker_dir/\$1" 2>/dev/null || echo '{}'
         ;;
     list)
-        echo '[{"ticket_id":"$_story_id","status":"ready","parent_id":"$_epic_id"},{"ticket_id":"$_epic_id","status":"open"}]'
+        echo '[{"ticket_id":"$_story_id","status":"open","parent_id":"$_epic_id"},{"ticket_id":"$_epic_id","status":"open"}]'
         ;;
     *)
         echo "[]"
