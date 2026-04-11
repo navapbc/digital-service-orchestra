@@ -248,7 +248,7 @@ If no stories in the plan qualify for integration research, log: "No stories wit
 
 ### Step 1: Red Team Dispatch (/dso:preplanning)
 
-Dispatch via `subagent_type: "dso:red-team-reviewer"` with `model: opus`. The agent definition contains the full review prompt including the 6-category taxonomy and Consumer Enumeration directive. Pass the following as task arguments:
+Read `plugins/dso/agents/red-team-reviewer.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "opus"`. (`dso:red-team-reviewer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) The agent definition contains the full review prompt including the 6-category taxonomy and Consumer Enumeration directive. Pass the following as task arguments:
 
 - `{epic-title}`: Epic title from Phase 1
 - `{epic-description}`: Epic description from Phase 1
@@ -264,7 +264,7 @@ The red team sub-agent returns a JSON `findings` array. Parse the response and v
 
 ### Step 2: Blue Team Dispatch (/dso:preplanning)
 
-If the red team returns a non-empty findings array, dispatch via `subagent_type: "dso:blue-team-filter"` with `model: sonnet`. Pass the following as task arguments:
+If the red team returns a non-empty findings array, read `plugins/dso/agents/blue-team-filter.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "sonnet"`. (`dso:blue-team-filter` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass the following as task arguments:
 
 - `{epic-title}`: Same as red team
 - `{epic-description}`: Same as red team
@@ -773,7 +773,7 @@ Stories that are purely backend, infrastructure, testing-only, or documentation 
 
 **For each qualifying story**, follow the six protocol steps in order:
 1. Input payload construction and session file initialization
-2. Agent dispatch via the Agent tool (`subagent_type: "dso:ui-designer"`)
+2. Agent dispatch via the Agent tool (read `plugins/dso/agents/ui-designer.md` inline, use `subagent_type: "general-purpose"` with `model: "sonnet"` — `dso:ui-designer` is an agent file identifier, NOT a valid `subagent_type` value)
 3. CACHE_MISSING retry loop (2 retry attempts; up to 3 total CACHE_MISSING
    returns before the retry cap is exceeded)
 4. Review loop (orchestrator-managed: invoke `/dso:review-protocol` on design

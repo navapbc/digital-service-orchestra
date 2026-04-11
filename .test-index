@@ -130,7 +130,12 @@ plugins/dso/skills/preplanning/SKILL.md:tests/skills/test-preplanning-ui-designe
 plugins/dso/skills/preplanning/SKILL.md:tests/skills/test-skill-nesting-depth.sh
 plugins/dso/skills/design-wireframe/SKILL.md:tests/skills/test-redirect-stubs.sh
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test-scrutiny-pending-gate.sh
-plugins/dso/skills/update-docs/SKILL.md:tests/hooks/test-sub-agent-guard.sh
+plugins/dso/skills/update-docs/SKILL.md:tests/hooks/test-sub-agent-guard.sh,tests/scripts/test-skill-dispatch-pattern.sh
+plugins/dso/skills/brainstorm/SKILL.md:tests/scripts/test-skill-dispatch-pattern.sh
+plugins/dso/skills/resolve-conflicts/SKILL.md:tests/scripts/test-skill-dispatch-pattern.sh
+plugins/dso/skills/preplanning/SKILL.md:tests/scripts/test-skill-dispatch-pattern.sh
+plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md:tests/scripts/test-skill-dispatch-pattern.sh
+plugins/dso/skills/plan-review/SKILL.md:tests/scripts/test-skill-dispatch-pattern.sh
 plugins/dso/scripts/overlay-dispatch.sh:tests/hooks/test-overlay-dispatch.sh
 plugins/dso/hooks/resolve-overlay-findings.sh:tests/hooks/test-overlay-resolution-integration.sh
 plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-test-quality-overlay.sh

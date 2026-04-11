@@ -580,11 +580,11 @@ After the epic is created and ticket health passes, classify the epic's complexi
 
 #### Step 4a: Dispatch Complexity Evaluator Agent
 
-Dispatch the dedicated complexity evaluator agent to classify the epic. Use the Task tool with `subagent_type: "dso:complexity-evaluator"` and `model: "haiku"`. Pass the epic ID as the argument and `tier_schema=SIMPLE` so the agent outputs SIMPLE/MODERATE/COMPLEX tier vocabulary.
+Dispatch the dedicated complexity evaluator agent to classify the epic. Read `plugins/dso/agents/complexity-evaluator.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "haiku"`. Pass the epic ID as the argument and `tier_schema=SIMPLE` so the agent outputs SIMPLE/MODERATE/COMPLEX tier vocabulary. (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.)
 
 ```
-Task tool:
-  subagent_type: "dso:complexity-evaluator"
+Agent tool:
+  subagent_type: "general-purpose"
   model: "haiku"
   argument: <epic-id>
   context:
