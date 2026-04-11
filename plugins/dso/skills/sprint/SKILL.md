@@ -761,10 +761,10 @@ d-replan-collect. **Collect and handle all REPLAN_ESCALATE stories** — after t
      ```
      Skip the brainstorm cascade entirely. Do NOT write `REPLAN_RESOLVED`. Continue with any remaining work (the affected stories remain in their current state, pending a follow-up interactive session). See `plugins/dso/docs/contracts/replan-observability.md` for the INTERACTIVITY_DEFERRED signal format. # shim-exempt: internal documentation reference
    - **Check cycle cap first** (before presenting anything to the user):
-     - **If `replan_cycle_count >= max_replan_cycles`:** Present the **cap-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current plan as-is and continue sprint execution". See `plugins/dso/docs/designs/cascade-replan-protocol.md` §"When Max Cycles Are Hit". # shim-exempt: internal documentation reference
+     - **If `replan_cycle_count >= max_replan_cycles`:** Present the **cap-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current plan as-is and continue sprint execution". See `plugins/dso/skills/sprint/docs/cascade-replan-protocol.md` §"When Max Cycles Are Hit". # shim-exempt: internal documentation reference
      - **If cap is not yet exhausted:** Present the **cap-not-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current state and continue sprint with these stories as-is".
      - **If user selects (b) or (c):** act accordingly — proceed or abort. Do not enter cascade.
-     - **If user selects (a):** Enter the cascade replan per `plugins/dso/docs/designs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
+     - **If user selects (a):** Enter the cascade replan per `plugins/dso/skills/sprint/docs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
        1. Emit SKILL_INVOKE breadcrumb for brainstorm, then invoke `/dso:brainstorm <epic-id>` via Skill tool
        2. Emit SKILL_RESUMED breadcrumb after brainstorm returns
        3. Emit SKILL_INVOKE breadcrumb for preplanning, then invoke `/dso:preplanning <epic-id>` via Skill tool
@@ -1761,7 +1761,7 @@ If `batch_out_of_scope_findings` is non-empty:
    - **If `replan_cycle_count >= max_replan_cycles`:** Present the **cap-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "skip re-planning for these stories and continue sprint execution".
    - **If cap is not yet exhausted:** Present the **cap-not-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current state and continue sprint with these stories as-is".
      - **If user selects (b) or (c):** act accordingly — proceed or abort. Do not enter cascade.
-     - **If user selects (a):** Enter the cascade replan per `plugins/dso/docs/designs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
+     - **If user selects (a):** Enter the cascade replan per `plugins/dso/skills/sprint/docs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
        1. Invoke `/dso:brainstorm <epic-id>` via Skill tool
        2. Delete `/tmp/preplanning-context-<epic-id>.json` (invalidate stale preplanning cache)
        3. Invoke `/dso:preplanning <epic-id>` via Skill tool

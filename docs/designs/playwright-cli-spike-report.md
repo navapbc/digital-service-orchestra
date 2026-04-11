@@ -174,7 +174,7 @@ If `@playwright/cli` proves unstable in production sub-agent use and a no-go dec
    ```
    tests/scripts/test-playwright-cli-validation.sh [SKIP: no-go]
    ```
-3. Remove or archive `plugins/dso/docs/designs/playwright-cli-spike-report.md`.
+3. Remove or archive `docs/designs/playwright-cli-spike-report.md`.
 4. Revert any integration code that depends on `@playwright/cli`.
 5. Continue with existing browser automation approach (Playwright Python SDK via sub-agent).
 
@@ -186,7 +186,7 @@ If this spike's go/no-go recommendation is reversed to **no-go** at story review
 
 - **Remove spike environment:** `rm -rf spike-env/` from the repo root.
 - **Mark test file in .test-index:** Add `[SKIP: no-go]` marker to `tests/scripts/test-playwright-cli-validation.sh` entry so epic closure is not blocked by the test file.
-- **Archive this report:** Move to `plugins/dso/docs/designs/archived/` or delete if the epic is abandoned entirely.
+- **Archive this report:** Move to `docs/designs/archived/` or delete if the epic is abandoned entirely.
 - **Do not leave the test file RED** without the marker — it will block epic closure.
 
 ---
