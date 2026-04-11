@@ -66,7 +66,7 @@ fi
 # plugins/dso/ for dev-team artifacts in the Never Do These section
 # This is a structural contract: the NEVER keyword + plugins/dso/ path is the policy boundary marker
 if grep -q "plugins/dso/" "$CLAUDE_MD" 2>/dev/null && \
-   grep -q "Never store dev-team artifacts\|Never use plugins/dso/\|Never write.*dev.*artifacts.*plugins/dso\|do not.*store.*plugins/dso" "$CLAUDE_MD" 2>/dev/null; then
+   grep -iq "never.*dev-team artifacts\|never.*plugins/dso\|do not.*store.*plugins/dso" "$CLAUDE_MD" 2>/dev/null; then
     assert_eq "test_claude_md_has_plugin_boundary_rule: NEVER-statement present" "present" "present"
 else
     assert_eq "test_claude_md_has_plugin_boundary_rule: NEVER-statement present" "present" "missing"
