@@ -9,6 +9,11 @@ README.md | nav | Project orientation (stub — see CLAUDE.md)
 docs/reference/system-landscape.md | reference | Plugin root resolution order, command wrappers, portability lint, agent fallback, test quality overlay, pre-commit test quality gate
 docs/reference/domain-logic.md | reference | Fix-bug gate pipeline, gate signal contract, escalation router; brainstorm planning pipeline (follow-on scrutiny, feasibility-resolution gate, prompt-alignment step)
 
+## Project-Local Artifact Directories
+docs/designs/ | artifacts | Design and UI artifacts (wireframes, spatial layouts, design manifests) — project-local, not distributed with plugin
+docs/findings/ | artifacts | Investigation results and research findings — project-local, not distributed with plugin
+docs/archive/ | artifacts | Superseded documents and archived artifacts — project-local, not distributed with plugin
+
 ## Tier 4: ADRs
 docs/adr/0001-shim-sentinel-self-detection.md | adr | Why shim step 3 (sentinel self-detection) was added
 docs/adr/0002-sprint-gap-detection-and-routing.md | adr | Why sprint self-healing checkpoints and confidence signal routing were added

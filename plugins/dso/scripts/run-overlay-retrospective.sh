@@ -16,7 +16,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 LIMIT=20
-OUTPUT="${REPO_ROOT}/plugins/dso/docs/overlay-calibration-baselines.md"
+OUTPUT="${REPO_ROOT}/docs/findings/overlay-calibration-baselines.md"
 DRY_RUN=false
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ performance overlay trigger rates. Writes a calibration baselines report.
 Options:
   --limit N       Number of recent commits to analyze (default: 20)
   --output PATH   Path to write the markdown report
-                  (default: plugins/dso/docs/overlay-calibration-baselines.md)
+                  (default: docs/findings/overlay-calibration-baselines.md)
   --dry-run       Print commits that would be analyzed without running classifier
   --help, -h      Show this help message
 
