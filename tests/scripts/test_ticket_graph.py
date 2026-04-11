@@ -1890,3 +1890,94 @@ def test_check_cycle_at_level_no_false_positive(tmp_path: Path) -> None:
     # A→B exists, but we're checking if adding B→A would cycle — that's True
     # Instead test: no existing links, checking epic-A→epic-B: should be False
     assert check_cycle_at_level("epic-A", "epic-B", "epic", str(tracker)) is False
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_hierarchy_enforcement_benchmark_1000_tickets(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Hierarchy enforcement completes 10 cross-story add_dependency calls under 5s on 1000-ticket hierarchy.
+
+    Setup: 10 epics × 10 stories × 10 tasks = 1,000 tickets.
+    Action: 10 add_dependency calls linking tasks across different stories in the same epic.
+    Assert: all calls complete in <5.0 seconds AND at least one story-level dep was promoted.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    # Build 10×10×10 hierarchy
+    for i in range(10):
+        _write_ticket(tracker_dir, f"epic-{i:02d}", ticket_type="epic")
+        for j in range(10):
+            _write_ticket(
+                tracker_dir,
+                f"story-{i:02d}-{j:02d}",
+                ticket_type="story",
+                parent_id=f"epic-{i:02d}",
+            )
+            for k in range(10):
+                _write_ticket(
+                    tracker_dir,
+                    f"task-{i:02d}-{j:02d}-{k:02d}",
+                    ticket_type="task",
+                    parent_id=f"story-{i:02d}-{j:02d}",
+                )
+
+    # 10 cross-story add_dependency calls (tasks in different stories of same epic)
+    start = time.monotonic()
+    for i in range(10):
+        # task-0X-00-00 → task-0X-01-00 (cross-story within epic-0X)
+        graph.add_dependency(
+            f"task-{i:02d}-00-00",
+            f"task-{i:02d}-01-00",
+            str(tracker_dir),
+            "depends_on",
+        )
+    elapsed = time.monotonic() - start
+
+    # Performance assertion
+    assert elapsed < 5.0, (
+        f"10 cross-story add_dependency calls took {elapsed:.2f}s (limit: 5.0s)"
+    )
+
+    # Correctness: verify at least one story-level dep was actually written
+    story_deps = graph.build_dep_graph("story-00-00", str(tracker_dir)).get("deps", [])
+    assert any(d["target_id"] == "story-00-01" for d in story_deps), (
+        "Expected story-00-00 → story-00-01 dep after cross-story task link"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_dep_graph_correctness_after_cross_story_link(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Cross-story task link is promoted to story level; original task-level link is NOT written.
+
+    Given: epic-a → story-x → task-a, and epic-a → story-y → task-b
+    When: add_dependency('task-a', 'task-b', tracker_dir, 'depends_on')
+    Then: story-x has story-y in its deps (promoted), task-a does NOT have task-b in its deps.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "epic-a", ticket_type="epic")
+    _write_ticket(tracker_dir, "story-x", ticket_type="story", parent_id="epic-a")
+    _write_ticket(tracker_dir, "task-a", ticket_type="task", parent_id="story-x")
+    _write_ticket(tracker_dir, "story-y", ticket_type="story", parent_id="epic-a")
+    _write_ticket(tracker_dir, "task-b", ticket_type="task", parent_id="story-y")
+
+    graph.add_dependency("task-a", "task-b", str(tracker_dir), "depends_on")
+
+    # Story-level dep should be present (promoted)
+    story_x_deps = graph.build_dep_graph("story-x", str(tracker_dir)).get("deps", [])
+    assert any(d["target_id"] == "story-y" for d in story_x_deps), (
+        "Expected story-x → story-y dep after cross-story task link"
+    )
+
+    # Task-level dep should be absent (NOT written at original task level)
+    task_a_deps = graph.build_dep_graph("task-a", str(tracker_dir)).get("deps", [])
+    assert not any(d["target_id"] == "task-b" for d in task_a_deps), (
+        "Expected NO task-a → task-b dep (should have been promoted to story level)"
+    )
