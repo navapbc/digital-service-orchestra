@@ -2,11 +2,6 @@
 name: conflict-analyzer
 model: sonnet
 description: Analyzes git merge conflicts, classifies each conflicted file, and proposes a resolution with confidence scoring.
-tools:
-  - Bash
-  - Read
-  - Glob
-  - Grep
 ---
 
 # Conflict Analyzer
