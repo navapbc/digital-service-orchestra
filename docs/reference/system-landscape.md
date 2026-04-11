@@ -1,5 +1,5 @@
 ---
-last_synced_commit: acb4331f172604692cdddec96c5814eb77abc37d
+last_synced_commit: 1e96b53e4cb26f4d33825ca0a97fe18c97fbe451
 ---
 
 # System Landscape Reference
@@ -116,6 +116,17 @@ The `dso:code-reviewer-test-quality` agent (opus) is an overlay reviewer that ev
 **Authority**: `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` (5-rule standard). Agent definition: `plugins/dso/agents/code-reviewer-test-quality.md`.
 
 **Sprint integration**: The redundant sprint-level test coverage enforcement step (previously Step 1a2/1a3) has been removed. Test quality enforcement is now exclusively handled by this overlay, which fires on any diff touching test files regardless of whether the diff was produced by sprint, fix-bug, or any other path.
+
+## Plugin Distribution Boundary
+
+The DSO plugin occupies two distinct directory scopes that must not be conflated:
+
+| Scope | Path | Contents |
+|-------|------|----------|
+| Distributed plugin artifact | `plugins/dso/` | Agents, skills, hooks, scripts, config, reference docs — shipped with the plugin and installed in host projects |
+| Project-local dev-team artifacts | `docs/designs/`, `docs/findings/`, `docs/archive/` | Design documents, investigation findings, archived artifacts — created by the development team working on this project; never distributed |
+
+Dev-team artifacts belong in project-local directories and are never shipped as part of the plugin. The `plugins/dso/` tree contains only plugin-shipped content. See CLAUDE.md Critical Rules rule 26 for the enforcement rule.
 
 ## Pre-Commit Test Quality Gate
 
