@@ -298,7 +298,7 @@ split into Foundation and Enhancement stories.
    ```
 3. Link each child story to the parent epic:
    ```
-   .claude/scripts/dso ticket link <child-story-id> <epic-id> child_of
+   .claude/scripts/dso ticket link <child-story-id> <epic-id> relates_to
    ```
 4. Record the rationale from the proposal in a comment on the child story:
    ```
