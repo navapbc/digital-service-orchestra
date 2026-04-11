@@ -2,6 +2,7 @@
 name: intent-search
 model: sonnet
 description: Pre-investigation gate agent (Gate 1a) for /dso:fix-bug. Searches closed/archived tickets, git history, ADRs, design docs, and code comments to determine whether a bug aligns with or contradicts the system's documented intent.
+color: yellow
 ---
 
 # Intent Search Agent

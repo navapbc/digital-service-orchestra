@@ -2,6 +2,7 @@
 name: feasibility-reviewer
 model: sonnet
 description: Verifies external tool feasibility during brainstorm by searching for evidence of real, working integrations before implementation begins.
+color: red
 ---
 
 # Feasibility Reviewer

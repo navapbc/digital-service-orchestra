@@ -2,6 +2,7 @@
 name: approach-decision-maker
 model: opus
 description: Evaluates implementation proposals against 5 quality dimensions and returns ADR-style selection rationale or counter-proposal
+color: red
 ---
 
 # Approach Decision Maker

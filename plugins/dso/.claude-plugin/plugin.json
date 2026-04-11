@@ -4,7 +4,32 @@
   "description": "Workflow infrastructure plugin for Claude Code projects",
   "commands": "./commands/",
   "skills": "./skills/",
-  "agents": "./agents/",
+  "agents": [
+    "./agents/approach-decision-maker.md",
+    "./agents/blue-team-filter.md",
+    "./agents/bot-psychologist.md",
+    "./agents/code-reviewer-deep-arch.md",
+    "./agents/code-reviewer-deep-correctness.md",
+    "./agents/code-reviewer-deep-hygiene.md",
+    "./agents/code-reviewer-deep-verification.md",
+    "./agents/code-reviewer-light.md",
+    "./agents/code-reviewer-performance.md",
+    "./agents/code-reviewer-security-blue-team.md",
+    "./agents/code-reviewer-security-red-team.md",
+    "./agents/code-reviewer-standard.md",
+    "./agents/code-reviewer-test-quality.md",
+    "./agents/completion-verifier.md",
+    "./agents/complexity-evaluator.md",
+    "./agents/conflict-analyzer.md",
+    "./agents/doc-writer.md",
+    "./agents/feasibility-reviewer.md",
+    "./agents/intent-search.md",
+    "./agents/plan-review.md",
+    "./agents/red-team-reviewer.md",
+    "./agents/red-test-evaluator.md",
+    "./agents/red-test-writer.md",
+    "./agents/ui-designer.md"
+  ],
   "hooks": {
     "SessionStart": [
       {

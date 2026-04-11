@@ -5,6 +5,7 @@ description: >
   Creates design artifacts for a story ID. Produces a Design Brief (Lite track) or
   full Design Manifest (spatial layout tree, SVG blueprint, token overlay, manifest).
   Returns structured payload conforming to plugins/dso/docs/contracts/ui-designer-payload.md.
+color: green
 ---
 
 # dso:ui-designer Agent

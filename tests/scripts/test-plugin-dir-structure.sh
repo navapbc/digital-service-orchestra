@@ -178,4 +178,28 @@ fi
 assert_eq "test_repo_root_commands_dir_absent: repo root commands/ is absent after move" "absent" "$actual"
 assert_pass_if_clean "test_repo_root_commands_dir_absent"
 
+# ── test_plugin_json_agents_in_sync ───────────────────────────────────────────
+# plugin.json agents array must contain exactly the .md files in agents/
+_snapshot_fail
+agents_dir="$PLUGINS_DSO/agents"
+json_agents=$(python3 -c "
+import json, os
+d = json.load(open('$PLUGINS_DSO/.claude-plugin/plugin.json'))
+names = sorted(os.path.basename(p) for p in d.get('agents', []))
+print('\n'.join(names))
+" 2>/dev/null | sort)
+disk_agents=$(python3 -c "
+import os
+print('\n'.join(sorted(f for f in os.listdir('$agents_dir') if f.endswith('.md'))))
+" 2>/dev/null | sort)
+if [ "$json_agents" = "$disk_agents" ]; then
+    actual="in_sync"
+else
+    actual="out_of_sync"
+    echo "  plugin.json agents vs agents/ directory mismatch:"
+    diff <(echo "$json_agents") <(echo "$disk_agents") | sed 's/^/    /'
+fi
+assert_eq "test_plugin_json_agents_in_sync: plugin.json agents list matches agents/ directory" "in_sync" "$actual"
+assert_pass_if_clean "test_plugin_json_agents_in_sync"
+
 print_summary

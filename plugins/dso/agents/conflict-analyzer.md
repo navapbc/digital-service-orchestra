@@ -2,6 +2,7 @@
 name: conflict-analyzer
 model: sonnet
 description: Analyzes git merge conflicts, classifies each conflicted file, and proposes a resolution with confidence scoring.
+color: yellow
 ---
 
 # Conflict Analyzer
