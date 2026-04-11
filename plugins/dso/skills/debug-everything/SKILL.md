@@ -2,6 +2,7 @@
 name: debug-everything
 description: Diagnose and fix all outstanding bugs (validation failures AND open ticket bugs), test failures, lint errors, and infrastructure issues using orchestrated sub-agents with TDD discipline
 user-invocable: true
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
@@ -50,6 +51,16 @@ Two entry modes: (1) **Bug-Fix Mode** — when open bug tickets exist, skip diag
 Run ALL diagnostic checks and cluster related failures. The orchestrator runs only Step 1 (session lock). Everything else is delegated.
 
 ### Step 1: Initialize & Acquire Session Lock (/dso:debug-everything)
+
+**BEFORE RUNNING ANY STEP 1 SETUP: Check for open bug tickets first.**
+
+```bash
+OPEN_BUG_COUNT=$(.claude/scripts/dso ticket list --type=bug --status=open 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+```
+
+If `OPEN_BUG_COUNT > 0`: **STOP Step 1 setup. Skip the bash initialization, lock acquisition, cleanup, and interactivity question below. Proceed directly to Bug-Fix Mode.** (Step 1.5 is the formal gate; this pre-check ensures you reach it before executing any sub-steps.)
+
+If `OPEN_BUG_COUNT == 0`: Continue with Step 1 setup below.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -132,7 +143,7 @@ AskUserQuestion: "Is this an interactive session? (yes/no — press Enter for ye
    - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early; revert to open: `.claude/scripts/dso ticket transition <id> open`
    - **No CHECKPOINT lines or malformed/ambiguous lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
 
-### Step 1.5: Detect Open Bug Tickets Entry Check (/dso:debug-everything)
+### Step 1.5: BUG-FIX MODE GATE — Skip Diagnostics If Open Bugs Exist (/dso:debug-everything)
 
 **Check for open bug tickets before launching the diagnostic scan.** This is the Bug-Fix Mode entry gate:
 
@@ -868,6 +879,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/post-batch-
 | Partial success | `.claude/scripts/dso ticket comment <id> "Partial: <details>."` |
 | Failure | `.claude/scripts/dso ticket transition <id> open` then `.claude/scripts/dso ticket comment <id> "Failed: <error>."` |
 | Regression | Revert changes (`git checkout -- <files>`), reopen, note regression |
+| `FIX_RESULT: unresolved` | Leave ticket **OPEN**. Add comment: `.claude/scripts/dso ticket comment <id> "Investigated: <investigation_summary> — could not fix. <reason>"`. Surface in session summary under **ESCALATED BUGS**. |
 
 **Bug close constraint**: Only close a bug when there is an actual code change that fixes it. **NEVER close a bug with reason `Escalated to user:` — closing removes the bug from `ticket list` visibility, which is the opposite of escalation.** When no code fix is possible:
 1. Add investigation findings as a ticket comment: `.claude/scripts/dso ticket comment <id> "Investigated: <findings> — no code fix possible."`

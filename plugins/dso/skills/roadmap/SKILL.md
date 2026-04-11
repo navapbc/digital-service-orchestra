@@ -2,6 +2,7 @@
 name: roadmap
 description: Use when the user wants to transform a high-level product vision, PRD, or project idea into a prioritized roadmap of epics, or when they want to brainstorm and architect project milestones
 user-invocable: true
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>

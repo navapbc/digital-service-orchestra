@@ -2,6 +2,7 @@
 name: red-team-reviewer
 model: opus
 description: Adversarial reviewer that attacks preplanning story maps for cross-story blind spots, implicit assumptions, and interaction gaps across 6 taxonomy categories.
+color: red
 ---
 
 # Red Team Adversarial Review Sub-Agent

@@ -2,11 +2,7 @@
 name: complexity-evaluator
 model: haiku
 description: Classifies a ticket as TRIVIAL/MODERATE/COMPLEX (or SIMPLE/MODERATE/COMPLEX for epics) using an 8-dimension rubric.
-tools:
-  - Bash
-  - Read
-  - Glob
-  - Grep
+color: yellow
 ---
 
 # Complexity Evaluator

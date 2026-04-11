@@ -96,7 +96,7 @@ VIOLATIONS CAUSE RE-DISPATCH.
 REQUIRED: EXACTLY three top-level keys: "scores", "findings" (file field must reference diff files only), "summary".
 Do NOT add "schema_version", "review_result", "id", "review_date", or any other key except escalate_review (see Escalation section below) —
 the validator will reject unrecognized keys and force a re-dispatch.
-The "scores" object MUST contain ALL five dimensions listed below with integer 1–5 or "N/A".
+The "scores" object MUST contain ALL five dimensions listed below with integer 1–5 or "N/A". Before writing the JSON, verify all five keys are present: hygiene, design, maintainability, correctness, verification. A missing dimension causes immediate re-dispatch.
 
 **SCORE SCALE: INTEGER 1–5 ONLY. NOT 0–10. NOT 0–100. NOT any other scale.**
 Valid numeric score values: 1, 2, 3, 4, 5. Any value outside this range (e.g. 6, 7, 8, 9, 10)

@@ -16,6 +16,7 @@
 | [Hooks/Gates](#hooks-and-gates) | 1 | 2026-03 |
 | [Tickets/Version Control](#tickets-and-version-control) | 1 | 2026-03 |
 | [Recipe Execution](#recipe-execution) | 1 | 2026-04 |
+| [Plugin System](#plugin-system) | 1 | 2026-04 |
 
 ## Quick Reference by Incident ID
 
@@ -32,6 +33,7 @@
 | INC-009 | CLAUDE_PLUGIN_ROOT Unbound in Parallel Execution | Sub-Agents/Orchestration | CLAUDE_PLUGIN_ROOT, unbound variable, sub-agent, env var |
 | INC-010 | Cascading Failure Runaway | Timeouts/Performance | cascading failure, runaway, fix-cascade-recovery |
 | INC-018 | Recipe Engine Prerequisites | Recipe Execution | recipe, rope, ts-morph, isort, scaffold |
+| INC-019 | /reload-plugins Skill Count Undercounts | Plugin System | reload-plugins, skill count, 3 skills, commands, allowed-tools |
 
 ---
 
@@ -196,3 +198,19 @@
   - **scaffold** (file generation): No engine dependency — uses bash + template files in `recipes/templates/`
 - **Fix**: Install the required engine for the recipe being run. For CI: add engine installs to the CI job that runs recipes.
 - **Rule candidate**: 3+ failures → propose CLAUDE.md rule requiring engine prerequisite check before recipe execution.
+
+---
+
+## Plugin System
+
+### INC-019: /reload-plugins Skill Count Undercounts — Shows 3 Instead of 32
+
+- **Date**: 2026-04
+- **Keywords**: reload-plugins, skill count, 3 skills, commands, allowed-tools, SKILL.md, plugin loader
+- **Symptom**: `/reload-plugins` reports "1 plugin · 3 skills · 29 agents · 14 hooks" but all 32 dso skills are actually loaded and invocable via the Skill tool. The system-reminder skill list shows all 32 `dso:*` skills available.
+- **Root cause**: The `/reload-plugins` "skills" counter counts files in the `commands/` directory (flat `.md` files), NOT structured skills in `skills/*/SKILL.md`. The DSO plugin has exactly 3 command files (`commands/commit.md`, `commands/end.md`, `commands/review.md`), which matches the reported count. This is an upstream Claude Code bug — see [anthropics/claude-code#41842](https://github.com/anthropics/claude-code/issues/41842).
+- **Detection**: `/reload-plugins` shows a low skill count, but the system-reminder skill list shows all expected `dso:*` skills. Skills can be invoked normally via the Skill tool.
+- **Fix**: No fix needed — this is cosmetic. All 32 skills load correctly and are invocable. The "3 skills" count is misleading but does not indicate a functional problem.
+- **History**: Three fix attempts targeted `allowed-tools` frontmatter (bugs 06fc-1ebc, 9a3b-7426, 844b-f190) before root cause was identified as upstream. The `allowed-tools` fixes were not wrong (null values did need fixing) but were unrelated to the reported count.
+- **Upstream**: [anthropics/claude-code#41842](https://github.com/anthropics/claude-code/issues/41842), [#35641](https://github.com/anthropics/claude-code/issues/35641), [#36646](https://github.com/anthropics/claude-code/issues/36646)
+- **Rule candidate**: Do not treat the `/reload-plugins` skill count as a correctness indicator. Verify skill availability via the system-reminder skill list or by invoking the Skill tool directly.

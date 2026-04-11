@@ -2,6 +2,7 @@
 name: resolve-conflicts
 description: Agent-assisted git merge/rebase conflict resolution with confidence-gated automation
 user-invocable: true
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
@@ -74,7 +75,7 @@ If code conflicts exist: proceed to Step 2.
 
 ### 2. Analyze Conflicts
 
-Dispatch the **`dso:conflict-analyzer`** dedicated agent (via Task tool, `subagent_type: "dso:conflict-analyzer"`) with the following context:
+Dispatch the **`dso:conflict-analyzer`** dedicated agent via the Agent tool. Read `plugins/dso/agents/conflict-analyzer.md` inline and use `subagent_type: "general-purpose"` with `model: "sonnet"`. (`dso:conflict-analyzer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass the following context:
 
 Include in the sub-agent prompt:
 - The content of each conflicted file (with markers)

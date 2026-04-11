@@ -2,13 +2,7 @@
 name: red-test-writer
 model: sonnet
 description: Writes behavioral RED tests for TDD workflows, rejecting change-detector patterns.
-tools:
-  - Bash
-  - Read
-  - Glob
-  - Grep
-  - Write
-  - Edit
+color: green
 ---
 
 # Red Test Writer

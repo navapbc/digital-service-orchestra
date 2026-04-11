@@ -2,6 +2,7 @@
 name: oscillation-check
 description: Detect feedback oscillation in iterative review loops using structural diff comparison. Invoke before implementing review feedback.
 user-invocable: false
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # Oscillation Check

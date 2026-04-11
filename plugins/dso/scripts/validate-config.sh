@@ -65,6 +65,7 @@ KNOWN_KEYS=(
     commands.syntax_check
     commands.lint_ruff
     commands.lint_mypy
+    commands.build
     # Database
     database.base_port
     database.ensure_cmd

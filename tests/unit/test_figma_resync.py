@@ -111,6 +111,59 @@ class TestTagPrecondition(unittest.TestCase):
         self.assertEqual(result, 0)
 
 
+class TestMissingFigmaFileKey(unittest.TestCase):
+    """RS-1b: Missing figma_file_key in comments → exit 1 with descriptive error."""
+
+    def test_RS1b_exits_1_when_no_figma_file_key_in_comments(self):
+        """RS-1b: Ticket has awaiting_review tag but no figma_file_key comment → exit 1."""
+        import figma_resync  # noqa: PLC0415
+
+        ticket_data = {
+            "id": "test-1234",
+            "title": "Test story",
+            "status": "in_progress",
+            "tags": ["design:awaiting_review"],
+            "comments": [],  # No figma_file_key comment
+        }
+
+        result = figma_resync.run(
+            ticket_id="test-1234",
+            non_interactive=True,
+            _ticket_show_fn=lambda tid: ticket_data,
+        )
+
+        self.assertEqual(result, 1)
+
+    def test_RS1c_exits_1_when_comments_have_no_figma_file_key_line(self):
+        """RS-1c: Comments exist but none contain figma_file_key: prefix → exit 1."""
+        import figma_resync  # noqa: PLC0415
+
+        ticket_data = {
+            "id": "test-1234",
+            "title": "Test story",
+            "status": "in_progress",
+            "tags": ["design:awaiting_review"],
+            "comments": [
+                {
+                    "body": "Some note without the figma_file_key line",
+                    "created_at": "2026-04-10",
+                },
+                {
+                    "body": "Another comment with no key either",
+                    "created_at": "2026-04-10",
+                },
+            ],
+        }
+
+        result = figma_resync.run(
+            ticket_id="test-1234",
+            non_interactive=True,
+            _ticket_show_fn=lambda tid: ticket_data,
+        )
+
+        self.assertEqual(result, 1)
+
+
 class TestFileLock(unittest.TestCase):
     """RS-3, RS-4: File lock TTL and stale-lock cleanup."""
 

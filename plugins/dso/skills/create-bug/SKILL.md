@@ -2,6 +2,7 @@
 name: create-bug
 description: Guidance for creating well-formatted, evidence-based bug reports using the shared bug report template and ticket CLI.
 user-invocable: false
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # Create Bug Report

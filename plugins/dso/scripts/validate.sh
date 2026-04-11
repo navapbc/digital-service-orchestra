@@ -80,6 +80,9 @@ set -uo pipefail
 
 set -e
 
+# Capture original args for use in SIGURG handler ACTION REQUIRED block
+_ORIG_ARGS=("$@")
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 [[ ! -f "${CLAUDE_PLUGIN_ROOT}/plugin.json" ]] && CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.."
@@ -126,6 +129,9 @@ CMD_TEST_UNIT="${VALIDATE_CMD_TEST:-$(_cfg "commands.test_unit" "make test-unit-
 SCRIPT_WRITE_SCAN_DIR=$(_cfg "checks.script_write_scan_dir" "")
 PLUGIN_SCRIPTS="$SCRIPT_DIR"
 CMD_TEST_E2E=$(_cfg "commands.test_e2e" "make test-e2e")
+# Optional: run a build/compile step (e.g., npm run build, poetry build).
+# Empty string (default) disables the build check — no impact on repos without a build step.
+CMD_BUILD=$(_cfg "commands.build" "")
 
 # Detect if running in a worktree
 if [ -f "$REPO_ROOT/.git" ]; then
@@ -215,6 +221,35 @@ timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # Set up trap to clean up on exit
 trap cleanup EXIT
+
+# ── SIGURG handler ─────────────────────────────────────────────────────────
+# Claude Code sends SIGURG to the process group when the Bash tool call times
+# out (~73s). test-batched.sh already handles SIGURG and saves state; this
+# handler ensures validate.sh also exits cleanly with ACTION REQUIRED so the
+# caller knows to re-run rather than treating timeout as a failure.
+_sigurg_handler() {
+    # Write pending state so the validation gate knows to re-run
+    local _ts
+    _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    local _pending_content="pending
+timestamp=${_ts}"
+    if declare -f atomic_write_file &>/dev/null; then
+        atomic_write_file "$VALIDATION_STATE_FILE" "$_pending_content"
+    else
+        printf '%s\n' "$_pending_content" > "$VALIDATION_STATE_FILE" 2>/dev/null || true
+    fi
+    echo ""
+    echo "════════════════════════════════════════════════════════════"
+    echo "  ⚠  ACTION REQUIRED — VALIDATE NOT COMPLETE  ⚠"
+    echo "════════════════════════════════════════════════════════════"
+    printf 'RUN: bash %s' "$0"
+    printf ' %q' "${_ORIG_ARGS[@]+"${_ORIG_ARGS[@]}"}"
+    printf '\n'
+    echo "DO NOT PROCEED until the command above prints PASSED or FAILED."
+    echo "════════════════════════════════════════════════════════════"
+    exit 0
+}
+trap _sigurg_handler SIGURG
 
 # Log timeout events for analysis and tuning
 # Format: timestamp | command | timeout_value | pwd
@@ -843,6 +878,7 @@ if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS contract-schema"
     [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS referential-integrity"
 fi
+[ -n "$CMD_BUILD" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS build"
 # REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
 # This is the standard bash pattern for stored multi-word commands.
@@ -877,6 +913,8 @@ if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     fi
 fi
 check_hook_drift &
+# shellcheck disable=SC2086
+[ -n "$CMD_BUILD" ] && run_check "build" "$TIMEOUT_FORMAT" $CMD_BUILD &
 if [ $CHECK_CI -eq 1 ]; then
     check_ci &
     # When CI definitively fails, start E2E immediately in parallel rather than
