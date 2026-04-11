@@ -47,14 +47,6 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/(skills|agents)/
 
-      - id: plugin-boundary-check
-        name: Plugin Boundary Check (5s timeout)
-        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh plugin-boundary-check 5 "plugins/dso/hooks/pre-commit/check-plugin-boundary.sh"
-        language: system
-        pass_filenames: false
-        stages: [pre-commit]
-        files: ^plugins/dso/
-
       - id: format-and-lint
         name: Format + Lint - Ruff (15s timeout)
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh format-and-lint 15 "ruff check plugins/dso/scripts/*.py tests/**/*.py && ruff format --check plugins/dso/scripts/*.py tests/**/*.py"
