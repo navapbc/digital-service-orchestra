@@ -182,7 +182,7 @@ Emit a single JSON object conforming to the `gate-signal-schema.md` contract. Ga
   "gate_id": "1a",
   "triggered": true,
   "signal_type": "primary",
-  "evidence": "Found ADR-007 in plugins/dso/docs/designs/ which explicitly states that rate limiting returns 429 without a Retry-After header due to upstream provider constraints. Commit b7c3d9 (2026-01-15) references ADR-007 and adds a code comment at line 88 of src/middleware/rate_limit.py. This behavior is intentional by design. Outcome: intent-contradicting — the reported behavior was a deliberate tradeoff.",
+  "evidence": "Found ADR-007 in docs/designs/ which explicitly states that rate limiting returns 429 without a Retry-After header due to upstream provider constraints. Commit b7c3d9 (2026-01-15) references ADR-007 and adds a code comment at line 88 of src/middleware/rate_limit.py. This behavior is intentional by design. Outcome: intent-contradicting — the reported behavior was a deliberate tradeoff.",
   "confidence": "high"
 }
 ```

@@ -1,5 +1,5 @@
 """
-plugins/dso/scripts/ticket-llm-format.py
+ticket-llm-format.py
 Shared LLM formatting logic for ticket-show.sh and ticket-list.sh.
 
 Provides to_llm(state) which converts a full ticket state dict to a

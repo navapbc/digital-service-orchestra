@@ -17,7 +17,7 @@ conform to this contract.
 
 **Command**: `.claude/scripts/dso ticket sync`
 
-**Shell function**: `_sync_events` (defined in the sync implementation — see `plugins/dso/scripts/ticket-sync-conflict-resolver.py` for conflict resolution details) # shim-exempt: internal implementation path reference
+**Shell function**: `_sync_events` (defined in the sync implementation)
 
 **Prerequisites** (validated by `cmd_sync_events` before calling `_sync_events`):
 
