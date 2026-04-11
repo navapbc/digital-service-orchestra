@@ -364,3 +364,10 @@ plugins/dso/scripts/figma_node_mapper.py:tests/unit/scripts/test_figma_node_mapp
 plugins/dso/scripts/figma_resync.py:tests/unit/test_figma_resync.py
 plugins/dso/scripts/figma-resync.py:tests/unit/test_figma_resync.py
 plugins/dso/scripts/figma-url-store.sh:tests/scripts/test-figma-url-store.sh
+# RED markers for story ec03-5076 (plugin boundary enforcement)
+# task 967c-0e1b: These tests are intentionally RED — production code (CLAUDE.md rule,
+# cascade-replan-protocol.md relocation, dev-artifact path removal) is implemented by
+# sibling tasks and will turn GREEN when those tasks complete.
+tests/hooks/test-plugin-boundary-refs.sh:tests/hooks/test-plugin-boundary-refs.sh [test_claude_md_has_plugin_boundary_rule]
+tests/hooks/test-plugin-boundary-refs.sh:tests/hooks/test-plugin-boundary-refs.sh [test_cascade_replan_at_skill_path]
+tests/hooks/test-plugin-boundary-refs.sh:tests/hooks/test-plugin-boundary-refs.sh [test_no_dev_artifact_paths_in_plugin_agents_skills]
