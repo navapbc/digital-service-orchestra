@@ -7,7 +7,7 @@ types and enum values, prints the validation result to stdout on success, and ex
   1 — invalid signal (missing fields, wrong types, bad enum values, empty object)
   2 — malformed JSON (not parseable)
 
-See: plugins/dso/docs/contracts/gate-signal-schema.md
+See: docs/contracts/gate-signal-schema.md
 """
 
 from __future__ import annotations

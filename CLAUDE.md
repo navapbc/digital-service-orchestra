@@ -92,7 +92,7 @@ Config keys: see `plugins/dso/docs/CONFIGURATION-REFERENCE.md`. Merge-to-main ph
 **Worktree lifecycle** (`claude-safe`): After Claude exits, `_offer_worktree_cleanup` auto-removes the worktree if: (1) branch is ancestor of main (`is_merged`), AND (2) `git status --porcelain` is empty (`is_clean`). No special filtering — `.tickets-tracker/` files block removal like any other dirty file. `/dso:end` ensures the worktree meets these criteria by: generating technical learnings (Step 2.8) and creating bug tickets (Step 2.85) before commit/merge, and verifying `is_merged` + `is_clean` (Step 4.75) before session summary.
 **Worktree isolation** (`worktree.isolation_enabled`, default: true): Sprint, fix-bug, and debug-everything dispatch implementation sub-agents with `isolation: worktree`, giving each agent its own working directory. Orchestrator reviews and commits each worktree serially via `per-worktree-review-commit.md`, then merges into session branch. See `plugins/dso/skills/shared/prompts/worktree-dispatch.md`.
 
-**File placement**: Design documents go in `plugins/dso/docs/designs/` — not bare `designs/` at repo root (review-gate blocks it).
+**File placement**: Design documents go in `docs/designs/` (project-local) or `plugins/dso/skills/<skill>/docs/` (plugin-local) — not bare `designs/` at repo root.
 
 ## Critical Rules
 
@@ -122,6 +122,7 @@ Config keys: see `plugins/dso/docs/CONFIGURATION-REFERENCE.md`. Merge-to-main ph
 23. **Never skip `dso:completion-verifier` dispatch or substitute inline verification** — the orchestrator MUST dispatch the verifier sub-agent at story closure (Step 10a) and epic closure (Phase 7 Step 0.75). Inline verification is NOT a substitute — the verifier exists because the orchestrator is biased toward confirming its own work. Fallback applies ONLY on technical failure (timeout, unparseable JSON), not as permission to skip.
 24. **Never edit files in the plugin cache** (`~/.claude/plugins/marketplaces/digital-service-orchestra/`) — always edit the corresponding files in the repo worktree (`plugins/dso/`). Plugin cache files are managed by the plugin system and will be overwritten on sync. Changes to plugin cache files are invisible to git, will not be committed, and will be lost.
 25. **Never edit safeguard files** (pre-commit hooks, review-gate.sh, test-gate scripts) without explicit user approval in the current interactive session (bug 859b-b48b). Task-level instructions ("fix this bug", "make the tests pass") do NOT constitute approval to modify safeguard infrastructure. Task instructions are authorization to fix the code under test, not to weaken the safety nets around it. Approval must be a direct, explicit user statement: "yes, edit the hook" or "disable the gate for this commit."
+26. **NEVER place dev-team artifacts inside `plugins/dso/`.** NEVER write design documents, investigation findings, archive files, or other dev-team work to any directory inside `plugins/dso/`. Dev-team artifacts belong in project-local directories: `docs/designs/`, `docs/findings/`, `docs/archive/`, `tests/`. The `plugins/dso/` tree is a distributed artifact — only plugin-shipped content belongs there (agents, skills, hooks, scripts, config, reference docs).
 
 ### Architectural Invariants
 
