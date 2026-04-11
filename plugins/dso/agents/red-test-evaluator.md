@@ -2,11 +2,6 @@
 name: red-test-evaluator
 model: opus
 description: Triages RED test writer failures with REVISE/REJECT/CONFIRM verdicts. Aligned with shared behavioral testing standard.
-tools:
-  - Bash
-  - Read
-  - Glob
-  - Grep
 ---
 
 # Red Test Evaluator

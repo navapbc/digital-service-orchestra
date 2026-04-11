@@ -2,10 +2,6 @@
 name: plan-review
 model: sonnet
 description: Plan and design reviewer agent. Evaluates implementation plans and design artifacts on feasibility, completeness, YAGNI, and codebase alignment before the user sees them. Dispatched by the /dso:plan-review skill. Use subagent_type "dso:plan-review" to dispatch this agent.
-tools:
-  - Read
-  - Glob
-  - Grep
 ---
 
 # Plan Review Agent
