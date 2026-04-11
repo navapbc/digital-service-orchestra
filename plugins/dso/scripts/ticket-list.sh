@@ -114,7 +114,8 @@ if status_filter not in ('error', 'fsck_needed'):
 if type_filter:
     results = [t for t in results if t.get('ticket_type') == type_filter]
 if status_filter:
-    results = [t for t in results if t.get('status') == status_filter]
+    status_values = {s.strip() for s in status_filter.split(',')}
+    results = [t for t in results if t.get('status') in status_values]
 for t in results:
     print(json.dumps(t))
 " \
@@ -158,7 +159,8 @@ if status_filter not in ('error', 'fsck_needed'):
 if type_filter:
     results = [t for t in results if t.get('ticket_type') == type_filter]
 if status_filter:
-    results = [t for t in results if t.get('status') == status_filter]
+    status_values = {s.strip() for s in status_filter.split(',')}
+    results = [t for t in results if t.get('status') in status_values]
 print(json.dumps(results, ensure_ascii=False))
 
 alerted_count = sum(
