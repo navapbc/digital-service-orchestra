@@ -195,9 +195,20 @@ Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. When `REVIEW_AGENT_OV
 
 **You MUST launch a sub-agent.** There are no exceptions — not for documentation-only changes, not for "trivial" changes, not for config files. The sub-agent performs the review and assigns scores. Skipping this step and writing review JSON yourself is fabrication.
 
-**Do not substitute a lighter or general-purpose agent** for the classifier-selected named review agent. The named agent must match the `REVIEW_TIER` and `REVIEW_AGENT` values from Step 3. Substituting `general-purpose`, `sonnet`, or any non-named agent bypasses the review system and produces non-comparable scores.
+**Inline dispatch is mandatory — `dso:*` labels are agent file identifiers, NOT `subagent_type` values.** The Agent tool only accepts built-in types (`general-purpose`, `Explore`, `Plan`, etc.). For every dispatch below:
+1. Read `plugins/dso/agents/<agent-name>.md` inline (strip the `dso:` prefix to get the file name).
+2. Use `subagent_type: "general-purpose"` and the `model:` value from the agent file's frontmatter.
+3. Pass the agent file content verbatim as the prompt, appending only the per-review context items listed below.
 
-Dispatch the named review agent selected by the classifier in Step 3. The named agent's system prompt contains the stable review procedure — do NOT load `code-review-dispatch.md` as a template. Pass only per-review context to the sub-agent prompt.
+```bash
+# Example: resolve agent file path and model for DISPATCH_AGENT="dso:code-reviewer-standard"
+AGENT_NAME="${DISPATCH_AGENT#dso:}"          # strip dso: prefix → "code-reviewer-standard"
+AGENT_FILE="$REPO_ROOT/plugins/dso/agents/${AGENT_NAME}.md"
+AGENT_CONTENT=$(cat "$AGENT_FILE")
+AGENT_MODEL=$(grep '^model:' "$AGENT_FILE" | awk '{print $2}')  # e.g. "sonnet"
+```
+
+**Do not substitute your own prompt structure** for the named agent's file content — constructing a custom prompt bypasses the scoring rules and output contract that the review gate validates. The agent file content must be present verbatim.
 
 ### Tier-to-Agent Dispatch
 
@@ -237,12 +248,21 @@ For `light` and `standard` tiers, dispatch a single named review agent. When `RE
 DISPATCH_AGENT="${REVIEW_AGENT_OVERRIDE:-$REVIEW_AGENT}"
 ```
 
+```bash
+# Resolve agent file and model from DISPATCH_AGENT (e.g., "dso:code-reviewer-standard")
+AGENT_NAME="${DISPATCH_AGENT#dso:}"
+AGENT_FILE="$REPO_ROOT/plugins/dso/agents/${AGENT_NAME}.md"
+AGENT_CONTENT=$(cat "$AGENT_FILE")
+AGENT_MODEL=$(grep '^model:' "$AGENT_FILE" | awk '{print $2}')
 ```
-Task tool:
-  subagent_type: "{DISPATCH_AGENT — i.e., REVIEW_AGENT_OVERRIDE if set, else REVIEW_AGENT from Step 3}"
+
+```
+Agent tool:
+  subagent_type: "general-purpose"
+  model: "{AGENT_MODEL from agent file frontmatter — e.g. haiku, sonnet, opus}"
   description: "Review code changes"
   prompt: |
-    Review the code changes for this commit.
+    {AGENT_CONTENT — verbatim content of plugins/dso/agents/{AGENT_NAME}.md}
 
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
@@ -265,14 +285,29 @@ When `REVIEW_TIER` is `deep`, dispatch 3 parallel sonnet sub-agents in a single 
 | b | `dso:code-reviewer-deep-verification` | `$ARTIFACTS_DIR/reviewer-findings-b.json` |
 | c | `dso:code-reviewer-deep-hygiene` | `$ARTIFACTS_DIR/reviewer-findings-c.json` |
 
+**SERIAL DISPATCH PROHIBITED**: All 3 sonnet agents MUST be launched in a single response as 3 parallel Agent tool calls. Dispatching them one at a time (serial) triples review time and is a critical workflow violation. A single response must contain all three Agent tool invocations with no waiting between them.
+
+Read the three agent files inline and dispatch all three in one message:
+
+```bash
+# Read all three agent files before dispatching
+AGENT_A_CONTENT=$(cat "$REPO_ROOT/plugins/dso/agents/code-reviewer-deep-correctness.md")
+AGENT_B_CONTENT=$(cat "$REPO_ROOT/plugins/dso/agents/code-reviewer-deep-verification.md")
+AGENT_C_CONTENT=$(cat "$REPO_ROOT/plugins/dso/agents/code-reviewer-deep-hygiene.md")
+# All three use model: sonnet (from agent file frontmatter)
+```
+
 Dispatch all three in a single message (parallel launch). Each agent writes directly to its slot-specific findings path — pass `FINDINGS_OUTPUT` in the prompt so the agent writes to the correct file via `write-reviewer-findings.sh --output`:
 
 ```
-Task tool:
-  subagent_type: "dso:code-reviewer-deep-correctness"
+Agent tool [ALL THREE IN ONE RESPONSE — PARALLEL]:
+
+Agent tool:
+  subagent_type: "general-purpose"
+  model: "sonnet"
   description: "Deep review: correctness"
   prompt: |
-    Review the code changes for this commit.
+    {AGENT_A_CONTENT — verbatim content of plugins/dso/agents/code-reviewer-deep-correctness.md}
 
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
@@ -283,11 +318,12 @@ Task tool:
 
     {issue_context}
 
-Task tool:
-  subagent_type: "dso:code-reviewer-deep-verification"
+Agent tool:
+  subagent_type: "general-purpose"
+  model: "sonnet"
   description: "Deep review: verification"
   prompt: |
-    Review the code changes for this commit.
+    {AGENT_B_CONTENT — verbatim content of plugins/dso/agents/code-reviewer-deep-verification.md}
 
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
@@ -298,11 +334,12 @@ Task tool:
 
     {issue_context}
 
-Task tool:
-  subagent_type: "dso:code-reviewer-deep-hygiene"
+Agent tool:
+  subagent_type: "general-purpose"
+  model: "sonnet"
   description: "Deep review: hygiene"
   prompt: |
-    Review the code changes for this commit.
+    {AGENT_C_CONTENT — verbatim content of plugins/dso/agents/code-reviewer-deep-hygiene.md}
 
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
@@ -332,12 +369,20 @@ FINDINGS_C=$(python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-
 
 **Step 2: Dispatch `dso:code-reviewer-deep-arch` (model: opus) with inline sonnet findings:**
 
+Read the arch agent file inline before dispatching:
+
+```bash
+AGENT_ARCH_CONTENT=$(cat "$REPO_ROOT/plugins/dso/agents/code-reviewer-deep-arch.md")
+# model: opus (from agent file frontmatter)
 ```
-Task tool:
-  subagent_type: "dso:code-reviewer-deep-arch"
+
+```
+Agent tool:
+  subagent_type: "general-purpose"
+  model: "opus"
   description: "Deep architectural review (opus) — synthesize sonnet findings"
   prompt: |
-    Review the code changes for this commit.
+    {AGENT_ARCH_CONTENT — verbatim content of plugins/dso/agents/code-reviewer-deep-arch.md}
 
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}

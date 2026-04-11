@@ -120,7 +120,11 @@ section "VALIDATION"
 # When CI_STATUS=pending is supplied externally (e.g. by a caller that already
 # knows CI is still running), skip the --ci flag so validate.sh does not exit
 # non-zero and abort collection.  All other local checks still run.
-if [ "${CI_STATUS:-}" = "pending" ]; then
+# RETRO_SKIP_VALIDATION=1 skips validate.sh entirely (useful in tests to avoid
+# spawning orphan subprocesses and to keep test runtime bounded).
+if [ "${RETRO_SKIP_VALIDATION:-}" = "1" ]; then
+    echo "Skipped (RETRO_SKIP_VALIDATION=1)"
+elif [ "${CI_STATUS:-}" = "pending" ]; then
     "${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh" --full 2>&1 || true
     echo "ci: PENDING — skip CI check (CI_STATUS=pending)"
 else

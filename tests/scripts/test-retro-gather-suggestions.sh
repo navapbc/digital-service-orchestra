@@ -64,14 +64,17 @@ cat > "$_REPO_WITH/repo/.tickets-tracker/.suggestions/b1.json" <<EOF
 EOF
 
 # ── Run retro-gather.sh ONCE, kill after timeout ──────────────────────────────
-echo "Collecting output from repo with suggestions (this may take up to ${RETRO_GATHER_TEST_TIMEOUT:-15}s)..."
-_timeout="${RETRO_GATHER_TEST_TIMEOUT:-15}"
+# RETRO_SKIP_VALIDATION=1 prevents validate.sh from spawning orphan subprocesses
+# that hold the Bash tool open past the ~73s ceiling (exit 144).
+echo "Collecting output from repo with suggestions (this may take up to ${RETRO_GATHER_TEST_TIMEOUT:-5}s)..."
+_timeout="${RETRO_GATHER_TEST_TIMEOUT:-5}"
 _tmpout=$(mktemp)
 trap 'rm -f "$_tmpout"' EXIT
 
 PROJECT_ROOT="$_REPO_WITH/repo" \
     TRACKER_DIR="$_REPO_WITH/repo/.tickets-tracker" \
     CI_STATUS=pending \
+    RETRO_SKIP_VALIDATION=1 \
     bash "$SCRIPT" --quick >"$_tmpout" 2>&1 &
 _PID=$!
 ( sleep "$_timeout" && kill "$_PID" 2>/dev/null ) &
@@ -94,10 +97,11 @@ mkdir -p "$_empty_repo/repo/.tickets-tracker/.suggestions"  # empty directory
 
 _empty_tmp=$(mktemp)
 trap 'rm -f "$_empty_tmp"' EXIT
-_empty_timeout=10
+_empty_timeout=5
 PROJECT_ROOT="$_empty_repo/repo" \
     TRACKER_DIR="$_empty_repo/repo/.tickets-tracker" \
     CI_STATUS=pending \
+    RETRO_SKIP_VALIDATION=1 \
     bash "$SCRIPT" --quick >"$_empty_tmp" 2>&1 &
 _empty_pid=$!
 ( sleep "$_empty_timeout" && kill "$_empty_pid" 2>/dev/null ) &
@@ -119,10 +123,11 @@ clone_test_repo "$_nodir_repo/repo"
 
 _nodir_tmp=$(mktemp)
 trap 'rm -f "$_nodir_tmp"' EXIT
-_nodir_timeout=10
+_nodir_timeout=5
 PROJECT_ROOT="$_nodir_repo/repo" \
     TRACKER_DIR="$_nodir_repo/repo/.tickets-tracker" \
     CI_STATUS=pending \
+    RETRO_SKIP_VALIDATION=1 \
     bash "$SCRIPT" --quick >"$_nodir_tmp" 2>&1 &
 _nodir_pid=$!
 ( sleep "$_nodir_timeout" && kill "$_nodir_pid" 2>/dev/null ) &

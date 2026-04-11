@@ -44,10 +44,13 @@ Launch a **single sub-agent** with the plan content and review rubric.
 
 **Sub-agent prompt:** Read and fill placeholders in `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/plan-review-dispatch.md`. Replace `{artifact_type}` and `{artifact content}` with actual values.
 
+**Inline dispatch is required — `dso:plan-review` is an agent file identifier, NOT a valid `subagent_type` value.** The Agent tool only accepts built-in types (`general-purpose`, `Explore`, `Plan`, etc.). Read `plugins/dso/agents/plan-review.md` inline and dispatch as `subagent_type: "general-purpose"` with the model below.
+
 Launch with:
 ```
-subagent_type: "dso:plan-review"
-model: opus (design) or sonnet (implementation_plan)
+Agent tool:
+  subagent_type: "general-purpose"
+  model: opus (design) or sonnet (implementation_plan)
 # dso:plan-review specializes in analyzing existing codebase patterns and
 # conventions — directly serves the Feasibility and Codebase Alignment
 # dimensions. The prompt's YAGNI and Completeness rubrics extend coverage

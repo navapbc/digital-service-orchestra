@@ -52,6 +52,16 @@ Run ALL diagnostic checks and cluster related failures. The orchestrator runs on
 
 ### Step 1: Initialize & Acquire Session Lock (/dso:debug-everything)
 
+**BEFORE RUNNING ANY STEP 1 SETUP: Check for open bug tickets first.**
+
+```bash
+OPEN_BUG_COUNT=$(.claude/scripts/dso ticket list --type=bug --status=open 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+```
+
+If `OPEN_BUG_COUNT > 0`: **STOP Step 1 setup. Skip the bash initialization, lock acquisition, cleanup, and interactivity question below. Proceed directly to Bug-Fix Mode.** (Step 1.5 is the formal gate; this pre-check ensures you reach it before executing any sub-steps.)
+
+If `OPEN_BUG_COUNT == 0`: Continue with Step 1 setup below.
+
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
@@ -133,7 +143,7 @@ AskUserQuestion: "Is this an interactive session? (yes/no — press Enter for ye
    - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early; revert to open: `.claude/scripts/dso ticket transition <id> open`
    - **No CHECKPOINT lines or malformed/ambiguous lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
 
-### Step 1.5: Detect Open Bug Tickets Entry Check (/dso:debug-everything)
+### Step 1.5: BUG-FIX MODE GATE — Skip Diagnostics If Open Bugs Exist (/dso:debug-everything)
 
 **Check for open bug tickets before launching the diagnostic scan.** This is the Bug-Fix Mode entry gate:
 

@@ -80,6 +80,9 @@ set -uo pipefail
 
 set -e
 
+# Capture original args for use in SIGURG handler ACTION REQUIRED block
+_ORIG_ARGS=("$@")
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 [[ ! -f "${CLAUDE_PLUGIN_ROOT}/plugin.json" ]] && CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.."
@@ -218,6 +221,35 @@ timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # Set up trap to clean up on exit
 trap cleanup EXIT
+
+# ── SIGURG handler ─────────────────────────────────────────────────────────
+# Claude Code sends SIGURG to the process group when the Bash tool call times
+# out (~73s). test-batched.sh already handles SIGURG and saves state; this
+# handler ensures validate.sh also exits cleanly with ACTION REQUIRED so the
+# caller knows to re-run rather than treating timeout as a failure.
+_sigurg_handler() {
+    # Write pending state so the validation gate knows to re-run
+    local _ts
+    _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    local _pending_content="pending
+timestamp=${_ts}"
+    if declare -f atomic_write_file &>/dev/null; then
+        atomic_write_file "$VALIDATION_STATE_FILE" "$_pending_content"
+    else
+        printf '%s\n' "$_pending_content" > "$VALIDATION_STATE_FILE" 2>/dev/null || true
+    fi
+    echo ""
+    echo "════════════════════════════════════════════════════════════"
+    echo "  ⚠  ACTION REQUIRED — VALIDATE NOT COMPLETE  ⚠"
+    echo "════════════════════════════════════════════════════════════"
+    printf 'RUN: bash %s' "$0"
+    printf ' %q' "${_ORIG_ARGS[@]+"${_ORIG_ARGS[@]}"}"
+    printf '\n'
+    echo "DO NOT PROCEED until the command above prints PASSED or FAILED."
+    echo "════════════════════════════════════════════════════════════"
+    exit 0
+}
+trap _sigurg_handler SIGURG
 
 # Log timeout events for analysis and tuning
 # Format: timestamp | command | timeout_value | pwd

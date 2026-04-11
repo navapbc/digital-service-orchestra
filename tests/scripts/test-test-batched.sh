@@ -1158,5 +1158,68 @@ assert_eq "test_state_loading_overhead_is_sublinear: ran the un-completed test" 
 rm -rf "$TMPDIR_OVERHEAD"
 assert_pass_if_clean "test_state_loading_overhead_is_sublinear"
 
+# ── test_sigurg_trap_saves_state_and_exits_cleanly ───────────────────────────
+# When SIGURG is delivered to test-batched.sh (the Claude Code tool ceiling),
+# the signal handler must:
+#   1. Save the state file (so resume works on the next invocation)
+#   2. Print the ACTION REQUIRED block to stdout (so validate.sh detects PENDING)
+#   3. Exit 0 (not 130/144) so callers treat it as PENDING, not FAIL
+#
+# Previously: handler exited 130 without printing ACTION REQUIRED.
+# This caused validate.sh to record tests as FAIL, not PENDING.
+echo ""
+echo "--- test_sigurg_trap_saves_state_and_exits_cleanly ---"
+_snapshot_fail
+
+TMPDIR_SIGURG="$(mktemp -d)"
+SIGURG_STATE="$TMPDIR_SIGURG/state.json"
+
+# Create a test script that sleeps long enough for us to send SIGURG
+mkdir -p "$TMPDIR_SIGURG/tests"
+cat > "$TMPDIR_SIGURG/tests/test-long-running.sh" << 'SHEOF'
+#!/usr/bin/env bash
+sleep 30
+exit 0
+SHEOF
+chmod +x "$TMPDIR_SIGURG/tests/test-long-running.sh"
+
+# Run test-batched in background, send SIGURG after it starts the long test
+sigurg_exit=0
+sigurg_out=""
+
+TEST_BATCHED_STATE_FILE="$SIGURG_STATE" \
+    bash "$SCRIPT" --runner=bash --test-dir="$TMPDIR_SIGURG/tests" --timeout=60 \
+    > "$TMPDIR_SIGURG/output.txt" 2>&1 &
+BATCHED_PID=$!
+
+# Wait for test-batched to start the background test (poll for "Running:" in output)
+waited=0
+while [ "$waited" -lt 5 ]; do
+    sleep 0.5
+    waited=$(( waited + 1 ))
+    grep -q "Running:" "$TMPDIR_SIGURG/output.txt" 2>/dev/null && break
+done
+
+# Send SIGURG to test-batched
+kill -URG "$BATCHED_PID" 2>/dev/null || true
+wait "$BATCHED_PID" 2>/dev/null; sigurg_exit=$?
+sigurg_out=$(cat "$TMPDIR_SIGURG/output.txt" 2>/dev/null)
+
+# Verify: exits 0 (PENDING, not FAIL)
+assert_eq "test_sigurg_trap_saves_state_and_exits_cleanly: exits 0" "0" "$sigurg_exit"
+
+# Verify: ACTION REQUIRED block printed (so validate.sh detects PENDING)
+sigurg_action_required=0
+[[ "$sigurg_out" == *"ACTION REQUIRED"* ]] && sigurg_action_required=1
+assert_eq "test_sigurg_trap_saves_state_and_exits_cleanly: ACTION REQUIRED in output" "1" "$sigurg_action_required"
+
+# Verify: state file saved (so next invocation can resume)
+sigurg_state_saved=0
+[ -f "$SIGURG_STATE" ] && sigurg_state_saved=1
+assert_eq "test_sigurg_trap_saves_state_and_exits_cleanly: state file saved" "1" "$sigurg_state_saved"
+
+rm -rf "$TMPDIR_SIGURG"
+assert_pass_if_clean "test_sigurg_trap_saves_state_and_exits_cleanly"
+
 print_summary
 

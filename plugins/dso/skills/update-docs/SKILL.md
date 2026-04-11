@@ -66,11 +66,18 @@ And stop — do not dispatch the agent.
 
 ## Step 3: Dispatch dso:doc-writer
 
-Dispatch the `dso:doc-writer` sub-agent via the Agent tool with the following context:
+**Inline dispatch is required — `dso:doc-writer` is an agent file identifier, NOT a valid `subagent_type` value.** The Agent tool only accepts built-in types (`general-purpose`, `Explore`, `Plan`, etc.).
+
+Read `plugins/dso/agents/doc-writer.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "sonnet"`. Pass the agent file content verbatim as the prompt, appending the context below.
 
 ```
-subagent_type: "dso:doc-writer"
-model: "sonnet"
+Agent tool:
+  subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: |
+    {verbatim content of plugins/dso/agents/doc-writer.md}
+
+    --- PER-RUN CONTEXT ---
 context:
   epic_context: |
     ## Commit Range
