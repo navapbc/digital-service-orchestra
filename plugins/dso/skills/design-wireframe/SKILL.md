@@ -5,7 +5,7 @@ description: >
   agent, dispatched by /dso:preplanning Step 6. Run /dso:preplanning on the
   parent epic to orchestrate UI story design via the Agent tool.
 argument-hint: [story-id]
-allowed-tools:
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # design-wireframe Redirect

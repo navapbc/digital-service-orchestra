@@ -2,7 +2,7 @@
 name: fix-bug
 description: Classify bugs by type and severity, then route through the appropriate investigation and fix path.
 user-invocable: true
-allowed-tools:
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # Fix Bug: Investigation-First Bug Resolution

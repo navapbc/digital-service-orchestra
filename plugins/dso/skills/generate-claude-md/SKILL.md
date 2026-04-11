@@ -2,7 +2,7 @@
 name: generate-claude-md
 description: Generate a project-specific CLAUDE.md file from workflow-config.yaml and the Digital Service Orchestra template
 user-invocable: true
-allowed-tools:
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # Generate CLAUDE.md

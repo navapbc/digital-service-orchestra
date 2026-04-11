@@ -2,7 +2,7 @@
 name: brainstorm
 description: Use when starting a new feature or epic — turns an idea into a defined, ticket-ready epic through Socratic dialogue, approach design, and milestone spec creation.
 user-invocable: true
-allowed-tools:
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>

@@ -2,7 +2,7 @@
 name: quick-ref
 description: Auto-discover and display all plugin scripts and skills available in this workflow plugin.
 user-invocable: true
-allowed-tools:
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # Quick Reference: Plugin Scripts & Skills

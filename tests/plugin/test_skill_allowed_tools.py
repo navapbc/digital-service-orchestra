@@ -1,52 +1,54 @@
 """
-RED test: all SKILL.md files must have `allowed-tools` frontmatter field.
+Regression guard: all SKILL.md files must have `allowed-tools` with a non-null value.
 
 Claude Code's plugin system classifies SKILL.md files as proper "skills"
-(with Skill tool content injection) only when they have `allowed-tools` in
-their YAML frontmatter. Files without this field are classified as "agents":
-they appear in the system-reminder but the Skill tool returns only a terse
-"Launching skill: X" string without injecting the skill body (silent
-injection failure).
+(with Skill tool content injection) only when `allowed-tools` is PRESENT
+and has a non-null, non-empty value (a space-separated string or a YAML list
+of tool names). Both absent AND null values cause the skill to be silently
+skipped — it does not appear in the /reload-plugins skill count.
 
-This test enforces that every SKILL.md file in plugins/dso/skills/ has the
-`allowed-tools` frontmatter key so Claude Code classifies them as skills.
+History of this bug:
+  - Bug 06fc-1ebc: 29 SKILL.md files had no `allowed-tools` → 3 skills loaded
+  - Fix attempt (5418956e): added `allowed-tools:` (bare null YAML key) → still 3 skills
+    The null value parses as Python None, which the loader treats the same as absent.
+  - Bug 9a3b-7426 (this guard): fix the fix — set a non-null value for all 29 files.
 
-Reference: Bug 06fc-1ebc — only 3 DSO skills visible in host projects because
-only 3 SKILL.md files had `allowed-tools` (playwright-debug, preplanning,
-ui-discover). The other 29 were classified as "agents" by Claude Code.
+Correct patterns:
+  - `allowed-tools: Read, Grep, Glob, Bash, Write, Edit, Task, AskUserQuestion`
+  - `allowed-tools:\\n  - Read\\n  - Grep`   (YAML list)
+
+Invalid patterns that cause silent skill-skip:
+  - `allowed-tools:`   ← parses as None (YAML null)
+  - (field absent)     ← treated same as null by plugin loader
 """
 
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILLS_DIR = REPO_ROOT / "plugins" / "dso" / "skills"
 EXCLUDED_DIRS = {"shared"}
 
 
-def _parse_frontmatter_keys(skill_md_path: Path) -> set:
-    """Return the set of frontmatter keys from a SKILL.md file.
+def _parse_frontmatter(skill_md_path: Path) -> dict:
+    """Return the parsed YAML frontmatter dict from a SKILL.md file.
 
-    Parses only the YAML frontmatter block (between opening and closing ---).
-    Returns an empty set if no frontmatter is found.
+    Parses the YAML frontmatter block (between opening and closing ---).
+    Returns an empty dict if no frontmatter is found or parsing fails.
     """
     content = skill_md_path.read_text(encoding="utf-8")
     if not content.startswith("---"):
-        return set()
+        return {}
     parts = content.split("---", 2)
     if len(parts) < 3:
-        return set()
-    keys: set = set()
-    for line in parts[1].splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        if ":" in stripped and not stripped.startswith(" "):
-            key = stripped.split(":", 1)[0].strip()
-            if key:
-                keys.add(key)
-    return keys
+        return {}
+    try:
+        parsed = yaml.safe_load(parts[1])
+        return parsed if isinstance(parsed, dict) else {}
+    except yaml.YAMLError:
+        return {}
 
 
 def _all_skill_md_files():
@@ -68,22 +70,28 @@ def _all_skill_md_files():
     _all_skill_md_files(),
     ids=lambda p: p.parent.name,
 )
-def test_skill_has_allowed_tools_frontmatter(skill_md: Path) -> None:
-    """SKILL.md must declare `allowed-tools` in its YAML frontmatter.
+def test_skill_allowed_tools_not_null(skill_md: Path) -> None:
+    """If `allowed-tools` is present in SKILL.md frontmatter, its value must not be null.
 
-    Without `allowed-tools`, Claude Code's plugin loader classifies the file
-    as an "agent" instead of a "skill". Agents are listed in the system
-    context but the Skill tool does not inject their content on invocation —
-    it returns only "Launching skill: <name>" (a silent injection failure).
+    A bare `allowed-tools:` key (null YAML value) causes Claude Code's plugin
+    loader to silently skip the skill — it does not appear in /reload-plugins
+    skill count and the Skill tool cannot inject its content.
 
-    Adding `allowed-tools` (even with an empty value) causes Claude Code to
-    register the file as a proper skill with full content injection.
+    The field is optional. If you want to allow all tools, omit it entirely.
+    If you need to restrict or pre-approve specific tools, set a non-empty
+    space-separated string or YAML list.
     """
-    frontmatter_keys = _parse_frontmatter_keys(skill_md)
-    assert "allowed-tools" in frontmatter_keys, (
-        f"{skill_md.parent.name}/SKILL.md is missing the `allowed-tools` "
-        f"frontmatter field. Claude Code classifies SKILL.md files without "
-        f"this field as 'agents', preventing Skill tool content injection. "
-        f"Add `allowed-tools:` to the frontmatter (empty value is acceptable). "
-        f"Found frontmatter keys: {sorted(frontmatter_keys)}"
+    frontmatter = _parse_frontmatter(skill_md)
+    if "allowed-tools" not in frontmatter:
+        return  # Field absent is valid: means "all tools allowed"
+
+    value = frontmatter["allowed-tools"]
+    assert value is not None and value != "" and value != [], (
+        f"{skill_md.parent.name}/SKILL.md has `allowed-tools:` with a null or "
+        f"empty value ({value!r}). The Claude Code plugin loader silently skips "
+        f"skills with null `allowed-tools` — they will not appear in "
+        f"/reload-plugins skill count. Either remove the `allowed-tools:` line "
+        f"entirely (recommended for skills that allow all tools) or set a "
+        f"non-empty value: `allowed-tools: Read, Grep, Glob, Bash, Write, Edit, "
+        f"Task, AskUserQuestion`"
     )

@@ -2,7 +2,7 @@
 name: retro
 description: Use when performing periodic project health reviews, optimizing development workflow, cleaning up worktrees, auditing test quality, or identifying technical debt and maintenance needs
 user-invocable: true
-allowed-tools:
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>

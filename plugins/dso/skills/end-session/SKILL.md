@@ -2,7 +2,7 @@
 name: end-session
 description: End Session - Worktree Cleanup and Task Summary
 user-invocable: true
-allowed-tools:
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>

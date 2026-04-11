@@ -2,7 +2,7 @@
 name: tickets-health
 description: Issue health validation and remediation
 user-invocable: true
-allowed-tools:
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # Issue Health Validation

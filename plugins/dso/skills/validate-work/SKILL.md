@@ -1,7 +1,7 @@
 ---
 name: validate-work
 description: Use when verifying project health after completing work, before closing tasks, or when you need confidence that code, CI, staging deployment, and live environment are all passing. Does not fix issues — only detects and reports them.
-allowed-tools:
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>

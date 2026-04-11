@@ -2,7 +2,7 @@
 name: sprint
 description: Execute Epic - Multi-Agent Orchestration
 user-invocable: true
-allowed-tools:
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>

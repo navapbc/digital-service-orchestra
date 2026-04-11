@@ -2,7 +2,7 @@
 name: fix-cascade-recovery
 description: Emergency brake for runaway cascades. Stops edits, assesses damage, decides revert, then hands off to /dso:fix-bug for investigation.
 user-invocable: true
-allowed-tools:
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # Fix Cascade Recovery Protocol

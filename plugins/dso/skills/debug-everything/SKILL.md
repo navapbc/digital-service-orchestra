@@ -2,7 +2,7 @@
 name: debug-everything
 description: Diagnose and fix all outstanding bugs (validation failures AND open ticket bugs), test failures, lint errors, and infrastructure issues using orchestrated sub-agents with TDD discipline
 user-invocable: true
-allowed-tools:
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
