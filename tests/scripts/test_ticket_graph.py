@@ -1531,3 +1531,190 @@ def test_resolve_hierarchy_link_cli_outputs_json(
     }
     missing = required_keys - set(output.keys())
     assert not missing, f"CLI output missing keys {missing}. Got: {output!r}"
+
+
+# ---------------------------------------------------------------------------
+# add_dependency hierarchy integration tests (story 983e-7fff)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_cross_story_redirects_to_story_level(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Cross-story task pair: add_dependency redirects and writes LINK at story level.
+
+    Setup:
+        - epic-root: epic (no parent)
+        - story-a: story with parent_id=epic-root
+        - story-b: story with parent_id=epic-root
+        - task-a1: task with parent_id=story-a
+        - task-b1: task with parent_id=story-b
+
+    Expected: add_dependency('task-a1', 'task-b1', ...) writes LINK event for
+              story-a -> story-b (was_redirected=True path), not task-a1 -> task-b1.
+    """
+    import glob as _glob
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "epic-root", ticket_type="epic")
+    _write_ticket(tracker_dir, "story-a", parent_id="epic-root", ticket_type="story")
+    _write_ticket(tracker_dir, "story-b", parent_id="epic-root", ticket_type="story")
+    _write_ticket(tracker_dir, "task-a1", parent_id="story-a", ticket_type="task")
+    _write_ticket(tracker_dir, "task-b1", parent_id="story-b", ticket_type="task")
+
+    graph.add_dependency("task-a1", "task-b1", str(tracker_dir))
+
+    # LINK event must be written in story-a's directory (redirected source)
+    story_a_dir = tracker_dir / "story-a"
+    link_files = _glob.glob(str(story_a_dir / "*-LINK.json"))
+    assert len(link_files) >= 1, (
+        f"Expected LINK event in story-a dir (redirected source), found: {link_files}"
+    )
+
+    # Verify the LINK event targets story-b (redirected target), not task-b1
+    found_redirect = False
+    for lf in link_files:
+        with open(lf) as f:
+            ev = json.load(f)
+        if ev.get("data", {}).get("target_id") == "story-b":
+            found_redirect = True
+            break
+    assert found_redirect, (
+        "Expected LINK event in story-a with target_id='story-b' (redirect), "
+        f"but no such event found. Files: {link_files}"
+    )
+
+    # No LINK event should be written in task-a1's directory
+    task_a1_dir = tracker_dir / "task-a1"
+    task_link_files = _glob.glob(str(task_a1_dir / "*-LINK.json"))
+    assert len(task_link_files) == 0, (
+        f"Expected NO LINK event in task-a1 dir (original source), found: {task_link_files}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_redundant_link_exits_nonzero(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Task-to-direct-parent link is redundant: add_dependency raises ValueError.
+
+    Setup:
+        - story-parent: story (no parent)
+        - task-child: task with parent_id=story-parent
+
+    Expected: add_dependency('story-parent', 'task-child', ...) raises ValueError
+              (is_redundant=True path -- story-parent IS the direct parent of task-child).
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "story-parent", ticket_type="story")
+    _write_ticket(
+        tracker_dir, "task-child", parent_id="story-parent", ticket_type="task"
+    )
+
+    with pytest.raises(ValueError, match="redundant"):
+        graph.add_dependency("story-parent", "task-child", str(tracker_dir))
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_cross_story_emits_redirect_json_to_stdout(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Cross-story redirect: add_dependency prints redirect JSON to stdout.
+
+    Setup: two tasks with different parent stories under the same epic.
+    Expected: stdout contains JSON with "redirected": true plus original/resolved IDs.
+    """
+    import io
+    import contextlib
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "epic-root2", ticket_type="epic")
+    _write_ticket(tracker_dir, "story-x", parent_id="epic-root2", ticket_type="story")
+    _write_ticket(tracker_dir, "story-y", parent_id="epic-root2", ticket_type="story")
+    _write_ticket(tracker_dir, "task-x1", parent_id="story-x", ticket_type="task")
+    _write_ticket(tracker_dir, "task-y1", parent_id="story-y", ticket_type="task")
+
+    captured_stdout = io.StringIO()
+    with contextlib.redirect_stdout(captured_stdout):
+        graph.add_dependency("task-x1", "task-y1", str(tracker_dir))
+
+    stdout_val = captured_stdout.getvalue()
+    assert stdout_val.strip(), "Expected redirect JSON on stdout, got empty output"
+
+    try:
+        redirect_data = json.loads(stdout_val.strip())
+    except json.JSONDecodeError as e:
+        pytest.fail(f"stdout is not valid JSON: {e!r}. stdout={stdout_val!r}")
+
+    assert redirect_data.get("redirected") is True, (
+        f"Expected 'redirected': true in stdout JSON, got {redirect_data!r}"
+    )
+    assert redirect_data.get("original", {}).get("source") == "task-x1", (
+        f"Expected original.source='task-x1', got {redirect_data!r}"
+    )
+    assert redirect_data.get("original", {}).get("target") == "task-y1", (
+        f"Expected original.target='task-y1', got {redirect_data!r}"
+    )
+    assert redirect_data.get("resolved", {}).get("source") == "story-x", (
+        f"Expected resolved.source='story-x', got {redirect_data!r}"
+    )
+    assert redirect_data.get("resolved", {}).get("target") == "story-y", (
+        f"Expected resolved.target='story-y', got {redirect_data!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_same_parent_still_works(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Same-parent tasks: add_dependency writes LINK normally (no redirect).
+
+    Setup:
+        - story-shared: story (no parent)
+        - task-p: task with parent_id=story-shared
+        - task-q: task with parent_id=story-shared
+
+    Expected: add_dependency('task-p', 'task-q', ...) writes LINK in task-p's
+              directory with target_id='task-q' (no redirect -- same parent story).
+    """
+    import glob as _glob
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "story-shared", ticket_type="story")
+    _write_ticket(tracker_dir, "task-p", parent_id="story-shared", ticket_type="task")
+    _write_ticket(tracker_dir, "task-q", parent_id="story-shared", ticket_type="task")
+
+    graph.add_dependency("task-p", "task-q", str(tracker_dir))
+
+    # LINK event must be in task-p's directory (no redirect)
+    task_p_dir = tracker_dir / "task-p"
+    link_files = _glob.glob(str(task_p_dir / "*-LINK.json"))
+    assert len(link_files) >= 1, (
+        f"Expected LINK event in task-p dir (same parent, no redirect), found: {link_files}"
+    )
+
+    # Verify the LINK targets task-q (original target unchanged)
+    found = False
+    for lf in link_files:
+        with open(lf) as f:
+            ev = json.load(f)
+        if ev.get("data", {}).get("target_id") == "task-q":
+            found = True
+            break
+    assert found, (
+        "Expected LINK event in task-p with target_id='task-q', "
+        f"but no such event found. Files: {link_files}"
+    )

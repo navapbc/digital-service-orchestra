@@ -578,6 +578,48 @@ def add_dependency(
         tracker_dir: Path to the .tickets-tracker directory.
         relation: One of 'blocks', 'depends_on', 'relates_to'. Defaults to 'blocks'.
     """
+    # Step 1: Resolve hierarchy — promote cross-hierarchy links to the correct level.
+    # Must happen before cycle check so that the cycle check operates on resolved IDs.
+    hierarchy_result = resolve_hierarchy_link(source_id, target_id, tracker_dir)
+
+    # Handle error from hierarchy resolver (unreadable/missing ticket)
+    if "error" in hierarchy_result:
+        raise ValueError(hierarchy_result["error"])
+
+    # Handle redundant link (source is direct parent/child of target)
+    if hierarchy_result.get("is_redundant"):
+        msg = (
+            f"ERROR: redundant link — {source_id} and {target_id} are in a direct "
+            "parent-child relationship"
+        )
+        print(msg, file=sys.stderr)
+        raise ValueError(msg)
+
+    resolved_source = str(hierarchy_result["resolved_source"])
+    resolved_target = str(hierarchy_result["resolved_target"])
+    was_redirected = bool(hierarchy_result.get("was_redirected"))
+
+    # Handle redirect: print notice + machine-readable JSON, use resolved IDs
+    if was_redirected:
+        print(
+            f"REDIRECT: {source_id}\u2192{target_id} promoted to "
+            f"{resolved_source}\u2192{resolved_target}",
+            file=sys.stderr,
+        )
+        print(
+            json.dumps(
+                {
+                    "redirected": True,
+                    "original": {"source": source_id, "target": target_id},
+                    "resolved": {"source": resolved_source, "target": resolved_target},
+                }
+            )
+        )
+
+    # Use resolved IDs for all remaining operations
+    source_id = resolved_source
+    target_id = resolved_target
+
     if check_would_create_cycle(source_id, target_id, relation, tracker_dir):
         raise CyclicDependencyError(
             f"Adding {source_id} → {target_id} ({relation}) would create a cycle"
