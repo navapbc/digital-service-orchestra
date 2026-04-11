@@ -1,1 +1,0 @@
-{"timestamp": 1775927776644838000, "uuid": "2eacc0c1-36c4-4487-a668-4bcf632eca0c", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT:batch-complete \u2014 Done \u2713 \u2014 Files: tests/hooks/test-run-overlay-retrospective-path.sh, .test-index. Tests: RED (intentional)."}}
