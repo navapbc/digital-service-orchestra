@@ -1250,3 +1250,62 @@ def test_compute_dep_graph_children_use_preloaded_state(
         "and use it for both children discovery and blocker resolution instead of "
         "calling _reduce_ticket per directory entry."
     )
+
+
+# ---------------------------------------------------------------------------
+# Level-scoped cycle detection wired into add_dependency
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_raises_on_cycle_at_level(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """add_dependency must raise CyclicDependencyError when a level-scoped cycle would be created.
+
+    Setup:
+        - story-a: story, open — blocks story-b
+        - story-b: story, open — blocks story-c
+        - story-c: story, open
+
+    Action: add_dependency(story-c, story-a, ...) should detect a cycle
+    (story-a → story-b → story-c → story-a) at the 'story' level.
+
+    Expected: CyclicDependencyError is raised.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "story-a", ticket_type="story")
+    _write_ticket(tracker_dir, "story-b", ticket_type="story")
+    _write_ticket(tracker_dir, "story-c", ticket_type="story")
+    _write_blocks_link(tracker_dir, "story-a", "story-b", timestamp=1500)
+    _write_blocks_link(tracker_dir, "story-b", "story-c", timestamp=1501)
+
+    with pytest.raises(graph.CyclicDependencyError):
+        graph.add_dependency("story-c", "story-a", str(tracker_dir), relation="blocks")
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_raises_on_self_loop_at_level(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """add_dependency must raise CyclicDependencyError for a self-referential dependency.
+
+    Setup:
+        - task-x: task, open
+
+    Action: add_dependency(task-x, task-x, ...) — self-loop.
+
+    Expected: CyclicDependencyError is raised with a message indicating
+    self-referential dependency.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "task-x", ticket_type="task")
+
+    with pytest.raises(graph.CyclicDependencyError):
+        graph.add_dependency("task-x", "task-x", str(tracker_dir), relation="blocks")

@@ -457,6 +457,92 @@ def check_would_create_cycle(
 
 
 # ---------------------------------------------------------------------------
+# Hierarchy link resolution and level-scoped cycle detection
+# ---------------------------------------------------------------------------
+
+
+def resolve_hierarchy_link(
+    source_id: str, target_id: str, tracker_dir: str
+) -> tuple[str, str]:
+    """Resolve a hierarchy link pair to their canonical IDs.
+
+    For now this is a pass-through — both IDs are returned unchanged.
+    Future enhancements may resolve aliases or parent-proxy IDs here.
+
+    Returns:
+        (resolved_source_id, resolved_target_id)
+    """
+    return source_id, target_id
+
+
+def check_cycle_at_level(
+    source_id: str, target_id: str, level: str, tracker_dir: str
+) -> bool:
+    """Return True if adding source_id→target_id would create a cycle at the given level.
+
+    A self-loop (source_id == target_id) always returns True.
+
+    Level-scoped detection: only considers tickets whose ticket_type matches `level`.
+    If level is empty, fails open (returns False — no cycle detected).
+
+    Uses BFS from target_id following 'blocks' and 'depends_on' edges, scoped to
+    tickets of the same level. Returns True if source_id is reachable from target_id.
+    """
+    if not level:
+        return False
+
+    if source_id == target_id:
+        return True
+
+    # BFS from target_id: if we can reach source_id, adding source→target creates a cycle
+    visited: set[str] = set()
+    queue: list[str] = [target_id]
+
+    while queue:
+        current = queue.pop(0)
+        if current in visited:
+            continue
+        visited.add(current)
+
+        if current == source_id:
+            return True
+
+        current_dir = os.path.join(tracker_dir, current)
+        if not os.path.isdir(current_dir):
+            continue
+
+        try:
+            state = _reduce_ticket(current_dir)
+        except Exception:
+            continue
+
+        if state is None or not isinstance(state, dict):
+            continue
+
+        # Only traverse edges at the same level
+        current_level = state.get("ticket_type", "").lower()
+        if current_level != level:
+            continue
+
+        for dep in state.get("deps", []):
+            relation = dep.get("relation", "")
+            if relation in ("blocks", "depends_on"):
+                target = dep.get("target_id", "")
+                if target and target not in visited:
+                    # Check if the target is also at this level before queuing
+                    target_dir = os.path.join(tracker_dir, target)
+                    if os.path.isdir(target_dir):
+                        try:
+                            t_state = _reduce_ticket(target_dir)
+                        except Exception:
+                            t_state = None
+                        if t_state and t_state.get("ticket_type", "").lower() == level:
+                            queue.append(target)
+
+    return False
+
+
+# ---------------------------------------------------------------------------
 # add_dependency
 # ---------------------------------------------------------------------------
 
@@ -578,9 +664,41 @@ def add_dependency(
         tracker_dir: Path to the .tickets-tracker directory.
         relation: One of 'blocks', 'depends_on', 'relates_to'. Defaults to 'blocks'.
     """
-    if check_would_create_cycle(source_id, target_id, relation, tracker_dir):
+    # Resolve canonical IDs (handles aliases/parent-proxy IDs)
+    resolved_source, resolved_target = resolve_hierarchy_link(
+        source_id, target_id, tracker_dir
+    )
+
+    if check_would_create_cycle(
+        resolved_source, resolved_target, relation, tracker_dir
+    ):
         raise CyclicDependencyError(
-            f"Adding {source_id} → {target_id} ({relation}) would create a cycle"
+            f"Adding {resolved_source} → {resolved_target} ({relation}) would create a cycle"
+        )
+
+    # Level-scoped cycle detection on resolved pair
+    resolved_source_dir = os.path.join(tracker_dir, resolved_source)
+    resolved_source_state = (
+        _reduce_ticket(resolved_source_dir)
+        if os.path.isdir(resolved_source_dir)
+        else None
+    )
+    level = (
+        resolved_source_state.get("ticket_type", "").lower()
+        if resolved_source_state
+        else ""
+    )
+    if level and check_cycle_at_level(
+        resolved_source, resolved_target, level, tracker_dir
+    ):
+        if resolved_source == resolved_target:
+            raise CyclicDependencyError(
+                f"Adding {resolved_source} → {resolved_target} ({relation}) "
+                f"is a self-referential dependency at {level} level"
+            )
+        raise CyclicDependencyError(
+            f"Adding {resolved_source} → {resolved_target} ({relation}) "
+            f"would create a cycle at {level} level"
         )
 
     # Guard: cannot write any LINK event for a closed source ticket.
