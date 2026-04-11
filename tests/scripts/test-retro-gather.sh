@@ -63,11 +63,13 @@ fi
 echo "Test 4: Output contains === section headers"
 _OUTFILE=$(mktemp)
 _CLEANUP_DIRS+=("$_OUTFILE")
-bash "$SCRIPT" --quick >"$_OUTFILE" 2>&1 &
+# RETRO_SKIP_VALIDATION=1 prevents validate.sh from spawning orphan subprocesses
+# that hold the Bash tool open past the ~73s ceiling (exit 144).
+RETRO_SKIP_VALIDATION=1 bash "$SCRIPT" --quick >"$_OUTFILE" 2>&1 &
 _PID=$!
-# Timeout is injectable via RETRO_GATHER_TEST_TIMEOUT (default: 15s).
-# Set to a small value (e.g. 1) in CI or fast test runs.
-_TIMEOUT="${RETRO_GATHER_TEST_TIMEOUT:-15}"
+# Timeout is injectable via RETRO_GATHER_TEST_TIMEOUT (default: 10s).
+# RETRO_SKIP_VALIDATION=1 makes this fast; 10s is a generous safety ceiling.
+_TIMEOUT="${RETRO_GATHER_TEST_TIMEOUT:-10}"
 ( sleep "$_TIMEOUT" && kill "$_PID" 2>/dev/null ) &
 _TIMER=$!
 wait "$_PID" 2>/dev/null || true
@@ -100,6 +102,56 @@ _section_found=0; grep -q "section()" "$SCRIPT" && _section_found=1; [[ "$_secti
     (( PASS++ ))
 else
     echo "  FAIL: script does not use section() function" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 7: RETRO_SKIP_VALIDATION=1 skips validate.sh ────────────────────────
+# When RETRO_SKIP_VALIDATION=1 is set, retro-gather.sh must emit
+# VALIDATION section with "skipped" text instead of running validate.sh.
+# Uses a mock CLAUDE_PLUGIN_ROOT with a no-op validate.sh to avoid orphan
+# process issues from the real validate.sh spawning test-batched subprocesses.
+echo "Test 7: RETRO_SKIP_VALIDATION=1 emits VALIDATION section as skipped"
+_skip_val_tmpdir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_skip_val_tmpdir")
+( cd "$_skip_val_tmpdir" && git init -q -b main && git config user.email "t@t.com" && git config user.name "T" && touch f && git add . && git commit -q -m "init" ) 2>/dev/null
+# Create a mock CLAUDE_PLUGIN_ROOT with a fast no-op validate.sh.
+# plugin.json must exist so retro-gather.sh does not discard CLAUDE_PLUGIN_ROOT.
+_mock_plugin_root="$_skip_val_tmpdir/mock_plugin"
+mkdir -p "$_mock_plugin_root/scripts"
+echo '{"name":"mock"}' > "$_mock_plugin_root/plugin.json"
+cat > "$_mock_plugin_root/scripts/validate.sh" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "MOCK VALIDATE CALLED"
+exit 0
+MOCKEOF
+chmod +x "$_mock_plugin_root/scripts/validate.sh"
+# Use no-op stubs for all helper scripts to keep Test 7 fast and isolated.
+# Do NOT copy real scripts — they may be slow or spawn subprocesses.
+printf '#!/usr/bin/env bash\nexit 0\n' > "$_mock_plugin_root/scripts/validate-issues.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$_mock_plugin_root/scripts/cleanup-claude-session.sh"
+printf '#!/usr/bin/env bash\necho "[]"\n' > "$_mock_plugin_root/scripts/tk"
+chmod +x "$_mock_plugin_root/scripts/"* 2>/dev/null || true
+_skip_val_outfile=$(mktemp)
+_CLEANUP_DIRS+=("$_skip_val_outfile")
+PROJECT_ROOT="$_skip_val_tmpdir" \
+    TRACKER_DIR="$_skip_val_tmpdir/.tickets-tracker" \
+    CLAUDE_PLUGIN_ROOT="$_mock_plugin_root" \
+    CI_STATUS=pending \
+    RETRO_SKIP_VALIDATION=1 \
+    bash "$SCRIPT" --quick >"$_skip_val_outfile" 2>&1 &
+_skip_pid=$!
+( sleep 10 && kill "$_skip_pid" 2>/dev/null ) &
+_skip_timer=$!
+wait "$_skip_pid" 2>/dev/null || true
+kill "$_skip_timer" 2>/dev/null; wait "$_skip_timer" 2>/dev/null || true
+_skip_val_out=$(cat "$_skip_val_outfile")
+rm -f "$_skip_val_outfile"
+rm -rf "$_skip_val_tmpdir"
+if [[ "${_skip_val_out,,}" == *"validation"*"skipped"* ]]; then
+    echo "  PASS: VALIDATION section says 'skipped' (validate.sh not called)"
+    (( PASS++ ))
+else
+    echo "  FAIL: VALIDATION section did not say 'skipped' — validate.sh still runs" >&2
     (( FAIL++ ))
 fi
 
