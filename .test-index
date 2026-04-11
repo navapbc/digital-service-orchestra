@@ -364,3 +364,4 @@ plugins/dso/scripts/figma_node_mapper.py:tests/unit/scripts/test_figma_node_mapp
 plugins/dso/scripts/figma_resync.py:tests/unit/test_figma_resync.py
 plugins/dso/scripts/figma-resync.py:tests/unit/test_figma_resync.py
 plugins/dso/scripts/figma-url-store.sh:tests/scripts/test-figma-url-store.sh
+plugins/dso/scripts/run-overlay-retrospective.sh: tests/hooks/test-run-overlay-retrospective-path.sh [test_default_output_not_in_plugin_dir]
