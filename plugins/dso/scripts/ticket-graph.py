@@ -456,6 +456,48 @@ def check_would_create_cycle(
     return source_id in blocked_by_target
 
 
+def check_cycle_at_level(
+    source_id: str,
+    target_id: str,
+    level: str,
+    tracker_dir: str,
+) -> bool:
+    """Return True if adding source_id→target_id would create a cycle or self-loop at the given level.
+
+    level: ticket_type to scope the BFS (e.g., "epic", "story", "task") — matched case-insensitively.
+    Self-loop: if source_id == target_id, returns True immediately without BFS.
+    BFS: scoped to tickets whose ticket_type.lower() == level.lower().
+    """
+    if source_id == target_id:
+        return True
+
+    visited: set[str] = set()
+    queue: list[str] = [target_id]
+    while queue:
+        current = queue.pop(0)
+        if current in visited:
+            continue
+        visited.add(current)
+        current_dir = os.path.join(tracker_dir, current)
+        if not os.path.isdir(current_dir):
+            continue
+        try:
+            state = _reduce_ticket(current_dir)
+        except Exception:
+            continue
+        if not isinstance(state, dict):
+            continue
+        ticket_type = state.get("ticket_type", "")
+        if ticket_type.lower() != level.lower():
+            continue
+        for dep in state.get("deps", []):
+            if dep.get("relation") in ("blocks", "depends_on"):
+                neighbor = dep.get("target_id", "")
+                if neighbor and neighbor not in visited:
+                    queue.append(neighbor)
+    return source_id in visited
+
+
 # ---------------------------------------------------------------------------
 # add_dependency
 # ---------------------------------------------------------------------------
