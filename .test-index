@@ -30,6 +30,7 @@
 .claude/commands/sprint.md:tests/scripts/test-wrapper-detection.sh
 .claude/commands/sprint.md:tests/scripts/test-wrapper-parity.sh
 .claude/docs/KNOWN-ISSUES.md:tests/scripts/test-known-issues-smoke.sh
+.claude/hooks/pre-commit/check-plugin-boundary.sh:tests/hooks/test-check-plugin-boundary.sh
 .claude/scripts/dso:tests/scripts/test-dso-shim-plugin-root.sh
 .github/workflows/ci.yml:tests/scripts/test-ci-no-v2-paths.sh
 CLAUDE.md:tests/scripts/test-claude-md-cli-user-guidance.sh
