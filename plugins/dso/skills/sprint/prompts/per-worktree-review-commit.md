@@ -2,9 +2,21 @@
 
 For each worktree returned by implementation sub-agents (process in completion order — first-pass-first-merge):
 
-**Step 1 — Enter worktree context**: cd into the worktree directory. Note that ARTIFACTS_DIR is naturally isolated (get_artifacts_dir() hashes REPO_ROOT, which differs per worktree).
+**Step 1 — Enter worktree context**: cd into the worktree directory. Note that ARTIFACTS_DIR is naturally isolated (get_artifacts_dir() hashes REPO_ROOT, which differs per worktree). All bash commands in Steps 2–4 must be run from within this worktree directory.
 
-**Step 2 — Review in worktree**: Dispatch review sub-agent in worktree cwd. Review writes reviewer-findings.json to the worktree's ARTIFACTS_DIR. Execute REVIEW-WORKFLOW.md.
+**Step 2 — Review in worktree**: Execute REVIEW-WORKFLOW.md from the worktree directory. The orchestrator runs Steps 0–2 (clear artifacts, auto-fix, capture diff hash) and Step 3 (classify tier) directly — these are bash commands that must execute in the worktree's git context so `compute-diff-hash.sh` and `get_artifacts_dir()` resolve against the worktree's staged changes and REPO_ROOT.
+
+When dispatching the review sub-agent in Step 4, do NOT set `isolation: "worktree"` on the Agent tool (per REVIEW-WORKFLOW.md — isolation creates a separate branch, which would hide the findings from the orchestrator). Instead, include explicit CWD instructions in the sub-agent prompt:
+
+```
+IMPORTANT: Before running any commands, change to the worktree directory:
+cd <worktree-path>
+All commands in this review must run from that directory.
+```
+
+This ensures the review sub-agent's `write-reviewer-findings.sh` writes to the worktree's ARTIFACTS_DIR (via `get_artifacts_dir()` resolving against the worktree's REPO_ROOT), while the sub-agent remains on the same branch as the orchestrator (no branch isolation).
+
+After the review sub-agent returns, the orchestrator runs Step 5 (`record-review.sh`) from the worktree directory so it reads findings from the correct ARTIFACTS_DIR.
 
 **Step 3 — Record test status**: Use record-test-status.sh to record test results in the worktree's ARTIFACTS_DIR before commit.
 

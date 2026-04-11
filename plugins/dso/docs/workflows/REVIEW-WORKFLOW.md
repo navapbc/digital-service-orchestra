@@ -275,6 +275,8 @@ Agent tool:
 
 **NEVER set `isolation: "worktree"` on this sub-agent.** The reviewer must read `reviewer-findings.json` and run `write-reviewer-findings.sh` in the same working directory as the orchestrator. Worktree isolation gives the agent a separate branch where those files are not present, causing the review to fail.
 
+**Per-worktree context note**: When dispatching from `per-worktree-review-commit.md`, the "same working directory" is the implementation worktree — not the session branch. The orchestrator must include explicit `cd <worktree-path>` instructions in the sub-agent prompt so that `compute-diff-hash.sh`, `write-reviewer-findings.sh`, and `get_artifacts_dir()` resolve against the worktree's REPO_ROOT. Do NOT use `isolation: "worktree"` (which creates a separate branch); use prompt-level CWD instructions instead.
+
 ### Deep Tier: 3 Parallel Sonnet Dispatch
 
 When `REVIEW_TIER` is `deep`, dispatch 3 parallel sonnet sub-agents in a single message. Each agent focuses on a different review dimension. All three receive the same `DIFF_FILE`, `REPO_ROOT`, and `STAT_FILE` — no issue-context sharing is needed between them.
