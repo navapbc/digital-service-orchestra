@@ -98,7 +98,7 @@ The diff hash is captured here â€” AFTER Step 1's format/lint/type-check pass â€
 
 1. **Capture the diff hash**:
    ```bash
-   DIFF_HASH=$("${CLAUDE_PLUGIN_ROOT}/hooks/compute-diff-hash.sh")
+   DIFF_HASH=$("$REPO_ROOT/plugins/dso/hooks/compute-diff-hash.sh")
    DIFF_HASH_SHORT="${DIFF_HASH:0:8}"
    ```
 
@@ -844,7 +844,7 @@ Task tool:
 
 1. Capture a fresh diff hash and diff file (the resolution sub-agent changed the code):
    ```bash
-   NEW_DIFF_HASH=$("${CLAUDE_PLUGIN_ROOT}/hooks/compute-diff-hash.sh")
+   NEW_DIFF_HASH=$("$REPO_ROOT/plugins/dso/hooks/compute-diff-hash.sh")
    NEW_DIFF_HASH_SHORT="${NEW_DIFF_HASH:0:8}"
    NEW_DIFF_FILE="$ARTIFACTS_DIR/review-diff-${NEW_DIFF_HASH_SHORT}.txt"
    NEW_STAT_FILE="$ARTIFACTS_DIR/review-stat-${NEW_DIFF_HASH_SHORT}.txt"

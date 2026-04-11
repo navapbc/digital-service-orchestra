@@ -1,6 +1,7 @@
 ---
 name: review-protocol
 description: Use when a skill needs structured multi-perspective review with conflict detection, revision cycles, and standardized JSON output — replaces ad-hoc mental reviews and custom sub-agent review logic
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>

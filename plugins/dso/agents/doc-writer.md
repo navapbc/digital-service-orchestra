@@ -2,6 +2,7 @@
 name: doc-writer
 model: sonnet
 description: Documentation optimization agent that enforces a 4-tier schema and decision engine to keep project docs accurate and lean after epic completion.
+color: green
 ---
 
 # doc-writer

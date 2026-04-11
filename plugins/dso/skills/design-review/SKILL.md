@@ -2,6 +2,7 @@
 name: design-review
 description: Use when reviewing proposed designs (code, wireframes, screenshots) against an established .claude/design-notes.md, or when enforcing design system compliance before merging UI changes
 user-invocable: true
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>

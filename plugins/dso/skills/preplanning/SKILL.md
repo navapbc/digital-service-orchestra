@@ -2,8 +2,7 @@
 name: preplanning
 description: Use when decomposing a ticket epic into prioritized user stories with measurable done definitions, or when auditing and reconciling existing epic children before implementation
 user-invocable: true
-allowed-tools:
-  - AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>

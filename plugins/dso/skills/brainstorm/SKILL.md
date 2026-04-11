@@ -2,6 +2,7 @@
 name: brainstorm
 description: Use when starting a new feature or epic — turns an idea into a defined, ticket-ready epic through Socratic dialogue, approach design, and milestone spec creation.
 user-invocable: true
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
@@ -393,13 +394,16 @@ Note: summary confirmation (Phase 1 Gate Step 1) does NOT collapse with gap anal
 [narrative]
 
 ## Success Criteria
-- [...]
+- **[inferred or researched criterion — bold because it requires user review]**
+- [explicit or confirmed criterion — plain text]
 
 ## Scenario Analysis
 [if ran]
 
 ## Dependencies
 [...]
+
+_N of M criteria confirmed; K inferred requiring review_
 
 Please choose how to proceed:
 

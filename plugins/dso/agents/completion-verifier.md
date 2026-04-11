@@ -2,6 +2,7 @@
 name: completion-verifier
 model: sonnet
 description: Independently verifies that success criteria (SC) for epics and done definitions (DD) for stories are met by the implementation before closure is approved.
+color: red
 ---
 
 # Completion Verifier

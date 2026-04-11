@@ -1,6 +1,7 @@
 ---
 name: plan-review
 description: Orchestrator-level skill that reviews plans and designs before user approval by dispatching a dso:plan-review sub-agent. Invoke before presenting any plan or design to the user, or before calling ExitPlanMode. Do NOT dispatch this skill itself as a sub-agent — it requires the Agent tool and will refuse sub-agent invocation.
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>

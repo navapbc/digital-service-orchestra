@@ -2,6 +2,7 @@
 name: review-stats
 description: Display review event statistics — shows reviewer tier distribution, resolution rates, and trends over time.
 user-invocable: true
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # Review Stats

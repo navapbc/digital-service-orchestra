@@ -2,6 +2,7 @@
 name: resolve-conflicts
 description: Agent-assisted git merge/rebase conflict resolution with confidence-gated automation
 user-invocable: true
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>

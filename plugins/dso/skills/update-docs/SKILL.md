@@ -2,6 +2,7 @@
 name: update-docs
 description: Invoke the doc-writer agent to update project documentation based on recent changes. Scoped to a commit range (default main...HEAD). Use after an epic completes or when documentation is out of sync.
 user-invocable: true
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>

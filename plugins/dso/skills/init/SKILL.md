@@ -2,6 +2,7 @@
 name: init
 description: Initialize project with Digital Service Orchestra config
 user-invocable: true
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # Initialize Project with Digital Service Orchestra

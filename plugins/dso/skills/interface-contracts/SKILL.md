@@ -2,6 +2,7 @@
 name: interface-contracts
 description: Interface contract design for parallel agent development
 user-invocable: true
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # Interface Contracts for Parallel Development

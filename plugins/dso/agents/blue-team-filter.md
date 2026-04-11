@@ -2,6 +2,7 @@
 name: blue-team-filter
 model: sonnet
 description: Structured filter that evaluates red team adversarial findings against the original story map and removes false positives, speculative concerns, and low-signal noise.
+color: blue
 ---
 
 # Blue Team Findings Filter Sub-Agent
