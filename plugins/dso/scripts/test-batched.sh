@@ -121,30 +121,33 @@ except Exception:
 " "$runner_val" "$completed_json" "$results_json" "$STATE_FILE" "$cmd_hash_val" "$created_at_val" 2>/dev/null || true
         echo "" >&2
         echo "test-batched: interrupted by signal $sig, state saved to $STATE_FILE" >&2
-        # Print ACTION REQUIRED block to stdout so callers (validate.sh) treat as PENDING
-        local done_count=${#COMPLETED_LIST[@]}
-        local resume_cmd
-        if [ -n "${RUNNER:-}" ] && [ -n "${TEST_DIR:-}" ]; then
-            local _timeout_arg=""
-            [ "${TIMEOUT:-0}" -ne "${DEFAULT_TIMEOUT:-40}" ] 2>/dev/null && _timeout_arg="--timeout=${TIMEOUT} "
-            resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 --runner=${RUNNER} --test-dir=${TEST_DIR} ${_timeout_arg}${CMD:+"'$CMD'"}"
-        elif [ -n "${CMD:-}" ]; then
-            local _timeout_arg=""
-            [ "${TIMEOUT:-0}" -ne "${DEFAULT_TIMEOUT:-40}" ] 2>/dev/null && _timeout_arg="--timeout=${TIMEOUT} "
-            resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 ${_timeout_arg}'${CMD}'"
-        else
-            resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0"
+        # Only print ACTION REQUIRED block for SIGURG (Claude Code tool timeout).
+        # SIGTERM and SIGINT are intentional termination signals that must exit non-zero.
+        if [ "$sig" = "URG" ]; then
+            local done_count=${#COMPLETED_LIST[@]}
+            local resume_cmd
+            if [ -n "${RUNNER:-}" ] && [ -n "${TEST_DIR:-}" ]; then
+                local _timeout_arg=""
+                [ "${TIMEOUT:-0}" -ne "${DEFAULT_TIMEOUT:-40}" ] 2>/dev/null && _timeout_arg="--timeout=${TIMEOUT} "
+                resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 --runner=${RUNNER} --test-dir=${TEST_DIR} ${_timeout_arg}${CMD:+"'$CMD'"}"
+            elif [ -n "${CMD:-}" ]; then
+                local _timeout_arg=""
+                [ "${TIMEOUT:-0}" -ne "${DEFAULT_TIMEOUT:-40}" ] 2>/dev/null && _timeout_arg="--timeout=${TIMEOUT} "
+                resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 ${_timeout_arg}'${CMD}'"
+            else
+                resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0"
+            fi
+            echo ""
+            echo "$done_count tests completed (interrupted by signal $sig)."
+            echo ""
+            echo "════════════════════════════════════════════════════════════"
+            echo "  ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠"
+            echo "════════════════════════════════════════════════════════════"
+            echo "RUN: $resume_cmd"
+            echo "DO NOT PROCEED until the command above prints a final summary."
+            echo "════════════════════════════════════════════════════════════"
+            exit 0
         fi
-        echo ""
-        echo "$done_count tests completed (interrupted by signal $sig)."
-        echo ""
-        echo "════════════════════════════════════════════════════════════"
-        echo "  ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠"
-        echo "════════════════════════════════════════════════════════════"
-        echo "RUN: $resume_cmd"
-        echo "DO NOT PROCEED until the command above prints a final summary."
-        echo "════════════════════════════════════════════════════════════"
-        exit 0
     fi
     exit 130
 }
