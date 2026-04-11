@@ -1250,3 +1250,116 @@ def test_compute_dep_graph_children_use_preloaded_state(
         "and use it for both children discovery and blocker resolution instead of "
         "calling _reduce_ticket per directory entry."
     )
+
+
+# ---------------------------------------------------------------------------
+# check_cycle_at_level helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_ticket(tracker: Path, ticket_id: str, ticket_type: str = "task") -> Path:
+    """Write a minimal ticket directory with a CREATE event. Returns the ticket dir."""
+    ticket_dir = tracker / ticket_id
+    ticket_dir.mkdir(parents=True, exist_ok=True)
+    create_event = {
+        "event_type": "CREATE",
+        "uuid": f"create-{ticket_id}",
+        "timestamp": 1000,
+        "author": "Test User",
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "data": {
+            "ticket_type": ticket_type,
+            "title": f"Ticket {ticket_id}",
+            "parent_id": None,
+        },
+    }
+    with open(ticket_dir / f"1000-create-{ticket_id}-CREATE.json", "w") as f:
+        json.dump(create_event, f)
+    return ticket_dir
+
+
+def _write_link_event(
+    source_id: str,
+    target_id: str,
+    relation: str,
+    tracker_dir: str,
+    timestamp: int = 1500,
+) -> None:
+    """Write a LINK event in source_id's directory pointing at target_id."""
+    source_dir = Path(tracker_dir) / source_id
+    source_dir.mkdir(parents=True, exist_ok=True)
+    link_uuid = f"link-{source_id}-{relation}-{target_id}"
+    link_event = {
+        "event_type": "LINK",
+        "uuid": link_uuid,
+        "timestamp": timestamp,
+        "author": "Test User",
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "data": {
+            "target_id": target_id,
+            "relation": relation,
+        },
+    }
+    filename = f"{timestamp}-{link_uuid}-LINK.json"
+    with open(source_dir / filename, "w") as f:
+        json.dump(link_event, f)
+
+
+def _get_check_cycle_at_level():  # type: ignore[no-untyped-def]
+    """Load check_cycle_at_level from ticket-graph module."""
+    mod = _load_module()
+    return mod.check_cycle_at_level
+
+
+# ---------------------------------------------------------------------------
+# check_cycle_at_level tests (RED — function does not exist yet)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_cycle_at_level_detects_cycle(tmp_path: Path) -> None:
+    """check_cycle_at_level returns True when adding A→B would close an existing B→A cycle."""
+    check_cycle_at_level = _get_check_cycle_at_level()
+    tracker = tmp_path / ".tickets-tracker"
+    # epic-A and epic-B exist; epic-B has depends_on link to epic-A (B→A)
+    # So adding epic-A→epic-B would create a cycle: A→B→A
+    _make_ticket(tracker, "epic-A", ticket_type="epic")
+    _make_ticket(tracker, "epic-B", ticket_type="epic")
+    _write_link_event("epic-B", "epic-A", "depends_on", str(tracker))
+    assert check_cycle_at_level("epic-A", "epic-B", "epic", str(tracker)) is True
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_cycle_at_level_detects_self_loop(tmp_path: Path) -> None:
+    """check_cycle_at_level returns True for self-loops (source==target)."""
+    check_cycle_at_level = _get_check_cycle_at_level()
+    tracker = tmp_path / ".tickets-tracker"
+    _make_ticket(tracker, "epic-A", ticket_type="epic")
+    assert check_cycle_at_level("epic-A", "epic-A", "epic", str(tracker)) is True
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_cycle_at_level_case_insensitive(tmp_path: Path) -> None:
+    """check_cycle_at_level matches ticket_type case-insensitively."""
+    check_cycle_at_level = _get_check_cycle_at_level()
+    tracker = tmp_path / ".tickets-tracker"
+    _make_ticket(tracker, "epic-A", ticket_type="Epic")  # capital E
+    _make_ticket(tracker, "epic-B", ticket_type="Epic")
+    _write_link_event("epic-B", "epic-A", "depends_on", str(tracker))
+    assert check_cycle_at_level("epic-A", "epic-B", "epic", str(tracker)) is True
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_cycle_at_level_no_false_positive(tmp_path: Path) -> None:
+    """check_cycle_at_level returns False when no cycle exists."""
+    check_cycle_at_level = _get_check_cycle_at_level()
+    tracker = tmp_path / ".tickets-tracker"
+    _make_ticket(tracker, "epic-A", ticket_type="epic")
+    _make_ticket(tracker, "epic-B", ticket_type="epic")
+    # A→B exists, but we're checking if adding B→A would cycle — that's True
+    # Instead test: no existing links, checking epic-A→epic-B: should be False
+    assert check_cycle_at_level("epic-A", "epic-B", "epic", str(tracker)) is False
