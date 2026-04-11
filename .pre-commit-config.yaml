@@ -76,6 +76,17 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      # Plugin boundary check (timeout: 10s)
+      # Blocks commits that add files to plugins/dso/ that are not enumerated in the allowlist.
+      # Fail-open: missing allowlist exits 0 and prints a warning.
+      - id: plugin-boundary-check
+        name: Plugin Boundary Check (10s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh plugin-boundary-check 10 "./.claude/hooks/pre-commit/check-plugin-boundary.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/
+
       # Test quality gate (timeout: 15s)
       # Scans staged test files for anti-patterns (e.g., source-file grep/cat
       # instead of behavioral assertions) and blocks commits when detected.
