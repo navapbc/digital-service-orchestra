@@ -1250,3 +1250,284 @@ def test_compute_dep_graph_children_use_preloaded_state(
         "and use it for both children discovery and blocker resolution instead of "
         "calling _reduce_ticket per directory entry."
     )
+
+
+# ---------------------------------------------------------------------------
+# resolve_hierarchy_link tests (SC1, SC3, SC5, SC10, SC11 + is_redundant)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_same_parent_story_sc1(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """SC1: Two tasks sharing the same parent story → original IDs unchanged.
+
+    Setup:
+        - story-parent: story (no parent)
+        - task-a: task with parent_id=story-parent
+        - task-b: task with parent_id=story-parent
+
+    Expected: resolved_source=task-a, resolved_target=task-b,
+              was_redirected=False, is_redundant=False
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "story-parent", ticket_type="story")
+    _write_ticket(tracker_dir, "task-a", parent_id="story-parent", ticket_type="task")
+    _write_ticket(tracker_dir, "task-b", parent_id="story-parent", ticket_type="task")
+
+    result = graph.resolve_hierarchy_link("task-a", "task-b", str(tracker_dir))
+
+    assert result["resolved_source"] == "task-a", (
+        f"SC1: expected resolved_source='task-a', got {result['resolved_source']!r}"
+    )
+    assert result["resolved_target"] == "task-b", (
+        f"SC1: expected resolved_target='task-b', got {result['resolved_target']!r}"
+    )
+    assert result["was_redirected"] is False, (
+        f"SC1: expected was_redirected=False, got {result['was_redirected']!r}"
+    )
+    assert result["is_redundant"] is False, (
+        f"SC1: expected is_redundant=False, got {result['is_redundant']!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_cross_story_same_epic_sc3(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """SC3: Cross-story same-epic task pairs → two parent story IDs as resolved pair.
+
+    Setup:
+        - epic-root: epic (no parent)
+        - story-a: story with parent_id=epic-root
+        - story-b: story with parent_id=epic-root
+        - task-a1: task with parent_id=story-a
+        - task-b1: task with parent_id=story-b
+
+    Expected: resolved_source=story-a, resolved_target=story-b,
+              was_redirected=True, is_redundant=False
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "epic-root", ticket_type="epic")
+    _write_ticket(tracker_dir, "story-a", parent_id="epic-root", ticket_type="story")
+    _write_ticket(tracker_dir, "story-b", parent_id="epic-root", ticket_type="story")
+    _write_ticket(tracker_dir, "task-a1", parent_id="story-a", ticket_type="task")
+    _write_ticket(tracker_dir, "task-b1", parent_id="story-b", ticket_type="task")
+
+    result = graph.resolve_hierarchy_link("task-a1", "task-b1", str(tracker_dir))
+
+    assert result["resolved_source"] == "story-a", (
+        f"SC3: expected resolved_source='story-a', got {result['resolved_source']!r}"
+    )
+    assert result["resolved_target"] == "story-b", (
+        f"SC3: expected resolved_target='story-b', got {result['resolved_target']!r}"
+    )
+    assert result["was_redirected"] is True, (
+        f"SC3: expected was_redirected=True, got {result['was_redirected']!r}"
+    )
+    assert result["is_redundant"] is False, (
+        f"SC3: expected is_redundant=False, got {result['is_redundant']!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_cross_epic_sc5(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """SC5: Cross-epic task pairs → two root epic IDs as resolved pair.
+
+    Setup:
+        - epic-a: epic (no parent)
+        - epic-b: epic (no parent)
+        - story-a: story with parent_id=epic-a
+        - story-b: story with parent_id=epic-b
+        - task-a1: task with parent_id=story-a
+        - task-b1: task with parent_id=story-b
+
+    Expected: resolved_source=epic-a, resolved_target=epic-b,
+              was_redirected=True, is_redundant=False
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "epic-a", ticket_type="epic")
+    _write_ticket(tracker_dir, "epic-b", ticket_type="epic")
+    _write_ticket(tracker_dir, "story-a", parent_id="epic-a", ticket_type="story")
+    _write_ticket(tracker_dir, "story-b", parent_id="epic-b", ticket_type="story")
+    _write_ticket(tracker_dir, "task-a1", parent_id="story-a", ticket_type="task")
+    _write_ticket(tracker_dir, "task-b1", parent_id="story-b", ticket_type="task")
+
+    result = graph.resolve_hierarchy_link("task-a1", "task-b1", str(tracker_dir))
+
+    assert result["resolved_source"] == "epic-a", (
+        f"SC5: expected resolved_source='epic-a', got {result['resolved_source']!r}"
+    )
+    assert result["resolved_target"] == "epic-b", (
+        f"SC5: expected resolved_target='epic-b', got {result['resolved_target']!r}"
+    )
+    assert result["was_redirected"] is True, (
+        f"SC5: expected was_redirected=True, got {result['was_redirected']!r}"
+    )
+    assert result["is_redundant"] is False, (
+        f"SC5: expected is_redundant=False, got {result['is_redundant']!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_orphan_ticket_sc10(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """SC10: Tickets with no parent_id → original IDs unchanged.
+
+    Setup:
+        - orphan-a: task (no parent)
+        - orphan-b: task (no parent)
+
+    Expected: resolved_source=orphan-a, resolved_target=orphan-b,
+              was_redirected=False, is_redundant=False
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "orphan-a", ticket_type="task")
+    _write_ticket(tracker_dir, "orphan-b", ticket_type="task")
+
+    result = graph.resolve_hierarchy_link("orphan-a", "orphan-b", str(tracker_dir))
+
+    assert result["resolved_source"] == "orphan-a", (
+        f"SC10: expected resolved_source='orphan-a', got {result['resolved_source']!r}"
+    )
+    assert result["resolved_target"] == "orphan-b", (
+        f"SC10: expected resolved_target='orphan-b', got {result['resolved_target']!r}"
+    )
+    assert result["was_redirected"] is False, (
+        f"SC10: expected was_redirected=False, got {result['was_redirected']!r}"
+    )
+    assert result["is_redundant"] is False, (
+        f"SC10: expected is_redundant=False, got {result['is_redundant']!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_unreadable_ticket_sc11(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """SC11: If ticket state cannot be reduced → AttributeError or returns error dict.
+
+    Setup:
+        - ticket-ok: valid task
+        - missing-ticket: does not exist in tracker
+
+    Expected: resolve_hierarchy_link returns a dict with 'error' key (not silent fallthrough)
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "ticket-ok", ticket_type="task")
+    # missing-ticket directory is intentionally absent
+
+    result = graph.resolve_hierarchy_link(
+        "ticket-ok", "missing-ticket", str(tracker_dir)
+    )
+
+    assert "error" in result, (
+        f"SC11: expected result to contain 'error' key for missing ticket, got {result!r}"
+    )
+    assert result.get("ticket_id") == "missing-ticket", (
+        f"SC11: expected ticket_id='missing-ticket' in error, got {result.get('ticket_id')!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_is_redundant_direct_parent(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """is_redundant=True when source IS the direct parent of target.
+
+    Setup:
+        - story-parent: story (no parent)
+        - task-child: task with parent_id=story-parent
+
+    Expected: resolved_source=story-parent, resolved_target=task-child (or vice versa),
+              is_redundant=True (because story-parent is the direct parent of task-child)
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "story-parent", ticket_type="story")
+    _write_ticket(
+        tracker_dir, "task-child", parent_id="story-parent", ticket_type="task"
+    )
+
+    result = graph.resolve_hierarchy_link(
+        "story-parent", "task-child", str(tracker_dir)
+    )
+
+    assert result["is_redundant"] is True, (
+        f"is_redundant=True expected when source is direct parent of target, got {result!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_cli_outputs_json(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """CLI subcommand resolve-hierarchy-link outputs valid JSON.
+
+    Setup:
+        - orphan-x: task (no parent)
+        - orphan-y: task (no parent)
+
+    Verify: python3 ticket-graph.py resolve-hierarchy-link orphan-x orphan-y
+            --tickets-dir=... outputs JSON with required keys.
+    """
+    import subprocess
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "orphan-x", ticket_type="task")
+    _write_ticket(tracker_dir, "orphan-y", ticket_type="task")
+
+    result = subprocess.run(
+        [
+            "python3",
+            str(SCRIPT_PATH),
+            "resolve-hierarchy-link",
+            "orphan-x",
+            "orphan-y",
+            f"--tickets-dir={tracker_dir}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, (
+        f"CLI returned non-zero exit code {result.returncode}. "
+        f"stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
+    try:
+        output = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        pytest.fail(f"CLI output is not valid JSON: {e!r}. stdout={result.stdout!r}")
+
+    required_keys = {
+        "resolved_source",
+        "resolved_target",
+        "was_redirected",
+        "is_redundant",
+    }
+    missing = required_keys - set(output.keys())
+    assert not missing, f"CLI output missing keys {missing}. Got: {output!r}"

@@ -618,6 +618,142 @@ def add_dependency(
 
 
 # ---------------------------------------------------------------------------
+# Hierarchy resolver
+# ---------------------------------------------------------------------------
+
+
+def _get_ancestors(ticket_id: str, tracker_dir: str, max_hops: int = 2) -> list[str]:
+    """Return the ancestor chain for ticket_id up to max_hops hops.
+
+    Returns a list starting from ticket_id itself, then its parent_id,
+    then grandparent_id (if any), up to max_hops levels up.
+
+    E.g., for task→story→epic, returns [task_id, story_id, epic_id].
+    Returns [ticket_id] if the ticket has no parent or is unreadable.
+    """
+    chain: list[str] = [ticket_id]
+    current = ticket_id
+    for _ in range(max_hops):
+        ticket_dir = os.path.join(tracker_dir, current)
+        if not os.path.isdir(ticket_dir):
+            break
+        try:
+            state = _reduce_ticket(ticket_dir)
+        except Exception:
+            state = None
+        if state is None:
+            break
+        parent_id = state.get("parent_id")
+        if not parent_id:
+            break
+        chain.append(parent_id)
+        current = parent_id
+    return chain
+
+
+def resolve_hierarchy_link(
+    source_id: str,
+    target_id: str,
+    tracker_dir: str,
+) -> dict[str, object]:
+    """Resolve the effective hierarchy link target for a (source, target) ticket pair.
+
+    Walks each ticket's parent_id chain (≤2 hops) using _reduce_ticket, finds the
+    divergence point in the hierarchy, and returns a dict:
+        {
+            "resolved_source": str,   # effective source (may be ancestor)
+            "resolved_target": str,   # effective target (may be ancestor)
+            "was_redirected": bool,   # True if either ID was redirected to an ancestor
+            "is_redundant": bool,     # True if source is direct parent of target or vice versa
+        }
+
+    On error (unreadable ticket):
+        {"error": str, "ticket_id": str}  with the caller expected to exit non-zero.
+
+    Args:
+        source_id: Source ticket ID.
+        target_id: Target ticket ID.
+        tracker_dir: Path to the .tickets-tracker directory.
+    """
+    # Validate both tickets exist (SC11: unreadable ticket → error)
+    source_dir = os.path.join(tracker_dir, source_id)
+    target_dir = os.path.join(tracker_dir, target_id)
+
+    if not os.path.isdir(source_dir):
+        return {"error": f"ticket '{source_id}' does not exist", "ticket_id": source_id}
+    if not os.path.isdir(target_dir):
+        return {"error": f"ticket '{target_id}' does not exist", "ticket_id": target_id}
+
+    # Try reducing both tickets — error if unreadable
+    try:
+        source_state = _reduce_ticket(source_dir)
+    except Exception:
+        source_state = None
+    if source_state is None:
+        return {
+            "error": f"ticket '{source_id}' could not be reduced",
+            "ticket_id": source_id,
+        }
+
+    try:
+        target_state = _reduce_ticket(target_dir)
+    except Exception:
+        target_state = None
+    if target_state is None:
+        return {
+            "error": f"ticket '{target_id}' could not be reduced",
+            "ticket_id": target_id,
+        }
+
+    # Walk ancestor chains (≤2 hops each)
+    source_chain = _get_ancestors(source_id, tracker_dir, max_hops=2)
+    target_chain = _get_ancestors(target_id, tracker_dir, max_hops=2)
+
+    # Check is_redundant: source is direct parent of target or target is direct parent of source
+    source_parent = source_state.get("parent_id")
+    target_parent = target_state.get("parent_id")
+    is_redundant = (source_id == target_parent) or (target_id == source_parent)
+
+    # Find divergence point: walk up both chains together until they share an ancestor
+    # The effective resolved IDs are the highest ancestor before the shared node
+    # (i.e., the last distinct ancestor in each chain before they converge).
+
+    # Build set for quick membership check
+    target_ancestors = set(target_chain)
+
+    # Find the first shared ancestor (if any) — this is the convergence point
+    shared: str | None = None
+    for ancestor in source_chain:
+        if ancestor in target_ancestors:
+            shared = ancestor
+            break
+
+    if shared is None:
+        # No shared ancestor — chains are fully separate (cross-epic or orphans)
+        # Use the root of each chain (last element)
+        resolved_source = source_chain[-1]
+        resolved_target = target_chain[-1]
+    else:
+        # Shared ancestor found — resolved IDs are the last element in each chain
+        # *before* reaching the shared ancestor
+        def _last_before(chain: list[str], shared_id: str) -> str:
+            idx = chain.index(shared_id)
+            return chain[idx - 1] if idx > 0 else chain[0]
+
+        resolved_source = _last_before(source_chain, shared)
+        resolved_target = _last_before(target_chain, shared)
+
+    was_redirected = (resolved_source != source_id) or (resolved_target != target_id)
+
+    return {
+        "resolved_source": resolved_source,
+        "resolved_target": resolved_target,
+        "was_redirected": was_redirected,
+        "is_redundant": is_redundant,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Archive eligibility
 # ---------------------------------------------------------------------------
 
@@ -728,6 +864,26 @@ def main() -> int:
             except Exception:
                 tracker_dir = os.path.join(os.getcwd(), ".tickets-tracker")
         return tracker_dir, remaining
+
+    if args[0] == "resolve-hierarchy-link":
+        # Usage: resolve-hierarchy-link <src> <tgt> --tickets-dir=<dir>
+        remaining = args[1:]
+        tracker_dir, pos_args = _find_tracker_dir(remaining)
+        if len(pos_args) < 2:
+            print(
+                "Usage: ticket-graph.py resolve-hierarchy-link <source> <target>"
+                " [--tickets-dir=<path>]",
+                file=sys.stderr,
+            )
+            return 1
+        source_id = pos_args[0]
+        target_id = pos_args[1]
+        result = resolve_hierarchy_link(source_id, target_id, tracker_dir)
+        print(json.dumps(result, ensure_ascii=False))
+        # Non-zero exit when result contains an error key
+        if "error" in result:
+            return 1
+        return 0
 
     if args[0] == "--archive-eligible":
         tracker_dir, _ = _find_tracker_dir(args[1:])
