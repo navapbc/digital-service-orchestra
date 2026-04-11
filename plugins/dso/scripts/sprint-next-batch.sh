@@ -281,7 +281,7 @@ DESCEOF_V3
 fi
 
 # All tickets as JSON (used by Python inline for ready/blocked filtering)
-"$TICKET_CMD" list > "$tmpdir/all_tickets.json" 2>/dev/null || echo "[]" > "$tmpdir/all_tickets.json"
+"$TICKET_CMD" list --status=open,in_progress > "$tmpdir/all_tickets.json" 2>/dev/null || echo "[]" > "$tmpdir/all_tickets.json"
 
 # --- Core logic ---
 

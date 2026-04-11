@@ -1162,6 +1162,83 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 28: ticket list called with --status=open,in_progress (bug 2242-d974) ─
+echo "Test 28: sprint-next-batch passes --status=open,in_progress to ticket list (bug 2242-d974)"
+_t28_fake_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t28_fake_repo")
+git init -q -b main "$_t28_fake_repo"
+mkdir -p "$_t28_fake_repo/scripts"
+_t28_args_log="$_t28_fake_repo/ticket-list-args.log"
+
+# Mock ticket CLI: records arguments passed to "list" subcommand in a log file.
+# Also returns a minimal valid response so sprint-next-batch can complete.
+cat > "$_t28_fake_repo/scripts/ticket" << T28_TICKET
+#!/usr/bin/env bash
+SUBCMD="\${1:-}"; shift || true; TICKET_ID="\${1:-}"
+case "\$SUBCMD" in
+    show)
+        if [[ "\$TICKET_ID" == "t28-epic" ]]; then
+            echo '{"ticket_id":"t28-epic","status":"open","ticket_type":"epic","priority":1,"title":"Test Epic","parent_id":null,"comments":[],"deps":[]}'
+        else
+            echo '{"status":"error","error":"not found","ticket_id":"'"'"\$TICKET_ID"'"'"}'; exit 1
+        fi; exit 0 ;;
+    list)
+        # Record ALL arguments passed to "list" into the log file
+        echo "\$*" >> "$_t28_args_log"
+        echo '[{"ticket_id":"t28-open-task","status":"open","ticket_type":"task","priority":2,"title":"Open Task","parent_id":"t28-epic","deps":[]}]'
+        exit 0 ;;
+    *) exit 0 ;;
+esac
+T28_TICKET
+chmod +x "$_t28_fake_repo/scripts/ticket"
+
+cat > "$_t28_fake_repo/scripts/classify-task.py" << 'T28_SCORER'
+import json, sys
+tasks = json.loads(sys.stdin.read())
+out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
+        "subagent": "general-purpose", "model": "sonnet",
+        "complexity": "low", "reason": "stub"} for t in tasks]
+print(json.dumps(out))
+T28_SCORER
+
+cat > "$_t28_fake_repo/scripts/read-config.sh" << 'T28_CFG'
+#!/usr/bin/env bash
+KEY="${1:-}"; if [[ "$KEY" == "--list" ]]; then KEY="${2:-}"; fi
+case "$KEY" in
+    paths.src_dir) echo -n "src" ;;
+    paths.test_dir) echo -n "tests" ;;
+    paths.test_unit_dir) echo -n "tests/unit" ;;
+    interpreter.python_venv) echo -n "" ;;
+    *) echo -n "" ;;
+esac
+T28_CFG
+chmod +x "$_t28_fake_repo/scripts/read-config.sh"
+printf '' > "$_t28_fake_repo/dso-config.conf"
+cp "$PLUGIN_SCRIPT" "$_t28_fake_repo/scripts/sprint-next-batch.sh"
+chmod +x "$_t28_fake_repo/scripts/sprint-next-batch.sh"
+
+t28_exit=0
+t28_output=$(
+    cd "$_t28_fake_repo" && \
+    TICKET_CMD="$_t28_fake_repo/scripts/ticket" \
+    bash "$_t28_fake_repo/scripts/sprint-next-batch.sh" "t28-epic" 2>&1
+) || t28_exit=$?
+
+# Check that at least one "list" invocation used --status=open,in_progress
+t28_status_used=0
+if [ -f "$_t28_args_log" ] && grep -q -- "--status=open,in_progress" "$_t28_args_log"; then
+    t28_status_used=1
+fi
+rm -rf "$_t28_fake_repo"
+
+if [ "$t28_status_used" -eq 1 ]; then
+    echo "  PASS: ticket list called with --status=open,in_progress"
+    (( PASS++ ))
+else
+    echo "  FAIL: ticket list was NOT called with --status=open,in_progress (bug 2242-d974)" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
