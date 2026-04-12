@@ -411,24 +411,14 @@ If any trigger condition is met:
    echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
    ```
 5. After preplanning completes, continue to Phase 2
-   <!-- REVIEW-DEFENSE: Finding 2 — SC coverage gate bypass after preplanning is intentional.
-        When preplanning just ran, child descriptions are freshly created and the SC list may have
-        been updated. Skipping the gate here avoids double-checking during the same sprint execution;
-        the gate will run on the next sprint invocation once children are stable. -->
 
 If no trigger condition is met, proceed to Step 2a1 (SC Coverage Haiku Gate).
 
-<!-- REVIEW-DEFENSE: Finding 1 — sc-coverage-haiku.md not present in this worktree.
-     The prompt file is created by story 3812-d606 and committed to branch worktree-agent-ae49f130
-     (Batch 1 of epic 615f-fad3). All worktree branches for this epic are merged to main in dependency
-     order: Batch 1 (prompt files) before Batch 3 (SKILL.md gate). The file will be present on main
-     before this change lands. At runtime in the post-merge codebase, the file exists. This is a
-     worktree-isolation artifact, not a missing dependency. -->
 #### Step 2a1: SC Coverage Haiku Gate (/dso:sprint)
 
-**Purpose**: Fast-path check that all epic success criteria (SCs) are traceable to at least one child story or task. Uses a haiku sub-agent for speed. This is a read-only advisory gate — it never blocks execution. Sonnet/opus escalation for ESCALATE verdicts is handled separately (story 536e-3683).
+**Purpose**: Fast-path check that all epic success criteria (SCs) are traceable to at least one child story or task. Uses a haiku sub-agent for speed. This is a read-only advisory gate — it never blocks execution. Sonnet/opus escalation for ESCALATE verdicts is handled by Step 2a2.
 
-**ORCHESTRATOR_RESUME idempotency**: If your resume context contains `SC_COVERAGE_HAIKU_GATE: complete` for this epic, skip this entire sub-step and proceed directly to Phase 2.
+**ORCHESTRATOR_RESUME idempotency**: If your resume context contains `SC_COVERAGE_HAIKU_GATE: complete` for this epic, skip this entire sub-step and proceed to Step 2a2 if any ESCALATE verdicts were recorded, otherwise proceed to Phase 2.
 
 **Step 1 — Collect inputs**:
 
@@ -461,16 +451,202 @@ Parse the `results` array. Check `verdict` on each entry. On any missing key, nu
 
 **On parse failure** (malformed JSON, missing fields, timeout, or empty output): this gate is fail-open — log a warning `"SC coverage haiku gate: parse failure — skipping gate, proceeding to Phase 2"` and proceed directly to Phase 2. Do not block execution.
 
-**Step 4 — Route on verdicts**:
-
-- **ALL verdicts are `COVERED`**: log `"SC coverage haiku gate: all SCs covered — proceeding to Phase 2"` and proceed to Phase 2 normally.
-- **ANY verdict is `ESCALATE`**: log `"SC coverage haiku gate: ESCALATE verdict(s) detected (haiku fast-path) — proceeding to Phase 2 (sonnet/opus escalation: story 536e-3683)"` and continue to Phase 2. The haiku gate does NOT invoke sonnet or opus — escalation is out of scope for this gate.
-
-**Step 5 — Emit idempotency marker**:
+**Step 4 — Emit idempotency marker and route on verdicts**:
 
 Emit `SC_COVERAGE_HAIKU_GATE: complete` to your output so that ORCHESTRATOR_RESUME can detect it on resume.
 
-Proceed to Phase 2.
+- **ALL verdicts are `COVERED`**: log `"SC coverage haiku gate: all SCs covered — proceeding to Phase 2"` and proceed to Phase 2 normally. Skip Step 2a2.
+- **ANY verdict is `ESCALATE`**: collect the ESCALATE SCs into an escalation list and proceed to Step 2a2 (SC Coverage Sonnet Tier).
+
+<!-- REVIEW-DEFENSE: Finding 2 — sc-coverage-sonnet.md, sc-coverage-haiku.md, and sc-coverage-opus.md not in this worktree.
+     All three prompt files are created by story 3812-d606 in branch worktree-agent-ae49f130 (Batch 1).
+     Merge order: Batch 1 (prompt files) → Batch 3 (haiku gate) → Batch 5 (sonnet tier) → Batch 6 (opus tier, this change).
+     Files will be present on main before this change lands. Merge order is enforced by the per-worktree-review-commit.md
+     sequential commit protocol. Worktree-isolation artifact — not a runtime missing file risk. -->
+#### Step 2a2: SC Coverage Sonnet Tier (/dso:sprint)
+
+**Trigger**: Only runs if the haiku gate (Step 2a1) returned ANY `ESCALATE` verdict. If haiku marked ALL SCs as `COVERED` (empty escalation list), skip this sub-step entirely and proceed to Phase 2.
+
+**Purpose**: Deeper evaluation of SCs that haiku could not conclusively mark as COVERED. Sonnet evaluates each escalated SC independently, with no knowledge of haiku's verdicts.
+
+**ORCHESTRATOR_RESUME idempotency**: If your resume context contains `SC_COVERAGE_SONNET_GATE: complete` for this epic, skip this entire sub-step and:
+- If any UNSURE verdicts were recorded → proceed to Step 2a3 (opus dispatch)
+- If any MISSING verdicts were recorded (no UNSURE) → proceed to REPLAN_TRIGGER Routing (no opus dispatch)
+- If all verdicts are COVERED → proceed to Phase 2 directly
+
+**Step 1 — Prepare input**:
+
+From the haiku escalation list, collect only the SCs marked `ESCALATE`. Build the input payload:
+```json
+{
+  "sc_list": [
+    { "sc_id": "sc-1", "sc_text": "<original SC text — no haiku verdicts, no escalation reasoning>" }
+  ],
+  "children": [
+    { "child_id": "<id>", "child_title": "<title>", "child_description": "<description>" }
+  ]
+}
+```
+
+**Important input contract**: Pass ONLY the original SC text and children descriptions to sonnet. Do NOT include haiku verdicts, escalation reasoning, or haiku output in the prompt. Sonnet must evaluate independently.
+
+**Step 2 — Dispatch sonnet sub-agent**:
+
+Dispatch a `subagent_type: general-purpose` sub-agent with `model: sonnet`. Load the prompt from `plugins/dso/skills/sprint/prompts/sc-coverage-sonnet.md`. Pass the input payload constructed above.
+
+**Step 3 — Parse output**:
+
+The sonnet sub-agent returns a JSON object:
+```json
+{
+  "results": [
+    {
+      "sc_id": "sc-1",
+      "verdict": "COVERED" | "MISSING" | "UNSURE",
+      "reasoning": "<explanation>"
+    }
+  ]
+}
+```
+Parse the `results` array. Check `verdict` on each entry.
+
+**On parse failure** (malformed JSON, missing fields, timeout, or empty output): this gate is fail-open — log a warning `"SC coverage sonnet gate: parse failure — treating all sonnet SCs as UNSURE, escalating to opus (Step 2a3)"` and treat ALL sonnet-evaluated SCs as `UNSURE`. Proceed to Step 2a3.
+
+**Step 4 — Collect verdicts**:
+
+For each SC in the sonnet results:
+- **`COVERED`**: SC is sufficiently covered — remove from escalation tracking.
+- **`MISSING`**: SC has a real gap — add to the `sc_coverage_missing` list.
+- **`UNSURE`**: Sonnet could not determine coverage — collect into the `sc_coverage_unsure` list for opus escalation.
+
+**Step 5 — Emit idempotency marker and route on UNSURE list**:
+
+Emit `SC_COVERAGE_SONNET_GATE: complete` to your output so that ORCHESTRATOR_RESUME can detect it on resume.
+
+- **If the UNSURE list is empty**: proceed directly to REPLAN_TRIGGER Routing below (no opus dispatch needed). Log: `"SC coverage sonnet gate: no UNSURE SCs — opus escalation skipped"`.
+- **If any SCs are UNSURE**: proceed to Step 2a3 (SC Coverage Opus Tier) with the UNSURE SCs passed as input to opus.
+
+#### Step 2a3: SC Coverage Opus Tier (/dso:sprint)
+
+**Trigger**: Only dispatch opus if the UNSURE list from Step 2a2 is non-empty. If the UNSURE list is empty (all SCs resolved by haiku + sonnet), skip opus entirely — log `"SC coverage opus tier: UNSURE list empty — skipping opus, proceeding to REPLAN_TRIGGER routing"` and proceed directly to REPLAN_TRIGGER routing below.
+
+**Purpose**: Opus is the final arbiter for SCs that sonnet could not conclusively classify as COVERED or MISSING. Opus returns only COVERED or MISSING — no UNSURE. This terminates the escalation cascade.
+
+**ORCHESTRATOR_RESUME idempotency**: If your resume context contains `SC_COVERAGE_OPUS_GATE: complete` for this epic, skip this sub-step and proceed directly to REPLAN_TRIGGER routing.
+
+**Step 1 — Prepare input**:
+
+Build the opus input payload using only the SCs in `sc_coverage_unsure` (no MISSING SCs, no haiku/sonnet context):
+```json
+{
+  "unsure_scs": [
+    { "sc_id": "sc-1", "sc_text": "<original SC text only — no prior tier verdicts>" }
+  ],
+  "children": [
+    { "child_id": "<id>", "child_title": "<title>", "child_description": "<description>" }
+  ]
+}
+```
+
+**Step 2 — Dispatch opus sub-agent**:
+
+Dispatch a `subagent_type: general-purpose` sub-agent with `model: opus`. Load the prompt from `plugins/dso/skills/sprint/prompts/sc-coverage-opus.md`. Pass the input payload constructed above.
+
+**Step 3 — Parse output**:
+
+The opus sub-agent returns a JSON object:
+```json
+{
+  "results": [
+    {
+      "sc_id": "sc-1",
+      "verdict": "COVERED" | "MISSING"
+    }
+  ]
+}
+```
+Parse the `results` array. Check `verdict` on each entry. Opus returns COVERED or MISSING only — no UNSURE.
+
+**On parse failure** (malformed JSON, missing fields, timeout, or empty output): fail-open conservative — log a warning `"SC coverage opus gate: parse failure — treating all unparseable SCs as MISSING (conservative fail-open)"` and treat ALL opus-evaluated SCs as `MISSING`. Add them to the `sc_coverage_missing` list.
+
+<!-- DESIGN-NOTE: intentional asymmetry — sonnet parse failure escalates to opus (fail-open toward "more review"),
+     while opus parse failure treats as MISSING (fail-open toward "acknowledge gap"). The two are deliberately
+     asymmetric: sonnet has a tier above it that can resolve ambiguity; opus is the final arbiter and must
+     default conservatively. Do NOT change opus fail-open to match the COVERED tie-breaking default in
+     sc-coverage-opus.md — that tie-breaking rule applies only to UNSURE verdicts, not to parse failures. -->
+
+**Step 4 — Collect opus verdicts**:
+
+For each SC in the opus results:
+- **`COVERED`**: SC is confirmed covered — remove from outstanding list.
+- **`MISSING`**: SC has a confirmed gap — add to the `sc_coverage_missing` list.
+
+**Step 5 — Emit idempotency marker**:
+
+Emit `SC_COVERAGE_OPUS_GATE: complete` to your output so that ORCHESTRATOR_RESUME can detect it on resume.
+
+#### REPLAN_TRIGGER Routing: SC Coverage Gaps (/dso:sprint)
+
+After completing all applicable escalation tiers, evaluate the `sc_coverage_missing` list:
+
+**If ALL SCs are COVERED** (empty `sc_coverage_missing` list):
+- Log: `"SC coverage check complete: all SCs covered — proceeding to Phase 2 normally."`
+- Continue to Phase 2.
+
+**If ANY SCs are MISSING** (non-empty `sc_coverage_missing` list):
+
+**Prerequisite — Retrieve child ticket types**: Ensure `ticket_type` is known for each child before routing. The children list was fetched earlier in the Preplanning Gate via `ticket deps`. If `ticket_type` was not preserved from that fetch, run:
+```bash
+.claude/scripts/dso ticket show <child_id>
+```
+for each child to retrieve the `ticket_type` field. This is required to determine the routing path: story children → `/dso:preplanning`; task-only children → `/dso:implementation-plan`.
+
+1. Record a `REPLAN_TRIGGER: sc_coverage` comment on the epic listing the missing SCs:
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: sc_coverage — Missing SCs: <comma-separated list of missing sc_ids and sc_text>. Routing to decomposition skill to add coverage."
+   ```
+
+2. Based on the child ticket types (from the children already fetched above), emit SKILL_INVOKE, invoke, and emit SKILL_RESUMED:
+
+   **If at least one child has `ticket_type: story`** (route to `/dso:preplanning`):
+
+   Emit SKILL_INVOKE breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+
+   Invoke `/dso:preplanning <epic-id>` via Skill tool.
+
+   <ORCHESTRATOR_RESUME>
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The preplanning skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to emit SKILL_RESUMED breadcrumb and proceed to Phase 2. Stopping here is a known bug (7d7a-b707). Do not stop.
+   </ORCHESTRATOR_RESUME>
+
+   Emit SKILL_RESUMED breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+
+   **If all children have `ticket_type: task`** (route to `/dso:implementation-plan`):
+
+   Emit SKILL_INVOKE breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+
+   Invoke `/dso:implementation-plan <epic-id>` via Skill tool.
+
+   <ORCHESTRATOR_RESUME>
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to emit SKILL_RESUMED breadcrumb and proceed to Phase 2. Stopping here is a known bug (7d7a-b707). Do not stop.
+   </ORCHESTRATOR_RESUME>
+
+   Emit SKILL_RESUMED breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+
+   **Otherwise** (children are all epics or have unexpected ticket types): log a warning `"SC coverage REPLAN_TRIGGER: unexpected child types — no story or task children found; proceeding to Phase 2 without decomposition routing"` and proceed to Phase 2.
+
+3. Continue to Phase 2.
 
 #### Step 2b: Epic Complexity Evaluation (/dso:sprint)
 

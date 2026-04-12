@@ -348,6 +348,42 @@ with open(sys.argv[5], 'w', encoding='utf-8') as f:
     rm -f "$temp_event"
 }
 
+# ── Dry-run preview for a link operation ─────────────────────────────────────
+# Resolves hierarchy and prints what would happen without writing any events.
+# Exits 0 in all non-error cases (promotion, rejection, or normal creation).
+_dry_run_link() {
+    local source_id="$1"
+    local target_id="$2"
+    local relation="$3"
+
+    _check_initialized
+    _check_ticket_exists "$source_id"
+    _check_ticket_exists "$target_id"
+
+    # Resolve hierarchy via ticket-graph.py CLI
+    local result_json
+    result_json=$(python3 "$SCRIPT_DIR/ticket-graph.py" resolve-hierarchy-link \
+        "$source_id" "$target_id" --tickets-dir="$TRACKER_DIR" 2>/dev/null) || {
+        # Fallback: hierarchy resolver unavailable; show plain preview
+        echo "[DRY RUN] Would create: $source_id $relation $target_id (no event written)"
+        return 0
+    }
+
+    local was_redirected is_redundant resolved_source resolved_target
+    was_redirected=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('was_redirected', False))" "$result_json" 2>/dev/null) || was_redirected="False"
+    is_redundant=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('is_redundant', False))" "$result_json" 2>/dev/null) || is_redundant="False"
+    resolved_source=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('resolved_source', sys.argv[2]))" "$result_json" "$source_id" 2>/dev/null) || resolved_source="$source_id"
+    resolved_target=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('resolved_target', sys.argv[2]))" "$result_json" "$target_id" 2>/dev/null) || resolved_target="$target_id"
+
+    if [ "$is_redundant" = "True" ]; then
+        echo "[DRY RUN] Would reject: $source_id $relation $target_id — redundant link (direct child) (no event written)"
+    elif [ "$was_redirected" = "True" ]; then
+        echo "[DRY RUN] Would promote: $resolved_source $relation $resolved_target (no event written)"
+    else
+        echo "[DRY RUN] Would create: $source_id $relation $target_id (no event written)"
+    fi
+}
+
 # ── Main dispatch ─────────────────────────────────────────────────────────────
 if [ $# -lt 1 ]; then
     _usage
@@ -355,6 +391,18 @@ fi
 
 subcommand="$1"
 shift
+
+# Parse --dry-run flag from remaining args (position-independent)
+DRY_RUN=0
+remaining_args=()
+for arg in "$@"; do
+    if [ "$arg" = "--dry-run" ]; then
+        DRY_RUN=1
+    else
+        remaining_args+=("$arg")
+    fi
+done
+set -- "${remaining_args[@]+"${remaining_args[@]}"}"
 
 case "$subcommand" in
     link)
@@ -373,6 +421,11 @@ case "$subcommand" in
                 exit 1
                 ;;
         esac
+
+        if [ "$DRY_RUN" = "1" ]; then
+            _dry_run_link "$id1" "$id2" "$relation"
+            exit 0
+        fi
 
         _write_link_event "$id1" "$id2" "$relation"
 
