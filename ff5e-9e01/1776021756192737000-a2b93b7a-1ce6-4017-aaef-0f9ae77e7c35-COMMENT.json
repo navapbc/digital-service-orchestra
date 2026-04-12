@@ -1,1 +1,0 @@
-{"timestamp": 1776021756192737000, "uuid": "a2b93b7a-1ce6-4017-aaef-0f9ae77e7c35", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT:batch-complete \u2014 Done \u2713 \u2014 Files: tests/hooks/test-record-test-status-attest.sh, .test-index. Tests: RED (7 test functions, correctly failing)."}}
