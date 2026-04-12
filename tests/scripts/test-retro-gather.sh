@@ -67,9 +67,9 @@ _CLEANUP_DIRS+=("$_OUTFILE")
 # that hold the Bash tool open past the ~73s ceiling (exit 144).
 RETRO_SKIP_VALIDATION=1 bash "$SCRIPT" --quick >"$_OUTFILE" 2>&1 &
 _PID=$!
-# Timeout is injectable via RETRO_GATHER_TEST_TIMEOUT (default: 10s).
-# RETRO_SKIP_VALIDATION=1 makes this fast; 10s is a generous safety ceiling.
-_TIMEOUT="${RETRO_GATHER_TEST_TIMEOUT:-10}"
+# Timeout is injectable via RETRO_GATHER_TEST_TIMEOUT (default: 2s).
+# RETRO_SKIP_VALIDATION=1 makes this fast; section headers appear within 1s.
+_TIMEOUT="${RETRO_GATHER_TEST_TIMEOUT:-2}"
 ( sleep "$_TIMEOUT" && kill "$_PID" 2>/dev/null ) &
 _TIMER=$!
 wait "$_PID" 2>/dev/null || true
@@ -140,7 +140,7 @@ PROJECT_ROOT="$_skip_val_tmpdir" \
     RETRO_SKIP_VALIDATION=1 \
     bash "$SCRIPT" --quick >"$_skip_val_outfile" 2>&1 &
 _skip_pid=$!
-( sleep 10 && kill "$_skip_pid" 2>/dev/null ) &
+( sleep "${RETRO_GATHER_TEST_TIMEOUT:-2}" && kill "$_skip_pid" 2>/dev/null ) &
 _skip_timer=$!
 wait "$_skip_pid" 2>/dev/null || true
 kill "$_skip_timer" 2>/dev/null; wait "$_skip_timer" 2>/dev/null || true
