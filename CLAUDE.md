@@ -56,7 +56,8 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 | `dso:conflict-analyzer` | sonnet | `/dso:resolve-conflicts` |
 | `dso:bot-psychologist` | sonnet | `/dso:fix-bug` llm-behavioral path (dispatched or read inline when sub-agent) |
 | `dso:doc-writer` | sonnet | `/dso:sprint` (doc stories), `/dso:update-docs` |
-| `dso:intent-search` | sonnet | `/dso:fix-bug` Step 1.5 (Gate 1a — pre-investigation intent search; skipped for CLI_user-tagged bugs) |
+| `dso:intent-search` | sonnet | `/dso:fix-bug` Step 1.5 (Gate 1a — pre-investigation intent search; skipped for CLI_user-tagged bugs); emits INTENT_CONFLICT signal when callers depend on current behavior |
+| `dso:scope-drift-reviewer` | sonnet | `/dso:fix-bug` Step 7.1 (scope-drift review after fix verification; skipped when `scope_drift.enabled=false`) |
 | `dso:feasibility-reviewer` | sonnet | `/dso:brainstorm` (conditional, on integration signals) |
 | `dso:red-team-reviewer` | opus | `/dso:preplanning` Phase 2.5 |
 | `dso:blue-team-filter` | sonnet | `/dso:preplanning` Phase 2.5 |
