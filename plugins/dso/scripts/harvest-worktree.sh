@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/harvest-worktree.sh
+# harvest-worktree.sh
 # Merges a worktree branch into the current (session) branch after validating
 # that the worktree's gate artifacts (test-gate-status, review-status) pass.
 #
@@ -143,9 +143,9 @@ fi
 # ── Attest gate status to session artifacts ──────────────────────────────────
 
 # Determine session artifacts directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -z "$SESSION_ARTIFACTS_DIR" ]]; then
     # Use the current repo's artifacts dir
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if [[ -f "$SCRIPT_DIR/../hooks/lib/deps.sh" ]]; then
         source "$SCRIPT_DIR/../hooks/lib/deps.sh"
         SESSION_ARTIFACTS_DIR=$(get_artifacts_dir 2>/dev/null || echo "")
@@ -155,17 +155,19 @@ fi
 if [[ -n "$SESSION_ARTIFACTS_DIR" ]]; then
     mkdir -p "$SESSION_ARTIFACTS_DIR"
 
-    # Copy test-gate-status with attest_source
-    {
-        cat "$WORKTREE_ARTIFACTS_DIR/test-gate-status"
-        echo "attest_source=$WORKTREE_ARTIFACTS_DIR/test-gate-status"
-    } > "$SESSION_ARTIFACTS_DIR/test-gate-status"
+    HOOK_DIR="$SCRIPT_DIR/../hooks"
 
-    # Copy review-status with attest_source
-    {
-        cat "$WORKTREE_ARTIFACTS_DIR/review-status"
-        echo "attest_source=$WORKTREE_ARTIFACTS_DIR/review-status"
-    } > "$SESSION_ARTIFACTS_DIR/review-status"
+    # Attest test gate status with post-merge diff hash (f518-bba6).
+    # --attest validates the worktree's status is "passed", then writes a new
+    # test-gate-status with the session's current diff_hash so pre-commit gates match.
+    # Export WORKFLOW_PLUGIN_ARTIFACTS_DIR so get_artifacts_dir() in the attest
+    # scripts writes to the session artifacts dir (not the default hash-based path).
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$SESSION_ARTIFACTS_DIR" \
+        bash "$HOOK_DIR/record-test-status.sh" --attest "$WORKTREE_ARTIFACTS_DIR"
+
+    # Attest review status with post-merge diff hash.
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$SESSION_ARTIFACTS_DIR" \
+        bash "$HOOK_DIR/record-review.sh" --attest "$WORKTREE_ARTIFACTS_DIR"
 fi
 
 # ── Commit ───────────────────────────────────────────────────────────────────
