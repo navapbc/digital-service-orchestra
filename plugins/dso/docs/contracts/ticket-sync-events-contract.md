@@ -38,7 +38,7 @@ error: origin remote not configured in <tracker_dir>
 ```
 
 To satisfy these prerequisites, run `.claude/scripts/dso ticket init` to initialize the tracker store. See
-`plugins/dso/scripts/ticket-init.sh`. # shim-exempt: internal implementation path reference
+`scripts/ticket-init.sh`. # shim-exempt: internal implementation path reference
 
 ---
 
@@ -227,7 +227,7 @@ Operators setting up a new environment must ensure:
    ```
 
 3. **`.tickets-tracker/` initialized**: run `.claude/scripts/dso ticket init` from the repo root (see
-   `plugins/dso/scripts/ticket-init.sh`). # shim-exempt: internal implementation path reference This creates the tracker store and sets `gc.auto=0`
+   `scripts/ticket-init.sh`). # shim-exempt: internal implementation path reference This creates the tracker store and sets `gc.auto=0`
    in the worktree's local git config.
 
 These prerequisites are checked at command entry by `cmd_sync_events` and fail fast with

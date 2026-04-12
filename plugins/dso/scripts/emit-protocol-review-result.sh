@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/emit-protocol-review-result.sh
+# emit-protocol-review-result.sh
 # Assembles plan/fidelity review event data and calls emit-review-event.sh.
 #
 # CLI args:

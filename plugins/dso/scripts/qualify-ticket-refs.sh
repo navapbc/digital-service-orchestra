@@ -2,17 +2,17 @@
 set -uo pipefail
 # scripts/qualify-ticket-refs.sh
 # Rewrite bare `ticket <subcommand>` references in documentation to use the
-# .claude/scripts/dso shim, and replace bare `tk <subcommand>` references
+# ${_PLUGIN_ROOT}/scripts/shim, and replace bare `tk <subcommand>` references
 # with their `ticket` equivalents via the shim.
 #
 # Transforms:
-#   ticket list       → .claude/scripts/dso ticket list
-#   ticket show <id>  → .claude/scripts/dso ticket show <id>
-#   tk show <id>      → .claude/scripts/dso ticket show <id>
-#   tk ready          → .claude/scripts/dso ticket list
-#   tk blocked        → .claude/scripts/dso ticket list
-#   tk sync           → .claude/scripts/dso ticket sync
-#   tk sync-events    → .claude/scripts/dso ticket sync
+#   ticket list       → ${_PLUGIN_ROOT}/scripts/ticket list
+#   ticket show <id>  → ${_PLUGIN_ROOT}/scripts/ticket show <id>
+#   tk show <id>      → ${_PLUGIN_ROOT}/scripts/ticket show <id>
+#   tk ready          → ${_PLUGIN_ROOT}/scripts/ticket list
+#   tk blocked        → ${_PLUGIN_ROOT}/scripts/ticket list
+#   tk sync           → ${_PLUGIN_ROOT}/scripts/ticket sync
+#   tk sync-events    → ${_PLUGIN_ROOT}/scripts/ticket sync
 #
 # In-scope files (same as qualify-skill-refs.sh):
 #   skills/, docs/, hooks/, commands/, agents/ (recursively) + CLAUDE.md
@@ -23,8 +23,8 @@ set -uo pipefail
 #
 # Safety rules:
 #   - Only rewrites known ticket subcommands (list, show, create, etc.)
-#   - Skips lines that already use the shim (.claude/scripts/dso ticket)
-#   - Skips lines that use full paths (plugins/dso/scripts/ticket)
+#   - Skips lines that already use the shim (${_PLUGIN_ROOT}/scripts/ticket)
+#   - Skips lines that use full paths (${_PLUGIN_ROOT}/scripts/ticket)
 #   - Skips lines that use $CLAUDE_PLUGIN_ROOT/scripts/ticket
 #   - Preserves backtick-wrapped and code-block formatting
 #   - Idempotent: running twice produces the same result
@@ -120,31 +120,31 @@ for my $i (0 .. $#lines) {
     # because a single line can contain both already-qualified and bare refs.
     # The negative lookbehinds in each regex prevent double-rewriting.
 
-    # ── 1. Bare ticket <subcommand> → .claude/scripts/dso ticket <subcommand>
+    # ── 1. Bare ticket <subcommand> → ${_PLUGIN_ROOT}/scripts/ticket <subcommand>
     # Match both backtick-wrapped and bare forms in one pass.
     # Negative lookbehind prevents double-rewriting: not preceded by "dso " or "/" or "."
     $line =~ s/(?<!dso )(?<![\/\.])(?<=`)ticket\s+($subcmds)\b/$SHIM ticket $1/g;
     $line =~ s/(?<!dso )(?<![\/\.`\w])ticket\s+($subcmds)\b/$SHIM ticket $1/g;
 
-    # ── 2. tk show/deps → .claude/scripts/dso ticket show/deps
+    # ── 2. tk show/deps → ${_PLUGIN_ROOT}/scripts/ticket show/deps
     $line =~ s/(?<=`)tk\s+($tk_direct)\b/$SHIM ticket $1/g;
     $line =~ s/(?<![\/\.`\w])tk\s+($tk_direct)\b/$SHIM ticket $1/g;
 
-    # ── 3. tk ready/blocked/closed → .claude/scripts/dso ticket list
+    # ── 3. tk ready/blocked/closed → ${_PLUGIN_ROOT}/scripts/ticket list
     # REVIEW-DEFENSE: tk ready/blocked/closed were convenience filters over ticket list
-    # that were never implemented (plugins/dso/scripts/tk does not exist). Collapsing
+    # that were never implemented (${_PLUGIN_ROOT}/scripts/tk does not exist). Collapsing
     # to ticket list is intentional — the semantic filtering was aspirational, not real.
     $line =~ s/(?<=`)tk\s+($tk_query)\b/$SHIM ticket list/g;
     $line =~ s/(?<![\/\.`\w])tk\s+($tk_query)\b/$SHIM ticket list/g;
 
     # ── 4. tk sync / tk sync-events → replace with ticket sync via shim
     # REVIEW-DEFENSE: tk sync-events was a planned split-phase protocol that was
-    # never implemented (plugins/dso/scripts/tk does not exist). Mapping to ticket
+    # never implemented (${_PLUGIN_ROOT}/scripts/tk does not exist). Mapping to ticket
     # sync is intentional — it points to the canonical command path.
-    # Inline backtick-wrapped: `tk sync` → `.claude/scripts/dso ticket sync`
+    # Inline backtick-wrapped: `tk sync` → `${_PLUGIN_ROOT}/scripts/ticket sync`
     $line =~ s/(?<=`)tk\s+sync-events\b/$SHIM ticket sync/g;
     $line =~ s/(?<=`)tk\s+sync\b/$SHIM ticket sync/g;
-    # Bare: tk sync → .claude/scripts/dso ticket sync
+    # Bare: tk sync → ${_PLUGIN_ROOT}/scripts/ticket sync
     $line =~ s/(?<![\/\.`\w])tk\s+sync-events\b/$SHIM ticket sync/g;
     $line =~ s/(?<![\/\.`\w])tk\s+sync\b/$SHIM ticket sync/g;
 

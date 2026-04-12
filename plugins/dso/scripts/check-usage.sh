@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/check-usage.sh
+# check-usage.sh
 # Thin bash wrapper around check_usage.py.
 # Exit codes: 0=unlimited, 1=throttled, 2=paused.
 set -euo pipefail

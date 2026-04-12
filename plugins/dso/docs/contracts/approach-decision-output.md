@@ -21,7 +21,7 @@ This contract must be agreed upon before any implementation begins to prevent im
 
 ## Emitter
 
-`plugins/dso/agents/approach-decision-maker.md` — Named agent dispatched by `/dso:implementation-plan` during proposal evaluation # shim-exempt: internal implementation path reference
+`agents/approach-decision-maker.md` — Named agent dispatched by `/dso:implementation-plan` during proposal evaluation # shim-exempt: internal implementation path reference
 
 The emitter receives a set of implementation proposals (each with a description and done definitions), the story success criteria, and current codebase context. It evaluates the proposals using ADR-style reasoning and outputs one of two structured JSON payloads: a **selection** (choosing an existing proposal) or a **counter-proposal** (defining a new approach when no existing proposal is satisfactory). The emitter MUST output exactly one JSON payload per invocation — no additional commentary before or after the JSON block.
 
@@ -29,7 +29,7 @@ The emitter receives a set of implementation proposals (each with a description 
 
 ## Parser
 
-`plugins/dso/skills/implementation-plan/SKILL.md` — Implementation Plan skill resolution loop (Story 4acd-215a) # shim-exempt: internal implementation path reference
+`skills/implementation-plan/SKILL.md` — Implementation Plan skill resolution loop (Story 4acd-215a) # shim-exempt: internal implementation path reference
 
 The parser reads the approach-decision-maker agent output, parses the JSON payload, and routes accordingly: if `mode` is `selection`, the parser adopts the referenced proposal; if `mode` is `counter_proposal`, the parser incorporates the counter-proposal approach into task decomposition. The parser MUST validate the `mode` field before acting.
 
@@ -162,8 +162,8 @@ The following components emit or consume this signal:
 
 | Component | Role | Notes |
 |---|---|---|
-| `plugins/dso/agents/approach-decision-maker.md` | Emitter | Named agent dispatched during implementation-plan proposal evaluation (Story a1f3-db49) # shim-exempt: internal implementation path reference |
-| `plugins/dso/skills/implementation-plan/SKILL.md` resolution loop | Parser | Reads decision to adopt a proposal or incorporate counter-proposal into task decomposition (Story 4acd-215a) # shim-exempt: internal implementation path reference |
+| `agents/approach-decision-maker.md` | Emitter | Named agent dispatched during implementation-plan proposal evaluation (Story a1f3-db49) # shim-exempt: internal implementation path reference |
+| `skills/implementation-plan/SKILL.md` resolution loop | Parser | Reads decision to adopt a proposal or incorporate counter-proposal into task decomposition (Story 4acd-215a) # shim-exempt: internal implementation path reference |
 
 All implementors must read this contract before writing the emitter agent or parser logic. Changes to the signal format require updating all conforming emitters and parsers and this document atomically in the same commit.
 

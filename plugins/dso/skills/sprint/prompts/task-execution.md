@@ -27,14 +27,14 @@ If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and contin
 
    - **RED** (or absent — backward-compatible default): Check for existing RED tests before writing new ones. Read the test file(s) listed in the File Impact section or search `tests/` for tests targeting the files you will modify. If existing RED tests are found, validate them (run them to confirm they fail) and flag any missing test coverage rather than writing duplicate tests. Only if no existing RED tests are found should you write new tests in the appropriate `tests/unit/` subdirectory **before implementing**.
 
-   - **GREEN**: Skip test creation. Do NOT write new tests. After implementing, run the existing tests that cover the changed files to confirm they still pass. If they fail, your implementation has a regression — fix it. Consult `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` for the behavioral testing standard.
+   - **GREEN**: Skip test creation. Do NOT write new tests. After implementing, run the existing tests that cover the changed files to confirm they still pass. If they fail, your implementation has a regression — fix it. Consult `skills/shared/prompts/behavioral-testing-standard.md` for the behavioral testing standard.
 
    - **UPDATE**: Modify the existing test file(s) listed in the File Impact section to assert the new expected behavior **before** making any source code changes. The updated test must fail (RED) on the current code. Only after confirming the test fails should you implement the source change and verify the test passes (GREEN). Do NOT write a brand-new test file — update existing assertions in the identified test file(s).
 
-   When writing or modifying tests, consult `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` for the 5-rule behavioral testing standard.
+   When writing or modifying tests, consult `skills/shared/prompts/behavioral-testing-standard.md` for the 5-rule behavioral testing standard.
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 3/6: Tests written ✓"` (if no tests required: `"CHECKPOINT 3/6: Tests written (none required) ✓"`)
 5. Implement the task following existing conventions
-   - **Prior-art check**: Before writing new code, consult `plugins/dso/skills/shared/prompts/prior-art-search.md` for existing patterns (exempt: single-file logic fixes, formatting changes)
+   - **Prior-art check**: Before writing new code, consult `skills/shared/prompts/prior-art-search.md` for existing patterns (exempt: single-file logic fixes, formatting changes)
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 4/6: Implementation complete ✓"`
 6. Run `make format-check && make lint && make test-unit-only` from app/
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 5/6: Validation passed ✓"` (or `"CHECKPOINT 5/6: Validation failed — <error summary>"` on failure)
@@ -51,9 +51,9 @@ If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and contin
 8a. **Write discovery file** (best-effort): If during execution you encountered bugs, missing dependencies, API changes, or convention violations, write a discovery file so the orchestrator can propagate findings to the next batch:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   # Resolve CLAUDE_PLUGIN_ROOT: prefer env var, fall back to plugins/dso under repo root.
+   # Resolve CLAUDE_PLUGIN_ROOT: set by the DSO shim at session start.
    # This prevents sub-agents from writing discovery files to .claude/ (protected dir).
-   _DEPS_SH="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/plugins/dso}/hooks/lib/deps.sh"
+   _DEPS_SH="${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
    if [[ ! -f "$_DEPS_SH" ]]; then
      # Last-resort: write to a known /tmp/ path if deps.sh cannot be found
      DISC_DIR="/tmp/workflow-plugin-fallback/agent-discoveries"
@@ -79,7 +79,7 @@ If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and contin
    TASKS_CREATED: ticket-042, ticket-043 (or "none", or "error: <reason>")
    DISCOVERIES_WRITTEN: yes|no|error
    CONFIDENT or UNCERTAIN:<reason>
-   Confidence signal (per plugins/dso/docs/contracts/confidence-signal.md):
+   Confidence signal (per docs/contracts/confidence-signal.md):
    - Emit `CONFIDENT` (single keyword, own line) when you have high confidence the task is correctly and completely implemented, all acceptance criteria genuinely pass, and no significant edge cases were left unaddressed.
    - Emit `UNCERTAIN:<reason>` (keyword + colon + reason, own line, no space before reason) when you lack confidence — ambiguous task description, missing context, codebase state mismatch, untested edge cases, or unfamiliar patterns. The reason must not be empty.
    - You MUST emit exactly one of these signals. If omitted, the orchestrator treats it as UNCERTAIN with reason "no confidence signal emitted".

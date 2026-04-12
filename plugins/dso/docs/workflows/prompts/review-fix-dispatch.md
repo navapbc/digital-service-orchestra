@@ -101,9 +101,9 @@ ESCALATION_REASON: All findings were Deferred — defer alone cannot pass the re
 
 **Step 3 — Apply fixes and defenses (budget controlled by `review.max_resolution_attempts`, default: 5)**
 
-Before applying fixes that introduce new abstractions, helpers, or patterns, consult the prior-art search framework at `plugins/dso/skills/shared/prompts/prior-art-search.md` to avoid duplicating existing patterns. Single-file logic corrections that fix a clear bug without introducing new abstractions are exempt (see Routine Exclusions in that framework).
+Before applying fixes that introduce new abstractions, helpers, or patterns, consult the prior-art search framework at `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/prior-art-search.md` to avoid duplicating existing patterns. Single-file logic corrections that fix a clear bug without introducing new abstractions are exempt (see Routine Exclusions in that framework).
 
-When writing or modifying tests as part of fix application, consult `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` for the 5-rule behavioral testing standard.
+When writing or modifying tests as part of fix application, consult `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/behavioral-testing-standard.md` for the 5-rule behavioral testing standard.
 
 For each Fix finding: edit the relevant file(s). Use Edit/Write tools.
 For each Defend finding: add `# REVIEW-DEFENSE: <explanation>` inline in the relevant file.

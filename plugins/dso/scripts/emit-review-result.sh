@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/emit-review-result.sh
+# emit-review-result.sh
 # Assembles review_result event data from artifact files and CLI args,
 # then calls emit-review-event.sh.
 #

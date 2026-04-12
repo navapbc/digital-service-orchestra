@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/emit-commit-workflow-event.sh
+# emit-commit-workflow-event.sh
 # Wrapper around emit-review-event.sh for commit workflow start/end events.
 #
 # Usage:

@@ -655,7 +655,7 @@ cmd_cleanup_discoveries() {
     # AGENT_DISCOVERIES_DIR env var overrides for test isolation.
     #
     # Defensive plugin-root resolution: CLAUDE_PLUGIN_ROOT may point to the main repo
-    # root instead of the plugin subdirectory (e.g., plugins/dso) when called from a
+    # root instead of the plugin subdirectory (e.g., ${CLAUDE_PLUGIN_ROOT}) when called from a
     # host project via the dso shim. Validate using plugin.json (always present in the
     # plugin dir) and fall back to $SCRIPT_DIR/.. (the plugin dir relative to this script).
     local _plugin_root="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"

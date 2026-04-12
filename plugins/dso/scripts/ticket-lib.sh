@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket-lib.sh
+# ticket-lib.sh
 # Shared library for ticket event writing. Sourced (not executed) by ticket commands.
 #
 # Provides:

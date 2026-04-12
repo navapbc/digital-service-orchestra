@@ -20,7 +20,7 @@ Use the exact format: `[Component]: [Condition] -> [Observed Result]`
 **[Component]** — Select the most granular identifier available using this strict hierarchy:
 
 1. Specific Tool/Skill (e.g., `GitHubTool`, `/dso:sprint`)
-2. File/Directory Path (e.g., `plugins/dso/hooks/pre-commit-review-gate.sh`)
+2. File/Directory Path (e.g., `hooks/pre-commit-review-gate.sh`)
 3. Logical Workflow (e.g., `DeploymentPipeline`, `MergeToMain`)
 
 **[Condition]** — The action being attempted (e.g., "write_to_disk", "dispatch sub-agent", "validate schema").

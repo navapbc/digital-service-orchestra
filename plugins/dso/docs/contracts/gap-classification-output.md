@@ -21,7 +21,7 @@ This contract must be agreed upon before any implementation begins to prevent im
 
 ## Emitter
 
-`plugins/dso/skills/sprint/prompts/gap-classification.md` — LLM prompt dispatched as a sub-agent during Phase 7 (Remediation) # shim-exempt: internal implementation path reference
+`skills/sprint/prompts/gap-classification.md` — LLM prompt dispatched as a sub-agent during Phase 7 (Remediation) # shim-exempt: internal implementation path reference
 
 The emitter receives the failing SC text, the completion-verifier failure explanation, and relevant code snippets or file paths from the validation context. For each failing SC, the emitter outputs one signal line and then stops. The emitter MUST output exactly one `GAP_CLASSIFICATION:` line per failing SC — no additional commentary, no partial output.
 
@@ -29,7 +29,7 @@ The emitter receives the failing SC text, the completion-verifier failure explan
 
 ## Parser
 
-`plugins/dso/skills/sprint/SKILL.md` — Sprint orchestrator Phase 7 (Remediation) # shim-exempt: internal implementation path reference
+`skills/sprint/SKILL.md` — Sprint orchestrator Phase 7 (Remediation) # shim-exempt: internal implementation path reference
 
 The parser reads the gap-classification sub-agent output, scans for all `GAP_CLASSIFICATION:` prefixed lines, and routes each failing SC according to the `ROUTING:` field value. When multiple failing SCs exist, each is routed independently based on its classification line.
 
@@ -139,7 +139,7 @@ If `/dso:implementation-plan` returns a `REPLAN_ESCALATE` signal during a direct
 2. Route the SC to brainstorm, following the user confirmation requirement for `intent_gap` routing.
 3. Log that the re-classification was triggered by a `REPLAN_ESCALATE` signal from implementation-plan, not the original gap-classification output.
 
-The `REPLAN_ESCALATE` signal from implementation-plan takes precedence over the gap-classification output for that SC. See `plugins/dso/docs/contracts/replan-escalate-signal.md` for the REPLAN_ESCALATE contract. # shim-exempt: internal implementation path reference
+The `REPLAN_ESCALATE` signal from implementation-plan takes precedence over the gap-classification output for that SC. See `docs/contracts/replan-escalate-signal.md` for the REPLAN_ESCALATE contract. # shim-exempt: internal implementation path reference
 
 ---
 
@@ -186,9 +186,9 @@ The following components emit or consume this signal:
 
 | Component | Role | Notes |
 |---|---|---|
-| `plugins/dso/skills/sprint/prompts/gap-classification.md` | Emitter | LLM prompt dispatched as sub-agent in Phase 7 # shim-exempt: internal implementation path reference |
-| `plugins/dso/skills/sprint/SKILL.md` Phase 7 | Parser | Sprint orchestrator — routes each failing SC based on classification # shim-exempt: internal implementation path reference |
-| `plugins/dso/docs/contracts/replan-escalate-signal.md` | Related contract | Defines REPLAN_ESCALATE signal that can override implementation_gap classification # shim-exempt: internal implementation path reference |
+| `skills/sprint/prompts/gap-classification.md` | Emitter | LLM prompt dispatched as sub-agent in Phase 7 # shim-exempt: internal implementation path reference |
+| `skills/sprint/SKILL.md` Phase 7 | Parser | Sprint orchestrator — routes each failing SC based on classification # shim-exempt: internal implementation path reference |
+| `docs/contracts/replan-escalate-signal.md` | Related contract | Defines REPLAN_ESCALATE signal that can override implementation_gap classification # shim-exempt: internal implementation path reference |
 
 All implementors must read this contract before writing the emitter prompt or parser logic. Changes to the signal format require updating all conforming emitters and parsers and this document atomically in the same commit.
 

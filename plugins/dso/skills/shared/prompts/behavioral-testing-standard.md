@@ -129,16 +129,16 @@ Test ONLY at the deterministic integration interface. Acceptable structural test
 
 ```bash
 # PROHIBITED: grep on instruction content (tests wording, not behavior)
-grep -q "always use" plugins/dso/skills/sprint/SKILL.md
+grep -q "always use" ${CLAUDE_PLUGIN_ROOT}/skills/sprint/SKILL.md
 
 # PROHIBITED: existence-only test with no structural contract purpose
-test -f plugins/dso/skills/sprint/SKILL.md
+test -f ${CLAUDE_PLUGIN_ROOT}/skills/sprint/SKILL.md
 
 # ALLOWED: structural contract check (section heading is the interface)
-grep -q "^## SUB-AGENT-GUARD" plugins/dso/skills/sprint/SKILL.md
+grep -q "^## SUB-AGENT-GUARD" ${CLAUDE_PLUGIN_ROOT}/skills/sprint/SKILL.md
 
 # ALLOWED: referential integrity (path existence is the contract)
-test -f "$(grep -oE 'plugins/dso/scripts/[^ ]+\.sh' SKILL.md | head -1)"  # shim-exempt: illustrative example in documentation
+test -f "$(grep -oE '${CLAUDE_PLUGIN_ROOT}/scripts/[^ ]+\.sh' SKILL.md | head -1)"  # shim-exempt: illustrative example in documentation
 ```
 
 **Rationale:** Behavioral correctness for LLM instruction content cannot be deterministically tested — the LLM's response to an instruction depends on context, model version, and sampling parameters. Tests that assert on instruction wording produce false positives on safe edits and erode trust in the test suite. The structural boundary (schema, integrity, compliance, syntax) is deterministic and provides real regression protection.

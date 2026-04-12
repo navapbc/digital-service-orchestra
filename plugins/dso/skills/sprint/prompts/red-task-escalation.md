@@ -4,8 +4,8 @@ Shared template consumed by `/dso:sprint` (Phase 4 RED task dispatch, task 79de-
 Referenced from sprint SKILL.md via `prompts/red-task-escalation.md`.
 
 Reference contracts:
-- `plugins/dso/docs/contracts/red-test-writer-output.md` — writer output schema (`TEST_RESULT:written` / `TEST_RESULT:rejected`)
-- `plugins/dso/docs/contracts/red-test-evaluator-verdict.md` — evaluator verdict schema (`VERDICT:REVISE` / `VERDICT:REJECT` / `VERDICT:CONFIRM`)
+- `docs/contracts/red-test-writer-output.md` — writer output schema (`TEST_RESULT:written` / `TEST_RESULT:rejected`)
+- `docs/contracts/red-test-evaluator-verdict.md` — evaluator verdict schema (`VERDICT:REVISE` / `VERDICT:REJECT` / `VERDICT:CONFIRM`)
 
 ---
 

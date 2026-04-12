@@ -95,22 +95,22 @@ performance patterns are classified as **minor**. No findings are classified as
   - `CHANGELOG.md`
   - `llm-debugging-agent.md`
   - `llm-debugging-research.md`
-  - `plugins/dso/agents/code-reviewer-deep-arch.md`
-  - `plugins/dso/agents/code-reviewer-deep-correctness.md`
-  - `plugins/dso/agents/code-reviewer-deep-hygiene.md`
-  - `plugins/dso/agents/code-reviewer-deep-verification.md`
-  - `plugins/dso/agents/code-reviewer-light.md`
-  - `plugins/dso/agents/code-reviewer-performance.md`
-  - `plugins/dso/agents/code-reviewer-security-red-team.md`
-  - `plugins/dso/agents/code-reviewer-standard.md`
-  - `plugins/dso/docs/contracts/security-red-team-output.md`
+  - `agents/code-reviewer-deep-arch.md`
+  - `agents/code-reviewer-deep-correctness.md`
+  - `agents/code-reviewer-deep-hygiene.md`
+  - `agents/code-reviewer-deep-verification.md`
+  - `agents/code-reviewer-light.md`
+  - `agents/code-reviewer-performance.md`
+  - `agents/code-reviewer-security-red-team.md`
+  - `agents/code-reviewer-standard.md`
+  - `docs/contracts/security-red-team-output.md`
   - `docs/designs/test-failure-subagent-strategy.md`
-  - `plugins/dso/docs/overlay-calibration-baselines.md`
-  - `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md`
-  - `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md`
-  - `plugins/dso/docs/workflows/prompts/reviewer-delta-deep-arch.md`
-  - `plugins/dso/docs/workflows/prompts/reviewer-delta-deep-correctness.md`
-  - `plugins/dso/docs/workflows/prompts/reviewer-delta-deep-hygiene.md`
+  - `docs/overlay-calibration-baselines.md`
+  - `docs/SUB-AGENT-BOUNDARIES.md`
+  - `docs/workflows/COMMIT-WORKFLOW.md`
+  - `docs/workflows/prompts/reviewer-delta-deep-arch.md`
+  - `docs/workflows/prompts/reviewer-delta-deep-correctness.md`
+  - `docs/workflows/prompts/reviewer-delta-deep-hygiene.md`
 
 ## Performance Overlay
 
@@ -129,22 +129,22 @@ performance patterns are classified as **minor**. No findings are classified as
   - `CHANGELOG.md`
   - `llm-debugging-agent.md`
   - `llm-debugging-research.md`
-  - `plugins/dso/agents/code-reviewer-deep-arch.md`
-  - `plugins/dso/agents/code-reviewer-deep-correctness.md`
-  - `plugins/dso/agents/code-reviewer-deep-hygiene.md`
-  - `plugins/dso/agents/code-reviewer-deep-verification.md`
-  - `plugins/dso/agents/code-reviewer-light.md`
-  - `plugins/dso/agents/code-reviewer-performance.md`
-  - `plugins/dso/agents/code-reviewer-security-blue-team.md`
-  - `plugins/dso/agents/code-reviewer-security-red-team.md`
-  - `plugins/dso/agents/code-reviewer-standard.md`
-  - `plugins/dso/docs/contracts/security-red-team-output.md`
+  - `agents/code-reviewer-deep-arch.md`
+  - `agents/code-reviewer-deep-correctness.md`
+  - `agents/code-reviewer-deep-hygiene.md`
+  - `agents/code-reviewer-deep-verification.md`
+  - `agents/code-reviewer-light.md`
+  - `agents/code-reviewer-performance.md`
+  - `agents/code-reviewer-security-blue-team.md`
+  - `agents/code-reviewer-security-red-team.md`
+  - `agents/code-reviewer-standard.md`
+  - `docs/contracts/security-red-team-output.md`
   - `docs/designs/test-failure-subagent-strategy.md`
-  - `plugins/dso/docs/overlay-calibration-baselines.md`
-  - `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md`
-  - `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md`
-  - `plugins/dso/docs/workflows/prompts/reviewer-delta-deep-arch.md`
-  - `plugins/dso/docs/workflows/prompts/reviewer-delta-deep-correctness.md`
+  - `docs/overlay-calibration-baselines.md`
+  - `docs/SUB-AGENT-BOUNDARIES.md`
+  - `docs/workflows/COMMIT-WORKFLOW.md`
+  - `docs/workflows/prompts/reviewer-delta-deep-arch.md`
+  - `docs/workflows/prompts/reviewer-delta-deep-correctness.md`
 
 ## Per-Commit Detail
 

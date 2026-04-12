@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/gh-availability-check.sh
+# gh-availability-check.sh
 #
 # Check GitHub CLI (gh) availability and authentication status.
 #

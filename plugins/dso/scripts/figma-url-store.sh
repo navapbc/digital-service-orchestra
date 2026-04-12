@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/figma-url-store.sh
+# figma-url-store.sh
 # Extract a Figma file key from a URL and store it on a ticket as a comment.
 #
 # Usage: figma-url-store.sh <ticket-id> <figma-url>

@@ -338,7 +338,7 @@ The merge migration is a standard Alembic file with multiple `down_revision` val
 
 ### `claude-safe` Wrapper (Recommended)
 
-> **Script location**: canonical source is at `plugins/dso/scripts/claude-safe`. # shim-exempt: internal implementation path, not a user-invocable shim command
+> **Script location**: canonical source is at `scripts/claude-safe`. # shim-exempt: internal implementation path, not a user-invocable shim command
 
 Use `.claude/scripts/dso claude-safe` instead of `claude` to get automatic worktree isolation:
 
@@ -356,11 +356,11 @@ claude-safe --resume # All claude flags pass through
 
 ```bash
 # Option 1: Alias — sets CLAUDE_PLUGIN_ROOT so scripts self-locate correctly
-DSO_ROOT=/path/to/digital-service-orchestra/plugins/dso
+DSO_ROOT=/path/to/dso-plugin
 alias claude-safe="CLAUDE_PLUGIN_ROOT=$DSO_ROOT $DSO_ROOT/scripts/claude-safe"
 
 # Option 2: Symlink to PATH (also requires CLAUDE_PLUGIN_ROOT in your environment)
-export CLAUDE_PLUGIN_ROOT=/path/to/digital-service-orchestra/plugins/dso
+export CLAUDE_PLUGIN_ROOT=/path/to/dso-plugin
 ln -s "$CLAUDE_PLUGIN_ROOT/scripts/claude-safe" ~/.local/bin/claude-safe # shim-exempt: bootstrap symlink setup, pre-shim installation
 ```
 

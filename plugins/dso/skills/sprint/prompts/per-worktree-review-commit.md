@@ -5,7 +5,7 @@ For each worktree returned by implementation sub-agents (process in completion o
 **Step 1 — Enter worktree context**: Note the worktree path as `WORKTREE_PATH`. Compute the worktree's artifacts directory:
 
 ```bash
-WORKTREE_ARTIFACTS=$(cd "$WORKTREE_PATH" && source plugins/dso/hooks/lib/deps.sh && get_artifacts_dir)
+WORKTREE_ARTIFACTS=$(cd "$WORKTREE_PATH" && source ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh && get_artifacts_dir)
 ```
 
 **CWD constraint**: The shell CWD resets between Bash calls and does NOT propagate to Agent tool dispatches. Every Bash call that must run in the worktree's git context must be prefixed with `cd $WORKTREE_PATH &&`. Sub-agents dispatched via the Agent tool always start in the orchestrator's primary CWD — this cannot be changed.

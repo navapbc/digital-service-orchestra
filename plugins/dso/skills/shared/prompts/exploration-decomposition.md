@@ -13,7 +13,7 @@ Before beginning exploration, classify the question by source and scope. The cla
 A question is SINGLE_SOURCE when **all of the following** hold:
 
 - The answer lives in one well-defined place (a specific file, a single API endpoint, an explicit config value).
-- A specific artifact is named in the question (e.g., "What does `plugins/dso/hooks/pre-bash.sh` do?"). Pronouns alone (we, our, us) do NOT imply a project-scoped codebase search — they merely indicate the speaker's organizational context.
+- A specific artifact is named in the question (e.g., "What does `hooks/pre-bash.sh` do?"). Pronouns alone (we, our, us) do NOT imply a project-scoped codebase search — they merely indicate the speaker's organizational context.
 - The question has a single correct answer that does not depend on comparing multiple locations.
 
 **Proceed directly** for SINGLE_SOURCE questions. No decomposition required.
@@ -123,5 +123,5 @@ Re-decomposition is bounded to **1 level**. When DECOMPOSE_RECOMMENDED is emitte
 
 ## Relationship to Other Protocols
 
-- **Prior-art search** (`plugins/dso/skills/shared/prompts/prior-art-search.md`): Applies at task start to determine whether to search before writing code. Exploration decomposition applies during investigation to structure the search itself. The two protocols are complementary and non-overlapping.
+- **Prior-art search** (`skills/shared/prompts/prior-art-search.md`): Applies at task start to determine whether to search before writing code. Exploration decomposition applies during investigation to structure the search itself. The two protocols are complementary and non-overlapping.
 - **Empirical Validation Directive**: Governs how hypotheses are validated during active debugging. Exploration decomposition governs how questions are structured before hypotheses are formed.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/gate-2a-reversal-check.sh
+# gate-2a-reversal-check.sh
 # Gate 2a: Reversal Check
 #
 # Detects whether proposed working-tree changes (git diff) undo or reverse a

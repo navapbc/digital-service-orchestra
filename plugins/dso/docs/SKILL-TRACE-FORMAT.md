@@ -123,4 +123,4 @@ The trace analysis script is registered in the DSO shim:
 
 The script produces a diagnostic report per session mapping each session to the 10 hypotheses (H1–H10) defined in the epic, marking each as `confirmed`, `refuted`, or `insufficient-data` based on breadcrumb data thresholds.
 
-Full script source: `plugins/dso/scripts/skill-trace-analyze.sh` # shim-exempt: canonical source path reference, not an invocation
+Full script source: `scripts/skill-trace-analyze.sh` # shim-exempt: canonical source path reference, not an invocation

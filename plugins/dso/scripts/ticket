@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket
+# ticket
 # Dispatcher for the event-sourced ticket system.
 # Routes subcommands to their implementation scripts.
 #

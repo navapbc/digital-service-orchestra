@@ -137,7 +137,7 @@ Store the answer as a session variable `SCRUTINY_OPT_IN` (true/false). Do **NOT*
 
 **Goal**: Prioritize Milestones based on value and effort, accounting for dependencies.
 
-1. **Informed Guess Scoring**: The Agent (not the user) will estimate scores for each Milestone by reading and applying the shared scorer at `plugins/dso/skills/shared/prompts/value-effort-scorer.md`. Use the **1-5 scale** defined there:
+1. **Informed Guess Scoring**: The Agent (not the user) will estimate scores for each Milestone by reading and applying the shared scorer at `skills/shared/prompts/value-effort-scorer.md`. Use the **1-5 scale** defined there:
    - **Value (1-5)**: How much user or business impact does this deliver? (1=minimal, 5=critical)
    - **Effort (1-5)**: How complex or time-consuming is this to build? (1=trivial, 5=multi-sprint)
 
@@ -249,13 +249,13 @@ The quadrant placement maps to priority ranges: Quick Wins → P0–P1, Strategi
 
 3. **Scrutiny Step** (per-epic, inline — not batched): After each epic ticket is created, apply the scrutiny decision from Phase 2.5:
 
-   - **If `SCRUTINY_OPT_IN` is true**: Read and execute the shared scrutiny pipeline from `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass `caller_name=roadmap` and `caller_prompts_dir=$REPO_ROOT/plugins/dso/skills/brainstorm/prompts` as the pipeline parameters (scenario analysis prompts are shared from brainstorm's prompts directory). Run scrutiny inline for each epic before moving to the next. Append scrutiny output (gap analysis, scenario analysis, fidelity review verdict) to the epic spec via ticket edit before continuing.
+   - **If `SCRUTINY_OPT_IN` is true**: Read and execute the shared scrutiny pipeline from `skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass `caller_name=roadmap` and `caller_prompts_dir=skills/brainstorm/prompts` as the pipeline parameters (scenario analysis prompts are shared from brainstorm's prompts directory). Run scrutiny inline for each epic before moving to the next. Append scrutiny output (gap analysis, scenario analysis, fidelity review verdict) to the epic spec via ticket edit before continuing.
 
    - **If `SCRUTINY_OPT_IN` is false**: Write the `scrutiny:pending` tag to signal that the epic has not been scrutinized:
      ```bash
      .claude/scripts/dso ticket edit <epic-id> --tags="scrutiny:pending"
      ```
-     This marks the epic for downstream skills (`/dso:preplanning`, `/dso:implementation-plan`) to gate on per the `plugins/dso/docs/contracts/scrutiny-pending-tag.md` contract.
+     This marks the epic for downstream skills (`/dso:preplanning`, `/dso:implementation-plan`) to gate on per the `docs/contracts/scrutiny-pending-tag.md` contract.
 
 4. **Set Dependencies**: Link epics formally within the ticket system for "Critical Enabler" relationships.
 

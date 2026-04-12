@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket-revert.sh
+# ticket-revert.sh
 # Write a REVERT event targeting an existing event in a ticket.
 #
 # Usage: ticket revert <ticket_id> <target_uuid> [--reason=<text>]

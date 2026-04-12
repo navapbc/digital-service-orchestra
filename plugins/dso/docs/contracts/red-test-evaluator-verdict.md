@@ -297,7 +297,7 @@ then the parser **must** treat the result as `VERDICT:REJECT` with `REJECTION_RE
 
 ## Relationship to RED_TEST_WRITER_OUTPUT Contract
 
-This contract is downstream of the `RED_TEST_WRITER_OUTPUT` contract (see `plugins/dso/docs/contracts/red-test-writer-output.md`). The evaluator is **only invoked when the writer emits `TEST_RESULT:rejected`**. Two other outcomes bypass the evaluator entirely:
+This contract is downstream of the `RED_TEST_WRITER_OUTPUT` contract (see `docs/contracts/red-test-writer-output.md`). The evaluator is **only invoked when the writer emits `TEST_RESULT:rejected`**. Two other outcomes bypass the evaluator entirely:
 
 - **`TEST_RESULT:written`** — the orchestrator proceeds directly to TDD setup without requesting a verdict.
 - **`TEST_RESULT:no_new_tests_needed`** — the orchestrator accepts this as a success signal without invoking evaluation. This output indicates either that existing tests already cover the behavior (`existing_coverage_sufficient`) or that the task is non-behavioral (`green_classified`). No verdict is needed in either case.

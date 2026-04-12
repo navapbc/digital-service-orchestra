@@ -643,8 +643,8 @@ print('DONE')
 # PostToolUseFailure hook: track, categorize, and count tool use errors
 hook_track_tool_errors() {
     local _HOOK_LIB_DIR; _HOOK_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    # PATH-ANCHOR: _HOOK_LIB_DIR is anchored to plugins/dso/hooks/lib/ (this file's directory).
-    # read-config.sh lives in plugins/dso/scripts/, which is two levels up from hooks/lib/.  # shim-exempt: comment explaining path resolution
+    # PATH-ANCHOR: _HOOK_LIB_DIR is anchored to ${CLAUDE_PLUGIN_ROOT}/hooks/lib/ (this file's directory).
+    # read-config.sh lives in ${_PLUGIN_ROOT}/scripts/, which is two levels up from hooks/lib/.  # shim-exempt: comment explaining path resolution
     # The naive relative path would be $_HOOK_LIB_DIR/../../scripts/read-config.sh (two "..").
     # However, this function resolves _PLUGIN_ROOT via CLAUDE_PLUGIN_ROOT (preferred) or by
     # walking up two directories from _HOOK_LIB_DIR, then uses $_PLUGIN_ROOT/scripts/read-config.sh.
@@ -978,8 +978,8 @@ hook_taskoutput_block_guard() {
 # error) must exit 0. Uses `timeout 10` wrapper on suggestion-record call to
 # guard against stalls.
 hook_friction_suggestion_check() {
-    # PATH-ANCHOR: _HOOK_LIB_DIR is anchored to plugins/dso/hooks/lib/ (this file's directory).
-    # read-config.sh lives in plugins/dso/scripts/, two levels up from hooks/lib/. # shim-exempt: comment explaining path resolution
+    # PATH-ANCHOR: _HOOK_LIB_DIR is anchored to ${CLAUDE_PLUGIN_ROOT}/hooks/lib/ (this file's directory).
+    # read-config.sh lives in ${_PLUGIN_ROOT}/scripts/, two levels up from hooks/lib/. # shim-exempt: comment explaining path resolution
     # _PLUGIN_ROOT is resolved via CLAUDE_PLUGIN_ROOT (preferred) or by walking up two
     # directories from _HOOK_LIB_DIR. This matches the pattern used by hook_track_tool_errors.
     local _HOOK_LIB_DIR; _HOOK_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1090,7 +1090,7 @@ print(count)
 
     # Resolve suggestion-record command.
     # DSO_SUGGESTION_RECORD_CMD overrides for testing (set to e.g. "/mock/dso suggestion-record").
-    # Otherwise: prefer .claude/scripts/dso shim (via git-resolved repo root),
+    # Otherwise: prefer ${_PLUGIN_ROOT}/scripts/shim (via git-resolved repo root),
     # falling back to direct plugin script path.
     local _SUGG_CMD=""
     if [[ -n "${DSO_SUGGESTION_RECORD_CMD:-}" ]]; then

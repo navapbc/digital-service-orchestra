@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/update-shim.sh
-# Update the .claude/scripts/dso shim in a host project to the latest version.
+# update-shim.sh
+# Update the ${_PLUGIN_ROOT}/scripts/shim in a host project to the latest version.
 #
 # Usage: update-shim.sh [TARGET_REPO]
 #   TARGET_REPO: path to the host project root; defaults to current git repo root
 #
 # Run this from the DSO plugin directory or via the dso shim:
-#   bash /path/to/digital-service-orchestra/plugins/dso/scripts/update-shim.sh /path/to/host-project
+#   bash /path/to/digital-service-orchestra/${_PLUGIN_ROOT}/scripts/update-shim.sh /path/to/host-project
 #
 # Exit 0 on success, 1 on error.
 set -euo pipefail
@@ -20,7 +20,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT="$PLUGIN_R
 # is run from inside the DSO plugin repo (where templates/ lives at the repo root).
 # If CWD is a host project, REPO_ROOT points to the host project root (no templates/).
 # The fallback resolves DIST_ROOT two levels up from PLUGIN_ROOT via dirname (i.e.,
-# $repo/plugins/dso → $repo), which is correct when the plugin lives at $repo/plugins/dso.
+# $repo/${CLAUDE_PLUGIN_ROOT} → $repo), which is correct when the plugin lives at $repo/${CLAUDE_PLUGIN_ROOT}.
 # dirname is used instead of ../ navigation to satisfy the no-relative-paths lint rule.
 DIST_ROOT="$REPO_ROOT"
 # Compute two-level parent of PLUGIN_ROOT using dirname to avoid ../ patterns.

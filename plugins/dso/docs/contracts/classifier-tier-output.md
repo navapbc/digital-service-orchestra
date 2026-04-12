@@ -21,7 +21,7 @@ This contract must be agreed upon before either side is implemented to prevent i
 
 ## Emitter
 
-`plugins/dso/scripts/review-complexity-classifier.sh` # shim-exempt: internal implementation path reference
+`scripts/review-complexity-classifier.sh` # shim-exempt: internal implementation path reference
 
 The emitter computes a tier score from seven factors and prints a single JSON object to stdout, then exits 0 on success or non-zero on failure.
 
@@ -29,7 +29,7 @@ The emitter computes a tier score from seven factors and prints a single JSON ob
 
 ## Parser
 
-`plugins/dso/docs/workflows/REVIEW-WORKFLOW.md` (Step 3)
+`docs/workflows/REVIEW-WORKFLOW.md` (Step 3)
 
 The parser invokes the emitter, reads its stdout, and uses `selected_tier` to dispatch the appropriate named review agent.
 

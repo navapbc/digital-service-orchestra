@@ -291,6 +291,9 @@ git -C "$REPO_NOSG" add -A
 # Build a PATH that excludes any directory containing `sg`.
 # This ensures `command -v sg` fails in the hook — simulating sg not being installed.
 # All other system binaries remain accessible.
+# Capture bash path before PATH manipulation so the hook runs with the correct
+# interpreter even if the directory containing `sg` also contains `bash`.
+_BASH_PATH=$(command -v bash)
 _NO_SG_PATH=""
 _orig_IFS="$IFS"
 IFS=':'
@@ -317,7 +320,7 @@ STDERR_NOSG=$(
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_NOSG" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_NOSG" \
-    bash "$HOOK" 2>&1 1>/dev/null || true
+    "$_BASH_PATH" "$HOOK" 2>&1 1>/dev/null || true
 )
 
 STATUS_FILE_NOSG="$ARTIFACTS_NOSG/test-gate-status"

@@ -8,7 +8,7 @@ and prevent tech debt from incorrect stack choices.
 
 ## Scoring Scale
 
-Scores follow the shared 1–5 scale defined in `plugins/dso/skills/shared/reviewers/SCORING-SCALE.md`.
+Scores follow the shared 1–5 scale defined in `skills/shared/reviewers/SCORING-SCALE.md`.
 
 ## Your Dimensions
 

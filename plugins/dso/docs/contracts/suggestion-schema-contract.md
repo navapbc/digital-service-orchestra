@@ -73,7 +73,7 @@ Files sort lexicographically in chronological order (timestamp-first).
   "observation": "sprint Phase 5 (red test writing) took 47s wall-clock for a 3-task batch",
   "recommendation": "cap red-test-writer dispatch to 2 parallel agents on haiku when batch size < 5",
   "skill_name": "dso:sprint",
-  "affected_file": "plugins/dso/skills/sprint/SKILL.md",
+  "affected_file": "${CLAUDE_PLUGIN_ROOT}/skills/sprint/SKILL.md",
   "metrics": {
     "wall_clock_s": 47.2,
     "tokens": 8400,

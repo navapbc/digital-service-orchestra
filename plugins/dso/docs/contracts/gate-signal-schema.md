@@ -23,12 +23,12 @@ This contract must be agreed upon before any gate is implemented to prevent impl
 
 Each gate script conforming to this contract:
 
-- `plugins/dso/scripts/gate-1a.sh` (or inline in `plugins/dso/skills/fix-bug/SKILL.md`) — Gate 1a (Story 6775-b635) # shim-exempt: internal implementation path reference
-- `plugins/dso/scripts/gate-1b.sh` (or inline) — Gate 1b (Story 5260-e9ba) # shim-exempt: internal implementation path reference
-- `plugins/dso/scripts/gate-2a.sh` (or inline) — Gate 2a (Story e965-7cb7) # shim-exempt: internal implementation path reference
-- `plugins/dso/scripts/gate-2b.sh` (or inline) — Gate 2b (Story 2c25-5751) # shim-exempt: internal implementation path reference
-- `plugins/dso/scripts/gate-2c.sh` (or inline) — Gate 2c (Story e7a0-b991) # shim-exempt: internal implementation path reference
-- `plugins/dso/scripts/gate-2d.sh` (or inline) — Gate 2d (Story e965-7cb7) # shim-exempt: internal implementation path reference
+- `scripts/gate-1a.sh` (or inline in `skills/fix-bug/SKILL.md`) — Gate 1a (Story 6775-b635) # shim-exempt: internal implementation path reference
+- `scripts/gate-1b.sh` (or inline) — Gate 1b (Story 5260-e9ba) # shim-exempt: internal implementation path reference
+- `scripts/gate-2a.sh` (or inline) — Gate 2a (Story e965-7cb7) # shim-exempt: internal implementation path reference
+- `scripts/gate-2b.sh` (or inline) — Gate 2b (Story 2c25-5751) # shim-exempt: internal implementation path reference
+- `scripts/gate-2c.sh` (or inline) — Gate 2c (Story e7a0-b991) # shim-exempt: internal implementation path reference
+- `scripts/gate-2d.sh` (or inline) — Gate 2d (Story e965-7cb7) # shim-exempt: internal implementation path reference
 
 Each emitter evaluates its gate condition, then prints a single JSON object to stdout and exits 0 on success or non-zero on failure.
 
@@ -36,7 +36,7 @@ Each emitter evaluates its gate condition, then prints a single JSON object to s
 
 ## Parser
 
-`plugins/dso/skills/fix-bug/SKILL.md` — Escalation router (Story a2f0-9641)
+`skills/fix-bug/SKILL.md` — Escalation router (Story a2f0-9641)
 
 The parser invokes each gate emitter in sequence, reads its stdout, and uses `triggered` and `signal_type` to determine classification routing and escalation path.
 
