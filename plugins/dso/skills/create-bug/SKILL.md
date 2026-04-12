@@ -127,7 +127,7 @@ BUG_TICKET_ID=$(echo "$BUG_CREATE_OUT" | grep -oE '[0-9a-f]{4}-[0-9a-f]{4}' | he
 **Post-creation title fix (mandatory):** Check stderr for the title format warning and fix immediately if present:
 
 ```bash
-if echo "$BUG_CREATE_ERR" | grep -q "does not match recommended pattern"; then
+if echo "$BUG_CREATE_ERR" | grep -q "does not match required pattern"; then
     # Fix the title NOW — do not skip this step
     .claude/scripts/dso ticket edit "$BUG_TICKET_ID" --title="[Component]: [Condition] -> [Observed Result]"
 fi

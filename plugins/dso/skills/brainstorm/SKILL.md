@@ -228,11 +228,16 @@ Wait for confirmation before proceeding. This confirmation step is separate from
 
 **Step 2 — Intent Gap Analysis**: After the user confirms the understanding summary, self-reflect on inferred or assumed content — items you filled in that the user did not explicitly state. Ask one question at a time, targeting the highest-priority gap first. Exclude already-confirmed content (anything the user explicitly stated or confirmed in Step 1 above) from gap questions.
 
-Format for each gap question:
+Format for the **first** gap question (includes the skip option):
 ```
 Before I propose approaches: [Targeted gap question]
 
-(You can skip and proceed — just say "proceed" to continue)
+(You can say "proceed" at any point to skip remaining questions and move to approaches)
+```
+
+Format for **subsequent** gap questions (no skip prompt — the user already knows):
+```
+Before I propose approaches: [Targeted gap question]
 ```
 
 **Bounded gap loop**: Ask at most 3 questions total, one at a time. After each answer, ask the next highest-priority gap question (if any remain) or proceed to Phase 2. If the user wants to continue refining after the initial set, they can opt-in by asking for more questions or clarifying further. Do not loop indefinitely.
@@ -366,7 +371,7 @@ Do NOT present this gate unless ALL of the following have completed or gracefull
 If any of the above has NOT completed, stop and execute it before presenting this gate. The user's ability to request a re-run via option (b) or (c) is for second-pass cycles only — it does not substitute for a mandatory first pass.
 </HARD-GATE>
 
-Present the validated spec to the user using **AskUserQuestion** with 4 options. Label options (b) and (c) to reflect whether this is a first re-run or subsequent re-run (the scrutiny pipeline must complete before this gate; these labels apply only to gate-triggered re-runs):
+Present the validated spec to the user using **AskUserQuestion** with 4 options. Use **"Spec Review"** as the question header (do NOT use "Approval" — it primes misinterpretation of non-approving options as approval). Label options (b) and (c) to reflect whether this is a first re-run or subsequent re-run (the scrutiny pipeline must complete before this gate; these labels apply only to gate-triggered re-runs):
 
 - **If web research (Step 2.6) ran during the mandatory pipeline pass**: label (c) as "Re-run web research phase"
 - **If web research was skipped via graceful degradation (no bright-line triggers fired)**: label (c) as "Perform additional web research" (note: this is a first-time run, not a re-run)
@@ -413,12 +418,16 @@ Please choose how to proceed:
 (d) Let's discuss more — pause for conversational review before re-presenting this gate
 ```
 
+<HARD-GATE>
+Do NOT advance to Phase 3 unless the user explicitly selects option **(a) Approve** at this gate. Options (b), (c), and (d) are non-approving — they loop back to this gate after their respective actions complete. After option (d) discussion ends, you MUST re-present this gate in full (all 4 options) and wait for the user to select (a) before proceeding. A user saying "ready to proceed" or "looks good" during discussion is NOT equivalent to selecting (a) — re-present the gate and let them choose.
+</HARD-GATE>
+
 **Option behaviors:**
 
 - **(a) Approve**: Record the planning-intelligence log entry (see below), then advance to Phase 3 (Ticket Integration). The log captures which bright-line trigger conditions fired (or "none"), whether scenario analysis ran and how many scenarios survived the blue team filter, and whether the practitioner requested additional cycles via this gate. State vocabulary: "not triggered" / "triggered" / "re-triggered via gate".
 - **(b) Re-run scenario analysis**: Re-execute Step 2.75 (Scenario Analysis) with the current spec. Update the Scenario Analysis section in the spec with new results. Re-present this gate. On re-presentation, label (b) as "Re-run red/blue team review cycle" (scenario analysis already ran).
 - **(c) Re-run web research**: Re-execute Step 2.6 (Web Research Phase) with the current spec. Update the Research Findings section. Re-present this gate. On re-presentation, label (c) as "Re-run web research phase" (research already ran).
-- **(d) Discuss more**: Pause skill execution and engage in open conversational review with the user. When the user indicates they are ready to proceed, re-present this gate with updated labels reflecting what has already run.
+- **(d) Discuss more**: Pause skill execution and engage in open conversational review with the user. When the user indicates they are ready to proceed, you MUST re-present this full gate (all 4 options with the `=== Epic Spec Ready for Review ===` block) and wait for the user to select an option. Do NOT interpret conversational signals ("looks good", "let's move on", "ready") as implicit approval — the user must select option (a) at the re-presented gate to advance.
 
 If changes are requested during discussion or after any re-run, revise the spec and re-run affected fidelity reviewers before re-presenting this gate.
 

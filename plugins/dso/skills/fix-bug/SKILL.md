@@ -176,7 +176,7 @@ Ensure a bug ticket exists and is set to in-progress before investigation begins
      **Post-creation title validation:** After creating a bug ticket, check stderr for the title format warning:
 
      ```bash
-     if echo "$BUG_CREATE_ERR" | grep -q "does not match recommended pattern"; then
+     if echo "$BUG_CREATE_ERR" | grep -q "does not match required pattern"; then
          # Re-title immediately using [Component]: [Condition] -> [Observed Result] format
          .claude/scripts/dso ticket edit "$BUG_TICKET_ID" --title="[Component]: [Condition] -> [Observed Result]"
      fi
@@ -486,7 +486,7 @@ Launch **two independent opus** sub-agents with differentiated lenses:
 - **Agent A (Code Tracer)**: execution path tracing, intermediate variable tracking, five whys, hypothesis set from code evidence — uses the prompt template at `prompts/advanced-investigation-agent-a.md`
 - **Agent B (Historical)**: timeline reconstruction, fault tree analysis, git bisect, hypothesis set from change history — uses the prompt template at `prompts/advanced-investigation-agent-b.md`
 
-Both agents are dispatched concurrently — dispatch both before awaiting either result.
+Both agents are dispatched concurrently — launch both Task calls in a single message, each with `run_in_background: true`, before awaiting either result (without it, foreground calls execute serially).
 
 Assemble the dispatch context by populating these named slots before launching each sub-agent. Both agents receive the same context:
 
@@ -530,7 +530,7 @@ Triggered when ADVANCED investigation fails to resolve the issue. Launch **four 
 - **Agent 3 (Code Tracer)**: execution path tracing, dependency-ordered reading, intermediate variable tracking, five whys — uses the prompt template at `prompts/escalated-investigation-agent-3.md`
 - **Agent 4 (Empirical Agent)**: authorized to add logging and enable debugging to empirically validate or veto hypotheses from agents 1-3 — uses the prompt template at `prompts/escalated-investigation-agent-4.md`
 
-**Dispatch concurrency and sequencing**: Dispatch Agents 1, 2, and 3 concurrently — dispatch all three before awaiting any result. After agents 1-3 return, dispatch Agent 4 with their findings included in `{escalation_history}` so the Empirical Agent can design targeted tests against the theoretical consensus.
+**Dispatch concurrency and sequencing**: Dispatch Agents 1, 2, and 3 concurrently — launch all three Task calls in a single message, each with `run_in_background: true`, before awaiting any result (without it, foreground calls execute serially). After agents 1-3 return, dispatch Agent 4 with their findings included in `{escalation_history}` so the Empirical Agent can design targeted tests against the theoretical consensus.
 
 Assemble the dispatch context by populating these named slots before launching each sub-agent. All agents receive the same base context; Agent 4 additionally receives agents 1-3 RESULT reports via `escalation_history`:
 
@@ -1125,7 +1125,7 @@ Each fix sub-agent receives:
 for each batch of up to max_agents fix agents:
   1. Run pre-batch check: agent-batch-lifecycle.sh pre-check
   2. If MAX_AGENTS=0, skip dispatch and proceed to Step 7.5.5
-  3. Dispatch up to max_agents agents concurrently
+  3. Dispatch up to max_agents agents concurrently (each with `run_in_background: true`)
   4. Collect BATCH_RESULT from each agent
   5. Commit between batches following COMMIT-WORKFLOW.md
   6. Proceed to next batch

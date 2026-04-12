@@ -261,7 +261,7 @@ if [ "$ticket_type" = "bug" ]; then
     # (a) Title pattern warning: [Component]: [Condition] -> [Observed Result]
     if [ "$_title_warning_enabled" = "true" ]; then
         if ! echo "$title" | grep -qE '^[^:]+: .+ -> .+$'; then
-            echo "Warning: Bug title does not match recommended pattern: [Component]: [Condition] -> [Observed Result]" >&2
+            echo "ERROR: Bug title does not match required pattern: [Component]: [Condition] -> [Observed Result]" >&2
             echo "  To fix: ticket edit $ticket_id --title=\"[Component]: [Condition] -> [Observed Result]\"" >&2
         fi
     fi

@@ -28,9 +28,9 @@ Every detection pattern below maps to one or more of these rules.
 
 ---
 
-## Detection Patterns (5 test bloat categories)
+## Detection Patterns (6 test bloat categories)
 
-Evaluate test code in the diff for these 5 test bloat patterns:
+Evaluate test code in the diff for these 6 test bloat patterns:
 
 1. **Change-detector tests** (violates Rules 2, 4): Tests that assert on internal variable names, private method calls, or implementation structure. These break on any refactoring — even behavior-preserving ones — producing false positives that erode trust in the test suite.
    - Example: `assert obj._internal_method_called == True`
@@ -53,6 +53,12 @@ Evaluate test code in the diff for these 5 test bloat patterns:
    - Example: `test -f script.sh` (without executing the script and checking behavior)
    - Note: Existence checks are acceptable as a *precondition* within a larger test that also exercises behavior — flag only when existence is the *sole* assertion.
 
+6. **Test runtime waste** (behavioral test is correct but burns unnecessary wall-clock time): Tests that include excessive sleeps, oversized kill timers, FD-leak blocking patterns, or redundant heavyweight setup (full plugin checks, unnecessary `git init`) when the test's behavioral assertions do not require them.
+   - Example: `sleep 10` as a kill timer when the asserted output appears within 1s (use `sleep 2`)
+   - Example: `var=$(timeout N cmd)` where `cmd` spawns background processes — command substitution blocks until all FD writers close, not just until `timeout` fires. Use temp-file redirection instead.
+   - Example: Running full plugin validation checks when the test only verifies a CLI flag's behavior
+   - Note: Flag only when the wasted time is clearly disproportionate (>3x what the assertion needs). Do not flag reasonable safety margins.
+
 ## Severity Rules
 
 Apply these rules to assign severity:
@@ -61,6 +67,7 @@ Apply these rules to assign severity:
 2. **Tautological tests** → always **critical** (tests that cannot fail provide false coverage metrics)
 3. **Change-detector tests** and **implementation-coupled assertions** → **important** (these will break on safe refactoring and need rewriting, but at least exercise some code path)
 4. **Existence-only assertions** → **important** when the sole assertion; **minor** when combined with behavioral assertions
+5. **Test runtime waste** → **minor** (tests are behaviorally correct; the issue is efficiency, not correctness). Escalate to **important** when a single test wastes >10s due to the pattern.
 
 ## Hard Exclusion List
 
@@ -76,7 +83,8 @@ Do NOT manufacture findings. Most test diffs follow good testing practices. An e
 
 ## Rationalizations to Reject
 
-- "This test could be more behavioral..." → Only flag if it clearly matches one of the 5 detection patterns
+- "This test could be more behavioral..." → Only flag if it clearly matches one of the 6 detection patterns
+- "This sleep could be shorter..." → Only flag when the timer exceeds 3x the time needed for the assertion to complete
 - "A better approach would be..." → Suggestions without a concrete anti-pattern match are not findings
 - "This mock is unnecessary..." → Only flag if it mocks an internal module (Rule 3), not an external boundary
 
