@@ -66,6 +66,8 @@ Then read the diff from the provided diff file path using the Read tool.
 
 ### Step 2 — Review the diff
 
+**Working directory for context lookups**: Use the `REPO_ROOT` value provided in your dispatch prompt for all grep, Read, and Glob calls that examine surrounding code context. Do NOT re-derive REPO_ROOT via `git rev-parse --show-toplevel` — in worktree sessions the command returns the worktree path, which may differ from the repo root passed to you, causing grep to find no matches and producing false-positive findings. All bash grep commands must be prefixed with `cd "$REPO_ROOT" &&` or use absolute paths rooted at the provided REPO_ROOT.
+
 Focus areas (apply your tier-specific checklist — see delta section below):
 
 - Bugs, logic errors, security vulnerabilities

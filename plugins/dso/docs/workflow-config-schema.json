@@ -391,12 +391,12 @@
           "minLength": 1,
           "examples": ["worktree-*"]
         },
-        "max_age_days": {
+        "max_age_hours": {
           "type": "integer",
-          "description": "Maximum age in days for automatic worktree cleanup. Worktrees older than this are candidates for removal. Overridden by AGE_DAYS env var.",
+          "description": "Maximum age in hours for automatic worktree cleanup. Worktrees older than this are candidates for removal. Overridden by AGE_HOURS env var.",
           "minimum": 1,
-          "default": 2,
-          "examples": [2, 7]
+          "default": 12,
+          "examples": [12, 24, 48]
         }
       }
     },

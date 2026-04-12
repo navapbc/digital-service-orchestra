@@ -192,7 +192,7 @@ assert_eq "test_schema_persistence_section_exists: output is OK" "OK" "$persist_
 assert_pass_if_clean "test_schema_persistence_section_exists"
 
 # ── test_schema_worktree_new_properties ───────────────────────────────────────
-# worktree section must include branch_pattern and max_age_days
+# worktree section must include branch_pattern and max_age_hours
 _snapshot_fail
 wt_exit=0
 wt_output=""
@@ -200,7 +200,7 @@ wt_output=$(python3 -c "
 import json, sys
 d = json.load(open('$SCHEMA'))
 props = d.get('properties', {}).get('worktree', {}).get('properties', {})
-for key in ('branch_pattern', 'max_age_days'):
+for key in ('branch_pattern', 'max_age_hours'):
     if key not in props:
         print(f'MISSING: {key} not found in worktree.properties')
         sys.exit(1)

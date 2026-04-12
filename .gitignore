@@ -40,6 +40,12 @@ tests/scripts/fixtures/isolation-rules/tmp-*
 .tickets-tracker/
 .disable-precompact-checkpoint
 
+# Agent worktrees (transient, never committed)
+.claude/worktrees/
+
 # Checkpoint runtime artifacts (used by review gate as sentinels — filesystem-only, not committed)
 .checkpoint-needs-review
 .checkpoint-pending-rollback
+
+# Review artifacts (transient — written by code-reviewer sub-agents, never committed)
+reviewer-findings.json

@@ -1,0 +1,18 @@
+diff --git a/src/services/user_service.py b/src/services/user_service.py
+index 1a2b3c4..5d6e7f8 100644
+--- a/src/services/user_service.py
++++ b/src/services/user_service.py
+@@ -15,10 +15,11 @@ def get_user_status(user_id: str) -> Optional[dict]:
+     """Fetch the current status for a given user."""
+-    logger.info(f"Fetching status for user {user_id}")
++    logger.info("action=fetch_status user_id=%s", user_id)
+     user = db.get_user(user_id)
+     if user is None:
+-        logger.debug(f"User {user_id} not found")
+-        return None
++        logger.debug("action=fetch_status result=not_found user_id=%s", user_id)
++        return {}
+     status = user.get("status", "unknown")
+-    logger.info(f"User {user_id} status: {status}")
++    logger.info("action=fetch_status result=ok user_id=%s status=%s", user_id, status)
+     return {"user_id": user_id, "status": status}

@@ -49,91 +49,86 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# ── Determine file set ────────────────────────────────────────────────────────
-# Resolve the scan root (used for finding files when no explicit targets given)
+# ── Determine scan root ───────────────────────────────────────────────────────
 if [[ -n "$_scan_dir" ]]; then
     _root="$_scan_dir"
 else
     # Default: use git to resolve repo root portably
     _repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || _repo_root="$(cd "$SCRIPT_DIR" && cd "$(git rev-parse --show-toplevel)" && pwd)"
-    _root="$_repo_root"
+    _root="$_repo_root/plugins/dso"
 fi
-
-_scan_files=()
-if [[ ${#_explicit_files[@]} -gt 0 ]]; then
-    # Explicit file arguments: scan only those
-    _scan_files=("${_explicit_files[@]}")
-elif [[ -n "$_scan_dir" ]]; then
-    # --scan-dir with no explicit files: find all eligible files under the dir
-    while IFS= read -r _f; do
-        _scan_files+=("$_f")
-    done < <(find "$_scan_dir" -type f \( \
-        -name "*.yaml" -o \
-        -name "*.sh" -o \
-        -name "*.py" -o \
-        -name "*.md" \
-    \) 2>/dev/null)
-else
-    # Default mode: scan plugins/dso/ under repo root
-    _dir="$_root/plugins/dso"
-    if [[ -d "$_dir" ]]; then
-        while IFS= read -r _f; do
-            _scan_files+=("$_f")
-        done < <(find "$_dir" -type f \( \
-            -name "*.yaml" -o \
-            -name "*.sh" -o \
-            -name "*.py" -o \
-            -name "*.md" \
-        \) 2>/dev/null)
-    fi
-fi
-
-if [[ ${#_scan_files[@]} -eq 0 ]]; then
-    echo "check-model-id-lint: no files to scan" >&2
-    exit 0
-fi
-
-# ── Exclusion predicate ───────────────────────────────────────────────────────
-# Returns 0 (true/exclude) if the file should be skipped, 1 (false/include) otherwise.
-_should_exclude() {
-    local _path="$1"
-    local _basename
-    _basename="$(basename "$_path")"
-
-    # Exclude by filename
-    case "$_basename" in
-        dso-config.conf)       return 0 ;;
-        .test-index)           return 0 ;;
-        resolve-model-id.sh)   return 0 ;;  # model ID management script
-        INSTALL.md)            return 0 ;;  # documents config keys with examples
-        bug-report-template.md) return 0 ;; # template with example model IDs
-    esac
-
-    # Exclude files inside a tests/ directory anywhere in the path
-    # Strip leading component up to tests/ to detect any depth
-    if [[ "$_path" == */tests/* || "$_path" == */tests ]]; then
-        return 0
-    fi
-
-    return 1
-}
 
 # ── Scan ──────────────────────────────────────────────────────────────────────
-_violations=0
+# Pattern: hardcoded model ID pattern — claude-(haiku|sonnet|opus)-<digit>
+_PATTERN='claude-(haiku|sonnet|opus)-[0-9]'
 
-for _file in "${_scan_files[@]}"; do
-    [[ -f "$_file" ]] || continue
-    _should_exclude "$_file" && continue
+# Excluded filenames (basename matches — passed via --exclude to grep)
+_EXCLUDE_FILES=(
+    "dso-config.conf"
+    ".test-index"
+    "resolve-model-id.sh"
+    "INSTALL.md"
+    "bug-report-template.md"
+)
 
-    # grep for hardcoded model ID pattern: claude-(haiku|sonnet|opus)-<digit>
-    # Using ERE so we can use | for alternation
-    if grep -En 'claude-(haiku|sonnet|opus)-[0-9]' "$_file" 2>/dev/null; then
-        echo "check-model-id-lint: violation in $_file" >&2
-        _violations=$(( _violations + 1 ))
-    fi
+# Build grep --exclude and --exclude-dir flags
+_grep_args=()
+for _excl in "${_EXCLUDE_FILES[@]}"; do
+    _grep_args+=(--exclude="$_excl")
 done
+_grep_args+=(--exclude-dir="tests")
 
-if [[ $_violations -gt 0 ]]; then
+if [[ ${#_explicit_files[@]} -gt 0 ]]; then
+    # Explicit file arguments: scan only those files (apply exclusion predicate manually)
+    _violations=0
+    for _file in "${_explicit_files[@]}"; do
+        [[ -f "$_file" ]] || continue
+
+        # Skip excluded filenames
+        _basename="$(basename "$_file")"
+        _skip=0
+        for _excl in "${_EXCLUDE_FILES[@]}"; do
+            [[ "$_basename" == "$_excl" ]] && { _skip=1; break; }
+        done
+        [[ $_skip -eq 1 ]] && continue
+
+        # Skip files under tests/
+        [[ "$_file" == */tests/* || "$_file" == */tests ]] && continue
+
+        if grep -En "$_PATTERN" "$_file" 2>/dev/null; then
+            echo "check-model-id-lint: violation in $_file" >&2
+            _violations=$(( _violations + 1 ))
+        fi
+    done
+else
+    # Fast path: single grep -r over the scan directory
+    if [[ ! -d "$_root" ]]; then
+        echo "check-model-id-lint: scan directory not found: $_root" >&2
+        exit 0
+    fi
+
+    _output="$(grep -rEn "$_PATTERN" \
+        --include="*.yaml" \
+        --include="*.sh" \
+        --include="*.py" \
+        --include="*.md" \
+        "${_grep_args[@]}" \
+        "$_root" 2>/dev/null)"
+
+    if [[ -z "$_output" ]]; then
+        exit 0
+    fi
+
+    # Print matching lines (grep -rEn format: file:line:content)
+    echo "$_output"
+
+    # Count unique files with violations
+    _violations="$(echo "$_output" | awk -F: '{print $1}' | sort -u | wc -l | tr -d ' ')"
+    echo "" >&2
+    echo "check-model-id-lint: violation in the above file(s)" >&2
+fi
+
+if [[ ${_violations:-0} -gt 0 ]]; then
     printf "\ncheck-model-id-lint: %d file(s) contain hardcoded model IDs.\n" "$_violations" >&2
     printf "Move model IDs to .claude/dso-config.conf and reference via _cfg().\n" >&2
     exit 1

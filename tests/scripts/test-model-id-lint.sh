@@ -155,6 +155,28 @@ test_passes_clean_file() {
     assert_pass_if_clean "test_passes_clean_file"
 }
 
+# ── test_completes_within_timeout ────────────────────────────────────────────
+# Scanning the full plugins/dso/ tree must complete in under 30 seconds.
+# This guards against per-file grep loops that time out at the 60s validate.sh
+# TIMEOUT_SYNTAX budget (bug 9dea-99b1: serial grep loop took > 60s for 400+ files).
+test_completes_within_timeout() {
+    _snapshot_fail
+    local _start _elapsed _exit
+    # Only run if the plugins/dso/ tree exists (i.e., running from the repo)
+    if [[ ! -d "$PLUGIN_ROOT/plugins/dso" ]]; then
+        echo "test_completes_within_timeout: SKIP (no plugins/dso/ tree found)" >&2
+        assert_pass_if_clean "test_completes_within_timeout"
+        return
+    fi
+    _start=$SECONDS
+    _exit=0
+    bash "$SCRIPT" 2>/dev/null || _exit=$?
+    _elapsed=$(( SECONDS - _start ))
+    # The check must exit within 30 seconds (well under the 60s validate.sh budget)
+    assert_eq "test_completes_within_timeout: scan completes in < 30s (took ${_elapsed}s)" "0" "$(( _elapsed >= 30 ? 1 : 0 ))"
+    assert_pass_if_clean "test_completes_within_timeout"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_detects_haiku_model_id
 test_detects_sonnet_model_id
@@ -162,5 +184,6 @@ test_excludes_dso_config_conf
 test_excludes_test_index
 test_excludes_tests_dir
 test_passes_clean_file
+test_completes_within_timeout
 
 print_summary
