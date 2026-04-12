@@ -76,6 +76,9 @@ Some gate emitters may include additional fields beyond the required schema. Par
 | Field | Type | Emitter | Description |
 |---|---|---|---|
 | `drift_classification` | string (enum) | scope_drift | Three-way classification: `in_scope`, `ambiguous`, `out_of_scope`. Provides finer granularity than the boolean `triggered` field. |
+| `behavioral_claim` | string | intent-search (gate 1a INTENT_CONFLICT) | The ticket's stated behavioral expectation — what the ticket says should happen |
+| `conflicting_callers` | array of objects | intent-search (gate 1a INTENT_CONFLICT) | Array of caller file paths and usage snippets showing dependency on current behavior |
+| `dependency_classification` | string (enum) | intent-search (gate 1a INTENT_CONFLICT) | Overall dependency verdict: behavioral_dependency or incidental_usage |
 
 ---
 
@@ -143,6 +146,7 @@ The following stories must emit output conforming to this schema:
 | Story | Gate | Signal Type | Notes |
 |---|---|---|---|
 | 6775-b635 | 1a | primary | Intent search — pre-investigation |
+| b9b9-18e3 | 1a (INTENT_CONFLICT) | primary | Caller traversal validation; emits additional fields: behavioral_claim, conflicting_callers[], dependency_classification |
 | 5260-e9ba | 1b | primary | Feature-request language check — pre-investigation |
 | e965-7cb7 | 2a, 2d | primary | Reversal check (2a) + dependency check (2d) — post-investigation |
 | e7a0-b991 | 2c | primary | Test regression analysis — post-investigation |
@@ -161,3 +165,4 @@ This contract is unversioned. Breaking changes (field removal, type changes, enu
 
 - **2026-03-28**: Initial version — defines shared schema for gates 1a, 1b, 2a, 2b, 2c, 2d (epic 4b97-bd9d).
 - **2026-04-11**: Added scope_drift consumer (story f9d9-343d); documented drift_classification as additive optional extension field; clarified gate_id format allows semantic names.
+- **2026-04-11**: Added b9b9-18e3 consumer (INTENT_CONFLICT signal from gate 1a caller traversal); documented behavioral_claim, conflicting_callers, dependency_classification extension fields.
