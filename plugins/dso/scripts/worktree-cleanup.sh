@@ -15,7 +15,7 @@ fi
 # (~500MB each with venv). This script identifies and removes safe candidates.
 #
 # Safety checks (ALL must pass before a worktree is eligible for removal):
-#   1. Older than 2 days (age check)
+#   1. Older than 12 hours (age check)
 #   2. Branch is merged to main (or only ticket-tracker changes, already synced)
 #   3. No uncommitted changes (excluding ticket dir which syncs independently)
 #   4. No unpushed commits (excluding ticket-dir-only branches synced to main)
@@ -64,7 +64,7 @@ CLEANUP_LOG="${CLEANUP_LOG:-$HOME/.claude-safe-cleanup.log}"
 # in a linear implementation chain (parent story: lockpick-doc-to-logic-o364). This task
 # specifically adds the startup config cache; follow-on tasks (pigg, e4f5, 7t7i, 4sfu)
 # wire these values into the script logic (replacing the current hardcoded defaults for
-# AGE_DAYS, branch-pattern grep, compose project name, etc.). Pre-declaring the variables
+# AGE_HOURS, branch-pattern grep, compose project name, etc.). Pre-declaring the variables
 # here follows the established incremental-migration pattern used throughout this codebase.
 # Removing them now would break the follow-on tasks.
 
@@ -73,9 +73,20 @@ CONFIG_COMPOSE_DB_FILE=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.co
 CONFIG_COMPOSE_PROJECT=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.compose_project 2>/dev/null || true)
 CONFIG_CONTAINER_PREFIX=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.container_prefix 2>/dev/null || true)
 CONFIG_BRANCH_PATTERN=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.branch_pattern 2>/dev/null || true)
-CONFIG_MAX_AGE_DAYS=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.max_age_days 2>/dev/null || true)
+CONFIG_MAX_AGE_HOURS=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.max_age_hours 2>/dev/null || true)
 
-AGE_DAYS=${AGE_DAYS:-${CONFIG_MAX_AGE_DAYS:-2}}  # env var > config > default (2 days)
+# Capture whether AGE_HOURS was explicitly set in the environment before applying defaults.
+_AGE_HOURS_FROM_ENV="${AGE_HOURS:-}"
+AGE_HOURS=${AGE_HOURS:-${CONFIG_MAX_AGE_HOURS:-12}}  # env var > config > default (12 hours)
+
+# ── Backward-compat: AGE_DAYS → AGE_HOURS migration ─────────────────────────
+# AGE_DAYS was renamed to AGE_HOURS when the threshold unit changed from days
+# to hours (default 2d → 12h). If a caller set AGE_DAYS but not AGE_HOURS,
+# convert it automatically so existing scripts are not silently broken.
+if [[ -n "${AGE_DAYS:-}" && -z "$_AGE_HOURS_FROM_ENV" ]]; then
+    echo "Warning: AGE_DAYS is deprecated — use AGE_HOURS instead. Converting AGE_DAYS=${AGE_DAYS} to AGE_HOURS=$(( AGE_DAYS * 24 ))" >&2
+    AGE_HOURS=$(( AGE_DAYS * 24 ))
+fi
 
 # ── Partial Docker config detection ──────────────────────────────────────────
 # Warn when Docker config keys are inconsistently set, to prevent silent
@@ -112,7 +123,7 @@ Usage: $(basename "$0") [OPTIONS]
 Interactive cleanup of stale git worktrees created by claude-safe.
 
 A worktree is eligible for removal only when ALL safety criteria are met:
-  1. Older than ${AGE_DAYS} days
+  1. Older than ${AGE_HOURS} hours
   2. Branch is merged to main (or only ticket-tracker changes, already synced)
   3. No uncommitted changes (excluding ticket dir)
   4. No unpushed commits (excluding ticket-dir-only)
@@ -221,11 +232,11 @@ log_action() {
     echo "[$timestamp] $message" >> "$CLEANUP_LOG" 2>/dev/null || true
 }
 
-# Check if a worktree is older than AGE_DAYS days
+# Check if a worktree is older than AGE_HOURS hours
 # Returns 0 (true) if old enough to be eligible, 1 if too recent
 is_old_enough() {
     local wt_path="$1"
-    local age_days="${AGE_DAYS:-2}"
+    local age_hours="${AGE_HOURS:-12}"
 
     # Use the creation time of the worktree directory as the age reference.
     # On macOS, stat -f %B gives the birth time (seconds since epoch).
@@ -249,7 +260,7 @@ is_old_enough() {
     local now_epoch
     now_epoch=$(date +%s)
     local age_seconds=$(( now_epoch - created_epoch ))
-    local threshold_seconds=$(( age_days * 86400 ))
+    local threshold_seconds=$(( age_hours * 3600 ))
 
     [[ "$age_seconds" -ge "$threshold_seconds" ]]
 }
@@ -365,7 +376,7 @@ declare -a WT_BRANCHES=()
 declare -a WT_MERGED=()      # "yes" or "no"
 declare -a WT_CLEAN=()       # "yes" or "no"
 declare -a WT_ACTIVE=()      # "yes" or "no"
-declare -a WT_OLD_ENOUGH=()  # "yes" or "no" (older than AGE_DAYS days)
+declare -a WT_OLD_ENOUGH=()  # "yes" or "no" (older than AGE_HOURS hours)
 declare -a WT_STASHED=()     # "yes" or "no" (has stashes)
 declare -a WT_UNPUSHED=()    # "yes" or "no" (has unpushed commits)
 declare -a WT_ACTIONS=()     # "remove" or reason to keep
@@ -419,7 +430,7 @@ while IFS= read -r line; do
             WT_ACTIVE+=("no")
         fi
 
-        # Age check: must be older than AGE_DAYS to be eligible
+        # Age check: must be older than AGE_HOURS to be eligible
         if is_old_enough "$current_path"; then
             WT_OLD_ENOUGH+=("yes")
         else
@@ -462,7 +473,7 @@ for i in "${!WT_NAMES[@]}"; do
         reason="active session"
     elif [[ "${WT_OLD_ENOUGH[$i]}" == "no" ]]; then
         removable=false
-        reason="too recent (<${AGE_DAYS}d)"
+        reason="too recent (<${AGE_HOURS}h)"
     elif [[ "${WT_MERGED[$i]}" == "no" ]]; then
         removable=false
         reason="not merged"
