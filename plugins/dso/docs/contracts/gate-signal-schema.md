@@ -48,7 +48,7 @@ The emitter outputs a single JSON object on stdout. All fields are required.
 
 | Field | Type | Description |
 |---|---|---|
-| `gate_id` | string | Gate identifier, e.g. `"1a"`, `"1b"`, `"2a"`, `"2b"`, `"2c"`, `"2d"` |
+| `gate_id` | string | Gate identifier, e.g. `"1a"`, `"1b"`, `"2a"`, `"2b"`, `"2c"`, `"2d"`. Gate ID may be numeric-prefixed ("1a", "2b") for fix-bug classification gates or semantic-named ("scope_drift") for named reviewer agents. |
 | `triggered` | boolean | `true` if the gate condition fired and this gate's signal should influence routing; `false` otherwise |
 | `signal_type` | string (enum) | Role of this gate in the classification pipeline. One of: `"primary"` (drives top-level routing decision), `"modifier"` (adjusts or refines a primary signal) |
 | `evidence` | string | Human-readable summary of the evidence that caused `triggered` to be `true`, or an explanation of why the gate did not fire when `triggered` is `false`. Must not be empty. |
@@ -68,6 +68,14 @@ The emitter outputs a single JSON object on stdout. All fields are required.
 | `"high"` | Gate condition matched unambiguously; routing should rely on this signal without hedging |
 | `"medium"` | Gate condition matched with moderate certainty; additional context may be warranted |
 | `"low"` | Gate condition matched weakly or heuristically; downstream router should treat as advisory only |
+
+### Optional Extension Fields
+
+Some gate emitters may include additional fields beyond the required schema. Parsers that ignore unknown keys will handle these transparently.
+
+| Field | Type | Emitter | Description |
+|---|---|---|---|
+| `drift_classification` | string (enum) | scope_drift | Three-way classification: `in_scope`, `ambiguous`, `out_of_scope`. Provides finer granularity than the boolean `triggered` field. |
 
 ---
 
@@ -139,6 +147,7 @@ The following stories must emit output conforming to this schema:
 | e965-7cb7 | 2a, 2d | primary | Reversal check (2a) + dependency check (2d) — post-investigation |
 | e7a0-b991 | 2c | primary | Test regression analysis — post-investigation |
 | 2c25-5751 | 2b | modifier | Blast radius annotation — post-investigation, never a primary signal |
+| f9d9-343d | scope_drift | primary | Post-fix drift classifier; emits optional drift_classification field |
 
 All gate implementors must read this contract before writing their emitter. Changes to this schema require updating all conforming emitters and this document atomically in the same commit.
 
@@ -151,3 +160,4 @@ This contract is unversioned. Breaking changes (field removal, type changes, enu
 ### Change Log
 
 - **2026-03-28**: Initial version — defines shared schema for gates 1a, 1b, 2a, 2b, 2c, 2d (epic 4b97-bd9d).
+- **2026-04-11**: Added scope_drift consumer (story f9d9-343d); documented drift_classification as additive optional extension field; clarified gate_id format allows semantic names.
