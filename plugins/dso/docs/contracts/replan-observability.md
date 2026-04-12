@@ -50,6 +50,7 @@ REPLAN_TRIGGER: <type> — <description>
 | `failure` | A story accumulated 2+ UNCERTAIN confidence signals on `STATUS:pass` tasks, indicating low confidence in the implementation. Triggers re-invocation of implementation-plan for the story. |
 | `validation` | A story's done definition failed validation despite all tasks being closed. Triggers creation of TDD remediation tasks via implementation-plan. |
 | `review` | A code review identified out-of-scope files — the implementation touched files outside the story's defined scope. Triggers re-invocation of implementation-plan to create tasks covering the review feedback. |
+| `sc_coverage` | One or more epic success criteria could not be verified as covered by any child ticket. Emitted by the Preplanning Gate (Step 2a1–2a3) before routing to `/dso:preplanning` (≥1 story-type child) or `/dso:implementation-plan` (all task-type children) to create or update coverage tasks. |
 
 ### Timing
 
@@ -201,6 +202,7 @@ The following components write or read these signals:
 | `plugins/dso/skills/sprint/SKILL.md` Phase 5 Step 9 | Emitter (failure) | Written before/after implementation-plan re-invocation for 2+ UNCERTAIN stories # shim-exempt: internal implementation path reference |
 | `plugins/dso/skills/sprint/SKILL.md` Phase 6 Step 2 | Emitter (validation) | Written before/after implementation-plan remediation task creation # shim-exempt: internal implementation path reference |
 | `plugins/dso/skills/sprint/SKILL.md` Phase 7 Step 2 | Emitter (review) | Written before/after implementation-plan re-invocation for out-of-scope review files # shim-exempt: internal implementation path reference |
+| `plugins/dso/skills/sprint/SKILL.md` Phase 1 Preplanning Gate | Emitter (sc_coverage) | Emits REPLAN_TRIGGER:sc_coverage when SC coverage tiers (haiku → sonnet → opus) find one or more MISSING SCs after cascade completes # shim-exempt: internal implementation path reference |
 | Human operators | Consumer | Read epic ticket history to understand sprint re-planning events |
 | Resume-anchor scanners | Consumer | Scan `CHECKPOINT` and `REPLAN_TRIGGER` lines to reconstruct sprint state |
 
