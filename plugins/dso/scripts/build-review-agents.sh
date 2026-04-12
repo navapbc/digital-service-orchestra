@@ -39,7 +39,11 @@ _sha256() {
 # ── Defaults ─────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-DSO_PLUGIN_DIR="${_PLUGIN_ROOT}"
+# Derive the worktree-local plugin path from _PLUGIN_ROOT's git-relative position.
+# _PLUGIN_ROOT may resolve to the main repo or plugin cache via BASH_SOURCE/symlinks,
+# so we compute the relative path and re-anchor it to the current worktree's REPO_ROOT.
+_PLUGIN_GIT_PATH="${_PLUGIN_ROOT#"$(git -C "$_PLUGIN_ROOT" rev-parse --show-toplevel)/"}"
+DSO_PLUGIN_DIR="${REPO_ROOT}/${_PLUGIN_GIT_PATH}"
 
 BASE_FILE=""
 DELTAS_DIR=""
