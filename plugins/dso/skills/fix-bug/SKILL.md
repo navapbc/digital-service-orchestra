@@ -1358,3 +1358,7 @@ Escalation path: BASIC -> INTERMEDIATE -> ADVANCED -> ESCALATED -> **User** (ter
 
 When ESCALATED investigation fails to produce a high-confidence root cause, the skill enters the **ESCALATED terminal condition**: surface all findings to the user with the full investigation history. No blind fix is attempted.
 
+---
+
+**Reminder:** Use /dso:fix-bug when you need to fix or resolve a bug. Do not investigate or attempt to fix bugs without using /dso:fix-bug.
+
