@@ -1513,7 +1513,7 @@ After ALL sub-agents in the batch return, follow the Orchestrator Checkpoint Pro
 
 **When `worktree.isolation_enabled` is `true` and sub-agents returned with `isolation:worktree`**, do NOT proceed to the shared-directory batch review flow (Step 7). Instead, process each worktree **serially** using the per-worktree protocol:
 
-Read and execute `plugins/dso/skills/sprint/prompts/per-worktree-review-commit.md` for each worktree, in completion order (first-pass-first-merge). This means: for each worktree — run review in the worktree context, commit to the worktree branch, merge the worktree branch into the session branch — before moving to the next worktree.
+Read and execute `plugins/dso/skills/sprint/prompts/per-worktree-review-commit.md` for each worktree, in completion order (first-pass-first-merge). This means: for each worktree — run review in the worktree context, commit to the worktree branch, merge the worktree branch into the session branch, then remove the worktree and its branch (Step 7) — before moving to the next worktree.
 
 **Git log note**: In worktree isolation mode, `git log` on the session branch shows one commit per worktree (no combined batch commits). Each worktree's changes are merged independently into the session branch.
 

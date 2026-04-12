@@ -56,8 +56,15 @@ For each worktree in the conflict queue, serialized one at a time against the la
 3. After successful re-implementation: follow the full Steps 2–7 flow (review → commit → merge → cleanup).
 4. If re-implementation also conflicts: escalate to the user — do not re-queue indefinitely.
 
-**Step 7 — Worktree cleanup**: Only after successful merge: `git worktree remove --force <worktree-path>`.
+**Step 7 — Worktree cleanup**: Only after successful merge, remove the worktree directory and delete the per-agent branch:
 
-**Worktree Retention Protocol**: Do NOT remove a worktree until its merge is complete. Worktrees with conflicts are retained for re-implementation. Race condition guard: the worktree must be held open until merge — Claude Code auto-cleanup is suppressed by the presence of uncommitted changes (or a sentinel file).
+```bash
+git worktree remove --force <worktree-path>
+git branch -d <worktree-branch>
+```
+
+Both commands run from the session branch directory (not inside the worktree). `<worktree-path>` is the `WORKTREE_PATH` from Step 1. `<worktree-branch>` is the branch name used in the worktree (visible in `git worktree list` or the Agent tool result). If `git branch -d` fails because the branch was not fully merged, use `git branch -D` — the merge in Step 5 already integrated the changes.
+
+**Worktree Retention Protocol**: Do NOT remove a worktree until its merge is complete. Worktrees with conflicts are retained for re-implementation (Step 6). Race condition guard: the worktree must be held open until merge — Claude Code auto-cleanup is suppressed by the presence of uncommitted changes (or a sentinel file).
 
 **Important**: merge-to-main.sh runs ONCE at session end (Phase 8), not per worktree merge. Each per-worktree merge is worktree-branch → session-branch only.
