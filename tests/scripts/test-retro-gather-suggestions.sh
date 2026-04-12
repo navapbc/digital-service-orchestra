@@ -66,8 +66,11 @@ EOF
 # ── Run retro-gather.sh ONCE, kill after timeout ──────────────────────────────
 # RETRO_SKIP_VALIDATION=1 prevents validate.sh from spawning orphan subprocesses
 # that hold the Bash tool open past the ~73s ceiling (exit 144).
-echo "Collecting output from repo with suggestions (this may take up to ${RETRO_GATHER_TEST_TIMEOUT:-5}s)..."
-_timeout="${RETRO_GATHER_TEST_TIMEOUT:-5}"
+# Kill timer: retro-gather.sh --quick takes ~20s to complete, but SUGGESTION_DATA
+# is emitted within the first second. The kill timer only needs to wait long enough
+# for that section to appear. Default 2s gives ample margin.
+_timeout="${RETRO_GATHER_TEST_TIMEOUT:-2}"
+echo "Collecting output from repo with suggestions (this may take up to ${_timeout}s)..."
 _tmpout=$(mktemp)
 trap 'rm -f "$_tmpout"' EXIT
 
@@ -97,7 +100,7 @@ mkdir -p "$_empty_repo/repo/.tickets-tracker/.suggestions"  # empty directory
 
 _empty_tmp=$(mktemp)
 trap 'rm -f "$_empty_tmp"' EXIT
-_empty_timeout=5
+_empty_timeout="$_timeout"
 PROJECT_ROOT="$_empty_repo/repo" \
     TRACKER_DIR="$_empty_repo/repo/.tickets-tracker" \
     CI_STATUS=pending \
@@ -123,7 +126,7 @@ clone_test_repo "$_nodir_repo/repo"
 
 _nodir_tmp=$(mktemp)
 trap 'rm -f "$_nodir_tmp"' EXIT
-_nodir_timeout=5
+_nodir_timeout="$_timeout"
 PROJECT_ROOT="$_nodir_repo/repo" \
     TRACKER_DIR="$_nodir_repo/repo/.tickets-tracker" \
     CI_STATUS=pending \
