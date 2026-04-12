@@ -63,6 +63,7 @@ fi
 EXPECTED_HASH=""
 REVIEWER_HASH=""
 FINDINGS_FILE_OVERRIDE=""
+ATTEST_SOURCE_DIR=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --expected-hash)
@@ -89,10 +90,19 @@ while [[ $# -gt 0 ]]; do
             FINDINGS_FILE_OVERRIDE="${1#*=}"
             shift
             ;;
+        --attest)
+            ATTEST_SOURCE_DIR="$2"
+            shift 2
+            ;;
+        --attest=*)
+            ATTEST_SOURCE_DIR="${1#*=}"
+            shift
+            ;;
         *)
             echo "ERROR: unknown argument: $1" >&2
             echo "" >&2
             echo "Usage: record-review.sh --reviewer-hash HASH [--expected-hash HASH] [--findings-file PATH]" >&2
+            echo "       record-review.sh --attest <worktree-artifacts-dir>" >&2
             echo "" >&2
             echo "This script reads directly from reviewer-findings.json (written by the" >&2
             echo "code-reviewer sub-agent). No stdin JSON is accepted." >&2
@@ -100,6 +110,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --findings-file PATH  Explicit path to reviewer-findings.json (use when the" >&2
             echo "                        reviewer wrote to a different ARTIFACTS_DIR, e.g., in a" >&2
             echo "                        sub-agent worktree with a different REPO_ROOT hash)." >&2
+            echo "  --attest DIR          Attest a review from a worktree artifacts dir. Reads the" >&2
+            echo "                        source review-status and transfers it to the session." >&2
             exit 1
             ;;
     esac
@@ -122,6 +134,73 @@ fi
 
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
+
+# --- Attest mode: transfer review from a worktree artifacts dir ---
+# When --attest is provided, bypass the entire reviewer-findings.json pipeline.
+# Instead, read the source review-status, verify it passed, and write a new
+# review-status with the current diff hash and an attest_source field.
+if [[ -n "$ATTEST_SOURCE_DIR" ]]; then
+    SOURCE_STATUS_FILE="$ATTEST_SOURCE_DIR/review-status"
+    if [[ ! -f "$SOURCE_STATUS_FILE" ]]; then
+        echo "ERROR: source review-status not found at: $SOURCE_STATUS_FILE" >&2
+        exit 1
+    fi
+
+    # Verify source status is "passed"
+    SOURCE_STATUS=$(head -1 "$SOURCE_STATUS_FILE")
+    if [[ "$SOURCE_STATUS" != "passed" ]]; then
+        echo "ERROR: source review status is '$SOURCE_STATUS', expected 'passed'" >&2
+        exit 1
+    fi
+
+    # Extract score and review_hash from source
+    SOURCE_SCORE=$(grep '^score=' "$SOURCE_STATUS_FILE" | head -1 | cut -d= -f2)
+    SOURCE_REVIEW_HASH=$(grep '^review_hash=' "$SOURCE_STATUS_FILE" | head -1 | cut -d= -f2)
+
+    # Validate extracted fields are non-empty
+    if [[ -z "$SOURCE_SCORE" ]]; then
+        echo "ERROR: source review-status missing score= field" >&2
+        exit 1
+    fi
+    if [[ -z "$SOURCE_REVIEW_HASH" ]]; then
+        echo "ERROR: source review-status missing review_hash= field" >&2
+        exit 1
+    fi
+
+    # Compute the current session diff hash
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    DIFF_HASH=$("$SCRIPT_DIR/compute-diff-hash.sh")
+
+    # Extract worktree ID from basename of the artifacts dir path
+    WORKTREE_ID=$(basename "$ATTEST_SOURCE_DIR")
+
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    REVIEW_STATE_FILE="$ARTIFACTS_DIR/review-status"
+
+    # Preserve any existing checkpoint_cleared line
+    _PREV_CHECKPOINT_CLEARED=""
+    if [[ -f "$REVIEW_STATE_FILE" ]]; then
+        _PREV_CHECKPOINT_CLEARED=$(grep '^checkpoint_cleared=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 || true)
+    fi
+
+    # Write review-status with attest_source
+    cat > "$REVIEW_STATE_FILE" <<EOF
+passed
+timestamp=${TIMESTAMP}
+diff_hash=${DIFF_HASH}
+score=${SOURCE_SCORE}
+review_hash=${SOURCE_REVIEW_HASH}
+attest_source=${WORKTREE_ID}
+EOF
+
+    # Re-append checkpoint_cleared if it existed
+    if [[ -n "$_PREV_CHECKPOINT_CLEARED" ]]; then
+        echo "$_PREV_CHECKPOINT_CLEARED" >> "$REVIEW_STATE_FILE"
+    fi
+
+    echo "Review status attested from worktree ${WORKTREE_ID}: passed (score=${SOURCE_SCORE}, diff_hash=${DIFF_HASH:0:12}...)"
+    exit 0
+fi
 
 # --- Locate and verify reviewer-findings.json (written by code-reviewer sub-agent) ---
 if [[ -n "$FINDINGS_FILE_OVERRIDE" ]]; then

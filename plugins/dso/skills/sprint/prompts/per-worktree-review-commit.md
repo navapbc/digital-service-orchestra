@@ -38,33 +38,46 @@ This ensures findings are written to the worktree's artifacts directory.
 
 **Step 4 — Commit in worktree branch**: Execute COMMIT-WORKFLOW.md from the worktree context (all Bash calls prefixed with `cd $WORKTREE_PATH &&`). The commit happens in the worktree's branch (not the session branch). Review gate passes because review-status and diff_hash are in `$WORKTREE_ARTIFACTS`.
 
-**Step 5 — Merge worktree branch into session branch**: From the session branch directory, run `git merge <worktree-branch> --no-edit`. merge-state.sh detects MERGE_HEAD, review gate skips the merge commit.
+**Step 5 — Harvest worktree into session branch**: From the session branch directory, run `harvest-worktree.sh` to merge the worktree branch, attest gate results, and commit in a single invocation:
 
-**Step 6 — Handle merge result**:
+```bash
+.claude/scripts/dso harvest-worktree <worktree-branch> "$WORKTREE_ARTIFACTS"
+```
+
+`harvest-worktree.sh` performs the following sequence atomically:
+1. Verifies the worktree's `test-gate-status` and `review-status` exist and are passing (exits 2 if not).
+2. Merges `<worktree-branch>` into the current session branch with `--no-commit` (exits 1 on non-`.test-index` conflicts).
+3. Calls `record-test-status.sh --attest <worktree-artifacts-dir>` to write session-side `test-gate-status` with the post-merge diff hash and attested `tested_files` from the worktree.
+4. Calls `record-review.sh --attest <worktree-artifacts-dir>` to write session-side `review-status` with the post-merge diff hash and attested score/review_hash from the worktree.
+5. Commits the merge. Pre-commit hooks pass because the attested status files match the post-merge diff hash.
+
+The `.test-index` file uses a `merge=union` driver (configured in `.gitattributes`), so concurrent additions from multiple worktrees auto-resolve without conflicts.
+
+**Step 6 — Handle harvest result**:
 - **Success** (exit 0): Proceed to Step 7 (cleanup).
-- **Conflict** (exit != 0):
-  a. Run `git merge --abort` to clean up the failed merge state.
-  b. Create a ticket comment: `.claude/scripts/dso ticket comment <story-id> "CONFLICT: worktree <worktree-name> blocked"`
-  c. Add the worktree to the **conflict queue** — do NOT remove the worktree (retained for re-implementation).
-  d. Continue processing the next worktree — non-conflicting worktrees proceed normally through Steps 2–7.
+- **Gate failure** (exit 2): The worktree's test or review gate did not pass. Do NOT merge. Investigate and re-run gates in the worktree context (Steps 2–4), then retry Step 5.
+- **Conflict** (exit 1): Non-`.test-index` merge conflict detected. `harvest-worktree.sh` automatically aborts the merge and cleans up MERGE_HEAD.
+  a. Create a ticket comment: `.claude/scripts/dso ticket comment <story-id> "CONFLICT: worktree <worktree-name> blocked"`
+  b. Add the worktree to the **conflict queue** — do NOT remove the worktree (retained for re-implementation).
+  c. Continue processing the next worktree — non-conflicting worktrees proceed normally through Steps 2–7.
 
 **Conflict queue — re-implementation protocol** (after all non-conflicting worktrees are merged):
 
 For each worktree in the conflict queue, serialized one at a time against the latest session state:
 1. Re-dispatch the original task in the conflicting worktree context (the worktree is still present and available).
 2. Each re-implementation targets the post-merge session branch (so it incorporates all previously merged worktrees).
-3. After successful re-implementation: follow the full Steps 2–7 flow (review → commit → merge → cleanup).
+3. After successful re-implementation: follow the full Steps 2–7 flow (review → commit → harvest → cleanup).
 4. If re-implementation also conflicts: escalate to the user — do not re-queue indefinitely.
 
-**Step 7 — Worktree cleanup**: Only after successful merge, remove the worktree directory and delete the per-agent branch:
+**Step 7 — Worktree cleanup**: Only after successful harvest (exit 0), remove the worktree directory and delete the per-agent branch:
 
 ```bash
 git worktree remove --force <worktree-path>
 git branch -d <worktree-branch>
 ```
 
-Both commands run from the session branch directory (not inside the worktree). `<worktree-path>` is the `WORKTREE_PATH` from Step 1. `<worktree-branch>` is the branch name used in the worktree (visible in `git worktree list` or the Agent tool result). If `git branch -d` fails because the branch was not fully merged, use `git branch -D` — the merge in Step 5 already integrated the changes.
+Both commands run from the session branch directory (not inside the worktree). `<worktree-path>` is the `WORKTREE_PATH` from Step 1. `<worktree-branch>` is the branch name used in the worktree (visible in `git worktree list` or the Agent tool result). If `git branch -d` fails because the branch was not fully merged, use `git branch -D` — the harvest in Step 5 already integrated the changes.
 
-**Worktree Retention Protocol**: Do NOT remove a worktree until its merge is complete. Worktrees with conflicts are retained for re-implementation (Step 6). Race condition guard: the worktree must be held open until merge — Claude Code auto-cleanup is suppressed by the presence of uncommitted changes (or a sentinel file).
+**Worktree Retention Protocol**: Do NOT remove a worktree until its harvest is complete. Worktrees with conflicts are retained for re-implementation (Step 6). Race condition guard: the worktree must be held open until harvest — Claude Code auto-cleanup is suppressed by the presence of uncommitted changes (or a sentinel file).
 
-**Important**: merge-to-main.sh runs ONCE at session end (Phase 8), not per worktree merge. Each per-worktree merge is worktree-branch → session-branch only.
+**Important**: merge-to-main.sh runs ONCE at session end (Phase 8), not per worktree merge. Each per-worktree harvest is worktree-branch → session-branch only.
