@@ -577,8 +577,8 @@ case "$SUBCMD" in
             echo '{"status":"error","error":"not found","ticket_id":"'"$TICKET_ID"'"}'; exit 1
         fi; exit 0 ;;
     list)
-        # t16-task is ready (no deps), but dso-story1 is blocked (has deps on dso-blocker1)
-        echo '[{"ticket_id":"t16-task","status":"open","ticket_type":"task","priority":2,"title":"Task under blocked story","parent_id":"dso-story1","deps":[]},{"ticket_id":"dso-story1","status":"open","ticket_type":"story","priority":2,"title":"Blocked story","parent_id":"t16-epic","deps":[{"target_id":"dso-blocker1","relation":"depends_on"}]}]'
+        # t16-task is ready (no deps), but dso-story1 is blocked (has deps on dso-blocker1 which is in_progress)
+        echo '[{"ticket_id":"t16-task","status":"open","ticket_type":"task","priority":2,"title":"Task under blocked story","parent_id":"dso-story1","deps":[]},{"ticket_id":"dso-story1","status":"open","ticket_type":"story","priority":2,"title":"Blocked story","parent_id":"t16-epic","deps":[{"target_id":"dso-blocker1","relation":"depends_on"}]},{"ticket_id":"dso-blocker1","status":"in_progress","ticket_type":"task","priority":2,"title":"Blocking task","parent_id":null,"deps":[]}]'
         exit 0 ;;
     *) exit 0 ;;
 esac
@@ -1236,6 +1236,88 @@ if [ "$t28_status_used" -eq 1 ]; then
     (( PASS++ ))
 else
     echo "  FAIL: ticket list was NOT called with --status=open,in_progress (bug 2242-d974)" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 29: Unknown dep target (absent from ticket list) defaults to closed ──
+# Bug 401c-4a1a / b418-cdb9: ticket_status_map.get(target_id, "open") defaulted
+# to "open" for targets not in the map, causing external/deleted tickets to
+# permanently block dependents. Fix: default to "closed" so unknown deps are
+# treated as already satisfied.
+echo "Test 29: Unknown dep target (not in ticket list) does NOT block ticket (bug 401c-4a1a)"
+_t29_fake_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t29_fake_repo")
+git init -q -b main "$_t29_fake_repo"
+mkdir -p "$_t29_fake_repo/scripts"
+
+# t29-task's parent story has a depends_on dep on "external-dep-unknown" which
+# is NOT included in the ticket list at all (simulates an external or deleted
+# ticket). With the old default of "open", this would block the story and task.
+# With the fix (default "closed"), the dep is treated as satisfied → task is ready.
+cat > "$_t29_fake_repo/scripts/ticket" << 'T29_TICKET'
+#!/usr/bin/env bash
+SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
+case "$SUBCMD" in
+    show)
+        if [[ "$TICKET_ID" == "t29-epic" ]]; then
+            echo '{"ticket_id":"t29-epic","status":"open","ticket_type":"epic","priority":1,"title":"Test Epic","parent_id":null,"comments":[],"deps":[]}'
+        elif [[ "$TICKET_ID" == "t29-task" ]]; then
+            echo '{"ticket_id":"t29-task","status":"open","ticket_type":"task","priority":2,"title":"Task under story with unknown dep","parent_id":"t29-story","comments":[],"deps":[]}'
+        elif [[ "$TICKET_ID" == "t29-story" ]]; then
+            echo '{"ticket_id":"t29-story","status":"open","ticket_type":"story","priority":2,"title":"Story with unknown dep","parent_id":"t29-epic","comments":[],"deps":[{"target_id":"external-dep-unknown","relation":"depends_on"}]}'
+        else
+            echo '{"status":"error","error":"not found","ticket_id":"'"$TICKET_ID"'"}'; exit 1
+        fi; exit 0 ;;
+    list)
+        # external-dep-unknown is intentionally absent from this list —
+        # it represents an external or deleted ticket not tracked here.
+        echo '[{"ticket_id":"t29-task","status":"open","ticket_type":"task","priority":2,"title":"Task under story with unknown dep","parent_id":"t29-story","deps":[]},{"ticket_id":"t29-story","status":"open","ticket_type":"story","priority":2,"title":"Story with unknown dep","parent_id":"t29-epic","deps":[{"target_id":"external-dep-unknown","relation":"depends_on"}]}]'
+        exit 0 ;;
+    *) exit 0 ;;
+esac
+T29_TICKET
+chmod +x "$_t29_fake_repo/scripts/ticket"
+
+cat > "$_t29_fake_repo/scripts/classify-task.py" << 'T29_SCORER'
+import json, sys
+tasks = json.loads(sys.stdin.read())
+out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
+        "subagent": "general-purpose", "model": "sonnet",
+        "complexity": "low", "reason": "stub"} for t in tasks]
+print(json.dumps(out))
+T29_SCORER
+
+cat > "$_t29_fake_repo/scripts/read-config.sh" << 'T29_CFG'
+#!/usr/bin/env bash
+KEY="${1:-}"; if [[ "$KEY" == "--list" ]]; then KEY="${2:-}"; fi
+case "$KEY" in
+    paths.src_dir) echo -n "src" ;;
+    paths.test_dir) echo -n "tests" ;;
+    paths.test_unit_dir) echo -n "tests/unit" ;;
+    interpreter.python_venv) echo -n "" ;;
+    *) echo -n "" ;;
+esac
+T29_CFG
+chmod +x "$_t29_fake_repo/scripts/read-config.sh"
+printf '' > "$_t29_fake_repo/dso-config.conf"
+cp "$PLUGIN_SCRIPT" "$_t29_fake_repo/scripts/sprint-next-batch.sh"
+chmod +x "$_t29_fake_repo/scripts/sprint-next-batch.sh"
+
+t29_exit=0
+t29_output=$(cd "$_t29_fake_repo" && TICKET_CMD="$_t29_fake_repo/scripts/ticket" bash "$_t29_fake_repo/scripts/sprint-next-batch.sh" "t29-epic" --json 2>/dev/null) || t29_exit=$?
+rm -rf "$_t29_fake_repo"
+
+# t29-task should appear in the batch: its parent story's depends_on target
+# ("external-dep-unknown") is absent from the ticket list, so it defaults to
+# "closed" → NOT a blocker → story is not blocked → task is ready.
+t29_batch_ids=$(echo "$t29_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(' '.join(t['id'] for t in d.get('batch',[])))" 2>/dev/null || echo "")
+t29_blocked=$(echo "$t29_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('skipped_blocked_story',[])))" 2>/dev/null || echo "1")
+if [ "$t29_exit" -eq 0 ] && [[ "$t29_batch_ids" == *"t29-task"* ]] && [ "$t29_blocked" -eq 0 ]; then
+    echo "  PASS: unknown dep target defaults to closed — does not block ticket (t29-task in batch, skipped_blocked_story=0)"
+    (( PASS++ ))
+else
+    echo "  FAIL: unknown dep target incorrectly blocked ticket (exit=$t29_exit batch_ids='$t29_batch_ids' skipped_blocked_story=$t29_blocked)" >&2
+    echo "  This means ticket_status_map.get(target_id, ...) default is 'open' not 'closed' — bug 401c-4a1a not fixed" >&2
     (( FAIL++ ))
 fi
 
