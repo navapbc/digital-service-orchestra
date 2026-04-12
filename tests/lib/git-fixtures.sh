@@ -60,3 +60,55 @@ clone_test_repo() {
     _ensure_git_fixture_template
     cp -r "$_GIT_FIXTURE_TEMPLATE_DIR" "$dest"
 }
+
+# ── Ticket-ready template ────────────────────────────────────────────────────
+# A second template that includes a pre-initialized ticket system (orphan
+# `tickets` branch + `.tickets-tracker` worktree). Avoids running `ticket init`
+# per test (~0.21s each × N tests). On clone, the worktree's absolute-path
+# cross-references are rewritten to point at the new destination.
+
+# Resolve REPO_ROOT for ticket init (tests may source this before cd'ing)
+_GIT_FIXTURE_REPO_ROOT="${_GIT_FIXTURE_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
+
+_GIT_FIXTURE_TICKET_TEMPLATE_DIR=""
+
+_ensure_ticket_fixture_template() {
+    if [ -n "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR" ] && [ -d "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/.git" ]; then
+        return
+    fi
+    # Start from the base git template
+    _ensure_git_fixture_template
+    _GIT_FIXTURE_TICKET_TEMPLATE_DIR=$(mktemp -d)
+    _CLEANUP_DIRS+=("$_GIT_FIXTURE_TICKET_TEMPLATE_DIR")
+    cp -r "$_GIT_FIXTURE_TEMPLATE_DIR" "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/repo"
+
+    # Run the real ticket init only — no pre-created tickets.
+    # Eliminates the per-test `ticket init` overhead (~0.21s × N tests).
+    # Template size is kept small to avoid cp -r overhead dominating savings.
+    local _ticket_script="${_GIT_FIXTURE_REPO_ROOT}/plugins/dso/scripts/ticket"
+    if [ -f "$_ticket_script" ]; then
+        (cd "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/repo" && \
+            _TICKET_TEST_NO_SYNC=1 bash "$_ticket_script" init >/dev/null 2>&1) || true
+    fi
+}
+
+# clone_ticket_repo <dest>
+# Fast-copies the ticket-ready template to <dest> and rewrites worktree
+# absolute paths. <dest> must not already exist.
+clone_ticket_repo() {
+    local dest="$1"
+    _ensure_ticket_fixture_template
+    cp -r "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/repo" "$dest"
+
+    # Rewrite worktree cross-references (absolute paths baked into template)
+    local wt_name="-tickets-tracker"
+    local wt_gitdir="$dest/.git/worktrees/$wt_name/gitdir"
+    local tracker_gitfile="$dest/.tickets-tracker/.git"
+
+    if [ -f "$wt_gitdir" ]; then
+        echo "$dest/.tickets-tracker/.git" > "$wt_gitdir"
+    fi
+    if [ -f "$tracker_gitfile" ]; then
+        echo "gitdir: $dest/.git/worktrees/$wt_name" > "$tracker_gitfile"
+    fi
+}
