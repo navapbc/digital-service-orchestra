@@ -23,6 +23,18 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 TMPDIRS=()
 trap 'rm -rf "${TMPDIRS[@]}"' EXIT
 
+# ── Performance: stub out pre-commit to avoid 0.35s `pre-commit install` per call.
+# dso-setup.sh calls `pre-commit install` as a side effect on every invocation.
+# Tests here verify file-level behavior (shim copy, config merge), not hook
+# installation. A no-op stub eliminates ~20s of overhead across 59 invocations.
+# Tests that explicitly test pre-commit absence construct their own restricted
+# PATH via _make_tool_path and are unaffected by this stub.
+_STUB_BIN=$(mktemp -d)
+TMPDIRS+=("$_STUB_BIN")
+printf '#!/bin/sh\nexit 0\n' > "$_STUB_BIN/pre-commit"
+chmod +x "$_STUB_BIN/pre-commit"
+export PATH="$_STUB_BIN:$PATH"
+
 echo "=== test-dso-setup.sh ==="
 
 # ── test_setup_creates_shim ───────────────────────────────────────────────────
