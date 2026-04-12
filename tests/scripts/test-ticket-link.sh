@@ -1009,4 +1009,43 @@ test_link_blocks_from_closed_source_blocked() {
 }
 test_link_blocks_from_closed_source_blocked
 
+# ── Test 13: --dry-run prints preview without writing events ──────────────────
+test_link_dry_run_no_event_written() {
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Source ticket" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
+    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Target ticket" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "dry-run: tickets created" "non-empty" "empty"
+        assert_pass_if_clean "test_link_dry_run_no_event_written"
+        return
+    fi
+
+    # Run link --dry-run — must exit 0 and print [DRY RUN] message
+    local exit_code=0
+    local stdout_out
+    stdout_out=$(cd "$repo" && bash "$TICKET_LINK_SCRIPT" link "$id1" "$id2" depends_on --dry-run 2>/dev/null) || exit_code=$?
+
+    assert_eq "dry-run: exits 0" "0" "$exit_code"
+
+    # Assert: output contains [DRY RUN]
+    if [[ "$stdout_out" =~ \[DRY\ RUN\] ]]; then
+        assert_eq "dry-run: output contains [DRY RUN]" "has-dry-run" "has-dry-run"
+    else
+        assert_eq "dry-run: output contains [DRY RUN]" "has-dry-run" "missing: $stdout_out"
+    fi
+
+    # Assert: no LINK event was written
+    local link_count
+    link_count=$(_count_link_events "$tracker_dir" "$id1")
+    assert_eq "dry-run: no LINK event written" "0" "$link_count"
+
+    assert_pass_if_clean "test_link_dry_run_no_event_written"
+}
+test_link_dry_run_no_event_written
+
 print_summary
