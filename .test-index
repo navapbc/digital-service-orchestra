@@ -123,3 +123,4 @@ plugins/dso/docs/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
 plugins/dso/skills/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
 plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh [test_no_plugin_runtime_refs]
 plugins/dso/hooks/**/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh [test_no_plugin_runtime_refs]
+plugins/dso/scripts/harvest-worktree.sh:tests/scripts/test-harvest-worktree.sh
