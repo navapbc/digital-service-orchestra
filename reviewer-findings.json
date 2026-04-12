@@ -1,13 +1,36 @@
 {
-  "reviewer": "dso:code-reviewer-light",
-  "review_tier": "light",
   "scores": {
-    "correctness": 5,
-    "verification": 5,
     "hygiene": 5,
-    "design": 5,
-    "maintainability": 5
+    "design": 3,
+    "maintainability": 5,
+    "correctness": 3,
+    "verification": 4
   },
-  "findings": [],
-  "summary": "Adds explicit agent-unavailable fallback to sprint SKILL.md Step 10a and Phase 6 Step 0.75 for dso:completion-verifier dispatch, directing the orchestrator to use general-purpose with the agent definition inline instead of skipping the step. Structural test added to verify both fallback blocks are present. Matches pattern already established for dso:complexity-evaluator fallback."
+  "findings": [
+    {
+      "severity": "important",
+      "category": "correctness",
+      "description": "In the REPLAN_TRIGGER routing block, step 2 instructs the orchestrator to 'Emit SKILL_INVOKE breadcrumb, then invoke /dso:preplanning via Skill tool' — but the actual SKILL_INVOKE breadcrumb shell code is provided in step 3 (after the invocation). Step 4 says 'emit SKILL_RESUMED breadcrumb' but provides no code block and no MANDATORY CONTINUATION guard. Every other Skill tool call site in this file that routes to preplanning or implementation-plan provides: (a) the SKILL_INVOKE shell code before the invocation, (b) a MANDATORY CONTINUATION block immediately after the Skill tool result, and (c) a SKILL_RESUMED shell code block. The inverted ordering (invoke in step 2, breadcrumb code in step 3) and the missing MANDATORY CONTINUATION + SKILL_RESUMED code block create ambiguity for the orchestrator: it may emit the breadcrumb after the invoke (wrong order for tracing), skip the SKILL_RESUMED breadcrumb entirely (breaking CONTROL_LOSS detection), or halt after the nested skill returns its STATUS line (missing the 'DO NOT STOP HERE' guard). The skill-trace-analyze.py analysis depends on matched SKILL_INVOKE/SKILL_RESUMED pairs to detect control loss; missing the SKILL_RESUMED code means CONTROL_LOSS will be falsely flagged on every sc_coverage-triggered replan.",
+      "file": "plugins/dso/skills/sprint/SKILL.md"
+    },
+    {
+      "severity": "important",
+      "category": "design",
+      "description": "The haiku gate (Step 2a1) emits the SC_COVERAGE_HAIKU_GATE: complete idempotency marker in step 5, but step 4 routes to Phase 2 directly on the ALL-COVERED path without reaching step 5. This means the idempotency marker is never emitted when all SCs are COVERED — making the ORCHESTRATOR_RESUME path for the haiku gate unreliable. On resume after an ALL-COVERED haiku run, the orchestrator cannot detect that the gate completed (missing marker), so it will re-dispatch the haiku sub-agent unnecessarily. By contrast, the sonnet gate (step 6) and opus gate (step 5) both correctly emit their idempotency markers after all routing decisions are resolved. The haiku gate marker should be emitted before the routing step, or the routing step should explicitly note that the marker must be emitted on all paths including the Phase 2 bypass.",
+      "file": "plugins/dso/skills/sprint/SKILL.md"
+    },
+    {
+      "severity": "minor",
+      "category": "verification",
+      "description": "The test file uses 'set -uo pipefail' but omits '-e'. Without '-e', a failed command inside a test function (e.g., a pipeline error) will silently continue rather than surfacing as a test failure. The test_has_covered_missing_unsure_verdicts_in_2a2 function uses a complex python3 invocation where silent failure would yield match=0 and pass the assertion as '0 == 0' rather than detecting that the command itself failed. This is consistent with convention in other skill test files, but the python3 fallback path is particularly risky.",
+      "file": "tests/skills/test-sprint-sc-coverage-escalation.sh"
+    },
+    {
+      "severity": "minor",
+      "category": "correctness",
+      "description": "The ORCHESTRATOR_RESUME idempotency note for the sonnet gate (Step 2a2) reads: 'If any MISSING verdicts were recorded (no UNSURE) → proceed to Step 2a3 routing (REPLAN_TRIGGER only, no opus dispatch)'. The reference 'Step 2a3 routing' is ambiguous: Step 2a3 is the Opus Tier dispatch step, not the REPLAN_TRIGGER routing section. A reader following the ORCHESTRATOR_RESUME path for MISSING-only verdicts could mistakenly enter the opus dispatch step. The REPLAN_TRIGGER routing block should have a distinct named anchor or the reference should be updated to 'REPLAN_TRIGGER Routing' to match the actual section heading.",
+      "file": "plugins/dso/skills/sprint/SKILL.md"
+    }
+  ],
+  "summary": "The diff adds the sc-coverage opus tier (Step 2a3), the REPLAN_TRIGGER routing block, the opus prompt file, and a 10-test structural boundary test. The opus prompt design is sound — clean input contract, binary COVERED/MISSING output, tie-breaking toward COVERED, fail-open conservative on parse failure. Two important findings: (1) the REPLAN_TRIGGER routing block has inverted step ordering for the SKILL_INVOKE breadcrumb and is missing both the MANDATORY CONTINUATION guard and the SKILL_RESUMED shell code block — every other equivalent call site in the file has both, and their absence will break skill-trace CONTROL_LOSS detection and risk LLM halt-after-nested-skill; (2) the haiku gate idempotency marker (SC_COVERAGE_HAIKU_GATE: complete) is placed in step 5 but step 4 bypasses it on the ALL-COVERED path, making ORCHESTRATOR_RESUME blind to completed haiku-only runs. Two minor findings: test pipeline silent-failure risk on python3 invocations without '-e', and an ambiguous ORCHESTRATOR_RESUME cross-reference in the sonnet gate. security_overlay_warranted: no, performance_overlay_warranted: no, approach_viability_concern: false"
 }
