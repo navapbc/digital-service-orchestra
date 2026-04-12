@@ -70,7 +70,7 @@ timeout_out=""
 # Redirect to file instead of $() to avoid FD-leak blocking: command
 # substitution waits for all writers to close stdout, but the orphaned
 # sleep process holds the pipe open after the timeout kills the parent.
-TEST_BATCHED_STATE_FILE="$TIMEOUT_STATE" bash "$SCRIPT" --timeout=1 "sleep 10" > "$TMPDIR_TIMEOUT/output.txt" 2>/dev/null || true
+TEST_BATCHED_STATE_FILE="$TIMEOUT_STATE" bash "$SCRIPT" --timeout=1 "sleep 2" > "$TMPDIR_TIMEOUT/output.txt" 2>/dev/null || true
 timeout_out=$(cat "$TMPDIR_TIMEOUT/output.txt")
 rm -rf "$TMPDIR_TIMEOUT"
 assert_contains "test_stops_after_timeout_and_outputs_resume_command: output contains ACTION REQUIRED" "ACTION REQUIRED" "$timeout_out"
@@ -209,7 +209,7 @@ MID_STATE="$TMPDIR_STATE/test-batched-state.json"
 
 # Use timeout=1 with a slow command so state file is written before completion.
 # Use TEST_BATCHED_STATE_FILE to write to our isolated temp file.
-TEST_BATCHED_STATE_FILE="$MID_STATE" bash "$SCRIPT" --timeout=1 "sleep 10" 2>/dev/null || true
+TEST_BATCHED_STATE_FILE="$MID_STATE" bash "$SCRIPT" --timeout=1 "sleep 2" 2>/dev/null || true
 
 if [ -f "$MID_STATE" ]; then
     has_runner=0
@@ -561,7 +561,7 @@ INT_GEN_STATE="$TMPDIR_INT_GEN/state.json"
 int_gen_first_out=""
 # Redirect to file to avoid FD-leak blocking (see test_stops_after_timeout comment)
 TEST_BATCHED_STATE_FILE="$INT_GEN_STATE" \
-    bash "$SCRIPT" --timeout=1 "sleep 3" > "$TMPDIR_INT_GEN/first_output.txt" 2>&1 || true
+    bash "$SCRIPT" --timeout=1 "sleep 2" > "$TMPDIR_INT_GEN/first_output.txt" 2>&1 || true
 int_gen_first_out=$(cat "$TMPDIR_INT_GEN/first_output.txt")
 
 # Verify first run emits Structured Action-Required Block
@@ -583,15 +583,15 @@ assert_eq "test_interrupted_generic_test_reruns_on_resume: state records interru
 
 # Second run: resume from the state file.
 # The interrupted test must be RE-RUN (not skipped) — it should appear in output.
-# With ample timeout (10s > sleep 3), the test passes and exit must be 0.
+# With ample timeout (4s > sleep 2), the test passes and exit must be 0.
 int_gen_resume_exit=0
 int_gen_resume_out=""
 int_gen_resume_out=$(TEST_BATCHED_STATE_FILE="$INT_GEN_STATE" \
-    bash "$SCRIPT" --timeout=10 "sleep 3" 2>&1) \
+    bash "$SCRIPT" --timeout=4 "sleep 2" 2>&1) \
     || int_gen_resume_exit=$?
 
 assert_contains "test_interrupted_generic_test_reruns_on_resume: resume re-runs the test" \
-    "Running: sleep 3" "$int_gen_resume_out"
+    "Running: sleep 2" "$int_gen_resume_out"
 assert_eq "test_interrupted_generic_test_reruns_on_resume: resume exits 0 when retry passes" \
     "0" "$int_gen_resume_exit"
 rm -rf "$TMPDIR_INT_GEN"
@@ -845,7 +845,7 @@ TMPDIR_SARB="$(mktemp -d)"
 SARB_STATE="$TMPDIR_SARB/test-batched-state.json"
 sarb_out=""
 # Redirect to file to avoid FD-leak blocking (see test_stops_after_timeout comment)
-TEST_BATCHED_STATE_FILE="$SARB_STATE" bash "$SCRIPT" --timeout=1 "sleep 10" > "$TMPDIR_SARB/output.txt" 2>/dev/null || true
+TEST_BATCHED_STATE_FILE="$SARB_STATE" bash "$SCRIPT" --timeout=1 "sleep 2" > "$TMPDIR_SARB/output.txt" 2>/dev/null || true
 sarb_out=$(cat "$TMPDIR_SARB/output.txt")
 rm -rf "$TMPDIR_SARB"
 sarb_has_action=0
@@ -869,7 +869,7 @@ TMPDIR_RUNCMD="$(mktemp -d)"
 RUNCMD_STATE="$TMPDIR_RUNCMD/test-batched-state.json"
 runcmd_out=""
 # Redirect to file to avoid FD-leak blocking (see test_stops_after_timeout comment)
-TEST_BATCHED_STATE_FILE="$RUNCMD_STATE" bash "$SCRIPT" --timeout=1 "sleep 10" > "$TMPDIR_RUNCMD/output.txt" 2>/dev/null || true
+TEST_BATCHED_STATE_FILE="$RUNCMD_STATE" bash "$SCRIPT" --timeout=1 "sleep 2" > "$TMPDIR_RUNCMD/output.txt" 2>/dev/null || true
 runcmd_out=$(cat "$TMPDIR_RUNCMD/output.txt")
 rm -rf "$TMPDIR_RUNCMD"
 runcmd_has_state=0
@@ -891,7 +891,7 @@ _snapshot_fail
 default_path_out=""
 # Redirect to file to avoid FD-leak blocking (see test_stops_after_timeout comment)
 _dp_tmp="$(mktemp -d)"
-bash "$SCRIPT" --timeout=1 "sleep 10" > "$_dp_tmp/output.txt" 2>/dev/null || true
+bash "$SCRIPT" --timeout=1 "sleep 2" > "$_dp_tmp/output.txt" 2>/dev/null || true
 default_path_out=$(cat "$_dp_tmp/output.txt")
 rm -rf "$_dp_tmp"
 default_path_has_fixed=0
@@ -1192,7 +1192,7 @@ SIGURG_STATE="$TMPDIR_SIGURG/state.json"
 mkdir -p "$TMPDIR_SIGURG/tests"
 cat > "$TMPDIR_SIGURG/tests/test-long-running.sh" << 'SHEOF'
 #!/usr/bin/env bash
-sleep 5
+sleep 2
 exit 0
 SHEOF
 chmod +x "$TMPDIR_SIGURG/tests/test-long-running.sh"
@@ -1202,7 +1202,7 @@ sigurg_exit=0
 sigurg_out=""
 
 TEST_BATCHED_STATE_FILE="$SIGURG_STATE" \
-    bash "$SCRIPT" --runner=bash --test-dir="$TMPDIR_SIGURG/tests" --timeout=60 \
+    bash "$SCRIPT" --runner=bash --test-dir="$TMPDIR_SIGURG/tests" --timeout=10 \
     > "$TMPDIR_SIGURG/output.txt" 2>&1 &
 BATCHED_PID=$!
 

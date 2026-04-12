@@ -377,7 +377,8 @@ test_write_commit_event_flock_on_canonical_path() {
     # When two callers arrive with different path forms (symlink vs real), they must
     # contend on the same underlying lock file to prevent concurrent commits.
 
-    # Static assertion: realpath usage must appear BEFORE the lock_file= assignment
+    # Static assertion: canonical path resolution must appear BEFORE the lock_file= assignment.
+    # Recognized patterns: python3 os.path.realpath, readlink -f, or pwd -P (all resolve symlinks).
     local realpath_line lock_line
     realpath_line=$(python3 -c "
 import sys
@@ -385,7 +386,7 @@ with open(sys.argv[1]) as f:
     lines = f.readlines()
 import re
 for i, line in enumerate(lines, 1):
-    if re.search(r'realpath|os\.path\.realpath', line):
+    if re.search(r'realpath|os\.path\.realpath|pwd\s+-P|readlink\s+-f', line):
         print(i)
         break
 else:
@@ -403,7 +404,7 @@ else:
     print(0)
 " "$TICKET_LIB")
 
-    assert_eq "canonical path resolution present in ticket-lib.sh (realpath line > 0)" \
+    assert_eq "canonical path resolution present in ticket-lib.sh (canonical line > 0)" \
         "1" "$([ "${realpath_line:-0}" -gt 0 ] && echo 1 || echo 0)"
 
     # canonical resolution must appear at or before lock_file= assignment

@@ -111,4 +111,10 @@ clone_ticket_repo() {
     if [ -f "$tracker_gitfile" ]; then
         echo "gitdir: $dest/.git/worktrees/$wt_name" > "$tracker_gitfile"
     fi
+
+    # Pre-set gc.auto=0 in the tickets worktree so write_commit_event skips
+    # the redundant per-operation check (~10ms saved per ticket operation).
+    if [ -d "$dest/.tickets-tracker" ]; then
+        git -C "$dest/.tickets-tracker" config gc.auto 0
+    fi
 }
