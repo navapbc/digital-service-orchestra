@@ -1,0 +1,1 @@
+{"schema_version": 1, "timestamp": 1776026009422, "session_id": "dd99fb94-82be-4804-8235-0fe9fd2d6430", "source": "stop-hook", "observation": "Session friction detected: error_count:175,threshold:10. Sources: tool-error-counter.json and tool-use-*.jsonl."}
