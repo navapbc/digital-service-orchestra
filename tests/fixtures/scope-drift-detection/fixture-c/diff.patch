@@ -1,0 +1,13 @@
+diff --git a/src/handlers/request_handler.py b/src/handlers/request_handler.py
+index 9a8b7c6..3d2e1f0 100644
+--- a/src/handlers/request_handler.py
++++ b/src/handlers/request_handler.py
+@@ -22,7 +22,8 @@ def handle_request(request: Request) -> Response:
+     """Process an incoming request and return a response."""
+     logger.info("Handling request: %s %s", request.method, request.path)
+
+-    for key, value in request.headers.items():
++    headers = request.headers if request.headers is not None else {}
++    for key, value in headers.items():
+         if key.lower() == "x-request-id":
+             request.request_id = value
