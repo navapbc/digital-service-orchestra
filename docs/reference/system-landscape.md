@@ -123,8 +123,12 @@ The DSO plugin occupies two distinct directory scopes that must not be conflated
 
 | Scope | Path | Contents |
 |-------|------|----------|
-| Distributed plugin artifact | `plugins/dso/` | Agents, skills, hooks, scripts, config, reference docs — shipped with the plugin and installed in host projects |
+| Distributed plugin artifact | `plugins/dso/` (local install path) | Agents, skills, hooks, scripts, config, reference docs — shipped with the plugin; host projects install at any path |
 | Project-local dev-team artifacts | `docs/designs/`, `docs/findings/`, `docs/archive/` | Design documents, investigation findings, archived artifacts — created by the development team working on this project; never distributed |
+
+`plugins/dso/` is the local development install path within this repository. Host projects install the plugin at their own chosen path — there is no fixed install location. To support this, all plugin files use `_PLUGIN_ROOT` for path resolution rather than hardcoding `plugins/dso/`. The `_PLUGIN_ROOT` variable is set at runtime by the shim (see Plugin Root Resolution above) and ensures portability across any install location.
+
+**Enforcement**: `.claude/hooks/pre-commit/check-plugin-self-ref.sh` enforces zero tolerance for `plugins/dso` self-references — any occurrence in any file under `plugins/dso/` blocks the commit with no suppression mechanism. Every path within the plugin tree must resolve through `_PLUGIN_ROOT`.
 
 Dev-team artifacts belong in project-local directories and are never shipped as part of the plugin. The `plugins/dso/` tree contains only plugin-shipped content. See CLAUDE.md Critical Rules rule 26 for the enforcement rule.
 
