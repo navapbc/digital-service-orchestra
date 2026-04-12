@@ -24,6 +24,7 @@ plugins/dso/scripts/check-portability.sh | source | Pre-commit portability lint 
 plugins/dso/scripts/check-contract-schemas.sh | source | Pre-commit contract schema validation (enforces # Contract: heading, Purpose section, canonical parsing prefix for signal contracts)
 plugins/dso/scripts/check-referential-integrity.sh | source | Pre-commit referential integrity check (verifies path references in skill/agent/workflow docs point to real files)
 plugins/dso/hooks/pre-commit-test-quality-gate.sh | source | Pre-commit test quality gate (blocks anti-pattern tests; configurable via test_quality.* in dso-config.conf)
+.claude/hooks/pre-commit/check-plugin-self-ref.sh | source | Pre-commit hook that detects plugin self-references (absolute zero policy — no annotation bypass)
 plugins/dso/hooks/semgrep-rules/test-anti-patterns.yaml | source | Semgrep custom rules for test anti-pattern detection
 plugins/dso/agents/code-reviewer-test-quality.md | source | Test quality overlay agent (opus); evaluates test bloat patterns in review diffs
 plugins/dso/scripts/validate.sh | source | Full validation suite
