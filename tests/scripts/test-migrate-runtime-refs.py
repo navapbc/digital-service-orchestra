@@ -75,7 +75,7 @@ class TestInjectPluginRoot:
     def test_missing_declaration_injected(self, mod: ModuleType) -> None:
         lines = [
             "#!/usr/bin/env bash\n",
-            "echo hello\n",
+            'source "$REPO_ROOT/plugins/dso/hooks/lib/deps.sh"\n',
         ]
         result = mod.inject_plugin_root(lines)
         assert PLUGIN_ROOT_DECL in "".join(result)
@@ -104,7 +104,7 @@ class TestInjectHandlesSetE:
         lines = [
             "#!/usr/bin/env bash\n",
             "set -e\n",
-            "echo hello\n",
+            'PLUGIN_DIR="$REPO_ROOT/plugins/dso"\n',
         ]
         result = mod.inject_plugin_root(lines)
         content = "".join(result)
