@@ -249,6 +249,32 @@ test_has_missing_sc_triggers_replan_comment() {
     assert_eq "test_has_missing_sc_triggers_replan_comment: MISSING SCs trigger REPLAN_TRIGGER comment language present in SKILL.md" "1" "$match"
 }
 
+
+# ---------------------------------------------------------------------------
+# test_gap_detection_routes_by_child_type
+# Structural boundary test for the "5-SC/3-covered" routing scenario:
+# when sc_coverage_missing is non-empty after the cascade, SKILL.md must
+# contain conditional routing language that branches on child ticket type —
+# story children route to /dso:preplanning, task-only children route to
+# /dso:implementation-plan.
+#
+# This is a structural boundary test per behavioral testing standard Rule 5:
+# SKILL.md is an instruction file; the observable boundary is its text
+# content, not LLM execution behavior.
+# ---------------------------------------------------------------------------
+test_gap_detection_routes_by_child_type() {
+    local match=0
+    # Verify routing block contains BOTH child-type branches:
+    # (1) story children → preplanning, (2) task children → implementation-plan
+    # Both must appear in a sc_coverage REPLAN context (not general routing).
+    local has_story_branch=0
+    local has_task_branch=0
+    has_story_branch=$(grep -cEi "sc.coverage.*preplanning|sc_coverage.*preplanning|REPLAN_TRIGGER.*sc_coverage.*preplanning|preplanning.*sc.coverage|preplanning.*sc_coverage" "$SKILL_FILE" 2>/dev/null) || has_story_branch=0
+    has_task_branch=$(grep -cEi "sc.coverage.*implementation-plan|sc_coverage.*implementation-plan|REPLAN_TRIGGER.*sc_coverage.*implementation-plan|implementation-plan.*sc.coverage|implementation-plan.*sc_coverage" "$SKILL_FILE" 2>/dev/null) || has_task_branch=0
+    [[ "$has_story_branch" -gt 0 && "$has_task_branch" -gt 0 ]] && match=1
+    assert_eq "test_gap_detection_routes_by_child_type: 5-SC/3-covered scenario — gap detected routes to preplanning (story) or implementation-plan (task) in SKILL.md" "1" "$match"
+}
+
 # ---------------------------------------------------------------------------
 # Run tests
 # ---------------------------------------------------------------------------
@@ -265,6 +291,7 @@ test_routes_to_implementation_plan_for_task_children
 test_has_sonnet_fail_open_language
 test_has_opus_fail_open_language
 test_has_missing_sc_triggers_replan_comment
+test_gap_detection_routes_by_child_type
 
 print_summary
 
@@ -285,4 +312,5 @@ _TEST_GATE_ANCHORS=(
     test_has_sonnet_fail_open_language
     test_has_opus_fail_open_language
     test_has_missing_sc_triggers_replan_comment
+    test_gap_detection_routes_by_child_type
 )
