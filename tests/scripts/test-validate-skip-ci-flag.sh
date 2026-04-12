@@ -86,6 +86,7 @@ chmod +x "$STUB_TEST_BATCHED"
 rc=0
 output=$(PATH="$STUB_BIN:$PATH" \
     VALIDATE_CMD_TEST="true" \
+    VALIDATE_SKIP_PLUGIN_CHECKS=1 \
     VALIDATE_TEST_BATCHED_SCRIPT="$STUB_TEST_BATCHED" \
     bash "$VALIDATE_SH" --ci --skip-ci 2>&1) || rc=$?
 
@@ -121,6 +122,7 @@ chmod +x "$STUB_BIN/gh"
 rc=0
 output=$(PATH="$STUB_BIN:$PATH" \
     VALIDATE_CMD_TEST="true" \
+    VALIDATE_SKIP_PLUGIN_CHECKS=1 \
     VALIDATE_TEST_BATCHED_SCRIPT="$STUB_TEST_BATCHED" \
     bash "$VALIDATE_SH" --skip-ci 2>&1) || rc=$?
 
@@ -151,6 +153,7 @@ chmod +x "$STUB_BIN/gh"
 rc=0
 PATH="$STUB_BIN:$PATH" \
     VALIDATE_CMD_TEST="true" \
+    VALIDATE_SKIP_PLUGIN_CHECKS=1 \
     VALIDATE_TEST_BATCHED_SCRIPT="$STUB_TEST_BATCHED" \
     bash "$VALIDATE_SH" --skip-ci --ci > /dev/null 2>&1 || rc=$?
 
