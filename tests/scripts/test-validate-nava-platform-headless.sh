@@ -95,23 +95,28 @@ assert_contains "test_list_flags_for_nextjs: output contains --data node_version
 # internal timeout) and exit 124 (the exit code produced by timeout(1)).
 # RED: script does not exist, so bash exits 127 ("No such file"), not 124.
 
-# Stub nava-platform to hang indefinitely
+# Stub nava-platform to outlive the 1s internal timeout
 STUB_BIN_HANG="$TMPDIR_TEST/stub-bin-hang"
 mkdir -p "$STUB_BIN_HANG"
 cat > "$STUB_BIN_HANG/nava-platform" <<'STUB'
 #!/usr/bin/env bash
-sleep 30
+sleep 2
 STUB
 chmod +x "$STUB_BIN_HANG/nava-platform"
 HANG_PATH="$STUB_BIN_HANG:/usr/bin:/bin"
 
 missing_data_exit=0
 missing_data_output=""
-# Outer guard: allow up to 3 s so the test does not block the suite.
-# NAVA_TIMEOUT=1 matches the other timeout test pattern: 1 s internal timeout,
-# stub sleeps 30 s, outer guard is 3 s.
-missing_data_output=$(timeout 3 bash -c "NAVA_TIMEOUT=1 PATH='$HANG_PATH' bash '$SCRIPT' nextjs 2>&1") \
+# Outer guard: allow up to 5 s so the test does not block the suite.
+# NAVA_TIMEOUT=1 means the script's internal timeout fires in 1s.
+# The stub sleeps 2s (just enough to outlive the timeout).
+# Redirect to file instead of $() to avoid FD-leak blocking: command
+# substitution waits for all writers to close stdout, but the orphaned
+# sleep process holds the pipe open after timeout kills the parent.
+_hang_out="$TMPDIR_TEST/hang-output.txt"
+timeout 5 bash -c "NAVA_TIMEOUT=1 PATH='$HANG_PATH' bash '$SCRIPT' nextjs 2>&1" > "$_hang_out" \
     || missing_data_exit=$?
+missing_data_output=$(cat "$_hang_out")
 
 # At GREEN: script applies a 1 s internal timeout → exit 124
 # At RED:   script is missing → bash exits 127
@@ -129,19 +134,19 @@ STUB_BIN_SLOW="$TMPDIR_TEST/stub-bin-slow"
 mkdir -p "$STUB_BIN_SLOW"
 cat > "$STUB_BIN_SLOW/nava-platform" <<'STUB'
 #!/usr/bin/env bash
-sleep 3
+sleep 2
 STUB
 chmod +x "$STUB_BIN_SLOW/nava-platform"
 SLOW_PATH="$STUB_BIN_SLOW:/usr/bin:/bin"
 
-# Outer guard is 3 s; the script's internal timeout is 1 s (via NAVA_TIMEOUT=1).
+# Outer guard is 5 s; the script's internal timeout is 1 s (via NAVA_TIMEOUT=1).
 # If the script correctly wraps nava-platform with timeout(1), it exits 124
-# before the outer 3 s guard fires.
+# before the outer 5 s guard fires.
 # Note: PATH= prefix on `timeout` itself breaks on macOS (timeout is not in
 # /usr/bin on macOS). We pass the restricted PATH to the inner bash via
 # bash -c so that `timeout` itself is found on the real PATH.
 timeout_exit=0
-timeout 3 bash -c "NAVA_TIMEOUT=1 PATH='$SLOW_PATH' bash '$SCRIPT' nextjs \
+timeout 5 bash -c "NAVA_TIMEOUT=1 PATH='$SLOW_PATH' bash '$SCRIPT' nextjs \
     --data 'project_name=test-proj' \
     --data 'node_version=20' \
     --data 'use_typescript=true' \
