@@ -1,1 +1,0 @@
-{"timestamp": 1776020154385879000, "uuid": "7e2fa7f2-1edd-45c1-b527-3f8e63b1ffd4", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "AC amendment: Add test case for idempotent/already-merged branch invocation. harvest-worktree.sh should handle no-op merge gracefully."}}
