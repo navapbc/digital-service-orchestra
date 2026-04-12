@@ -46,6 +46,9 @@ source "$HOOK_DIR/lib/deps.sh"
 # Source config-driven path resolver (provides CFG_VISUAL_BASELINE_PATH, CFG_UNIT_SNAPSHOT_PATH, etc.)
 source "$HOOK_DIR/lib/config-paths.sh"
 
+# Source merge-state library for merge/rebase-aware overlap check (28c4-3fed).
+source "$HOOK_DIR/lib/merge-state.sh"
+
 # Pre-flight: python3 and shasum are required (integrity-critical hook).
 # This hook hard-fails without shasum rather than cascading to weaker hashes,
 # because the reviewer sub-agent also uses shasum -a 256. Both sides must use
@@ -355,6 +358,11 @@ fi
 # isolation-ok: test-only override for overlap check
 if [[ -n "${RECORD_REVIEW_CHANGED_FILES:-}" ]]; then
     CHANGED_FILES="$RECORD_REVIEW_CHANGED_FILES"
+elif ms_is_merge_in_progress 2>/dev/null || ms_is_rebase_in_progress 2>/dev/null; then
+    # During merge/rebase, scope to worktree-only files — matching compute-diff-hash.sh.
+    # Without this, git diff HEAD shows ALL merge changes (including the incoming branch),
+    # causing false overlap failures for findings that reference only the worktree files. (28c4-3fed)
+    CHANGED_FILES=$(ms_get_worktree_only_files 2>/dev/null | sort -u | { grep -v '^$' || true; })
 else
     # Only include tracked file changes (staged + unstaged). Untracked files are
     # excluded because compute-diff-hash.sh excludes them — the overlap check
@@ -367,7 +375,12 @@ else
     )
 fi
 
-if [[ -n "$CHANGED_FILES" ]] && [[ -n "$FILES_FROM_FINDINGS" ]]; then
+# Skip overlap check when --findings-file was used from a different artifacts dir (cross-worktree
+# scenario). The caller explicitly declared the findings came from a different context, so the
+# current working tree's changed files may not match the reviewed diff. (6361-9c5b)
+if [[ -n "$FINDINGS_FILE_OVERRIDE" ]]; then
+    : # overlap check skipped — cross-worktree findings
+elif [[ -n "$CHANGED_FILES" ]] && [[ -n "$FILES_FROM_FINDINGS" ]]; then
     OVERLAP_FOUND=""
     while IFS= read -r target; do
         [[ -z "$target" ]] && continue
