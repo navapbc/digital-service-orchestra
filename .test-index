@@ -115,3 +115,4 @@ plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh
 plugins/dso/agents/scope-drift-reviewer.md: tests/scripts/test-scope-drift-reviewer.sh
 plugins/dso/agents/intent-search.md: tests/scripts/test-intent-search-agent.sh
 tests/fixtures/scope-drift-detection: tests/scripts/test-e2e-synthetic-fixtures.sh
+CLAUDE.md: tests/scripts/test-docs-behavioral-drift-prevention.sh

@@ -148,8 +148,8 @@ hook_commit_failure_tracker() {
     local _SEARCH_CMD_FROM_ENV="${SEARCH_CMD:-}"
     local _SEARCH_CMD="${SEARCH_CMD:-grep -rl}"
     local _READ_CONFIG=""
-    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
-        _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then  # shim-exempt: hook lib resolves plugin scripts via CLAUDE_PLUGIN_ROOT, not repo shim
+        _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"  # shim-exempt: hook lib resolves plugin scripts via CLAUDE_PLUGIN_ROOT
     fi
     # Config file: prefer CLAUDE_PLUGIN_ROOT/.claude/dso-config.conf when set and present,
     # so tests can pass an isolated config without affecting the real repo config.
@@ -447,6 +447,12 @@ hook_worktree_edit_guard() {
 
     # File is inside the worktree? Allow.
     if [[ "$FILE_PATH" == "$WORKTREE_ROOT"/* || "$FILE_PATH" == "$WORKTREE_ROOT" ]]; then
+        return 0
+    fi
+
+    # File is inside a sub-agent worktree (.claude/worktrees/)? Allow.
+    # Agent worktrees are isolated working directories, not main-repo files.
+    if [[ "$FILE_PATH" == "$MAIN_REPO_ROOT/.claude/worktrees/"* ]]; then
         return 0
     fi
 

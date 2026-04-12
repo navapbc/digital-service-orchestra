@@ -516,6 +516,19 @@ Done Definitions:
 - "Classification results are stored in the job_results JSON column"
 - "The ReviewService calls the ExportService with the approved rule IDs"
 
+#### SC Contradiction Check
+
+After drafting all done definitions, cross-check each DD against the epic SC it claims to satisfy (`← Satisfies:`). A done definition **contradicts** its SC when the DD's observable outcome, if fully achieved, would leave the SC unsatisfied. Common contradiction patterns:
+
+- **Bypass annotation**: DD plans to "annotate" or "exclude" items from the SC's measurement rather than resolving them (e.g., SC says "zero matches" but DD plans to annotate exceptions)
+- **Partial coverage**: DD addresses only a subset of the SC's scope without noting the remainder
+- **Scope narrowing**: DD redefines the SC's scope to be narrower than what the SC specifies
+
+If a contradiction is found:
+1. Revise the DD to align with the SC — the SC is authoritative (it was approved by the user in brainstorm)
+2. If the SC itself is wrong or too strict, flag it for the user: `"SC '<criterion>' may be too strict for this decomposition — <reason>. Revise the SC, or confirm the current SC should be met as written?"`
+3. Do NOT proceed with stories whose DDs contradict their SCs — this produces plans that are structurally guaranteed to fail the completion verifier (c734-2e8c).
+
 #### TDD Done-of-Done Requirement
 
 Code-change stories (stories that produce or modify source code) must include **'unit tests written and passing for all new or modified logic'** as a Done Definition. This is a unit test DoD requirement applied at the story level.
