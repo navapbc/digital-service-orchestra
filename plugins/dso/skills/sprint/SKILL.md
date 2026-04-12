@@ -860,6 +860,26 @@ If a cycle is detected, log a warning and treat both as Layer 0.
 
 Log the layer assignment: `"Dependency layers: Layer 0: <ids>, Layer 1: <ids>, ..."`. Proceed to Step 2 using this layer ordering.
 
+**Step D: Post-planning file-overlap promotion**
+
+After `/dso:implementation-plan` completes for **all stories in a layer**, before beginning the next layer, check for file-level overlap between stories in the same layer:
+
+1. **Collect file sets per story**: For each story in the layer, run `.claude/scripts/dso ticket deps <story-id>` to list its tasks, then for each task run `.claude/scripts/dso ticket show <task-id>` and extract every file path listed under `## Files to Modify` or `## File Impact`. Build a dict `story_files[<story-id>] = set(<file-paths>)`.
+
+2. **Detect pairwise overlaps**: For each pair of stories (A, B) in the same layer where A has higher ticket priority (lower numeric priority value) than B:
+   - Compute `overlap = story_files[A] ∩ story_files[B]`
+   - If `|overlap| > 0`, log: `"FILE_OVERLAP: stories <A> and <B> share <N> files — promoting <B> to next layer. Shared: <first 5 overlap paths>..."`
+   - Add a dependency: `.claude/scripts/dso ticket link <B-id> <A-id> depends_on`
+   - Reassign story B to `current_layer + 1` in the layer map
+
+3. **Re-log updated assignment**: After applying all promotions, log: `"Dependency layers after overlap check: Layer 0: <ids>, Layer 1: <ids>, ..."` so the audit trail reflects the final assignment.
+
+4. **When priority is equal**: If A and B have equal numeric priority, prefer keeping the story that appears first in the layer list (by creation order) and promoting the other.
+
+5. **Skip condition**: If a layer contains only one story, skip the overlap check for that layer (no pairs to compare). Log: `"FILE_OVERLAP check: Layer <N> has only 1 story — skipping."`.
+
+This step fires **per layer**, after implementation-plan returns for the whole layer and before moving to the next. It is not applied retroactively to already-executed layers.
+
 #### Step 2: Run Implementation Planning (/dso:sprint)
 
 Process stories in layer order — Layer 0 first, then Layer 1, etc. Within each layer, invoke `/dso:implementation-plan` sequentially via Skill tool for each story that needs decomposition. Wait for all stories in the layer to complete before processing the next layer.

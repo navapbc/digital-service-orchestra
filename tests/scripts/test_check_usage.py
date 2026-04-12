@@ -119,6 +119,39 @@ class TestCache:
         assert "five_hour" not in result
         assert "seven_day" not in result
 
+    def test_cache_write_normalizes_whole_number_pct(self, tmp_path: Path) -> None:
+        """API utilization values >1.0 (whole-number %) are normalized to 0.0–1.0 fractions.
+
+        The Anthropic API can return utilization as whole-number percentages
+        (e.g. 7 for 7%, 77 for 77%) rather than fractions (0.07, 0.77).
+        write_cache must normalize values >1.0 by dividing by 100 so that
+        verdict thresholds and display formatting remain correct.
+
+        RED: fails before normalization is added to write_cache.
+        GREEN: passes after _normalize_utilization is applied in write_cache.
+        """
+        cache_file = str(tmp_path / "usage-cache.json")
+        # API response with whole-number percentage values (7% and 77%)
+        data = {"five_hour": {"utilization": 7.0}, "seven_day": {"utilization": 77.0}}
+        write_cache(cache_file, data)
+        result = read_cache(cache_file)
+        assert result is not None
+        # Must be stored as fractions, not raw percentages
+        assert result["five_hour_pct"] == pytest.approx(0.07), (
+            f"Expected five_hour_pct=0.07 (7%/100), got {result['five_hour_pct']} "
+            f"(API returned 7.0 which means 7%, not 700%)"
+        )
+        assert result["seven_day_pct"] == pytest.approx(0.77), (
+            f"Expected seven_day_pct=0.77 (77%/100), got {result['seven_day_pct']} "
+            f"(API returned 77.0 which means 77%, not 7700%)"
+        )
+        # Verify verdict is UNLIMITED for 7%/77% usage
+        verdict = compute_verdict(result["five_hour_pct"], result["seven_day_pct"])
+        assert verdict == 0, (
+            f"7%/77% usage should give UNLIMITED (0), got {verdict} "
+            f"(normalized pcts: {result['five_hour_pct']}, {result['seven_day_pct']})"
+        )
+
     def test_cache_flock_uses_separate_lockfile(self, tmp_path: Path) -> None:
         """flock is acquired on .lock file, not the .json data file."""
         import fcntl as _fcntl
