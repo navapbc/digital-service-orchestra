@@ -8,7 +8,7 @@ system remains testable, extensible, and free of circular import chains.
 
 ## Scoring Scale
 
-Scores follow the shared 1–5 scale defined in `plugins/dso/skills/shared/reviewers/SCORING-SCALE.md`.
+Scores follow the shared 1–5 scale defined in `skills/shared/reviewers/SCORING-SCALE.md`.
 
 ## Your Dimensions
 

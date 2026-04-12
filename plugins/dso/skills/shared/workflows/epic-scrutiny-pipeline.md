@@ -17,7 +17,7 @@ The invoking skill **must** supply two parameters when reading this pipeline:
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | `{caller_name}` | The skill's short name (no `dso:` prefix), used in audit logs and schema validation | `brainstorm` |
-| `{caller_prompts_dir}` | Absolute path to the calling skill's `prompts/` directory (resolved via `REPO_ROOT`) | `$REPO_ROOT/plugins/dso/skills/brainstorm/prompts` |
+| `{caller_prompts_dir}` | Absolute path to the calling skill's `prompts/` directory (resolved via `REPO_ROOT`) | `skills/brainstorm/prompts` |
 
 Before executing any step, substitute `{caller_name}` and `{caller_prompts_dir}` with the values provided by the invoking skill.
 
@@ -234,15 +234,15 @@ If either sub-agent fails to return valid JSON, log: "Scenario analysis sub-agen
 
 Run the epic spec through three reviewers **in parallel** using the Task tool. For each reviewer:
 
-1. Read the reviewer prompt from `plugins/dso/skills/shared/docs/reviewers/` (relative to the repo root)
+1. Read the reviewer prompt from `skills/shared/docs/reviewers/` (relative to the repo root)
 2. Pass: the epic title, Context section, Success Criteria, Scenario Analysis section (from Step 3, if present), and (for Scope reviewer) titles of other open epics and Part C covered_by_SC scan output (file_path, matching_line, covered_by_SC tuples)
 3. Instruct the reviewer to return JSON per the `REVIEW-SCHEMA.md` in the review-protocol skill
 
 | Reviewer | Prompt File | Perspective | Dimensions |
 |----------|-------------|------------|------------|
-| Senior Technical Program Manager | `plugins/dso/skills/shared/docs/reviewers/agent-clarity.md` | `"Agent Clarity"` | `self_contained`, `success_measurable` |
-| Senior Product Strategist | `plugins/dso/skills/shared/docs/reviewers/scope.md` | `"Scope"` | `right_sized`, `no_overlap`, `dependency_aware`, `consumer_completeness` |
-| Senior Product Manager | `plugins/dso/skills/shared/docs/reviewers/value.md` | `"Value"` | `user_impact`, `validation_signal` |
+| Senior Technical Program Manager | `skills/shared/docs/reviewers/agent-clarity.md` | `"Agent Clarity"` | `self_contained`, `success_measurable` |
+| Senior Product Strategist | `skills/shared/docs/reviewers/scope.md` | `"Scope"` | `right_sized`, `no_overlap`, `dependency_aware`, `consumer_completeness` |
+| Senior Product Manager | `skills/shared/docs/reviewers/value.md` | `"Value"` | `user_impact`, `validation_signal` |
 | Senior Integration Engineer | `dso:feasibility-reviewer` (dedicated agent) | `"Technical Feasibility"` | `technical_feasibility`, `integration_risk` |
 
 ### Feasibility Review Trigger

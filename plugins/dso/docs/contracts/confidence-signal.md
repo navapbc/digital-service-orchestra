@@ -21,7 +21,7 @@ This contract must be agreed upon before any implementation begins to prevent im
 
 ## Emitter
 
-`plugins/dso/skills/sprint/prompts/task-execution.md` — Implementation sub-agents dispatched during Phase 4 batch execution # shim-exempt: internal implementation path reference
+`skills/sprint/prompts/task-execution.md` — Implementation sub-agents dispatched during Phase 4 batch execution # shim-exempt: internal implementation path reference
 
 The emitter evaluates its own confidence in the completed work immediately before producing its final report. It emits exactly one confidence signal line per task execution, positioned alongside (not instead of) the `STATUS:` and `FILES_MODIFIED:` output lines. The emitter MUST emit one of the two signals — a missing confidence line is treated as `UNCERTAIN` by the parser (fail-safe default).
 
@@ -29,7 +29,7 @@ The emitter evaluates its own confidence in the completed work immediately befor
 
 ## Parser
 
-`plugins/dso/skills/sprint/SKILL.md` — Sprint orchestrator Phase 5 post-batch processing # shim-exempt: internal implementation path reference
+`skills/sprint/SKILL.md` — Sprint orchestrator Phase 5 post-batch processing # shim-exempt: internal implementation path reference
 
 The parser reads each task sub-agent result, scans for the confidence signal line, and records the signal per task. UNCERTAIN signals on `STATUS:pass` tasks are tracked as a count per story (not per task ID) so that task replacement cannot reset the counter.
 
@@ -74,7 +74,7 @@ The confidence signal appears as a line in the sub-agent's final report block, a
 **CONFIDENT signal:**
 ```
 STATUS: pass
-FILES_MODIFIED: plugins/dso/docs/contracts/confidence-signal.md
+FILES_MODIFIED: ${CLAUDE_PLUGIN_ROOT}/docs/contracts/confidence-signal.md
 FILES_CREATED: none
 TESTS: 0 passed, 0 failed
 AC_RESULTS: contract file exists: pass, defines both signals: pass, specifies emitter and parser: pass
@@ -86,7 +86,7 @@ CONFIDENT
 **UNCERTAIN signal:**
 ```
 STATUS: pass
-FILES_MODIFIED: plugins/dso/scripts/record-review.sh # shim-exempt: example payload in contract doc
+FILES_MODIFIED: ${CLAUDE_PLUGIN_ROOT}/scripts/record-review.sh # shim-exempt: example payload in contract doc
 FILES_CREATED: none
 TESTS: 3 passed, 0 failed
 AC_RESULTS: enforces tier: pass, rejects downgrade: pass
@@ -160,8 +160,8 @@ The following components emit or consume this signal:
 
 | Component | Role | Notes |
 |---|---|---|
-| `plugins/dso/skills/sprint/prompts/task-execution.md` | Emitter | All implementation sub-agents dispatched via this prompt must emit a confidence signal line # shim-exempt: internal implementation path reference |
-| `plugins/dso/skills/sprint/SKILL.md` Phase 5 | Parser | Sprint orchestrator — reads and tracks UNCERTAIN count per story; triggers user pause at threshold # shim-exempt: internal implementation path reference |
+| `skills/sprint/prompts/task-execution.md` | Emitter | All implementation sub-agents dispatched via this prompt must emit a confidence signal line # shim-exempt: internal implementation path reference |
+| `skills/sprint/SKILL.md` Phase 5 | Parser | Sprint orchestrator — reads and tracks UNCERTAIN count per story; triggers user pause at threshold # shim-exempt: internal implementation path reference |
 
 All implementors must read this contract before modifying the task-execution prompt or Phase 5 parser logic. Changes to the signal format require updating all conforming emitters and parsers and this document atomically in the same commit.
 

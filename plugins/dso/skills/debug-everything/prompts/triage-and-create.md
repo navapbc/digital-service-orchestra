@@ -32,7 +32,7 @@ For each cluster or standalone error without an existing ticket issue:
 ```bash
 # Title MUST use format: [Component]: [Condition] -> [Observed Result]
 # Example: "TestGate: run staged tests -> exit 144 (SIGURG timeout)"
-# Follow plugins/dso/skills/create-bug/SKILL.md for description format.
+# Follow ${CLAUDE_PLUGIN_ROOT}/skills/create-bug/SKILL.md for description format.
 # Do NOT use --tags CLI_user — autonomously-created bugs must not carry this tag (see SUB-AGENT-BOUNDARIES.md)
 .claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -p <priority> -d "## Incident Overview ..."
 ```

@@ -18,10 +18,10 @@ This contract must be agreed upon before any implementation begins to prevent im
 All recipe engine adapter scripts are placed at:
 
 ```
-plugins/dso/scripts/recipe-adapters/<engine-name>-adapter.sh  # shim-exempt: path in contract doc
+${CLAUDE_PLUGIN_ROOT}/scripts/recipe-adapters/<engine-name>-adapter.sh  # shim-exempt: path in contract doc
 ```
 
-For example: `plugins/dso/scripts/recipe-adapters/ts-morph-adapter.sh` # shim-exempt: path in contract doc
+For example: `scripts/recipe-adapters/ts-morph-adapter.sh` # shim-exempt: path in contract doc
 
 The executor discovers adapters by mapping `engine_name` from the recipe registry to the corresponding script at this path.
 
@@ -230,10 +230,10 @@ The following components implement or consume this contract:
 
 | Component | Role | Notes |
 |---|---|---|
-| `plugins/dso/scripts/recipe-executor.sh` | Executor / Consumer | Sets RECIPE_PARAM_* env vars; parses JSON output; owns rollback # shim-exempt: path in contract doc |
-| `plugins/dso/scripts/recipe-adapters/ts-morph-adapter.sh` | Emitter | Implements ts-morph transforms # shim-exempt: path in contract doc |
-| `plugins/dso/scripts/recipe-adapters/scaffold-route-adapter.sh` | Emitter | Implements scaffold-route transforms # shim-exempt: path in contract doc |
-| `plugins/dso/scripts/recipe-adapters/normalize-imports-adapter.sh` | Emitter | Implements normalize-imports transforms # shim-exempt: path in contract doc |
+| `scripts/recipe-executor.sh` | Executor / Consumer | Sets RECIPE_PARAM_* env vars; parses JSON output; owns rollback # shim-exempt: path in contract doc |
+| `scripts/recipe-adapters/ts-morph-adapter.sh` | Emitter | Implements ts-morph transforms # shim-exempt: path in contract doc |
+| `scripts/recipe-adapters/scaffold-route-adapter.sh` | Emitter | Implements scaffold-route transforms # shim-exempt: path in contract doc |
+| `scripts/recipe-adapters/normalize-imports-adapter.sh` | Emitter | Implements normalize-imports transforms # shim-exempt: path in contract doc |
 
 All implementors must read this contract before writing their adapter or executor. Changes to the JSON output format, exit code definitions, or RECIPE_PARAM_* protocol require updating all conforming adapters and this document atomically in the same commit.
 

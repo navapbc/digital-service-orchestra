@@ -41,7 +41,7 @@ Execute tiers in order. Stop when sufficient prior art is found or the budget is
 **Tier 1 — Project documentation and index (~2 calls)**
 
 1. Read `CLAUDE.md` and any `.claude/docs/` files for guidance on the pattern area.
-2. Check `.test-index` and any architecture decision records in `plugins/dso/docs/` for related patterns.
+2. Check `.test-index` and any architecture decision records in `docs/` for related patterns.
 
 If the answer is found here, stop.
 
@@ -111,7 +111,7 @@ When operating non-interactively and prior art is found, include the following J
     "found": true,
     "references": [
       {
-        "file": "plugins/dso/skills/shared/prompts/value-effort-scorer.md",
+        "file": "${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/value-effort-scorer.md",
         "pattern": "shared prompt fragment",
         "trust": "high",
         "hard_blockers": []

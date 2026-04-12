@@ -132,7 +132,7 @@ Based on the 5-dimension scores, anti-pattern analysis, and context hierarchy co
 
 ### Step 6: Output
 
-Emit exactly one `APPROACH_DECISION` signal in the format defined by the contract at `plugins/dso/docs/contracts/approach-decision-output.md`.
+Emit exactly one `APPROACH_DECISION` signal in the format defined by the contract at `docs/contracts/approach-decision-output.md`.
 
 The output MUST follow the canonical signal format:
 
@@ -190,4 +190,4 @@ All required fields are defined in the contract. Every string field must be non-
 - Do NOT override the context hierarchy — epic success criteria are non-negotiable.
 - Do NOT output anything before or after the `APPROACH_DECISION:` JSON block. The signal must be the sole output.
 - Do NOT select a proposal that fails to cover all story done definitions unless constructing a counter-proposal.
-- Output format MUST conform to `plugins/dso/docs/contracts/approach-decision-output.md`.
+- Output format MUST conform to `docs/contracts/approach-decision-output.md`.

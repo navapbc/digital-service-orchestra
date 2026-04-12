@@ -47,7 +47,7 @@ Example: `1742605200-3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c-CREATE.json`
 
 The timestamp prefix guarantees that lexicographic filename sort equals chronological sort. Any reducer must sort filenames explicitly and must never rely on `readdir` order.
 
-For the complete event file JSON schema (base fields and per-type `data` payloads), see `plugins/dso/docs/contracts/ticket-event-format.md`.
+For the complete event file JSON schema (base fields and per-type `data` payloads), see `docs/contracts/ticket-event-format.md`.
 
 ### How the Reducer Assembles State from Event Files
 
@@ -65,7 +65,7 @@ The sort key for event files is a three-tuple `(timestamp_segment, event_type_or
 ### CLI Invocation
 
 ```bash
-python3 plugins/dso/scripts/ticket-reducer.py <ticket_dir_path> # shim-exempt: direct python invocation of internal script, not a shim-wrapped command
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-reducer.py <ticket_dir_path> # shim-exempt: direct python invocation of internal script, not a shim-wrapped command
 ```
 
 Prints the compiled ticket state as a single-line JSON object to stdout. Exits non-zero for corrupt or ghost tickets.
@@ -74,10 +74,10 @@ Examples:
 
 ```bash
 # Compile a specific ticket
-python3 plugins/dso/scripts/ticket-reducer.py .tickets-tracker/dso-9aq2 # shim-exempt: direct python invocation of internal script
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-reducer.py .tickets-tracker/dso-9aq2 # shim-exempt: direct python invocation of internal script
 
 # Pipe to jq for pretty-printing
-python3 plugins/dso/scripts/ticket-reducer.py .tickets-tracker/dso-9aq2 | jq . # shim-exempt: direct python invocation of internal script
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-reducer.py .tickets-tracker/dso-9aq2 | jq . # shim-exempt: direct python invocation of internal script
 ```
 
 ### Public Module Interface: `reduce_ticket()`
@@ -90,7 +90,7 @@ import importlib, importlib.util, pathlib
 # Load module (hyphenated filename requires importlib)
 spec = importlib.util.spec_from_file_location(
     "ticket_reducer",
-    pathlib.Path("plugins/dso/scripts/ticket-reducer.py"),  # shim-exempt: Python importlib path to internal module
+    pathlib.Path("${CLAUDE_PLUGIN_ROOT}/scripts/ticket-reducer.py"),  # shim-exempt: Python importlib path to internal module
 )
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
@@ -144,7 +144,7 @@ The cache is gitignored on the `tickets` branch and is never committed.
 
 #### `strategy` Parameter
 
-The optional `strategy` parameter accepts a `ReducerStrategy`-compatible object for the sync-events merge path. Callers that do not pass a strategy get `LastTimestampWinsStrategy` by default (dedup by UUID, sort ascending by timestamp). See `plugins/dso/docs/contracts/ticket-reducer-strategy-contract.md` for the full interface contract.
+The optional `strategy` parameter accepts a `ReducerStrategy`-compatible object for the sync-events merge path. Callers that do not pass a strategy get `LastTimestampWinsStrategy` by default (dedup by UUID, sort ascending by timestamp). See `docs/contracts/ticket-reducer-strategy-contract.md` for the full interface contract.
 
 ---
 
@@ -182,7 +182,7 @@ The lock uses Python `fcntl.flock(LOCK_EX | LOCK_NB)` polled at 100 ms intervals
 
 On lock exhaustion, the staging temp is removed. No partial state is left on disk. A half-written event that survived a rename but failed git commit is recoverable by `.claude/scripts/dso ticket fsck`.
 
-For the full lock contract including downstream story obligations (compaction, concurrency stress, sync-events), see `plugins/dso/docs/contracts/ticket-flock-contract.md`.
+For the full lock contract including downstream story obligations (compaction, concurrency stress, sync-events), see `docs/contracts/ticket-flock-contract.md`.
 
 ---
 
@@ -230,7 +230,7 @@ git -C .tickets-tracker fetch origin tickets
 git -C .tickets-tracker rebase origin/tickets
 ```
 
-`.claude/scripts/dso ticket sync` automates this as a split-phase protocol (fetch → merge under lock → push), ensuring the write lock is never held during network I/O. See `plugins/dso/docs/contracts/ticket-sync-events-contract.md`.
+`.claude/scripts/dso ticket sync` automates this as a split-phase protocol (fetch → merge under lock → push), ensuring the write lock is never held during network I/O. See `docs/contracts/ticket-sync-events-contract.md`.
 
 ---
 
@@ -240,11 +240,11 @@ The `--format=llm` flag on `.claude/scripts/dso ticket show` and `.claude/script
 
 The LLM format applies three transformations:
 
-1. **Key shortening**: Long field names are mapped to abbreviated equivalents (e.g., `ticket_id` → `id`, `ticket_type` → `t`, `title` → `ttl`). See `plugins/dso/scripts/ticket-llm-format.py` for the full key map. # shim-exempt: internal implementation path reference
+1. **Key shortening**: Long field names are mapped to abbreviated equivalents (e.g., `ticket_id` → `id`, `ticket_type` → `t`, `title` → `ttl`). See `scripts/ticket-llm-format.py` for the full key map. # shim-exempt: internal implementation path reference
 2. **Null and empty-list stripping**: Fields with `null` values or empty lists are omitted entirely. A ticket with no dependencies produces no `deps` key in LLM output.
 3. **Timestamp omission**: `created_at` and `env_id` are omitted (`OMIT_KEYS` in `ticket-llm-format.py`). Comment timestamps are also omitted — agents care about comment content, not when it was written.
 
-The formatting logic is centralized in `plugins/dso/scripts/ticket-llm-format.py` (`to_llm()` function) and shared by both `ticket-show.sh` and `ticket-list.sh`. # shim-exempt: internal implementation path reference
+The formatting logic is centralized in `scripts/ticket-llm-format.py` (`to_llm()` function) and shared by both `ticket-show.sh` and `ticket-list.sh`. # shim-exempt: internal implementation path reference
 
 `.claude/scripts/dso ticket list --format=llm` outputs JSON Lines (one minified JSON object per line) rather than a JSON array, so agents can stream and filter with standard Unix tools without loading the full array into memory.
 
@@ -261,4 +261,4 @@ Conflict detection is handled at the **semantic** level by the reducer, not at t
 - **STATUS conflicts**: If two environments independently transition a ticket to different statuses, the reducer detects the mismatch via the `current_status` field in each STATUS event (optimistic concurrency proof). Conflicts are recorded in `state["conflicts"]` and surfaced by `.claude/scripts/dso ticket fsck`.
 - **Deduplication**: The `LastTimestampWinsStrategy` deduplicates events by UUID (first occurrence wins) and sorts by timestamp. This handles the case where the same event file appears in both environments' histories after a sync.
 
-For multi-environment conflict resolution strategy (`MostStatusEventsWinsStrategy`), see `plugins/dso/docs/contracts/ticket-reducer-strategy-contract.md`.
+For multi-environment conflict resolution strategy (`MostStatusEventsWinsStrategy`), see `docs/contracts/ticket-reducer-strategy-contract.md`.

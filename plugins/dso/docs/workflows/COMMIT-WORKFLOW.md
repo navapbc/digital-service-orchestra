@@ -17,7 +17,7 @@ Replace commands below with values from your `.claude/dso-config.conf`:
 - `commands.test_changed` (optional — when absent, Step 1.5 is skipped)
 - `commands.validate` (default: `validate.sh --ci`)
 
-The artifacts directory is computed by `get_artifacts_dir()` in `plugins/dso/hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
+The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
 
 ---
 
@@ -46,9 +46,9 @@ if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     if [[ -f "$_cfg" ]]; then
         CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$_cfg" 2>/dev/null | cut -d= -f2-)"
     fi
-    # Final fallback: assume plugin lives at plugins/dso relative to repo root
+    # Final fallback: read dso.plugin_root from config
     if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
+        CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)"
     fi
 fi
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
@@ -332,9 +332,9 @@ if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     if [[ -f "$_cfg" ]]; then
         CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$_cfg" 2>/dev/null | cut -d= -f2-)"
     fi
-    # Final fallback: assume plugin lives at plugins/dso relative to repo root
+    # Final fallback: read dso.plugin_root from config
     if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
+        CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)"
     fi
 fi
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
@@ -366,7 +366,7 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4-stage" >> "$ARTIFACTS_DIR/commit-bre
 Run `record-test-status.sh` **after** `git add -u` (Step 4) so that the recorded diff hash matches the staged index — the pre-commit test gate validates against the staged hash, not the working-tree hash.
 
 ```bash
-bash "$(git rev-parse --show-toplevel)/plugins/dso/hooks/record-test-status.sh"
+bash "$(git rev-parse --show-toplevel)/${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
 ```
 
 - **exit 0**: all associated tests passed (or no associated tests found) — continue to Step 5 (Review Gate).

@@ -102,12 +102,12 @@ Agent tool availability check: if the Agent tool is unavailable, use the inline 
 **If the Agent tool is available** (orchestrator context): dispatch `dso:bot-psychologist` sub-agent:
 
 ```
-Read: plugins/dso/agents/bot-psychologist.md
+Read: ${CLAUDE_PLUGIN_ROOT}/agents/bot-psychologist.md
 Dispatch: subagent_type: dso:bot-psychologist
 Input: bug description, affected skill/agent/prompt file path, ticket content, behavioral symptoms observed
 ```
 
-**If the Agent tool is unavailable** (sub-agent context — inline investigation fallback): Read `plugins/dso/agents/bot-psychologist.md` as a REFERENCE only — use it for the llm-behavioral taxonomy definitions and probe definitions. Do NOT attempt to follow bot-psychologist's own investigation steps (bot-psychologist contains its own SUB-AGENT-GUARD that blocks all diagnosis steps in nested contexts). Instead, perform the investigation directly using fix-bug's own Step 2/3 investigation framework, applying the llm-behavioral taxonomy from bot-psychologist.md. Specifically: identify the behavioral gap type (prompt regression, guidance gap, behavioral drift, etc.) using the taxonomy, then run static analysis on the affected skill/agent/prompt file (grep for relevant patterns, read the file, identify the defect). Skip any steps requiring user-provided experimental results — record them as `INTERACTIVITY_DEFERRED` in the investigation RESULT and surface them for the calling orchestrator to escalate to the user. This fallback ensures LLM-behavioral investigation degrades gracefully when nested dispatch is prohibited, while clearly signaling which investigation steps could not complete.
+**If the Agent tool is unavailable** (sub-agent context — inline investigation fallback): Read `agents/bot-psychologist.md` as a REFERENCE only — use it for the llm-behavioral taxonomy definitions and probe definitions. Do NOT attempt to follow bot-psychologist's own investigation steps (bot-psychologist contains its own SUB-AGENT-GUARD that blocks all diagnosis steps in nested contexts). Instead, perform the investigation directly using fix-bug's own Step 2/3 investigation framework, applying the llm-behavioral taxonomy from bot-psychologist.md. Specifically: identify the behavioral gap type (prompt regression, guidance gap, behavioral drift, etc.) using the taxonomy, then run static analysis on the affected skill/agent/prompt file (grep for relevant patterns, read the file, identify the defect). Skip any steps requiring user-provided experimental results — record them as `INTERACTIVITY_DEFERRED` in the investigation RESULT and surface them for the calling orchestrator to escalate to the user. This fallback ensures LLM-behavioral investigation degrades gracefully when nested dispatch is prohibited, while clearly signaling which investigation steps could not complete.
 </SUB-AGENT-GUARD>
 
 **Step 5 / Step 5.5 exemption**: LLM-behavioral bugs are exempt from the standard RED unit test requirement (see Step 5.5 for details). The behavioral nature of these bugs means a traditional executable RED test cannot always be written before the fix. Instead, use eval-based verification or behavioral assertion verification as the confirmation mechanism.
@@ -164,7 +164,7 @@ Ensure a bug ticket exists and is set to in-progress before investigation begins
    ticket list | python3 -c "import json,sys; tickets=json.load(sys.stdin); bugs=[t for t in tickets if t.get('ticket_type')=='bug' and t.get('status')=='open']; [print(t['ticket_id'],t['title']) for t in bugs]"
    ```
    - If a matching bug is found (same error, same file, or same root symptom): use that ticket ID.
-   - If no match: create a new bug ticket. Read `plugins/dso/skills/create-bug/SKILL.md` for the required title and description format. At minimum supply `-d` with Section 2 (Incident Overview):
+   - If no match: create a new bug ticket. Read `skills/create-bug/SKILL.md` for the required title and description format. At minimum supply `-d` with Section 2 (Incident Overview):
      ```bash
      # Title format: [Component]: [Condition] -> [Observed Result]
      # Capture both stdout and stderr to enable post-creation title validation
@@ -262,9 +262,9 @@ inputs:
   intent_search_budget: <INTENT_SEARCH_BUDGET>
 ```
 
-**Inline fallback**: If the Agent tool rejects the `dso:intent-search` subagent type (e.g., "Unknown agent type", "not supported", or any dispatch failure before the agent runs), read `plugins/dso/agents/intent-search.md` inline and execute its instructions directly with the same `ticket_id` and `intent_search_budget` inputs. This fallback covers the case where plugin agent types are not available in the current Claude Code configuration.
+**Inline fallback**: If the Agent tool rejects the `dso:intent-search` subagent type (e.g., "Unknown agent type", "not supported", or any dispatch failure before the agent runs), read `agents/intent-search.md` inline and execute its instructions directly with the same `ticket_id` and `intent_search_budget` inputs. This fallback covers the case where plugin agent types are not available in the current Claude Code configuration.
 
-The agent returns a gate signal conforming to the shared contract defined in `plugins/dso/docs/contracts/gate-signal-schema.md`.
+The agent returns a gate signal conforming to the shared contract defined in `docs/contracts/gate-signal-schema.md`.
 
 **Route based on gate signal outcome:**
 
@@ -356,7 +356,7 @@ print(json.dumps(payload))
 GATE_1B_OUTPUT=$(echo "$GATE_1B_PAYLOAD" | python3 "$PLUGIN_SCRIPTS/gate-1b-feature-request-check.py")  # shim-exempt: internal orchestration script
 ```
 
-The script exits 0 always and emits a single JSON gate signal to stdout conforming to `plugins/dso/docs/contracts/gate-signal-schema.md`:
+The script exits 0 always and emits a single JSON gate signal to stdout conforming to `docs/contracts/gate-signal-schema.md`:
 
 ```json
 {
@@ -396,7 +396,7 @@ Gate 1b failure must never block a legitimate bug investigation.
 
 **You MUST dispatch the investigation sub-agent described below.** Do NOT investigate inline — reading source code, grepping for patterns, running hypothesis commands, or analyzing the bug yourself does not satisfy this step. The sub-agent follows a rigorous investigation template (five whys, hypothesis generation, empirical validation) that prevents confirmation bias. Dispatch the sub-agent, await its RESULT report, then proceed to Step 3.
 
-**Worktree Isolation**: Read and apply `plugins/dso/skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration before dispatching any investigation sub-agent. When `worktree.isolation_enabled=true`, add `isolation: "worktree"` to each Agent dispatch call. When the config is `false`, absent, or empty, omit the isolation parameter (shared-directory fallback). Pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each dispatch prompt so the sub-agent can verify its isolation.
+**Worktree Isolation**: Read and apply `skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration before dispatching any investigation sub-agent. When `worktree.isolation_enabled=true`, add `isolation: "worktree"` to each Agent dispatch call. When the config is `false`, absent, or empty, omit the isolation parameter (shared-directory fallback). Pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each dispatch prompt so the sub-agent can verify its isolation.
 
 Dispatch investigation sub-agents based on the tier determined in Step 1. All sub-agents receive pre-loaded context before dispatch:
 - Existing failing tests and their output
@@ -634,7 +634,7 @@ When presenting fixes for user approval, display:
 Before writing a RED test or implementing the fix, evaluate the complexity of the proposed fix scope using the complexity-evaluator agent definition:
 
 ```
-Read: plugins/dso/agents/complexity-evaluator.md
+Read: ${CLAUDE_PLUGIN_ROOT}/agents/complexity-evaluator.md
 Input: approved fix description, files affected, estimated change scope
 ```
 
@@ -670,7 +670,7 @@ investigation_findings: <summary of root cause candidates, confidence, and evide
 escalation_reason: <why the fix is COMPLEX — e.g., cross-system refactor, multiple subsystems affected>
 ```
 
-Note for the re-dispatched agent (not actionable in the current dispatch): when the fix track resumes, the implementation agent must consult `plugins/dso/skills/shared/prompts/prior-art-search.md` before writing any fix code — see the prior-art instruction in Fix Implementation.
+Note for the re-dispatched agent (not actionable in the current dispatch): when the fix track resumes, the implementation agent must consult `skills/shared/prompts/prior-art-search.md` before writing any fix code — see the prior-art instruction in Fix Implementation.
 
 3. Stop — do NOT proceed to Step 5 or Step 6. The orchestrator receives this report and decides how to proceed (e.g., re-dispatch `/dso:fix-bug` at orchestrator level with full authority, or invoke `/dso:brainstorm` to create an epic).
 
@@ -699,7 +699,7 @@ Proceed to the corresponding Step 5 branch below.
 
 ### Step 5: RED Test (/dso:fix-bug)
 
-**Standard reference**: Load `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` before writing or modifying any test. Apply all five rules (coverage check, observable behavior, execute-don't-inspect, refactoring litmus test, instruction-file structural boundary) to every test written or modified in this step.
+**Standard reference**: Load `skills/shared/prompts/behavioral-testing-standard.md` before writing or modifying any test. Apply all five rules (coverage check, observable behavior, execute-don't-inspect, refactoring litmus test, instruction-file structural boundary) to every test written or modified in this step.
 
 If the bug already causes an existing test to fail, skip this step — the existing test serves as the RED test.
 
@@ -732,7 +732,7 @@ Parse the leading `TEST_RESULT:` line from the output:
 | Result | Action |
 |--------|--------|
 | `TEST_RESULT:written` | Success. Proceed to Step 5.5 using `TEST_FILE` and `RED_ASSERTION` fields. |
-| `TEST_RESULT:rejected` | This inline dispatch was the sonnet attempt. On rejection, proceed to **Tier 2** of the escalation protocol in `plugins/dso/skills/sprint/prompts/red-task-escalation.md` (skip Tier 1 — already attempted here). `TEST_RESULT:rejected` is **not** an infrastructure failure. See fix-bug verdict mapping below. |
+| `TEST_RESULT:rejected` | This inline dispatch was the sonnet attempt. On rejection, proceed to **Tier 2** of the escalation protocol in `skills/sprint/prompts/red-task-escalation.md` (skip Tier 1 — already attempted here). `TEST_RESULT:rejected` is **not** an infrastructure failure. See fix-bug verdict mapping below. |
 | Timeout / malformed / non-zero exit | Treat as `TEST_RESULT:rejected`. Proceed to Tier 2 of the escalation protocol. |
 
 **Fix-bug verdict mapping** (how escalation verdicts map to fix-bug workflow):
@@ -777,9 +777,9 @@ Before dispatching any fix implementation (Step 6), verify that a RED test exist
 
 ### Step 6: Fix Implementation (/dso:fix-bug)
 
-**Exploration Decomposition**: During investigation, when a diagnostic question is compound or spans multiple sources (multiple codebase layers, web research, or ambiguous scope), apply the shared exploration decomposition protocol at `plugins/dso/skills/shared/prompts/exploration-decomposition.md`. Classify as SINGLE_SOURCE or MULTI_SOURCE. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings directly contradict.
+**Exploration Decomposition**: During investigation, when a diagnostic question is compound or spans multiple sources (multiple codebase layers, web research, or ambiguous scope), apply the shared exploration decomposition protocol at `skills/shared/prompts/exploration-decomposition.md`. Classify as SINGLE_SOURCE or MULTI_SOURCE. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings directly contradict.
 
-**Prior-Art Search**: Before dispatching the fix sub-agent, consult the shared prior-art search framework at `plugins/dso/skills/shared/prompts/prior-art-search.md`. This ensures the fix approach does not duplicate an existing pattern, introduce an inconsistent abstraction, or miss a reuse opportunity. Apply the Routine Exclusions section of that framework — single-file logic fixes that correct a clear bug without introducing new abstractions are exempt. For fixes that add new helpers, patterns, or abstractions, run at least Tier 1–2 of the tiered search protocol before dispatching the fix sub-agent.
+**Prior-Art Search**: Before dispatching the fix sub-agent, consult the shared prior-art search framework at `skills/shared/prompts/prior-art-search.md`. This ensures the fix approach does not duplicate an existing pattern, introduce an inconsistent abstraction, or miss a reuse opportunity. Apply the Routine Exclusions section of that framework — single-file logic fixes that correct a clear bug without introducing new abstractions are exempt. For fixes that add new helpers, patterns, or abstractions, run at least Tier 1–2 of the tiered search protocol before dispatching the fix sub-agent.
 
 **HARD-GATE**: Before dispatching the fix sub-agent, the orchestrator MUST have a `root_cause_report` produced by the investigation sub-agent Task tool call (Step 3 / Step 3-LLM-behavioral). The orchestrating agent may not produce the `root_cause_report` itself — it must come from the prior investigation sub-agent's RESULT output. If no `root_cause_report` is present, do NOT proceed to fix dispatch; return to the appropriate investigation step.
 
@@ -791,7 +791,7 @@ Before dispatching any fix implementation (Step 6), verify that a RED test exist
 - *behavioral*: prompt regressions, agent guidance gaps, skill misinterpretation, incorrect model decisions, LLM output drift — requires investigation sub-agent or bot-psychologist
 - *mechanical*: import errors, syntax errors, lint violations, config parse errors, missing files — deterministic root cause, no investigation sub-agent required
 
-**Worktree Isolation**: Read and apply `plugins/dso/skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration before dispatching the fix sub-agent. When `worktree.isolation_enabled=true`, add `isolation: "worktree"` to the Agent dispatch call. When the config is `false`, absent, or empty, omit the isolation parameter (shared-directory fallback). Pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the dispatch prompt so the sub-agent can verify its isolation.
+**Worktree Isolation**: Read and apply `skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration before dispatching the fix sub-agent. When `worktree.isolation_enabled=true`, add `isolation: "worktree"` to the Agent dispatch call. When the config is `false`, absent, or empty, omit the isolation parameter (shared-directory fallback). Pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the dispatch prompt so the sub-agent can verify its isolation.
 
 Launch a sub-agent to implement the approved fix:
 - The sub-agent receives the full investigation RESULT (root cause, confidence, approved fix) as `root_cause_report`
@@ -818,7 +818,7 @@ $FORMAT_CHECK_CMD   # No format regressions
 - All hypothesis test results
 - Recommendation for manual investigation
 
-> **Gate signal parsing (Gates 2a–2d)**: All gate scripts output JSON conforming to `plugins/dso/docs/contracts/gate-signal-schema.md`. Parse `triggered` and `signal_type` from stdout. On nonzero exit, empty stdout, or unparseable JSON, construct a fallback: `{"gate_id": "<id>", "triggered": false, "signal_type": "<type>", "evidence": "gate error: <reason>", "confidence": "low"}` and log a warning. Gate 2b is an exception — see its section for unique handling.
+> **Gate signal parsing (Gates 2a–2d)**: All gate scripts output JSON conforming to `docs/contracts/gate-signal-schema.md`. Parse `triggered` and `signal_type` from stdout. On nonzero exit, empty stdout, or unparseable JSON, construct a fallback: `{"gate_id": "<id>", "triggered": false, "signal_type": "<type>", "evidence": "gate error: <reason>", "confidence": "low"}` and log a warning. Gate 2b is an exception — see its section for unique handling.
 
 ### Step 7.1: Scope-Drift Review (/dso:fix-bug)
 
@@ -826,7 +826,7 @@ After Step 7 (Verify Fix) passes and before running Gates 2a–2d, check whether
 
 1. **Config check**: Read `scope_drift.enabled` via `read-config.sh`. If `false`, skip Step 7.1 and proceed to Gate 2a.
 
-2. **Agent file existence check (hard-fail)**: Read `plugins/dso/agents/scope-drift-reviewer.md` using the Read tool. If the file is not found, ABORT Step 7.1 with a clear error message — do NOT silently skip. The scope-drift-reviewer agent must be present for this step to run.
+2. **Agent file existence check (hard-fail)**: Read `agents/scope-drift-reviewer.md` using the Read tool. If the file is not found, ABORT Step 7.1 with a clear error message — do NOT silently skip. The scope-drift-reviewer agent must be present for this step to run.
 
 3. **Dispatch pattern** (mirrors intent-search Step 1.5):
    - If Agent tool available: dispatch `scope-drift-reviewer` (subagent_type: `dso:scope-drift-reviewer`) with inputs:
@@ -834,7 +834,7 @@ After Step 7 (Verify Fix) passes and before running Gates 2a–2d, check whether
      - `root_cause_report`: investigation findings from Step 4
      - `git_diff`: output of `git diff` at the current working tree
      - `investigation_files`: list of files identified during investigation
-   - Inline fallback (sub-agent context): read `plugins/dso/agents/scope-drift-reviewer.md` inline and execute with the same inputs. Set `SCOPE_DRIFT_OUTPUT` from the result.
+   - Inline fallback (sub-agent context): read `agents/scope-drift-reviewer.md` inline and execute with the same inputs. Set `SCOPE_DRIFT_OUTPUT` from the result.
 
 4. **Three-way routing based on `SCOPE_DRIFT_OUTPUT`**:
    - **No-drift** (`triggered: false`, `drift_classification: in_scope`): proceed to Gate 2a without friction.
@@ -956,7 +956,7 @@ After all gate checks (Gates 1b, 2a, 2b, 2c, and 2d) have run, collect the resul
 # Build a JSON array of all gate signals collected during this session.
 # Signals come from: Gate 1b (feature-request check), Gate 2a (reversal check),
 # Gate 2b (blast radius — modifier), Gate 2c (test regression), Gate 2d (dependency check).
-# Each signal must conform to plugins/dso/docs/contracts/gate-signal-schema.md.
+# Each signal must conform to ${CLAUDE_PLUGIN_ROOT}/docs/contracts/gate-signal-schema.md.
 #
 # Pass each gate output via stdin as newline-delimited JSON objects; Python reads them safely
 # without bash variable interpolation inside Python string literals.
@@ -1119,7 +1119,7 @@ Each fix sub-agent receives:
 - `assigned_files` — its assigned file(s)
 - `occurrences` — the confirmed occurrences for its assigned files
 
-**Commit between batches**: After each batch of fix sub-agents completes, commit the results following `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md` (including review) before dispatching the next batch. This prevents lost work if a subsequent batch fails.
+**Commit between batches**: After each batch of fix sub-agents completes, commit the results following `docs/workflows/COMMIT-WORKFLOW.md` (including review) before dispatching the next batch. This prevents lost work if a subsequent batch fails.
 
 ```
 for each batch of up to max_agents fix agents:
@@ -1131,7 +1131,7 @@ for each batch of up to max_agents fix agents:
   6. Proceed to next batch
 ```
 
-If a batch returns `batch_status: FAILED` or `PARTIAL`, record findings as a bug ticket (`.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..." --parent=<EPIC_ID>` — follow `plugins/dso/skills/create-bug/SKILL.md` format) and proceed to the next batch — do not block the entire scan on a single failing batch. Do NOT use `--tags CLI_user` for these tickets — they are autonomously-discovered defects identified by the anti-pattern scan, not bugs reported by the user during an interactive session.
+If a batch returns `batch_status: FAILED` or `PARTIAL`, record findings as a bug ticket (`.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..." --parent=<EPIC_ID>` — follow `skills/create-bug/SKILL.md` format) and proceed to the next batch — do not block the entire scan on a single failing batch. Do NOT use `--tags CLI_user` for these tickets — they are autonomously-discovered defects identified by the anti-pattern scan, not bugs reported by the user during an interactive session.
 
 #### 7.5.5 — Observation Tracking (Dogfooding)
 

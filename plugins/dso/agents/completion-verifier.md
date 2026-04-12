@@ -96,7 +96,7 @@ Do NOT use a hardcoded list of consumers. Instead, discover them via codebase se
 
 ```bash
 # Find scripts/skills that reference the modified component
-grep -rl "<component-name>" plugins/dso/skills/ plugins/dso/scripts/ plugins/dso/hooks/ .claude/scripts/ 2>/dev/null  # shim-exempt: grep search path, not script invocation
+grep -rl "<component-name>" ${CLAUDE_PLUGIN_ROOT}/skills/ ${CLAUDE_PLUGIN_ROOT}/scripts/ ${CLAUDE_PLUGIN_ROOT}/hooks/ .claude/scripts/ 2>/dev/null  # shim-exempt: grep search path, not script invocation
 ```
 
 For each discovered consumer, determine whether it is affected by the change (by reading its source), and if so, define a verification command.
@@ -108,7 +108,7 @@ For each affected consumer, run a targeted verification command. Examples:
 | Consumer type | Verification example |
 |---------------|---------------------|
 | Ticket CLI | `.claude/scripts/dso ticket list 2>&1 | head -5` — should not error |
-| Hook script | `bash plugins/dso/hooks/dispatchers/pre-bash.sh '{"tool_name":"Bash","tool_input":{"command":"echo test"}}' 2>&1` |
+| Hook script | `bash ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-bash.sh '{"tool_name":"Bash","tool_input":{"command":"echo test"}}' 2>&1` |
 | Sprint tooling | `.claude/scripts/dso sprint-list-epics.sh --help 2>&1` |
 | Merge workflow | `.claude/scripts/dso merge-to-main.sh --help 2>&1` |
 

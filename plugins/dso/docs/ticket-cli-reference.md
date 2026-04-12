@@ -8,9 +8,9 @@ The ticket system CLI entry point:
 
 | Entry point | Purpose |
 |---|---|
-| `ticket <subcommand>` | Event-sourced ticket system (dispatcher at `plugins/dso/scripts/ticket`) — adds Jira sync, dependency trees, and human-friendly output | # shim-exempt: internal implementation path in table
+| `ticket <subcommand>` | Event-sourced ticket system (dispatcher at `scripts/ticket`) — adds Jira sync, dependency trees, and human-friendly output | # shim-exempt: internal implementation path in table
 
-Source of truth for each subcommand is in `plugins/dso/scripts/ticket-*.sh` and `plugins/dso/scripts/ticket-*.py`. # shim-exempt: internal implementation paths The dispatcher at `plugins/dso/scripts/ticket` routes all subcommands to those implementation scripts. # shim-exempt: internal implementation path reference
+Source of truth for each subcommand is in `scripts/ticket-*.sh` and `scripts/ticket-*.py`. # shim-exempt: internal implementation paths The dispatcher at `scripts/ticket` routes all subcommands to those implementation scripts. # shim-exempt: internal implementation path reference
 
 The ticket tracker is stored as an orphan git branch (`tickets`) mounted as a worktree at `.tickets-tracker/`. Each ticket is a directory containing append-only JSON event files. The compiled state is produced on-demand by the reducer (`ticket-reducer.py`).
 

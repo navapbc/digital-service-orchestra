@@ -184,7 +184,7 @@ If a PRD or .claude/design-notes.md exists, open with a brief summary of what yo
 
 **Investigate before asking**: Before presenting any question to the user, check whether the answer is discoverable by reading the codebase (existing skills, ARCH_ENFORCEMENT.md, pyproject.toml, project-understanding.md, module structure). Only ask the user questions whose answers cannot be found in the repo. Questions about design approach, user experience preferences, or business priorities are appropriate for the user; questions about existing implementations, available tools, or project structure are not.
 
-**Exploration decomposition**: When a context question is compound or spans multiple sources (web research, multiple codebase layers, ambiguous scope), apply the shared exploration decomposition protocol at `plugins/dso/skills/shared/prompts/exploration-decomposition.md` to classify it as SINGLE_SOURCE or MULTI_SOURCE before proceeding. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings contradict.
+**Exploration decomposition**: When a context question is compound or spans multiple sources (web research, multiple codebase layers, ambiguous scope), apply the shared exploration decomposition protocol at `skills/shared/prompts/exploration-decomposition.md` to classify it as SINGLE_SOURCE or MULTI_SOURCE before proceeding. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings contradict.
 
 ### Step 2: The "Tell Me More" Loop
 
@@ -310,10 +310,10 @@ Track provenance internally — you will use these categories in Step 4 to annot
 
 ### Steps 2.5, 2.6, 2.75, and Step 3: Epic Scrutiny Pipeline
 
-Read and execute the shared epic scrutiny pipeline from `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass the current epic spec (Context + Success Criteria + Approach) as input, and supply the required pipeline parameters:
+Read and execute the shared epic scrutiny pipeline from `skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass the current epic spec (Context + Success Criteria + Approach) as input, and supply the required pipeline parameters:
 
 - `{caller_name}` = `brainstorm`
-- `{caller_prompts_dir}` = `$REPO_ROOT/plugins/dso/skills/brainstorm/prompts`
+- `{caller_prompts_dir}` = `skills/brainstorm/prompts`
 
 #### Step 2.5 Supplement: Gap Analysis and ast-grep Pattern Discovery for Technical Self-Review
 
@@ -482,9 +482,9 @@ Wait for the user's response before calling `ticket create`. If approved, create
 **Full scrutiny path (follow_on_depth == 0)**:
 1. **Determine request_origin and pre-strip Part A artifacts if needed**: If `request_origin` is `"scope-split"`, pre-strip Part A artifact references from the seeding material before drafting the follow-on spec. This prevents the primary epic's (Part A) content from bleeding into the follow-on scope. Exclude or skip Part A content when seeding the follow-on spec — only use Part B and scope-reviewer recommendations.
 2. **Draft the follow-on epic spec**: title, 1-2 sentence context, and 2-4 proposed success criteria. Seed from the scope reviewer's recommendation or the user's directional statement — do not invent scope.
-3. **Invoke the epic scrutiny pipeline**: Run the shared scrutiny pipeline at `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md` on the drafted follow-on epic spec, passing:
+3. **Invoke the epic scrutiny pipeline**: Run the shared scrutiny pipeline at `skills/shared/workflows/epic-scrutiny-pipeline.md` on the drafted follow-on epic spec, passing:
    - `{caller_name}` = `brainstorm`
-   - `{caller_prompts_dir}` = `$REPO_ROOT/plugins/dso/skills/brainstorm/prompts`
+   - `{caller_prompts_dir}` = `skills/brainstorm/prompts`
 4. **Present with scrutiny results and wait for explicit approval**:
    ```
    Follow-on epic proposed: "[Title]"
@@ -548,7 +548,7 @@ DESCRIPTION
 )"
 ```
 
-**Priority guidance (new epics only):** Before creating the ticket, read and apply the value/effort scorer from `plugins/dso/skills/shared/prompts/value-effort-scorer.md`. Assess the epic's value (1-5) and effort (1-5) based on the conversation context, map to the recommended priority via the scorer's matrix, and use that priority with `-p <priority>` in the ticket create command above.
+**Priority guidance (new epics only):** Before creating the ticket, read and apply the value/effort scorer from `skills/shared/prompts/value-effort-scorer.md`. Assess the epic's value (1-5) and effort (1-5) based on the conversation context, map to the recommended priority via the scorer's matrix, and use that priority with `-p <priority>` in the ticket create command above.
 
 ### Step 2: Set Dependencies
 
@@ -584,7 +584,7 @@ After the epic is created and ticket health passes, classify the epic's complexi
 
 #### Step 4a: Dispatch Complexity Evaluator Agent
 
-Dispatch the dedicated complexity evaluator agent to classify the epic. Read `plugins/dso/agents/complexity-evaluator.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "haiku"`. Pass the epic ID as the argument and `tier_schema=SIMPLE` so the agent outputs SIMPLE/MODERATE/COMPLEX tier vocabulary. (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.)
+Dispatch the dedicated complexity evaluator agent to classify the epic. Read `agents/complexity-evaluator.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "haiku"`. Pass the epic ID as the argument and `tier_schema=SIMPLE` so the agent outputs SIMPLE/MODERATE/COMPLEX tier vocabulary. (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.)
 
 ```
 Agent tool:

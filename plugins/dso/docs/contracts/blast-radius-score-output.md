@@ -19,7 +19,7 @@ This document defines the interface between `blast-radius-score.py` (emitter) an
 
 ## Emitter
 
-`plugins/dso/scripts/blast-radius-score.py` # shim-exempt: internal implementation path reference
+`scripts/blast-radius-score.py` # shim-exempt: internal implementation path reference
 
 The emitter reads file paths from stdin (one per line), scores each file against known high-impact patterns, path depth, and directory conventions, then prints a single JSON object to stdout and exits 0. It exits non-zero only on unhandled exceptions.
 
@@ -27,7 +27,7 @@ The emitter reads file paths from stdin (one per line), scores each file against
 
 ## Parser
 
-`plugins/dso/agents/complexity-evaluator.md` (Step 2.5)
+`agents/complexity-evaluator.md` (Step 2.5)
 
 The parser pipes the file list discovered in Step 2 into the emitter and reads the JSON from stdout. It uses `complex_override` to apply the blast-radius COMPLEX promotion rule. It exposes `score` and `signals` to callers via the `blast_radius_score` and `blast_radius_signals` fields of its own output schema.
 
@@ -143,8 +143,8 @@ Two different blast-radius signals exist in this codebase. They measure differen
 
 | Signal | Emitter | Measures | Used by |
 |---|---|---|---|
-| `blast-radius-score` (this contract) | `plugins/dso/scripts/blast-radius-score.py` # shim-exempt: internal implementation path | Cross-stack structural scope: how many layers, known high-impact files, and directory conventions are spanned by the changed file set. Input is a list of file paths from the ticket description. | `complexity-evaluator.md` Step 2.5 — to route tickets to COMPLEX when structural spread is high |
-| `blast_radius` factor | `plugins/dso/scripts/review-complexity-classifier.sh` # shim-exempt: internal implementation path | Import fan-out: the number of other files that import the changed files, as a proxy for how widely a change propagates through the dependency graph. Input is the staged git diff. | `REVIEW-WORKFLOW.md` Step 3 — to select the review tier (light/standard/deep) |
+| `blast-radius-score` (this contract) | `scripts/blast-radius-score.py` # shim-exempt: internal implementation path | Cross-stack structural scope: how many layers, known high-impact files, and directory conventions are spanned by the changed file set. Input is a list of file paths from the ticket description. | `complexity-evaluator.md` Step 2.5 — to route tickets to COMPLEX when structural spread is high |
+| `blast_radius` factor | `scripts/review-complexity-classifier.sh` # shim-exempt: internal implementation path | Import fan-out: the number of other files that import the changed files, as a proxy for how widely a change propagates through the dependency graph. Input is the staged git diff. | `REVIEW-WORKFLOW.md` Step 3 — to select the review tier (light/standard/deep) |
 
 These two measures are distinct quantities computed from different inputs for different consumers. A high `blast-radius-score` does not imply a high `blast_radius` review factor, and vice versa.
 

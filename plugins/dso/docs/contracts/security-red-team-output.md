@@ -23,7 +23,7 @@ This contract must be agreed upon before either side is implemented to prevent i
 
 `dso:code-reviewer-security-red-team` (sonnet)
 
-Located at `plugins/dso/agents/code-reviewer-security-red-team.md`.
+Located at `agents/code-reviewer-security-red-team.md`.
 
 The emitter receives a code diff and performs adversarial security review against a defined set of security criteria (e.g., TOCTOU, injection, path traversal, secret exposure, privilege escalation). It outputs a `reviewer-findings.json`-conformant payload and exits. The emitter is invoked by the overlay dispatch orchestrator as part of the security overlay review pipeline.
 
@@ -145,4 +145,4 @@ If the emitter exits non-zero, times out (exit code 144 from SIGURG), or writes 
 
 ## Versioning
 
-This contract is unversioned. Breaking changes (field removal, type changes, removal or renaming of criterion prefixes, schema restructuring) require updating the emitter agent definition (`plugins/dso/agents/code-reviewer-security-red-team.md`) and this document atomically in the same commit. Additive changes (new optional fields, new criterion prefixes) are backward-compatible and do not require a version bump.
+This contract is unversioned. Breaking changes (field removal, type changes, removal or renaming of criterion prefixes, schema restructuring) require updating the emitter agent definition (`agents/code-reviewer-security-red-team.md`) and this document atomically in the same commit. Additive changes (new optional fields, new criterion prefixes) are backward-compatible and do not require a version bump.

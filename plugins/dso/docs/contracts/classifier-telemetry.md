@@ -7,7 +7,7 @@
 
 ## Purpose
 
-This document defines the schema for `classifier-telemetry.jsonl` — the append-only JSONL log emitted by `plugins/dso/scripts/review-complexity-classifier.sh` on each invocation. # shim-exempt: internal implementation path reference Each line is a self-contained JSON record capturing the full classification decision (tier scores, size fields, and the list of staged files) for post-deployment calibration and drift analysis.
+This document defines the schema for `classifier-telemetry.jsonl` — the append-only JSONL log emitted by `scripts/review-complexity-classifier.sh` on each invocation. # shim-exempt: internal implementation path reference Each line is a self-contained JSON record capturing the full classification decision (tier scores, size fields, and the list of staged files) for post-deployment calibration and drift analysis.
 
 This contract must be agreed upon before any calibration tooling consumes the log to prevent implicit schema assumptions.
 
@@ -21,7 +21,7 @@ This contract must be agreed upon before any calibration tooling consumes the lo
 
 ## Emitter
 
-`plugins/dso/scripts/review-complexity-classifier.sh` # shim-exempt: internal implementation path reference
+`scripts/review-complexity-classifier.sh` # shim-exempt: internal implementation path reference
 
 On each successful classification, the emitter appends one JSON record (no trailing newline added between records — standard JSONL) to `$ARTIFACTS_DIR/classifier-telemetry.jsonl`. The emitter exits 0 on success or non-zero on failure; telemetry write failures must not affect the classifier's stdout output or exit code.
 
@@ -65,7 +65,7 @@ Each JSONL record is a JSON object. All fields are required.
 ## Example JSONL Entry
 
 ```json
-{"blast_radius":2,"critical_path":0,"anti_shortcut":0,"staleness":1,"cross_cutting":1,"diff_lines":1,"change_volume":0,"computed_total":5,"selected_tier":"standard","files":["plugins/dso/scripts/review-complexity-classifier.sh","plugins/dso/docs/contracts/classifier-tier-output.md"],"diff_size_lines":87,"size_action":"none","is_merge_commit":false} # shim-exempt: JSON example data showing actual file paths in telemetry output
+{"blast_radius":2,"critical_path":0,"anti_shortcut":0,"staleness":1,"cross_cutting":1,"diff_lines":1,"change_volume":0,"computed_total":5,"selected_tier":"standard","files":["${CLAUDE_PLUGIN_ROOT}/scripts/review-complexity-classifier.sh","${CLAUDE_PLUGIN_ROOT}/docs/contracts/classifier-tier-output.md"],"diff_size_lines":87,"size_action":"none","is_merge_commit":false} # shim-exempt: JSON example data showing actual file paths in telemetry output
 ```
 
 Each line in `classifier-telemetry.jsonl` is a complete, independent JSON record. Consumers must parse line-by-line; they must not attempt to parse the file as a single JSON document.

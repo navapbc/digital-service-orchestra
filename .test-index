@@ -118,9 +118,9 @@ tests/fixtures/scope-drift-detection: tests/scripts/test-e2e-synthetic-fixtures.
 CLAUDE.md: tests/scripts/test-docs-behavioral-drift-prevention.sh
 plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
 plugins/dso/hooks/**/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
-plugins/dso/agents/*.md:tests/hooks/test-no-plugin-markdown-refs.sh [test_zero_refs]
-plugins/dso/docs/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh [test_zero_refs]
-plugins/dso/skills/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh [test_zero_refs]
+plugins/dso/agents/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
+plugins/dso/docs/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
+plugins/dso/skills/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
 scripts/migrate-runtime-refs.py:tests/scripts/test-migrate-runtime-refs.py
 scripts/migrate-markdown-refs.py:tests/scripts/test-migrate-markdown-refs.py
 plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh [test_no_plugin_runtime_refs]

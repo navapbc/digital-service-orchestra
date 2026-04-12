@@ -25,7 +25,7 @@ ticket ID.
 
 ## Emitter
 
-**Component**: `plugins/dso/scripts/archive-closed-tickets.sh` # shim-exempt: internal implementation path reference
+**Component**: `scripts/archive-closed-tickets.sh` # shim-exempt: internal implementation path reference
 
 The emitter writes a tombstone for every ticket it archives. Behavior:
 

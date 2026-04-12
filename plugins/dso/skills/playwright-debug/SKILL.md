@@ -468,7 +468,7 @@ echo "$rc_output"
 For additional browser interaction patterns and sandbox restrictions, see the CLI guide:
 
 ```bash
-if [[ -f "${CLAUDE_PLUGIN_ROOT:-plugins/dso}/docs/PLAYWRIGHT-CLI-GUIDE.md" ]]; then # shim-exempt: conditional reference check
+if [[ -f "${CLAUDE_PLUGIN_ROOT}/docs/PLAYWRIGHT-CLI-GUIDE.md" ]]; then
   echo "CLI guide available for reference: ${CLAUDE_PLUGIN_ROOT}/docs/PLAYWRIGHT-CLI-GUIDE.md"
 fi
 ```

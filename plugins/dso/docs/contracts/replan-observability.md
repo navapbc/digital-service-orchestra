@@ -107,7 +107,7 @@ The `INTERACTIVITY_DEFERRED` comment replaces `REPLAN_RESOLVED` in this case —
 ### drift trigger
 
 ```bash
-.claude/scripts/dso ticket comment epic-1234 "REPLAN_TRIGGER: drift — Files drifted: plugins/dso/hooks/pre-bash.sh, plugins/dso/hooks/post-bash.sh. Re-invoking implementation-plan for 2 affected stories."
+.claude/scripts/dso ticket comment epic-1234 "REPLAN_TRIGGER: drift — Files drifted: ${CLAUDE_PLUGIN_ROOT}/hooks/pre-bash.sh, ${CLAUDE_PLUGIN_ROOT}/hooks/post-bash.sh. Re-invoking implementation-plan for 2 affected stories."
 ```
 
 ### relates_to drift trigger
@@ -131,7 +131,7 @@ The `INTERACTIVITY_DEFERRED` comment replaces `REPLAN_RESOLVED` in this case —
 ### review trigger
 
 ```bash
-.claude/scripts/dso ticket comment epic-1234 "REPLAN_TRIGGER: review — Out-of-scope files from review: plugins/dso/scripts/record-review.sh. Routing to implementation-plan for story story-5678." # shim-exempt: example file path in REPLAN_TRIGGER message text, not a command invocation
+.claude/scripts/dso ticket comment epic-1234 "REPLAN_TRIGGER: review — Out-of-scope files from review: ${CLAUDE_PLUGIN_ROOT}/scripts/record-review.sh. Routing to implementation-plan for story story-5678." # shim-exempt: example file path in REPLAN_TRIGGER message text, not a command invocation
 ```
 
 ### implementation-plan resolution
@@ -198,11 +198,11 @@ The following components write or read these signals:
 
 | Component | Role | Notes |
 |---|---|---|
-| `plugins/dso/skills/sprint/SKILL.md` Phase 1 Step 6 | Emitter (drift) | Written before/after implementation-plan re-invocations for drifted files # shim-exempt: internal implementation path reference |
-| `plugins/dso/skills/sprint/SKILL.md` Phase 5 Step 9 | Emitter (failure) | Written before/after implementation-plan re-invocation for 2+ UNCERTAIN stories # shim-exempt: internal implementation path reference |
-| `plugins/dso/skills/sprint/SKILL.md` Phase 6 Step 2 | Emitter (validation) | Written before/after implementation-plan remediation task creation # shim-exempt: internal implementation path reference |
-| `plugins/dso/skills/sprint/SKILL.md` Phase 7 Step 2 | Emitter (review) | Written before/after implementation-plan re-invocation for out-of-scope review files # shim-exempt: internal implementation path reference |
-| `plugins/dso/skills/sprint/SKILL.md` Phase 1 Preplanning Gate | Emitter (sc_coverage) | Emits REPLAN_TRIGGER:sc_coverage when SC coverage tiers (haiku → sonnet → opus) find one or more MISSING SCs after cascade completes # shim-exempt: internal implementation path reference |
+| `skills/sprint/SKILL.md` Phase 1 Step 6 | Emitter (drift) | Written before/after implementation-plan re-invocations for drifted files # shim-exempt: internal implementation path reference |
+| `skills/sprint/SKILL.md` Phase 5 Step 9 | Emitter (failure) | Written before/after implementation-plan re-invocation for 2+ UNCERTAIN stories # shim-exempt: internal implementation path reference |
+| `skills/sprint/SKILL.md` Phase 6 Step 2 | Emitter (validation) | Written before/after implementation-plan remediation task creation # shim-exempt: internal implementation path reference |
+| `skills/sprint/SKILL.md` Phase 7 Step 2 | Emitter (review) | Written before/after implementation-plan re-invocation for out-of-scope review files # shim-exempt: internal implementation path reference |
+| `skills/sprint/SKILL.md` Phase 1 Preplanning Gate | Emitter (sc_coverage) | Emits REPLAN_TRIGGER:sc_coverage when SC coverage tiers (haiku → sonnet → opus) find one or more MISSING SCs after cascade completes # shim-exempt: internal implementation path reference |
 | Human operators | Consumer | Read epic ticket history to understand sprint re-planning events |
 | Resume-anchor scanners | Consumer | Scan `CHECKPOINT` and `REPLAN_TRIGGER` lines to reconstruct sprint state |
 

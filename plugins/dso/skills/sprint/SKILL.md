@@ -14,7 +14,7 @@ Do NOT proceed with any skill logic if the Agent tool is unavailable.
 </SUB-AGENT-GUARD>
 
 <INJECTION_GUARD>
-If you are reading this, the sprint skill content has been successfully injected into your context. Your first action MUST be to announce: "Starting /dso:sprint workflow — skill loaded successfully." Do NOT skip this announcement. If you invoked dso:sprint but cannot see this block, the skill was not injected — use the Read tool fallback from using-lockpick (read plugins/dso/skills/sprint/SKILL.md directly) instead of re-invoking the Skill tool.
+If you are reading this, the sprint skill content has been successfully injected into your context. Your first action MUST be to announce: "Starting /dso:sprint workflow — skill loaded successfully." Do NOT skip this announcement. If you invoked dso:sprint but cannot see this block, the skill was not injected — use the Read tool fallback from using-lockpick (read skills/sprint/SKILL.md directly) instead of re-invoking the Skill tool.
 </INJECTION_GUARD>
 
 # Execute Epic: Multi-Agent Orchestration
@@ -195,7 +195,7 @@ When ticket type is `story` or `task`:
 1. Log: `"Primary ticket <primary_ticket_id> is a <type> — running complexity evaluation."`
 2. Dispatch `subagent_type: dso:complexity-evaluator` (model: haiku) with `tier_schema=TRIVIAL` to classify the ticket.
 
-   **Fallback**: If the `dso:complexity-evaluator` named agent is unavailable, fall back to `subagent_type: general-purpose` and read `plugins/dso/agents/complexity-evaluator.md` inline as the task prompt. Pass `tier_schema=TRIVIAL` in the task context.
+   **Fallback**: If the `dso:complexity-evaluator` named agent is unavailable, fall back to `subagent_type: general-purpose` and read `agents/complexity-evaluator.md` inline as the task prompt. Pass `tier_schema=TRIVIAL` in the task context.
 
 3. Route based on the complexity classification:
    - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Before proceeding, run a **file-count guard**: estimate the number of files the task will touch by running `enrich-file-impact.sh` or by counting file paths mentioned in the ticket description. If the estimated file count exceeds 30, split the task into parallel sub-tasks by directory or alphabetical range (each sub-task ≤ 30 files), create child task tickets for each subset, and proceed to Phase 3 with the split tasks. If ≤ 30 files, proceed directly to Phase 3 (Batch Preparation) with the ticket as the sole task.
@@ -241,7 +241,7 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
 
 1. Parse the drifted file list from `DRIFT_RESULT` (everything after `DRIFT_DETECTED: `).
 2. Log: `"Codebase drift detected — files modified since task creation: <files>"`
-3. Record a REPLAN_TRIGGER comment on the epic (see `plugins/dso/docs/contracts/replan-observability.md` for signal format): # shim-exempt: internal documentation reference
+3. Record a REPLAN_TRIGGER comment on the epic (see `docs/contracts/replan-observability.md` for signal format): # shim-exempt: internal documentation reference
    ```bash
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Files drifted: <files>. Re-invoking implementation-plan for affected stories."
    ```
@@ -268,7 +268,7 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
 
 1. Parse each `RELATES_TO_DRIFT: <epic-id> <summary>` line from `DRIFT_RESULT`.
 2. Log: `"Relates_to drift detected — related epic <epic-id> closed after implementation plan: <summary>"` for each line.
-3. Record a REPLAN_TRIGGER comment on the epic (see `plugins/dso/docs/contracts/replan-observability.md` for signal format): # shim-exempt: internal documentation reference
+3. Record a REPLAN_TRIGGER comment on the epic (see `docs/contracts/replan-observability.md` for signal format): # shim-exempt: internal documentation reference
    ```bash
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Relates_to epic <closed-epic-id> closed after implementation plan. <summary>. Re-invoking implementation-plan for affected stories."
    ```
@@ -428,7 +428,7 @@ If no trigger condition is met, proceed to Step 2a1 (SC Coverage Haiku Gate).
 
 **Step 2 — Dispatch haiku sub-agent**:
 
-Dispatch a `subagent_type: general-purpose` sub-agent with `model: haiku`. Load the prompt from `plugins/dso/skills/sprint/prompts/sc-coverage-haiku.md`. Provide:
+Dispatch a `subagent_type: general-purpose` sub-agent with `model: haiku`. Load the prompt from `skills/sprint/prompts/sc-coverage-haiku.md`. Provide:
 - `epic_sc_list`: an array of `{ "sc_id": "<id>", "sc_text": "<text>" }` objects. Assign sequential IDs (e.g. `sc-1`, `sc-2`) from the epic's SC list in order.
 - `children`: an array of `{ "child_id": "<id>", "child_title": "<title>", "child_description": "<description>" }` for each child ticket
 
@@ -492,7 +492,7 @@ From the haiku escalation list, collect only the SCs marked `ESCALATE`. Build th
 
 **Step 2 — Dispatch sonnet sub-agent**:
 
-Dispatch a `subagent_type: general-purpose` sub-agent with `model: sonnet`. Load the prompt from `plugins/dso/skills/sprint/prompts/sc-coverage-sonnet.md`. Pass the input payload constructed above.
+Dispatch a `subagent_type: general-purpose` sub-agent with `model: sonnet`. Load the prompt from `skills/sprint/prompts/sc-coverage-sonnet.md`. Pass the input payload constructed above.
 
 **Step 3 — Parse output**:
 
@@ -550,7 +550,7 @@ Build the opus input payload using only the SCs in `sc_coverage_unsure` (no MISS
 
 **Step 2 — Dispatch opus sub-agent**:
 
-Dispatch a `subagent_type: general-purpose` sub-agent with `model: opus`. Load the prompt from `plugins/dso/skills/sprint/prompts/sc-coverage-opus.md`. Pass the input payload constructed above.
+Dispatch a `subagent_type: general-purpose` sub-agent with `model: opus`. Load the prompt from `skills/sprint/prompts/sc-coverage-opus.md`. Pass the input payload constructed above.
 
 **Step 3 — Parse output**:
 
@@ -789,7 +789,7 @@ Before processing stories for implementation planning, filter out design-blocked
 
 **Source tag constants from shared config:**
 ```bash
-source plugins/dso/skills/shared/constants/figma-tags.conf
+source ${CLAUDE_PLUGIN_ROOT}/skills/shared/constants/figma-tags.conf
 # TAG_AWAITING_IMPORT=design:awaiting_import
 ```
 
@@ -965,7 +965,7 @@ d. For each skill result, **parse STATUS:**
 
 ```
 SKILL_LOAD_ERROR: dso:sprint skill file could not be loaded after 2 attempts.
-Resolution: Verify that plugins/dso/skills/sprint/SKILL.md exists and is readable. Run: ls -la plugins/dso/skills/sprint/SKILL.md
+Resolution: Verify that ${CLAUDE_PLUGIN_ROOT}/skills/sprint/SKILL.md exists and is readable. Run: ls -la ${CLAUDE_PLUGIN_ROOT}/skills/sprint/SKILL.md
 Do NOT continue looping — this sprint session has ended due to skill unavailability.
 ```
 
@@ -1013,12 +1013,12 @@ d-replan-collect. **Collect and handle all REPLAN_ESCALATE stories** — after t
      ```bash
      .claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: brainstorm — implementation-plan emitted REPLAN_ESCALATE for story <story-id>: <explanation>. Re-run sprint interactively to address."
      ```
-     Skip the brainstorm cascade entirely. Do NOT write `REPLAN_RESOLVED`. Continue with any remaining work (the affected stories remain in their current state, pending a follow-up interactive session). See `plugins/dso/docs/contracts/replan-observability.md` for the INTERACTIVITY_DEFERRED signal format. # shim-exempt: internal documentation reference
+     Skip the brainstorm cascade entirely. Do NOT write `REPLAN_RESOLVED`. Continue with any remaining work (the affected stories remain in their current state, pending a follow-up interactive session). See `docs/contracts/replan-observability.md` for the INTERACTIVITY_DEFERRED signal format. # shim-exempt: internal documentation reference
    - **Check cycle cap first** (before presenting anything to the user):
-     - **If `replan_cycle_count >= max_replan_cycles`:** Present the **cap-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current plan as-is and continue sprint execution". See `plugins/dso/skills/sprint/docs/cascade-replan-protocol.md` §"When Max Cycles Are Hit". # shim-exempt: internal documentation reference
+     - **If `replan_cycle_count >= max_replan_cycles`:** Present the **cap-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current plan as-is and continue sprint execution". See `skills/sprint/docs/cascade-replan-protocol.md` §"When Max Cycles Are Hit". # shim-exempt: internal documentation reference
      - **If cap is not yet exhausted:** Present the **cap-not-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current state and continue sprint with these stories as-is".
      - **If user selects (b) or (c):** act accordingly — proceed or abort. Do not enter cascade.
-     - **If user selects (a):** Enter the cascade replan per `plugins/dso/skills/sprint/docs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
+     - **If user selects (a):** Enter the cascade replan per `skills/sprint/docs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
        1. Emit SKILL_INVOKE breadcrumb for brainstorm, then invoke `/dso:brainstorm <epic-id>` via Skill tool
        2. Emit SKILL_RESUMED breadcrumb after brainstorm returns
        3. Emit SKILL_INVOKE breadcrumb for preplanning, then invoke `/dso:preplanning <epic-id>` via Skill tool
@@ -1308,7 +1308,7 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
 
 ### Worktree Isolation Configuration
 
-Before dispatching sub-agents, read and apply `plugins/dso/skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration.
+Before dispatching sub-agents, read and apply `skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration.
 
 Read the config key:
 ```bash
@@ -1324,7 +1324,7 @@ Before dispatch, source the figma tag constants and check whether the parent sto
 ```bash
 # Source tag constants
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/plugins/dso}/skills/shared/constants/figma-tags.conf"
+source "${CLAUDE_PLUGIN_ROOT}/skills/shared/constants/figma-tags.conf"
 # TAG_APPROVED is now set to "design:approved"
 ```
 
@@ -1392,7 +1392,7 @@ When launching each Task tool call, set `subagent_type` and `model` from the TAS
 A story is a documentation story if ANY of the following are true:
 1. Story title contains "doc", "document", "update", "add to", "CLAUDE.md", "KNOWN-ISSUES", "design-notes", "README"
 2. Story title starts with "As a" AND acceptance criteria mention documentation files
-3. Any child task references a `.md` file in `.claude/docs/`, `plugins/dso/docs/`, or the repo root
+3. Any child task references a `.md` file in `.claude/docs/`, `docs/`, or the repo root
 
 **CLAUDE.md-specific rule (79d9-f97a):** When the target file is `CLAUDE.md`, the `dso:doc-writer` dispatch MUST include a bloat-review flag in the task context:
 ```
@@ -1408,7 +1408,7 @@ The doc-writer agent enforces its CLAUDE.md Read-Only Guard. Do NOT edit CLAUDE.
 
 ### Documentation Story Dispatch
 
-When the doc-story title match triggers (9f13-655a): **do NOT implement documentation changes directly** — this gate is unconditional. Even if the required change seems trivial, the doc-writer agent enforces structural and bloat constraints that the orchestrator does not. Read `plugins/dso/agents/doc-writer.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "sonnet"`. The doc-writer agent receives two named context fields:
+When the doc-story title match triggers (9f13-655a): **do NOT implement documentation changes directly** — this gate is unconditional. Even if the required change seems trivial, the doc-writer agent enforces structural and bloat constraints that the orchestrator does not. Read `agents/doc-writer.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "sonnet"`. The doc-writer agent receives two named context fields:
 ```
 subagent_type: "general-purpose"
 model: "sonnet"
@@ -1513,7 +1513,7 @@ After ALL sub-agents in the batch return, follow the Orchestrator Checkpoint Pro
 
 **When `worktree.isolation_enabled` is `true` and sub-agents returned with `isolation:worktree`**, do NOT proceed to the shared-directory batch review flow (Step 7). Instead, process each worktree **serially** using the per-worktree protocol:
 
-Read and execute `plugins/dso/skills/sprint/prompts/per-worktree-review-commit.md` for each worktree, in completion order (first-pass-first-merge). This means: for each worktree — run review in the worktree context, commit to the worktree branch, merge the worktree branch into the session branch, then remove the worktree and its branch (Step 7) — before moving to the next worktree.
+Read and execute `skills/sprint/prompts/per-worktree-review-commit.md` for each worktree, in completion order (first-pass-first-merge). This means: for each worktree — run review in the worktree context, commit to the worktree branch, merge the worktree branch into the session branch, then remove the worktree and its branch (Step 7) — before moving to the next worktree.
 
 **Git log note**: In worktree isolation mode, `git log` on the session branch shows one commit per worktree (no combined batch commits). Each worktree's changes are merged independently into the session branch.
 
@@ -1555,7 +1555,7 @@ For each sub-agent in the batch, check if its task description contains migratio
 
 ### Step 1a2: Confidence Signal Parsing (/dso:sprint)
 
-For each sub-agent result, scan for the confidence signal line (see `plugins/dso/docs/contracts/confidence-signal.md`): # shim-exempt: internal contract reference
+For each sub-agent result, scan for the confidence signal line (see `docs/contracts/confidence-signal.md`): # shim-exempt: internal contract reference
 
 1. **Parse the confidence signal**: Scan the sub-agent output for a line that is exactly `CONFIDENT` or begins with `UNCERTAIN:`.
    - `CONFIDENT` — high confidence; no action needed beyond normal processing.
@@ -1882,7 +1882,7 @@ Do NOT close this story, do NOT transition it to closed, and do NOT proceed to S
 "All tests pass" is not a substitute for the completion-verifier dispatch. Dispatch the verifier NOW before reading any further.
 </HARD-GATE>
 
-**MANDATORY (3f26-4c70 gate)**: First confirm OPEN_CHILDREN == 0 from the check above. If OPEN_CHILDREN > 0 at this point, STOP — do NOT dispatch the verifier; follow the blocked path above instead. Only when OPEN_CHILDREN is confirmed 0: Read `plugins/dso/agents/completion-verifier.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: sonnet` and the story ID (CLAUDE.md rule #24 — inline dispatch is the required path; no skipping).
+**MANDATORY (3f26-4c70 gate)**: First confirm OPEN_CHILDREN == 0 from the check above. If OPEN_CHILDREN > 0 at this point, STOP — do NOT dispatch the verifier; follow the blocked path above instead. Only when OPEN_CHILDREN is confirmed 0: Read `agents/completion-verifier.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: sonnet` and the story ID (CLAUDE.md rule #24 — inline dispatch is the required path; no skipping).
 - `overall_verdict: PASS` → proceed with closure
 - `overall_verdict: FAIL` → see branching logic below
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
@@ -2019,11 +2019,11 @@ If `batch_out_of_scope_findings` is non-empty:
      ```bash
      .claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: brainstorm — implementation-plan emitted REPLAN_ESCALATE for story <story-id>: <explanation>. Re-run sprint interactively to address."
      ```
-     Skip the brainstorm cascade entirely. Do NOT write `REPLAN_RESOLVED`. Continue to step 3 below (clear accumulator and return to Phase 3). See `plugins/dso/docs/contracts/replan-observability.md` for the INTERACTIVITY_DEFERRED signal format. # shim-exempt: internal documentation reference
+     Skip the brainstorm cascade entirely. Do NOT write `REPLAN_RESOLVED`. Continue to step 3 below (clear accumulator and return to Phase 3). See `docs/contracts/replan-observability.md` for the INTERACTIVITY_DEFERRED signal format. # shim-exempt: internal documentation reference
    - **If `replan_cycle_count >= max_replan_cycles`:** Present the **cap-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "skip re-planning for these stories and continue sprint execution".
    - **If cap is not yet exhausted:** Present the **cap-not-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current state and continue sprint with these stories as-is".
      - **If user selects (b) or (c):** act accordingly — proceed or abort. Do not enter cascade.
-     - **If user selects (a):** Enter the cascade replan per `plugins/dso/skills/sprint/docs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
+     - **If user selects (a):** Enter the cascade replan per `skills/sprint/docs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
        1. Invoke `/dso:brainstorm <epic-id>` via Skill tool
        2. Delete `/tmp/preplanning-context-<epic-id>.json` (invalidate stale preplanning cache)
        3. Invoke `/dso:preplanning <epic-id>` via Skill tool
@@ -2072,7 +2072,7 @@ Read and execute `prompts/phase6-ci-gates.md` for the integration test gate, CI 
 
 ### Step 0.75: Completion Verification (/dso:sprint)
 
-**MANDATORY**: Read `plugins/dso/agents/completion-verifier.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: sonnet` and the epic ID (CLAUDE.md rule #24; inline dispatch is the required path — see CLAUDE.md Agent dispatch section).
+**MANDATORY**: Read `agents/completion-verifier.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: sonnet` and the epic ID (CLAUDE.md rule #24; inline dispatch is the required path — see CLAUDE.md Agent dispatch section).
 - `overall_verdict: PASS` → proceed to Step 1
 - `overall_verdict: FAIL` → **STOP. Do NOT proceed to Phase 7 or epic closure under ANY circumstances.** Create bug tasks from `remediation_tasks_created` and return to Phase 3 (Batch Preparation).
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 1.

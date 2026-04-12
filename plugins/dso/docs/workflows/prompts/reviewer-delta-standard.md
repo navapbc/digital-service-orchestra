@@ -26,7 +26,7 @@ Before applying the checklist, identify the primary file type(s) in this diff an
 the corresponding additional sub-criteria below. Multiple file types may apply to a single
 diff — apply all relevant sections.
 
-### Bash Scripts (`plugins/dso/hooks/`, `plugins/dso/scripts/`, `tests/`) # shim-exempt: file path pattern for code review file-type classification, not an invocation
+### Bash Scripts (`hooks/`, `scripts/`, `tests/`) # shim-exempt: file path pattern for code review file-type classification, not an invocation
 
 **correctness** sub-criteria:
 - [ ] Variables referenced inside conditionals and command arguments are double-quoted:
@@ -66,7 +66,7 @@ diff — apply all relevant sections.
 - [ ] Tests use `assert` statements (not just `print`) and exercise both success and
   failure paths
 
-### Markdown / Skill / Doc Files (`plugins/dso/skills/`, `plugins/dso/docs/`, `*.md`)
+### Markdown / Skill / Doc Files (`skills/`, `docs/`, `*.md`)
 
 **maintainability** sub-criteria:
 - [ ] Skill invocations in in-scope files (skills/, docs/, hooks/, commands/, CLAUDE.md)

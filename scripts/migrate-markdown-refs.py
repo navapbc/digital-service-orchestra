@@ -1,219 +1,273 @@
 #!/usr/bin/env python3
-"""Migrate plugins/dso references in Markdown files to portable alternatives.
+"""Migrate plugins/dso/ references in markdown files to portable alternatives.
 
-Classification:
-  Runtime context (inside code blocks, tool calls, shell invocations)
-    -> ${CLAUDE_PLUGIN_ROOT}/path
-  Prose context (backtick paths, plain text in flowing prose)
-    -> strip plugins/dso/ prefix
+Runtime paths (in code blocks, tool invocations) → ${CLAUDE_PLUGIN_ROOT}/path
+Prose references (backtick paths in text, headings, etc.) → strip plugins/dso/ prefix
 
-CLI:
-  python3 scripts/migrate-markdown-refs.py [--dry-run] [--verbose] [--runtime-only] <target_dirs...>
+Usage:
+    python3 scripts/migrate-markdown-refs.py [--dry-run] [--verbose] [--runtime-only] <target_dirs...>
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
-from pathlib import Path
 
-# Pattern matching plugins/dso references
-_PLUGINS_DSO_RE = re.compile(r"plugins/dso/")
 
-# Patterns that indicate runtime context on a single line
-_RUNTIME_LINE_PATTERNS = [
-    re.compile(r"Read\(.*plugins/dso/"),
-    re.compile(r"Glob\(.*plugins/dso/"),
-    re.compile(r"Grep\(.*plugins/dso/"),
-    re.compile(r"Bash\(.*plugins/dso/"),
-    re.compile(r"^cat\s"),
-    re.compile(r"^source\s"),
-    re.compile(r"^bash\s"),
-    re.compile(r"^sh\s"),
-    re.compile(r"\.claude/scripts/dso"),
+# Pattern to match plugins/dso/ references
+PLUGINS_DSO_RE = re.compile(r"plugins/dso/")
+
+# Lines that are clearly runtime/code context
+RUNTIME_LINE_PATTERNS = [
+    re.compile(r"^\s*```"),  # fenced code block delimiter
+    re.compile(r"^\s*source\s+"),  # shell source command
+    re.compile(r"^\s*bash\s+"),  # bash invocation
+    re.compile(r"^\s*sh\s+"),  # sh invocation
+    re.compile(r"^\s*python3?\s+"),  # python invocation
+    re.compile(r"^\s*cat\s+"),  # cat command
+    re.compile(r"^\s*grep\s+"),  # grep command
+    re.compile(r"^\s*echo\s+"),  # echo command
+    re.compile(r"Read\("),  # Tool invocation
+    re.compile(r"Glob\("),  # Tool invocation
+    re.compile(r"Grep\("),  # Tool invocation
+    re.compile(r"Bash\("),  # Tool invocation
 ]
 
-# Fenced code block opener: ``` optionally followed by a language identifier
-_FENCE_OPEN_RE = re.compile(r"^```")
-_FENCE_CLOSE_RE = re.compile(r"^```\s*$")
+# Already using CLAUDE_PLUGIN_ROOT — skip
+ALREADY_PORTABLE_RE = re.compile(r"\$\{?CLAUDE_PLUGIN_ROOT\}?")
+
+# Pattern for backtick-wrapped paths in prose
+BACKTICK_PATH_RE = re.compile(r"`([^`]*plugins/dso/[^`]*)`")
 
 
-def _is_runtime_line(line: str) -> bool:
-    """Check if a line has runtime context indicators (outside code blocks)."""
-    stripped = line.strip()
-    for pat in _RUNTIME_LINE_PATTERNS:
-        if pat.search(stripped):
+def is_runtime_line(line: str) -> bool:
+    """Check if a line is in runtime/code context."""
+    for pattern in RUNTIME_LINE_PATTERNS:
+        if pattern.search(line):
             return True
+    # Table cells with commands: | ... `bash ...` or | ... `cat ...`
+    if re.search(r"\|\s*`(bash|sh|cat|source|python3?|grep)\s+", line):
+        return True
     return False
 
 
-def _replace_runtime(line: str) -> str:
-    """Replace plugins/dso/ with ${CLAUDE_PLUGIN_ROOT}/ for runtime context."""
-    return line.replace("plugins/dso/", "${CLAUDE_PLUGIN_ROOT}/")
+def classify_and_convert(line: str, in_code_block: bool) -> tuple[str, str | None]:
+    """Classify a line and convert plugins/dso/ references.
 
-
-def _replace_prose(line: str) -> str:
-    """Strip plugins/dso/ prefix for prose context."""
-    return line.replace("plugins/dso/", "")
-
-
-def migrate_file(
-    path: str | Path,
-    dry_run: bool = False,
-    runtime_only: bool = False,
-    verbose: bool = False,
-) -> dict:
-    """Migrate plugins/dso references in a single file.
-
-    Args:
-        path: Path to the markdown file.
-        dry_run: If True, don't write changes.
-        runtime_only: If True, only convert runtime refs, skip prose.
-        verbose: If True, print detailed output.
-
-    Returns:
-        dict with keys: path, runtime_count, prose_count, skipped_count, changed
+    Returns (converted_line, conversion_type) where conversion_type is
+    'runtime', 'prose', or None if no conversion needed.
     """
-    path = Path(path)
-    result = {
-        "path": str(path),
-        "runtime_count": 0,
-        "prose_count": 0,
-        "skipped_count": 0,
-        "changed": False,
-    }
+    if not PLUGINS_DSO_RE.search(line):
+        return line, None
 
-    if not path.exists():
-        return result
+    # Skip lines that already use CLAUDE_PLUGIN_ROOT
+    if ALREADY_PORTABLE_RE.search(line):
+        # But still convert any remaining plugins/dso/ refs on the same line
+        # that aren't part of the CLAUDE_PLUGIN_ROOT pattern
+        # e.g., ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/plugins/dso}
+        # Check if all plugins/dso/ refs are inside a fallback pattern
+        test_line = re.sub(
+            r"\$\{CLAUDE_PLUGIN_ROOT:-\$REPO_ROOT/plugins/dso\}", "", line
+        )
+        test_line = re.sub(r"\$CLAUDE_PLUGIN_ROOT/\S*", "", test_line)
+        if not PLUGINS_DSO_RE.search(test_line):
+            return line, None
 
-    original_lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-    new_lines: list[str] = []
+    if in_code_block or is_runtime_line(line):
+        return _convert_runtime(line), "runtime"
+    else:
+        return _convert_prose(line), "prose"
+
+
+def _convert_runtime(line: str) -> str:
+    """Convert runtime references to ${CLAUDE_PLUGIN_ROOT}/path.
+
+    Handles:
+    - $REPO_ROOT/plugins/dso/path → ${CLAUDE_PLUGIN_ROOT}/path
+    - "$REPO_ROOT/plugins/dso/path" → "${CLAUDE_PLUGIN_ROOT}/path"
+    - plugins/dso/path → ${CLAUDE_PLUGIN_ROOT}/path
+    """
+    # First: $REPO_ROOT/plugins/dso/ → ${CLAUDE_PLUGIN_ROOT}/
+    line = re.sub(r"\$\{?REPO_ROOT\}?/plugins/dso/", "${CLAUDE_PLUGIN_ROOT}/", line)
+    # Then: remaining bare plugins/dso/ → ${CLAUDE_PLUGIN_ROOT}/
+    # But skip if inside a fallback like ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/plugins/dso}
+    line = re.sub(r"(?<!\:-\$REPO_ROOT/)plugins/dso/", "${CLAUDE_PLUGIN_ROOT}/", line)
+    return line
+
+
+def _convert_prose(line: str) -> str:
+    """Convert prose references by stripping the plugins/dso/ prefix.
+
+    Handles:
+    - `plugins/dso/path/file.md` → `path/file.md`
+    - plugins/dso/path in plain text → path
+    - ### Heading (`plugins/dso/path/`) → ### Heading (`path/`)
+    - `plugins/dso/` (bare directory) → `the plugin root`
+    - Backtick-wrapped commands (bash, cat, source, Read, etc.) → runtime conversion
+    """
+
+    # Handle backtick-wrapped paths first
+    def replace_backtick_path(m: re.Match) -> str:
+        inner = m.group(1)
+        # If the backtick content looks like a command, use runtime conversion
+        if re.match(r"(bash|sh|cat|source|python3?|grep|echo)\s+", inner):
+            inner = re.sub(
+                r"\$\{?REPO_ROOT\}?/plugins/dso/", "${CLAUDE_PLUGIN_ROOT}/", inner
+            )
+            inner = re.sub(
+                r"(?<!\:-\$REPO_ROOT/)plugins/dso/", "${CLAUDE_PLUGIN_ROOT}/", inner
+            )
+            return f"`{inner}`"
+        inner = re.sub(r"\$\{?REPO_ROOT\}?/plugins/dso/", "", inner)
+        # Handle bare `plugins/dso/` → keep as descriptive text
+        if inner == "plugins/dso/" or inner == "plugins/dso":
+            return "the plugin root directory"
+        inner = inner.replace("plugins/dso/", "")
+        return f"`{inner}`"
+
+    line = BACKTICK_PATH_RE.sub(replace_backtick_path, line)
+
+    # Handle remaining bare references not in backticks
+    # $REPO_ROOT/plugins/dso/ → strip entirely
+    line = re.sub(r"\$\{?REPO_ROOT\}?/plugins/dso/", "", line)
+    # Bare plugins/dso/ → strip (but keep it if it would leave nothing meaningful)
+    line = line.replace("plugins/dso/", "")
+
+    return line
+
+
+def process_file(
+    filepath: str,
+    dry_run: bool = False,
+    verbose: bool = False,
+    runtime_only: bool = False,
+) -> dict:
+    """Process a single markdown file.
+
+    Returns stats dict with runtime_count, prose_count, skipped_count.
+    """
+    stats = {"runtime": 0, "prose": 0, "skipped": 0, "changes": []}
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        original_lines = f.readlines()
+
+    new_lines = []
     in_code_block = False
 
-    for line in original_lines:
-        stripped = line.strip()
+    for i, line in enumerate(original_lines, 1):
+        stripped = line.rstrip("\n")
 
-        # Track fenced code block state
-        if not in_code_block and _FENCE_OPEN_RE.match(stripped) and stripped != "```":
-            # Opening fence with language identifier (```bash, ```json, etc.)
-            in_code_block = True
-            new_lines.append(line)
-            continue
-        elif not in_code_block and stripped == "```":
-            # Bare ``` — opening fence
-            in_code_block = True
-            new_lines.append(line)
-            continue
-        elif in_code_block and _FENCE_CLOSE_RE.match(stripped):
-            # Closing fence
-            in_code_block = False
-            new_lines.append(line)
-            continue
-
-        # Check if line contains plugins/dso references
-        if "plugins/dso/" not in line:
-            new_lines.append(line)
-            continue
-
-        # Skip lines with # shim-exempt:
-        if "# shim-exempt:" in line:
-            result["skipped_count"] += 1
-            new_lines.append(line)
-            continue
-
-        # Classify and transform
-        if in_code_block or _is_runtime_line(line):
-            # Runtime context
-            new_line = _replace_runtime(line)
-            result["runtime_count"] += line.count("plugins/dso/")
-            if verbose:
-                print(f"  RUNTIME: {line.rstrip()}")
-            new_lines.append(new_line)
-        elif runtime_only:
-            # Prose but --runtime-only mode, skip
-            result["skipped_count"] += 1
-            new_lines.append(line)
+        # Track code block state
+        if re.match(r"\s*```", stripped):
+            # Toggle code block state (only if it's a fence, not inline)
+            # Opening fence: ``` or ```language
+            # Closing fence: ```
+            if in_code_block:
+                # This is a closing fence — process this line as still in code block
+                converted, conv_type = classify_and_convert(stripped, True)
+                in_code_block = False
+            else:
+                # This is an opening fence — process this line as not yet in code block
+                converted, conv_type = classify_and_convert(stripped, False)
+                in_code_block = True
         else:
-            # Prose context
-            new_line = _replace_prose(line)
-            result["prose_count"] += line.count("plugins/dso/")
+            converted, conv_type = classify_and_convert(stripped, in_code_block)
+
+        if conv_type == "runtime":
+            stats["runtime"] += 1
             if verbose:
-                print(f"  PROSE: {line.rstrip()}")
-            new_lines.append(new_line)
+                stats["changes"].append(
+                    f"  {filepath}:{i} [runtime]\n    - {stripped}\n    + {converted}"
+                )
+        elif conv_type == "prose":
+            if runtime_only:
+                stats["skipped"] += 1
+                converted = stripped  # Don't apply prose conversion
+            else:
+                stats["prose"] += 1
+                if verbose:
+                    stats["changes"].append(
+                        f"  {filepath}:{i} [prose]\n    - {stripped}\n    + {converted}"
+                    )
 
-    new_content = "".join(new_lines)
-    original_content = "".join(original_lines)
+        new_lines.append(converted + "\n")
 
-    if new_content != original_content:
-        result["changed"] = True
-        if not dry_run:
-            path.write_text(new_content, encoding="utf-8")
+    if not dry_run and (stats["runtime"] > 0 or stats["prose"] > 0):
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
 
-    return result
-
-
-def migrate_directory(
-    target_dir: str | Path,
-    dry_run: bool = False,
-    runtime_only: bool = False,
-    verbose: bool = False,
-) -> list[dict]:
-    """Migrate all .md files in a directory tree."""
-    target = Path(target_dir)
-    results = []
-    for md_file in sorted(target.rglob("*.md")):
-        result = migrate_file(
-            md_file, dry_run=dry_run, runtime_only=runtime_only, verbose=verbose
-        )
-        results.append(result)
-        if verbose and result["changed"]:
-            print(
-                f"  {result['path']}: {result['runtime_count']} runtime, {result['prose_count']} prose"
-            )
-    return results
+    return stats
 
 
-def main(argv: list[str] | None = None) -> int:
+def find_md_files(directories: list[str]) -> list[str]:
+    """Find all .md files in given directories."""
+    md_files = []
+    for directory in directories:
+        for root, _dirs, files in os.walk(directory):
+            for fname in sorted(files):
+                if fname.endswith(".md"):
+                    md_files.append(os.path.join(root, fname))
+    return sorted(md_files)
+
+
+def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Migrate plugins/dso references in Markdown files."
+        description="Migrate plugins/dso/ references in markdown files"
     )
-    parser.add_argument("target_dirs", nargs="+", help="Directories to scan")
-    parser.add_argument("--dry-run", action="store_true", help="Don't write changes")
-    parser.add_argument("--verbose", action="store_true", help="Print detailed output")
+    parser.add_argument("directories", nargs="+", help="Directories to scan")
     parser.add_argument(
-        "--runtime-only",
-        action="store_true",
-        help="Only convert runtime refs; skip prose stripping",
+        "--dry-run", action="store_true", help="Show changes without applying"
     )
-    args = parser.parse_args(argv)
+    parser.add_argument("--verbose", action="store_true", help="Show detailed changes")
+    parser.add_argument(
+        "--runtime-only", action="store_true", help="Only convert runtime references"
+    )
+
+    args = parser.parse_args()
+
+    # Validate directories exist
+    for d in args.directories:
+        if not os.path.isdir(d):
+            print(f"Error: {d} is not a directory", file=sys.stderr)
+            return 1
+
+    md_files = find_md_files(args.directories)
 
     total_runtime = 0
     total_prose = 0
     total_skipped = 0
-    total_changed = 0
+    files_modified = 0
 
-    for target_dir in args.target_dirs:
-        results = migrate_directory(
-            target_dir,
+    for filepath in md_files:
+        stats = process_file(
+            filepath,
             dry_run=args.dry_run,
-            runtime_only=args.runtime_only,
             verbose=args.verbose,
+            runtime_only=args.runtime_only,
         )
-        for r in results:
-            total_runtime += r["runtime_count"]
-            total_prose += r["prose_count"]
-            total_skipped += r["skipped_count"]
-            if r["changed"]:
-                total_changed += 1
 
-    prefix = "[DRY RUN] " if args.dry_run else ""
-    print(
-        f"{prefix}{total_changed} files changed, "
-        f"{total_runtime} runtime refs, "
-        f"{total_prose} prose refs, "
-        f"{total_skipped} skipped"
-    )
+        if stats["runtime"] > 0 or stats["prose"] > 0:
+            files_modified += 1
+            if args.verbose:
+                for change in stats["changes"]:
+                    print(change)
+
+        total_runtime += stats["runtime"]
+        total_prose += stats["prose"]
+        total_skipped += stats["skipped"]
+
+    mode = "DRY RUN" if args.dry_run else "APPLIED"
+    scope = "runtime-only" if args.runtime_only else "full"
+    print(f"\n{mode} ({scope}):")
+    print(f"  Files scanned: {len(md_files)}")
+    print(f"  Files modified: {files_modified}")
+    print(f"  Runtime conversions: {total_runtime}")
+    print(f"  Prose conversions: {total_prose}")
+    if total_skipped:
+        print(f"  Prose skipped (runtime-only mode): {total_skipped}")
+
     return 0
 
 
