@@ -1,0 +1,1 @@
+{"timestamp": 1776022623, "uuid": "6ef30a96-64be-4e08-971e-e26a1c184018", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "bug", "title": "test_missing_sg_gracefully_degrades fails on macOS bash 3.2", "parent_id": "", "description": "", "tags": [], "priority": 3, "assignee": "Test"}}
