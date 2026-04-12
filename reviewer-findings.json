@@ -1,13 +1,30 @@
 {
-  "reviewer": "dso:code-reviewer-light",
-  "review_tier": "light",
   "scores": {
-    "correctness": 5,
-    "verification": 5,
     "hygiene": 5,
-    "design": 5,
-    "maintainability": 5
+    "design": 4,
+    "maintainability": 4,
+    "correctness": 5,
+    "verification": 4
   },
-  "findings": [],
-  "summary": "Adds explicit agent-unavailable fallback to sprint SKILL.md Step 10a and Phase 6 Step 0.75 for dso:completion-verifier dispatch, directing the orchestrator to use general-purpose with the agent definition inline instead of skipping the step. Structural test added to verify both fallback blocks are present. Matches pattern already established for dso:complexity-evaluator fallback."
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "design",
+      "description": "The haiku-tier prompt uses `epic_sc_list` as the input key while the sonnet-tier prompt uses `sc_list` for what is conceptually the same field (the list of SCs to evaluate). The opus-tier deliberately uses `unsure_scs` as it receives a filtered subset — that naming difference is intentional and acceptable. The haiku/sonnet naming inconsistency means any orchestrator calling both tiers must use different key names for the same logical input, increasing integration error risk. Since no calling code exists yet in this diff, this is a design-time correction opportunity. Aligning to a single key name (e.g., `sc_list`) across haiku and sonnet would reduce future integration friction.",
+      "file": "plugins/dso/skills/sprint/prompts/sc-coverage-haiku.md"
+    },
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "description": "The test file uses inline ok()/fail() helpers rather than sourcing tests/lib/assert.sh. Both patterns coexist in tests/skills/ (roughly half the files use each pattern), so this is not a convention violation. It is a minor style divergence from the assert.sh-using structural boundary tests in the same directory, but acceptable for a file-existence and grep-content structural test of this scope.",
+      "file": "tests/skills/test-sprint-sc-coverage-prompts.sh"
+    },
+    {
+      "severity": "minor",
+      "category": "verification",
+      "description": "The test validates file existence and section headers/fields but does not assert on the specific input key names (epic_sc_list vs sc_list). If the haiku input key is renamed to align with sonnet, the test will still pass because it only greps for 'sc_id|sc_text' which appear in both formats. This is a low-risk gap but means the test would not catch a future key-name regression introduced by fixing the design finding.",
+      "file": "tests/skills/test-sprint-sc-coverage-prompts.sh"
+    }
+  ],
+  "summary": "The three-tier SC coverage prompt design is architecturally sound with appropriate role separation (haiku=fast citation, sonnet=independent, opus=final arbiter). Two minor findings from pass 1 are confirmed: the haiku/sonnet input key name inconsistency (epic_sc_list vs sc_list) is a design-time correction opportunity, and the test uses inline helpers rather than assert.sh (acceptable given dual-pattern in tests/skills/). An additional minor verification finding: the test does not assert on specific input key names, so a future key rename would not be caught by this test. All three prompt files correctly enforce JSON-only output, have clear output schemas, and include appropriate field validation rules. security_overlay_warranted: no, performance_overlay_warranted: no, approach_viability_concern: false"
 }
