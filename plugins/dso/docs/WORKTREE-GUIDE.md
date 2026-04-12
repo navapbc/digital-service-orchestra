@@ -408,7 +408,7 @@ Steps to run at the start of each Claude Code session, depending on context.
 
 Check for stale worktrees and clean them up using the automated script:
 
-> **Script location**: canonical source at `.claude/scripts/dso worktree-cleanup.sh`. Config-driven via `.claude/dso-config.conf` (`infrastructure.compose_db_file`, `infrastructure.compose_project`, `infrastructure.container_prefix`, `worktree.branch_pattern`, `worktree.max_age_days`). Docker steps are skipped when `infrastructure.compose_db_file` is absent.
+> **Script location**: canonical source at `.claude/scripts/dso worktree-cleanup.sh`. Config-driven via `.claude/dso-config.conf` (`infrastructure.compose_db_file`, `infrastructure.compose_project`, `infrastructure.container_prefix`, `worktree.branch_pattern`, `worktree.max_age_hours`). Docker steps are skipped when `infrastructure.compose_db_file` is absent.
 
 ```bash
 # Preview what would be removed (safe, no changes made)

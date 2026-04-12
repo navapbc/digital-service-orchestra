@@ -28,7 +28,7 @@ REQUIRED_CONFIG_VARS = [
     "CONFIG_COMPOSE_PROJECT",
     "CONFIG_CONTAINER_PREFIX",
     "CONFIG_BRANCH_PATTERN",
-    "CONFIG_MAX_AGE_DAYS",
+    "CONFIG_MAX_AGE_HOURS",
 ]
 
 # The five read-config.sh keys that must be read
@@ -37,7 +37,7 @@ REQUIRED_CONFIG_KEYS = [
     "infrastructure.compose_project",
     "infrastructure.container_prefix",
     "worktree.branch_pattern",
-    "worktree.max_age_days",
+    "worktree.max_age_hours",
 ]
 
 
@@ -69,8 +69,8 @@ def _extract_startup_config_block(script_content: str) -> str:
             in_block = True
         if in_block:
             block_lines.append(line)
-            # Stop after the last CONFIG_ assignment (CONFIG_MAX_AGE_DAYS)
-            if "CONFIG_MAX_AGE_DAYS" in line and "read-config.sh" in line:
+            # Stop after the last CONFIG_ assignment (CONFIG_MAX_AGE_HOURS)
+            if "CONFIG_MAX_AGE_HOURS" in line and "read-config.sh" in line:
                 break
 
     return "\n".join(block_lines)
@@ -485,75 +485,157 @@ class TestBranchPatternConfig:
 
 
 @pytest.mark.scripts
-class TestAgeDaysConfig:
-    """AGE_DAYS default in worktree-cleanup.sh is driven by CONFIG_MAX_AGE_DAYS."""
+class TestAgeHoursConfig:
+    """AGE_HOURS default in worktree-cleanup.sh is driven by CONFIG_MAX_AGE_HOURS."""
 
-    def test_age_days_uses_config_max_age_days(self) -> None:
-        """AGE_DAYS in the Defaults block uses ${CONFIG_MAX_AGE_DAYS:-2} instead of literal 2.
+    def test_age_hours_uses_config_max_age_hours(self) -> None:
+        """AGE_HOURS in the Defaults block uses ${CONFIG_MAX_AGE_HOURS:-12} instead of a literal.
 
-        RED: fails while AGE_DAYS=2 literal is still present.
-        GREEN: passes after AGE_DAYS=${CONFIG_MAX_AGE_DAYS:-2} is used.
+        RED: fails while the old AGE_DAYS/CONFIG_MAX_AGE_DAYS pattern is still present.
+        GREEN: passes after AGE_HOURS=${CONFIG_MAX_AGE_HOURS:-12} is used.
         """
         content = SCRIPT.read_text()
-        # Must contain CONFIG_MAX_AGE_DAYS in the AGE_DAYS assignment
-        assert "AGE_DAYS" in content and "CONFIG_MAX_AGE_DAYS" in content, (
-            "Script must assign AGE_DAYS using CONFIG_MAX_AGE_DAYS"
+        # Must contain CONFIG_MAX_AGE_HOURS in the AGE_HOURS assignment
+        assert "AGE_HOURS" in content and "CONFIG_MAX_AGE_HOURS" in content, (
+            "Script must assign AGE_HOURS using CONFIG_MAX_AGE_HOURS"
         )
-        age_days_lines = [
+        age_hours_lines = [
             line
             for line in content.splitlines()
-            if line.strip().startswith("AGE_DAYS=")
+            if line.strip().startswith("AGE_HOURS=")
         ]
-        assert age_days_lines, "No AGE_DAYS= assignment line found in script"
-        # The assignment must reference CONFIG_MAX_AGE_DAYS
-        assert any("CONFIG_MAX_AGE_DAYS" in line for line in age_days_lines), (
-            "AGE_DAYS= assignment does not reference CONFIG_MAX_AGE_DAYS.\n"
-            f"Found: {age_days_lines}"
+        assert age_hours_lines, "No AGE_HOURS= assignment line found in script"
+        # The assignment must reference CONFIG_MAX_AGE_HOURS
+        assert any("CONFIG_MAX_AGE_HOURS" in line for line in age_hours_lines), (
+            "AGE_HOURS= assignment does not reference CONFIG_MAX_AGE_HOURS.\n"
+            f"Found: {age_hours_lines}"
         )
 
-    def test_age_days_literal_2_not_default_assignment(self) -> None:
-        """AGE_DAYS=2 literal no longer appears as the default assignment.
+    def test_age_hours_literal_not_bare_assignment(self) -> None:
+        """AGE_HOURS=12 literal no longer appears as a bare default assignment.
 
-        RED: fails while 'AGE_DAYS=2' is still the bare assignment in the Defaults block.
-        GREEN: passes after it is replaced with '${CONFIG_MAX_AGE_DAYS:-2}'.
+        GREEN: passes after AGE_HOURS=${AGE_HOURS:-${CONFIG_MAX_AGE_HOURS:-12}} is used.
         """
         import re
 
         content = SCRIPT.read_text()
-        # AGE_DAYS=2 as a bare assignment (not inside ${...}) must not exist
+        # AGE_HOURS=12 as a bare assignment (not inside ${...}) must not exist
         violations = [
             line
             for line in content.splitlines()
-            if re.match(r"^AGE_DAYS=2\b", line.strip())
+            if re.match(r"^AGE_HOURS=\d+\b", line.strip())
         ]
         assert not violations, (
-            "Found bare 'AGE_DAYS=2' assignment — replace with 'AGE_DAYS=${CONFIG_MAX_AGE_DAYS:-2}':\n"
+            "Found bare 'AGE_HOURS=<number>' assignment — use "
+            "'AGE_HOURS=${AGE_HOURS:-${CONFIG_MAX_AGE_HOURS:-12}}':\n"
             + "\n".join(violations)
         )
 
-    def test_is_old_enough_fallback_uses_2_not_7(self) -> None:
-        """is_old_enough() fallback uses AGE_DAYS:-2, not AGE_DAYS:-7.
+    def test_is_old_enough_fallback_uses_12_hours(self) -> None:
+        """is_old_enough() function body uses AGE_HOURS:-12, not AGE_DAYS.
 
-        RED: fails while ${AGE_DAYS:-7} is still used in is_old_enough().
-        GREEN: passes after the fallback is updated to ${AGE_DAYS:-2}.
+        The backward-compat shim is allowed to reference AGE_DAYS (intentional),
+        but the is_old_enough() function itself must use AGE_HOURS:-12.
         """
         content = SCRIPT.read_text()
-        # Must not contain AGE_DAYS:-7 anywhere in functional (non-comment) lines
-        non_comment_lines = [
-            line for line in content.splitlines() if not line.lstrip().startswith("#")
-        ]
-        violations = [line for line in non_comment_lines if "AGE_DAYS:-7" in line]
+        lines = content.splitlines()
+
+        # Extract only lines inside the is_old_enough() function
+        in_func = False
+        func_lines = []
+        brace_depth = 0
+        for line in lines:
+            stripped = line.strip()
+            if "is_old_enough()" in stripped and "{" in stripped:
+                in_func = True
+                brace_depth = stripped.count("{") - stripped.count("}")
+                func_lines.append(line)
+                continue
+            if in_func:
+                func_lines.append(line)
+                brace_depth += stripped.count("{") - stripped.count("}")
+                if brace_depth <= 0:
+                    break
+
+        assert func_lines, "is_old_enough() function not found in script"
+        func_non_comment = [ln for ln in func_lines if not ln.lstrip().startswith("#")]
+
+        # is_old_enough() must not reference AGE_DAYS
+        violations = [ln for ln in func_non_comment if "AGE_DAYS" in ln]
         assert not violations, (
-            "Found 'AGE_DAYS:-7' in non-comment lines — "
-            "update is_old_enough() fallback from '${AGE_DAYS:-7}' to '${AGE_DAYS:-2}':\n"
+            "is_old_enough() references 'AGE_DAYS' — it must use 'AGE_HOURS':\n"
             + "\n".join(violations)
         )
+        # is_old_enough() must reference AGE_HOURS:-12
+        assert any("AGE_HOURS:-12" in ln for ln in func_non_comment), (
+            "is_old_enough() must use '${AGE_HOURS:-12}' as the fallback value"
+        )
 
-    def test_age_days_reads_from_config_max_age_days(self) -> None:
-        """When CONFIG_MAX_AGE_DAYS=14, AGE_DAYS resolves to 14.
+    def test_age_days_backward_compat_shim_converts_and_warns(self) -> None:
+        """When AGE_DAYS=3 is set and AGE_HOURS is unset, the shim sets AGE_HOURS=72 and warns.
 
-        TDD RED: fails before AGE_DAYS=${CONFIG_MAX_AGE_DAYS:-2} is used.
-        TDD GREEN: passes after the change is made.
+        Behavioral test: extracts the shim block from the script and executes it via
+        subprocess with AGE_DAYS=3 in the environment, then asserts the runtime outcomes.
+
+        GREEN: passes after the shim block is added.
+        """
+        lines = SCRIPT.read_text().splitlines()
+
+        # Extract the shim block: _AGE_HOURS_FROM_ENV capture line through the
+        # closing `fi` of the `if [[ -n "${AGE_DAYS:-}"` block.
+        shim_lines: list[str] = []
+        in_shim = False
+        brace_depth = 0
+        for line in lines:
+            stripped = line.strip()
+            if not in_shim and "_AGE_HOURS_FROM_ENV=" in stripped:
+                in_shim = True
+            if in_shim:
+                shim_lines.append(line)
+                # Track if/fi nesting so we stop at the right fi
+                if stripped.startswith("if ") or stripped.startswith("if["):
+                    brace_depth += 1
+                if stripped == "fi":
+                    if brace_depth > 0:
+                        brace_depth -= 1
+                    if brace_depth == 0:
+                        break  # done
+
+        assert shim_lines, "Could not extract the AGE_DAYS backward-compat shim block"
+
+        # Build a small test harness: run the shim block and print AGE_HOURS
+        harness = (
+            "#!/usr/bin/env bash\n"
+            "set -uo pipefail\n"
+            "\n" + "\n".join(shim_lines) + '\necho "AGE_HOURS=${AGE_HOURS}"\n'
+        )
+
+        result = subprocess.run(
+            ["bash", "-c", harness],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "AGE_DAYS": "3"},  # AGE_HOURS intentionally absent
+        )
+
+        assert result.returncode == 0, (
+            f"Shim harness exited non-zero (rc={result.returncode}).\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert "AGE_HOURS=72" in result.stdout, (
+            "AGE_DAYS=3 should convert to AGE_HOURS=72 (3 × 24).\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert (
+            "deprecated" in result.stderr.lower() or "warning" in result.stderr.lower()
+        ), (
+            "Shim must emit a deprecation warning to stderr when AGE_DAYS is set.\n"
+            f"stderr: {result.stderr}"
+        )
+
+    def test_age_hours_reads_from_config_max_age_hours(self) -> None:
+        """When CONFIG_MAX_AGE_HOURS=24, AGE_HOURS resolves to 24.
+
+        TDD GREEN: passes after AGE_HOURS=${AGE_HOURS:-${CONFIG_MAX_AGE_HOURS:-12}} is used.
         """
         import subprocess
 
@@ -561,8 +643,8 @@ class TestAgeDaysConfig:
             [
                 "bash",
                 "-c",
-                "CONFIG_MAX_AGE_DAYS=14; AGE_DAYS=${CONFIG_MAX_AGE_DAYS:-2}; "
-                'test "$AGE_DAYS" = "14" && echo "PASS" || echo "FAIL"',
+                "CONFIG_MAX_AGE_HOURS=24; AGE_HOURS=${AGE_HOURS:-${CONFIG_MAX_AGE_HOURS:-12}}; "
+                'test "$AGE_HOURS" = "24" && echo "PASS" || echo "FAIL"',
             ],
             capture_output=True,
             text=True,
@@ -572,17 +654,17 @@ class TestAgeDaysConfig:
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
         assert "PASS" in result.stdout, (
-            "When CONFIG_MAX_AGE_DAYS=14, AGE_DAYS should resolve to 14.\n"
+            "When CONFIG_MAX_AGE_HOURS=24, AGE_HOURS should resolve to 24.\n"
             f"stdout: {result.stdout}"
         )
         # Now verify the actual script uses the pattern
         content = SCRIPT.read_text()
-        age_days_assignment = [
+        age_hours_assignment = [
             line
             for line in content.splitlines()
-            if line.strip().startswith("AGE_DAYS=")
+            if line.strip().startswith("AGE_HOURS=")
         ]
-        assert any("CONFIG_MAX_AGE_DAYS" in line for line in age_days_assignment), (
-            "The script's AGE_DAYS assignment must use CONFIG_MAX_AGE_DAYS.\n"
-            f"Found AGE_DAYS lines: {age_days_assignment}"
+        assert any("CONFIG_MAX_AGE_HOURS" in line for line in age_hours_assignment), (
+            "The script's AGE_HOURS assignment must use CONFIG_MAX_AGE_HOURS.\n"
+            f"Found AGE_HOURS lines: {age_hours_assignment}"
         )

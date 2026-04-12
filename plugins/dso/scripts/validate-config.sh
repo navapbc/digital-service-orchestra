@@ -109,7 +109,7 @@ KNOWN_KEYS=(
     worktree.python_version
     worktree.post_create_cmd
     worktree.branch_pattern
-    worktree.max_age_days
+    worktree.max_age_hours
     worktree.service_start_cmd
 
     # Skills
