@@ -30,7 +30,7 @@ _flock_stage_commit() {
     # Resolve to canonical path so callers using a symlink and callers using
     # the real path always contend on the same lock file (cross-path serialization).
     local tracker_dir
-    tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$1")
+    tracker_dir=$(cd "$1" && pwd -P)
     local staging_temp="$2"
     local final_path="$3"
     local commit_msg="$4"
@@ -46,8 +46,10 @@ _flock_stage_commit() {
     # ── Derive tracker_dir-relative path from final_path ────────────────────
     local relative_path="${final_path#"$tracker_dir/"}"
 
-    # ── Ensure gc.auto=0 in tickets worktree (idempotent guard) ─────────────
-    git -C "$tracker_dir" config gc.auto 0
+    # ── Ensure gc.auto=0 in tickets worktree (skip if already set) ───────────
+    if [ "$(git -C "$tracker_dir" config --get gc.auto 2>/dev/null)" != "0" ]; then
+        git -C "$tracker_dir" config gc.auto 0
+    fi
 
     # ── Acquire flock, then atomic rename + commit ──────────────────────────
     local max_retries=2
