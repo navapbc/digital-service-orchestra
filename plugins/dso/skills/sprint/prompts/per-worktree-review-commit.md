@@ -41,7 +41,7 @@ This ensures findings are written to the worktree's artifacts directory.
 **Step 5 — Harvest worktree into session branch**: From the session branch directory, run `harvest-worktree.sh` to merge the worktree branch, attest gate results, and commit in a single invocation:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/harvest-worktree.sh <worktree-branch> "$WORKTREE_ARTIFACTS"
+.claude/scripts/dso harvest-worktree <worktree-branch> "$WORKTREE_ARTIFACTS"
 ```
 
 `harvest-worktree.sh` performs the following sequence atomically:
