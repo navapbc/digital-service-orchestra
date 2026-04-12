@@ -59,9 +59,17 @@ fi
 
 # ── Test 4: test_smoke_test_cleanup — no /tmp/lw-smoke-* dirs remain ─────────
 echo "Test 4: test_smoke_test_cleanup — /tmp/lw-smoke-* cleaned up after run"
+# Clean any leftovers from earlier tests before measuring this invocation (1425-2803)
+rm -rf /tmp/lw-smoke-* 2>/dev/null || true
 if [ -x "$SCRIPT" ]; then
     CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}" bash "$SCRIPT" >/dev/null 2>&1 || true
-    leftover_count=$(ls -d /tmp/lw-smoke-* 2>/dev/null | wc -l | tr -d ' ')
+    # Wait briefly for async rm -rf to finish (large plugin dirs race with process exit)
+    leftover_count=1
+    for _i in 1 2 3 4; do
+        leftover_count=$(ls -d /tmp/lw-smoke-* 2>/dev/null | wc -l | tr -d ' ')
+        [ "$leftover_count" -eq 0 ] && break
+        sleep 0.5
+    done
     if [ "$leftover_count" -eq 0 ]; then
         echo "  PASS: no /tmp/lw-smoke-* dirs remain after script exits"
         (( PASS++ ))
