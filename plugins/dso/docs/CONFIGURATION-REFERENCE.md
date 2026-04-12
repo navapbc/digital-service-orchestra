@@ -748,6 +748,17 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ---
 
+### `scope_drift.enabled`
+
+| | |
+|---|---|
+| **Description** | When true, `/dso:fix-bug` runs the scope-drift reviewer (`dso:scope-drift-reviewer`) at Step 7.1 after fix verification. When false, Step 7.1 is skipped. |
+| **Accepted values** | `true`, `false` |
+| **Default** | `true` |
+| **Used by** | `/dso:fix-bug` (Step 7.1 scope-drift review) |
+
+---
+
 ### `merge.visual_baseline_path`
 
 | | |

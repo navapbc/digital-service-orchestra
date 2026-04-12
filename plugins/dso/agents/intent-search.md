@@ -18,7 +18,10 @@ The caller passes these parameters in the dispatch prompt:
 
 ## Budget Enforcement
 
-Track tool calls from the moment you begin Step 1. When you have used `intent_search_budget` tool calls, emit your gate signal immediately with whatever evidence you have gathered. Do not exceed the budget.
+The `intent_search_budget` applies differently depending on the phase:
+
+- **Historical search (Steps 1–6)**: The budget is an **advisory target** — stop searching when budget is exhausted and emit with whatever evidence you have gathered. Do not exceed the budget for historical search.
+- **Caller traversal (Step 7b)**: The convergence protocol (TRAVERSAL_CHECKPOINT + 3-level cap + high-confidence halt) is the **authoritative bound**, NOT the budget counter. Budget exhaustion during Step 7b does not override the traversal protocol; use the convergence check to determine when to halt.
 
 ## Procedure
 
@@ -126,6 +129,7 @@ Based on gathered evidence, classify into one of three terminal outcomes:
 | **intent-aligned** | Evidence clearly shows the reported behavior is a genuine defect — no documentation or history justifies it | `false` | `"high"` or `"medium"` |
 | **intent-contradicting** | Evidence clearly shows the reported behavior was intentional — design docs, commit messages, or tickets explicitly justify it | `true` | `"high"` or `"medium"` |
 | **ambiguous** | Evidence is contradictory, absent, or insufficient to determine intent with confidence | `false` | `"low"` |
+| **intent-conflict** | Callers depend on the current behavior the ticket wants to change | `true` | `"high"` or `"medium"` |
 
 **Important**: When evidence is partially contradictory — some signals favor intent-aligned and others favor intent-contradicting — classify as **ambiguous** (`triggered: false`, `confidence: "low"`). Fail toward dialog rather than making a low-confidence routing decision.
 
@@ -138,6 +142,40 @@ Based on gathered evidence, classify into one of three terminal outcomes:
 5. Mixed signals (some justify, some don't) → **ambiguous**
 6. Clear absence of justification with behavior matching a broken invariant → **intent-aligned**
 7. No implementation found for the reported capability (feature was never built) → **ambiguous** — absence of implementation is not evidence of deliberate design; do NOT classify as `intent-contradicting`. The feature-request check (Gate 1b) handles this case via user escalation.
+
+### Step 7b: Caller Traversal (Behavioral Claim Validation)
+
+**Entry condition**: Run Step 7b ONLY when Step 7 classification is **intent-aligned** (`triggered: false`, `confidence: "high"` or `"medium"`). Skip Step 7b for intent-contradicting, ambiguous, or intent-conflict outcomes from Step 7.
+
+#### Behavioral Claim Extraction
+
+Extract the ticket's stated expectation — what the ticket says "should" happen. This is the behavioral_claim: the specific observable behavior the reporter expects to be true after a fix is applied.
+
+#### Caller Traversal Procedure
+
+For each affected function identified in Step 1:
+
+1. Find callers of the function in other files:
+   ```bash
+   git grep -l "<function_name>" -- "*.py" "*.js" "*.sh"
+   ```
+2. For each caller file, read the relevant usage context.
+3. Classify the caller's usage:
+   - **behavioral_dependency**: The caller relies on the current (buggy) behavior; changing it to match the ticket's behavioral_claim would break the caller or change its observable output.
+   - **incidental_usage**: The caller uses the function but does not depend on the specific behavior being fixed — a behavior change would not affect the caller's correctness.
+4. After processing each layer of callers, emit a traversal checkpoint:
+   ```
+   TRAVERSAL_CHECKPOINT: layer=N callers_found=M intent_conflict_detected=true|false
+   ```
+5. **Halt early** when confidence is high — strong evidence of a behavioral_dependency conflict, or clear absence of any such dependency after thorough inspection.
+6. **Cap at 3 traversal levels maximum.** Do not recurse beyond layer 3 regardless of findings.
+
+#### Convergence Check
+
+After traversal:
+
+- If **any** caller with `behavioral_dependency` was found at high confidence → emit `INTENT_CONFLICT` signal (see Output Schema below for extended fields).
+- If no `behavioral_dependency` found across all traversed callers → conclude **intent-aligned** (emit standard gate signal, no extended fields needed).
 
 ## Output Schema
 
@@ -152,6 +190,16 @@ Emit a single JSON object conforming to the `gate-signal-schema.md` contract. Ga
   "confidence": "high|medium|low"
 }
 ```
+
+### INTENT_CONFLICT Extended Fields
+
+When Step 7b determines `intent-conflict`, the gate signal includes additional fields beyond the base schema:
+
+| Field | Type | Description |
+|---|---|---|
+| `behavioral_claim` | string | The ticket's stated behavioral expectation — what the ticket says should happen after the fix |
+| `conflicting_callers` | array of objects | Array of caller file paths and usage snippets that show a `behavioral_dependency` on the current behavior |
+| `dependency_classification` | string (enum) | Overall dependency verdict: `behavioral_dependency` (callers rely on current behavior) or `incidental_usage` (no callers depend on the specific behavior being changed) |
 
 ### Field Rules
 

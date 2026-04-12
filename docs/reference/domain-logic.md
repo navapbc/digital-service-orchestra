@@ -165,3 +165,31 @@ Three fields are appended to the planning-intelligence log for observability:
 | `feasibility_gap` | string | Last gap text from the feasibility-resolution loop (empty if no gap) |
 | `llm_instruction_signal` | boolean | Whether Step 5 prompt-alignment detection fired |
 | `matched_keyword` | string | Keyword that triggered Step 5 dispatch (empty if no match) |
+
+## Gate Reference
+
+### Scope-Drift Gate (Step 7.1)
+
+After fix verification (Step 7), the `/dso:fix-bug` workflow dispatches the `dso:scope-drift-reviewer` sub-agent at Step 7.1 to classify whether the fix drifted beyond the original bug scope.
+
+Classification outcomes:
+
+| Classification | Action |
+|----------------|--------|
+| `in_scope` | Proceed to commit (Step 8) |
+| `ambiguous` | Present inline dialog to the user for confirmation |
+| `out_of_scope` | Escalate — block commit, recommend splitting into a separate ticket |
+
+Config key: `scope_drift.enabled` (default: `true`). When `false`, Step 7.1 is skipped entirely.
+
+## Signal Types
+
+### INTENT_CONFLICT
+
+Emitted by the `dso:intent-search` sub-agent (Gate 1a) when callers depend on the current behavior that the bug report wants to change.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `behavioral_claim` | string | The behavior the bug report claims is broken |
+| `conflicting_callers` | array | List of callers (files, tests, or tickets) that depend on the current behavior |
+| `dependency_classification` | string | `hard` (callers will break), `soft` (callers may be affected), or `none` (no conflicts found) |
