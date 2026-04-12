@@ -100,6 +100,7 @@ set -- "${_args_filtered[@]+"${_args_filtered[@]}"}"
 
 TARGET_REPO="${1:-$(git rev-parse --show-toplevel)}"
 PLUGIN_ROOT="${2:-$(cd "$(dirname "$0")/.." && pwd)}"
+_SCRIPT_PLUGIN_DIR="$(cd "${0%/*}/.." 2>/dev/null && pwd)" || _SCRIPT_PLUGIN_DIR="$PLUGIN_ROOT"
 # DIST_ROOT: the repository root containing shared assets (templates/, examples/)
 # that live outside the plugin subdir. Falls back to PLUGIN_ROOT for backward
 # compatibility when this script is called with the repo root as PLUGIN_ROOT.
@@ -197,7 +198,7 @@ supplement_template_file \
 supplement_template_file \
     "$TARGET_REPO/.claude/docs/KNOWN-ISSUES.md" \
     '<!-- DSO:KNOWN-ISSUES-HEADER -->' \
-    "$DIST_ROOT/plugins/dso/docs/templates/KNOWN-ISSUES.md" \
+    "$_SCRIPT_PLUGIN_DIR/docs/templates/KNOWN-ISSUES.md" \
     "KNOWN-ISSUES.md"
 
 # ── merge_precommit_hooks: merge DSO hooks into existing .pre-commit-config.yaml ──
