@@ -422,7 +422,7 @@ BUG_CREATE_ERR=$(cat /tmp/ticket_create_stderr.tmp); rm -f /tmp/ticket_create_st
 NEW_TICKET_ID=$(echo "$BUG_CREATE_OUT" | grep -oE '[0-9a-f]{4}-[0-9a-f]{4}' | head -1)
 
 # Post-creation title validation: fix non-conforming titles immediately
-if echo "$BUG_CREATE_ERR" | grep -q "does not match recommended pattern"; then
+if echo "$BUG_CREATE_ERR" | grep -q "does not match required pattern"; then
     .claude/scripts/dso ticket edit "$NEW_TICKET_ID" --title="[Component]: [Condition] -> [Observed Result]"
 fi
 ```

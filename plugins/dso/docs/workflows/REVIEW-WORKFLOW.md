@@ -34,9 +34,9 @@ if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     if [[ -f "$_cfg" ]]; then
         CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$_cfg" 2>/dev/null | cut -d= -f2-)"
     fi
-    # Final fallback: read dso.plugin_root from config
+    # Final fallback: assume plugin lives at plugins/dso relative to repo root
     if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-        CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)"
+        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
     fi
 fi
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
@@ -193,7 +193,7 @@ Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. When `REVIEW_AGENT_OV
 
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
 
-**You MUST launch a sub-agent.** There are no exceptions — not for documentation-only changes, not for "trivial" changes, not for config files. The sub-agent performs the review and assigns scores. Skipping this step and writing review JSON yourself is fabrication.
+**You MUST launch a named `dso:code-reviewer-*` sub-agent.** There are no exceptions — not for documentation-only changes, not for "trivial" changes, not for config files. The sub-agent performs the review and assigns scores. Skipping this step and writing review JSON yourself is fabrication. Dispatching a generic agent with instructions to write `reviewer-findings.json` is also fabrication — the review MUST come from a named reviewer agent (`dso:code-reviewer-light`, `dso:code-reviewer-standard`, or `dso:code-reviewer-deep-*`), not a general-purpose agent with fabricated review instructions.
 
 **Inline dispatch is mandatory — `dso:*` labels are agent file identifiers, NOT `subagent_type` values.** The Agent tool only accepts built-in types (`general-purpose`, `Explore`, `Plan`, etc.). For every dispatch below:
 1. Read `agents/<agent-name>.md` inline (strip the `dso:` prefix to get the file name).

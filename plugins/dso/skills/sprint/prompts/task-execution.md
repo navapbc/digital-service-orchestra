@@ -37,7 +37,15 @@ If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and contin
    - **Prior-art check**: Before writing new code, consult `skills/shared/prompts/prior-art-search.md` for existing patterns (exempt: single-file logic fixes, formatting changes)
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 4/6: Implementation complete ✓"`
 6. Run `make format-check && make lint && make test-unit-only` from app/
-   → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 5/6: Validation passed ✓"` (or `"CHECKPOINT 5/6: Validation failed — <error summary>"` on failure)
+   → On pass: Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 5/6: Validation passed ✓"`
+   → On failure: **Investigate before retrying.** Do NOT revert and try a different approach without first understanding WHY the tests failed:
+     a. Identify WHICH specific tests failed (not just "4 tests failed")
+     b. Read the failing test code and trace the failure to your change
+     c. Determine: did your change break these tests, or were they pre-existing failures? (`git stash && make test-unit-only && git stash pop` to compare)
+     d. If your change caused the failures: understand the dependency between your change and the failing tests before attempting a fix
+     e. If pre-existing: note them and proceed (they are not your responsibility)
+     f. Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 5/6: Validation failed — <which tests failed and why>"`
+     **Reverting and blindly trying a different approach is a prohibited anti-pattern** — it produces the same class of failure repeatedly. Each retry must be informed by the investigation of the previous failure.
 7. **Self-check**: If your task has an `Acceptance Criteria` section, re-read it from the `.claude/scripts/dso ticket show` output.
    For each criterion with a `Verify:` command, run it. If any fails, fix your implementation
    before reporting. Skip universal criteria (test/lint/format) — already verified in step 6.
@@ -178,6 +186,20 @@ Commenting out the code that causes a failure hides the defect without resolving
 ```
 
 Do this instead: Understand why the check fails and fix the underlying data or logic so the check passes.
+
+**6. Reverting and retrying without investigating**
+
+Reverting a fix attempt and trying a different approach without understanding WHY the tests failed leads to repeated failures of the same kind.
+
+```python
+# PROHIBITED pattern (behavioral, not code):
+# Attempt 1: change X → tests fail → revert
+# Attempt 2: change Y → tests fail → revert
+# Attempt 3: change Z → tests fail → revert
+# Result: "needs more care" / deferred
+```
+
+Do this instead: When tests fail after your change, investigate the specific test failures BEFORE reverting. Read the failing test, trace the dependency chain, and understand what your change broke and why. The next attempt must be informed by the previous failure's root cause.
 
 ### Prior Batch Discoveries
 
