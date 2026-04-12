@@ -76,6 +76,16 @@ A criterion **FAILS** when:
 - A verification command exits non-zero
 - A consumer smoke test fails (see Step 4)
 
+### Step 3a: Epic-Level Story Verdict Trust
+
+When verifying an **epic**, check whether all child stories have already been closed with a completion-verifier PASS verdict. For each SC that maps to a story's done definitions:
+
+1. Check the story ticket for a completion-verifier result comment (contains `"status": "pass"` or `VERIFICATION_RESULT: pass`).
+2. If the story was closed with a PASS verdict from this verifier, **trust the story-level verdict** — mark the corresponding SC as PASS without re-verifying the individual DDs from scratch.
+3. Only re-verify an SC independently when: (a) no story maps to it, (b) the story was closed without a verifier PASS, or (c) the story was partially deferred (e.g., N-1/N DDs passed with explicit deferral rationale).
+
+This prevents the epic verifier from applying stricter criteria than the story verifier used, which causes unnecessary remediation cycles when a story-level PASS is overturned at epic level.
+
 ### Step 4: Consumer Smoke Tests (Infrastructure Epics)
 
 When the ticket modifies **shared infrastructure** — the ticket system, hooks, merge workflow, sprint tooling, or any other component consumed by multiple callers — perform consumer smoke tests.

@@ -416,6 +416,12 @@ case "$subcommand" in
         # Validate relation
         case "$relation" in
             blocks|depends_on|relates_to) ;;
+            child|parent)
+                echo "Error: '$relation' is not a link relation. Parent-child relationships are" >&2
+                echo "  established at creation time via: ticket create <type> <title> --parent=<id>" >&2
+                echo "  'ticket link' is for dependency links: blocks, depends_on, relates_to" >&2
+                exit 1
+                ;;
             *)
                 echo "Error: invalid relation '$relation'. Must be one of: blocks, depends_on, relates_to" >&2
                 exit 1

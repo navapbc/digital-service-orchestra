@@ -1251,6 +1251,14 @@ If `--dry-run` was specified:
 
 <HARD-GATE>
 Do NOT implement any task directly using Edit, Write, or other file-modification tools. ALL implementation tasks must be dispatched to sub-agents via the Task tool — regardless of how small, simple, or obvious the change appears. "Small markdown edit", "single-line change", "user already approved", or "sub-agent dispatch is overhead" are not valid exceptions. Direct implementation by the orchestrator bypasses checkpoint protocol, code review, and acceptance criteria gates.
+
+Do NOT improvise new patterns, variables, or approaches when a user rejects the approved plan. When the user rejects an approach mid-execution:
+1. **STOP** the current batch — do not apply ad-hoc substitutes.
+2. Record `REPLAN_TRIGGER: user_rejection — User rejected <approach>. Reason: <reason>.` on the epic.
+3. Re-invoke `/dso:implementation-plan` for the affected stories to produce a revised plan that incorporates the user's feedback.
+4. Only resume execution after the revised plan passes `/dso:plan-review`.
+
+Inventing unauthorized patterns (new variables, alternative sed commands, manual workarounds) to work around a rejected plan is the exact failure mode this gate prevents — it produces untested, unreviewed changes that bypass the re-planning protocol (2f26-430e).
 </HARD-GATE>
 
 **Explore dispatch parallelism rule (7c45-ee60):** When dispatching Explore sub-agents for search tasks, each Explore call MUST be scoped to a single, targeted search objective. Do NOT dispatch a single Explore sub-agent to search for multiple unrelated code patterns, files, or references in one call.

@@ -67,36 +67,30 @@ _has_section() {
 # _section_has_content file heading
 # Returns 0 if the section has non-empty content between the heading and the
 # next heading of equal or higher level (or EOF).
+# Uses python3 for fast buffered I/O instead of bash while-read (which takes
+# ~6s/file on macOS due to per-line syscalls).
 _section_has_content() {
     local _file="$1" _heading="$2"
-    local _level _in_section=0 _found_content=0
-
-    # Determine heading level from prefix (count leading #)
-    _level="${_heading%%[^#]*}"
-    local _level_len=${#_level}
-
-    while IFS= read -r _line; do
-        if [[ $_in_section -eq 1 ]]; then
-            # Check if we hit another heading of equal or higher level
-            local _line_hashes="${_line%%[^#]*}"
-            if [[ ${#_line_hashes} -ge 1 && ${#_line_hashes} -le $_level_len && "$_line" == "#"* ]]; then
-                # Reached next section at same or higher level — stop
-                break
-            fi
-            # Check for non-empty, non-whitespace content
-            local _trimmed="${_line//[[:space:]]/}"
-            if [[ -n "$_trimmed" && "$_trimmed" != "---" ]]; then
-                _found_content=1
-                break
-            fi
-        fi
-        # Match the heading (with optional trailing whitespace)
-        if [[ "$_line" == "${_heading}" || "$_line" == "${_heading} "* ]]; then
-            _in_section=1
-        fi
-    done < "$_file"
-
-    [[ $_found_content -eq 1 ]]
+    python3 -c "
+import sys
+heading = sys.argv[1]
+level = len(heading) - len(heading.lstrip('#'))
+in_section = False
+with open(sys.argv[2]) as f:
+    for line in f:
+        line = line.rstrip('\n')
+        if in_section:
+            if line.startswith('#'):
+                hashes = len(line) - len(line.lstrip('#'))
+                if 1 <= hashes <= level:
+                    break
+            trimmed = line.strip()
+            if trimmed and trimmed != '---':
+                sys.exit(0)
+        if line == heading or line.rstrip() == heading:
+            in_section = True
+sys.exit(1)
+" "$_heading" "$_file" 2>/dev/null
 }
 
 _validate_file() {
