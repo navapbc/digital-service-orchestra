@@ -10,6 +10,10 @@ Public API:
                              tracker_dir: str) -> bool
     add_dependency(source_id: str, target_id: str, tracker_dir: str,
                    relation: str = "blocks") -> None
+    resolve_hierarchy_link(source_id: str, target_id: str,
+                           tracker_dir: str) -> dict
+    check_cycle_at_level(source_id: str, target_id: str, level: str,
+                         tracker_dir: str) -> bool
     CyclicDependencyError (exception class)
 
 CLI:
@@ -700,7 +704,7 @@ def add_dependency(
         else None
     )
     level = (
-        resolved_source_state.get("ticket_type", "").lower()
+        (resolved_source_state.get("ticket_type") or "").lower()
         if resolved_source_state
         else ""
     )

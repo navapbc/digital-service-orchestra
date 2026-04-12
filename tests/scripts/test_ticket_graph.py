@@ -1311,6 +1311,32 @@ def test_add_dependency_raises_on_self_loop_at_level(
         graph.add_dependency("task-x", "task-x", str(tracker_dir), relation="blocks")
 
 
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_skips_cycle_check_when_no_type(
+    tmp_path: Path,
+) -> None:
+    """check_cycle_at_level with empty level returns False without BFS traversal.
+
+    This is the fail-open path in add_dependency: when resolved_source_state
+    returns ticket_type as None or empty string, level evaluates to "" and
+    `if level and check_cycle_at_level(...)` short-circuits — no cycle check runs.
+
+    Tests check_cycle_at_level directly with level="" to verify it returns False
+    (fail-open) without accessing the tracker directory.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    check_cycle_at_level = _get_check_cycle_at_level()
+
+    # Empty level string → fail-open: returns False without BFS
+    result = check_cycle_at_level("task-a", "task-b", "", str(tracker_dir))
+    assert result is False, (
+        "check_cycle_at_level must return False for empty level (fail-open)"
+    )
+
+
 # ---------------------------------------------------------------------------
 # resolve_hierarchy_link tests (SC1, SC3, SC5, SC10, SC11 + is_redundant)
 # ---------------------------------------------------------------------------
