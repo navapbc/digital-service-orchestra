@@ -1250,3 +1250,760 @@ def test_compute_dep_graph_children_use_preloaded_state(
         "and use it for both children discovery and blocker resolution instead of "
         "calling _reduce_ticket per directory entry."
     )
+
+
+# ---------------------------------------------------------------------------
+# Level-scoped cycle detection wired into add_dependency
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_raises_on_cycle_at_level(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """add_dependency must raise CyclicDependencyError when a level-scoped cycle would be created.
+
+    Setup:
+        - story-a: story, open — blocks story-b
+        - story-b: story, open — blocks story-c
+        - story-c: story, open
+
+    Action: add_dependency(story-c, story-a, ...) should detect a cycle
+    (story-a → story-b → story-c → story-a) at the 'story' level.
+
+    Expected: CyclicDependencyError is raised.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "story-a", ticket_type="story")
+    _write_ticket(tracker_dir, "story-b", ticket_type="story")
+    _write_ticket(tracker_dir, "story-c", ticket_type="story")
+    _write_blocks_link(tracker_dir, "story-a", "story-b", timestamp=1500)
+    _write_blocks_link(tracker_dir, "story-b", "story-c", timestamp=1501)
+
+    with pytest.raises(graph.CyclicDependencyError):
+        graph.add_dependency("story-c", "story-a", str(tracker_dir), relation="blocks")
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_raises_on_self_loop_at_level(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """add_dependency must raise CyclicDependencyError for a self-referential dependency.
+
+    Setup:
+        - task-x: task, open
+
+    Action: add_dependency(task-x, task-x, ...) — self-loop.
+
+    Expected: CyclicDependencyError is raised with a message indicating
+    self-referential dependency.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "task-x", ticket_type="task")
+
+    with pytest.raises(graph.CyclicDependencyError):
+        graph.add_dependency("task-x", "task-x", str(tracker_dir), relation="blocks")
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_skips_cycle_check_when_no_type(
+    tmp_path: Path,
+) -> None:
+    """check_cycle_at_level with empty level returns False without BFS traversal.
+
+    This is the fail-open path in add_dependency: when resolved_source_state
+    returns ticket_type as None or empty string, level evaluates to "" and
+    `if level and check_cycle_at_level(...)` short-circuits — no cycle check runs.
+
+    Tests check_cycle_at_level directly with level="" to verify it returns False
+    (fail-open) without accessing the tracker directory.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    check_cycle_at_level = _get_check_cycle_at_level()
+
+    # Empty level string → fail-open: returns False without BFS
+    result = check_cycle_at_level("task-a", "task-b", "", str(tracker_dir))
+    assert result is False, (
+        "check_cycle_at_level must return False for empty level (fail-open)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# resolve_hierarchy_link tests (SC1, SC3, SC5, SC10, SC11 + is_redundant)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_same_parent_story_sc1(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """SC1: Two tasks sharing the same parent story → original IDs unchanged.
+
+    Setup:
+        - story-parent: story (no parent)
+        - task-a: task with parent_id=story-parent
+        - task-b: task with parent_id=story-parent
+
+    Expected: resolved_source=task-a, resolved_target=task-b,
+              was_redirected=False, is_redundant=False
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "story-parent", ticket_type="story")
+    _write_ticket(tracker_dir, "task-a", parent_id="story-parent", ticket_type="task")
+    _write_ticket(tracker_dir, "task-b", parent_id="story-parent", ticket_type="task")
+
+    result = graph.resolve_hierarchy_link("task-a", "task-b", str(tracker_dir))
+
+    assert result["resolved_source"] == "task-a", (
+        f"SC1: expected resolved_source='task-a', got {result['resolved_source']!r}"
+    )
+    assert result["resolved_target"] == "task-b", (
+        f"SC1: expected resolved_target='task-b', got {result['resolved_target']!r}"
+    )
+    assert result["was_redirected"] is False, (
+        f"SC1: expected was_redirected=False, got {result['was_redirected']!r}"
+    )
+    assert result["is_redundant"] is False, (
+        f"SC1: expected is_redundant=False, got {result['is_redundant']!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_cross_story_same_epic_sc3(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """SC3: Cross-story same-epic task pairs → two parent story IDs as resolved pair.
+
+    Setup:
+        - epic-root: epic (no parent)
+        - story-a: story with parent_id=epic-root
+        - story-b: story with parent_id=epic-root
+        - task-a1: task with parent_id=story-a
+        - task-b1: task with parent_id=story-b
+
+    Expected: resolved_source=story-a, resolved_target=story-b,
+              was_redirected=True, is_redundant=False
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "epic-root", ticket_type="epic")
+    _write_ticket(tracker_dir, "story-a", parent_id="epic-root", ticket_type="story")
+    _write_ticket(tracker_dir, "story-b", parent_id="epic-root", ticket_type="story")
+    _write_ticket(tracker_dir, "task-a1", parent_id="story-a", ticket_type="task")
+    _write_ticket(tracker_dir, "task-b1", parent_id="story-b", ticket_type="task")
+
+    result = graph.resolve_hierarchy_link("task-a1", "task-b1", str(tracker_dir))
+
+    assert result["resolved_source"] == "story-a", (
+        f"SC3: expected resolved_source='story-a', got {result['resolved_source']!r}"
+    )
+    assert result["resolved_target"] == "story-b", (
+        f"SC3: expected resolved_target='story-b', got {result['resolved_target']!r}"
+    )
+    assert result["was_redirected"] is True, (
+        f"SC3: expected was_redirected=True, got {result['was_redirected']!r}"
+    )
+    assert result["is_redundant"] is False, (
+        f"SC3: expected is_redundant=False, got {result['is_redundant']!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_cross_epic_sc5(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """SC5: Cross-epic task pairs → two root epic IDs as resolved pair.
+
+    Setup:
+        - epic-a: epic (no parent)
+        - epic-b: epic (no parent)
+        - story-a: story with parent_id=epic-a
+        - story-b: story with parent_id=epic-b
+        - task-a1: task with parent_id=story-a
+        - task-b1: task with parent_id=story-b
+
+    Expected: resolved_source=epic-a, resolved_target=epic-b,
+              was_redirected=True, is_redundant=False
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "epic-a", ticket_type="epic")
+    _write_ticket(tracker_dir, "epic-b", ticket_type="epic")
+    _write_ticket(tracker_dir, "story-a", parent_id="epic-a", ticket_type="story")
+    _write_ticket(tracker_dir, "story-b", parent_id="epic-b", ticket_type="story")
+    _write_ticket(tracker_dir, "task-a1", parent_id="story-a", ticket_type="task")
+    _write_ticket(tracker_dir, "task-b1", parent_id="story-b", ticket_type="task")
+
+    result = graph.resolve_hierarchy_link("task-a1", "task-b1", str(tracker_dir))
+
+    assert result["resolved_source"] == "epic-a", (
+        f"SC5: expected resolved_source='epic-a', got {result['resolved_source']!r}"
+    )
+    assert result["resolved_target"] == "epic-b", (
+        f"SC5: expected resolved_target='epic-b', got {result['resolved_target']!r}"
+    )
+    assert result["was_redirected"] is True, (
+        f"SC5: expected was_redirected=True, got {result['was_redirected']!r}"
+    )
+    assert result["is_redundant"] is False, (
+        f"SC5: expected is_redundant=False, got {result['is_redundant']!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_orphan_ticket_sc10(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """SC10: Tickets with no parent_id → original IDs unchanged.
+
+    Setup:
+        - orphan-a: task (no parent)
+        - orphan-b: task (no parent)
+
+    Expected: resolved_source=orphan-a, resolved_target=orphan-b,
+              was_redirected=False, is_redundant=False
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "orphan-a", ticket_type="task")
+    _write_ticket(tracker_dir, "orphan-b", ticket_type="task")
+
+    result = graph.resolve_hierarchy_link("orphan-a", "orphan-b", str(tracker_dir))
+
+    assert result["resolved_source"] == "orphan-a", (
+        f"SC10: expected resolved_source='orphan-a', got {result['resolved_source']!r}"
+    )
+    assert result["resolved_target"] == "orphan-b", (
+        f"SC10: expected resolved_target='orphan-b', got {result['resolved_target']!r}"
+    )
+    assert result["was_redirected"] is False, (
+        f"SC10: expected was_redirected=False, got {result['was_redirected']!r}"
+    )
+    assert result["is_redundant"] is False, (
+        f"SC10: expected is_redundant=False, got {result['is_redundant']!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_unreadable_ticket_sc11(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """SC11: If ticket state cannot be reduced → AttributeError or returns error dict.
+
+    Setup:
+        - ticket-ok: valid task
+        - missing-ticket: does not exist in tracker
+
+    Expected: resolve_hierarchy_link returns a dict with 'error' key (not silent fallthrough)
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "ticket-ok", ticket_type="task")
+    # missing-ticket directory is intentionally absent
+
+    result = graph.resolve_hierarchy_link(
+        "ticket-ok", "missing-ticket", str(tracker_dir)
+    )
+
+    assert "error" in result, (
+        f"SC11: expected result to contain 'error' key for missing ticket, got {result!r}"
+    )
+    assert result.get("ticket_id") == "missing-ticket", (
+        f"SC11: expected ticket_id='missing-ticket' in error, got {result.get('ticket_id')!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_is_redundant_direct_parent(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """is_redundant=True when source IS the direct parent of target.
+
+    Setup:
+        - story-parent: story (no parent)
+        - task-child: task with parent_id=story-parent
+
+    Expected: resolved_source=story-parent, resolved_target=task-child (or vice versa),
+              is_redundant=True (because story-parent is the direct parent of task-child)
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "story-parent", ticket_type="story")
+    _write_ticket(
+        tracker_dir, "task-child", parent_id="story-parent", ticket_type="task"
+    )
+
+    result = graph.resolve_hierarchy_link(
+        "story-parent", "task-child", str(tracker_dir)
+    )
+
+    assert result["is_redundant"] is True, (
+        f"is_redundant=True expected when source is direct parent of target, got {result!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_hierarchy_link_cli_outputs_json(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """CLI subcommand resolve-hierarchy-link outputs valid JSON.
+
+    Setup:
+        - orphan-x: task (no parent)
+        - orphan-y: task (no parent)
+
+    Verify: python3 ticket-graph.py resolve-hierarchy-link orphan-x orphan-y
+            --tickets-dir=... outputs JSON with required keys.
+    """
+    import subprocess
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "orphan-x", ticket_type="task")
+    _write_ticket(tracker_dir, "orphan-y", ticket_type="task")
+
+    result = subprocess.run(
+        [
+            "python3",
+            str(SCRIPT_PATH),
+            "resolve-hierarchy-link",
+            "orphan-x",
+            "orphan-y",
+            f"--tickets-dir={tracker_dir}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, (
+        f"CLI returned non-zero exit code {result.returncode}. "
+        f"stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
+    try:
+        output = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        pytest.fail(f"CLI output is not valid JSON: {e!r}. stdout={result.stdout!r}")
+
+    required_keys = {
+        "resolved_source",
+        "resolved_target",
+        "was_redirected",
+        "is_redundant",
+    }
+    missing = required_keys - set(output.keys())
+    assert not missing, f"CLI output missing keys {missing}. Got: {output!r}"
+
+
+# ---------------------------------------------------------------------------
+# add_dependency hierarchy integration tests (story 983e-7fff)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_cross_story_redirects_to_story_level(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Cross-story task pair: add_dependency redirects and writes LINK at story level.
+
+    Setup:
+        - epic-root: epic (no parent)
+        - story-a: story with parent_id=epic-root
+        - story-b: story with parent_id=epic-root
+        - task-a1: task with parent_id=story-a
+        - task-b1: task with parent_id=story-b
+
+    Expected: add_dependency('task-a1', 'task-b1', ...) writes LINK event for
+              story-a -> story-b (was_redirected=True path), not task-a1 -> task-b1.
+    """
+    import glob as _glob
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "epic-root", ticket_type="epic")
+    _write_ticket(tracker_dir, "story-a", parent_id="epic-root", ticket_type="story")
+    _write_ticket(tracker_dir, "story-b", parent_id="epic-root", ticket_type="story")
+    _write_ticket(tracker_dir, "task-a1", parent_id="story-a", ticket_type="task")
+    _write_ticket(tracker_dir, "task-b1", parent_id="story-b", ticket_type="task")
+
+    graph.add_dependency("task-a1", "task-b1", str(tracker_dir))
+
+    # LINK event must be written in story-a's directory (redirected source)
+    story_a_dir = tracker_dir / "story-a"
+    link_files = _glob.glob(str(story_a_dir / "*-LINK.json"))
+    assert len(link_files) >= 1, (
+        f"Expected LINK event in story-a dir (redirected source), found: {link_files}"
+    )
+
+    # Verify the LINK event targets story-b (redirected target), not task-b1
+    found_redirect = False
+    for lf in link_files:
+        with open(lf) as f:
+            ev = json.load(f)
+        if ev.get("data", {}).get("target_id") == "story-b":
+            found_redirect = True
+            break
+    assert found_redirect, (
+        "Expected LINK event in story-a with target_id='story-b' (redirect), "
+        f"but no such event found. Files: {link_files}"
+    )
+
+    # No LINK event should be written in task-a1's directory
+    task_a1_dir = tracker_dir / "task-a1"
+    task_link_files = _glob.glob(str(task_a1_dir / "*-LINK.json"))
+    assert len(task_link_files) == 0, (
+        f"Expected NO LINK event in task-a1 dir (original source), found: {task_link_files}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_redundant_link_exits_nonzero(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Task-to-direct-parent link is redundant: add_dependency raises ValueError.
+
+    Setup:
+        - story-parent: story (no parent)
+        - task-child: task with parent_id=story-parent
+
+    Expected: add_dependency('story-parent', 'task-child', ...) raises ValueError
+              (is_redundant=True path -- story-parent IS the direct parent of task-child).
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "story-parent", ticket_type="story")
+    _write_ticket(
+        tracker_dir, "task-child", parent_id="story-parent", ticket_type="task"
+    )
+
+    with pytest.raises(ValueError, match="redundant"):
+        graph.add_dependency("story-parent", "task-child", str(tracker_dir))
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_cross_story_emits_redirect_json_to_stdout(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Cross-story redirect: add_dependency prints redirect JSON to stdout.
+
+    Setup: two tasks with different parent stories under the same epic.
+    Expected: stdout contains JSON with "redirected": true plus original/resolved IDs.
+    """
+    import io
+    import contextlib
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "epic-root2", ticket_type="epic")
+    _write_ticket(tracker_dir, "story-x", parent_id="epic-root2", ticket_type="story")
+    _write_ticket(tracker_dir, "story-y", parent_id="epic-root2", ticket_type="story")
+    _write_ticket(tracker_dir, "task-x1", parent_id="story-x", ticket_type="task")
+    _write_ticket(tracker_dir, "task-y1", parent_id="story-y", ticket_type="task")
+
+    captured_stdout = io.StringIO()
+    with contextlib.redirect_stdout(captured_stdout):
+        graph.add_dependency("task-x1", "task-y1", str(tracker_dir))
+
+    stdout_val = captured_stdout.getvalue()
+    assert stdout_val.strip(), "Expected redirect JSON on stdout, got empty output"
+
+    try:
+        redirect_data = json.loads(stdout_val.strip())
+    except json.JSONDecodeError as e:
+        pytest.fail(f"stdout is not valid JSON: {e!r}. stdout={stdout_val!r}")
+
+    assert redirect_data.get("redirected") is True, (
+        f"Expected 'redirected': true in stdout JSON, got {redirect_data!r}"
+    )
+    assert redirect_data.get("original", {}).get("source") == "task-x1", (
+        f"Expected original.source='task-x1', got {redirect_data!r}"
+    )
+    assert redirect_data.get("original", {}).get("target") == "task-y1", (
+        f"Expected original.target='task-y1', got {redirect_data!r}"
+    )
+    assert redirect_data.get("resolved", {}).get("source") == "story-x", (
+        f"Expected resolved.source='story-x', got {redirect_data!r}"
+    )
+    assert redirect_data.get("resolved", {}).get("target") == "story-y", (
+        f"Expected resolved.target='story-y', got {redirect_data!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_same_parent_still_works(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Same-parent tasks: add_dependency writes LINK normally (no redirect).
+
+    Setup:
+        - story-shared: story (no parent)
+        - task-p: task with parent_id=story-shared
+        - task-q: task with parent_id=story-shared
+
+    Expected: add_dependency('task-p', 'task-q', ...) writes LINK in task-p's
+              directory with target_id='task-q' (no redirect -- same parent story).
+    """
+    import glob as _glob
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "story-shared", ticket_type="story")
+    _write_ticket(tracker_dir, "task-p", parent_id="story-shared", ticket_type="task")
+    _write_ticket(tracker_dir, "task-q", parent_id="story-shared", ticket_type="task")
+
+    graph.add_dependency("task-p", "task-q", str(tracker_dir))
+
+    # LINK event must be in task-p's directory (no redirect)
+    task_p_dir = tracker_dir / "task-p"
+    link_files = _glob.glob(str(task_p_dir / "*-LINK.json"))
+    assert len(link_files) >= 1, (
+        f"Expected LINK event in task-p dir (same parent, no redirect), found: {link_files}"
+    )
+
+    # Verify the LINK targets task-q (original target unchanged)
+    found = False
+    for lf in link_files:
+        with open(lf) as f:
+            ev = json.load(f)
+        if ev.get("data", {}).get("target_id") == "task-q":
+            found = True
+            break
+    assert found, (
+        "Expected LINK event in task-p with target_id='task-q', "
+        f"but no such event found. Files: {link_files}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# check_cycle_at_level helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_ticket(tracker: Path, ticket_id: str, ticket_type: str = "task") -> Path:
+    """Write a minimal ticket directory with a CREATE event. Returns the ticket dir."""
+    ticket_dir = tracker / ticket_id
+    ticket_dir.mkdir(parents=True, exist_ok=True)
+    create_event = {
+        "event_type": "CREATE",
+        "uuid": f"create-{ticket_id}",
+        "timestamp": 1000,
+        "author": "Test User",
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "data": {
+            "ticket_type": ticket_type,
+            "title": f"Ticket {ticket_id}",
+            "parent_id": None,
+        },
+    }
+    with open(ticket_dir / f"1000-create-{ticket_id}-CREATE.json", "w") as f:
+        json.dump(create_event, f)
+    return ticket_dir
+
+
+def _write_link_event(
+    source_id: str,
+    target_id: str,
+    relation: str,
+    tracker_dir: str,
+    timestamp: int = 1500,
+) -> None:
+    """Write a LINK event in source_id's directory pointing at target_id."""
+    source_dir = Path(tracker_dir) / source_id
+    source_dir.mkdir(parents=True, exist_ok=True)
+    link_uuid = f"link-{source_id}-{relation}-{target_id}"
+    link_event = {
+        "event_type": "LINK",
+        "uuid": link_uuid,
+        "timestamp": timestamp,
+        "author": "Test User",
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "data": {
+            "target_id": target_id,
+            "relation": relation,
+        },
+    }
+    filename = f"{timestamp}-{link_uuid}-LINK.json"
+    with open(source_dir / filename, "w") as f:
+        json.dump(link_event, f)
+
+
+def _get_check_cycle_at_level():  # type: ignore[no-untyped-def]
+    """Load check_cycle_at_level from ticket-graph module."""
+    mod = _load_module()
+    return mod.check_cycle_at_level
+
+
+# ---------------------------------------------------------------------------
+# check_cycle_at_level tests (RED — function does not exist yet)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_cycle_at_level_detects_cycle(tmp_path: Path) -> None:
+    """check_cycle_at_level returns True when adding A→B would close an existing B→A cycle."""
+    check_cycle_at_level = _get_check_cycle_at_level()
+    tracker = tmp_path / ".tickets-tracker"
+    # epic-A and epic-B exist; epic-B has depends_on link to epic-A (B→A)
+    # So adding epic-A→epic-B would create a cycle: A→B→A
+    _make_ticket(tracker, "epic-A", ticket_type="epic")
+    _make_ticket(tracker, "epic-B", ticket_type="epic")
+    _write_link_event("epic-B", "epic-A", "depends_on", str(tracker))
+    assert check_cycle_at_level("epic-A", "epic-B", "epic", str(tracker)) is True
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_cycle_at_level_detects_self_loop(tmp_path: Path) -> None:
+    """check_cycle_at_level returns True for self-loops (source==target)."""
+    check_cycle_at_level = _get_check_cycle_at_level()
+    tracker = tmp_path / ".tickets-tracker"
+    _make_ticket(tracker, "epic-A", ticket_type="epic")
+    assert check_cycle_at_level("epic-A", "epic-A", "epic", str(tracker)) is True
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_cycle_at_level_case_insensitive(tmp_path: Path) -> None:
+    """check_cycle_at_level matches ticket_type case-insensitively."""
+    check_cycle_at_level = _get_check_cycle_at_level()
+    tracker = tmp_path / ".tickets-tracker"
+    _make_ticket(tracker, "epic-A", ticket_type="Epic")  # capital E
+    _make_ticket(tracker, "epic-B", ticket_type="Epic")
+    _write_link_event("epic-B", "epic-A", "depends_on", str(tracker))
+    assert check_cycle_at_level("epic-A", "epic-B", "epic", str(tracker)) is True
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_cycle_at_level_no_false_positive(tmp_path: Path) -> None:
+    """check_cycle_at_level returns False when no cycle exists."""
+    check_cycle_at_level = _get_check_cycle_at_level()
+    tracker = tmp_path / ".tickets-tracker"
+    _make_ticket(tracker, "epic-A", ticket_type="epic")
+    _make_ticket(tracker, "epic-B", ticket_type="epic")
+    # A→B exists, but we're checking if adding B→A would cycle — that's True
+    # Instead test: no existing links, checking epic-A→epic-B: should be False
+    assert check_cycle_at_level("epic-A", "epic-B", "epic", str(tracker)) is False
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_hierarchy_enforcement_benchmark_1000_tickets(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Hierarchy enforcement completes 10 cross-story add_dependency calls under 5s on 1000-ticket hierarchy.
+
+    Setup: 10 epics × 10 stories × 10 tasks = 1,000 tickets.
+    Action: 10 add_dependency calls linking tasks across different stories in the same epic.
+    Assert: all calls complete in <5.0 seconds AND at least one story-level dep was promoted.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    # Build 10×10×10 hierarchy
+    for i in range(10):
+        _write_ticket(tracker_dir, f"epic-{i:02d}", ticket_type="epic")
+        for j in range(10):
+            _write_ticket(
+                tracker_dir,
+                f"story-{i:02d}-{j:02d}",
+                ticket_type="story",
+                parent_id=f"epic-{i:02d}",
+            )
+            for k in range(10):
+                _write_ticket(
+                    tracker_dir,
+                    f"task-{i:02d}-{j:02d}-{k:02d}",
+                    ticket_type="task",
+                    parent_id=f"story-{i:02d}-{j:02d}",
+                )
+
+    # 10 cross-story add_dependency calls (tasks in different stories of same epic)
+    start = time.monotonic()
+    for i in range(10):
+        # task-0X-00-00 → task-0X-01-00 (cross-story within epic-0X)
+        graph.add_dependency(
+            f"task-{i:02d}-00-00",
+            f"task-{i:02d}-01-00",
+            str(tracker_dir),
+            "depends_on",
+        )
+    elapsed = time.monotonic() - start
+
+    # Performance assertion
+    assert elapsed < 5.0, (
+        f"10 cross-story add_dependency calls took {elapsed:.2f}s (limit: 5.0s)"
+    )
+
+    # Correctness: verify at least one story-level dep was actually written
+    story_deps = graph.build_dep_graph("story-00-00", str(tracker_dir)).get("deps", [])
+    assert any(d["target_id"] == "story-00-01" for d in story_deps), (
+        "Expected story-00-00 → story-00-01 dep after cross-story task link"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_dep_graph_correctness_after_cross_story_link(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Cross-story task link is promoted to story level; original task-level link is NOT written.
+
+    Given: epic-a → story-x → task-a, and epic-a → story-y → task-b
+    When: add_dependency('task-a', 'task-b', tracker_dir, 'depends_on')
+    Then: story-x has story-y in its deps (promoted), task-a does NOT have task-b in its deps.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "epic-a", ticket_type="epic")
+    _write_ticket(tracker_dir, "story-x", ticket_type="story", parent_id="epic-a")
+    _write_ticket(tracker_dir, "task-a", ticket_type="task", parent_id="story-x")
+    _write_ticket(tracker_dir, "story-y", ticket_type="story", parent_id="epic-a")
+    _write_ticket(tracker_dir, "task-b", ticket_type="task", parent_id="story-y")
+
+    graph.add_dependency("task-a", "task-b", str(tracker_dir), "depends_on")
+
+    # Story-level dep should be present (promoted)
+    story_x_deps = graph.build_dep_graph("story-x", str(tracker_dir)).get("deps", [])
+    assert any(d["target_id"] == "story-y" for d in story_x_deps), (
+        "Expected story-x → story-y dep after cross-story task link"
+    )
+
+    # Task-level dep should be absent (NOT written at original task level)
+    task_a_deps = graph.build_dep_graph("task-a", str(tracker_dir)).get("deps", [])
+    assert not any(d["target_id"] == "task-b" for d in task_a_deps), (
+        "Expected NO task-a → task-b dep (should have been promoted to story level)"
+    )

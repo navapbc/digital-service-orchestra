@@ -12,13 +12,17 @@ PASS=0
 FAIL=0
 
 # Assertion 1: No references to old design/findings/archive paths in *.md *.sh
-# Exclude this test file itself (it contains the patterns as search terms, not real references)
+# Exclude this test file itself and boundary-enforcement test files (they contain the patterns
+# as search terms in their test assertions, not as real dev-team artifact path references).
 SELF=$(basename "$0")
 if ! git -C "$REPO_ROOT" grep -rn \
      -e 'plugins/dso/docs/designs' \
      -e 'plugins/dso/docs/findings' \
      -e 'plugins/dso/docs/archive' \
-     -- '*.md' '*.sh' 2>/dev/null | grep -v "$SELF"; then
+     -- '*.md' '*.sh' 2>/dev/null | grep -v "$SELF" \
+     | grep -v "test-check-plugin-boundary.sh" \
+     | grep -v "test-plugin-boundary-refs.sh" \
+     | grep -v "test-plugin-boundary-rule.sh"; then
   echo "PASS: no old path references in *.md/*.sh"
   PASS=$((PASS+1))
 else

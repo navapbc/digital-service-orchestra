@@ -62,6 +62,7 @@ fi
 # Parse arguments
 EXPECTED_HASH=""
 REVIEWER_HASH=""
+FINDINGS_FILE_OVERRIDE=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --expected-hash)
@@ -80,13 +81,25 @@ while [[ $# -gt 0 ]]; do
             REVIEWER_HASH="${1#*=}"
             shift
             ;;
+        --findings-file)
+            FINDINGS_FILE_OVERRIDE="$2"
+            shift 2
+            ;;
+        --findings-file=*)
+            FINDINGS_FILE_OVERRIDE="${1#*=}"
+            shift
+            ;;
         *)
             echo "ERROR: unknown argument: $1" >&2
             echo "" >&2
-            echo "Usage: record-review.sh --reviewer-hash HASH [--expected-hash HASH]" >&2
+            echo "Usage: record-review.sh --reviewer-hash HASH [--expected-hash HASH] [--findings-file PATH]" >&2
             echo "" >&2
             echo "This script reads directly from reviewer-findings.json (written by the" >&2
             echo "code-reviewer sub-agent). No stdin JSON is accepted." >&2
+            echo "" >&2
+            echo "  --findings-file PATH  Explicit path to reviewer-findings.json (use when the" >&2
+            echo "                        reviewer wrote to a different ARTIFACTS_DIR, e.g., in a" >&2
+            echo "                        sub-agent worktree with a different REPO_ROOT hash)." >&2
             exit 1
             ;;
     esac
@@ -111,13 +124,20 @@ ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 
 # --- Locate and verify reviewer-findings.json (written by code-reviewer sub-agent) ---
-FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
+if [[ -n "$FINDINGS_FILE_OVERRIDE" ]]; then
+    FINDINGS_FILE="$FINDINGS_FILE_OVERRIDE"
+else
+    FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
+fi
 if [[ ! -f "$FINDINGS_FILE" ]]; then
     echo "ERROR: reviewer-findings.json not found — review sub-agent must write this file" >&2
     echo "  Expected at: $FINDINGS_FILE" >&2
     echo "" >&2
     echo "The code-reviewer sub-agent writes this file via write-reviewer-findings.sh." >&2
     echo "Run /dso:review to dispatch a sub-agent review." >&2
+    if [[ -z "$FINDINGS_FILE_OVERRIDE" ]]; then
+        echo "  Hint: if the reviewer ran in a different worktree, pass --findings-file <path>." >&2
+    fi
     exit 1
 fi
 

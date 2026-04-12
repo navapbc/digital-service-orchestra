@@ -616,7 +616,7 @@ for t in all_tickets:
     open_depends_on = [
         d for d in (t.get("deps") or [])
         if d.get("relation") == "depends_on"
-        and ticket_status_map.get(d.get("target_id", ""), "open") not in CLOSED_STATUSES
+        and ticket_status_map.get(d.get("target_id", ""), "closed") not in CLOSED_STATUSES
     ]
     if open_depends_on:
         blocked_ids.add(tid)

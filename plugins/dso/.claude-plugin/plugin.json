@@ -1,6 +1,6 @@
 {
   "name": "dso",
-  "version": "1.11.31",
+  "version": "1.11.40",
   "description": "Workflow infrastructure plugin for Claude Code projects",
   "commands": "./commands/",
   "skills": "./skills/",
@@ -28,6 +28,7 @@
     "./agents/red-team-reviewer.md",
     "./agents/red-test-evaluator.md",
     "./agents/red-test-writer.md",
+    "./agents/scope-drift-reviewer.md",
     "./agents/ui-designer.md"
   ],
   "hooks": {

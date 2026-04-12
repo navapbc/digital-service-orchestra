@@ -320,37 +320,6 @@ If either check fails, fix the issue and **restart from Step 1**.
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3-lint-typecheck" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-## Step 3.5: Record Test Status
-
-Run `record-test-status.sh` to discover and run tests for files about to be staged. This records the `test-gate-status` file that the pre-commit test gate will verify at commit time.
-
-```bash
-bash "$(git rev-parse --show-toplevel)/plugins/dso/hooks/record-test-status.sh"
-```
-
-- **exit 0**: all associated tests passed (or no associated tests found) — continue to Step 3a.
-- **exit 144**: test runner was terminated; follow the actionable guidance printed by `record-test-status.sh`. Use `test-batched.sh` to run the tests in time-bounded chunks:
-  ```bash
-  .claude/scripts/dso test-batched.sh --timeout=50 "bash tests/hooks/test-<name>.sh"
-  ```
-  When `test-batched.sh` runs out of time, it emits a **Structured Action-Required Block**:
-  ```
-  ════════════════════════════════════════════════════════════
-    ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠
-  ════════════════════════════════════════════════════════════
-  RUN: TEST_BATCHED_STATE_FILE=... bash .../test-batched.sh ...
-  DO NOT PROCEED until the command above prints a final summary.
-  ════════════════════════════════════════════════════════════
-  ```
-  Run the command shown on the `RUN:` line in subsequent calls until the summary appears, then re-run Step 3.5.
-- **exit non-zero (other)**: tests failed; fix the failures and **restart from Step 1**.
-
-> **NEVER add RED markers to `.test-index` to bypass a test gate failure.** RED markers (`[test_name]` entries in `.test-index`) are exclusively for TDD — they mark tests that are expected to fail because the feature under test is not yet implemented. If the test gate blocks due to pre-existing failures unrelated to your change, create a bug ticket (`.claude/scripts/dso ticket create bug "<test failure description>"`) and fix the test. Do NOT add a marker to mask the failure.
-
-```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3.5-record-test-status" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
-```
-
 ## Step 3a: Write Validation State File
 
 After Steps 1-3 all pass, write a validation state file so the review workflow can skip redundant re-validation:
@@ -390,6 +359,37 @@ git add -u
 
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4-stage" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
+
+## Step 4.5: Record Test Status
+
+Run `record-test-status.sh` **after** `git add -u` (Step 4) so that the recorded diff hash matches the staged index — the pre-commit test gate validates against the staged hash, not the working-tree hash.
+
+```bash
+bash "$(git rev-parse --show-toplevel)/plugins/dso/hooks/record-test-status.sh"
+```
+
+- **exit 0**: all associated tests passed (or no associated tests found) — continue to Step 5 (Review Gate).
+- **exit 144**: test runner was terminated; follow the actionable guidance printed by `record-test-status.sh`. Use `test-batched.sh` to run the tests in time-bounded chunks:
+  ```bash
+  .claude/scripts/dso test-batched.sh --timeout=50 "bash tests/hooks/test-<name>.sh"
+  ```
+  When `test-batched.sh` runs out of time, it emits a **Structured Action-Required Block**:
+  ```
+  ════════════════════════════════════════════════════════════
+    ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠
+  ════════════════════════════════════════════════════════════
+  RUN: TEST_BATCHED_STATE_FILE=... bash .../test-batched.sh ...
+  DO NOT PROCEED until the command above prints a final summary.
+  ════════════════════════════════════════════════════════════
+  ```
+  Run the command shown on the `RUN:` line in subsequent calls until the summary appears, then re-run Step 4.5.
+- **exit non-zero (other)**: tests failed; fix the failures and **restart from Step 1**.
+
+> **NEVER add RED markers to `.test-index` to bypass a test gate failure.** RED markers (`[test_name]` entries in `.test-index`) are exclusively for TDD — they mark tests that are expected to fail because the feature under test is not yet implemented. If the test gate blocks due to pre-existing failures unrelated to your change, create a bug ticket (`.claude/scripts/dso ticket create bug "<test failure description>"`) and fix the test. Do NOT add a marker to mask the failure.
+
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4.5-record-test-status" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
 ## Step 5: Review Gate

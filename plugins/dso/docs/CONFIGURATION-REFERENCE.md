@@ -517,13 +517,13 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ---
 
-### `worktree.max_age_days`
+### `worktree.max_age_hours`
 
 | | |
 |---|---|
-| **Description** | Maximum age in days for automatic worktree cleanup. Worktrees older than this threshold are candidates for removal. Overridden by `AGE_DAYS` env var. |
+| **Description** | Maximum age in hours for automatic worktree cleanup. Worktrees older than this threshold are candidates for removal. Overridden by `AGE_HOURS` env var. |
 | **Accepted values** | Positive integer |
-| **Default** | `2` |
+| **Default** | `12` |
 | **Used by** | `plugins/dso/scripts/worktree-cleanup.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
@@ -745,6 +745,17 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Accepted values** | Positive integer |
 | **Default** | `20` |
 | **Used by** | `/dso:debug-everything` (Gate 1a intent search sub-agent) |
+
+---
+
+### `scope_drift.enabled`
+
+| | |
+|---|---|
+| **Description** | When true, `/dso:fix-bug` runs the scope-drift reviewer (`dso:scope-drift-reviewer`) at Step 7.1 after fix verification. When false, Step 7.1 is skipped. |
+| **Accepted values** | `true`, `false` |
+| **Default** | `true` |
+| **Used by** | `/dso:fix-bug` (Step 7.1 scope-drift review) |
 
 ---
 

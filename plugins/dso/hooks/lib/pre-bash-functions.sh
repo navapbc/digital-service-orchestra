@@ -148,8 +148,8 @@ hook_commit_failure_tracker() {
     local _SEARCH_CMD_FROM_ENV="${SEARCH_CMD:-}"
     local _SEARCH_CMD="${SEARCH_CMD:-grep -rl}"
     local _READ_CONFIG=""
-    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then  # shim-exempt: direct plugin internal sourcing
-        _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"  # shim-exempt: direct plugin internal sourcing
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then  # shim-exempt: hook lib resolves plugin scripts via CLAUDE_PLUGIN_ROOT, not repo shim
+        _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"  # shim-exempt: hook lib resolves plugin scripts via CLAUDE_PLUGIN_ROOT
     fi
     # Config file: prefer CLAUDE_PLUGIN_ROOT/.claude/dso-config.conf when set and present,
     # so tests can pass an isolated config without affecting the real repo config.
@@ -450,6 +450,12 @@ hook_worktree_edit_guard() {
         return 0
     fi
 
+    # File is inside a sub-agent worktree (.claude/worktrees/)? Allow.
+    # Agent worktrees are isolated working directories, not main-repo files.
+    if [[ "$FILE_PATH" == "$MAIN_REPO_ROOT/.claude/worktrees/"* ]]; then
+        return 0
+    fi
+
     # File is inside the main repo? Block.
     if [[ "$FILE_PATH" == "$MAIN_REPO_ROOT"/* || "$FILE_PATH" == "$MAIN_REPO_ROOT" ]]; then
         [[ -z "$TOOL_NAME" ]] && TOOL_NAME="Edit/Write"
@@ -717,7 +723,7 @@ print(json.dumps(entry))
 #
 # .tickets-tracker/ is an event-sourced log; direct Bash modifications bypass
 # event sourcing invariants and may corrupt the event log. All mutations must
-# go through ticket CLI commands (ticket *, ${_PLUGIN_ROOT}/scripts/ticket *).
+# go through ticket CLI commands (ticket *, .claude/scripts/dso ticket *).
 #
 # Logic:
 #   1. Only fires on Bash tool calls
@@ -726,7 +732,7 @@ print(json.dumps(entry))
 #   4. If command contains .tickets-tracker/ AND NOT allowlisted: return 2 (block)
 #   5. All other cases: return 0 (allow, fail-open)
 #
-# Allowlist: ticket CLI scripts (ticket, ${_PLUGIN_ROOT}/scripts/ticket) are the sanctioned write path.
+# Allowlist: ticket CLI scripts (ticket, .claude/scripts/dso ticket) are the sanctioned write path.
 #
 # REVIEW-DEFENSE: This function is intentionally not wired into dispatchers yet.
 # Task dso-280g ("Wire tickets-tracker guards into dispatchers") handles dispatcher
@@ -793,8 +799,8 @@ hook_tickets_tracker_bash_guard() {
     # Allowlist: ticket CLI patterns — sanctioned write path.
     # Three invocation forms:
     #   1. "ticket <subcommand> ..." — bare ticket dispatcher
-    #   2. "${_PLUGIN_ROOT}/scripts/ticket <subcommand> ..." — via DSO shim
-    #   3. "bash ${_PLUGIN_ROOT}/scripts/ticket <subcommand> ..." — shim via bash
+    #   2. ".claude/scripts/dso ticket <subcommand> ..." — via DSO shim
+    #   3. "bash .claude/scripts/dso ticket <subcommand> ..." — shim via bash
     local _TRIMMED="$_CMD_TRIMMED"   # reuse already-trimmed value
     local _FIRST_TOKEN="${_TRIMMED%%[[:space:]]*}"
     # Form 1: bare "ticket" command

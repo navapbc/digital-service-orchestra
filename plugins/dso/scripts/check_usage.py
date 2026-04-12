@@ -186,10 +186,15 @@ def write_cache(cache_path: str, data: dict) -> None:
 
     lock_path = os.path.join(os.path.dirname(cache_path), "usage-cache.lock")
 
-    # Flatten nested API data into flat cache fields
+    # Flatten nested API data into flat cache fields.
+    # Normalize utilization: API can return whole-number percentages (e.g. 7 for 7%)
+    # instead of fractions (0.07). Divide by 100 when value > 1.0 to normalize.
+    def _norm(v: float) -> float:
+        return v / 100.0 if v > 1.0 else v
+
     enriched = {
-        "five_hour_pct": data.get("five_hour", {}).get("utilization", 0.0),
-        "seven_day_pct": data.get("seven_day", {}).get("utilization", 0.0),
+        "five_hour_pct": _norm(data.get("five_hour", {}).get("utilization", 0.0)),
+        "seven_day_pct": _norm(data.get("seven_day", {}).get("utilization", 0.0)),
         "timestamp": int(time.time()),
         "resets_at": data.get("resets_at", ""),
     }
