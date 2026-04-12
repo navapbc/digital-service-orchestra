@@ -1,13 +1,18 @@
 {
-  "reviewer": "dso:code-reviewer-light",
-  "review_tier": "light",
   "scores": {
-    "correctness": 5,
-    "verification": 5,
     "hygiene": 5,
     "design": 5,
-    "maintainability": 5
+    "maintainability": 4,
+    "correctness": 5,
+    "verification": 5
   },
-  "findings": [],
-  "summary": "Adds explicit agent-unavailable fallback to sprint SKILL.md Step 10a and Phase 6 Step 0.75 for dso:completion-verifier dispatch, directing the orchestrator to use general-purpose with the agent definition inline instead of skipping the step. Structural test added to verify both fallback blocks are present. Matches pattern already established for dso:complexity-evaluator fallback."
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "description": "Step 2a2 body text references Step 2a3 extensively (routing language, REPLAN_TRIGGER) but Step 2a3 is not yet present in SKILL.md. The REVIEW-DEFENSE comment explains this is by design — 2a3 lands in a subsequent batch — and the RED marker [test_sc_coverage_escalation] correctly tolerates tests 5-10 failing. This is an intentional incremental TDD state, not a defect, but the forward references to a non-existent section create a slightly confusing read of the current SKILL.md.",
+      "file": "plugins/dso/skills/sprint/SKILL.md"
+    }
+  ],
+  "summary": "All three pass-1 findings are resolved. Finding 1 (ORCHESTRATOR_RESUME routing for MISSING vs UNSURE verdicts) is correctly fixed with three distinct branches. Finding 2 (prompt files absent from worktree) is accepted — the REVIEW-DEFENSE comment provides a credible merge-order guarantee with specific story and branch identifiers. Finding 3 (test forward-reference false positives) is fixed — test 5 now requires a markdown heading line, test 7 extracts the 2a3 section and checks within it, and both correctly fail RED. The RED marker is properly declared and the .test-index entry is registered. One minor maintainability note: Step 2a2 contains extensive forward references to Step 2a3 which does not yet exist, but this is intentional incremental implementation with the RED marker protecting against premature closure. security_overlay_warranted: no, performance_overlay_warranted: no, approach_viability_concern: false"
 }

@@ -412,7 +412,122 @@ If any trigger condition is met:
    ```
 5. After preplanning completes, continue to Phase 2
 
-If no trigger condition is met, proceed directly to Phase 2.
+If no trigger condition is met, proceed to Step 2a1 (SC Coverage Haiku Gate).
+
+#### Step 2a1: SC Coverage Haiku Gate (/dso:sprint)
+
+**Purpose**: Fast-path check that all epic success criteria (SCs) are traceable to at least one child story or task. Uses a haiku sub-agent for speed. This is a read-only advisory gate — it never blocks execution. Sonnet/opus escalation for ESCALATE verdicts is handled by Step 2a2.
+
+**ORCHESTRATOR_RESUME idempotency**: If your resume context contains `SC_COVERAGE_HAIKU_GATE: complete` for this epic, skip this entire sub-step and proceed to Step 2a2 if any ESCALATE verdicts were recorded, otherwise proceed to Phase 2.
+
+**Step 1 — Collect inputs**:
+
+1. Retrieve the epic's success criteria list from the epic ticket description.
+2. Retrieve child descriptions (already fetched by Step 1 and Step 2a above).
+3. If the epic has **0 SCs** (empty success criteria list): log `"0-SC epic: skipping SC coverage haiku gate — no SCs to validate"` and proceed directly to Phase 2. Do not dispatch the haiku sub-agent.
+
+**Step 2 — Dispatch haiku sub-agent**:
+
+Dispatch a `subagent_type: general-purpose` sub-agent with `model: haiku`. Load the prompt from `plugins/dso/skills/sprint/prompts/sc-coverage-haiku.md`. Provide:
+- `epic_sc_list`: an array of `{ "sc_id": "<id>", "sc_text": "<text>" }` objects. Assign sequential IDs (e.g. `sc-1`, `sc-2`) from the epic's SC list in order.
+- `children`: an array of `{ "child_id": "<id>", "child_title": "<title>", "child_description": "<description>" }` for each child ticket
+
+**Step 3 — Parse output**:
+
+The haiku sub-agent returns a JSON object with this structure:
+```json
+{
+  "results": [
+    {
+      "sc_id": "<matches input sc_id>",
+      "verdict": "COVERED" | "ESCALATE",
+      "covering_child_id": "<child_id or null>",
+      "citation_reason": "<explanation or null>"
+    }
+  ]
+}
+```
+Parse the `results` array. Check `verdict` on each entry. On any missing key, null `results`, or invalid JSON: trigger the fail-open path below.
+
+**On parse failure** (malformed JSON, missing fields, timeout, or empty output): this gate is fail-open — log a warning `"SC coverage haiku gate: parse failure — skipping gate, proceeding to Phase 2"` and proceed directly to Phase 2. Do not block execution.
+
+**Step 4 — Route on verdicts**:
+
+- **ALL verdicts are `COVERED`**: log `"SC coverage haiku gate: all SCs covered — proceeding to Phase 2"` and proceed to Phase 2 normally. Skip Step 2a2.
+- **ANY verdict is `ESCALATE`**: collect the ESCALATE SCs into an escalation list and proceed to Step 2a2 (SC Coverage Sonnet Tier).
+
+**Step 5 — Emit idempotency marker**:
+
+Emit `SC_COVERAGE_HAIKU_GATE: complete` to your output so that ORCHESTRATOR_RESUME can detect it on resume.
+
+<!-- REVIEW-DEFENSE: Finding 2 — sc-coverage-sonnet.md and sc-coverage-haiku.md not in this worktree.
+     Both prompt files are created by story 3812-d606 in branch worktree-agent-ae49f130 (Batch 1).
+     Merge order: Batch 1 (prompt files) → Batch 3 (haiku gate) → Batch 5 (sonnet tier).
+     Files will be present on main before this change lands. Worktree-isolation artifact. -->
+#### Step 2a2: SC Coverage Sonnet Tier (/dso:sprint)
+
+**Trigger**: Only runs if the haiku gate (Step 2a1) returned ANY `ESCALATE` verdict. If haiku marked ALL SCs as `COVERED` (empty escalation list), skip this sub-step entirely and proceed to Phase 2.
+
+**Purpose**: Deeper evaluation of SCs that haiku could not conclusively mark as COVERED. Sonnet evaluates each escalated SC independently, with no knowledge of haiku's verdicts.
+
+**ORCHESTRATOR_RESUME idempotency**: If your resume context contains `SC_COVERAGE_SONNET_GATE: complete` for this epic, skip this entire sub-step and:
+- If any UNSURE verdicts were recorded → proceed to Step 2a3 (opus dispatch)
+- If any MISSING verdicts were recorded (no UNSURE) → proceed to Step 2a3 routing (REPLAN_TRIGGER only, no opus dispatch)
+- If all verdicts are COVERED → proceed to Phase 2 directly
+
+**Step 1 — Prepare input**:
+
+From the haiku escalation list, collect only the SCs marked `ESCALATE`. Build the input payload:
+```json
+{
+  "sc_list": [
+    { "sc_id": "sc-1", "sc_text": "<original SC text — no haiku verdicts, no escalation reasoning>" }
+  ],
+  "children": [
+    { "child_id": "<id>", "child_title": "<title>", "child_description": "<description>" }
+  ]
+}
+```
+
+**Important input contract**: Pass ONLY the original SC text and children descriptions to sonnet. Do NOT include haiku verdicts, escalation reasoning, or haiku output in the prompt. Sonnet must evaluate independently.
+
+**Step 2 — Dispatch sonnet sub-agent**:
+
+Dispatch a `subagent_type: general-purpose` sub-agent with `model: sonnet`. Load the prompt from `plugins/dso/skills/sprint/prompts/sc-coverage-sonnet.md`. Pass the input payload constructed above.
+
+**Step 3 — Parse output**:
+
+The sonnet sub-agent returns a JSON object:
+```json
+{
+  "results": [
+    {
+      "sc_id": "sc-1",
+      "verdict": "COVERED" | "MISSING" | "UNSURE",
+      "reasoning": "<explanation>"
+    }
+  ]
+}
+```
+Parse the `results` array. Check `verdict` on each entry.
+
+**On parse failure** (malformed JSON, missing fields, timeout, or empty output): this gate is fail-open — log a warning `"SC coverage sonnet gate: parse failure — treating all sonnet SCs as UNSURE, escalating to opus (Step 2a3)"` and treat ALL sonnet-evaluated SCs as `UNSURE`. Proceed to Step 2a3.
+
+**Step 4 — Collect verdicts**:
+
+For each SC in the sonnet results:
+- **`COVERED`**: SC is sufficiently covered — remove from escalation tracking.
+- **`MISSING`**: SC has a real gap — add to the `sc_coverage_missing` list.
+- **`UNSURE`**: Sonnet could not determine coverage — collect into the `sc_coverage_unsure` list for opus escalation.
+
+**Step 5 — Route on UNSURE list**:
+
+- **If the UNSURE list is empty**: proceed to Step 2a3 routing (no opus dispatch needed). Log: `"SC coverage sonnet gate: no UNSURE SCs — opus escalation skipped"`.
+- **If any SCs are UNSURE**: proceed to Step 2a3 (SC Coverage Opus Tier) with the UNSURE SCs passed as input to opus.
+
+**Step 6 — Emit idempotency marker**:
+
+Emit `SC_COVERAGE_SONNET_GATE: complete` to your output so that ORCHESTRATOR_RESUME can detect it on resume.
 
 #### Step 2b: Epic Complexity Evaluation (/dso:sprint)
 
