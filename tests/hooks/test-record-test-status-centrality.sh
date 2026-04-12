@@ -296,6 +296,7 @@ _orig_IFS="$IFS"
 IFS=':'
 for _path_dir in $PATH; do
     IFS="$_orig_IFS"
+
     if [[ -x "$_path_dir/sg" ]]; then
         # Skip directories that contain sg
         continue
@@ -308,6 +309,17 @@ for _path_dir in $PATH; do
     IFS=':'
 done
 IFS="$_orig_IFS"
+
+# Preserve bash 4+ in PATH — stripping sg dirs may remove /opt/homebrew/bin
+# where bash 5 lives, causing env bash to resolve to /bin/bash (3.2) which
+# lacks declare -A support needed by record-test-status.sh.
+_BASH_PRESERVE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/bash-preserve-XXXXXX")
+_TEST_TMPDIRS+=("$_BASH_PRESERVE_DIR")
+_CURRENT_BASH=$(command -v bash)
+if [[ -n "$_CURRENT_BASH" ]]; then
+    ln -sf "$_CURRENT_BASH" "$_BASH_PRESERVE_DIR/bash"
+    _NO_SG_PATH="${_BASH_PRESERVE_DIR}:${_NO_SG_PATH}"
+fi
 
 MOCK_PASS_NOSG=$(create_mock_pass_runner)
 
