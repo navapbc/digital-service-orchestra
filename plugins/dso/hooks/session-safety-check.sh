@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
 # .claude/hooks/session-safety-check.sh
 # SessionStart hook: analyze hook error log and warn about recurring errors
 #
@@ -99,7 +100,7 @@ while IFS= read -r line; do
         _REPO_ROOT_SS="$(git rev-parse --show-toplevel 2>/dev/null)"
         for _HOOK_DIR in "$HOME/.claude/hooks" \
                          "$_REPO_ROOT_SS/hooks" \
-                         "${CLAUDE_PLUGIN_ROOT:-$_REPO_ROOT_SS/plugins/dso}/hooks"; do
+                         "${_PLUGIN_ROOT}/hooks"; do
             if [[ -f "$_HOOK_DIR/$HOOK_NAME" ]]; then
                 HOOK_EXISTS=true
                 break

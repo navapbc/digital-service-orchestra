@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
 # scripts/check-model-id-lint.sh
 # Detect hardcoded Claude model IDs in plugin source files.
 #
@@ -18,14 +19,14 @@ set -uo pipefail
 #   check-model-id-lint.sh [--scan-dir <dir>] [file ...]
 #
 # When no file arguments are given, scans:
-#   plugins/dso/ (*.yaml, *.sh, *.py, *.md)
+#   ${_PLUGIN_ROOT}/ (*.yaml, *.sh, *.py, *.md)
 #
 # Exit codes:
 #   0 — No violations found
 #   1 — One or more violations found
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# SCRIPT_DIR is plugins/dso/scripts/ — one level up is the plugin root (plugins/dso/)
+# SCRIPT_DIR is the scripts/ dir — one level up is the plugin root
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ if [[ -n "$_scan_dir" ]]; then
 else
     # Default: use git to resolve repo root portably
     _repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || _repo_root="$(cd "$SCRIPT_DIR" && cd "$(git rev-parse --show-toplevel)" && pwd)"
-    _root="$_repo_root/plugins/dso"
+    _root="${_PLUGIN_ROOT}"
 fi
 
 # ── Scan ──────────────────────────────────────────────────────────────────────

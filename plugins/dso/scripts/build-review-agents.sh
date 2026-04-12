@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
 # build-review-agents.sh
 #
 # Composes reviewer-base.md + per-agent delta files into generated code-reviewer
@@ -38,7 +39,7 @@ _sha256() {
 # ── Defaults ─────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
+DSO_PLUGIN_DIR="${_PLUGIN_ROOT}"
 
 BASE_FILE=""
 DELTAS_DIR=""

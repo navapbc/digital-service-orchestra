@@ -1,5 +1,6 @@
 #!/bin/bash
 set -uo pipefail
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
 # scripts/cleanup-claude-session.sh
 # Clean up orphaned processes, temp files, and stale state.
 #
@@ -84,7 +85,7 @@ if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
         fi
     fi
     if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
+        CLAUDE_PLUGIN_ROOT="${_PLUGIN_ROOT}"
     fi
 fi
 

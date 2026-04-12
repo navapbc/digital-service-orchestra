@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../..}"
+_PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)/}"
 # check-plugin-boundary.sh
 # Enforces the plugin boundary: blocks commits that add files to ${CLAUDE_PLUGIN_ROOT}/
 # that are outside the positive-enumeration allowlist.
@@ -18,11 +20,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -n "${PLUGIN_BOUNDARY_ALLOWLIST:-}" ]]; then
     ALLOWLIST_FILE="$PLUGIN_BOUNDARY_ALLOWLIST"
 else
-    ALLOWLIST_FILE="$SCRIPT_DIR/plugin-boundary-allowlist.conf"
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    ALLOWLIST_FILE="$REPO_ROOT/.claude/hooks/pre-commit/plugin-boundary-allowlist.conf"
 fi
 
 # Discover staged additions to ${CLAUDE_PLUGIN_ROOT}/
-mapfile -t staged_files < <(git diff --cached --name-only --diff-filter=A 2>/dev/null | grep '^plugins/dso/')
+mapfile -t staged_files < <(git diff --cached --name-only --diff-filter=A 2>/dev/null | grep "^${_PLUGIN_GIT_PATH}/")
 
 # Fast path: no additions to ${CLAUDE_PLUGIN_ROOT}/
 if [[ ${#staged_files[@]} -eq 0 ]]; then
@@ -83,7 +86,7 @@ sys.exit(1)
 violations=()
 for staged_path in "${staged_files[@]}"; do
     # Strip the "${CLAUDE_PLUGIN_ROOT}/" prefix to get relative path within the plugin
-    relative_path="${staged_path#plugins/dso/}"
+    relative_path="${staged_path#${_PLUGIN_GIT_PATH}/}"
 
     if ! _match_path_against_allowlist "$relative_path" "${allowlist_patterns[@]}"; then
         violations+=("$staged_path")

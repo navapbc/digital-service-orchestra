@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+_PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)/}"
 # scripts/check-shim-refs.sh
 # Detect direct plugin script references that should use the ${_PLUGIN_ROOT}/scripts/shim.
 #
@@ -38,7 +40,7 @@ elif [[ -n "${PRE_COMMIT:-}" ]]; then
     # to avoid the full 183-file corpus scan that causes timeouts on larger changesets.
     # _scan_file already filters out scripts/ files, so we pass all staged ${CLAUDE_PLUGIN_ROOT}/ files.
     _repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$PLUGIN_DIR" && git rev-parse --show-toplevel 2>/dev/null))"
-    mapfile -t _scan_targets < <(git diff --cached --name-only -- plugins/dso/ 2>/dev/null | while IFS= read -r _f; do
+    mapfile -t _scan_targets < <(git diff --cached --name-only -- ${_PLUGIN_GIT_PATH}/ 2>/dev/null | while IFS= read -r _f; do
         [[ -f "$_repo_root/$_f" ]] && echo "$_repo_root/$_f"
     done)
 else
@@ -67,7 +69,7 @@ _is_in_scope() {
     if [[ -z "$_real_file" ]]; then
         _real_file="$_file"
     fi
-    [[ "$_real_file" == */plugins/dso/* ]]
+    [[ "$_real_file" == */${_PLUGIN_GIT_PATH}/* ]]
 }
 
 _is_in_scripts_dir() {
@@ -77,7 +79,7 @@ _is_in_scripts_dir() {
     if [[ -z "$_real_file" ]]; then
         _real_file="$_file"
     fi
-    [[ "$_real_file" == */plugins/dso/scripts/* ]]
+    [[ "$_real_file" == */${_PLUGIN_GIT_PATH}/scripts/* ]]
 }
 
 _scan_file() {

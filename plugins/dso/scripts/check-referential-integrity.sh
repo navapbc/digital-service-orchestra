@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+_PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)/}"
 # check-referential-integrity.sh
 # Verify that path references in skill/agent/workflow/prompt markdown files
 # point to files that actually exist in the repository.
@@ -51,7 +53,7 @@ if [[ -z "$REPO_ROOT" ]]; then
     fi
 fi
 
-PLUGIN_DIR="$REPO_ROOT/plugins/dso"
+PLUGIN_DIR="${_PLUGIN_ROOT}"
 
 # ── Temp files for intermediate data ─────────────────────────────────────────
 _git_cache_file=$(mktemp)
@@ -93,7 +95,7 @@ fi
 
 # ── Reference pattern ────────────────────────────────────────────────────────
 # Matches: ${CLAUDE_PLUGIN_ROOT}/(scripts|agents|docs)/...(sh|py|md)
-_REF_PATTERN='plugins/dso/(scripts|agents|docs)/[^[:space:]`,)>"|'"'"']+\.(sh|py|md)'
+_REF_PATTERN="${_PLUGIN_GIT_PATH}/(scripts|agents|docs)/[^[:space:]\`,)>\"|']+\.(sh|py|md)"
 
 # ── Scan (optimized: awk does all filtering + reference extraction) ──────────
 #

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
 # scripts/check-skill-refs.sh
 # Detect unqualified DSO skill references in workflow files.
 #
@@ -56,7 +57,7 @@ if [[ $# -gt 0 ]]; then
     _scan_targets=("$@")
 else
     # Default in-scope set: ${CLAUDE_PLUGIN_ROOT}/{skills,docs,hooks,commands} (no symlinks) + CLAUDE.md
-    _PLUGIN_DIR="$REPO_ROOT/plugins/dso"
+    _PLUGIN_DIR="${_PLUGIN_ROOT}"
     for _dir in skills docs hooks commands; do
         if [[ -d "$_PLUGIN_DIR/$_dir" ]]; then
             _scan_targets+=("$_PLUGIN_DIR/$_dir")

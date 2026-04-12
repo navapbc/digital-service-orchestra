@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+_PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)/}"
 # review-complexity-classifier.sh
 # Deterministic complexity classifier for the DSO tiered review system.
 #
@@ -28,8 +30,8 @@ REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}
 
 # Source deps.sh for get_artifacts_dir, _load_allowlist_patterns, _allowlist_to_grep_regex
 DEPS_PATH=""
-if [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/plugins/dso/hooks/lib/deps.sh" ]]; then
-    DEPS_PATH="$REPO_ROOT/plugins/dso/hooks/lib/deps.sh"
+if [[ -n "$REPO_ROOT" && -f "${_PLUGIN_ROOT}/hooks/lib/deps.sh" ]]; then
+    DEPS_PATH="${_PLUGIN_ROOT}/hooks/lib/deps.sh"
 elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh" ]]; then
     DEPS_PATH="$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh"
 fi
@@ -40,8 +42,8 @@ fi
 # Source merge-state.sh for ms_is_merge_in_progress and ms_is_rebase_in_progress
 # _MERGE_STATE_GIT_DIR env var is the test isolation seam (replaces legacy MOCK_MERGE_HEAD,
 # MOCK_REBASE_HEAD, and CLASSIFIER_GIT_DIR overrides).
-if [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/plugins/dso/hooks/lib/merge-state.sh" ]]; then
-    source "$REPO_ROOT/plugins/dso/hooks/lib/merge-state.sh"
+if [[ -n "$REPO_ROOT" && -f "${_PLUGIN_ROOT}/hooks/lib/merge-state.sh" ]]; then
+    source "${_PLUGIN_ROOT}/hooks/lib/merge-state.sh"
 elif [[ -f "$(cd "$SCRIPT_DIR/.." && pwd)/hooks/lib/merge-state.sh" ]]; then
     source "$(cd "$SCRIPT_DIR/.." && pwd)/hooks/lib/merge-state.sh"
 elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/hooks/lib/merge-state.sh" ]]; then
@@ -69,7 +71,7 @@ if [[ ${#CHANGED_FILES[@]} -eq 0 ]]; then
 fi
 
 # --- Load allowlist patterns ---
-ALLOWLIST_PATH="${REPO_ROOT:+$REPO_ROOT/plugins/dso/hooks/lib/review-gate-allowlist.conf}"
+ALLOWLIST_PATH="${REPO_ROOT:+${_PLUGIN_ROOT}/hooks/lib/review-gate-allowlist.conf}"
 ALLOWLIST_REGEX=""
 if [[ -n "${ALLOWLIST_PATH:-}" && -f "$ALLOWLIST_PATH" ]] && declare -f _load_allowlist_patterns &>/dev/null; then
     _AL_PATTERNS=$(_load_allowlist_patterns "$ALLOWLIST_PATH" 2>/dev/null || echo "")
@@ -90,8 +92,8 @@ declare -a BEHAVIORAL_PATTERNS=()
 READ_CONFIG=""
 if [[ -f "$SCRIPT_DIR/read-config.sh" ]]; then
     READ_CONFIG="$SCRIPT_DIR/read-config.sh"
-elif [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/plugins/dso/scripts/read-config.sh" ]]; then
-    READ_CONFIG="$REPO_ROOT/plugins/dso/scripts/read-config.sh"
+elif [[ -n "$REPO_ROOT" && -f "${_PLUGIN_ROOT}/scripts/read-config.sh" ]]; then
+    READ_CONFIG="${_PLUGIN_ROOT}/scripts/read-config.sh"
 fi
 
 if [[ -n "$READ_CONFIG" ]]; then
@@ -117,15 +119,15 @@ is_behavioral_file() {
 
 # --- Safeguard file patterns (CLAUDE.md rule #20) ---
 declare -a SAFEGUARD_PATTERNS=(
-    "plugins/dso/skills/*"
-    "plugins/dso/hooks/*"
-    "plugins/dso/hooks/**/*"
-    "plugins/dso/docs/workflows/*"
-    "plugins/dso/docs/workflows/**/*"
-    "plugins/dso/scripts/*"
-    "plugins/dso/commands/*"
+    "${_PLUGIN_GIT_PATH}/skills/*"
+    "${_PLUGIN_GIT_PATH}/hooks/*"
+    "${_PLUGIN_GIT_PATH}/hooks/**/*"
+    "${_PLUGIN_GIT_PATH}/docs/workflows/*"
+    "${_PLUGIN_GIT_PATH}/docs/workflows/**/*"
+    "${_PLUGIN_GIT_PATH}/scripts/*"
+    "${_PLUGIN_GIT_PATH}/commands/*"
     "CLAUDE.md"
-    "plugins/dso/hooks/lib/review-gate-allowlist.conf"
+    "${_PLUGIN_GIT_PATH}/hooks/lib/review-gate-allowlist.conf"
 )
 
 is_safeguard_file() {

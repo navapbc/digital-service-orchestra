@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../..}"
 # hooks/lib/pre-edit-write-functions.sh
 # Sourceable function definitions for the PreToolUse Edit/Write hooks.
 #
@@ -329,7 +330,7 @@ hook_block_generated_reviewer_agents() {
         if [[ -n "$CONTENT" ]] && echo "$CONTENT" | grep -q '<<<<<<<'; then
             echo "BLOCKED [block-generated-reviewer-agents]: $BASENAME is auto-generated and contains conflict markers." >&2
             echo "Do not resolve conflicts in generated files. Instead:" >&2
-            echo "  1. Resolve conflicts in the source fragments under plugins/dso/docs/workflows/prompts/" >&2
+            echo "  1. Resolve conflicts in the source fragments under ${_PLUGIN_ROOT}/docs/workflows/prompts/" >&2
             echo "  2. Run build-review-agents.sh to regenerate from source" >&2
             echo "The embedded content hash ensures stale content is caught." >&2
             trap - ERR; return 2
@@ -337,7 +338,7 @@ hook_block_generated_reviewer_agents() {
 
         echo "BLOCKED [block-generated-reviewer-agents]: $BASENAME is auto-generated." >&2
         echo "Do not edit generated files directly. Instead, edit the source fragments in" >&2
-        echo "plugins/dso/docs/workflows/prompts/ and run build-review-agents.sh to regenerate." >&2
+        echo "${_PLUGIN_ROOT}/docs/workflows/prompts/ and run build-review-agents.sh to regenerate." >&2
         trap - ERR; return 2
     fi
 

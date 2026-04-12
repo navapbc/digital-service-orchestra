@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+_PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)/}"
 # scripts/plugin-reference-catalog.sh
 # Scans  directories for references to 7 external plugins.
 #
@@ -29,10 +31,10 @@ PLUGINS=(
 # Directories to scan (relative to REPO_ROOT)
 # Plugin files live under ${CLAUDE_PLUGIN_ROOT}/ after restructure
 SCAN_DIRS=(
-    plugins/dso/skills
-    plugins/dso/docs
-    plugins/dso/hooks
-    plugins/dso/scripts
+    "${_PLUGIN_GIT_PATH}/skills"
+    "${_PLUGIN_GIT_PATH}/docs"
+    "${_PLUGIN_GIT_PATH}/hooks"
+    "${_PLUGIN_GIT_PATH}/scripts"
 )
 
 # Files to exclude (the catalog script itself and its test)

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
 # ticket-create.sh
 # Create a new ticket with a CREATE event committed to the tickets branch.
 #
@@ -282,7 +283,7 @@ if [ "$ticket_type" = "bug" ]; then
         if [ -n "$_missing_headers" ]; then
             echo "Warning: Bug description missing recommended headers: $_missing_headers" >&2
             echo "  To fix: ticket edit $ticket_id --description=\"...\"" >&2
-            echo "  See template: plugins/dso/skills/shared/prompts/bug-report-template.md" >&2
+            echo "  See template: ${_PLUGIN_ROOT}/skills/shared/prompts/bug-report-template.md" >&2
         fi
     fi
 

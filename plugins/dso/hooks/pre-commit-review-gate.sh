@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+_PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)/}"
 # hooks/pre-commit-review-gate.sh
 # git pre-commit hook: default-deny allowlist check + review-status validation.
 #
@@ -290,7 +292,7 @@ fi
 _has_staged_fragments=false
 for _sf in "${STAGED_FILES[@]}"; do
     case "$_sf" in
-        plugins/dso/docs/workflows/prompts/reviewer-base.md|plugins/dso/docs/workflows/prompts/reviewer-delta-*.md)
+        ${_PLUGIN_GIT_PATH}/docs/workflows/prompts/reviewer-base.md|${_PLUGIN_GIT_PATH}/docs/workflows/prompts/reviewer-delta-*.md)
             _has_staged_fragments=true
             break
             ;;
@@ -311,11 +313,11 @@ if [[ "$_has_staged_fragments" == "true" ]]; then
     }
 
     # Read base content from the staged (index) version
-    _base_content=$(git show ":plugins/dso/docs/workflows/prompts/reviewer-base.md" 2>/dev/null || echo "")
+    _base_content=$(git show ":${_PLUGIN_GIT_PATH}/docs/workflows/prompts/reviewer-base.md" 2>/dev/null || echo "")
 
     # Find all generated agent files in the repo
     _stale_agents=()
-    for _agent_file in plugins/dso/agents/code-reviewer-*.md; do
+    for _agent_file in ${_PLUGIN_GIT_PATH}/agents/code-reviewer-*.md; do
         [[ -f "$_agent_file" ]] || continue
 
         # Extract tier from filename: code-reviewer-<tier>.md
@@ -324,7 +326,7 @@ if [[ "$_has_staged_fragments" == "true" ]]; then
         _tier_name="${_tier_name%.md}"
 
         # Find the corresponding delta file
-        _delta_path="plugins/dso/docs/workflows/prompts/reviewer-delta-${_tier_name}.md"
+        _delta_path="${_PLUGIN_GIT_PATH}/docs/workflows/prompts/reviewer-delta-${_tier_name}.md"
 
         # Read delta content from staged (index) version if staged, else from working tree
         _delta_content=$(git show ":${_delta_path}" 2>/dev/null || cat "$_delta_path" 2>/dev/null || echo "")
@@ -353,7 +355,7 @@ if [[ "$_has_staged_fragments" == "true" ]]; then
             echo "    - ${_sa}" >&2
         done
         echo "" >&2
-        echo "  Fix: run 'bash plugins/dso/scripts/build-review-agents.sh' to regenerate," >&2
+        echo "  Fix: run 'bash ${_PLUGIN_ROOT}/scripts/build-review-agents.sh' to regenerate," >&2
         echo "  then stage the updated agent files." >&2
         echo "" >&2
         log_decision "block"
