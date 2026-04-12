@@ -1,1 +1,0 @@
-{"timestamp": 1776025123010087000, "uuid": "bd983d94-3fac-406a-a6f1-c0a4a348e399", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT:batch-complete \u2014 Done \u2713 \u2014 Files: tests/hooks/test-plugin-self-ref-hook.sh. Tests: 0 passed, 7 failed (RED state as expected)."}}
