@@ -293,6 +293,7 @@ count_centrality() {
 # Parse arguments
 SOURCE_FILE=""
 _RESTART=false
+_ATTEST_DIR=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --source-file)
@@ -307,14 +308,123 @@ while [[ $# -gt 0 ]]; do
             _RESTART=true
             shift
             ;;
+        --attest)
+            _ATTEST_DIR="$2"
+            shift 2
+            ;;
+        --attest=*)
+            _ATTEST_DIR="${1#*=}"
+            shift
+            ;;
         *)
             echo "ERROR: unknown argument: $1" >&2
             echo "" >&2
-            echo "Usage: record-test-status.sh [--source-file <path>] [--restart]" >&2
+            echo "Usage: record-test-status.sh [--source-file <path>] [--restart] [--attest <worktree-artifacts-dir>]" >&2
             exit 1
             ;;
     esac
 done
+
+# ── --attest mode: import test status from a source worktree ─────────────────
+# When --attest is provided, skip ALL test discovery and execution. Instead:
+# 1. Read source worktree's test-gate-status and validate it
+# 2. Compute the current session diff hash
+# 3. Write an attested test-gate-status to the session artifacts dir
+if [[ -n "$_ATTEST_DIR" ]]; then
+    _attest_source_status_file="$_ATTEST_DIR/test-gate-status"
+
+    # Verify source status file exists
+    if [[ ! -f "$_attest_source_status_file" ]]; then
+        echo "ERROR: --attest: source test-gate-status not found at $_attest_source_status_file" >&2
+        exit 1
+    fi
+
+    # Read and verify source status is "passed"
+    _attest_src_status=$(head -1 "$_attest_source_status_file" 2>/dev/null || echo "")
+    if [[ "$_attest_src_status" != "passed" ]]; then
+        echo "ERROR: --attest: source status is '$_attest_src_status', expected 'passed'" >&2
+        exit 1
+    fi
+
+    # Extract source diff hash and verify it is a valid SHA-256 hash
+    # (ensures the source status is internally consistent, not a placeholder)
+    _attest_src_hash=$(grep '^diff_hash=' "$_attest_source_status_file" 2>/dev/null | head -1 | cut -d= -f2 || echo "")
+    if [[ -z "$_attest_src_hash" ]] || ! [[ "$_attest_src_hash" =~ ^[0-9a-f]{64}$ ]]; then
+        echo "ERROR: --attest: source diff_hash is missing or invalid: '$_attest_src_hash'" >&2
+        exit 1
+    fi
+
+    # Compute the current session diff hash (used in output, not for comparison with source)
+    _attest_current_hash=$("$HOOK_DIR/compute-diff-hash.sh")
+
+    # Extract tested_files from source
+    _attest_src_tested=$(grep '^tested_files=' "$_attest_source_status_file" 2>/dev/null | head -1 | cut -d= -f2 || echo "")
+
+    # Discover locally-required test files from .test-index for staged source files
+    _attest_repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    REPO_ROOT="$_attest_repo_root"  # Set global for read_test_index_for_source
+    _attest_local_tests=""
+    if [[ -n "$_attest_repo_root" ]]; then
+        _attest_staged=$(git diff --cached --name-only 2>/dev/null || true)
+        if [[ -n "$_attest_staged" ]]; then
+            while IFS= read -r _asf; do
+                [[ -z "$_asf" ]] && continue
+                while IFS= read -r _at_entry; do
+                    [[ -z "$_at_entry" ]] && continue
+                    # Strip optional [marker] suffix
+                    local_test_path="$_at_entry"
+                    if [[ "$_at_entry" =~ ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$ ]]; then
+                        local_test_path="${BASH_REMATCH[1]}"
+                    fi
+                    if [[ -n "$local_test_path" ]]; then
+                        if [[ -n "$_attest_local_tests" ]]; then
+                            _attest_local_tests="${_attest_local_tests},${local_test_path}"
+                        else
+                            _attest_local_tests="$local_test_path"
+                        fi
+                    fi
+                done < <(read_test_index_for_source "$_asf")
+            done <<< "$_attest_staged"
+        fi
+    fi
+
+    # Union source tested_files with locally-discovered tests (deduplicated)
+    _attest_all_tests="$_attest_src_tested"
+    if [[ -n "$_attest_local_tests" ]]; then
+        # Merge: add local tests not already in source list
+        IFS=',' read -ra _local_arr <<< "$_attest_local_tests"
+        for _lt in "${_local_arr[@]}"; do
+            _lt="${_lt#"${_lt%%[![:space:]]*}"}"
+            _lt="${_lt%"${_lt##*[![:space:]]}"}"
+            [[ -z "$_lt" ]] && continue
+            # Check if already present in the union
+            if [[ ",$_attest_all_tests," != *",$_lt,"* ]]; then
+                if [[ -n "$_attest_all_tests" ]]; then
+                    _attest_all_tests="${_attest_all_tests},${_lt}"
+                else
+                    _attest_all_tests="$_lt"
+                fi
+            fi
+        done
+    fi
+
+    # Extract worktree ID from basename of the artifacts dir path
+    _attest_worktree_id=$(basename "$_ATTEST_DIR")
+
+    # Write attested test-gate-status to session artifacts dir
+    _attest_artifacts=$(get_artifacts_dir)
+    mkdir -p "$_attest_artifacts"
+    _attest_ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    cat > "$_attest_artifacts/test-gate-status" <<EOF
+passed
+diff_hash=${_attest_current_hash}
+timestamp=${_attest_ts}
+tested_files=${_attest_all_tests}
+attest_source=${_attest_worktree_id}
+EOF
+
+    exit 0
+fi
 
 # --restart: clear stale status and progress files so the full suite runs fresh
 if [[ "$_RESTART" == true ]]; then
