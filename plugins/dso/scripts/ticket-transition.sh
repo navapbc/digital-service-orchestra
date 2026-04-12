@@ -115,7 +115,7 @@ if [ "$target_status" = "closed" ]; then
     # Use ticket-reducer.py directly to find open children. This path is independent
     # of ticket-unblock.py so a broken/absent unblock script cannot mask children.
     open_children_check_exit=0
-    open_children=$(python3 - "$TRACKER_DIR" "$ticket_id" "$REDUCER" <<'PYEOF' 2>&1) || open_children_check_exit=$?
+    open_children=$(python3 - "$TRACKER_DIR" "$ticket_id" "$REDUCER" <<'PYEOF' 2>&1
 import glob, json, os, subprocess, sys
 
 tracker_dir = sys.argv[1]
@@ -174,6 +174,7 @@ except Exception as e:
 if open_children:
     print('\n'.join(open_children))
 PYEOF
+) || open_children_check_exit=$?
 
     if [ "$open_children_check_exit" -ne 0 ]; then
         echo "Error: open-children check failed — cannot safely close ticket '$ticket_id'" >&2
