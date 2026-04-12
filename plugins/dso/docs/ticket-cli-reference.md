@@ -382,6 +382,7 @@ Link two tickets with a directional relationship.
 | `source_id` | Yes | The ticket the link originates from |
 | `target_id` | Yes | The ticket the link points to |
 | `relation` | Yes | One of: `blocks`, `depends_on`, `relates_to` |
+| `--dry-run` | No | Preview the link operation without writing any event; prints what would happen (promotion, rejection, or creation) and exits 0 |
 
 **Behavior:**
 
@@ -391,6 +392,43 @@ Link two tickets with a directional relationship.
 - Idempotent: if a net-active LINK with the same `(target_id, relation)` already exists in `source_id`'s directory, the call is a no-op (exits 0)
 - `relates_to`: writes reciprocal LINK events in both `source_id` and `target_id` directories
 - Writes a `LINK` event JSON file and commits it to the tickets branch
+
+#### Hierarchy Enforcement
+
+When `ticket link` is called, the system resolves the effective link target based on the ticket hierarchy before writing any event.
+
+**Promotion rules** (cross-boundary links are automatically elevated):
+
+| Source | Target | Effective link written |
+|--------|--------|----------------------|
+| task in story-X | task in story-Y (different story, same epic) | story-X → story-Y |
+| task/story in epic-A | task/story in epic-B (different epic) | epic-A → epic-B |
+| story in epic-A | story in epic-A (same epic) | story → story (no promotion needed) |
+
+**Rejection rules** (link is rejected with exit 1):
+
+| Attempted link | Reason | Error message |
+|----------------|--------|---------------|
+| task → its own parent story | Redundant: parent already implies relationship | `redundant link: <task-id> is a direct child of <story-id>` |
+| story → its own parent epic | Redundant: parent already implies relationship | `redundant link: <story-id> is a direct child of <epic-id>` |
+| A → B where B already reaches A | Circular dependency | `cycle detected: adding <A> → <B> would create a cycle` |
+
+**Before/after example:**
+
+```bash
+# Cross-story task link — automatically promoted:
+$ .claude/scripts/dso ticket link task-sprint-001 task-sprint-002 depends_on
+# task-sprint-001 belongs to story-auth; task-sprint-002 belongs to story-infra
+# → Promoted: story-auth depends_on story-infra (LINK event written to story-auth's directory)
+
+# Redundant link — rejected:
+$ .claude/scripts/dso ticket link task-sprint-001 story-auth depends_on
+# Error: redundant link: task-sprint-001 is a direct child of story-auth
+
+# Preview with --dry-run:
+$ .claude/scripts/dso ticket link task-sprint-001 task-sprint-002 depends_on --dry-run
+# [DRY RUN] Would promote: story-auth depends_on story-infra (no event written)
+```
 
 **Exit codes:**
 
