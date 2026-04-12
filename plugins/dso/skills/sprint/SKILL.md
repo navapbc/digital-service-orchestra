@@ -411,8 +411,66 @@ If any trigger condition is met:
    echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
    ```
 5. After preplanning completes, continue to Phase 2
+   <!-- REVIEW-DEFENSE: Finding 2 — SC coverage gate bypass after preplanning is intentional.
+        When preplanning just ran, child descriptions are freshly created and the SC list may have
+        been updated. Skipping the gate here avoids double-checking during the same sprint execution;
+        the gate will run on the next sprint invocation once children are stable. -->
 
-If no trigger condition is met, proceed directly to Phase 2.
+If no trigger condition is met, proceed to Step 2a1 (SC Coverage Haiku Gate).
+
+<!-- REVIEW-DEFENSE: Finding 1 — sc-coverage-haiku.md not present in this worktree.
+     The prompt file is created by story 3812-d606 and committed to branch worktree-agent-ae49f130
+     (Batch 1 of epic 615f-fad3). All worktree branches for this epic are merged to main in dependency
+     order: Batch 1 (prompt files) before Batch 3 (SKILL.md gate). The file will be present on main
+     before this change lands. At runtime in the post-merge codebase, the file exists. This is a
+     worktree-isolation artifact, not a missing dependency. -->
+#### Step 2a1: SC Coverage Haiku Gate (/dso:sprint)
+
+**Purpose**: Fast-path check that all epic success criteria (SCs) are traceable to at least one child story or task. Uses a haiku sub-agent for speed. This is a read-only advisory gate — it never blocks execution. Sonnet/opus escalation for ESCALATE verdicts is handled separately (story 536e-3683).
+
+**ORCHESTRATOR_RESUME idempotency**: If your resume context contains `SC_COVERAGE_HAIKU_GATE: complete` for this epic, skip this entire sub-step and proceed directly to Phase 2.
+
+**Step 1 — Collect inputs**:
+
+1. Retrieve the epic's success criteria list from the epic ticket description.
+2. Retrieve child descriptions (already fetched by Step 1 and Step 2a above).
+3. If the epic has **0 SCs** (empty success criteria list): log `"0-SC epic: skipping SC coverage haiku gate — no SCs to validate"` and proceed directly to Phase 2. Do not dispatch the haiku sub-agent.
+
+**Step 2 — Dispatch haiku sub-agent**:
+
+Dispatch a `subagent_type: general-purpose` sub-agent with `model: haiku`. Load the prompt from `plugins/dso/skills/sprint/prompts/sc-coverage-haiku.md`. Provide:
+- `epic_sc_list`: an array of `{ "sc_id": "<id>", "sc_text": "<text>" }` objects. Assign sequential IDs (e.g. `sc-1`, `sc-2`) from the epic's SC list in order.
+- `children`: an array of `{ "child_id": "<id>", "child_title": "<title>", "child_description": "<description>" }` for each child ticket
+
+**Step 3 — Parse output**:
+
+The haiku sub-agent returns a JSON object with this structure:
+```json
+{
+  "results": [
+    {
+      "sc_id": "<matches input sc_id>",
+      "verdict": "COVERED" | "ESCALATE",
+      "covering_child_id": "<child_id or null>",
+      "citation_reason": "<explanation or null>"
+    }
+  ]
+}
+```
+Parse the `results` array. Check `verdict` on each entry. On any missing key, null `results`, or invalid JSON: trigger the fail-open path below.
+
+**On parse failure** (malformed JSON, missing fields, timeout, or empty output): this gate is fail-open — log a warning `"SC coverage haiku gate: parse failure — skipping gate, proceeding to Phase 2"` and proceed directly to Phase 2. Do not block execution.
+
+**Step 4 — Route on verdicts**:
+
+- **ALL verdicts are `COVERED`**: log `"SC coverage haiku gate: all SCs covered — proceeding to Phase 2"` and proceed to Phase 2 normally.
+- **ANY verdict is `ESCALATE`**: log `"SC coverage haiku gate: ESCALATE verdict(s) detected (haiku fast-path) — proceeding to Phase 2 (sonnet/opus escalation: story 536e-3683)"` and continue to Phase 2. The haiku gate does NOT invoke sonnet or opus — escalation is out of scope for this gate.
+
+**Step 5 — Emit idempotency marker**:
+
+Emit `SC_COVERAGE_HAIKU_GATE: complete` to your output so that ORCHESTRATOR_RESUME can detect it on resume.
+
+Proceed to Phase 2.
 
 #### Step 2b: Epic Complexity Evaluation (/dso:sprint)
 

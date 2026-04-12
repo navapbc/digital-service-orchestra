@@ -1,13 +1,18 @@
 {
-  "reviewer": "dso:code-reviewer-light",
-  "review_tier": "light",
   "scores": {
-    "correctness": 5,
-    "verification": 5,
     "hygiene": 5,
-    "design": 5,
-    "maintainability": 5
+    "design": 4,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
   },
-  "findings": [],
-  "summary": "Adds explicit agent-unavailable fallback to sprint SKILL.md Step 10a and Phase 6 Step 0.75 for dso:completion-verifier dispatch, directing the orchestrator to use general-purpose with the agent definition inline instead of skipping the step. Structural test added to verify both fallback blocks are present. Matches pattern already established for dso:complexity-evaluator fallback."
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "design",
+      "description": "The fail-open path (Step 3) and the 0-SC path (Step 1 item 3) both say 'proceed directly to Phase 2' without passing through Step 5 (emit idempotency marker). This means SC_COVERAGE_HAIKU_GATE: complete is never emitted on those code paths. On ORCHESTRATOR_RESUME, the gate will re-run for parse-failure and 0-SC epics rather than being skipped. For the 0-SC case this is harmless and cheap. For the parse-failure case it means the haiku sub-agent is re-dispatched on every resume until it produces valid output, which is suboptimal but not blocking since the gate is advisory. Low risk given the fail-open nature of the gate. A fix would be to emit the idempotency marker before the proceed-to-Phase-2 instruction on all exit paths.",
+      "file": "plugins/dso/skills/sprint/SKILL.md"
+    }
+  ],
+  "summary": "The diff adds the SC Coverage Haiku Gate sub-step to sprint SKILL.md and a matching structural boundary test. The schema fix from Pass 3 (aligning Step 2 input objects and Step 3 output schema) is correctly applied. REVIEW-DEFENSE comments for Findings 1 and 2 are accepted. One minor design finding: the idempotency marker SC_COVERAGE_HAIKU_GATE: complete is not emitted on the fail-open and 0-SC early-exit paths, causing re-dispatch on resume for those cases; risk is low since the gate is advisory and fail-open. security_overlay_warranted: no, performance_overlay_warranted: no, approach_viability_concern: false"
 }
