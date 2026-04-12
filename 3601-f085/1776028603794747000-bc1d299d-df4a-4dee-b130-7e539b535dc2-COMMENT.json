@@ -1,1 +1,0 @@
-{"timestamp": 1776028603794747000, "uuid": "bc1d299d-df4a-4dee-b130-7e539b535dc2", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Epic complete: all 6 success criteria verified PASS by completion-verifier. All tasks closed, validation score 5/5, branch merged to main as v1.12.0."}}

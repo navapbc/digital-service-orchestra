@@ -1,1 +1,0 @@
-{"timestamp": 1776024329828412000, "uuid": "f6bc8b93-0946-4676-8f5a-f210b65f7dd2", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "BATCH_SKIPPED: Rate limit hit \u2014 sub-agent dispatch failed for task 6b07-7bc1. Session utilization: critical (API limit reached, resets Apr 15). Resume: /dso:sprint 3601-f085"}}
