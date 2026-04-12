@@ -87,6 +87,17 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/
 
+      # Plugin self-reference check (timeout: 10s)
+      # Blocks any plugins/dso literal path inside files under plugins/dso/.
+      # Zero bypass — no annotation, no allowlist, no suppression mechanism.
+      - id: plugin-self-ref-check
+        name: Plugin Self-Ref Check (10s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh plugin-self-ref-check 10 "./.claude/hooks/pre-commit/check-plugin-self-ref.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/
+
       # Test quality gate (timeout: 15s)
       # Scans staged test files for anti-patterns (e.g., source-file grep/cat
       # instead of behavioral assertions) and blocks commits when detected.
