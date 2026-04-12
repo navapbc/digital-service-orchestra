@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/purge-non-project-tickets.sh
+# purge-non-project-tickets.sh
 # Remove inbound bridge tickets from non-target Jira projects.
 #
 # Usage: purge-non-project-tickets.sh --keep=<PROJECT_KEY> [--dry-run]

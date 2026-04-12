@@ -21,7 +21,7 @@ This contract must be agreed upon before either side is implemented to prevent i
 
 ## Emitter
 
-`plugins/dso/scripts/review-complexity-classifier.sh` # shim-exempt: internal implementation path reference
+`scripts/review-complexity-classifier.sh` # shim-exempt: internal implementation path reference
 
 The emitter counts added lines in non-test, non-generated source files from the staged diff, compares the count against threshold bands, and includes the resulting fields in the same JSON object it already emits for tier selection (see `classifier-tier-output.md`). The size fields are appended to that object; the emitter exits 0 on success or non-zero on failure.
 
@@ -29,7 +29,7 @@ The emitter counts added lines in non-test, non-generated source files from the 
 
 ## Parser
 
-`plugins/dso/docs/workflows/REVIEW-WORKFLOW.md` (Step 3)
+`docs/workflows/REVIEW-WORKFLOW.md` (Step 3)
 
 The parser reads the JSON object from the emitter's stdout and checks `is_merge_commit` first. If `is_merge_commit` is `true`, size-based routing is skipped entirely. Otherwise, the parser inspects `size_action` and applies the corresponding action before dispatching the review agent.
 
@@ -51,7 +51,7 @@ The size fields are emitted as part of the existing classifier JSON object along
 |---|---|---|
 | `none` | < 300 | Proceed normally — no size-based routing change |
 | `upgrade` | 300–599 | Upgrade the review model to opus at the current tier's scope (light → light-opus, standard → standard-opus, deep → deep-opus) |
-| `reject` | ≥ 600 | Emit rejection message to the user referencing `plugins/dso/docs/workflows/prompts/large-diff-splitting-guide.md`; do not dispatch any review agent |
+| `reject` | ≥ 600 | Emit rejection message to the user referencing `docs/workflows/prompts/large-diff-splitting-guide.md`; do not dispatch any review agent |
 
 ---
 

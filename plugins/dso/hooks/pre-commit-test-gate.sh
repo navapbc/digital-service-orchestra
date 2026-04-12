@@ -12,7 +12,7 @@
 #   source "bump-version.sh" normalizes to "bumpversionsh", and test file
 #   "test-bump-version.sh" normalizes to "testbumpversionsh" — since the
 #   normalized source is a substring of the normalized test name, they match.
-#   See plugins/dso/hooks/lib/fuzzy-match.sh for the full algorithm.
+#   See ${CLAUDE_PLUGIN_ROOT}/hooks/lib/fuzzy-match.sh for the full algorithm.
 #
 # LOGIC:
 #   1. Get list of staged files from `git diff --cached --name-only`
@@ -30,7 +30,7 @@
 #   MISSING:       'BLOCKED: test gate — no test-status recorded. Run record-test-status.sh or use /dso:commit'
 #   HASH_MISMATCH: 'BLOCKED: test gate — code changed since tests were recorded. Re-run record-test-status.sh'
 #   NOT_PASSED:    'BLOCKED: test gate — tests did not pass. Fix failures before committing'
-#   exit 144 hint: 'Run: .claude/scripts/dso test-batched.sh --timeout=50 "<test cmd>"'
+#   exit 144 hint: 'Run: ${_PLUGIN_ROOT}/scripts/test-batched.sh --timeout=50 "<test cmd>"'
 #
 # INSTALL:
 #   Registered in .pre-commit-config.yaml as a local hook (NOT via core.hooksPath).

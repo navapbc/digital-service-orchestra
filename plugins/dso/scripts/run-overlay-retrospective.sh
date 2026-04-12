@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/run-overlay-retrospective.sh
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+# run-overlay-retrospective.sh
 # Runs the complexity classifier over the last N merged commits and generates
 # calibration baselines for security_overlay and performance_overlay trigger rates.
 #
@@ -88,8 +89,8 @@ done
 CLASSIFIER=""
 if [[ -x "$SCRIPT_DIR/review-complexity-classifier.sh" ]]; then
     CLASSIFIER="$SCRIPT_DIR/review-complexity-classifier.sh"
-elif [[ -n "$REPO_ROOT" && -x "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh" ]]; then
-    CLASSIFIER="$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh"
+elif [[ -n "$REPO_ROOT" && -x "${_PLUGIN_ROOT}/scripts/review-complexity-classifier.sh" ]]; then
+    CLASSIFIER="${_PLUGIN_ROOT}/scripts/review-complexity-classifier.sh"
 else
     echo "ERROR: review-complexity-classifier.sh not found" >&2
     exit 1
@@ -546,7 +547,7 @@ ${COMMIT_TABLE}
 ## How to Refresh
 
 \`\`\`bash
-bash plugins/dso/scripts/run-overlay-retrospective.sh --limit 20
+bash \${_PLUGIN_ROOT}/scripts/run-overlay-retrospective.sh --limit 20
 \`\`\`
 REPORT
 

@@ -28,7 +28,7 @@ You receive a single prompt containing two sections. Both are required.
 
 ### Section 1 — Writer Rejection Payload
 
-The full `TEST_RESULT:rejected` block emitted by `dso:red-test-writer`, conforming to the `RED_TEST_WRITER_OUTPUT` contract (see `plugins/dso/docs/contracts/red-test-writer-output.md`).
+The full `TEST_RESULT:rejected` block emitted by `dso:red-test-writer`, conforming to the `RED_TEST_WRITER_OUTPUT` contract (see `docs/contracts/red-test-writer-output.md`).
 
 ```
 TEST_RESULT:rejected
@@ -65,7 +65,7 @@ CLOSED_TASKS: <comma-separated task_ids or "none">
 
 ## Section 3: Verdict Decision Logic
 
-Consult `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md` for the 5-rule behavioral testing standard. Apply these rules as baseline rejection criteria.
+Consult `skills/shared/prompts/behavioral-testing-standard.md` for the 5-rule behavioral testing standard. Apply these rules as baseline rejection criteria.
 
 Apply this routing logic in order. The first matching condition determines your verdict.
 

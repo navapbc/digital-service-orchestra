@@ -50,7 +50,7 @@ Read, Grep, and Glob extensively.
 - [ ] Missing strict mode: bash scripts that omit `set -euo pipefail` (or equivalent)
   at the top are missing a critical safety guard; flag as `important` under `hygiene`
 - [ ] jq-free requirement: this project's hook scripts must NOT use `jq`; flag any new
-  `jq` invocation in hook files (`plugins/dso/hooks/`) as `important`; use
+  `jq` invocation in hook files (`hooks/`) as `important`; use
   `parse_json_field`, `json_build`, or `python3` for JSON parsing instead
 - [ ] Hook dispatcher structural violations: new hook logic added directly to
   `pre-bash.sh` or `post-bash.sh` dispatcher bodies (instead of delegating to a
@@ -73,9 +73,9 @@ Read, Grep, and Glob extensively.
 - [ ] Hook dispatcher pattern: new hooks must follow the consolidated dispatcher model
   (two processes per Bash tool call: `pre-bash.sh` + `post-bash.sh`); standalone
   hook files that bypass the dispatcher violate the architecture; flag as `important`
-  under `design`; use Grep to check `plugins/dso/hooks/dispatchers/` for existing
+  under `design`; use Grep to check `hooks/dispatchers/` for existing
   dispatcher structure before flagging
-- [ ] Skill file structure: new skill files must live in `plugins/dso/skills/` as
+- [ ] Skill file structure: new skill files must live in `skills/` as
   `SKILL.md` files; skill invocations in in-scope files must use the qualified
   `/dso:<skill-name>` form (never bare `/skill-name`); unqualified references are a
   hygiene violation caught by `check-skill-refs.sh`; flag as `important` if new
@@ -90,7 +90,7 @@ Read, Grep, and Glob extensively.
 - [ ] Hardcoded host-project paths: scripts that embed project-specific directory names
   (e.g., `app/`, `src/`, specific make targets) without reading from `dso-config.conf`
   will break when the plugin is installed in a project with a different layout; flag
-  as `important` under `maintainability`; check `plugins/dso/docs/DEPENDENCY-GUIDANCE.md`
+  as `important` under `maintainability`; check `docs/DEPENDENCY-GUIDANCE.md`
   and `dso-config.conf` for the canonical config keys
 - [ ] Host-project assumption mediation: any assumption about the consuming project's
   structure (Python version, virtualenv path, test runner command, CI workflow name)

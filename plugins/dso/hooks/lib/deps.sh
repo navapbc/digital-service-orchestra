@@ -380,9 +380,9 @@ resolve_repo_root() {
         root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
     fi
 
-    # 5. CLAUDE_PLUGIN_ROOT-based (plugin is at plugins/dso/ in local dev).
+    # 5. CLAUDE_PLUGIN_ROOT-based (plugin is at ${CLAUDE_PLUGIN_ROOT}/ in local dev).
     # Only use when the derived path has .git (dir or file), confirming it's
-    # a real repo root. In plugin cache (~/.claude/plugins/dso/), ../../ would
+    # a real repo root. In plugin cache (~/.claude/${CLAUDE_PLUGIN_ROOT}/), ../../ would
     # resolve to a non-repo path — the .git check prevents that.
     if [[ -z "$root" && -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "$CLAUDE_PLUGIN_ROOT" ]]; then
         local _candidate
@@ -397,7 +397,7 @@ resolve_repo_root() {
 }
 
 # --- resolve_plugin_root ---
-# Resolves the DSO plugin root directory (plugins/dso/).
+# Resolves the DSO plugin root directory (${CLAUDE_PLUGIN_ROOT}/).
 # Result is cached in _RESOLVED_PLUGIN_ROOT after first call.
 #
 # Fallback chain:

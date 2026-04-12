@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ci-generator.sh
+# ci-generator.sh
 # Generate GitHub Actions workflow YAML from discovered test suites.
 #
 # Usage:

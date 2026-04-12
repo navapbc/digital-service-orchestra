@@ -70,7 +70,7 @@ STAGING_URL="${STAGING_URL:-http://nava-lockpick-doc-to-logic-env-stage.eba-m8tu
 EB_STAGING_ENV="${EB_STAGING_ENVIRONMENT:-nava-lockpick-doc-to-logic-env-stage}"
 ```
 
-**Worktree isolation config** — read and apply `plugins/dso/skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration. Read the config key before dispatching any sub-agents:
+**Worktree isolation config** — read and apply `skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration. Read the config key before dispatching any sub-agents:
 
 ```bash
 ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null || true)
@@ -412,7 +412,7 @@ Compare each discovered failure against:
 
 If an open bug ticket already exists for a failure (by title similarity or matching error message), **skip ticket creation** — use the existing ticket. Only ONE ticket per unique failure across all iterations.
 
-For genuinely new failures (no matching open ticket exists), create a ticket. Follow `plugins/dso/skills/create-bug/SKILL.md` for title and description format:
+For genuinely new failures (no matching open ticket exists), create a ticket. Follow `skills/create-bug/SKILL.md` for title and description format:
 
 ```bash
 # Title format: [Component]: [Condition] -> [Observed Result]
@@ -725,7 +725,7 @@ Environment: <CI failure | staging | local — from triage report>
 {file_ownership_context}
 ```
 
-Add `isolation: "worktree"` to each Task dispatch when `DISPATCH_ISOLATION=true` (set during Step 1 per `plugins/dso/skills/shared/prompts/worktree-dispatch.md`). Also pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the dispatch prompt so sub-agents can verify isolation.
+Add `isolation: "worktree"` to each Task dispatch when `DISPATCH_ISOLATION=true` (set during Step 1 per `skills/shared/prompts/worktree-dispatch.md`). Also pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the dispatch prompt so sub-agents can verify isolation.
 
 **Cluster invocation** (for multiple related bugs in a cluster, resolved together):
 ```

@@ -21,7 +21,7 @@ This contract must be agreed upon before implementation begins to prevent implic
 
 ## Emitter
 
-`plugins/dso/scripts/ticket-clarity-check.sh` # shim-exempt: internal implementation path reference
+`scripts/ticket-clarity-check.sh` # shim-exempt: internal implementation path reference
 
 The emitter evaluates the ticket identified by its argument (or reads JSON ticket data from stdin when `--stdin` is passed), computes a clarity score, and prints a single JSON object to stdout. It exits `0` when the score meets the threshold (pass) and `1` when below threshold (fail). It exits `2` on error or invalid input.
 
@@ -31,7 +31,7 @@ The emitter evaluates the ticket identified by its argument (or reads JSON ticke
 
 ## Parser
 
-`plugins/dso/skills/sprint/SKILL.md` — Phase 1 clarity gate # shim-exempt: internal implementation path reference
+`skills/sprint/SKILL.md` — Phase 1 clarity gate # shim-exempt: internal implementation path reference
 
 The parser invokes the emitter with the current epic ticket ID, reads the JSON from stdout, and inspects the `verdict` field. When `verdict` is `"fail"`, the sprint must not proceed to Phase 2 until the ticket owner enriches the ticket and the emitter re-evaluates to `"pass"`.
 
@@ -116,13 +116,13 @@ The parser must emit a warning to the user in all non-zero cases so that silent 
 
 ## Testing Mode (`--stdin`)
 
-When invoked with `--stdin`, the emitter reads a JSON ticket object from stdin rather than calling the ticket CLI. The JSON object must conform to the ticket event format (see `plugins/dso/docs/contracts/ticket-event-format.md`). This mode is used by unit tests to inject fixture data without a live ticket system. Exit code semantics are identical to normal mode.
+When invoked with `--stdin`, the emitter reads a JSON ticket object from stdin rather than calling the ticket CLI. The JSON object must conform to the ticket event format (see `docs/contracts/ticket-event-format.md`). This mode is used by unit tests to inject fixture data without a live ticket system. Exit code semantics are identical to normal mode.
 
 Example invocation:
 
 ```bash
 echo '{"ticket_id":"0000-test","description":"...","acceptance_criteria":"..."}' \
-  | plugins/dso/scripts/ticket-clarity-check.sh --stdin  # shim-exempt: contract example showing raw script interface
+  | ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-clarity-check.sh --stdin  # shim-exempt: contract example showing raw script interface
 ```
 
 ---
@@ -131,8 +131,8 @@ echo '{"ticket_id":"0000-test","description":"...","acceptance_criteria":"..."}'
 
 | Component | Role | Notes |
 |---|---|---|
-| `plugins/dso/scripts/ticket-clarity-check.sh` | Emitter | Evaluates ticket clarity and emits JSON + exit code # shim-exempt: internal implementation path reference |
-| `plugins/dso/skills/sprint/SKILL.md` Phase 1 | Parser | Invokes emitter; blocks sprint progression on `verdict: "fail"` # shim-exempt: internal implementation path reference |
+| `scripts/ticket-clarity-check.sh` | Emitter | Evaluates ticket clarity and emits JSON + exit code # shim-exempt: internal implementation path reference |
+| `skills/sprint/SKILL.md` Phase 1 | Parser | Invokes emitter; blocks sprint progression on `verdict: "fail"` # shim-exempt: internal implementation path reference |
 
 All implementors must read this contract before modifying the emitter script or Phase 1 parser logic. Changes to the signal format require updating both the emitter and parser and this document atomically in the same commit.
 

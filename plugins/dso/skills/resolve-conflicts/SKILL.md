@@ -39,7 +39,7 @@ Before this skill can act, one of these must be true:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/plugins/dso/hooks/lib/merge-state.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-state.sh"
 ```
 
 **If a branch argument was provided** and no merge is in progress:
@@ -55,7 +55,7 @@ CONFLICTED=$(ms_get_conflicted_files)
 If `$CONFLICTED` is empty, check whether a merge is still in progress with all conflicts pre-resolved:
 
 ```bash
-# Uses ms_is_merge_in_progress from plugins/dso/hooks/lib/merge-state.sh
+# Uses ms_is_merge_in_progress from ${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-state.sh
 # Returns 0 (true) when MERGE_HEAD exists and != HEAD
 if ms_is_merge_in_progress; then MERGE_IN_PROGRESS="yes"; else MERGE_IN_PROGRESS="no"; fi
 ```
@@ -75,7 +75,7 @@ If code conflicts exist: proceed to Step 2.
 
 ### 2. Analyze Conflicts
 
-Dispatch the **`dso:conflict-analyzer`** dedicated agent via the Agent tool. Read `plugins/dso/agents/conflict-analyzer.md` inline and use `subagent_type: "general-purpose"` with `model: "sonnet"`. (`dso:conflict-analyzer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass the following context:
+Dispatch the **`dso:conflict-analyzer`** dedicated agent via the Agent tool. Read `agents/conflict-analyzer.md` inline and use `subagent_type: "general-purpose"` with `model: "sonnet"`. (`dso:conflict-analyzer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass the following context:
 
 Include in the sub-agent prompt:
 - The content of each conflicted file (with markers)
@@ -107,7 +107,7 @@ Based on sub-agent classifications:
    ```
 3. Run validation:
    ```bash
-   plugins/dso/scripts/validate.sh --ci  # shim-exempt: post-merge validation step
+   ${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --ci  # shim-exempt: post-merge validation step
    ```
 4. **If validation passes**: report summary and exit successfully. The merge is complete.
    ```

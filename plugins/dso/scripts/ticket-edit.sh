@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket-edit.sh
+# ticket-edit.sh
 # Append an EDIT event to a ticket and auto-commit it.
 #
 # Usage: ticket-edit.sh <ticket_id> [--title=VALUE] [--priority=VALUE] [--assignee=VALUE] [--ticket_type=VALUE] [--description=VALUE]
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=plugins/dso/scripts/ticket-lib.sh
+# shellcheck source=${_PLUGIN_ROOT}/scripts/ticket-lib.sh
 source "$SCRIPT_DIR/ticket-lib.sh"
 
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"

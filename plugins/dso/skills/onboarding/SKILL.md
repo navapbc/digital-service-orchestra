@@ -692,7 +692,7 @@ Generate all of the following config keys (flat `KEY=VALUE` format). For each ke
 **DSO plugin location** (required):
 ```
 # Absolute path to the DSO plugin directory (resolved via realpath or git rev-parse)
-dso.plugin_root=<absolute path to plugins/dso>  # portability-ok
+dso.plugin_root=<absolute path to the plugin directory>
 ```
 
 Resolve to an absolute path using `realpath` or `git rev-parse --show-toplevel` — never a relative path.
@@ -918,9 +918,9 @@ Install the DSO git pre-commit hooks (`pre-commit-test-gate.sh` and `pre-commit-
    ```bash
    HOOKS_DIR="$REPO_ROOT/.husky"
    grep -qF 'pre-commit-test-gate' "$HOOKS_DIR/pre-commit" 2>/dev/null || \
-     echo 'bash "$REPO_ROOT/plugins/dso/hooks/dispatchers/pre-commit-test-gate.sh"' >> "$HOOKS_DIR/pre-commit"
+     echo 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-commit-test-gate.sh"' >> "$HOOKS_DIR/pre-commit"
    grep -qF 'pre-commit-review-gate' "$HOOKS_DIR/pre-commit" 2>/dev/null || \
-     echo 'bash "$REPO_ROOT/plugins/dso/hooks/dispatchers/pre-commit-review-gate.sh"' >> "$HOOKS_DIR/pre-commit"
+     echo 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-commit-review-gate.sh"' >> "$HOOKS_DIR/pre-commit"
    ```
 
 2. **pre-commit framework** — if `.pre-commit-config.yaml` exists, add DSO hooks as local hooks in the config.
@@ -929,8 +929,8 @@ Install the DSO git pre-commit hooks (`pre-commit-test-gate.sh` and `pre-commit-
    ```bash
    GIT_COMMON_DIR=$(git rev-parse --git-common-dir)
    HOOKS_DIR="$GIT_COMMON_DIR/hooks"
-   cp "$REPO_ROOT/plugins/dso/hooks/dispatchers/pre-commit-test-gate.sh" "$HOOKS_DIR/pre-commit-test-gate"
-   cp "$REPO_ROOT/plugins/dso/hooks/dispatchers/pre-commit-review-gate.sh" "$HOOKS_DIR/pre-commit-review-gate"
+   cp "${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-commit-test-gate.sh" "$HOOKS_DIR/pre-commit-test-gate"
+   cp "${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-commit-review-gate.sh" "$HOOKS_DIR/pre-commit-review-gate"
    # Ensure the pre-commit hook calls both
    PRECOMMIT_HOOK="$HOOKS_DIR/pre-commit"
    if [[ ! -f "$PRECOMMIT_HOOK" ]]; then
@@ -1036,7 +1036,7 @@ The generated `CLAUDE.md` must include a Quick Reference table of ticket command
 Copy the DSO `KNOWN-ISSUES` template to `.claude/docs/` in the host project:
 
 ```bash
-KNOWN_ISSUES_SRC="$REPO_ROOT/plugins/dso/docs/templates/KNOWN-ISSUES.md"
+KNOWN_ISSUES_SRC="${CLAUDE_PLUGIN_ROOT}/docs/templates/KNOWN-ISSUES.md"
 KNOWN_ISSUES_DEST="$REPO_ROOT/.claude/docs/KNOWN-ISSUES.md"
 if [[ -f "$KNOWN_ISSUES_SRC" ]] && [[ ! -f "$KNOWN_ISSUES_DEST" ]]; then
     mkdir -p "$REPO_ROOT/.claude/docs"

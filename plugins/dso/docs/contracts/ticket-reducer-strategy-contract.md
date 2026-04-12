@@ -20,7 +20,7 @@ The `ReducerStrategy` interface allows downstream consumers (e.g., `w21-05z9 Mos
 
 ## Emitter
 
-`plugins/dso/scripts/ticket-reducer.py` # shim-exempt: internal implementation path reference
+`scripts/ticket-reducer.py` # shim-exempt: internal implementation path reference
 
 ---
 

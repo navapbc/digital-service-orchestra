@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket-init.sh
+# ticket-init.sh
 # Initialize the event-sourced ticket system:
 #   - Creates an orphan 'tickets' branch (or fetches existing one)
 #   - Mounts it as a worktree at .tickets-tracker/

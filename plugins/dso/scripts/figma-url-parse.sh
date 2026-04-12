@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/figma-url-parse.sh
+# figma-url-parse.sh
 # Extract a Figma file key from a Figma URL.
 #
 # Usage: figma-url-parse.sh <url>

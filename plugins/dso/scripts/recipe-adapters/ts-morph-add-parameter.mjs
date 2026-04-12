@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs
+// ts-morph-add-parameter.mjs
 // Adds a parameter to a TypeScript function and updates all callers.
 // Input: RECIPE_PARAM_FILE, RECIPE_PARAM_FUNCTION, RECIPE_PARAM_NAME, RECIPE_PARAM_TYPE, RECIPE_PARAM_DEFAULT (optional)
 // Output: JSON to stdout

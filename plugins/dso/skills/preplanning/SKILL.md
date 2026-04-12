@@ -247,7 +247,7 @@ If no stories in the plan qualify for integration research, log: "No stories wit
 
 ### Step 1: Red Team Dispatch (/dso:preplanning)
 
-Read `plugins/dso/agents/red-team-reviewer.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "opus"`. (`dso:red-team-reviewer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) The agent definition contains the full review prompt including the 6-category taxonomy and Consumer Enumeration directive. Pass the following as task arguments:
+Read `agents/red-team-reviewer.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "opus"`. (`dso:red-team-reviewer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) The agent definition contains the full review prompt including the 6-category taxonomy and Consumer Enumeration directive. Pass the following as task arguments:
 
 - `{epic-title}`: Epic title from Phase 1
 - `{epic-description}`: Epic description from Phase 1
@@ -258,12 +258,12 @@ Read `plugins/dso/agents/red-team-reviewer.md` inline and dispatch as `subagent_
 The red team sub-agent returns a JSON `findings` array. Parse the response and validate it contains well-formed JSON with the expected schema (array of objects with `type`, `target_story_id`, `title`, `description`, `rationale`, `taxonomy_category` fields).
 
 **Fallback — two-path protocol**:
-- **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `plugins/dso/agents/red-team-reviewer.md` inline and re-dispatch as a general-purpose agent using that content as the prompt. Do NOT perform the review inline — the agent must do it.
+- **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `agents/red-team-reviewer.md` inline and re-dispatch as a general-purpose agent using that content as the prompt. Do NOT perform the review inline — the agent must do it.
 - **Execution failure** (timeout, malformed output, or fails to produce valid JSON): Log a warning `"Red team review failed: <reason>. Skipping adversarial review, proceeding to Phase 3."` and skip directly to Phase 3.
 
 ### Step 2: Blue Team Dispatch (/dso:preplanning)
 
-If the red team returns a non-empty findings array, read `plugins/dso/agents/blue-team-filter.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "sonnet"`. (`dso:blue-team-filter` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass the following as task arguments:
+If the red team returns a non-empty findings array, read `agents/blue-team-filter.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "sonnet"`. (`dso:blue-team-filter` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass the following as task arguments:
 
 - `{epic-title}`: Same as red team
 - `{epic-description}`: Same as red team
@@ -275,7 +275,7 @@ The blue team sub-agent returns a filtered JSON object with `findings` (accepted
 **If red team returned zero findings**: Skip the blue team dispatch entirely. Log: `"Red team found no cross-story gaps. Skipping blue team filter."` and proceed to Phase 3.
 
 **Partial failure — two-path protocol**:
-- **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `plugins/dso/agents/blue-team-filter.md` inline and re-dispatch as a general-purpose agent using that content as the prompt. Do NOT perform the filtering inline — the agent must do it; inline filtering by the orchestrator defeats the purpose of the impartial blue team.
+- **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `agents/blue-team-filter.md` inline and re-dispatch as a general-purpose agent using that content as the prompt. Do NOT perform the filtering inline — the agent must do it; inline filtering by the orchestrator defeats the purpose of the impartial blue team.
 - **Execution failure** (timeout, malformed output, or error): **Discard all unfiltered findings** and proceed to Phase 3. Do NOT apply unfiltered red team findings — the blue team filter exists to prevent false positives from polluting the story map. Log: `"Blue team filter failed: <reason>. Discarding unfiltered red team findings, proceeding to Phase 3."`
 
 ### Step 3: Apply Surviving Findings (/dso:preplanning)
@@ -781,11 +781,11 @@ Stories that are purely backend, infrastructure, testing-only, or documentation 
 #### Dispatch Protocol
 
 **Before the loop**: Read the inline dispatch protocol once using the Read tool:
-`plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md`
+`skills/preplanning/prompts/ui-designer-dispatch-protocol.md`
 
 **For each qualifying story**, follow the six protocol steps in order:
 1. Input payload construction and session file initialization
-2. Agent dispatch via the Agent tool (read `plugins/dso/agents/ui-designer.md` inline, use `subagent_type: "general-purpose"` with `model: "sonnet"` — `dso:ui-designer` is an agent file identifier, NOT a valid `subagent_type` value)
+2. Agent dispatch via the Agent tool (read `agents/ui-designer.md` inline, use `subagent_type: "general-purpose"` with `model: "sonnet"` — `dso:ui-designer` is an agent file identifier, NOT a valid `subagent_type` value)
 3. CACHE_MISSING retry loop (2 retry attempts; up to 3 total CACHE_MISSING
    returns before the retry cap is exceeded)
 4. Review loop (orchestrator-managed: invoke `/dso:review-protocol` on design

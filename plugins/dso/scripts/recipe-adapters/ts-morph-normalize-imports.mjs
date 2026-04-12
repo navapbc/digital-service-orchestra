@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs
+// ts-morph-normalize-imports.mjs
 // Sorts and deduplicates TypeScript import statements using ts-morph organizeImports.
 // Input: RECIPE_PARAM_FILE or RECIPE_PARAM_DIR (env vars)
 // Output: JSON to stdout

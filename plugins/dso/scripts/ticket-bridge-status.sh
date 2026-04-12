@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket-bridge-status.sh
+# ticket-bridge-status.sh
 # Show the status of the last bridge run.
 #
 # Usage: ticket bridge-status [--format=json]

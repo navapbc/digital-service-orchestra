@@ -181,7 +181,7 @@ Before marking an interface contract task complete:
 make lint-mypy  # Must pass
 
 # 6. Run validation
-plugins/dso/scripts/validate.sh --ci  # shim-exempt: example in checklist
+${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --ci  # shim-exempt: example in checklist
 
 # 7. Commit using the project commit workflow (CLAUDE.md rule 13)
 # Use /dso:commit or follow COMMIT-WORKFLOW.md — never raw git commit

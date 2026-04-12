@@ -18,7 +18,7 @@
 # Test isolation: set _MERGE_STATE_GIT_DIR env var to override the git dir detection.
 #
 # Usage:
-#   source plugins/dso/hooks/lib/merge-state.sh
+#   source ${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-state.sh
 #
 # Namespace: ms_ prefix for all exported functions.
 

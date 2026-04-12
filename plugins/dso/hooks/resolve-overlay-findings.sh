@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/hooks/resolve-overlay-findings.sh
+# resolve-overlay-findings.sh
 # Overlay findings resolution loop integration.
 #
 # Reads one or more overlay findings JSON files (standard reviewer-findings.json

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../..}"
 # Structural validation for adversarial review prompt templates and SKILL.md consistency.
 # Tests: placeholder consistency, output-input schema chain consistency.
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-SKILL_DIR="${REPO_ROOT}/plugins/dso/skills/preplanning"
+SKILL_DIR="${_PLUGIN_ROOT}/skills/preplanning"
 RED_TEAM="$SKILL_DIR/prompts/red-team-review.md"
 BLUE_TEAM="$SKILL_DIR/prompts/blue-team-review.md"
 SKILL_MD="$SKILL_DIR/SKILL.md"

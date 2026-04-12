@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket-lifecycle.sh
+# ticket-lifecycle.sh
 # Bulk ticket lifecycle operations: compact + archive in a single git commit.
 #
 # Usage: ticket-lifecycle.sh [--base-path=<dir>]

@@ -122,7 +122,7 @@ specialist findings for contradictions or compound issues:
 - Exit code propagation (`local var=$(cmd)` pattern): Sonnet A flags this as correctness
   risk; if Sonnet C also flags the same line as a naming or complexity issue, unify.
 - jq-free requirement in hook files: Sonnet C flags any `jq` call in
-  `plugins/dso/hooks/` as `important` under hygiene. If Sonnet A does not flag the same
+  `hooks/` as `important` under hygiene. If Sonnet A does not flag the same
   call, do not silently drop the Sonnet C finding — surface it in your synthesis.
 
 **Python patterns** (`.py` files — Sonnet A correctness + Sonnet C hygiene):
@@ -142,13 +142,13 @@ generic architectural integrity checks below.
 
 - [ ] **Hook isolation**: Does the diff modify or add hook logic directly in
   `pre-bash.sh` or `post-bash.sh` dispatcher bodies instead of delegating to a dedicated
-  module in `plugins/dso/hooks/lib/`? Dispatcher bodies should dispatch, not implement.
-  Use Grep on `plugins/dso/hooks/dispatchers/` to verify the consolidated dispatcher
+  module in `hooks/lib/`? Dispatcher bodies should dispatch, not implement.
+  Use Grep on `hooks/dispatchers/` to verify the consolidated dispatcher
   pattern is preserved. Flag as `important` under `design` if violated.
 - [ ] **Skill namespacing**: Do any in-scope files added or modified by the diff use
   unqualified skill references (e.g., `/sprint` instead of `/dso:sprint`)? In-scope
-  files are: `plugins/dso/skills/`, `plugins/dso/docs/`, `plugins/dso/hooks/`,
-  `plugins/dso/commands/`, `CLAUDE.md`. Unqualified skill refs are caught by
+  files are: `skills/`, `docs/`, `hooks/`,
+  `commands/`, `CLAUDE.md`. Unqualified skill refs are caught by
   `check-skill-refs.sh` and will fail CI — flag as `important` under `hygiene`.
 - [ ] **Ticket system encapsulation**: Does the diff access the ticket event log
   (`.tickets-tracker/` worktree) directly from hook code or scripts, bypassing the

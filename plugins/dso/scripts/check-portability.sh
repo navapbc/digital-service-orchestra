@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/check-portability.sh
+# check-portability.sh
 # Detect hardcoded home-directory paths that break portability.
 #
 # Flags lines containing:
