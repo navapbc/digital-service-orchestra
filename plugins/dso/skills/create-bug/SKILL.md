@@ -14,7 +14,7 @@ Reference skill for agents creating bug tickets. Ensures consistent, objective, 
 Before creating a bug ticket, read the shared bug report template:
 
 ```
-plugins/dso/skills/shared/prompts/bug-report-template.md
+${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/bug-report-template.md
 ```
 
 That template defines the full structure: title format, Zero Inference Rule, priority rubric, and description sections. This skill summarizes the workflow; the template is the source of truth.
@@ -154,7 +154,7 @@ When multiple Priority 4 (nitpick) findings share the same Component, consolidat
 This is a guidance skill, not a behavioral workflow. Agents should:
 
 1. Read this skill's guidance when they need to create a bug ticket
-2. Consult `plugins/dso/skills/shared/prompts/bug-report-template.md` for the full template
+2. Consult `skills/shared/prompts/bug-report-template.md` for the full template
 3. Use `.claude/scripts/dso ticket create bug` (the shim) for ticket creation -- never call plugin scripts directly
 4. Follow the Zero Inference Rule strictly -- report what you observed, not what you think caused it
 

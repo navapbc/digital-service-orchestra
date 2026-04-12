@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/gate-2d-dependency-check.sh
+# gate-2d-dependency-check.sh
 #
 # Gate 2d: Dependency Check
 # Scans proposed fix files for import/require statements and determines whether

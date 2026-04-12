@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/design-approve.sh
+# design-approve.sh
 # Approve a Figma design revision for a story.
 #
 # Usage: design-approve.sh <story-id>
@@ -24,7 +24,7 @@ if [ ! -f "$FIGMA_TAGS_CONF" ]; then
     echo "Error: figma-tags.conf not found at $FIGMA_TAGS_CONF" >&2
     exit 1
 fi
-# shellcheck source=plugins/dso/skills/shared/constants/figma-tags.conf
+# shellcheck source=${CLAUDE_PLUGIN_ROOT}/skills/shared/constants/figma-tags.conf
 source "$FIGMA_TAGS_CONF"
 
 # ── Resolve project root and ticket CLI ──────────────────────────────────────

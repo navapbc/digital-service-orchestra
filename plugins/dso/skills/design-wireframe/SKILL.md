@@ -17,7 +17,7 @@ are now created by the preplanning orchestrator.
 
 1. **`/dso:preplanning <epic-id>`** — identifies UI stories and dispatches
    `dso:ui-designer` for each one via the Agent tool (Step 6). Read
-   `plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md`
+   `skills/preplanning/prompts/ui-designer-dispatch-protocol.md`
    for the dispatch protocol.
 2. **`dso:ui-designer` agent** — creates design artifacts (spatial layout,
    SVG wireframe, design token overlay, manifest) and returns a

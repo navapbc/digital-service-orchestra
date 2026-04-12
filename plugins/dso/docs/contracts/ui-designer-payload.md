@@ -14,8 +14,8 @@ This contract must be agreed upon before any implementation begins to prevent im
 
 ## Emitter
 
-`plugins/dso/agents/ui-designer.md` — Named agent dispatched by `/dso:preplanning` to generate design artifacts for a user story. # shim-exempt: internal implementation path reference
-<!-- REVIEW-DEFENSE: plugins/dso/agents/ui-designer.md does not exist at the time this contract is created. This contract is the first artifact in a two-task chain: task ffca-cee2 creates this contract, and task 97c1-15bc (which depends on ffca-cee2) creates the agent file. Forward-looking emitter references are intentional in contract-first development — the contract documents the emitter path before the emitter exists, giving the implementer the definitive path. This is not a broken reference; it is a documented future obligation. -->
+`agents/ui-designer.md` — Named agent dispatched by `/dso:preplanning` to generate design artifacts for a user story. # shim-exempt: internal implementation path reference
+<!-- REVIEW-DEFENSE: agents/ui-designer.md does not exist at the time this contract is created. This contract is the first artifact in a two-task chain: task ffca-cee2 creates this contract, and task 97c1-15bc (which depends on ffca-cee2) creates the agent file. Forward-looking emitter references are intentional in contract-first development — the contract documents the emitter path before the emitter exists, giving the implementer the definitive path. This is not a broken reference; it is a documented future obligation. -->
 
 The emitter receives a story ID and the current UI discovery cache path. It evaluates the cache state, optionally runs Playwright-based discovery, generates design artifacts to a `designs/<uuid>/` directory, and returns the structured payload defined here. On any unrecoverable error the emitter sets `error` to a human-readable message and returns the partial payload with nulled artifact fields.
 
@@ -23,7 +23,7 @@ The emitter receives a story ID and the current UI discovery cache path. It eval
 
 ## Consumer
 
-`plugins/dso/skills/preplanning/SKILL.md` — Preplanning skill that dispatches `dso:ui-designer` and reads the returned payload to decide whether to attach design artifacts to the story or surface a scope split for user review. # shim-exempt: internal implementation path reference
+`skills/preplanning/SKILL.md` — Preplanning skill that dispatches `dso:ui-designer` and reads the returned payload to decide whether to attach design artifacts to the story or surface a scope split for user review. # shim-exempt: internal implementation path reference
 
 The consumer MUST check `cache_status` before acting on `design_artifacts`. When `cache_status` is `CACHE_MISSING`, the consumer must follow the actionable instructions embedded in the payload and re-invoke the design flow after cache population. When `error` is non-null, the consumer must surface the error to the user and skip artifact attachment.
 
@@ -200,8 +200,8 @@ The following components emit or consume this payload:
 
 | Component | Role | Notes |
 |---|---|---|
-| `plugins/dso/agents/ui-designer.md` | Emitter | Named agent dispatched during preplanning design generation (story 2932-51a6) # shim-exempt: internal implementation path reference |
-| `plugins/dso/skills/preplanning/SKILL.md` | Consumer | Reads payload to attach design artifacts and surface scope splits (story 2932-51a6) # shim-exempt: internal implementation path reference |
+| `agents/ui-designer.md` | Emitter | Named agent dispatched during preplanning design generation (story 2932-51a6) # shim-exempt: internal implementation path reference |
+| `skills/preplanning/SKILL.md` | Consumer | Reads payload to attach design artifacts and surface scope splits (story 2932-51a6) # shim-exempt: internal implementation path reference |
 
 All implementors must read this contract before writing the emitter agent or consumer logic. Changes to the payload schema require updating all conforming emitters and consumers and this document atomically in the same commit.
 

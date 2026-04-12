@@ -58,7 +58,7 @@ The pattern captures the exit code, writes the status, then re-exits with the or
 
 ## Script Reference
 
-**Canonical**: `plugins/dso/scripts/write-test-status.sh` # shim-exempt: canonical source path reference, not an invocation
+**Canonical**: `scripts/write-test-status.sh` # shim-exempt: canonical source path reference, not an invocation
 **Wrapper**: `.claude/scripts/dso write-test-status.sh` (backward-compatible exec wrapper)
 
 ```

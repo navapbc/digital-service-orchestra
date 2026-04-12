@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket-compact.sh
+# ticket-compact.sh
 # Compact a ticket's event history into a single SNAPSHOT event.
 #
 # Usage: ticket-compact.sh <ticket_id> [--threshold=N] [--skip-sync] [--no-commit]

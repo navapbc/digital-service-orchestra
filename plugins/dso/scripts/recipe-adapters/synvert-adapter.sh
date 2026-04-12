@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/recipe-adapters/synvert-adapter.sh
+# synvert-adapter.sh
 # Recipe adapter for normalize-imports (Ruby/Synvert).
 #
-# Contract: plugins/dso/docs/contracts/recipe-engine-adapter.md
+# Contract: ${CLAUDE_PLUGIN_ROOT}/docs/contracts/recipe-engine-adapter.md
 # Parameters (via RECIPE_PARAM_* env vars):
 #   RECIPE_PARAM_file       — Ruby source file to normalize imports in (required)
 #   RECIPE_PARAM_project_root — Project root directory (optional, defaults to CWD)

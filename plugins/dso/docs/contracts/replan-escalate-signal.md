@@ -21,7 +21,7 @@ This contract must be agreed upon before any implementation begins to prevent im
 
 ## Emitter
 
-`plugins/dso/skills/implementation-plan/SKILL.md` — Implementation Plan skill # shim-exempt: internal implementation path reference
+`skills/implementation-plan/SKILL.md` — Implementation Plan skill # shim-exempt: internal implementation path reference
 
 The emitter evaluates ambiguity and contradiction conditions during the ambiguity scan phase of task drafting, then prints the canonical signal string as a standalone output line and **stops all task decomposition immediately**. After emitting `REPLAN_ESCALATE`, the implementation-plan skill MUST halt and return the signal as its final output — no tasks are emitted, no further decomposition steps are executed.
 
@@ -29,7 +29,7 @@ The emitter evaluates ambiguity and contradiction conditions during the ambiguit
 
 ## Parser
 
-`plugins/dso/skills/sprint/SKILL.md` — Sprint orchestrator (routing story 9d3e-957d) # shim-exempt: internal implementation path reference
+`skills/sprint/SKILL.md` — Sprint orchestrator (routing story 9d3e-957d) # shim-exempt: internal implementation path reference
 
 The parser reads the output of the implementation-plan invocation, scans for the canonical signal prefix, and routes accordingly. When the signal is detected, the sprint orchestrator invokes `/dso:brainstorm` on the story rather than proceeding to implementation batches.
 

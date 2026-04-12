@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
 # scripts/verify-review-diff.sh
 # Validate that a review diff file matches the current working tree state.
 # Used by the code-review sub-agent before reading the diff.
@@ -22,7 +23,7 @@ DIFF_FILE="$1"
 
 # Resolve CLAUDE_PLUGIN_ROOT with a fallback for worktree sessions where it may be unset.
 # Export so compute-diff-hash.sh (a subprocess) inherits the resolved value.
-export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/plugins/dso}"
+export CLAUDE_PLUGIN_ROOT="${_PLUGIN_ROOT}"
 
 # Check file exists
 if [ ! -f "$DIFF_FILE" ]; then

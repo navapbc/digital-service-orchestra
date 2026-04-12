@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/hooks/lib/fuzzy-match.sh
+# fuzzy-match.sh
 # Shared fuzzy match library for tech-stack-agnostic test file association.
 #
 # Provides:

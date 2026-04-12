@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket-fsck.sh
+# ticket-fsck.sh
 # Non-destructive ticket system integrity validator.
 #
 # Runs five validation checks:

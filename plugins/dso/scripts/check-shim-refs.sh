@@ -1,31 +1,33 @@
 #!/usr/bin/env bash
 set -uo pipefail
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+_PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)/}"
 # scripts/check-shim-refs.sh
-# Detect direct plugin script references that should use the .claude/scripts/dso shim.
+# Detect direct plugin script references that should use the ${_PLUGIN_ROOT}/scripts/shim.
 #
 # A 'shim violation' is any of:
-#   1. Literal path:  plugins/dso/scripts/
+#   1. Literal path:  ${_PLUGIN_ROOT}/scripts/
 #   2. Variable path: $PLUGIN_SCRIPTS/ or ${PLUGIN_SCRIPTS}/
 #   3. Variable path: ${CLAUDE_PLUGIN_ROOT}/scripts/ or $CLAUDE_PLUGIN_ROOT/scripts/
 #
 # Exclusions:
-#   - source commands targeting plugins/dso/hooks/lib/ (legitimate internal sourcing)
-#   - Files within plugins/dso/scripts/ (script-to-script references are valid)
+#   - source commands targeting ${CLAUDE_PLUGIN_ROOT}/hooks/lib/ (legitimate internal sourcing)
+#   - Files within ${_PLUGIN_ROOT}/scripts/ (script-to-script references are valid)
 #   - Lines with # shim-exempt: <reason> annotation (case-insensitive)
-#   - Files outside plugins/dso/ (out of scope)
+#   - Files outside ${CLAUDE_PLUGIN_ROOT}/ (out of scope)
 #
 # Usage:
 #   scripts/check-shim-refs.sh [file ...]
 #
 # When no arguments are given, scans the default in-scope file set:
-#   plugins/dso/{skills,agents,docs/workflows,docs/prompts} (recursively, no symlinks)
+#   ${CLAUDE_PLUGIN_ROOT}/{skills,agents,docs/workflows,docs/prompts} (recursively, no symlinks)
 #
 # Exit codes:
 #   0 — No violations found
 #   1 — One or more violations found
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# SCRIPT_DIR is plugins/dso/scripts/ — one level up is the plugin root (plugins/dso/)
+# SCRIPT_DIR is ${_PLUGIN_ROOT}/scripts/ — one level up is the plugin root (${CLAUDE_PLUGIN_ROOT}/)
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ── Determine file set ────────────────────────────────────────────────────────
@@ -34,15 +36,15 @@ if [[ $# -gt 0 ]]; then
     # Explicit targets provided (used for pre-commit hook and test isolation)
     _scan_targets=("$@")
 elif [[ -n "${PRE_COMMIT:-}" ]]; then
-    # Pre-commit hook context: scan only staged files under plugins/dso/ (not scripts/)
+    # Pre-commit hook context: scan only staged files under ${CLAUDE_PLUGIN_ROOT}/ (not scripts/)
     # to avoid the full 183-file corpus scan that causes timeouts on larger changesets.
-    # _scan_file already filters out scripts/ files, so we pass all staged plugins/dso/ files.
+    # _scan_file already filters out scripts/ files, so we pass all staged ${CLAUDE_PLUGIN_ROOT}/ files.
     _repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$PLUGIN_DIR" && git rev-parse --show-toplevel 2>/dev/null))"
-    mapfile -t _scan_targets < <(git diff --cached --name-only -- plugins/dso/ 2>/dev/null | while IFS= read -r _f; do
+    mapfile -t _scan_targets < <(git diff --cached --name-only -- ${_PLUGIN_GIT_PATH}/ 2>/dev/null | while IFS= read -r _f; do
         [[ -f "$_repo_root/$_f" ]] && echo "$_repo_root/$_f"
     done)
 else
-    # Default in-scope set: plugins/dso/{skills,agents,docs/workflows,docs/prompts}
+    # Default in-scope set: ${CLAUDE_PLUGIN_ROOT}/{skills,agents,docs/workflows,docs/prompts}
     for _dir in skills agents docs/workflows docs/prompts; do
         if [[ -d "$PLUGIN_DIR/$_dir" ]]; then
             _scan_targets+=("$PLUGIN_DIR/$_dir")
@@ -60,14 +62,14 @@ _violations=0
 
 _is_in_scope() {
     local _file="$1"
-    # Only files within plugins/dso/ are in scope
-    # Use realpath-free approach: check if path contains plugins/dso/
+    # Only files within ${CLAUDE_PLUGIN_ROOT}/ are in scope
+    # Use realpath-free approach: check if path contains ${CLAUDE_PLUGIN_ROOT}/
     local _real_file
     _real_file="$(cd "$(dirname "$_file")" 2>/dev/null && pwd)/$(basename "$_file")" || true
     if [[ -z "$_real_file" ]]; then
         _real_file="$_file"
     fi
-    [[ "$_real_file" == */plugins/dso/* ]]
+    [[ "$_real_file" == */${_PLUGIN_GIT_PATH}/* ]]
 }
 
 _is_in_scripts_dir() {
@@ -77,34 +79,34 @@ _is_in_scripts_dir() {
     if [[ -z "$_real_file" ]]; then
         _real_file="$_file"
     fi
-    [[ "$_real_file" == */plugins/dso/scripts/* ]]
+    [[ "$_real_file" == */${_PLUGIN_GIT_PATH}/scripts/* ]]
 }
 
 _scan_file() {
     local _file="$1"
 
-    # Skip files within plugins/dso/scripts/ — script-to-script refs are valid
+    # Skip files within ${_PLUGIN_ROOT}/scripts/ — script-to-script refs are valid
     if _is_in_scripts_dir "$_file"; then
         return
     fi
 
-    # Determine if this file is inside the plugins/dso/ tree.
-    # For files outside plugins/dso/, backtick-quoted references (markdown inline
+    # Determine if this file is inside the ${CLAUDE_PLUGIN_ROOT}/ tree.
+    # For files outside ${CLAUDE_PLUGIN_ROOT}/, backtick-quoted references (markdown inline
     # code) are excluded from violation detection — those are documentation
     # references to plugin paths, which are valid in host-project docs.
-    # For files inside plugins/dso/, ALL matching patterns are violations because
-    # instruction files must direct users to the .claude/scripts/dso shim.
+    # For files inside ${CLAUDE_PLUGIN_ROOT}/, ALL matching patterns are violations because
+    # instruction files must direct users to the ${_PLUGIN_ROOT}/scripts/shim.
     local _in_plugin_tree=0
     _is_in_scope "$_file" && _in_plugin_tree=1 || true
 
     # Use perl to detect violations:
-    #   Pattern 1: plugins/dso/scripts/ (literal path, not hooks/lib)
+    #   Pattern 1: ${_PLUGIN_ROOT}/scripts/ (literal path, not hooks/lib)
     #   Pattern 2: $PLUGIN_SCRIPTS/ or ${PLUGIN_SCRIPTS}/
     #   Pattern 3: ${CLAUDE_PLUGIN_ROOT}/scripts/ or $CLAUDE_PLUGIN_ROOT/scripts/
     #
     # Exclusions applied per-line:
     #   - Lines matching # shim-exempt: (case-insensitive) are skipped
-    #   - source ... plugins/dso/hooks/lib/ lines are skipped
+    #   - source ... ${CLAUDE_PLUGIN_ROOT}/hooks/lib/ lines are skipped
     #   - For out-of-plugin-tree files: backtick-quoted occurrences are stripped
     #     before matching (markdown doc references are not violations)
     local _matches
@@ -115,7 +117,7 @@ _scan_file() {
         # Skip source commands targeting hooks/lib/
         next if /^\\s*(?:source|\\.)\\s+(?:\\S+\\/)?plugins\\/dso\\/hooks\\/lib\\//;
 
-        # For files outside plugins/dso/, strip backtick-quoted content so that
+        # For files outside ${CLAUDE_PLUGIN_ROOT}/, strip backtick-quoted content so that
         # inline markdown code references are not treated as violations.
         my \$check_line = \$_;
         if (!$_in_plugin_tree) {
@@ -126,7 +128,7 @@ _scan_file() {
         my \$linenum = $.;
         my \$matched = 0;
 
-        # Pattern 1: literal plugins/dso/scripts/
+        # Pattern 1: literal \${_PLUGIN_ROOT}/scripts/
         if (\$check_line =~ /plugins\\/dso\\/scripts\\//) {
             \$matched = 1;
         }

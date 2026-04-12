@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket-transition.sh
+# ticket-transition.sh
 # Transition a ticket's status with optimistic concurrency control and ghost prevention.
 #
 # Usage: ticket-transition.sh <ticket_id> <current_status> <target_status>
@@ -12,7 +12,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=plugins/dso/scripts/ticket-lib.sh
+# shellcheck source=${_PLUGIN_ROOT}/scripts/ticket-lib.sh
 source "$SCRIPT_DIR/ticket-lib.sh"
 
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"

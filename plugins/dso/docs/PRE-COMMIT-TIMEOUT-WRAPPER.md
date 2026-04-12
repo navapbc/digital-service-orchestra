@@ -1,6 +1,6 @@
 # Pre-Commit Timeout Wrapper
 
-Generic pre-commit hook wrapper that runs a command with timeout detection, logging, and optional auto-ticket creation. Lives at `plugins/dso/scripts/pre-commit-wrapper.sh`. # shim-exempt: internal implementation path reference
+Generic pre-commit hook wrapper that runs a command with timeout detection, logging, and optional auto-ticket creation. Lives at `scripts/pre-commit-wrapper.sh`. # shim-exempt: internal implementation path reference
 
 ## Interface
 
@@ -102,7 +102,7 @@ Projects should create a thin exec wrapper at `scripts/pre-commit-wrapper.sh` th
 
 ```bash
 #!/usr/bin/env bash
-# Thin exec wrapper -- canonical copy lives in plugins/dso/scripts/pre-commit-wrapper.sh # shim-exempt: internal implementation path in comment
+# Thin exec wrapper -- canonical copy lives in ${CLAUDE_PLUGIN_ROOT}/scripts/pre-commit-wrapper.sh # shim-exempt: internal implementation path in comment
 exec "${CLAUDE_PLUGIN_ROOT}/scripts/pre-commit-wrapper.sh" "$@" # shim-exempt: bootstrap exec wrapper template, delegates to plugin canonical path
 ```
 

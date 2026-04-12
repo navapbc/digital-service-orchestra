@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/recipe-adapters/scaffold-adapter.sh
+# scaffold-adapter.sh
 # Recipe engine adapter for scaffold-route (generative recipe).
-# Conforms to: plugins/dso/docs/contracts/recipe-engine-adapter.md
+# Conforms to: ${CLAUDE_PLUGIN_ROOT}/docs/contracts/recipe-engine-adapter.md
 #
 # Input:  RECIPE_PARAM_* env vars (never positional args)
 # Output: single JSON object to stdout; all diagnostics to stderr

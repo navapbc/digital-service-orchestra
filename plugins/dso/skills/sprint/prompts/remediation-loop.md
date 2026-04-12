@@ -20,7 +20,7 @@ If it returns CLEAR: proceed to create tasks normally.
 
 For each failing success criterion (SC) identified in Phase 6 validation, dispatch the gap-classification sub-agent to classify it before creating remediation tasks.
 
-**Dispatch** (`subagent_type="general-purpose"`, `model="sonnet"`) with the prompt from `plugins/dso/skills/sprint/prompts/gap-classification.md` and the following context for each failing SC: # shim-exempt: internal prompt path reference
+**Dispatch** (`subagent_type="general-purpose"`, `model="sonnet"`) with the prompt from `skills/sprint/prompts/gap-classification.md` and the following context for each failing SC: # shim-exempt: internal prompt path reference
 - The exact failing SC criterion text from the completion-verifier output
 - The completion-verifier failure explanation for the SC
 - Relevant code snippets or file paths from the validation context
@@ -46,7 +46,7 @@ For each item in the validation agent's FAIL/REMEDIATION output:
 
 ```bash
 # Title format: [Component]: [Condition] -> [Observed Result]
-# Follow plugins/dso/skills/create-bug/SKILL.md for description format
+# Follow ${CLAUDE_PLUGIN_ROOT}/skills/create-bug/SKILL.md for description format
 .claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -p 1 --parent=<epic-id> -d "## Incident Overview ..."
 ```
 

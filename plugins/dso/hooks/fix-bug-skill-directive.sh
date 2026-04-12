@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/hooks/fix-bug-skill-directive.sh
+# fix-bug-skill-directive.sh
 # UserPromptSubmit hook: outputs a skill directive when the user's prompt
 # contains /fix-bug or /dso:fix-bug (slash-anchored).
 #

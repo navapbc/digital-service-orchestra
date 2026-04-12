@@ -4,7 +4,7 @@ model: sonnet
 description: >
   Creates design artifacts for a story ID. Produces a Design Brief (Lite track) or
   full Design Manifest (spatial layout tree, SVG blueprint, token overlay, manifest).
-  Returns structured payload conforming to plugins/dso/docs/contracts/ui-designer-payload.md.
+  Returns structured payload conforming to docs/contracts/ui-designer-payload.md.
 color: green
 ---
 
@@ -530,7 +530,7 @@ This agent understands the following ticket hierarchy for scoping decisions:
 
 ---
 
-## Return Payload (contract: plugins/dso/docs/contracts/ui-designer-payload.md) # shim-exempt: internal implementation path reference
+## Return Payload (contract: docs/contracts/ui-designer-payload.md) # shim-exempt: internal implementation path reference
 
 After completing Phase 6 (Full track) or Lite Step 4 (Lite track), emit the
 structured return payload. The orchestrator reads this to determine next steps,

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/acli-version-resolver.sh
+# acli-version-resolver.sh
 #
 # Spike PoC: resolves the current ACLI (Atlassian CLI) version and computes
 # its SHA-256 checksum for use in reproducible installs (e.g. Homebrew formulae).

@@ -21,13 +21,13 @@ This contract must be agreed upon before implementation to prevent implicit assu
 
 ## Emitter
 
-`figma-merge.py` (script in the `scripts/` directory under `plugins/dso/`) — emitted to **stdout** on both success and error, immediately after all artifact files are written (or on the first error before files are written).
+`figma-merge.py` (script in the `scripts/` directory under the plugin root directory) — emitted to **stdout** on both success and error, immediately after all artifact files are written (or on the first error before files are written).
 
 ---
 
 ## Parser
 
-`figma-resync.py` (script in the `scripts/` directory under `plugins/dso/`) — reads stdout from the `figma-merge.py` subprocess invocation to populate the change summary, metadata comment, and user confirmation prompt.
+`figma-resync.py` (script in the `scripts/` directory under the plugin root directory) — reads stdout from the `figma-merge.py` subprocess invocation to populate the change summary, metadata comment, and user confirmation prompt.
 
 ---
 

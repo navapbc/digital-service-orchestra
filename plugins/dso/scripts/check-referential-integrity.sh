@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/check-referential-integrity.sh
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+_PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)/}"
+# check-referential-integrity.sh
 # Verify that path references in skill/agent/workflow/prompt markdown files
 # point to files that actually exist in the repository.
 #
-# Scanned pattern: plugins/dso/(scripts|agents|docs)/[^\s]+\.(sh|py|md)
+# Scanned pattern: ${CLAUDE_PLUGIN_ROOT}/(scripts|agents|docs)/[^\s]+\.(sh|py|md)
 #
 # Exclusions:
 #   - Lines containing # shim-exempt: (case-insensitive)
@@ -17,7 +19,7 @@
 #   check-referential-integrity.sh [--repo-root <path>] [file ...]
 #
 # When no file arguments are given, scans the default in-scope set:
-#   plugins/dso/{skills,agents,docs/workflows,docs/prompts}/**/*.md + CLAUDE.md
+#   ${CLAUDE_PLUGIN_ROOT}/{skills,agents,docs/workflows,docs/prompts}/**/*.md + CLAUDE.md
 #
 # Exit codes:
 #   0 — All referenced files exist
@@ -51,7 +53,7 @@ if [[ -z "$REPO_ROOT" ]]; then
     fi
 fi
 
-PLUGIN_DIR="$REPO_ROOT/plugins/dso"
+PLUGIN_DIR="${_PLUGIN_ROOT}"
 
 # ── Temp files for intermediate data ─────────────────────────────────────────
 _git_cache_file=$(mktemp)
@@ -72,7 +74,7 @@ _scan_targets=()
 if [[ ${#_file_args[@]} -gt 0 ]]; then
     _scan_targets=("${_file_args[@]}")
 else
-    # Default scan: plugins/dso/{skills,agents,docs/workflows,docs/prompts}/**/*.md + CLAUDE.md
+    # Default scan: ${CLAUDE_PLUGIN_ROOT}/{skills,agents,docs/workflows,docs/prompts}/**/*.md + CLAUDE.md
     for _dir in skills agents docs/workflows docs/prompts; do
         if [[ -d "$PLUGIN_DIR/$_dir" ]]; then
             while IFS= read -r -d '' _f; do
@@ -92,8 +94,8 @@ if [[ ${#_scan_targets[@]} -eq 0 ]]; then
 fi
 
 # ── Reference pattern ────────────────────────────────────────────────────────
-# Matches: plugins/dso/(scripts|agents|docs)/...(sh|py|md)
-_REF_PATTERN='plugins/dso/(scripts|agents|docs)/[^[:space:]`,)>"|'"'"']+\.(sh|py|md)'
+# Matches: ${CLAUDE_PLUGIN_ROOT}/(scripts|agents|docs)/...(sh|py|md)
+_REF_PATTERN="${_PLUGIN_GIT_PATH}/(scripts|agents|docs)/[^[:space:]\`,)>\"|']+\.(sh|py|md)"
 
 # ── Scan (optimized: awk does all filtering + reference extraction) ──────────
 #

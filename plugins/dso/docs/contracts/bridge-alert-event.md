@@ -42,8 +42,8 @@ Reducers and `.claude/scripts/dso ticket list` ignore them; operators must inspe
 
 | Emitter | Function | Trigger condition |
 |---------|----------|-------------------|
-| `plugins/dso/scripts/bridge-outbound.py` # shim-exempt: internal implementation path | `write_bridge_alert()` | STATUS flap detected; LINK/UNLINK sync failure; link target not found |
-| `plugins/dso/scripts/bridge-inbound.py` # shim-exempt: internal implementation path | `write_bridge_alert()` | Unmapped status, unmapped type, destructive change blocked, relationship rejection |
+| `scripts/bridge-outbound.py` # shim-exempt: internal implementation path | `write_bridge_alert()` | STATUS flap detected; LINK/UNLINK sync failure; link target not found |
+| `scripts/bridge-inbound.py` # shim-exempt: internal implementation path | `write_bridge_alert()` | Unmapped status, unmapped type, destructive change blocked, relationship rejection |
 
 ---
 

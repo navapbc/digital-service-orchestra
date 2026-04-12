@@ -39,7 +39,7 @@ REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 
 # Source deps.sh for get_artifacts_dir
 # Defensive plugin-root resolution: CLAUDE_PLUGIN_ROOT may point to the main repo
-# root instead of the plugin subdirectory (e.g., plugins/dso) when called from a
+# root instead of the plugin subdirectory (e.g., ${CLAUDE_PLUGIN_ROOT}) when called from a
 # host project via the dso shim. Validate using plugin.json (always present in the
 # plugin dir) and fall back to $SCRIPT_DIR/.. (the plugin dir relative to this script).
 # shellcheck source=hooks/lib/deps.sh

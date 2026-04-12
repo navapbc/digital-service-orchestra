@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/figma-auth.sh
+# figma-auth.sh
 # Validate a Figma Personal Access Token (PAT) via GET /v1/me.
 #
 # Usage: figma-auth.sh (no positional arguments)

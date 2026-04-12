@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/suggestion-record.sh
+# suggestion-record.sh
 # Record an immutable suggestion JSON file to .tickets-tracker/.suggestions/
 # on the tickets orphan branch using Python fcntl.flock (following ticket-flock-contract.md).
 #
@@ -33,7 +33,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source the shared flock library
-# shellcheck source=plugins/dso/scripts/ticket-lib.sh
+# shellcheck source=${_PLUGIN_ROOT}/scripts/ticket-lib.sh
 source "$SCRIPT_DIR/ticket-lib.sh"
 
 # ── Argument parsing ─────────────────────────────────────────────────────────

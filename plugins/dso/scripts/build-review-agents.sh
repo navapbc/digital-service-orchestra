@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/build-review-agents.sh
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+# build-review-agents.sh
 #
 # Composes reviewer-base.md + per-agent delta files into generated code-reviewer
-# agent definitions in plugins/dso/agents/.
+# agent definitions in ${CLAUDE_PLUGIN_ROOT}/agents/.
 #
 # Usage:
 #   bash build-review-agents.sh [--base PATH] [--deltas DIR] [--output DIR] [--expect-count N]
@@ -10,7 +11,7 @@
 # Options:
 #   --base PATH         Path to reviewer-base.md (default: auto-detected from plugin dir)
 #   --deltas DIR        Directory containing reviewer-delta-*.md files (default: auto-detected)
-#   --output DIR        Output directory for generated agent files (default: plugins/dso/agents/)
+#   --output DIR        Output directory for generated agent files (default: ${CLAUDE_PLUGIN_ROOT}/agents/)
 #   --expect-count N    Expected number of delta files; exit non-zero if mismatch (optional)
 #
 # HASH_ALGORITHM: sha256 of (base_content + "\n" + delta_content)
@@ -38,7 +39,7 @@ _sha256() {
 # ── Defaults ─────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
+DSO_PLUGIN_DIR="${_PLUGIN_ROOT}"
 
 BASE_FILE=""
 DELTAS_DIR=""

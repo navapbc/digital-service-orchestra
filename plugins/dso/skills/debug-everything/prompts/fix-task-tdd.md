@@ -1,4 +1,4 @@
-> **DEPRECATED**: This prompt template is no longer used by debug-everything. Bug resolution is now delegated to `/dso:fix-bug`. See `plugins/dso/skills/fix-bug/SKILL.md` for the current workflow.
+> **DEPRECATED**: This prompt template is no longer used by debug-everything. Bug resolution is now delegated to `/dso:fix-bug`. See `skills/fix-bug/SKILL.md` for the current workflow.
 
 ## Fix: {issue title}
 Beads ID: {id}

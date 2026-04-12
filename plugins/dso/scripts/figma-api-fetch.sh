@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/figma-api-fetch.sh
+# figma-api-fetch.sh
 # Fetch a Figma file via the Figma REST API using a Personal Access Token (PAT).
 #
 # Usage: figma-api-fetch.sh <file-key> [<output-path>]

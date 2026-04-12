@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket-list.sh
+# ticket-list.sh
 # List all tickets by compiling each ticket directory via the reducer.
 #
 # Usage: ticket-list.sh [--format=<fmt>] [--include-archived] [--type=<type>] [--status=<status>]

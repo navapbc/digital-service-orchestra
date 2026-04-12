@@ -18,7 +18,7 @@ This document defines the dedup interface between the outbound Jira bridge (emit
 
 ## Emitter
 
-`plugins/dso/scripts/bridge-outbound.py` # shim-exempt: internal implementation path reference
+`scripts/bridge-outbound.py` # shim-exempt: internal implementation path reference
 
 The outbound bridge embeds a UUID marker in every Jira comment it creates so the inbound bridge can
 identify comments that originated locally and skip them during pull (echo prevention).

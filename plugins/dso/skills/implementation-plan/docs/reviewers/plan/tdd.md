@@ -20,7 +20,7 @@ plans where "write tests" is a vague afterthought rather than a driving force.
 ## Shared Behavioral Testing Standard
 
 This reviewer applies the shared behavioral testing standard at:
-`plugins/dso/skills/shared/prompts/behavioral-testing-standard.md`
+`skills/shared/prompts/behavioral-testing-standard.md`
 
 Read that file to load the full 5-rule standard before evaluating any plan. Rule 5 of that standard
 defines the testing boundary for non-executable LLM instruction files and governs how this reviewer
@@ -44,7 +44,7 @@ Tasks claiming an exemption must cite the applicable criterion by name or number
 ## Instruction-File Task Scoring
 
 When a task modifies **only non-executable LLM instruction files** — skills (`SKILL.md`), prompts
-(`plugins/dso/skills/shared/prompts/`), agent definitions (`plugins/dso/agents/`), or hook
+(`skills/shared/prompts/`), agent definitions (`agents/`), or hook
 behavioral logic — apply Rule 5 of the shared behavioral testing standard (see path above).
 
 **Scoring guidance for instruction-file tasks:**

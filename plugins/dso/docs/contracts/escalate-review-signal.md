@@ -35,7 +35,7 @@ The emitter appends an `escalate_review` field to the top-level `reviewer-findin
 
 ## Parser
 
-`plugins/dso/docs/workflows/REVIEW-WORKFLOW.md` — REVIEW-WORKFLOW.md orchestrator Step 4a # shim-exempt: internal implementation path reference
+`docs/workflows/REVIEW-WORKFLOW.md` — REVIEW-WORKFLOW.md orchestrator Step 4a # shim-exempt: internal implementation path reference
 
 The parser reads `reviewer-findings.json` after the reviewer sub-agent returns, before overlay dispatch. If the `escalate_review` field is present and non-empty, the parser processes each escalation entry to determine whether to escalate the review tier.
 

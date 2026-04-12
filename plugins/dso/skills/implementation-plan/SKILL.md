@@ -246,7 +246,7 @@ Search for architecture docs and existing patterns:
 
 **Curiosity before planning.** After gathering context, actively scan for ambiguity. A plan built on assumptions is worse than no plan.
 
-**Exploration decomposition**: When gathering context involves compound or multi-source questions (spanning multiple codebase layers, web research, or ambiguous scope), apply the shared exploration decomposition protocol at `plugins/dso/skills/shared/prompts/exploration-decomposition.md`. Classify each question as SINGLE_SOURCE or MULTI_SOURCE before answering. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings contradict.
+**Exploration decomposition**: When gathering context involves compound or multi-source questions (spanning multiple codebase layers, web research, or ambiguous scope), apply the shared exploration decomposition protocol at `skills/shared/prompts/exploration-decomposition.md`. Classify each question as SINGLE_SOURCE or MULTI_SOURCE before answering. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings contradict.
 
 Check for these signals:
 
@@ -404,11 +404,11 @@ Dispatch the `dso:approach-decision-maker` agent (subagent_type, model: opus, ti
 - Story success criteria and done definitions
 - Current codebase context (architecture notes, existing patterns)
 
-**Inline fallback**: If the Agent tool rejects the `dso:approach-decision-maker` subagent type (e.g., "Unknown agent type", "not supported", or any dispatch failure before the agent runs), read `plugins/dso/agents/approach-decision-maker.md` inline and execute its evaluation instructions directly with the same proposal set, success criteria, and codebase context as inputs. This fallback covers the case where plugin agent types are not available in the current Claude Code configuration. The inline execution must still produce a valid `APPROACH_DECISION:` output conforming to `plugins/dso/docs/contracts/approach-decision-output.md`.
+**Inline fallback**: If the Agent tool rejects the `dso:approach-decision-maker` subagent type (e.g., "Unknown agent type", "not supported", or any dispatch failure before the agent runs), read `agents/approach-decision-maker.md` inline and execute its evaluation instructions directly with the same proposal set, success criteria, and codebase context as inputs. This fallback covers the case where plugin agent types are not available in the current Claude Code configuration. The inline execution must still produce a valid `APPROACH_DECISION:` output conforming to `docs/contracts/approach-decision-output.md`.
 
 #### Parse Response
 
-Scan the agent output for the `APPROACH_DECISION:` prefix line per the contract at `plugins/dso/docs/contracts/approach-decision-output.md`. Extract the JSON block between the opening ` ```json ` and closing ` ``` ` fences. Validate the `mode` field before acting.
+Scan the agent output for the `APPROACH_DECISION:` prefix line per the contract at `docs/contracts/approach-decision-output.md`. Extract the JSON block between the opening ` ```json ` and closing ` ``` ` fences. Validate the `mode` field before acting.
 
 **If the agent output is absent, malformed, missing the `APPROACH_DECISION:` prefix, or contains an unrecognized `mode` value**: log a warning and surface the failure to the user for manual proposal selection. Do NOT autonomously fall back to any proposal.
 
@@ -543,7 +543,7 @@ Before drafting tasks, enumerate all files affected by the story. This produces 
 2. **Find associated tests for each source file** — For each source file, locate its test counterpart using one of two methods:
    - **Fuzzy match** (preferred): source the fuzzy-match library and call `fuzzy_find_associated_tests`:
      ```bash
-     source plugins/dso/hooks/lib/fuzzy-match.sh
+     source ${CLAUDE_PLUGIN_ROOT}/hooks/lib/fuzzy-match.sh
      fuzzy_find_associated_tests <src_file> <repo_root>
      ```
    - **`.test-index` lookup**: check whether the source file has an explicit entry in `.test-index` at the repo root (format: `source/path.ext: test/path1.ext, test/path2.ext`).
@@ -756,7 +756,7 @@ A contract is needed when file impact includes a skill or orchestrator dispatchi
 For each detected interface, create a contract document:
 
 ```
-plugins/dso/docs/contracts/<interface-name>.md
+${CLAUDE_PLUGIN_ROOT}/docs/contracts/<interface-name>.md
 ```
 
 Contract document sections:

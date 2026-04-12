@@ -542,7 +542,7 @@
           "type": "string",
           "description": "Semicolon-delimited glob list of file patterns the review complexity classifier treats as behavioral (full scoring weight). Files matching these patterns receive higher blast_radius and critical_path scores.",
           "minLength": 1,
-          "examples": ["plugins/dso/skills/**;plugins/dso/hooks/**;CLAUDE.md"]
+          "examples": ["skills/**;hooks/**;CLAUDE.md"]
         }
       }
     },

@@ -76,7 +76,7 @@ Never invoke it via the Skill tool — doing so creates illegal two-level nestin
 `[Tool result missing due to internal error]` failures. The Agent tool is the
 correct dispatch mechanism at this level.
 
-Dispatch `dso:ui-designer` by reading `plugins/dso/agents/ui-designer.md` inline and using `subagent_type: "general-purpose"` with `model: "sonnet"`. (`dso:ui-designer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass the following to the agent prompt:
+Dispatch `dso:ui-designer` by reading `agents/ui-designer.md` inline and using `subagent_type: "general-purpose"` with `model: "sonnet"`. (`dso:ui-designer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass the following to the agent prompt:
 
 ```
 story_id: <story-id>

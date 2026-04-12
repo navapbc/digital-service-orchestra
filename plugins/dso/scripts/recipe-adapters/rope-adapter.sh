@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/recipe-adapters/rope-adapter.sh
+# rope-adapter.sh
 #
 # Recipe engine adapter for the Rope Python refactoring library.
-# Conforms to: plugins/dso/docs/contracts/recipe-engine-adapter.md
+# Conforms to: ${CLAUDE_PLUGIN_ROOT}/docs/contracts/recipe-engine-adapter.md
 #
 # Input:  RECIPE_PARAM_* env vars (never positional args)
 # Output: single JSON object to stdout; all diagnostics to stderr
