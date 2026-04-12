@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/hooks/lib/red-zone.sh
+# red-zone.sh
 # Shared RED zone helpers for record-test-status.sh and test infrastructure.
 #
 # Usage (source into scripts):
@@ -19,7 +19,7 @@
 # Environment:
 #   REPO_ROOT — repo root directory (defaults to ".")
 #
-# Extracted from plugins/dso/hooks/record-test-status.sh.
+# Extracted from ${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh.
 
 # ── RED zone helpers ──────────────────────────────────────────────────────────
 

@@ -81,7 +81,7 @@ TAG="v${VERSION}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-# DIST_ROOT is the repo root — marketplace.json stays at repo root (not inside plugins/dso/)
+# DIST_ROOT is the repo root — marketplace.json stays at repo root (not inside ${CLAUDE_PLUGIN_ROOT}/)
 DIST_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null)"
 
 PLUGIN_JSON="${PLUGIN_ROOT}/.claude-plugin/plugin.json"

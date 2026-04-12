@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket-show.sh
+# ticket-show.sh
 # Show compiled state for a ticket by invoking the event reducer.
 #
 # Usage: ticket show [--format=<fmt>] <ticket_id>

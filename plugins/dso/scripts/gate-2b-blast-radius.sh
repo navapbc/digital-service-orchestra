@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/gate-2b-blast-radius.sh
+# gate-2b-blast-radius.sh
 #
 # Gate 2b: Blast Radius Annotation
 # Evaluates a file's blast radius by checking convention heuristics and fan-in

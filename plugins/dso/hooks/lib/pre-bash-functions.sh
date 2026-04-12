@@ -148,8 +148,8 @@ hook_commit_failure_tracker() {
     local _SEARCH_CMD_FROM_ENV="${SEARCH_CMD:-}"
     local _SEARCH_CMD="${SEARCH_CMD:-grep -rl}"
     local _READ_CONFIG=""
-    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
-        _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then  # shim-exempt: direct plugin internal sourcing
+        _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"  # shim-exempt: direct plugin internal sourcing
     fi
     # Config file: prefer CLAUDE_PLUGIN_ROOT/.claude/dso-config.conf when set and present,
     # so tests can pass an isolated config without affecting the real repo config.
@@ -717,7 +717,7 @@ print(json.dumps(entry))
 #
 # .tickets-tracker/ is an event-sourced log; direct Bash modifications bypass
 # event sourcing invariants and may corrupt the event log. All mutations must
-# go through ticket CLI commands (ticket *, .claude/scripts/dso ticket *).
+# go through ticket CLI commands (ticket *, ${_PLUGIN_ROOT}/scripts/ticket *).
 #
 # Logic:
 #   1. Only fires on Bash tool calls
@@ -726,7 +726,7 @@ print(json.dumps(entry))
 #   4. If command contains .tickets-tracker/ AND NOT allowlisted: return 2 (block)
 #   5. All other cases: return 0 (allow, fail-open)
 #
-# Allowlist: ticket CLI scripts (ticket, .claude/scripts/dso ticket) are the sanctioned write path.
+# Allowlist: ticket CLI scripts (ticket, ${_PLUGIN_ROOT}/scripts/ticket) are the sanctioned write path.
 #
 # REVIEW-DEFENSE: This function is intentionally not wired into dispatchers yet.
 # Task dso-280g ("Wire tickets-tracker guards into dispatchers") handles dispatcher
@@ -793,8 +793,8 @@ hook_tickets_tracker_bash_guard() {
     # Allowlist: ticket CLI patterns — sanctioned write path.
     # Three invocation forms:
     #   1. "ticket <subcommand> ..." — bare ticket dispatcher
-    #   2. ".claude/scripts/dso ticket <subcommand> ..." — via DSO shim
-    #   3. "bash .claude/scripts/dso ticket <subcommand> ..." — shim via bash
+    #   2. "${_PLUGIN_ROOT}/scripts/ticket <subcommand> ..." — via DSO shim
+    #   3. "bash ${_PLUGIN_ROOT}/scripts/ticket <subcommand> ..." — shim via bash
     local _TRIMMED="$_CMD_TRIMMED"   # reuse already-trimmed value
     local _FIRST_TOKEN="${_TRIMMED%%[[:space:]]*}"
     # Form 1: bare "ticket" command

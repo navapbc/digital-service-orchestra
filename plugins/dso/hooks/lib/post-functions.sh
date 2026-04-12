@@ -316,7 +316,7 @@ except Exception:
 
     # Resolve suggestion-record command.
     # DSO_SUGGESTION_RECORD_CMD overrides for testing (set to e.g. "/mock/dso suggestion-record").
-    # Otherwise: prefer .claude/scripts/dso shim (via git-resolved repo root),
+    # Otherwise: prefer ${_PLUGIN_ROOT}/scripts/shim (via git-resolved repo root),
     # falling back to direct plugin script path.
     local _SUGG_CMD=""
     if [[ -n "${DSO_SUGGESTION_RECORD_CMD:-}" ]]; then

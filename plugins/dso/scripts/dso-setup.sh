@@ -441,7 +441,7 @@ fi
 
 # ── Verify hooks/lib installation (required by pre-commit framework hooks) ────
 # Consumer hooks source merge-state.sh via HOOK_DIR-relative paths
-# (plugins/dso/hooks/lib/). Scripts source via BASH_SOURCE-relative ../hooks/lib/.
+# (${CLAUDE_PLUGIN_ROOT}/hooks/lib/). Scripts source via BASH_SOURCE-relative ../hooks/lib/.
 # merge-to-main.sh sources via CLAUDE_PLUGIN_ROOT. Verify the library is present
 # in the DSO plugin so host projects using the pre-commit framework can source it.
 # Resolve from BASH_SOURCE[0] (script-relative) so this works regardless of

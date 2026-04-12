@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/validate-nava-platform-headless.sh
+# validate-nava-platform-headless.sh
 # Headless validation of nava-platform templates.
 #
 # Usage:

@@ -12,7 +12,7 @@
 #   --restart clears stale status and progress files before running.
 #
 # Convention-based association algorithm:
-#   For each staged source file (e.g., plugins/dso/hooks/foo.sh or src/bar.py):
+#   For each staged source file (e.g., ${CLAUDE_PLUGIN_ROOT}/hooks/foo.sh or src/bar.py):
 #     basename=<filename>
 #     # Strip extension, add test_ prefix
 #     test_name="test_${basename%.*}"

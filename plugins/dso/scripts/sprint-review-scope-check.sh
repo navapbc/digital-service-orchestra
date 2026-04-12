@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# plugins/dso/scripts/sprint-review-scope-check.sh
+# sprint-review-scope-check.sh
 # Compare reviewer-findings.json file references against a task's ## File Impact
 # section to detect out-of-scope review feedback.
 #

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/overlay-dispatch.sh
+# overlay-dispatch.sh
 # Overlay dispatch logic for the review workflow (story w22-25ui, task 67e2-2912).
 #
 # Defense-in-depth dispatch: parallel overlay when classifier emits deterministic

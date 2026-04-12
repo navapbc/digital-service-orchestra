@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/jira-credential-helper.sh
+# jira-credential-helper.sh
 # Detect Jira credential environment variables and output structured status.
 #
 # Output format:

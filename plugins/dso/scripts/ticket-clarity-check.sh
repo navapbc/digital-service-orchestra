@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/ticket-clarity-check.sh
+# ticket-clarity-check.sh
 # SC2 heuristic clarity scorer for DSO tickets.
 #
 # Evaluates a ticket's clarity by scoring its description across multiple
@@ -17,7 +17,7 @@
 #   1 — fail (score < threshold)
 #   2 — error (invalid input, missing ticket ID, malformed JSON)
 #
-# Contract: plugins/dso/docs/contracts/ticket-clarity-check-output.md
+# Contract: ${CLAUDE_PLUGIN_ROOT}/docs/contracts/ticket-clarity-check-output.md
 
 set -uo pipefail
 

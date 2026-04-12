@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/emit-review-event.sh
+# emit-review-event.sh
 # Writes a review observability event as a JSONL file to .review-events/
 # within the tickets tracker (.tickets-tracker/).
 #

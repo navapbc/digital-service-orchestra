@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/run-overlay-retrospective.sh
+# run-overlay-retrospective.sh
 # Runs the complexity classifier over the last N merged commits and generates
 # calibration baselines for security_overlay and performance_overlay trigger rates.
 #

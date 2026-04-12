@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/review-stats.sh
+# review-stats.sh
 # Thin bash wrapper for review-stats.py.
 #
 # Resolves .review-events/ from the tickets tracker directory and passes

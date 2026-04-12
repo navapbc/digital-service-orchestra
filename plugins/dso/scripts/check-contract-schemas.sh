@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/check-contract-schemas.sh
-# Validate structural schema of contract documents in plugins/dso/docs/contracts/.
+# check-contract-schemas.sh
+# Validate structural schema of contract documents in ${CLAUDE_PLUGIN_ROOT}/docs/contracts/.
 #
 # Adaptive validation rules:
 #   Universal (all contracts):
@@ -12,7 +12,7 @@
 # Usage:
 #   check-contract-schemas.sh [file-or-dir ...]
 #
-# When no arguments are given, scans plugins/dso/docs/contracts/*.md.
+# When no arguments are given, scans ${CLAUDE_PLUGIN_ROOT}/docs/contracts/*.md.
 # Accepts explicit file args for staged-file mode, or a directory to scan all *.md within it.
 #
 # Exit codes:
@@ -38,7 +38,7 @@ if [[ $# -gt 0 ]]; then
         fi
     done
 else
-    # Default: scan plugins/dso/docs/contracts/*.md
+    # Default: scan ${CLAUDE_PLUGIN_ROOT}/docs/contracts/*.md
     local_contracts="$PLUGIN_DIR/docs/contracts"
     if [[ -d "$local_contracts" ]]; then
         while IFS= read -r _f; do

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/parse-template-registry.sh
+# parse-template-registry.sh
 # Parse the template registry YAML file and output tab-separated rows.
 #
 # Usage: parse-template-registry.sh [registry-file]
 #
-# Default registry file: plugins/dso/config/template-registry.yaml
+# Default registry file: ${CLAUDE_PLUGIN_ROOT}/config/template-registry.yaml
 #
 # Output format (one line per valid template, tab-separated):
 #   name\trepo_url\tinstall_method\tframework_type\tdata_flags

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/review-complexity-classifier.sh
+# review-complexity-classifier.sh
 # Deterministic complexity classifier for the DSO tiered review system.
 #
 # Accepts a unified diff on stdin, scores it on 7 factors, applies floor rules,

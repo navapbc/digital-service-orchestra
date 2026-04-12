@@ -765,7 +765,7 @@ if [[ -f "$_HOOK_LIB" ]]; then
 fi
 
 # --- Load hooks/lib/merge-state.sh for shared MERGE_HEAD/REBASE_HEAD detection ---
-# shellcheck source=plugins/dso/hooks/lib/merge-state.sh
+# shellcheck source=${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-state.sh
 if [[ -f "$CLAUDE_PLUGIN_ROOT/hooks/lib/merge-state.sh" ]]; then
     source "$CLAUDE_PLUGIN_ROOT/hooks/lib/merge-state.sh"
 fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/gh-identity-resolver.sh
+# gh-identity-resolver.sh
 # Resolves GitHub identity fields for bridge configuration.
 #
 # Modes:

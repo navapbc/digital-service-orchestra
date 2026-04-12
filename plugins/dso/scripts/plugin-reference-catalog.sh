@@ -27,7 +27,7 @@ PLUGINS=(
 )
 
 # Directories to scan (relative to REPO_ROOT)
-# Plugin files live under plugins/dso/ after restructure
+# Plugin files live under ${CLAUDE_PLUGIN_ROOT}/ after restructure
 SCAN_DIRS=(
     plugins/dso/skills
     plugins/dso/docs

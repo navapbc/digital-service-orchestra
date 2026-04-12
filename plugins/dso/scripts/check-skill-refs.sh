@@ -55,7 +55,7 @@ if [[ $# -gt 0 ]]; then
     # Explicit targets provided (used for test isolation)
     _scan_targets=("$@")
 else
-    # Default in-scope set: plugins/dso/{skills,docs,hooks,commands} (no symlinks) + CLAUDE.md
+    # Default in-scope set: ${CLAUDE_PLUGIN_ROOT}/{skills,docs,hooks,commands} (no symlinks) + CLAUDE.md
     _PLUGIN_DIR="$REPO_ROOT/plugins/dso"
     for _dir in skills docs hooks commands; do
         if [[ -d "$_PLUGIN_DIR/$_dir" ]]; then

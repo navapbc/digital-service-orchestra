@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# plugins/dso/hooks/pre-commit/check-plugin-boundary.sh
-# Enforces the plugin boundary: blocks commits that add files to plugins/dso/
+# check-plugin-boundary.sh
+# Enforces the plugin boundary: blocks commits that add files to ${CLAUDE_PLUGIN_ROOT}/
 # that are outside the positive-enumeration allowlist.
 #
 # Allowlist location: same directory as this script — plugin-boundary-allowlist.conf
@@ -21,10 +21,10 @@ else
     ALLOWLIST_FILE="$SCRIPT_DIR/plugin-boundary-allowlist.conf"
 fi
 
-# Discover staged additions to plugins/dso/
+# Discover staged additions to ${CLAUDE_PLUGIN_ROOT}/
 mapfile -t staged_files < <(git diff --cached --name-only --diff-filter=A 2>/dev/null | grep '^plugins/dso/')
 
-# Fast path: no additions to plugins/dso/
+# Fast path: no additions to ${CLAUDE_PLUGIN_ROOT}/
 if [[ ${#staged_files[@]} -eq 0 ]]; then
     exit 0
 fi
@@ -82,7 +82,7 @@ sys.exit(1)
 
 violations=()
 for staged_path in "${staged_files[@]}"; do
-    # Strip the "plugins/dso/" prefix to get relative path within the plugin
+    # Strip the "${CLAUDE_PLUGIN_ROOT}/" prefix to get relative path within the plugin
     relative_path="${staged_path#plugins/dso/}"
 
     if ! _match_path_against_allowlist "$relative_path" "${allowlist_patterns[@]}"; then

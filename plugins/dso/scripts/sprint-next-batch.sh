@@ -668,7 +668,7 @@ def is_parent_story_blocked(task_id):
         return parent_id
     return None
 
-# Tag constant from plugins/dso/skills/shared/constants/figma-tags.conf
+# Tag constant from ${CLAUDE_PLUGIN_ROOT}/skills/shared/constants/figma-tags.conf
 _DESIGN_AWAITING_IMPORT_TAG = "design:awaiting_import"
 
 def is_parent_story_design_awaiting(task_id):

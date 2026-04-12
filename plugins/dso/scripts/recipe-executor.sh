@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugins/dso/scripts/recipe-executor.sh
+# recipe-executor.sh
 # Recipe executor — looks up recipe in registry, sets RECIPE_PARAM_* env vars,
 # invokes the adapter, parses JSON output, and owns rollback.
 #

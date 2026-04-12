@@ -18,14 +18,14 @@ set -uo pipefail
 #   check-model-id-lint.sh [--scan-dir <dir>] [file ...]
 #
 # When no file arguments are given, scans:
-#   plugins/dso/ (*.yaml, *.sh, *.py, *.md)
+#   ${CLAUDE_PLUGIN_ROOT}/ (*.yaml, *.sh, *.py, *.md)
 #
 # Exit codes:
 #   0 — No violations found
 #   1 — One or more violations found
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# SCRIPT_DIR is plugins/dso/scripts/ — one level up is the plugin root (plugins/dso/)
+# SCRIPT_DIR is ${_PLUGIN_ROOT}/scripts/ — one level up is the plugin root (${CLAUDE_PLUGIN_ROOT}/)
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ elif [[ -n "$_scan_dir" ]]; then
         -name "*.md" \
     \) 2>/dev/null)
 else
-    # Default mode: scan plugins/dso/ under repo root
+    # Default mode: scan ${CLAUDE_PLUGIN_ROOT}/ under repo root
     _dir="$_root/plugins/dso"
     if [[ -d "$_dir" ]]; then
         while IFS= read -r _f; do
