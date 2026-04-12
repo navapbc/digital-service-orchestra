@@ -29,8 +29,7 @@ _make_test_repo() {
     local tmp
     tmp=$(mktemp -d)
     _CLEANUP_DIRS+=("$tmp")
-    clone_test_repo "$tmp/repo"
-    (cd "$tmp/repo" && bash "$TICKET_SCRIPT" init >/dev/null 2>/dev/null) || true
+    clone_ticket_repo "$tmp/repo"
     echo "$tmp/repo"
 }
 
@@ -75,12 +74,7 @@ test_transition_happy_path() {
     local repo
     repo=$(_make_test_repo)
     local ticket_id
-    ticket_id=$(_create_ticket "$repo" task "Happy path ticket")
-
-    if [ -z "$ticket_id" ]; then
-        assert_eq "happy path: create returned ticket ID" "non-empty" "empty"
-        return
-    fi
+    ticket_id=$(_create_ticket "$repo")
 
     local tracker_dir="$repo/.tickets-tracker"
 
@@ -182,13 +176,7 @@ test_transition_optimistic_concurrency_rejection() {
     local repo
     repo=$(_make_test_repo)
     local ticket_id
-    ticket_id=$(_create_ticket "$repo" task "Concurrency test ticket")
-
-    if [ -z "$ticket_id" ]; then
-        assert_eq "concurrency: create returned ticket ID" "non-empty" "empty"
-        return
-    fi
-
+    ticket_id=$(_create_ticket "$repo")
     local tracker_dir="$repo/.tickets-tracker"
 
     # Actual status is open; claim it is in_progress (wrong)
@@ -307,12 +295,7 @@ test_transition_idempotent_noop() {
     local repo
     repo=$(_make_test_repo)
     local ticket_id
-    ticket_id=$(_create_ticket "$repo" task "Idempotent no-op ticket")
-
-    if [ -z "$ticket_id" ]; then
-        assert_eq "noop: create returned ticket ID" "non-empty" "empty"
-        return
-    fi
+    ticket_id=$(_create_ticket "$repo")
 
     local tracker_dir="$repo/.tickets-tracker"
 
@@ -347,12 +330,7 @@ test_transition_invalid_target_status() {
     local repo
     repo=$(_make_test_repo)
     local ticket_id
-    ticket_id=$(_create_ticket "$repo" task "Invalid status ticket")
-
-    if [ -z "$ticket_id" ]; then
-        assert_eq "invalid-status: create returned ticket ID" "non-empty" "empty"
-        return
-    fi
+    ticket_id=$(_create_ticket "$repo")
 
     local tracker_dir="$repo/.tickets-tracker"
 
@@ -394,12 +372,7 @@ test_transition_concurrent_safety() {
     local repo
     repo=$(_make_test_repo)
     local ticket_id
-    ticket_id=$(_create_ticket "$repo" task "Concurrent transition ticket")
-
-    if [ -z "$ticket_id" ]; then
-        assert_eq "concurrent: create returned ticket ID" "non-empty" "empty"
-        return
-    fi
+    ticket_id=$(_create_ticket "$repo")
 
     local tracker_dir="$repo/.tickets-tracker"
     local tmp_out_dir
@@ -508,13 +481,7 @@ test_close_ticket_reports_no_unblocked() {
 
     # Create a lone ticket (no other tickets depend on it)
     local ticket_a
-    ticket_a=$(_create_ticket "$repo" task "Lone ticket with no dependents")
-
-    if [ -z "$ticket_a" ]; then
-        assert_eq "setup: ticket created" "non-empty" "empty"
-        assert_pass_if_clean "test_close_ticket_reports_no_unblocked"
-        return
-    fi
+    ticket_a=$(_create_ticket "$repo")
 
     # Transition A: open → closed; capture stdout
     local stdout_out
@@ -545,13 +512,7 @@ test_close_ticket_unblocked_output_only_on_close() {
     repo=$(_make_test_repo)
 
     local ticket_a
-    ticket_a=$(_create_ticket "$repo" task "Ticket for in_progress transition")
-
-    if [ -z "$ticket_a" ]; then
-        assert_eq "setup: ticket created" "non-empty" "empty"
-        assert_pass_if_clean "test_close_ticket_unblocked_output_only_on_close"
-        return
-    fi
+    ticket_a=$(_create_ticket "$repo")
 
     # Transition open → in_progress (NOT a close); capture stdout
     local stdout_out
@@ -583,13 +544,7 @@ test_close_ticket_succeeds_even_if_unblock_fails() {
     repo=$(_make_test_repo)
 
     local ticket_a
-    ticket_a=$(_create_ticket "$repo" task "Ticket to close with broken unblock script")
-
-    if [ -z "$ticket_a" ]; then
-        assert_eq "setup: ticket created" "non-empty" "empty"
-        assert_pass_if_clean "test_close_ticket_succeeds_even_if_unblock_fails"
-        return
-    fi
+    ticket_a=$(_create_ticket "$repo")
 
     # Simulate ticket-unblock.py being unavailable by pointing TRACKER_DIR to an
     # invalid path via a wrapper that overrides the unblock script invocation.
@@ -655,15 +610,9 @@ test_transition_bug_close_requires_reason() {
     local repo
     repo=$(_make_test_repo)
 
-    # Create a bug ticket
+    # Use fixture bug ticket
     local ticket_id
-    ticket_id=$(_create_ticket "$repo" bug "Bug that needs a reason to close")
-
-    if [ -z "$ticket_id" ]; then
-        assert_eq "bug ticket created" "non-empty" "empty"
-        assert_pass_if_clean "test_transition_bug_close_requires_reason"
-        return
-    fi
+    ticket_id=$(_create_ticket "$repo" bug)
 
     # Attempt to close the bug WITHOUT --reason — must exit non-zero
     # RED: current ticket-transition.sh does not enforce this guard → exits 0
@@ -693,15 +642,9 @@ test_transition_bug_close_with_reason_succeeds() {
     local repo
     repo=$(_make_test_repo)
 
-    # Create a bug ticket
+    # Use fixture bug ticket
     local ticket_id
-    ticket_id=$(_create_ticket "$repo" bug "Bug with a reason to close")
-
-    if [ -z "$ticket_id" ]; then
-        assert_eq "bug ticket created for reason-close test" "non-empty" "empty"
-        assert_pass_if_clean "test_transition_bug_close_with_reason_succeeds"
-        return
-    fi
+    ticket_id=$(_create_ticket "$repo" bug)
 
     # Close the bug WITH --reason — must exit 0
     # RED: current ticket-transition.sh does not accept --reason → may exit 0 for wrong reason
@@ -812,13 +755,7 @@ test_close_triggers_compaction() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(_create_ticket "$repo" task "Ticket for compaction test")
-
-    if [ -z "$ticket_id" ]; then
-        assert_eq "compact: ticket created" "non-empty" "empty"
-        assert_pass_if_clean "test_close_triggers_compaction"
-        return
-    fi
+    ticket_id=$(_create_ticket "$repo")
 
     local tracker_dir="$repo/.tickets-tracker"
 
@@ -859,13 +796,7 @@ test_close_succeeds_if_compact_fails() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(_create_ticket "$repo" task "Ticket for compact-fail test")
-
-    if [ -z "$ticket_id" ]; then
-        assert_eq "compact-fail: ticket created" "non-empty" "empty"
-        assert_pass_if_clean "test_close_succeeds_if_compact_fails"
-        return
-    fi
+    ticket_id=$(_create_ticket "$repo")
 
     # Create a temp script that writes a breadcrumb then exits 1 (simulates compact failure)
     local tmpdir
