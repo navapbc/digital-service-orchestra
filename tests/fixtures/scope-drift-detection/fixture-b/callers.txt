@@ -1,0 +1,3 @@
+caller1.py: result = process_items(data); if result is None: return default_response
+caller2.py: items = process_items(input_data); if not items: handle_empty(items)  # relies on None truthiness
+caller3.py: output = process_items(raw); assert output is None or isinstance(output, list)

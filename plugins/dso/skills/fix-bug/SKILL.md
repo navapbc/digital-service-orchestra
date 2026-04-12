@@ -271,12 +271,12 @@ The agent returns a gate signal conforming to the shared contract defined in `pl
 After the agent returns its signal, record the outcome string for use by Gate 2a:
 
 ```bash
-# Set GATE_1A_RESULT to "intent-aligned", "intent-contradicting", or "ambiguous"
+# Set GATE_1A_RESULT to "intent-aligned", "intent-contradicting", "ambiguous", or "intent-conflict"
 # based on the gate signal outcome field returned by the intent-search agent.
 GATE_1A_RESULT="<outcome>"   # e.g., "intent-aligned"
 ```
 
-Gate 1a has three possible outcomes. The **ambiguous** outcome falls through to Gate 1b (feature-request language check via `gate-1b-feature-request-check.py`); the other two outcomes are decisive and skip Gate 1b entirely (see Step 1.7 below).
+Gate 1a has four possible outcomes. The **ambiguous** outcome falls through to Gate 1b (feature-request language check via `gate-1b-feature-request-check.py`); the other three outcomes are decisive and skip Gate 1b entirely (see Step 1.7 below).
 
 - **intent-aligned** (`triggered: false`, `confidence: high` or `medium`) — The bug is consistent with system intent. Set `GATE_1A_RESULT="intent-aligned"`. Proceed directly to Step 2 (Investigation Sub-Agent Dispatch) without additional dialog.
 
@@ -309,15 +309,39 @@ Gate 1a has three possible outcomes. The **ambiguous** outcome falls through to 
 
 - **ambiguous** (`triggered: false`, `confidence: low`) — The intent signal is inconclusive. Set `GATE_1A_RESULT="ambiguous"`. Fall through to Gate 1b for further disambiguation before investigation.
 
+- **intent-conflict** (`triggered: true` with `behavioral_claim` and `conflicting_callers` fields present) — The intent-search agent has detected that the ticket's stated behavior conflicts with callers that depend on the current behavior. Set `GATE_1A_RESULT="intent-conflict"`. Investigation **PAUSES**. This is a terminal outcome — like `intent-contradicting`, it skips Gate 1b entirely (see Step 1.7 below).
+
+  Present the user with the following information from the gate signal:
+  - The `behavioral_claim` — what the ticket says should happen (the expected behavior)
+  - The `conflicting_callers` list — callers that depend on the current behavior
+  - The `dependency_classification` — whether each caller exhibits `behavioral_dependency` or `incidental_usage`
+
+  Offer three resolution options:
+  1. **confirm ticket correct** — the ticket's stated behavior is correct; proceed to Step 2 investigation with the ticket as-is
+  2. **confirm current behavior correct** — the current behavior is intentional and callers depend on it; close the ticket (behavior is not a bug)
+     ```bash
+     ticket comment <BUG_TICKET_ID> "Gate 1a: intent-conflict — current behavior confirmed intentional; <conflicting_callers> depend on it"
+     ticket transition <BUG_TICKET_ID> in_progress closed --reason="Fixed: Intent-conflict — current behavior confirmed intentional"
+     ```
+  3. **revise ticket description** — the ticket description needs updating to reflect the actual desired behavior; user updates ticket text, then re-run Gate 1a
+
+  Do NOT close the ticket autonomously. Do NOT proceed to investigation until the user selects a resolution option.
+
+  **Non-interactive mode** (`FIX_BUG_INTERACTIVE=false`): Do NOT pause for user input. Instead, defer the conflict as an `INTERACTIVITY_DEFERRED` ticket comment and proceed to Step 2 with the ticket's stated behavior as the safe default:
+  ```bash
+  ticket comment <BUG_TICKET_ID> "Gate 1a: INTERACTIVITY_DEFERRED — intent-conflict detected (behavioral_claim: <behavioral_claim>; conflicting_callers: <conflicting_callers>; dependency_classification: <dependency_classification>). Proceeding with ticket's stated behavior as default. User must resolve conflict before closing."
+  ```
+  Then proceed to Step 2 as if `GATE_1A_RESULT="intent-aligned"`.
+
 **Graceful degradation:** If the intent-search agent dispatch fails (timeout, nonzero exit, empty output, or unparseable JSON / malformed signal), treat the result as **ambiguous** (`GATE_1A_RESULT="ambiguous"`) and fall through to Gate 1b. Agent failure must never block a legitimate bug investigation. Log the failure via `ticket comment <BUG_TICKET_ID> "Gate 1a: agent failure — treating as ambiguous. Error: <error detail>"`.
 
 **Mechanical fix path**: Bugs routed through the Mechanical Fix Path bypass Step 1.5 entirely, so `GATE_1A_RESULT` will be unset when Gate 2a runs. Gate 2a handles this via the default guard shown in its bash snippet (`GATE_1A_RESULT=${GATE_1A_RESULT:-}`).
 
 ### Step 1.7: Gate 1b — Feature Request Check (/dso:fix-bug)
 
-Gate 1b is a **primary** gate that runs ONLY when Gate 1a returns **ambiguous**. It is skipped entirely for `intent-aligned` and `intent-contradicting` Gate 1a outcomes — those results are decisive and require no further disambiguation.
+Gate 1b is a **primary** gate that runs ONLY when Gate 1a returns **ambiguous**. It is skipped entirely for `intent-aligned`, `intent-contradicting`, and `intent-conflict` Gate 1a outcomes — those results are decisive and require no further disambiguation.
 
-**When to run**: Only when `GATE_1A_RESULT="ambiguous"`. Skip to Step 2 immediately if `GATE_1A_RESULT` is `intent-aligned` or `intent-contradicting`.
+**When to run**: Only when `GATE_1A_RESULT="ambiguous"`. Skip to Step 2 immediately if `GATE_1A_RESULT` is `intent-aligned`, `intent-contradicting`, OR `intent-conflict`.
 
 **How to run**: Pass the bug ticket title and description as a JSON payload via stdin to `gate-1b-feature-request-check.py`:
 
@@ -796,6 +820,27 @@ $FORMAT_CHECK_CMD   # No format regressions
 
 > **Gate signal parsing (Gates 2a–2d)**: All gate scripts output JSON conforming to `plugins/dso/docs/contracts/gate-signal-schema.md`. Parse `triggered` and `signal_type` from stdout. On nonzero exit, empty stdout, or unparseable JSON, construct a fallback: `{"gate_id": "<id>", "triggered": false, "signal_type": "<type>", "evidence": "gate error: <reason>", "confidence": "low"}` and log a warning. Gate 2b is an exception — see its section for unique handling.
 
+### Step 7.1: Scope-Drift Review (/dso:fix-bug)
+
+After Step 7 (Verify Fix) passes and before running Gates 2a–2d, check whether the implemented fix has drifted outside the original bug's intended scope.
+
+1. **Config check**: Read `scope_drift.enabled` via `read-config.sh`. If `false`, skip Step 7.1 and proceed to Gate 2a.
+
+2. **Agent file existence check (hard-fail)**: Read `plugins/dso/agents/scope-drift-reviewer.md` using the Read tool. If the file is not found, ABORT Step 7.1 with a clear error message — do NOT silently skip. The scope-drift-reviewer agent must be present for this step to run.
+
+3. **Dispatch pattern** (mirrors intent-search Step 1.5):
+   - If Agent tool available: dispatch `scope-drift-reviewer` (subagent_type: `dso:scope-drift-reviewer`) with inputs:
+     - `ticket_text`: original bug ticket description
+     - `root_cause_report`: investigation findings from Step 4
+     - `git_diff`: output of `git diff` at the current working tree
+     - `investigation_files`: list of files identified during investigation
+   - Inline fallback (sub-agent context): read `plugins/dso/agents/scope-drift-reviewer.md` inline and execute with the same inputs. Set `SCOPE_DRIFT_OUTPUT` from the result.
+
+4. **Three-way routing based on `SCOPE_DRIFT_OUTPUT`**:
+   - **No-drift** (`triggered: false`, `drift_classification: in_scope`): proceed to Gate 2a without friction.
+   - **Minor-drift** (`triggered: true`, `drift_classification: ambiguous`): emit a warning to stdout describing the ambiguous scope signal, then proceed to Gate 2a.
+   - **Major-drift** (`triggered: true`, `drift_classification: out_of_scope`): prompt user for explicit approval before proceeding. Present the agent evidence and await a response. Non-interactive mode (`FIX_BUG_INTERACTIVE=false`): defer as an `INTERACTIVITY_DEFERRED` ticket comment and proceed as no-drift.
+
 ### Gate 2a: Reversal Check (/dso:fix-bug)
 
 After verification passes (Step 7) and before committing (Step 8), run the reversal check gate to detect whether the proposed fix unintentionally undoes a recent committed change.
@@ -921,6 +966,7 @@ GATE_SIGNALS_JSON=$(printf '%s\n' \
     "${GATE_2B_OUTPUT:-}" \
     "${GATE_2C_OUTPUT:-}" \
     "${GATE_2D_OUTPUT:-}" \
+    "${SCOPE_DRIFT_OUTPUT:-}" \
   | python3 -c "
 import json, sys
 signals = []
@@ -1001,7 +1047,7 @@ fi
 
 After the fix is verified GREEN (Step 7) and all Gate 2 checks pass, scan the codebase for other occurrences of the confirmed root cause pattern. This step prevents the same class of bug from lurking in other files.
 
-**Pre-condition**: All RED tests must be GREEN before proceeding. Do not begin the anti-pattern scan until Step 7 verification passes — GREEN before commit is required.
+**Pre-condition**: All RED tests must be GREEN before proceeding. Do not begin the anti-pattern scan until Step 7 verification passes — GREEN before commit is required. Step 7.5 also runs after Step 7.1 scope-drift review has passed (or was skipped via `scope_drift.enabled=false`).
 
 **When to run**: After Gate routing resolves to `auto-fix` or `dialog` (not `escalate`). When route is `escalate`, skip this step — the scope has been handed off to `/dso:brainstorm`.
 
