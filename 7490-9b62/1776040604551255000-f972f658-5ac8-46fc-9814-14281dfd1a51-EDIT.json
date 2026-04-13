@@ -1,0 +1,1 @@
+{"timestamp": 1776040604551255000, "uuid": "f972f658-5ac8-46fc-9814-14281dfd1a51", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "pre-bash hook: hook-drift validation failure with no tracking ticket -> agent Bash commands blocked"}}}
