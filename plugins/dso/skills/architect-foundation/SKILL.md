@@ -233,6 +233,30 @@ If it exists and `--force-scan` was not requested, report the entry count and sk
 .claude/scripts/dso generate-test-index.sh
 ```
 
+### Step 0.75: Pre-fill dso-config.conf with Stack Defaults
+
+Before building enforcement, populate `dso-config.conf` with stack-appropriate command defaults. This avoids the agent needing to hand-craft tool invocations that are already codified in the plugin.
+
+```bash
+.claude/scripts/dso prefill-config.sh --project-dir "${PROJECT_DIR:-$(pwd)}"
+```
+
+`prefill-config.sh` calls `detect-stack.sh` internally and writes the four `commands.*` keys (`commands.test_runner`, `commands.lint`, `commands.format`, `commands.format_check`) into `.claude/dso-config.conf`. Keys that already have a non-empty value are skipped with an informational message, so it is safe to re-run.
+
+**Per-stack defaults written by prefill-config.sh:**
+
+| Stack | `detect-stack` ID | `commands.test_runner` | `commands.lint` | `commands.format` | `commands.format_check` |
+|-------|-------------------|------------------------|-----------------|-------------------|-------------------------|
+| Python/Poetry | `python-poetry` | `pytest` | `ruff check .` | `ruff format .` | `ruff format --check .` |
+| Node/npm (JS/TS) | `node-npm` | `npx jest` | `npx eslint .` | `npx prettier --write .` | `npx prettier --check .` |
+| Ruby/Rails | `ruby-rails` | `bundle exec rspec` | `bundle exec rubocop` | `bundle exec rubocop -A` | `bundle exec rubocop --format simple` |
+| Ruby/Jekyll | `ruby-jekyll` | `bundle exec rspec` | `bundle exec rubocop` | `bundle exec rubocop -A` | `bundle exec rubocop --format simple` |
+| Rust/Cargo | `rust-cargo` | *(no default — fill manually)* | *(no default)* | *(no default)* | *(no default)* |
+| Go | `golang` | *(no default — fill manually)* | *(no default)* | *(no default)* | *(no default)* |
+| Convention-based / Unknown | `convention-based` / `unknown` | *(no default — fill manually)* | *(no default)* | *(no default)* | *(no default)* |
+
+After the script runs, confirm the written values with the user before proceeding to Step 1. If the project is `rust-cargo`, `golang`, `convention-based`, or `unknown`, prompt the user to supply the missing command values directly.
+
 ### Step 1: Enforcement Layer Architecture
 
 Build enforcement at the layer(s) preferred by the user (Phase 1 Group B answers). Target only the anti-patterns identified as risks in Phase 1 Group A answers.
@@ -261,6 +285,44 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 2. [Rule derived from anti-pattern analysis — e.g., "All external I/O in adapters/"]
 3. ...
 ```
+
+---
+
+## CI Skeleton Templates
+
+When generating CI configuration (e.g., GitHub Actions workflows), use these per-stack template blocks. Each block is self-contained with its own `if:` conditional — include only the block(s) that match the detected stack. Do NOT interleave multiple language targets within a single step.
+
+**Instruction to LLM**: Include only the block(s) whose dependency files exist in the target project. Each block operates independently; do not combine hashFiles() arguments across ecosystems.
+
+### Python
+
+```yaml
+- name: Set up Python
+  if: hashFiles('requirements.txt') != '' || hashFiles('pyproject.toml') != ''
+  uses: actions/setup-python@v5
+  with:
+    python-version: '3.x'
+```
+
+### Node
+
+```yaml
+- name: Set up Node
+  if: hashFiles('package-lock.json') != '' || hashFiles('yarn.lock') != ''
+  uses: actions/setup-node@v4
+```
+
+### Ruby
+
+```yaml
+- name: Set up Ruby
+  if: hashFiles('Gemfile.lock') != '' || hashFiles('Gemfile') != ''
+  uses: ruby/setup-ruby@v1
+```
+
+<!-- Epic F: append Java block here -->
+
+All `hashFiles()` paths are root-relative (no leading `./` or `/`). Each block is structurally isolated — its own conditional, not interleaved with blocks for other language ecosystems.
 
 ---
 
