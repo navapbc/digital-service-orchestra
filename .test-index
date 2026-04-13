@@ -142,3 +142,4 @@ plugins/dso/skills/shared/prompts/complexity-gate.md:tests/skills/test-complexit
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test-complexity-gate-shared-prompt.sh [test_implementation_plan_references_complexity_gate]
 plugins/dso/agents/approach-decision-maker.md:tests/skills/test-complexity-gate-shared-prompt.sh [test_approach_decision_maker_references_complexity_gate]
 plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-dogfooding-simplify-first.sh
+plugins/dso/scripts/dso-setup.sh:tests/scripts/test-dso-setup.sh [test_stamp_in_shim] [test_stamp_in_config] [test_stamp_in_precommit_yaml] [test_stamp_in_ci_yaml] [test_stamp_idempotent] [test_gitignore_includes_cache] [test_yaml_stamp_survives_roundtrip]
