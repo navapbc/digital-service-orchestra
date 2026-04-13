@@ -143,4 +143,4 @@ plugins/dso/skills/shared/prompts/complexity-gate.md:tests/skills/test-complexit
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test-complexity-gate-shared-prompt.sh [test_implementation_plan_references_complexity_gate]
 plugins/dso/agents/approach-decision-maker.md:tests/skills/test-complexity-gate-shared-prompt.sh [test_approach_decision_maker_references_complexity_gate]
 plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-dogfooding-simplify-first.sh
-plugins/dso/docs/DEPENDENCY-GUIDANCE.md:tests/docs/test-doc-polyglot-compliance.sh [test_dependency_guidance_audit_tools]
+plugins/dso/docs/DEPENDENCY-GUIDANCE.md:tests/docs/test-doc-polyglot-compliance.sh
