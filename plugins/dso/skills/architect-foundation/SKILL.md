@@ -288,6 +288,44 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 
 ---
 
+## CI Skeleton Templates
+
+When generating CI configuration (e.g., GitHub Actions workflows), use these per-stack template blocks. Each block is self-contained with its own `if:` conditional — include only the block(s) that match the detected stack. Do NOT interleave multiple language targets within a single step.
+
+**Instruction to LLM**: Include only the block(s) whose dependency files exist in the target project. Each block operates independently; do not combine hashFiles() arguments across ecosystems.
+
+### Python
+
+```yaml
+- name: Set up Python
+  if: hashFiles('requirements.txt') != '' || hashFiles('pyproject.toml') != ''
+  uses: actions/setup-python@v5
+  with:
+    python-version: '3.x'
+```
+
+### Node
+
+```yaml
+- name: Set up Node
+  if: hashFiles('package-lock.json') != '' || hashFiles('yarn.lock') != ''
+  uses: actions/setup-node@v4
+```
+
+### Ruby
+
+```yaml
+- name: Set up Ruby
+  if: hashFiles('Gemfile.lock') != '' || hashFiles('Gemfile') != ''
+  uses: ruby/setup-ruby@v1
+```
+
+<!-- Epic F: append Java block here -->
+
+All `hashFiles()` paths are root-relative (no leading `./` or `/`). Each block is structurally isolated — its own conditional, not interleaved with blocks for other language ecosystems.
+
+---
+
 ## Phase 4: Peer Review (via /dso:review)
 
 After generating enforcement scaffolding files:
