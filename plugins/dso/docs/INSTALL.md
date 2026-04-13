@@ -5,7 +5,11 @@ skills, and hooks for software development projects.
 
 ---
 
-## Prerequisites
+## Required
+
+Universal tools and setup steps for all stacks.
+
+### Prerequisites
 
 - **Claude Code** >= 1.0.0 (the `claude` CLI)
 - **bash** >= 4.0 — macOS ships bash 3.2; see [macOS note](#macos) below
@@ -16,11 +20,9 @@ skills, and hooks for software development projects.
   Install: `pip install pre-commit` or `brew install pre-commit`
 - **python3** — used by hooks for JSON parsing (stdlib only; no extra packages required)
 
----
+### Installation
 
-## Installation
-
-### Step 1 — Clone the plugin
+#### Step 1 — Clone the plugin
 
 ```bash
 git clone https://github.com/navapbc/digital-service-orchestra.git /path/to/digital-service-orchestra
@@ -29,7 +31,7 @@ git clone https://github.com/navapbc/digital-service-orchestra.git /path/to/digi
 > **Note — `claude plugin install` (aspirational):** The `claude plugin install github:navapbc/digital-service-orchestra`
 > command is not yet supported. Use the git clone method above.
 
-### Step 2 — Run dso-setup.sh in your host project
+#### Step 2 — Run dso-setup.sh in your host project
 
 From the DSO plugin directory, run the setup script against your host project:
 
@@ -44,7 +46,7 @@ This script:
 The `dso.plugin_root` key tells the shim where the plugin lives when `CLAUDE_PLUGIN_ROOT` is not set as an
 environment variable. See [dso.plugin_root in the Configuration Reference](CONFIGURATION-REFERENCE.md#dsoplugin_root).
 
-### Step 3 — Customize configuration files
+#### Step 3 — Customize configuration files
 
 `dso-setup.sh` (Step 2) already copies default `.pre-commit-config.yaml` and `.github/workflows/ci.yml`
 into your project if they don't exist. This step is about reviewing and customizing them.
@@ -63,7 +65,7 @@ cp "$CLAUDE_PLUGIN_ROOT/examples/ci.example.yml" .github/workflows/ci.yml
 Edit `.claude/dso-config.conf` to match your project. All keys are optional except `version` — omitted
 keys fall back to stack-detected defaults. See [Configuration Reference](CONFIGURATION-REFERENCE.md).
 
-### Step 4 — Install pre-commit hooks
+#### Step 4 — Install pre-commit hooks
 
 ```bash
 pre-commit install
@@ -72,7 +74,7 @@ pre-commit install --hook-type pre-push
 
 This activates both commit-time and push-time hook stages.
 
-### Step 5 — Run /dso:onboarding
+#### Step 5 — Run /dso:onboarding
 
 Open a Claude Code session in your project and run:
 
@@ -89,7 +91,7 @@ changes before applying them.
 > **Note**: `/dso:init` is also available as a lighter alternative that validates your setup and
 > reports detected commands without generating `.claude/dso-config.conf` interactively.
 
-### Step 6 — (Optional) Run /dso:architect-foundation
+#### Step 6 — (Optional) Run /dso:architect-foundation
 
 After onboarding, you can scaffold enforcement infrastructure for your project:
 
@@ -108,7 +110,7 @@ recommendations one-at-a-time and shows diffs before overwriting existing files.
 
 ---
 
-## Path Resolution
+### Path Resolution
 
 DSO hooks and scripts locate plugin resources via two mechanisms, in order:
 
@@ -128,7 +130,7 @@ For most setups, `dso-setup.sh` handles this automatically and no manual configu
 
 ---
 
-## Key Configuration Summary
+### Key Configuration Summary
 
 `dso-config.conf` is a flat `KEY=VALUE` file at `.claude/dso-config.conf` in your project root. All keys are optional
 except `version`. Below are the most commonly needed keys for initial setup:
@@ -148,7 +150,7 @@ except `version`. Below are the most commonly needed keys for initial setup:
 | `model.sonnet` | absent | Canonical model ID for the sonnet tier (e.g. `claude-sonnet-4-6-20260320`). Read by `resolve-model-id.sh`. |
 | `model.opus` | absent | Canonical model ID for the opus tier (e.g. `claude-opus-4-6`). Read by `resolve-model-id.sh`. |
 
-### Updating model IDs
+#### Updating model IDs
 
 When Anthropic releases a new Claude model version, update all references in one step:
 
@@ -160,7 +162,7 @@ API-calling scripts (`enrich-file-impact.sh`, `semantic-conflict-check.py`) read
 For the full key reference including staging, CI, design, infrastructure, and worktree keys,
 see **[docs/CONFIGURATION-REFERENCE.md](CONFIGURATION-REFERENCE.md)**.
 
-### Required environment variables for Jira sync
+#### Required environment variables for Jira sync
 
 | Variable | Description |
 |----------|-------------|
@@ -173,37 +175,7 @@ These are only required when using `.claude/scripts/dso ticket sync`. For the fu
 
 ---
 
-## Optional Dependencies
-
-### acli (Atlassian CLI)
-
-`acli` enables Jira ticket management from the command line as part of `.claude/scripts/dso ticket sync` remote link
-creation workflows. It is not required for core DSO functionality.
-
-Install:
-```bash
-# macOS
-brew install acli
-
-# Linux / WSL
-# Download from https://acli.atlassian.com and add to PATH
-```
-
-### PyYAML
-
-PyYAML is only required if your project uses the legacy YAML config format (`workflow-config.yaml`);
-the recommended `dso-config.conf` format (flat KEY=VALUE) has no Python dependency beyond stdlib.
-
-Install if needed:
-```bash
-pip install PyYAML
-# or
-pip3 install PyYAML
-```
-
----
-
-## Optional Plugins — Agent Enhancements
+### Optional Plugins — Agent Enhancements
 
 DSO works standalone with `general-purpose` agents for all task categories. Installing optional
 Claude Code plugins adds specialized agents that are automatically discovered:
@@ -219,7 +191,7 @@ prompt. No manual configuration is required.
 
 ---
 
-## .claude/scripts/dso ticket sync Prerequisites
+### .claude/scripts/dso ticket sync Prerequisites
 
 `.claude/scripts/dso ticket sync` syncs the tickets branch with a shared remote using a split-phase protocol
 (fetch → lock → merge → unlock → push). It requires the following setup before first use:
@@ -245,7 +217,7 @@ the full protocol specification including phase timeouts, lock scope, and retry 
 
 ---
 
-## Git Hooks and CI
+### Git Hooks and CI
 
 After running `pre-commit install` (Step 4), the plugin's hooks are active. The example
 configurations in `examples/` are starting points — customize to match your project:
@@ -257,7 +229,7 @@ See `docs/PRE-COMMIT-TIMEOUT-WRAPPER.md` for the timeout wrapper interface.
 
 ---
 
-## Upgrade
+### Upgrade
 
 ```bash
 cd /path/to/digital-service-orchestra
@@ -272,9 +244,9 @@ any required updates to `.claude/dso-config.conf` or `.claude/settings.json`.
 
 ---
 
-## Troubleshooting
+### Troubleshooting
 
-### macOS
+#### macOS
 
 **bash version too old**: macOS ships bash 3.2 at `/bin/bash`. DSO requires bash >= 4.0.
 
@@ -306,7 +278,7 @@ brew install pre-commit
 `dso.plugin_root` is set in `.claude/dso-config.conf` (written by `dso-setup.sh`), or set
 `CLAUDE_PLUGIN_ROOT` explicitly in `.claude/settings.json`.
 
-### Linux
+#### Linux
 
 **timeout command**: Linux ships with GNU `timeout` from coreutils (no extra install needed).
 If missing: `sudo apt-get install coreutils` (Debian/Ubuntu) or `sudo yum install coreutils`.
@@ -316,7 +288,7 @@ If missing: `sudo apt-get install coreutils` (Debian/Ubuntu) or `sudo yum instal
 **python3**: Required for hook JSON parsing. Install with your package manager if absent:
 `sudo apt-get install python3` or `sudo yum install python3`.
 
-### WSL / Ubuntu
+#### WSL / Ubuntu
 
 **Line endings**: If scripts were checked out with Windows line endings (`\r\n`), hooks will fail
 with `bad interpreter: No such file or directory`. Fix:
@@ -343,3 +315,113 @@ export PATH="$HOME/.local/bin:$PATH"
 
 **GNU coreutils**: Available by default on Ubuntu/Debian. If `timeout` is missing:
 `sudo apt-get install coreutils`.
+
+---
+
+## Optional by Stack
+
+Stack-specific setup instructions. Install the tools for your project's primary language stack.
+
+### Python
+
+DSO auto-detects the `python-poetry` stack when `pyproject.toml` is present. The following
+tools are used for test, lint, and format commands respectively.
+
+**Poetry** (recommended for Python projects):
+```bash
+curl -sSL https://install.python-poetry.org | python3 -
+```
+
+**Ruff** (linting and formatting):
+```bash
+pip install ruff
+# or via Poetry: poetry add --dev ruff
+```
+
+**pytest** (testing):
+```bash
+pip install pytest
+# or via Poetry: poetry add --dev pytest
+```
+
+**PyYAML** — only required if your project uses the legacy YAML config format (`workflow-config.yaml`);
+the recommended `dso-config.conf` format (flat KEY=VALUE) has no Python dependency beyond stdlib.
+
+```bash
+pip install PyYAML
+# or
+pip3 install PyYAML
+```
+
+### Node/JS
+
+DSO auto-detects the `node-npm` stack when `package.json` is present.
+
+**Node.js and npm**: Install from https://nodejs.org or via a version manager:
+```bash
+# Using nvm (recommended)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+nvm install --lts
+
+# Or via Homebrew (macOS)
+brew install node
+```
+
+**Playwright** — for visual regression testing and staging verification:
+```bash
+npm install --save-dev @playwright/cli
+```
+
+### Ruby
+
+DSO auto-detects Ruby projects when `Gemfile` is present (uses `convention-based` stack with
+`bundle exec` prefixes).
+
+**Bundler**:
+```bash
+gem install bundler
+bundle install
+```
+
+**RuboCop** (linting and formatting, if used by your project):
+```bash
+gem install rubocop
+# or add to Gemfile: gem 'rubocop', require: false
+```
+
+### Rust
+
+DSO auto-detects the `rust-cargo` stack when `Cargo.toml` is present.
+
+**Rust toolchain** (via rustup):
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+**Clippy** (linting, included with rustup):
+```bash
+rustup component add clippy
+```
+
+**rustfmt** (formatting, included with rustup):
+```bash
+rustup component add rustfmt
+```
+
+---
+
+## Optional Dependencies
+
+### acli (Atlassian CLI)
+
+`acli` enables Jira ticket management from the command line as part of `.claude/scripts/dso ticket sync` remote link
+creation workflows. It is not required for core DSO functionality.
+
+Install:
+```bash
+# macOS
+brew install acli
+
+# Linux / WSL
+# Download from https://acli.atlassian.com and add to PATH
+```
