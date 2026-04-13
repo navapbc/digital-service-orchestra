@@ -1,1 +1,0 @@
-{"timestamp": 1776042094514792000, "uuid": "079f7db5-bbc9-49bb-ba3c-962716d86926", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: RED test written and committed \u2014 tests/hooks/test-residual-state-probe.sh confirms Part B residual-state probe is absent (RED). .test-index updated with marker."}}
