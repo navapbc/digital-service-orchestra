@@ -323,6 +323,7 @@ Parse the blue team's accepted findings and apply each one based on its `type`:
 | `modify_done_definition` | Use `.claude/scripts/dso ticket comment <target_story_id> "Done definition update: <description>"` to record the modified done definition. |
 | `add_dependency` | Add the dependency: `.claude/scripts/dso ticket link <target_story_id> <dependency_id> depends_on` (extract dependency ID from the finding's description). |
 | `add_consideration` | Use `.claude/scripts/dso ticket comment <target_story_id> "Consideration: <text>"` to append the consideration. |
+| `escalate_to_epic` | The finding signals that a cross-story concern belongs at the epic level. Read the current epic description via `ticket show`, then use `.claude/scripts/dso ticket edit <epic-id> --description="<current-description>\n\nSC: <title> — <description>"` to append the new Success Criterion. Then emit `REPLAN_ESCALATE: brainstorm EXPLANATION:<title>` to trigger brainstorm re-review of the updated epic scope before continuing. |
 
 Log a summary after applying findings:
 ```
