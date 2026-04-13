@@ -267,9 +267,20 @@ Do NOT proceed to Phase 2 until the user confirms the understanding summary or e
 
 **Goal**: Agree on an approach and produce a high-fidelity epic spec.
 
-### Step 1: Propose 2-3 Approaches
+### Step 0: Load Complexity Gate
 
-Present 2-3 distinct implementation approaches with trade-offs. **Lead with your recommended approach** and explain why.
+Read `shared/prompts/complexity-gate.md`. If the file cannot be read, STOP and emit:
+"ERROR: complexity-gate.md not found at skills/shared/prompts/complexity-gate.md — create this file before running brainstorm Phase 2."
+
+### Step 1: Propose Approaches
+
+Present at least 3 distinct implementation approaches with trade-offs, including at least one genuine simple baseline — the simplest implementation that satisfies all done definitions. **Lead with your recommended approach** and explain why.
+
+**Simple baseline requirement**: The simple baseline must be a viable implementation for the current scope. The Sandbagging Prohibition from `shared/prompts/complexity-gate.md` applies: do not load the simple baseline description with scalability caveats unless those caveats are grounded in the Phase 1 scale context. A technically inadequate option (one that would fail basic requirements) is not a valid simple baseline.
+
+**Complexity gate for proposals**: Any proposal that includes (a) a new library dependency, (b) a performance optimization, or (c) an abstraction with fewer than 3 existing call sites must include a GATE/CHECKED/FINDING/VERDICT block (format defined in `shared/prompts/complexity-gate.md`) for the relevant gate before being presented. If the verdict is FAIL and no justified-complexity path is provided, remove the proposal or revise it to eliminate the offending complexity.
+
+**Scale context propagation**: Pass the Phase 1 scale context (result of the scale-inference.md protocol) to Gate 4 (Scale Threshold) when evaluating performance proposals. If Phase 1 scale context was "small scale (default)", Gate 4 returns FAIL for any performance optimization unless the justified-complexity path is satisfied.
 
 Format each approach:
 ```
