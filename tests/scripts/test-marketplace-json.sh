@@ -18,6 +18,9 @@ PLUGIN_JSON="$DSO_PLUGIN_DIR/.claude-plugin/plugin.json"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
+_CLEANUP_DIRS=()
+trap 'for _d in "${_CLEANUP_DIRS[@]:-}"; do [[ -d "$_d" ]] && rm -rf "$_d"; done' EXIT
+
 echo "=== test-marketplace-json.sh ==="
 
 # ── test_marketplace_json_exists ──────────────────────────────────────────────
@@ -126,5 +129,93 @@ else
 fi
 assert_eq "test_marketplace_json_plugin_name_matches_plugin_json: plugins[0].name matches plugin.json name" "match" "$actual_match"
 assert_pass_if_clean "test_marketplace_json_plugin_name_matches_plugin_json"
+
+# ── test_stamp_format_consistent ──────────────────────────────────────────────
+# Run dso-setup.sh on a fresh temp dir, then check that all 4 installed artifacts
+# contain a version stamp and that all version strings match plugin.json.
+#
+# Artifacts checked:
+#   shim (.claude/scripts/dso)             → "# dso-version: <version>"
+#   config (.claude/dso-config.conf)       → "# dso-version: <version>"
+#   pre-commit (.pre-commit-config.yaml)   → "^x-dso-version: <version>"
+#   CI workflow (.github/workflows/ci.yml) → "^x-dso-version: <version>"
+#
+# RED: dso-setup.sh does not yet embed stamps — all 4 extractions will be empty,
+#      causing "stamp present" assertions to fail.
+_snapshot_fail
+
+_SETUP_TMPDIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_SETUP_TMPDIR")
+
+_SETUP_EXIT=0
+bash "$PLUGIN_ROOT/plugins/dso/scripts/dso-setup.sh" "$_SETUP_TMPDIR" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || _SETUP_EXIT=$?
+
+# Acceptable exit codes: 0 (success) or 2 (warnings-only — missing pre-commit/python3/claude)
+if [[ "$_SETUP_EXIT" -eq 0 || "$_SETUP_EXIT" -eq 2 ]]; then
+    _setup_ran="yes"
+else
+    _setup_ran="no"
+fi
+assert_eq "test_stamp_format_consistent: dso-setup.sh ran successfully (exit 0 or 2)" "yes" "$_setup_ran"
+
+# Read expected version from plugin.json
+_expected_version=$(python3 -c "
+import json, sys
+data = json.load(open('$PLUGIN_JSON'))
+print(data.get('version', ''))
+" 2>/dev/null)
+
+# Extract stamp from shim: "# dso-version: <version>"
+_shim="$_SETUP_TMPDIR/.claude/scripts/dso"
+if [[ -f "$_shim" ]]; then
+    _shim_version=$(grep -m1 '^# dso-version:' "$_shim" 2>/dev/null | sed 's/^# dso-version: *//' | tr -d '[:space:]') || _shim_version=""
+else
+    _shim_version=""
+fi
+
+# Extract stamp from config: "# dso-version: <version>"
+_config="$_SETUP_TMPDIR/.claude/dso-config.conf"
+if [[ -f "$_config" ]]; then
+    _config_version=$(grep -m1 '^# dso-version:' "$_config" 2>/dev/null | sed 's/^# dso-version: *//' | tr -d '[:space:]') || _config_version=""
+else
+    _config_version=""
+fi
+
+# Extract stamp from pre-commit YAML: "x-dso-version: <version>"
+_precommit="$_SETUP_TMPDIR/.pre-commit-config.yaml"
+if [[ -f "$_precommit" ]]; then
+    _precommit_version=$(grep -m1 '^x-dso-version:' "$_precommit" 2>/dev/null | sed 's/^x-dso-version: *//' | tr -d '[:space:]') || _precommit_version=""
+else
+    _precommit_version=""
+fi
+
+# Extract stamp from CI YAML: "x-dso-version: <version>"
+_ci_yml="$_SETUP_TMPDIR/.github/workflows/ci.yml"
+if [[ -f "$_ci_yml" ]]; then
+    _ci_version=$(grep -m1 '^x-dso-version:' "$_ci_yml" 2>/dev/null | sed 's/^x-dso-version: *//' | tr -d '[:space:]') || _ci_version=""
+else
+    _ci_version=""
+fi
+
+# Assert all 4 artifacts have a stamp present
+_shim_present="no"; [[ -n "$_shim_version" ]] && _shim_present="yes"
+_config_present="no"; [[ -n "$_config_version" ]] && _config_present="yes"
+_precommit_present="no"; [[ -n "$_precommit_version" ]] && _precommit_present="yes"
+_ci_present="no"; [[ -n "$_ci_version" ]] && _ci_present="yes"
+
+assert_eq "test_stamp_format_consistent: shim has dso-version stamp" "yes" "$_shim_present"
+assert_eq "test_stamp_format_consistent: config has dso-version stamp" "yes" "$_config_present"
+assert_eq "test_stamp_format_consistent: pre-commit YAML has x-dso-version stamp" "yes" "$_precommit_present"
+assert_eq "test_stamp_format_consistent: CI YAML has x-dso-version stamp" "yes" "$_ci_present"
+
+# Assert all 4 version strings match each other
+assert_eq "test_stamp_format_consistent: shim version matches config version" "$_shim_version" "$_config_version"
+assert_eq "test_stamp_format_consistent: shim version matches pre-commit version" "$_shim_version" "$_precommit_version"
+assert_eq "test_stamp_format_consistent: shim version matches ci version" "$_shim_version" "$_ci_version"
+
+# Assert version matches plugin.json
+assert_eq "test_stamp_format_consistent: stamp version matches plugin.json" "$_expected_version" "$_shim_version"
+
+assert_pass_if_clean "test_stamp_format_consistent"
 
 print_summary
