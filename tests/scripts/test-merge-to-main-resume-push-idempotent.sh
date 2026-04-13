@@ -35,7 +35,7 @@ fi
 # The --resume block starts at: if [[ "$_CLI_RESUME" == "true" ]]; then
 # and ends with: fi  (that closes the if block)
 _RESUME_BLOCK=$(awk '
-    /if \[\[ "\$_CLI_RESUME" == "true" \]\]; then/ { found=1; depth=1 }
+    /if \[\[ "\$_CLI_RESUME" == "true" \]\]; then/ { found=1; depth=1; print; next }
     found {
         print
         # Count fi / if to track block depth
