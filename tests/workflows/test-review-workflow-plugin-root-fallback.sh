@@ -52,7 +52,7 @@ assert_pass_if_clean "test_fallback_reads_dso_config"
 # the env var and config read fail. Uses a variable-constructed path to avoid
 # literal plugin path strings (blocked by plugin-self-ref hook).
 echo ""
-echo "--- test_fallback_final_default ---"
+echo "--- test_fallback_error_on_unset ---"
 _snapshot_fail
 
 _has_final_default=0

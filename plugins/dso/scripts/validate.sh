@@ -869,7 +869,10 @@ fi
 # Track launched checks for crash detection (missing .rc file = process crash)
 # REVIEW-DEFENSE: Keep this list in sync with the run_check/check_* calls below.
 # Each name must match the first argument passed to run_check or check_*.
-LAUNCHED_CHECKS="syntax format ruff mypy tests migrate hook-drift"
+LAUNCHED_CHECKS="syntax format ruff mypy tests migrate"
+if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
+    LAUNCHED_CHECKS="$LAUNCHED_CHECKS hook-drift"
+fi
 [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS script-writes"
 if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     LAUNCHED_CHECKS="$LAUNCHED_CHECKS skill-refs"
@@ -912,7 +915,9 @@ if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
         (cd "$REPO_ROOT" && run_check "referential-integrity" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-referential-integrity.sh") &
     fi
 fi
-check_hook_drift &
+if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
+    check_hook_drift &
+fi
 # shellcheck disable=SC2086
 [ -n "$CMD_BUILD" ] && run_check "build" "$TIMEOUT_FORMAT" $CMD_BUILD &
 if [ $CHECK_CI -eq 1 ]; then
@@ -1056,8 +1061,8 @@ if [ "$VERBOSE" = "0" ]; then
         [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && report_check "model-id-lint" "model-id-lint" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-model-id-lint.sh"
         [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && report_check "contract-schema" "contract-schema" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-contract-schemas.sh"
         [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && report_check "referential-integrity" "referential-integrity" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-referential-integrity.sh"
+        report_check "hook-drift" "hook-drift" "$TIMEOUT_SYNTAX" "diff <(grep 'id:' .pre-commit-config.yaml) <(grep 'id:' examples/pre-commit-config.example.yaml)"
     fi
-    report_check "hook-drift" "hook-drift" "$TIMEOUT_SYNTAX" "diff <(grep 'id:' .pre-commit-config.yaml) <(grep 'id:' examples/pre-commit-config.example.yaml)"
 else
     tally_check "syntax" "syntax"
     tally_check "format" "format"
@@ -1071,8 +1076,8 @@ else
         [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && tally_check "model-id-lint" "model-id-lint"
         [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && tally_check "contract-schema" "contract-schema"
         [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && tally_check "referential-integrity" "referential-integrity"
+        tally_check "hook-drift" "hook-drift"
     fi
-    tally_check "hook-drift" "hook-drift"
 fi
 
 # Migration result

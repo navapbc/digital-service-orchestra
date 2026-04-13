@@ -199,13 +199,17 @@ cat "$REPO_ROOT/.claude/design-notes.md" 2>/dev/null
 
 If a PRD or .claude/design-notes.md exists, open with a brief summary of what you already know, then probe deeper rather than starting from scratch.
 
-**Investigate before asking**: Before presenting any question to the user, check whether the answer is discoverable by reading the codebase (existing skills, ARCH_ENFORCEMENT.md, pyproject.toml, project-understanding.md, module structure). Only ask the user questions whose answers cannot be found in the repo. Questions about design approach, user experience preferences, or business priorities are appropriate for the user; questions about existing implementations, available tools, or project structure are not.
+### Codebase Investigation Gate (Mandatory Before Any User Question)
+
+Before presenting ANY question to the user, you MUST first check whether the answer is discoverable by reading the codebase. Read existing skill files (sprint SKILL.md, fix-bug SKILL.md), ARCH_ENFORCEMENT.md, pyproject.toml, project-understanding.md, and relevant scripts/module structure. Only ask the user questions whose answers cannot be found in the repo. Questions about design approach, user experience preferences, or business priorities are appropriate for the user; questions about existing implementations, available tools, or project structure are NOT — find those answers yourself first.
 
 **Exploration decomposition**: When a context question is compound or spans multiple sources (web research, multiple codebase layers, ambiguous scope), apply the shared exploration decomposition protocol at `skills/shared/prompts/exploration-decomposition.md` to classify it as SINGLE_SOURCE or MULTI_SOURCE before proceeding. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings contradict.
 
 ### Step 2: The "Tell Me More" Loop
 
 Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encourage depth. After each answer, either ask a follow-up or move to the next area.
+
+**Before forming each question**: Check whether the answer is already in the codebase (skill files, ARCH_ENFORCEMENT.md, pyproject.toml, project-understanding.md, module structure). DO NOT ask questions whose answers are discoverable by reading the repo — find those answers yourself first using Read, Grep, or Glob. Only surface questions that require genuine user knowledge (design intent, business priorities, user experience preferences).
 
 **Prefer multiple-choice questions** over open-ended when possible — easier to answer.
 
@@ -240,6 +244,10 @@ Before we move to approaches, here's my understanding:
 
 Does this capture your intent? If anything is off, tell me what to adjust.
 ```
+
+#### Understanding Summary Phrasing Requirement
+
+You MUST close the Understanding Summary with exactly this sentence: **"Does this capture your intent? If anything is off, tell me what to adjust."** Do not paraphrase (e.g., "Does this sound right?" or "Let me know if anything needs adjusting." are not acceptable). This exact phrasing is required — it is a standardized closing, not an example.
 
 Wait for confirmation before proceeding. This confirmation step is separate from the gap analysis that follows — always proceed to the gap analysis after confirmation.
 
@@ -584,7 +592,7 @@ DESCRIPTION
 **If no existing epic** (i.e., this is a new brainstorm or the original ticket was not epic — i.e., you arrived here via the Convert-to-Epic path): create the epic:
 
 ```bash
-.claude/scripts/dso ticket create epic "<title>" -p <priority> -d "$(cat <<'DESCRIPTION'
+.claude/scripts/dso ticket create epic "<title>" --priority <priority> -d "$(cat <<'DESCRIPTION'
 ## Context
 [context narrative]
 
@@ -604,7 +612,7 @@ DESCRIPTION
 )"
 ```
 
-**Priority guidance (new epics only):** Before creating the ticket, read and apply the value/effort scorer from `skills/shared/prompts/value-effort-scorer.md`. Assess the epic's value (1-5) and effort (1-5) based on the conversation context, map to the recommended priority via the scorer's matrix, and use that priority with `-p <priority>` in the ticket create command above.
+**Priority guidance (new epics only):** Before creating the ticket, read and apply the value/effort scorer from `skills/shared/prompts/value-effort-scorer.md`. Assess the epic's value (1-5) and effort (1-5) based on the conversation context, map to the recommended priority via the scorer's matrix, and use that priority with `--priority <priority>` in the ticket create command above.
 
 ### Step 2: Set Dependencies
 

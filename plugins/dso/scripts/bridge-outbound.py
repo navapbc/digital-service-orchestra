@@ -440,6 +440,16 @@ def process_outbound(
                         if jira_key:
                             acli_client.update_issue(jira_key, status=compiled_status)
                             _status_updated.add(ticket_id)
+            else:
+                # compiled_status is None/empty: reducer could not determine
+                # ticket state. Write BRIDGE_ALERT so the dropped STATUS event
+                # is visible rather than silently lost. (c22b-a25b)
+                write_bridge_alert(
+                    ticket_dir,
+                    ticket_id=ticket_id,
+                    reason="STATUS event dropped: ticket-reducer returned empty compiled status",
+                    bridge_env_id=bridge_env_id,
+                )
 
         elif event_type == "REVERT":
             # REVERT check-before-overwrite:
@@ -890,7 +900,10 @@ def process_outbound(
                 update_kwargs: dict[str, Any] = {}
                 for field_name, field_value in edited_fields.items():
                     if field_name == "title":
-                        update_kwargs["summary"] = str(field_value)
+                        # Empty title safeguard: never overwrite Jira summary with blank (eccb-3f26)
+                        summary_str = str(field_value).strip()
+                        if summary_str:
+                            update_kwargs["summary"] = summary_str
                     elif field_name == "priority":
                         # Convert local integer (0-4) to Jira priority name
                         if isinstance(field_value, int):
@@ -909,7 +922,10 @@ def process_outbound(
                         # Map local type to Jira type (capitalized)
                         update_kwargs["type"] = str(field_value).capitalize()
                     elif field_name == "assignee":
-                        update_kwargs[field_name] = str(field_value)
+                        # Empty assignee safeguard: skip blank values (277e-d926)
+                        assignee_str = str(field_value).strip()
+                        if assignee_str:
+                            update_kwargs[field_name] = assignee_str
                 if update_kwargs:
                     acli_client.update_issue(jira_key, **update_kwargs)
 

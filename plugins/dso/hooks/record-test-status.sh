@@ -1135,7 +1135,8 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
                 fi
             done
             if [[ "$_marker_is_passing" == true ]]; then
-                echo "STALE RED MARKER: ${test_file} (marker: ${red_marker}) — all RED-zone tests passed; remove the [${red_marker}] marker from .test-index" >&2
+                echo "STALE RED MARKER: ${test_file} (marker: ${red_marker}) — all RED-zone tests passed" >&2
+                echo "  To remove: sed -i.bak 's/ \\[${red_marker}\\]//' .test-index && rm .test-index.bak && git add .test-index" >&2
                 rm -f "$test_output_file"
                 if [[ "$STATUS" != "timeout" ]]; then
                     STATUS="failed"
@@ -1169,7 +1170,8 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
     # If the test file passed (exit 0) but has a RED marker, the marker is
     # stale — all RED-zone tests are now passing. Block and report.
     if [[ $exit_code -eq 0 ]] && [[ -n "$red_marker" ]]; then
-        echo "STALE RED MARKER: ${test_file} (marker: ${red_marker}) — all RED-zone tests passed; remove the [${red_marker}] marker from .test-index" >&2
+        echo "STALE RED MARKER: ${test_file} (marker: ${red_marker}) — all RED-zone tests passed" >&2
+        echo "  To remove: sed -i.bak 's/ \\[${red_marker}\\]//' .test-index && rm .test-index.bak && git add .test-index" >&2
         rm -f "$test_output_file"
         if [[ "$STATUS" != "timeout" ]]; then
             STATUS="failed"

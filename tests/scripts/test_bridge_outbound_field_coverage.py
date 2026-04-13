@@ -640,3 +640,276 @@ class TestOutboundEmptyDescriptionSafeguard:
         )
         call_kwargs = mock_acli.update_issue.call_args[1]
         assert call_kwargs.get("description") == "Updated description"
+
+
+# ===========================================================================
+# EMPTY TITLE SAFEGUARD TESTS (bug eccb-3f26)
+# ===========================================================================
+
+
+class TestOutboundEmptyTitleSafeguard:
+    """Verify that empty/whitespace titles never overwrite Jira summary."""
+
+    def test_edit_empty_title_is_not_pushed(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """EDIT event with empty title should NOT call update_issue (eccb-3f26)."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "test-empty-title"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="Title Guard Test")
+        write_sync(ticket_dir, JIRA_KEY)
+
+        edit_path = write_event(
+            ticket_dir,
+            "EDIT",
+            {"fields": {"title": ""}},
+        )
+
+        mock_acli = MagicMock()
+
+        events = [
+            {
+                "ticket_id": ticket_id,
+                "event_type": "EDIT",
+                "file_path": str(edit_path),
+            }
+        ]
+
+        outbound.process_outbound(
+            events,
+            acli_client=mock_acli,
+            tickets_root=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert not mock_acli.update_issue.called, (
+            "OUTBOUND EDIT with empty title should not push empty summary to Jira (eccb-3f26)"
+        )
+
+    def test_edit_whitespace_title_is_not_pushed(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """EDIT event with whitespace-only title should NOT call update_issue (eccb-3f26)."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "test-ws-title"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="WS Title Test")
+        write_sync(ticket_dir, JIRA_KEY)
+
+        edit_path = write_event(
+            ticket_dir,
+            "EDIT",
+            {"fields": {"title": "   \n  "}},
+        )
+
+        mock_acli = MagicMock()
+
+        events = [
+            {
+                "ticket_id": ticket_id,
+                "event_type": "EDIT",
+                "file_path": str(edit_path),
+            }
+        ]
+
+        outbound.process_outbound(
+            events,
+            acli_client=mock_acli,
+            tickets_root=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert not mock_acli.update_issue.called, (
+            "OUTBOUND EDIT with whitespace-only title should not push to Jira (eccb-3f26)"
+        )
+
+    def test_edit_nonempty_title_is_pushed(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """EDIT event with non-empty title SHOULD call update_issue with summary."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "test-good-title"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="Good Title Test")
+        write_sync(ticket_dir, JIRA_KEY)
+
+        edit_path = write_event(
+            ticket_dir,
+            "EDIT",
+            {"fields": {"title": "Updated Title"}},
+        )
+
+        mock_acli = MagicMock()
+
+        events = [
+            {
+                "ticket_id": ticket_id,
+                "event_type": "EDIT",
+                "file_path": str(edit_path),
+            }
+        ]
+
+        outbound.process_outbound(
+            events,
+            acli_client=mock_acli,
+            tickets_root=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert mock_acli.update_issue.called, (
+            "OUTBOUND EDIT with non-empty title should push to Jira"
+        )
+        call_kwargs = mock_acli.update_issue.call_args[1]
+        assert call_kwargs.get("summary") == "Updated Title"
+
+
+# ===========================================================================
+# INVALID ASSIGNEE SAFEGUARD TESTS (bug 277e-d926)
+# ===========================================================================
+
+
+class TestOutboundInvalidAssigneeSafeguard:
+    """Verify that empty/whitespace assignees are not pushed to Jira."""
+
+    def test_edit_empty_assignee_is_not_pushed(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """EDIT event with empty assignee should NOT call update_issue (277e-d926)."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "test-empty-assignee"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="Assignee Guard Test")
+        write_sync(ticket_dir, JIRA_KEY)
+
+        edit_path = write_event(
+            ticket_dir,
+            "EDIT",
+            {"fields": {"assignee": ""}},
+        )
+
+        mock_acli = MagicMock()
+
+        events = [
+            {
+                "ticket_id": ticket_id,
+                "event_type": "EDIT",
+                "file_path": str(edit_path),
+            }
+        ]
+
+        outbound.process_outbound(
+            events,
+            acli_client=mock_acli,
+            tickets_root=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert not mock_acli.update_issue.called, (
+            "OUTBOUND EDIT with empty assignee should not push to Jira (277e-d926)"
+        )
+
+    def test_edit_whitespace_assignee_is_not_pushed(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """EDIT event with whitespace-only assignee should NOT call update_issue (277e-d926)."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "test-ws-assignee"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="WS Assignee Test")
+        write_sync(ticket_dir, JIRA_KEY)
+
+        edit_path = write_event(
+            ticket_dir,
+            "EDIT",
+            {"fields": {"assignee": "   "}},
+        )
+
+        mock_acli = MagicMock()
+
+        events = [
+            {
+                "ticket_id": ticket_id,
+                "event_type": "EDIT",
+                "file_path": str(edit_path),
+            }
+        ]
+
+        outbound.process_outbound(
+            events,
+            acli_client=mock_acli,
+            tickets_root=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert not mock_acli.update_issue.called, (
+            "OUTBOUND EDIT with whitespace-only assignee should not push to Jira (277e-d926)"
+        )
+
+
+# ===========================================================================
+# STATUS HANDLER NULL COMPILED STATUS TESTS (bug c22b-a25b)
+# ===========================================================================
+
+
+class TestOutboundStatusNullCompiledStatus:
+    """Verify that a STATUS event with no compiled status emits a BRIDGE_ALERT."""
+
+    def test_status_null_compiled_status_writes_bridge_alert(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """STATUS event where get_compiled_status returns None should write a BRIDGE_ALERT (c22b-a25b)."""
+        from unittest.mock import patch
+
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "test-null-status"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="Null Status Test")
+        write_sync(ticket_dir, JIRA_KEY)
+        write_event(ticket_dir, "STATUS", {"status": "in_progress"})
+
+        status_files = sorted(ticket_dir.glob("*-STATUS.json"))
+        assert status_files, "STATUS event file should exist"
+
+        mock_acli = MagicMock()
+
+        events = [
+            {
+                "ticket_id": ticket_id,
+                "event_type": "STATUS",
+                "file_path": str(status_files[0]),
+            }
+        ]
+
+        # Mock get_compiled_status to return None (reducer failure scenario)
+        with patch.object(outbound, "get_compiled_status", return_value=None):
+            outbound.process_outbound(
+                events,
+                acli_client=mock_acli,
+                tickets_root=tracker,
+                bridge_env_id=BRIDGE_ENV_ID,
+            )
+
+        # update_issue should NOT be called when compiled_status is None
+        assert not mock_acli.update_issue.called, (
+            "OUTBOUND STATUS with null compiled_status should not push to Jira"
+        )
+
+        # A BRIDGE_ALERT must be written to notify about the dropped event
+        alert_files = list(ticket_dir.glob("*-BRIDGE_ALERT.json"))
+        assert len(alert_files) == 1, (
+            f"OUTBOUND STATUS with null compiled_status must write exactly 1 BRIDGE_ALERT "
+            f"to signal the dropped event (c22b-a25b). Got: {alert_files}"
+        )

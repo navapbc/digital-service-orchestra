@@ -40,7 +40,7 @@ When dryrun mode is active, follow the target skill's full workflow but apply th
 For every action that would modify state, show it as a preview block:
 
 ```
-[DRYRUN] Would run: .claude/scripts/dso ticket create epic "Phase 1: Authentication System" -p 1
+[DRYRUN] Would run: .claude/scripts/dso ticket create epic "Phase 1: Authentication System" --priority 1
 [DRYRUN] Would write: .claude/design-notes.md (47 lines)
 [DRYRUN] Would run: .claude/scripts/dso ticket link ticket-042 ticket-041
 ```

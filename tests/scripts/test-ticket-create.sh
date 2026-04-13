@@ -536,9 +536,9 @@ test_ticket_create_default_priority_is_2() {
 }
 test_ticket_create_default_priority_is_2
 
-# ── Test 10b: -p short flag sets priority (same as --priority) ────────────────
-echo "Test 10b: -p short flag sets priority in CREATE event data"
-test_ticket_create_short_p_flag_sets_priority() {
+# ── Test 10b: --priority short flag sets priority (regression guard) ──────────
+echo "Test 10b: --priority flag sets priority in CREATE event data"
+test_ticket_create_priority_long_flag_sets_priority() {
     local repo
     repo=$(_make_test_repo)
 
@@ -548,11 +548,11 @@ test_ticket_create_short_p_flag_sets_priority() {
     fi
 
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Short priority test" -p 1 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Short priority test" --priority 1 2>/dev/null) || true
     ticket_id=$(echo "$ticket_id" | tail -1)
 
     if [ -z "$ticket_id" ]; then
-        assert_eq "ticket ID returned for -p test" "non-empty" "empty"
+        assert_eq "ticket ID returned for --priority test" "non-empty" "empty"
         return
     fi
 
@@ -561,15 +561,15 @@ test_ticket_create_short_p_flag_sets_priority() {
     event_file=$(_find_create_event "$tracker_dir" "$ticket_id")
 
     if [ -z "$event_file" ]; then
-        assert_eq "CREATE event file found for -p test" "found" "not-found"
+        assert_eq "CREATE event file found for --priority test" "found" "not-found"
         return
     fi
 
     local priority_val
     priority_val=$(_extract_event_field "$event_file" "priority")
-    assert_eq "priority in CREATE event data via -p flag" "1" "$priority_val"
+    assert_eq "priority in CREATE event data via --priority flag" "1" "$priority_val"
 }
-test_ticket_create_short_p_flag_sets_priority
+test_ticket_create_priority_long_flag_sets_priority
 
 # ── Test 11 (RED): --description="body" populates data.description in CREATE event ──
 echo "Test 11 (RED): --description flag populates data.description in CREATE event JSON"
@@ -846,5 +846,52 @@ except Exception as e:
     fi
 }
 test_no_tags_flag_creates_empty_tags
+
+# ── Test 17 (RED): -p short flag sets parent_id (not priority) ──────────────
+echo "Test 17 (RED): -p short flag sets parent_id in CREATE event data (bug 6431-d3cc)"
+test_ticket_create_short_p_flag_sets_parent_id() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    # Create a parent epic first
+    local epic_id
+    epic_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Parent epic for -p test" 2>/dev/null) || true
+    epic_id=$(echo "$epic_id" | tail -1)
+
+    if [ -z "$epic_id" ]; then
+        assert_eq "parent ticket created" "non-empty" "empty"
+        return
+    fi
+
+    # Create a child task using -p <parent-id>
+    local child_id
+    child_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Child task via -p flag" -p "$epic_id" 2>/dev/null) || true
+    child_id=$(echo "$child_id" | tail -1)
+
+    if [ -z "$child_id" ]; then
+        assert_eq "child ticket created via -p" "non-empty" "empty"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local event_file
+    event_file=$(_find_create_event "$tracker_dir" "$child_id")
+
+    if [ -z "$event_file" ]; then
+        assert_eq "CREATE event file found for -p test" "found" "not-found"
+        return
+    fi
+
+    # -p should set parent_id, not priority
+    local parent_id_val
+    parent_id_val=$(_extract_event_field "$event_file" "parent_id")
+    assert_eq "-p sets parent_id in CREATE event" "$epic_id" "$parent_id_val"
+}
+test_ticket_create_short_p_flag_sets_parent_id
 
 print_summary

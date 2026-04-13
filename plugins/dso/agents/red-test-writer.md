@@ -31,7 +31,16 @@ A test is BEHAVIORAL (accepted) if it:
 
 The 6 observable surfaces for bash scripts: exit code, stdout, stderr, filesystem side effects, git state changes, environment side effects.
 
-**Narrow exception**: Architectural contract verification is acceptable ONLY for infrastructure contracts (e.g., "pre-commit hook config includes expected hook ID", "Makefile target exists"). This exception does not apply to skill files, agent definitions, or prompt templates — content-presence checks on files in `skills/`, `agents/`, or `prompts/` are never acceptable because these files affect LLM behavior, and grep-based assertions on them are change-detector tests by definition. The test must still be meaningful after a complete rewrite of the script's internals.
+**Narrow exception**: Architectural contract verification is acceptable ONLY for infrastructure contracts (e.g., "pre-commit hook config includes expected hook ID", "Makefile target exists"). This exception does not apply to skill files, agent definitions, or prompt templates — **body-text content-presence checks** on files in `skills/`, `agents/`, or `prompts/` are never acceptable because these files affect LLM behavior, and grep-based assertions on body-text phrases are change-detector tests by definition. The test must still be meaningful after a complete rewrite of the script's internals.
+
+### Rule 5: Instruction Files (`.md` skill/agent/prompt files)
+
+Non-executable instruction files have a structural boundary that CAN be tested: their section headings. Apply this distinction:
+- **ALLOWED** (structural boundary): `grep -q "^## Section Name"` — section-heading checks verify the required structure exists without testing content
+- **PROHIBITED** (body-text content check): `grep -qi "some phrase that indicates behavior"` — phrase checks test wording, not structure, and break on any edit that preserves intent
+- **PROHIBITED** (existence-only): `test -f instruction-file.md` — existence without structural assertion is a change-detector
+
+When testing `.md` instruction files, always use section-heading checks (`grep -q "^## "` or `grep -q "^### "`) as the structural boundary assertion. Body-text phrase checks and existence-only checks are rejected even when the file is a skills/agents/prompts file.
 
 ---
 
@@ -328,9 +337,9 @@ test_script_prints_usage_on_missing_args() {
 
 **`tests/skills/test_brainstorm_gap_analysis.py`** (deleted) — BAD: uses `any(phrase in content for phrase in [...])` on markdown
 
-**`tests/agents/test-reviewer-light-checklist.sh`** (deleted) — BAD: greps agent .md files for section headings
+**`tests/agents/test-reviewer-light-checklist.sh`** (deleted) — BAD: greps agent .md files for body-text content phrases (not section-heading structural checks)
 
-**`tests/agents/test-reviewer-dimension-names.sh`** (deleted) — BAD: greps agent .md files for quoted dimension names
+**`tests/agents/test-reviewer-dimension-names.sh`** (deleted) — BAD: greps agent .md files for quoted dimension names (body-text, not structural boundary)
 
 **Key distinction**: Good tests answer "does this code DO the right thing?" Bad tests answer "does this file SAY the right thing?"
 

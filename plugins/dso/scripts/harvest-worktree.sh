@@ -111,12 +111,24 @@ fi
 
 # ── Merge ────────────────────────────────────────────────────────────────────
 
-set +e
-git merge --no-commit "$WORKTREE_BRANCH" >/dev/null 2>&1
-set -e
+# Use `|| merge_exit=$?` so the ERR trap cannot fire if git exits non-zero on
+# conflict. set +e is insufficient: bash fires the ERR trap on non-zero exit
+# even when errexit is disabled (bug 0fc6-c970). Commands on the left side of
+# `||` are exempt from the ERR trap, keeping the script alive so we can read
+# CONFLICTED_FILES and distinguish conflicts from other git errors.
+merge_exit=0
+git merge --no-commit "$WORKTREE_BRANCH" >/dev/null 2>&1 || merge_exit=$?
 
-# Check for conflicts
 CONFLICTED_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+
+# If the merge failed for a non-conflict reason (e.g., branch not found,
+# read-only filesystem) CONFLICTED_FILES will be empty and MERGE_HEAD absent.
+# Surface the error explicitly so the operator sees an actionable message.
+if [[ "$merge_exit" -ne 0 ]] && [[ -z "$CONFLICTED_FILES" ]]; then
+    echo "ERROR: git merge failed (exit $merge_exit) — check: branch exists, filesystem writable, objects not corrupted" >&2
+    _harvest_exit_code=1
+    exit 1
+fi
 
 if [[ -n "$CONFLICTED_FILES" ]]; then
     # Check if ALL conflicts are in .test-index (union driver handles those)

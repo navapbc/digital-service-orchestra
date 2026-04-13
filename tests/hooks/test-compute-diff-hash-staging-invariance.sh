@@ -107,9 +107,6 @@ assert_ne "clean hash is non-empty" "" "$HASH_CLEAN"
 echo "def hello(): return 'world'" > "$TMPDIR_TEST/new_feature.py"
 git add "$TMPDIR_TEST/new_feature.py"
 
-# Ensure git index mtime advances past seconds-resolution cache key (CI race fix)
-sleep 1
-
 # Hash at review time (file is staged)
 HASH_AT_REVIEW=$(bash "$HOOK" 2>/dev/null)
 assert_ne "hash with staged new file is non-empty (dso-g8cz)" "" "$HASH_AT_REVIEW"
@@ -176,6 +173,73 @@ assert_eq "hash(both staged) is stable between review and commit (dso-g8cz)" \
 # Cleanup staged files
 git reset HEAD "$TMPDIR_TEST/module_a.py" "$TMPDIR_TEST/module_b.py" 2>/dev/null || true
 rm -f "$TMPDIR_TEST/module_a.py" "$TMPDIR_TEST/module_b.py"
+
+# ============================================================
+# 1609-24f2: Cache must not return stale hash when index content changes
+# within the same second (same mtime+size cache key collision).
+#
+# This test simulates the collision by:
+# 1. Staging file A → compute hash1 (populates cache at key hash-${mtime}-${size})
+# 2. Overwriting that cache key with a known STALE value
+# 3. Staging file B (same filename → same index entry size) and restoring the
+#    index mtime to the same second as step 1 (mimicking the collision)
+# 4. Calling compute-diff-hash.sh — with the bug it returns STALE; with the
+#    fix (cache keyed on index content hash) it correctly computes a new hash.
+# ============================================================
+echo "--- test_same_second_cache_collision (1609-24f2) ---"
+
+# Stage file A
+echo "def func_a(): return 1" > "$TMPDIR_TEST/coll_file.py"
+git add "$TMPDIR_TEST/coll_file.py"
+
+# Save index mtime for later restoration
+_ref_time_file=$(mktemp)
+_git_dir_coll=$(git rev-parse --git-dir)
+touch -r "$_git_dir_coll/index" "$_ref_time_file"
+
+# Compute hash1 (populates cache)
+_hash_initial=$(bash "$HOOK" 2>/dev/null)
+
+# Determine the mtime+size cache key and write a STALE value to it
+_repo_id_coll=$(git rev-parse --show-toplevel | shasum -a 256 | cut -c1-12)
+_cache_dir_coll="${TMPDIR:-/tmp}/compute-diff-hash-cache-${_repo_id_coll}"
+if [[ "$(uname)" == "Darwin" ]]; then
+    _idx_mtime=$(stat -f '%m' "$_git_dir_coll/index" 2>/dev/null || echo "0")
+    _idx_size=$(stat -f '%z' "$_git_dir_coll/index" 2>/dev/null || echo "0")
+else
+    _idx_mtime=$(stat -c '%Y' "$_git_dir_coll/index" 2>/dev/null || echo "0")
+    _idx_size=$(stat -c '%s' "$_git_dir_coll/index" 2>/dev/null || echo "0")
+fi
+_stale_key="${_cache_dir_coll}/hash-${_idx_mtime}-${_idx_size}"
+_stale_val="a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+echo "$_stale_val" > "$_stale_key"
+
+# Stage file B (same filename = same index entry size, but different content)
+echo "def func_b(): return 2" > "$TMPDIR_TEST/coll_file.py"
+git add "$TMPDIR_TEST/coll_file.py"
+
+# Restore index mtime to the same second (simulating same-second collision)
+touch -r "$_ref_time_file" "$_git_dir_coll/index"
+
+# Re-write stale to the key (git add may have cleared cache dir on its own path)
+echo "$_stale_val" > "$_stale_key"
+
+# Compute hash after same-second collision
+_hash_after=$(bash "$HOOK" 2>/dev/null)
+
+# The hash MUST differ from the stale value — content changed, cache must be cold.
+# Bug (mtime+size key): returns _stale_val because mtime+size cache key matches.
+# Fix (index-content key): cache miss → computes new correct hash.
+assert_ne "same-second collision: hash not stale (1609-24f2)" "$_stale_val" "$_hash_after"
+
+# Sanity: hash must also differ from initial (different content was staged)
+assert_ne "same-second git add produces different hash from initial (1609-24f2)" \
+    "$_hash_initial" "$_hash_after"
+
+# Cleanup
+rm -f "$_ref_time_file"
+git reset HEAD "$TMPDIR_TEST/coll_file.py" 2>/dev/null || true
+rm -f "$TMPDIR_TEST/coll_file.py"
 
 # Return to repo root for print_summary
 cd "$REPO_ROOT"

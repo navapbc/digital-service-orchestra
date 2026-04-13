@@ -224,12 +224,12 @@ The quadrant placement maps to priority ranges: Quick Wins → P0–P1, Strategi
    - Are Success Criteria specific and testable?
    - Are dependencies clearly documented?
 
-2. **Ticket Action**: Create Epics using the sequence: **"Phase [X]: [Name]"**. Use the scorer-determined priority (from Phase 3 Step 1) as the `-p <priority>` argument. For Critical Enabler epics, use the priority inherited from the epic they unblock.
+2. **Ticket Action**: Create Epics using the sequence: **"Phase [X]: [Name]"**. Use the scorer-determined priority (from Phase 3 Step 1) as the `--priority <priority>` argument. For Critical Enabler epics, use the priority inherited from the epic they unblock.
 
    ```bash
    # Create epic with scorer-determined priority
    # $SCORER_PRIORITY is the P-level from value-effort-scorer.md (P0=0, P1=1, ... P4=4)
-   .claude/scripts/dso ticket create epic "Phase 1: Authentication System" -p $SCORER_PRIORITY -d "$(cat <<'DESCRIPTION'
+   .claude/scripts/dso ticket create epic "Phase 1: Authentication System" --priority $SCORER_PRIORITY -d "$(cat <<'DESCRIPTION'
    ## Context
    [Why this matters, user need, business goal]
 
