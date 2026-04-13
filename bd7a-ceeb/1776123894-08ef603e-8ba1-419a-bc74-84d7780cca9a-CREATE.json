@@ -1,0 +1,1 @@
+{"timestamp": 1776123894, "uuid": "08ef603e-8ba1-419a-bc74-84d7780cca9a", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "bug", "title": "CI: test-commit-tracker config_driven_issue_tracker_search_cmd fails (pre-existing)", "parent_id": "", "description": "", "tags": [], "priority": 2, "assignee": "Test"}}
