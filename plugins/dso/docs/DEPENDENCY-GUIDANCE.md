@@ -89,3 +89,17 @@ Adoption: <stars> stars, <downloads> monthly downloads
 License: <license>
 Concerns: <any flags, or "None">
 ```
+
+## Security Audit Commands
+
+Run the appropriate command for your language stack to scan dependencies for known security vulnerabilities before adding or updating packages.
+
+| Language | Tool | Invocation |
+|----------|------|-----------|
+| Python | pip-audit | `pip-audit --strict` |
+| JavaScript/TypeScript | npm audit | `npm audit --audit-level=moderate` |
+| Ruby | bundle-audit | `bundle-audit check --update` |
+
+- **pip-audit**: Scans Python dependencies for known security vulnerabilities using the Python Advisory Database (PyPI) and OSV.
+- **npm audit**: Scans Node.js dependencies against the npm advisory registry; `--audit-level=moderate` reports moderate and higher severity findings.
+- **bundle-audit**: Scans Ruby gem dependencies against the Ruby Advisory Database; `--update` refreshes the advisory database before scanning.
