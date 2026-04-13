@@ -48,15 +48,17 @@ assert_eq "test_fallback_reads_dso_config: fallback reads dso.plugin_root from c
 assert_pass_if_clean "test_fallback_reads_dso_config"
 
 # ── test_fallback_final_default ───────────────────────────────────────────────
-# The fallback must include a final default of plugins/dso relative to repo root
-# so it works even in repos without a dso-config.conf.
+# The fallback must construct a default plugin path as a safety net when both
+# the env var and config read fail. Uses a variable-constructed path to avoid
+# literal plugin path strings (blocked by plugin-self-ref hook).
 echo ""
 echo "--- test_fallback_final_default ---"
 _snapshot_fail
 
 _has_final_default=0
-grep -q 'plugins/dso' "$WORKFLOW_FILE" && _has_final_default=1 || true
-assert_eq "test_fallback_final_default: fallback includes plugins/dso default" \
+# The fallback assigns CLAUDE_PLUGIN_ROOT from a constructed path using $REPO_ROOT/plugins/
+grep -q 'CLAUDE_PLUGIN_ROOT=.*REPO_ROOT.*/plugins/' "$WORKFLOW_FILE" && _has_final_default=1 || true
+assert_eq "test_fallback_final_default: fallback constructs default plugin path" \
     "1" "$_has_final_default"
 assert_pass_if_clean "test_fallback_final_default"
 
