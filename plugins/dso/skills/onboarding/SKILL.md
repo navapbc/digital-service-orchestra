@@ -1151,6 +1151,36 @@ This affects the ci.workflow_name setting and any generated workflow templates.
 
 Record the CI trigger strategy in `dso-config.conf` under `ci.workflow_name` and in `.claude/project-understanding.md` under the CI section.
 
+#### Preplanning Interactivity Probe
+
+Ask the operator whether preplanning should run interactively:
+
+```
+Should preplanning run interactively? (true/false, default: true)
+
+Interactive mode (true): /dso:preplanning pauses at key decision points to
+confirm story scope, done definitions, and decomposition with the operator.
+
+Non-interactive mode (false): /dso:preplanning runs autonomously without
+pausing, suitable for CI pipelines or batch workflows.
+```
+
+Write the operator's answer as `preplanning.interactive = <answer>` to `dso-config.conf`. If the operator does not respond or presses Enter, default to `true`.
+
+**Explicit overwrite**: unlike other merge-not-overwrite config keys, `preplanning.interactive` must always be overwritten with the operator's answer — even if `preplanning.interactive` already exists in `dso-config.conf` (the repo default written by initial setup is `false`, which the operator must be able to override here):
+
+```bash
+# Always write preplanning.interactive — overwrite even if the key already exists
+# This is an exception to the general merge-not-overwrite rule for this key.
+PREPLANNING_INTERACTIVE="${OPERATOR_PREPLANNING_ANSWER:-true}"
+if grep -q "^preplanning\.interactive" "$EXISTING_CONFIG" 2>/dev/null; then
+    # Overwrite existing value
+    sed -i.bak "s|^preplanning\.interactive.*|preplanning.interactive=$PREPLANNING_INTERACTIVE|" "$EXISTING_CONFIG"
+else
+    echo "preplanning.interactive=$PREPLANNING_INTERACTIVE" >> "$EXISTING_CONFIG"
+fi
+```
+
 ---
 
 ## Step 6: Offer /dso:architect-foundation (/dso:onboarding)
