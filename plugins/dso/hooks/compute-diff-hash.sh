@@ -15,21 +15,16 @@ set -euo pipefail
 
 # --- Per-commit hash cache (1849-145d, 3bd1-6c02) ---
 # During a single pre-commit run, multiple hooks call compute-diff-hash.sh.
-# Cache the result keyed on repo path + git index mtime so repeated calls are instant.
+# Cache the result keyed on the SHA-1 of the git index file content — this is
+# collision-resistant regardless of mtime precision (bug 1609-24f2: mtime+size
+# keys collide when two git add operations on the same filename occur within
+# the same second, producing a stale hash).
 _GIT_DIR_EARLY=$(git rev-parse --git-dir 2>/dev/null || echo ".git")
 _REPO_ID=$(git rev-parse --show-toplevel 2>/dev/null | shasum -a 256 | cut -c1-12)
-if [[ "$(uname)" == "Darwin" ]]; then
-    _INDEX_MTIME=$(stat -f '%m' "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
-    _INDEX_SIZE=$(stat -f '%z' "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
-else
-    _INDEX_MTIME=$(stat -c '%Y' "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
-    _INDEX_SIZE=$(stat -c '%s' "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
-fi
+_INDEX_HASH=$(git hash-object "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
 _CACHE_DIR="${TMPDIR:-/tmp}/compute-diff-hash-cache-${_REPO_ID}"
 mkdir -p "$_CACHE_DIR" 2>/dev/null || true
-# Cache key includes both mtime and file size to prevent second-resolution collisions
-# when two git add operations occur within the same second (c3b6-7462)
-_CACHE_KEY="${_CACHE_DIR}/hash-${_INDEX_MTIME}-${_INDEX_SIZE}"
+_CACHE_KEY="${_CACHE_DIR}/hash-${_INDEX_HASH}"
 if [ -f "$_CACHE_KEY" ]; then
     cat "$_CACHE_KEY"
     exit 0

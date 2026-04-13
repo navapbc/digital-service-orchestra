@@ -1141,12 +1141,6 @@ assert_eq \
     "yes" \
     "$CACHE_DIR_EXISTS"
 
-# Sleep 1s to ensure the git index mtime changes between runs — compute-diff-hash.sh
-# caches keyed on (mtime_seconds, index_file_size). For the same filename, both fields
-# can be identical within 1 second, causing a cache collision that returns the stale hash
-# and makes both runs appear to have the same diff hash. (Bug 1609-24f2)
-sleep 1
-
 # Now change staged files to produce a different diff hash.
 echo "# second change" >> "$REPO_CACHE/src/cache_module.sh"
 git -C "$REPO_CACHE" add -A
@@ -1450,11 +1444,6 @@ if [[ -n "$HASH_H1" ]]; then
     printf '{"file":"src/cleanup_module.sh","score":0,"hash":"%s"}\n' "$HASH_H1" \
         > "$ARTIFACTS_CLEAN/centrality-cache-${HASH_H1}/cleanup_module.sh.json"
 fi
-
-# Sleep 1s to ensure a different git index mtime for the second staged change.
-# compute-diff-hash.sh caches on (mtime_seconds, index_size); without this sleep,
-# both git add operations can produce the same cache key → H1==H2 → cleanup skipped.
-sleep 1
 
 # Second staged change → produces diff hash H2 (different from H1)
 echo "# second change" >> "$REPO_CLEAN/src/cleanup_module.sh"
