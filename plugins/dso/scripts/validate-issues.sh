@@ -187,7 +187,7 @@ for t in tickets:
     for d in raw_deps:
         dep_id = d.get('target_id') or d.get('depends_on_id', '')
         dep_type = d.get('relation') or d.get('type', 'blocks')
-        # Normalize v3 "child_of" to the canonical "parent-child" sentinel so
+        # Normalize v3 child_of to the canonical parent-child sentinel so
         # that check_child_parent_deps() and check_cross_epic_child_deps() can
         # skip structural parent-child links and avoid false-positive CRITICALs.
         if dep_type == 'child_of':
@@ -441,7 +441,7 @@ print(len(issues))
         log_verbose "Total ticket count: $total_count (within healthy range)"
     fi
 
-    echo $total_count
+    echo "$total_count"
 }
 
 # Check for tasks that are dependencies but should be children

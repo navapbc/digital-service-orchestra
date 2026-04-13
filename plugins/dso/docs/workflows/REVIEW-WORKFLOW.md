@@ -107,7 +107,7 @@ The diff hash is captured here — AFTER Step 1's format/lint/type-check pass �
    ```bash
    DIFF_FILE="$ARTIFACTS_DIR/review-diff-${DIFF_HASH_SHORT}.txt"
    STAT_FILE="$ARTIFACTS_DIR/review-stat-${DIFF_HASH_SHORT}.txt"
-   ".claude/scripts/dso capture-review-diff.sh" "$DIFF_FILE" "$STAT_FILE"
+   "$REPO_ROOT/.claude/scripts/dso" capture-review-diff.sh "$DIFF_FILE" "$STAT_FILE"
    ```
 
 3. **Read only the stat file** into context (small). Do NOT cat/read the full diff file — the sub-agent reads it from disk.
@@ -122,7 +122,7 @@ The diff hash is captured here — AFTER Step 1's format/lint/type-check pass �
 
 ```bash
 # Run complexity classifier to determine review tier
-CLASSIFIER_OUTPUT=$(".claude/scripts/dso review-complexity-classifier.sh" < "$DIFF_FILE" 2>/dev/null) || CLASSIFIER_EXIT=$?
+CLASSIFIER_OUTPUT=$("$REPO_ROOT/.claude/scripts/dso" review-complexity-classifier.sh < "$DIFF_FILE" 2>/dev/null) || CLASSIFIER_EXIT=$?
 if [[ "${CLASSIFIER_EXIT:-0}" -ne 0 ]] || ! echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
     # Classifier failed — default to standard tier per contract (classifier-tier-output.md)
     REVIEW_TIER="standard"
@@ -643,9 +643,9 @@ Read `security_overlay`, `performance_overlay`, and `test_quality_overlay` from 
 
 ```bash
 # $CLASSIFIER_OUTPUT is the shell variable captured in Step 3 (classifier stdout)
-SECURITY_OVERLAY=$(echo "$CLASSIFIER_OUTPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('security_overlay', False))")
-PERFORMANCE_OVERLAY=$(echo "$CLASSIFIER_OUTPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('performance_overlay', False))")
-TEST_QUALITY_OVERLAY=$(echo "$CLASSIFIER_OUTPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('test_quality_overlay', False))")
+SECURITY_OVERLAY=$(echo "$CLASSIFIER_OUTPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('security_overlay', False))" 2>/dev/null || echo "false")
+PERFORMANCE_OVERLAY=$(echo "$CLASSIFIER_OUTPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('performance_overlay', False))" 2>/dev/null || echo "false")
+TEST_QUALITY_OVERLAY=$(echo "$CLASSIFIER_OUTPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('test_quality_overlay', False))" 2>/dev/null || echo "false")
 ```
 
 If all are `False` and no tier reviewer signal is present (see Serial Path below), skip to Step 5.
@@ -851,7 +851,7 @@ Task tool:
    NEW_DIFF_HASH_SHORT="${NEW_DIFF_HASH:0:8}"
    NEW_DIFF_FILE="$ARTIFACTS_DIR/review-diff-${NEW_DIFF_HASH_SHORT}.txt"
    NEW_STAT_FILE="$ARTIFACTS_DIR/review-stat-${NEW_DIFF_HASH_SHORT}.txt"
-   ".claude/scripts/dso capture-review-diff.sh" "$NEW_DIFF_FILE" "$NEW_STAT_FILE"
+   "$REPO_ROOT/.claude/scripts/dso" capture-review-diff.sh "$NEW_DIFF_FILE" "$NEW_STAT_FILE"
    ```
 
 2. **Re-review model escalation**: Increment `REVIEW_PASS_NUM` by 1 before each re-review dispatch, then select the re-review agent based on the updated value. On repeated failures, upgrade the reviewer model to prevent infinite loops with a reviewer that cannot process the context (e.g., light-tier reviewers producing recurring false positives on REVIEW-DEFENSE comments). `RATCHETED_TIER` (set in Step 4a when `ESCALATE_REVIEW` triggered escalation) is respected as a one-way floor — once set, the re-review tier never drops below it:

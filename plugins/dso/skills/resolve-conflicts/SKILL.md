@@ -107,7 +107,7 @@ Based on sub-agent classifications:
    ```
 3. Run validation:
    ```bash
-   ${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --ci  # shim-exempt: post-merge validation step
+   .claude/scripts/dso validate.sh --ci
    ```
 4. **If validation passes**: report summary and exit successfully. The merge is complete.
    ```

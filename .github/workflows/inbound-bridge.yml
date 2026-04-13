@@ -168,7 +168,44 @@ jobs:
 
           git add -A
           git commit -m "chore: sync CREATE events from Jira inbound bridge [run ${{ github.run_id }}]"
-          git push origin HEAD:tickets
+
+          # Push with 3-retry fetch-rebase-push loop.
+          # The tickets branch may be updated by outbound-bridge or merge-to-main.sh
+          # concurrently, causing a non-fast-forward rejection (d411-c0e7).
+          # Pattern mirrors outbound-bridge.yml.
+          max_retries=3
+          attempt=0
+          while [ "$attempt" -lt "$max_retries" ]; do
+            attempt=$((attempt + 1))
+            push_stderr=""
+            push_exit=0
+            push_stderr=$(git push origin HEAD:tickets 2>&1) || push_exit=$?
+
+            if [ "$push_exit" -eq 0 ]; then
+              echo "Push succeeded (attempt $attempt)."
+              exit 0
+            fi
+
+            # Check if failure is retryable (non-fast-forward) vs fatal
+            if echo "$push_stderr" | grep -qiE 'non-fast-forward|rejected|fetch first'; then
+              echo "Push rejected (attempt $attempt) — fetching and rebasing before retry..."
+              git fetch origin tickets 2>/dev/null || true
+            else
+              echo "Push failed (non-retryable, exit $push_exit): $push_stderr" >&2
+              exit 1
+            fi
+
+            rebase_exit=0
+            git rebase origin/tickets 2>/dev/null || rebase_exit=$?
+            if [ "$rebase_exit" -ne 0 ]; then
+              git rebase --abort 2>/dev/null || true
+              echo "Rebase conflict during push retry (attempt $attempt)" >&2
+              exit 1
+            fi
+          done
+
+          echo "Push failed after $max_retries retries" >&2
+          exit 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRIDGE_BOT_NAME: ${{ vars.BRIDGE_BOT_NAME || 'dso-bridge[bot]' }}

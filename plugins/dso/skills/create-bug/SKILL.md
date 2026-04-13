@@ -24,7 +24,7 @@ That template defines the full structure: title format, Zero Inference Rule, pri
 ### CLI Command
 
 ```bash
-.claude/scripts/dso ticket create bug "<title>" -p <priority> -d "<description>"
+.claude/scripts/dso ticket create bug "<title>" --priority <priority> -d "<description>"
 ```
 
 ### Title Format
@@ -103,7 +103,7 @@ Include optional sections (Technical Environment, Action History, Logs) when the
 ```bash
 # Capture both stdout and stderr to enable post-creation title validation
 BUG_CREATE_OUT=$(.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" \
-  -p <priority> \
+  --priority <priority> \
   -d "$(cat <<'DESC'
 ### 2. Incident Overview
 

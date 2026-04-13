@@ -292,7 +292,7 @@ fi
 _has_staged_fragments=false
 for _sf in "${STAGED_FILES[@]}"; do
     case "$_sf" in
-        ${_PLUGIN_GIT_PATH}/docs/workflows/prompts/reviewer-base.md|${_PLUGIN_GIT_PATH}/docs/workflows/prompts/reviewer-delta-*.md)
+        "${_PLUGIN_GIT_PATH}"/docs/workflows/prompts/reviewer-base.md|"${_PLUGIN_GIT_PATH}"/docs/workflows/prompts/reviewer-delta-*.md)
             _has_staged_fragments=true
             break
             ;;

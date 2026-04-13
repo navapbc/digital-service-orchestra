@@ -100,13 +100,12 @@ test_contract_deduplication() {
 
 # ── test_contract_task_template ───────────────────────────────────────────────
 # Verify SKILL.md contains contract task template referencing the
-# 'plugins/dso/docs/contracts/' artifact path.
-# RED: FAIL because the contract detection section does not yet exist.
+# 'docs/contracts/' artifact path (canonical form uses ${CLAUDE_PLUGIN_ROOT}/docs/contracts/).
 test_contract_task_template() {
   _snapshot_fail
   local _found=0
-  grep -q "plugins/dso/docs/contracts/" "$IMPL_PLAN_SKILL" && _found=1
-  assert_eq "test_contract_task_template: 'plugins/dso/docs/contracts/' artifact path present" \
+  grep -q "docs/contracts/" "$IMPL_PLAN_SKILL" && _found=1
+  assert_eq "test_contract_task_template: 'docs/contracts/' artifact path present" \
     "1" "$_found"
   assert_pass_if_clean "test_contract_task_template"
 }

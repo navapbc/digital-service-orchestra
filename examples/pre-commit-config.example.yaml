@@ -183,6 +183,17 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/
 
+      # Plugin self-ref check (timeout: 10s)
+      # Blocks hardcoded plugins/dso/ paths in plugin scripts — scripts must use
+      # _PLUGIN_ROOT or _PLUGIN_GIT_PATH variables instead of hardcoded paths.
+      - id: plugin-self-ref-check
+        name: Plugin Self-Ref Check (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh plugin-self-ref-check 10 "./.claude/hooks/pre-commit/check-plugin-self-ref.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/
+
       # Contract schema validation (timeout: 5s)
       # Validates that contract markdown files have required sections (Purpose, Schema, etc.)
       # Debug command: DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && "$DSO_ROOT/scripts/check-contract-schemas.sh"

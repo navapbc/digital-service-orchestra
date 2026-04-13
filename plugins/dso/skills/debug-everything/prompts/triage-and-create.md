@@ -34,7 +34,7 @@ For each cluster or standalone error without an existing ticket issue:
 # Example: "TestGate: run staged tests -> exit 144 (SIGURG timeout)"
 # Follow ${CLAUDE_PLUGIN_ROOT}/skills/create-bug/SKILL.md for description format.
 # Do NOT use --tags CLI_user — autonomously-created bugs must not carry this tag (see SUB-AGENT-BOUNDARIES.md)
-.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -p <priority> -d "## Incident Overview ..."
+.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" --priority <priority> -d "## Incident Overview ..."
 ```
 
 Update each new issue with its full error details:
