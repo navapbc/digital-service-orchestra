@@ -120,12 +120,12 @@ plugins/dso/agents/scope-drift-reviewer.md:tests/scripts/test-scope-drift-review
 plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh
 CLAUDE.md:tests/scripts/test-docs-behavioral-drift-prevention.sh
-plugins/dso/agents/scope-drift-reviewer.md: tests/scripts/test-scope-drift-reviewer.sh
-plugins/dso/agents/intent-search.md: tests/scripts/test-intent-search-agent.sh
-plugins/dso/agents/red-team-reviewer.md: tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
-plugins/dso/agents/blue-team-filter.md: tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
-tests/fixtures/scope-drift-detection: tests/scripts/test-e2e-synthetic-fixtures.sh
-CLAUDE.md: tests/scripts/test-docs-behavioral-drift-prevention.sh
+plugins/dso/agents/scope-drift-reviewer.md:tests/scripts/test-scope-drift-reviewer.sh
+plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
+plugins/dso/agents/red-team-reviewer.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
+plugins/dso/agents/blue-team-filter.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
+tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh
+CLAUDE.md:tests/scripts/test-docs-behavioral-drift-prevention.sh
 plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
 plugins/dso/hooks/**/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
 plugins/dso/agents/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
@@ -134,11 +134,12 @@ plugins/dso/skills/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
 plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh [test_no_plugin_runtime_refs]
 plugins/dso/hooks/**/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh [test_no_plugin_runtime_refs]
 plugins/dso/scripts/harvest-worktree.sh:tests/scripts/test-harvest-worktree.sh
-plugins/dso/skills/preplanning/SKILL.md: tests/skills/test-preplanning-noninteractive-checkpoints.sh
-plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md: tests/skills/test-preplanning-noninteractive-checkpoints.sh
+plugins/dso/skills/preplanning/SKILL.md:tests/skills/test-preplanning-noninteractive-checkpoints.sh
+plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md:tests/skills/test-preplanning-noninteractive-checkpoints.sh
 plugins/dso/skills/shared/prompts/scale-inference.md:tests/skills/test-scale-inference-shared-prompt.sh [test_scale_inference_file_exists]
 plugins/dso/skills/shared/prompts/scale-inference.md:tests/skills/test-scale-inference-shared-prompt.sh [test_scale_inference_required_sections]
 plugins/dso/skills/shared/prompts/complexity-gate.md:tests/skills/test-complexity-gate-shared-prompt.sh [test_complexity_gate_file_exists]
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test-complexity-gate-shared-prompt.sh [test_implementation_plan_references_complexity_gate]
 plugins/dso/agents/approach-decision-maker.md:tests/skills/test-complexity-gate-shared-prompt.sh [test_approach_decision_maker_references_complexity_gate]
 plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-dogfooding-simplify-first.sh
+plugins/dso/hooks/check-artifact-versions.sh:tests/scripts/test-artifact-versions.sh
