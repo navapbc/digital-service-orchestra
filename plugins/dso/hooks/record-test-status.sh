@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
+# Require bash 4+ for associative array support (declare -A).
+# macOS ships with bash 3.2 at /bin/bash; install bash 4+ via Homebrew.
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+    echo "Error: record-test-status.sh requires bash 4+ (found ${BASH_VERSION})." >&2
+    echo "Install a newer bash with: brew install bash" >&2
+    exit 1
+fi
 _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
-# hooks/record-test-status.sh
+# record-test-status.sh
 # Utility: discovers associated test files for staged source files, runs them,
 # and records pass/fail status with diff_hash to test-gate-status.
 #
