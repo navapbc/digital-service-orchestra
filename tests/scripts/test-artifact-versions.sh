@@ -295,4 +295,25 @@ assert_eq "test_fail_open_on_unreadable_plugin: no output" "" "$_out_fail_open"
 assert_pass_if_clean "test_fail_open_on_unreadable_plugin"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# test_gitignore_includes_cache
+# dso-setup.sh appends .claude/dso-artifact-check-cache to host .gitignore
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo "--- test_gitignore_includes_cache ---"
+_snapshot_fail
+
+_dir_gitignore="$(new_tmpdir)"
+# Use dso-setup.sh (not make_host_repo) — dso-setup.sh is what appends the cache path to .gitignore
+bash "$PLUGIN_ROOT/plugins/dso/scripts/dso-setup.sh" "$_dir_gitignore" "$PLUGIN_ROOT/plugins/dso" >/dev/null 2>&1 || true
+
+if grep -qF '.claude/dso-artifact-check-cache' "$_dir_gitignore/.gitignore" 2>/dev/null; then
+    _gi_result="found"
+else
+    _gi_result="missing"
+fi
+assert_eq "test_gitignore_includes_cache: cache path in .gitignore" "found" "$_gi_result"
+
+assert_pass_if_clean "test_gitignore_includes_cache"
+
+# ─────────────────────────────────────────────────────────────────────────────
 print_summary
