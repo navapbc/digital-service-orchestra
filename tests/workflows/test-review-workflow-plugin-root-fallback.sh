@@ -47,18 +47,20 @@ assert_eq "test_fallback_reads_dso_config: fallback reads dso.plugin_root from c
     "1" "$_has_config_read"
 assert_pass_if_clean "test_fallback_reads_dso_config"
 
-# ── test_fallback_final_default ───────────────────────────────────────────────
-# The fallback must include a final default of plugins/dso relative to repo root
-# so it works even in repos without a dso-config.conf.
+# ── test_fallback_error_on_unset ──────────────────────────────────────────────
+# When CLAUDE_PLUGIN_ROOT is unset and not found in config, the fallback must
+# exit with a non-zero code (no silent continuation). The check-plugin-self-ref
+# hook prohibits any plugins/dso literal inside the plugins/dso/ tree, so the
+# fallback cannot hardcode that path — it must emit an error instead.
 echo ""
-echo "--- test_fallback_final_default ---"
+echo "--- test_fallback_error_on_unset ---"
 _snapshot_fail
 
-_has_final_default=0
-grep -q 'plugins/dso' "$WORKFLOW_FILE" && _has_final_default=1 || true
-assert_eq "test_fallback_final_default: fallback includes plugins/dso default" \
-    "1" "$_has_final_default"
-assert_pass_if_clean "test_fallback_final_default"
+_has_error_exit=0
+grep -q 'exit 1' "$WORKFLOW_FILE" && _has_error_exit=1 || true
+assert_eq "test_fallback_error_on_unset: fallback exits non-zero when CLAUDE_PLUGIN_ROOT unset" \
+    "1" "$_has_error_exit"
+assert_pass_if_clean "test_fallback_error_on_unset"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

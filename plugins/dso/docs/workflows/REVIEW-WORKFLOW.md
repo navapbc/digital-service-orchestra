@@ -34,9 +34,10 @@ if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     if [[ -f "$_cfg" ]]; then
         CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$_cfg" 2>/dev/null | cut -d= -f2-)"
     fi
-    # Final fallback: assume plugin lives at plugins/dso relative to repo root
+    # Final fallback: CLAUDE_PLUGIN_ROOT must be set — see INSTALL.md
     if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
+        echo "ERROR: CLAUDE_PLUGIN_ROOT is not set. Configure it in .claude/dso-config.conf." >&2
+        exit 1
     fi
 fi
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"

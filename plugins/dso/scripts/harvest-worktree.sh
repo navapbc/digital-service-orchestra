@@ -144,10 +144,12 @@ fi
 
 # Determine session artifacts directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
+[[ ! -f "${_PLUGIN_ROOT}/hooks/lib/deps.sh" ]] && _PLUGIN_ROOT="$SCRIPT_DIR/.."
 if [[ -z "$SESSION_ARTIFACTS_DIR" ]]; then
     # Use the current repo's artifacts dir
-    if [[ -f "$SCRIPT_DIR/../hooks/lib/deps.sh" ]]; then
-        source "$SCRIPT_DIR/../hooks/lib/deps.sh"
+    if [[ -f "${_PLUGIN_ROOT}/hooks/lib/deps.sh" ]]; then
+        source "${_PLUGIN_ROOT}/hooks/lib/deps.sh"
         SESSION_ARTIFACTS_DIR=$(get_artifacts_dir 2>/dev/null || echo "")
     fi
 fi
@@ -155,7 +157,7 @@ fi
 if [[ -n "$SESSION_ARTIFACTS_DIR" ]]; then
     mkdir -p "$SESSION_ARTIFACTS_DIR"
 
-    HOOK_DIR="$SCRIPT_DIR/../hooks"
+    HOOK_DIR="${_PLUGIN_ROOT}/hooks"
 
     # Attest test gate status with post-merge diff hash (f518-bba6).
     # --attest validates the worktree's status is "passed", then writes a new

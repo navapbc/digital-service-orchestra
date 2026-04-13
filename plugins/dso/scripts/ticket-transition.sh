@@ -22,19 +22,30 @@ REDUCER="$SCRIPT_DIR/ticket-reducer.py"
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
     echo "Usage: ticket transition <ticket_id> <current_status> <target_status>" >&2
+    echo "       ticket transition <ticket_id> <target_status>  (auto-detects current status)" >&2
     echo "  current_status / target_status: open | in_progress | closed | blocked" >&2
     exit 1
 }
 
 # ── Validate arguments ───────────────────────────────────────────────────────
-if [ $# -lt 3 ]; then
+if [ $# -lt 2 ]; then
     _usage
 fi
 
 ticket_id="$1"
-current_status="$2"
-target_status="$3"
-shift 3
+if [ $# -eq 2 ]; then
+    # 2-arg convenience form: auto-detect current status from the ticket
+    current_status=$(ticket_read_status "$TRACKER_DIR" "$ticket_id" 2>/dev/null) || {
+        echo "Error: could not read current status for ticket '$ticket_id'. Provide current_status explicitly." >&2
+        _usage
+    }
+    target_status="$2"
+    shift 2
+else
+    current_status="$2"
+    target_status="$3"
+    shift 3
+fi
 
 # Parse optional --reason=<text> or --reason <text> from remaining args
 close_reason=""

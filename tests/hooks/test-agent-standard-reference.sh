@@ -29,6 +29,8 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 STANDARD_REL_PATH="plugins/dso/skills/shared/prompts/behavioral-testing-standard.md"
 STANDARD_FILE="$PLUGIN_ROOT/$STANDARD_REL_PATH"
+# Relative path used by agent files (plugin files cannot reference plugins/dso/ literally)
+STANDARD_PLUGIN_REL_PATH="skills/shared/prompts/behavioral-testing-standard.md"
 
 echo "=== test-agent-standard-reference.sh ==="
 
@@ -56,7 +58,10 @@ assert_agent_references_standard() {
 
     # Verify the path to behavioral-testing-standard.md appears in the agent file.
     # The path IS the structural contract — agents use it to locate and load the standard.
-    if grep -qF "$STANDARD_REL_PATH" "$agent_file" 2>/dev/null; then
+    # Agent files inside plugins/dso/ use the plugin-relative path (skills/shared/prompts/...)
+    # since the full path (plugins/dso/...) is blocked by check-plugin-self-ref.sh.
+    if grep -qF "$STANDARD_PLUGIN_REL_PATH" "$agent_file" 2>/dev/null || \
+       grep -qF "$STANDARD_REL_PATH" "$agent_file" 2>/dev/null; then
         assert_eq "$label_ref" "reference_present" "reference_present"
     else
         assert_eq "$label_ref" "reference_present" "reference_missing"

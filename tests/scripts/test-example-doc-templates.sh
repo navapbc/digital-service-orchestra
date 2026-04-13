@@ -39,7 +39,7 @@ fi
 
 setup_script="$PLUGIN_ROOT/plugins/dso/scripts/dso-setup.sh"
 
-if grep -q 'plugins/dso/docs/templates/KNOWN-ISSUES.md' "$setup_script" 2>/dev/null; then
+if grep -q 'docs/templates/KNOWN-ISSUES.md' "$setup_script" 2>/dev/null; then
     assert_eq "dso_setup_references_new_template" "found" "found"
 else
     assert_eq "dso_setup_references_new_template" "found" "missing"

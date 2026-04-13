@@ -394,6 +394,12 @@ PYEOF
     diff_hash_before=$(compute_hash_in_repo "$_repo" "$_artifacts")
     write_valid_review_status "$_artifacts" "$diff_hash_before"
 
+    # Sleep 1s to ensure the git index mtime changes — compute-diff-hash.sh caches
+    # keyed on (mtime, size) with second resolution. Without this, both git-add
+    # operations can land in the same second, producing a cache collision that
+    # causes the hook to return the stale "empty-diff" hash and pass incorrectly.
+    sleep 1
+
     # Now simulate a real code change after review (new function added — not just formatting)
     cat > "$_repo/feature.py" << 'PYEOF'
 def compute(x):
