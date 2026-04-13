@@ -3,7 +3,7 @@
 # Tests that plugins/dso/skills/architect-foundation/SKILL.md has the correct structure
 # for the /dso:architect-foundation scaffolding skill.
 #
-# Validates (14 named assertions):
+# Validates (29 named assertions):
 #   test_skill_file_exists: SKILL.md exists at the expected path
 #   test_frontmatter_valid: frontmatter has name=architect-foundation and user-invocable=true
 #   test_sub_agent_guard_present: Agent tool SUB-AGENT-GUARD block present (dispatches sub-agents)
@@ -18,9 +18,24 @@
 #   test_socratic_dialogue_pattern: SKILL.md must contain explicit open-ended question guidance
 #   test_no_rigid_multiple_choice: SKILL.md must explicitly warn against rigid menu-style prompts
 #   test_check_onboarding_compatibility: SKILL.md must produce artifacts detectable by check-onboarding.sh
+#   test_artifact_review_before_writing: SKILL.md must instruct presenting artifacts for user approval before writing
+#   test_diff_existing_files: SKILL.md must instruct showing diffs against existing files
+#   test_batched_file_confirmation: SKILL.md must use a single confirmation for all artifact writes
+#   test_file_summary_before_confirmation: SKILL.md must present a summary of artifacts before confirmation
+#   test_partial_failure_handling: SKILL.md must handle partial write failures gracefully
+#   test_adrs_always_generated: SKILL.md must instruct always generating ADRs without asking
+#   test_adr_session_scope: SKILL.md must specify ADRs are scoped to the current session
+#   test_adr_dedup_logic: SKILL.md must include ADR deduplication logic
+#   test_no_adr_preference_question: SKILL.md must NOT ask the user about ADR preferences
+#   test_auto_flag_support: SKILL.md must document the --auto flag
+#   test_auto_recommended_defaults: SKILL.md must instruct selecting recommended defaults in --auto mode
+#   test_auto_graceful_missing: SKILL.md must instruct graceful error when project-understanding.md is missing
+#   test_artifact_detection: SKILL.md must include artifact detection for re-run mode
+#   test_append_only_merge: SKILL.md must use append-only merge for re-run idempotency
+#   test_idempotency: SKILL.md must include idempotency guarantee for re-runs
 #
 # These are metadata/schema validation tests per the Behavioral Test Requirement exemption.
-# First 7 tests PASS with current SKILL.md; last 7 tests are RED until SKILL.md is updated.
+# First 7 tests PASS with current SKILL.md; last 22 tests are RED until SKILL.md is updated.
 #
 # Usage: bash tests/skills/test-architect-foundation-skill.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -289,5 +304,191 @@ test_diff_existing_files() {
 # RED artifact review tests — these fail until SKILL.md is updated
 test_artifact_review_before_writing
 test_diff_existing_files
+
+# test_batched_file_confirmation: SKILL.md must use a single confirmation for all artifact writes
+# Greps for 'single.*confirmation' — the batched UX uses one confirmation prompt for all files
+test_batched_file_confirmation() {
+    _snapshot_fail
+    local confirm_found
+    confirm_found="missing"
+    if grep -qiE "single.*confirmation" "$SKILL_MD" 2>/dev/null; then
+        confirm_found="found"
+    fi
+    assert_eq "test_batched_file_confirmation" "found" "$confirm_found"
+    assert_pass_if_clean "test_batched_file_confirmation"
+}
+
+# test_file_summary_before_confirmation: SKILL.md must present a summary of artifacts before confirmation
+# Greps for 'summary.*artifact'
+test_file_summary_before_confirmation() {
+    _snapshot_fail
+    local summary_found
+    summary_found="missing"
+    if grep -qiE "summary.*artifact" "$SKILL_MD" 2>/dev/null; then
+        summary_found="found"
+    fi
+    assert_eq "test_file_summary_before_confirmation" "found" "$summary_found"
+    assert_pass_if_clean "test_file_summary_before_confirmation"
+}
+
+# test_partial_failure_handling: SKILL.md must handle partial write failures gracefully
+# Greps for 'partial.*fail'
+test_partial_failure_handling() {
+    _snapshot_fail
+    local partial_found
+    partial_found="missing"
+    if grep -qiE "partial.*fail" "$SKILL_MD" 2>/dev/null; then
+        partial_found="found"
+    fi
+    assert_eq "test_partial_failure_handling" "found" "$partial_found"
+    assert_pass_if_clean "test_partial_failure_handling"
+}
+
+test_batched_file_confirmation
+test_file_summary_before_confirmation
+test_partial_failure_handling
+
+# test_adrs_always_generated: SKILL.md must instruct always generating ADRs without asking
+# Greps for 'always generate.*adr'
+test_adrs_always_generated() {
+    _snapshot_fail
+    local adrs_found
+    adrs_found="missing"
+    if grep -qiE "always generate.*adr" "$SKILL_MD" 2>/dev/null; then
+        adrs_found="found"
+    fi
+    assert_eq "test_adrs_always_generated" "found" "$adrs_found"
+    assert_pass_if_clean "test_adrs_always_generated"
+}
+
+# test_adr_session_scope: SKILL.md must specify ADRs are scoped to the current session
+# Greps for 'generat.*adr.*session'
+test_adr_session_scope() {
+    _snapshot_fail
+    local session_found
+    session_found="missing"
+    if grep -qiE "generat.*adr.*session" "$SKILL_MD" 2>/dev/null; then
+        session_found="found"
+    fi
+    assert_eq "test_adr_session_scope" "found" "$session_found"
+    assert_pass_if_clean "test_adr_session_scope"
+}
+
+# test_adr_dedup_logic: SKILL.md must include ADR deduplication logic
+# Greps for 'dedup|deduplication'
+test_adr_dedup_logic() {
+    _snapshot_fail
+    local dedup_found
+    dedup_found="missing"
+    if grep -qiE "dedup|deduplication" "$SKILL_MD" 2>/dev/null; then
+        dedup_found="found"
+    fi
+    assert_eq "test_adr_dedup_logic" "found" "$dedup_found"
+    assert_pass_if_clean "test_adr_dedup_logic"
+}
+
+# test_no_adr_preference_question: SKILL.md must NOT ask the user about ADR preferences
+# (ADRs are always generated — this question is removed from the Question Bank)
+# NEGATIVE test: 'ADR preference' must NOT appear in SKILL.md
+test_no_adr_preference_question() {
+    _snapshot_fail
+    local adr_pref_found
+    adr_pref_found="not-referenced"
+    if grep -q "ADR preference" "$SKILL_MD" 2>/dev/null; then
+        adr_pref_found="referenced"
+    fi
+    assert_eq "test_no_adr_preference_question" "not-referenced" "$adr_pref_found"
+    assert_pass_if_clean "test_no_adr_preference_question"
+}
+
+test_adrs_always_generated
+test_adr_session_scope
+test_adr_dedup_logic
+test_no_adr_preference_question
+
+# test_auto_flag_support: SKILL.md must document the --auto flag
+# Greps for '--auto'
+test_auto_flag_support() {
+    _snapshot_fail
+    local auto_found
+    auto_found="missing"
+    if grep -qiE -- "--auto" "$SKILL_MD" 2>/dev/null; then
+        auto_found="found"
+    fi
+    assert_eq "test_auto_flag_support" "found" "$auto_found"
+    assert_pass_if_clean "test_auto_flag_support"
+}
+
+# test_auto_recommended_defaults: SKILL.md must instruct selecting recommended defaults in --auto mode
+# Greps for 'recommend.*default'
+test_auto_recommended_defaults() {
+    _snapshot_fail
+    local defaults_found
+    defaults_found="missing"
+    if grep -qiE "recommend.*default" "$SKILL_MD" 2>/dev/null; then
+        defaults_found="found"
+    fi
+    assert_eq "test_auto_recommended_defaults" "found" "$defaults_found"
+    assert_pass_if_clean "test_auto_recommended_defaults"
+}
+
+# test_auto_graceful_missing: SKILL.md must instruct graceful error when project-understanding.md is missing
+# Greps for 'actionable.*error'
+test_auto_graceful_missing() {
+    _snapshot_fail
+    local graceful_found
+    graceful_found="missing"
+    if grep -qiE "actionable.*error" "$SKILL_MD" 2>/dev/null; then
+        graceful_found="found"
+    fi
+    assert_eq "test_auto_graceful_missing" "found" "$graceful_found"
+    assert_pass_if_clean "test_auto_graceful_missing"
+}
+
+# test_artifact_detection: SKILL.md must include artifact detection for re-run mode
+# Greps for 'artifact.*detection|detect.*artifact'
+test_artifact_detection() {
+    _snapshot_fail
+    local detect_found
+    detect_found="missing"
+    if grep -qiE "artifact.*detection|detect.*artifact" "$SKILL_MD" 2>/dev/null; then
+        detect_found="found"
+    fi
+    assert_eq "test_artifact_detection" "found" "$detect_found"
+    assert_pass_if_clean "test_artifact_detection"
+}
+
+# test_append_only_merge: SKILL.md must use append-only merge for re-run idempotency
+# Greps for 'append.only|append-only'
+test_append_only_merge() {
+    _snapshot_fail
+    local append_found
+    append_found="missing"
+    if grep -qiE "append.only|append-only" "$SKILL_MD" 2>/dev/null; then
+        append_found="found"
+    fi
+    assert_eq "test_append_only_merge" "found" "$append_found"
+    assert_pass_if_clean "test_append_only_merge"
+}
+
+# test_idempotency: SKILL.md must include idempotency guarantee for re-runs
+# Greps for 'idempotent|idempotency'
+test_idempotency() {
+    _snapshot_fail
+    local idempotent_found
+    idempotent_found="missing"
+    if grep -qiE "idempotent|idempotency" "$SKILL_MD" 2>/dev/null; then
+        idempotent_found="found"
+    fi
+    assert_eq "test_idempotency" "found" "$idempotent_found"
+    assert_pass_if_clean "test_idempotency"
+}
+
+test_auto_flag_support
+test_auto_recommended_defaults
+test_auto_graceful_missing
+test_artifact_detection
+test_append_only_merge
+test_idempotency
 
 print_summary
