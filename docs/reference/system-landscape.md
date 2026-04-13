@@ -1,5 +1,5 @@
 ---
-last_synced_commit: 1e96b53e4cb26f4d33825ca0a97fe18c97fbe451
+last_synced_commit: f46104dc4e5b724d9e79d01681b734e482fa8e4b
 ---
 
 # System Landscape Reference
@@ -153,3 +153,47 @@ Dev-team artifacts belong in project-local directories and are never shipped as 
 **Graceful degradation**: When `test_quality.tool=semgrep` and Semgrep is not installed, the gate logs a warning and exits 0. It does not fall back to `bash-grep` automatically — set `test_quality.tool=bash-grep` explicitly for zero-dependency detection.
 
 **Hook registration**: `.pre-commit-config.yaml` entry `pre-commit-test-quality-gate`. Runs at `pre-commit` stage on files matching `^tests/`.
+
+## Stack-Aware Config Pre-Fill (prefill-config.sh)
+
+`plugins/dso/scripts/prefill-config.sh` populates the four `commands.*` keys in `.claude/dso-config.conf` with stack-appropriate defaults. It is invoked by `/dso:architect-foundation` at Step 0.75, before enforcement scaffolding is generated.
+
+**Invocation**: `.claude/scripts/dso prefill-config.sh [--project-dir <dir>]`
+
+**Behavior**:
+- Calls `detect-stack.sh` internally to determine the active stack.
+- Writes `commands.test_runner`, `commands.lint`, `commands.format`, and `commands.format_check` into the active `dso-config.conf`.
+- Keys that already have a non-empty value are skipped with an informational message — safe to re-run.
+- Stacks without defined defaults (`rust-cargo`, `golang`, `convention-based`, `unknown`) write empty values with an inline comment prompting the user to fill them manually.
+
+**Per-stack defaults**:
+
+| Stack | `commands.test_runner` | `commands.lint` | `commands.format` | `commands.format_check` |
+|-------|------------------------|-----------------|-------------------|-------------------------|
+| `python-poetry` | `pytest` | `ruff check .` | `ruff format .` | `ruff format --check .` |
+| `node-npm` | `npx jest` | `npx eslint .` | `npx prettier --write .` | `npx prettier --check .` |
+| `ruby-rails` / `ruby-jekyll` | `bundle exec rspec` | `bundle exec rubocop` | `bundle exec rubocop -A` | `bundle exec rubocop --format simple` |
+| `rust-cargo` / `golang` / `convention-based` / `unknown` | _(none — fill manually)_ | _(none — fill manually)_ | _(none — fill manually)_ | _(none — fill manually)_ |
+
+**Config file resolution**: same as `read-config.sh` — `$WORKFLOW_CONFIG_FILE` if set (test isolation), otherwise `$(git rev-parse --show-toplevel)/.claude/dso-config.conf`.
+
+ADR: `docs/adr/0007-stack-aware-architect-foundation.md`
+
+## CI Skeleton Templates (hashFiles)
+
+`/dso:architect-foundation` provides per-stack GitHub Actions step blocks for use when generating CI configuration. Each block is structurally isolated with its own `if: hashFiles(...)` conditional and operates independently of other language ecosystem blocks.
+
+**Rules for inclusion**:
+- Include only the block(s) whose dependency files exist in the target project.
+- Do not interleave `hashFiles()` arguments across ecosystems (e.g., do not combine Python and Node paths in a single `if:` expression).
+- All `hashFiles()` paths are root-relative (no leading `./` or `/`).
+
+**Supported stacks**:
+
+| Stack | Trigger files | Action |
+|-------|---------------|--------|
+| Python | `requirements.txt`, `pyproject.toml` | `actions/setup-python@v5` |
+| Node | `package-lock.json`, `yarn.lock` | `actions/setup-node@v4` |
+| Ruby | `Gemfile.lock`, `Gemfile` | `ruby/setup-ruby@v1` |
+
+Template source: `plugins/dso/skills/architect-foundation/SKILL.md` — CI Skeleton Templates section.

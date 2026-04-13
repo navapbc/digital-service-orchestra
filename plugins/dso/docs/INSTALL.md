@@ -140,6 +140,7 @@ except `version`. Below are the most commonly needed keys for initial setup:
 | `version` | required | Config schema version (required, e.g. `1.0.0`) |
 | `stack` | auto-detected | Project stack (`python-poetry`, `node-npm`, `rust-cargo`, `golang`, `convention-based`). Auto-detected if absent. |
 | `commands.test` | stack-derived | Full test suite command |
+| `commands.test_runner` | stack-derived | Per-file test runner command (used by test-batching infrastructure; pre-filled by `prefill-config.sh`) |
 | `commands.lint` | stack-derived | Linter command |
 | `commands.format` | stack-derived | Auto-formatter command |
 | `dso.plugin_root` | set by `dso-setup.sh` | Absolute path to DSO plugin. Written by `dso-setup.sh`; rarely set manually. |
