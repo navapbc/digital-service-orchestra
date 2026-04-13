@@ -357,7 +357,24 @@ After the scrutiny pipeline returns, check whether the epic spec contains a `## 
 4. **If `feasibility_cycle_count >= max_feasibility_cycles`**: Escalate to the user. Present the unresolved gap and ask whether to proceed with the gap noted, abort, or manually adjust the spec. Log: `"FEASIBILITY_GAP unresolved after {max_feasibility_cycles} cycles — escalating to user."`
 5. Expose `feasibility_cycle_count` as a named state variable for Story 4 (7067-dae6) to consume in the log extensions.
 
-**If FEASIBILITY_GAP is NOT present:** Continue to Step 4 (Approval Gate) normally.
+**If FEASIBILITY_GAP is NOT present:** Continue to the SC Gap Check below.
+
+#### SC Gap Check
+
+After the scrutiny pipeline completes (with no unresolved FEASIBILITY_GAP), inspect the surviving scenario set for Success Criteria coverage gaps. A coverage gap exists when a scenario describes a user outcome that is not explicitly addressed by any current SC.
+
+**Procedure:**
+
+1. Re-read the current SCs and the Scenario Analysis section of the epic spec.
+2. For each surviving scenario, check whether at least one SC covers the scenario's core user outcome (what the user achieves, not how).
+3. **If no gaps found:** Proceed to Step 4 (Approval Gate) normally.
+4. **If gaps found:** For each gap, draft a revised or new SC that addresses the uncovered outcome. Then present the proposed SC revisions to the user for re-approval via `AskUserQuestion`:
+
+   > "Scenario analysis identified the following SC gaps: [list gaps with proposed SC revisions]. Do you want to (a) Accept the revised SCs and continue, (b) Modify the proposed revisions, or (c) Skip SC revision and continue with the original SCs?"
+
+   - **(a) Accept:** Apply the revised SCs to the epic spec (update the `## Success Criteria` section via `ticket edit --description`). Then proceed to Step 4.
+   - **(b) Modify:** Incorporate user changes, present again.
+   - **(c) Skip:** Log `"SC gap check: user opted to skip revision."` and proceed to Step 4 with original SCs.
 
 ### Step 4: Approval Gate
 
@@ -366,6 +383,7 @@ Do NOT present this gate unless ALL of the following have completed or gracefull
 - Step 2.5: Gap analysis (self-review)
 - Step 2.6: Web research phase (run OR skipped with a logged rationale per Step 2.6 graceful degradation rules)
 - Step 2.75: Scenario analysis (run OR skipped because ≤2 success criteria)
+- SC Gap Check: scenario-to-SC coverage verified; SCs revised if gaps found, or skip logged
 - Step 3: Fidelity review (all three core reviewers completed or escalated to user)
 
 If any of the above has NOT completed, stop and execute it before presenting this gate. The user's ability to request a re-run via option (b) or (c) is for second-pass cycles only — it does not substitute for a mandatory first pass.

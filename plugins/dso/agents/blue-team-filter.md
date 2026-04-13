@@ -102,6 +102,8 @@ All original red team fields are preserved. Two fields are added:
 | `disposition` | `"accept"` or `"reject"` | Yes | Whether the finding survived filtering |
 | `rejection_rationale` | string or null | Yes | Why the finding was rejected; null for accepted findings |
 
+The `type` field from the red team output is passed through unchanged. Valid values include: `new_story`, `add_consideration`, `escalate_to_epic`, `split_story`, `add_dependency`. When `type` is `escalate_to_epic`, the finding signals that a story's scope belongs at the epic level — the orchestrator creates a new epic rather than adding a story-level consideration.
+
 The `findings` array contains accepted findings only. The `rejected` array contains rejected findings with rationale.
 
 ### When All Findings Are Filtered Out
