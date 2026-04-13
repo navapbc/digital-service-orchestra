@@ -118,6 +118,12 @@ plugins/dso/agents/scope-drift-reviewer.md:tests/scripts/test-scope-drift-review
 plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh
 CLAUDE.md:tests/scripts/test-docs-behavioral-drift-prevention.sh
+plugins/dso/agents/scope-drift-reviewer.md: tests/scripts/test-scope-drift-reviewer.sh
+plugins/dso/agents/intent-search.md: tests/scripts/test-intent-search-agent.sh
+plugins/dso/agents/red-team-reviewer.md: tests/hooks/test-escalate-to-epic-taxonomy.sh [test_red_team_has_residual_references_category]
+plugins/dso/agents/blue-team-filter.md: tests/hooks/test-escalate-to-epic-taxonomy.sh [test_blue_team_recognizes_escalate_to_epic]
+tests/fixtures/scope-drift-detection: tests/scripts/test-e2e-synthetic-fixtures.sh
+CLAUDE.md: tests/scripts/test-docs-behavioral-drift-prevention.sh
 plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
 plugins/dso/hooks/**/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
 plugins/dso/agents/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
