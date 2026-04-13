@@ -158,9 +158,4 @@ plugins/dso/hooks/check-artifact-versions.sh:tests/scripts/test-artifact-update-
 plugins/dso/scripts/update-artifacts.sh:tests/scripts/test-artifact-update-integration.sh
 plugins/dso/docs/DEPENDENCY-GUIDANCE.md:tests/docs/test-doc-polyglot-compliance.sh
 plugins/dso/scripts/prefill-config.sh:tests/unit/scripts/test-prefill-config.sh
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_auto_flag_support]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_auto_recommended_defaults]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_auto_graceful_missing]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_artifact_detection]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_append_only_merge]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_idempotency]
+

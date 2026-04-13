@@ -27,6 +27,16 @@ Role: **Google Senior Staff Software Architect** specializing in Evolutionary Ar
 
 **Supports dryrun mode.** Use `/dso:dryrun /dso:architect-foundation` to preview without changes.
 
+## --auto Mode
+
+When invoked as `/dso:architect-foundation --auto`:
+
+1. **Skip Phase 1 Socratic dialogue** — do not ask any questions from the Question Bank
+2. **Select recommended defaults** for all scaffolding decisions based on the project-understanding.md analysis
+3. **Proceed directly to Phase 2** with the selected defaults
+4. **Report selected defaults** in a summary table before generating artifacts so the user can see what was chosen
+5. **Graceful error**: If project-understanding.md is missing or incomplete, emit an actionable error message listing which fields are needed (do not silently proceed with assumptions)
+
 ## Workflow Overview
 
 ```
@@ -54,6 +64,8 @@ Flow: P0 (Read project-understanding.md) → P1 (Socratic gap-fill)
 3. **Identify gaps**: Determine which Phase 1 questions (see below) are NOT answered by `project-understanding.md`. Only those gaps will be addressed through Socratic dialogue.
 
 4. **Do NOT re-run stack detection scripts** — that work was already done by `/dso:onboarding` and is captured in `project-understanding.md`. Re-running detection is wasteful and can produce conflicting results.
+
+5. **Artifact detection**: Check whether enforcement artifacts from a previous run already exist (look for ARCH_ENFORCEMENT.md or docs/adr/ directory). If existing artifacts are detected, notify the user and proceed in re-run mode (see Phase 2.9).
 
 **Starting message to user:** "I've read `.claude/project-understanding.md`. I already know: [list 3-5 key facts from the file with sources]. I have [N] questions to ask before generating your enforcement scaffolding."
 
@@ -179,6 +191,16 @@ Always generate ADRs for all architectural decisions made during this session �
 **Format**: Follow the ADR format at docs/adr/NNNN-decision-title.md — title, status (Accepted), context, decision, consequences.
 
 **Deduplication**: Key deduplication on decision topic. If docs/adr/ already contains an ADR for the same decision topic, append the new context as a revision note rather than creating a duplicate file.
+
+## Phase 2.9: Re-Run Idempotency
+
+When re-running `/dso:architect-foundation` on a project that already has enforcement artifacts:
+
+1. **Detect existing artifacts** (Phase 0 Step 5 result)
+2. **Append-only merge**: Do not overwrite existing enforcement rules — append new rules discovered in the current session
+3. **Skip duplicates**: If an identical rule already exists in ARCH_ENFORCEMENT.md, do not add it again (idempotency)
+4. **ADR deduplication**: Apply the same deduplication logic from Phase 2.8 — key on decision topic, append revision note if topic already has an ADR
+5. **Report changes**: After writing, summarize what was added vs. what already existed
 
 ## Phase 3: The Enforcer (Deterministic Guardrails)
 
