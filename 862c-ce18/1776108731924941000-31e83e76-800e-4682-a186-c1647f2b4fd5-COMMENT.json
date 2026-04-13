@@ -1,1 +1,0 @@
-{"timestamp": 1776108731924941000, "uuid": "31e83e76-800e-4682-a186-c1647f2b4fd5", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: Step 0 GHA pre-scan added to debug-everything SKILL.md \u2014 gha-scanner.md shared prompt created, 15 structural boundary tests pass, config keys added to dso-config.conf"}}
