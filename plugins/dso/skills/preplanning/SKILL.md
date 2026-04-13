@@ -33,8 +33,8 @@ echo "{\"type\":\"SKILL_ENTER\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ 2>
 Immediately after the SKILL_ENTER breadcrumb, read the interactive mode flag:
 
 ```bash
-PLUGIN_SCRIPTS="$(git rev-parse --show-toplevel)/.claude/scripts"
-PREPLANNING_INTERACTIVE=$(bash "$PLUGIN_SCRIPTS/dso" read-config preplanning.interactive 2>/dev/null || echo 'true')
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+PREPLANNING_INTERACTIVE=$(bash "$PLUGIN_SCRIPTS/read-config.sh" preplanning.interactive 2>/dev/null || echo 'true')  # shim-exempt: internal orchestration script
 PREPLANNING_INTERACTIVE=$(echo "$PREPLANNING_INTERACTIVE" | tr '[:upper:]' '[:lower:]')
 # Default: true (interactive) when the key is absent or empty
 if [[ -z "$PREPLANNING_INTERACTIVE" ]]; then
