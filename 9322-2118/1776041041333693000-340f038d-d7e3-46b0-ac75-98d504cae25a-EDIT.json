@@ -1,1 +1,0 @@
-{"timestamp": 1776041041333693000, "uuid": "340f038d-d7e3-46b0-ac75-98d504cae25a", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "ticket CLI: transition requires 3 positional args -> agents call with 2 and get cryptic error"}}}
