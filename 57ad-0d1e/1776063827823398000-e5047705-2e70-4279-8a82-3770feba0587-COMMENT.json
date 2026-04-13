@@ -1,0 +1,1 @@
+{"timestamp": 1776063827823398000, "uuid": "e5047705-2e70-4279-8a82-3770feba0587", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT:batch-complete \u2014 Done \u2713 \u2014 Files: plugins/dso/scripts/dso-setup.sh. Tests: 73 passed, 0 failed. All AC verified."}}
