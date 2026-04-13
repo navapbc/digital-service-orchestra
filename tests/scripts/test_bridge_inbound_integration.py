@@ -283,9 +283,11 @@ def test_process_inbound_writes_bridge_alert_for_unmapped_type(
         config=config,
     )
 
-    # CREATE event should exist
+    # CREATE event must NOT exist — unmapped types are skipped (2b6a-0a37)
     create_count = _count_event_files(tracker_dir, "*-CREATE.json")
-    assert create_count == 1, f"Expected 1 CREATE event, got {create_count}"
+    assert create_count == 0, (
+        f"Expected 0 CREATE events for unmapped type, got {create_count}"
+    )
 
     # BRIDGE_ALERT event should exist
     alert_count = _count_event_files(tracker_dir, "*-BRIDGE_ALERT.json")
@@ -300,6 +302,56 @@ def test_process_inbound_writes_bridge_alert_for_unmapped_type(
         or "type" in alert_data["reason"].lower()
     )
     assert alert_data["env_id"] == _BRIDGE_ENV_ID
+
+
+# ---------------------------------------------------------------------------
+# Test: Unmapped type — no CREATE event should be written (bug 2b6a-0a37)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_process_inbound_does_not_create_event_for_unmapped_type(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """A Jira issue with an unmapped type should NOT produce a CREATE event (2b6a-0a37).
+
+    When process_inbound encounters an issue whose issuetype has no mapping in
+    type_mapping, it writes a BRIDGE_ALERT but must NOT also write a CREATE event.
+    Creating a local ticket for an issue we cannot classify causes undefined
+    behavior downstream (ticket-reducer treats it as type 'None').
+    """
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+
+    checkpoint_file = tmp_path / "checkpoint.json"
+    checkpoint_file.write_text(json.dumps({"last_pull_ts": _LAST_PULL_TS}))
+
+    issues = [
+        _make_jira_issue("DSO-99", summary="Unknown type issue", issue_type="Custom"),
+    ]
+    mock_acli = _make_mock_acli(issues)
+    config = _make_config(str(checkpoint_file))
+
+    bridge.process_inbound(
+        tickets_root=tracker_dir,
+        acli_client=mock_acli,
+        last_pull_ts=_LAST_PULL_TS,
+        config=config,
+    )
+
+    # BRIDGE_ALERT must still be written
+    alert_count = _count_event_files(tracker_dir, "*-BRIDGE_ALERT.json")
+    assert alert_count == 1, (
+        f"Expected 1 BRIDGE_ALERT for unmapped type, got {alert_count}"
+    )
+
+    # CREATE event must NOT be written — unmapped type cannot be locally classified
+    create_count = _count_event_files(tracker_dir, "*-CREATE.json")
+    assert create_count == 0, (
+        f"OUTBOUND inbound must NOT write a CREATE event for unmapped issue types (2b6a-0a37). "
+        f"Got {create_count} CREATE event(s)."
+    )
 
 
 # ---------------------------------------------------------------------------

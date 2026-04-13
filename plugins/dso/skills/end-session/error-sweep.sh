@@ -232,11 +232,23 @@ sweep_validation_failures() {
         return 0
     fi
 
-    # Collect unique non-empty categories from the log
+    # Collect unique non-empty categories from the log.
+    # Supports two log line formats:
+    #   Structured: "TIMESTAMP | UNTRACKED | CATEGORY | logfile: PATH"
+    #               (written by check-validation-failures.sh)
+    #   Simple:     "CATEGORY"
+    #               (used by tests and direct log writes)
     local categories=()
     while IFS= read -r line; do
+        local trimmed
+        # Parse structured format first: extract CATEGORY from "... | UNTRACKED | CATEGORY | ..."
+        if [[ "$line" =~ \|[[:space:]]*UNTRACKED[[:space:]]*\|[[:space:]]*([^|]+)\| ]]; then
+            trimmed="${BASH_REMATCH[1]}"
+        else
+            trimmed="$line"
+        fi
         # Strip leading/trailing whitespace
-        local trimmed="${line#"${line%%[![:space:]]*}"}"
+        trimmed="${trimmed#"${trimmed%%[![:space:]]*}"}"
         trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
         [[ -z "$trimmed" ]] && continue
 

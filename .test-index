@@ -24,7 +24,7 @@ plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/docs/test_sub_agent_boundaries_an
 plugins/dso/docs/templates/KNOWN-ISSUES.md:tests/scripts/test-known-issues-smoke.sh,tests/scripts/test-known-issues-template.sh
 plugins/dso/docs/workflow-config-schema.json:tests/scripts/test-workflow-config-schema.sh
 plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow-step-1-5.sh,tests/scripts/test-emit-commit-workflow-event.sh
-plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh,tests/docs/test-reviewer-base-repo-root-context.sh
+plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh,tests/docs/test-reviewer-base-repo-root-context.sh,tests/scripts/test-reviewer-agent-review-tier.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
 plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/hooks/test-review-protocol-workflow.sh,tests/skills/test_review_workflow_model_escalation.py
 plugins/dso/docs/workflows/TEST-FAILURE-DISPATCH.md:plugins/dso/skills/sprint/prompts/test-failure-dispatch-protocol.md
@@ -123,6 +123,8 @@ plugins/dso/hooks/**/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
 plugins/dso/agents/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
 plugins/dso/docs/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
 plugins/dso/skills/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
-plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh [test_no_plugin_runtime_refs]
-plugins/dso/hooks/**/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh [test_no_plugin_runtime_refs]
+plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh
+plugins/dso/hooks/**/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh
 plugins/dso/scripts/harvest-worktree.sh:tests/scripts/test-harvest-worktree.sh
+plugins/dso/scripts/build-review-agents.sh:tests/unit/scripts/test-build-review-agents.sh,tests/scripts/test-reviewer-agent-review-tier.sh
+.github/workflows/inbound-bridge.yml:tests/scripts/test-inbound-bridge-push-retry.sh

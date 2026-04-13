@@ -441,7 +441,7 @@ print(len(issues))
         log_verbose "Total ticket count: $total_count (within healthy range)"
     fi
 
-    echo $total_count
+    echo "$total_count"
 }
 
 # Check for tasks that are dependencies but should be children

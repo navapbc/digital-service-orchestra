@@ -651,6 +651,10 @@ def process_inbound(
     except Exception:
         ticket_reducer = None  # type: ignore[assignment]
 
+    # Jira keys whose types could not be mapped — excluded from write_create_events
+    # to prevent creating unclassifiable local tickets (2b6a-0a37).
+    _unmapped_type_keys: set[str] = set()
+
     # Process each issue: normalize, check mappings, write alerts/events
     for issue in issues:
         issue = normalize_timestamps(issue)
@@ -844,6 +848,12 @@ def process_inbound(
                 tickets_root=tickets_root,
                 bridge_env_id=bridge_env_id,
             )
+            # Skip creating a local ticket for unclassifiable types (2b6a-0a37).
+            # Mark key for exclusion from write_create_events; continue skips
+            # in-loop link/status processing for this issue as well.
+            if issue.get("key"):
+                _unmapped_type_keys.add(issue["key"])
+            continue
 
         # Process Jira issue links — write local LINK events for "Relates" links;
         # attempt to set relationships in Jira for all other link types.
@@ -925,9 +935,14 @@ def process_inbound(
                                     bridge_env_id=bridge_env_id,
                                 )
 
-    # Write CREATE events for new issues
+    # Write CREATE events for new issues — exclude unmapped-type keys (2b6a-0a37)
+    creatable_issues = (
+        [i for i in issues if i.get("key") not in _unmapped_type_keys]
+        if _unmapped_type_keys
+        else issues
+    )
     write_create_events(
-        issues,
+        creatable_issues,
         tickets_tracker=tickets_root,
         bridge_env_id=bridge_env_id,
         run_id=run_id,

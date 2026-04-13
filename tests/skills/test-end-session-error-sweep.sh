@@ -725,4 +725,41 @@ assert_pass_if_clean "test_ticket_deduplicates_error_details"
 trap - EXIT
 _teardown_test
 
+# ---------------------------------------------------------------------------
+# test_validation_sweep_parses_structured_log_format
+# check-validation-failures.sh writes structured log lines:
+#   "TIMESTAMP | UNTRACKED | CATEGORY | logfile: PATH"
+# sweep_validation_failures must extract just CATEGORY for the ticket title.
+# RED condition: sweep creates "Untracked validation failure: TIMESTAMP | UNTRACKED | hook-drift | ..."
+#               instead of "Untracked validation failure: hook-drift" (bug 7490-9b62)
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+export ARTIFACTS_DIR="$TEST_HOME/artifacts"
+mkdir -p "$ARTIFACTS_DIR"
+# Write structured log line — this is the actual format check-validation-failures.sh uses
+echo "2026-04-12T12:00:00Z | UNTRACKED | hook-drift | logfile: /tmp/validate.log" \
+    > "$ARTIFACTS_DIR/untracked-validation-failures.log"
+_mock_ticket_list_empty
+_run_sweep_validation
+# Ticket should have been created
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_validation_sweep_parses_structured_log_format_creates" "1" "$create_calls"
+# The ticket title must contain just "hook-drift" — not the timestamp or logfile path
+_tk_log_content=$(cat "$TK_LOG" 2>/dev/null || echo "")
+_title_has_hook_drift="no"
+_title_has_timestamp="no"
+if echo "$_tk_log_content" | grep -q "hook-drift"; then
+    _title_has_hook_drift="yes"
+fi
+if echo "$_tk_log_content" | grep -q "2026-04-12T"; then
+    _title_has_timestamp="yes"
+fi
+assert_eq "test_validation_sweep_parses_structured_log_format_title" "yes" "$_title_has_hook_drift"
+assert_eq "test_validation_sweep_parses_structured_log_no_timestamp_in_title" "no" "$_title_has_timestamp"
+assert_pass_if_clean "test_validation_sweep_parses_structured_log_format"
+trap - EXIT
+_teardown_test
+
 print_summary

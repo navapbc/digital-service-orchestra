@@ -234,7 +234,7 @@ other's output.
 REPO_ROOT=$(git rev-parse --show-toplevel)
 _OUTPUT_FLAG=""
 [[ -n "${FINDINGS_OUTPUT:-}" ]] && _OUTPUT_FLAG="--output $FINDINGS_OUTPUT"
-REVIEWER_HASH=$(cat <<'FINDINGS_EOF' | "$REPO_ROOT/.claude/scripts/dso" write-reviewer-findings.sh $_OUTPUT_FLAG
+REVIEWER_HASH=$(cat <<'FINDINGS_EOF' | "$REPO_ROOT/.claude/scripts/dso" write-reviewer-findings.sh $_OUTPUT_FLAG --review-tier {{CANONICAL_TIER}}
 <your complete JSON here>
 FINDINGS_EOF
 )
