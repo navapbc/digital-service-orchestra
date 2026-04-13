@@ -127,4 +127,56 @@ fi
 assert_eq "test_marketplace_json_plugin_name_matches_plugin_json: plugins[0].name matches plugin.json name" "match" "$actual_match"
 assert_pass_if_clean "test_marketplace_json_plugin_name_matches_plugin_json"
 
+# ── test_stamp_format_consistent (57ad-0d1e) ─────────────────────────────────
+# RED phase: FAILS until stamp_artifact() is implemented in dso-setup.sh.
+# After dso-setup.sh runs on a temp dir, all 4 installed artifacts must:
+#   (a) have a version stamp present
+#   (b) share the same version string
+#   (c) text artifacts (shim, config) use `# dso-version: <ver>`
+#   (d) YAML artifacts (pre-commit, ci) use `x-dso-version: <ver>`
+#   (e) the stamped version matches plugin.json
+SETUP_SCRIPT="$DSO_PLUGIN_DIR/scripts/dso-setup.sh"
+_STAMP_TMPDIR=$(mktemp -d)
+trap 'rm -rf "$_STAMP_TMPDIR"' EXIT
+
+_snapshot_fail
+bash "$SETUP_SCRIPT" "$_STAMP_TMPDIR" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
+
+# Extract plugin.json version
+_plugin_ver=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON'))['version'])" 2>/dev/null || echo "")
+
+# Extract stamps from each artifact
+_shim_stamp=$(grep '# dso-version:' "$_STAMP_TMPDIR/.claude/scripts/dso" 2>/dev/null | head -1 | sed 's/.*# dso-version: *//' | tr -d '[:space:]')
+_conf_stamp=$(grep '# dso-version:' "$_STAMP_TMPDIR/.claude/dso-config.conf" 2>/dev/null | head -1 | sed 's/.*# dso-version: *//' | tr -d '[:space:]')
+_precommit_stamp=$(grep '^x-dso-version:' "$_STAMP_TMPDIR/.pre-commit-config.yaml" 2>/dev/null | head -1 | sed 's/x-dso-version: *//' | tr -d '[:space:]')
+_ci_stamp=$(grep '^x-dso-version:' "$_STAMP_TMPDIR/.github/workflows/ci.yml" 2>/dev/null | head -1 | sed 's/x-dso-version: *//' | tr -d '[:space:]')
+
+# All 4 stamps must be present
+if [[ -n "$_shim_stamp" ]]; then actual_shim="present"; else actual_shim="missing"; fi
+assert_eq "test_stamp_format_consistent: shim has # dso-version stamp" "present" "$actual_shim"
+
+if [[ -n "$_conf_stamp" ]]; then actual_conf="present"; else actual_conf="missing"; fi
+assert_eq "test_stamp_format_consistent: config has # dso-version stamp" "present" "$actual_conf"
+
+if [[ -n "$_precommit_stamp" ]]; then actual_pre="present"; else actual_pre="missing"; fi
+assert_eq "test_stamp_format_consistent: pre-commit has x-dso-version stamp" "present" "$actual_pre"
+
+if [[ -n "$_ci_stamp" ]]; then actual_ci="present"; else actual_ci="missing"; fi
+assert_eq "test_stamp_format_consistent: ci.yml has x-dso-version stamp" "present" "$actual_ci"
+
+# All version strings must match plugin.json
+if [[ -n "$_plugin_ver" && "$_shim_stamp" == "$_plugin_ver" ]]; then actual_match_shim="match"; else actual_match_shim="mismatch"; fi
+assert_eq "test_stamp_format_consistent: shim version matches plugin.json" "match" "$actual_match_shim"
+
+if [[ -n "$_plugin_ver" && "$_conf_stamp" == "$_plugin_ver" ]]; then actual_match_conf="match"; else actual_match_conf="mismatch"; fi
+assert_eq "test_stamp_format_consistent: config version matches plugin.json" "match" "$actual_match_conf"
+
+if [[ -n "$_plugin_ver" && "$_precommit_stamp" == "$_plugin_ver" ]]; then actual_match_pre="match"; else actual_match_pre="mismatch"; fi
+assert_eq "test_stamp_format_consistent: pre-commit version matches plugin.json" "match" "$actual_match_pre"
+
+if [[ -n "$_plugin_ver" && "$_ci_stamp" == "$_plugin_ver" ]]; then actual_match_ci="match"; else actual_match_ci="mismatch"; fi
+assert_eq "test_stamp_format_consistent: ci.yml version matches plugin.json" "match" "$actual_match_ci"
+
+assert_pass_if_clean "test_stamp_format_consistent"
+
 print_summary

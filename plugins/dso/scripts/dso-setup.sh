@@ -101,6 +101,9 @@ set -- "${_args_filtered[@]+"${_args_filtered[@]}"}"
 TARGET_REPO="${1:-$(git rev-parse --show-toplevel)}"
 PLUGIN_ROOT="${2:-$(cd "$(dirname "$0")/.." && pwd)}"
 _SCRIPT_PLUGIN_DIR="$(cd "${0%/*}/.." 2>/dev/null && pwd)" || _SCRIPT_PLUGIN_DIR="$PLUGIN_ROOT"
+
+# ── Read plugin version (used for artifact stamps) ────────────────────────────
+_PLUGIN_VERSION=$(python3 -c "import json; print(json.load(open('$_SCRIPT_PLUGIN_DIR/.claude-plugin/plugin.json'))['version'])" 2>/dev/null || echo "unknown")
 # DIST_ROOT: the repository root containing shared assets (templates/, examples/)
 # that live outside the plugin subdir. Falls back to PLUGIN_ROOT for backward
 # compatibility when this script is called with the repo root as PLUGIN_ROOT.
@@ -399,6 +402,78 @@ _run_ci_guard_analysis() {
     fi
 }
 
+# ── stamp_artifact: embed version stamp in an installed artifact ──────────────
+# Usage: stamp_artifact FILE_PATH STAMP_TYPE VERSION DRYRUN
+#   FILE_PATH:  path to the artifact file to stamp
+#   STAMP_TYPE: "text" → `# dso-version: <version>` (first 5 lines for shim,
+#               prepend/update for config); "yaml" → `x-dso-version: <version>`
+#               as top-level YAML key
+#   VERSION:    version string to embed
+#   DRYRUN:     non-empty = dry-run mode (no writes)
+#
+# Idempotent: if the stamp already exists, update in-place; if not, insert.
+# For "text" type: insert/update within first 5 lines (after shebang line 1).
+# For "yaml" type: insert/update as first line of the file.
+stamp_artifact() {
+    local file_path="$1"
+    local stamp_type="$2"
+    local version="$3"
+    local dryrun="$4"
+
+    if [[ ! -f "$file_path" ]]; then
+        if [[ -n "$dryrun" ]]; then
+            echo "[dryrun] stamp_artifact: $file_path not found — would skip"
+        fi
+        return 0
+    fi
+
+    if [[ "$stamp_type" == "text" ]]; then
+        local stamp_line="# dso-version: $version"
+        if [[ -n "$dryrun" ]]; then
+            echo "[dryrun] Would embed '$stamp_line' in $file_path"
+            return 0
+        fi
+        # Idempotent: update existing stamp or insert after line 1
+        if grep -q '^# dso-version:' "$file_path" 2>/dev/null; then
+            # Update existing stamp in-place (sed: replace the matching line)
+            sed -i.bak "s|^# dso-version:.*|$stamp_line|" "$file_path" && rm -f "${file_path}.bak"
+        else
+            # Insert after the first line (shebang or first non-blank)
+            sed -i.bak "1a\\
+$stamp_line" "$file_path" && rm -f "${file_path}.bak"
+        fi
+
+    elif [[ "$stamp_type" == "yaml" ]]; then
+        local stamp_line="x-dso-version: $version"
+        if [[ -n "$dryrun" ]]; then
+            echo "[dryrun] Would embed '$stamp_line' in $file_path"
+            return 0
+        fi
+        # Idempotent: update existing stamp or prepend as first line
+        if grep -q '^x-dso-version:' "$file_path" 2>/dev/null; then
+            # Update existing stamp in-place
+            sed -i.bak "s|^x-dso-version:.*|$stamp_line|" "$file_path" && rm -f "${file_path}.bak"
+        else
+            # Prepend stamp as first line using python3 (robust for YAML files)
+            if command -v python3 >/dev/null 2>&1; then
+                python3 - "$file_path" "$stamp_line" <<'PYEOF'
+import sys
+file_path = sys.argv[1]
+stamp_line = sys.argv[2]
+with open(file_path, 'r') as f:
+    content = f.read()
+with open(file_path, 'w') as f:
+    f.write(stamp_line + '\n' + content)
+PYEOF
+            else
+                # Fallback: sed prepend
+                sed -i.bak "1i\\
+$stamp_line" "$file_path" && rm -f "${file_path}.bak"
+            fi
+        fi
+    fi
+}
+
 # ── Copy/merge pre-commit config ──────────────────────────────────────────────
 TARGET_PRECOMMIT="$TARGET_REPO/.pre-commit-config.yaml"
 if [[ -z "$DRYRUN" ]]; then
@@ -476,6 +551,47 @@ if [[ -z "$DRYRUN" ]]; then
 else
     if command -v pre-commit >/dev/null 2>&1; then
         echo "[dryrun] Would run: pre-commit install && pre-commit install --hook-type pre-push"
+    fi
+fi
+
+# ── Stamp installed artifacts with plugin version ─────────────────────────────
+# Must come AFTER all copy/merge operations so the artifacts exist.
+# Shim and config are always managed by dso-setup.sh — always stamp them.
+stamp_artifact "$TARGET_REPO/.claude/scripts/dso" text "$_PLUGIN_VERSION" "$DRYRUN"
+stamp_artifact "$CONFIG" text "$_PLUGIN_VERSION" "$DRYRUN"
+# Pre-commit: only stamp if dso-setup.sh manages it (has a repos: section,
+# meaning DSO hooks were copied or merged). Files without repos: are skipped.
+if grep -q '^repos:' "$TARGET_PRECOMMIT" 2>/dev/null; then
+    stamp_artifact "$TARGET_PRECOMMIT" yaml "$_PLUGIN_VERSION" "$DRYRUN"
+fi
+# CI yml: only stamp when dso-setup.sh installed it (no prior workflow files);
+# existing user workflows are left untouched (no stamp).
+if [[ -f "$TARGET_REPO/.github/workflows/ci.yml" ]]; then
+    _ci_managed=0
+    # The ci.yml was installed by dso-setup.sh if it matches the example content
+    # (contains 'name: CI' from the example template). Check via grep.
+    if grep -q 'name: CI' "$TARGET_REPO/.github/workflows/ci.yml" 2>/dev/null; then
+        _ci_managed=1
+    fi
+    # Also stamp if the file was freshly copied (no workflows existed before this run)
+    # — determined by whether the stamp is already there (idempotent path) or not.
+    # Simplest heuristic: stamp if the file contains DSO-related content.
+    if grep -q 'dso\|DSO\|digital-service-orchestra\|x-dso-version:' "$TARGET_REPO/.github/workflows/ci.yml" 2>/dev/null; then
+        _ci_managed=1
+    fi
+    if [[ "$_ci_managed" -eq 1 ]]; then
+        stamp_artifact "$TARGET_REPO/.github/workflows/ci.yml" yaml "$_PLUGIN_VERSION" "$DRYRUN"
+    fi
+fi
+
+# ── Ensure .gitignore includes artifact check cache ───────────────────────────
+if [[ -z "$DRYRUN" ]]; then
+    if ! grep -qF '.claude/dso-artifact-check-cache' "$TARGET_REPO/.gitignore" 2>/dev/null; then
+        echo '.claude/dso-artifact-check-cache' >> "$TARGET_REPO/.gitignore"
+    fi
+else
+    if ! grep -qF '.claude/dso-artifact-check-cache' "$TARGET_REPO/.gitignore" 2>/dev/null; then
+        echo "[dryrun] Would append .claude/dso-artifact-check-cache to $TARGET_REPO/.gitignore"
     fi
 fi
 
