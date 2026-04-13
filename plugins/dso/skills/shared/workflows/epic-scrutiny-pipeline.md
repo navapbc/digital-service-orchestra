@@ -60,6 +60,7 @@ After resolving any artifact gaps, think carefully about the proposed approach:
 - **Are there race conditions?** If multiple actors (worktrees, users, agents, CI) can modify the same state concurrently, what happens when they collide?
 - **Does the approach invalidate existing assumptions?** Will adding new data to an existing format break hashing, parsing, caching, or diffing that depends on the current shape?
 - **Are there parsing ambiguities?** If the format uses delimiters or markers, can user-provided content contain those same markers?
+- **Does the approach deprecate, relocate, or rename any file paths, directories, or conventions?** If so, what still references the old location/name/convention? Run a codebase grep for references to any deprecated path and report the count.
 
 If gaps are found in either part, present them to the user and resolve before proceeding to the web research phase.
 
