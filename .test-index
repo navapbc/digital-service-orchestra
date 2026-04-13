@@ -129,7 +129,6 @@ plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh [test_no_plu
 plugins/dso/hooks/**/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh [test_no_plugin_runtime_refs]
 plugins/dso/scripts/harvest-worktree.sh:tests/scripts/test-harvest-worktree.sh
 plugins/dso/skills/shared/prompts/scale-inference.md:tests/skills/test-scale-inference-shared-prompt.sh [test_scale_inference_file_exists]
-plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-scale-inference-shared-prompt.sh [test_brainstorm_phase1_references_scale_inference]
 plugins/dso/skills/shared/prompts/scale-inference.md:tests/skills/test-scale-inference-shared-prompt.sh [test_scale_inference_required_sections]
 plugins/dso/skills/shared/prompts/complexity-gate.md:tests/skills/test-complexity-gate-shared-prompt.sh [test_complexity_gate_file_exists]
 plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-complexity-gate-shared-prompt.sh [test_brainstorm_references_complexity_gate]

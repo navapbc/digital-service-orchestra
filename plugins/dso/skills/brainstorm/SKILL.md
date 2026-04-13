@@ -169,6 +169,23 @@ Relevant Files:
 
 **Goal**: Understand the feature well enough to propose 2-3 implementation approaches.
 
+### Step 0: Load Scale Inference Protocol
+
+Read `shared/prompts/scale-inference.md`. If the file cannot be read, STOP and emit:
+"ERROR: scale-inference.md not found at skills/shared/prompts/scale-inference.md — create this file before running brainstorm."
+
+<!-- REVIEW-DEFENSE: brainstorm/SKILL.md does not yet reference complexity-gate.md intentionally — this is a planned addition.
+     The RED marker [test_brainstorm_references_complexity_gate] in .test-index line 134 tolerates this expected failure during the current TDD cycle.
+     Task a0ae-d68c (Batch 4) will add the complexity-gate.md reference to brainstorm Phase 2. -->
+
+**Scale inference trigger**: If the feature description implies a volume-sensitive decision — such as processing records, serving traffic, querying a data store, handling concurrent users, storing user-generated content, or running background jobs — apply the 3-step inference protocol from scale-inference.md:
+
+1. Check existing artifacts (PRD, design notes, ticket descriptions) for numeric estimates.
+2. Run a domain web search to find published benchmarks or typical figures for the context.
+3. Ask the user only if no usable estimate is found in steps 1 or 2.
+
+Record the result as the session's **scale context**: a numeric estimate, "small scale", or "not applicable". This value is written to the approval-time log as the `scale_context` field.
+
 ### Step 1: Load Existing Context
 
 Before asking any questions, silently scan for context:
@@ -466,6 +483,7 @@ Log format to append (the heading is **Planning Intelligence Log**, level 3):
 - **Follow-on scrutiny (Step 0)**: [not triggered | triggered — depth: <follow_on_scrutiny_depth>]
 - **Feasibility resolution (Step 2.5)**: [not triggered | triggered — cycles: <feasibility_cycle_count>, gap: <triggering gap description>]
 - **LLM-instruction signal (Step 5)**: [not triggered | triggered — keyword: <matched_keyword>]
+- **Scale context (Step 0)**: [<numeric estimate> | small scale (default) | not applicable (no volume decision) | user-provided: <value>]
 ```
 
 ---
