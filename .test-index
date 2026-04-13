@@ -27,7 +27,7 @@ plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow
 plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh,tests/docs/test-reviewer-base-repo-root-context.sh,tests/docs/test-reviewer-polyglot-compliance.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-light.md:tests/docs/test-reviewer-polyglot-compliance.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
-plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/hooks/test-review-protocol-workflow.sh,tests/skills/test_review_workflow_model_escalation.py
+plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/hooks/test-review-protocol-workflow.sh,tests/skills/test_review_workflow_model_escalation.py,tests/docs/test-doc-polyglot-compliance.sh
 plugins/dso/docs/workflows/TEST-FAILURE-DISPATCH.md:plugins/dso/skills/sprint/prompts/test-failure-dispatch-protocol.md
 plugins/dso/hooks/dispatchers/post-agent.sh:tests/hooks/test-post-agent-sentinel.sh
 plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh
