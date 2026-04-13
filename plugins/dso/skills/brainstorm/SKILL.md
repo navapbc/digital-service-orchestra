@@ -192,6 +192,8 @@ Before presenting ANY question to the user, you MUST first check whether the ans
 
 Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encourage depth. After each answer, either ask a follow-up or move to the next area.
 
+**Before forming each question**: Check whether the answer is already in the codebase (skill files, ARCH_ENFORCEMENT.md, pyproject.toml, project-understanding.md, module structure). DO NOT ask questions whose answers are discoverable by reading the repo — find those answers yourself first using Read, Grep, or Glob. Only surface questions that require genuine user knowledge (design intent, business priorities, user experience preferences).
+
 **Prefer multiple-choice questions** over open-ended when possible — easier to answer.
 
 **Probe until you understand:**
