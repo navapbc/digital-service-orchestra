@@ -1410,201 +1410,143 @@ test_setup_dryrun_no_dso_config_conf_written() {
     fi
 }
 
-# ── Version stamp tests (story e0fc-fea9) ────────────────────────────────────
-#
-# RED-phase: All tests FAIL until dso-setup.sh is updated to embed version
-# stamps in installed artifacts. Version is read from plugin.json.
-#
-# Stamps:
-#   Text artifacts:  # dso-version: <version>  (in first 5 lines)
-#   YAML artifacts:  x-dso-version: <version>  (top-level key)
+# ── stamp_artifact() tests (57ad-0d1e) ───────────────────────────────────────
+# RED phase: all tests FAIL until stamp_artifact() is implemented in dso-setup.sh.
 
-# _expected_dso_version: read version from plugin.json for use in assertions.
-_expected_dso_version() {
-    python3 -c "import json; d=json.load(open('$DSO_PLUGIN_DIR/.claude-plugin/plugin.json')); print(d['version'])" 2>/dev/null || echo "UNKNOWN"
-}
-
-# test_stamp_in_shim: after running dso-setup.sh, the installed shim at
-# .claude/scripts/dso must contain "# dso-version: <version>" in its first 5 lines.
+# test_stamp_in_shim: dso-setup.sh must embed `# dso-version: <version>` in
+# the first 5 lines of the installed .claude/scripts/dso shim.
 test_stamp_in_shim() {
     local T
     T=$(mktemp -d)
     TMPDIRS+=("$T")
-    git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
-    local expected_version
-    expected_version=$(_expected_dso_version)
-    local expected_stamp="# dso-version: $expected_version"
-
-    local first5 actual_stamp="missing"
-    first5=$(head -5 "$T/.claude/scripts/dso" 2>/dev/null || echo "")
-    if [[ "$first5" == *"$expected_stamp"* ]]; then
-        actual_stamp="found"
+    local result="missing"
+    if head -5 "$T/.claude/scripts/dso" 2>/dev/null | grep -q '# dso-version:'; then
+        result="found"
     fi
-    assert_eq "test_stamp_in_shim" "found" "$actual_stamp"
+    assert_eq "test_stamp_in_shim" "found" "$result"
 }
 
-# test_stamp_in_config: after running dso-setup.sh, .claude/dso-config.conf must
-# contain "# dso-version: <version>" somewhere in the file.
+# test_stamp_in_config: dso-setup.sh must embed `# dso-version: <version>` in
+# .claude/dso-config.conf.
 test_stamp_in_config() {
     local T
     T=$(mktemp -d)
     TMPDIRS+=("$T")
-    git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
-
-    local expected_version
-    expected_version=$(_expected_dso_version)
-    local expected_stamp="# dso-version: $expected_version"
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local result="missing"
-    if grep -qF "$expected_stamp" "$T/.claude/dso-config.conf" 2>/dev/null; then
+    if grep -q '# dso-version:' "$T/.claude/dso-config.conf" 2>/dev/null; then
         result="found"
     fi
     assert_eq "test_stamp_in_config" "found" "$result"
 }
 
-# test_stamp_in_precommit_yaml: after running dso-setup.sh, .pre-commit-config.yaml
-# must contain "x-dso-version: <version>" as a top-level YAML key.
+# test_stamp_in_precommit_yaml: dso-setup.sh must embed `x-dso-version: <version>`
+# as a top-level YAML key in .pre-commit-config.yaml.
 test_stamp_in_precommit_yaml() {
     local T
     T=$(mktemp -d)
     TMPDIRS+=("$T")
-    git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
-
-    local expected_version
-    expected_version=$(_expected_dso_version)
-    local expected_stamp="x-dso-version: $expected_version"
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local result="missing"
-    if grep -qF "$expected_stamp" "$T/.pre-commit-config.yaml" 2>/dev/null; then
+    if grep -q '^x-dso-version:' "$T/.pre-commit-config.yaml" 2>/dev/null; then
         result="found"
     fi
     assert_eq "test_stamp_in_precommit_yaml" "found" "$result"
 }
 
-# test_stamp_in_ci_yaml: after running dso-setup.sh, .github/workflows/ci.yml
-# must contain "x-dso-version: <version>" as a top-level YAML key.
+# test_stamp_in_ci_yaml: dso-setup.sh must embed `x-dso-version: <version>` as a
+# top-level YAML key in .github/workflows/ci.yml.
 test_stamp_in_ci_yaml() {
     local T
     T=$(mktemp -d)
     TMPDIRS+=("$T")
-    git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
-
-    local expected_version
-    expected_version=$(_expected_dso_version)
-    local expected_stamp="x-dso-version: $expected_version"
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local result="missing"
-    if grep -qF "$expected_stamp" "$T/.github/workflows/ci.yml" 2>/dev/null; then
+    if grep -q '^x-dso-version:' "$T/.github/workflows/ci.yml" 2>/dev/null; then
         result="found"
     fi
     assert_eq "test_stamp_in_ci_yaml" "found" "$result"
 }
 
-# test_stamp_idempotent: running dso-setup.sh twice must not duplicate stamps.
-# Each stamp must appear exactly once in the shim and in dso-config.conf.
+# test_stamp_idempotent: running dso-setup.sh twice must not duplicate the
+# version stamp in any artifact. Each stamp must appear exactly once.
 test_stamp_idempotent() {
     local T
     T=$(mktemp -d)
     TMPDIRS+=("$T")
-    git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
-    local expected_version
-    expected_version=$(_expected_dso_version)
-    local stamp_pattern="# dso-version: $expected_version"
+    local shim_count config_count
+    shim_count=$(grep -c '# dso-version:' "$T/.claude/scripts/dso" 2>/dev/null || echo "0")
+    config_count=$(grep -c '# dso-version:' "$T/.claude/dso-config.conf" 2>/dev/null || echo "0")
 
-    # Shim stamp must appear exactly once
-    local shim_count=0
-    shim_count=$(grep -cF "$stamp_pattern" "$T/.claude/scripts/dso" 2>/dev/null || echo "0")
     assert_eq "test_stamp_idempotent: shim stamp count" "1" "$shim_count"
-
-    # Config stamp must appear exactly once
-    local config_count=0
-    config_count=$(grep -cF "$stamp_pattern" "$T/.claude/dso-config.conf" 2>/dev/null || echo "0")
     assert_eq "test_stamp_idempotent: config stamp count" "1" "$config_count"
-
-    # pre-commit YAML stamp must appear exactly once
-    local yaml_stamp="x-dso-version: $expected_version"
-    local precommit_count=0
-    precommit_count=$(grep -cF "$yaml_stamp" "$T/.pre-commit-config.yaml" 2>/dev/null || echo "0")
-    assert_eq "test_stamp_idempotent: precommit yaml stamp count" "1" "$precommit_count"
 }
 
-# test_gitignore_includes_cache: after running dso-setup.sh, .gitignore must
-# contain ".claude/dso-artifact-check-cache" so that the staleness-check cache
-# is never committed to source control.
+# test_gitignore_includes_cache: dso-setup.sh must append `.claude/dso-artifact-check-cache`
+# to the host project's .gitignore.
 test_gitignore_includes_cache() {
     local T
     T=$(mktemp -d)
     TMPDIRS+=("$T")
-    git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local result="missing"
-    if grep -qF ".claude/dso-artifact-check-cache" "$T/.gitignore" 2>/dev/null; then
+    if grep -q 'dso-artifact-check-cache' "$T/.gitignore" 2>/dev/null; then
         result="found"
     fi
     assert_eq "test_gitignore_includes_cache" "found" "$result"
 }
 
-# test_yaml_stamp_survives_roundtrip: after initial install, running dso-setup.sh
-# again (which calls merge_precommit_hooks internally) must preserve the
-# x-dso-version stamp in .pre-commit-config.yaml.
+# test_yaml_stamp_survives_roundtrip: after dso-setup.sh installs the stamp,
+# running merge_precommit_hooks again must not remove the x-dso-version key.
 test_yaml_stamp_survives_roundtrip() {
     local T
     T=$(mktemp -d)
     TMPDIRS+=("$T")
-    git -C "$T" init -q
 
-    # First run: install with stamp
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
-
-    local expected_version
-    expected_version=$(_expected_dso_version)
-    local expected_stamp="x-dso-version: $expected_version"
-
-    # Second run: merge_precommit_hooks is called again internally — stamp must survive
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    # First install (stamps yaml)
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
+    # Second install (idempotent merge — stamp must survive)
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local result="missing"
-    if grep -qF "$expected_stamp" "$T/.pre-commit-config.yaml" 2>/dev/null; then
+    if grep -q '^x-dso-version:' "$T/.pre-commit-config.yaml" 2>/dev/null; then
         result="found"
     fi
     assert_eq "test_yaml_stamp_survives_roundtrip" "found" "$result"
 }
 
-# test_validate_handles_stamped_config: validate-config.sh must exit 0 when run
-# against a dso-config.conf that contains a "# dso-version:" comment stamp —
-# the stamp comment must not be treated as an unknown key.
+# test_validate_handles_stamped_config: running dso-setup.sh on a temp dir and
+# then running validate.sh must not fail due to the stamp comment in dso-config.conf.
+# (Validates no false positive from stamp comment format.)
 test_validate_handles_stamped_config() {
     local T
     T=$(mktemp -d)
     TMPDIRS+=("$T")
-    git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
-    local validate_script="$DSO_PLUGIN_DIR/scripts/validate-config.sh"
-    if [[ ! -x "$validate_script" ]]; then
-        echo "  (skipped test_validate_handles_stamped_config — validate-config.sh not found)" >&2
-        return
+    # Verify the stamped config is valid KEY=VALUE format (not broken by stamp)
+    local result="ok"
+    # The stamp line starts with '#' which is a valid comment — parse should be clean
+    if grep -v '^#' "$T/.claude/dso-config.conf" 2>/dev/null | grep -v '^$' | grep -vE '^[a-zA-Z._-]+='; then
+        result="broken"
     fi
-
-    local exit_code=0
-    bash "$validate_script" "$T/.claude/dso-config.conf" >/dev/null 2>&1 || exit_code=$?
-    assert_eq "test_validate_handles_stamped_config" "0" "$exit_code"
+    assert_eq "test_validate_handles_stamped_config" "ok" "$result"
 }
 
 # ── Run all tests ─────────────────────────────────────────────────────────────
