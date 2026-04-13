@@ -1453,6 +1453,27 @@ if [[ "$_CLI_RESUME" == "true" ]]; then
         _state_mark_complete "sync"
     fi
 
+    # --- Idempotent push detection (f9e7-2c50) ---
+    # If origin/main already contains local HEAD, the push phase already completed
+    # but was not recorded in the state file (SIGURG fired between git push and
+    # _state_mark_complete "push", or the state file expired/was lost).
+    # Pre-mark all phases through push as complete so the resume loop skips them
+    # and never re-runs _phase_merge (which would create a duplicate merge commit).
+    if git fetch origin main --quiet 2>/dev/null; then
+        _ORIGIN_AHEAD_RESUME=$(git log origin/main..HEAD --oneline 2>/dev/null || true)
+        if [[ -z "$_ORIGIN_AHEAD_RESUME" ]]; then
+            echo "INFO: --resume: origin/main already contains local HEAD — push was already done."
+            echo "INFO: Pre-marking phases through push as complete to prevent duplicate merge."
+            # Ensure state file exists so _state_mark_complete can write
+            if [[ ! -f "$_sf" ]]; then
+                _state_init 2>/dev/null || true
+            fi
+            for _pre_phase in sync merge version_bump validate push; do
+                _state_mark_complete "$_pre_phase" 2>/dev/null || true
+            done
+        fi
+    fi
+
     if [[ ! -f "$_sf" ]]; then
         echo "WARNING: No state file found at '$_sf'. Starting from the beginning."
         # Fall through to run all phases
