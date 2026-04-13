@@ -126,3 +126,10 @@ plugins/dso/skills/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
 plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh [test_no_plugin_runtime_refs]
 plugins/dso/hooks/**/*.sh:tests/hooks/test-no-plugin-runtime-refs.sh [test_no_plugin_runtime_refs]
 plugins/dso/scripts/harvest-worktree.sh:tests/scripts/test-harvest-worktree.sh
+plugins/dso/skills/preplanning/SKILL.md: tests/skills/test-preplanning-noninteractive-checkpoints.sh [test_cp1_no_epic_id_non_interactive]
+plugins/dso/skills/preplanning/SKILL.md: tests/skills/test-preplanning-noninteractive-checkpoints.sh [test_cp2_escalation_policy_default]
+plugins/dso/skills/preplanning/SKILL.md: tests/skills/test-preplanning-noninteractive-checkpoints.sh [test_cp3_scope_clarification_exit]
+plugins/dso/skills/preplanning/SKILL.md: tests/skills/test-preplanning-noninteractive-checkpoints.sh [test_cp4_reconciliation_auto_apply]
+plugins/dso/skills/preplanning/SKILL.md: tests/skills/test-preplanning-noninteractive-checkpoints.sh [test_cp5_story_dashboard_suppress]
+plugins/dso/skills/preplanning/SKILL.md: tests/skills/test-preplanning-noninteractive-checkpoints.sh [test_cp6_final_approval_skip]
+plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md: tests/skills/test-preplanning-noninteractive-checkpoints.sh [test_cp7_ui_designer_interactivity_deferred]
