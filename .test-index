@@ -98,7 +98,7 @@ plugins/dso/skills/shared/docs/reviewers/value.md:tests/scripts/test-value-revie
 plugins/dso/skills/shared/prompts/behavioral-testing-standard.md:tests/hooks/test-behavioral-testing-standard-rule5.sh,tests/scripts/test-behavioral-testing-standard-structure.sh,tests/scripts/test-part-c-smoke-behavioral-testing-standard.sh
 plugins/dso/skills/shared/prompts/prior-art-search.md:tests/scripts/test-prior-art-search-consumers.sh,tests/scripts/test-prior-art-search-structure.sh
 plugins/dso/skills/shared/prompts/value-effort-scorer.md:tests/skills/test-value-effort-scorer-integration.sh
-plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:tests/skills/test-epic-scrutiny-pipeline.sh,tests/skills/test-epic-scrutiny-pipeline-relates-to.sh,tests/hooks/test-residual-state-probe.sh [test_part_b_contains_residual_state_probe]
+plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:tests/skills/test-epic-scrutiny-pipeline.sh,tests/skills/test-epic-scrutiny-pipeline-relates-to.sh,tests/hooks/test-residual-state-probe.sh
 plugins/dso/skills/sprint/prompts/test-failure-dispatch-protocol.md:plugins/dso/skills/sprint/prompts/test-failure-dispatch-protocol.md
 plugins/dso/skills/sprint/prompts/sc-coverage-haiku.md:tests/skills/test-sprint-sc-coverage-prompts.sh
 plugins/dso/skills/sprint/prompts/sc-coverage-sonnet.md:tests/skills/test-sprint-sc-coverage-prompts.sh
