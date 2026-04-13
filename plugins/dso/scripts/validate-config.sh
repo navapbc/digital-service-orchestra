@@ -138,6 +138,9 @@ KNOWN_KEYS=(
     tickets.directory
     tickets.sync.jira_project_key
     tickets.sync.bidirectional_comments
+
+    # Preplanning
+    preplanning.interactive
 )
 
 # ── KNOWN_LIST_KEYS — keys that allow repetition ────────────────────────────
