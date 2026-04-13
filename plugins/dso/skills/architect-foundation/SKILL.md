@@ -92,8 +92,6 @@ For each gap, craft an open-ended question appropriate to the context. The examp
 
 **C1. Blueprint depth** — Ask the user to describe the scope they want: full system context diagram and directory structure, or just the enforcement layer on top of the existing structure.
 
-**C2. ADR preference** — Ask the user whether they want Architecture Decision Records for choices already made, only for new decisions introduced by this scaffolding session, or both.
-
 ---
 
 ## Phase 2: The Blueprint (Iterative Validation)
@@ -161,14 +159,26 @@ The accepted recommendations from this phase will be materialized into `ARCH_ENF
 
 ---
 
-## Phase 2.75: Artifact Review Before Writing
+## Phase 2.75: Batched Artifact Review Before Writing
 
-Before generating or writing any enforcement artifact to disk, present the full content for user review and approval.
+Before writing any enforcement artifacts to disk, present a batched summary of all enforcement artifacts for a single user confirmation.
 
-- **Present each artifact** in a fenced code block so the user can review the complete content before it is written.
-- **For files that already exist** (such as `CLAUDE.md` or `ARCH_ENFORCEMENT.md`), show a diff against the existing content rather than presenting full replacement. The existing diff makes it clear which lines are being added, modified, or removed without silently overwriting prior decisions.
-- Ask: "Does this look right? Should I write this file?"
-- Wait for explicit approval before using the Write tool.
+1. **Summary table**: Show a table with columns: File, Type, Action (new/update) — present a summary of all enforcement artifacts to review before confirmation
+2. **Diffs for existing files**: For files that already exist, show a diff against the existing content
+3. **Full content for new files**: Show complete content in a fenced code block
+4. **Single confirmation**: Ask: "Proceed with writing all N files?"
+5. **Write all files** after confirmation using the Write tool
+6. **Partial failure handling**: If some files fail to write, preserve already-written files and report which files failed — do not re-attempt the successful ones
+
+## Phase 2.8: ADR Generation
+
+Always generate ADRs for all architectural decisions made during this session — do not ask whether to generate them.
+
+**Session scope**: Capture every significant architectural choice made during the current /dso:architect-foundation run (testing strategy, file organization, enforcement tool selection, naming conventions adopted). Generate ADRs for all session decisions.
+
+**Format**: Follow the ADR format at docs/adr/NNNN-decision-title.md — title, status (Accepted), context, decision, consequences.
+
+**Deduplication**: Key deduplication on decision topic. If docs/adr/ already contains an ADR for the same decision topic, append the new context as a revision note rather than creating a duplicate file.
 
 ## Phase 3: The Enforcer (Deterministic Guardrails)
 

@@ -158,10 +158,3 @@ plugins/dso/hooks/check-artifact-versions.sh:tests/scripts/test-artifact-update-
 plugins/dso/scripts/update-artifacts.sh:tests/scripts/test-artifact-update-integration.sh
 plugins/dso/docs/DEPENDENCY-GUIDANCE.md:tests/docs/test-doc-polyglot-compliance.sh
 plugins/dso/scripts/prefill-config.sh:tests/unit/scripts/test-prefill-config.sh
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_batched_file_confirmation]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_file_summary_before_confirmation]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_partial_failure_handling]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_adrs_always_generated]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_adr_session_scope]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_adr_dedup_logic]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_no_adr_preference_question]
