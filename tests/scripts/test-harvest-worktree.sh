@@ -18,6 +18,8 @@
 #   8. test_attest_source_in_status_files — attested files include attest_source
 #   9. test_trap_cleans_merge_head_on_signal — MERGE_HEAD cleaned on SIGTERM
 #  10. test_already_merged_branch_noop — no-op when branch already merged
+#  11. test_conflict_diagnostic_printed_to_stderr — conflicted filename in stderr (bug 0fc6-c970)
+#  12. test_nonexistent_branch_exits1_with_message — non-conflict git failure exits 1 with message (bug 0fc6-c970)
 
 set -uo pipefail
 
@@ -429,6 +431,88 @@ output=$(cd "$SESSION_REPO" && bash "$HARVEST_SCRIPT" \
 assert_eq "already-merged branch exits 0" "0" "$exit_code"
 
 assert_pass_if_clean "test_already_merged_branch_noop"
+
+# =============================================================================
+# Test 11: test_conflict_diagnostic_printed_to_stderr (bug 0fc6-c970)
+# Given: session branch and worktree branch both modified same file (not .test-index)
+# When: harvest-worktree.sh exits 1 on conflict
+# Then: stderr includes the conflicted filename so the operator knows what to fix
+# =============================================================================
+echo "--- test_conflict_diagnostic_printed_to_stderr ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Create a conflict: modify file.txt on session branch
+cd "$SESSION_REPO"
+echo "session-side conflict content" > file.txt
+git add file.txt
+git commit -m "session conflict" >/dev/null 2>&1
+
+# Also modify file.txt on worktree branch to create a real conflict
+git checkout "$WORKTREE_BRANCH" >/dev/null 2>&1
+echo "worktree-side conflict content" > file.txt
+git add file.txt
+git commit -m "worktree conflict" >/dev/null 2>&1
+git checkout session-branch >/dev/null 2>&1
+
+# Capture stderr to check diagnostic output
+stderr_output=""
+exit_code=0
+stderr_output=$(cd "$SESSION_REPO" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    2>&1 >/dev/null) || exit_code=$?
+
+assert_eq "conflict exits 1" "1" "$exit_code"
+
+# Verify that the conflicted filename appears in the diagnostic output
+if echo "$stderr_output" | grep -q "file.txt"; then
+    (( ++PASS ))
+    echo "PASS: conflict diagnostic includes conflicted filename"
+else
+    (( ++FAIL ))
+    echo "FAIL: conflict diagnostic missing conflicted filename in stderr" >&2
+    echo "  stderr was: $stderr_output" >&2
+fi
+
+assert_pass_if_clean "test_conflict_diagnostic_printed_to_stderr"
+
+# =============================================================================
+# Test 12: test_nonexistent_branch_exits1_with_message (bug 0fc6-c970)
+# Given: worktree branch name that does not exist (non-conflict git failure)
+# When: harvest-worktree.sh is invoked
+# Then: exits 1 and stderr includes "git merge failed" (not silent exit 0)
+# =============================================================================
+echo "--- test_nonexistent_branch_exits1_with_message ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Use a branch name guaranteed not to exist
+MISSING_BRANCH="nonexistent-branch-$$"
+
+stderr_output=""
+exit_code=0
+stderr_output=$(cd "$SESSION_REPO" && bash "$HARVEST_SCRIPT" \
+    "$MISSING_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    2>&1 >/dev/null) || exit_code=$?
+
+assert_eq "nonexistent branch exits 1" "1" "$exit_code"
+
+if echo "$stderr_output" | grep -q "git merge failed"; then
+    (( ++PASS ))
+    echo "PASS: nonexistent branch produces git merge failed message"
+else
+    (( ++FAIL ))
+    echo "FAIL: nonexistent branch did not produce git merge failed message" >&2
+    echo "  stderr was: $stderr_output" >&2
+fi
+
+assert_pass_if_clean "test_nonexistent_branch_exits1_with_message"
 
 # =============================================================================
 print_summary
