@@ -264,7 +264,7 @@ cp "$PLUGIN_JSON" "$_dir_plugin_source/plugins/dso/.claude-plugin/plugin.json"
 make_host_repo "$_dir_plugin_source" "$OLD_VERSION"
 
 _rc_plugin_source=0
-_out_plugin_source="$(run_check "$_dir_plugin_source")" || _rc_plugin_source=$?
+_out_plugin_source="$(run_check "$_dir_plugin_source" DSO_SOURCE_REPO=true)" || _rc_plugin_source=$?
 
 assert_eq "test_plugin_source_repo_silent_exit: exit 0" "0" "$_rc_plugin_source"
 assert_eq "test_plugin_source_repo_silent_exit: no output" "" "$_out_plugin_source"
