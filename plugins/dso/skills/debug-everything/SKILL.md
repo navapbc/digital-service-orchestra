@@ -40,9 +40,53 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 
 ## Orchestration Flow
 
+**Step 0 (always first)**: GitHub Actions Pre-Scan — scans configured GHA workflows and creates bug tickets for untracked CI failures. Runs unconditionally before the open-bug-count pre-check so newly discovered failures are visible to mode selection. Skipped when `debug.gha_scan_enabled=false` or `debug.gha_workflows` is absent/empty.
+
 Two entry modes: (1) **Bug-Fix Mode** — when open bug tickets exist, skip diagnostics/triage and apply `/dso:fix-bug` directly to each ticket, then enter Validation Mode (inner loop, bounded by `debug.max_fix_validate_cycles`); (2) **Diagnostic Mode** — when no open bugs exist, run Phase 1 diagnostic scan, Phase 2 triage, then fix in tier order (Phases 3-7). Both modes converge at Phase 8 (Full Validation). The outer loop (Phase 1-8, max 5 cycles) and inner validation loop (Bug-Fix Mode, max `debug.max_fix_validate_cycles`) are independent and must not nest multiplicatively.
 
 **Bug-Fix Mode note**: In bug-fix mode, `/dso:fix-bug` is invoked at orchestrator level — reads fix-bug/SKILL.md inline directly, NOT via Task tool dispatch — preserving Agent tool access for investigation sub-agents.
+
+---
+
+## Step 0: GitHub Actions Pre-Scan (/dso:debug-everything)
+
+Scan configured GitHub Actions workflows for CI failures and create bug tickets for any untracked failures. This step runs **before** the open-bug-count pre-check so that any newly discovered CI failures are visible to the rest of the skill.
+
+**Read config**:
+
+```bash
+GHA_SCAN_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config debug.gha_scan_enabled 2>/dev/null || echo "true")
+GHA_WORKFLOWS=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config debug.gha_workflows 2>/dev/null || echo "")
+```
+
+**Gate checks (evaluate in order)**:
+
+1. If `GHA_SCAN_ENABLED` is exactly `false`: log `GHA scan skipped: disabled via debug.gha_scan_enabled=false` and proceed to Phase 1. Do NOT dispatch any sub-agent.
+
+2. If `GHA_WORKFLOWS` is absent or empty: log `GHA scan skipped: no workflows configured` and proceed to Phase 1. Do NOT dispatch any sub-agent.
+
+**Dispatch GHA scanner sub-agent** (only when both gates pass):
+
+```bash
+# Resolve plugin root (available at session start via DSO shim; do not depend on $PLUGIN_ROOT which is set in Phase 1 Step 1)
+_GHA_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+# Read worktree isolation config inline (DISPATCH_ISOLATION is set in Phase 1 Step 1, which runs after Step 0)
+_GHA_ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null || echo "false")
+```
+
+- Model: `haiku`
+- Prompt: Read `${_GHA_PLUGIN_ROOT}/skills/debug-everything/prompts/gha-scanner.md` and use its contents as the sub-agent prompt. Inject `WORKFLOWS` (the value of `GHA_WORKFLOWS`) and `REPO_ROOT` (from `git rev-parse --show-toplevel`) into the prompt context.
+- Isolation: apply `isolation: "worktree"` when `_GHA_ISOLATION_ENABLED` equals `true`.
+
+**After sub-agent returns**:
+
+- Parse the compact summary JSON from the sub-agent output: `{"workflows_checked": N, "tickets_created": N, "failures_already_tracked": N, "new_ticket_ids": [...]}`.
+- Write the summary as a comment on the active epic ticket (if one is open):
+  ```bash
+  "$(git rev-parse --show-toplevel)/.claude/scripts/dso" ticket comment <epic-id> "GHA scan complete: <workflows_checked> workflows checked, <tickets_created> tickets created, <failures_already_tracked> already tracked. New tickets: <new_ticket_ids>"
+  ```
+- Log the single-line summary to session output.
+- If `tickets_created > 0`: the new bug tickets (tagged `gha:<workflow-file-name>`) will be picked up by the open-bug-count pre-check in Step 1 and processed in Bug-Fix Mode.
 
 ---
 
@@ -357,7 +401,41 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
    Do NOT abort Bug-Fix Mode when a single ticket fails — process all remaining tickets.
 
-4. **After all bug tickets have been attempted**, proceed to **Validation Mode** to check for newly exposed failures.
+4. **After all bug tickets have been attempted**, run the **Between-Batch GHA Refresh** before proceeding to Validation Mode.
+
+### Between-Batch GHA Refresh (Bug-Fix Mode)
+
+This step runs unconditionally after all bug tickets in the current batch have been attempted and before the Validation Mode entry — regardless of `MAX_FIX_VALIDATE_CYCLES` (including 0).
+
+**Short-circuit checks** (check in order before dispatching sub-agent):
+
+1. If `GHA_SCAN_ENABLED` is exactly `false`: log `GHA scan skipped: disabled via debug.gha_scan_enabled=false` and proceed to Validation Mode.
+2. If `GHA_WORKFLOWS` is absent or empty: log `GHA scan skipped: no workflows configured` and proceed to Validation Mode.
+
+**Dispatch GHA scanner sub-agent** (only when both checks pass):
+
+- Sub-agent type: `general-purpose`
+- Prompt: Read `${_GHA_PLUGIN_ROOT}/skills/debug-everything/prompts/gha-scanner.md` and use its contents as the sub-agent prompt. Inject `WORKFLOWS` (the value of `GHA_WORKFLOWS`) and `REPO_ROOT` (from `git rev-parse --show-toplevel`) into the prompt context.
+- Isolation: apply `isolation: "worktree"` when `_GHA_ISOLATION_ENABLED` equals `true`.
+
+**After sub-agent returns**:
+- Parse the compact summary JSON: `{"workflows_checked": N, "tickets_created": N, "failures_already_tracked": N, "new_ticket_ids": [...]}`
+- Write epic comment:
+  ```bash
+  "$(git rev-parse --show-toplevel)/.claude/scripts/dso" ticket comment <epic-id> "GHA between-batch scan: <workflows_checked> workflows checked, <tickets_created> tickets created, <failures_already_tracked> already tracked. New tickets: <new_ticket_ids>"
+  ```
+- If `tickets_created > 0`: re-query open bug ticket list and add new tickets to the queue for the next iteration (they will be picked up by Validation Mode's re-entry into Bug-Fix Mode on the next cycle).
+- If sub-agent returns `GHA scan unavailable: workflow run tools not registered`: log the signal and proceed to Validation Mode without writing the epic comment.
+
+**Re-query open ticket list**:
+
+After the scan completes (regardless of `tickets_created`), re-run:
+```bash
+.claude/scripts/dso ticket list --type=bug --status=open
+```
+Use this refreshed list for the Validation Mode entry decision.
+
+5. Proceed to **Validation Mode**.
 
 ---
 

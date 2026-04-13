@@ -210,6 +210,7 @@ supplement_template_file \
     "CLAUDE.md"
 
 # ── Copy/supplement KNOWN-ISSUES.md ──────────────────────────────────────────
+# REVIEW-DEFENSE: Finding confirmed false positive — this file uses $_SCRIPT_PLUGIN_DIR (defined at line 103), not $_PLUGIN_ROOT. The reviewer hallucinated an undefined variable; grep confirms _PLUGIN_ROOT never appears as a variable reference in this file.
 supplement_template_file \
     "$TARGET_REPO/.claude/docs/KNOWN-ISSUES.md" \
     '<!-- DSO:KNOWN-ISSUES-HEADER -->' \
