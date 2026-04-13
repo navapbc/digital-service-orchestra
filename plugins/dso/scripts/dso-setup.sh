@@ -148,6 +148,14 @@ else
     echo "[dryrun] Would write dso.plugin_root=$PLUGIN_ROOT to $CONFIG"
 fi
 
+# ── Merge new config keys from reference template (install + update path) ─────
+# merge_config_file adds any missing keys from the reference config into the host
+# config. Keys already present (active or commented) are never overwritten.
+# If the reference file does not exist, merge_config_file emits a warning and
+# returns 0 (no-op).
+_CONFIG_REFERENCE="$_SCRIPT_PLUGIN_DIR/config/dso-config.reference.conf"
+merge_config_file "$CONFIG" "$_CONFIG_REFERENCE" "$DRYRUN"
+
 # ── supplement_template_file: smart file handling (warn + supplement or skip) ──
 # Usage: supplement_template_file FILE_PATH DSO_MARKER TEMPLATE_PATH LABEL
 #   FILE_PATH:     path to the target file in the host repo
@@ -347,7 +355,9 @@ if [[ -z "$DRYRUN" ]]; then
         # No workflow files exist — copy the example (original behavior)
         cp "$DIST_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
     else
-        # Workflow file(s) exist — run CI guard analysis using detection output
+        # Workflow file(s) exist — merge DSO CI jobs into the first workflow file,
+        # then run CI guard analysis using detection output.
+        merge_ci_workflow "${_existing_workflows[0]}" "$DIST_ROOT/examples/ci.example.yml" ""
         _run_ci_guard_analysis "" "$TARGET_REPO"
     fi
 else
@@ -364,7 +374,8 @@ else
     if [[ ${#_existing_workflows_dry[@]} -eq 0 ]]; then
         echo "[dryrun] Would copy ci.example.yml -> $TARGET_REPO/.github/workflows/ci.yml (only if absent)"
     else
-        # Workflow file(s) exist — run CI guard analysis (dryrun mode)
+        # Workflow file(s) exist — preview DSO CI job merge, then CI guard analysis (dryrun mode)
+        merge_ci_workflow "${_existing_workflows_dry[0]}" "$DIST_ROOT/examples/ci.example.yml" "1"
         _run_ci_guard_analysis "1" "$TARGET_REPO"
     fi
 fi

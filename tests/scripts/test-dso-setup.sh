@@ -161,7 +161,7 @@ _make_tool_path() {
     real_bash=$(command -v bash)
 
     # Tools the script needs beyond shell builtins (excluding bash — handled below)
-    local needed_tools=(uname grep sed head cut cat git python3 pre-commit claude timeout gtimeout mkdir cp chmod printf rm)
+    local needed_tools=(uname grep sed head cut cat git python3 pre-commit claude timeout gtimeout mkdir cp chmod printf rm mktemp)
     for cmd in "${needed_tools[@]}"; do
         local should_exclude=0
         for ex in "${exclude[@]}"; do
@@ -1549,6 +1549,81 @@ test_validate_handles_stamped_config() {
     assert_eq "test_validate_handles_stamped_config" "ok" "$result"
 }
 
+# ── SC5: merge_config_file and merge_ci_workflow on INSTALL path (245c-439c) ──
+
+# test_install_merges_new_config_keys: when an existing dso-config.conf is missing
+# a key that appears in the reference config, dso-setup.sh appends the missing key.
+test_install_merges_new_config_keys() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # Write a config that has dso.plugin_root (so setup doesn't overwrite it) but
+    # is intentionally missing 'worktree.isolation_enabled' and 'scope_drift.enabled'.
+    mkdir -p "$T/.claude"
+    cat > "$T/.claude/dso-config.conf" << 'EOF'
+dso.plugin_root=/some/path
+version=1.1.0
+EOF
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    # At least one key that exists in the reference config but was absent from the
+    # pre-installed config must now be present (additive merge).
+    local merged_key_found="false"
+    if grep -qE '^(worktree\.isolation_enabled|scope_drift\.enabled|test_quality\.tool|clarity_check\.pass_threshold)=' \
+           "$T/.claude/dso-config.conf" 2>/dev/null; then
+        merged_key_found="true"
+    fi
+    assert_eq "test_install_merges_new_config_keys: reference key appended" "true" "$merged_key_found"
+
+    # The original dso.plugin_root must NOT have been overwritten or duplicated
+    local plugin_root_count
+    plugin_root_count=$(grep -c '^dso\.plugin_root=' "$T/.claude/dso-config.conf" 2>/dev/null || echo "0")
+    assert_eq "test_install_merges_new_config_keys: plugin_root not duplicated" "1" "$plugin_root_count"
+}
+
+# test_install_merges_ci_workflow: when an existing CI workflow file is present,
+# dso-setup.sh calls merge_ci_workflow to merge DSO job definitions into it.
+# The existing workflow content must be preserved and a DSO job must be added.
+test_install_merges_ci_workflow() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # Create a minimal existing CI workflow (no DSO jobs)
+    mkdir -p "$T/.github/workflows"
+    cat > "$T/.github/workflows/ci.yml" << 'EOF'
+name: My CI
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "build"
+EOF
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    # The original job must still be present (merge is additive, not replacing)
+    if grep -q 'build:' "$T/.github/workflows/ci.yml" 2>/dev/null; then
+        assert_eq "test_install_merges_ci_workflow: existing job preserved" "found" "found"
+    else
+        assert_eq "test_install_merges_ci_workflow: existing job preserved" "found" "missing"
+    fi
+
+    # At least one DSO job from the example must have been merged in
+    # (fast-gate is the first job in ci.example.yml)
+    if grep -q 'fast-gate\|fast_gate\|mypy\|coverage-check' "$T/.github/workflows/ci.yml" 2>/dev/null; then
+        assert_eq "test_install_merges_ci_workflow: DSO job merged in" "found" "found"
+    else
+        assert_eq "test_install_merges_ci_workflow: DSO job merged in" "found" "missing"
+    fi
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_setup_creates_shim
 test_setup_shim_executable
@@ -1610,5 +1685,7 @@ test_stamp_idempotent
 test_gitignore_includes_cache
 test_yaml_stamp_survives_roundtrip
 test_validate_handles_stamped_config
+test_install_merges_new_config_keys
+test_install_merges_ci_workflow
 
 print_summary
