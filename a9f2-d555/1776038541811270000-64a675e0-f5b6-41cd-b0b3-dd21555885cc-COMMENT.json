@@ -1,1 +1,0 @@
-{"timestamp": 1776038541811270000, "uuid": "64a675e0-f5b6-41cd-b0b3-dd21555885cc", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: behavioral, Score: 1 (BASIC). declare -A on line 515 of record-test-status.sh incompatible with bash 3.2."}}
