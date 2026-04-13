@@ -233,6 +233,30 @@ If it exists and `--force-scan` was not requested, report the entry count and sk
 .claude/scripts/dso generate-test-index.sh
 ```
 
+### Step 0.75: Pre-fill dso-config.conf with Stack Defaults
+
+Before building enforcement, populate `dso-config.conf` with stack-appropriate command defaults. This avoids the agent needing to hand-craft tool invocations that are already codified in the plugin.
+
+```bash
+.claude/scripts/dso prefill-config.sh --project-dir "${PROJECT_DIR:-$(pwd)}"
+```
+
+`prefill-config.sh` calls `detect-stack.sh` internally and writes the four `commands.*` keys (`commands.test_runner`, `commands.lint`, `commands.format`, `commands.format_check`) into `.claude/dso-config.conf`. Keys that already have a non-empty value are skipped with an informational message, so it is safe to re-run.
+
+**Per-stack defaults written by prefill-config.sh:**
+
+| Stack | `detect-stack` ID | `commands.test_runner` | `commands.lint` | `commands.format` | `commands.format_check` |
+|-------|-------------------|------------------------|-----------------|-------------------|-------------------------|
+| Python/Poetry | `python-poetry` | `pytest` | `ruff check .` | `ruff format .` | `ruff format --check .` |
+| Node/npm (JS/TS) | `node-npm` | `npx jest` | `npx eslint .` | `npx prettier --write .` | `npx prettier --check .` |
+| Ruby/Rails | `ruby-rails` | `bundle exec rspec` | `bundle exec rubocop` | `bundle exec rubocop -A` | `bundle exec rubocop --format simple` |
+| Ruby/Jekyll | `ruby-jekyll` | `bundle exec rspec` | `bundle exec rubocop` | `bundle exec rubocop -A` | `bundle exec rubocop --format simple` |
+| Rust/Cargo | `rust-cargo` | *(no default — fill manually)* | *(no default)* | *(no default)* | *(no default)* |
+| Go | `golang` | *(no default — fill manually)* | *(no default)* | *(no default)* | *(no default)* |
+| Convention-based / Unknown | `convention-based` / `unknown` | *(no default — fill manually)* | *(no default)* | *(no default)* | *(no default)* |
+
+After the script runs, confirm the written values with the user before proceeding to Step 1. If the project is `rust-cargo`, `golang`, `convention-based`, or `unknown`, prompt the user to supply the missing command values directly.
+
 ### Step 1: Enforcement Layer Architecture
 
 Build enforcement at the layer(s) preferred by the user (Phase 1 Group B answers). Target only the anti-patterns identified as risks in Phase 1 Group A answers.

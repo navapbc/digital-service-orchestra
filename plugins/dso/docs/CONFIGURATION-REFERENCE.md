@@ -220,13 +220,24 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ---
 
+### `commands.test_runner`
+
+| | |
+|---|---|
+| **Description** | Test runner command used by `suite-engine.sh` for individual test file execution. Distinct from `commands.test` (full suite) — this command is invoked per-file by the test batching infrastructure. |
+| **Accepted values** | Any shell command string (e.g., `pytest`, `npx jest`, `bundle exec rspec`) |
+| **Default** | Stack-derived (see per-stack defaults table below) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/suite-engine.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/test-batched.sh` |
+
+---
+
 ### `commands.lint`
 
 | | |
 |---|---|
 | **Description** | Linter command. |
 | **Accepted values** | Any shell command string (e.g., `make lint`, `npm run lint`) |
-| **Default** | Stack-derived |
+| **Default** | Stack-derived (see per-stack defaults table below) |
 | **Used by** | Skills: `/dso:sprint`, `/dso:fix-bug`, validate-work |
 
 ---
@@ -237,7 +248,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 |---|---|
 | **Description** | Auto-formatter command — modifies files in place. |
 | **Accepted values** | Any shell command string (e.g., `make format`, `cargo fmt`) |
-| **Default** | Stack-derived |
+| **Default** | Stack-derived (see per-stack defaults table below) |
 | **Used by** | `hooks/auto-format.sh`, skills |
 
 ---
@@ -248,8 +259,21 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 |---|---|
 | **Description** | Formatting check command — fails if files need reformatting, does not modify files. |
 | **Accepted values** | Any shell command string (e.g., `make format-check`, `cargo fmt --check`) |
-| **Default** | Stack-derived |
+| **Default** | Stack-derived (see per-stack defaults table below) |
 | **Used by** | `.claude/scripts/dso validate.sh`, pre-commit hooks |
+
+---
+
+### Per-stack defaults for `commands.*`
+
+When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stack-derived defaults. The table below shows the pre-filled values used for each stack. Override any value by setting the key explicitly in `.claude/dso-config.conf`.
+
+| Stack | `commands.test_runner` | `commands.lint` | `commands.format` | `commands.format_check` |
+|---|---|---|---|---|
+| Python (`python-poetry`) | `pytest` | `ruff check .` | `ruff format .` | `ruff format --check .` |
+| Node/JS (`node-npm`) | `npx jest` | `npx eslint .` | `npx prettier --write .` | `npx prettier --check .` |
+| Ruby (`ruby-rails` / `ruby-jekyll`) | `bundle exec rspec` | `bundle exec rubocop` | `bundle exec rubocop -A` | `bundle exec rubocop --format simple` |
+| Rust (`rust-cargo`) | _(none — set explicitly)_ | _(none — set explicitly)_ | _(none — set explicitly)_ | _(none — set explicitly)_ |
 
 ---
 
