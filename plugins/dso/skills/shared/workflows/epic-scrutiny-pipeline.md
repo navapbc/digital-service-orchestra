@@ -66,7 +66,7 @@ If gaps are found in either part, present them to the user and resolve before pr
 
 ### Part C: Shared Artifact Impact Analysis
 
-**When Part C triggers**: Part C activates only when the Success Criteria section (not the original user request) references creating or modifying a file that is consumed by "2+ other files" outside its own directory. Identify the artifact from the SC section first (same fuzzy-matching heuristics as Part A — this is Part C's scope, not Part A's).
+**When Part C triggers**: Part C activates only when the Success Criteria section (not the original user request) references creating or modifying a file that is consumed by "2+ other files" outside its own directory. Identify the artifact from the SC section first (same fuzzy-matching heuristics as Part A — this is Part C's scope, not Part A's). Part C also activates when SCs reference moving, deprecating, removing, or renaming a file or directory.
 
 **If the artifact is not yet in the codebase** or a scan produces no results, skip Part C and log: `Part C scan skipped: no consumers found or scan unavailable`.
 
