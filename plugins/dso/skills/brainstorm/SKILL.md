@@ -169,6 +169,23 @@ Relevant Files:
 
 **Goal**: Understand the feature well enough to propose 2-3 implementation approaches.
 
+### Step 0: Load Scale Inference Protocol
+
+Read `shared/prompts/scale-inference.md`. If the file cannot be read, STOP and emit:
+"ERROR: scale-inference.md not found at skills/shared/prompts/scale-inference.md — create this file before running brainstorm."
+
+<!-- REVIEW-DEFENSE: brainstorm/SKILL.md does not yet reference complexity-gate.md intentionally — this is a planned addition.
+     The RED marker [test_brainstorm_references_complexity_gate] in .test-index line 134 tolerates this expected failure during the current TDD cycle.
+     Task a0ae-d68c (Batch 4) will add the complexity-gate.md reference to brainstorm Phase 2. -->
+
+**Scale inference trigger**: If the feature description implies a volume-sensitive decision — such as processing records, serving traffic, querying a data store, handling concurrent users, storing user-generated content, or running background jobs — apply the 3-step inference protocol from scale-inference.md:
+
+1. Check existing artifacts (PRD, design notes, ticket descriptions) for numeric estimates.
+2. Run a domain web search to find published benchmarks or typical figures for the context.
+3. Ask the user only if no usable estimate is found in steps 1 or 2.
+
+Record the result as the session's **scale context**: a numeric estimate, "small scale", or "not applicable". This value is written to the approval-time log as the `scale_context` field.
+
 ### Step 1: Load Existing Context
 
 Before asking any questions, silently scan for context:
@@ -258,9 +275,20 @@ Do NOT proceed to Phase 2 until the user confirms the understanding summary or e
 
 **Goal**: Agree on an approach and produce a high-fidelity epic spec.
 
-### Step 1: Propose 2-3 Approaches
+### Step 0: Load Complexity Gate
 
-Present 2-3 distinct implementation approaches with trade-offs. **Lead with your recommended approach** and explain why.
+Read `shared/prompts/complexity-gate.md`. If the file cannot be read, STOP and emit:
+"ERROR: complexity-gate.md not found at skills/shared/prompts/complexity-gate.md — create this file before running brainstorm Phase 2."
+
+### Step 1: Propose Approaches
+
+Present at least 3 distinct implementation approaches with trade-offs, including at least one genuine simple baseline — the simplest implementation that satisfies all done definitions. **Lead with your recommended approach** and explain why.
+
+**Simple baseline requirement**: The simple baseline must be a viable implementation for the current scope. The Sandbagging Prohibition from `shared/prompts/complexity-gate.md` applies: do not load the simple baseline description with scalability caveats unless those caveats are grounded in the Phase 1 scale context. A technically inadequate option (one that would fail basic requirements) is not a valid simple baseline.
+
+**Complexity gate for proposals**: Any proposal that includes (a) a new library dependency, (b) a performance optimization, or (c) an abstraction with fewer than 3 existing call sites must include a GATE/CHECKED/FINDING/VERDICT block (format defined in `shared/prompts/complexity-gate.md`) for the relevant gate before being presented. If the verdict is FAIL and no justified-complexity path is provided, remove the proposal or revise it to eliminate the offending complexity.
+
+**Scale context propagation**: Pass the Phase 1 scale context (result of the scale-inference.md protocol) to Gate 4 (Scale Threshold) when evaluating performance proposals. If Phase 1 scale context was "small scale (default)", Gate 4 returns FAIL for any performance optimization unless the justified-complexity path is satisfied.
 
 Format each approach:
 ```
@@ -365,7 +393,24 @@ After the scrutiny pipeline returns, check whether the epic spec contains a `## 
 4. **If `feasibility_cycle_count >= max_feasibility_cycles`**: Escalate to the user. Present the unresolved gap and ask whether to proceed with the gap noted, abort, or manually adjust the spec. Log: `"FEASIBILITY_GAP unresolved after {max_feasibility_cycles} cycles — escalating to user."`
 5. Expose `feasibility_cycle_count` as a named state variable for Story 4 (7067-dae6) to consume in the log extensions.
 
-**If FEASIBILITY_GAP is NOT present:** Continue to Step 4 (Approval Gate) normally.
+**If FEASIBILITY_GAP is NOT present:** Continue to the SC Gap Check below.
+
+#### SC Gap Check
+
+After the scrutiny pipeline completes (with no unresolved FEASIBILITY_GAP), inspect the surviving scenario set for Success Criteria coverage gaps. A coverage gap exists when a scenario describes a user outcome that is not explicitly addressed by any current SC.
+
+**Procedure:**
+
+1. Re-read the current SCs and the Scenario Analysis section of the epic spec.
+2. For each surviving scenario, check whether at least one SC covers the scenario's core user outcome (what the user achieves, not how).
+3. **If no gaps found:** Proceed to Step 4 (Approval Gate) normally.
+4. **If gaps found:** For each gap, draft a revised or new SC that addresses the uncovered outcome. Then present the proposed SC revisions to the user for re-approval via `AskUserQuestion`:
+
+   > "Scenario analysis identified the following SC gaps: [list gaps with proposed SC revisions]. Do you want to (a) Accept the revised SCs and continue, (b) Modify the proposed revisions, or (c) Skip SC revision and continue with the original SCs?"
+
+   - **(a) Accept:** Apply the revised SCs to the epic spec (update the `## Success Criteria` section via `ticket edit --description`). Then proceed to Step 4.
+   - **(b) Modify:** Incorporate user changes, present again.
+   - **(c) Skip:** Log `"SC gap check: user opted to skip revision."` and proceed to Step 4 with original SCs.
 
 ### Step 4: Approval Gate
 
@@ -374,6 +419,7 @@ Do NOT present this gate unless ALL of the following have completed or gracefull
 - Step 2.5: Gap analysis (self-review)
 - Step 2.6: Web research phase (run OR skipped with a logged rationale per Step 2.6 graceful degradation rules)
 - Step 2.75: Scenario analysis (run OR skipped because ≤2 success criteria)
+- SC Gap Check: scenario-to-SC coverage verified; SCs revised if gaps found, or skip logged
 - Step 3: Fidelity review (all three core reviewers completed or escalated to user)
 
 If any of the above has NOT completed, stop and execute it before presenting this gate. The user's ability to request a re-run via option (b) or (c) is for second-pass cycles only — it does not substitute for a mandatory first pass.
@@ -456,6 +502,7 @@ Log format to append (the heading is **Planning Intelligence Log**, level 3):
 - **Follow-on scrutiny (Step 0)**: [not triggered | triggered — depth: <follow_on_scrutiny_depth>]
 - **Feasibility resolution (Step 2.5)**: [not triggered | triggered — cycles: <feasibility_cycle_count>, gap: <triggering gap description>]
 - **LLM-instruction signal (Step 5)**: [not triggered | triggered — keyword: <matched_keyword>]
+- **Scale context (Step 0)**: [<numeric estimate> | small scale (default) | not applicable (no volume decision) | user-provided: <value>]
 ```
 
 ---

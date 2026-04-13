@@ -175,5 +175,32 @@ rc=$?
 assert_eq "test_merge_ci_workflow_name_still_valid exit" "0" "$rc"
 assert_pass_if_clean "test_merge_ci_workflow_name_still_valid"
 
+# -- test_preplanning_interactive_valid_key ------------------------------------
+# A config containing preplanning.interactive=false must exit 0.
+# RED: This test FAILS before preplanning.interactive is added to KNOWN_KEYS.
+_snapshot_fail
+PRE_INT_CONF="$TMPDIR_FIXTURE/preplanning-interactive.conf"
+cat > "$PRE_INT_CONF" <<'CONF'
+preplanning.interactive=false
+CONF
+stderr_out=$(bash "$SCRIPT" "$PRE_INT_CONF" 2>&1 >/dev/null)
+rc=$?
+assert_eq "test_preplanning_interactive_valid_key exit" "0" "$rc"
+assert_pass_if_clean "test_preplanning_interactive_valid_key"
+
+# -- test_unknown_key_still_rejected_after_preplanning_addition ----------------
+# An unknown key must still be rejected even after preplanning.interactive is added.
+_snapshot_fail
+STILL_UNKNOWN_CONF="$TMPDIR_FIXTURE/still-unknown.conf"
+cat > "$STILL_UNKNOWN_CONF" <<'CONF'
+version=1.0.0
+preplanning.unknown_key=value
+CONF
+stderr_out=$(bash "$SCRIPT" "$STILL_UNKNOWN_CONF" 2>&1 >/dev/null)
+rc=$?
+assert_eq "test_unknown_key_still_rejected_after_preplanning_addition exit" "1" "$rc"
+assert_contains "test_unknown_key_still_rejected_after_preplanning_addition stderr" "preplanning.unknown_key" "$stderr_out"
+assert_pass_if_clean "test_unknown_key_still_rejected_after_preplanning_addition"
+
 # -- Summary -------------------------------------------------------------------
 print_summary

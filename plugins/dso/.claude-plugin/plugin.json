@@ -1,6 +1,6 @@
 {
   "name": "dso",
-  "version": "1.12.10",
+  "version": "1.12.15",
   "description": "Workflow infrastructure plugin for Claude Code projects",
   "commands": "./commands/",
   "skills": "./skills/",
@@ -39,6 +39,10 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/session-start.sh"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/check-artifact-versions.sh"
           }
         ]
       }

@@ -98,24 +98,35 @@ fi
 
 # ---------------------------------------------------------------------------
 # Test 4: SKILL.md behavioral note references the Section 5 enforcement gate
+#   (content-based search — line numbers may shift as content is added)
 # ---------------------------------------------------------------------------
 echo ""
 echo "=== test_skill_md_references_enforcement_gate ==="
 SECTION="test_skill_md_references_enforcement_gate"
-# Extract ~30 lines around the behavioral note at/near line 385
+# Search the Foundation/Enhancement Splitting section for the enforcement gate reference.
+# Use a content-based search to be robust against line-number shifts from surrounding edits.
 SKILL_WINDOW=$(python3 - "$SKILL_MD" <<'PYEOF'
-import sys
-lines = open(sys.argv[1]).readlines()
-# Print lines 375-415 (0-indexed: 374-414)
-start = max(0, 374)
-end = min(len(lines), 415)
-print("".join(lines[start:end]))
+import sys, re
+
+text = open(sys.argv[1]).read()
+# Find the Foundation/Enhancement Splitting section
+start = re.search(r'^### Step 4: Foundation/Enhancement Splitting', text, re.MULTILINE)
+if not start:
+    sys.exit(0)
+rest = text[start.start():]
+# Extract to the next ### heading or ## heading or ---
+end_match = re.search(r'\n(###|##\s|---)', rest[4:])
+if end_match:
+    section = rest[:end_match.start() + 4]
+else:
+    section = rest
+print(section)
 PYEOF
 )
 if grep -qiE "Section 5|dispatch.protocol|enforcement gate|splitRole guard|enforced" <<< "$SKILL_WINDOW"; then
-  pass "SKILL.md around line 385 references the enforcement gate (Section 5 or splitRole guard in dispatch-protocol.md)"
+  pass "SKILL.md Foundation/Enhancement Splitting section references the enforcement gate (Section 5 or splitRole guard in dispatch-protocol.md)"
 else
-  fail "SKILL.md around line 385 is a behavioral note only — does not reference the Section 5 enforcement gate in dispatch-protocol.md"
+  fail "SKILL.md Foundation/Enhancement Splitting section is a behavioral note only — does not reference the Section 5 enforcement gate in dispatch-protocol.md"
 fi
 
 # ---------------------------------------------------------------------------

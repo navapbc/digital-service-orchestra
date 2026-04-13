@@ -101,6 +101,13 @@ set -- "${_args_filtered[@]+"${_args_filtered[@]}"}"
 TARGET_REPO="${1:-$(git rev-parse --show-toplevel)}"
 PLUGIN_ROOT="${2:-$(cd "$(dirname "$0")/.." && pwd)}"
 _SCRIPT_PLUGIN_DIR="$(cd "${0%/*}/.." 2>/dev/null && pwd)" || _SCRIPT_PLUGIN_DIR="$PLUGIN_ROOT"
+
+# ── Source shared merge library ───────────────────────────────────────────────
+# shellcheck source=artifact-merge-lib.sh
+source "$_SCRIPT_PLUGIN_DIR/scripts/artifact-merge-lib.sh"
+
+# ── Read plugin version (used for artifact stamps) ────────────────────────────
+_PLUGIN_VERSION=$(python3 -c "import json; print(json.load(open('$_SCRIPT_PLUGIN_DIR/.claude-plugin/plugin.json'))['version'])" 2>/dev/null || echo "unknown")
 # DIST_ROOT: the repository root containing shared assets (templates/, examples/)
 # that live outside the plugin subdir. Falls back to PLUGIN_ROOT for backward
 # compatibility when this script is called with the repo root as PLUGIN_ROOT.
@@ -140,6 +147,14 @@ if [[ -z "$DRYRUN" ]]; then
 else
     echo "[dryrun] Would write dso.plugin_root=$PLUGIN_ROOT to $CONFIG"
 fi
+
+# ── Merge new config keys from reference template (install + update path) ─────
+# merge_config_file adds any missing keys from the reference config into the host
+# config. Keys already present (active or commented) are never overwritten.
+# If the reference file does not exist, merge_config_file emits a warning and
+# returns 0 (no-op).
+_CONFIG_REFERENCE="$_SCRIPT_PLUGIN_DIR/config/dso-config.reference.conf"
+merge_config_file "$CONFIG" "$_CONFIG_REFERENCE" "$DRYRUN"
 
 # ── supplement_template_file: smart file handling (warn + supplement or skip) ──
 # Usage: supplement_template_file FILE_PATH DSO_MARKER TEMPLATE_PATH LABEL
@@ -201,156 +216,6 @@ supplement_template_file \
     "$_SCRIPT_PLUGIN_DIR/docs/templates/KNOWN-ISSUES.md" \
     "KNOWN-ISSUES.md"
 
-# ── merge_precommit_hooks: merge DSO hooks into existing .pre-commit-config.yaml ──
-# Usage: merge_precommit_hooks TARGET_FILE EXAMPLE_FILE DRYRUN
-#   TARGET_FILE:  path to the host project's .pre-commit-config.yaml
-#   EXAMPLE_FILE: path to DSO's example pre-commit config
-#   DRYRUN:       non-empty = dry-run mode (no writes)
-#
-# Strategy: append-repos — add a new DSO 'local' repo block to the repos: list.
-# The existing file's content (including other repo blocks) is fully preserved.
-# Idempotent: if DSO hook ids are already present, they are not duplicated.
-#
-# Implementation: try python3+PyYAML first for robust YAML handling; fall back
-# to awk-based block extraction and text append if PyYAML is unavailable.
-merge_precommit_hooks() {
-    local target_file="$1"
-    local example_file="$2"
-    local dryrun="$3"
-
-    # Guard: only merge if the target file has a 'repos:' section (i.e., is a
-    # recognizable pre-commit config). Files without 'repos:' are left untouched.
-    if ! grep -q '^repos:' "$target_file" 2>/dev/null; then
-        echo "WARNING: .pre-commit-config.yaml exists but has no 'repos:' section — skipping merge" >&2
-        return 0
-    fi
-
-    # Extract DSO hook ids from the example file (hooks under the local repo block)
-    local dso_hook_ids
-    dso_hook_ids=$(python3 - "$example_file" 2>/dev/null <<'PYEOF'
-import sys, yaml
-try:
-    with open(sys.argv[1]) as f:
-        cfg = yaml.safe_load(f)
-    ids = []
-    for repo in cfg.get('repos', []):
-        if repo.get('repo') == 'local':
-            for hook in repo.get('hooks', []):
-                ids.append(hook['id'])
-    print('\n'.join(ids))
-except Exception:
-    sys.exit(1)
-PYEOF
-) || dso_hook_ids=""
-
-    # Fallback: extract hook ids using grep if python3/PyYAML unavailable
-    if [[ -z "$dso_hook_ids" ]]; then
-        dso_hook_ids=$(grep -E '^\s+- id:' "$example_file" 2>/dev/null | sed 's/.*- id: *//' | tr -d ' ')
-    fi
-
-    if [[ -z "$dso_hook_ids" ]]; then
-        echo "WARNING: Could not extract DSO hook ids from $example_file — skipping merge" >&2
-        return 0
-    fi
-
-    # Check which DSO hook ids are already present in the target file
-    local hooks_to_add=()
-    while IFS= read -r hook_id; do
-        [[ -z "$hook_id" ]] && continue
-        if ! grep -qF "id: $hook_id" "$target_file" 2>/dev/null; then
-            hooks_to_add+=("$hook_id")
-        fi
-    done <<< "$dso_hook_ids"
-
-    if [[ ${#hooks_to_add[@]} -eq 0 ]]; then
-        # All DSO hooks already present — nothing to do
-        if [[ -n "$dryrun" ]]; then
-            echo "[dryrun] .pre-commit-config.yaml: all DSO hooks already present — no merge needed"
-        else
-            echo "[skip] .pre-commit-config.yaml: all DSO hooks already present — not merging"
-        fi
-        return 0
-    fi
-
-    # Build the DSO hook block to append: extract the DSO 'local' repo block
-    # from the example file containing only the hooks that need to be added.
-    # Output format: a valid YAML repos: sequence entry with 2-space indent
-    # (matching the existing repos: list indentation: '  - repo: local').
-    local dso_block
-    dso_block=$(python3 - "$example_file" "${hooks_to_add[@]}" 2>/dev/null <<'PYEOF'
-import sys, yaml
-
-example_file = sys.argv[1]
-needed_ids = set(sys.argv[2:])
-
-try:
-    with open(example_file) as f:
-        cfg = yaml.safe_load(f)
-    hooks = []
-    for repo in cfg.get('repos', []):
-        if repo.get('repo') == 'local':
-            for hook in repo.get('hooks', []):
-                if hook['id'] in needed_ids:
-                    hooks.append(hook)
-
-    if not hooks:
-        sys.exit(1)
-
-    new_block = {'repo': 'local', 'hooks': hooks}
-    # Dump just the block dict with 2-space indent
-    block_yaml = yaml.dump(new_block, default_flow_style=False,
-                           allow_unicode=True, sort_keys=False, indent=2)
-    lines = block_yaml.rstrip('\n').splitlines()
-    # Format as a repos: sequence entry with 2-space outer indent:
-    # first line: '  - repo: local', subsequent lines: '    <content>'
-    result_lines = []
-    for i, line in enumerate(lines):
-        if i == 0:
-            result_lines.append('  - ' + line)
-        else:
-            result_lines.append('    ' + line)
-    print('\n'.join(result_lines))
-except Exception as e:
-    sys.exit(1)
-PYEOF
-) || dso_block=""
-
-    # Fallback: if python3/PyYAML unavailable, extract the 'local' repo block directly
-    # from the example file using awk. The example uses '  - repo: local' (2-space indent).
-    if [[ -z "$dso_block" ]]; then
-        local full_block
-        full_block=$(awk '
-            /^  - repo: local/{found=1; print; next}
-            found && /^  - repo:/{exit}
-            found{print}
-        ' "$example_file" 2>/dev/null)
-        if [[ -n "$full_block" ]]; then
-            dso_block="$full_block"
-        fi
-    fi
-
-    if [[ -z "$dso_block" ]]; then
-        echo "WARNING: Could not extract DSO hook block from $example_file — skipping merge" >&2
-        return 0
-    fi
-
-    local hooks_list
-    hooks_list=$(IFS=', '; echo "${hooks_to_add[*]}")
-
-    if [[ -n "$dryrun" ]]; then
-        echo "[dryrun] Would merge DSO hooks into .pre-commit-config.yaml: $hooks_list"
-        echo "[dryrun] Would append a new DSO local repo block containing: $hooks_list"
-        return 0
-    fi
-
-    # Append the DSO block to the repos: list in the target file.
-    # The block is formatted as '  - repo: local' (2-space indent) to match the
-    # standard pre-commit-config.yaml repos: sequence indentation.
-    printf '\n  # DSO plugin hooks (added by dso-setup.sh — do not remove)\n' >> "$target_file"
-    printf '%s\n' "$dso_block" >> "$target_file"
-    echo "[merge] Appended DSO hooks to .pre-commit-config.yaml: $hooks_list"
-}
-
 # ── _run_ci_guard_analysis: analyze existing CI workflow for missing guards ────
 # Usage: _run_ci_guard_analysis DRYRUN TARGET_REPO
 #   DRYRUN:      non-empty = dry-run mode (analysis output shown, no file writes)
@@ -399,6 +264,78 @@ _run_ci_guard_analysis() {
     fi
 }
 
+# ── stamp_artifact: embed version stamp in an installed artifact ──────────────
+# Usage: stamp_artifact FILE_PATH STAMP_TYPE VERSION DRYRUN
+#   FILE_PATH:  path to the artifact file to stamp
+#   STAMP_TYPE: "text" → `# dso-version: <version>` (first 5 lines for shim,
+#               prepend/update for config); "yaml" → `x-dso-version: <version>`
+#               as top-level YAML key
+#   VERSION:    version string to embed
+#   DRYRUN:     non-empty = dry-run mode (no writes)
+#
+# Idempotent: if the stamp already exists, update in-place; if not, insert.
+# For "text" type: insert/update within first 5 lines (after shebang line 1).
+# For "yaml" type: insert/update as first line of the file.
+stamp_artifact() {
+    local file_path="$1"
+    local stamp_type="$2"
+    local version="$3"
+    local dryrun="$4"
+
+    if [[ ! -f "$file_path" ]]; then
+        if [[ -n "$dryrun" ]]; then
+            echo "[dryrun] stamp_artifact: $file_path not found — would skip"
+        fi
+        return 0
+    fi
+
+    if [[ "$stamp_type" == "text" ]]; then
+        local stamp_line="# dso-version: $version"
+        if [[ -n "$dryrun" ]]; then
+            echo "[dryrun] Would embed '$stamp_line' in $file_path"
+            return 0
+        fi
+        # Idempotent: update existing stamp or insert after line 1
+        if grep -q '^# dso-version:' "$file_path" 2>/dev/null; then
+            # Update existing stamp in-place (sed: replace the matching line)
+            sed -i.bak "s|^# dso-version:.*|$stamp_line|" "$file_path" && rm -f "${file_path}.bak"
+        else
+            # Insert after the first line (shebang or first non-blank)
+            sed -i.bak "1a\\
+$stamp_line" "$file_path" && rm -f "${file_path}.bak"
+        fi
+
+    elif [[ "$stamp_type" == "yaml" ]]; then
+        local stamp_line="x-dso-version: $version"
+        if [[ -n "$dryrun" ]]; then
+            echo "[dryrun] Would embed '$stamp_line' in $file_path"
+            return 0
+        fi
+        # Idempotent: update existing stamp or prepend as first line
+        if grep -q '^x-dso-version:' "$file_path" 2>/dev/null; then
+            # Update existing stamp in-place
+            sed -i.bak "s|^x-dso-version:.*|$stamp_line|" "$file_path" && rm -f "${file_path}.bak"
+        else
+            # Prepend stamp as first line using python3 (robust for YAML files)
+            if command -v python3 >/dev/null 2>&1; then
+                python3 - "$file_path" "$stamp_line" <<'PYEOF'
+import sys
+file_path = sys.argv[1]
+stamp_line = sys.argv[2]
+with open(file_path, 'r') as f:
+    content = f.read()
+with open(file_path, 'w') as f:
+    f.write(stamp_line + '\n' + content)
+PYEOF
+            else
+                # Fallback: sed prepend
+                sed -i.bak "1i\\
+$stamp_line" "$file_path" && rm -f "${file_path}.bak"
+            fi
+        fi
+    fi
+}
+
 # ── Copy/merge pre-commit config ──────────────────────────────────────────────
 TARGET_PRECOMMIT="$TARGET_REPO/.pre-commit-config.yaml"
 if [[ -z "$DRYRUN" ]]; then
@@ -418,7 +355,9 @@ if [[ -z "$DRYRUN" ]]; then
         # No workflow files exist — copy the example (original behavior)
         cp "$DIST_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
     else
-        # Workflow file(s) exist — run CI guard analysis using detection output
+        # Workflow file(s) exist — merge DSO CI jobs into the first workflow file,
+        # then run CI guard analysis using detection output.
+        merge_ci_workflow "${_existing_workflows[0]}" "$DIST_ROOT/examples/ci.example.yml" ""
         _run_ci_guard_analysis "" "$TARGET_REPO"
     fi
 else
@@ -435,7 +374,8 @@ else
     if [[ ${#_existing_workflows_dry[@]} -eq 0 ]]; then
         echo "[dryrun] Would copy ci.example.yml -> $TARGET_REPO/.github/workflows/ci.yml (only if absent)"
     else
-        # Workflow file(s) exist — run CI guard analysis (dryrun mode)
+        # Workflow file(s) exist — preview DSO CI job merge, then CI guard analysis (dryrun mode)
+        merge_ci_workflow "${_existing_workflows_dry[0]}" "$DIST_ROOT/examples/ci.example.yml" "1"
         _run_ci_guard_analysis "1" "$TARGET_REPO"
     fi
 fi
@@ -476,6 +416,47 @@ if [[ -z "$DRYRUN" ]]; then
 else
     if command -v pre-commit >/dev/null 2>&1; then
         echo "[dryrun] Would run: pre-commit install && pre-commit install --hook-type pre-push"
+    fi
+fi
+
+# ── Stamp installed artifacts with plugin version ─────────────────────────────
+# Must come AFTER all copy/merge operations so the artifacts exist.
+# Shim and config are always managed by dso-setup.sh — always stamp them.
+stamp_artifact "$TARGET_REPO/.claude/scripts/dso" text "$_PLUGIN_VERSION" "$DRYRUN"
+stamp_artifact "$CONFIG" text "$_PLUGIN_VERSION" "$DRYRUN"
+# Pre-commit: only stamp if dso-setup.sh manages it (has a repos: section,
+# meaning DSO hooks were copied or merged). Files without repos: are skipped.
+if grep -q '^repos:' "$TARGET_PRECOMMIT" 2>/dev/null; then
+    stamp_artifact "$TARGET_PRECOMMIT" yaml "$_PLUGIN_VERSION" "$DRYRUN"
+fi
+# CI yml: only stamp when dso-setup.sh installed it (no prior workflow files);
+# existing user workflows are left untouched (no stamp).
+if [[ -f "$TARGET_REPO/.github/workflows/ci.yml" ]]; then
+    _ci_managed=0
+    # The ci.yml was installed by dso-setup.sh if it matches the example content
+    # (contains 'name: CI' from the example template). Check via grep.
+    if grep -q 'name: CI' "$TARGET_REPO/.github/workflows/ci.yml" 2>/dev/null; then
+        _ci_managed=1
+    fi
+    # Also stamp if the file was freshly copied (no workflows existed before this run)
+    # — determined by whether the stamp is already there (idempotent path) or not.
+    # Simplest heuristic: stamp if the file contains DSO-related content.
+    if grep -q 'dso\|DSO\|digital-service-orchestra\|x-dso-version:' "$TARGET_REPO/.github/workflows/ci.yml" 2>/dev/null; then
+        _ci_managed=1
+    fi
+    if [[ "$_ci_managed" -eq 1 ]]; then
+        stamp_artifact "$TARGET_REPO/.github/workflows/ci.yml" yaml "$_PLUGIN_VERSION" "$DRYRUN"
+    fi
+fi
+
+# ── Ensure .gitignore includes artifact check cache ───────────────────────────
+if [[ -z "$DRYRUN" ]]; then
+    if ! grep -qF '.claude/dso-artifact-check-cache' "$TARGET_REPO/.gitignore" 2>/dev/null; then
+        echo '.claude/dso-artifact-check-cache' >> "$TARGET_REPO/.gitignore"
+    fi
+else
+    if ! grep -qF '.claude/dso-artifact-check-cache' "$TARGET_REPO/.gitignore" 2>/dev/null; then
+        echo "[dryrun] Would append .claude/dso-artifact-check-cache to $TARGET_REPO/.gitignore"
     fi
 fi
 

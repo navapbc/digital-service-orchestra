@@ -341,7 +341,17 @@ This annotation tells the Step 2 reviewer why a full review was triggered even i
 
 ### Proposal Generation
 
+Read `shared/prompts/complexity-gate.md`. If the file cannot be read, STOP and emit:
+"ERROR: complexity-gate.md not found at skills/shared/prompts/complexity-gate.md — create this file before running implementation-plan."
+
 After resolving cross-cutting detection, generate at least 3 distinct implementation proposals for the story before proceeding to task drafting. Each proposal represents a genuinely different approach to satisfying the story's success criteria, giving the reviewer or decision-maker a real choice rather than surface-level variations.
+
+**Complexity gates per proposal**: At the task-planning level, apply Gates 1 and 2 from `shared/prompts/complexity-gate.md` to each proposal before submitting it to the approach-decision-maker:
+
+- **Gate 1 (YAGNI)**: Does this proposal add functionality not required by the current story's done definitions? If FAIL, either revise the proposal to remove the out-of-scope functionality, or include a `justified-complexity` block with evidence.
+- **Gate 2 (Rule of Three)**: Does this proposal introduce an abstraction with fewer than 3 existing call sites? If FAIL, either revise the proposal to inline the abstraction, or include a `justified-complexity` block with evidence.
+
+When a proposal adds a new library dependency, apply Gate 3 before the proposal is submitted to the approach-decision-maker. Include a GATE/CHECKED/FINDING/VERDICT block (format defined in `shared/prompts/complexity-gate.md`) for Gate 3 in the proposal's `cons` or as an annotation alongside the proposal.
 
 **Proposal format**: Each proposal MUST include all six fields defined in `prompts/proposal-schema.md` (the single source of truth for field definitions, risk categories, and the distinctness gate). Read that file before generating proposals. Required fields:
 

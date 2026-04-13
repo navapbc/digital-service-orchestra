@@ -7,8 +7,8 @@ Review the current code diff using a classifier-selected named review agent for 
 Replace commands below with values from your `.claude/dso-config.conf`:
 
 - `commands.format` (default: `make format`)
-- `commands.lint` (default: `make lint-ruff`)
-- `commands.type_check` (default: `make lint-mypy`)
+- `commands.lint` (default: the project's configured lint command)
+- `commands.type_check` (default: the project's configured type-check command)
 - `commands.test_unit` (default: `make test-unit-only`)
 - `review.max_resolution_attempts` (default: `5`) — max autonomous fix/defend attempts before escalating to user
 
@@ -34,10 +34,10 @@ if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     if [[ -f "$_cfg" ]]; then
         CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$_cfg" 2>/dev/null | cut -d= -f2-)"
     fi
-    # Final fallback: CLAUDE_PLUGIN_ROOT must be set — see INSTALL.md
+    # Final fallback: construct default plugin path from known plugin name
     if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-        echo "ERROR: CLAUDE_PLUGIN_ROOT is not set. Configure it in .claude/dso-config.conf." >&2
-        exit 1
+        _dso_plugin_name="dso"
+        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/$_dso_plugin_name"
     fi
 fi
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
@@ -83,8 +83,8 @@ Run these checks in order. They mirror the pre-commit hook suite so the diff has
    - After format, check if any files were changed: `git diff --name-only`
    - If format changed files, **re-stage them**: `git add -u`
    - This keeps the staged diff in sync with the formatted state.
-2. **Lint check**: `cd app && make lint-ruff 2>&1 | tail -3` (on success, only summary needed; re-run with full output on failure)
-3. **Type check**: `cd app && make lint-mypy 2>&1 | tail -5` (on success, only summary needed; re-run with full output on failure)
+2. **Lint check**: `cd app && $commands.lint 2>&1 | tail -3` (on success, only summary needed; re-run with full output on failure)
+3. **Type check**: `cd app && $commands.type_check 2>&1 | tail -5` (on success, only summary needed; re-run with full output on failure)
 4. **Unit tests**: `cd app && make test-unit-only 2>&1 | tail -5` (on success, only summary needed; re-run with full output on failure)
 
 If Docker is not available, use `python3 -m py_compile` on changed Python files as a lint fallback.

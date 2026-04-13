@@ -60,12 +60,13 @@ After resolving any artifact gaps, think carefully about the proposed approach:
 - **Are there race conditions?** If multiple actors (worktrees, users, agents, CI) can modify the same state concurrently, what happens when they collide?
 - **Does the approach invalidate existing assumptions?** Will adding new data to an existing format break hashing, parsing, caching, or diffing that depends on the current shape?
 - **Are there parsing ambiguities?** If the format uses delimiters or markers, can user-provided content contain those same markers?
+- **Does the approach deprecate, relocate, or rename any file paths, directories, or conventions?** If so, what still references the old location/name/convention? Run a codebase grep for references to any deprecated path and report the count.
 
 If gaps are found in either part, present them to the user and resolve before proceeding to the web research phase.
 
 ### Part C: Shared Artifact Impact Analysis
 
-**When Part C triggers**: Part C activates only when the Success Criteria section (not the original user request) references creating or modifying a file that is consumed by "2+ other files" outside its own directory. Identify the artifact from the SC section first (same fuzzy-matching heuristics as Part A — this is Part C's scope, not Part A's).
+**When Part C triggers**: Part C activates only when the Success Criteria section (not the original user request) references creating or modifying a file that is consumed by "2+ other files" outside its own directory. Identify the artifact from the SC section first (same fuzzy-matching heuristics as Part A — this is Part C's scope, not Part A's). Part C also activates when SCs reference moving, deprecating, removing, or renaming a file or directory.
 
 **If the artifact is not yet in the codebase** or a scan produces no results, skip Part C and log: `Part C scan skipped: no consumers found or scan unavailable`.
 

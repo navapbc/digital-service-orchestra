@@ -44,13 +44,14 @@ Returning prose, markdown, or raw JSON instead of this format will force a re-di
   the diff. The diff is pre-captured in the file at the path provided. Read from that file only.
 - Do NOT return your findings as prose or as inline JSON in your reply.
 - Do NOT skip writing reviewer-findings.json.
-- Do NOT report formatting or linting violations as findings. Ruff format and ruff check
-  (and mypy) run pre-commit and are already enforced by the hook suite. Any issue they catch
-  will be blocked before merge regardless of reviewer findings. Reporting such issues here
-  adds noise without value and will be discounted during autonomous resolution. Focus only
-  on logic, correctness, design, and test coverage issues that automated tooling cannot catch.
+- Do NOT report formatting or linting violations as findings. The project's configured linter
+  and type checker run pre-commit and are already enforced by the hook suite. Any issue they
+  catch will be blocked before merge regardless of reviewer findings. Reporting such issues
+  here adds noise without value and will be discounted during autonomous resolution. Focus
+  only on logic, correctness, design, and test coverage issues that automated tooling cannot
+  catch.
 - Do NOT run tests, lint checks, format checks, or type checkers (e.g., `make test`,
-  `pytest`, `make lint-ruff`, `make lint-mypy`, `ruff check`, `mypy`). These deterministic
+  `pytest`, the project's configured lint and type-check commands). These deterministic
   checks run in REVIEW-WORKFLOW.md Step 1 before this agent is dispatched. Re-running them
   here produces duplicate output, risks timeout, and introduces non-deterministic side effects.
   Your scope is non-deterministic analysis of the diff only.
@@ -203,9 +204,10 @@ validates consistency and rejects mismatches.
 
 Each finding's `category` must be exactly one of these five dimensions:
 
-- `hygiene` — dead code, naming anti-patterns, unnecessary complexity, missing guards,
-  structural issues NOT caught by automated tools. Do NOT report ruff/mypy/format violations
-  here — those run pre-commit and are already enforced.
+- `hygiene` — dead code, naming anti-patterns, unnecessary complexity (not caught by configured
+  automated tools), missing guards, structural issues. Do NOT report violations already
+  caught by the project's configured linter, type checker, or formatter here — those run
+  pre-commit and are already enforced.
 - `design` — classes, encapsulation, SOLID, design patterns
 - `maintainability` — naming, style, comments, organization
 - `correctness` — correctness, edge cases, error handling, efficiency, security
@@ -296,8 +298,8 @@ corresponding sub-criteria below in addition to the shared checks.
   (e.g., SC2086 unquoted variables in simple expansions, SC2164 `cd` without error handling)
   — these are enforced pre-commit by the project's shellcheck integration.
 - **Python code** (`.py` files, files under `app/`): apply the "Python-specific" sub-criteria.
-  Do NOT flag formatting or style issues covered by ruff format/check (e.g., line length,
-  import ordering, unused imports detected by F401) — ruff runs pre-commit and blocks merge.
+  Do NOT flag formatting or style issues covered by the project's configured linter (e.g.,
+  line length, import ordering, unused imports) — the linter runs pre-commit and blocks merge.
 - **Markdown / skill files** (`.md` files under the plugin root directory): skip all sub-criteria below;
   check only for hard-coded secrets and broken cross-references introduced in the diff.
 
@@ -365,14 +367,14 @@ Apply only the following highest-signal checks. Skip all other checks — do not
 
 Do NOT report findings that are already enforced by the project's automated tooling:
 
-- **ruff** (Python): formatting (E1–E5), import ordering (I), unused imports (F401),
-  and all `ruff check` rules run pre-commit. Do not re-flag these.
+- **The project's configured linter**: formatting, import ordering, and all configured lint
+  rules run pre-commit. Do not re-flag these.
 - **shellcheck** (bash): SC2086 (unquoted variables in simple expansions), SC2164
   (`cd` without error check), SC2006 (backtick command substitution), and most
   quoting/syntax warnings. Only flag patterns shellcheck misses in context (see
   Bash-specific sub-criteria above).
-- **mypy** (Python types): type annotation violations run pre-commit. Do not flag
-  missing type annotations or type mismatches unless they indicate a logic bug.
+- **The project's configured type checker**: type annotation violations run pre-commit. Do
+  not flag missing type annotations or type mismatches unless they indicate a logic bug.
 
 ## Overlay Classification
 

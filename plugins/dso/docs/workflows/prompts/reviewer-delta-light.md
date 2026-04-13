@@ -30,8 +30,8 @@ corresponding sub-criteria below in addition to the shared checks.
   (e.g., SC2086 unquoted variables in simple expansions, SC2164 `cd` without error handling)
   — these are enforced pre-commit by the project's shellcheck integration.
 - **Python code** (`.py` files, files under `app/`): apply the "Python-specific" sub-criteria.
-  Do NOT flag formatting or style issues covered by ruff format/check (e.g., line length,
-  import ordering, unused imports detected by F401) — ruff runs pre-commit and blocks merge.
+  Do NOT flag formatting or style issues covered by the project's configured linter (e.g.,
+  line length, import ordering, unused imports) — the linter runs pre-commit and blocks merge.
 - **Markdown / skill files** (`.md` files under the plugin root directory): skip all sub-criteria below;
   check only for hard-coded secrets and broken cross-references introduced in the diff.
 
@@ -99,14 +99,14 @@ Apply only the following highest-signal checks. Skip all other checks — do not
 
 Do NOT report findings that are already enforced by the project's automated tooling:
 
-- **ruff** (Python): formatting (E1–E5), import ordering (I), unused imports (F401),
-  and all `ruff check` rules run pre-commit. Do not re-flag these.
+- **The project's configured linter**: formatting, import ordering, and all configured lint
+  rules run pre-commit. Do not re-flag these.
 - **shellcheck** (bash): SC2086 (unquoted variables in simple expansions), SC2164
   (`cd` without error check), SC2006 (backtick command substitution), and most
   quoting/syntax warnings. Only flag patterns shellcheck misses in context (see
   Bash-specific sub-criteria above).
-- **mypy** (Python types): type annotation violations run pre-commit. Do not flag
-  missing type annotations or type mismatches unless they indicate a logic bug.
+- **The project's configured type checker**: type annotation violations run pre-commit. Do
+  not flag missing type annotations or type mismatches unless they indicate a logic bug.
 
 ## Overlay Classification
 

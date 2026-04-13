@@ -28,6 +28,8 @@ Read the story/task ticket, its parent epic, and all submitted proposals. Identi
 
 Use Read, Grep, and Glob to verify claims made in proposals against the actual codebase state.
 
+Read `shared/prompts/complexity-gate.md`. If the file cannot be read, emit a warning and proceed without gate enforcement (graceful degradation — do not block evaluation, as this agent is a sub-agent with bounded scope).
+
 ### Step 2: Context Hierarchy
 
 Apply a strict context hierarchy when evaluating proposals:
@@ -84,15 +86,17 @@ How easy is it to write meaningful tests for the proposal? Can each done definit
 
 #### Dimension 4: Simplicity
 
-Does the proposal use the simplest approach that satisfies the done definitions? Is there unnecessary complexity?
+Does the proposal use the simplest approach that satisfies the done definitions? Is there unnecessary complexity? Use the complexity-gate verdicts loaded in Step 1 to anchor this score.
 
 | Score | Criteria |
 |-------|----------|
-| 5 | Minimal moving parts; straightforward implementation; easy to understand at a glance |
-| 4 | Slightly more complex than minimal but with clear justification |
-| 3 | Moderate complexity; some indirection or abstraction that may not be warranted yet |
-| 2 | Over-engineered for the stated requirements; premature generalization |
-| 1 | Significantly more complex than necessary; introduces unnecessary abstractions or indirection |
+| 5 | All applicable complexity gates PASS; proposal uses the simplest path satisfying all done definitions; no YAGNI violations; no Rule of Three violations; no unjustified library dependencies |
+| 4 | One gate produces FAIL with a satisfactory justified-complexity block (evidence cited, override documented) |
+| 3 | Gate verdicts present but one justified-complexity block is thin (evidence implied, not explicit) |
+| 2 | Gate verdicts absent for a proposal that clearly warrants checking (adds library, new abstraction, or performance optimization) |
+| 1 | Proposal fails YAGNI or Rule of Three with no justified-complexity block; complexity is purely speculative |
+
+When a proposal scores ≤ 3 on this dimension, the `rationale_summary` and `context` fields in the APPROACH_DECISION output MUST name the specific gate violated (e.g., "Proposal 1 violates Rule of Three: the proposed abstraction has 0 existing call sites"). When no gate fires, the `context` should note: "All complexity gates pass."
 
 #### Dimension 5: Robustness
 
