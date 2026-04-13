@@ -230,7 +230,163 @@ See `docs/PRE-COMMIT-TIMEOUT-WRAPPER.md` for the timeout wrapper interface.
 
 ---
 
-### Upgrade
+## Artifact Version Stamps
+
+DSO embeds a version stamp in each artifact it installs into your project. These stamps let DSO detect which artifacts are out of date after you upgrade the plugin.
+
+### Stamp format
+
+| Artifact | Format | Example |
+|----------|--------|---------|
+| `.claude/scripts/dso` (shim) | `# dso-version: <version>` (comment line after shebang) | `# dso-version: 1.2.0` |
+| `.claude/dso-config.conf` | `# dso-version: <version>` (comment line) | `# dso-version: 1.2.0` |
+| `.pre-commit-config.yaml` | `x-dso-version: <version>` (top-level YAML key) | `x-dso-version: 1.2.0` |
+| `.github/workflows/ci.yml` | `x-dso-version: <version>` (top-level YAML key) | `x-dso-version: 1.2.0` |
+
+**Text artifacts** (shell scripts, config files): the stamp is a `# dso-version: <version>` comment.
+It is inserted after the first line (shebang) if absent, or updated in-place if already present.
+
+**YAML artifacts** (`.pre-commit-config.yaml`, `ci.yml`): the stamp is an `x-dso-version: <version>` key.
+It is prepended as the first line if absent, or updated in-place if already present.
+
+Stamps are idempotent — re-running `dso-setup.sh` on an already-stamped file updates the version
+without adding duplicate lines.
+
+### Legacy artifacts
+
+An artifact with no stamp (`# dso-version:` or `x-dso-version:`) was installed before version
+stamping was introduced. DSO classifies these as **legacy**. Legacy artifacts receive a one-time
+migration notice at session start (see below); after running `dso update-artifacts`, stamps are
+added and the notice is cleared.
+
+---
+
+## Session-Start Artifact Notifications
+
+DSO checks artifact version stamps at the start of each Claude Code session via the
+`check-artifact-versions.sh` hook. When any installed artifact is stale or legacy, a single
+notice is printed to the terminal:
+
+```
+DSO artifacts out of date — stale: shim (.claude/scripts/dso) — legacy (no version stamp): pre-commit (.pre-commit-config.yaml). Run: dso update-artifacts
+```
+
+### When it fires
+
+- **Stale**: an artifact has a stamp, but it does not match the current plugin version (the plugin
+  was upgraded since the artifact was last updated).
+- **Legacy**: an artifact exists but has no stamp (installed before stamping was introduced).
+  This is a one-time notice — after running `dso update-artifacts`, the stamp is added and the
+  notice will no longer appear for that artifact.
+
+### When it is silent
+
+- All artifacts are current (stamps match the plugin version).
+- The check ran within the last 24 hours for the same plugin version (cache hit).
+- The hook is running inside the DSO plugin source repository itself (not a host project).
+
+### 24-hour cache
+
+After each check, the hook writes `.claude/dso-artifact-check-cache` (a `KEY=VALUE` file with
+`VERSION` and `TIMESTAMP` fields). On subsequent session starts, if the cached version matches
+the plugin version and the cache is less than 24 hours old, the full stamp comparison is skipped
+and no notice is emitted. This prevents repetitive messages within a single workday.
+
+The cache file is automatically added to `.gitignore` by `dso-setup.sh` — it is a local
+per-machine file and should not be committed.
+
+### Plugin source repo guard
+
+When Claude Code is opened from within the DSO plugin repository itself, the hook detects that
+the plugin directory is inside the current repo root and silently exits. There are no installed
+host-project artifacts to check in the plugin source tree.
+
+---
+
+## Keeping Artifacts Up to Date
+
+### Prerequisite: sync the plugin first
+
+Before updating artifacts, ensure the plugin itself is current. If DSO is managed as a Claude
+Code plugin, run:
+
+```bash
+claude plugin sync
+```
+
+This pulls the latest plugin version into the plugin cache. `dso update-artifacts` reads the
+plugin version from the updated plugin cache when determining which version to stamp artifacts
+with. Skipping this step means artifacts will be stamped with the old plugin version.
+
+### dso update-artifacts
+
+After syncing the plugin (or pulling the plugin repository), update installed artifacts in your
+host project:
+
+```bash
+.claude/scripts/dso update-artifacts
+```
+
+This command:
+1. Reads the current plugin version from the plugin's `plugin.json`
+2. Compares version stamps on each installed artifact against the plugin version
+3. For stale or legacy artifacts, applies the appropriate merge strategy:
+   - **Shim** (`.claude/scripts/dso`): overwritten with the latest template and re-stamped
+   - **Config** (`.claude/dso-config.conf`): merged additively — new keys from the plugin
+     template are appended; existing keys are preserved
+   - **Pre-commit** (`.pre-commit-config.yaml`): hook entries merged — new DSO hooks added;
+     user hooks preserved
+   - **CI workflow** (`.github/workflows/ci.yml`): merged — new DSO steps added; user steps
+     preserved
+4. Updates the version stamp on each successfully updated artifact
+
+#### Success output
+
+Per-artifact status lines are written to stderr:
+
+```
+[update-artifacts] Shim updated: .claude/scripts/dso (version: 1.2.0)
+[update-artifacts] Config merged: .claude/dso-config.conf (version: 1.2.0)
+[update-artifacts] Pre-commit merged: .pre-commit-config.yaml (version: 1.2.0)
+[update-artifacts] CI workflow merged: .github/workflows/ci.yml (version: 1.2.0)
+```
+
+If an artifact is already at the current version, it is reported as current and skipped:
+
+```
+[update-artifacts] Shim already current (version: 1.2.0)
+```
+
+#### Conflict output (exit 2)
+
+When an artifact has a conflicting value that cannot be merged automatically (for example, a
+config key present in both the host project and the plugin template with different values, and
+that key is listed in `--conflict-keys`), `dso update-artifacts` exits with code 2 and writes
+a JSON object to stdout:
+
+```json
+{
+  "artifact": ".claude/dso-config.conf",
+  "conflict_ours": "<base64-encoded host file content>",
+  "conflict_theirs": "<base64-encoded plugin template content>"
+}
+```
+
+The `conflict_ours` and `conflict_theirs` fields are base64-encoded file contents. Decode with
+`base64 -d` (Linux) or `base64 -D` (macOS) to inspect the conflicting content and resolve
+manually. After resolving, re-run `dso update-artifacts`.
+
+Exit code summary:
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | All artifacts are current or were successfully updated |
+| `1` | Fatal error (missing required files, no git repo) |
+| `2` | Unresolvable conflict — JSON written to stdout |
+
+---
+
+## Upgrade
 
 ```bash
 cd /path/to/digital-service-orchestra
@@ -242,6 +398,9 @@ No configuration migration is required for patch or minor version bumps
 
 For major version bumps (e.g., `0.x` → `1.0`), check `CHANGELOG.md` for breaking changes and
 any required updates to `.claude/dso-config.conf` or `.claude/settings.json`.
+
+After any version bump (patch, minor, or major), run `dso update-artifacts` to bring installed
+host-project artifacts in sync with the new plugin version.
 
 ---
 
