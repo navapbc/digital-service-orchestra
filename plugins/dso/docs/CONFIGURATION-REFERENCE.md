@@ -759,6 +759,41 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ---
 
+### `preplanning.interactive`
+
+| | |
+|---|---|
+| **Description** | Controls whether `/dso:preplanning` runs in interactive mode (pauses at user-facing checkpoints) or non-interactive mode (auto-applies or skips all checkpoints for automated/CI contexts). When absent, preplanning defaults to `true` (interactive) — preserving the behavior of projects that existed before this key was introduced. |
+| **Type** | boolean |
+| **Accepted values** | `true` (interactive — pause at all checkpoints and wait for user input); `false` (non-interactive — auto-apply or skip all checkpoints) |
+| **Default** | `true` when absent |
+| **Used by** | `/dso:preplanning` (all 7 interactive checkpoints) |
+
+**Checkpoint behavior table** — how each checkpoint behaves when `preplanning.interactive=false`:
+
+| Checkpoint | Interactive behavior | Non-interactive fallback |
+|---|---|---|
+| CP1 — No epic-id provided | Prompts user to supply an epic ID | Exits immediately with `INTERACTIVITY_DEFERRED` error |
+| CP2 — Escalation policy | Asks user to choose escalation policy | Defaults to "Escalate when blocked" |
+| CP3 — Scope clarification | Pauses for user to clarify scope | Exits immediately with `INTERACTIVITY_DEFERRED` error |
+| CP4 — Reconciliation approval | Presents diff for user approval before applying changes | Auto-applies changes; `in_progress` child story deletions are logged and skipped (not deleted) |
+| CP5 — Story dashboard | Presents story dashboard summary to user | Suppresses dashboard presentation; continues silently |
+| CP6 — Final approval | Waits for explicit user approval before proceeding | Skips approval gate; proceeds automatically |
+| CP7 — UI-designer checkpoints | Pauses at each ui-designer dispatch checkpoint | Uses `INTERACTIVITY_DEFERRED` paths in the ui-designer dispatch protocol |
+
+**Migration note for existing projects:**
+
+Before this key existed, `/dso:preplanning` always ran interactively. With the key **absent**, preplanning continues to default to `true` (interactive) — there is **no behavior change** for existing projects that do not set this key.
+
+- To explicitly preserve interactive behavior: add `preplanning.interactive=true` to `.claude/dso-config.conf`
+- To enable non-interactive / automated mode: add `preplanning.interactive=false` to `.claude/dso-config.conf`
+
+**KNOWN_KEYS registration note:**
+
+When adding `preplanning.interactive` to a new host project's `dso-config.conf`, also add `preplanning.interactive` to the `KNOWN_KEYS` array in `validate-config.sh` to prevent CI breakage on unknown-key validation. DSO's own `KNOWN_KEYS` registration was completed in story d481-3e6c.
+
+---
+
 ### `merge.visual_baseline_path`
 
 | | |
