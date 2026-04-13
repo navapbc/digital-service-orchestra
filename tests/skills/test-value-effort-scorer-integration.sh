@@ -95,12 +95,12 @@ test_brainstorm_scorer_integration() {
     fail "Brainstorm SKILL.md missing reference to shared/prompts/value-effort-scorer.md"
   fi
 
-  # ticket create must use -p with a variable (not a hardcoded literal)
-  # Pattern: -p $var or -p <var> or -p ${var}
-  if grep -qE "\-p[[:space:]]+(\\\$[a-zA-Z_]|<[a-zA-Z_])" "$BRAINSTORM_MD"; then
-    pass "Brainstorm SKILL.md ticket create uses -p with a variable"
+  # ticket create must use --priority with a variable (not a hardcoded literal)
+  # Pattern: --priority $var or --priority <var> or --priority ${var}
+  if grep -qE "\-\-priority[[:space:]]+(\\\$[a-zA-Z_]|<[a-zA-Z_])" "$BRAINSTORM_MD"; then
+    pass "Brainstorm SKILL.md ticket create uses --priority with a variable"
   else
-    fail "Brainstorm SKILL.md ticket create missing -p with a variable (found hardcoded priority or missing -p)"
+    fail "Brainstorm SKILL.md ticket create missing --priority with a variable (found hardcoded priority or missing --priority)"
   fi
 }
 

@@ -537,7 +537,7 @@ DESCRIPTION
 **If no existing epic** (i.e., this is a new brainstorm or the original ticket was not epic — i.e., you arrived here via the Convert-to-Epic path): create the epic:
 
 ```bash
-.claude/scripts/dso ticket create epic "<title>" -p <priority> -d "$(cat <<'DESCRIPTION'
+.claude/scripts/dso ticket create epic "<title>" --priority <priority> -d "$(cat <<'DESCRIPTION'
 ## Context
 [context narrative]
 
@@ -557,7 +557,7 @@ DESCRIPTION
 )"
 ```
 
-**Priority guidance (new epics only):** Before creating the ticket, read and apply the value/effort scorer from `skills/shared/prompts/value-effort-scorer.md`. Assess the epic's value (1-5) and effort (1-5) based on the conversation context, map to the recommended priority via the scorer's matrix, and use that priority with `-p <priority>` in the ticket create command above.
+**Priority guidance (new epics only):** Before creating the ticket, read and apply the value/effort scorer from `skills/shared/prompts/value-effort-scorer.md`. Assess the epic's value (1-5) and effort (1-5) based on the conversation context, map to the recommended priority via the scorer's matrix, and use that priority with `--priority <priority>` in the ticket create command above.
 
 ### Step 2: Set Dependencies
 

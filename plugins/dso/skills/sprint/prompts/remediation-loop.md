@@ -47,7 +47,7 @@ For each item in the validation agent's FAIL/REMEDIATION output:
 ```bash
 # Title format: [Component]: [Condition] -> [Observed Result]
 # Follow ${CLAUDE_PLUGIN_ROOT}/skills/create-bug/SKILL.md for description format
-.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -p 1 --parent=<epic-id> -d "## Incident Overview ..."
+.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" --priority 1 --parent=<epic-id> -d "## Incident Overview ..."
 ```
 
 ### Step 2: Validate Ticket Health (/dso:sprint)

@@ -121,12 +121,12 @@ Pattern: Main Agent → Create interface contract (ABC, tests, docs)
 
 ```bash
 # 1. Create interface task (unblocks others)
-.claude/scripts/dso ticket create task "Define MyProvider interface contract" -p 1
+.claude/scripts/dso ticket create task "Define MyProvider interface contract" --priority 1
 # Returns: <issue-id>
 
 # 2. Create implementation tasks
-.claude/scripts/dso ticket create task "Implement ConcreteProviderA" -p 2
-.claude/scripts/dso ticket create task "Implement ConcreteProviderB" -p 2
+.claude/scripts/dso ticket create task "Implement ConcreteProviderA" --priority 2
+.claude/scripts/dso ticket create task "Implement ConcreteProviderB" --priority 2
 # Returns: <issue-id-a>, <issue-id-b>
 
 # 3. Set dependencies
