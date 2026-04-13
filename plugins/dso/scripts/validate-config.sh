@@ -115,6 +115,9 @@ KNOWN_KEYS=(
     # Skills
     skills.playwright_debug_reference
 
+    # Preplanning
+    preplanning.interactive
+
     # Persistence — source patterns
     persistence.source_patterns
     persistence.test_patterns

@@ -146,7 +146,7 @@ generic architectural integrity checks below.
   Use Grep on `hooks/dispatchers/` to verify the consolidated dispatcher
   pattern is preserved. Flag as `important` under `design` if violated.
 - [ ] **Skill namespacing**: Do any in-scope files added or modified by the diff use
-  unqualified skill references (e.g., `/sprint` instead of `/dso:sprint`)? In-scope
+  unqualified skill references (e.g., `sprint` without the `dso:` prefix, written as `/dso:sprint` when qualified)? In-scope
   files are: `skills/`, `docs/`, `hooks/`,
   `commands/`, `CLAUDE.md`. Unqualified skill refs are caught by
   `check-skill-refs.sh` and will fail CI — flag as `important` under `hygiene`.
