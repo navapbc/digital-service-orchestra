@@ -2174,6 +2174,13 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
    git merge-base --is-ancestor HEAD main
    ```
    If this exits non-zero, do NOT close the epic — changes have not been merged to main. Run `merge-to-main.sh` first and resolve any conflicts before proceeding. Only close the epic after `merge-base --is-ancestor` exits 0.
+   <ORCHESTRATOR_RESUME>
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** merge-to-main.sh returning does NOT
+   signal sprint completion. You are the sprint orchestrator in Phase 8 (Primary Ticket
+   Closure). Proceed immediately to step 2 (close the epic). Do NOT stop, wait for user
+   input, or treat merge-to-main.sh completion as a session end. Exiting after step 1
+   without completing steps 2–4 is the specific failure mode documented in bug 89fe-bad1.
+   </ORCHESTRATOR_RESUME>
 2. Close the epic:
    ```bash
    .claude/scripts/dso ticket comment <epic-id> "Epic complete: all tasks closed, validation score 5/5, branch merged to main"
@@ -2196,6 +2203,10 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
    Asking "Would you like me to..." is a known anti-pattern (c26f-be3f) that adds
    friction. This is an unconditional directive — execute immediately after the
    epic closes.
+   Closing the epic in step 2 and running merge-to-main.sh in step 1 do NOT complete
+   Phase 8 — they are prerequisites for /dso:end-session, not substitutes. Exiting
+   after steps 1–3 without invoking /dso:end-session is the specific anti-pattern
+   this gate prevents (bug 89fe-bad1).
    </HARD-GATE>
 
 ### On Graceful Shutdown (Compaction, Failures)
