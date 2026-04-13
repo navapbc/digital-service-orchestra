@@ -661,6 +661,19 @@
           "examples": [null, 3, 5, 10]
         }
       }
+    },
+    "preplanning": {
+      "type": "object",
+      "description": "Preplanning skill configuration. Controls runtime behaviour of the /dso:preplanning skill.",
+      "additionalProperties": false,
+      "properties": {
+        "interactive": {
+          "type": "boolean",
+          "description": "When true, preplanning pauses for user confirmation at interactive gates. When false, all confirmation gates are bypassed (non-interactive / automation mode). When absent, the skill defaults to true (interactive). Set to false in CI pipelines and automated orchestration.",
+          "default": true,
+          "examples": [true, false]
+        }
+      }
     }
   }
 }

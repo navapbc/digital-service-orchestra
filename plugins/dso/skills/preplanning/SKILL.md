@@ -28,6 +28,22 @@ _DSO_TRACE_CUMULATIVE_BYTES="${DSO_TRACE_CUMULATIVE_BYTES:-null}"
 echo "{\"type\":\"SKILL_ENTER\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)\",\"skill_name\":\"preplanning\",\"nesting_depth\":${_DSO_TRACE_DEPTH},\"skill_file_size\":${_DSO_TRACE_FILE_SIZE},\"tool_call_count\":null,\"elapsed_ms\":null,\"session_ordinal\":${_DSO_TRACE_SESSION_ORDINAL},\"cumulative_bytes\":${_DSO_TRACE_CUMULATIVE_BYTES},\"termination_directive\":null,\"user_interaction_count\":0}" >> "/tmp/dso-skill-trace-${_DSO_TRACE_SESSION_ID}.log" || true
 ```
 
+## Startup Configuration
+
+Immediately after the SKILL_ENTER breadcrumb, read the interactive mode flag:
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+PREPLANNING_INTERACTIVE=$(bash "$PLUGIN_SCRIPTS/read-config.sh" preplanning.interactive 2>/dev/null || echo 'true')  # shim-exempt: internal orchestration script
+PREPLANNING_INTERACTIVE=$(echo "$PREPLANNING_INTERACTIVE" | tr '[:upper:]' '[:lower:]')
+# Default: true (interactive) when the key is absent or empty
+if [[ -z "$PREPLANNING_INTERACTIVE" ]]; then
+  PREPLANNING_INTERACTIVE="true"
+fi
+```
+
+Default is `true` (interactive) when the key is absent — new projects without the key should default to interactive mode. Only set `preplanning.interactive=false` in `.claude/dso-config.conf` for automated pipelines.
+
 # Pre-Planning: High-Fidelity Story Mapping
 
 Act as a Senior Technical Product Manager (Google-style) to audit, reconcile, and decompose a ticket Epic into prioritized User Stories with measurable Done Definitions that bridge the epic's vision to task-level acceptance criteria.
@@ -81,6 +97,11 @@ This is a presence-based check — only block when the tag IS present. Existing 
 ### Step 1: Select and Load Epic (/dso:preplanning)
 
 If `<epic-id>` was not provided:
+
+**Non-interactive gate (CP1)**: If `PREPLANNING_INTERACTIVE=false` and no `<epic-id>` argument was provided:
+- Log: `INTERACTIVITY_DEFERRED: preplanning.interactive=false — no epic-id provided. Invoke with /dso:preplanning <epic-id> to run non-interactively.`
+- Exit with error (do not proceed).
+
 1. Run `.claude/scripts/dso ticket list` then filter results to epics only (filter JSON output where `ticket_type == 'epic'`)
 2. If no open epics exist, report and exit
 3. Present epics to the user (if more than 5, show first 5 with option to see more)
@@ -92,6 +113,11 @@ Load the epic:
 ```
 
 ### Step 1b: Select Escalation Policy (/dso:preplanning)
+
+**Non-interactive default (CP2)**: If `PREPLANNING_INTERACTIVE=false`:
+- Use default escalation policy: **"Escalate when blocked"** (skip `AskUserQuestion`).
+- Set `{escalation_policy_label}` = `"Escalate when blocked"` and `{escalation_policy_text}` = the full text for that label (see table in Phase 4 Step 2).
+- Continue to the next step without presenting any question.
 
 Use `AskUserQuestion` to ask the user which escalation policy should apply to all stories in this epic. Skip this step in `--lightweight` mode.
 
@@ -137,6 +163,10 @@ For each existing child, classify it:
 - "Tell me more about the intended scope for [Feature]... should it include [X]?"
 - "I see existing tasks for [Y]. Should these be absorbed into our new story map or kept separate?"
 
+**Non-interactive exit (CP3)**: If `PREPLANNING_INTERACTIVE=false` and scope clarification is required (boundaries are unclear or existing tasks conflict):
+- Log: `INTERACTIVITY_DEFERRED: preplanning.interactive=false — scope clarification required. Re-run /dso:preplanning <epic-id> interactively to resolve.`
+- Exit with error (do not proceed).
+
 ### Step 4: Document Reconciliation Plan (/dso:preplanning)
 
 Before creating new stories, present a reconciliation summary:
@@ -146,6 +176,11 @@ Before creating new stories, present a reconciliation summary:
 | xxx-123 | ... | pending | Reuse | Aligns with Epic criterion 1 |
 | xxx-124 | ... | in_progress | Modify | Needs updated success criteria |
 | xxx-125 | ... | pending | Delete | Redundant with new story approach |
+
+**Non-interactive auto-apply (CP4)**: If `PREPLANNING_INTERACTIVE=false`:
+- Auto-apply reconciliation changes (skip `AskUserQuestion` confirmation).
+- **In-progress guard**: Do NOT auto-apply Delete recommendations for any child story with status `in_progress`. Skip those deletions and log a warning for each: `"Skipping Delete for in_progress story <id> — manual review required."`
+- Continue to story creation without user confirmation.
 
 Use `AskUserQuestion` to get user approval before proceeding:
 - Question: "The reconciliation plan above summarizes how existing children will be handled. Do you approve this plan?"
@@ -624,6 +659,10 @@ This RED acceptance criteria ensures the TDD test story's tests are observed to 
 
 ### Step 3: Present Story Dashboard (/dso:preplanning)
 
+**Non-interactive suppress (CP5)**: If `PREPLANNING_INTERACTIVE=false`:
+- Suppress dashboard presentation (continue silently without presenting the dashboard to the user).
+- Skip the table and full story descriptions below; proceed directly to Step 4.
+
 Display the epic ID prominently at the top so it can be referenced in follow-up commands:
 
 ```
@@ -668,6 +707,10 @@ After creating all stories and dependencies:
 If score < 5, fix issues before presenting to user.
 
 ### Step 5: Final Review Prompt (/dso:preplanning)
+
+**Non-interactive skip (CP6)**: If `PREPLANNING_INTERACTIVE=false`:
+- Skip the approval gate (proceed automatically without `AskUserQuestion`).
+- Treat the plan as approved and continue immediately to Step 5a, Step 6, and Step 7.
 
 Present the plan to the user with:
 

@@ -228,4 +228,26 @@ assert_eq "test_schema_infrastructure_compose_db_file: exit 0" "0" "$cdf_exit"
 assert_eq "test_schema_infrastructure_compose_db_file: output is OK" "OK" "$cdf_output"
 assert_pass_if_clean "test_schema_infrastructure_compose_db_file"
 
+# ── test_schema_preplanning_interactive_property_exists ───────────────────────
+# preplanning section must exist with interactive boolean property.
+# RED: This test FAILS before preplanning object is added to the schema.
+_snapshot_fail
+pre_int_exit=0
+pre_int_output=""
+pre_int_output=$(python3 -c "
+import json, sys
+d = json.load(open('$SCHEMA'))
+props = d.get('properties', {}).get('preplanning', {}).get('properties', {})
+if 'interactive' not in props:
+    print('MISSING: interactive not found in preplanning.properties')
+    sys.exit(1)
+if props['interactive'].get('type') != 'boolean':
+    print('WRONG_TYPE: expected boolean, got ' + str(props['interactive'].get('type')))
+    sys.exit(1)
+print('OK')
+" 2>&1) || pre_int_exit=$?
+assert_eq "test_schema_preplanning_interactive_property_exists: exit 0" "0" "$pre_int_exit"
+assert_eq "test_schema_preplanning_interactive_property_exists: output is OK" "OK" "$pre_int_output"
+assert_pass_if_clean "test_schema_preplanning_interactive_property_exists"
+
 print_summary
