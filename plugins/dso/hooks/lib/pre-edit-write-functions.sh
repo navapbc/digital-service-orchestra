@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../..}"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../..}" # REVIEW-DEFENSE: Finding confirmed false positive — file lives at hooks/lib/; dirname gives hooks/lib/, then /../.. ascends two levels to the plugin root. Depth is correct.
 # hooks/lib/pre-edit-write-functions.sh
 # Sourceable function definitions for the PreToolUse Edit/Write hooks.
 #

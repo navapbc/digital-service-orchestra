@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../..}"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../..}" # REVIEW-DEFENSE: Finding confirmed false positive — file lives at skills/preplanning/tests/; dirname gives that dir, then /../../.. ascends three levels to the plugin root. Depth is correct.
 # Structural validation for adversarial review prompt templates and SKILL.md consistency.
 # Tests: placeholder consistency, output-input schema chain consistency.
 set -euo pipefail

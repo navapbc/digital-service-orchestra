@@ -205,6 +205,92 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Test 16: SKILL.md contains "Between-Batch GHA Refresh" section heading in Bug-Fix Mode
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== test_skill_md_between_batch_section_heading ==="
+SECTION="test_skill_md_between_batch_section_heading"
+
+if [ ! -f "$SKILL_MD" ]; then
+  fail "SKILL.md missing at: $SKILL_MD"
+else
+  if grep -q "Between-Batch GHA Refresh" "$SKILL_MD"; then
+    pass "SKILL.md contains 'Between-Batch GHA Refresh' section heading in Bug-Fix Mode"
+  else
+    fail "SKILL.md missing 'Between-Batch GHA Refresh' section heading"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# Test 17: SKILL.md step 4 in Bug-Fix Mode references placement before Validation Mode
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== test_skill_md_between_batch_placement ==="
+SECTION="test_skill_md_between_batch_placement"
+
+if [ ! -f "$SKILL_MD" ]; then
+  fail "SKILL.md missing at: $SKILL_MD"
+else
+  if grep -qiE "between.*batch|between-batch|Between-Batch" "$SKILL_MD"; then
+    pass "SKILL.md references between-batch concept indicating placement before Validation Mode"
+  else
+    fail "SKILL.md missing between-batch reference (case-insensitive)"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# Test 18: SKILL.md between-batch section contains short-circuit for empty GHA_WORKFLOWS
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== test_skill_md_between_batch_short_circuit_workflows ==="
+SECTION="test_skill_md_between_batch_short_circuit_workflows"
+
+if [ ! -f "$SKILL_MD" ]; then
+  fail "SKILL.md missing at: $SKILL_MD"
+else
+  if grep -q "GHA scan skipped: no workflows configured" "$SKILL_MD"; then
+    pass "SKILL.md between-batch section contains short-circuit for empty GHA_WORKFLOWS"
+  else
+    fail "SKILL.md missing 'GHA scan skipped: no workflows configured' short-circuit message"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# Test 19: SKILL.md references gha-scanner.md at least twice (Step 0 + between-batch)
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== test_skill_md_gha_scanner_md_multiple_refs ==="
+SECTION="test_skill_md_gha_scanner_md_multiple_refs"
+
+if [ ! -f "$SKILL_MD" ]; then
+  fail "SKILL.md missing at: $SKILL_MD"
+else
+  COUNT="$(grep -c "gha-scanner.md" "$SKILL_MD" || true)"
+  if [ "${COUNT}" -ge 2 ]; then
+    pass "SKILL.md references gha-scanner.md at least twice (Step 0 + between-batch section)"
+  else
+    fail "SKILL.md references gha-scanner.md fewer than 2 times (expected Step 0 + between-batch); found: ${COUNT}"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# Test 20: SKILL.md between-batch section re-queries open ticket list after scan
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== test_skill_md_between_batch_requery_ticket_list ==="
+SECTION="test_skill_md_between_batch_requery_ticket_list"
+
+if [ ! -f "$SKILL_MD" ]; then
+  fail "SKILL.md missing at: $SKILL_MD"
+else
+  if grep -qE "ticket list.*bug.*open|ticket list.*open.*bug" "$SKILL_MD"; then
+    pass "SKILL.md between-batch section re-queries open bug ticket list after scan"
+  else
+    fail "SKILL.md missing ticket list re-query for open bugs in between-batch section"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""

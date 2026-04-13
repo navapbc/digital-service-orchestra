@@ -401,7 +401,41 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
    Do NOT abort Bug-Fix Mode when a single ticket fails — process all remaining tickets.
 
-4. **After all bug tickets have been attempted**, proceed to **Validation Mode** to check for newly exposed failures.
+4. **After all bug tickets have been attempted**, run the **Between-Batch GHA Refresh** before proceeding to Validation Mode.
+
+### Between-Batch GHA Refresh (Bug-Fix Mode)
+
+This step runs unconditionally after all bug tickets in the current batch have been attempted and before the Validation Mode entry — regardless of `MAX_FIX_VALIDATE_CYCLES` (including 0).
+
+**Short-circuit checks** (check in order before dispatching sub-agent):
+
+1. If `GHA_SCAN_ENABLED` is exactly `false`: log `GHA scan skipped: disabled via debug.gha_scan_enabled=false` and proceed to Validation Mode.
+2. If `GHA_WORKFLOWS` is absent or empty: log `GHA scan skipped: no workflows configured` and proceed to Validation Mode.
+
+**Dispatch GHA scanner sub-agent** (only when both checks pass):
+
+- Sub-agent type: `general-purpose`
+- Prompt: Read `${_GHA_PLUGIN_ROOT}/skills/debug-everything/prompts/gha-scanner.md` and use its contents as the sub-agent prompt. Inject `WORKFLOWS` (the value of `GHA_WORKFLOWS`) and `REPO_ROOT` (from `git rev-parse --show-toplevel`) into the prompt context.
+- Isolation: apply `isolation: "worktree"` when `_GHA_ISOLATION_ENABLED` equals `true`.
+
+**After sub-agent returns**:
+- Parse the compact summary JSON: `{"workflows_checked": N, "tickets_created": N, "failures_already_tracked": N, "new_ticket_ids": [...]}`
+- Write epic comment:
+  ```bash
+  "$(git rev-parse --show-toplevel)/.claude/scripts/dso" ticket comment <epic-id> "GHA between-batch scan: <workflows_checked> workflows checked, <tickets_created> tickets created, <failures_already_tracked> already tracked. New tickets: <new_ticket_ids>"
+  ```
+- If `tickets_created > 0`: re-query open bug ticket list and add new tickets to the queue for the next iteration (they will be picked up by Validation Mode's re-entry into Bug-Fix Mode on the next cycle).
+- If sub-agent returns `GHA scan unavailable: workflow run tools not registered`: log the signal and proceed to Validation Mode without writing the epic comment.
+
+**Re-query open ticket list**:
+
+After the scan completes (regardless of `tickets_created`), re-run:
+```bash
+.claude/scripts/dso ticket list --type=bug --status=open
+```
+Use this refreshed list for the Validation Mode entry decision.
+
+5. Proceed to **Validation Mode**.
 
 ---
 
