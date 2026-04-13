@@ -130,13 +130,15 @@ re-dispatching.
 - After the **2nd** `CACHE_MISSING` return: run ui-discover again (retry attempt 2 —
   in case of a transient write failure), then re-dispatch one final time.
 - After the **3rd** `CACHE_MISSING` return (both retry attempts exhausted):
-  - **Non-interactive mode**: Write the following comment to the epic ticket and
-    skip this story:
+  Branch on `PREPLANNING_INTERACTIVE`:
+  - **If `PREPLANNING_INTERACTIVE=false`** (non-interactive mode): Write the
+    following comment to the epic ticket and skip this story:
     ```
     .claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: CACHE_MISSING <story-id> — UI Discovery Cache could not be populated after 2 refresh attempts. Manual intervention required: run /dso:ui-discover <story-id> and re-trigger preplanning Step 6."
     ```
     Continue processing remaining UI stories.
-  - **Interactive mode**: Escalate to the user with the following message:
+  - **If `PREPLANNING_INTERACTIVE=true`** (interactive mode): Escalate to the
+    user with the following message:
     > "The UI Discovery Cache could not be populated for story `<story-id>` after
     > 2 refresh attempts. Please run `/dso:ui-discover <story-id>` manually and
     > confirm when complete, then we will re-dispatch the designer."
@@ -215,7 +217,9 @@ review_feedback = null
          so the designer can address the findings.
        - After receiving the updated payload, return to step 1 of this loop.
      - **If `review_cycle_count >= max_review_cycles`** (max cycles exhausted):
-       - **Interactive mode**: Use `AskUserQuestion` to escalate:
+       Branch on `PREPLANNING_INTERACTIVE`:
+       - **If `PREPLANNING_INTERACTIVE=true`** (interactive mode): Use
+         `AskUserQuestion` to escalate:
          > "Design review for story `<story-id>` has not passed after
          > `<max_review_cycles>` cycles. Blocking findings:
          > `<review_feedback>`
@@ -225,8 +229,9 @@ review_feedback = null
          > 2. Abandon design artifacts for this story (tag design:pending_review)
          > 3. Re-dispatch the designer with additional manual guidance"
          Apply the user's chosen action and continue to Section 5.
-       - **Non-interactive mode**: Write a comment to the epic ticket and tag
-         the story `design:pending_review`, then continue to Section 5:
+       - **If `PREPLANNING_INTERACTIVE=false`** (non-interactive mode): Write a
+         comment to the epic ticket and tag the story `design:pending_review`,
+         then continue to Section 5:
          ```bash
          .claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: design review for story <story-id> did not pass after <max_review_cycles> cycles. Blocking findings: <review_feedback>. Manual review required: run /dso:review-protocol on <design_artifacts.manifest> and resolve findings before sprint."
          EXISTING_TAGS=$(.claude/scripts/dso ticket show <story-id> | python3 -c "import sys,json; t=json.load(sys.stdin).get('tags',[]); print(','.join(t))")
@@ -306,7 +311,7 @@ split into Foundation and Enhancement stories.
    ```
 5. Log: `"Created scope-split stories: <child-story-ids>. Linked to epic <epic-id>."`
 
-**Non-interactive mode** (INTERACTIVITY_DEFERRED):
+**If `PREPLANNING_INTERACTIVE=false`** (non-interactive mode — INTERACTIVITY_DEFERRED):
 
 Write a comment to the epic ticket describing the proposed split:
 ```
