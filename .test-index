@@ -24,8 +24,6 @@ plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/docs/test_sub_agent_boundaries_an
 plugins/dso/docs/templates/KNOWN-ISSUES.md:tests/scripts/test-known-issues-smoke.sh,tests/scripts/test-known-issues-template.sh
 plugins/dso/docs/workflow-config-schema.json:tests/scripts/test-workflow-config-schema.sh
 plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow-step-1-5.sh,tests/scripts/test-emit-commit-workflow-event.sh
-plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh,tests/docs/test-reviewer-base-repo-root-context.sh,tests/docs/test-reviewer-polyglot-compliance.sh [test_generated_agents_contain_no_python_tool_names],tests/docs/test-reviewer-polyglot-compliance.sh [test_source_templates_contain_no_python_tool_names]
-plugins/dso/docs/workflows/prompts/reviewer-delta-light.md:tests/docs/test-reviewer-polyglot-compliance.sh [test_generated_agents_contain_no_python_tool_names],tests/docs/test-reviewer-polyglot-compliance.sh [test_source_templates_contain_no_python_tool_names]
 plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh,tests/docs/test-reviewer-base-repo-root-context.sh,tests/docs/test-reviewer-polyglot-compliance.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-light.md:tests/docs/test-reviewer-polyglot-compliance.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
