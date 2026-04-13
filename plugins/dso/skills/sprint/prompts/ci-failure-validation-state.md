@@ -16,8 +16,8 @@ Write this file before dispatching the `error-debugging:error-detective` sub-age
   "generatedBy": "sprint",
   "localCheckResults": {
     "format": "pass|fail",
-    "lint_ruff": "pass|fail",
-    "lint_mypy": "pass|fail",
+    "lint_ruff": "pass|fail",   // Python-specific legacy key — preserved for validate.sh compatibility
+    "lint_mypy": "pass|fail",   // Python-specific legacy key — preserved for validate.sh compatibility
     "test_unit": "pass|fail"
   },
   "ciFailure": {
