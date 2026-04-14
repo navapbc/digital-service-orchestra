@@ -1042,4 +1042,19 @@ test_stack_config_key() {
 test_version_file_path_config
 test_stack_config_key
 
+# ── RED orientation section test (b267-a3b9) ─────────────────────────────────
+
+# test_orientation_section_present: ## Onboarding Overview section must exist before Phase 1
+test_orientation_section_present() {
+    _snapshot_fail
+    local has_section="no"
+    if grep -q '^## Onboarding Overview' "$SKILL_MD" 2>/dev/null; then
+        has_section="yes"
+    fi
+    assert_eq "test_orientation_section_present" "yes" "$has_section"
+    assert_pass_if_clean "test_orientation_section_present"
+}
+
+test_orientation_section_present
+
 print_summary
