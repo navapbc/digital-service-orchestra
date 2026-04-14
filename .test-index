@@ -159,3 +159,4 @@ plugins/dso/docs/DEPENDENCY-GUIDANCE.md:tests/docs/test-doc-polyglot-compliance.
 plugins/dso/scripts/prefill-config.sh:tests/unit/scripts/test-prefill-config.sh
 
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh [test_orientation_section_present]
+plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh [test_phase_counter_display]

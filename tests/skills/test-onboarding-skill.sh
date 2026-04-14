@@ -1057,4 +1057,19 @@ test_orientation_section_present() {
 
 test_orientation_section_present
 
+# ── RED phase counter test (055c-8be7) ────────────────────────────────────────
+
+# test_phase_counter_display: Phase counter (Phase N of Y) pattern must be present in SKILL.md
+test_phase_counter_display() {
+    _snapshot_fail
+    local has_counter="no"
+    if grep -qE 'Phase [0-9]+ of [0-9]+' "$SKILL_MD" 2>/dev/null; then
+        has_counter="yes"
+    fi
+    assert_eq "test_phase_counter_display" "yes" "$has_counter"
+    assert_pass_if_clean "test_phase_counter_display"
+}
+
+test_phase_counter_display
+
 print_summary
