@@ -1042,4 +1042,34 @@ test_stack_config_key() {
 test_version_file_path_config
 test_stack_config_key
 
+# ── RED orientation section test (b267-a3b9) ─────────────────────────────────
+
+# test_orientation_section_present: ## Onboarding Overview section must exist before Phase 1
+test_orientation_section_present() {
+    _snapshot_fail
+    local has_section="no"
+    if grep -q '^## Onboarding Overview' "$SKILL_MD" 2>/dev/null; then
+        has_section="yes"
+    fi
+    assert_eq "test_orientation_section_present" "yes" "$has_section"
+    assert_pass_if_clean "test_orientation_section_present"
+}
+
+test_orientation_section_present
+
+# ── RED phase counter test (055c-8be7) ────────────────────────────────────────
+
+# test_phase_counter_display: Phase counter (Phase N of Y) pattern must be present in SKILL.md
+test_phase_counter_display() {
+    _snapshot_fail
+    local has_counter="no"
+    if grep -qE 'Phase [0-9]+ of [0-9]+' "$SKILL_MD" 2>/dev/null; then
+        has_counter="yes"
+    fi
+    assert_eq "test_phase_counter_display" "yes" "$has_counter"
+    assert_pass_if_clean "test_phase_counter_display"
+}
+
+test_phase_counter_display
+
 print_summary
