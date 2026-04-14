@@ -127,6 +127,31 @@ echo "## $AREA_NAME" >> "$SCRATCHPAD"
 echo "$USER_ANSWER" >> "$SCRATCHPAD"
 ```
 
+After initializing the scratchpad, write the PHASE_PLAN:
+
+```bash
+# Write PHASE_PLAN to scratchpad (line-per-entry for easy removal of skipped phases)
+echo "" >> "$SCRATCHPAD"
+echo "## PHASE_PLAN" >> "$SCRATCHPAD"
+echo "Phase 1: Auto-Detection" >> "$SCRATCHPAD"
+echo "Phase 1.5: Template Selection Gate" >> "$SCRATCHPAD"
+echo "Phase 1.6: Template Installation" >> "$SCRATCHPAD"
+echo "Phase 1.7: Post-Install Re-Detection" >> "$SCRATCHPAD"
+echo "Phase 2: Socratic Dialogue Loop" >> "$SCRATCHPAD"
+echo "Phase 3: Completion" >> "$SCRATCHPAD"
+```
+
+Then compute and display the phase counter for Phase 1:
+
+```bash
+# Count PHASE_PLAN entries scoped to the ## PHASE_PLAN section (avoids counting "Phase" text elsewhere)
+Y=$(awk '/^## PHASE_PLAN/{flag=1; next} /^##/{flag=0} flag && /^Phase /{count++} END{print count+0}' "$SCRATCHPAD")
+N=1
+echo "(Phase ${N} of ${Y})"  # e.g. "Phase 1 of 6" when all phases are present
+```
+
+Display to user: **(Phase 1 of Y)** where Y = number of phase entries remaining in the `## PHASE_PLAN` section. Y starts at 6 when all phases apply; it decreases as optional phases (1.5, 1.6, 1.7, 2) are removed at their skip points.
+
 ### Step 3: Present Detected Configuration for Confirmation
 
 Before asking any questions, present what was found and ask the user to confirm or correct:
@@ -150,7 +175,20 @@ Wait for the user to confirm or correct before continuing. Update the scratchpad
 
 ## Phase 1.5: Template Selection Gate (Empty Project)
 
+At the start of this phase, use the same awk expression to count `## PHASE_PLAN` entries (Y). Phase 1.5 is always position N=2 (it comes right after Phase 1, before any removals). Display to user: **(Phase 2 of Y)** — e.g. `(Phase 2 of 6)` when all phases apply.
+
 **Condition:** Run this phase ONLY when `detect-stack.sh` returned `"unknown"` (no recognized framework was found). If the stack was detected as anything other than `"unknown"`, skip this phase entirely and proceed directly to Phase 2.
+
+When skipping Phase 1.5/1.6/1.7, remove them from PHASE_PLAN so the counter reflects only phases that actually ran:
+
+```bash
+# Remove skipped phases from PHASE_PLAN (patterns must match exactly as written in Step 2 init)
+sed -i '/^Phase 1\.5: Template Selection Gate$/d' "$SCRATCHPAD"
+sed -i '/^Phase 1\.6: Template Installation$/d' "$SCRATCHPAD"
+sed -i '/^Phase 1\.7: Post-Install Re-Detection$/d' "$SCRATCHPAD"
+```
+
+Note: if phase names in Step 2's PHASE_PLAN initialization are updated, update these sed patterns to match.
 
 **Goal:** Offer the user a curated set of starter templates so they can bootstrap from a known-good foundation instead of starting from scratch.
 
@@ -270,6 +308,8 @@ Read and execute `phases/1.6b-jekyll-git-clone-install.md`.
 
 ## Phase 1.7: Post-Install Re-Detection and Phase 2 Skip
 
+At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`. Count total entries (Y). Compute this phase's position N. Display to user: **(Phase N of Y)** — e.g. `(Phase 4 of 6)`.
+
 **Trigger:** Run this phase ONLY after Phase 1.6a or Phase 1.6b completes successfully. If no template was installed (user declined in Phase 1.5 or installation failed and manual flow was selected), skip this phase entirely and proceed to Phase 2.
 
 **Goal:** Re-run auto-detection against the freshly scaffolded project, verify the detected framework matches the registry's `framework_type`, record detection results in the scratchpad, and skip Phase 2 entirely — proceeding directly to Phase 3 (DSO infrastructure setup) with configuration inferred from the registry metadata and detection output.
@@ -363,6 +403,14 @@ echo "Phase 2 skipped — template pre-configured" >> "$SCRATCHPAD"
 echo "Phase 3 config source: registry framework_type='$REGISTRY_FRAMEWORK_TYPE' + post-install detection output" >> "$SCRATCHPAD"
 ```
 
+Also remove Phase 2 from PHASE_PLAN since it is being skipped via the template path:
+
+```bash
+# Remove Phase 2 from PHASE_PLAN (skipped via template path)
+# Pattern must match exactly as written in Step 2 init; update here if the name changes there
+sed -i '/^Phase 2: Socratic Dialogue Loop$/d' "$SCRATCHPAD"
+```
+
 Do NOT ask the user any Socratic dialogue questions from Phase 2. Proceed directly to Phase 3.
 
 ### Step 6: Proceed Directly to Phase 3
@@ -384,6 +432,8 @@ Skipping project dialogue (template pre-configured) — proceeding directly to D
 ---
 
 ## Phase 2: Socratic Dialogue Loop (/dso:onboarding)
+
+At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`. Count total entries (Y). Compute this phase's position N. Display to user: **(Phase N of Y)** — e.g. `(Phase 2 of 3)` when phases 1.5/1.6/1.7 were skipped.
 
 **Goal:** Fill gaps in the 7 understanding areas through focused, conversational questions. Present detected configuration for confirmation rather than asking open-ended discovery questions.
 
@@ -524,6 +574,8 @@ Wait for the user's response before proceeding to Phase 3.
 ---
 
 ## Phase 3: Completion (/dso:onboarding)
+
+At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`. Count total entries (Y). This is the final phase, so N = Y. Display to user: **(Phase N of Y)** — e.g. `(Phase 3 of 3)` or `(Phase 6 of 6)`.
 
 **Goal:** Summarize the findings and hand off to the next step.
 
