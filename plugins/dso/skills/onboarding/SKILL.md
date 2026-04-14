@@ -63,6 +63,71 @@ Work through each phase below. Answer what you know and skip what doesn't apply.
 
 **Goal:** Pre-fill as many answers as possible by reading project files BEFORE asking the user anything.
 
+### Step 0: Dependency Pre-Scan (Phase 1 of Y)
+
+Run BEFORE any user interaction or scratchpad initialization. Check for required and optional dependencies and resolve any gaps before proceeding.
+
+**Required dependencies:**
+
+```bash
+MISSING_DEPS=()
+
+# Check bash >= 4.0 — use /bin/bash explicitly (macOS ships bash 3.x on PATH)
+BASH_VERSION_STR=$(/bin/bash --version 2>/dev/null | head -1)
+BASH_MAJOR=$(echo "$BASH_VERSION_STR" | grep -oE 'version [0-9]+' | grep -oE '[0-9]+' | head -1)
+if [ -z "$BASH_MAJOR" ] || [ "$BASH_MAJOR" -lt 4 ]; then
+    MISSING_DEPS+=("bash (>= 4.0, detected: ${BASH_MAJOR:-unknown})")
+fi
+
+# Check GNU coreutils (provides GNU date; macOS ships BSD date by default)
+if ! date --version >/dev/null 2>&1 && ! gdate --version >/dev/null 2>&1; then
+    MISSING_DEPS+=("coreutils (GNU date)")
+fi
+
+# Check git
+if ! command -v git >/dev/null 2>&1; then
+    MISSING_DEPS+=("git")
+fi
+```
+
+If `MISSING_DEPS` is non-empty, collect all items into a single install command and **pause for user confirmation before continuing**:
+
+```
+The following required tools are missing:
+  - <item 1>
+  - <item 2>
+
+Install them with:
+  brew install bash coreutils git
+
+(Adjust the package list to match only what is missing above.)
+```
+
+- If Homebrew is unavailable: explain that automated installation is out of scope, list the missing deps, and ask the user to install them manually before re-running `/dso:onboarding`.
+- Do NOT attempt to install packages yourself.
+- After the user confirms installation, re-run the checks. Abort if any required dep is still missing.
+
+**Optional dependencies (ast-grep, semgrep):**
+
+```bash
+HAS_ASG=false; HAS_SEMGREP=false
+command -v sg >/dev/null 2>&1 && HAS_ASG=true
+command -v semgrep >/dev/null 2>&1 && HAS_SEMGREP=true
+```
+
+If either is absent, offer installation and do not wait indefinitely:
+
+```
+Optional tools not found: ast-grep (sg), semgrep
+These improve code analysis but are not required.
+Install now? [y/N] (press Enter or say "no" to skip)
+```
+
+- Never block progress if they are absent — if no prompt response is received, default to "N" and skip.
+- Record availability in a variable for later use (e.g., `HAS_ASG`, `HAS_SEMGREP`).
+
+---
+
 ### Step 1: Read Project Files for Auto-Detection
 
 Before asking any questions, scan the project filesystem to gather facts:
@@ -559,15 +624,51 @@ Does this project use Jira for issue tracking? If so, what's the Jira project ke
 Note: credentials (JIRA_URL, JIRA_USER, JIRA_API_TOKEN) stay as environment variables — only the project key goes in config.
 ```
 
+Display to user: "jira.project — records your Jira project key so DSO can sync tickets automatically."
+
 If the user provides a Jira project key, write `jira.project=<KEY>` to `.claude/dso-config.conf`. The Jira Bridge connects DSO to Jira via the `JIRA_URL` environment variable.
+
+#### 9. Figma Design Collaboration
+
+*(Optional — skip if not applicable. Enables sprint-level design gating when Figma is used for UI collaboration.)*
+
+Ask whether the project uses Figma for design collaboration:
+
+```
+Does this project use Figma for design collaboration? (yes / no / skip)
+Note: credentials (FIGMA_PAT) stay as environment variables — only the feature flag goes in config.
+```
+
+Display to user: "design.figma_collaboration — enables Figma design integration. Your Figma token stays as an env var (FIGMA_PAT); only the enabled flag goes in config."
+
+On YES: write `design.figma_collaboration=true` to `.claude/dso-config.conf`.
+
+On no or skip: write `design.figma_collaboration=false` to `.claude/dso-config.conf` as an explicit disabled sentinel.
+
+#### 10. Confluence Documentation Space
+
+*(Optional placeholder — Confluence integration is coming soon. Recording the space key now avoids re-running onboarding later.)*
+
+Ask whether the project uses Confluence:
+
+```
+Does this project use Confluence for documentation? If so, what's the space key (e.g., "MYAPP" or "ENG")?
+(yes <KEY> / no / skip)
+```
+
+On YES: write `confluence.space_key=<KEY>` to `.claude/dso-config.conf`.
+
+On no or skip: write `confluence.enabled=false` to `.claude/dso-config.conf` as an explicit disabled sentinel.
 
 ### Phase 2 Gate
 
-When all 7 areas have at least a basic answer recorded in the scratchpad, ask:
+When all 7 core areas (stack, commands, architecture, infrastructure, CI, design, enforcement) have at least a basic answer recorded in the scratchpad, ask:
 
 ```
-I now have a working model of the project across all 7 areas. Is there anything important I missed — any constraint, convention, or quirk that a new team member would need to know?
+I now have a working model of the project across all 7 core areas. Is there anything important I missed — any constraint, convention, or quirk that a new team member would need to know?
 ```
+
+Note: sections 9 (Figma) and 10 (Confluence) are optional supplements — they do not gate this check.
 
 Wait for the user's response before proceeding to Phase 3.
 
@@ -714,6 +815,8 @@ Write `.claude/design-notes.md` as a lightweight companion to `.claude/project-u
 This file is intentionally brief — it records what was learned during onboarding. For a full, structured design North Star document, offer to run `/dso:onboarding` separately.
 
 ### Step 2b: Generate dso-config.conf
+
+Display to user: "dso-config.conf — the workflow settings file that tells DSO how your project is structured (stack, test commands, CI setup). Written to .claude/dso-config.conf."
 
 After writing `.claude/project-understanding.md`, generate a starter `.claude/dso-config.conf` from the conversation findings. This file configures DSO for the host project.
 
@@ -964,6 +1067,8 @@ After writing `.claude/dso-config.conf`, set up the supporting infrastructure fo
 
 #### DSO Shim Installation
 
+Display to user: "Installing the DSO shim — a short command-line shortcut (.claude/scripts/dso) that routes all DSO operations to the plugin scripts. You will use this for running tickets, tests, and merges."
+
 Before any other infrastructure steps, install the `.claude/scripts/dso` shim that all subsequent commands depend on:
 
 ```bash
@@ -974,6 +1079,8 @@ bash "$PLUGIN_SCRIPTS/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"  # shim
 This is idempotent — safe to re-run on projects that already have the shim installed.
 
 #### Hook Installation
+
+Display to user: "Installing pre-commit hooks — automated quality checks that run before each git commit to verify tests pass and code has been reviewed. Required for the DSO enforcement pipeline."
 
 Install the DSO git pre-commit hooks (`pre-commit-test-gate.sh` and `pre-commit-review-gate.sh`) into the project's hooks directory. Hook installation must account for the detected hook manager:
 
@@ -1221,14 +1328,18 @@ Record the CI trigger strategy in `dso-config.conf` under `ci.workflow_name` and
 Ask the operator whether preplanning should run interactively:
 
 ```
-Should preplanning run interactively? (true/false, default: true)
+When planning new features, would you like me to check in with you at key decisions, or should I run autonomously?
+(Options: "yes, check in" / "go ahead on your own" — default: check in with you)
 
-Interactive mode (true): /dso:preplanning pauses at key decision points to
-confirm story scope, done definitions, and decomposition with the operator.
-
-Non-interactive mode (false): /dso:preplanning runs autonomously without
-pausing, suitable for CI pipelines or batch workflows.
+Checking in (default): /dso:preplanning pauses at key decisions to confirm story scope, done definitions, and decomposition with you.
+Running autonomously: /dso:preplanning runs without interruption — suitable for CI or batch workflows.
 ```
+
+**Response normalization:**
+- yes / y / check in / pause → `true`
+- no / n / autonomous / go ahead → `false`
+- Empty / Enter → default `true`
+- Ambiguous → ask follow-up: "Just to confirm — would you like me to pause for confirmation (yes) or run without interruption (no)?"
 
 Write the operator's answer as `preplanning.interactive = <answer>` to `dso-config.conf`. If the operator does not respond or presses Enter, default to `true`.
 
