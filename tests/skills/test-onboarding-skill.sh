@@ -1042,4 +1042,100 @@ test_stack_config_key() {
 test_version_file_path_config
 test_stack_config_key
 
+# ── RED orientation section test (b267-a3b9) ─────────────────────────────────
+
+# test_orientation_section_present: ## Onboarding Overview section must exist before Phase 1
+test_orientation_section_present() {
+    _snapshot_fail
+    local has_section="no"
+    if grep -q '^## Onboarding Overview' "$SKILL_MD" 2>/dev/null; then
+        has_section="yes"
+    fi
+    assert_eq "test_orientation_section_present" "yes" "$has_section"
+    assert_pass_if_clean "test_orientation_section_present"
+}
+
+test_orientation_section_present
+
+# ── RED phase counter test (055c-8be7) ────────────────────────────────────────
+
+# test_phase_counter_display: Phase counter (Phase N of Y) pattern must be present in SKILL.md
+test_phase_counter_display() {
+    _snapshot_fail
+    local has_counter="no"
+    if grep -qE 'Phase [0-9]+ of [0-9]+' "$SKILL_MD" 2>/dev/null; then
+        has_counter="yes"
+    fi
+    assert_eq "test_phase_counter_display" "yes" "$has_counter"
+    assert_pass_if_clean "test_phase_counter_display"
+}
+
+test_phase_counter_display
+
+# ── RED dependency check test (9f37-05ce) ─────────────────────────────────────
+
+# test_dependency_check_section_present: dep-check section must exist in Phase 1 of SKILL.md
+test_dependency_check_section_present() {
+    _snapshot_fail
+    local has_dep_check="no"
+    if grep -qE '/bin/bash.*--version|bash.*version.*4' "$SKILL_MD" 2>/dev/null; then
+        has_dep_check="yes"
+    fi
+    assert_eq "test_dependency_check_section_present" "yes" "$has_dep_check"
+    assert_pass_if_clean "test_dependency_check_section_present"
+}
+
+test_dependency_check_section_present
+
+# ── RED integration questions test (fe9f-3f2b) ────────────────────────────────
+
+# test_integration_questions_present: Figma and Confluence sections must exist in Phase 2 of SKILL.md
+test_integration_questions_present() {
+    _snapshot_fail
+    local has_figma="no"
+    local has_confluence="no"
+    if grep -q 'figma_collaboration' "$SKILL_MD" 2>/dev/null; then
+        has_figma="yes"
+    fi
+    if grep -q 'confluence\.space_key\|confluence\.enabled' "$SKILL_MD" 2>/dev/null; then
+        has_confluence="yes"
+    fi
+    assert_eq "test_integration_questions_present (figma)" "yes" "$has_figma"
+    assert_eq "test_integration_questions_present (confluence)" "yes" "$has_confluence"
+    assert_pass_if_clean "test_integration_questions_present"
+}
+
+test_integration_questions_present
+
+# ── RED preplanning natural language test (3395-994b) ─────────────────────────
+
+# test_preplanning_natural_language_prompt: clinical true/false prompt must be replaced with natural language
+test_preplanning_natural_language_prompt() {
+    _snapshot_fail
+    local has_clinical="no"
+    if grep -q 'true/false, default: true' "$SKILL_MD" 2>/dev/null; then
+        has_clinical="yes"
+    fi
+    # Test passes when clinical phrasing is GONE (has_clinical=no)
+    assert_eq "test_preplanning_natural_language_prompt" "no" "$has_clinical"
+    assert_pass_if_clean "test_preplanning_natural_language_prompt"
+}
+
+test_preplanning_natural_language_prompt
+
+# ── RED file explanation test (02b0-9629) ─────────────────────────────────────
+
+# test_file_explanation_present: plain-language explanations must appear before infrastructure file writes
+test_file_explanation_present() {
+    _snapshot_fail
+    local has_shim_explanation="no"
+    if grep -qE 'shim.*(shortcut|command.line|routes|entry.point)|(shortcut|command.line|routes|entry.point).*shim' "$SKILL_MD" 2>/dev/null; then
+        has_shim_explanation="yes"
+    fi
+    assert_eq "test_file_explanation_present" "yes" "$has_shim_explanation"
+    assert_pass_if_clean "test_file_explanation_present"
+}
+
+test_file_explanation_present
+
 print_summary
