@@ -16,6 +16,7 @@
 | Feature ideation to epic spec | `/dso:brainstorm` |
 | Epic decomposition into stories | `/dso:preplanning` |
 | Generate architectural scaffolding for an existing project | `/dso:architect-foundation` or `/dso:architect-foundation --auto` (`--auto` skips Socratic dialogue, uses recommended defaults) |
+| Set up DSO for a new project | `/dso:onboarding` |
 | Story to task breakdown | `/dso:implementation-plan` |
 | Fix a bug (TDD-based) | `/dso:fix-bug` |
 | Diagnose and fix failures | `/dso:debug-everything` |
@@ -202,6 +203,7 @@ After ExitPlanMode approval, do NOT begin implementation. Follow `plugins/dso/do
 
 **Sub-agent boundaries**: See `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md` for all sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format, model selection, recovery).
 **Sub-agent guard pattern**: Skills that require the Agent tool or direct user interaction contain a `<SUB-AGENT-GUARD>` block at the top of their `SKILL.md`. When invoked in sub-agent context (via Task tool), the guard instructs the agent to stop immediately and return an error. Two guard variants exist: (1) **Agent tool check** — for skills that dispatch sub-agents (sprint, debug-everything, brainstorm, preplanning, implementation-plan, design-review, roadmap, plan-review, review-protocol, resolve-conflicts, architect-foundation, validate-work, retro, ui-discover); (2) **Orchestrator signal check** — for skills that require user interaction (end-session, onboarding). Tests: `tests/hooks/test-sub-agent-guard.sh`.
+**Onboarding** (`/dso:onboarding`): Runs Step 0 dep pre-scan (bash 4.0+, coreutils, git — non-blocking; optional: ast-grep, semgrep). Displays a Phase N of Y counter (Y decreases when optional template phases are skipped). Integration setup: Jira (section 8), Figma (section 9, config-gated: `design.figma_collaboration`), Confluence (section 10, config-gated: `confluence.enabled`) — all skippable. Asks a natural-language preplanning question: run autonomously or check in at each decision.
 
 Orchestrator-level models: `haiku` (structured I/O), `sonnet` (code gen, review), `opus` (architecture, high-blast-radius); escalate on failure. Recovery: `.claude/scripts/dso ticket list` + `.claude/scripts/dso ticket show <id>` to read CHECKPOINT notes → `git log --oneline -5 && git status --short` for git state.
 
