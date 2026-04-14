@@ -123,7 +123,14 @@ These improve code analysis but are not required.
 Install now? [y/N] (press Enter or say "no" to skip)
 ```
 
+If the user accepts, run with a 120-second process-level timeout to prevent hanging in restricted network environments:
+
+```bash
+timeout 120 brew install ast-grep semgrep 2>/dev/null || true
+```
+
 - Never block progress if they are absent — if no prompt response is received, default to "N" and skip.
+- Never block progress if installation fails or times out — continue without the optional tools.
 - Record availability in a variable for later use (e.g., `HAS_ASG`, `HAS_SEMGREP`).
 
 ---
@@ -1249,9 +1256,9 @@ Attempt to install Semgrep for the detected language stack. Semgrep provides lan
 if command -v semgrep >/dev/null 2>&1; then
     echo "Semgrep already installed: $(semgrep --version)"
 elif command -v pip3 >/dev/null 2>&1; then
-    pip3 install semgrep 2>/dev/null && echo "Semgrep installed successfully" || SEMGREP_INSTALL_FAILED=true
+    timeout 120 pip3 install semgrep 2>/dev/null && echo "Semgrep installed successfully" || SEMGREP_INSTALL_FAILED=true
 elif command -v brew >/dev/null 2>&1; then
-    brew install semgrep 2>/dev/null && echo "Semgrep installed successfully" || SEMGREP_INSTALL_FAILED=true
+    timeout 120 brew install semgrep 2>/dev/null && echo "Semgrep installed successfully" || SEMGREP_INSTALL_FAILED=true
 else
     SEMGREP_INSTALL_FAILED=true
 fi
