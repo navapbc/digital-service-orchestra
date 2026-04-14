@@ -46,6 +46,19 @@ The onboarding session probes seven areas. Track your progress through each:
 
 ---
 
+## Onboarding Overview
+
+**This is a one-time setup.** DSO onboarding configures your project so all DSO workflows (`/dso:sprint`, `/dso:brainstorm`, etc.) know your tech stack, commands, and enforcement rules.
+
+At the end of this process, three artifacts will be written:
+- **`project-understanding.md`** — records your tech stack, architecture, commands, and CI pipeline
+- **`.claude/dso-config.conf`** — configures DSO workflow commands, paths, and enforcement settings
+- **`.claude/scripts/dso`** (shim) — CLI entrypoint for all DSO operations
+
+Work through each phase below. Answer what you know and skip what doesn't apply.
+
+---
+
 ## Phase 1: Auto-Detection (/dso:onboarding)
 
 **Goal:** Pre-fill as many answers as possible by reading project files BEFORE asking the user anything.
