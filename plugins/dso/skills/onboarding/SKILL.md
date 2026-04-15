@@ -1245,7 +1245,7 @@ Invoke: /dso:generate-claude-md
 
 The generated `CLAUDE.md` must include a Quick Reference table of ticket commands so that future Claude sessions can manage work items without re-reading the full DSO documentation.
 
-**NAMESPACE CONSTRAINT — applies to ALL generated files (CLAUDE.md, project-understanding.md, and any other artifacts written during onboarding):** Every skill reference written into a generated file MUST use the fully-qualified `/dso:` prefix (e.g., `/dso:sprint`, `/dso:brainstorm`, `/dso:fix-bug`). Short-form references without the namespace prefix (e.g., `/sprint`, `/brainstorm`) are invalid — they violate the DSO namespace policy and will be rejected by `check-skill-refs.sh`. Never write a skill reference without the `/dso:` prefix.
+**NAMESPACE CONSTRAINT — applies to ALL generated files (CLAUDE.md, project-understanding.md, and any other artifacts written during onboarding):** Every skill reference written into a generated file MUST use the fully-qualified `/dso:` prefix (e.g., `/dso:sprint`, `/dso:brainstorm`, `/dso:fix-bug`). Short-form references without the namespace prefix (e.g., `` `/sprint` ``, `` `/brainstorm` ``) are invalid — they violate the DSO namespace policy and will be rejected by `check-skill-refs.sh`. Never write a skill reference without the `/dso:` prefix.
 
 #### Copy KNOWN-ISSUES Template
 
