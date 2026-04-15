@@ -847,9 +847,9 @@ except Exception as e:
 }
 test_no_tags_flag_creates_empty_tags
 
-# ── Test 17 (RED): -p short flag sets parent_id (not priority) ──────────────
-echo "Test 17 (RED): -p short flag sets parent_id in CREATE event data (bug 6431-d3cc)"
-test_ticket_create_short_p_flag_sets_parent_id() {
+# ── Test 17: --parent long flag sets parent_id in CREATE event ───────────────
+echo "Test 17: --parent long flag sets parent_id in CREATE event data"
+test_ticket_create_parent_long_flag_sets_parent_id() {
     local repo
     repo=$(_make_test_repo)
 
@@ -860,7 +860,7 @@ test_ticket_create_short_p_flag_sets_parent_id() {
 
     # Create a parent epic first
     local epic_id
-    epic_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Parent epic for -p test" 2>/dev/null) || true
+    epic_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Parent epic for --parent test" 2>/dev/null) || true
     epic_id=$(echo "$epic_id" | tail -1)
 
     if [ -z "$epic_id" ]; then
@@ -868,13 +868,13 @@ test_ticket_create_short_p_flag_sets_parent_id() {
         return
     fi
 
-    # Create a child task using -p <parent-id>
+    # Create a child task using --parent <parent-id>
     local child_id
-    child_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Child task via -p flag" -p "$epic_id" 2>/dev/null) || true
+    child_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Child task via --parent flag" --parent "$epic_id" 2>/dev/null) || true
     child_id=$(echo "$child_id" | tail -1)
 
     if [ -z "$child_id" ]; then
-        assert_eq "child ticket created via -p" "non-empty" "empty"
+        assert_eq "child ticket created via --parent" "non-empty" "empty"
         return
     fi
 
@@ -883,15 +883,60 @@ test_ticket_create_short_p_flag_sets_parent_id() {
     event_file=$(_find_create_event "$tracker_dir" "$child_id")
 
     if [ -z "$event_file" ]; then
-        assert_eq "CREATE event file found for -p test" "found" "not-found"
+        assert_eq "CREATE event file found for --parent test" "found" "not-found"
         return
     fi
 
-    # -p should set parent_id, not priority
+    # --parent should set parent_id
     local parent_id_val
     parent_id_val=$(_extract_event_field "$event_file" "parent_id")
-    assert_eq "-p sets parent_id in CREATE event" "$epic_id" "$parent_id_val"
+    assert_eq "--parent sets parent_id in CREATE event" "$epic_id" "$parent_id_val"
 }
-test_ticket_create_short_p_flag_sets_parent_id
+test_ticket_create_parent_long_flag_sets_parent_id
+
+# ── Test 18 (RED): -p short flag sets priority (not parent) — bug 46b6-9e18 ──
+echo "Test 18 (RED): -p short flag sets priority in CREATE event data (bug 46b6-9e18)"
+test_ticket_create_short_p_flag_sets_priority() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    # Create a ticket using -p 1 (should set priority=1, not parent_id="1")
+    # RED: current code maps -p to --parent, so -p 1 tries parent_id="1" which
+    # does not exist and exits non-zero, or silently assigns parent_id="1".
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Priority via -p flag" -p 1 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        # Current buggy behavior: -p 1 fails because "1" is not a valid parent ticket ID
+        assert_eq "-p 1 creates ticket (priority shorthand)" "non-empty" "empty"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local event_file
+    event_file=$(_find_create_event "$tracker_dir" "$ticket_id")
+
+    if [ -z "$event_file" ]; then
+        assert_eq "CREATE event file found for -p priority test" "found" "not-found"
+        return
+    fi
+
+    # -p 1 should set priority=1
+    local priority_val
+    priority_val=$(_extract_event_field "$event_file" "priority")
+    assert_eq "-p sets priority in CREATE event (not parent_id)" "1" "$priority_val"
+
+    # parent_id must remain empty (not set to "1")
+    local parent_id_val
+    parent_id_val=$(_extract_event_field "$event_file" "parent_id")
+    assert_eq "-p does not set parent_id" "" "$parent_id_val"
+}
+test_ticket_create_short_p_flag_sets_priority
 
 print_summary
