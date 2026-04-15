@@ -2190,7 +2190,28 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
    - Epic ID and title
    - Total tasks completed this session
    - Validation score: 5/5
-4. Invoke `/dso:end-session --bump minor` via the Skill tool:
+4. **Multi-sprint routing check** — ask the user exactly this question before invoking session close:
+   <MULTI-SPRINT-ROUTING>
+   Present to the user:
+
+   > **Epic <epic-title> is complete.**
+   > Is there another epic to sprint in this session, or should I close the session now?
+   > - To sprint another epic: `/dso:sprint <next-epic-id>`
+   > - To close the session: reply "close" or just press Enter
+
+   Wait for the user's response:
+   - If the user provides a next epic ID or says they want to continue sprinting: print
+     `/dso:sprint <next-epic-id>` as a reminder and EXIT Phase 8 here. Do NOT invoke
+     `/dso:end-session` — the session is not ending.
+   - If the user replies "close", presses Enter, or gives no further epic to sprint:
+     proceed to step 5.
+
+   This question is a **workflow routing decision**, not permission-seeking for
+   /dso:end-session. Asking "Is there another epic?" is required. Asking "Would you
+   like me to run /dso:end-session?" is the sycophantic anti-pattern (c26f-be3f) that
+   is still prohibited.
+   </MULTI-SPRINT-ROUTING>
+5. Invoke `/dso:end-session --bump minor` via the Skill tool:
    ```
    Skill({skill: "dso:end-session", args: "--bump minor"})
    ```
@@ -2199,14 +2220,15 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
    This MUST be done using the Skill tool — not interpreted as a bash command, not
    printed as text, and not deferred for the user to run. The slash-command notation
    above is a Skill tool invocation shorthand. Use the Skill tool directly.
-   Do NOT ask the user whether to run /dso:end-session. Invoke it directly.
-   Asking "Would you like me to..." is a known anti-pattern (c26f-be3f) that adds
-   friction. This is an unconditional directive — execute immediately after the
-   epic closes.
+   Do NOT ask the user "Would you like me to run /dso:end-session?" — that phrasing is
+   the sycophantic permission-seeking anti-pattern (c26f-be3f). The multi-sprint routing
+   question in step 4 is the ONLY permitted user interaction at this point. If the user
+   chose to close the session (step 4), invoke /dso:end-session immediately — do not ask
+   again.
    Closing the epic in step 2 and running merge-to-main.sh in step 1 do NOT complete
    Phase 8 — they are prerequisites for /dso:end-session, not substitutes. Exiting
-   after steps 1–3 without invoking /dso:end-session is the specific anti-pattern
-   this gate prevents (bug 89fe-bad1).
+   after steps 1–4 without invoking /dso:end-session (when the user chose session close)
+   is the specific anti-pattern this gate prevents (bug 89fe-bad1).
    </HARD-GATE>
 
 ### On Graceful Shutdown (Compaction, Failures)

@@ -165,7 +165,7 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"test commit\
 # This MUST FAIL in red phase because the hook ignores CLAUDE_PLUGIN_ROOT entirely.
 _CT_STDERR=$(CLAUDE_PLUGIN_ROOT="$_CT_PLUGIN_ROOT" run_hook_stderr "$INPUT" "$_CT_PLUGIN_ROOT" 2>/dev/null || true)
 assert_contains "test_commit_tracker_config_driven_issue_tracker_search_cmd" \
-    "gh issue list" "$_CT_STDERR"
+    "issue_tracker.search_cmd: gh issue list" "$_CT_STDERR"
 
 # Restore state
 if [[ -n "$ORIG_STATE_CT" ]]; then

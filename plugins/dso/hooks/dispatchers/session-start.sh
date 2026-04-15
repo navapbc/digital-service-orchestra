@@ -11,8 +11,9 @@
 #   1. hook_inject_using_lockpick     — inject using-lockpick skill context
 #   2. hook_session_safety_check      — analyze hook error log, create bugs for recurring errors
 #   3. hook_post_compact_review_check — warn about review state after compaction
+#   4. hook_check_artifact_versions   — warn when host-project artifacts are stale
 #
-# Returns: 0 always (all 5 hooks are informational/output-only; none block)
+# Returns: 0 always (all 6 hooks are informational/output-only; none block)
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
 if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" || ! -d "${CLAUDE_PLUGIN_ROOT:-}/hooks/lib" ]]; then
@@ -45,7 +46,8 @@ _session_start_dispatch() {
         hook_cleanup_stale_nohup \
         hook_inject_using_lockpick \
         hook_session_safety_check \
-        hook_post_compact_review_check
+        hook_post_compact_review_check \
+        hook_check_artifact_versions
     do
         local _fn_exit=0
         _run_hook_fn "$_HOOK_FN" "$INPUT" || _fn_exit=$?

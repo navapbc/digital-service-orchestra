@@ -168,6 +168,9 @@ hook_commit_failure_tracker() {
         fi
         [[ -n "$_SEARCH" ]] && _SEARCH_CMD="$_SEARCH"
     fi
+    if [[ "$_SEARCH_CMD" != "grep -rl" ]] && [[ "${_SEARCH_CMD:-}" != "" ]]; then
+        echo "# issue_tracker.search_cmd: $_SEARCH_CMD" >&2
+    fi
 
     # Check validation state
     local REPO_ROOT

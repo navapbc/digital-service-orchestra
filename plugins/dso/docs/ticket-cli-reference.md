@@ -128,7 +128,7 @@ Ticket system initialized.
 Create a new ticket.
 
 ```
-.claude/scripts/dso ticket create <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>] [-d/--description <text>] [--tags <tag1,tag2>]
+.claude/scripts/dso ticket create <ticket_type> <title> [--parent <id>] [--priority/-p <n>] [--assignee <name>] [-d/--description <text>] [--tags <tag1,tag2>]
 ```
 
 **Arguments:**
@@ -138,7 +138,7 @@ Create a new ticket.
 | `ticket_type` | Yes | One of: `bug`, `epic`, `story`, `task` |
 | `title` | Yes | Non-empty title string (≤ 255 characters for Jira sync compatibility) |
 | `--parent` | No | ID of an existing parent ticket |
-| `--priority` | No | Priority 0-4 (0=critical, 4=backlog; default: 2) |
+| `--priority`, `-p` | No | Priority 0-4 (0=critical, 4=backlog; default: 2) |
 | `--assignee` | No | Assignee name (default: git config user.name) |
 | `-d`, `--description` | No | Optional long-form description text for the ticket |
 | `--tags` | No | Comma-separated list of tags to attach to the ticket at creation time (e.g., `CLI_user`) |
