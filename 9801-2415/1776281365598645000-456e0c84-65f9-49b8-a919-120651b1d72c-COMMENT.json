@@ -1,0 +1,1 @@
+{"timestamp": 1776281365598645000, "uuid": "456e0c84-65f9-49b8-a919-120651b1d72c", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Verification 2026-04-15: shim correctly dispatches capture-review-diff.sh. Error is missing required arg, not 'command not found'. Cannot reproduce original bug."}}
