@@ -228,7 +228,7 @@ Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encou
 
 ### Phase 1 Gate
 
-When you have enough to propose approaches, transition to Phase 2 via this 3-step sequence. The gate covers: (1) a structured **Understanding Summary** covering problem, users, scope, and success that waits for user confirmation; (2) an **Intent Gap Analysis** asking one question at a time about inferred or assumed content (at most 3 questions total); and (3) proceeding to Phase 2.
+When you have enough to propose approaches, transition to Phase 2 via this 3-step sequence. The gate covers: (1) a structured **Understanding Summary** covering problem, users, scope, and success that waits for user confirmation; (2) an **Intent Gap Analysis** using targeted questions — one at a time, at most 3 total — about inferred or assumed content; and (3) proceeding to Phase 2.
 
 **Step 1 — Understanding Summary**: Produce a structured summary of what you understand so far and wait for user confirmation before proceeding to the gap analysis.
 
@@ -251,7 +251,9 @@ You MUST close the Understanding Summary with exactly this sentence: **"Does thi
 
 Wait for confirmation before proceeding. This confirmation step is separate from the gap analysis that follows — always proceed to the gap analysis after confirmation.
 
-**Step 2 — Intent Gap Analysis**: After the user confirms the understanding summary, self-reflect on inferred or assumed content — items you filled in that the user did not explicitly state. Ask one question at a time, targeting the highest-priority gap first. Exclude already-confirmed content (anything the user explicitly stated or confirmed in Step 1 above) from gap questions.
+**Step 2 — Intent Gap Analysis**: After the user confirms the understanding summary, self-reflect on inferred or assumed content — items you filled in that the user did not explicitly state. Use targeted questions, one at a time, starting with the highest-priority gap. Exclude already-confirmed content (anything the user explicitly stated or confirmed in Step 1 above) from gap questions.
+
+> **Testing note**: Changes to behavioral instruction placement in this file (e.g., adding or reordering directives within a step) are LLM behavioral changes. They do not have valid mechanical test counterparts — do NOT propose awk/grep change-detector tests that extract step text and assert specific wording. Such tests violate the behavioral testing standard (Rule 5: test structural boundaries, not content). Behavioral instruction changes in markdown instruction files are exempt from mechanical test coverage.
 
 Format for the **first** gap question (includes the skip option):
 ```
