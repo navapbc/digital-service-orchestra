@@ -1174,4 +1174,101 @@ test_integration_mandatory_prompts() {
 
 test_integration_mandatory_prompts
 
+# ── RED Phase 0 comfort assessment tests (95ca-2d8e) ─────────────────────────
+
+# test_phase0_comfort_question_present: SKILL.md must contain a Phase 0 or Pre-flight section header
+test_phase0_comfort_question_present() {
+    _snapshot_fail
+    local has_phase0="no"
+    if grep -qE '^## Phase 0[^0-9]|^## Pre-flight' "$SKILL_MD" 2>/dev/null; then
+        has_phase0="yes"
+    fi
+    assert_eq "test_phase0_comfort_question_present" "yes" "$has_phase0"
+    assert_pass_if_clean "test_phase0_comfort_question_present"
+}
+
+# test_confidence_context_schema_present: SKILL.md must contain a confidence_context section
+# or object in scratchpad init
+test_confidence_context_schema_present() {
+    _snapshot_fail
+    local has_schema="no"
+    if grep -qE 'confidence_context' "$SKILL_MD" 2>/dev/null; then
+        has_schema="yes"
+    fi
+    assert_eq "test_confidence_context_schema_present" "yes" "$has_schema"
+    assert_pass_if_clean "test_confidence_context_schema_present"
+}
+
+# test_seven_dimensions_present: SKILL.md must reference all 7 confidence dimensions
+# (stack, commands, architecture, infrastructure, ci, design, enforcement)
+# Uses awk range to limit search to Phase 0 / pre-flight section
+test_seven_dimensions_present() {
+    _snapshot_fail
+    local dims_found=0
+    local dims_missing=""
+    local required_dims=("stack" "commands" "architecture" "infrastructure" "ci" "design" "enforcement")
+    local dim
+    for dim in "${required_dims[@]}"; do
+        if awk '/^## Phase 0[^0-9]|^## Pre-flight/,/^## Phase 1/' "$SKILL_MD" 2>/dev/null | grep -qiE "\b${dim}\b"; then
+            (( dims_found++ ))
+        else
+            dims_missing="$dims_missing $dim"
+        fi
+    done
+    if [[ "$dims_found" -eq 7 ]]; then
+        assert_eq "test_seven_dimensions_present" "7" "$dims_found"
+    else
+        assert_eq "test_seven_dimensions_present" "7 dimensions found" "$dims_found dimensions found (missing:$dims_missing)"
+    fi
+    assert_pass_if_clean "test_seven_dimensions_present"
+}
+
+# test_confidence_levels_documented: SKILL.md must document high/medium/low as valid
+# confidence level values
+test_confidence_levels_documented() {
+    _snapshot_fail
+    local has_high="no"
+    local has_medium="no"
+    local has_low="no"
+    if grep -qiE '\bhigh\b' "$SKILL_MD" 2>/dev/null; then
+        has_high="yes"
+    fi
+    if grep -qiE '\bmedium\b' "$SKILL_MD" 2>/dev/null; then
+        has_medium="yes"
+    fi
+    if grep -qiE '\blow\b' "$SKILL_MD" 2>/dev/null; then
+        has_low="yes"
+    fi
+    local result="missing"
+    if [[ "$has_high" == "yes" && "$has_medium" == "yes" && "$has_low" == "yes" ]]; then
+        result="found"
+    fi
+    assert_eq "test_confidence_levels_documented" "found" "$result"
+    assert_pass_if_clean "test_confidence_levels_documented"
+}
+
+# test_contract_ref_present: SKILL.md or adjacent contract file at
+# plugins/dso/docs/contracts/ must reference the confidence-context schema
+test_contract_ref_present() {
+    _snapshot_fail
+    local has_ref="no"
+    if grep -qE 'confidence.context' "$SKILL_MD" 2>/dev/null; then
+        has_ref="yes"
+    fi
+    local contracts_dir
+    contracts_dir="$(dirname "$SKILL_MD")/../../docs/contracts"
+    if [[ "$has_ref" == "no" ]] && ls "$contracts_dir"/confidence-context* 2>/dev/null | grep -q .; then
+        has_ref="yes"
+    fi
+    assert_eq "test_contract_ref_present" "yes" "$has_ref"
+    assert_pass_if_clean "test_contract_ref_present"
+}
+
+# RED Phase 0 tests — these fail until Phase 0 / confidence_context is added to SKILL.md
+test_phase0_comfort_question_present
+test_confidence_context_schema_present
+test_seven_dimensions_present
+test_confidence_levels_documented
+test_contract_ref_present
+
 print_summary
