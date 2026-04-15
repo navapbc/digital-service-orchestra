@@ -25,8 +25,8 @@ _usage() {
     echo "Usage: ticket create <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>] [--description <text>] [--tags <tag1,tag2>]" >&2
     echo "  ticket_type: bug | epic | story | task" >&2
     echo "  title: non-empty string" >&2
-    echo "  --parent, -p: optional parent ticket ID" >&2
-    echo "  --priority: 0-4 (0=critical, 4=backlog; default: 2)" >&2
+    echo "  --parent: optional parent ticket ID" >&2
+    echo "  --priority, -p: 0-4 (0=critical, 4=backlog; default: 2)" >&2
     echo "  --assignee: assignee name (default: git config user.name)" >&2
     echo "  --description, -d: optional description text" >&2
     echo "  --tags: comma-separated list of tags" >&2
@@ -87,7 +87,7 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         -p)
-            parent_id="$2"
+            priority="$2"
             shift 2
             ;;
         --tags)

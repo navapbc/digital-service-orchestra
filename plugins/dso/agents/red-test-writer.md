@@ -254,6 +254,8 @@ RESTRUCTURING_APPROACH: <what was attempted and why it was ruled out>
 
 ## File Placement and RED Marker Registration
 
+**CRITICAL — Worktree Isolation Path Rule**: All file writes (test files, `.test-index`) MUST use paths rooted at the agent's own working directory. Derive the root exclusively from `$(git rev-parse --show-toplevel)` in the agent's own shell context. Do NOT use `ORCHESTRATOR_ROOT` (passed via dispatch prompt for isolation verification only) as a base path for any file write. Using `ORCHESTRATOR_ROOT` as a write target is always wrong when running under worktree isolation and will cause files to land in the orchestrator's session directory instead of the agent's worktree.
+
 When adding a test to an existing test file:
 
 - **APPEND ONLY**: Add new test functions at the END of the file, after all existing test functions. Do NOT insert inline or between existing tests.

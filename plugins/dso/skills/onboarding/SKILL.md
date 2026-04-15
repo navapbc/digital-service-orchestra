@@ -126,10 +126,22 @@ These improve code analysis but are not required.
 Install now? [y/N] (press Enter or say "no" to skip)
 ```
 
-If the user accepts, run with a 120-second process-level timeout to prevent hanging in restricted network environments:
+If the user accepts, run with a 120-second process-level timeout to prevent hanging in restricted network environments. Use pip3 first for semgrep (preferred), then brew as fallback; use brew for ast-grep (no pip3 package):
 
 ```bash
-timeout 120 brew install ast-grep semgrep 2>/dev/null || true
+# semgrep: pip3-first (same install path used in Phase 3 Step 2c)
+if ! command -v semgrep >/dev/null 2>&1; then
+    if command -v pip3 >/dev/null 2>&1; then
+        timeout 120 pip3 install semgrep 2>/dev/null || \
+            { command -v brew >/dev/null 2>&1 && timeout 120 brew install semgrep 2>/dev/null; } || true
+    elif command -v brew >/dev/null 2>&1; then
+        timeout 120 brew install semgrep 2>/dev/null || true
+    fi
+fi
+# ast-grep: brew only (no pip3 package)
+if ! command -v sg >/dev/null 2>&1; then
+    command -v brew >/dev/null 2>&1 && timeout 120 brew install ast-grep 2>/dev/null || true
+fi
 ```
 
 - Never block progress if they are absent — if no prompt response is received, default to "N" and skip.
@@ -627,6 +639,8 @@ I see [.husky/pre-commit present / .pre-commit-config.yaml present / no hooks de
 
 #### 8. Jira Bridge
 
+**MANDATORY PROMPT — always ask this question. Do NOT skip based on project type or assumptions.**
+
 Ask whether the project uses Jira and, if so, confirm the project key:
 
 ```
@@ -640,7 +654,8 @@ If the user provides a Jira project key, write `jira.project=<KEY>` to `.claude/
 
 #### 9. Figma Design Collaboration
 
-*(Optional — skip if not applicable. Enables sprint-level design gating when Figma is used for UI collaboration.)*
+**MANDATORY PROMPT — always ask this question. The user decides yes/no; the model does NOT pre-decide to skip.**
+*(Enables sprint-level design gating when Figma is used for UI collaboration.)*
 
 Ask whether the project uses Figma for design collaboration:
 
@@ -678,7 +693,7 @@ When all 7 core areas (stack, commands, architecture, infrastructure, CI, design
 I now have a working model of the project across all 7 core areas. Is there anything important I missed — any constraint, convention, or quirk that a new team member would need to know?
 ```
 
-Note: sections 9 (Figma) and 10 (Confluence) are optional supplements — they do not gate this check.
+Note: sections 8 (Jira), 9 (Figma), and 10 (Confluence) must be asked BEFORE reaching this gate — they are mandatory prompts that happen to come after the 7 core areas. "Optional" means the user may decline; it does NOT mean the model may skip asking. The gate requires all 10 sections complete.
 
 Wait for the user's response before proceeding to Phase 3.
 
@@ -1079,16 +1094,33 @@ After writing `.claude/dso-config.conf`, set up the supporting infrastructure fo
 
 Display to user: "Installing the DSO shim — a short command-line shortcut (.claude/scripts/dso) that routes all DSO operations to the plugin scripts. You will use this for running tickets, tests, and merges."
 
-Before any other infrastructure steps, install the `.claude/scripts/dso` shim that all subsequent commands depend on:
+Before any other infrastructure steps, install the `.claude/scripts/dso` shim that all subsequent commands depend on.
+
+**Shim template location:** The shim template file is at `templates/host-project/dso` relative to the git repo root (i.e., `$REPO_ROOT/templates/host-project/dso`). This is NOT inside the plugin directory. `dso-setup.sh` uses this template to install the shim at `.claude/scripts/dso` in the host project.
 
 ```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+# Verify shim template exists before invoking setup
+if [[ ! -f "$REPO_ROOT/templates/host-project/dso" ]]; then
+    echo "ERROR: shim template not found at $REPO_ROOT/templates/host-project/dso"
+    echo "Cannot install DSO shim — check that the DSO plugin is correctly installed."
+    exit 1
+fi
 bash "$PLUGIN_SCRIPTS/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"  # shim-exempt: bootstrap install — shim does not yet exist
 ```
 
 This is idempotent — safe to re-run on projects that already have the shim installed.
 
 #### Hook Installation
+
+**ORDERING CONSTRAINT — hooks MUST be installed LAST, after all other onboarding artifacts have been committed.** Installing hooks before the initial commit creates a bootstrap deadlock: the review gate requires a passing review, but the review system depends on the files being committed. The correct sequence is:
+
+1. Write all artifacts (project-understanding.md, dso-config.conf, CLAUDE.md, .semgrep.yml, etc.)
+2. Create the initial commit containing those artifacts (hooks are not yet active — this commit succeeds)
+3. Install hooks after the initial commit completes
+
+Do NOT install hooks earlier in Step 2c, even if the install step appears earlier in the instructions above. Hook installation is always the final infrastructure action.
 
 Display to user: "Installing pre-commit hooks — automated quality checks that run before each git commit to verify tests pass and code has been reviewed. Required for the DSO enforcement pipeline."
 
@@ -1212,6 +1244,8 @@ Invoke: /dso:generate-claude-md
 ```
 
 The generated `CLAUDE.md` must include a Quick Reference table of ticket commands so that future Claude sessions can manage work items without re-reading the full DSO documentation.
+
+**NAMESPACE CONSTRAINT — applies to ALL generated files (CLAUDE.md, project-understanding.md, and any other artifacts written during onboarding):** Every skill reference written into a generated file MUST use the fully-qualified `/dso:` prefix (e.g., `/dso:sprint`, `/dso:brainstorm`, `/dso:fix-bug`). Short-form references without the namespace prefix (e.g., `/<skill-name>` instead of `/dso:<skill-name>`) are invalid — they violate the DSO namespace policy and will be rejected by `check-skill-refs.sh`. Never write a skill reference without the `/dso:` prefix.
 
 #### Copy KNOWN-ISSUES Template
 

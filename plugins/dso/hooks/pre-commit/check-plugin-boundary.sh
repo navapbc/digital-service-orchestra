@@ -5,7 +5,8 @@ _PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-to
 # Enforces the plugin boundary: blocks commits that add files to ${CLAUDE_PLUGIN_ROOT}/
 # that are outside the positive-enumeration allowlist.
 #
-# Allowlist location: same directory as this script — plugin-boundary-allowlist.conf
+# Allowlist location: $REPO_ROOT/.claude/hooks/pre-commit/plugin-boundary-allowlist.conf
+#   (or override via PLUGIN_BOUNDARY_ALLOWLIST env var)
 # Fail-open: if allowlist missing/unreadable, exit 0 with warning
 # Registration: pre-commit framework (see .pre-commit-config.yaml)
 #

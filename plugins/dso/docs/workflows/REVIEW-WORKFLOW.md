@@ -201,6 +201,8 @@ Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. When `REVIEW_AGENT_OV
 2. Use `subagent_type: "general-purpose"` and the `model:` value from the agent file's frontmatter.
 3. Pass the agent file content verbatim as the prompt, appending only the per-review context items listed below.
 
+**HARD GATE — VERBATIM IS NOT OPTIONAL**: This verbatim requirement applies to EVERY dispatch in this workflow — initial review, re-review, escalation. There are no exceptions. Constructing your own prompt instead of loading the agent file is fabrication, regardless of which step you are in or how "simple" the re-review context appears. Do NOT proceed with a dispatch until you have read the agent file and confirmed its content is the first thing in the prompt.
+
 ```bash
 # Example: resolve agent file path and model for DISPATCH_AGENT="dso:code-reviewer-standard"
 AGENT_NAME="${DISPATCH_AGENT#dso:}"          # strip dso: prefix → "code-reviewer-standard"
@@ -533,16 +535,23 @@ print(json.dumps({'findings': focused, 'escalation_reasons': reasons}))
 ")
 ```
 
-Dispatch the escalation reviewer sub-agent with this focused context:
+Dispatch the escalation reviewer sub-agent with this focused context. **VERBATIM REQUIRED** — you MUST read the agent file and pass its content as the first element of the prompt, exactly as Step 4 initial dispatch does. Do NOT write a constructed prompt — that is fabrication.
+
+```bash
+# Read the escalation agent file verbatim — MANDATORY before dispatch
+ESCALATION_AGENT_NAME="${ESCALATION_AGENT#dso:}"
+ESCALATION_AGENT_FILE="${CLAUDE_PLUGIN_ROOT}/agents/${ESCALATION_AGENT_NAME}.md"
+ESCALATION_AGENT_CONTENT=$(cat "$ESCALATION_AGENT_FILE")
+ESCALATION_AGENT_MODEL=$(grep '^model:' "$ESCALATION_AGENT_FILE" | awk '{print $2}')
+```
 
 ```
-Task tool:
-  subagent_type: "{ESCALATION_AGENT}"
+Agent tool:
+  subagent_type: "general-purpose"
+  model: "{ESCALATION_AGENT_MODEL from agent file frontmatter}"
   description: "Escalated review — uncertain findings"
   prompt: |
-    You are being dispatched as an escalation reviewer. The primary reviewer flagged the following
-    findings as uncertain and requested a higher-tier review. Your task is to evaluate ONLY these
-    findings and provide definitive severity determinations.
+    {ESCALATION_AGENT_CONTENT — verbatim content of ${CLAUDE_PLUGIN_ROOT}/agents/{ESCALATION_AGENT_NAME}.md}
 
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
@@ -931,13 +940,23 @@ Task tool:
 
    Dispatch the re-review:
    - **If `RE_REVIEW_DEEP_FULL=true`**: Run the full Step 4 Deep Tier sequence (3 parallel sonnet agents writing to slot files, then opus arch synthesis). Do NOT dispatch `dso:code-reviewer-deep-arch` alone.
-   - **Otherwise**: Dispatch a single re-review sub-agent using `RE_REVIEW_AGENT`:
+   - **Otherwise**: Dispatch a single re-review sub-agent using `RE_REVIEW_AGENT`. **VERBATIM REQUIRED** — you MUST read the agent file and pass its content as the first element of the prompt, exactly as Step 4 initial dispatch does. Do NOT write a constructed prompt (e.g., "Review the code changes for this commit.") — that is fabrication.
+
+   ```bash
+   # Read the re-review agent file verbatim — MANDATORY before every dispatch
+   RE_AGENT_NAME="${RE_REVIEW_AGENT#dso:}"
+   RE_AGENT_FILE="${CLAUDE_PLUGIN_ROOT}/agents/${RE_AGENT_NAME}.md"
+   RE_AGENT_CONTENT=$(cat "$RE_AGENT_FILE")
+   RE_AGENT_MODEL=$(grep '^model:' "$RE_AGENT_FILE" | awk '{print $2}')
    ```
-   Task tool:
-     subagent_type: "{RE_REVIEW_AGENT}"
+
+   ```
+   Agent tool:
+     subagent_type: "general-purpose"
+     model: "{RE_AGENT_MODEL from agent file frontmatter}"
      description: "Re-review after fixes"
      prompt: |
-       Review the code changes for this commit.
+       {RE_AGENT_CONTENT — verbatim content of ${CLAUDE_PLUGIN_ROOT}/agents/{RE_AGENT_NAME}.md}
 
        DIFF_FILE: {NEW_DIFF_FILE}
        REPO_ROOT: {REPO_ROOT}

@@ -21,6 +21,7 @@
 #   hook_brainstorm_gate              — block EnterPlanMode without brainstorm sentinel
 #   hook_taskoutput_block_guard       — block TaskOutput calls with block=false
 #   hook_friction_suggestion_check    — record friction suggestion from tool logs at session end
+#   hook_check_artifact_versions      — warn when host-project artifacts are stale or unversioned
 #
 # Usage:
 #   source hooks/lib/session-misc-functions.sh
@@ -1114,5 +1115,21 @@ print(count)
             2>/dev/null || true
     fi
 
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# hook_check_artifact_versions
+# ---------------------------------------------------------------------------
+# SessionStart hook: check whether installed host-project artifacts are
+# up-to-date with the current plugin version. Delegates to the standalone
+# check-artifact-versions.sh script (fail-open, exit 0 always).
+hook_check_artifact_versions() {
+    # Fail-open: CLAUDE_PLUGIN_ROOT is always set in production hook context.
+    # If unset (rare test scenarios without full hook harness), skip silently.
+    local _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+    [[ -z "$_PLUGIN_ROOT" || ! -d "$_PLUGIN_ROOT/hooks" ]] && return 0
+    local _SCRIPT="$_PLUGIN_ROOT/hooks/check-artifact-versions.sh"
+    [[ -x "$_SCRIPT" ]] && bash "$_SCRIPT" || true
     return 0
 }

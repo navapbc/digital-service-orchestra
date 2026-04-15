@@ -30,12 +30,6 @@ detect_prerequisites() {
         *)       platform="Unknown" ;;
     esac
 
-    if [[ "$platform" == "macOS" ]]; then
-            brew install bash coreutils uv pre-commit python
-        else
-            sudo apt-get install bash coreutils uv pre-commit pyrhon
-    fi
-
     # Check bash major version (must be >=4)
     local bash_version
     bash_version=$(bash --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
