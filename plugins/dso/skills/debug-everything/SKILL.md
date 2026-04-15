@@ -96,10 +96,12 @@ Run ALL diagnostic checks and cluster related failures. The orchestrator runs on
 
 ### Step 1: Initialize & Acquire Session Lock (/dso:debug-everything)
 
-**BEFORE RUNNING ANY STEP 1 SETUP: Check for open bug tickets first.**
+**BEFORE RUNNING ANY STEP 1 SETUP: Check for open and in_progress bug tickets first.**
 
 ```bash
-OPEN_BUG_COUNT=$(.claude/scripts/dso ticket list --type=bug --status=open 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+_open_bugs=$(.claude/scripts/dso ticket list --type=bug --status=open 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+_inprog_bugs=$(.claude/scripts/dso ticket list --type=bug --status=in_progress 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+OPEN_BUG_COUNT=$((_open_bugs + _inprog_bugs))
 ```
 
 If `OPEN_BUG_COUNT > 0`: **STOP Step 1 setup. Skip the bash initialization, lock acquisition, cleanup, and interactivity question below. Proceed directly to Bug-Fix Mode.** (Step 1.5 is the formal gate; this pre-check ensures you reach it before executing any sub-steps.)
@@ -173,7 +175,7 @@ AskUserQuestion: "Is this an interactive session? (yes/no — press Enter for ye
 
 **Non-interactive deferral — all deferral decisions are made at the orchestrator level.** `fix-bug` sub-agents do NOT need to honor `INTERACTIVE_SESSION` themselves. The orchestrator intercepts `COMPLEX_ESCALATION` reports and any other escalation signals before they reach the user, and defers them per the rules below.
 
-**Resume limitation (known)**: Phase 1 resume logic only scans `CHECKPOINT` lines in ticket comments — it does NOT scan `INTERACTIVITY_DEFERRED` lines. After a non-interactive session, you must manually run `.claude/scripts/dso ticket list --type=bug --status=open` and check for `INTERACTIVITY_DEFERRED` comments on open bugs to find items requiring follow-up in an interactive session.
+**Resume limitation (known)**: Phase 1 resume logic only scans `CHECKPOINT` lines in ticket comments — it does NOT scan `INTERACTIVITY_DEFERRED` lines. After a non-interactive session, you must manually run `.claude/scripts/dso ticket list --type=bug --status=open` and `.claude/scripts/dso ticket list --type=bug --status=in_progress` and check for `INTERACTIVITY_DEFERRED` comments on open or in_progress bugs to find items requiring follow-up in an interactive session.
 
 **Resume check** — find and reuse previous work:
 
@@ -189,10 +191,12 @@ AskUserQuestion: "Is this an interactive session? (yes/no — press Enter for ye
 
 ### Step 1.5: BUG-FIX MODE GATE — Skip Diagnostics If Open Bugs Exist (/dso:debug-everything)
 
-**Check for open bug tickets before launching the diagnostic scan.** This is the Bug-Fix Mode entry gate:
+**Check for open and in_progress bug tickets before launching the diagnostic scan.** This is the Bug-Fix Mode entry gate:
 
 ```bash
-OPEN_BUG_COUNT=$(.claude/scripts/dso ticket list --type=bug --status=open 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+_open_bugs=$(.claude/scripts/dso ticket list --type=bug --status=open 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+_inprog_bugs=$(.claude/scripts/dso ticket list --type=bug --status=in_progress 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+OPEN_BUG_COUNT=$((_open_bugs + _inprog_bugs))
 ```
 
 - If `OPEN_BUG_COUNT > 0`: **Enter Bug-Fix Mode.** Skip Phase 1 diagnostic scan (Steps 0.5, 1a, 1b, 1c, 2) and Phase 2 triage entirely. Proceed to the **Bug-Fix Mode** section below.
@@ -360,15 +364,15 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
 ### Bug-Fix Mode Execution
 
-1. **List all open bug tickets**:
+1. **List all open and in_progress bug tickets**:
 
    ```bash
-   .claude/scripts/dso ticket list --type=bug --status=open
+   { .claude/scripts/dso ticket list --type=bug --status=open; .claude/scripts/dso ticket list --type=bug --status=in_progress; } 2>/dev/null
    ```
 
-   Collect all returned ticket IDs. Order by priority (P0 first, then P1, P2, P3, P4).
+   Collect all returned ticket IDs (deduplicate by `ticket_id` in case a ticket appears in both queries). Order by priority (P0 first, then P1, P2, P3, P4).
 
-2. **For each open bug ticket, invoke `/dso:fix-bug` at the orchestrator level**:
+2. **For each open or in_progress bug ticket, invoke `/dso:fix-bug` at the orchestrator level**:
 
    **PER-TICKET GATE (enforce at the start of EVERY ticket iteration, not just the first):**
    Before processing each ticket, explicitly verify AND emit the verification token:
@@ -427,11 +431,11 @@ This step runs unconditionally after all bug tickets in the current batch have b
 - If `tickets_created > 0`: re-query open bug ticket list and add new tickets to the queue for the next iteration (they will be picked up by Validation Mode's re-entry into Bug-Fix Mode on the next cycle).
 - If sub-agent returns `GHA scan unavailable: workflow run tools not registered`: log the signal and proceed to Validation Mode without writing the epic comment.
 
-**Re-query open ticket list**:
+**Re-query open and in_progress ticket list**:
 
 After the scan completes (regardless of `tickets_created`), re-run:
 ```bash
-.claude/scripts/dso ticket list --type=bug --status=open
+{ .claude/scripts/dso ticket list --type=bug --status=open; .claude/scripts/dso ticket list --type=bug --status=in_progress; } 2>/dev/null
 ```
 Use this refreshed list for the Validation Mode entry decision.
 
@@ -477,10 +481,10 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/tier-transi
 
 For each new failure discovered in the diagnostic scan, create a bug ticket — but **deduplicate first**.
 
-**Deduplication** — before creating any new ticket, check for an existing open bug ticket covering the same failure:
+**Deduplication** — before creating any new ticket, check for an existing open or in_progress bug ticket covering the same failure:
 
 ```bash
-.claude/scripts/dso ticket list --type=bug --status=open
+{ .claude/scripts/dso ticket list --type=bug --status=open; .claude/scripts/dso ticket list --type=bug --status=in_progress; } 2>/dev/null
 ```
 
 Compare each discovered failure against:

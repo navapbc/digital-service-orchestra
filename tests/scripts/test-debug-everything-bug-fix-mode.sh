@@ -178,6 +178,32 @@ test_bug_fix_mode_extracts_cli_user_tag() {
     assert_eq "test_bug_fix_mode_extracts_cli_user_tag: bug-fix mode extracts CLI_user tag from ticket show output before inlining fix-bug" "found" "$tag_extraction_found"
 }
 
+# ============================================================
+# test_bug_fix_mode_queries_in_progress_tickets
+# The SKILL.md must instruct the agent to query BOTH --status=open
+# AND --status=in_progress when listing bug tickets for Bug-Fix Mode.
+# Without the --status=in_progress query, bugs stuck in_progress are
+# permanently invisible and never retried (bug 774d-4866).
+# RED: current SKILL.md only contains --status=open queries; zero
+#      occurrences of --status=in_progress exist in the file.
+# GREEN: after the dual-query fix is applied, --status=in_progress
+#        appears at least once in the Bug-Fix Mode query context.
+# ============================================================
+test_bug_fix_mode_queries_in_progress_tickets() {
+    local in_progress_query_count
+    in_progress_query_count=$(grep -c -- '--status=in_progress' "$SKILL_FILE" 2>/dev/null || true)
+
+    # Must appear at least once — the dual-query fix adds it at 5 callsites;
+    # we assert ≥1 so the test survives future consolidations that preserve
+    # the intent without duplicating the flag five times.
+    local result="missing"
+    if [[ "$in_progress_query_count" -ge 1 ]]; then
+        result="found"
+    fi
+
+    assert_eq "test_bug_fix_mode_queries_in_progress_tickets: SKILL.md must include --status=in_progress in bug ticket queries" "found" "$result"
+}
+
 # Run all tests
 test_orchestration_flow_has_bug_fix_branch
 test_bug_detection_step_exists
@@ -185,5 +211,6 @@ test_bug_fix_mode_skips_diagnostic
 test_bug_fix_mode_skips_triage
 test_orchestrator_level_fix_bug_invocation
 test_bug_fix_mode_extracts_cli_user_tag
+test_bug_fix_mode_queries_in_progress_tickets
 
 print_summary
