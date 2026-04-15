@@ -36,6 +36,10 @@ When invoked as `/dso:architect-foundation --auto`:
 3. **Proceed directly to Phase 2** with the selected defaults
 4. **Report selected defaults** in a summary table before generating artifacts so the user can see what was chosen
 5. **Graceful error**: If project-understanding.md is missing or incomplete, emit an actionable error message listing which fields are needed (do not silently proceed with assumptions)
+6. **Skip Phase 2 Validation Loop** — do not ask "Does this blueprint meet your enforcement requirements?"
+7. **Skip Phase 2.5 per-recommendation interaction** — accept all synthesized recommendations automatically
+8. **Skip Phase 2.75 artifact confirmation** — write all enforcement artifacts without asking "Proceed with writing all N files?"
+9. **Skip Phase 3 Step 0.75 prefill-config confirmation** — proceed to Step 1 using values written by prefill-config.sh
 
 ## Workflow Overview
 
@@ -131,6 +135,8 @@ Ask the user:
 
 If the user requests adjustments, revise the blueprint and re-present. Do not proceed to Phase 3 until the user explicitly approves.
 
+**In --auto mode:** Skip user confirmation. Accept the generated blueprint as-is and proceed to Phase 2.5. Log: Auto-mode selected; bypassing Phase 2 Validation Loop confirmation.
+
 ---
 
 ## Phase 2.5: Recommendation Synthesis
@@ -152,6 +158,8 @@ Before generating enforcement scaffolding, synthesize everything learned in Phas
    - **Reject** it (remove from the enforcement set)
    - **Discuss** the recommendation further (ask follow-up questions, revise)
    Allow the user to accept, reject, or discuss each recommendation individually before proceeding to the next.
+
+**In --auto mode:** Skip per-recommendation accept/reject/discuss interaction. Accept all synthesized recommendations without review. Log: Auto-mode selected; accepting all recommendations and proceeding to Phase 2.75.
 
 4. **Revise and confirm**: After the user has reviewed all recommendations, present a final consolidated list of accepted recommendations. Confirm before proceeding to Phase 3.
 
@@ -179,6 +187,9 @@ Before writing any enforcement artifacts to disk, present a batched summary of a
 2. **Diffs for existing files**: For files that already exist, show a diff against the existing content
 3. **Full content for new files**: Show complete content in a fenced code block
 4. **Single confirmation**: Ask: "Proceed with writing all N files?"
+
+**In --auto mode:** Skip the "Proceed with writing all N files?" confirmation. Proceed directly to writing all files. Log: Auto-mode selected; writing all enforcement artifacts without user confirmation.
+
 5. **Write all files** after confirmation using the Write tool
 6. **Partial failure handling**: If some files fail to write, preserve already-written files and report which files failed — do not re-attempt the successful ones
 
@@ -288,6 +299,8 @@ Before building enforcement, populate `dso-config.conf` with stack-appropriate c
 | Convention-based / Unknown | `convention-based` / `unknown` | *(no default — fill manually)* | *(no default)* | *(no default)* | *(no default)* |
 
 After the script runs, confirm the written values with the user before proceeding to Step 1. If the project is `rust-cargo`, `golang`, `convention-based`, or `unknown`, prompt the user to supply the missing command values directly.
+
+**In --auto mode:** Skip the post-prefill-config confirmation. Proceed to Step 1 using the values written by prefill-config.sh. If the stack is `rust-cargo`, `golang`, `convention-based`, or `unknown`, log the missing values and continue (the user can override later). Log: Auto-mode selected; bypassing prefill-config confirmation gate.
 
 ### Step 1: Enforcement Layer Architecture
 
