@@ -639,6 +639,8 @@ I see [.husky/pre-commit present / .pre-commit-config.yaml present / no hooks de
 
 #### 8. Jira Bridge
 
+**MANDATORY PROMPT — always ask this question. Do NOT skip based on project type or assumptions.**
+
 Ask whether the project uses Jira and, if so, confirm the project key:
 
 ```
@@ -652,7 +654,8 @@ If the user provides a Jira project key, write `jira.project=<KEY>` to `.claude/
 
 #### 9. Figma Design Collaboration
 
-*(Optional — skip if not applicable. Enables sprint-level design gating when Figma is used for UI collaboration.)*
+**MANDATORY PROMPT — always ask this question. The user decides yes/no; the model does NOT pre-decide to skip.**
+*(Enables sprint-level design gating when Figma is used for UI collaboration.)*
 
 Ask whether the project uses Figma for design collaboration:
 
@@ -690,7 +693,7 @@ When all 7 core areas (stack, commands, architecture, infrastructure, CI, design
 I now have a working model of the project across all 7 core areas. Is there anything important I missed — any constraint, convention, or quirk that a new team member would need to know?
 ```
 
-Note: sections 9 (Figma) and 10 (Confluence) are optional supplements — they do not gate this check.
+Note: sections 8 (Jira), 9 (Figma), and 10 (Confluence) must be asked BEFORE reaching this gate — they are mandatory prompts that happen to come after the 7 core areas. "Optional" means the user may decline; it does NOT mean the model may skip asking. The gate requires all 10 sections complete.
 
 Wait for the user's response before proceeding to Phase 3.
 

@@ -1138,4 +1138,40 @@ test_file_explanation_present() {
 
 test_file_explanation_present
 
+# ── RED integration mandatory prompt test (4171-e497) ─────────────────────────
+
+# test_integration_mandatory_prompts: sections 8 (Jira) and 9 (Figma) must have
+# MANDATORY PROMPT directives so the model always asks — not pre-decides to skip.
+# Also verifies the Phase 2 Gate note does not classify sections 8/9 as model-skippable.
+test_integration_mandatory_prompts() {
+    _snapshot_fail
+    local has_jira_mandatory="no"
+    local has_figma_mandatory="no"
+    local no_figma_optional_skip="yes"
+    local gate_note_updated="no"
+    # Section 8: must have MANDATORY PROMPT near "Jira Bridge"
+    if grep -qE "MANDATORY PROMPT" "$SKILL_MD" 2>/dev/null; then
+        has_jira_mandatory="yes"
+    fi
+    # Section 9: must have MANDATORY PROMPT near "Figma"
+    if grep -qE "MANDATORY PROMPT.*always ask|always ask.*MANDATORY PROMPT" "$SKILL_MD" 2>/dev/null; then
+        has_figma_mandatory="yes"
+    fi
+    # Section 9: must NOT have bare "Optional — skip if not applicable" (the removed text)
+    if grep -qE "Optional.*skip if not applicable" "$SKILL_MD" 2>/dev/null; then
+        no_figma_optional_skip="no"
+    fi
+    # Phase 2 Gate note must reference section 8 as mandatory before the gate
+    if grep -qE "section.*8.*Jira.*mandatory|8.*9.*10.*mandatory" "$SKILL_MD" 2>/dev/null; then
+        gate_note_updated="yes"
+    fi
+    assert_eq "test_integration_mandatory_prompts (jira mandatory)" "yes" "$has_jira_mandatory"
+    assert_eq "test_integration_mandatory_prompts (figma mandatory)" "yes" "$has_figma_mandatory"
+    assert_eq "test_integration_mandatory_prompts (no optional-skip)" "yes" "$no_figma_optional_skip"
+    assert_eq "test_integration_mandatory_prompts (gate note updated)" "yes" "$gate_note_updated"
+    assert_pass_if_clean "test_integration_mandatory_prompts"
+}
+
+test_integration_mandatory_prompts
+
 print_summary
