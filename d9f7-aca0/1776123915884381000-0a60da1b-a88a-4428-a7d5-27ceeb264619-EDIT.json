@@ -1,1 +1,0 @@
-{"timestamp": 1776123915884381000, "uuid": "0a60da1b-a88a-4428-a7d5-27ceeb264619", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "record-test-status-centrality: 2 assertions fail -> CI hook tests red (pre-existing)"}}}
