@@ -138,12 +138,12 @@ git -C "$REPO_HIGH" add -A
 
 MOCK_PASS_HIGH=$(create_mock_pass_runner)
 
-OUTPUT_HIGH=$(
+(
     cd "$REPO_HIGH"
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_HIGH" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_HIGH" \
-    bash "$HOOK" 2>&1 || true
+    bash "$HOOK" 2>/dev/null || true
 )
 
 STATUS_FILE_HIGH="$ARTIFACTS_HIGH/test-gate-status"
@@ -215,12 +215,12 @@ git -C "$REPO_LOW" add -A
 
 MOCK_PASS_LOW=$(create_mock_pass_runner)
 
-OUTPUT_LOW=$(
+(
     cd "$REPO_LOW"
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_LOW" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_LOW" \
-    bash "$HOOK" 2>&1 || true
+    bash "$HOOK" 2>/dev/null || true
 )
 
 STATUS_FILE_LOW="$ARTIFACTS_LOW/test-gate-status"

@@ -195,6 +195,37 @@ rm -f "$_timing_log"
 rm -rf "$_timing_test_dir"
 
 # ============================================================
+# test_pre_bash_dispatcher_record_test_status_direct_call_blocked
+# The dispatcher must block direct calls to record-test-status.sh that do
+# NOT include the --attest flag. Agents calling record-test-status.sh
+# directly bypass staged-file context and diff_hash binding, which is a
+# security/integrity violation. The hook_record_test_status_guard (entry 8
+# in the dispatch loop, before hook_tickets_tracker_bash_guard) must
+# intercept these calls and return exit 2.
+# ============================================================
+echo "--- test_pre_bash_dispatcher_record_test_status_direct_call_blocked ---"
+_INPUT='{"tool_name":"Bash","tool_input":{"command":"bash plugins/dso/hooks/record-test-status.sh --source-file=foo.py"}}'
+_exit_code=0
+_output=""
+_output=$(printf '%s' "$_INPUT" | CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$DISPATCHER" 2>&1) || _exit_code=$?
+assert_eq "test_pre_bash_dispatcher_record_test_status_direct_call_blocked: exit 2" "2" "$_exit_code"
+assert_contains "test_pre_bash_dispatcher_record_test_status_direct_call_blocked: BLOCKED in output" \
+    "BLOCKED" "$_output"
+
+# ============================================================
+# test_pre_bash_dispatcher_record_test_status_attest_allowed
+# When record-test-status.sh is called WITH the --attest flag, the
+# dispatcher must allow the command (return exit 0). The --attest path is
+# the legitimate worktree trust-transfer mechanism used by harvest-worktree.sh
+# and must not be blocked.
+# ============================================================
+echo "--- test_pre_bash_dispatcher_record_test_status_attest_allowed ---"
+_INPUT='{"tool_name":"Bash","tool_input":{"command":"bash plugins/dso/hooks/record-test-status.sh --attest --source-file=foo.py passed abc123"}}'
+_exit_code=0
+printf '%s' "$_INPUT" | CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$DISPATCHER" 2>/dev/null || _exit_code=$?
+assert_ne "test_pre_bash_dispatcher_record_test_status_attest_allowed: not exit 2 (should be allowed)" "2" "$_exit_code"
+
+# ============================================================
 # Summary
 # ============================================================
 print_summary
