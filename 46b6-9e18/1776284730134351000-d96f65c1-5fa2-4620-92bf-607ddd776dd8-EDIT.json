@@ -1,1 +1,0 @@
-{"timestamp": 1776284730134351000, "uuid": "d96f65c1-5fa2-4620-92bf-607ddd776dd8", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "ticket CLI: -p shorthand maps to --parent not --priority -> agent priority assignment silently sets wrong field"}}}
