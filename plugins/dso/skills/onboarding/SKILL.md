@@ -59,6 +59,133 @@ Work through each phase below. Answer what you know and skip what doesn't apply.
 
 ---
 
+## Phase 0: Comfort Assessment (/dso:onboarding)
+
+**Goal:** Before showing any detection output or asking project questions, calibrate explanation style with a single comfort-level question, run detection silently, assign confidence levels to all 7 dimensions, and initialize the CONFIDENCE_CONTEXT object in the scratchpad.
+
+### Step 0.1: Comfort Level Question (first user interaction)
+
+Display the following question **before any auto-detection output, before any dependency scan results, and before any other questions**:
+
+```
+Before we begin, I'd like to calibrate how I explain things.
+Are you more comfortable with technical engineering details, or would you prefer plain-language explanations?
+
+1) Technical — I'm comfortable with engineering terms, CLI commands, and configuration details
+2) Non-technical — Plain language please; skip the jargon where possible
+
+(Enter 1 or 2)
+```
+
+Record the answer as `COMFORT_LEVEL`:
+- If the user enters `1` (or "technical"): `COMFORT_LEVEL="technical"`
+- If the user enters `2` (or "non-technical"): `COMFORT_LEVEL="non_technical"`
+- If no answer or ambiguous: default to `COMFORT_LEVEL="non_technical"` (safer, more guided path)
+
+### Step 0.2: Stack and Project Auto-Detection
+
+Run detection scripts **silently** (before showing output to the user):
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+DETECT_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso project-detect.sh" "$REPO_ROOT" 2>/dev/null || echo "")
+STACK_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso detect-stack.sh" "$REPO_ROOT" 2>/dev/null || echo "unknown")
+```
+
+These results are reused in Phase 1 — do NOT re-run detect-stack.sh or project-detect.sh again in Phase 1 Step 1. Reference the `$DETECT_OUT` and `$STACK_OUT` variables set here.
+
+Also read supporting project files silently:
+
+```bash
+# Node / JavaScript ecosystem
+[ -f "$REPO_ROOT/package.json" ] && PACKAGE_JSON=$(cat "$REPO_ROOT/package.json" 2>/dev/null) || PACKAGE_JSON=""
+
+# Detect pre-commit hooks
+HUSKY_HOOK=""
+[ -f "$REPO_ROOT/.husky/pre-commit" ] && HUSKY_HOOK=$(cat "$REPO_ROOT/.husky/pre-commit" 2>/dev/null)
+PRECOMMIT_CONFIG=""
+[ -f "$REPO_ROOT/.pre-commit-config.yaml" ] && PRECOMMIT_CONFIG=$(cat "$REPO_ROOT/.pre-commit-config.yaml" 2>/dev/null)
+
+# Discover CI workflows
+CI_WORKFLOWS=""
+if [ -d "$REPO_ROOT/.github/workflows" ]; then
+    CI_WORKFLOWS=$(ls "$REPO_ROOT/.github/workflows"/*.yml "$REPO_ROOT/.github/workflows"/*.yaml 2>/dev/null | xargs -I{} basename {} 2>/dev/null || echo "")
+fi
+
+# Discover test directories
+TEST_DIRS=""
+for candidate in tests test spec __tests__ src/__tests__; do
+    [ -d "$REPO_ROOT/$candidate" ] && TEST_DIRS="$TEST_DIRS $candidate"
+done
+TEST_DIRS="${TEST_DIRS# }"
+```
+
+### Step 0.3: Confidence Level Assignment
+
+Assign confidence levels (`high` / `medium` / `low`) for all 7 dimensions based on the detection output collected in Step 0.2:
+
+#### Confidence Assignment Rules
+
+| Dimension | Assignment rule |
+|-----------|----------------|
+| **stack** | `high` if `STACK_OUT` is a recognized named stack (e.g., `"node-npm"`, `"python-poetry"`, `"ruby-rails"`); `low` if `STACK_OUT` is `"unknown"` |
+| **commands** | `high` if `DETECT_OUT` includes test and build command entries; `medium` if test directories were found but commands not confirmed; `low` otherwise |
+| **architecture** | `medium` if multiple source directories were detected; `low` otherwise |
+| **infrastructure** | `low` by default (no automated detection exists for this area) |
+| **ci** | `high` if CI workflow files were found in `.github/workflows/` AND `DETECT_OUT` contains `ci_workflow_confidence=high` with exactly one entry; `medium` if multiple workflows found or `ci_workflow_confidence=low`; `low` if no `.github/workflows/` directory found |
+| **design** | `medium` if `package.json` was found with a UI framework reference; `low` otherwise |
+| **enforcement** | `high` if `.pre-commit-config.yaml` or `.husky/` was found; `low` otherwise |
+
+Apply the rules above to produce a confidence level value (`high`, `medium`, or `low`) for each of the 7 dimensions. Examples:
+
+- `STACK_OUT="node-npm"` → stack confidence: `high`
+- `STACK_OUT="unknown"` → stack confidence: `low`
+- `.github/workflows/ci.yml` found, `ci_workflow_confidence=high` → ci confidence: `high`
+- No `.github/workflows/` → ci confidence: `low`
+
+### Step 0.4: Initialize Confidence Context Object in Scratchpad
+
+After completing Steps 0.1–0.3, write the `CONFIDENCE_CONTEXT` object (the `confidence_context` signal) to the scratchpad under a dedicated section header. Schema contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/confidence-context.md`.
+
+```bash
+SCRATCHPAD_PHASE0=$(mktemp /tmp/onboarding-phase0-XXXXXX.md)
+cat > "$SCRATCHPAD_PHASE0" <<EOF
+## CONFIDENCE_CONTEXT
+\`\`\`json
+{
+  "dimensions": {
+    "stack": "<high|medium|low>",
+    "commands": "<high|medium|low>",
+    "architecture": "<high|medium|low>",
+    "infrastructure": "<high|medium|low>",
+    "ci": "<high|medium|low>",
+    "design": "<high|medium|low>",
+    "enforcement": "<high|medium|low>"
+  },
+  "comfort_level": "$COMFORT_LEVEL",
+  "detected_stack": "$STACK_OUT",
+  "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+\`\`\`
+EOF
+```
+
+Replace each `<high|medium|low>` placeholder with the actual confidence level determined in Step 0.3. This object is written to `$SCRATCHPAD_PHASE0` (a temp file) because `$SCRATCHPAD` does not yet exist — Phase 1 Step 2 creates it. After Phase 1 Step 2 initializes `$SCRATCHPAD`, append the Phase 0 context:
+
+```bash
+# Merge Phase 0 context into main scratchpad (after Phase 1 Step 2 creates $SCRATCHPAD)
+cat "$SCRATCHPAD_PHASE0" >> "$SCRATCHPAD"
+rm -f "$SCRATCHPAD_PHASE0"
+```
+
+This makes `## CONFIDENCE_CONTEXT` visible to all downstream parsers (Phase 2 question routing, S2 doc folder scan, S3 routing logic) that scan `$SCRATCHPAD`.
+
+**Phase 1 scratchpad skip**: Because Step 0.2 already ran `detect-stack.sh` and `project-detect.sh`, Phase 1 Step 1 must **not** re-run these scripts. Phase 1 Step 1 should reference the existing `$DETECT_OUT` and `$STACK_OUT` variables.
+
+**Phase plan update**: When Phase 1 Step 2 writes the phase plan to the scratchpad, include Phase 0 at position 1 (before Phase 1: Auto-Detection). The complete phase list should be: Phase 0: Comfort Assessment → Phase 1: Auto-Detection → Phase 1.5 → Phase 1.6 → Phase 1.7 → Phase 2 → Phase 3.
+
+---
+
 ## Batch Group 1: dependency-install
 <!-- Skip guard: if no deps missing AND optional deps already installed, skip this prompt -->
 
@@ -155,41 +282,21 @@ fi
 
 ### Step 1: Read Project Files for Auto-Detection
 
-Before asking any questions, scan the project filesystem to gather facts:
+**Note:** Phase 0 Step 0.2 already ran `project-detect.sh` and `detect-stack.sh` and captured the results in `$DETECT_OUT`, `$STACK_OUT`, `$PACKAGE_JSON`, `$HUSKY_HOOK`, `$PRECOMMIT_CONFIG`, `$CI_WORKFLOWS`, and `$TEST_DIRS`. Do NOT re-run those scripts here. Reference the existing variables and supplement only with data not already collected:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
-# 1. Detect stack and test suites via DSO scripts
-DETECT_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso project-detect.sh" "$REPO_ROOT" 2>/dev/null || echo "")
-STACK_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso detect-stack.sh" "$REPO_ROOT" 2>/dev/null || echo "unknown")
+# Variables already set by Phase 0 Step 0.2:
+#   DETECT_OUT, STACK_OUT, PACKAGE_JSON, HUSKY_HOOK, PRECOMMIT_CONFIG
+#   CI_WORKFLOWS, TEST_DIRS
 
-# 2. Read specific project files to fill understanding areas
-# Node / JavaScript ecosystem
-[ -f "$REPO_ROOT/package.json" ] && PACKAGE_JSON=$(cat "$REPO_ROOT/package.json" 2>/dev/null)
+# Read additional project files not covered in Phase 0
 # Python ecosystem
 [ -f "$REPO_ROOT/pyproject.toml" ] && PYPROJECT=$(cat "$REPO_ROOT/pyproject.toml" 2>/dev/null)
-
-# 3. Detect pre-commit hooks
-HUSKY_HOOK=""
-[ -f "$REPO_ROOT/.husky/pre-commit" ] && HUSKY_HOOK=$(cat "$REPO_ROOT/.husky/pre-commit" 2>/dev/null)
-[ -f "$REPO_ROOT/.pre-commit-config.yaml" ] && PRECOMMIT_CONFIG=$(cat "$REPO_ROOT/.pre-commit-config.yaml" 2>/dev/null)
-
-# 4. Discover CI workflows — list actual filenames before asking about workflow names
-CI_WORKFLOWS=""
-if [ -d "$REPO_ROOT/.github/workflows" ]; then
-    CI_WORKFLOWS=$(ls "$REPO_ROOT/.github/workflows"/*.yml "$REPO_ROOT/.github/workflows"/*.yaml 2>/dev/null | xargs -I{} basename {})
-fi
-
-# 5. Discover test directories
-TEST_DIRS=""
-for candidate in tests test spec __tests__ src/__tests__; do
-    [ -d "$REPO_ROOT/$candidate" ] && TEST_DIRS="$TEST_DIRS $candidate"
-done
-TEST_DIRS="${TEST_DIRS# }"  # trim leading space
 ```
 
-Run `project-detect.sh` to discover test suites, CI configuration, and project conventions. Note which understanding areas are already answered by the detection output so you can skip or confirm rather than ask from scratch.
+Note which understanding areas are already answered by the detection output so you can skip or confirm rather than ask from scratch.
 
 ### Step 2: Initialize Scratchpad
 
@@ -223,6 +330,7 @@ After initializing the scratchpad, write the PHASE_PLAN:
 # Write PHASE_PLAN to scratchpad (line-per-entry for easy removal of skipped phases)
 echo "" >> "$SCRATCHPAD"
 echo "## PHASE_PLAN" >> "$SCRATCHPAD"
+echo "Phase 0: Comfort Assessment" >> "$SCRATCHPAD"
 echo "Phase 1: Auto-Detection" >> "$SCRATCHPAD"
 echo "Phase 1.5: Template Selection Gate" >> "$SCRATCHPAD"
 echo "Phase 1.6: Template Installation" >> "$SCRATCHPAD"
