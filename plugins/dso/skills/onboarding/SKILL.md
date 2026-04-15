@@ -98,14 +98,17 @@ The following required tools are missing:
   - <item 2>
 
 Install them with:
-  brew install bash coreutils git
+  brew install bash coreutils git pre-commit python uv
+
+Would you like me to install them for you?
 
 (Adjust the package list to match only what is missing above.)
 ```
 
 - If Homebrew is unavailable: explain that automated installation is out of scope, list the missing deps, and ask the user to install them manually before re-running `/dso:onboarding`.
-- Do NOT attempt to install packages yourself.
-- After the user confirms installation, re-run the checks. Abort if any required dep is still missing.
+- If the user requests installation, perform installation automatically
+- If not, wait until the user confirms manual installation.
+- Re-run the checks. Abort if any required dep is still missing.
 
 **Optional dependencies (ast-grep, semgrep):**
 
@@ -115,7 +118,7 @@ command -v sg >/dev/null 2>&1 && HAS_ASG=true
 command -v semgrep >/dev/null 2>&1 && HAS_SEMGREP=true
 ```
 
-If either is absent, offer installation and do not wait indefinitely:
+If either is absent, offer installation:
 
 ```
 Optional tools not found: ast-grep (sg), semgrep
