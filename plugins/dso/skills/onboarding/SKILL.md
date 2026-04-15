@@ -59,6 +59,9 @@ Work through each phase below. Answer what you know and skip what doesn't apply.
 
 ---
 
+## Batch Group 1: dependency-install
+<!-- Skip guard: if no deps missing AND optional deps already installed, skip this prompt -->
+
 ## Phase 1: Auto-Detection (/dso:onboarding)
 
 **Goal:** Pre-fill as many answers as possible by reading project files BEFORE asking the user anything.
@@ -734,6 +737,9 @@ Before writing any artifact to disk, present the full content for user review an
 - Ask: "Does this look right? Should I write this file?"
 - Wait for explicit approval before using the Write tool.
 
+## Batch Group 3: config-write
+<!-- Skip guard: if all config files already exist with current content, skip -->
+
 ### Step 2: Write .claude/project-understanding.md
 
 After the user confirms the summary (or provides corrections), write the findings to a structured, human-readable artifact using the Write tool. This file is the lasting record of everything the onboarding conversation learned.
@@ -1090,6 +1096,9 @@ Write `commands.acli_version` and `commands.acli_sha256` to `.claude/dso-config.
 
 After writing `.claude/dso-config.conf`, set up the supporting infrastructure for the host project. These steps ensure the enforcement gates, ticket system, and documentation templates are in place before the first commit.
 
+## Batch Group 2: scaffold-claude-structure
+<!-- Skip guard: if .claude/ structure already present and shim already installed, skip -->
+
 #### DSO Shim Installation
 
 Display to user: "Installing the DSO shim — a short command-line shortcut (.claude/scripts/dso) that routes all DSO operations to the plugin scripts. You will use this for running tickets, tests, and merges."
@@ -1112,6 +1121,9 @@ bash "$PLUGIN_SCRIPTS/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"  # shim
 
 This is idempotent — safe to re-run on projects that already have the shim installed.
 
+## Batch Group 4: initial-commit
+<!-- Skip guard: if all artifacts already committed, skip -->
+
 #### Hook Installation
 
 **ORDERING CONSTRAINT — hooks MUST be installed LAST, after all other onboarding artifacts have been committed.** Installing hooks before the initial commit creates a bootstrap deadlock: the review gate requires a passing review, but the review system depends on the files being committed. The correct sequence is:
@@ -1121,6 +1133,9 @@ This is idempotent — safe to re-run on projects that already have the shim ins
 3. Install hooks after the initial commit completes
 
 Do NOT install hooks earlier in Step 2c, even if the install step appears earlier in the instructions above. Hook installation is always the final infrastructure action.
+
+## Batch Group 5: hook-install
+<!-- Skip guard: if hooks already installed, skip -->
 
 Display to user: "Installing pre-commit hooks — automated quality checks that run before each git commit to verify tests pass and code has been reviewed. Required for the DSO enforcement pipeline."
 
@@ -1350,6 +1365,9 @@ test_quality.tool=semgrep
 ```
 
 If Semgrep installation failed, write `test_quality.tool=bash-grep` instead. The test quality gate will still function using grep-based pattern matching as a fallback.
+
+## Batch Group 6: final-commit
+<!-- Skip guard: if no hook artifacts to commit, skip -->
 
 #### CI Trigger Strategy
 

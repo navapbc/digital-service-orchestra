@@ -157,16 +157,13 @@ plugins/dso/hooks/check-artifact-versions.sh:tests/scripts/test-artifact-update-
 plugins/dso/scripts/update-artifacts.sh:tests/scripts/test-artifact-update-integration.sh
 plugins/dso/docs/DEPENDENCY-GUIDANCE.md:tests/docs/test-doc-polyglot-compliance.sh
 plugins/dso/scripts/prefill-config.sh:tests/unit/scripts/test-prefill-config.sh
-plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh [test_phase0_comfort_question_present]
-plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh [test_confidence_context_schema_present]
-plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh [test_seven_dimensions_present]
-plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh [test_confidence_levels_documented]
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-e2e.sh [test_regression_onboarding_skill_all_pass]
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-ux-validation.sh
-plugins/dso/skills/onboarding/SKILL.md:tests/hooks/test-onboarding-batch-groups.sh [test_onboarding_has_exactly_6_batch_groups]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_auto_bypass_phase2_gate]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_auto_bypass_phase2_5_gate]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_auto_bypass_phase2_75_gate]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_auto_bypass_phase3_step075_gate]
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh [test_auto_mode_section_enumerates_four_gates]
+plugins/dso/skills/onboarding/SKILL.md:tests/hooks/test-onboarding-batch-groups.sh
+plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-confidence-assignment.sh [test_assignment_rules_section_present]
+plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
+plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
+plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
+plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
+plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
