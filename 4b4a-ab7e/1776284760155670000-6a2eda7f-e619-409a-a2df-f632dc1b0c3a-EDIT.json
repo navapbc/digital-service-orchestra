@@ -1,1 +1,0 @@
-{"timestamp": 1776284760155670000, "uuid": "6a2eda7f-e619-409a-a2df-f632dc1b0c3a", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "test-check-plugin-test-needed.sh: script deleted in ac4feeaf -> 9 assertions fail with exit 127"}}}
