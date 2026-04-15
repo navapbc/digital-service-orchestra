@@ -1,0 +1,1 @@
+{"timestamp": 1776290669238142000, "uuid": "d57c1c7c-aa4a-479a-9dff-26bb9a74d4b3", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Gate 1a: intent-aligned (high confidence) \u2014 CI failures are genuine defects against stated design goal of all 26 tests passing in CI"}}
