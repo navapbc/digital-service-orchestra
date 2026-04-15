@@ -2,7 +2,7 @@
 # Maps source files to test files that fuzzy match misses.
 # Format: source/path: test/path1[, test/path2...]
 
-plugins/dso/.claude-plugin/plugin.json:tests/plugin/test_fixture_minimal_plugin_consumer.py,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/hooks/test-plugin-boundary-rule.sh,tests/hooks/test-check-plugin-boundary.sh,tests/hooks/test-plugin-docs.sh,tests/scripts/test-plugin-retro-gather.sh,tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-plugin-scripts.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-scripts-no-relative-paths.sh,tests/scripts/test-check-plugin-test-needed.sh [test_script_exists_and_executable],tests/scripts/test-plugin-dir-structure.sh,tests/scripts/test-plugin-reference-catalog.sh,tests/scripts/test-no-unguarded-plugin-refs.sh,tests/skills/test-plugin-boundary-migration.sh
+plugins/dso/.claude-plugin/plugin.json:tests/plugin/test_fixture_minimal_plugin_consumer.py,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/hooks/test-plugin-boundary-rule.sh,tests/hooks/test-check-plugin-boundary.sh,tests/hooks/test-plugin-docs.sh,tests/scripts/test-plugin-retro-gather.sh,tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-plugin-scripts.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-scripts-no-relative-paths.sh,tests/scripts/test-plugin-dir-structure.sh,tests/scripts/test-plugin-reference-catalog.sh,tests/scripts/test-no-unguarded-plugin-refs.sh,tests/skills/test-plugin-boundary-migration.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
 plugins/dso/agents/bot-psychologist.md:tests/scripts/test-bot-psychologist-agent.sh
 plugins/dso/agents/doc-writer.md:tests/scripts/test-doc-writer-agent.sh,tests/scripts/test-sprint-skill-doc-writer-dispatch.sh
@@ -159,3 +159,4 @@ plugins/dso/docs/DEPENDENCY-GUIDANCE.md:tests/docs/test-doc-polyglot-compliance.
 plugins/dso/scripts/prefill-config.sh:tests/unit/scripts/test-prefill-config.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-ux-validation.sh
+plugins/dso/scripts/check-skill-refs.sh: tests/scripts/test-check-skill-refs.sh
