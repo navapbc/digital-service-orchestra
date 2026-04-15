@@ -1,0 +1,1 @@
+{"timestamp": 1776285703764777000, "uuid": "79bf715d-2a1f-43a3-bcb6-d4bf9b33df79", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "dso-setup.sh: auto-install in detect_prerequisites -> test_prereq_missing CI failures"}}}
