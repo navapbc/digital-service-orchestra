@@ -1,1 +1,0 @@
-{"timestamp": 1776290676830075000, "uuid": "737bfd11-03e4-4289-a199-4fa5d987e3f7", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Gate 1a: intent-aligned (high confidence) \u2014 missing guard is a genuine defect, not a documented design decision"}}
