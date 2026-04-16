@@ -14,6 +14,108 @@ else
   _PLUGIN_ROOT="${DSO_PLUGIN_ROOT:-}"
 fi
 
+# Capture test-isolation env vars at source/load time while they are in scope.
+# When sourced via "MARKETPLACE_BASE=X CLAUDE_PLUGIN_ROOT=Y source script",
+# these env vars are available during source execution but may revert after the
+# source call returns. Saving them to script-level globals lets
+# detect_dso_plugin_root() honour the intended overrides when called later.
+#
+# _DSO_CLAUDE_PLUGIN_ROOT_SET: "1" if CLAUDE_PLUGIN_ROOT was explicitly present
+#   at load time (even if empty), "" if absent. Distinguishes "cleared to empty"
+#   from "never set".
+if [ -n "${CLAUDE_PLUGIN_ROOT+x}" ]; then
+  _DSO_CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+  _DSO_CLAUDE_PLUGIN_ROOT_SET="1"
+else
+  _DSO_CLAUDE_PLUGIN_ROOT=""
+  _DSO_CLAUDE_PLUGIN_ROOT_SET=""
+fi
+_DSO_MARKETPLACE_BASE="${MARKETPLACE_BASE:-}"
+
+# detect_dso_plugin_root <project_dir>
+# Resolve the installed DSO plugin root, write it to project dso-config.conf,
+# and run a smoke test. Prints the detected path on stdout.
+#
+# Priority:
+#   1. $CLAUDE_PLUGIN_ROOT env var — if set and sentinel exists
+#   2. ${MARKETPLACE_BASE:-$HOME/.claude/plugins/marketplaces}/digital-service-orchestra/
+#      (MARKETPLACE_BASE is an env var override for test isolation)
+#   3. Dev env: _PLUGIN_ROOT (resolved from BASH_SOURCE) when it contains the sentinel
+#   4. Fatal error — prints actionable message and exits 1
+detect_dso_plugin_root() {
+  local project_dir="${1:-}"
+  local plugin_root=""
+
+  # Determine effective CLAUDE_PLUGIN_ROOT: prefer load-time capture when it was
+  # explicitly set (including to empty — that disables this probe).
+  local _effective_plugin_root
+  if [ -n "$_DSO_CLAUDE_PLUGIN_ROOT_SET" ]; then
+    _effective_plugin_root="$_DSO_CLAUDE_PLUGIN_ROOT"
+  else
+    _effective_plugin_root="${CLAUDE_PLUGIN_ROOT:-}"
+  fi
+
+  # Determine effective MARKETPLACE_BASE: load-time capture takes precedence when
+  # non-empty (runtime fallback used for non-test invocations).
+  local _effective_marketplace_base
+  if [ -n "$_DSO_MARKETPLACE_BASE" ]; then
+    _effective_marketplace_base="$_DSO_MARKETPLACE_BASE"
+  else
+    _effective_marketplace_base="${MARKETPLACE_BASE:-}"
+  fi
+
+  # 1. CLAUDE_PLUGIN_ROOT env var
+  if [ -n "$_effective_plugin_root" ] && \
+     [ -f "$_effective_plugin_root/.claude-plugin/plugin.json" ]; then
+    plugin_root="$_effective_plugin_root"
+  fi
+
+  # 2. Marketplace path
+  if [ -z "$plugin_root" ]; then
+    local _marketplace_base="${_effective_marketplace_base:-$HOME/.claude/plugins/marketplaces}"
+    local _marketplace_path="$_marketplace_base/digital-service-orchestra"
+    if [ -f "$_marketplace_path/.claude-plugin/plugin.json" ]; then
+      plugin_root="$_marketplace_path"
+    fi
+  fi
+
+  # 3. Dev env: _PLUGIN_ROOT resolved at script load time via BASH_SOURCE
+  if [ -z "$plugin_root" ]; then
+    if [ -n "${_PLUGIN_ROOT:-}" ] && \
+       [ -f "$_PLUGIN_ROOT/.claude-plugin/plugin.json" ]; then
+      plugin_root="$_PLUGIN_ROOT"
+    fi
+  fi
+
+  # 4. Fatal error
+  if [ -z "$plugin_root" ]; then
+    echo "Error: DSO plugin not found. Install via Claude Code marketplace or set CLAUDE_PLUGIN_ROOT." >&2
+    exit 1
+  fi
+
+  # Write dso.plugin_root to project config if the file already exists
+  if [ -n "$project_dir" ] && [ -f "$project_dir/.claude/dso-config.conf" ]; then
+    if grep -q '^dso\.plugin_root=' "$project_dir/.claude/dso-config.conf" 2>/dev/null; then
+      sed -i.bak "s|^dso\.plugin_root=.*|dso.plugin_root=$plugin_root|" \
+        "$project_dir/.claude/dso-config.conf" && \
+        rm -f "$project_dir/.claude/dso-config.conf.bak"
+    else
+      printf 'dso.plugin_root=%s\n' "$plugin_root" >> "$project_dir/.claude/dso-config.conf"
+    fi
+
+    # Smoke test: verify the DSO CLI works in the scaffolded project
+    # (gated on .tickets-tracker to avoid false-negative on fresh clone)
+    if [ -d "$project_dir/.tickets-tracker" ]; then
+      (cd "$project_dir" && .claude/scripts/dso ticket list) || \
+        { echo "Error: smoke test failed — dso ticket list returned non-zero" >&2; exit 1; }
+    else
+      (cd "$project_dir" && .claude/scripts/dso ticket show --help >/dev/null 2>&1) || true
+    fi
+  fi
+
+  echo "$plugin_root"
+}
+
 check_homebrew_deps() {
   # Check Homebrew first
   if ! command -v brew >/dev/null 2>&1; then
@@ -180,6 +282,9 @@ main() {
     exit 1
   fi
 
+  # Step 5b: Detect DSO plugin root and write to project dso-config.conf
+  detect_dso_plugin_root "$project_dir" >/dev/null
+
   # All steps succeeded — clear the cleanup trap before writing the sentinel
   trap - EXIT
 
@@ -195,4 +300,6 @@ main() {
   echo "  claude"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
