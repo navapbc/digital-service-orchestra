@@ -1,0 +1,1 @@
+{"timestamp": 1776366503, "uuid": "e14b01f7-7eca-4f04-80b2-646acf76decc", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "bug", "title": "test-format-fix.sh: intermittently killed by 50s batch timeout -> false failure", "parent_id": "", "description": "", "tags": [], "priority": 3, "assignee": "Test"}}
