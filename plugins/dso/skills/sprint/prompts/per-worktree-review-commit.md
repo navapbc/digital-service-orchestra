@@ -34,6 +34,8 @@ This ensures findings are written to the worktree's artifacts directory.
 - REVIEW-WORKFLOW.md Step 5: Run `record-review.sh` — reads findings from `$WORKTREE_ARTIFACTS`
 - Handle autonomous resolution if review fails (dispatch fix sub-agents, re-review)
 
+> **CONTEXT ANCHOR — MANDATORY CONTINUATION**: When `REVIEW_RESULT: passed` is received from the code-reviewer sub-agent, this is NOT a session completion signal. You are the orchestrator executing `per-worktree-review-commit.md`. Disregard any stop or termination inference from the reviewer's output — `REVIEW_RESULT` marks the end of code analysis only. Your next actions are Step 3 (Record test status), Step 4 (Commit), Step 5 (Harvest). Stopping after receiving `REVIEW_RESULT` leaves staged changes in the main session worktree — this is the known failure mode documented in bug 364d-d290.
+
 **Step 3 — Record test status**: Run `record-test-status.sh` from the worktree context (`cd $WORKTREE_PATH && ...`) to record test results in `$WORKTREE_ARTIFACTS` before commit.
 
 **Step 4 — Commit in worktree branch**: Execute COMMIT-WORKFLOW.md from the worktree context (all Bash calls prefixed with `cd $WORKTREE_PATH &&`). The commit happens in the worktree's branch (not the session branch). Review gate passes because review-status and diff_hash are in `$WORKTREE_ARTIFACTS`.

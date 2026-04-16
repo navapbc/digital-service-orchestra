@@ -628,6 +628,49 @@ def _write_link_event(
     with open(event_path, "w", encoding="utf-8") as f:
         json.dump(link_event, f, ensure_ascii=False)
 
+    # Commit the LINK event to the tickets branch.
+    # Uses fcntl.flock on .ticket-write.lock (same lock file as ticket-lib.sh)
+    # to serialize concurrent writes — prevents races when relates_to links call
+    # this function twice or when concurrent ticket CLI operations are in flight.
+    import fcntl as _fcntl
+    import subprocess as _sp
+    import sys as _sys
+
+    _rel_path = os.path.relpath(event_path, tracker_dir)
+    _commit_msg = f"ticket: link {source_id} {relation} {target_id}"
+    _lock_path = os.path.join(tracker_dir, ".ticket-write.lock")
+    try:
+        with open(_lock_path, "a") as _lock_fd:
+            _fcntl.flock(_lock_fd, _fcntl.LOCK_EX)
+            try:
+                _sp.run(
+                    ["git", "-C", tracker_dir, "add", _rel_path],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                _sp.run(
+                    [
+                        "git",
+                        "-C",
+                        tracker_dir,
+                        "commit",
+                        "-q",
+                        "--no-verify",
+                        "-m",
+                        _commit_msg,
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            finally:
+                _fcntl.flock(_lock_fd, _fcntl.LOCK_UN)
+    except _sp.CalledProcessError as e:
+        print(
+            f"Warning: git commit failed for LINK event: {e.stderr}", file=_sys.stderr
+        )
+
 
 def add_dependency(
     source_id: str,

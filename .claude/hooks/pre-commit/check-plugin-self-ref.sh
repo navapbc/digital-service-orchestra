@@ -58,6 +58,7 @@ if [[ $_violations -gt 0 ]]; then
     echo "" >&2
     echo "Fix: replace hardcoded plugins/dso paths with _PLUGIN_ROOT (scripts)" >&2
     echo "     or \${CLAUDE_PLUGIN_ROOT}/ (markdown). Remove or rewrite the reference." >&2
+    echo "     Example (markdown): plugins/dso/path -> \${CLAUDE_PLUGIN_ROOT}/path" >&2
     echo "" >&2
     echo "check-plugin-self-ref: $_violations violation(s) found. Commit blocked." >&2
     exit 1

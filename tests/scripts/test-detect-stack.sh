@@ -248,4 +248,18 @@ jekyll_no_gemfile_output=$(bash "$SCRIPT" "$JEKYLL_NO_GEMFILE_DIR" 2>&1) || jeky
 assert_eq "test_detect_stack_jekyll_no_gemfile: exit 0" "0" "$jekyll_no_gemfile_exit"
 assert_eq "test_detect_stack_jekyll_no_gemfile: _config.yml without Gemfile → unknown" "unknown" "$jekyll_no_gemfile_output"
 
+# ── test_detect_stack_finds_node_in_subdirectory ─────────────────────────────
+# When the app lives in a subdirectory (e.g., myapp/), running detect-stack.sh
+# on the PARENT directory must still return 'node-npm'.
+# RED: current detect-stack.sh only checks direct children, so it returns 'unknown'.
+SUBDIR_NODE_PARENT="$TMPDIR_FIXTURE/subdir_node_parent"
+mkdir -p "$SUBDIR_NODE_PARENT/myapp"
+printf '{"name":"test","version":"1.0.0"}\n' > "$SUBDIR_NODE_PARENT/myapp/package.json"
+
+subdir_node_output=""
+subdir_node_exit=0
+subdir_node_output=$(bash "$SCRIPT" "$SUBDIR_NODE_PARENT" 2>&1) || subdir_node_exit=$?
+assert_eq "test_detect_stack_finds_node_in_subdirectory: exit 0" "0" "$subdir_node_exit"
+assert_eq "test_detect_stack_finds_node_in_subdirectory: package.json in subdir → node-npm" "node-npm" "$subdir_node_output"
+
 print_summary

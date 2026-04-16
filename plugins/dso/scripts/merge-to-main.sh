@@ -905,6 +905,9 @@ _phase_sync() {
         exit 1
     fi
     echo "OK: Worktree synced with main."
+    # Clear any files restaged by pre-commit hooks during the merge commit,
+    # to prevent dirty-check failures on resume (2613-a2eb).
+    git reset HEAD --quiet || true
 
     # --- Check visual baseline intent ---
     # Use merge-base against origin/main (not local main) to detect only branch-originated

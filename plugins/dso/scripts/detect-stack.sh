@@ -124,6 +124,40 @@ if [[ -f "$PROJECT_DIR/Makefile" ]]; then
     fi
 fi
 
-# 8. unknown: no recognized markers found
+# 8. Subdirectory fallback: when no markers found at root, scan up to 2 levels deep.
+# Handles projects where the app lives in a subdirectory (e.g., frontend/, app/, myapp/).
+# Priority order: python-poetry before node-npm (matches root-level priority for these two types).
+
+# Subdirectory: python-poetry (pyproject.toml)
+_sub_pyproject=$(find "$PROJECT_DIR" -maxdepth 2 -name "pyproject.toml" \
+    -not -path "*/.git/*" -not -path "*/node_modules/*" 2>/dev/null | head -1)
+if [[ -n "$_sub_pyproject" ]] && python3 -c "
+import sys
+try:
+    import tomllib
+except ImportError:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        sys.exit(1)
+with open(sys.argv[1], 'rb') as f:
+    data = tomllib.load(f)
+sys.exit(0 if 'tool' in data and 'poetry' in data.get('tool', {}) else 1)
+" "$_sub_pyproject" 2>/dev/null; then
+    echo "python-poetry"
+    exit 0
+fi
+
+# Subdirectory: node-npm (package.json)
+_sub_package=$(find "$PROJECT_DIR" -maxdepth 2 -name "package.json" \
+    -not -path "*/.git/*" -not -path "*/node_modules/*" 2>/dev/null | head -1)
+if [[ -n "$_sub_package" ]]; then
+    if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$_sub_package" 2>/dev/null; then
+        echo "node-npm"
+        exit 0
+    fi
+fi
+
+# 9. unknown: no recognized markers found
 echo "unknown"
 exit 0

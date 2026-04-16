@@ -1047,4 +1047,125 @@ test_link_dry_run_no_event_written() {
 }
 test_link_dry_run_no_event_written
 
+# ── Test 14 (RED): LINK event is committed to the tickets branch ──────────────
+echo "Test 14 (RED): ticket link event is committed to the tickets git branch (not just written to disk)"
+test_ticket_link_event_is_committed() {
+    _snapshot_fail
+
+    # RED: ticket-link.sh must exist (this test depends on ticket-link.sh working)
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_link_event_is_committed"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "Commit-check source ticket")
+    id2=$(_create_ticket "$repo" task "Commit-check target ticket")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "tickets created for commit-check test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_link_event_is_committed"
+        return
+    fi
+
+    # Record git log length before link
+    local log_before
+    log_before=$(git -C "$tracker_dir" log --oneline 2>/dev/null | wc -l | tr -d ' ')
+
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" blocks 2>/dev/null) || exit_code=$?
+
+    # Assert: link exits 0
+    assert_eq "commit-check: ticket link exits 0" "0" "$exit_code"
+
+    # Assert: LINK event file exists on disk
+    local link_file
+    link_file=$(find "$tracker_dir/$id1" -maxdepth 1 -name '*-LINK.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+    if [ -n "$link_file" ]; then
+        assert_eq "commit-check: LINK event file written to disk" "found" "found"
+    else
+        assert_eq "commit-check: LINK event file written to disk" "found" "not-found"
+        assert_pass_if_clean "test_ticket_link_event_is_committed"
+        return
+    fi
+
+    # Assert: git log has a new commit (LINK event was committed, not just written)
+    local log_after
+    log_after=$(git -C "$tracker_dir" log --oneline 2>/dev/null | wc -l | tr -d ' ')
+    local new_commits
+    new_commits=$(( log_after - log_before ))
+    assert_eq "commit-check: LINK event is committed to tickets branch (new commit count)" "1" "$new_commits"
+
+    # Assert: the new commit message references the ticket IDs (link commit message pattern)
+    local last_commit_msg
+    last_commit_msg=$(git -C "$tracker_dir" log --oneline -1 2>/dev/null)
+    if [[ "$last_commit_msg" =~ link|LINK|$id1|$id2 ]]; then
+        assert_eq "commit-check: commit message references link/ticket IDs" "has-link-ref" "has-link-ref"
+    else
+        assert_eq "commit-check: commit message references link/ticket IDs" "has-link-ref" "no-ref: $last_commit_msg"
+    fi
+
+    # Assert: the LINK event file is NOT in the untracked/modified state
+    local untracked
+    untracked=$(git -C "$tracker_dir" status --porcelain 2>/dev/null | grep -c "LINK.json" || true)
+    assert_eq "commit-check: LINK event file not untracked/uncommitted" "0" "$untracked"
+
+    assert_pass_if_clean "test_ticket_link_event_is_committed"
+}
+test_ticket_link_event_is_committed
+
+# ── Test 15: relates_to creates two committed LINK events (bidirectional) ──────
+echo "Test 15: ticket link relates_to produces two git commits (one per direction)"
+test_ticket_link_relates_to_two_commits() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_link_relates_to_two_commits"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "Relates-to source")
+    id2=$(_create_ticket "$repo" task "Relates-to target")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "tickets created for relates_to commit test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_link_relates_to_two_commits"
+        return
+    fi
+
+    local log_before
+    log_before=$(git -C "$tracker_dir" log --oneline 2>/dev/null | wc -l | tr -d ' ')
+
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" relates_to 2>/dev/null) || exit_code=$?
+
+    assert_eq "relates_to-commit: exits 0" "0" "$exit_code"
+
+    local log_after
+    log_after=$(git -C "$tracker_dir" log --oneline 2>/dev/null | wc -l | tr -d ' ')
+    local new_commits
+    new_commits=$(( log_after - log_before ))
+    # relates_to writes _write_link_event twice (forward + reciprocal), each commits
+    assert_eq "relates_to-commit: two LINK commits produced (forward + reciprocal)" "2" "$new_commits"
+
+    # Both LINK event files must not be untracked/uncommitted
+    local untracked
+    untracked=$(git -C "$tracker_dir" status --porcelain 2>/dev/null | grep -c "LINK.json" || true)
+    assert_eq "relates_to-commit: both LINK files committed (none untracked)" "0" "$untracked"
+
+    assert_pass_if_clean "test_ticket_link_relates_to_two_commits"
+}
+test_ticket_link_relates_to_two_commits
+
 print_summary

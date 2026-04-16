@@ -1257,7 +1257,7 @@ test_contract_ref_present() {
     fi
     local contracts_dir
     contracts_dir="$(dirname "$SKILL_MD")/../../docs/contracts"
-    if [[ "$has_ref" == "no" ]] && ls "$contracts_dir"/confidence-context* 2>/dev/null | grep -q .; then
+    if [[ "$has_ref" == "no" ]] && compgen -G "$contracts_dir/confidence-context*" > /dev/null 2>&1; then
         has_ref="yes"
     fi
     assert_eq "test_contract_ref_present" "yes" "$has_ref"
