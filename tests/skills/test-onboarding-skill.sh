@@ -1174,4 +1174,265 @@ test_integration_mandatory_prompts() {
 
 test_integration_mandatory_prompts
 
+# ── RED Phase 0 comfort assessment tests (95ca-2d8e) ─────────────────────────
+
+# test_phase0_comfort_question_present: SKILL.md must contain a Phase 0 or Pre-flight section header
+test_phase0_comfort_question_present() {
+    _snapshot_fail
+    local has_phase0="no"
+    if grep -qE '^## Phase 0[^0-9]|^## Pre-flight' "$SKILL_MD" 2>/dev/null; then
+        has_phase0="yes"
+    fi
+    assert_eq "test_phase0_comfort_question_present" "yes" "$has_phase0"
+    assert_pass_if_clean "test_phase0_comfort_question_present"
+}
+
+# test_confidence_context_schema_present: SKILL.md must contain a confidence_context section
+# or object in scratchpad init
+test_confidence_context_schema_present() {
+    _snapshot_fail
+    local has_schema="no"
+    if grep -qE 'confidence_context' "$SKILL_MD" 2>/dev/null; then
+        has_schema="yes"
+    fi
+    assert_eq "test_confidence_context_schema_present" "yes" "$has_schema"
+    assert_pass_if_clean "test_confidence_context_schema_present"
+}
+
+# test_seven_dimensions_present: SKILL.md must reference all 7 confidence dimensions
+# (stack, commands, architecture, infrastructure, ci, design, enforcement)
+# Uses awk range to limit search to Phase 0 / pre-flight section
+test_seven_dimensions_present() {
+    _snapshot_fail
+    local dims_found=0
+    local dims_missing=""
+    local required_dims=("stack" "commands" "architecture" "infrastructure" "ci" "design" "enforcement")
+    local dim
+    for dim in "${required_dims[@]}"; do
+        if awk '/^## Phase 0[^0-9]|^## Pre-flight/,/^## Phase 1/' "$SKILL_MD" 2>/dev/null | grep -qiE "\b${dim}\b"; then
+            (( dims_found++ ))
+        else
+            dims_missing="$dims_missing $dim"
+        fi
+    done
+    if [[ "$dims_found" -eq 7 ]]; then
+        assert_eq "test_seven_dimensions_present" "7" "$dims_found"
+    else
+        assert_eq "test_seven_dimensions_present" "7 dimensions found" "$dims_found dimensions found (missing:$dims_missing)"
+    fi
+    assert_pass_if_clean "test_seven_dimensions_present"
+}
+
+# test_confidence_levels_documented: SKILL.md must document high/medium/low as valid
+# confidence level values
+test_confidence_levels_documented() {
+    _snapshot_fail
+    local has_high="no"
+    local has_medium="no"
+    local has_low="no"
+    if grep -qiE '\bhigh\b' "$SKILL_MD" 2>/dev/null; then
+        has_high="yes"
+    fi
+    if grep -qiE '\bmedium\b' "$SKILL_MD" 2>/dev/null; then
+        has_medium="yes"
+    fi
+    if grep -qiE '\blow\b' "$SKILL_MD" 2>/dev/null; then
+        has_low="yes"
+    fi
+    local result="missing"
+    if [[ "$has_high" == "yes" && "$has_medium" == "yes" && "$has_low" == "yes" ]]; then
+        result="found"
+    fi
+    assert_eq "test_confidence_levels_documented" "found" "$result"
+    assert_pass_if_clean "test_confidence_levels_documented"
+}
+
+# test_contract_ref_present: SKILL.md or adjacent contract file at
+# plugins/dso/docs/contracts/ must reference the confidence-context schema
+test_contract_ref_present() {
+    _snapshot_fail
+    local has_ref="no"
+    if grep -qE 'confidence.context' "$SKILL_MD" 2>/dev/null; then
+        has_ref="yes"
+    fi
+    local contracts_dir
+    contracts_dir="$(dirname "$SKILL_MD")/../../docs/contracts"
+    if [[ "$has_ref" == "no" ]] && ls "$contracts_dir"/confidence-context* 2>/dev/null | grep -q .; then
+        has_ref="yes"
+    fi
+    assert_eq "test_contract_ref_present" "yes" "$has_ref"
+    assert_pass_if_clean "test_contract_ref_present"
+}
+
+# RED Phase 0 tests — these fail until Phase 0 / confidence_context is added to SKILL.md
+test_phase0_comfort_question_present
+test_confidence_context_schema_present
+test_seven_dimensions_present
+test_confidence_levels_documented
+test_contract_ref_present
+
+# ── RED pre-commit dep marker and bypass gate tests (cd7b-5b1a) ───────────────
+
+# test_precommit_required_dep_present: Step 0 dep scan section must actively check
+# for pre-commit as a required dependency (command -v pre-commit), not merely
+# reference it in an install suggestion.
+# Scoped to the dep-scan section using awk range pattern.
+# RED until task 69a7-b0bd adds pre-commit to the required dep checks in SKILL.md.
+test_precommit_required_dep_present() {
+    _snapshot_fail
+    local precommit_dep_found
+    precommit_dep_found="missing"
+    if awk '/### Step 0: Dependency Pre-Scan/,/### Step 1:/' "$SKILL_MD" 2>/dev/null | \
+       grep -qE 'command -v pre-commit'; then
+        precommit_dep_found="found"
+    fi
+    assert_eq "test_precommit_required_dep_present" "found" "$precommit_dep_found"
+    assert_pass_if_clean "test_precommit_required_dep_present"
+}
+
+# test_hook_install_bypass_gates_present: Batch Group 5 (hook-install) section must contain
+# explicit bypass instructions for the initial commit that installs hooks —
+# referencing --no-verify or bypass-review-gate or skip-gate language.
+# Scoped to Batch Group 5 using awk range pattern.
+# RED until task e453-e46f adds bypass language to Batch Group 5 in SKILL.md.
+test_hook_install_bypass_gates_present() {
+    _snapshot_fail
+    local bypass_found
+    bypass_found="missing"
+    if awk '/^## Batch Group 5: hook-install/,/^## Batch Group 6:/' "$SKILL_MD" 2>/dev/null | \
+       grep -qiE 'bypass|no-verify|skip.*gate'; then
+        bypass_found="found"
+    fi
+    assert_eq "test_hook_install_bypass_gates_present" "found" "$bypass_found"
+    assert_pass_if_clean "test_hook_install_bypass_gates_present"
+}
+
+# RED tests — fail until SKILL.md dep scan and hook-install sections are updated
+test_precommit_required_dep_present
+test_hook_install_bypass_gates_present
+
+# ── RED Phase 0.5 doc-folder scan tests (5e33-60aa) ──────────────────────────
+
+# test_phase0_5_doc_folder_scan_present: SKILL.md must contain a Phase 0.5 section header
+# (## Phase 0.5 or ### Phase 0.5) dedicated to doc-folder scanning. The section must
+# exist as a named phase — an incidental mention of "doc folder scan" in passing text
+# does not satisfy this requirement.
+# RED until Phase 0.5 is added to SKILL.md as a dedicated section.
+test_phase0_5_doc_folder_scan_present() {
+    _snapshot_fail
+    local has_phase="no"
+    # Must have an explicit Phase 0.5 section header
+    if grep -qE '^## Phase 0\.5|^### Phase 0\.5' "$SKILL_MD" 2>/dev/null; then
+        has_phase="yes"
+    fi
+    assert_eq "test_phase0_5_doc_folder_scan_present" "yes" "$has_phase"
+    assert_pass_if_clean "test_phase0_5_doc_folder_scan_present"
+}
+
+# test_doc_folder_confidence_elevation_present: SKILL.md must describe elevating confidence
+# levels from doc scan — grep for language connecting doc scanning with confidence elevation
+# (e.g., 'elevat' near 'confidence', or 'doc.*scan.*confidence', or 'scan.*elevat')
+test_doc_folder_confidence_elevation_present() {
+    _snapshot_fail
+    local has_elevation="no"
+    if grep -qiE "doc.*scan.*confidence|scan.*elevat|elevat.*confidence.*doc|confidence.*elevat.*scan" \
+           "$SKILL_MD" 2>/dev/null; then
+        has_elevation="yes"
+    fi
+    if [[ "$has_elevation" == "no" ]] && \
+       grep -qiE "elevat.*confidence|confidence.*elevat" "$SKILL_MD" 2>/dev/null && \
+       grep -qiE "doc|scan" "$SKILL_MD" 2>/dev/null; then
+        # Check both terms exist in Phase 0.5 context using awk range
+        local phase05_block
+        phase05_block=$(awk '/^## Phase 0\.5|^### Phase 0\.5/,/^## Phase [0-9]/' \
+            "$SKILL_MD" 2>/dev/null)
+        if echo "$phase05_block" | grep -qiE "elevat|confidence" && \
+           echo "$phase05_block" | grep -qiE "doc|scan"; then
+            has_elevation="yes"
+        fi
+    fi
+    assert_eq "test_doc_folder_confidence_elevation_present" "yes" "$has_elevation"
+    assert_pass_if_clean "test_doc_folder_confidence_elevation_present"
+}
+
+# RED Phase 0.5 doc-folder scan tests — fail until Phase 0.5 is added to SKILL.md
+test_phase0_5_doc_folder_scan_present
+test_doc_folder_confidence_elevation_present
+
+# ── RED Phase 2 confidence routing tests (d875-4466) ──────────────────────────
+
+# test_phase2_confidence_routing_table_present: Phase 2 must contain a confidence routing
+# table (or equivalent section) with all 3 tiers: high=skip, medium=confirm, low=ask.
+# RED until Phase 2 confidence routing is added to SKILL.md.
+test_phase2_confidence_routing_table_present() {
+    local skill_file="${SKILL_MD}"
+    local has_routing
+    # Scope to Phase 2 section, then check for all 3 tiers
+    has_routing=$(awk '/^## Phase 2:/,/^## Phase 3:/' "$skill_file" | \
+        grep -cE '(high|high-confidence).*skip|(medium).*confirm|(low).*ask' | \
+        awk '{if ($1 >= 2) print "yes"; else print "no"}')
+    assert_eq "test_phase2_confidence_routing_table_present" "yes" "$has_routing"
+    assert_pass_if_clean "test_phase2_confidence_routing_table_present"
+}
+
+# test_phase2_high_confidence_skip_summary_present: Phase 2 must contain a skip summary
+# pattern like "Detected X — skipping Y question" for high-confidence areas.
+test_phase2_high_confidence_skip_summary_present() {
+    local skill_file="${SKILL_MD}"
+    local has_skip
+    has_skip=$(awk '/^## Phase 2:/,/^## Phase 3:/' "$skill_file" | \
+        grep -c 'skipping' | awk '{if ($1 >= 1) print "yes"; else print "no"}')
+    assert_eq "test_phase2_high_confidence_skip_summary_present" "yes" "$has_skip"
+    assert_pass_if_clean "test_phase2_high_confidence_skip_summary_present"
+}
+
+# test_phase2_medium_confidence_prefill_confirm_present: Phase 2 must contain
+# a "Does this look right?" confirm template for medium-confidence areas.
+test_phase2_medium_confidence_prefill_confirm_present() {
+    local skill_file="${SKILL_MD}"
+    local has_confirm
+    has_confirm=$(awk '/^## Phase 2:/,/^## Phase 3:/' "$skill_file" | \
+        grep -c 'Does this look right' | awk '{if ($1 >= 1) print "yes"; else print "no"}')
+    assert_eq "test_phase2_medium_confidence_prefill_confirm_present" "yes" "$has_confirm"
+    assert_pass_if_clean "test_phase2_medium_confidence_prefill_confirm_present"
+}
+
+# test_phase2_nontechnical_path_present: Phase 2 must contain a non-technical path
+# section describing how to handle engineering-specific questions for non-technical users.
+test_phase2_nontechnical_path_present() {
+    local skill_file="${SKILL_MD}"
+    local has_nontechnical
+    has_nontechnical=$(awk '/^## Phase 2:/,/^## Phase 3:/' "$skill_file" | \
+        grep -ciE 'non-technical path|non-technical user|nontechnical' | \
+        awk '{if ($1 >= 1) print "yes"; else print "no"}')
+    assert_eq "test_phase2_nontechnical_path_present" "yes" "$has_nontechnical"
+    assert_pass_if_clean "test_phase2_nontechnical_path_present"
+}
+
+# test_phase2_all_seven_dimensions_routed: Phase 2 confidence routing must cover all 7
+# dimensions (stack, commands, architecture, infrastructure, ci, design, enforcement).
+test_phase2_all_seven_dimensions_routed() {
+    local skill_file="${SKILL_MD}"
+    local dims=("stack" "commands" "architecture" "infrastructure" "ci" "design" "enforcement")
+    local found=0
+    local phase2_content
+    phase2_content=$(awk '/^## Phase 2:/,/^## Phase 3:/' "$skill_file")
+    for dim in "${dims[@]}"; do
+        if echo "$phase2_content" | grep -qi "$dim"; then
+            (( found++ )) || true
+        fi
+    done
+    local result
+    result=$([ "$found" -eq 7 ] && echo "yes" || echo "no")
+    assert_eq "test_phase2_all_seven_dimensions_routed" "yes" "$result"
+    assert_pass_if_clean "test_phase2_all_seven_dimensions_routed"
+}
+
+# RED Phase 2 confidence routing tests — fail until Phase 2 routing is added to SKILL.md
+test_phase2_confidence_routing_table_present
+test_phase2_high_confidence_skip_summary_present
+test_phase2_medium_confidence_prefill_confirm_present
+test_phase2_nontechnical_path_present
+test_phase2_all_seven_dimensions_routed
+
 print_summary
