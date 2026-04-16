@@ -405,9 +405,8 @@ else:
                 errors.append(f"{prefix}.dimensions: must be an object")
             else:
                 for dim_name, dim_score in dims.items():
-                    if dim_score is not None:
-                        if not isinstance(dim_score, int) or not (1 <= dim_score <= 5):
-                            errors.append(f"{prefix}.dimensions.{dim_name}: must be integer 1-5 or null, got: {dim_score!r}")
+                    if dim_score is not None and (not isinstance(dim_score, int) or not (1 <= dim_score <= 5)):
+                        errors.append(f"{prefix}.dimensions.{dim_name}: must be integer 1-5 or null, got: {dim_score!r}")
         findings = review.get("findings")
         if findings is not None:
             if not isinstance(findings, list):
@@ -418,9 +417,8 @@ else:
                     if not isinstance(finding, dict):
                         errors.append(f"{fp}: must be an object")
                         continue
-                    for field in ["dimension", "severity", "description", "suggestion"]:
-                        if field not in finding:
-                            errors.append(f"{fp}: missing required field '{field}'")
+                    missing_fields = [f for f in ["dimension", "severity", "description", "suggestion"] if f not in finding]
+                    errors.extend(f"{fp}: missing required field '{f}'" for f in missing_fields)
                     sev = finding.get("severity")
                     if sev is not None and sev not in valid_finding_severities:
                         errors.append(f"{fp}.severity: must be one of {sorted(valid_finding_severities)}, got: {sev!r}")
