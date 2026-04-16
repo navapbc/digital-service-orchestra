@@ -39,6 +39,7 @@
 | Review event stats | `.claude/scripts/dso review-stats.sh` |
 | Run a recipe transform | `.claude/scripts/dso recipe-executor.sh <recipe-name> [--param key=value ...]` |
 | Sync stale host-project artifacts to current plugin version | `.claude/scripts/dso update-artifacts` |
+| Bootstrap a NextJS project | `bash <(curl -fsSL https://raw.githubusercontent.com/<org>/digital-service-orchestra/HEAD/plugins/dso/scripts/create-dso-app.sh)` or `/dso:nextjs-starter` |
 
 Less common: `check-skill-refs.sh`, `qualify-skill-refs.sh`.
 

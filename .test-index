@@ -168,15 +168,15 @@ plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-e2e.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-ux-validation.sh
 plugins/dso/scripts/check-skill-refs.sh:tests/scripts/test-check-skill-refs.sh
 plugins/dso/scripts/scan-docs.sh:tests/skills/test-onboarding-scan-docs.sh
-docs/onboarding.md:tests/skills/test-nextjs-starter-docs.sh [test_onboarding_doc_exists]
+docs/onboarding.md:tests/skills/test-nextjs-starter-docs.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/hooks/test-onboarding-batch-groups.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-confidence-assignment.sh
 plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
-plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-e2e.sh
-plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh
 plugins/dso/scripts/check-skill-refs.sh: tests/scripts/test-check-skill-refs.sh
+docs/onboarding.md:tests/skills/test-nextjs-starter-docs.sh
+plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh
+CLAUDE.md:tests/skills/test-nextjs-starter-docs.sh
+plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh [test_plugin_consent_doc_has_required_sections]
+plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh

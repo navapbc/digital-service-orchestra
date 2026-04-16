@@ -115,7 +115,7 @@ HOOK_PARENT_DIR="$(cd "$(dirname "$HOOK")" && pwd)"
 
 DETECTED_STATE_DIR=""
 DETECTED_STATE_DIR=$(
-    cd "$RRSTATE_TMP"
+    cd "$RRSTATE_TMP" || exit
     source "$HOOK_PARENT_DIR/lib/deps.sh" 2>/dev/null || true
     if declare -f get_artifacts_dir > /dev/null 2>&1; then
         REPO_ROOT="$RRSTATE_TMP" get_artifacts_dir 2>/dev/null
@@ -160,6 +160,7 @@ assert_eq "test_record_review_equals_style_reviewer_hash: --reviewer-hash=VALUE 
 # Check the CHANGED_FILES computation block (not the diagnostic dump which
 # legitimately uses ls-files --others for mismatch forensics).
 # The CHANGED_FILES block is between "CHANGED_FILES=$(" and the closing ")".
+# shellcheck disable=SC2016  # single-quoted sed pattern is intentional: $( is a literal string, not expansion
 _tmp=$(sed -n '/CHANGED_FILES=$(/,/^[[:space:]]*)/p' "$HOOK"); if grep -q 'ls-files.*--others' <<< "$_tmp"; then
     actual="includes_untracked"
 else
@@ -360,7 +361,7 @@ _MERGE_TEST_TMPDIRS+=("$_merge_test_tmpdir")
 git init --bare -b main "$_merge_test_tmpdir/origin.git" --quiet 2>/dev/null || git init --bare "$_merge_test_tmpdir/origin.git" --quiet
 git clone "$_merge_test_tmpdir/origin.git" "$_merge_test_tmpdir/repo" --quiet 2>/dev/null
 (
-    cd "$_merge_test_tmpdir/repo"
+    cd "$_merge_test_tmpdir/repo" || exit
     git config user.email "test@test.com"
     git config user.name "Test"
 
