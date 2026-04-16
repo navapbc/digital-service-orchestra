@@ -257,6 +257,11 @@ fi
 if ! command -v git >/dev/null 2>&1; then
     MISSING_DEPS+=("git")
 fi
+
+# Check pre-commit — required for hook management and enforcement gates
+if ! command -v pre-commit >/dev/null 2>&1; then
+    MISSING_DEPS+=("pre-commit")
+fi
 ```
 
 If `MISSING_DEPS` is non-empty, collect all items into a single install command and **pause for user confirmation before continuing**:

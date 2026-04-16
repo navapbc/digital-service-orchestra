@@ -1311,4 +1311,52 @@ test_hook_install_bypass_gates_present() {
 test_precommit_required_dep_present
 test_hook_install_bypass_gates_present
 
+# ── RED Phase 0.5 doc-folder scan tests (5e33-60aa) ──────────────────────────
+
+# test_phase0_5_doc_folder_scan_present: SKILL.md must contain a Phase 0.5 section header
+# (## Phase 0.5 or ### Phase 0.5) dedicated to doc-folder scanning. The section must
+# exist as a named phase — an incidental mention of "doc folder scan" in passing text
+# does not satisfy this requirement.
+# RED until Phase 0.5 is added to SKILL.md as a dedicated section.
+test_phase0_5_doc_folder_scan_present() {
+    _snapshot_fail
+    local has_phase="no"
+    # Must have an explicit Phase 0.5 section header
+    if grep -qE '^## Phase 0\.5|^### Phase 0\.5' "$SKILL_MD" 2>/dev/null; then
+        has_phase="yes"
+    fi
+    assert_eq "test_phase0_5_doc_folder_scan_present" "yes" "$has_phase"
+    assert_pass_if_clean "test_phase0_5_doc_folder_scan_present"
+}
+
+# test_doc_folder_confidence_elevation_present: SKILL.md must describe elevating confidence
+# levels from doc scan — grep for language connecting doc scanning with confidence elevation
+# (e.g., 'elevat' near 'confidence', or 'doc.*scan.*confidence', or 'scan.*elevat')
+test_doc_folder_confidence_elevation_present() {
+    _snapshot_fail
+    local has_elevation="no"
+    if grep -qiE "doc.*scan.*confidence|scan.*elevat|elevat.*confidence.*doc|confidence.*elevat.*scan" \
+           "$SKILL_MD" 2>/dev/null; then
+        has_elevation="yes"
+    fi
+    if [[ "$has_elevation" == "no" ]] && \
+       grep -qiE "elevat.*confidence|confidence.*elevat" "$SKILL_MD" 2>/dev/null && \
+       grep -qiE "doc|scan" "$SKILL_MD" 2>/dev/null; then
+        # Check both terms exist in Phase 0.5 context using awk range
+        local phase05_block
+        phase05_block=$(awk '/^## Phase 0\.5|^### Phase 0\.5/,/^## Phase [0-9]/' \
+            "$SKILL_MD" 2>/dev/null)
+        if echo "$phase05_block" | grep -qiE "elevat|confidence" && \
+           echo "$phase05_block" | grep -qiE "doc|scan"; then
+            has_elevation="yes"
+        fi
+    fi
+    assert_eq "test_doc_folder_confidence_elevation_present" "yes" "$has_elevation"
+    assert_pass_if_clean "test_doc_folder_confidence_elevation_present"
+}
+
+# RED Phase 0.5 doc-folder scan tests — fail until Phase 0.5 is added to SKILL.md
+test_phase0_5_doc_folder_scan_present
+test_doc_folder_confidence_elevation_present
+
 print_summary
