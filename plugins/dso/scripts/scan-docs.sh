@@ -4,7 +4,7 @@
 # Usage: scan-docs.sh <doc_folder> [--context-file=<path>]
 #
 # Scans files in <doc_folder> (non-recursive), skipping binary files and
-# files > 500KB. Extracts facts (app_name, stack, wcag_level, framework)
+# files > 200KB. Extracts facts (app_name, stack, wcag_level, framework)
 # from text files. Optionally elevates a CONFIDENCE_CONTEXT JSON file.
 #
 # Exit codes:
@@ -56,7 +56,7 @@ fi
 # ── File scanning ────────────────────────────────────────────────────────────
 
 # Constants
-readonly MAX_SIZE_BYTES=$(( 500 * 1024 ))  # 500KB
+readonly MAX_SIZE_BYTES=$(( 200 * 1024 ))  # 200KB
 readonly MAX_READ_BYTES=$(( 50 * 1024 ))   # 50KB per file for extraction
 readonly MAX_FILES=50
 

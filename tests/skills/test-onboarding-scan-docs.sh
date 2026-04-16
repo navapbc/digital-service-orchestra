@@ -4,7 +4,7 @@
 #
 # Tests:
 #   test_scan_docs_rejects_binary: script skips binary files (non-UTF8)
-#   test_scan_docs_rejects_large_files: script skips files > 500KB
+#   test_scan_docs_rejects_large_files: script skips files > 200KB
 #   test_scan_docs_rejects_path_traversal: script rejects paths with ../
 #   test_scan_docs_logs_skips: script logs skip reason when skipping
 #
@@ -19,7 +19,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-SCAN_DOCS_SH="$DSO_PLUGIN_DIR/skills/onboarding/scan-docs.sh"
+SCAN_DOCS_SH="$DSO_PLUGIN_DIR/scripts/scan-docs.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -70,8 +70,8 @@ test_scan_docs_rejects_binary() {
     assert_pass_if_clean "test_scan_docs_rejects_binary"
 }
 
-# test_scan_docs_rejects_large_files: scan-docs.sh must skip files larger than 500KB.
-# Creates a 600KB file, passes it to scan-docs.sh, and verifies it is skipped.
+# test_scan_docs_rejects_large_files: scan-docs.sh must skip files larger than 200KB.
+# Creates a 600KB file (> 200KB limit), passes it to scan-docs.sh, and verifies it is skipped.
 test_scan_docs_rejects_large_files() {
     _snapshot_fail
     if [[ ! -x "$SCAN_DOCS_SH" ]]; then
@@ -88,7 +88,7 @@ test_scan_docs_rejects_large_files() {
     # false-positive grep matches when the file name appears in facts JSON output.
     local large_file="$tmpdir/project_overview.md"
 
-    # Create a file that is exactly 600KB (> 500KB limit)
+    # Create a file that is exactly 600KB (> 200KB limit)
     dd if=/dev/zero bs=1024 count=600 2>/dev/null | tr '\0' 'a' > "$large_file"
 
     local stdout_out stderr_out
@@ -482,5 +482,51 @@ test_scan_docs_no_grep_perl_flag() {
     assert_pass_if_clean "test_scan_docs_no_grep_perl_flag"
 }
 test_scan_docs_no_grep_perl_flag
+
+# ── Bug 05d5-9838: scan-docs.sh must be at scripts/ not skills/onboarding/ ──
+# Verifies that scan-docs.sh lives at plugins/dso/scripts/scan-docs.sh per
+# project convention where reusable scripts live in scripts/, not skills/.
+test_scan_docs_at_correct_scripts_path() {
+    _snapshot_fail
+    local correct_path="$DSO_PLUGIN_DIR/scripts/scan-docs.sh"
+    if [[ -x "$correct_path" ]]; then
+        assert_eq "test_scan_docs_at_correct_scripts_path: file at scripts/" "exists" "exists"
+    else
+        assert_eq "test_scan_docs_at_correct_scripts_path: file at scripts/" "exists" "not-found"
+    fi
+    assert_pass_if_clean "test_scan_docs_at_correct_scripts_path"
+}
+test_scan_docs_at_correct_scripts_path
+
+# ── Bug f51d-b101: size guard must be 200KB not 500KB per story 5e33-60aa ───
+# Verifies that a 250KB file (> 200KB but < 500KB) is skipped with SKIP:size.
+# This is RED at the current 500KB limit and GREEN after fixing to 200KB.
+test_scan_docs_rejects_250kb_file() {
+    _snapshot_fail
+    if [[ ! -x "$SCAN_DOCS_SH" ]]; then
+        assert_eq "test_scan_docs_rejects_250kb_file" \
+            "scan-docs.sh exists and is executable" \
+            "scan-docs.sh not found at $SCAN_DOCS_SH"
+        assert_pass_if_clean "test_scan_docs_rejects_250kb_file"
+        return
+    fi
+
+    local tmpdir
+    tmpdir=$(_make_test_dir)
+    local medium_file="$tmpdir/project_docs.md"
+    dd if=/dev/zero bs=1024 count=250 2>/dev/null | tr '\0' 'a' > "$medium_file"
+
+    local stderr_out
+    stderr_out=$(bash "$SCAN_DOCS_SH" "$tmpdir" 2>&1 1>/dev/null || true)
+    rm -rf "$tmpdir"
+
+    local result="not-rejected"
+    if echo "$stderr_out" | grep -q "SKIP:size"; then
+        result="rejected"
+    fi
+    assert_eq "test_scan_docs_rejects_250kb_file: 250KB file rejected at 200KB limit" "rejected" "$result"
+    assert_pass_if_clean "test_scan_docs_rejects_250kb_file"
+}
+test_scan_docs_rejects_250kb_file
 
 print_summary
