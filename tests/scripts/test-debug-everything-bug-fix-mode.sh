@@ -10,10 +10,9 @@
 #   5. Invokes /dso:fix-bug at orchestrator level (NOT via Task tool) in bug-fix mode
 #
 # Test status:
-#   ALL 5 tests are RED — no bug-fix mode exists in current SKILL.md.
+#   ALL 7 tests pass GREEN — bug-fix mode is implemented and verified.
 #
 # Exemption: structural metadata validation of prompt file — not executable code.
-# RED marker: test_orchestration_flow_has_bug_fix_branch (first RED test — all 5 are RED)
 #
 # Usage: bash tests/scripts/test-debug-everything-bug-fix-mode.sh
 
@@ -27,17 +26,9 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-debug-everything-bug-fix-mode.sh ==="
 
 # ============================================================
-# RED MARKER BOUNDARY
-# ALL 5 tests below are RED — bug-fix mode does not yet exist
-# in debug-everything/SKILL.md. RED marker in .test-index:
-#   [test_orchestration_flow_has_bug_fix_branch]
-# ============================================================
-
-# ============================================================
 # test_orchestration_flow_has_bug_fix_branch
 # The orchestration flow diagram must include a conditional branch
 # that routes to bug-fix mode when open bug tickets exist.
-# RED: current flow has no such branch.
 # ============================================================
 test_orchestration_flow_has_bug_fix_branch() {
     local branch_found="missing"
@@ -56,7 +47,6 @@ test_orchestration_flow_has_bug_fix_branch() {
 # test_bug_detection_step_exists
 # SKILL.md must document a step that checks for open bug tickets
 # before launching the diagnostic scan.
-# RED: no such step exists in current SKILL.md.
 # ============================================================
 test_bug_detection_step_exists() {
     local detection_step_found="missing"
@@ -75,7 +65,6 @@ test_bug_detection_step_exists() {
 # test_bug_fix_mode_skips_diagnostic
 # Bug-fix mode must explicitly state that the diagnostic scan
 # (Phase 1) is skipped.
-# RED: no bug-fix mode exists in current SKILL.md.
 # ============================================================
 test_bug_fix_mode_skips_diagnostic() {
     local skip_diagnostic_found="missing"
@@ -92,7 +81,6 @@ test_bug_fix_mode_skips_diagnostic() {
 # test_bug_fix_mode_skips_triage
 # Bug-fix mode must explicitly state that triage sub-agent
 # dispatch is skipped.
-# RED: no bug-fix mode exists in current SKILL.md.
 # ============================================================
 test_bug_fix_mode_skips_triage() {
     local skip_triage_found="missing"
@@ -111,7 +99,6 @@ test_bug_fix_mode_skips_triage() {
 # level (reads SKILL.md inline), NOT via Task tool dispatch.
 # Scope: search only within the bug-fix mode section of SKILL.md,
 # not the whole file (Phase 5 legitimately uses Task tool dispatch).
-# RED: no bug-fix mode exists in current SKILL.md.
 # ============================================================
 test_orchestrator_level_fix_bug_invocation() {
     local inline_invocation_found="missing"
@@ -160,7 +147,6 @@ PYEOF
 # In bug-fix mode, before inlining fix-bug steps for each ticket,
 # the orchestrator must extract tags from ticket show output and
 # check for the CLI_user tag to determine the correct fix-bug path.
-# RED: current SKILL.md bug-fix mode has no CLI_user tag extraction guidance.
 # ============================================================
 test_bug_fix_mode_extracts_cli_user_tag() {
     local skill_content
@@ -184,10 +170,6 @@ test_bug_fix_mode_extracts_cli_user_tag() {
 # AND --status=in_progress when listing bug tickets for Bug-Fix Mode.
 # Without the --status=in_progress query, bugs stuck in_progress are
 # permanently invisible and never retried (bug 774d-4866).
-# RED: current SKILL.md only contains --status=open queries; zero
-#      occurrences of --status=in_progress exist in the file.
-# GREEN: after the dual-query fix is applied, --status=in_progress
-#        appears at least once in the Bug-Fix Mode query context.
 # ============================================================
 test_bug_fix_mode_queries_in_progress_tickets() {
     local in_progress_query_count

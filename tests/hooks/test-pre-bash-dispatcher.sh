@@ -224,6 +224,7 @@ _INPUT='{"tool_name":"Bash","tool_input":{"command":"bash plugins/dso/hooks/reco
 _exit_code=0
 printf '%s' "$_INPUT" | CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$DISPATCHER" 2>/dev/null || _exit_code=$?
 assert_ne "test_pre_bash_dispatcher_record_test_status_attest_allowed: not exit 2 (should be allowed)" "2" "$_exit_code"
+assert_eq "test_pre_bash_dispatcher_record_test_status_attest_allowed: exit 0 (allowed path succeeds)" "0" "$_exit_code"
 
 # ============================================================
 # Summary
