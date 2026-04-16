@@ -382,6 +382,13 @@ declare -a WT_UNPUSHED=()    # "yes" or "no" (has unpushed commits)
 declare -a WT_ACTIONS=()     # "remove" or reason to keep
 declare -a WT_REMOVABLE=()   # "true" or "false"
 
+# Count non-main worktrees for progress reporting. Each worktree block in
+# --porcelain output starts with "worktree <path>"; one of those is main.
+_wt_scan_total=$(($(git -C "$MAIN_WORKTREE" worktree list --porcelain | grep -c '^worktree ') - 1))
+[[ "$_wt_scan_total" -lt 0 ]] && _wt_scan_total=0
+_wt_scan_index=0
+echo "Scanning $_wt_scan_total worktree(s)..." >&2
+
 # Parse porcelain output
 current_path=""
 current_branch=""
@@ -401,6 +408,8 @@ while IFS= read -r line; do
         fi
 
         local_name=$(basename "$current_path")
+        _wt_scan_index=$((_wt_scan_index + 1))
+        printf '  [%d/%d] %s\n' "$_wt_scan_index" "$_wt_scan_total" "$local_name" >&2
         WT_NAMES+=("$local_name")
         WT_PATHS+=("$current_path")
         WT_BRANCHES+=("${current_branch:-detached}")
