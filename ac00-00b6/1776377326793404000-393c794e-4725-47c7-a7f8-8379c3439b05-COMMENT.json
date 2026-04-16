@@ -1,1 +1,0 @@
-{"timestamp": 1776377326793404000, "uuid": "393c794e-4725-47c7-a7f8-8379c3439b05", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Checkpoint 3/6: Testing mode RED. Script created at tests/test-doc-links.sh with executable bit. Verifying it fails now (README.md near-empty, plus checking current state of docs)."}}
