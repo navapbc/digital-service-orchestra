@@ -185,7 +185,7 @@ import json, sys, time, uuid
 
 event = {
     'event_type': 'LINK',
-    'timestamp': int(time.time()),
+    'timestamp': time.time_ns(),
     'uuid': str(uuid.uuid4()),
     'env_id': sys.argv[1],
     'author': sys.argv[2],
@@ -321,7 +321,7 @@ import json, sys, time, uuid
 
 event = {
     'event_type': 'UNLINK',
-    'timestamp': int(time.time()),
+    'timestamp': time.time_ns(),
     'uuid': str(uuid.uuid4()),
     'env_id': sys.argv[1],
     'author': sys.argv[2],

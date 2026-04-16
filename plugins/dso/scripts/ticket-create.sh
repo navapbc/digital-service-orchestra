@@ -168,7 +168,7 @@ import uuid, time
 u = str(uuid.uuid4()).replace('-', '')
 ticket_id = u[:4] + '-' + u[4:8]
 event_uuid = str(uuid.uuid4())
-timestamp = int(time.time())
+timestamp = time.time_ns()
 print(ticket_id)
 print(event_uuid)
 print(timestamp)

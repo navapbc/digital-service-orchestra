@@ -222,7 +222,7 @@ except subprocess.CalledProcessError:
 
 # Build SNAPSHOT event
 snapshot_uuid = str(uuid.uuid4())
-snapshot_timestamp = int(time.time())
+snapshot_timestamp = time.time_ns()
 
 snapshot_event = {
     'event_type': 'SNAPSHOT',
