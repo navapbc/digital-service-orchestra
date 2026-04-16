@@ -352,6 +352,8 @@ GITSTUB
     _write_stub "$stub_bin" "mkdir"   '/bin/mkdir "$@"'
     _write_stub "$stub_bin" "touch"   '/usr/bin/touch "$@"'
     _write_stub "$stub_bin" "date"    '/bin/date "$@"'
+    # rm is used by the partial-init start-fresh path and cleanup trap
+    _write_stub "$stub_bin" "rm"      '/bin/rm "$@"'
 
     echo "$stub_bin"
 }
@@ -474,11 +476,48 @@ test_idempotency_already_initialized() {
     assert_eq "idempotency: informative message" "yes" "$msg_ok"
 }
 
+# ── test_partial_init_start_fresh ────────────────────────────────────────────
+# Pre-create project dir WITHOUT .dso-init-complete (partial install).
+# Respond 'y' to start-fresh prompt; assert exit 0 and sentinel created.
+test_partial_init_start_fresh() {
+    local stub_bin T project_dir exit_code=0
+    stub_bin=$(_installer_stub_bin)
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    project_dir="$T/my-project"
+    mkdir -p "$project_dir"
+    # No .dso-init-complete — simulates a partial/interrupted install
+
+    PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'y\n' >/dev/null 2>&1 || exit_code=$?
+    assert_eq "partial init start-fresh: exit 0" "0" "$exit_code"
+
+    local sentinel="no"
+    [[ -f "$project_dir/.dso-init-complete" ]] && sentinel="yes"
+    assert_eq "partial init start-fresh: sentinel created" "yes" "$sentinel"
+}
+
+# ── test_partial_init_cancel ──────────────────────────────────────────────────
+# Pre-create project dir WITHOUT .dso-init-complete (partial install).
+# Respond 'n' to start-fresh prompt; assert exit non-zero.
+test_partial_init_cancel() {
+    local stub_bin T project_dir exit_code=0
+    stub_bin=$(_installer_stub_bin)
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    project_dir="$T/my-project"
+    mkdir -p "$project_dir"
+
+    PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'n\n' >/dev/null 2>&1 || exit_code=$?
+    assert_ne "partial init cancel: exits non-zero" "0" "$exit_code"
+}
+
 test_project_structure_created
 test_project_name_substitution
 test_dso_init_complete_sentinel_created
 test_exit_0_on_newline_ack
 test_exit_1_on_stdin_eof
 test_idempotency_already_initialized
+test_partial_init_start_fresh
+test_partial_init_cancel
 
 print_summary

@@ -225,6 +225,7 @@ main() {
 
   local project_dir="$target_dir/$sanitized_name"
 
+  local _skip_ack=false
   if [ -e "$project_dir" ]; then
     # Idempotency: project fully initialized — exit 0 with informative message
     if [ -f "$project_dir/.dso-init-complete" ]; then
@@ -232,14 +233,29 @@ main() {
       echo "Nothing to do. To re-install, remove $project_dir and re-run."
       exit 0
     fi
-    echo "ERROR: Directory '$project_dir' already exists. Choose a different project name or remove the existing directory." >&2
-    exit 1
+    # Partial init: directory exists but installation was never completed.
+    # Prompt the user to start fresh (remove and re-install) or cancel.
+    echo "WARNING: Directory '$project_dir' exists but installation was not completed."
+    local _fresh
+    if ! read -r -p "Start fresh? [y/N] " _fresh 2>/dev/null; then
+      echo "Installation cancelled."
+      exit 1
+    fi
+    if [[ "$_fresh" =~ ^[yY] ]]; then
+      echo "Removing partial directory and starting fresh..."
+      rm -rf "$project_dir"
+      _skip_ack=true  # user already confirmed intent — skip the ack prompt below
+    else
+      echo "Installation cancelled. Remove '$project_dir' and re-run to start fresh." >&2
+      exit 1
+    fi
   fi
 
   echo "Creating DSO NextJS project '$sanitized_name' in $project_dir"
   echo "Template source: $repo_url"
 
   # User acknowledgment before installation
+  # (skipped when user already confirmed start-fresh for a partial install)
   # Re-attach stdin to the terminal when invoked via "curl | bash" pipe
   # (in that form bash reads the script from stdin, so exec < /dev/tty is needed
   # to allow interactive prompts; safe no-op for all other invocation forms).
@@ -247,18 +263,20 @@ main() {
     exec < /dev/tty 2>/dev/null || true
   fi
 
-  echo ""
-  echo "About to install:"
-  echo "  (1) DSO (digital-service-orchestra) is the Claude Code plugin that powers this project"
-  echo "  (2) The installer requires permission to install the DSO plugin via Claude Code"
-  echo "  (3) Steps: clone template, install npm dependencies, configure DSO, launch Claude Code"
-  echo ""
-  echo "Press Enter to continue or Ctrl-C to cancel."
-  local _ack
-  if ! read -r _ack 2>/dev/null; then
+  if [ "$_skip_ack" != "true" ]; then
     echo ""
-    echo "Installation cancelled."
-    exit 1
+    echo "About to install:"
+    echo "  (1) DSO (digital-service-orchestra) is the Claude Code plugin that powers this project"
+    echo "  (2) The installer requires permission to install the DSO plugin via Claude Code"
+    echo "  (3) Steps: clone template, install npm dependencies, configure DSO, launch Claude Code"
+    echo ""
+    echo "Press Enter to continue or Ctrl-C to cancel."
+    local _ack
+    if ! read -r _ack 2>/dev/null; then
+      echo ""
+      echo "Installation cancelled."
+      exit 1
+    fi
   fi
 
   # Step 3: Clone template repository (--no-single-branch fetches all branches,
