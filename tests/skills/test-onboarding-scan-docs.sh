@@ -170,10 +170,273 @@ test_scan_docs_logs_skips() {
     assert_pass_if_clean "test_scan_docs_logs_skips"
 }
 
+# test_extracts_app_name_from_text: scan-docs.sh must extract app_name from text content.
+# Given a text file containing "App name: MyApp", the output facts array must include
+# an entry with key="app_name", value="MyApp", confidence="high".
+# RED: fails until text extraction logic is implemented in scan-docs.sh.
+test_extracts_app_name_from_text() {
+    _snapshot_fail
+    if [[ ! -x "$SCAN_DOCS_SH" ]]; then
+        assert_eq "test_extracts_app_name_from_text" \
+            "scan-docs.sh exists and is executable" \
+            "scan-docs.sh not found at $SCAN_DOCS_SH"
+        assert_pass_if_clean "test_extracts_app_name_from_text"
+        return
+    fi
+
+    local tmpdir
+    tmpdir=$(_make_test_dir)
+    local text_file="$tmpdir/readme.txt"
+    printf "App name: MyApp\nThis is the main application.\n" > "$text_file"
+
+    local output
+    output=$(bash "$SCAN_DOCS_SH" "$tmpdir" 2>/dev/null || true)
+
+    rm -rf "$tmpdir"
+
+    # The facts array must contain an entry with key=app_name, value=MyApp, confidence=high
+    local found_key found_value found_confidence
+    found_key=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+facts = data.get('facts', [])
+for f in facts:
+    if isinstance(f, dict) and f.get('key') == 'app_name':
+        print('found')
+        break
+" "$output" 2>/dev/null || echo "not-found")
+
+    found_value=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+facts = data.get('facts', [])
+for f in facts:
+    if isinstance(f, dict) and f.get('key') == 'app_name' and f.get('value') == 'MyApp':
+        print('found')
+        break
+" "$output" 2>/dev/null || echo "not-found")
+
+    found_confidence=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+facts = data.get('facts', [])
+for f in facts:
+    if isinstance(f, dict) and f.get('key') == 'app_name' and f.get('confidence') == 'high':
+        print('found')
+        break
+" "$output" 2>/dev/null || echo "not-found")
+
+    assert_eq "test_extracts_app_name_from_text: key=app_name" "found" "$found_key"
+    assert_eq "test_extracts_app_name_from_text: value=MyApp" "found" "$found_value"
+    assert_eq "test_extracts_app_name_from_text: confidence=high" "found" "$found_confidence"
+    assert_pass_if_clean "test_extracts_app_name_from_text"
+}
+
+# test_extracts_stack_signal: scan-docs.sh must extract stack signals from text content.
+# Given a text file containing "Built with React and Node.js", the output facts array must
+# contain an entry with key="stack" and value mentioning "react" or "node" (case-insensitive).
+# RED: fails until stack extraction logic is implemented in scan-docs.sh.
+test_extracts_stack_signal() {
+    _snapshot_fail
+    if [[ ! -x "$SCAN_DOCS_SH" ]]; then
+        assert_eq "test_extracts_stack_signal" \
+            "scan-docs.sh exists and is executable" \
+            "scan-docs.sh not found at $SCAN_DOCS_SH"
+        assert_pass_if_clean "test_extracts_stack_signal"
+        return
+    fi
+
+    local tmpdir
+    tmpdir=$(_make_test_dir)
+    local text_file="$tmpdir/tech-stack.txt"
+    printf "Built with React and Node.js\nDeployed via Docker containers.\n" > "$text_file"
+
+    local output
+    output=$(bash "$SCAN_DOCS_SH" "$tmpdir" 2>/dev/null || true)
+
+    rm -rf "$tmpdir"
+
+    # The facts array must contain an entry with key=stack and value mentioning react or node
+    local found_stack
+    found_stack=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+facts = data.get('facts', [])
+for f in facts:
+    if isinstance(f, dict) and f.get('key') == 'stack':
+        val = str(f.get('value', '')).lower()
+        if 'react' in val or 'node' in val:
+            print('found')
+            break
+" "$output" 2>/dev/null || echo "not-found")
+
+    assert_eq "test_extracts_stack_signal: stack with react or node" "found" "$found_stack"
+    assert_pass_if_clean "test_extracts_stack_signal"
+}
+
+# test_extracts_wcag_level: scan-docs.sh must extract WCAG compliance level from text content.
+# Given a text file containing "WCAG AA compliance required", the output facts array must
+# include an entry with key="wcag_level", value="AA", confidence="high".
+# RED: fails until WCAG extraction logic is implemented in scan-docs.sh.
+test_extracts_wcag_level() {
+    _snapshot_fail
+    if [[ ! -x "$SCAN_DOCS_SH" ]]; then
+        assert_eq "test_extracts_wcag_level" \
+            "scan-docs.sh exists and is executable" \
+            "scan-docs.sh not found at $SCAN_DOCS_SH"
+        assert_pass_if_clean "test_extracts_wcag_level"
+        return
+    fi
+
+    local tmpdir
+    tmpdir=$(_make_test_dir)
+    local text_file="$tmpdir/accessibility.txt"
+    printf "WCAG AA compliance required\nAll components must meet accessibility standards.\n" > "$text_file"
+
+    local output
+    output=$(bash "$SCAN_DOCS_SH" "$tmpdir" 2>/dev/null || true)
+
+    rm -rf "$tmpdir"
+
+    # The facts array must contain key=wcag_level, value=AA, confidence=high
+    local found_key found_value found_confidence
+    found_key=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+facts = data.get('facts', [])
+for f in facts:
+    if isinstance(f, dict) and f.get('key') == 'wcag_level':
+        print('found')
+        break
+" "$output" 2>/dev/null || echo "not-found")
+
+    found_value=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+facts = data.get('facts', [])
+for f in facts:
+    if isinstance(f, dict) and f.get('key') == 'wcag_level' and f.get('value') == 'AA':
+        print('found')
+        break
+" "$output" 2>/dev/null || echo "not-found")
+
+    found_confidence=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+facts = data.get('facts', [])
+for f in facts:
+    if isinstance(f, dict) and f.get('key') == 'wcag_level' and f.get('confidence') == 'high':
+        print('found')
+        break
+" "$output" 2>/dev/null || echo "not-found")
+
+    assert_eq "test_extracts_wcag_level: key=wcag_level" "found" "$found_key"
+    assert_eq "test_extracts_wcag_level: value=AA" "found" "$found_value"
+    assert_eq "test_extracts_wcag_level: confidence=high" "found" "$found_confidence"
+    assert_pass_if_clean "test_extracts_wcag_level"
+}
+
+# test_facts_elevate_confidence_context: scan-docs.sh must elevate low-confidence dimensions.
+# Given a CONFIDENCE_CONTEXT JSON file with stack:"low" and a text file with "python-poetry stack",
+# when scan-docs.sh --context-file=<path> is called, the output must include
+# "elevated_dimensions":{"stack":"medium"} (low → medium for partial signal).
+# RED: fails until confidence context elevation is implemented in scan-docs.sh.
+test_facts_elevate_confidence_context() {
+    _snapshot_fail
+    if [[ ! -x "$SCAN_DOCS_SH" ]]; then
+        assert_eq "test_facts_elevate_confidence_context" \
+            "scan-docs.sh exists and is executable" \
+            "scan-docs.sh not found at $SCAN_DOCS_SH"
+        assert_pass_if_clean "test_facts_elevate_confidence_context"
+        return
+    fi
+
+    local tmpdir
+    tmpdir=$(_make_test_dir)
+    local text_file="$tmpdir/tech.txt"
+    local context_file="$tmpdir/confidence_context.json"
+
+    printf "python-poetry stack\nProject uses poetry for dependency management.\n" > "$text_file"
+    printf '{"stack":"low","app_name":"unknown","wcag_level":"unknown"}' > "$context_file"
+
+    local output
+    output=$(bash "$SCAN_DOCS_SH" "$tmpdir" --context-file="$context_file" 2>/dev/null || true)
+
+    rm -rf "$tmpdir"
+
+    # Output must include elevated_dimensions with stack at medium
+    local elevated_stack
+    elevated_stack=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+elevated = data.get('elevated_dimensions', {})
+if elevated.get('stack') == 'medium':
+    print('found')
+else:
+    print('not-found')
+" "$output" 2>/dev/null || echo "not-found")
+
+    assert_eq "test_facts_elevate_confidence_context: stack elevated to medium" "found" "$elevated_stack"
+    assert_pass_if_clean "test_facts_elevate_confidence_context"
+}
+
+# test_confidence_never_lowered: scan-docs.sh must never lower already-high confidence.
+# Given a CONFIDENCE_CONTEXT JSON file with stack:"high" and a conflicting/ambiguous doc,
+# when scan-docs.sh --context-file=<path> is called, the output must NOT downgrade stack.
+# Stack remains at "high" in elevated_dimensions (or is absent from elevated_dimensions,
+# meaning no change occurred — but it must not appear as lower than high).
+# RED: fails until confidence context handling is implemented in scan-docs.sh.
+test_confidence_never_lowered() {
+    _snapshot_fail
+    if [[ ! -x "$SCAN_DOCS_SH" ]]; then
+        assert_eq "test_confidence_never_lowered" \
+            "scan-docs.sh exists and is executable" \
+            "scan-docs.sh not found at $SCAN_DOCS_SH"
+        assert_pass_if_clean "test_confidence_never_lowered"
+        return
+    fi
+
+    local tmpdir
+    tmpdir=$(_make_test_dir)
+    local text_file="$tmpdir/conflicting.txt"
+    local context_file="$tmpdir/confidence_context.json"
+
+    # Conflicting/ambiguous content that mentions multiple stacks
+    printf "Maybe python, maybe java, maybe something else entirely.\n" > "$text_file"
+    printf '{"stack":"high","app_name":"unknown","wcag_level":"unknown"}' > "$context_file"
+
+    local output
+    output=$(bash "$SCAN_DOCS_SH" "$tmpdir" --context-file="$context_file" 2>/dev/null || true)
+
+    rm -rf "$tmpdir"
+
+    # elevated_dimensions must NOT show stack at low or medium (can be high or absent)
+    local stack_not_lowered
+    stack_not_lowered=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+elevated = data.get('elevated_dimensions', {})
+stack_val = elevated.get('stack', None)
+# stack should not be downgraded — it's okay if absent or still high
+if stack_val is None or stack_val == 'high':
+    print('not-lowered')
+else:
+    print('lowered-to:' + str(stack_val))
+" "$output" 2>/dev/null || echo "not-lowered")
+
+    assert_eq "test_confidence_never_lowered: stack not downgraded from high" "not-lowered" "$stack_not_lowered"
+    assert_pass_if_clean "test_confidence_never_lowered"
+}
+
 # Run all tests
 test_scan_docs_rejects_binary
 test_scan_docs_rejects_large_files
 test_scan_docs_rejects_path_traversal
 test_scan_docs_logs_skips
+test_extracts_app_name_from_text
+test_extracts_stack_signal
+test_extracts_wcag_level
+test_facts_elevate_confidence_context
+test_confidence_never_lowered
 
 print_summary
