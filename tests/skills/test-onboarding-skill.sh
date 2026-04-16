@@ -1271,4 +1271,44 @@ test_seven_dimensions_present
 test_confidence_levels_documented
 test_contract_ref_present
 
+# ── RED pre-commit dep marker and bypass gate tests (cd7b-5b1a) ───────────────
+
+# test_precommit_required_dep_present: Step 0 dep scan section must actively check
+# for pre-commit as a required dependency (command -v pre-commit), not merely
+# reference it in an install suggestion.
+# Scoped to the dep-scan section using awk range pattern.
+# RED until task 69a7-b0bd adds pre-commit to the required dep checks in SKILL.md.
+test_precommit_required_dep_present() {
+    _snapshot_fail
+    local precommit_dep_found
+    precommit_dep_found="missing"
+    if awk '/### Step 0: Dependency Pre-Scan/,/### Step 1:/' "$SKILL_MD" 2>/dev/null | \
+       grep -qE 'command -v pre-commit'; then
+        precommit_dep_found="found"
+    fi
+    assert_eq "test_precommit_required_dep_present" "found" "$precommit_dep_found"
+    assert_pass_if_clean "test_precommit_required_dep_present"
+}
+
+# test_hook_install_bypass_gates_present: Batch Group 5 (hook-install) section must contain
+# explicit bypass instructions for the initial commit that installs hooks —
+# referencing --no-verify or bypass-review-gate or skip-gate language.
+# Scoped to Batch Group 5 using awk range pattern.
+# RED until task e453-e46f adds bypass language to Batch Group 5 in SKILL.md.
+test_hook_install_bypass_gates_present() {
+    _snapshot_fail
+    local bypass_found
+    bypass_found="missing"
+    if awk '/^## Batch Group 5: hook-install/,/^## Batch Group 6:/' "$SKILL_MD" 2>/dev/null | \
+       grep -qiE 'bypass|no-verify|skip.*gate'; then
+        bypass_found="found"
+    fi
+    assert_eq "test_hook_install_bypass_gates_present" "found" "$bypass_found"
+    assert_pass_if_clean "test_hook_install_bypass_gates_present"
+}
+
+# RED tests — fail until SKILL.md dep scan and hook-install sections are updated
+test_precommit_required_dep_present
+test_hook_install_bypass_gates_present
+
 print_summary

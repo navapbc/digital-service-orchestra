@@ -186,6 +186,45 @@ This makes `## CONFIDENCE_CONTEXT` visible to all downstream parsers (Phase 2 qu
 
 ---
 
+## Batch Group Protocol
+
+This skill organizes its commands into **at most 6 batch groups** (fewer when groups are skipped). Before executing any commands in a batch group, the agent presents a single grouped approval prompt to the user and waits for a response.
+
+### Rules
+
+1. **One approval per group boundary.** At each `## Batch Group N: <name>` boundary, present the user with a single grouped approval:
+
+   ```
+   Approve: <group-name> — <brief description of what this batch does>
+   ```
+
+   Wait for the user to approve before executing any commands in that group. Do NOT ask again mid-group or between individual commands within the same group boundary.
+
+2. **Execute all commands under one approval.** Once the user approves a batch group, execute ALL commands in that group without requesting further approval until the next `## Batch Group N:` boundary is reached.
+
+3. **Skip silently when the skip-guard is met.** Each batch group has a `<!-- Skip guard: ... -->` comment that specifies the condition under which the entire group is skipped. When the skip-guard condition is met, skip the entire group without presenting an approval prompt. The total approval count decreases accordingly (at most 6, fewer when groups are skipped).
+
+4. **Approval prompt format.** The prompt must always include the group name so the user knows what they are approving. Example:
+
+   ```
+   Approve: dependency-install — installs required tools (bash 4+, coreutils, git) and optional analysis tools (ast-grep, semgrep)
+   ```
+
+### Batch Group Inventory
+
+The 6 batch groups and their skip conditions are:
+
+| Group | Name | Skip condition |
+|-------|------|---------------|
+| 1 | dependency-install | No deps missing AND optional deps already installed |
+| 2 | scaffold-claude-structure | `.claude/` structure already present and shim already installed |
+| 3 | config-write | All config files already exist with current content |
+| 4 | initial-commit | All artifacts already committed |
+| 5 | hook-install | Hooks already installed |
+| 6 | final-commit | No hook artifacts to commit |
+
+---
+
 ## Batch Group 1: dependency-install
 <!-- Skip guard: if no deps missing AND optional deps already installed, skip this prompt -->
 
