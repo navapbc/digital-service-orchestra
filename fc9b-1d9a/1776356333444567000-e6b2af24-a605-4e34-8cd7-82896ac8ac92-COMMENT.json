@@ -1,0 +1,1 @@
+{"timestamp": 1776356333444567000, "uuid": "e6b2af24-a605-4e34-8cd7-82896ac8ac92", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fix applied: endpoint-granularity rule added to epic-scrutiny-pipeline.md"}}
