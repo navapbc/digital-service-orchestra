@@ -46,7 +46,7 @@ print('\n'.join(parts))
 # Blank lines within the block are allowed (does NOT terminate on blank lines).
 ac_count=$(echo "$text" | awk '
   tolower($0) ~ /^## acceptance criteria/ { found=1; next }
-  found && /^## / { exit }
+  found && /^## / { found=0; next }
   found && /^- \[/ { count++ }
   END { print count+0 }
 ')
