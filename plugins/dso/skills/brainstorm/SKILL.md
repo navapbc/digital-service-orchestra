@@ -378,7 +378,45 @@ For each signal in `CROSS_EPIC_SIGNALS` where `severity = "consideration"`:
 
 4. **Append to the epic spec** under a new `## Cross-Epic Interactions` section (separate from `## Success Criteria`). This keeps SC Gap Check and completion verifier operating on user-authored SCs, while injected ACs are tracked independently.
 
-If `CROSS_EPIC_SIGNALS` has no consideration-severity signals, skip this step and proceed to Step 2.5.
+If `CROSS_EPIC_SIGNALS` has no consideration-severity signals, skip this step and proceed to Step 2.27.
+
+### Step 2.27: Halt and Resolution for Ambiguity/Conflict Signals
+
+If `CROSS_EPIC_SIGNALS` (from Step 2.25) contains signals with `severity="ambiguity"` or `severity="conflict"`, halt and present them to the user for resolution before entering the scrutiny pipeline.
+
+1. **Tag the epic** with `interaction:deferred`:
+   ```bash
+   .claude/scripts/dso ticket edit <epic-id> --tags interaction:deferred
+   ```
+
+2. **If running non-interactively** (`BRAINSTORM_INTERACTIVE=false`): log `INTERACTIVITY_DEFERRED: cross-epic interaction signals require practitioner resolution. Epic tagged interaction:deferred. Re-run /dso:brainstorm <epic-id> interactively to resolve.` and exit without proceeding to Step 2.5.
+
+3. **If running interactively**: Present the signals to the user:
+
+   ```
+   Cross-epic interaction signals detected:
+
+   - Epic <overlapping_epic_id>: <overlapping_epic_title>
+     Shared resource: <shared_resource>
+     Signal severity: <conflict | ambiguity>
+     Description: <description>
+     Constraint: <integration_constraint>
+
+   This epic has been tagged interaction:deferred. How would you like to proceed?
+
+   (a) Resolve — I will clarify the approach or scope to eliminate the conflict (return to Phase 1)
+   (b) Override — proceed to scrutiny anyway (removes interaction:deferred tag)
+   (c) Halt — stop now; I will address the conflict separately
+   ```
+
+   Wait for the user's response:
+   - **(a) Resolve**: Re-enter Phase 1 (Context + Socratic Dialogue) with the conflict context as seeding material. After the user provides clarification, return to Step 2.25 and re-run the scan.
+   - **(b) Override**: Remove the `interaction:deferred` tag: `.claude/scripts/dso ticket edit <epic-id> --tags ""` (or remove the tag selectively). Log: `"CROSS_EPIC_SIGNALS overridden by practitioner — proceeding to scrutiny pipeline."` Continue to Step 2.5.
+   - **(c) Halt**: Log: `"Brainstorm halted at practitioner request — cross-epic signals unresolved. Epic remains tagged interaction:deferred."` Stop. Do NOT proceed to Step 2.5.
+
+4. **If no ambiguity or conflict signals**: proceed to Step 2.5 normally.
+
+**Failure contract**: If tagging fails, log a warning and present signals to the user anyway — do not block on infrastructure failures.
 
 ### Steps 2.5, 2.6, 2.75, and Step 3: Epic Scrutiny Pipeline
 
@@ -446,7 +484,7 @@ After the scrutiny pipeline completes (with no unresolved FEASIBILITY_GAP), insp
    - **(b) Modify:** Incorporate user changes, present again.
    - **(c) Skip:** Log `"SC gap check: user opted to skip revision."` and proceed to Step 4 with original SCs.
 
-### Step 2.26: Consideration AC Injection
+### Step 2.28: Relates-to AC Injection
 
 After the SC Gap Check completes, scan the epic spec for cross-epic consideration signals produced by the epic scrutiny pipeline's Part C Cross-Epic Relates_to extension. For each relates_to signal that includes a `shared_resource` field, inject a structured acceptance criterion (AC) into the `## Cross-Epic Interactions` section of the epic spec.
 
@@ -479,7 +517,7 @@ For each `signal.shared_resource` value, classify the resource type:
 1. If the epic spec does not already contain a `## Cross-Epic Interactions` section, append one after the `## Dependencies` section.
 2. For each cross-epic signal with a `shared_resource`, determine its URL navigability classification (above).
 3. Append the appropriate AC entry (3-field or 4-field) to the `## Cross-Epic Interactions` section.
-4. If no cross-epic signals with `shared_resource` fields are present, skip this step and log: `"Step 2.26 skipped: no shared_resource signals from Part C extension."`
+4. If no cross-epic signals with `shared_resource` fields are present, skip this step and log: `"Step 2.28 skipped: no shared_resource signals from Part C extension."`
 
 The Playwright assertion is always appended within the same AC entry as the 4th field — it is not a separate section or bullet. Non-URL resources receive no Playwright assertion and use only the 3-field structure.
 
