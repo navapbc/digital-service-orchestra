@@ -226,6 +226,7 @@ main() {
   local project_dir="$target_dir/$sanitized_name"
 
   local _skip_ack=false
+  local _resume_mode=false
   if [ -e "$project_dir" ]; then
     # Idempotency: project fully initialized — exit 0 with informative message
     if [ -f "$project_dir/.dso-init-complete" ]; then
@@ -234,21 +235,32 @@ main() {
       exit 0
     fi
     # Partial init: directory exists but installation was never completed.
-    # Prompt the user to start fresh (remove and re-install) or cancel.
+    # Offer resume (continue from last completed step), start fresh, or cancel.
     echo "WARNING: Directory '$project_dir' exists but installation was not completed."
-    local _fresh
-    if ! read -r -p "Start fresh? [y/N] " _fresh 2>/dev/null; then
+    echo "  [R] Resume installation from last completed step"
+    echo "  [S] Start fresh (removes partial directory and reinstalls)"
+    echo "  [C] Cancel"
+    local _choice
+    if ! read -r -p "Choose [R/s/C]: " _choice 2>/dev/null; then
       echo "Installation cancelled."
       exit 1
     fi
-    if [[ "$_fresh" =~ ^[yY] ]]; then
-      echo "Removing partial directory and starting fresh..."
-      rm -rf "$project_dir"
-      _skip_ack=true  # user already confirmed intent — skip the ack prompt below
-    else
-      echo "Installation cancelled. Remove '$project_dir' and re-run to start fresh." >&2
-      exit 1
-    fi
+    case "$_choice" in
+      r|R|"")
+        echo "Resuming installation..."
+        _resume_mode=true
+        _skip_ack=true  # user already confirmed intent — skip the ack prompt below
+        ;;
+      s|S)
+        echo "Removing partial directory and starting fresh..."
+        rm -rf "$project_dir"
+        _skip_ack=true  # user already confirmed intent — skip the ack prompt below
+        ;;
+      *)
+        echo "Installation cancelled. Remove '$project_dir' and re-run to start fresh." >&2
+        exit 1
+        ;;
+    esac
   fi
 
   echo "Creating DSO NextJS project '$sanitized_name' in $project_dir"
@@ -280,18 +292,24 @@ main() {
   fi
 
   # Step 3: Clone template repository (--no-single-branch fetches all branches,
-  # including the tickets orphan branch used by DSO)
-  echo "Cloning template repository..."
-  if ! git clone --no-single-branch "$repo_url" "$project_dir"; then
-    echo "ERROR: git clone failed. Verify the repository URL is accessible: $repo_url" >&2
-    # Clean up partial clone if it exists
-    [ -d "$project_dir" ] && rm -rf "$project_dir"
-    exit 1
-  fi
+  # including the tickets orphan branch used by DSO).
+  # Skipped in resume mode — directory already contains the prior partial clone.
+  if [ "$_resume_mode" = "true" ]; then
+    echo "Resuming installation (skipping clone — directory already present)..."
+  else
+    echo "Cloning template repository..."
+    if ! git clone --no-single-branch "$repo_url" "$project_dir"; then
+      echo "ERROR: git clone failed. Verify the repository URL is accessible: $repo_url" >&2
+      # Clean up partial clone if it exists
+      [ -d "$project_dir" ] && rm -rf "$project_dir"
+      exit 1
+    fi
 
-  # Register cleanup trap for post-clone failures (Steps 4-5); cleared on success.
-  # Use an inline trap body (not a named function) to avoid polluting the global namespace.
-  trap '[ -d "'"$project_dir"'" ] && rm -rf "'"$project_dir"'"' EXIT
+    # Register cleanup trap for post-clone failures (Steps 4-5); cleared on success.
+    # Use an inline trap body (not a named function) to avoid polluting the global namespace.
+    # Not registered in resume mode — partial directory is user's existing work.
+    trap '[ -d "'"$project_dir"'" ] && rm -rf "'"$project_dir"'"' EXIT
+  fi
 
   # Step 4: Substitute {{PROJECT_NAME}} placeholder across all template files
   echo "Substituting project name in template files..."

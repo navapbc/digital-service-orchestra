@@ -488,7 +488,7 @@ test_partial_init_start_fresh() {
     mkdir -p "$project_dir"
     # No .dso-init-complete — simulates a partial/interrupted install
 
-    PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'y\n' >/dev/null 2>&1 || exit_code=$?
+    PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'s\n' >/dev/null 2>&1 || exit_code=$?
     assert_eq "partial init start-fresh: exit 0" "0" "$exit_code"
 
     local sentinel="no"
@@ -511,6 +511,32 @@ test_partial_init_cancel() {
     assert_ne "partial init cancel: exits non-zero" "0" "$exit_code"
 }
 
+# ── test_partial_init_resume ─────────────────────────────────────────────────
+# Pre-create project dir with content simulating a partial clone (no sentinel).
+# Respond 'r' to the resume/start-fresh/cancel prompt; assert exit 0 and
+# sentinel created (resume skips clone, runs remaining steps).
+test_partial_init_resume() {
+    local stub_bin T project_dir exit_code=0
+    stub_bin=$(_installer_stub_bin)
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    project_dir="$T/my-project"
+    # Pre-create partial project dir with cloned content (simulates interrupted
+    # install after clone but before npm/sentinel steps)
+    mkdir -p "$project_dir/app"
+    printf '{"name":"template","scripts":{"dev":"next dev"},"dependencies":{"next":"^14.0.0"}}\n' \
+        > "$project_dir/package.json"
+    touch "$project_dir/app/page.tsx"
+    mkdir -p "$project_dir/.claude"
+
+    PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'r\n' >/dev/null 2>&1 || exit_code=$?
+    assert_eq "partial init resume: exit 0" "0" "$exit_code"
+
+    local sentinel="no"
+    [[ -f "$project_dir/.dso-init-complete" ]] && sentinel="yes"
+    assert_eq "partial init resume: sentinel created" "yes" "$sentinel"
+}
+
 test_project_structure_created
 test_project_name_substitution
 test_dso_init_complete_sentinel_created
@@ -519,5 +545,6 @@ test_exit_1_on_stdin_eof
 test_idempotency_already_initialized
 test_partial_init_start_fresh
 test_partial_init_cancel
+test_partial_init_resume
 
 print_summary
