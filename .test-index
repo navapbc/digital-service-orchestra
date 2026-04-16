@@ -164,3 +164,4 @@ plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-ux-validation.sh
 plugins/dso/scripts/check-skill-refs.sh:tests/scripts/test-check-skill-refs.sh
 plugins/dso/scripts/scan-docs.sh:tests/skills/test-onboarding-scan-docs.sh
+docs/onboarding.md:tests/skills/test-nextjs-starter-docs.sh [test_onboarding_doc_exists]

@@ -14,7 +14,12 @@ PASS=0
 FAIL=0
 
 pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
-fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+# Output "caller: FAIL" for parse_failing_tests_from_output RED zone detection.
+fail() {
+  echo "  FAIL: $1"
+  [[ "${FUNCNAME[1]:-}" =~ ^test_ ]] && echo "${FUNCNAME[1]}: FAIL"
+  FAIL=$((FAIL + 1))
+}
 
 test_onboarding_doc_exists() {
   echo "=== test_onboarding_doc_exists ==="
