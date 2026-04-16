@@ -1,0 +1,1 @@
+{"schema_version": 1, "timestamp": 1776358472773, "session_id": "e930fc06-c9f2-4b94-996e-7c1a88abcc40", "source": "unit-test", "observation": "step took too long", "recommendation": "reduce token budget per step"}
