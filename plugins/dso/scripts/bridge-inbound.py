@@ -13,6 +13,7 @@ import importlib.util
 import json
 import os
 import re
+import sys
 import tempfile
 import time
 import uuid
@@ -21,6 +22,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from types import ModuleType
 from typing import Any
+
+# Ensure the scripts directory is on sys.path so that `from bridge import ...`
+# works when this module is loaded via importlib (e.g., in tests).
+_SCRIPTS_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
 
 
 # ---------------------------------------------------------------------------
@@ -569,6 +576,178 @@ def verify_jira_timezone_utc(acli_client: Any) -> bool:
     return False
 
 
+def _fetch_issues_with_checkpoint(
+    acli_client: Any,
+    *,
+    last_pull_ts: str,
+    config: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Fetch Jira issues, supporting batched resume via checkpoint cursor.
+
+    Builds the per-batch cursor callback from config and calls
+    fetch_jira_changes. Raises CalledProcessError on auth failure (401).
+
+    Args:
+        acli_client: ACLI client object.
+        last_pull_ts: UTC ISO 8601 timestamp of last successful pull.
+        config: process_inbound config dict.
+
+    Returns:
+        List of Jira issue dicts.
+    """
+    import logging
+    import subprocess
+
+    checkpoint_file = config.get("checkpoint_file", "")
+    overlap_buffer_minutes = config.get("overlap_buffer_minutes", 15)
+    resume = config.get("resume", False)
+    batch_resume_cursor = config.get("batch_resume_cursor")
+    project = config.get("project") or None
+
+    def _save_batch_cursor(cursor: int) -> None:
+        if checkpoint_file:
+            cp_path = Path(checkpoint_file)
+            current: dict[str, Any] = {}
+            if cp_path.exists():
+                try:
+                    current = json.loads(cp_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    pass
+            current["batch_resume_cursor"] = cursor
+            _atomic_write_json(cp_path, current)
+
+    start_at_override: int | None = None
+    if resume and batch_resume_cursor is not None:
+        start_at_override = int(batch_resume_cursor)
+
+    try:
+        return fetch_jira_changes(
+            acli_client,
+            last_pull_ts=last_pull_ts,
+            overlap_buffer_minutes=overlap_buffer_minutes,
+            project=project,
+            on_batch_complete=_save_batch_cursor,
+            start_at_override=start_at_override,
+        )
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode == 401:
+            logging.error("Authentication failure (401) — checkpoint NOT updated")
+        raise
+
+
+def _write_success_checkpoint(
+    checkpoint_file: str,
+    run_id: str,
+) -> None:
+    """Advance last_pull_ts in the checkpoint file on full-run success.
+
+    Clears batch_resume_cursor (no stale cursor left behind). Only writes
+    when checkpoint_file is non-empty.
+
+    Args:
+        checkpoint_file: Path string for the checkpoint JSON file.
+        run_id: Run ID for traceability (written as last_run_id).
+    """
+    if not checkpoint_file:
+        return
+    from datetime import timezone
+
+    new_ts = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    checkpoint_data: dict[str, Any] = {"last_pull_ts": new_ts}
+    if run_id:
+        checkpoint_data["last_run_id"] = run_id
+    # batch_resume_cursor intentionally omitted — cleared on success
+    _atomic_write_json(Path(checkpoint_file), checkpoint_data)
+
+
+def _process_single_issue(
+    issue: dict[str, Any],
+    *,
+    tickets_root: Path,
+    bridge_env_id: str,
+    run_id: str,
+    status_mapping: dict[str, str],
+    type_mapping: dict[str, str],
+    ticket_reducer: Any,
+    acli_client: Any,
+    unmapped_type_keys: set[str],
+) -> None:
+    """Dispatch a single normalized Jira issue through all event handlers.
+
+    Handlers are called in order: destructive guard → status → edit →
+    type check → links. Each handler that signals a skip causes an early
+    return; the type check also mutates unmapped_type_keys.
+
+    Args:
+        issue: Normalized Jira issue dict.
+        tickets_root: Path to the .tickets-tracker directory.
+        bridge_env_id: UUID of this bridge environment.
+        run_id: Run ID for traceability.
+        status_mapping: Jira status → local status mapping.
+        type_mapping: Jira type → local type mapping.
+        ticket_reducer: Pre-loaded ticket-reducer module (or None).
+        acli_client: ACLI client object.
+        unmapped_type_keys: Mutable set accumulating unmapped Jira keys.
+    """
+    from bridge import (
+        check_destructive_guard,
+        handle_edit,
+        handle_links,
+        handle_status,
+        handle_type_check,
+    )
+
+    if check_destructive_guard(
+        issue,
+        tickets_root=tickets_root,
+        bridge_env_id=bridge_env_id,
+        type_mapping=type_mapping,
+        is_destructive_change_fn=is_destructive_change,
+        map_type_fn=map_type,
+        write_bridge_alert_fn=write_bridge_alert,
+    ):
+        return
+
+    handle_status(
+        issue,
+        tickets_root=tickets_root,
+        bridge_env_id=bridge_env_id,
+        run_id=run_id,
+        status_mapping=status_mapping,
+        map_status_fn=map_status,
+        write_bridge_alert_fn=write_bridge_alert,
+        write_status_event_fn=write_status_event,
+    )
+    handle_edit(
+        issue,
+        tickets_root=tickets_root,
+        bridge_env_id=bridge_env_id,
+        run_id=run_id,
+        ticket_reducer=ticket_reducer,
+        write_edit_event_fn=write_edit_event,
+    )
+
+    if handle_type_check(
+        issue,
+        tickets_root=tickets_root,
+        bridge_env_id=bridge_env_id,
+        type_mapping=type_mapping,
+        unmapped_type_keys=unmapped_type_keys,
+        map_type_fn=map_type,
+        write_bridge_alert_fn=write_bridge_alert,
+    ):
+        return
+
+    handle_links(
+        issue,
+        tickets_root=tickets_root,
+        bridge_env_id=bridge_env_id,
+        acli_client=acli_client,
+        persist_relationship_rejection_fn=persist_relationship_rejection,
+        write_bridge_alert_fn=write_bridge_alert,
+    )
+
+
 def process_inbound(
     *,
     tickets_root: Path,
@@ -591,7 +770,6 @@ def process_inbound(
             - run_id (str, optional)
     """
     import logging
-    import subprocess
 
     # UTC health check — halt if not UTC
     if not verify_jira_timezone_utc(acli_client):
@@ -599,346 +777,40 @@ def process_inbound(
         logging.error(msg)
         raise RuntimeError(msg)
 
-    overlap_buffer_minutes = config.get("overlap_buffer_minutes", 15)
     bridge_env_id = config.get("bridge_env_id", "")
     status_mapping = config.get("status_mapping", {})
     type_mapping = config.get("type_mapping", {})
     checkpoint_file = config.get("checkpoint_file", "")
     run_id = config.get("run_id", "")
-    resume = config.get("resume", False)
-    batch_resume_cursor = config.get("batch_resume_cursor")
 
-    # Per-batch checkpoint callback: writes batch_resume_cursor to checkpoint
-    # file WITHOUT changing last_pull_ts (atomic write via os.replace).
-    def _save_batch_cursor(cursor: int) -> None:
-        if checkpoint_file:
-            cp_path = Path(checkpoint_file)
-            current: dict[str, Any] = {}
-            if cp_path.exists():
-                try:
-                    current = json.loads(cp_path.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError):
-                    pass
-            current["batch_resume_cursor"] = cursor
-            _atomic_write_json(cp_path, current)
+    issues = _fetch_issues_with_checkpoint(
+        acli_client, last_pull_ts=last_pull_ts, config=config
+    )
 
-    # Determine start_at for resume support
-    start_at_override: int | None = None
-    if resume and batch_resume_cursor is not None:
-        start_at_override = int(batch_resume_cursor)
-
-    project = config.get("project") or None
-
-    # Fetch changes (may raise CalledProcessError on auth failure)
-    try:
-        issues = fetch_jira_changes(
-            acli_client,
-            last_pull_ts=last_pull_ts,
-            overlap_buffer_minutes=overlap_buffer_minutes,
-            project=project,
-            on_batch_complete=_save_batch_cursor,
-            start_at_override=start_at_override,
-        )
-    except subprocess.CalledProcessError as exc:
-        if exc.returncode == 401:
-            logging.error("Authentication failure (401) — checkpoint NOT updated")
-        raise
-
-    # Pre-load the ticket reducer module once (used by EDIT path inside the loop)
     reducer_path = Path(__file__).resolve().parent / "ticket-reducer.py"
     try:
         ticket_reducer = _load_module_from_path("ticket_reducer", reducer_path)
     except Exception:
         ticket_reducer = None  # type: ignore[assignment]
 
-    # Jira keys whose types could not be mapped — excluded from write_create_events
-    # to prevent creating unclassifiable local tickets (2b6a-0a37).
-    _unmapped_type_keys: set[str] = set()
-
-    # Process each issue: normalize, check mappings, write alerts/events
+    unmapped_type_keys: set[str] = set()
     for issue in issues:
         issue = normalize_timestamps(issue)
-
-        fields = issue.get("fields", {})
-
-        # --- Destructive change guard ---
-        jira_key = issue.get("key", "")
-        if jira_key:
-            local_id = f"jira-{jira_key.lower()}"
-            ticket_dir = tickets_root / local_id
-            if ticket_dir.is_dir():
-                # Read latest SYNC event to get existing local state
-                sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
-                if sync_files:
-                    try:
-                        sync_data = json.loads(
-                            sync_files[-1].read_text(encoding="utf-8")
-                        )
-                        existing_state = sync_data.get("data", {})
-                        # Build inbound state dict for comparison
-                        # Extract links from Jira issuelinks payload
-                        jira_issuelinks = fields.get("issuelinks", [])
-                        inbound_links: list[str] = []
-                        for jira_link in jira_issuelinks:
-                            target_key = ""
-                            if "outwardIssue" in jira_link:
-                                target_key = jira_link["outwardIssue"].get("key", "")
-                            elif "inwardIssue" in jira_link:
-                                target_key = jira_link["inwardIssue"].get("key", "")
-                            if target_key:
-                                inbound_links.append(f"jira-{target_key.lower()}")
-                        inbound_state: dict[str, Any] = {
-                            "description": fields.get("description", ""),
-                            "links": inbound_links,
-                            "type": existing_state.get("type", ""),
-                        }
-                        # Map inbound type if available
-                        jira_itype = (
-                            fields.get("issuetype", {}).get("name", "")
-                            if isinstance(fields.get("issuetype"), dict)
-                            else ""
-                        )
-                        if jira_itype:
-                            mapped_type = map_type(jira_itype, mapping=type_mapping)
-                            if mapped_type:
-                                inbound_state["type"] = mapped_type
-
-                        if is_destructive_change(existing_state, inbound_state):
-                            reason = (
-                                f"Destructive change blocked for {local_id}: "
-                                "inbound update would overwrite existing description/links/type"
-                            )
-                            logging.warning(reason)
-                            write_bridge_alert(
-                                ticket_id=local_id,
-                                reason=reason,
-                                tickets_root=tickets_root,
-                                bridge_env_id=bridge_env_id,
-                            )
-                            continue
-                    except (OSError, json.JSONDecodeError):
-                        pass
-
-        # Check status mapping
-        jira_status = (
-            fields.get("status", {}).get("name", "")
-            if isinstance(fields.get("status"), dict)
-            else ""
+        _process_single_issue(
+            issue,
+            tickets_root=tickets_root,
+            bridge_env_id=bridge_env_id,
+            run_id=run_id,
+            status_mapping=status_mapping,
+            type_mapping=type_mapping,
+            ticket_reducer=ticket_reducer,
+            acli_client=acli_client,
+            unmapped_type_keys=unmapped_type_keys,
         )
-        if jira_status and map_status(jira_status, mapping=status_mapping) is None:
-            local_id = f"jira-{issue.get('key', 'unknown').lower()}"
-            write_bridge_alert(
-                ticket_id=local_id,
-                reason=f"Unknown status value: '{jira_status}'",
-                tickets_root=tickets_root,
-                bridge_env_id=bridge_env_id,
-            )
 
-        # Write STATUS event if Jira status differs from local compiled status
-        if jira_status:
-            mapped_local_status = map_status(jira_status, mapping=status_mapping)
-            if mapped_local_status is not None:
-                jira_key_for_status = issue.get("key", "")
-                if jira_key_for_status:
-                    local_id_for_status = f"jira-{jira_key_for_status.lower()}"
-                    ticket_dir_for_status = tickets_root / local_id_for_status
-                    if ticket_dir_for_status.is_dir():
-                        # Read current compiled status from latest STATUS event
-                        # Parse timestamp from event JSON (not filename) to
-                        # handle same-second events with random UUIDs correctly.
-                        status_files = list(ticket_dir_for_status.glob("*-STATUS.json"))
-                        current_local_status = ""
-                        if status_files:
-                            best_ts = -1
-                            for sf in status_files:
-                                try:
-                                    sf_data = json.loads(sf.read_text(encoding="utf-8"))
-                                    sf_ts = sf_data.get("timestamp", 0)
-                                    if (
-                                        isinstance(sf_ts, (int, float))
-                                        and sf_ts > best_ts
-                                    ):
-                                        best_ts = sf_ts
-                                        current_local_status = sf_data.get(
-                                            "data", {}
-                                        ).get("status", "")
-                                except (OSError, json.JSONDecodeError):
-                                    pass
-                        if mapped_local_status != current_local_status:
-                            write_status_event(
-                                ticket_id=local_id_for_status,
-                                status=mapped_local_status,
-                                ticket_dir=ticket_dir_for_status,
-                                bridge_env_id=bridge_env_id,
-                                run_id=run_id,
-                            )
-
-        # Write EDIT events for field changes (priority, assignee, description,
-        # title) on existing tickets. Compare Jira field values against local
-        # compiled state and write EDIT events only when values differ.
-        jira_key_for_edit = issue.get("key", "")
-        if jira_key_for_edit:
-            local_id_for_edit = f"jira-{jira_key_for_edit.lower()}"
-            ticket_dir_for_edit = tickets_root / local_id_for_edit
-            if ticket_dir_for_edit.is_dir() and ticket_reducer is not None:
-                # Use pre-loaded reducer to get compiled local state
-                try:
-                    local_state = ticket_reducer.reduce_ticket(str(ticket_dir_for_edit))
-                except Exception:
-                    local_state = None
-
-                if local_state and isinstance(local_state, dict):
-                    edit_fields: dict[str, Any] = {}
-
-                    # Priority: map Jira name → local 0-4 integer
-                    jira_pri_obj = fields.get("priority", {})
-                    if isinstance(jira_pri_obj, dict):
-                        pri_name = jira_pri_obj.get("name", "")
-                        mapped_pri = _JIRA_PRIORITY_TO_LOCAL.get(pri_name)
-                        if mapped_pri is not None and mapped_pri != local_state.get(
-                            "priority"
-                        ):
-                            edit_fields["priority"] = mapped_pri
-
-                    # Assignee: map Jira object → local string
-                    jira_asn_obj = fields.get("assignee", {})
-                    if isinstance(jira_asn_obj, dict):
-                        jira_asn_name = jira_asn_obj.get(
-                            "displayName", jira_asn_obj.get("emailAddress", "")
-                        )
-                        if jira_asn_name and jira_asn_name != local_state.get(
-                            "assignee"
-                        ):
-                            edit_fields["assignee"] = jira_asn_name
-
-                    # Title: compare Jira summary → local title
-                    jira_title = fields.get("summary", "")
-                    if jira_title and jira_title != local_state.get("title"):
-                        edit_fields["title"] = jira_title
-
-                    # Description: compare Jira description → local description.
-                    # Empty description safeguard: never overwrite a non-empty
-                    # local description with an empty Jira description.
-                    jira_desc = fields.get("description", "")
-                    if isinstance(jira_desc, str) and jira_desc.strip():
-                        local_desc = local_state.get("description") or ""
-                        if jira_desc != local_desc:
-                            edit_fields["description"] = jira_desc
-
-                    if edit_fields:
-                        write_edit_event(
-                            ticket_id=local_id_for_edit,
-                            fields=edit_fields,
-                            ticket_dir=ticket_dir_for_edit,
-                            bridge_env_id=bridge_env_id,
-                            run_id=run_id,
-                        )
-
-        # Check type mapping
-        jira_type = (
-            fields.get("issuetype", {}).get("name", "")
-            if isinstance(fields.get("issuetype"), dict)
-            else ""
-        )
-        if jira_type and map_type(jira_type, mapping=type_mapping) is None:
-            local_id = f"jira-{issue.get('key', 'unknown').lower()}"
-            write_bridge_alert(
-                ticket_id=local_id,
-                reason=f"Unknown type value: '{jira_type}'",
-                tickets_root=tickets_root,
-                bridge_env_id=bridge_env_id,
-            )
-            # Skip creating a local ticket for unclassifiable types (2b6a-0a37).
-            # Mark key for exclusion from write_create_events; continue skips
-            # in-loop link/status processing for this issue as well.
-            if issue.get("key"):
-                _unmapped_type_keys.add(issue["key"])
-            continue
-
-        # Process Jira issue links — write local LINK events for "Relates" links;
-        # attempt to set relationships in Jira for all other link types.
-        issue_links = fields.get("issuelinks", [])
-        if issue_links:
-            jira_key_for_links = issue.get("key", "")
-            if jira_key_for_links:
-                local_id_for_links = f"jira-{jira_key_for_links.lower()}"
-                ticket_dir_for_links = tickets_root / local_id_for_links
-                ticket_dir_for_links.mkdir(parents=True, exist_ok=True)
-                for link in issue_links:
-                    link_type = link.get("type", {}).get("name", "")
-                    target_key = ""
-                    if "outwardIssue" in link:
-                        target_key = link["outwardIssue"].get("key", "")
-                    elif "inwardIssue" in link:
-                        target_key = link["inwardIssue"].get("key", "")
-                    if link_type and target_key:
-                        if link_type == "Relates":
-                            # Write a local LINK event for "Relates" links rather than
-                            # pushing the relationship back to Jira via set_relationship.
-                            target_local_id = f"jira-{target_key.lower()}"
-                            ts = int(time.time())
-                            event_uuid = str(uuid.uuid4())
-                            filename = f"{ts}-{event_uuid[:8]}-LINK.json"
-                            link_event: dict[str, Any] = {
-                                "event_type": "LINK",
-                                "ticket_id": local_id_for_links,
-                                "timestamp": ts,
-                                "uuid": event_uuid,
-                                "env_id": bridge_env_id,
-                                "data": {
-                                    "source_id": local_id_for_links,
-                                    "target_id": target_local_id,
-                                    "relation": "relates_to",
-                                },
-                            }
-                            (ticket_dir_for_links / filename).write_text(
-                                json.dumps(link_event)
-                            )
-                            # Write reciprocal LINK event in the target ticket's
-                            # directory (canonical bidirectional relates_to pattern,
-                            # matching ticket-graph.py add_dependency behaviour).
-                            target_dir = tickets_root / target_local_id
-                            target_dir.mkdir(parents=True, exist_ok=True)
-                            recip_uuid = str(uuid.uuid4())
-                            recip_filename = f"{ts}-{recip_uuid[:8]}-LINK.json"
-                            recip_link_event: dict[str, Any] = {
-                                "event_type": "LINK",
-                                "ticket_id": target_local_id,
-                                "timestamp": ts,
-                                "uuid": recip_uuid,
-                                "env_id": bridge_env_id,
-                                "data": {
-                                    "source_id": target_local_id,
-                                    "target_id": local_id_for_links,
-                                    "relation": "relates_to",
-                                },
-                            }
-                            (target_dir / recip_filename).write_text(
-                                json.dumps(recip_link_event)
-                            )
-                        elif hasattr(acli_client, "set_relationship"):
-                            try:
-                                acli_client.set_relationship(
-                                    jira_key_for_links, target_key, link_type
-                                )
-                            except Exception as rel_exc:
-                                reason = str(rel_exc)
-                                persist_relationship_rejection(
-                                    ticket_id=local_id_for_links,
-                                    ticket_dir=ticket_dir_for_links,
-                                    reason=reason,
-                                )
-                                write_bridge_alert(
-                                    ticket_id=local_id_for_links,
-                                    reason=f"Jira rejected relationship: {reason}",
-                                    tickets_root=tickets_root,
-                                    bridge_env_id=bridge_env_id,
-                                )
-
-    # Write CREATE events for new issues — exclude unmapped-type keys (2b6a-0a37)
     creatable_issues = (
-        [i for i in issues if i.get("key") not in _unmapped_type_keys]
-        if _unmapped_type_keys
+        [i for i in issues if i.get("key") not in unmapped_type_keys]
+        if unmapped_type_keys
         else issues
     )
     write_create_events(
@@ -947,18 +819,7 @@ def process_inbound(
         bridge_env_id=bridge_env_id,
         run_id=run_id,
     )
-
-    # Update checkpoint ONLY on full success — advance last_pull_ts and
-    # clear batch_resume_cursor (no stale cursor left behind).
-    if checkpoint_file:
-        from datetime import timezone
-
-        new_ts = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        checkpoint_data: dict[str, Any] = {"last_pull_ts": new_ts}
-        if run_id:
-            checkpoint_data["last_run_id"] = run_id
-        # batch_resume_cursor intentionally omitted — cleared on success
-        _atomic_write_json(Path(checkpoint_file), checkpoint_data)
+    _write_success_checkpoint(checkpoint_file, run_id)
 
 
 # ---------------------------------------------------------------------------
