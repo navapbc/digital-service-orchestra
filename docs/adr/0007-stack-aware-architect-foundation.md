@@ -42,7 +42,7 @@ Three blocks are provided: Python (`requirements.txt` / `pyproject.toml` → `ac
 
 ### INSTALL.md Restructure
 
-Restructure `plugins/dso/docs/INSTALL.md` into Required (universal) and Optional-by-Stack sections so that engineers only read the stack sections relevant to their project. This separates prerequisite noise for Python-only teams from Ruby or Rust teams and vice versa.
+Restructure `INSTALL.md` (at repo root) into Required (universal) and Optional-by-Stack sections so that engineers only read the stack sections relevant to their project. This separates prerequisite noise for Python-only teams from Ruby or Rust teams and vice versa.
 
 ---
 

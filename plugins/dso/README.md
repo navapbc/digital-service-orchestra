@@ -19,7 +19,7 @@ To install the nextjs-starter scaffolding, run the `create-dso-app.sh` installer
 
 ## Documentation
 
-- **Installation**: See `docs/INSTALL.md`
+- **Installation**: See `INSTALL.md`
 - **Configuration**: See `docs/CONFIGURATION-REFERENCE.md`
 - **Worktree Guide**: See `docs/WORKTREE-GUIDE.md`
 - **Ticket CLI Reference**: See `docs/ticket-cli-reference.md`
