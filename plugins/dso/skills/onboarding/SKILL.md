@@ -186,6 +186,46 @@ This makes `## CONFIDENCE_CONTEXT` visible to all downstream parsers (Phase 2 qu
 
 ---
 
+## Phase 0.5: Document Folder Pre-Scan (/dso:onboarding)
+
+**Trigger**: Run ONLY when `--doc-folder <path>` is specified on the onboarding invocation. If omitted, skip this phase entirely and proceed to Phase 1.
+
+**Goal**: Before asking questions, scan the user-specified document folder for structured facts (app name, stack signals, WCAG requirements). Update CONFIDENCE_CONTEXT with any elevated confidence levels found from the doc scan.
+
+**Step 0.5.1: Parse --doc-folder Parameter**
+Accept the optional `--doc-folder <path>` flag from the user's invocation. Validate it is a non-empty string and a readable directory before proceeding.
+
+**Step 0.5.2: Invoke scan-docs.sh**
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+CONTEXT_TEMP=$(mktemp /tmp/onboarding-context-XXXXXX.json)
+# Extract CONFIDENCE_CONTEXT JSON from $SCRATCHPAD_PHASE0 and write to $CONTEXT_TEMP
+
+SCAN_OUT=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/onboarding/scan-docs.sh" "$DOC_FOLDER" --context-file="$CONTEXT_TEMP" 2>/tmp/scan-docs-warn.txt)
+SCAN_EXIT=$?
+```
+
+- If scan-docs.sh exits non-zero, log the error to scratchpad and skip Phase 0.5 (do not abort onboarding)
+- Binary/large file skips are in /tmp/scan-docs-warn.txt — surface to user: "Note: N files were skipped (binary or too large)"
+
+**Step 0.5.3: Parse Facts and Elevate CONFIDENCE_CONTEXT**
+- Parse SCAN_OUT JSON to extract `facts` array and `elevated_dimensions` map
+- For each elevated dimension from the doc scan, apply elevation-only update to CONFIDENCE_CONTEXT: new_level = max(existing_level, elevated_level) where high > medium > low
+- Never lower any confidence level (contract requirement from `${CLAUDE_PLUGIN_ROOT}/docs/contracts/confidence-context.md`)
+- Append a `## DOC_SCAN_FACTS` section to scratchpad with the extracted facts
+- Display a brief summary to the user: "Found N facts in your documents — I'll use these to pre-fill answers where possible."
+
+**Step 0.5.4: File Count Cap Warning**
+If scan output includes `WARNING:file_cap_reached`, surface to user: "Note: Document scan processed the first 50 files. Additional files were not read."
+
+**Error handling**: Wrap all of Phase 0.5 in a guard — if any step fails (parse error, missing binary, permission denied), log to scratchpad and continue to Phase 1. Phase 0.5 failure must never abort onboarding.
+
+**Security note**: DOC_FOLDER is passed directly to scan-docs.sh which validates path traversal — do not attempt additional path resolution before invoking it.
+
+**Phase plan update**: When Phase 0.5 runs, add it to the phase plan between Phase 0 and Phase 1. When skipped, do not add it.
+
+---
+
 ## Batch Group Protocol
 
 This skill organizes its commands into **at most 6 batch groups** (fewer when groups are skipped). Before executing any commands in a batch group, the agent presents a single grouped approval prompt to the user and waits for a response.
