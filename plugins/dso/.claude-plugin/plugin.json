@@ -1,11 +1,13 @@
 {
   "name": "dso",
-  "version": "1.12.23",
+  "version": "1.12.25",
   "description": "Workflow infrastructure plugin for Claude Code projects",
   "commands": "./commands/",
   "skills": "./skills/",
   "agents": [
     "./agents/approach-decision-maker.md",
+    "./agents/bloat-blue-team.md",
+    "./agents/bloat-resolver.md",
     "./agents/blue-team-filter.md",
     "./agents/bot-psychologist.md",
     "./agents/code-reviewer-deep-arch.md",

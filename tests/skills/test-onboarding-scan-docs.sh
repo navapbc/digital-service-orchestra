@@ -2,9 +2,9 @@
 # tests/skills/test-onboarding-scan-docs.sh
 # Behavioral tests for the scan-docs.sh helper script's file-type guard.
 #
-# Tests (RED — fail until plugins/dso/skills/onboarding/scan-docs.sh is created):
+# Tests:
 #   test_scan_docs_rejects_binary: script skips binary files (non-UTF8)
-#   test_scan_docs_rejects_large_files: script skips files > 500KB
+#   test_scan_docs_rejects_large_files: script skips files > 200KB
 #   test_scan_docs_rejects_path_traversal: script rejects paths with ../
 #   test_scan_docs_logs_skips: script logs skip reason when skipping
 #
@@ -19,7 +19,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-SCAN_DOCS_SH="$DSO_PLUGIN_DIR/skills/onboarding/scan-docs.sh"
+SCAN_DOCS_SH="$DSO_PLUGIN_DIR/scripts/scan-docs.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -70,8 +70,8 @@ test_scan_docs_rejects_binary() {
     assert_pass_if_clean "test_scan_docs_rejects_binary"
 }
 
-# test_scan_docs_rejects_large_files: scan-docs.sh must skip files larger than 500KB.
-# Creates a 600KB file, passes it to scan-docs.sh, and verifies it is skipped.
+# test_scan_docs_rejects_large_files: scan-docs.sh must skip files larger than 200KB.
+# Creates a 600KB file (> 200KB limit), passes it to scan-docs.sh, and verifies it is skipped.
 test_scan_docs_rejects_large_files() {
     _snapshot_fail
     if [[ ! -x "$SCAN_DOCS_SH" ]]; then
@@ -84,20 +84,33 @@ test_scan_docs_rejects_large_files() {
 
     local tmpdir
     tmpdir=$(_make_test_dir)
-    local large_file="$tmpdir/large_doc.md"
+    # Use a filename with no skip-indicator keywords (skip/large/too) to avoid
+    # false-positive grep matches when the file name appears in facts JSON output.
+    local large_file="$tmpdir/project_overview.md"
 
-    # Create a file that is exactly 600KB (> 500KB limit)
+    # Create a file that is exactly 600KB (> 200KB limit)
     dd if=/dev/zero bs=1024 count=600 2>/dev/null | tr '\0' 'a' > "$large_file"
 
-    local output
-    output=$(bash "$SCAN_DOCS_SH" "$tmpdir" 2>&1 || true)
+    local stdout_out stderr_out
+    stdout_out=$(bash "$SCAN_DOCS_SH" "$tmpdir" 2>/tmp/scan_docs_large_stderr_$$ || true)
+    stderr_out=$(cat /tmp/scan_docs_large_stderr_$$ 2>/dev/null || true)
+    rm -f /tmp/scan_docs_large_stderr_$$
 
     rm -rf "$tmpdir"
 
-    # large_doc.md must appear in the output as skipped, not as scanned content
+    # The skip must be reported in stderr (SKIP:size <filename>) OR
+    # in the skipped array of the stdout JSON.
     local result="rejected"
-    if echo "$output" | grep -q "large_doc.md" && \
-       ! echo "$output" | grep -qi "skip\|too large\|large"; then
+    local skipped_in_stderr=0
+    local skipped_in_json=0
+    echo "$stderr_out" | grep -qi "skip" && skipped_in_stderr=1
+    echo "$stdout_out" | python3 -c "
+import json, sys
+data = json.loads(sys.stdin.read() or '{}')
+skipped = data.get('skipped', [])
+sys.exit(0 if any('size' in str(s) for s in skipped) else 1)
+" 2>/dev/null && skipped_in_json=1
+    if [[ "$skipped_in_stderr" -eq 0 && "$skipped_in_json" -eq 0 ]]; then
         result="not-rejected"
     fi
 
@@ -438,5 +451,82 @@ test_extracts_stack_signal
 test_extracts_wcag_level
 test_facts_elevate_confidence_context
 test_confidence_never_lowered
+
+# ── Bug 83b5-c9c6: set -euo pipefail (not -uo) ────────────────────────────
+# Verifies that scan-docs.sh uses set -euo pipefail so unhandled command
+# failures don't pass silently. Without -e, errors in subshells and pipeline
+# steps are swallowed, producing silent wrong output.
+test_scan_docs_uses_set_euo_pipefail() {
+    _snapshot_fail
+    local found="missing"
+    if grep -q "set -euo pipefail" "$SCAN_DOCS_SH" 2>/dev/null; then
+        found="found"
+    fi
+    assert_eq "test_scan_docs_uses_set_euo_pipefail: set -euo pipefail present" "found" "$found"
+    assert_pass_if_clean "test_scan_docs_uses_set_euo_pipefail"
+}
+test_scan_docs_uses_set_euo_pipefail
+
+# ── Bug 849d-bdeb: no grep -qP (not portable on macOS BSD grep) ───────────
+# Verifies that scan-docs.sh does not use grep -qP (Perl regex) which is
+# unavailable on macOS BSD grep. The binary detection fallback must use
+# portable alternatives (tr/wc) instead.
+test_scan_docs_no_grep_perl_flag() {
+    _snapshot_fail
+    local found="absent"
+    # Exclude comment lines before checking — comments may reference grep -qP to explain avoidance
+    if grep -vE "^\s*#" "$SCAN_DOCS_SH" 2>/dev/null | grep -qE "grep -[a-zA-Z]*P"; then
+        found="present"
+    fi
+    assert_eq "test_scan_docs_no_grep_perl_flag: no grep -P in scan-docs.sh" "absent" "$found"
+    assert_pass_if_clean "test_scan_docs_no_grep_perl_flag"
+}
+test_scan_docs_no_grep_perl_flag
+
+# ── Bug 05d5-9838: scan-docs.sh must be at scripts/ not skills/onboarding/ ──
+# Verifies that scan-docs.sh lives at plugins/dso/scripts/scan-docs.sh per
+# project convention where reusable scripts live in scripts/, not skills/.
+test_scan_docs_at_correct_scripts_path() {
+    _snapshot_fail
+    local correct_path="$DSO_PLUGIN_DIR/scripts/scan-docs.sh"
+    if [[ -x "$correct_path" ]]; then
+        assert_eq "test_scan_docs_at_correct_scripts_path: file at scripts/" "exists" "exists"
+    else
+        assert_eq "test_scan_docs_at_correct_scripts_path: file at scripts/" "exists" "not-found"
+    fi
+    assert_pass_if_clean "test_scan_docs_at_correct_scripts_path"
+}
+test_scan_docs_at_correct_scripts_path
+
+# ── Bug f51d-b101: size guard must be 200KB not 500KB per story 5e33-60aa ───
+# Verifies that a 250KB file (> 200KB but < 500KB) is skipped with SKIP:size.
+# This is RED at the current 500KB limit and GREEN after fixing to 200KB.
+test_scan_docs_rejects_250kb_file() {
+    _snapshot_fail
+    if [[ ! -x "$SCAN_DOCS_SH" ]]; then
+        assert_eq "test_scan_docs_rejects_250kb_file" \
+            "scan-docs.sh exists and is executable" \
+            "scan-docs.sh not found at $SCAN_DOCS_SH"
+        assert_pass_if_clean "test_scan_docs_rejects_250kb_file"
+        return
+    fi
+
+    local tmpdir
+    tmpdir=$(_make_test_dir)
+    local medium_file="$tmpdir/project_docs.md"
+    dd if=/dev/zero bs=1024 count=250 2>/dev/null | tr '\0' 'a' > "$medium_file"
+
+    local stderr_out
+    stderr_out=$(bash "$SCAN_DOCS_SH" "$tmpdir" 2>&1 1>/dev/null || true)
+    rm -rf "$tmpdir"
+
+    local result="not-rejected"
+    if echo "$stderr_out" | grep -q "SKIP:size"; then
+        result="rejected"
+    fi
+    assert_eq "test_scan_docs_rejects_250kb_file: 250KB file rejected at 200KB limit" "rejected" "$result"
+    assert_pass_if_clean "test_scan_docs_rejects_250kb_file"
+}
+test_scan_docs_rejects_250kb_file
 
 print_summary

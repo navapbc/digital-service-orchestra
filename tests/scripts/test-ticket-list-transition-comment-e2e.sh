@@ -28,7 +28,7 @@ _make_test_repo() {
     local tmp
     tmp=$(mktemp -d)
     _CLEANUP_DIRS+=("$tmp")
-    clone_test_repo "$tmp/repo"
+    clone_ticket_repo "$tmp/repo"
     echo "$tmp/repo"
 }
 

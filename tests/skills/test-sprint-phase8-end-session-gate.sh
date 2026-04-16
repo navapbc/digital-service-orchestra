@@ -106,6 +106,41 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Test 8: Phase 8 has ORCHESTRATOR_RESUME after epic closure (bug a711-bd7e fix)
+# After step 2 closes the epic ticket, an ORCHESTRATOR_RESUME must explicitly
+# warn against stopping at this point and mandate continuing to step 5
+# (/dso:end-session). Without it, the orchestrator exits after closing the ticket
+# instead of proceeding to invoke end-session (chronic failure documented in a711-bd7e).
+# ---------------------------------------------------------------------------
+if echo "$phase8_content" | grep -q 'a711-bd7e'; then
+    echo "PASS: test_phase8_has_orchestrator_resume_after_epic_close"
+    (( ++PASS ))
+else
+    echo "FAIL: test_phase8_has_orchestrator_resume_after_epic_close — Phase 8 missing ORCHESTRATOR_RESUME guard after epic ticket closure (bug a711-bd7e fix)" >&2
+    (( ++FAIL ))
+fi
+
+# ---------------------------------------------------------------------------
+# Test 9: The a711-bd7e ORCHESTRATOR_RESUME warns that ticket closure is NOT
+# a session end signal (symmetric with the merge-to-main.sh guard in Test 2)
+# ---------------------------------------------------------------------------
+if echo "$phase8_content" | grep -q 'a711-bd7e'; then
+    # Only meaningful if the block exists — check it warns about closure ≠ done
+    # The bug ref appears at end of block; use -B10 to capture preceding warning lines
+    block_text=$(echo "$phase8_content" | grep -B10 'a711-bd7e' || true)
+    if echo "$block_text" | grep -qiE '(closing|ticket|epic).*(does NOT|does not|NOT.*signal|not.*session|not.*complete)'; then
+        echo "PASS: test_a711_resume_warns_closure_is_not_done"
+        (( ++PASS ))
+    else
+        echo "FAIL: test_a711_resume_warns_closure_is_not_done — a711-bd7e ORCHESTRATOR_RESUME does not warn that ticket closure is not a sprint completion signal" >&2
+        (( ++FAIL ))
+    fi
+else
+    echo "FAIL: test_a711_resume_warns_closure_is_not_done — no a711-bd7e reference found" >&2
+    (( ++FAIL ))
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""

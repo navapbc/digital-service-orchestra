@@ -115,7 +115,7 @@ HOOK_PARENT_DIR="$(cd "$(dirname "$HOOK")" && pwd)"
 
 DETECTED_STATE_DIR=""
 DETECTED_STATE_DIR=$(
-    cd "$RRSTATE_TMP"
+    cd "$RRSTATE_TMP" || exit
     source "$HOOK_PARENT_DIR/lib/deps.sh" 2>/dev/null || true
     if declare -f get_artifacts_dir > /dev/null 2>&1; then
         REPO_ROOT="$RRSTATE_TMP" get_artifacts_dir 2>/dev/null
@@ -160,6 +160,7 @@ assert_eq "test_record_review_equals_style_reviewer_hash: --reviewer-hash=VALUE 
 # Check the CHANGED_FILES computation block (not the diagnostic dump which
 # legitimately uses ls-files --others for mismatch forensics).
 # The CHANGED_FILES block is between "CHANGED_FILES=$(" and the closing ")".
+# shellcheck disable=SC2016  # single-quoted sed pattern is intentional: $( is a literal string, not expansion
 _tmp=$(sed -n '/CHANGED_FILES=$(/,/^[[:space:]]*)/p' "$HOOK"); if grep -q 'ls-files.*--others' <<< "$_tmp"; then
     actual="includes_untracked"
 else
@@ -327,5 +328,127 @@ else
     FIRST_LINE="not_written"
 fi
 assert_eq "test_fragile_severity_produces_failed_status: review-status first line is 'failed'" "failed" "$FIRST_LINE"
+
+# ---------------------------------------------------------------------------
+# test_overlap_check_uses_all_staged_files_during_merge (ff09-69a2)
+#
+# Given: a merge-in-progress repo where the staged files include a file that
+#        was added only on the INCOMING branch (not the worktree branch).
+#        A reviewer-findings.json references that incoming-branch file.
+# When:  record-review.sh is invoked.
+# Then:  The script exits 0 (finding accepted).
+#
+# RED: Currently the CHANGED_FILES variable is built from ms_get_worktree_only_files
+#      which excludes incoming-branch files.  The overlap check compares
+#      FILES_FROM_FINDINGS against worktree-only CHANGED_FILES, so the incoming
+#      file is not found and the check reports "findings do not overlap" → exit 1.
+# GREEN: After fix, OVERLAP_CHECK_FILES includes all staged files (git diff --cached),
+#        so the incoming file IS found → exit 0.
+# ---------------------------------------------------------------------------
+_MERGE_TEST_TMPDIRS=()
+_cleanup_merge_test_tmpdirs() {
+    for d in "${_MERGE_TEST_TMPDIRS[@]}"; do
+        rm -rf "$d" 2>/dev/null || true
+    done
+}
+# Extend existing EXIT trap (combine with cleanup_rrstate set at line 109)
+trap 'cleanup_rrstate; _cleanup_merge_test_tmpdirs' EXIT
+
+_merge_test_tmpdir=$(mktemp -d)
+_MERGE_TEST_TMPDIRS+=("$_merge_test_tmpdir")
+
+# Build a minimal two-branch merge repo (same pattern as test-merge-state.sh)
+git init --bare -b main "$_merge_test_tmpdir/origin.git" --quiet 2>/dev/null || git init --bare "$_merge_test_tmpdir/origin.git" --quiet
+git clone "$_merge_test_tmpdir/origin.git" "$_merge_test_tmpdir/repo" --quiet 2>/dev/null
+(
+    cd "$_merge_test_tmpdir/repo" || exit
+    git config user.email "test@test.com"
+    git config user.name "Test"
+
+    # Initial commit on main
+    echo "initial" > base.txt
+    git add base.txt
+    git commit -m "initial" --quiet
+
+    # Worktree branch: add a worktree file
+    git checkout -b feature --quiet
+    echo "worktree change" > worktree-side.py
+    git add worktree-side.py
+    git commit -m "feature: add worktree-side.py" --quiet
+
+    # Back to main: add incoming.txt
+    git checkout main --quiet
+    echo "incoming change" > incoming-only.py
+    git add incoming-only.py
+    git commit -m "main: add incoming-only.py" --quiet
+    git push origin main --quiet 2>/dev/null
+
+    # Back to feature, start merge (no-commit so MERGE_HEAD persists + incoming staged)
+    git checkout feature --quiet
+    git merge main --no-commit --no-edit 2>/dev/null || true
+) 2>/dev/null
+
+# Set up test artifacts in temp dir; findings reference incoming-only.py
+_merge_artifacts=$(mktemp -d)
+_MERGE_TEST_TMPDIRS+=("$_merge_artifacts")
+
+cat > "$_merge_artifacts/reviewer-findings.json" <<'EOFJ'
+{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[{"severity":"minor","category":"hygiene","file":"incoming-only.py","description":"Minor style issue on incoming branch file."}],"summary":"Review performed on the incoming branch file only. No issues found."}
+EOFJ
+_MERGE_HASH=$(shasum -a 256 "$_merge_artifacts/reviewer-findings.json" | awk '{print $1}')
+
+MERGE_EXIT_CODE=0
+(
+    cd "$_merge_test_tmpdir/repo"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_merge_artifacts" bash "$HOOK" --reviewer-hash "$_MERGE_HASH" 2>/dev/null
+) || MERGE_EXIT_CODE=$?
+
+assert_eq "test_overlap_check_uses_all_staged_files_during_merge: exits 0 (incoming-branch file accepted)" "0" "$MERGE_EXIT_CODE"
+
+# ---------------------------------------------------------------------------
+# test_per_finding_strip_removes_out_of_diff_findings (c751-600d)
+#
+# Given: RECORD_REVIEW_CHANGED_FILES contains only "src/real-file.py".
+#        reviewer-findings.json has 2 findings:
+#          1. in-diff: severity=minor, category=hygiene, file=src/real-file.py
+#          2. out-of-diff: severity=critical, category=correctness,
+#             file=src/hallucinated-file.py (NOT in CHANGED_FILES)
+#        Scores: hygiene=4, correctness=1 (critical cross-validation requires <=2),
+#                all others=5.
+# When:  record-review.sh is invoked.
+# Then:  The out-of-diff critical finding is stripped before recording.
+#        With no remaining critical findings and correctness score reset to 5,
+#        the recorded status is "passed" (min_score=4 >= 4, has_critical=no).
+#
+# RED: Currently the set-level overlap check passes because src/real-file.py
+#      overlaps. ALL findings pass through, including the hallucinated critical
+#      one. has_critical=yes → STATUS=failed → review-status first line is "failed".
+# GREEN: After per-finding strip, the critical finding is removed, correctness
+#        score is reset (no remaining critical in that dimension), min_score=4,
+#        STATUS=passed → review-status first line is "passed".
+# ---------------------------------------------------------------------------
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOFJ'
+{
+  "scores": {"hygiene":4,"design":5,"maintainability":5,"correctness":1,"verification":5},
+  "findings": [
+    {"severity":"minor","category":"hygiene","file":"src/real-file.py","description":"Minor style issue in the real changed file."},
+    {"severity":"critical","category":"correctness","file":"src/hallucinated-file.py","description":"Hallucinated critical issue in a file not in the diff."}
+  ],
+  "summary":"One real minor finding plus one hallucinated critical in a non-diff file."
+}
+EOFJ
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+# isolation-ok: inject only the real file so hallucinated-file.py is clearly out-of-diff
+RECORD_REVIEW_CHANGED_FILES="src/real-file.py" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+
+STRIP_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+if [[ -f "$STRIP_STATUS_FILE" ]]; then
+    STRIP_FIRST_LINE=$(head -1 "$STRIP_STATUS_FILE")
+else
+    STRIP_FIRST_LINE="not_written"
+fi
+assert_eq "test_per_finding_strip_removes_out_of_diff_findings: status is 'passed' after stripping hallucinated critical" "passed" "$STRIP_FIRST_LINE"
 
 print_summary
