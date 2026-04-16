@@ -153,7 +153,7 @@ plugins/dso/skills/shared/prompts/scale-inference.md:tests/skills/test-scale-inf
 plugins/dso/skills/shared/prompts/complexity-gate.md:tests/skills/test-complexity-gate-shared-prompt.sh [test_complexity_gate_file_exists]
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test-complexity-gate-shared-prompt.sh [test_implementation_plan_references_complexity_gate]
 plugins/dso/agents/approach-decision-maker.md:tests/skills/test-complexity-gate-shared-prompt.sh [test_approach_decision_maker_references_complexity_gate]
-plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-dogfooding-simplify-first.sh
+plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-dogfooding-simplify-first.sh,tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/scripts/artifact-merge-lib.sh:tests/scripts/test-update-artifacts.sh
 plugins/dso/hooks/check-artifact-versions.sh:tests/scripts/test-artifact-versions.sh
 plugins/dso/hooks/check-artifact-versions.sh:tests/scripts/test-artifact-update-integration.sh
@@ -180,3 +180,5 @@ plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh
 CLAUDE.md:tests/skills/test-nextjs-starter-docs.sh
 plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh [test_plugin_consent_doc_has_required_sections]
 plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
+plugins/dso/skills/brainstorm/prompts/cross-epic-scan.md:tests/skills/test-brainstorm-cross-epic-scan.sh
+plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brainstorm-cross-epic-scan.sh

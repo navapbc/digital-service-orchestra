@@ -351,6 +351,17 @@ As you draft the epic spec, classify the origin of each success criterion and ke
 
 Track provenance internally — you will use these categories in Step 4 to annotate the rendered spec.
 
+### Step 2.25: Cross-Epic Interaction Scan
+
+Read and execute `skills/brainstorm/prompts/cross-epic-scan.md` with the current epic's approach and success criteria as input. This step dispatches haiku-tier classifiers against all open/in-progress epics to detect shared-resource conflicts before the scrutiny pipeline runs.
+
+After the scan completes, route signals by severity:
+- **benign**: log the signal; no action required; proceed to Step 2.5
+- **consideration**: carry `CROSS_EPIC_SIGNALS` forward for AC injection (processed after this step per story 2629-66cb)
+- **ambiguity** or **conflict**: carry `CROSS_EPIC_SIGNALS` forward for halt/resolution handling (processed after this step per story 3c31-8050)
+
+If `CROSS_EPIC_SIGNALS` is empty or contains only benign signals, proceed directly to Step 2.5.
+
 ### Steps 2.5, 2.6, 2.75, and Step 3: Epic Scrutiny Pipeline
 
 Read and execute the shared epic scrutiny pipeline from `skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass the current epic spec (Context + Success Criteria + Approach) as input, and supply the required pipeline parameters:
