@@ -2186,6 +2186,14 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
    .claude/scripts/dso ticket comment <epic-id> "Epic complete: all tasks closed, validation score 5/5, branch merged to main"
    .claude/scripts/dso ticket transition <epic-id> in_progress closed
    ```
+   <ORCHESTRATOR_RESUME>
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** Closing the epic ticket does NOT
+   signal sprint completion or session end. You are the sprint orchestrator in Phase 8
+   (Primary Ticket Closure). Proceed immediately to step 3 (set sprint context). Do NOT
+   stop, treat epic ticket closure as a session end, or wait for user input here.
+   Exiting after step 2 without completing steps 3–5 (including invoking
+   /dso:end-session) is the specific failure mode documented in bug a711-bd7e.
+   </ORCHESTRATOR_RESUME>
 3. Set sprint context for `/dso:end-session` report:
    - Epic ID and title
    - Total tasks completed this session
