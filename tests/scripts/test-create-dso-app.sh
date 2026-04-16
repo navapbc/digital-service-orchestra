@@ -290,4 +290,191 @@ test_missing_git_accumulates_to_error
 test_node_below_20_triggers_install
 test_installer_writes_plugin_root_to_config
 
+# ── _installer_stub_bin ───────────────────────────────────────────────────────
+# Like _all_deps_stub_bin but replaces the git stub with one that creates a
+# minimal project structure on `git clone` (needed for installer-phase tests).
+_installer_stub_bin() {
+    local node_ver="${1:-v20.11.0}"
+    local stub_bin node_prefix
+    stub_bin=$(_make_stub_bin)
+    node_prefix=$(mktemp -d)
+    TMPDIRS+=("$node_prefix")
+    mkdir -p "$node_prefix/bin"
+
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+case "\$*" in
+  "--version"|"-v")         echo "Homebrew 4.0.0" ;;
+  "install node@20")        : ;;
+  "list node@20")           : ;;
+  "--prefix node@20")       echo "$node_prefix" ;;
+  "install --cask "*)       : ;;
+  *)                        : ;;
+esac
+exit 0
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # git stub: on clone, create minimal project structure in target dir
+    cat > "$stub_bin/git" <<'GITSTUB'
+#!/bin/sh
+if [ "$1" = "clone" ]; then
+    target=""
+    for arg in "$@"; do
+        case "$arg" in -*) ;; *) target="$arg" ;; esac
+    done
+    if [ -n "$target" ] && [ "$target" != "clone" ]; then
+        mkdir -p "$target/app"
+        printf '{"name":"template","scripts":{"dev":"next dev"},"dependencies":{"next":"^14.0.0"}}\n' \
+            > "$target/package.json"
+        touch "$target/app/page.tsx"
+        mkdir -p "$target/.claude"
+    fi
+    exit 0
+fi
+exit 0
+GITSTUB
+    chmod +x "$stub_bin/git"
+
+    _write_stub "$stub_bin" "bash" "echo \"GNU bash, version 5.2.15(1)-release (x86_64)\"; exit 0"
+    _write_stub "$stub_bin" "greadlink" "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "npm" "exit 0"
+    _write_stub "$stub_bin" "node" "echo \"$node_ver\"; exit 0"
+    _write_stub "$stub_bin" "claude" "exit 0"
+    _write_stub "$stub_bin" "grep"    '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"    '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname" '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"      '/usr/bin/tr "$@"'
+    _write_stub "$stub_bin" "sed"     '/usr/bin/sed "$@"'
+    _write_stub "$stub_bin" "find"    '/usr/bin/find "$@"'
+
+    echo "$stub_bin"
+}
+
+# ── test_project_structure_created ───────────────────────────────────────────
+# After a successful installer run, assert that package.json, app/ or pages/
+# dir, and at least one DSO infrastructure file are present.
+# RED: fails until clone+scaffold logic is implemented in create-dso-app.sh.
+test_project_structure_created() {
+    local stub_bin T project_dir
+    stub_bin=$(_installer_stub_bin)
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    project_dir="$T/my-project"
+
+    PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'\n' >/dev/null 2>&1 || true
+
+    local pkg_ok="no"
+    [[ -f "$project_dir/package.json" ]] && pkg_ok="yes"
+    assert_eq "project structure: package.json present" "yes" "$pkg_ok"
+
+    local app_ok="no"
+    { [[ -d "$project_dir/app" ]] || [[ -d "$project_dir/pages" ]]; } && app_ok="yes"
+    assert_eq "project structure: app/ or pages/ present" "yes" "$app_ok"
+
+    local infra_ok="no"
+    { [[ -d "$project_dir/.claude" ]] || [[ -f "$project_dir/CLAUDE.md" ]]; } && infra_ok="yes"
+    assert_eq "project structure: DSO infra file present" "yes" "$infra_ok"
+}
+
+# ── test_project_name_substitution ───────────────────────────────────────────
+# Run installer with a project name containing special chars. Assert either
+# (a) sanitized name used, or (b) exits non-zero with actionable error.
+# RED: fails until substitution/sanitization logic is implemented.
+test_project_name_substitution() {
+    local stub_bin T output exit_code=0
+    stub_bin=$(_installer_stub_bin)
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 'my project $var *glob' "$T" <<< $'\n' 2>&1) || exit_code=$?
+
+    local handled="no"
+    if [[ "$exit_code" -ne 0 ]]; then
+        # Rejected with error — check message is actionable
+        echo "$output" | grep -qiE 'sanitize|invalid|character|name' && handled="yes"
+    else
+        # Sanitized — the project dir should NOT exist at the unsanitized path
+        [[ ! -d "$T/my project \$var *glob" ]] && handled="yes"
+    fi
+    assert_eq "project name: special chars handled" "yes" "$handled"
+}
+
+# ── test_dso_init_complete_sentinel_created ───────────────────────────────────
+# After successful installer run, assert .dso-init-complete is present.
+# RED: fails until sentinel-write logic is implemented.
+test_dso_init_complete_sentinel_created() {
+    local stub_bin T project_dir
+    stub_bin=$(_installer_stub_bin)
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    project_dir="$T/my-project"
+
+    PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'\n' >/dev/null 2>&1 || true
+
+    local sentinel="no"
+    [[ -f "$project_dir/.dso-init-complete" ]] && sentinel="yes"
+    assert_eq "sentinel .dso-init-complete created" "yes" "$sentinel"
+}
+
+# ── test_exit_0_on_newline_ack ────────────────────────────────────────────────
+# Pipe a newline to stdin and assert exit 0 (user acknowledged prompt).
+# RED: fails until stdin acknowledgment is implemented.
+test_exit_0_on_newline_ack() {
+    local stub_bin T exit_code=0
+    stub_bin=$(_installer_stub_bin)
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+
+    PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'\n' >/dev/null 2>&1 || exit_code=$?
+    assert_eq "newline ack: exit 0" "0" "$exit_code"
+}
+
+# ── test_exit_1_on_stdin_eof ──────────────────────────────────────────────────
+# Pipe /dev/null to stdin (EOF) at the acknowledgment prompt and assert exit 1
+# plus message "Installation cancelled."
+# RED: fails until stdin EOF handling is implemented.
+test_exit_1_on_stdin_eof() {
+    local stub_bin T exit_code=0 output
+    stub_bin=$(_installer_stub_bin)
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" </dev/null 2>&1) || exit_code=$?
+    assert_ne "stdin EOF: exits non-zero" "0" "$exit_code"
+
+    local cancelled="no"
+    echo "$output" | grep -q "Installation cancelled" && cancelled="yes"
+    assert_eq "stdin EOF: 'Installation cancelled' message" "yes" "$cancelled"
+}
+
+# ── test_idempotency_already_initialized ─────────────────────────────────────
+# Pre-create .dso-init-complete in the target dir; assert exit 0 plus
+# informative message when the installer is re-run.
+# RED: fails until idempotency check is implemented.
+test_idempotency_already_initialized() {
+    local stub_bin T project_dir exit_code=0 output
+    stub_bin=$(_installer_stub_bin)
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    project_dir="$T/my-project"
+    mkdir -p "$project_dir"
+    touch "$project_dir/.dso-init-complete"
+
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'\n' 2>&1) || exit_code=$?
+    assert_eq "idempotency: exit 0" "0" "$exit_code"
+
+    local msg_ok="no"
+    echo "$output" | grep -qiE 'already|initialized|complete|exists' && msg_ok="yes"
+    assert_eq "idempotency: informative message" "yes" "$msg_ok"
+}
+
+test_project_structure_created
+test_project_name_substitution
+test_dso_init_complete_sentinel_created
+test_exit_0_on_newline_ack
+test_exit_1_on_stdin_eof
+test_idempotency_already_initialized
+
 print_summary
