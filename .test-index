@@ -179,3 +179,4 @@ docs/onboarding.md:tests/skills/test-nextjs-starter-docs.sh [test_onboarding_doc
 plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh [test_readme_exists]
 plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh [test_readme_has_nextjs_starter_section]
 CLAUDE.md:tests/skills/test-nextjs-starter-docs.sh [test_claude_md_has_bootstrap_row]
+plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh [test_plugin_consent_doc_has_required_sections]
