@@ -174,3 +174,8 @@ plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-e2e.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh
 plugins/dso/scripts/check-skill-refs.sh: tests/scripts/test-check-skill-refs.sh
+docs/onboarding.md:tests/skills/test-nextjs-starter-docs.sh [test_onboarding_doc_exists]
+docs/onboarding.md:tests/skills/test-nextjs-starter-docs.sh [test_onboarding_doc_has_bootstrap_section]
+plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh [test_readme_exists]
+plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh [test_readme_has_nextjs_starter_section]
+CLAUDE.md:tests/skills/test-nextjs-starter-docs.sh [test_claude_md_has_bootstrap_row]
