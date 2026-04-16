@@ -96,13 +96,135 @@ def parse_log_file(path: Path) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
+def _classify_hypotheses(
+    breadcrumbs: list[dict[str, Any]],
+    enters: list[dict[str, Any]],
+    exits: list[dict[str, Any]],
+    invokes: dict[int, dict[str, Any]],
+    control_loss_events: list[dict[str, Any]],
+    has_control_loss: bool,
+) -> dict[str, str]:
+    """Classify hypotheses H1-H10 and return a verdict dict."""
+    counts = [
+        bc.get("tool_call_count")
+        for bc in breadcrumbs
+        if bc.get("type") == "SKILL_INVOKE" and bc.get("tool_call_count") is not None
+    ]
+    h1 = (
+        ("confirmed" if max(counts) >= H1_TOOL_CALL_THRESHOLD else "refuted")
+        if counts and has_control_loss
+        else "insufficient-data"
+    )
+    cum_bytes = [
+        bc.get("cumulative_bytes")
+        for bc in breadcrumbs
+        if bc.get("cumulative_bytes") is not None
+    ]
+    h2 = (
+        ("confirmed" if max(cum_bytes) >= H2_CUMULATIVE_BYTES_THRESHOLD else "refuted")
+        if cum_bytes and has_control_loss
+        else "insufficient-data"
+    )
+    elapsed = [bc.get("elapsed_ms") for bc in exits if bc.get("elapsed_ms") is not None]
+    h3 = (
+        ("confirmed" if max(elapsed) >= H3_ELAPSED_MS_THRESHOLD else "refuted")
+        if elapsed and has_control_loss
+        else "insufficient-data"
+    )
+    interactions = [
+        bc["user_interaction_count"] for bc in exits if "user_interaction_count" in bc
+    ]
+    h4 = (
+        (
+            "confirmed"
+            if max(interactions) >= H4_USER_INTERACTION_THRESHOLD
+            else "refuted"
+        )
+        if interactions and has_control_loss
+        else "insufficient-data"
+    )
+    ordinals_at_loss = [
+        e["session_ordinal"]
+        for e in control_loss_events
+        if e["session_ordinal"] is not None
+    ]
+    h5 = (
+        ("confirmed" if max(ordinals_at_loss) >= H5_ORDINAL_THRESHOLD else "refuted")
+        if ordinals_at_loss
+        else "insufficient-data"
+    )
+    sizes = [
+        bc.get("skill_file_size")
+        for bc in breadcrumbs
+        if bc.get("skill_file_size") is not None
+    ]
+    h6 = (
+        ("confirmed" if max(sizes) >= H6_SKILL_FILE_SIZE_THRESHOLD else "refuted")
+        if sizes and has_control_loss
+        else "insufficient-data"
+    )
+    depths = [
+        e["nesting_depth"]
+        for e in control_loss_events
+        if e.get("nesting_depth") is not None
+    ]
+    h7 = (
+        ("confirmed" if max(depths) >= H7_DEPTH_THRESHOLD else "refuted")
+        if depths
+        else "insufficient-data"
+    )
+    enter_ordinals = {
+        bc.get("session_ordinal")
+        for bc in enters
+        if bc.get("session_ordinal") is not None
+    }
+    exit_ordinals = {
+        bc.get("session_ordinal")
+        for bc in exits
+        if bc.get("session_ordinal") is not None
+    }
+    h8 = (
+        ("confirmed" if (enter_ordinals - exit_ordinals) else "refuted")
+        if enters
+        else "insufficient-data"
+    )
+    h9 = (
+        (
+            "confirmed"
+            if len(control_loss_events) >= H9_MULTI_CONTROL_LOSS_THRESHOLD
+            else ("refuted" if has_control_loss else "insufficient-data")
+        )
+        if invokes
+        else "insufficient-data"
+    )
+    h10 = (
+        (
+            "confirmed"
+            if len(control_loss_events) == len(invokes) and has_control_loss
+            else ("refuted" if has_control_loss else "insufficient-data")
+        )
+        if invokes
+        else "insufficient-data"
+    )
+    return {
+        "H1": h1,
+        "H2": h2,
+        "H3": h3,
+        "H4": h4,
+        "H5": h5,
+        "H6": h6,
+        "H7": h7,
+        "H8": h8,
+        "H9": h9,
+        "H10": h10,
+    }
+
+
 def analyze_session(
     log_path: Path, breadcrumbs: list[dict[str, Any]]
 ) -> dict[str, Any]:
     """Analyze breadcrumbs from one session and return a diagnostic report."""
-
-    # ── Separate breadcrumbs by type ────────────────────────────────────────
-    invokes: dict[int, dict[str, Any]] = {}  # session_ordinal → breadcrumb
+    invokes: dict[int, dict[str, Any]] = {}
     resumed_ordinals: set[int] = set()
     enters: list[dict[str, Any]] = []
     exits: list[dict[str, Any]] = []
@@ -111,10 +233,8 @@ def analyze_session(
         bc_type = bc.get("type", "")
         ordinal = bc.get("session_ordinal")
         if bc_type == "SKILL_INVOKE":
-            if ordinal is not None:
-                # Keep first occurrence per ordinal (in case of duplicates)
-                if ordinal not in invokes:
-                    invokes[ordinal] = bc
+            if ordinal is not None and ordinal not in invokes:
+                invokes[ordinal] = bc
         elif bc_type == "SKILL_RESUMED":
             if ordinal is not None:
                 resumed_ordinals.add(ordinal)
@@ -123,195 +243,23 @@ def analyze_session(
         elif bc_type == "SKILL_EXIT":
             exits.append(bc)
 
-    # ── Detect CONTROL_LOSS events ───────────────────────────────────────────
-    control_loss_events: list[dict[str, Any]] = []
-    for ordinal, invoke_bc in sorted(invokes.items()):
-        if ordinal not in resumed_ordinals:
-            control_loss_events.append(
-                {
-                    "event_type": "CONTROL_LOSS",
-                    "session_ordinal": ordinal,
-                    "skill_name": invoke_bc.get("skill_name"),
-                    "nesting_depth": invoke_bc.get("nesting_depth"),
-                    "tool_call_count_at_invoke": invoke_bc.get("tool_call_count"),
-                    "timestamp": invoke_bc.get("timestamp"),
-                }
-            )
-
-    has_control_loss = len(control_loss_events) > 0
-
-    # ── Hypothesis classification ────────────────────────────────────────────
-    # Each hypothesis is classified as: "confirmed" | "refuted" | "insufficient-data"
-
-    def _classify_h1() -> str:
-        """H1: High tool-call count at invoke time → context pressure contributed."""
-        counts = [
-            bc.get("tool_call_count")
-            for bc in breadcrumbs
-            if bc.get("type") == "SKILL_INVOKE"
-            and bc.get("tool_call_count") is not None
-        ]
-        if not counts:
-            return "insufficient-data"
-        if has_control_loss and max(counts) >= H1_TOOL_CALL_THRESHOLD:
-            return "confirmed"
-        if has_control_loss:
-            return "refuted"
-        return "insufficient-data"
-
-    def _classify_h2() -> str:
-        """H2: Large cumulative bytes loaded → memory pressure contributed."""
-        cum_bytes_list = [
-            bc.get("cumulative_bytes")
-            for bc in breadcrumbs
-            if bc.get("cumulative_bytes") is not None
-        ]
-        if not cum_bytes_list:
-            return "insufficient-data"
-        if has_control_loss and max(cum_bytes_list) >= H2_CUMULATIVE_BYTES_THRESHOLD:
-            return "confirmed"
-        if has_control_loss:
-            return "refuted"
-        return "insufficient-data"
-
-    def _classify_h3() -> str:
-        """H3: Long elapsed_ms on a skill → timeout risk contributed."""
-        elapsed_list = [
-            bc.get("elapsed_ms") for bc in exits if bc.get("elapsed_ms") is not None
-        ]
-        if not elapsed_list:
-            return "insufficient-data"
-        if has_control_loss and max(elapsed_list) >= H3_ELAPSED_MS_THRESHOLD:
-            return "confirmed"
-        if has_control_loss:
-            return "refuted"
-        return "insufficient-data"
-
-    def _classify_h4() -> str:
-        """H4: High user-interaction count → confusion/divergence contributed."""
-        interaction_counts = [
-            bc["user_interaction_count"]
-            for bc in exits
-            if "user_interaction_count" in bc
-        ]
-        if not interaction_counts:
-            return "insufficient-data"
-        if (
-            has_control_loss
-            and max(interaction_counts) >= H4_USER_INTERACTION_THRESHOLD
-        ):
-            return "confirmed"
-        if has_control_loss:
-            return "refuted"
-        return "insufficient-data"
-
-    def _classify_h5() -> str:
-        """H5: Late-session ordinal at CONTROL_LOSS → accumulated context drift."""
-        if not control_loss_events:
-            return "insufficient-data"
-        ordinals_at_loss = [
-            e["session_ordinal"]
-            for e in control_loss_events
-            if e["session_ordinal"] is not None
-        ]
-        if not ordinals_at_loss:
-            return "insufficient-data"
-        if max(ordinals_at_loss) >= H5_ORDINAL_THRESHOLD:
-            return "confirmed"
-        return "refuted"
-
-    def _classify_h6() -> str:
-        """H6: Large skill_file_size → prompt overload contributed."""
-        sizes = [
-            bc.get("skill_file_size")
-            for bc in breadcrumbs
-            if bc.get("skill_file_size") is not None
-        ]
-        if not sizes:
-            return "insufficient-data"
-        if has_control_loss and max(sizes) >= H6_SKILL_FILE_SIZE_THRESHOLD:
-            return "confirmed"
-        if has_control_loss:
-            return "refuted"
-        return "insufficient-data"
-
-    def _classify_h7() -> str:
-        """H7: Deep nesting (depth >= 3) + CONTROL_LOSS → nesting depth contributed.
-
-        Spec:
-        - confirmed: CONTROL_LOSS present AND max nesting_depth at any lost invocation >= 3
-        - refuted: CONTROL_LOSS present AND all lost invocations have depth < 3
-        - insufficient-data: no depth field on any CONTROL_LOSS invoke, or no CONTROL_LOSS
-        """
-        if not control_loss_events:
-            return "insufficient-data"
-
-        depths = [
-            e["nesting_depth"]
-            for e in control_loss_events
-            if e.get("nesting_depth") is not None
-        ]
-        if not depths:
-            # No depth data on any CONTROL_LOSS event
-            return "insufficient-data"
-
-        if max(depths) >= H7_DEPTH_THRESHOLD:
-            return "confirmed"
-        return "refuted"
-
-    def _classify_h8() -> str:
-        """H8: SKILL_ENTER without matching SKILL_EXIT → child skill never exited."""
-        enter_ordinals = {
-            bc.get("session_ordinal")
-            for bc in enters
-            if bc.get("session_ordinal") is not None
+    control_loss_events: list[dict[str, Any]] = [
+        {
+            "event_type": "CONTROL_LOSS",
+            "session_ordinal": ordinal,
+            "skill_name": invoke_bc.get("skill_name"),
+            "nesting_depth": invoke_bc.get("nesting_depth"),
+            "tool_call_count_at_invoke": invoke_bc.get("tool_call_count"),
+            "timestamp": invoke_bc.get("timestamp"),
         }
-        exit_ordinals = {
-            bc.get("session_ordinal")
-            for bc in exits
-            if bc.get("session_ordinal") is not None
-        }
-        orphaned = enter_ordinals - exit_ordinals
-        if not enters:
-            return "insufficient-data"
-        if orphaned:
-            return "confirmed"
-        return "refuted"
+        for ordinal, invoke_bc in sorted(invokes.items())
+        if ordinal not in resumed_ordinals
+    ]
+    has_control_loss = bool(control_loss_events)
 
-    def _classify_h9() -> str:
-        """H9: Multiple CONTROL_LOSS events → repeated pattern, systemic issue."""
-        if not invokes:
-            return "insufficient-data"
-        if len(control_loss_events) >= H9_MULTI_CONTROL_LOSS_THRESHOLD:
-            return "confirmed"
-        if has_control_loss:
-            return "refuted"
-        return "insufficient-data"
-
-    def _classify_h10() -> str:
-        """H10: Every INVOKE is a CONTROL_LOSS → orchestrator cannot resume any skill."""
-        if not invokes:
-            return "insufficient-data"
-        if len(control_loss_events) == len(invokes) and has_control_loss:
-            return "confirmed"
-        if has_control_loss:
-            return "refuted"
-        return "insufficient-data"
-
-    hypotheses = {
-        "H1": _classify_h1(),
-        "H2": _classify_h2(),
-        "H3": _classify_h3(),
-        "H4": _classify_h4(),
-        "H5": _classify_h5(),
-        "H6": _classify_h6(),
-        "H7": _classify_h7(),
-        "H8": _classify_h8(),
-        "H9": _classify_h9(),
-        "H10": _classify_h10(),
-    }
-
-    # ── Assemble report ──────────────────────────────────────────────────────
+    hypotheses = _classify_hypotheses(
+        breadcrumbs, enters, exits, invokes, control_loss_events, has_control_loss
+    )
     return {
         "session_log": str(log_path),
         "total_breadcrumbs": len(breadcrumbs),

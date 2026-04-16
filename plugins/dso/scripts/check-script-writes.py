@@ -333,188 +333,186 @@ def subshell_has_cd_to_variable(stmts):
     return False
 
 
-def find_violations_in_ast(ast, filepath, var_map):
+def _is_cd_to_variable(stmt):
+    """Return True if stmt is (or contains) a `cd` to a non-literal (variable) path.
+
+    Handles: `cd "$var"`, `cd "$var" || ...`, `cd "$var" && ...`
     """
-    Walk the AST and find file-write violations.
+    if not isinstance(stmt, dict):
+        return False
+    cmd = stmt.get("Cmd", {})
+    if not cmd:
+        return False
+
+    cmd_type = cmd.get("Type", "")
+
+    if cmd_type == "CallExpr":
+        args = cmd.get("Args", [])
+        if not args:
+            return False
+        first_parts = extract_word_parts(args[0])
+        if not first_parts or first_parts[0] != ("literal", "cd"):
+            return False
+        for arg in args[1:]:
+            parts = extract_word_parts(arg)
+            for ptype, _ in parts:
+                if ptype in ("param", "complex"):
+                    return True
+        return False
+
+    elif cmd_type == "BinaryCmd":
+        # Handle `cd "$var" || ...` — check the left side
+        x_stmt = cmd.get("X")
+        if x_stmt:
+            x_cmd = x_stmt.get("Cmd", {})
+            if x_cmd and x_cmd.get("Type") == "CallExpr":
+                args = x_cmd.get("Args", [])
+                if args:
+                    first_parts = extract_word_parts(args[0])
+                    if first_parts and first_parts[0] == ("literal", "cd"):
+                        for arg in args[1:]:
+                            parts = extract_word_parts(arg)
+                            for ptype, _ in parts:
+                                if ptype in ("param", "complex"):
+                                    return True
+
+    return False
+
+
+def _walk_stmts(stmts, violations, var_map):
+    """Walk a list of statements, tracking cd-to-variable context."""
+    cwd_is_temp = False
+    for stmt in stmts:
+        if not isinstance(stmt, dict):
+            continue
+        if _is_cd_to_variable(stmt):
+            cwd_is_temp = True
+            continue
+        if cwd_is_temp:
+            # After a cd to a variable, skip relative writes at this level
+            # (they're in the temp dir context)
+            continue
+        _walk_stmt(stmt, violations, var_map)
+
+
+def _walk_nested(node, violations, var_map):
+    """Recursively walk nested command structures."""
+    if not isinstance(node, dict):
+        return
+    for key, val in node.items():
+        if key in (
+            "Pos",
+            "End",
+            "OpPos",
+            "Hash",
+            "Left",
+            "Right",
+            "ValuePos",
+            "ValueEnd",
+            "Name",
+        ):
+            continue
+        if key == "Stmts":
+            for s in val:
+                _walk_stmt(s, violations, var_map)
+        elif isinstance(val, dict):
+            _walk_nested(val, violations, var_map)
+        elif isinstance(val, list):
+            for item in val:
+                if isinstance(item, dict):
+                    node_type = item.get("Type", "")
+                    if node_type or "Cmd" in item or "Redirs" in item:
+                        _walk_stmt(item, violations, var_map)
+                    else:
+                        _walk_nested(item, violations, var_map)
+
+
+def _walk_stmt(stmt, violations, var_map):
+    """Walk a single statement node, appending violations."""
+    if not isinstance(stmt, dict):
+        return
+
+    stmt_line = stmt.get("Pos", {}).get("Line", 0)
+    cmd = stmt.get("Cmd", {})
+    cmd_type = cmd.get("Type", "") if cmd else ""
+
+    # Check redirects on the statement
+    for redir in stmt.get("Redirs", []):
+        op = redir.get("Op", 0)
+        if op in WRITE_REDIRECT_OPS:
+            redir_line = redir.get("Pos", {}).get("Line", stmt_line)
+            word = redir.get("Word")
+            if word:
+                resolved = resolve_word(word, var_map)
+                if resolved and is_repo_root_path(resolved):
+                    if not has_write_ok_comment(stmt, redir_line):
+                        violations.append((redir_line, resolved))
+
+    if cmd_type == "CallExpr":
+        args = cmd.get("Args", [])
+        if args:
+            first_parts = extract_word_parts(args[0])
+            cmd_name = ""
+            if first_parts and first_parts[0][0] == "literal":
+                cmd_name = first_parts[0][1]
+
+            if cmd_name in WRITE_COMMANDS:
+                if len(args) > 1:
+                    # Skip flags (args starting with -)
+                    for arg in reversed(args[1:]):
+                        arg_parts = extract_word_parts(arg)
+                        if arg_parts and arg_parts[0][0] == "literal":
+                            if not arg_parts[0][1].startswith("-"):
+                                resolved = resolve_word(arg, var_map)
+                                if resolved and is_repo_root_path(resolved):
+                                    if not has_write_ok_comment(stmt, stmt_line):
+                                        violations.append((stmt_line, resolved))
+                                break
+                        else:
+                            resolved = resolve_word(arg, var_map)
+                            if resolved and is_repo_root_path(resolved):
+                                if not has_write_ok_comment(stmt, stmt_line):
+                                    violations.append((stmt_line, resolved))
+                            break
+
+    elif cmd_type == "BinaryCmd":
+        # Pipeline: X | Y — walk both sides
+        x_stmt = cmd.get("X")
+        y_stmt = cmd.get("Y")
+        if x_stmt:
+            _walk_stmt(x_stmt, violations, var_map)
+        if y_stmt:
+            _walk_stmt(y_stmt, violations, var_map)
+
+    elif cmd_type == "Subshell":
+        # Subshell: walk with fresh cd-tracking context
+        inner_stmts = cmd.get("Stmts", [])
+        _walk_stmts(inner_stmts, violations, var_map)
+
+    elif cmd_type in (
+        "IfClause",
+        "WhileClause",
+        "ForClause",
+        "CaseClause",
+        "Block",
+    ):
+        _walk_nested(cmd, violations, var_map)
+
+    elif cmd_type == "FuncDecl":
+        # Function body: walk with fresh cd-tracking context
+        body = cmd.get("Body", {})
+        if body:
+            inner_stmts = body.get("Stmts", [])
+            _walk_stmts(inner_stmts, violations, var_map)
+
+
+def find_violations_in_ast(ast, filepath, var_map):
+    """Walk the AST and find file-write violations.
+
     Returns list of (line_num, path_str) tuples.
     """
     violations = []
-
-    def check_word_target(word_node, line_num, stmt_node):
-        """Check if a word target is a repo-root path and record violation."""
-        resolved = resolve_word(word_node, var_map)
-        if resolved and is_repo_root_path(resolved):
-            if not has_write_ok_comment(stmt_node, line_num):
-                violations.append((line_num, resolved))
-
-    def is_cd_to_variable(stmt):
-        """
-        Return True if stmt is (or contains) a `cd` to a non-literal (variable) path.
-        Handles: `cd "$var"`, `cd "$var" || ...`, `cd "$var" && ...`
-        """
-        if not isinstance(stmt, dict):
-            return False
-        cmd = stmt.get("Cmd", {})
-        if not cmd:
-            return False
-
-        cmd_type = cmd.get("Type", "")
-
-        if cmd_type == "CallExpr":
-            args = cmd.get("Args", [])
-            if not args:
-                return False
-            first_parts = extract_word_parts(args[0])
-            if not first_parts or first_parts[0] != ("literal", "cd"):
-                return False
-            for arg in args[1:]:
-                parts = extract_word_parts(arg)
-                for ptype, _ in parts:
-                    if ptype in ("param", "complex"):
-                        return True
-            return False
-
-        elif cmd_type == "BinaryCmd":
-            # Handle `cd "$var" || ...` — check the left side
-            x_stmt = cmd.get("X")
-            if x_stmt:
-                # X is a stmt-like node, wrap it
-                x_cmd = x_stmt.get("Cmd", {})
-                if x_cmd and x_cmd.get("Type") == "CallExpr":
-                    args = x_cmd.get("Args", [])
-                    if args:
-                        first_parts = extract_word_parts(args[0])
-                        if first_parts and first_parts[0] == ("literal", "cd"):
-                            for arg in args[1:]:
-                                parts = extract_word_parts(arg)
-                                for ptype, _ in parts:
-                                    if ptype in ("param", "complex"):
-                                        return True
-
-        return False
-
-    def walk_stmts(stmts):
-        """Walk a list of statements, tracking cd-to-variable context."""
-        cwd_is_temp = False
-        for stmt in stmts:
-            if not isinstance(stmt, dict):
-                continue
-            # Track if we've done a cd to a variable path
-            if is_cd_to_variable(stmt):
-                cwd_is_temp = True
-                continue
-            if cwd_is_temp:
-                # After a cd to a variable, skip relative writes at this level
-                # (they're in the temp dir context)
-                continue
-            walk_stmt(stmt)
-
-    def walk_stmt(stmt):
-        """Walk a single statement node."""
-        if not isinstance(stmt, dict):
-            return
-
-        stmt_line = stmt.get("Pos", {}).get("Line", 0)
-        cmd = stmt.get("Cmd", {})
-        cmd_type = cmd.get("Type", "") if cmd else ""
-
-        # Check redirects on the statement
-        for redir in stmt.get("Redirs", []):
-            op = redir.get("Op", 0)
-            if op in WRITE_REDIRECT_OPS:
-                redir_line = redir.get("Pos", {}).get("Line", stmt_line)
-                word = redir.get("Word")
-                if word:
-                    check_word_target(word, redir_line, stmt)
-
-        if cmd_type == "CallExpr":
-            args = cmd.get("Args", [])
-            if args:
-                # Get command name
-                first_arg = args[0]
-                first_parts = extract_word_parts(first_arg)
-                cmd_name = ""
-                if first_parts and first_parts[0][0] == "literal":
-                    cmd_name = first_parts[0][1]
-
-                if cmd_name in WRITE_COMMANDS:
-                    # For tee/cp/mv: last arg is the write target
-                    if len(args) > 1:
-                        # Skip flags (args starting with -)
-                        for arg in reversed(args[1:]):
-                            arg_parts = extract_word_parts(arg)
-                            if arg_parts and arg_parts[0][0] == "literal":
-                                if not arg_parts[0][1].startswith("-"):
-                                    check_word_target(arg, stmt_line, stmt)
-                                    break
-                            else:
-                                check_word_target(arg, stmt_line, stmt)
-                                break
-
-        elif cmd_type == "BinaryCmd":
-            # Pipeline: X | Y — walk both sides
-            x_stmt = cmd.get("X")
-            y_stmt = cmd.get("Y")
-            if x_stmt:
-                walk_stmt(x_stmt)
-            if y_stmt:
-                walk_stmt(y_stmt)
-
-        elif cmd_type == "Subshell":
-            # Subshell: walk with fresh cd-tracking context
-            inner_stmts = cmd.get("Stmts", [])
-            walk_stmts(inner_stmts)
-
-        elif cmd_type in (
-            "IfClause",
-            "WhileClause",
-            "ForClause",
-            "CaseClause",
-            "Block",
-        ):
-            walk_nested(cmd)
-
-        elif cmd_type == "FuncDecl":
-            # Function body: walk with fresh cd-tracking context
-            body = cmd.get("Body", {})
-            if body:
-                inner_stmts = body.get("Stmts", [])
-                walk_stmts(inner_stmts)
-
-    def walk_nested(node):
-        """Recursively walk nested command structures."""
-        if not isinstance(node, dict):
-            return
-        for key, val in node.items():
-            if key in (
-                "Pos",
-                "End",
-                "OpPos",
-                "Hash",
-                "Left",
-                "Right",
-                "ValuePos",
-                "ValueEnd",
-                "Name",
-            ):
-                continue
-            if key == "Stmts":
-                for s in val:
-                    walk_stmt(s)
-            elif isinstance(val, dict):
-                walk_nested(val)
-            elif isinstance(val, list):
-                for item in val:
-                    if isinstance(item, dict):
-                        node_type = item.get("Type", "")
-                        if node_type or "Cmd" in item or "Redirs" in item:
-                            walk_stmt(item)
-                        else:
-                            walk_nested(item)
-
-    # Walk top-level statements with cd-tracking
-    walk_stmts(ast.get("Stmts", []))
-
+    _walk_stmts(ast.get("Stmts", []), violations, var_map)
     return violations
 
 

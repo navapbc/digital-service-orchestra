@@ -297,6 +297,94 @@ def _extract_file_key(ticket: dict) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def _validate_ticket_preconditions(
+    ticket_id: str, show_fn
+) -> tuple[dict | None, str | None]:
+    """Validate ticket has the awaiting_review tag and a Figma file key.
+
+    Returns (ticket, figma_file_key) on success, or (None, None) after printing error.
+    """
+    try:
+        ticket = show_fn(ticket_id)
+    except Exception as exc:
+        print(f"ERROR: Could not load ticket {ticket_id}: {exc}", file=sys.stderr)
+        return None, None
+
+    tags = ticket.get("tags", [])
+    if TAG_AWAITING_REVIEW not in tags:
+        print(
+            f"ERROR: Ticket {ticket_id} does not have '{TAG_AWAITING_REVIEW}' tag. "
+            f"Re-sync requires the design to be in awaiting_review state. "
+            f"Current tags: {tags}",
+            file=sys.stderr,
+        )
+        return None, None
+
+    figma_file_key = _extract_file_key(ticket)
+    if not figma_file_key:
+        print(
+            f"ERROR: No Figma file key found in ticket {ticket_id} comments. "
+            "Run the design-wireframe workflow to store the file key.",
+            file=sys.stderr,
+        )
+        return None, None
+
+    return ticket, figma_file_key
+
+
+def _display_and_confirm(
+    ticket_id: str,
+    merge_output: dict,
+    non_interactive: bool,
+) -> tuple[bool, dict]:
+    """Display change summary and prompt for confirmation (if interactive).
+
+    Returns (proceed, merge_counts) where proceed=False means user cancelled.
+    merge_counts holds the extracted count fields for metadata recording.
+    """
+    components_added = merge_output.get("components_added", 0)
+    components_modified = merge_output.get("components_modified", 0)
+    components_removed = merge_output.get("components_removed", 0)
+    behavioral_specs_preserved = merge_output.get("behavioral_specs_preserved", 0)
+    merge_warnings: list[str] = merge_output.get("warnings", [])
+
+    print(f"\nChange Summary for ticket {ticket_id}:")
+    print(f"  + {components_added} component(s) added")
+    print(f"  ~ {components_modified} component(s) modified")
+    print(f"  - {components_removed} component(s) removed")
+    print(f"  ✓ {behavioral_specs_preserved} behavioral spec(s) preserved")
+    if merge_warnings:
+        for w in merge_warnings:
+            print(f"  ! {w}")
+
+    # REVIEW-DEFENSE: The merge step writes artifacts to disk BEFORE this prompt.
+    # This is intentional: the change summary displayed IS the merged artifact
+    # output, and showing it requires the merge to have already run. The confirmation here
+    # gates only the irreversible side effects — the tag swap and metadata ticket comment.
+    # File writes (merged artifacts) are not irreversible: if the user cancels, the output
+    # directory contains the merged files but no ticket state has changed.
+    if not non_interactive:
+        try:
+            answer = (
+                input("\nProceed with tag swap and metadata recording? [y/N] ")
+                .strip()
+                .lower()
+            )
+        except EOFError:
+            answer = "n"
+        if answer != "y":
+            print("Re-sync cancelled.", file=sys.stderr)
+            return False, {}
+
+    merge_counts = {
+        "components_added": components_added,
+        "components_modified": components_modified,
+        "components_removed": components_removed,
+        "behavioral_specs_preserved": behavioral_specs_preserved,
+    }
+    return True, merge_counts
+
+
 def run(
     ticket_id: str,
     non_interactive: bool = False,
@@ -319,34 +407,12 @@ def run(
     """
     show_fn = _ticket_show_fn or _ticket_show
 
-    # 1. Precondition: check design:awaiting_review tag
-    try:
-        ticket = show_fn(ticket_id)
-    except Exception as exc:
-        print(f"ERROR: Could not load ticket {ticket_id}: {exc}", file=sys.stderr)
+    # 1. Precondition: check design:awaiting_review tag and Figma file key
+    _ticket, figma_file_key = _validate_ticket_preconditions(ticket_id, show_fn)
+    if figma_file_key is None:
         return 1
 
-    tags = ticket.get("tags", [])
-    if TAG_AWAITING_REVIEW not in tags:
-        print(
-            f"ERROR: Ticket {ticket_id} does not have '{TAG_AWAITING_REVIEW}' tag. "
-            f"Re-sync requires the design to be in awaiting_review state. "
-            f"Current tags: {tags}",
-            file=sys.stderr,
-        )
-        return 1
-
-    # 2. Extract Figma file key
-    figma_file_key = _extract_file_key(ticket)
-    if not figma_file_key:
-        print(
-            f"ERROR: No Figma file key found in ticket {ticket_id} comments. "
-            "Run the design-wireframe workflow to store the file key.",
-            file=sys.stderr,
-        )
-        return 1
-
-    # 3. Acquire file lock
+    # 2. Acquire file lock
     if not _acquire_lock(ticket_id):
         print(
             f"ERROR: Re-sync already in progress for ticket {ticket_id} "
@@ -360,7 +426,7 @@ def run(
     out_dir = output_dir or manifest
 
     try:
-        # 4. Pull: fetch Figma data and map to spatial layout
+        # 3. Pull: fetch Figma data and map to spatial layout
         pull_exit, revised_spatial = _run_pull(
             ticket_id=ticket_id,
             figma_file_key=figma_file_key,
@@ -370,7 +436,7 @@ def run(
         if pull_exit != 0:
             return 1
 
-        # 5. Merge: run figma-merge.py and capture output
+        # 4. Merge: run figma-merge.py and capture output
         merge_exit, merge_output = _run_merge(
             manifest_dir=manifest,
             revised_spatial=revised_spatial,
@@ -379,54 +445,21 @@ def run(
         if merge_exit != 0:
             return 1
 
-        # 6. Display change summary
-        components_added = merge_output.get("components_added", 0)
-        components_modified = merge_output.get("components_modified", 0)
-        components_removed = merge_output.get("components_removed", 0)
-        behavioral_specs_preserved = merge_output.get("behavioral_specs_preserved", 0)
-        merge_warnings: list[str] = merge_output.get("warnings", [])
+        # 5. Display change summary and confirm
+        proceed, merge_counts = _display_and_confirm(
+            ticket_id, merge_output, non_interactive
+        )
+        if not proceed:
+            # REVIEW-DEFENSE: Returning 0 for user cancellation is intentional and follows
+            # Unix convention — cancellation is a clean, non-error exit (not a failure).
+            # Callers that need to distinguish cancellation from success can check stderr
+            # for the "Re-sync cancelled." message.
+            return 0  # no side effects taken yet
 
-        print(f"\nChange Summary for ticket {ticket_id}:")
-        print(f"  + {components_added} component(s) added")
-        print(f"  ~ {components_modified} component(s) modified")
-        print(f"  - {components_removed} component(s) removed")
-        print(f"  ✓ {behavioral_specs_preserved} behavioral spec(s) preserved")
-        if merge_warnings:
-            for w in merge_warnings:
-                print(f"  ! {w}")
-
-        # 7. Confirmation (interactive only)
-        # REVIEW-DEFENSE: The merge step (step 5) writes artifacts to disk BEFORE this prompt.
-        # This is intentional: the change summary displayed in step 6 IS the merged artifact
-        # output, and showing it requires the merge to have already run. The confirmation here
-        # gates only the irreversible side effects — the tag swap and metadata ticket comment.
-        # File writes (merged artifacts) are not irreversible: if the user cancels, the output
-        # directory contains the merged files but no ticket state has changed. This matches
-        # the single-responsibility design: figma_resync.py owns the user-facing confirmation
-        # decision; figma-merge.py only produces merged artifacts and structured output.
-        if not non_interactive:
-            try:
-                answer = (
-                    input("\nProceed with tag swap and metadata recording? [y/N] ")
-                    .strip()
-                    .lower()
-                )
-            except EOFError:
-                answer = "n"
-            if answer != "y":
-                print("Re-sync cancelled.", file=sys.stderr)
-                # REVIEW-DEFENSE: Returning 0 for user cancellation is intentional and follows
-                # Unix convention — cancellation is a clean, non-error exit (not a failure).
-                # Callers that need to distinguish cancellation from success can check stderr
-                # for the "Re-sync cancelled." message. Returning a non-zero code here would
-                # cause shell scripts using `if figma_resync ...; then` idioms to treat a
-                # deliberate user cancel as an error, which is incorrect semantics.
-                return 0  # no side effects taken yet
-
-        # 8. Tag swap (read-modify-write, preserve other tags)
+        # 6. Tag swap (read-modify-write, preserve other tags)
         _do_tag_swap(ticket_id, show_fn)
 
-        # 9. Record sync metadata as ticket comment
+        # 7. Record sync metadata as ticket comment
         # CRITICAL-2 fix: tag swap already succeeded; if metadata recording fails,
         # log the error but do not propagate — the ticket is in a valid approved state
         # and metadata failure is non-critical compared to leaving the tag swap undone.
@@ -437,10 +470,7 @@ def run(
                 {
                     "figma_file_key": figma_file_key,
                     "timestamp": timestamp,
-                    "components_added": components_added,
-                    "components_modified": components_modified,
-                    "components_removed": components_removed,
-                    "behavioral_specs_preserved": behavioral_specs_preserved,
+                    **merge_counts,
                 },
             )
         except Exception as exc:

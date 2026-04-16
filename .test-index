@@ -180,4 +180,45 @@ plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh
 CLAUDE.md:tests/skills/test-nextjs-starter-docs.sh
 plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh [test_plugin_consent_doc_has_required_sections]
 plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
+
+# --- bridge/ subpackage modules (c43c-12c8, 5ee9-8591, 9f0d-860d) ---
+plugins/dso/scripts/bridge-inbound.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py,tests/scripts/test_bridge_inbound_comment.py,tests/scripts/test_bridge_inbound_field_coverage.py
+plugins/dso/scripts/bridge-outbound.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py
+plugins/dso/scripts/bridge/_atomic.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_outbound.py
+plugins/dso/scripts/bridge/_comments_inbound.py:tests/scripts/test_bridge_inbound_comment.py,tests/scripts/test_bridge_inbound.py
+plugins/dso/scripts/bridge/_flap.py:tests/scripts/test_bridge_status.py,tests/scripts/test_bridge_inbound.py
+plugins/dso/scripts/bridge/_handle_destructive_guard.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py
+plugins/dso/scripts/bridge/_handle_edit.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_field_coverage.py
+plugins/dso/scripts/bridge/_handle_links.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py
+plugins/dso/scripts/bridge/_handle_status.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_status.py
+plugins/dso/scripts/bridge/_handle_type.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_field_coverage.py
+plugins/dso/scripts/bridge/_inbound_api.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py
+plugins/dso/scripts/bridge/_inbound_utils.py:tests/scripts/test_bridge_inbound.py
+plugins/dso/scripts/bridge/_outbound_api.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py
+plugins/dso/scripts/bridge/_outbound_handlers.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py
+
+# --- ticket_reducer/ subpackage modules (f046-3235) ---
+plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py
+plugins/dso/scripts/ticket_reducer/_cache.py:tests/scripts/test_ticket_reducer.py
+plugins/dso/scripts/ticket_reducer/_processors.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py
+plugins/dso/scripts/ticket_reducer/_sort.py:tests/scripts/test_ticket_reducer.py
+plugins/dso/scripts/ticket_reducer/_state.py:tests/scripts/test_ticket_reducer.py
+
+# --- analyze_tool/ subpackage modules (c43c-12c8) ---
+plugins/dso/scripts/analyze-tool-use.py:tests/scripts/test-skill-trace-analyze.sh,tests/scripts/test-skill-trace-analyze-shim.sh
+plugins/dso/scripts/analyze_tool/_constants.py:tests/scripts/test-skill-trace-analyze.sh
+plugins/dso/scripts/analyze_tool/_detectors.py:tests/scripts/test-skill-trace-analyze.sh
+plugins/dso/scripts/analyze_tool/_log_io.py:tests/scripts/test-skill-trace-analyze.sh
+plugins/dso/scripts/analyze_tool/_models.py:tests/scripts/test-skill-trace-analyze.sh
+plugins/dso/scripts/analyze_tool/_report.py:tests/scripts/test-skill-trace-analyze.sh
+plugins/dso/scripts/analyze_tool/_similarity.py:tests/scripts/test-skill-trace-analyze.sh
+
+# --- ticket_graph/ subpackage modules (c43c-12c8) ---
+plugins/dso/scripts/ticket_graph/_blockers.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_cache.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_graph.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_hierarchy.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_links.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_loader.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_status.py:tests/scripts/test_ticket_graph.py
 INSTALL.md:tests/test-install-doc-contract.sh [test_install_doc_contract]

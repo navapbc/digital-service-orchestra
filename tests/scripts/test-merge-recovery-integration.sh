@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2164  # cd in test subshells; failure exits subshell
 # tests/scripts/test-merge-recovery-integration.sh
 # Integration tests for recovery wiring in _phase_merge() in merge-to-main.sh
 #
@@ -28,6 +29,7 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 
 MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
+MERGE_HELPERS_LIB="$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh"
 
 # Cleanup trap: remove temp dirs and ensure core.hooksPath is never left
 # pointing to a stale test directory (bug e899-77d0).
@@ -49,8 +51,15 @@ echo "=== test-merge-recovery-integration.sh ==="
 # Helper: extract state file helpers from merge-to-main.sh for use in tests
 # =============================================================================
 _extract_state_helpers() {
-    awk '/^# --- State file helpers/,/^# --- SIGURG trap/' "$MERGE_SCRIPT" \
-        | grep -v '^# ---'
+    local _body
+    _body=$(awk '/^# --- State file helpers/,/^# --- SIGURG trap/' "$MERGE_SCRIPT" \
+        | grep -v '^# ---')
+    # State helpers were extracted to merge-helpers.sh; if not found in merge-to-main.sh,
+    # source the entire merge-helpers.sh (all its functions are pure utilities).
+    if [[ -z "$_body" ]] && [[ -f "${MERGE_HELPERS_LIB:-}" ]]; then
+        _body=$(cat "$MERGE_HELPERS_LIB")
+    fi
+    echo "$_body"
 }
 
 # =============================================================================
@@ -168,6 +177,9 @@ _run_phase_merge() {
 
     local _recovery_fn
     _recovery_fn=$(awk '/^_squash_rebase_recovery\(\)/,/^\}$/' "$MERGE_SCRIPT")
+    if [[ -z "$_recovery_fn" ]] && [[ -f "${MERGE_HELPERS_LIB:-}" ]]; then
+        _recovery_fn=$(awk '/^_squash_rebase_recovery\(\)/,/^\}$/' "$MERGE_HELPERS_LIB")
+    fi
 
     local _phase_fn
     _phase_fn=$(awk '/^_phase_merge\(\)/,/^\}$/' "$MERGE_SCRIPT")
