@@ -1,1 +1,0 @@
-{"timestamp": 1776353622119211000, "uuid": "1598be81-0e12-44ff-a661-310bd0c4a533", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "brainstorm(w21-bsnz): config validation behavior unspecified -> invalid thresholds cause silent failure or unsafe routing"}}}
