@@ -417,6 +417,43 @@ After the scrutiny pipeline completes (with no unresolved FEASIBILITY_GAP), insp
    - **(b) Modify:** Incorporate user changes, present again.
    - **(c) Skip:** Log `"SC gap check: user opted to skip revision."` and proceed to Step 4 with original SCs.
 
+### Step 2.26: Consideration AC Injection
+
+After the SC Gap Check completes, scan the epic spec for cross-epic consideration signals produced by the epic scrutiny pipeline's Part C Cross-Epic Relates_to extension. For each relates_to signal that includes a `shared_resource` field, inject a structured acceptance criterion (AC) into the `## Cross-Epic Interactions` section of the epic spec.
+
+#### URL Navigability Classification
+
+For each `signal.shared_resource` value, classify the resource type:
+
+- **Navigable URL**: the `shared_resource` value starts with `/` OR contains `http://` or `https://`
+- **Non-URL resource**: all other values (file paths, config keys, CLI tool names, data structures, etc.)
+
+#### AC Structure
+
+**For navigable URL signals** (4-field AC):
+```
+- Resource: <shared_resource>
+  Interaction: <description of the cross-epic interaction>
+  Gate: <acceptance condition>
+  Playwright assertion: await page.goto('<shared_resource>'); await expect(page).not.toHaveURL(/4[0-9]{2}/);
+```
+
+**For non-URL resource signals** (3-field AC, no Playwright assertion):
+```
+- Resource: <shared_resource>
+  Interaction: <description of the cross-epic interaction>
+  Gate: <acceptance condition>
+```
+
+#### Injection Procedure
+
+1. If the epic spec does not already contain a `## Cross-Epic Interactions` section, append one after the `## Dependencies` section.
+2. For each cross-epic signal with a `shared_resource`, determine its URL navigability classification (above).
+3. Append the appropriate AC entry (3-field or 4-field) to the `## Cross-Epic Interactions` section.
+4. If no cross-epic signals with `shared_resource` fields are present, skip this step and log: `"Step 2.26 skipped: no shared_resource signals from Part C extension."`
+
+The Playwright assertion is always appended within the same AC entry as the 4th field — it is not a separate section or bullet. Non-URL resources receive no Playwright assertion and use only the 3-field structure.
+
 ### Step 4: Approval Gate
 
 <HARD-GATE>
