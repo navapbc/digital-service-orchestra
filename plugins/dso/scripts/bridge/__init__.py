@@ -1,1 +1,1 @@
-"""Bridge event handler package — populated by bridge-inbound and bridge-outbound extraction tasks."""
+"""bridge — shared submodules for bridge-inbound.py and bridge-outbound.py."""
