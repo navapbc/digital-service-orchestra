@@ -119,10 +119,15 @@ EOF
     chmod +x "$repo/script.sh"
     git -C "$repo" add script.sh
 
-    local exit_code=0
-    # Override PATH to hide shellcheck
-    (cd "$repo" && PATH=/usr/bin:/bin bash "$HOOK" 2>/dev/null) || exit_code=$?
-    rm -rf "$repo"
+    local exit_code=0 _no_shellcheck_path _bash_bin
+    _bash_bin=$(command -v bash)
+    _no_shellcheck_path=$(mktemp -d)
+    # Symlink bash into the empty dir — bash PATH lookup applies the temporary
+    # assignment before finding the command, so bash must be findable in the test PATH.
+    [[ -n "$_bash_bin" ]] && ln -sf "$_bash_bin" "$_no_shellcheck_path/bash"
+    # Override PATH so shellcheck is never found regardless of OS
+    (cd "$repo" && PATH="$_no_shellcheck_path" bash "$HOOK" 2>/dev/null) || exit_code=$?
+    rm -rf "$repo" "$_no_shellcheck_path"
 
     assert_eq "test_shellcheck_skips_gracefully_when_not_installed: exit 0" "0" "$exit_code"
 }

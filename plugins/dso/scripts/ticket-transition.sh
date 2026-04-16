@@ -289,7 +289,7 @@ try:
                 sys.exit(1)
 
     # Build STATUS event JSON
-    timestamp = int(time.time())
+    timestamp = time.time_ns()
     event_uuid = str(uuid.uuid4())
     event = {
         'timestamp': timestamp,

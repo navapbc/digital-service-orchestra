@@ -235,10 +235,25 @@ def detect_status_flap(
     if not all_status_events:
         return False
 
-    # Filter to events within window_seconds of the most recent event
-    max_ts = max(ts for ts, _ in all_status_events)
-    cutoff = max_ts - window_seconds
-    status_events = [(ts, s) for ts, s in all_status_events if ts >= cutoff]
+    # Normalize all timestamps to nanoseconds before comparison so that
+    # mixed-precision events (seconds ~1.7e9 from old code, nanoseconds ~1.78e18
+    # from new code) can be compared correctly during the migration window.
+    # A threshold of 1e12 safely distinguishes nanoseconds from seconds because
+    # the Unix epoch in seconds is ~1.7e9 (well below 1e12) while in nanoseconds
+    # it is ~1.78e18 (well above 1e12).
+    _NS_THRESHOLD = 1_000_000_000_000  # 1e12: values above this are nanoseconds
+    _NS_PER_SEC = 1_000_000_000
+
+    def _to_ns(ts: int) -> int:
+        """Normalize a timestamp to nanoseconds regardless of original precision."""
+        return ts if ts > _NS_THRESHOLD else ts * _NS_PER_SEC
+
+    # Normalize all events to nanoseconds so cutoff math is consistent
+    all_status_events_ns = [(_to_ns(ts), s) for ts, s in all_status_events]
+    max_ts_ns = max(ts for ts, _ in all_status_events_ns)
+    window_ns = window_seconds * _NS_PER_SEC
+    cutoff = max_ts_ns - window_ns
+    status_events = [(ts, s) for ts, s in all_status_events_ns if ts >= cutoff]
 
     # Sort by timestamp
     status_events.sort(key=lambda x: x[0])
