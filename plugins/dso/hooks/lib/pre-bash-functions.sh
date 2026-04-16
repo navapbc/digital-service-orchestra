@@ -824,3 +824,29 @@ hook_tickets_tracker_bash_guard() {
     echo "Direct modifications bypass event sourcing invariants and may corrupt the event log." >&2
     trap - ERR; return 2
 }
+
+# hook_record_test_status_guard
+# Blocks direct invocations of record-test-status.sh to prevent agents from
+# bypassing the test gate by manually writing status files.
+# Allowlist: --attest flag (used by harvest-worktree.sh for legitimate worktree
+#            trust transfer — transfers test status from isolated worktree to session).
+hook_record_test_status_guard() {
+    local _json="$1"
+    local _cmd
+    _cmd=$(parse_json_field "$_json" '.tool_input.command' 2>/dev/null || true)
+
+    # Only applies to commands that reference record-test-status.sh
+    if [[ "$_cmd" != *"record-test-status.sh"* ]]; then
+        return 0
+    fi
+
+    # Allow --attest flag: legitimate worktree trust transfer by harvest-worktree.sh
+    if [[ "$_cmd" == *"--attest"* ]]; then
+        return 0
+    fi
+
+    echo "BLOCKED [record-test-status-guard]: Direct calls to record-test-status.sh are not allowed." >&2
+    echo "Test status is recorded automatically by the test gate during commits." >&2
+    echo "If you need to transfer test status from a worktree, use harvest-worktree.sh (--attest flag)." >&2
+    trap - ERR; return 2
+}

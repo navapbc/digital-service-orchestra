@@ -85,6 +85,7 @@ _scan_file() {
     local _matches
     _matches=$(perl -ne "
         s|https?://\S+||g;
+        s/\`[^\`]*\`//g;
         if (/($_PERL_PATTERN)/) {
             print \"\$.\t\$_\";
         }

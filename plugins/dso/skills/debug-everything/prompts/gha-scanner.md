@@ -28,11 +28,11 @@ The orchestrator has provided a list of workflow file names via the `WORKFLOWS` 
 
 ### Step 3: Check Existing Bug Tickets (Tag-Based Dedup)
 
-Before fetching run data for a workflow, check whether an open bug ticket already exists with the tag `gha:<workflow-file-name>`.
+Before fetching run data for a workflow, check whether an open or in_progress bug ticket already exists with the tag `gha:<workflow-file-name>`.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-"$REPO_ROOT/.claude/scripts/dso" ticket list --type=bug --status=open
+{ "$REPO_ROOT/.claude/scripts/dso" ticket list --type=bug --status=open; "$REPO_ROOT/.claude/scripts/dso" ticket list --type=bug --status=in_progress; } 2>/dev/null
 ```
 
 For each workflow `<wf>` in the list:

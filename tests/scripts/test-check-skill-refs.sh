@@ -118,11 +118,30 @@ EOF
     assert_pass_if_clean "test_hyphenated_not_flagged"
 }
 
+# ── test_code_span_not_flagged ────────────────────────────────────────────────
+# (f) A skill name wrapped in backtick code spans should NOT be flagged.
+#     e.g. "like `/sprint` are invalid" — the /sprint is illustrative, not a real invocation.
+#     Bug 0377-deee: perl scanner did not strip backtick spans before matching.
+test_code_span_not_flagged() {
+    _snapshot_fail
+    local _dir
+    _dir=$(mktemp -d)
+    trap 'rm -rf "$_dir"' RETURN
+    cat > "$_dir/code-span-doc.md" << 'EOF'
+Short-form references like `/sprint` are invalid — use `/dso:sprint` instead.
+EOF
+    local _exit=0
+    bash "$SCRIPT" "$_dir/code-span-doc.md" 2>&1 || _exit=$?
+    assert_eq "test_code_span_not_flagged: exit 0 for backtick-wrapped /sprint" "0" "$_exit"
+    assert_pass_if_clean "test_code_span_not_flagged"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_exit_nonzero_on_unqualified_ref
 test_exit_zero_on_clean
 test_url_not_flagged
 test_already_qualified_not_flagged
 test_hyphenated_not_flagged
+test_code_span_not_flagged
 
 print_summary
