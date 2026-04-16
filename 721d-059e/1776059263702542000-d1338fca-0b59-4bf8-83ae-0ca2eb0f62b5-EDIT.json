@@ -1,1 +1,0 @@
-{"timestamp": 1776059263702542000, "uuid": "d1338fca-0b59-4bf8-83ae-0ca2eb0f62b5", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "[commit-workflow]: review sub-agent in worktree -> artifacts written to wrong ARTIFACTS_DIR path"}}}
