@@ -1,0 +1,24 @@
+{
+  "new_epic": {
+    "id": "fixture-epic-a",
+    "title": "User Management",
+    "approach_summary": "REST API with CRUD operations for user accounts",
+    "success_criteria": [
+      "POST /api/users creates a new user account with email validation",
+      "GET /api/users/:id returns user profile data",
+      "DELETE /api/users/:id removes account and associated data"
+    ]
+  },
+  "open_epics": [
+    {
+      "id": "fixture-epic-b",
+      "title": "Admin Panel",
+      "approach_summary": "Admin interface for user management and system configuration",
+      "success_criteria": [
+        "GET /api/users returns paginated list of all users for admin review",
+        "PATCH /api/users/:id allows admin to modify user roles and status",
+        "Admin can export user data via GET /api/users/export"
+      ]
+    }
+  ]
+}
