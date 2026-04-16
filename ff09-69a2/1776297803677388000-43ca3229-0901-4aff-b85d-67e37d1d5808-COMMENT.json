@@ -1,1 +1,0 @@
-{"timestamp": 1776297803677388000, "uuid": "43ca3229-0901-4aff-b85d-67e37d1d5808", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Gate 1a: intent-aligned \u2014 failing overlap check on origin/main-only staged files is a genuine defect, a gap left by the prior fix 28c4-3fed (high confidence)"}}
