@@ -63,10 +63,10 @@ check_homebrew_deps() {
   fi
 
   if [ ${#missing[@]} -gt 0 ]; then
-    echo "Prerequisites not met — install the following and re-run:"
     for pkg in "${missing[@]}"; do
       echo "  Run: brew install $pkg"
     done
+    echo "Prerequisites not met — re-run after installing the above."
     exit 1
   fi
 
