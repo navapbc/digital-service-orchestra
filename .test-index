@@ -182,3 +182,4 @@ plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test
 plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
 plugins/dso/skills/brainstorm/prompts/cross-epic-scan.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brainstorm-cross-epic-scan.sh
+plugins/dso/agents/cross-epic-interaction-classifier.md:tests/scripts/test-cross-epic-classifier-fixture.sh [test_classifier_agent_schema]
