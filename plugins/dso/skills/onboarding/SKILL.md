@@ -1288,6 +1288,22 @@ Do NOT install hooks earlier in Step 2c, even if the install step appears earlie
 
 ## Batch Group 5: hook-install
 <!-- Skip guard: if hooks already installed, skip -->
+<!-- hook-install: bypass-gates -->
+
+**Bypass note:** The hook installation commit uses `--no-verify` to skip the review and test gates. This is intentional and safe: hooks are pre-built plugin components, not custom project code, so there is no meaningful review to perform at this step. The gates are not yet active prior to this commit, and bypassing them here is the designed bootstrap sequence. This does NOT set a precedent for bypassing gates on project code changes.
+
+**Reliability note:** If onboarding is interrupted after group 4 but before group 5 completes, re-running `/dso:onboarding` will detect that artifacts are committed but hooks are not installed, and will resume from group 5.
+
+**Git state validation:** Before committing hook artifacts, verify there is something to commit:
+
+```bash
+if git diff --quiet && git diff --staged --quiet; then
+    echo "No hook artifacts to commit — skipping hook-install commit."
+else
+    git add -A
+    git commit --no-verify -m "chore: install DSO pre-commit hooks"
+fi
+```
 
 Display to user: "Installing pre-commit hooks — automated quality checks that run before each git commit to verify tests pass and code has been reviewed. Required for the DSO enforcement pipeline."
 
