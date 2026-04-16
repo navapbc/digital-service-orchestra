@@ -30,47 +30,11 @@ def load_error_counter() -> dict[str, int]:
         return {}
 
 
-def render_report(
-    entries: list[LogEntry],
-    files: list[Path],
-    findings: dict[str, list[dict[str, str]]],
-    error_counts: dict[str, int],
-) -> str:
-    """Render the full Markdown report as a string."""
-    lines: list[str] = []
-
-    now = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    sessions = {e.session_id for e in entries}
-    total = len(entries)
-    tools_used = {e.tool_name for e in entries}
-
-    total_findings = sum(len(v) for v in findings.values())
-
-    if entries:
-        ts_list = [e.ts for e in entries if e.ts]
-        date_start = min(ts_list) if ts_list else "?"
-        date_end = max(ts_list) if ts_list else "?"
-    else:
-        date_start = date_end = "?"
-
-    lines.append("# Tool-Use Analysis Report")
-    lines.append(f"Generated: {now}")
-    lines.append(
-        f"Sessions analyzed: {len(sessions)} | Date range: {date_start} - {date_end}"
-    )
-    lines.append(f"Log files read: {len(files)}")
-    lines.append("")
-
-    lines.append("## Summary")
-    lines.append(f"- Total tool calls: {total}")
-    lines.append(f"- Unique tools used: {len(tools_used)}")
-    lines.append(f"- Anti-patterns detected: {total_findings}")
-    lines.append("")
-
+def _render_findings(lines: list[str], findings: dict[str, list[dict[str, str]]]) -> None:
+    """Append anti-pattern finding sections to lines (mutates in place)."""
     lines.append("## Anti-Pattern Findings")
     lines.append("")
 
-    # 1. Bash-for-file-ops
     bash_ops = findings.get("bash_file_ops", [])
     if bash_ops:
         lines.append(f"### 1. Bash-for-file-ops ({len(bash_ops)} occurrences)")
@@ -86,7 +50,6 @@ def render_report(
             )
         lines.append("")
 
-    # 2. Write-without-Read
     blind_writes = findings.get("write_without_read", [])
     if blind_writes:
         lines.append(f"### 2. Write-without-Read ({len(blind_writes)} occurrences)")
@@ -99,7 +62,6 @@ def render_report(
             )
         lines.append("")
 
-    # 3. Same-error retry
     retries = findings.get("same_error_retry", [])
     if retries:
         lines.append(f"### 3. Same-error retry ({len(retries)} occurrences)")
@@ -116,7 +78,6 @@ def render_report(
             )
         lines.append("")
 
-    # 4. Search sprawl
     sprawl = findings.get("search_sprawl", [])
     if sprawl:
         lines.append(f"### 4. Sequential search sprawl ({len(sprawl)} occurrences)")
@@ -133,7 +94,6 @@ def render_report(
             )
         lines.append("")
 
-    # 5. Redundant calls
     redundant = findings.get("redundant_calls", [])
     if redundant:
         lines.append(f"### 5. Redundant tool calls ({len(redundant)} occurrences)")
@@ -155,7 +115,6 @@ def render_report(
             )
         lines.append("")
 
-    # 6. Suboptimal ordering
     ordering = findings.get("suboptimal_ordering", [])
     if ordering:
         lines.append(f"### 6. Suboptimal tool ordering ({len(ordering)} occurrences)")
@@ -171,7 +130,6 @@ def render_report(
             )
         lines.append("")
 
-    # 7. Domain mismatch
     mismatches = findings.get("domain_mismatch", [])
     if mismatches:
         lines.append(f"### 7. Domain mismatch ({len(mismatches)} occurrences)")
@@ -188,11 +146,49 @@ def render_report(
             )
         lines.append("")
 
-    if total_findings == 0:
+    if sum(len(v) for v in findings.values()) == 0:
         lines.append("_No anti-patterns detected._")
         lines.append("")
 
-    # Cross-reference
+
+def render_report(
+    entries: list[LogEntry],
+    files: list[Path],
+    findings: dict[str, list[dict[str, str]]],
+    error_counts: dict[str, int],
+) -> str:
+    """Render the full Markdown report as a string."""
+    lines: list[str] = []
+
+    now = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sessions = {e.session_id for e in entries}
+    total = len(entries)
+    tools_used = {e.tool_name for e in entries}
+
+    if entries:
+        ts_list = [e.ts for e in entries if e.ts]
+        date_start = min(ts_list) if ts_list else "?"
+        date_end = max(ts_list) if ts_list else "?"
+    else:
+        date_start = date_end = "?"
+
+    lines.append("# Tool-Use Analysis Report")
+    lines.append(f"Generated: {now}")
+    lines.append(
+        f"Sessions analyzed: {len(sessions)} | Date range: {date_start} - {date_end}"
+    )
+    lines.append(f"Log files read: {len(files)}")
+    lines.append("")
+
+    total_findings = sum(len(v) for v in findings.values())
+    lines.append("## Summary")
+    lines.append(f"- Total tool calls: {total}")
+    lines.append(f"- Unique tools used: {len(tools_used)}")
+    lines.append(f"- Anti-patterns detected: {total_findings}")
+    lines.append("")
+
+    _render_findings(lines, findings)
+
     lines.append("## Cross-Reference: Error Patterns")
     if error_counts:
         lines.append(f"(from `{ERROR_COUNTER_FILE}`)")
@@ -205,7 +201,6 @@ def render_report(
         lines.append(f"_No data found at `{ERROR_COUNTER_FILE}`._")
     lines.append("")
 
-    # Tool distribution
     lines.append("## Tool Distribution")
     if entries:
         tool_counts: dict[str, int] = defaultdict(int)
