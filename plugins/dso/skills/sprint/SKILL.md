@@ -1168,6 +1168,23 @@ TASK: <id>  P<priority>  <issue-type>  <model>  <subagent-type>  <class>  <title
 
 **Parsing `SKIPPED_DESIGN_AWAITING` lines:** After running `sprint-next-batch.sh`, parse any `SKIPPED_DESIGN_AWAITING` lines from the output. For each such line, extract the story ID and title and add them to the `awaiting_design_stories` list (if not already present from Phase 2 filtering). These stories are surfaced in the Phase 5 Batch Completion Summary "Awaiting designer input" section.
 
+#### Interaction Conflict Filter (/dso:sprint)
+
+Before dispatching any task from the batch, filter out tasks whose parent epic is tagged `interaction:deferred`.
+
+**For each `TASK:` line returned by `sprint-next-batch.sh`**:
+
+1. Identify the parent epic of the task (via `story:<id>` field if present, or the `<epic-id>` directly for top-level tasks).
+2. Run `.claude/scripts/dso ticket show <epic-id>` and check the `tags` field.
+3. If `interaction:deferred` is present in the tags:
+   - Log: `"Epic <id> skipped — interaction:deferred tag present. Resolve cross-epic conflicts in /dso:brainstorm first."`
+   - Remove this task from the dispatch batch. Do NOT mark the task `in_progress` and do NOT dispatch a sub-agent for it.
+4. If `interaction:deferred` is NOT present: include the task in the batch normally.
+
+**Failure contract**: If `ticket show` fails for a given epic, treat the tag as absent and include the task (fail-open).
+
+**No error is thrown** when tasks are filtered — sprint continues with the remaining batch. If all tasks are filtered and `BATCH_SIZE` drops to 0 after filtering, proceed to Phase 5 Step 13 (Continuation Decision) rather than treating it as a blocking error. Log: `"All batch tasks filtered — interaction:deferred tag present on parent epic(s). Resolve cross-epic conflicts to proceed."`
+
 Use `--json` for machine-readable output with full detail including file lists.
 
 #### What the script handles (no orchestrator action required)

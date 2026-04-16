@@ -351,6 +351,58 @@ As you draft the epic spec, classify the origin of each success criterion and ke
 
 Track provenance internally — you will use these categories in Step 4 to annotate the rendered spec.
 
+### Step 2.27: Cross-Epic Interaction Signal Check
+
+Before entering the scrutiny pipeline, check for cross-epic artifact overlap that signals ambiguity or conflict with other open epics. This step runs the Part C relates_to scan from the epic scrutiny pipeline logic as a lightweight pre-check, then halts if unresolved signals are found.
+
+**When to run**: Run this step when the epic spec references artifacts (file paths, API endpoints, config keys, data structures) that are likely shared with other open epics — indicated by any of the following: the epic touches shared infrastructure, references files in `shared/`, `common/`, or core config paths, or the practitioner has flagged cross-epic dependencies in Phase 1.
+
+**Procedure**:
+
+1. **List open epics**: Run `.claude/scripts/dso ticket list --type=epic --status=open` and exclude the current epic.
+
+2. **Check for artifact overlap**: For each open epic, compare its success criteria and description against the current epic's success criteria for shared artifact names. Use fuzzy matching (same rules as the scrutiny pipeline's Part A).
+
+3. **Classify signals**: For each overlap found, classify its severity:
+   - `severity="conflict"` — overlapping artifacts are mutually exclusive: both epics propose modifying the same file in incompatible ways, or one epic's approach invalidates the other's.
+   - `severity="ambiguity"` — overlapping artifacts suggest coordination is needed but the approach is not yet clear enough to determine conflict (e.g., both epics reference the same file but the change directions are unclear).
+   - `severity="relates_to"` — overlap is informational; no halt needed (proceed normally).
+
+4. **Halt on ambiguity or conflict** (`CROSS_EPIC_SIGNALS` with `severity="ambiguity"` or `severity="conflict"`):
+
+   a. **Tag the epic** with `interaction:deferred`:
+      ```bash
+      .claude/scripts/dso ticket edit <epic-id> --tags interaction:deferred
+      ```
+
+   b. **If running non-interactively** (`BRAINSTORM_INTERACTIVE=false`): log `INTERACTIVITY_DEFERRED: cross-epic interaction signals require practitioner resolution. Epic tagged interaction:deferred. Re-run /dso:brainstorm <epic-id> interactively to resolve.` and exit without proceeding to Step 2.5.
+
+   c. **If running interactively**: Present the signals to the user:
+
+      ```
+      Cross-epic interaction signals detected before running scrutiny:
+
+      - Epic <id>: <title>
+        Shared artifacts: <file-path-1>, <file-path-2>
+        Signal severity: <conflict | ambiguity>
+        Description: <one sentence describing the conflict or ambiguity>
+
+      This epic has been tagged interaction:deferred. How would you like to proceed?
+
+      (a) Resolve — I will clarify the approach or scope to eliminate the conflict (return to Phase 1)
+      (b) Override — proceed to scrutiny anyway (removes interaction:deferred tag)
+      (c) Halt — stop now; I will address the conflict separately
+      ```
+
+      Wait for the user's response:
+      - **(a) Resolve**: Re-enter Phase 1 (Context + Socratic Dialogue) with the conflict context as seeding material. After the user provides clarification, return to Step 2.27 and re-evaluate signals.
+      - **(b) Override**: Remove the `interaction:deferred` tag: `.claude/scripts/dso ticket edit <epic-id> --tags ""` (or remove the tag selectively). Log: `"CROSS_EPIC_SIGNALS overridden by practitioner — proceeding to scrutiny pipeline."` Continue to Step 2.5.
+      - **(c) Halt**: Log: `"Brainstorm halted at practitioner request — cross-epic signals unresolved. Epic remains tagged interaction:deferred."` Stop. Do NOT proceed to Step 2.5.
+
+5. **If no ambiguity or conflict signals** (only `severity="relates_to"` signals or no overlap): proceed to Step 2.5 normally. Log: `"Cross-epic signal check: no blocking signals detected — proceeding to scrutiny pipeline."` Create any `relates_to` links approved by the user (same process as Part C Extension in the scrutiny pipeline).
+
+**Failure contract**: If the ticket list command fails or produces no parseable output, log a warning and proceed to Step 2.5 (fail-open — this gate is a guardrail, not a hard blocker on infrastructure failure).
+
 ### Steps 2.5, 2.6, 2.75, and Step 3: Epic Scrutiny Pipeline
 
 Read and execute the shared epic scrutiny pipeline from `skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass the current epic spec (Context + Success Criteria + Approach) as input, and supply the required pipeline parameters:
