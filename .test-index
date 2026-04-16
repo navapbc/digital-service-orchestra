@@ -170,3 +170,6 @@ plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-fou
 plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
 plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
 plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh
+plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh
+plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-e2e.sh [test_regression_onboarding_skill_all_pass]
+plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh [test_phase2_high_confidence_skip_summary_present]

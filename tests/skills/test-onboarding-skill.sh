@@ -1359,4 +1359,80 @@ test_doc_folder_confidence_elevation_present() {
 test_phase0_5_doc_folder_scan_present
 test_doc_folder_confidence_elevation_present
 
+# ── RED Phase 2 confidence routing tests (d875-4466) ──────────────────────────
+
+# test_phase2_confidence_routing_table_present: Phase 2 must contain a confidence routing
+# table (or equivalent section) with all 3 tiers: high=skip, medium=confirm, low=ask.
+# RED until Phase 2 confidence routing is added to SKILL.md.
+test_phase2_confidence_routing_table_present() {
+    local skill_file="${SKILL_MD}"
+    local has_routing
+    # Scope to Phase 2 section, then check for all 3 tiers
+    has_routing=$(awk '/^## Phase 2:/,/^## Phase 3:/' "$skill_file" | \
+        grep -cE '(high|high-confidence).*skip|(medium).*confirm|(low).*ask' | \
+        awk '{if ($1 >= 2) print "yes"; else print "no"}')
+    assert_eq "test_phase2_confidence_routing_table_present" "yes" "$has_routing"
+    assert_pass_if_clean "test_phase2_confidence_routing_table_present"
+}
+
+# test_phase2_high_confidence_skip_summary_present: Phase 2 must contain a skip summary
+# pattern like "Detected X — skipping Y question" for high-confidence areas.
+test_phase2_high_confidence_skip_summary_present() {
+    local skill_file="${SKILL_MD}"
+    local has_skip
+    has_skip=$(awk '/^## Phase 2:/,/^## Phase 3:/' "$skill_file" | \
+        grep -c 'skipping' | awk '{if ($1 >= 1) print "yes"; else print "no"}')
+    assert_eq "test_phase2_high_confidence_skip_summary_present" "yes" "$has_skip"
+    assert_pass_if_clean "test_phase2_high_confidence_skip_summary_present"
+}
+
+# test_phase2_medium_confidence_prefill_confirm_present: Phase 2 must contain
+# a "Does this look right?" confirm template for medium-confidence areas.
+test_phase2_medium_confidence_prefill_confirm_present() {
+    local skill_file="${SKILL_MD}"
+    local has_confirm
+    has_confirm=$(awk '/^## Phase 2:/,/^## Phase 3:/' "$skill_file" | \
+        grep -c 'Does this look right' | awk '{if ($1 >= 1) print "yes"; else print "no"}')
+    assert_eq "test_phase2_medium_confidence_prefill_confirm_present" "yes" "$has_confirm"
+    assert_pass_if_clean "test_phase2_medium_confidence_prefill_confirm_present"
+}
+
+# test_phase2_nontechnical_path_present: Phase 2 must contain a non-technical path
+# section describing how to handle engineering-specific questions for non-technical users.
+test_phase2_nontechnical_path_present() {
+    local skill_file="${SKILL_MD}"
+    local has_nontechnical
+    has_nontechnical=$(awk '/^## Phase 2:/,/^## Phase 3:/' "$skill_file" | \
+        grep -ciE 'non-technical path|non-technical user|nontechnical' | \
+        awk '{if ($1 >= 1) print "yes"; else print "no"}')
+    assert_eq "test_phase2_nontechnical_path_present" "yes" "$has_nontechnical"
+    assert_pass_if_clean "test_phase2_nontechnical_path_present"
+}
+
+# test_phase2_all_seven_dimensions_routed: Phase 2 confidence routing must cover all 7
+# dimensions (stack, commands, architecture, infrastructure, ci, design, enforcement).
+test_phase2_all_seven_dimensions_routed() {
+    local skill_file="${SKILL_MD}"
+    local dims=("stack" "commands" "architecture" "infrastructure" "ci" "design" "enforcement")
+    local found=0
+    local phase2_content
+    phase2_content=$(awk '/^## Phase 2:/,/^## Phase 3:/' "$skill_file")
+    for dim in "${dims[@]}"; do
+        if echo "$phase2_content" | grep -qi "$dim"; then
+            (( found++ )) || true
+        fi
+    done
+    local result
+    result=$([ "$found" -eq 7 ] && echo "yes" || echo "no")
+    assert_eq "test_phase2_all_seven_dimensions_routed" "yes" "$result"
+    assert_pass_if_clean "test_phase2_all_seven_dimensions_routed"
+}
+
+# RED Phase 2 confidence routing tests — fail until Phase 2 routing is added to SKILL.md
+test_phase2_confidence_routing_table_present
+test_phase2_high_confidence_skip_summary_present
+test_phase2_medium_confidence_prefill_confirm_present
+test_phase2_nontechnical_path_present
+test_phase2_all_seven_dimensions_routed
+
 print_summary
