@@ -672,35 +672,22 @@ def _write_link_event(
         )
 
 
-def add_dependency(
+def _resolve_and_redirect(
     source_id: str,
     target_id: str,
     tracker_dir: str,
-    relation: str = "blocks",
-) -> None:
-    """Add a dependency from source_id to target_id with cycle check.
+) -> tuple[str, str]:
+    """Resolve hierarchy and handle redirect/redundancy for add_dependency.
 
-    Raises CyclicDependencyError if adding this dependency would create a cycle.
-    Writes a LINK event to the source ticket's directory.
-    Idempotent: if a net-active LINK with the same (target_id, relation) already exists,
-    this is a no-op (exits cleanly without writing a duplicate event).
-    For relates_to: also writes a reciprocal LINK event in target_id's directory.
-
-    Args:
-        source_id: The ticket that blocks/depends on target_id.
-        target_id: The ticket being blocked/depended upon.
-        tracker_dir: Path to the .tickets-tracker directory.
-        relation: One of 'blocks', 'depends_on', 'relates_to'. Defaults to 'blocks'.
+    Returns (resolved_source, resolved_target).
+    Raises ValueError on error or redundant link.
+    Prints redirect notices to stderr/stdout if IDs were promoted.
     """
-    # Step 1: Resolve hierarchy — promote cross-hierarchy links to the correct level.
-    # Must happen before cycle check so that the cycle check operates on resolved IDs.
     hierarchy_result = resolve_hierarchy_link(source_id, target_id, tracker_dir)
 
-    # Handle error from hierarchy resolver (unreadable/missing ticket)
     if "error" in hierarchy_result:
         raise ValueError(hierarchy_result["error"])
 
-    # Handle redundant link (source is direct parent/child of target)
     if hierarchy_result.get("is_redundant"):
         msg = (
             f"ERROR: redundant link — {source_id} and {target_id} are in a direct "
@@ -713,7 +700,6 @@ def add_dependency(
     resolved_target = str(hierarchy_result["resolved_target"])
     was_redirected = bool(hierarchy_result.get("was_redirected"))
 
-    # Handle redirect: print notice + machine-readable JSON, use resolved IDs
     if was_redirected:
         print(
             f"REDIRECT: {source_id}\u2192{target_id} promoted to "
@@ -730,16 +716,26 @@ def add_dependency(
             )
         )
 
-    # Use resolved IDs for all remaining operations
-    source_id = resolved_source
-    target_id = resolved_target
+    return resolved_source, resolved_target
 
-    if check_would_create_cycle(source_id, target_id, relation, tracker_dir):
+
+def _check_cycles_for_link(
+    resolved_source: str,
+    resolved_target: str,
+    relation: str,
+    tracker_dir: str,
+) -> None:
+    """Run cycle checks (global and level-scoped) for add_dependency.
+
+    Raises CyclicDependencyError if a cycle would be created.
+    """
+    if check_would_create_cycle(
+        resolved_source, resolved_target, relation, tracker_dir
+    ):
         raise CyclicDependencyError(
             f"Adding {resolved_source} → {resolved_target} ({relation}) would create a cycle"
         )
 
-    # Level-scoped cycle detection on resolved pair
     resolved_source_dir = os.path.join(tracker_dir, resolved_source)
     resolved_source_state = (
         _reduce_ticket(resolved_source_dir)
@@ -764,6 +760,18 @@ def add_dependency(
             f"would create a cycle at {level} level"
         )
 
+
+def _guard_closed_tickets(
+    source_id: str,
+    target_id: str,
+    relation: str,
+    tracker_dir: str,
+) -> None:
+    """Guard against linking closed tickets.
+
+    Raises ValueError if the source ticket is closed, or if relation is
+    'depends_on' and the target ticket is closed.
+    """
     # Guard: cannot write any LINK event for a closed source ticket.
     # A closed ticket is frozen — adding new dependency/relation events to it
     # bypasses the closed-ticket invariant and can introduce children after close.
@@ -776,13 +784,46 @@ def add_dependency(
             f"Reopen it first with: ticket transition {source_id} closed open"
         )
 
-    # Guard: cannot create a depends_on link to a closed ticket
     if relation == "depends_on":
         target_status = _get_ticket_status(target_id, tracker_dir)
         if target_status == "closed":
             raise ValueError(
                 f"cannot create depends_on link — target ticket '{target_id}' is closed"
             )
+
+
+def add_dependency(
+    source_id: str,
+    target_id: str,
+    tracker_dir: str,
+    relation: str = "blocks",
+) -> None:
+    """Add a dependency from source_id to target_id with cycle check.
+
+    Raises CyclicDependencyError if adding this dependency would create a cycle.
+    Writes a LINK event to the source ticket's directory.
+    Idempotent: if a net-active LINK with the same (target_id, relation) already exists,
+    this is a no-op (exits cleanly without writing a duplicate event).
+    For relates_to: also writes a reciprocal LINK event in target_id's directory.
+
+    Args:
+        source_id: The ticket that blocks/depends on target_id.
+        target_id: The ticket being blocked/depended upon.
+        tracker_dir: Path to the .tickets-tracker directory.
+        relation: One of 'blocks', 'depends_on', 'relates_to'. Defaults to 'blocks'.
+    """
+    # Step 1: Resolve hierarchy — promote cross-hierarchy links to the correct level.
+    # Must happen before cycle check so that the cycle check operates on resolved IDs.
+    resolved_source, resolved_target = _resolve_and_redirect(
+        source_id, target_id, tracker_dir
+    )
+
+    # Use resolved IDs for all remaining operations
+    source_id = resolved_source
+    target_id = resolved_target
+
+    _check_cycles_for_link(resolved_source, resolved_target, relation, tracker_dir)
+    _guard_closed_tickets(source_id, target_id, relation, tracker_dir)
 
     # Idempotency: skip if the net-active state already has this link
     if _is_active_link(source_id, target_id, relation, tracker_dir):
@@ -1009,103 +1050,87 @@ def compute_archive_eligible(tracker_dir: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def main() -> int:
-    """CLI entry point."""
-    args = sys.argv[1:]
+def _find_tracker_dir(args: list[str]) -> tuple[str, list[str]]:
+    """Resolve tracker_dir from --tickets-dir flag or git repo default.
 
-    if not args:
+    Returns (tracker_dir, remaining_args_without_flag).
+    """
+    import subprocess
+
+    remaining = []
+    tracker_dir = None
+    for arg in args:
+        if arg.startswith("--tickets-dir="):
+            tracker_dir = arg.split("=", 1)[1]
+        else:
+            remaining.append(arg)
+    if tracker_dir is None:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            repo_root = result.stdout.strip()
+            tracker_dir = os.path.join(repo_root, ".tickets-tracker")
+        except Exception:
+            tracker_dir = os.path.join(os.getcwd(), ".tickets-tracker")
+    return tracker_dir, remaining
+
+
+def _handle_resolve_hierarchy(args: list[str]) -> int:
+    """Handle the resolve-hierarchy-link subcommand."""
+    tracker_dir, pos_args = _find_tracker_dir(args)
+    if len(pos_args) < 2:
         print(
-            "Usage: ticket-graph.py <ticket_id> [--tickets-dir=<path>]\n"
-            "       ticket-graph.py --link <source> <target> <relation>",
+            "Usage: ticket-graph.py resolve-hierarchy-link <source> <target>"
+            " [--tickets-dir=<path>]",
             file=sys.stderr,
         )
         return 1
+    source_id = pos_args[0]
+    target_id = pos_args[1]
+    result = resolve_hierarchy_link(source_id, target_id, tracker_dir)
+    print(json.dumps(result, ensure_ascii=False))
+    return 1 if "error" in result else 0
 
-    # Resolve tracker_dir from --tickets-dir flag or default
-    def _find_tracker_dir(args: list[str]) -> tuple[str, list[str]]:
-        remaining = []
-        tracker_dir = None
-        for arg in args:
-            if arg.startswith("--tickets-dir="):
-                tracker_dir = arg.split("=", 1)[1]
-            else:
-                remaining.append(arg)
-        if tracker_dir is None:
-            try:
-                import subprocess
 
-                result = subprocess.run(
-                    ["git", "rev-parse", "--show-toplevel"],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                repo_root = result.stdout.strip()
-                tracker_dir = os.path.join(repo_root, ".tickets-tracker")
-            except Exception:
-                tracker_dir = os.path.join(os.getcwd(), ".tickets-tracker")
-        return tracker_dir, remaining
+def _handle_link_mode(args: list[str]) -> int:
+    """Handle the --link subcommand."""
+    if len(args) < 4:
+        print(
+            "Usage: ticket-graph.py --link <source> <target> <relation>",
+            file=sys.stderr,
+        )
+        return 1
+    source_id = args[1]
+    target_id = args[2]
+    relation = args[3]
+    tracker_dir, _ = _find_tracker_dir([])
 
-    if args[0] == "resolve-hierarchy-link":
-        # Usage: resolve-hierarchy-link <src> <tgt> --tickets-dir=<dir>
-        remaining = args[1:]
-        tracker_dir, pos_args = _find_tracker_dir(remaining)
-        if len(pos_args) < 2:
-            print(
-                "Usage: ticket-graph.py resolve-hierarchy-link <source> <target>"
-                " [--tickets-dir=<path>]",
-                file=sys.stderr,
-            )
-            return 1
-        source_id = pos_args[0]
-        target_id = pos_args[1]
-        result = resolve_hierarchy_link(source_id, target_id, tracker_dir)
-        print(json.dumps(result, ensure_ascii=False))
-        # Non-zero exit when result contains an error key
-        if "error" in result:
-            return 1
-        return 0
+    source_dir = os.path.join(tracker_dir, source_id)
+    target_dir = os.path.join(tracker_dir, target_id)
+    if not os.path.isdir(source_dir):
+        print(f"Error: ticket '{source_id}' does not exist", file=sys.stderr)
+        return 1
+    if not os.path.isdir(target_dir):
+        print(f"Error: ticket '{target_id}' does not exist", file=sys.stderr)
+        return 1
 
-    if args[0] == "--archive-eligible":
-        tracker_dir, _ = _find_tracker_dir(args[1:])
-        eligible = compute_archive_eligible(tracker_dir)
-        print(json.dumps(eligible))
-        return 0
+    try:
+        add_dependency(source_id, target_id, tracker_dir, relation)
+    except CyclicDependencyError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    return 0
 
-    if args[0] == "--link":
-        if len(args) < 4:
-            print(
-                "Usage: ticket-graph.py --link <source> <target> <relation>",
-                file=sys.stderr,
-            )
-            return 1
-        source_id = args[1]
-        target_id = args[2]
-        relation = args[3]
-        tracker_dir, _ = _find_tracker_dir([])
 
-        # Validate both tickets exist before writing a LINK event
-        source_dir = os.path.join(tracker_dir, source_id)
-        target_dir = os.path.join(tracker_dir, target_id)
-        if not os.path.isdir(source_dir):
-            print(f"Error: ticket '{source_id}' does not exist", file=sys.stderr)
-            return 1
-        if not os.path.isdir(target_dir):
-            print(f"Error: ticket '{target_id}' does not exist", file=sys.stderr)
-            return 1
-
-        try:
-            add_dependency(source_id, target_id, tracker_dir, relation)
-        except CyclicDependencyError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            return 1
-        except ValueError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            return 1
-        return 0
-
-    # Deps query mode
-    # Extract --include-archived flag before resolving tracker_dir
+def _handle_deps_query(args: list[str]) -> int:
+    """Handle the deps query (default) subcommand."""
     include_archived = "--include-archived" in args
     if include_archived:
         args = [a for a in args if a != "--include-archived"]
@@ -1120,14 +1145,11 @@ def main() -> int:
         return 1
 
     ticket_id = remaining_args[0]
-
-    # Validate ticket exists before querying
     ticket_dir = os.path.join(tracker_dir, ticket_id)
     if not os.path.isdir(ticket_dir):
         print(f"Error: ticket '{ticket_id}' does not exist", file=sys.stderr)
         return 1
 
-    # Check if the target ticket is archived; error unless --include-archived passed
     if not include_archived:
         try:
             target_state = _reduce_ticket(ticket_dir)
@@ -1146,6 +1168,33 @@ def main() -> int:
     result = build_dep_graph(ticket_id, tracker_dir, exclude_archived=exclude_archived)
     print(json.dumps(result, ensure_ascii=False))
     return 0
+
+
+def main() -> int:
+    """CLI entry point."""
+    args = sys.argv[1:]
+
+    if not args:
+        print(
+            "Usage: ticket-graph.py <ticket_id> [--tickets-dir=<path>]\n"
+            "       ticket-graph.py --link <source> <target> <relation>",
+            file=sys.stderr,
+        )
+        return 1
+
+    if args[0] == "resolve-hierarchy-link":
+        return _handle_resolve_hierarchy(args[1:])
+
+    if args[0] == "--archive-eligible":
+        tracker_dir, _ = _find_tracker_dir(args[1:])
+        eligible = compute_archive_eligible(tracker_dir)
+        print(json.dumps(eligible))
+        return 0
+
+    if args[0] == "--link":
+        return _handle_link_mode(args)
+
+    return _handle_deps_query(args)
 
 
 if __name__ == "__main__":

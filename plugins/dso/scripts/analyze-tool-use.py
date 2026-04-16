@@ -891,24 +891,18 @@ def _session_short(session_id: str) -> str:
     return session_id
 
 
-def render_report(
+def _render_report_header(
     entries: list[LogEntry],
     files: list[Path],
-    findings: dict[str, list[dict[str, str]]],
-    error_counts: dict[str, int],
-) -> str:
-    """Render the full Markdown report as a string."""
+    total_findings: int,
+) -> list[str]:
+    """Render the header and summary section of the report."""
     lines: list[str] = []
-
     now = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     sessions = {e.session_id for e in entries}
     total = len(entries)
     tools_used = {e.tool_name for e in entries}
 
-    # Count total anti-patterns
-    total_findings = sum(len(v) for v in findings.values())
-
-    # Date range
     if entries:
         ts_list = [e.ts for e in entries if e.ts]
         date_start = min(ts_list) if ts_list else "?"
@@ -923,17 +917,22 @@ def render_report(
     )
     lines.append(f"Log files read: {len(files)}")
     lines.append("")
-
     lines.append("## Summary")
     lines.append(f"- Total tool calls: {total}")
     lines.append(f"- Unique tools used: {len(tools_used)}")
     lines.append(f"- Anti-patterns detected: {total_findings}")
     lines.append("")
+    return lines
 
+
+def _render_antipattern_findings(
+    findings: dict[str, list[dict[str, str]]],
+) -> list[str]:
+    """Render the anti-pattern findings section of the report."""
+    lines: list[str] = []
     lines.append("## Anti-Pattern Findings")
     lines.append("")
 
-    # 1. Bash-for-file-ops
     bash_ops = findings.get("bash_file_ops", [])
     if bash_ops:
         lines.append(f"### 1. Bash-for-file-ops ({len(bash_ops)} occurrences)")
@@ -949,7 +948,6 @@ def render_report(
             )
         lines.append("")
 
-    # 2. Write-without-Read
     blind_writes = findings.get("write_without_read", [])
     if blind_writes:
         lines.append(f"### 2. Write-without-Read ({len(blind_writes)} occurrences)")
@@ -962,7 +960,6 @@ def render_report(
             )
         lines.append("")
 
-    # 3. Same-error retry
     retries = findings.get("same_error_retry", [])
     if retries:
         lines.append(f"### 3. Same-error retry ({len(retries)} occurrences)")
@@ -979,7 +976,6 @@ def render_report(
             )
         lines.append("")
 
-    # 4. Search sprawl
     sprawl = findings.get("search_sprawl", [])
     if sprawl:
         lines.append(f"### 4. Sequential search sprawl ({len(sprawl)} occurrences)")
@@ -996,7 +992,6 @@ def render_report(
             )
         lines.append("")
 
-    # 5. Redundant calls
     redundant = findings.get("redundant_calls", [])
     if redundant:
         lines.append(f"### 5. Redundant tool calls ({len(redundant)} occurrences)")
@@ -1018,7 +1013,6 @@ def render_report(
             )
         lines.append("")
 
-    # 6. Suboptimal ordering
     ordering = findings.get("suboptimal_ordering", [])
     if ordering:
         lines.append(f"### 6. Suboptimal tool ordering ({len(ordering)} occurrences)")
@@ -1034,7 +1028,6 @@ def render_report(
             )
         lines.append("")
 
-    # 7. Domain mismatch
     mismatches = findings.get("domain_mismatch", [])
     if mismatches:
         lines.append(f"### 7. Domain mismatch ({len(mismatches)} occurrences)")
@@ -1051,11 +1044,22 @@ def render_report(
             )
         lines.append("")
 
+    return lines
+
+
+def _render_error_and_distribution(
+    entries: list[LogEntry],
+    error_counts: dict[str, int],
+    total_findings: int,
+) -> list[str]:
+    """Render the cross-reference and tool distribution sections."""
+    lines: list[str] = []
+    total = len(entries)
+
     if total_findings == 0:
         lines.append("_No anti-patterns detected._")
         lines.append("")
 
-    # Cross-reference
     lines.append("## Cross-Reference: Error Patterns")
     if error_counts:
         lines.append(f"(from `{ERROR_COUNTER_FILE}`)")
@@ -1068,7 +1072,6 @@ def render_report(
         lines.append(f"_No data found at `{ERROR_COUNTER_FILE}`._")
     lines.append("")
 
-    # Tool distribution
     lines.append("## Tool Distribution")
     if entries:
         tool_counts: dict[str, int] = defaultdict(int)
@@ -1083,6 +1086,23 @@ def render_report(
     else:
         lines.append("_No tool calls recorded._")
     lines.append("")
+
+    return lines
+
+
+def render_report(
+    entries: list[LogEntry],
+    files: list[Path],
+    findings: dict[str, list[dict[str, str]]],
+    error_counts: dict[str, int],
+) -> str:
+    """Render the full Markdown report as a string."""
+    total_findings = sum(len(v) for v in findings.values())
+
+    lines: list[str] = []
+    lines.extend(_render_report_header(entries, files, total_findings))
+    lines.extend(_render_antipattern_findings(findings))
+    lines.extend(_render_error_and_distribution(entries, error_counts, total_findings))
 
     return "\n".join(lines)
 
