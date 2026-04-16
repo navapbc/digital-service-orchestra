@@ -51,6 +51,7 @@ set -uo pipefail
 # recover from. Trap both signals and exit 0 (fail-open) with a warning so the
 # commit proceeds. This is consistent with the existing fail-open behavior on
 # hash computation errors (compute-diff-hash.sh failure).
+# shellcheck disable=SC2329  # false positive: called via trap below
 _fail_open_on_timeout() {
     echo "pre-commit-test-gate: WARNING: timed out — failing open (commit allowed)" >&2
     exit 0
@@ -411,6 +412,7 @@ _has_associated_test() {
 # ── Get associated test file path for a source file ──────────────────────────
 # Returns the first relative test file path on stdout, or empty if none found.
 # For the full union set, use _get_all_associated_tests().
+# shellcheck disable=SC2329  # kept for potential future use; not currently invoked
 _get_associated_test_path() {
     local src_file="$1"
 
@@ -594,8 +596,9 @@ if [[ ! -f "$TEST_GATE_STATUS_FILE" ]]; then
         fi
     done
     echo "" >&2
-    echo "  To unblock: run record-test-status.sh or use /dso:commit to record test status," >&2
-    echo "  then retry your commit." >&2
+    echo "  To unblock, re-run record-test-status.sh with --source-file for each changed file:" >&2
+    echo "    .claude/scripts/dso record-test-status.sh --source-file <changed-source-file>" >&2
+    echo "  Or use /dso:commit to record test status automatically, then retry your commit." >&2
     echo "" >&2
     echo "  If tests are timing out, run:" >&2
     echo "  .claude/scripts/dso test-batched.sh --timeout=50 \"<test cmd>\"" >&2
@@ -647,7 +650,8 @@ if [[ -z "$RECORDED_HASH" ]]; then
     echo "" >&2
     echo "BLOCKED: test gate — test-gate-status has no diff_hash (corrupted or outdated)" >&2
     echo "" >&2
-    echo "  Re-run record-test-status.sh or use /dso:commit to re-record test status." >&2
+    echo "  Re-run: .claude/scripts/dso record-test-status.sh --source-file <changed-source-file>" >&2
+    echo "  Or use /dso:commit to re-record test status." >&2
     echo "" >&2
     exit 1
 fi
@@ -667,7 +671,8 @@ if [[ "$RECORDED_HASH" != "$CURRENT_HASH" ]]; then
     echo "  Recorded hash: ${RECORDED_HASH:0:12}..." >&2
     echo "  Current hash:  ${CURRENT_HASH:0:12}..." >&2
     echo "" >&2
-    echo "  Re-run record-test-status.sh or use /dso:commit to re-record test status." >&2
+    echo "  Re-run: .claude/scripts/dso record-test-status.sh --source-file <changed-source-file>" >&2
+    echo "  Or use /dso:commit to re-record test status." >&2
     echo "" >&2
     echo "  If tests are timing out, run:" >&2
     echo "  .claude/scripts/dso test-batched.sh --timeout=50 \"<test cmd>\"" >&2
@@ -715,7 +720,8 @@ if [[ "$_HAS_INDEX_TESTS" == true ]]; then
                 echo "" >&2
                 echo "BLOCKED: test gate — not all required tests were run. Missing: ${_req_test}" >&2
                 echo "" >&2
-                echo "  Re-run record-test-status.sh or use /dso:commit to re-record test status." >&2
+                echo "  Re-run: .claude/scripts/dso record-test-status.sh --source-file <changed-source-file>" >&2
+                echo "  Or use /dso:commit to re-record test status." >&2
                 echo "" >&2
                 exit 1
             fi

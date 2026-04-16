@@ -6,7 +6,7 @@
 # test-gate-status is missing, stale (hash mismatch), or not 'passed' for
 # staged source files that have associated tests.
 #
-# Test cases (40):
+# Test cases (38):
 #   1. test_gate_blocked_missing_status — exits non-zero when test-status file absent
 #   2. test_gate_blocked_hash_mismatch — exits non-zero when diff_hash does not match
 #   3. test_gate_blocked_not_passed — exits non-zero when status is not 'passed'
@@ -37,6 +37,10 @@
 #  28. test_gate_fails_open_on_sigterm — exits 0 with warning when receiving SIGTERM (pre-commit timeout)
 #  29. test_gate_red_marker_index_passes — exits 0 when [marker] in .test-index and status is 'passed'
 #  30. test_gate_red_marker_blocks_when_no_status — exits non-zero when [marker] in .test-index but no status
+#  32. test_error_message_includes_source_file_flag — blocked commits include --source-file in error message
+#  33. test_error_message_hash_mismatch_includes_source_file — HASH_MISMATCH path includes --source-file
+#  34. test_error_message_missing_diff_hash_includes_source_file — MISSING_DIFF_HASH path includes --source-file
+#  35. test_error_message_missing_required_tests_includes_source_file — MISSING_REQUIRED_TESTS path includes --source-file
 #
 # NOTE: Merge-state tests (MERGE_HEAD, REBASE_HEAD) have been removed from this
 # consumer file. Coverage is now provided by:
@@ -102,8 +106,9 @@ run_gate_hook() {
     local repo_dir="$1"
     local artifacts_dir="$2"
     local exit_code=0
+    # shellcheck disable=SC2030,SC2031  # intentional: env vars scoped to subshell for test isolation
     (
-        cd "$repo_dir"
+        cd "$repo_dir" || exit 1
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         bash "$GATE_HOOK" 2>/dev/null
@@ -115,10 +120,12 @@ run_gate_hook() {
 run_gate_hook_stderr() {
     local repo_dir="$1"
     local artifacts_dir="$2"
+    # shellcheck disable=SC2030,SC2031  # intentional: env vars scoped to subshell for test isolation
     (
-        cd "$repo_dir"
+        cd "$repo_dir" || exit 1
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
+        # shellcheck disable=SC2069  # intentional: stderr→stdout, stdout suppressed
         bash "$GATE_HOOK" 2>&1 >/dev/null
     ) || true
 }
@@ -136,8 +143,9 @@ write_valid_test_status() {
 compute_hash_in_repo() {
     local repo_dir="$1"
     local artifacts_dir="$2"
+    # shellcheck disable=SC2030,SC2031  # intentional: env vars scoped to subshell for test isolation
     (
-        cd "$repo_dir"
+        cd "$repo_dir" || exit 1
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         bash "$COMPUTE_HASH_SCRIPT" 2>/dev/null
@@ -431,8 +439,9 @@ MOCKEOF
     # The gate should call compute-diff-hash.sh; if it fails, gate should
     # fail-open (exit 0) rather than blocking the commit.
     local exit_code=0
+    # shellcheck disable=SC2030,SC2031  # intentional: env vars scoped to subshell for test isolation
     (
-        cd "$_repo"
+        cd "$_repo" || exit 1
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         # Override compute-diff-hash.sh by placing the mock first in PATH
@@ -739,8 +748,9 @@ test_gate_test_dirs_config() {
 
     # Run gate with TEST_GATE_TEST_DIRS_OVERRIDE pointing to unit_tests/
     local exit_code=0
+    # shellcheck disable=SC2030,SC2031  # intentional: env vars scoped to subshell for test isolation
     (
-        cd "$_repo"
+        cd "$_repo" || exit 1
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         export TEST_GATE_TEST_DIRS_OVERRIDE="unit_tests/"
@@ -991,8 +1001,9 @@ run_gate_hook_side_effects() {
     local repo_dir="$1"
     local artifacts_dir="$2"
     local exit_code=0
+    # shellcheck disable=SC2030,SC2031  # intentional: env vars scoped to subshell for test isolation
     (
-        cd "$repo_dir"
+        cd "$repo_dir" || exit 1
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         bash "$GATE_HOOK" 2>/dev/null
@@ -1319,8 +1330,9 @@ FAKEGIT
     chmod +x "$_fake_git_dir/git"
 
     local exit_code=0
+    # shellcheck disable=SC2030,SC2031  # intentional: env vars scoped to subshell for test isolation
     (
-        cd "$_repo"
+        cd "$_repo" || exit 1
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         export PATH="$_fake_git_dir:$PATH"
@@ -1436,8 +1448,9 @@ test_gate_fails_open_on_sigterm() {
     local _exit_code=0
     local _stderr_file
     _stderr_file=$(mktemp)
+    # shellcheck disable=SC2030,SC2031  # intentional: env vars scoped to subshell for test isolation
     (
-        cd "$_repo"
+        cd "$_repo" || exit
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         # Use exec so the bash process IS the gate script (SIGTERM reaches it directly)
@@ -1612,6 +1625,156 @@ IDX
     assert_ne "test_gate_red_marker_blocks_when_no_status: gate blocks without status" "0" "$exit_code"
 }
 
+# ============================================================
+# TEST 32: test_error_message_includes_source_file_flag
+# Blocked commits output an error message that includes
+# --source-file so the developer knows the exact invocation
+# needed to re-record test status for the changed file.
+# RED: Current messages say "Re-run record-test-status.sh"
+# without --source-file.
+# ============================================================
+test_error_message_includes_source_file_flag() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source + associated test
+    mkdir -p "$_repo/src" "$_repo/tests"
+    echo 'def srcflag(): return 1' > "$_repo/src/srcflag.py"
+    echo 'def test_srcflag(): assert True' > "$_repo/tests/test_srcflag.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add srcflag"
+
+    # Modify source and stage, but do NOT write test-gate-status
+    echo '# changed' >> "$_repo/src/srcflag.py"
+    git -C "$_repo" add -A
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_error_message_includes_source_file_flag: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    local stderr_output
+    stderr_output=$(run_gate_hook_stderr "$_repo" "$_artifacts")
+
+    # Error message should include --source-file so the developer knows the exact
+    # invocation: bash "$REPO_ROOT/.claude/scripts/dso" record-test-status.sh --source-file <file>
+    assert_contains "test_error_message_includes_source_file_flag: mentions --source-file" \
+        "--source-file" "$stderr_output"
+}
+
+# ============================================================
+# TEST 33: test_error_message_hash_mismatch_includes_source_file
+# HASH_MISMATCH error path outputs --source-file in the message.
+# ============================================================
+test_error_message_hash_mismatch_includes_source_file() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    mkdir -p "$_repo/src" "$_repo/tests"
+    echo 'def mismatch(): return 1' > "$_repo/src/mismatch.py"
+    echo 'def test_mismatch(): assert True' > "$_repo/tests/test_mismatch.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add mismatch"
+
+    echo '# changed' >> "$_repo/src/mismatch.py"
+    git -C "$_repo" add -A
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_error_message_hash_mismatch_includes_source_file: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # Write status with a stale hash to trigger HASH_MISMATCH path
+    write_valid_test_status "$_artifacts" "stale_hash_abc123"
+
+    local stderr_output
+    stderr_output=$(run_gate_hook_stderr "$_repo" "$_artifacts")
+
+    assert_contains "test_error_message_hash_mismatch_includes_source_file: mentions --source-file" \
+        "--source-file" "$stderr_output"
+}
+
+# ============================================================
+# TEST 34: test_error_message_missing_diff_hash_includes_source_file
+# MISSING_DIFF_HASH error path (status file has no diff_hash= line)
+# outputs --source-file in the message.
+# ============================================================
+test_error_message_missing_diff_hash_includes_source_file() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    mkdir -p "$_repo/src" "$_repo/tests"
+    echo 'def nodiffhash(): return 1' > "$_repo/src/nodiffhash.py"
+    echo 'def test_nodiffhash(): assert True' > "$_repo/tests/test_nodiffhash.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add nodiffhash"
+
+    echo '# changed' >> "$_repo/src/nodiffhash.py"
+    git -C "$_repo" add -A
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_error_message_missing_diff_hash_includes_source_file: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # Write a status file with no diff_hash= line to trigger MISSING_DIFF_HASH path
+    mkdir -p "$_artifacts"
+    printf 'passed\ntimestamp=2026-01-01T00:00:00Z\ntested_files=tests/test_nodiffhash.py\n' \
+        > "$_artifacts/test-gate-status"
+
+    local stderr_output
+    stderr_output=$(run_gate_hook_stderr "$_repo" "$_artifacts")
+
+    assert_contains "test_error_message_missing_diff_hash_includes_source_file: mentions --source-file" \
+        "--source-file" "$stderr_output"
+}
+
+# ============================================================
+# TEST 35: test_error_message_missing_required_tests_includes_source_file
+# MISSING_REQUIRED_TESTS error path (test-index maps source to a test
+# that is absent from tested_files) outputs --source-file in the message.
+# ============================================================
+test_error_message_missing_required_tests_includes_source_file() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    mkdir -p "$_repo/lib" "$_repo/tests/integration"
+    echo 'def reqtest(): return 1' > "$_repo/lib/reqtest.py"
+    echo 'def test_reqtest_flow(): assert True' > "$_repo/tests/integration/test_reqtest_flow.py"
+    cat > "$_repo/.test-index" <<'IDX'
+lib/reqtest.py:tests/integration/test_reqtest_flow.py
+IDX
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add reqtest with index"
+
+    echo '# changed' >> "$_repo/lib/reqtest.py"
+    git -C "$_repo" add "$_repo/lib/reqtest.py"
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_error_message_missing_required_tests_includes_source_file: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # Compute the real hash so we pass the hash check and reach MISSING_REQUIRED_TESTS
+    local real_hash
+    real_hash=$(compute_hash_in_repo "$_repo" "$_artifacts")
+
+    # Write status with matching hash but tested_files missing the required test
+    mkdir -p "$_artifacts"
+    printf 'passed\ndiff_hash=%s\ntimestamp=2026-01-01T00:00:00Z\ntested_files=tests/some_other_test.py\n' \
+        "$real_hash" > "$_artifacts/test-gate-status"
+
+    local stderr_output
+    stderr_output=$(run_gate_hook_stderr "$_repo" "$_artifacts")
+
+    assert_contains "test_error_message_missing_required_tests_includes_source_file: mentions --source-file" \
+        "--source-file" "$stderr_output"
+}
+
 # ── Helper: run a test function and print PASS/FAIL per-function result ───────
 # Enables AC verify commands that grep for 'PASS.*<test_name>' in output.
 run_test() {
@@ -1656,5 +1819,9 @@ run_test test_gate_allowlist_mixed_with_source
 run_test test_gate_fails_open_on_sigterm
 run_test test_gate_red_marker_index_passes
 run_test test_gate_red_marker_blocks_when_no_status
+run_test test_error_message_includes_source_file_flag
+run_test test_error_message_hash_mismatch_includes_source_file
+run_test test_error_message_missing_diff_hash_includes_source_file
+run_test test_error_message_missing_required_tests_includes_source_file
 
 print_summary

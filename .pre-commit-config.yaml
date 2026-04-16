@@ -111,6 +111,16 @@ repos:
         files: ^tests/
 
 
+      # ShellCheck (timeout: 15s) — project-local, not distributed with the plugin.
+      # Runs shellcheck on staged .sh files. Skips gracefully if shellcheck not installed.
+      - id: shellcheck
+        name: ShellCheck (15s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh shellcheck 15 "./.claude/hooks/pre-commit/shellcheck.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: \.sh$
+
       # Review gate (timeout: 30s)
       # Blocks commits containing non-allowlisted files without a valid review-status.
       # Since this repo IS the DSO plugin, we call the hook directly.

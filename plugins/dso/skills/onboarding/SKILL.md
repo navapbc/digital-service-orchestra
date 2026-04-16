@@ -59,6 +59,215 @@ Work through each phase below. Answer what you know and skip what doesn't apply.
 
 ---
 
+## Phase 0: Comfort Assessment (/dso:onboarding)
+
+**Goal:** Before showing any detection output or asking project questions, calibrate explanation style with a single comfort-level question, run detection silently, assign confidence levels to all 7 dimensions, and initialize the CONFIDENCE_CONTEXT object in the scratchpad.
+
+### Step 0.1: Comfort Level Question (first user interaction)
+
+Display the following question **before any auto-detection output, before any dependency scan results, and before any other questions**:
+
+```
+Before we begin, I'd like to calibrate how I explain things.
+Are you more comfortable with technical engineering details, or would you prefer plain-language explanations?
+
+1) Technical — I'm comfortable with engineering terms, CLI commands, and configuration details
+2) Non-technical — Plain language please; skip the jargon where possible
+
+(Enter 1 or 2)
+```
+
+Record the answer as `COMFORT_LEVEL`:
+- If the user enters `1` (or "technical"): `COMFORT_LEVEL="technical"`
+- If the user enters `2` (or "non-technical"): `COMFORT_LEVEL="non_technical"`
+- If no answer or ambiguous: default to `COMFORT_LEVEL="non_technical"` (safer, more guided path)
+
+### Step 0.2: Stack and Project Auto-Detection
+
+Run detection scripts **silently** (before showing output to the user):
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+DETECT_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso project-detect.sh" "$REPO_ROOT" 2>/dev/null || echo "")
+STACK_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso detect-stack.sh" "$REPO_ROOT" 2>/dev/null || echo "unknown")
+```
+
+These results are reused in Phase 1 — do NOT re-run detect-stack.sh or project-detect.sh again in Phase 1 Step 1. Reference the `$DETECT_OUT` and `$STACK_OUT` variables set here.
+
+Also read supporting project files silently:
+
+```bash
+# Node / JavaScript ecosystem
+[ -f "$REPO_ROOT/package.json" ] && PACKAGE_JSON=$(cat "$REPO_ROOT/package.json" 2>/dev/null) || PACKAGE_JSON=""
+
+# Detect pre-commit hooks
+HUSKY_HOOK=""
+[ -f "$REPO_ROOT/.husky/pre-commit" ] && HUSKY_HOOK=$(cat "$REPO_ROOT/.husky/pre-commit" 2>/dev/null)
+PRECOMMIT_CONFIG=""
+[ -f "$REPO_ROOT/.pre-commit-config.yaml" ] && PRECOMMIT_CONFIG=$(cat "$REPO_ROOT/.pre-commit-config.yaml" 2>/dev/null)
+
+# Discover CI workflows
+CI_WORKFLOWS=""
+if [ -d "$REPO_ROOT/.github/workflows" ]; then
+    CI_WORKFLOWS=$(ls "$REPO_ROOT/.github/workflows"/*.yml "$REPO_ROOT/.github/workflows"/*.yaml 2>/dev/null | xargs -I{} basename {} 2>/dev/null || echo "")
+fi
+
+# Discover test directories
+TEST_DIRS=""
+for candidate in tests test spec __tests__ src/__tests__; do
+    [ -d "$REPO_ROOT/$candidate" ] && TEST_DIRS="$TEST_DIRS $candidate"
+done
+TEST_DIRS="${TEST_DIRS# }"
+```
+
+### Step 0.3: Confidence Level Assignment
+
+Assign confidence levels (`high` / `medium` / `low`) for all 7 dimensions based on the detection output collected in Step 0.2:
+
+#### Confidence Assignment Rules
+
+| Dimension | Assignment rule |
+|-----------|----------------|
+| **stack** | `high` if `STACK_OUT` is a recognized named stack (e.g., `"node-npm"`, `"python-poetry"`, `"ruby-rails"`); `low` if `STACK_OUT` is `"unknown"` |
+| **commands** | `high` if `DETECT_OUT` includes test and build command entries; `medium` if test directories were found but commands not confirmed; `low` otherwise |
+| **architecture** | `medium` if multiple source directories were detected; `low` otherwise |
+| **infrastructure** | `low` by default (no automated detection exists for this area) |
+| **ci** | `high` if CI workflow files were found in `.github/workflows/` AND `DETECT_OUT` contains `ci_workflow_confidence=high` with exactly one entry; `medium` if multiple workflows found or `ci_workflow_confidence=low`; `low` if no `.github/workflows/` directory found |
+| **design** | `medium` if `package.json` was found with a UI framework reference; `low` otherwise |
+| **enforcement** | `high` if `.pre-commit-config.yaml` or `.husky/` was found; `low` otherwise |
+
+Apply the rules above to produce a confidence level value (`high`, `medium`, or `low`) for each of the 7 dimensions. Examples:
+
+- `STACK_OUT="node-npm"` → stack confidence: `high`
+- `STACK_OUT="unknown"` → stack confidence: `low`
+- `.github/workflows/ci.yml` found, `ci_workflow_confidence=high` → ci confidence: `high`
+- No `.github/workflows/` → ci confidence: `low`
+
+### Step 0.4: Initialize Confidence Context Object in Scratchpad
+
+After completing Steps 0.1–0.3, write the `CONFIDENCE_CONTEXT` object (the `confidence_context` signal) to the scratchpad under a dedicated section header. Schema contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/confidence-context.md`.
+
+```bash
+SCRATCHPAD_PHASE0=$(mktemp /tmp/onboarding-phase0-XXXXXX.md)
+cat > "$SCRATCHPAD_PHASE0" <<EOF
+## CONFIDENCE_CONTEXT
+\`\`\`json
+{
+  "dimensions": {
+    "stack": "<high|medium|low>",
+    "commands": "<high|medium|low>",
+    "architecture": "<high|medium|low>",
+    "infrastructure": "<high|medium|low>",
+    "ci": "<high|medium|low>",
+    "design": "<high|medium|low>",
+    "enforcement": "<high|medium|low>"
+  },
+  "comfort_level": "$COMFORT_LEVEL",
+  "detected_stack": "$STACK_OUT",
+  "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+\`\`\`
+EOF
+```
+
+Replace each `<high|medium|low>` placeholder with the actual confidence level determined in Step 0.3. This object is written to `$SCRATCHPAD_PHASE0` (a temp file) because `$SCRATCHPAD` does not yet exist — Phase 1 Step 2 creates it. After Phase 1 Step 2 initializes `$SCRATCHPAD`, append the Phase 0 context:
+
+```bash
+# Merge Phase 0 context into main scratchpad (after Phase 1 Step 2 creates $SCRATCHPAD)
+cat "$SCRATCHPAD_PHASE0" >> "$SCRATCHPAD"
+rm -f "$SCRATCHPAD_PHASE0"
+```
+
+This makes `## CONFIDENCE_CONTEXT` visible to all downstream parsers (Phase 2 question routing, S2 doc folder scan, S3 routing logic) that scan `$SCRATCHPAD`.
+
+**Phase 1 scratchpad skip**: Because Step 0.2 already ran `detect-stack.sh` and `project-detect.sh`, Phase 1 Step 1 must **not** re-run these scripts. Phase 1 Step 1 should reference the existing `$DETECT_OUT` and `$STACK_OUT` variables.
+
+**Phase plan update**: When Phase 1 Step 2 writes the phase plan to the scratchpad, include Phase 0 at position 1 (before Phase 1: Auto-Detection). The complete phase list should be: Phase 0: Comfort Assessment → Phase 1: Auto-Detection → Phase 1.5 → Phase 1.6 → Phase 1.7 → Phase 2 → Phase 3.
+
+---
+
+## Phase 0.5: Document Folder Pre-Scan (/dso:onboarding)
+
+**Trigger**: Run ONLY when `--doc-folder <path>` is specified on the onboarding invocation. If omitted, skip this phase entirely and proceed to Phase 1.
+
+**Goal**: Before asking questions, scan the user-specified document folder for structured facts (app name, stack signals, WCAG requirements). Update CONFIDENCE_CONTEXT with any elevated confidence levels found from the doc scan.
+
+**Step 0.5.1: Parse --doc-folder Parameter**
+Accept the optional `--doc-folder <path>` flag from the user's invocation. Validate it is a non-empty string and a readable directory before proceeding.
+
+**Step 0.5.2: Invoke scan-docs.sh**
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+CONTEXT_TEMP=$(mktemp /tmp/onboarding-context-XXXXXX.json)
+# Extract CONFIDENCE_CONTEXT JSON from $SCRATCHPAD_PHASE0 and write to $CONTEXT_TEMP
+
+SCAN_OUT=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/onboarding/scan-docs.sh" "$DOC_FOLDER" --context-file="$CONTEXT_TEMP" 2>/tmp/scan-docs-warn.txt)
+SCAN_EXIT=$?
+```
+
+- If scan-docs.sh exits non-zero, log the error to scratchpad and skip Phase 0.5 (do not abort onboarding)
+- Binary/large file skips are in /tmp/scan-docs-warn.txt — surface to user: "Note: N files were skipped (binary or too large)"
+
+**Step 0.5.3: Parse Facts and Elevate CONFIDENCE_CONTEXT**
+- Parse SCAN_OUT JSON to extract `facts` array and `elevated_dimensions` map
+- For each elevated dimension from the doc scan, apply elevation-only update to CONFIDENCE_CONTEXT: new_level = max(existing_level, elevated_level) where high > medium > low
+- Never lower any confidence level (contract requirement from `${CLAUDE_PLUGIN_ROOT}/docs/contracts/confidence-context.md`)
+- Append a `## DOC_SCAN_FACTS` section to scratchpad with the extracted facts
+- Display a brief summary to the user: "Found N facts in your documents — I'll use these to pre-fill answers where possible."
+
+**Step 0.5.4: File Count Cap Warning**
+If scan output includes `WARNING:file_cap_reached`, surface to user: "Note: Document scan processed the first 50 files. Additional files were not read."
+
+**Error handling**: Wrap all of Phase 0.5 in a guard — if any step fails (parse error, missing binary, permission denied), log to scratchpad and continue to Phase 1. Phase 0.5 failure must never abort onboarding.
+
+**Security note**: DOC_FOLDER is passed directly to scan-docs.sh which validates path traversal — do not attempt additional path resolution before invoking it.
+
+**Phase plan update**: When Phase 0.5 runs, add it to the phase plan between Phase 0 and Phase 1. When skipped, do not add it.
+
+---
+
+## Batch Group Protocol
+
+This skill organizes its commands into **at most 6 batch groups** (fewer when groups are skipped). Before executing any commands in a batch group, the agent presents a single grouped approval prompt to the user and waits for a response.
+
+### Rules
+
+1. **One approval per group boundary.** At each `## Batch Group N: <name>` boundary, present the user with a single grouped approval:
+
+   ```
+   Approve: <group-name> — <brief description of what this batch does>
+   ```
+
+   Wait for the user to approve before executing any commands in that group. Do NOT ask again mid-group or between individual commands within the same group boundary.
+
+2. **Execute all commands under one approval.** Once the user approves a batch group, execute ALL commands in that group without requesting further approval until the next `## Batch Group N:` boundary is reached.
+
+3. **Skip silently when the skip-guard is met.** Each batch group has a `<!-- Skip guard: ... -->` comment that specifies the condition under which the entire group is skipped. When the skip-guard condition is met, skip the entire group without presenting an approval prompt. The total approval count decreases accordingly (at most 6, fewer when groups are skipped).
+
+4. **Approval prompt format.** The prompt must always include the group name so the user knows what they are approving. Example:
+
+   ```
+   Approve: dependency-install — installs required tools (bash 4+, coreutils, git) and optional analysis tools (ast-grep, semgrep)
+   ```
+
+### Batch Group Inventory
+
+The 6 batch groups and their skip conditions are:
+
+| Group | Name | Skip condition |
+|-------|------|---------------|
+| 1 | dependency-install | No deps missing AND optional deps already installed |
+| 2 | scaffold-claude-structure | `.claude/` structure already present and shim already installed |
+| 3 | config-write | All config files already exist with current content |
+| 4 | initial-commit | All artifacts already committed |
+| 5 | hook-install | Hooks already installed |
+| 6 | final-commit | No hook artifacts to commit |
+
+---
+
+## Batch Group 1: dependency-install
+<!-- Skip guard: if no deps missing AND optional deps already installed, skip this prompt -->
+
 ## Phase 1: Auto-Detection (/dso:onboarding)
 
 **Goal:** Pre-fill as many answers as possible by reading project files BEFORE asking the user anything.
@@ -87,6 +296,11 @@ fi
 # Check git
 if ! command -v git >/dev/null 2>&1; then
     MISSING_DEPS+=("git")
+fi
+
+# Check pre-commit — required for hook management and enforcement gates
+if ! command -v pre-commit >/dev/null 2>&1; then
+    MISSING_DEPS+=("pre-commit")
 fi
 ```
 
@@ -152,41 +366,21 @@ fi
 
 ### Step 1: Read Project Files for Auto-Detection
 
-Before asking any questions, scan the project filesystem to gather facts:
+**Note:** Phase 0 Step 0.2 already ran `project-detect.sh` and `detect-stack.sh` and captured the results in `$DETECT_OUT`, `$STACK_OUT`, `$PACKAGE_JSON`, `$HUSKY_HOOK`, `$PRECOMMIT_CONFIG`, `$CI_WORKFLOWS`, and `$TEST_DIRS`. Do NOT re-run those scripts here. Reference the existing variables and supplement only with data not already collected:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
-# 1. Detect stack and test suites via DSO scripts
-DETECT_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso project-detect.sh" "$REPO_ROOT" 2>/dev/null || echo "")
-STACK_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso detect-stack.sh" "$REPO_ROOT" 2>/dev/null || echo "unknown")
+# Variables already set by Phase 0 Step 0.2:
+#   DETECT_OUT, STACK_OUT, PACKAGE_JSON, HUSKY_HOOK, PRECOMMIT_CONFIG
+#   CI_WORKFLOWS, TEST_DIRS
 
-# 2. Read specific project files to fill understanding areas
-# Node / JavaScript ecosystem
-[ -f "$REPO_ROOT/package.json" ] && PACKAGE_JSON=$(cat "$REPO_ROOT/package.json" 2>/dev/null)
+# Read additional project files not covered in Phase 0
 # Python ecosystem
 [ -f "$REPO_ROOT/pyproject.toml" ] && PYPROJECT=$(cat "$REPO_ROOT/pyproject.toml" 2>/dev/null)
-
-# 3. Detect pre-commit hooks
-HUSKY_HOOK=""
-[ -f "$REPO_ROOT/.husky/pre-commit" ] && HUSKY_HOOK=$(cat "$REPO_ROOT/.husky/pre-commit" 2>/dev/null)
-[ -f "$REPO_ROOT/.pre-commit-config.yaml" ] && PRECOMMIT_CONFIG=$(cat "$REPO_ROOT/.pre-commit-config.yaml" 2>/dev/null)
-
-# 4. Discover CI workflows — list actual filenames before asking about workflow names
-CI_WORKFLOWS=""
-if [ -d "$REPO_ROOT/.github/workflows" ]; then
-    CI_WORKFLOWS=$(ls "$REPO_ROOT/.github/workflows"/*.yml "$REPO_ROOT/.github/workflows"/*.yaml 2>/dev/null | xargs -I{} basename {})
-fi
-
-# 5. Discover test directories
-TEST_DIRS=""
-for candidate in tests test spec __tests__ src/__tests__; do
-    [ -d "$REPO_ROOT/$candidate" ] && TEST_DIRS="$TEST_DIRS $candidate"
-done
-TEST_DIRS="${TEST_DIRS# }"  # trim leading space
 ```
 
-Run `project-detect.sh` to discover test suites, CI configuration, and project conventions. Note which understanding areas are already answered by the detection output so you can skip or confirm rather than ask from scratch.
+Note which understanding areas are already answered by the detection output so you can skip or confirm rather than ask from scratch.
 
 ### Step 2: Initialize Scratchpad
 
@@ -220,6 +414,7 @@ After initializing the scratchpad, write the PHASE_PLAN:
 # Write PHASE_PLAN to scratchpad (line-per-entry for easy removal of skipped phases)
 echo "" >> "$SCRATCHPAD"
 echo "## PHASE_PLAN" >> "$SCRATCHPAD"
+echo "Phase 0: Comfort Assessment" >> "$SCRATCHPAD"
 echo "Phase 1: Auto-Detection" >> "$SCRATCHPAD"
 echo "Phase 1.5: Template Selection Gate" >> "$SCRATCHPAD"
 echo "Phase 1.6: Template Installation" >> "$SCRATCHPAD"
@@ -536,11 +731,41 @@ At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`.
 
 **No rigid menus** — use open-ended questions with natural follow-ups rather than lettered option lists. Ask what the user does, not which letter they pick.
 
+### Confidence Routing
+
+Before asking each question, read the `## CONFIDENCE_CONTEXT` section from `$SCRATCHPAD` and route based on the dimension's confidence level:
+
+| Confidence level | Action |
+|-----------------|--------|
+| **high** | Skip the question entirely. Show a one-line summary: "Detected [value] — skipping [area] question." |
+| **medium** | Show pre-filled detected value: "I detected [value]. Does this look right? [Y/n]" — accept confirmation or correction. |
+| **low** (or missing) | Ask normally using the Question Guide below. |
+
+When CONFIDENCE_CONTEXT is absent or a dimension is missing, default to **low** (ask normally).
+Doc-folder-elevated confidence (from Phase 0.5) is already reflected in CONFIDENCE_CONTEXT — no special handling needed.
+
+### Non-Technical Path
+
+When `comfort_level` is `"non-technical"`, skip or default engineering-specific questions for non-technical users:
+
+| Area | Non-technical handling |
+|------|-----------------------|
+| commands | Use detected commands or defaults (`make test` / `make lint`); never ask about npm vs. Docker invocation style |
+| ci | Use detected CI workflow filename; skip deep CI trigger configuration questions |
+| enforcement | Apply recommended DSO defaults; skip technical gate configuration questions |
+
+For non-technical users: confirm detected values rather than asking open-ended engineering questions. Show summaries, not prompts.
+
 ### Question Guide by Area
 
 Work through each area in the checklist order, but adapt based on what detection already found.
 
 #### 1. stack
+
+**Confidence routing:**
+- **high**: "Detected [stack] — skipping stack question."
+- **medium**: "I detected [stack]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
 
 Ask about: primary language and version, framework (if any), package manager, runtime target.
 
@@ -561,6 +786,11 @@ What language and runtime is this project built on? And what's the primary frame
 
 #### 2. commands
 
+**Confidence routing:**
+- **high**: "Detected [commands] — skipping commands question."
+- **medium**: "I detected [commands]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
+
 Ask about: how to run tests, how to start the dev server, how to lint/format, any project-specific Makefile targets.
 
 Present detected test directories for confirmation:
@@ -569,6 +799,11 @@ I found these test directories: [TEST_DIRS]. How do you actually run the test su
 ```
 
 #### 3. architecture
+
+**Confidence routing:**
+- **high**: "Detected [architecture] — skipping architecture question."
+- **medium**: "I detected [architecture]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
 
 Ask about: top-level module layout, key service boundaries, any notable design patterns (event sourcing, CQRS, hexagonal, etc.), where the main entry point is.
 
@@ -579,6 +814,11 @@ How would you describe the top-level structure of this project — is it a singl
 
 #### 4. infrastructure
 
+**Confidence routing:**
+- **high**: "Detected [infrastructure] — skipping infrastructure question."
+- **medium**: "I detected [infrastructure]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
+
 Ask about: where it runs (cloud provider, on-prem, local-only), databases used, external services or APIs it calls, how secrets are managed.
 
 Ask openly:
@@ -587,6 +827,11 @@ Where does this project run in production, and what external services or databas
 ```
 
 #### 5. CI
+
+**Confidence routing:**
+- **high**: "Detected [ci] — skipping ci question."
+- **medium**: "I detected [ci]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
 
 List the actual `.github/workflows/*.yml` filenames discovered in Step 1. Use those filenames to confirm the CI workflow name rather than asking the user to type it from memory.
 
@@ -600,6 +845,11 @@ I don't see any CI workflows yet. What CI system are you planning to use, if any
 ```
 
 #### 6. design
+
+**Confidence routing:**
+- **high**: "Detected [design] — skipping design question."
+- **medium**: "I detected [design]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
 
 Ask about: whether there is a UI layer, which framework/library is used, any established design system, accessibility targets.
 
@@ -629,6 +879,11 @@ Does this project have a UI or frontend layer? If so, what framework are you usi
 After completing these design questions, append findings to the scratchpad under a `## Design (Extended)` section.
 
 #### 7. enforcement
+
+**Confidence routing:**
+- **high**: "Detected [enforcement] — skipping enforcement question."
+- **medium**: "I detected [enforcement]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
 
 Ask about: linting tools, commit message conventions, pre-commit hooks in use, code review requirements, test coverage policies.
 
@@ -733,6 +988,9 @@ Before writing any artifact to disk, present the full content for user review an
 - **For files that already exist** (such as `.claude/dso-config.conf` or `CLAUDE.md`), show a diff against the existing content rather than presenting full replacement. Highlight only the lines being added, changed, or removed so the user can see exactly what will change. Showing the existing diff lets the user verify that no existing configuration is being silently overwritten.
 - Ask: "Does this look right? Should I write this file?"
 - Wait for explicit approval before using the Write tool.
+
+## Batch Group 3: config-write
+<!-- Skip guard: if all config files already exist with current content, skip -->
 
 ### Step 2: Write .claude/project-understanding.md
 
@@ -1090,6 +1348,9 @@ Write `commands.acli_version` and `commands.acli_sha256` to `.claude/dso-config.
 
 After writing `.claude/dso-config.conf`, set up the supporting infrastructure for the host project. These steps ensure the enforcement gates, ticket system, and documentation templates are in place before the first commit.
 
+## Batch Group 2: scaffold-claude-structure
+<!-- Skip guard: if .claude/ structure already present and shim already installed, skip -->
+
 #### DSO Shim Installation
 
 Display to user: "Installing the DSO shim — a short command-line shortcut (.claude/scripts/dso) that routes all DSO operations to the plugin scripts. You will use this for running tickets, tests, and merges."
@@ -1112,6 +1373,9 @@ bash "$PLUGIN_SCRIPTS/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"  # shim
 
 This is idempotent — safe to re-run on projects that already have the shim installed.
 
+## Batch Group 4: initial-commit
+<!-- Skip guard: if all artifacts already committed, skip -->
+
 #### Hook Installation
 
 **ORDERING CONSTRAINT — hooks MUST be installed LAST, after all other onboarding artifacts have been committed.** Installing hooks before the initial commit creates a bootstrap deadlock: the review gate requires a passing review, but the review system depends on the files being committed. The correct sequence is:
@@ -1121,6 +1385,25 @@ This is idempotent — safe to re-run on projects that already have the shim ins
 3. Install hooks after the initial commit completes
 
 Do NOT install hooks earlier in Step 2c, even if the install step appears earlier in the instructions above. Hook installation is always the final infrastructure action.
+
+## Batch Group 5: hook-install
+<!-- Skip guard: if hooks already installed, skip -->
+<!-- hook-install: bypass-gates -->
+
+**Bypass note:** The hook installation commit uses `--no-verify` to skip the review and test gates. This is intentional and safe: hooks are pre-built plugin components, not custom project code, so there is no meaningful review to perform at this step. The gates are not yet active prior to this commit, and bypassing them here is the designed bootstrap sequence. This does NOT set a precedent for bypassing gates on project code changes.
+
+**Reliability note:** If onboarding is interrupted after group 4 but before group 5 completes, re-running `/dso:onboarding` will detect that artifacts are committed but hooks are not installed, and will resume from group 5.
+
+**Git state validation:** Before committing hook artifacts, verify there is something to commit:
+
+```bash
+if git diff --quiet && git diff --staged --quiet; then
+    echo "No hook artifacts to commit — skipping hook-install commit."
+else
+    git add -A
+    git commit --no-verify -m "chore: install DSO pre-commit hooks"
+fi
+```
 
 Display to user: "Installing pre-commit hooks — automated quality checks that run before each git commit to verify tests pass and code has been reviewed. Required for the DSO enforcement pipeline."
 
@@ -1350,6 +1633,9 @@ test_quality.tool=semgrep
 ```
 
 If Semgrep installation failed, write `test_quality.tool=bash-grep` instead. The test quality gate will still function using grep-based pattern matching as a fallback.
+
+## Batch Group 6: final-commit
+<!-- Skip guard: if no hook artifacts to commit, skip -->
 
 #### CI Trigger Strategy
 

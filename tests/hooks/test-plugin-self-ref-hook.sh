@@ -175,6 +175,13 @@ test_error_message_actionable() {
         (( ++FAIL ))
         printf "FAIL: error output does not contain fix guidance\n  output: %s\n" "$output" >&2
     fi
+    # Output must include the concrete markdown example (bug 1dd3-7f82)
+    if echo "$output" | grep -q 'CLAUDE_PLUGIN_ROOT'; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: error output does not contain concrete CLAUDE_PLUGIN_ROOT markdown example\n  output: %s\n" "$output" >&2
+    fi
 }
 
 # ── Test 5: No suppression mechanism in hook source ─────────────────────────
