@@ -1,0 +1,1 @@
+{"timestamp": 1776362783033107000, "uuid": "60efa36b-d9c2-474a-b74a-b85f74374ee1", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "[ticket-transition]: closing tickets without explicit timeout -> exit 144 (SIGURG)"}}}
