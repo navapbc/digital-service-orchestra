@@ -1,1 +1,0 @@
-{"timestamp": 1776310986484368000, "uuid": "10dbe3b6-3206-4faf-836a-3170ced45aae", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Duplicate of 05d5-9838. Both describe the same issue: scan-docs.sh placed at skills/onboarding/ instead of scripts/. Closing as duplicate; will fix via 05d5-9838."}}
