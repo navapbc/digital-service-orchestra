@@ -391,9 +391,12 @@ After the scrutiny pipeline returns, check whether the epic spec contains a `## 
 
 1. Read `brainstorm.max_feasibility_cycles` from `dso-config.conf` (default: 2 when absent).
 2. Initialize or increment `feasibility_cycle_count` (starts at 0, incremented on each re-entry).
-3. **If `feasibility_cycle_count < max_feasibility_cycles`**: Re-enter Phase 1 (understanding loop) with the gap context as seeding material. Log: `"FEASIBILITY_GAP detected — re-entering Phase 1 understanding loop (cycle {feasibility_cycle_count}/{max_feasibility_cycles})."` After the user provides additional context or clarification, re-run the scrutiny pipeline and check again.
-4. **If `feasibility_cycle_count >= max_feasibility_cycles`**: Escalate to the user. Present the unresolved gap and ask whether to proceed with the gap noted, abort, or manually adjust the spec. Log: `"FEASIBILITY_GAP unresolved after {max_feasibility_cycles} cycles — escalating to user."`
-5. Expose `feasibility_cycle_count` as a named state variable for Story 4 (7067-dae6) to consume in the log extensions.
+3. **Spike check (run before deciding whether to re-enter Phase 1)**: Read the `## FEASIBILITY_GAP` section of the epic spec. If the feasibility reviewer's finding includes a recommendation to run a spike, proof-of-concept, or validation step to resolve an integration assumption:
+   - **If the spike is executable within this brainstorm session** (e.g., a codebase grep, a targeted CLI `--help` command, a WebSearch, or a lightweight API endpoint check can answer the question): Execute the spike now. Record the result. If the spike resolves the gap (confirms feasibility or disproves the assumption), remove the `## FEASIBILITY_GAP` annotation and update the spec accordingly. If the spike confirms the assumption is unresolvable, proceed to step 5 (escalate to user).
+   - **If the spike is NOT executable within this brainstorm session** (e.g., requires a running service, credentials not available, or multi-day proof-of-concept): Do NOT continue to the approval gate. Escalate immediately: present the unresolved spike recommendation to the user with the exact feasibility reviewer finding, and ask whether to (a) abort and create a spike ticket first, (b) proceed with the gap explicitly annotated as a prerequisite in the epic spec, or (c) manually adjust the approach to eliminate the dependency. Log: `"FEASIBILITY_GAP spike recommendation detected — escalating before approval gate."`
+4. **If `feasibility_cycle_count < max_feasibility_cycles` AND no spike recommendation was present (or spike was resolved in step 3)**: Re-enter Phase 1 (understanding loop) with the gap context as seeding material. Log: `"FEASIBILITY_GAP detected — re-entering Phase 1 understanding loop (cycle {feasibility_cycle_count}/{max_feasibility_cycles})."` After the user provides additional context or clarification, re-run the scrutiny pipeline and check again.
+5. **If `feasibility_cycle_count >= max_feasibility_cycles`**: Escalate to the user. Present the unresolved gap and ask whether to proceed with the gap noted, abort, or manually adjust the spec. Log: `"FEASIBILITY_GAP unresolved after {max_feasibility_cycles} cycles — escalating to user."`
+6. Expose `feasibility_cycle_count` as a named state variable for Story 4 (7067-dae6) to consume in the log extensions.
 
 **If FEASIBILITY_GAP is NOT present:** Continue to the SC Gap Check below.
 
@@ -423,6 +426,8 @@ Do NOT present this gate unless ALL of the following have completed or gracefull
 - Step 2.75: Scenario analysis (run OR skipped because ≤2 success criteria)
 - SC Gap Check: scenario-to-SC coverage verified; SCs revised if gaps found, or skip logged
 - Step 3: Fidelity review (all three core reviewers completed or escalated to user)
+- Structural-change re-review: if the spec was structurally changed AFTER the fidelity review completed — including an epic split, a SC count change of more than 2, or scope migration between epics — the full fidelity review pipeline (Step 3) MUST be re-run on the revised spec before this gate is presented. Prior review scores are invalidated by structural changes and do not satisfy this checklist item.
+- FEASIBILITY_GAP: if a `## FEASIBILITY_GAP` section is present in the spec at this point, it MUST be surfaced explicitly in the approval gate presentation as an unresolved prerequisite — do NOT silently omit it. The user must explicitly acknowledge the gap when selecting option (a).
 
 If any of the above has NOT completed, stop and execute it before presenting this gate. The user's ability to request a re-run via option (b) or (c) is for second-pass cycles only — it does not substitute for a mandatory first pass.
 </HARD-GATE>

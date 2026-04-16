@@ -76,6 +76,7 @@ _exit_code=0
 (
     source "$DISPATCHER"
     # Override hook_commit_failure_tracker to simulate a non-2 failure
+    # shellcheck disable=SC2329  # invoked indirectly via sourced dispatcher override
     hook_commit_failure_tracker() { return 1; }
     printf '%s' "$_INPUT" | _pre_bash_dispatch
 ) 2>/dev/null || _exit_code=$?
@@ -138,6 +139,7 @@ _output=$(HOME="$_log_test_dir" printf '%s' "$_INPUT" | HOME="$_log_test_dir" ba
 assert_eq "test_pre_bash_no_tool_logging_pre: exit 0" "0" "$_exit_code"
 
 # Verify NO JSONL log file was created (tool logging removed from dispatchers)
+# shellcheck disable=SC2012  # ls | head for glob-with-wildcard; files won't have spaces
 _log_file=$(ls "$_log_test_logdir"/tool-use-*.jsonl 2>/dev/null | head -1)
 _log_exists=0
 [[ -n "$_log_file" ]] && [[ -f "$_log_file" ]] && _log_exists=1

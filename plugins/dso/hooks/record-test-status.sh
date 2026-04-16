@@ -226,6 +226,7 @@ count_centrality() {
 
     # Escape regex metacharacters in module_name to prevent injection (Bug 5 fix).
     local escaped_module_name
+    # shellcheck disable=SC2016  # single quotes are intentional: \& is sed syntax, not shell expansion
     escaped_module_name=$(printf '%s' "$module_name" | sed 's/[.[\*^$()+?{|\\]/\\&/g')
 
     # Hardcoded default patterns (fallback when no config patterns are present).
@@ -655,10 +656,21 @@ DIFF_HASH=$("$HOOK_DIR/compute-diff-hash.sh")
 # Uses grep-based fan-in counting (no external tools required).
 # When ast-grep (sg) is not installed, emits a diagnostic note but still
 # performs centrality scoring via grep (the primary counting method).
+
+# _is_astgrep_sg: returns 0 only when the sg binary in PATH is ast-grep.
+# Ubuntu ships shadow-utils' sg (switch-group) at /usr/bin/sg; that binary
+# also satisfies `command -v sg` but is not ast-grep. We verify by checking
+# that `sg --version` produces a version line starting with "sg <digit>",
+# which ast-grep does and shadow-utils' sg does not.
+_is_astgrep_sg() {
+    command -v sg >/dev/null 2>&1 || return 1
+    sg --version 2>/dev/null | grep -qE '^(sg|ast-grep) [0-9]' || return 1
+}
+
 FULL_SUITE=false
 _max_centrality=0
 _CENTRALITY_LOG="$ARTIFACTS_DIR/centrality-log.jsonl"
-if ! command -v sg >/dev/null 2>&1; then
+if ! _is_astgrep_sg; then
     echo "NOTE: ast-grep (sg) not installed — centrality scoring uses grep-based fan-in counting" >&2
 fi
 
@@ -727,7 +739,7 @@ else
         _ts_log=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
         if [[ "$_centrality" -gt "$_CENTRALITY_THRESHOLD" ]] 2>/dev/null; then
             _decision="full_suite"
-        elif ! command -v sg >/dev/null 2>&1; then
+        elif ! _is_astgrep_sg; then
             _decision="skipped_no_sg"
         else
             _decision="associated_only"
@@ -811,6 +823,7 @@ FAILED_TESTS_LIST=""
 # Write "partial" (not STATUS) to test-gate-status so the pre-commit test
 # gate never accepts a mid-run snapshot as a valid pass — STATUS may still
 # be "passed" while untested files remain in the queue.
+# shellcheck disable=SC2329  # invoked indirectly via: trap '_write_partial_status' URG
 _write_partial_status() {
     local _ts
     _ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -853,7 +866,7 @@ if [[ "$FULL_SUITE" == true ]]; then
             while IFS= read -r _tf; do
                 [[ -z "$_tf" ]] && continue
                 _discovered_test_files+=("$_tf")
-                _rel="${_tf#$REPO_ROOT/}"
+                _rel="${_tf#"$REPO_ROOT"/}"
                 if [[ -n "$_all_test_files" ]]; then
                     _all_test_files="${_all_test_files},${_rel}"
                 else
@@ -964,6 +977,7 @@ if ms_is_merge_in_progress || ms_is_rebase_in_progress; then
     _rts_isolation_dir=$(mktemp -d /tmp/rts-git-isolation-XXXXXX)
     git init -q "$_rts_isolation_dir" 2>/dev/null
     export _MERGE_STATE_GIT_DIR="$_rts_isolation_dir/.git"
+    # shellcheck disable=SC2329  # invoked indirectly via: trap '_rts_cleanup_isolation' EXIT
     _rts_cleanup_isolation() { rm -rf "$_rts_isolation_dir" 2>/dev/null; }
     trap '_rts_cleanup_isolation' EXIT
 fi

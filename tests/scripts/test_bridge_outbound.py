@@ -627,6 +627,68 @@ def test_detect_status_flap_counts_only_within_window(
 
 @pytest.mark.unit
 @pytest.mark.scripts
+def test_detect_status_flap_mixed_precision_timestamps(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Given STATUS events where early events use seconds-precision timestamps
+    (written by old code, ts ~1.7e9) and later events use nanoseconds-precision
+    timestamps (written by new code, ts ~1.7e18), detect_status_flap() must
+    correctly normalize both precisions and return True when the oscillation
+    threshold is reached.
+
+    This exercises the mixed-precision normalization path that is the primary
+    motivation for the timestamp change: old and new events coexist in the same
+    ticket directory during a migration period.
+    """
+    ticket_dir = tmp_path / "w21-flap-mixed-precision"
+    ticket_dir.mkdir()
+
+    # Old events: seconds-precision timestamps (old code format, clearly < 1e12)
+    # base_ts = 1742605000 (well below the 1e12 boundary)
+    old_base = 1742605000
+    old_events = [
+        ("open", "cc110001-0000-0000-0000-000000000001", old_base),
+        ("in_progress", "cc110002-0000-0000-0000-000000000002", old_base + 60),
+        ("open", "cc110003-0000-0000-0000-000000000003", old_base + 120),
+    ]
+
+    # New events: nanoseconds-precision timestamps (new code format, clearly > 1e12)
+    # Use 1742605180 * 1_000_000_000 as base; all within 3600s of old events after
+    # normalization (old_base normalized = 1742605000e9, new_base = 1742605180e9,
+    # difference = 180s — well within the 3600s window).
+    ns_base = 1742605180 * 1_000_000_000
+    new_events = [
+        ("in_progress", "cc220001-0000-0000-0000-000000000001", ns_base),
+        ("open", "cc220002-0000-0000-0000-000000000002", ns_base + 60_000_000_000),
+        (
+            "in_progress",
+            "cc220003-0000-0000-0000-000000000003",
+            ns_base + 120_000_000_000,
+        ),
+    ]
+
+    # Write all 6 events: 3 seconds-precision then 3 nanoseconds-precision
+    for status, uid, ts in old_events + new_events:
+        _write_event(
+            ticket_dir,
+            timestamp=ts,
+            uuid=uid,
+            event_type="STATUS",
+            data={"status": status},
+            env_id=_OTHER_ENV_ID,
+        )
+
+    result = bridge.detect_status_flap(ticket_dir)
+
+    assert result is True, (
+        "detect_status_flap must return True when 6 oscillating STATUS events "
+        "span both seconds-precision (old code) and nanoseconds-precision (new code) "
+        "timestamps in the same ticket directory, with 3 reversals reaching the threshold"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
 def test_process_outbound_emits_bridge_alert_on_flap(
     tmp_path: Path, bridge: ModuleType
 ) -> None:
