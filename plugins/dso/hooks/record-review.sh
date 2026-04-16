@@ -375,12 +375,148 @@ else
     )
 fi
 
+# Fix ff09-69a2: build a separate OVERLAP_CHECK_FILES variable that includes ALL staged
+# files for the overlap check (not just worktree-only files).  CHANGED_FILES keeps its
+# worktree-only scope for diff-hash alignment; the overlap check needs the full staged set
+# so that valid findings against incoming-branch files are not incorrectly rejected.
+if [[ -n "${RECORD_REVIEW_CHANGED_FILES:-}" ]]; then
+    # Test-injected override — use it for both CHANGED_FILES and OVERLAP_CHECK_FILES.
+    OVERLAP_CHECK_FILES="$RECORD_REVIEW_CHANGED_FILES"
+elif ms_is_merge_in_progress 2>/dev/null || ms_is_rebase_in_progress 2>/dev/null; then
+    # During merge/rebase, the overlap check must accept findings against incoming-branch
+    # files that are in the index (staged) even though they are not in CHANGED_FILES.
+    OVERLAP_CHECK_FILES=$(git diff --cached --name-only 2>/dev/null | sort -u | { grep -v '^$' || true; })
+    # Fall back to CHANGED_FILES if cached diff is empty (e.g., pre-staged merge)
+    if [[ -z "$OVERLAP_CHECK_FILES" ]]; then
+        OVERLAP_CHECK_FILES="$CHANGED_FILES"
+    fi
+else
+    OVERLAP_CHECK_FILES="$CHANGED_FILES"
+fi
+
+# Fix c751-600d: per-finding strip — remove findings whose file is not in OVERLAP_CHECK_FILES.
+# Set-level overlap (any match lets all findings through) allowed hallucinated out-of-diff
+# findings to inflate the score and spuriously set has_critical.  After stripping, re-parse
+# SCORE and HAS_CRITICAL so the recorded state reflects only legitimate in-diff findings.
+# Skip when --findings-file override is set (cross-worktree findings are already trusted)
+# and when OVERLAP_CHECK_FILES is empty (no scope to filter against).
+if [[ -z "$FINDINGS_FILE_OVERRIDE" ]] && [[ -n "$OVERLAP_CHECK_FILES" ]] && [[ -s "$FINDINGS_FILE" ]]; then
+    set +e
+    _FILTERED_FINDINGS=$(python3 -c "
+import json, sys
+
+findings_file = sys.argv[1]
+changed_str = sys.argv[2]
+changed = set(f for f in changed_str.split('\n') if f)
+
+with open(findings_file) as fh:
+    data = json.load(fh)
+
+findings = data.get('findings', [])
+
+# Partition into in-diff and out-of-diff findings.
+# A finding is in-diff if its file field matches (substring) any changed file.
+in_diff = []
+stripped = []
+for f in findings:
+    fpath = f.get('file', '')
+    if not fpath:
+        in_diff.append(f)  # no file field — keep (global findings)
+        continue
+    matched = any(c and (c in fpath or fpath in c) for c in changed)
+    if matched:
+        in_diff.append(f)
+    else:
+        stripped.append(f)
+
+if not stripped:
+    # Nothing to strip — emit sentinel so the shell skips the rewrite
+    print('NO_STRIP')
+    sys.exit(0)
+
+# For each score dimension, if ALL penalizing findings in that dimension
+# were stripped (out-of-diff), reset the score to 5 so the hallucinated penalty
+# does not persist.  Penalizing severities: critical, important, fragile (all
+# three can lower a dimension score).  Dimensions that still have penalizing
+# in-diff findings keep their reviewer-assigned score unchanged.
+scores = dict(data.get('scores', {}))
+_penalizing = ('critical', 'important', 'fragile')
+dims_with_remaining_penalizing = set()
+for f in in_diff:
+    if f.get('severity') in _penalizing:
+        dims_with_remaining_penalizing.add(f.get('category', ''))
+
+dims_fully_stripped = set()
+for f in stripped:
+    if f.get('severity') in _penalizing:
+        dim = f.get('category', '')
+        if dim and dim not in dims_with_remaining_penalizing:
+            dims_fully_stripped.add(dim)
+
+for dim in dims_fully_stripped:
+    if dim in scores:
+        # Normalize: reset to 5 (no remaining penalizing findings in this dimension)
+        scores[dim] = 5
+
+data['findings'] = in_diff
+data['scores'] = scores
+print(json.dumps(data))
+" "$FINDINGS_FILE" "$OVERLAP_CHECK_FILES" 2>/dev/null)
+    _FILTER_EXIT=$?
+    set -e
+
+    if [[ $_FILTER_EXIT -eq 0 && -n "$_FILTERED_FINDINGS" && "$_FILTERED_FINDINGS" != "NO_STRIP" ]]; then
+        echo "$_FILTERED_FINDINGS" > "$FINDINGS_FILE"
+
+        # Re-parse SCORE and HAS_CRITICAL from the filtered findings file so the
+        # rest of the script operates on the cleaned data.
+        set +e
+        _REPARSED=$(python3 -c "
+import json, sys, os
+with open(sys.argv[1]) as fh:
+    data = json.load(fh)
+scores = data.get('scores', {})
+# Normalize string digits
+for k in list(scores.keys()):
+    v = scores[k]
+    if isinstance(v, str) and v.isdigit():
+        scores[k] = int(v)
+numeric = [v for v in scores.values() if isinstance(v, (int, float))]
+min_score = min(numeric) if numeric else 5
+has_critical = any(f.get('severity') == 'critical' for f in data.get('findings', []))
+print(str(min_score) + ':' + ('yes' if has_critical else 'no'))
+" "$FINDINGS_FILE" 2>/dev/null)
+        _REPARSE_EXIT=$?
+        set -e
+        if [[ $_REPARSE_EXIT -eq 0 && -n "$_REPARSED" ]]; then
+            SCORE="${_REPARSED%%:*}"
+            HAS_CRITICAL="${_REPARSED#*:}"
+        fi
+
+        # Re-extract FILES_FROM_FINDINGS from the filtered file so the overlap check
+        # uses the post-strip file list.  When all findings were stripped (all hallucinated),
+        # FILES_FROM_FINDINGS becomes empty and the overlap check is correctly skipped. (c751-600d)
+        set +e
+        _FILES_AFTER_STRIP=$(python3 -c "
+import json, sys
+with open(sys.argv[1]) as fh:
+    data = json.load(fh)
+files = sorted(set(f.get('file','') for f in data.get('findings',[]) if f.get('file','')))
+print('\n'.join(files))
+" "$FINDINGS_FILE" 2>/dev/null)
+        if [[ $? -eq 0 ]]; then
+            FILES_FROM_FINDINGS="$_FILES_AFTER_STRIP"
+        fi
+        set -e
+    fi
+fi
+
 # Skip overlap check when --findings-file was used from a different artifacts dir (cross-worktree
 # scenario). The caller explicitly declared the findings came from a different context, so the
 # current working tree's changed files may not match the reviewed diff. (6361-9c5b)
 if [[ -n "$FINDINGS_FILE_OVERRIDE" ]]; then
     : # overlap check skipped — cross-worktree findings
-elif [[ -n "$CHANGED_FILES" ]] && [[ -n "$FILES_FROM_FINDINGS" ]]; then
+elif [[ -n "$OVERLAP_CHECK_FILES" ]] && [[ -n "$FILES_FROM_FINDINGS" ]]; then
     OVERLAP_FOUND=""
     while IFS= read -r target; do
         [[ -z "$target" ]] && continue
@@ -390,7 +526,7 @@ elif [[ -n "$CHANGED_FILES" ]] && [[ -n "$FILES_FROM_FINDINGS" ]]; then
                 OVERLAP_FOUND="yes"
                 break 2
             fi
-        done <<< "$CHANGED_FILES"
+        done <<< "$OVERLAP_CHECK_FILES"
     done <<< "$FILES_FROM_FINDINGS"
 
     if [[ -z "$OVERLAP_FOUND" ]]; then
