@@ -348,6 +348,7 @@ As you draft the epic spec, classify the origin of each success criterion and ke
 - **confirmed-via-gap-question** — inferred by you, then confirmed by the user during gap analysis (Phase 1 Gate Step 2)
 - **inferred** — derived by you from context without explicit user confirmation
 - **researched** — sourced from web research or external reference material (Step 2.6)
+- **injected** — derived from a cross-epic interaction scan (consideration-level signal); applied before the scrutiny pipeline and rendered as bold at the approval gate
 
 Track provenance internally — you will use these categories in Step 4 to annotate the rendered spec.
 
@@ -361,6 +362,23 @@ After the scan completes, route signals by severity:
 - **ambiguity** or **conflict**: carry `CROSS_EPIC_SIGNALS` forward for halt/resolution handling (processed after this step per story 3c31-8050)
 
 If `CROSS_EPIC_SIGNALS` is empty or contains only benign signals, proceed directly to Step 2.5.
+
+### Step 2.26: Consideration AC Injection
+
+For each signal in `CROSS_EPIC_SIGNALS` where `severity = "consideration"`:
+
+1. **Construct a structured AC** with these three required fields:
+   - (a) Shared resource name: `signal.shared_resource`
+   - (b) Overlapping epic ID + title: `signal.overlapping_epic_id` — `signal.overlapping_epic_title`
+   - (c) Falsifiable integration constraint: `signal.integration_constraint`
+
+2. **Deduplicate by shared resource name**: if multiple CONSIDERATION signals share the same `shared_resource` value, consolidate to a single AC (use the first or most descriptive integration_constraint).
+
+3. **Mark as `injected` provenance**: each constructed AC carries `injected` provenance — applied before the Phase 3 clean-text strip pass.
+
+4. **Append to the epic spec** under a new `## Cross-Epic Interactions` section (separate from `## Success Criteria`). This keeps SC Gap Check and completion verifier operating on user-authored SCs, while injected ACs are tracked independently.
+
+If `CROSS_EPIC_SIGNALS` has no consideration-severity signals, skip this step and proceed to Step 2.5.
 
 ### Steps 2.5, 2.6, 2.75, and Step 3: Epic Scrutiny Pipeline
 
@@ -452,13 +470,14 @@ Present the validated spec to the user using **AskUserQuestion** with 4 options.
 
 **Provenance annotation rendering**: Before presenting success criteria, render each criterion with a bold/normal annotation based on its provenance:
 - **inferred** or **researched** criteria → render in **bold** (visually prominent — these require user review)
+- **injected** criteria → render in **bold** (same as inferred/researched — requires practitioner awareness)
 - **explicit** or **confirmed-via-gap-question** criteria → render in normal text (user already confirmed these)
 
 Immediately before the option list, include an annotation summary line in this format:
 ```
-N of M criteria confirmed; K inferred requiring review
+N of M criteria confirmed; K inferred requiring review; J injected from cross-epic scan
 ```
-where N = count of explicit + confirmed-via-gap-question criteria, M = total criteria count, K = count of inferred + researched criteria. This provenance summary line appears before the (a)/(b)/(c)/(d) options.
+where N = count of explicit + confirmed-via-gap-question criteria, M = total criteria count, K = count of inferred + researched criteria, J = count of injected criteria. This provenance summary line appears before the (a)/(b)/(c)/(d) options.
 
 Note: summary confirmation (Phase 1 Gate Step 1) does NOT collapse with gap analysis (Phase 1 Gate Step 2) — they are always presented as separate steps.
 
@@ -529,7 +548,7 @@ Log format to append (the heading is **Planning Intelligence Log**, level 3):
 
 **Goal**: Create the epic in the ticket system and hand off to the next step.
 
-**Clean-text instruction**: Strip all provenance markers and bold emphasis before writing the ticket description. Provenance annotations are used only during the approval-gate review phase — the final ticket description must be written as clean plain text with no markup from the provenance tracking step.
+**Clean-text instruction**: Strip all provenance markers and bold emphasis before writing the ticket description. Provenance annotations are used only during the approval-gate review phase — the final ticket description must be written as clean plain text with no markup from the provenance tracking step. Note: `injected` provenance is applied BEFORE the Phase 3 clean-text strip pass. The approval gate (Step 4, which runs before Phase 3) presents injected ACs in **bold** so practitioners see them clearly. Clean-text strips all provenance markers including `injected` annotations for the final ticket description.
 
 ### Step 0: Follow-on and Derivative Epic Gate (/dso:brainstorm)
 
