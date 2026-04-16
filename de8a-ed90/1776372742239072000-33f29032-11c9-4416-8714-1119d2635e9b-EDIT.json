@@ -1,0 +1,1 @@
+{"timestamp": 1776372742239072000, "uuid": "33f29032-11c9-4416-8714-1119d2635e9b", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "scripts/ticket package scaffold: mkdir fails -> File exists (ticket shell script occupies the path)"}}}
