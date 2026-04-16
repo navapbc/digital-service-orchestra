@@ -1,0 +1,1 @@
+{"timestamp": 1776297867626037000, "uuid": "6391ab31-ec7c-49bd-ada6-1bb02b57cc8f", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Gate 1a: intent-aligned \u2014 sync phase's post-commit state leaves re-staged files uncleared before marking sync complete; gap left by prior fix 96c1-a4a6/794ecad2 (high confidence)"}}
