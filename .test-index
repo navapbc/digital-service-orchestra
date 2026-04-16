@@ -161,7 +161,7 @@ plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh
 
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-skill.sh [test_phase0_5_doc_folder_scan_present]
 plugins/dso/skills/onboarding/scan-docs.sh:tests/skills/test-onboarding-scan-docs.sh
-plugins/dso/skills/onboarding/scan-docs.sh:tests/skills/test-onboarding-scan-docs.sh [test_extracts_app_name_from_text]
+plugins/dso/skills/onboarding/scan-docs.sh:tests/skills/test-onboarding-scan-docs.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-e2e.sh
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-e2e.sh [test_regression_onboarding_skill_all_pass]
 plugins/dso/skills/onboarding/SKILL.md:tests/skills/test-onboarding-ux-validation.sh
