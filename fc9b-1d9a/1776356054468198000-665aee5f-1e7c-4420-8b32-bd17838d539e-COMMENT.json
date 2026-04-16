@@ -1,0 +1,1 @@
+{"timestamp": 1776356054468198000, "uuid": "665aee5f-1e7c-4420-8b32-bd17838d539e", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: llm-behavioral (cluster: fc9b-1d9a + b1ff-fa71). Gate 1a: skipped \u2014 CLI_user tag present; intent-aligned assumed."}}
