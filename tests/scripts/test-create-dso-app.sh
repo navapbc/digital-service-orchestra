@@ -348,6 +348,10 @@ GITSTUB
     _write_stub "$stub_bin" "tr"      '/usr/bin/tr "$@"'
     _write_stub "$stub_bin" "sed"     '/usr/bin/sed "$@"'
     _write_stub "$stub_bin" "find"    '/usr/bin/find "$@"'
+    # mkdir and touch are used by the git clone stub; date is used for the sentinel timestamp
+    _write_stub "$stub_bin" "mkdir"   '/bin/mkdir "$@"'
+    _write_stub "$stub_bin" "touch"   '/usr/bin/touch "$@"'
+    _write_stub "$stub_bin" "date"    '/bin/date "$@"'
 
     echo "$stub_bin"
 }
