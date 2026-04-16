@@ -1,0 +1,1 @@
+{"timestamp": 1776364653788344000, "uuid": "20c203c7-a771-4884-bfcd-985bbc0ce184", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "record-test-status.sh: shadow-utils sg in PATH -> _is_astgrep_sg discriminator untested"}}}
