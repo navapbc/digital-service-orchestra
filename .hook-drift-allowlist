@@ -5,3 +5,6 @@
 # Portability check blocks hardcoded absolute paths — only relevant to this repo
 portability-check
 plugin-boundary-check
+
+# ShellCheck is project-local — not distributed with the DSO plugin
+shellcheck
