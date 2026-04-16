@@ -1,0 +1,1 @@
+{"timestamp": 1776378128951960000, "uuid": "8711fd14-40ab-4c61-9697-3d260c85d485", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "[contract-schema-check]: staging a contract file -> pre-commit hook times out (scans all 33 instead of staged)"}}}
