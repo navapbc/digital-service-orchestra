@@ -358,4 +358,49 @@ assert_eq "test_worktree_fully_clean_after_merge" "true" "$WT6_IS_CLEAN"
 cleanup_env "$TMPENV6"
 
 # =============================================================================
+# Test 7: _phase_sync clears staged files after merge (2613-a2eb)
+#
+# Pre-commit hooks (e.g., ruff auto-formatting) can restage files in the
+# worktree index during the merge commit. If _phase_sync does not clear these
+# restaged files, the top-level dirty-check (DIRTY_CACHED) will see them on
+# --resume and exit 1, creating an unrecoverable loop.
+#
+# Fix: add 'git reset HEAD --quiet || true' after the merge in _phase_sync.
+#
+# This is a structural test: extract _phase_sync and verify that
+# 'git reset HEAD' appears AFTER 'git merge origin/main' in the function body.
+# RED: before the fix, 'git reset HEAD' is absent → test FAILS.
+# GREEN: after adding the reset, the ordering check passes.
+# =============================================================================
+echo "--- Test 7: _phase_sync clears staged files after merge (2613-a2eb) ---"
+
+# Helper: extract a named function body from merge-to-main.sh
+_extract_fn7() {
+    local fn_name="$1"
+    awk "/^${fn_name}\\(\\)/{found=1} found{print; if(/^\\}$/){exit}}" "$MERGE_SCRIPT"
+}
+
+_SYNC_BODY=$(_extract_fn7 "_phase_sync" 2>/dev/null || echo "")
+
+# Check that 'git reset HEAD' appears in _phase_sync
+_SYNC_HAS_RESET="no"
+if echo "$_SYNC_BODY" | grep -qE 'git reset HEAD'; then
+    _SYNC_HAS_RESET="yes"
+fi
+
+# Check that 'git reset HEAD' appears AFTER 'git merge origin/main' in the function
+_MERGE_LINE=$(echo "$_SYNC_BODY" | grep -n 'git merge origin/main' | head -1 | cut -d: -f1)
+_RESET_LINE=$(echo "$_SYNC_BODY" | grep -n 'git reset HEAD' | head -1 | cut -d: -f1)
+
+_RESET_AFTER_MERGE="no"
+if [[ -n "$_MERGE_LINE" && -n "$_RESET_LINE" ]]; then
+    if [[ "$_RESET_LINE" -gt "$_MERGE_LINE" ]]; then
+        _RESET_AFTER_MERGE="yes"
+    fi
+fi
+
+assert_eq "test_sync_phase_has_git_reset_head" "yes" "$_SYNC_HAS_RESET"
+assert_eq "test_sync_phase_clears_staged_files_after_merge" "yes" "$_RESET_AFTER_MERGE"
+
+# =============================================================================
 print_summary
