@@ -19,6 +19,7 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 
 MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
+MERGE_HELPERS_LIB="$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -34,10 +35,13 @@ _run_in_state_context() {
     local _body="$2"
 
     # Extract the state file helper functions (lines between the helpers section marker
-    # and the SIGURG trap section).
+    # and the SIGURG trap section). Fall back to merge-helpers.sh if extracted to lib.
     local _helpers
     _helpers=$(awk '/^# --- State file helpers/,/^# --- SIGURG trap/' "$MERGE_SCRIPT" \
         | grep -v '^# ---')
+    if [[ -z "$_helpers" ]] && [[ -f "${MERGE_HELPERS_LIB:-}" ]]; then
+        _helpers=$(cat "$MERGE_HELPERS_LIB")
+    fi
 
     bash -c "
 export CLAUDE_PLUGIN_ROOT='$PLUGIN_ROOT'
@@ -132,8 +136,12 @@ with open('$_T3_TMP/state.json', 'w') as f:
 "
 
 # Extract helpers + build a minimal --resume dispatch escalation check
+# Fall back to merge-helpers.sh if state helpers were extracted there.
 _escalation_snippet=$(awk '/^# --- State file helpers/,/^# --- SIGURG trap/' "$MERGE_SCRIPT" \
     | grep -v '^# ---')
+if [[ -z "$_escalation_snippet" ]] && [[ -f "${MERGE_HELPERS_LIB:-}" ]]; then
+    _escalation_snippet=$(cat "$MERGE_HELPERS_LIB")
+fi
 
 _escalation_output=$(bash -c "
 export CLAUDE_PLUGIN_ROOT='$PLUGIN_ROOT'

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2046,SC2329  # word-splitting intentional; function invoked via eval
 # tests/scripts/test-merge-to-main.sh
 # Tests for merge-to-main.sh post-merge validation parallelization.
 #
@@ -16,6 +17,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
+MERGE_HELPERS_LIB="$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -121,11 +123,17 @@ assert_eq "test_count_closed_tickets_removed" "0" "$HAS_COUNT_FUNCTION"
 # State file helper function tests
 # =============================================================================
 
-# Helper: extract and eval state file functions from merge-to-main.sh
-# We extract each function by name, eval it, so we can test individually.
+# Helper: extract and eval state file functions from merge-to-main.sh or merge-helpers.sh.
+# Functions were extracted to merge-helpers.sh (hooks/lib/) to reduce merge-to-main.sh line count.
+# Searches MERGE_SCRIPT first, then falls back to MERGE_HELPERS_LIB so tests remain portable.
 _extract_fn() {
     local fn_name="$1"
-    awk "/^${fn_name}\\(\\)/{found=1} found{print; if(/^\\}$/){exit}}" "$MERGE_SCRIPT"
+    local _body
+    _body=$(awk "/^${fn_name}\\(\\)/{found=1} found{print; if(/^\\}$/){exit}}" "$MERGE_SCRIPT")
+    if [[ -z "$_body" ]] && [[ -f "${MERGE_HELPERS_LIB:-}" ]]; then
+        _body=$(awk "/^${fn_name}\\(\\)/{found=1} found{print; if(/^\\}$/){exit}}" "$MERGE_HELPERS_LIB")
+    fi
+    echo "$_body"
 }
 
 _STATE_TMPDIR=$(mktemp -d)

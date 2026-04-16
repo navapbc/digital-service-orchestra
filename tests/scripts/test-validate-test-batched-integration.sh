@@ -18,6 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 VALIDATE_SCRIPT="$DSO_PLUGIN_DIR/scripts/validate.sh"
+VALIDATE_HELPERS_LIB="$DSO_PLUGIN_DIR/hooks/lib/validate-helpers.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -336,7 +337,12 @@ _snapshot_fail
 # with missing command_hash. Verify that the Python code block inside the function
 # uses "not stored_hash" (reject empty) rather than "stored_hash and ..." (skip empty).
 # This is a structural test — it verifies the fix pattern is present in the source.
-_tmp=$(sed -n '/_test_state_already_passed/,/^}/p' "$VALIDATE_SCRIPT"); if grep -q 'not stored_hash' <<< "$_tmp"; then
+_tmp=$(sed -n '/_test_state_already_passed/,/^}/p' "$VALIDATE_SCRIPT")
+# _test_state_already_passed may have been extracted to validate-helpers.sh
+if [[ -z "$_tmp" ]] && [[ -f "${VALIDATE_HELPERS_LIB:-}" ]]; then
+    _tmp=$(sed -n '/_test_state_already_passed/,/^}/p' "$VALIDATE_HELPERS_LIB")
+fi
+if grep -q 'not stored_hash' <<< "$_tmp"; then
     _nohash_actual="rejects_missing"
 else
     _nohash_actual="accepts_missing"
