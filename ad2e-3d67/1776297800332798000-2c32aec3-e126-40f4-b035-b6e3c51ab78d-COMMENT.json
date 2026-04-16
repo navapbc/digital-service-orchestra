@@ -1,1 +1,0 @@
-{"timestamp": 1776297800332798000, "uuid": "2c32aec3-e126-40f4-b035-b6e3c51ab78d", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Gate 1a: intent-aligned \u2014 test coverage gap with no documented justification; timeout 120 is a required invariant from SC2 of epic 903c-44fc (high confidence)"}}
