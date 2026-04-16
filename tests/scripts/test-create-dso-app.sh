@@ -235,10 +235,59 @@ BREWEOF
     rm -f "$install_marker"
 }
 
+# ── test_installer_writes_plugin_root_to_config ──────────────────────────────
+# Verifies that detect_dso_plugin_root() writes the marketplace plugin path
+# into dso-config.conf. RED: fails until detect_dso_plugin_root() is
+# implemented in create-dso-app.sh (task 1d03-b29e). The test will fail with
+# "detect_dso_plugin_root() not found or failed" until that task is complete.
+test_installer_writes_plugin_root_to_config() {
+    echo "=== test_installer_writes_plugin_root_to_config ==="
+
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    TMPDIRS+=("$tmpdir")
+
+    local mock_marketplace="$tmpdir/mock-dso"
+    local project_dir="$tmpdir/test-project"
+
+    # Create mock marketplace sentinel
+    mkdir -p "$mock_marketplace/digital-service-orchestra/.claude-plugin"
+    echo '{"name":"dso"}' > "$mock_marketplace/digital-service-orchestra/.claude-plugin/plugin.json"
+
+    # Create project with default dso.plugin_root
+    mkdir -p "$project_dir/.claude"
+    echo "dso.plugin_root=plugins/dso" > "$project_dir/.claude/dso-config.conf"
+
+    # Invoke detect_dso_plugin_root (will fail if function doesn't exist yet — RED)
+    local invoke_exit=0
+    bash -c "
+        MARKETPLACE_BASE='$mock_marketplace' \
+        CLAUDE_PLUGIN_ROOT='' \
+        source '$PLUGIN_ROOT/plugins/dso/scripts/create-dso-app.sh'
+        detect_dso_plugin_root '$project_dir'
+    " 2>/dev/null || invoke_exit=$?
+
+    # REVIEW-DEFENSE: early return only fires when invoke_exit != 0 (function missing/failed).
+    # When invoke_exit == 0 (function exists and succeeded), we fall through to the
+    # config assertion below — which correctly verifies the write side-effect.
+    if [[ "$invoke_exit" -ne 0 ]]; then
+        assert_eq "detect_dso_plugin_root() found and succeeded" "0" "$invoke_exit"
+        return
+    fi
+
+    # Verify config was updated — only reached when invoke_exit == 0
+    local actual_root
+    actual_root=$(grep '^dso\.plugin_root=' "$project_dir/.claude/dso-config.conf" | cut -d= -f2-)
+    local expected_root="$mock_marketplace/digital-service-orchestra"
+
+    assert_eq "dso.plugin_root written correctly" "$expected_root" "$actual_root"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_homebrew_not_installed_exits_1
 test_all_deps_present_exits_0
 test_missing_git_accumulates_to_error
 test_node_below_20_triggers_install
+test_installer_writes_plugin_root_to_config
 
 print_summary
