@@ -731,11 +731,41 @@ At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`.
 
 **No rigid menus** — use open-ended questions with natural follow-ups rather than lettered option lists. Ask what the user does, not which letter they pick.
 
+### Confidence Routing
+
+Before asking each question, read the `## CONFIDENCE_CONTEXT` section from `$SCRATCHPAD` and route based on the dimension's confidence level:
+
+| Confidence level | Action |
+|-----------------|--------|
+| **high** | Skip the question entirely. Show a one-line summary: "Detected [value] — skipping [area] question." |
+| **medium** | Show pre-filled detected value: "I detected [value]. Does this look right? [Y/n]" — accept confirmation or correction. |
+| **low** (or missing) | Ask normally using the Question Guide below. |
+
+When CONFIDENCE_CONTEXT is absent or a dimension is missing, default to **low** (ask normally).
+Doc-folder-elevated confidence (from Phase 0.5) is already reflected in CONFIDENCE_CONTEXT — no special handling needed.
+
+### Non-Technical Path
+
+When `comfort_level` is `"non-technical"`, skip or default engineering-specific questions for non-technical users:
+
+| Area | Non-technical handling |
+|------|-----------------------|
+| commands | Use detected commands or defaults (`make test` / `make lint`); never ask about npm vs. Docker invocation style |
+| ci | Use detected CI workflow filename; skip deep CI trigger configuration questions |
+| enforcement | Apply recommended DSO defaults; skip technical gate configuration questions |
+
+For non-technical users: confirm detected values rather than asking open-ended engineering questions. Show summaries, not prompts.
+
 ### Question Guide by Area
 
 Work through each area in the checklist order, but adapt based on what detection already found.
 
 #### 1. stack
+
+**Confidence routing:**
+- **high**: "Detected [stack] — skipping stack question."
+- **medium**: "I detected [stack]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
 
 Ask about: primary language and version, framework (if any), package manager, runtime target.
 
@@ -756,6 +786,11 @@ What language and runtime is this project built on? And what's the primary frame
 
 #### 2. commands
 
+**Confidence routing:**
+- **high**: "Detected [commands] — skipping commands question."
+- **medium**: "I detected [commands]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
+
 Ask about: how to run tests, how to start the dev server, how to lint/format, any project-specific Makefile targets.
 
 Present detected test directories for confirmation:
@@ -764,6 +799,11 @@ I found these test directories: [TEST_DIRS]. How do you actually run the test su
 ```
 
 #### 3. architecture
+
+**Confidence routing:**
+- **high**: "Detected [architecture] — skipping architecture question."
+- **medium**: "I detected [architecture]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
 
 Ask about: top-level module layout, key service boundaries, any notable design patterns (event sourcing, CQRS, hexagonal, etc.), where the main entry point is.
 
@@ -774,6 +814,11 @@ How would you describe the top-level structure of this project — is it a singl
 
 #### 4. infrastructure
 
+**Confidence routing:**
+- **high**: "Detected [infrastructure] — skipping infrastructure question."
+- **medium**: "I detected [infrastructure]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
+
 Ask about: where it runs (cloud provider, on-prem, local-only), databases used, external services or APIs it calls, how secrets are managed.
 
 Ask openly:
@@ -782,6 +827,11 @@ Where does this project run in production, and what external services or databas
 ```
 
 #### 5. CI
+
+**Confidence routing:**
+- **high**: "Detected [ci] — skipping ci question."
+- **medium**: "I detected [ci]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
 
 List the actual `.github/workflows/*.yml` filenames discovered in Step 1. Use those filenames to confirm the CI workflow name rather than asking the user to type it from memory.
 
@@ -795,6 +845,11 @@ I don't see any CI workflows yet. What CI system are you planning to use, if any
 ```
 
 #### 6. design
+
+**Confidence routing:**
+- **high**: "Detected [design] — skipping design question."
+- **medium**: "I detected [design]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
 
 Ask about: whether there is a UI layer, which framework/library is used, any established design system, accessibility targets.
 
@@ -824,6 +879,11 @@ Does this project have a UI or frontend layer? If so, what framework are you usi
 After completing these design questions, append findings to the scratchpad under a `## Design (Extended)` section.
 
 #### 7. enforcement
+
+**Confidence routing:**
+- **high**: "Detected [enforcement] — skipping enforcement question."
+- **medium**: "I detected [enforcement]. Does this look right? [Y/n]"
+- **low**: Ask using templates below.
 
 Ask about: linting tools, commit message conventions, pre-commit hooks in use, code review requirements, test coverage policies.
 
