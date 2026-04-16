@@ -818,6 +818,22 @@ When adding `preplanning.interactive` to a new host project's `dso-config.conf`,
 
 ---
 
+### `brainstorm.max_interaction_cycles`
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `brainstorm.max_interaction_cycles` | integer | 2 | Maximum number of cross-epic interaction re-scans allowed after practitioner resolves an ambiguity or conflict. When absent, defaults to 2. |
+
+After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm re-runs the cross-epic scan to check for remaining interactions. This key bounds how many re-scans can occur before brainstorm presents any remaining unresolved signals to the practitioner and asks whether to proceed.
+
+| | |
+|---|---|
+| **Accepted values** | Positive integer |
+| **Default** | `2` |
+| **Used by** | `/dso:brainstorm` (cross-epic interaction re-scan loop) |
+
+---
+
 ### `merge.visual_baseline_path`
 
 | | |
