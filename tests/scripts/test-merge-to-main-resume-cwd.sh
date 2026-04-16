@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2164,SC2030,SC2031,SC2016  # cd/subshell patterns and grep regex in test setup
 # tests/scripts/test-merge-to-main-resume-cwd.sh
 # Behavioral tests for the CWD-correctness invariant in merge-to-main.sh:
 #   Bug 34cc-526c: --resume skips _phase_sync, so cd "$MAIN_REPO" (inside
@@ -47,6 +48,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
+MERGE_HELPERS_LIB="$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -58,7 +60,12 @@ echo ""
 # ---------------------------------------------------------------------------
 _extract_fn() {
     local fn_name="$1"
-    awk "/^${fn_name}\\(\\)/{found=1} found{print; if(/^\\}$/){exit}}" "$MERGE_SCRIPT"
+    local _body
+    _body=$(awk "/^${fn_name}\\(\\)/{found=1} found{print; if(/^\\}$/){exit}}" "$MERGE_SCRIPT")
+    if [[ -z "$_body" ]] && [[ -f "${MERGE_HELPERS_LIB:-}" ]]; then
+        _body=$(awk "/^${fn_name}\\(\\)/{found=1} found{print; if(/^\\}$/){exit}}" "$MERGE_HELPERS_LIB")
+    fi
+    echo "$_body"
 }
 
 # ---------------------------------------------------------------------------

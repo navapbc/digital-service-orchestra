@@ -18,6 +18,7 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 VALIDATE_SCRIPT="$DSO_PLUGIN_DIR/scripts/validate.sh"
+VALIDATE_HELPERS_LIB="$DSO_PLUGIN_DIR/hooks/lib/validate-helpers.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -31,7 +32,7 @@ echo ""
 echo "=== test_verbose_print_uses_flock_timeout ==="
 _snapshot_fail
 
-if grep -q "\-w 5\|--timeout" "$VALIDATE_SCRIPT" 2>/dev/null; then
+if grep -q "\-w 5\|--timeout" "$VALIDATE_SCRIPT" "$VALIDATE_HELPERS_LIB" 2>/dev/null; then
     FLOCK_TIMEOUT_FOUND="yes"
 else
     FLOCK_TIMEOUT_FOUND="no"
@@ -50,8 +51,9 @@ echo ""
 echo "=== test_verbose_print_fallback_on_timeout ==="
 _snapshot_fail
 
-# Extract the verbose_print function body from validate.sh
+# Extract the verbose_print function body from validate.sh or the extracted helpers lib
 _verbose_print_body=$(awk '/^verbose_print\(\)/{found=1} found{print; if(/^\}$/) exit}' "$VALIDATE_SCRIPT" 2>/dev/null || true)
+[[ -z "$_verbose_print_body" ]] && _verbose_print_body=$(awk '/^verbose_print\(\)/{found=1} found{print; if(/^\}$/) exit}' "$VALIDATE_HELPERS_LIB" 2>/dev/null || true)
 
 # Must contain flock with -w timeout
 if [[ "$_verbose_print_body" =~ -w\ [0-9] ]]; then
