@@ -226,12 +226,40 @@ main() {
   local project_dir="$target_dir/$sanitized_name"
 
   if [ -e "$project_dir" ]; then
+    # Idempotency: project fully initialized — exit 0 with informative message
+    if [ -f "$project_dir/.dso-init-complete" ]; then
+      echo "Project '$sanitized_name' is already initialized in $project_dir."
+      echo "Nothing to do. To re-install, remove $project_dir and re-run."
+      exit 0
+    fi
     echo "ERROR: Directory '$project_dir' already exists. Choose a different project name or remove the existing directory." >&2
     exit 1
   fi
 
   echo "Creating DSO NextJS project '$sanitized_name' in $project_dir"
   echo "Template source: $repo_url"
+
+  # User acknowledgment before installation
+  # Re-attach stdin to the terminal when invoked via "curl | bash" pipe
+  # (in that form bash reads the script from stdin, so exec < /dev/tty is needed
+  # to allow interactive prompts; safe no-op for all other invocation forms).
+  if [ "${BASH_SOURCE[0]}" = "/dev/stdin" ] && [ -e /dev/tty ]; then
+    exec < /dev/tty 2>/dev/null || true
+  fi
+
+  echo ""
+  echo "About to install:"
+  echo "  (1) DSO (digital-service-orchestra) is the Claude Code plugin that powers this project"
+  echo "  (2) The installer requires permission to install the DSO plugin via Claude Code"
+  echo "  (3) Steps: clone template, install npm dependencies, configure DSO, launch Claude Code"
+  echo ""
+  echo "Press Enter to continue or Ctrl-C to cancel."
+  local _ack
+  if ! read -r _ack 2>/dev/null; then
+    echo ""
+    echo "Installation cancelled."
+    exit 1
+  fi
 
   # Step 3: Clone template repository (--no-single-branch fetches all branches,
   # including the tickets orphan branch used by DSO)
@@ -295,9 +323,9 @@ main() {
 
   echo ""
   echo "DSO NextJS Starter installer — project '$sanitized_name' created successfully."
-  echo "Next steps:"
-  echo "  cd $project_dir"
-  echo "  claude"
+  echo "Launching Claude Code in $project_dir..."
+  cd "$project_dir"
+  exec claude
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

@@ -180,4 +180,4 @@ plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh
 plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh
 CLAUDE.md:tests/skills/test-nextjs-starter-docs.sh
 plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh [test_plugin_consent_doc_has_required_sections]
-plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh [test_exit_1_on_stdin_eof]
+plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
