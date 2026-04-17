@@ -1,1 +1,0 @@
-{"timestamp": 1776447981802151000, "uuid": "c9b31b72-de43-460b-aedd-531e44c9ca27", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT:batch-complete \u2014 Done \u2713 \u2014 Files: plugins/dso/docs/workflows/REVIEW-WORKFLOW.md, .claude/dso-config.conf. Tests: 3/3 pass."}}
