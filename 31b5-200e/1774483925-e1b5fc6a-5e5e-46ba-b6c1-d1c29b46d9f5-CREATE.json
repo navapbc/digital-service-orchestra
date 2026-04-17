@@ -1,1 +1,0 @@
-{"timestamp": 1774483925, "uuid": "e1b5fc6a-5e5e-46ba-b6c1-d1c29b46d9f5", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "sprint-list-epics.sh fails silently when ticket tracker not ready during worktree startup", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}

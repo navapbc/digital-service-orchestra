@@ -1,1 +1,0 @@
-{"timestamp": 1774502852, "uuid": "2e5be89c-25cf-4f2b-8196-71f15aa2094e", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Fix: dead SCAN_FILES=() variable in test-skill-script-paths.sh", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}

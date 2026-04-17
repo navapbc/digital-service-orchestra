@@ -1,1 +1,0 @@
-{"timestamp": 1774411384260087000, "uuid": "d5d7b8f6-723b-43b3-b510-cb62e195db51", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: behavioral, Score: 0 (BASIC). Missing test assertion for severity terms (critical/major/minor) in Stage 3."}}

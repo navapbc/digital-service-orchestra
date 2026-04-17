@@ -1,1 +1,0 @@
-{"timestamp": 1774390563, "uuid": "87aaf527-29db-4d29-8882-e22d6f57f9bb", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Delete ROLLBACK-PROCEDURE.md and clean ticket-cli-reference.md", "parent_id": "985e-0421", "priority": 2, "assignee": "Joe Oakhart"}}

@@ -1,1 +1,0 @@
-{"timestamp": 1774386955, "uuid": "6a61f51c-ab4b-4617-8caf-7d8f7ddcc7d5", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, I can read ticket-related scripts without encountering v2 dual-path code", "parent_id": "d775-4a36", "priority": 1, "assignee": "Joe Oakhart"}}

@@ -1,1 +1,0 @@
-{"timestamp": 1774327605, "uuid": "a75a8e35-9f3a-45a7-b6f9-127d19bbd71b", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Orchestrator overrides review classifier tier decision instead of following it", "parent_id": "", "assignee": "Joe Oakhart"}}

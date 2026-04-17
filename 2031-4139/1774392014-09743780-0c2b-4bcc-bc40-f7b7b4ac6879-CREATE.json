@@ -1,1 +1,0 @@
-{"timestamp": 1774392014, "uuid": "09743780-0c2b-4bcc-bc40-f7b7b4ac6879", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "sprint-next-batch.sh fails: TK variable references missing tk wrapper script", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}

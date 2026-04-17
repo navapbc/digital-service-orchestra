@@ -1,1 +1,0 @@
-{"timestamp": 1774396712, "uuid": "7cd9938d-cb4d-4b34-b7a1-17a369fa3d7f", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Sprint sub-agents launched 'in parallel' must use run_in_background or they execute serially", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}

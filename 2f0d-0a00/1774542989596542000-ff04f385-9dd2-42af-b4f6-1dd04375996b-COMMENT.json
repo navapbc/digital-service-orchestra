@@ -1,1 +1,0 @@
-{"timestamp": 1774542989596542000, "uuid": "ff04f385-9dd2-42af-b4f6-1dd04375996b", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Not applicable \u2014 no E2E test suite configured for this project (E2E_CMD is empty in dso-config.conf)"}}

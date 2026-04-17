@@ -1,1 +1,0 @@
-{"timestamp": 1774538801, "uuid": "67245895-e415-4a4e-8cb6-151da6dcd7cf", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a DSO maintainer, a CI job automatically compacts and archives tickets", "parent_id": "7dee-3e33", "priority": 2, "assignee": "Joe Oakhart"}}

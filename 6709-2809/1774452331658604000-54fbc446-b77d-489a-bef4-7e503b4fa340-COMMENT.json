@@ -1,1 +1,0 @@
-{"timestamp": 1774452331658604000, "uuid": "54fbc446-b77d-489a-bef4-7e503b4fa340", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: added run_in_background: true to batch dispatch instructions in sprint and debug-everything skills, preventing serial execution of parallel sub-agents"}}

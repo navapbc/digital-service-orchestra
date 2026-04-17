@@ -1,1 +1,0 @@
-{"timestamp": 1774391204, "uuid": "ed0d128c-c68b-4ee6-adec-11f485598d4d", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Write v2-clean guard tests for FAKE_TK and TK_LOG patterns", "parent_id": "9180-1d78", "priority": 2, "assignee": "Joe Oakhart"}}

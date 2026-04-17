@@ -1,1 +1,0 @@
-{"timestamp": 1774486319016040000, "uuid": "3c883bba-0588-4808-8817-e69e4521cbdb", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: behavioral, Score: 2 (BASIC). Root cause area: pre-commit-test-gate.sh lacks MERGE_HEAD detection that pre-commit-review-gate.sh already has."}}

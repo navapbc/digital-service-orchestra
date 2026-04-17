@@ -1,1 +1,0 @@
-{"timestamp": 1774411410, "uuid": "3e6e2fad-33a2-40c2-8e45-131a2cbf6c23", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "_make_ticket_cmd duplicated in 3 test classes", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}

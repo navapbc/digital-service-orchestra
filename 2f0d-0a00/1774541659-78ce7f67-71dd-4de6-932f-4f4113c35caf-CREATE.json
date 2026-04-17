@@ -1,1 +1,0 @@
-{"timestamp": 1774541659, "uuid": "78ce7f67-71dd-4de6-932f-4f4113c35caf", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Fix pre-existing E2E test configuration failure", "parent_id": "5d90-b43c", "priority": 2, "assignee": "Joe Oakhart"}}

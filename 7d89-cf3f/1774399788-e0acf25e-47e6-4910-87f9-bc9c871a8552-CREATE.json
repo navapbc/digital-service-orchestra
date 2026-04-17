@@ -1,1 +1,0 @@
-{"timestamp": 1774399788, "uuid": "e0acf25e-47e6-4910-87f9-bc9c871a8552", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "ticket transition for bugs silently fails without --reason flag instead of showing error", "parent_id": "e50b-e125", "priority": 2, "assignee": "Joe Oakhart"}}

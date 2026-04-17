@@ -1,1 +1,0 @@
-{"timestamp": 1774488666108104000, "uuid": "b8386d64-59c9-4afb-8916-66ab6509923b", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: behavioral, Score: 4 (INTERMEDIATE). Prior fix attempt b798cb97 added retry but _tracker_has_entries uses find without -L, broken through symlinks in worktrees."}}

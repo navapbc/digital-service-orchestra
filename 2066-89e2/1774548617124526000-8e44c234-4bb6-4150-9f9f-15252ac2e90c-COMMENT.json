@@ -1,1 +1,0 @@
-{"timestamp": 1774548617124526000, "uuid": "8e44c234-4bb6-4150-9f9f-15252ac2e90c", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Removed all 6 remaining v2 references \u2014 tk_show renamed, tk CLI in README/examples updated, tk-sync-lib.sh refs removed from CLAUDE.md and reviewer prompts"}}

@@ -1,1 +1,0 @@
-{"timestamp": 1774395356, "uuid": "a916e3d1-ed43-423d-95cd-395a639dcada", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Conflict detection script should not flag .test-index as a concurrent modification conflict", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}

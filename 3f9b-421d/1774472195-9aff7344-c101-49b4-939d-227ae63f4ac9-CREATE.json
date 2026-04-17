@@ -1,1 +1,0 @@
-{"timestamp": 1774472195, "uuid": "9aff7344-c101-49b4-939d-227ae63f4ac9", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "end-session SKILL.md uses stale .tickets/ pathspec refs (should be .tickets-tracker/)", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
