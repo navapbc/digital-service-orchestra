@@ -209,6 +209,6 @@ plugins/dso/scripts/review-sample-files.sh:tests/unit/scripts/test-review-sample
 
 # --- review-batch-groups.sh: batch grouper (epic 97fc-b2ca, task 2462-28a0) ---
 
-# --- REVIEW-WORKFLOW-HUGE.md fallback agents (epic 97fc-b2ca, task f787-d995) ---
+# --- REVIEW-WORKFLOW-HUGE.md fallback/confirmed-refactor agents (epic 97fc-b2ca, tasks f787-d995, 5275-a50f) ---
 plugins/dso/agents/huge-diff-reviewer-light.md:tests/workflows/test-review-workflow-huge.sh [test_light_fallback_agent_model_is_opus]
 plugins/dso/agents/huge-diff-reviewer-standard.md:tests/workflows/test-review-workflow-huge.sh [test_standard_fallback_agent_model_is_opus]

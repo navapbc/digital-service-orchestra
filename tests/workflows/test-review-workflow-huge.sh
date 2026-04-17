@@ -100,6 +100,48 @@ test_standard_fallback_agent_model_is_opus() {
     assert_pass_if_clean "test_standard_fallback_agent_model_is_opus"
 }
 
+# ── Confirmed-refactor / batch-groups / anomaly tests (RED until efe7-7f1d T4/T5) ──
+
+test_huge_confirmed_haiku_batch_references_batch_groups() {
+    _snapshot_fail
+    local actual
+    grep -q 'review-batch-groups' "$REPO_ROOT/plugins/dso/docs/workflows/REVIEW-WORKFLOW-HUGE.md" \
+        && actual="present" || actual="absent"
+    assert_eq "test_huge_confirmed_haiku_batch_references_batch_groups" "present" "$actual"
+    assert_pass_if_clean "test_huge_confirmed_haiku_batch_references_batch_groups"
+}
+
+test_huge_confirmed_references_anomaly_agent() {
+    _snapshot_fail
+    local actual
+    grep -q 'huge-diff-refactor-anomaly' "$REPO_ROOT/plugins/dso/docs/workflows/REVIEW-WORKFLOW-HUGE.md" \
+        && actual="present" || actual="absent"
+    assert_eq "test_huge_confirmed_references_anomaly_agent" "present" "$actual"
+    assert_pass_if_clean "test_huge_confirmed_references_anomaly_agent"
+}
+
+test_refactor_anomaly_agent_exists_and_is_opus() {
+    _snapshot_fail
+    local file_actual model_actual
+    [ -f "$REPO_ROOT/plugins/dso/agents/huge-diff-refactor-anomaly.md" ] \
+        && file_actual="exists" || file_actual="missing"
+    grep -q 'model: opus' "$REPO_ROOT/plugins/dso/agents/huge-diff-refactor-anomaly.md" 2>/dev/null \
+        && model_actual="opus" || model_actual="other"
+    assert_eq "test_refactor_anomaly_agent_exists_and_is_opus_file" "exists" "$file_actual"
+    assert_eq "test_refactor_anomaly_agent_exists_and_is_opus_model" "opus" "$model_actual"
+    assert_pass_if_clean "test_refactor_anomaly_agent_exists_and_is_opus"
+}
+
+test_refactor_anomaly_agent_has_dimension_labels() {
+    _snapshot_fail
+    local actual
+    grep -qE 'pattern_conformance|behavioral_drift' \
+        "$REPO_ROOT/plugins/dso/agents/huge-diff-refactor-anomaly.md" 2>/dev/null \
+        && actual="present" || actual="absent"
+    assert_eq "test_refactor_anomaly_agent_has_dimension_labels" "present" "$actual"
+    assert_pass_if_clean "test_refactor_anomaly_agent_has_dimension_labels"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 
 test_huge_workflow_has_sampling_step
@@ -121,6 +163,14 @@ echo ""
 test_light_fallback_agent_model_is_opus
 echo ""
 test_standard_fallback_agent_model_is_opus
+echo ""
+test_huge_confirmed_haiku_batch_references_batch_groups
+echo ""
+test_huge_confirmed_references_anomaly_agent
+echo ""
+test_refactor_anomaly_agent_exists_and_is_opus
+echo ""
+test_refactor_anomaly_agent_has_dimension_labels
 echo ""
 
 print_summary
