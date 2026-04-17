@@ -87,7 +87,7 @@ _simulate_step3_dispatch() {
     REVIEW_TIER=""
     SIZE_ACTION="none"
     SIZE_REJECTION="0"
-    SIZE_REJECTION_MSG=""
+    SIZE_WARNING_MSG=""
 
     # Extract fields from classifier JSON
     if ! echo "$classifier_json" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
@@ -131,10 +131,9 @@ _simulate_step3_dispatch() {
             # Upgrade to opus for oversized but not rejected diffs
             REVIEW_AGENT="dso:code-reviewer-opus"
             ;;
-        reject)
-            # Reject the review — diff too large
-            SIZE_REJECTION="1"
-            SIZE_REJECTION_MSG="ERROR: Diff is too large for automated review. Split your changes into smaller commits before reviewing. See: large-diff-splitting-guide.md"
+        warn)
+            # Warn about large diff — does NOT reject, does NOT set SIZE_REJECTION=1
+            SIZE_WARNING_MSG="WARNING: Diff is large (>=600 lines). Review quality may be reduced. Consider splitting your changes. See: large-diff-splitting-guide.md"
             ;;
         none|*)
             # No size change — keep tier-selected agent
@@ -192,11 +191,33 @@ test_workflow_step3_reject_when_size_action_is_reject() {
     assert_pass_if_clean "test_workflow_step3_reject_when_size_action_is_reject"
 }
 
+test_workflow_step3_warn_when_size_action_is_warn() {
+    # Given classifier JSON with size_action: "warn", assert the workflow does NOT reject
+    # the review (SIZE_REJECTION=0) and continues dispatching the tier-selected agent.
+    _snapshot_fail
+    CLASSIFIER_JSON='{"selected_tier":"standard","size_action":"warn","is_merge_commit":false,"blast_radius":2,"computed_total":4}'
+    REVIEW_PASS_NUM=1
+    _simulate_step3_dispatch
+    assert_eq "test_workflow_step3_warn_when_size_action_is_warn: SIZE_REJECTION is 0 (warn does not reject)" \
+        "0" "$SIZE_REJECTION"
+    assert_ne "test_workflow_step3_warn_when_size_action_is_warn: REVIEW_AGENT is not empty (review proceeds)" \
+        "" "$REVIEW_AGENT"
+    assert_pass_if_clean "test_workflow_step3_warn_when_size_action_is_warn: helper logic"
+
+    # RED check: verify REVIEW-WORKFLOW.md Step 3b contains warn logic (fails until implemented)
+    _snapshot_fail
+    step3_has_warn_logic=0
+    grep -qE 'SIZE_ACTION.*warn|size_action.*warn|warn.*size' "$WORKFLOW_FILE" 2>/dev/null && step3_has_warn_logic=1
+    assert_eq "test_workflow_step3_warn_when_size_action_is_warn: REVIEW-WORKFLOW.md Step 3b contains SIZE_ACTION.*warn (RED until implemented)" \
+        "1" "$step3_has_warn_logic"
+    assert_pass_if_clean "test_workflow_step3_warn_when_size_action_is_warn"
+}
+
 test_workflow_step3_no_size_limit_on_repass() {
     # Given REVIEW_PASS_NUM=2 (re-review pass), assert size limits are bypassed even
-    # when classifier returns size_action: "reject".
+    # when classifier returns size_action: "warn".
     _snapshot_fail
-    CLASSIFIER_JSON='{"selected_tier":"standard","size_action":"reject","is_merge_commit":false,"blast_radius":2,"computed_total":4}'
+    CLASSIFIER_JSON='{"selected_tier":"standard","size_action":"warn","is_merge_commit":false,"blast_radius":2,"computed_total":4}'
     REVIEW_PASS_NUM=2
     _simulate_step3_dispatch
     assert_eq "test_workflow_step3_no_size_limit_on_repass: SIZE_REJECTION is 0 on re-review pass" \
@@ -217,7 +238,7 @@ test_workflow_step3_no_size_limit_on_repass() {
 test_workflow_step3_merge_commit_bypass() {
     # Given classifier JSON with is_merge_commit: true, assert size limits are bypassed.
     _snapshot_fail
-    CLASSIFIER_JSON='{"selected_tier":"light","size_action":"reject","is_merge_commit":true,"blast_radius":0,"computed_total":0}'
+    CLASSIFIER_JSON='{"selected_tier":"light","size_action":"warn","is_merge_commit":true,"blast_radius":0,"computed_total":0}'
     REVIEW_PASS_NUM=1
     _simulate_step3_dispatch
     assert_eq "test_workflow_step3_merge_commit_bypass: SIZE_REJECTION is 0 for merge commits" \
@@ -306,12 +327,11 @@ _simulate_step3b_from_classifier_json() {
         if [[ "$size_action" == "upgrade" ]]; then
             REVIEW_AGENT_OVERRIDE="dso:code-reviewer-deep-arch"
         fi
-        if [[ "$size_action" == "reject" ]]; then
-            STEP3B_REVIEW_RESULT="rejected"
-            STEP3B_REJECTION_MSG="REVIEW_RESULT: rejected
-REVIEW_REJECTED: diff has ${diff_size_lines} scorable lines (>=600 threshold).
-Large diffs exhaust reviewer context and degrade review quality.
-Split your changes into smaller commits before re-running review.
+        if [[ "$size_action" == "warn" ]]; then
+            STEP3B_REVIEW_RESULT="warned"
+            STEP3B_REJECTION_MSG="SIZE_WARNING: diff has ${diff_size_lines} scorable lines (>=600 threshold).
+Large diffs may reduce review quality.
+Consider splitting your changes.
 Guidance: plugins/dso/docs/workflows/prompts/large-diff-splitting-guide.md"
         fi
     fi
@@ -332,7 +352,7 @@ test_integration_merge_commit_bypass_end_to_end() {
     local diff_input classifier_json is_merge_actual size_action_actual merge_git_dir
     diff_input=$(_generate_diff_lines 600)
     merge_git_dir=$(make_merge_head_git_dir)
-    classifier_json=$(echo "$diff_input" | _MERGE_STATE_GIT_DIR="$merge_git_dir" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+    classifier_json=$(echo "$diff_input" | env _MERGE_STATE_GIT_DIR="$merge_git_dir" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
     rm -rf "$(dirname "$merge_git_dir")" 2>/dev/null || true
 
     # Verify classifier produced valid JSON with is_merge_commit=true
@@ -363,7 +383,7 @@ test_integration_upgrade_path_end_to_end() {
 
     local diff_input classifier_json size_action_actual
     diff_input=$(_generate_diff_lines 300)
-    classifier_json=$(echo "$diff_input" | _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+    classifier_json=$(echo "$diff_input" | env _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
 
     # Verify classifier produced valid JSON with size_action=upgrade
     size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")
@@ -388,7 +408,7 @@ test_integration_reject_path_end_to_end() {
 
     local diff_input classifier_json size_action_actual
     diff_input=$(_generate_diff_lines 600)
-    classifier_json=$(echo "$diff_input" | _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+    classifier_json=$(echo "$diff_input" | env _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
 
     # Verify classifier produced valid JSON with size_action=reject
     size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")
@@ -405,12 +425,39 @@ test_integration_reject_path_end_to_end() {
     assert_pass_if_clean "test_integration_reject_path_end_to_end"
 }
 
+test_integration_warn_path_end_to_end() {
+    # End-to-end: pipe a 600-line diff through the classifier (when classifier emits warn),
+    # run Step 3b logic, assert review is NOT rejected (SIZE_REJECTION=0) and proceeds.
+    # RED: classifier still emits "reject" at 600 lines — this test fails until source change.
+    _snapshot_fail
+
+    local diff_input classifier_json size_action_actual
+    diff_input=$(_generate_diff_lines 600)
+    classifier_json=$(echo "$diff_input" | env _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+
+    # Verify classifier produced valid JSON with size_action=warn (RED until source change)
+    size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "test_integration_warn_path_end_to_end: classifier returns size_action=warn for 600-line diff" \
+        "warn" "$size_action_actual"
+
+    # Run Step 3b branching logic — warn must NOT produce rejection
+    _simulate_step3b_from_classifier_json "$classifier_json" 1
+    assert_eq "test_integration_warn_path_end_to_end: STEP3B_REVIEW_RESULT is not rejected (warn path)" \
+        "" "$STEP3B_REVIEW_RESULT"
+    assert_eq "test_integration_warn_path_end_to_end: SIZE_REJECTION is 0 (warn does not exit-1)" \
+        "0" "${SIZE_REJECTION:-0}"
+
+    assert_pass_if_clean "test_integration_warn_path_end_to_end"
+}
+
 # ============================================================
 # Run all tests
 # ============================================================
 test_workflow_step3_upgrade_when_size_action_is_upgrade
 echo ""
 test_workflow_step3_reject_when_size_action_is_reject
+echo ""
+test_workflow_step3_warn_when_size_action_is_warn
 echo ""
 test_workflow_step3_no_size_limit_on_repass
 echo ""
@@ -424,6 +471,8 @@ echo ""
 test_integration_upgrade_path_end_to_end
 echo ""
 test_integration_reject_path_end_to_end
+echo ""
+test_integration_warn_path_end_to_end
 echo ""
 teardown_temp_dir
 print_summary
