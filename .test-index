@@ -202,3 +202,4 @@ INSTALL.md:tests/test-install-doc-contract.sh,tests/scripts/test-no-unguarded-pl
 # --- scan-config-keys: config gap detection (epic 91f5-0aec, task e4cf-92a3) ---
 plugins/dso/scripts/scan-config-keys.sh:tests/scripts/test-scan-config-keys.sh
 plugins/dso/docs/CONFIGURATION-REFERENCE.md:tests/scripts/test-config-keys-documented.sh
+
