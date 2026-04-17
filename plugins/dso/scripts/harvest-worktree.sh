@@ -61,6 +61,7 @@ fi
 # ── Trap: clean up MERGE_HEAD on any failure ─────────────────────────────────
 
 _harvest_exit_code=0
+# shellcheck disable=SC2329  # invoked indirectly via trap
 _harvest_cleanup() {
     local ec=${_harvest_exit_code:-$?}
     if [[ -f "$GIT_DIR/MERGE_HEAD" ]]; then
@@ -189,6 +190,33 @@ fi
 if [[ -f "$GIT_DIR/MERGE_HEAD" ]]; then
     git commit --no-edit >/dev/null 2>&1
 fi
+
+# ── Post-merge cleanup ───────────────────────────────────────────────────────
+# Fixes bug afdb-8418: before this block, harvest-worktree.sh left both the
+# agent worktree and its backing branch in place, requiring cleanup via a
+# separate orchestrator step (per-worktree-review-commit.md Step 7) that fails
+# to run when auto-compact drops the orchestrator's state between harvest and
+# cleanup, or when the dispatching skill (fix-bug, debug-everything) does not
+# invoke that step at all. Making cleanup the harvest script's own responsibility
+# removes the LLM-in-loop dependency: cleanup runs deterministically whenever
+# the merge succeeds, regardless of which orchestrator dispatched the agent.
+#
+# All cleanup operations are best-effort (|| true): failure here must not
+# corrupt exit status — the merge already succeeded.
+_harvest_worktree_path=$(git worktree list --porcelain 2>/dev/null | awk -v b="$WORKTREE_BRANCH" '
+    /^worktree / { p = substr($0, 10) }
+    $0 == "branch refs/heads/" b { print p; exit }
+')
+if [[ -n "$_harvest_worktree_path" ]]; then
+    _harvest_session_root=$(git rev-parse --show-toplevel 2>/dev/null)
+    # Never remove the caller's own working tree (would orphan the shell)
+    if [[ "$_harvest_worktree_path" != "$_harvest_session_root" ]]; then
+        git worktree unlock "$_harvest_worktree_path" 2>/dev/null || true
+        git worktree remove "$_harvest_worktree_path" --force 2>/dev/null || true
+        git worktree prune 2>/dev/null || true
+    fi
+fi
+git branch -D "$WORKTREE_BRANCH" 2>/dev/null || true
 
 _harvest_exit_code=0
 echo "Worktree $WORKTREE_BRANCH merged successfully" >&2
