@@ -243,10 +243,12 @@ test_sample_highest_line_count_priority() {
     assert_eq "test_sample_highest_line_count_priority: exits 0" "0" "$exit_code"
 
     # All 3 low-count files must be absent from the 7-file output
+    # Note: grep -c outputs the match count on stdout even when exit=1 (no matches).
+    # Capture via subshell; the || true prevents pipefail from aborting.
     local low1_present low2_present low3_present
-    low1_present=$(printf '%s\n' "$output" | grep -c 'low1.sh' || echo 0)
-    low2_present=$(printf '%s\n' "$output" | grep -c 'low2.sh' || echo 0)
-    low3_present=$(printf '%s\n' "$output" | grep -c 'low3.sh' || echo 0)
+    low1_present=$(printf '%s\n' "$output" | grep -c 'low1.sh' || true)
+    low2_present=$(printf '%s\n' "$output" | grep -c 'low2.sh' || true)
+    low3_present=$(printf '%s\n' "$output" | grep -c 'low3.sh' || true)
 
     assert_eq "test_sample_highest_line_count_priority: low1.sh absent" "0" "$low1_present"
     assert_eq "test_sample_highest_line_count_priority: low2.sh absent" "0" "$low2_present"

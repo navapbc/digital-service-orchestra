@@ -203,3 +203,6 @@ INSTALL.md:tests/test-install-doc-contract.sh,tests/scripts/test-no-unguarded-pl
 plugins/dso/scripts/scan-config-keys.sh:tests/scripts/test-scan-config-keys.sh
 plugins/dso/docs/CONFIGURATION-REFERENCE.md:tests/scripts/test-config-keys-documented.sh
 
+
+# --- review-sample-files.sh: stratified sampler (epic 97fc-b2ca, task 4337-a84d) ---
+plugins/dso/scripts/review-sample-files.sh:tests/unit/scripts/test-review-sample-files.sh

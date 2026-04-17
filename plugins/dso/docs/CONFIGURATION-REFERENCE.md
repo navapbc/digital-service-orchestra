@@ -805,6 +805,16 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `review.huge_diff_file_threshold`
+
+| | |
+|---|---|
+| **Description** | Minimum number of changed files in a diff that activates the large-refactor review path. When a diff meets or exceeds this threshold, review routing switches to the extended large-diff workflow instead of the standard deep-tier path. |
+| **Accepted values** | Positive integer. Values of `0` or negative are a validation error and will halt review dispatch with an error message. |
+| **Default** | `20` |
+
+---
+
 ### `debug.max_fix_validate_cycles`
 
 | | |
