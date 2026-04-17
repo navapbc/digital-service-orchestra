@@ -1,0 +1,1 @@
+{"timestamp": 1776462093940728000, "uuid": "866e14e4-a651-45eb-bd0d-90593223b937", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "check-usage.sh: normal usage session -> reports USAGE_5HR 4900% and VERDICT paused (MAX_AGENTS 0)"}}}
