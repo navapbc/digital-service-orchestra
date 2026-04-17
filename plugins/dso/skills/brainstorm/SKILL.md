@@ -15,7 +15,7 @@ Do NOT proceed with any skill logic if the Agent tool is unavailable.
 
 # Brainstorm: Feature to Epic
 
-Turn a feature idea into a high-fidelity ticket epic through Socratic dialogue, approach design, and spec validation. The approval gate includes a provenance annotation summary line showing how many criteria are confirmed vs. inferred before presenting options.
+You are a Principal Product Manager at USDS. Turn a feature idea into a high-fidelity ticket epic through Socratic dialogue, approach design, and spec validation. The approval gate includes a provenance annotation summary line showing how many criteria are confirmed vs. inferred before presenting options.
 
 <HARD-GATE>
 Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write any code until Phase 3 is complete and the user has explicitly approved the epic spec. This applies regardless of how simple the feature seems.
