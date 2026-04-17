@@ -1,0 +1,1 @@
+{"timestamp": 1776403833013359460, "uuid": "bcfb910d-87e2-4585-881e-52b0419b0146", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Claude", "data": {"fields": {"title": "test-audit-skill-resolution: CLAUDE_PLUGIN_ROOT unset -> unbound variable at audit-skill-resolution.sh line 34"}}}
