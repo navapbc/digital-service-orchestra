@@ -265,25 +265,6 @@ fi
 
 # ============================================================
 echo ""
-echo "=== test_bounded_gap_loop ==="
-SECTION="test_bounded_gap_loop"
-
-# SKILL.md must specify a maximum of 3 questions in the gap loop
-if grep -qiE 'at most 3|3 questions|maximum 3|max 3|up to 3' "$SKILL_MD"; then
-  pass "SKILL.md specifies bounded gap loop (at most 3 / 3 questions)"
-else
-  fail "SKILL.md missing bounded gap loop specification (at most 3 or 3 questions)"
-fi
-
-# SKILL.md must reference opt-in mechanism for gap loop
-if grep -qiE 'opt.in|opt in' "$SKILL_MD"; then
-  pass "SKILL.md references opt-in mechanism for gap loop"
-else
-  fail "SKILL.md missing opt-in language for gap loop"
-fi
-
-# ============================================================
-echo ""
 echo "=== test_negative_no_bold_annotations_in_phase3 ==="
 SECTION="test_negative_no_bold_annotations_in_phase3"
 

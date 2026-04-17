@@ -5,10 +5,8 @@
 Use the DSO NextJS Starter to scaffold a fully-configured project with one command:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/<org>/digital-service-orchestra/HEAD/plugins/dso/scripts/create-dso-app.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/navapbc/digital-service-orchestra/HEAD/plugins/dso/scripts/create-dso-app.sh)
 ```
-
-> **Note**: Replace `<org>` with your GitHub organization name once the template repository has been set up. See the DSO NextJS Starter README for more details.
 
 ## What the installer does
 
