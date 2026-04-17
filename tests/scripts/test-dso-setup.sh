@@ -1584,6 +1584,42 @@ EOF
     assert_eq "test_install_merges_new_config_keys: plugin_root not duplicated" "1" "$plugin_root_count"
 }
 
+# ── Root INSTALL.md reference test (6698-43a2) ───────────────────────────────
+#
+# RED phase: dso-setup.sh currently prints "docs/INSTALL.md" in its completion
+# summary. INSTALL.md has moved to the repo root, so the script output must
+# reference the root path ("INSTALL.md"), not the old docs/ path.
+#
+# Behavioral assertion: run the script, capture its observable stdout+stderr,
+# and verify:
+#   (a) the old "docs/INSTALL.md" path does NOT appear in runtime output
+#   (b) a bare "INSTALL.md" reference DOES appear (root path guidance present)
+#
+# This captures user-visible behavior (what the script tells the operator to
+# read). It fails before the fix and passes once the fix updates the echo line.
+test_setup_references_root_install_doc() {
+    local T output
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+
+    # (a) The deprecated "docs/INSTALL.md" path must NOT appear in the output.
+    local old_path_result="absent"
+    if grep -q 'docs/INSTALL\.md' <<< "$output"; then
+        old_path_result="present"
+    fi
+    assert_eq "test_setup_references_root_install_doc: old 'docs/INSTALL.md' absent" "absent" "$old_path_result"
+
+    # (b) A root "INSTALL.md" reference must be present (guidance retained).
+    local root_ref_result="missing"
+    if grep -q 'INSTALL\.md' <<< "$output"; then
+        root_ref_result="found"
+    fi
+    assert_eq "test_setup_references_root_install_doc: root 'INSTALL.md' referenced" "found" "$root_ref_result"
+}
+
 # test_install_merges_ci_workflow: when an existing CI workflow file is present,
 # dso-setup.sh calls merge_ci_workflow to merge DSO job definitions into it.
 # The existing workflow content must be preserved and a DSO job must be added.
@@ -1687,5 +1723,6 @@ test_yaml_stamp_survives_roundtrip
 test_validate_handles_stamped_config
 test_install_merges_new_config_keys
 test_install_merges_ci_workflow
+test_setup_references_root_install_doc
 
 print_summary

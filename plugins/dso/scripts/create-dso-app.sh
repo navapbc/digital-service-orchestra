@@ -124,6 +124,8 @@ check_homebrew_deps() {
     exit 1
   fi
 
+  eval "$(brew shellenv)" 2>/dev/null || true
+
   local missing=()
 
   # Check bash 4+
@@ -131,17 +133,27 @@ check_homebrew_deps() {
   bash_ver=$(bash --version | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1 || echo "0")
   local bash_major="${bash_ver%%.*}"
   if [ "${bash_major:-0}" -lt 4 ]; then
-    missing+=("bash")
+    echo "Installing bash via Homebrew..."
+    brew install bash || missing+=("bash")
   fi
 
   # Check git
-  if ! command -v git >/dev/null 2>&1; then missing+=("git"); fi
+  if ! command -v git >/dev/null 2>&1; then
+    echo "Installing git via Homebrew..."
+    brew install git || missing+=("git")
+  fi
 
   # Check GNU coreutils (greadlink as proxy)
-  if ! command -v greadlink >/dev/null 2>&1; then missing+=("coreutils"); fi
+  if ! command -v greadlink >/dev/null 2>&1; then
+    echo "Installing coreutils via Homebrew..."
+    brew install coreutils || missing+=("coreutils")
+  fi
 
   # Check pre-commit
-  if ! command -v pre-commit >/dev/null 2>&1; then missing+=("pre-commit"); fi
+  if ! command -v pre-commit >/dev/null 2>&1; then
+    echo "Installing pre-commit via Homebrew..."
+    brew install pre-commit || missing+=("pre-commit")
+  fi
 
   # Check Node 20.x
   local node_ver=""

@@ -139,10 +139,9 @@ test_all_deps_present_exits_0() {
 }
 
 # ── test_missing_git_accumulates_to_error ───────────────────────────────────
-# When git is absent, the script must exit 1 and list git in the missing deps
-# output. Since /usr/bin/git exists on macOS, we replace the stub_bin PATH
-# with a completely isolated set that omits git — so PATH="$stub_bin" alone
-# (no /usr/bin:/bin fallthrough) ensures git is truly not found.
+# When git is absent AND `brew install git` fails, the script must exit 1 and
+# list git in the missing deps output. The script now auto-installs via brew;
+# only a brew install failure should still produce a fatal error.
 test_missing_git_accumulates_to_error() {
     local stub_bin node_prefix
     stub_bin=$(_make_stub_bin)
@@ -150,9 +149,11 @@ test_missing_git_accumulates_to_error() {
     TMPDIRS+=("$node_prefix")
     mkdir -p "$node_prefix/bin"
 
+    # brew stub: `brew install git` fails (exit 1) — simulates install failure
     cat > "$stub_bin/brew" <<BREWEOF
 #!/bin/sh
 case "\$*" in
+  "install git")      exit 1 ;;
   "install node@20")  : ;;
   "list node@20")     : ;;
   "--prefix node@20") echo "$node_prefix" ;;
@@ -165,7 +166,7 @@ BREWEOF
 
     # Provide bash stub (needed for `bash --version` in the script)
     _write_stub "$stub_bin" "bash" "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
-    # Intentionally omit git so it is not found
+    # Intentionally omit git so it is not found and brew auto-install fires
     _write_stub "$stub_bin" "greadlink" "exit 0"
     _write_stub "$stub_bin" "pre-commit" "exit 0"
     _write_stub "$stub_bin" "node" "echo \"v20.11.0\"; exit 0"
@@ -180,13 +181,13 @@ BREWEOF
     local output exit_code
     output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) && exit_code=0 || exit_code=$?
 
-    assert_ne "missing git: exits non-zero" "0" "$exit_code"
+    assert_ne "missing git (brew install fails): exits non-zero" "0" "$exit_code"
 
     local git_listed="no"
     if echo "$output" | grep -qi "git"; then
         git_listed="yes"
     fi
-    assert_eq "missing git: listed in output" "yes" "$git_listed"
+    assert_eq "missing git (brew install fails): listed in output" "yes" "$git_listed"
 }
 
 # ── test_node_below_20_triggers_install ─────────────────────────────────────
@@ -546,5 +547,136 @@ test_idempotency_already_initialized
 test_partial_init_start_fresh
 test_partial_init_cancel
 test_partial_init_resume
+
+# ── test_missing_git_auto_installs_via_brew ───────────────────────────────────
+# When git is absent from PATH but brew is present and functional, the script
+# must call `brew install git` automatically (auto-install) and exit 0 with
+# "All dependencies satisfied" — NOT exit 1 with "Run: brew install git".
+#
+# RED: fails until check_homebrew_deps() is fixed to call `brew install git`
+# instead of adding git to missing[] and exiting 1.
+test_missing_git_auto_installs_via_brew() {
+    local install_marker
+    install_marker=$(mktemp)
+    rm -f "$install_marker"  # start absent; brew stub creates it on install git
+
+    local stub_bin node_prefix
+    stub_bin=$(_make_stub_bin)
+    node_prefix=$(mktemp -d)
+    TMPDIRS+=("$node_prefix")
+    mkdir -p "$node_prefix/bin"
+
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+case "\$*" in
+  "install git")        /usr/bin/touch "$install_marker"; exit 0 ;;
+  "install node@20")    exit 0 ;;
+  "list node@20")       exit 0 ;;
+  "--prefix node@20")   echo "$node_prefix"; exit 0 ;;
+  "install --cask "*)   exit 0 ;;
+  "--version"|"-v")     echo "Homebrew 4.0.0"; exit 0 ;;
+  *)                    exit 0 ;;
+esac
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # Provide all deps EXCEPT git — git is intentionally absent so brew auto-install fires
+    _write_stub "$stub_bin" "bash"       "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
+    _write_stub "$stub_bin" "greadlink"  "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "node"       "echo \"v20.11.0\"; exit 0"
+    _write_stub "$stub_bin" "claude"     "exit 0"
+    _write_stub "$stub_bin" "grep"       '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"       '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname"    '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"         '/usr/bin/tr "$@"'
+
+    # Run with strictly isolated PATH — /usr/bin/git must NOT be reachable
+    local output exit_code=0
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) || exit_code=$?
+
+    # Assert: brew install git was called (auto-install triggered)
+    local install_triggered="no"
+    [[ -f "$install_marker" ]] && install_triggered="yes"
+    assert_eq "missing git: brew install git called automatically" "yes" "$install_triggered"
+
+    # Assert: script exits 0 (auto-install succeeds, not a fatal missing dep)
+    assert_eq "missing git: exits 0 after auto-install" "0" "$exit_code"
+
+    # Assert: no "Run: brew install" manual instruction in output
+    local manual_hint="no"
+    echo "$output" | grep -qi "Run: brew install git" && manual_hint="yes"
+    assert_eq "missing git: no manual install hint in output" "no" "$manual_hint"
+
+    rm -f "$install_marker"
+}
+
+# ── test_brew_shellenv_path_injection_prevents_false_missing ──────────────────
+# When a dep (greadlink/coreutils) is installed by Homebrew but its bin dir is
+# NOT on the initial PATH, the script must inject the Homebrew PATH via
+# `brew shellenv` (or equivalent) before checking for deps, and then find the
+# dep — rather than treating it as missing and exiting 1.
+#
+# Simulation: brew shellenv outputs "export PATH=<homebrew_bin>:$PATH".
+# The homebrew_bin dir contains greadlink. The initial PATH does NOT contain it.
+#
+# RED: fails until check_homebrew_deps() calls `eval "$(brew shellenv)"` before
+# running any `command -v` checks.
+test_brew_shellenv_path_injection_prevents_false_missing() {
+    local stub_bin homebrew_bin node_prefix
+    stub_bin=$(_make_stub_bin)
+    homebrew_bin=$(_make_stub_bin)  # simulates /opt/homebrew/bin — not on initial PATH
+    node_prefix=$(mktemp -d)
+    TMPDIRS+=("$node_prefix")
+    mkdir -p "$node_prefix/bin"
+
+    # greadlink lives ONLY in homebrew_bin (not in stub_bin)
+    _write_stub "$homebrew_bin" "greadlink" "exit 0"
+
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+case "\$*" in
+  "shellenv")           echo "export PATH=\"$homebrew_bin:\$PATH\""; exit 0 ;;
+  "install node@20")    exit 0 ;;
+  "list node@20")       exit 0 ;;
+  "--prefix node@20")   echo "$node_prefix"; exit 0 ;;
+  "install --cask "*)   exit 0 ;;
+  "--version"|"-v")     echo "Homebrew 4.0.0"; exit 0 ;;
+  *)                    exit 0 ;;
+esac
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # All other deps present in stub_bin; greadlink intentionally absent from stub_bin
+    _write_stub "$stub_bin" "bash"       "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
+    _write_stub "$stub_bin" "git"        "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "node"       "echo \"v20.11.0\"; exit 0"
+    _write_stub "$stub_bin" "claude"     "exit 0"
+    _write_stub "$stub_bin" "grep"       '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"       '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname"    '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"         '/usr/bin/tr "$@"'
+
+    # Run with initial PATH = stub_bin only (homebrew_bin reachable ONLY via brew shellenv)
+    local output exit_code=0
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) || exit_code=$?
+
+    # Assert: script exits 0 — greadlink found after shellenv injection, not treated as missing
+    assert_eq "shellenv injection: exits 0 when dep is in homebrew PATH" "0" "$exit_code"
+
+    # Assert: output contains "All dependencies satisfied" (not a missing-dep error)
+    local satisfied="no"
+    echo "$output" | grep -q "All dependencies satisfied" && satisfied="yes"
+    assert_eq "shellenv injection: all deps satisfied message" "yes" "$satisfied"
+
+    # Assert: no "coreutils" listed as missing in error output
+    local coreutils_missing="no"
+    echo "$output" | grep -qi "coreutils" && coreutils_missing="yes"
+    assert_eq "shellenv injection: coreutils NOT listed as missing" "no" "$coreutils_missing"
+}
+
+test_missing_git_auto_installs_via_brew
+test_brew_shellenv_path_injection_prevents_false_missing
 
 print_summary

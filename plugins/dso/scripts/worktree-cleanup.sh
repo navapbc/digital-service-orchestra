@@ -238,6 +238,15 @@ is_old_enough() {
     local wt_path="$1"
     local age_hours="${AGE_HOURS:-12}"
 
+    # Agent worktrees (created by Agent tool dispatches with isolation:"worktree")
+    # are transient by design — minutes-long, not human sessions. The age gate is
+    # inappropriate for them, and without this exemption they accumulate
+    # indefinitely (bug afdb-8418). Any path under `.claude/worktrees/agent-*`
+    # is eligible for reclamation immediately.
+    case "$wt_path" in
+        */.claude/worktrees/agent-*) return 0 ;;
+    esac
+
     # Use the creation time of the worktree directory as the age reference.
     # On macOS, stat -f %B gives the birth time (seconds since epoch).
     # On Linux, stat -c %W gives birth time (may be 0 if unsupported; fall back to mtime).
@@ -708,6 +717,12 @@ for idx in "${selected_indices[@]}"; do
         removed_branches+=("$branch")
     else
         remove_ok=false
+        # Belt-and-suspenders unlock before remove: Claude Code agent worktrees
+        # carry a harness-written lock file whose PID is dead once the sub-agent
+        # exits. `git worktree remove --force` handles locks in modern git, but
+        # an explicit unlock is a harmless no-op when unlocked and removes any
+        # remaining doubt for older git versions.
+        git worktree unlock "$path" 2>/dev/null || true
         if git worktree remove "$path" --force 2>/dev/null; then
             remove_ok=true
         else
