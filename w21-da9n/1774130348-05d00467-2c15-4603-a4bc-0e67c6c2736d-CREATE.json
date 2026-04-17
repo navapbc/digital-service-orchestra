@@ -1,1 +1,0 @@
-{"timestamp": 1774130348, "uuid": "05d00467-2c15-4603-a4bc-0e67c6c2736d", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "test-cleanup-claude-session.sh times out (exceeds 120s)", "parent_id": "w22-ns6l", "priority": 2, "assignee": "Joe Oakhart"}}

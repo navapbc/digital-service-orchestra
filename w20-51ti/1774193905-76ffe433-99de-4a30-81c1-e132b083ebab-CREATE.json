@@ -1,1 +1,0 @@
-{"timestamp": 1774193905, "uuid": "76ffe433-99de-4a30-81c1-e132b083ebab", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Flaky test: test_parallel_validation_faster_than_serial in test-merge-to-main.sh", "priority": 3, "assignee": "Joe Oakhart"}}

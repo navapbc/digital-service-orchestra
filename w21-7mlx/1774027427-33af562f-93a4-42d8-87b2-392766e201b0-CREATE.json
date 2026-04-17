@@ -1,1 +1,0 @@
-{"timestamp": 1774027427, "uuid": "33af562f-93a4-42d8-87b2-392766e201b0", "event_type": "CREATE", "data": {"ticket_type": "story", "title": "As a developer, all existing tickets are migrated to the new system preserving IDs, data, and relationships", "parent_id": "w21-24kl", "priority": 1, "assignee": "Joe Oakhart"}}

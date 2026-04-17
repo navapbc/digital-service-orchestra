@@ -1,1 +1,0 @@
-{"timestamp": 1774058365, "uuid": "c705f63b-9620-40bb-b840-96b23b558d62", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix: test-behavioral-equivalence-allowlist.sh 6 failures (compute-diff-hash/both-consumers-agree)", "parent_id": "w22-ns6l", "priority": 2, "assignee": "Joe Oakhart"}}

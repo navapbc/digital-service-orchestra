@@ -1,1 +1,0 @@
-{"timestamp": 1774210099, "uuid": "be31cbf3-e6ce-48bf-8e50-2243830c308e", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Bug: sprint-next-batch.sh overlap detection treats universal AC verification commands as file conflicts", "priority": 2, "assignee": "Joe Oakhart"}}

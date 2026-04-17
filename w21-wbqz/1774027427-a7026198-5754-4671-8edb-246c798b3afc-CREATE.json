@@ -1,1 +1,0 @@
-{"timestamp": 1774027427, "uuid": "a7026198-5754-4671-8edb-246c798b3afc", "event_type": "CREATE", "data": {"ticket_type": "story", "title": "As a developer, all tk references are atomically updated to the new ticket CLI in a single commit", "parent_id": "w21-24kl", "priority": 1, "assignee": "Joe Oakhart"}}

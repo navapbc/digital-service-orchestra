@@ -1,1 +1,0 @@
-{"timestamp": 1773970353, "uuid": "8b0e197b-2c2b-4c09-ae66-62060fc3dc12", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "dso-setup.sh supplement_template_file uses cat for append — not in _make_tool_path fake PATH", "parent_id": "dso-9xnr", "priority": 3, "assignee": "Joe Oakhart"}}

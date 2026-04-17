@@ -1,1 +1,0 @@
-{"timestamp": 1774217161, "uuid": "141f9a46-9a6b-45f5-a947-b5793f84e5f4", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Flaky test: test-merge-to-main.sh fails in full suite but passes in isolation", "priority": 2, "assignee": "Joe Oakhart"}}

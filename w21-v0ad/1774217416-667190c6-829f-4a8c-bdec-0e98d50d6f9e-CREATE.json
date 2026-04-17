@@ -1,1 +1,0 @@
-{"timestamp": 1774217416, "uuid": "667190c6-829f-4a8c-bdec-0e98d50d6f9e", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "sprint-next-batch.sh overlap detector flags AC verify commands as file conflicts, causing false-positive batch splits", "priority": 2, "assignee": "Joe Oakhart"}}

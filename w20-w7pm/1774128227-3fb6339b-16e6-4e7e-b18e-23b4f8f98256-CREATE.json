@@ -1,1 +1,0 @@
-{"timestamp": 1774128227, "uuid": "3fb6339b-16e6-4e7e-b18e-23b4f8f98256", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Validation sub-agents in /dso:validate-work fix errors instead of only reporting them", "priority": 1, "assignee": "Joe Oakhart"}}

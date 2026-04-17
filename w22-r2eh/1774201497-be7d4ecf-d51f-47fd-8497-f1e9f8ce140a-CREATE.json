@@ -1,1 +1,0 @@
-{"timestamp": 1774201497, "uuid": "be7d4ecf-d51f-47fd-8497-f1e9f8ce140a", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Write RED tests for classifier diff-size thresholds and merge-commit bypass", "parent_id": "w21-nv42  # As a DSO practitioner, oversized diffs are rejected with actionable guidance", "priority": 2, "assignee": "Joe Oakhart"}}

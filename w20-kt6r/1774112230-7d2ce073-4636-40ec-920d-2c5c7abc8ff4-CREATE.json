@@ -1,1 +1,0 @@
-{"timestamp": 1774112230, "uuid": "7d2ce073-4636-40ec-920d-2c5c7abc8ff4", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Multiple [LOCK] tickets for debug-everything — no cleanup after session ends", "priority": 2, "assignee": "Joe Oakhart"}}

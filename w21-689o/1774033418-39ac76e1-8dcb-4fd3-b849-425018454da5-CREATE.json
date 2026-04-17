@@ -1,1 +1,0 @@
-{"timestamp": 1774033418, "uuid": "39ac76e1-8dcb-4fd3-b849-425018454da5", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Worktree left dirty after implementation-plan: task tickets not committed", "parent_id": "dso-9xnr", "priority": 2, "assignee": "Joe Oakhart"}}

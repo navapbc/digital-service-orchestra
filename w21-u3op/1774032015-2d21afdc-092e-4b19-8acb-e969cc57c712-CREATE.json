@@ -1,1 +1,0 @@
-{"timestamp": 1774032015, "uuid": "2d21afdc-092e-4b19-8acb-e969cc57c712", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Investigate inconsistency between 'Acceptance criteria:' and '## ACCEPTANCE CRITERIA' formats in ticket creation", "parent_id": "dso-9xnr", "priority": 2, "assignee": "Joe Oakhart"}}

@@ -1,1 +1,0 @@
-{"timestamp": 1774165826, "uuid": "5962d64d-90d6-4905-bbb8-555d08136de5", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Bug: test-merge-to-main-ucq2.sh flakes in full suite (race condition in temp dir cleanup)", "parent_id": "w22-ns6l", "priority": 2, "assignee": "Joe Oakhart"}}

@@ -1,1 +1,0 @@
-{"timestamp": 1774112600, "uuid": "fe585894-8f40-45e8-85c6-6972890e92a0", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Bug: preplanning uses ambiguous confirmation questions where yes/no answers conflict", "parent_id": "w22-ns6l", "priority": 2, "assignee": "Joe Oakhart"}}

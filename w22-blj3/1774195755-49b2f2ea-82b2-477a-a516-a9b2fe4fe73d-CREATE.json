@@ -1,1 +1,0 @@
-{"timestamp": 1774195755, "uuid": "49b2f2ea-82b2-477a-a516-a9b2fe4fe73d", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Bug: merge-to-main.sh PRE_MERGE_SHA unbound variable in ci_trigger phase", "priority": 3, "assignee": "Joe Oakhart"}}
