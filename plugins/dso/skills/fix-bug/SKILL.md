@@ -798,9 +798,12 @@ Launch a sub-agent to implement the approved fix:
 - Change ONLY what is necessary — no refactoring, no scope creep
 - One logical change at a time
 
+When `worktree.isolation_enabled=true`: after the sub-agent returns, verify `WORKTREE_PATH != ORCHESTRATOR_ROOT` to confirm the fix was applied in its own isolated worktree (not the session root), then follow `skills/shared/prompts/single-agent-integrate.md` to harvest the worktree result, run post-dispatch gates (review, test-gate, commit), and merge back to the session branch.
+
 ### Step 7: Verify Fix (/dso:fix-bug)
 
-Verify that RED tests are now GREEN:
+When `worktree.isolation_enabled=true`: post-dispatch gates (review, test-gate, commit, harvest) are handled by `single-agent-integrate.md` (Step 6). Proceed directly to Step 8.
+When `isolation_enabled=false`: existing Step 7 behavior applies unchanged. Verify that RED tests are now GREEN:
 
 ```bash
 $TEST_CMD           # RED tests should now PASS
