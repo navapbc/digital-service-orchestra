@@ -20,6 +20,10 @@
 #  10. test_already_merged_branch_noop — no-op when branch already merged
 #  11. test_conflict_diagnostic_printed_to_stderr — conflicted filename in stderr (bug 0fc6-c970)
 #  12. test_nonexistent_branch_exits1_with_message — non-conflict git failure exits 1 with message (bug 0fc6-c970)
+#  13. test_cleanup_removes_worktree_after_successful_merge — worktree dir gone after merge (afdb-8418)
+#  14. test_cleanup_deletes_backing_branch_after_successful_merge — branch deleted after merge (afdb-8418)
+#  15. test_cleanup_skipped_on_gate_failure — worktree+branch preserved when merge blocked by gate (afdb-8418)
+#  16. test_cleanup_handles_missing_worktree_gracefully — no error when branch has no backing worktree (afdb-8418)
 
 set -uo pipefail
 
@@ -66,7 +70,7 @@ setup_test_repo() {
     SESSION_REPO="$tmpdir/session"
 
     # Initial commit on main
-    cd "$SESSION_REPO"
+    cd "$SESSION_REPO" || exit 1
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "initial" > file.txt
@@ -229,7 +233,7 @@ tmpdir=$(make_tmpdir)
 setup_test_repo "$tmpdir" "passed" "passed"
 
 # Create a conflict: modify file.txt on session branch too
-cd "$SESSION_REPO"
+cd "$SESSION_REPO" || exit 1
 echo "session-side conflict content" > file.txt
 git add file.txt
 git commit -m "session conflict" >/dev/null 2>&1
@@ -293,7 +297,7 @@ tmpdir=$(make_tmpdir)
 setup_test_repo "$tmpdir" "passed" "passed"
 
 # Simulate stale MERGE_HEAD
-cd "$SESSION_REPO"
+cd "$SESSION_REPO" || exit 1
 git_dir=$(git rev-parse --git-dir)
 echo "deadbeef" > "$git_dir/MERGE_HEAD"
 
@@ -418,7 +422,7 @@ tmpdir=$(make_tmpdir)
 setup_test_repo "$tmpdir" "passed" "passed"
 
 # Merge the worktree branch manually first
-cd "$SESSION_REPO"
+cd "$SESSION_REPO" || exit 1
 git merge "$WORKTREE_BRANCH" --no-edit >/dev/null 2>&1
 
 # Now invoke harvest — branch is already merged
@@ -445,7 +449,7 @@ tmpdir=$(make_tmpdir)
 setup_test_repo "$tmpdir" "passed" "passed"
 
 # Create a conflict: modify file.txt on session branch
-cd "$SESSION_REPO"
+cd "$SESSION_REPO" || exit 1
 echo "session-side conflict content" > file.txt
 git add file.txt
 git commit -m "session conflict" >/dev/null 2>&1
@@ -513,6 +517,160 @@ else
 fi
 
 assert_pass_if_clean "test_nonexistent_branch_exits1_with_message"
+
+# =============================================================================
+# Test 13: test_cleanup_removes_worktree_after_successful_merge (afdb-8418)
+# Given: agent branch checked out as a real git worktree at a known path
+# When: harvest-worktree.sh merges it successfully
+# Then: exit code is 0, the worktree directory no longer exists on disk,
+#       and `git worktree list --porcelain` no longer contains the removed path
+# =============================================================================
+echo "--- test_cleanup_removes_worktree_after_successful_merge ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Add the worktree branch as an actual git worktree at a known path
+AGENT_WORKTREE_PATH="$tmpdir/session/.claude/worktrees/$WORKTREE_BRANCH"
+mkdir -p "$(dirname "$AGENT_WORKTREE_PATH")"
+(cd "$tmpdir/session" && git worktree add "$AGENT_WORKTREE_PATH" "$WORKTREE_BRANCH" >/dev/null 2>&1)
+
+# Confirm the worktree exists before harvest
+worktree_before="no"
+if [[ -d "$AGENT_WORKTREE_PATH" ]]; then
+    worktree_before="yes"
+fi
+assert_eq "worktree directory exists before harvest" "yes" "$worktree_before"
+
+exit_code=0
+output=$(cd "$tmpdir/session" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    2>&1) || exit_code=$?
+
+assert_eq "cleanup merge exits 0" "0" "$exit_code"
+
+# Assert: worktree directory removed from disk
+worktree_after="no"
+if [[ -d "$AGENT_WORKTREE_PATH" ]]; then
+    worktree_after="yes"
+fi
+assert_eq "worktree directory removed after merge" "no" "$worktree_after"
+
+# Assert: git worktree list no longer contains the path
+worktree_in_list="no"
+if (cd "$tmpdir/session" && git worktree list --porcelain 2>/dev/null) | grep -qF "worktree $AGENT_WORKTREE_PATH"; then
+    worktree_in_list="yes"
+fi
+assert_eq "git worktree list excludes removed path" "no" "$worktree_in_list"
+
+assert_pass_if_clean "test_cleanup_removes_worktree_after_successful_merge"
+
+# =============================================================================
+# Test 14: test_cleanup_deletes_backing_branch_after_successful_merge (afdb-8418)
+# Given: agent branch checked out as a real git worktree
+# When: harvest-worktree.sh merges it successfully
+# Then: exit code is 0 AND `git branch --list <branch>` returns empty
+# =============================================================================
+echo "--- test_cleanup_deletes_backing_branch_after_successful_merge ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+AGENT_WORKTREE_PATH="$tmpdir/session/.claude/worktrees/$WORKTREE_BRANCH"
+mkdir -p "$(dirname "$AGENT_WORKTREE_PATH")"
+(cd "$tmpdir/session" && git worktree add "$AGENT_WORKTREE_PATH" "$WORKTREE_BRANCH" >/dev/null 2>&1)
+
+# Confirm branch exists before harvest
+branch_before=$(cd "$tmpdir/session" && git branch --list "$WORKTREE_BRANCH")
+assert_ne "branch exists before harvest" "" "$branch_before"
+
+exit_code=0
+cd "$tmpdir/session" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    >/dev/null 2>&1 || exit_code=$?
+
+assert_eq "cleanup merge exits 0" "0" "$exit_code"
+
+# Assert: backing branch deleted
+branch_after=$(cd "$tmpdir/session" && git branch --list "$WORKTREE_BRANCH")
+assert_eq "backing branch deleted after merge" "" "$branch_after"
+
+assert_pass_if_clean "test_cleanup_deletes_backing_branch_after_successful_merge"
+
+# =============================================================================
+# Test 15: test_cleanup_skipped_on_gate_failure (afdb-8418)
+# Given: agent branch checked out as a real git worktree, but test-gate-status=failed
+# When: harvest-worktree.sh is invoked (exits 2 due to gate failure)
+# Then: exit code is 2, the worktree directory still exists, the branch still exists
+# =============================================================================
+echo "--- test_cleanup_skipped_on_gate_failure ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "failed" "passed"
+
+AGENT_WORKTREE_PATH="$tmpdir/session/.claude/worktrees/$WORKTREE_BRANCH"
+mkdir -p "$(dirname "$AGENT_WORKTREE_PATH")"
+(cd "$tmpdir/session" && git worktree add "$AGENT_WORKTREE_PATH" "$WORKTREE_BRANCH" >/dev/null 2>&1)
+
+exit_code=0
+cd "$tmpdir/session" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    >/dev/null 2>&1 || exit_code=$?
+
+assert_eq "gate failure exits 2" "2" "$exit_code"
+
+# Assert: worktree directory preserved
+worktree_still_there="no"
+if [[ -d "$AGENT_WORKTREE_PATH" ]]; then
+    worktree_still_there="yes"
+fi
+assert_eq "worktree directory preserved on gate failure" "yes" "$worktree_still_there"
+
+# Assert: branch preserved
+branch_still_there=$(cd "$tmpdir/session" && git branch --list "$WORKTREE_BRANCH")
+assert_ne "branch preserved on gate failure" "" "$branch_still_there"
+
+assert_pass_if_clean "test_cleanup_skipped_on_gate_failure"
+
+# =============================================================================
+# Test 16: test_cleanup_handles_missing_worktree_gracefully (afdb-8418)
+# Given: a branch that passes gates but has NO backing git worktree directory
+#        (plain branch in session repo, no `git worktree add` was performed)
+# When: harvest-worktree.sh is invoked
+# Then: exit code is 0 (merge succeeds), script does not error on missing worktree path
+# =============================================================================
+echo "--- test_cleanup_handles_missing_worktree_gracefully ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Intentionally do NOT add a git worktree for WORKTREE_BRANCH —
+# the branch exists but there is no worktree directory backing it.
+
+# Confirm no worktree path exists for the branch
+worktree_path_for_branch=""
+worktree_path_for_branch=$(cd "$tmpdir/session" && git worktree list --porcelain 2>/dev/null \
+    | awk '/^worktree /{path=$2} /^branch /{if ($2 ~ /'"$WORKTREE_BRANCH"'$/) print path}' \
+    || true)
+
+assert_eq "no worktree path for branch before harvest" "" "$worktree_path_for_branch"
+
+exit_code=0
+output=$(cd "$tmpdir/session" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    2>&1) || exit_code=$?
+
+assert_eq "no-worktree branch merge exits 0" "0" "$exit_code"
+
+assert_pass_if_clean "test_cleanup_handles_missing_worktree_gracefully"
 
 # =============================================================================
 print_summary
