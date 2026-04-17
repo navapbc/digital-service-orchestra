@@ -206,3 +206,5 @@ plugins/dso/docs/CONFIGURATION-REFERENCE.md:tests/scripts/test-config-keys-docum
 
 # --- review-sample-files.sh: stratified sampler (epic 97fc-b2ca, task 4337-a84d) ---
 plugins/dso/scripts/review-sample-files.sh:tests/unit/scripts/test-review-sample-files.sh
+
+# --- review-batch-groups.sh: batch grouper (epic 97fc-b2ca, task 2462-28a0) ---
