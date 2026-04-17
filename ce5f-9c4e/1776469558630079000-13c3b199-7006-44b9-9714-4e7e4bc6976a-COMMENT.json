@@ -1,1 +1,0 @@
-{"timestamp": 1776469558630079000, "uuid": "13c3b199-7006-44b9-9714-4e7e4bc6976a", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Story complete: completion-verifier PASS (7/7 done definitions). Step 3a tag-write section committed at 096e75bc. RED test passes GREEN; marker removed from .test-index."}}
