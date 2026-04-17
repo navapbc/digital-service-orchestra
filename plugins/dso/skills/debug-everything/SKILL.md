@@ -390,12 +390,17 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
    Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute its steps directly — NOT via the Skill tool or Task tool. This orchestrator-level invocation (reads SKILL.md inline) preserves Agent tool access for fix-bug's investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED) which require the Agent tool themselves.
 
-   Pass the ticket ID as the bug context:
+   Pass the ticket ID as the bug context. When dispatching sub-agents in Bug-Fix Mode, always pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the sub-agent dispatch prompt so the sub-agent can locate host-project scripts and artifacts. When `DISPATCH_ISOLATION=true`, also add `isolation: "worktree"` to each fix-bug sub-agent dispatch.
 
    ```
    Bug ticket: <ticket-id>
    Title: <title from ticket show>
+   ORCHESTRATOR_ROOT: <value of $(git rev-parse --show-toplevel)>
    ```
+
+   **After the fix sub-agent returns** (per-ticket post-dispatch):
+   - When `DISPATCH_ISOLATION=true`: follow `skills/shared/prompts/single-agent-integrate.md` to integrate the sub-agent's worktree changes back into the session branch.
+   - When `DISPATCH_ISOLATION=false`: proceed with existing post-dispatch behavior unchanged.
 
 3. **Error handling**: If `/dso:fix-bug` fails for a ticket (unrecoverable error, repeated failure, or explicit escalation), write a CHECKPOINT note and continue to the next ticket:
 

@@ -95,3 +95,21 @@ When using this protocol, orchestrators must:
 ## Non-Interactive Fallback
 
 In non-interactive mode, isolation errors should be recorded as `INTERACTIVITY_DEFERRED` ticket comments rather than blocking the session. The orchestrator continues with the next sub-agent and surfaces the isolation failure in the session summary.
+
+## Post-Dispatch Integration
+
+### Multi-Agent Callers (sprint)
+
+Multi-agent orchestrators (e.g., `/dso:sprint`) collect results from all sub-agents, then commit and merge each worktree serially via `per-worktree-review-commit.md`. The `harvest-worktree.sh` script handles the final merge into the session branch.
+
+### Single-Agent Callers (fix-bug, debug-everything Bug-Fix Mode)
+
+Single-agent callers dispatch one sub-agent at a time and use a simpler integration path. After the sub-agent returns, follow `single-agent-integrate.md` to review, commit, and merge the sub-agent's worktree back into the session branch.
+
+The dispatch prompt for single-agent callers must inject the orchestrator's working directory so the sub-agent can verify isolation. Before constructing the dispatch prompt, set:
+
+```bash
+ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)
+```
+
+Then include `{orchestrator_root}` in the dispatch prompt template. At runtime, replace `{orchestrator_root}` with the value of `$ORCHESTRATOR_ROOT` so the sub-agent receives the correct absolute path for isolation verification.

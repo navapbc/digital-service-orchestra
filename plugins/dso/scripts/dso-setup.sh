@@ -488,7 +488,7 @@ echo 'Note: Bridge workflows use vars.JIRA_URL and vars.JIRA_USER (not secrets).
 echo '=== Setup complete. Next steps: ==='
 echo '1. Edit .claude/dso-config.conf to configure your project'
 echo '2. Run /dso:onboarding in Claude Code for interactive configuration'
-echo '3. See docs/INSTALL.md for full documentation'
+echo '3. See INSTALL.md for full documentation'
 
 # Exit 2 (warnings-only) if any warning-level prerequisites were missing.
 # Setup has completed successfully — exit 2 signals "continue with caution".
