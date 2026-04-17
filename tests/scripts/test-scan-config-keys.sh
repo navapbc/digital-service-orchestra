@@ -93,7 +93,7 @@ test_scan_config_keys_gap_list() {
     local exit_code=0
     local output=""
 
-    output=$(bash "$SCRIPT" "$_FIXTURE_REPO" 2>&1) || exit_code=$?
+    output=$(_PLUGIN_GIT_PATH=plugins/dso bash "$SCRIPT" "$_FIXTURE_REPO" 2>&1) || exit_code=$?
 
     # (1) Script must exit 0
     assert_eq "test_scan_config_keys_gap_list: exits 0" "0" "$exit_code"

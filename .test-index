@@ -18,7 +18,6 @@ plugins/dso/docs/CONFIG-RESOLUTION.md:tests/scripts/test-config-resolution-doc-a
 plugins/dso/docs/contracts/revert-event.md:tests/scripts/test_revert_event.py
 plugins/dso/docs/decisions/adr-config-system.md:tests/scripts/test-adr-config-system.sh
 docs/adr/0009-config-system.md:tests/scripts/test-adr-config-system.sh
-plugins/dso/docs/INSTALL.md:tests/scripts/test-reinstall-hooks-config-paths.sh,tests/scripts/test-reinstall-hooks.sh
 plugins/dso/docs/MIGRATION.md:tests/hooks/test-state-dir-migration.sh,tests/scripts/test-design-notes-migration.sh,tests/scripts/test-doc-migration.sh,tests/skills/test-plugin-boundary-migration.sh,tests/skills/test-playwright-debug-cli-migration.sh,tests/skills/test-cli-lifecycle-migration.sh,tests/skills/test-ui-discover-cli-migration.sh,tests/skills/test-validate-work-cli-migration.sh
 plugins/dso/docs/PLAYWRIGHT-CLI-GUIDE.md:tests/skills/test-playwright-cli-guide.sh
 plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/docs/test_sub_agent_boundaries_anti_coverup.py,tests/scripts/test-sub-agent-boundaries-cli-user-tag.sh
@@ -194,8 +193,7 @@ plugins/dso/scripts/ticket_graph/_hierarchy.py:tests/scripts/test_ticket_graph.p
 plugins/dso/scripts/ticket_graph/_links.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_loader.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_status.py:tests/scripts/test_ticket_graph.py
-INSTALL.md:tests/test-install-doc-contract.sh,tests/scripts/test-no-unguarded-plugin-refs.sh,tests/test-install-integration-setup.sh [test_install_integration_setup]
+INSTALL.md:tests/test-install-doc-contract.sh,tests/scripts/test-no-unguarded-plugin-refs.sh,tests/test-install-integration-setup.sh
 
 # --- scan-config-keys: config gap detection (epic 91f5-0aec, task e4cf-92a3) ---
-plugins/dso/scripts/scan-config-keys.sh:tests/scripts/test-scan-config-keys.sh [test_scan_config_keys_gap_list]
-plugins/dso/scripts/dso-setup.sh:tests/scripts/test-dso-setup.sh [test_setup_references_root_install_doc]
+plugins/dso/scripts/scan-config-keys.sh:tests/scripts/test-scan-config-keys.sh

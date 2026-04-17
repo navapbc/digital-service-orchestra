@@ -56,3 +56,27 @@ prompt. No manual configuration is required.
 Plan for **20–40 minutes** for a typical first run. Re-running `/dso:onboarding` on an existing project is safe; it performs an elevation-only update (never overwrites higher-confidence values).
 
 Full configuration reference: [`plugins/dso/docs/CONFIGURATION-REFERENCE.md`](plugins/dso/docs/CONFIGURATION-REFERENCE.md)
+
+## Integration Setup
+
+Some DSO skills integrate with external tools. Each integration is optional and configured via environment variables or the DSO config file. Skip any integration you don't use.
+
+### Jira
+
+DSO's ticket system can sync to Jira issues. To enable, set:
+
+- `JIRA_URL` — your Jira base URL (e.g., `https://your-org.atlassian.net`)
+- `JIRA_USER` — the email address of the Atlassian account used for API access
+- `JIRA_API_TOKEN` — an Atlassian API token
+
+Create an API token at: https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/
+
+### Figma
+
+DSO's design collaboration features can pull Figma designs into your implementation manifests. To enable, set a Figma personal access token via `FIGMA_PAT` (or the equivalent DSO config key `design.figma_pat`).
+
+Create a personal access token at: https://help.figma.com/hc/en-us/articles/8085703771159-Manage-personal-access-tokens
+
+### Confluence
+
+Confluence integration is planned but not yet available — no setup steps at this time.
