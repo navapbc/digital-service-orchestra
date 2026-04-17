@@ -17,6 +17,8 @@ plugins/dso/docs/component-discovery-schema.json:tests/plugin/test_component_dis
 plugins/dso/docs/CONFIG-RESOLUTION.md:tests/scripts/test-config-resolution-doc-accuracy.sh
 plugins/dso/docs/contracts/revert-event.md:tests/scripts/test_revert_event.py
 plugins/dso/docs/decisions/adr-config-system.md:tests/scripts/test-adr-config-system.sh
+docs/adr/0009-config-system.md:tests/scripts/test-adr-config-system.sh
+plugins/dso/docs/INSTALL.md:tests/scripts/test-reinstall-hooks-config-paths.sh,tests/scripts/test-reinstall-hooks.sh
 plugins/dso/docs/MIGRATION.md:tests/hooks/test-state-dir-migration.sh,tests/scripts/test-design-notes-migration.sh,tests/scripts/test-doc-migration.sh,tests/skills/test-plugin-boundary-migration.sh,tests/skills/test-playwright-debug-cli-migration.sh,tests/skills/test-cli-lifecycle-migration.sh,tests/skills/test-ui-discover-cli-migration.sh,tests/skills/test-validate-work-cli-migration.sh
 plugins/dso/docs/PLAYWRIGHT-CLI-GUIDE.md:tests/skills/test-playwright-cli-guide.sh
 plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/docs/test_sub_agent_boundaries_anti_coverup.py,tests/scripts/test-sub-agent-boundaries-cli-user-tag.sh
@@ -144,6 +146,8 @@ plugins/dso/scripts/check-skill-refs.sh:tests/scripts/test-check-skill-refs.sh
 plugins/dso/scripts/scan-docs.sh:tests/skills/test-onboarding-scan-docs.sh
 docs/onboarding.md:tests/skills/test-nextjs-starter-docs.sh
 plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh
+CLAUDE.md:tests/skills/test-nextjs-starter-docs.sh
+docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh
 plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh
 plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
 plugins/dso/skills/brainstorm/prompts/cross-epic-scan.md:tests/skills/test-brainstorm-cross-epic-scan.sh
