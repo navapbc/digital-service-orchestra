@@ -104,7 +104,10 @@ fi
 # ===========================================================================
 echo "--- test_worktree_path_bash_guard ---"
 # shellcheck disable=SC2016  # single quotes intentional: grepping for literal string
-if grep -q '[ "$WORKTREE_PATH" =' "$TARGET_FILE" 2>/dev/null; then
+# REVIEW-DEFENSE: -qF (fixed-string) required — the pattern contains `[` which grep
+# interprets as a bracket expression in BRE/ERE mode, causing exit 2 instead of 1.
+# Fixed-string mode matches the literal characters without regex interpretation.
+if grep -qF '[ "$WORKTREE_PATH" =' "$TARGET_FILE" 2>/dev/null; then
     assert_eq "test_worktree_path_bash_guard: WORKTREE_PATH guard present" "present" "present"
 else
     assert_eq "test_worktree_path_bash_guard: WORKTREE_PATH guard present" "present" "missing"
@@ -118,7 +121,7 @@ fi
 # ===========================================================================
 echo "--- test_cd_worktree_path_prefix ---"
 # shellcheck disable=SC2016  # single quotes intentional: grepping for literal string
-if grep -q 'cd $WORKTREE_PATH &&' "$TARGET_FILE" 2>/dev/null; then
+if grep -q 'cd "$WORKTREE_PATH" &&' "$TARGET_FILE" 2>/dev/null; then
     assert_eq "test_cd_worktree_path_prefix: cd WORKTREE_PATH prefix present" "present" "present"
 else
     assert_eq "test_cd_worktree_path_prefix: cd WORKTREE_PATH prefix present" "present" "missing"
