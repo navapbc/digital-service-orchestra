@@ -139,7 +139,7 @@ git -C "$REPO_HIGH" add -A
 MOCK_PASS_HIGH=$(create_mock_pass_runner)
 
 (
-    cd "$REPO_HIGH"
+    cd "$REPO_HIGH" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_HIGH" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_HIGH" \
@@ -216,7 +216,7 @@ git -C "$REPO_LOW" add -A
 MOCK_PASS_LOW=$(create_mock_pass_runner)
 
 (
-    cd "$REPO_LOW"
+    cd "$REPO_LOW" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_LOW" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_LOW" \
@@ -313,21 +313,39 @@ for _path_dir in $PATH; do
 done
 IFS="$_orig_IFS"
 
-# Preserve bash 4+ in PATH — stripping sg dirs may remove /opt/homebrew/bin
-# where bash 5 lives, causing env bash to resolve to /bin/bash (3.2) which
+# Preserve essential binaries from sg-containing PATH dirs (EXCEPT sg itself).
+# On Ubuntu, shadow-utils sg lives in /usr/bin/ alongside coreutils like
+# dirname, cat, grep, sed — stripping that directory entirely would break
+# the hook (which sources libs via dirname "${BASH_SOURCE[0]}"). We also
+# preserve bash 4+ so env bash doesn't resolve to /bin/bash (3.2) which
 # lacks declare -A support needed by record-test-status.sh.
 _BASH_PRESERVE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/bash-preserve-XXXXXX")
 _TEST_TMPDIRS+=("$_BASH_PRESERVE_DIR")
+_orig_IFS="$IFS"
+IFS=':'
+for _path_dir in $PATH; do
+    IFS="$_orig_IFS"
+    [[ -d "$_path_dir" && -x "$_path_dir/sg" ]] || { IFS=':'; continue; }
+    for _bin in "$_path_dir"/*; do
+        [[ -e "$_bin" ]] || continue
+        _bname=${_bin##*/}
+        [[ "$_bname" == "sg" ]] && continue
+        [[ -e "$_BASH_PRESERVE_DIR/$_bname" ]] && continue
+        ln -sf "$_bin" "$_BASH_PRESERVE_DIR/$_bname" 2>/dev/null || true
+    done
+    IFS=':'
+done
+IFS="$_orig_IFS"
 _CURRENT_BASH=$(command -v bash)
-if [[ -n "$_CURRENT_BASH" ]]; then
+if [[ -n "$_CURRENT_BASH" && ! -e "$_BASH_PRESERVE_DIR/bash" ]]; then
     ln -sf "$_CURRENT_BASH" "$_BASH_PRESERVE_DIR/bash"
-    _NO_SG_PATH="${_BASH_PRESERVE_DIR}:${_NO_SG_PATH}"
 fi
+_NO_SG_PATH="${_BASH_PRESERVE_DIR}:${_NO_SG_PATH}"
 
 MOCK_PASS_NOSG=$(create_mock_pass_runner)
 
 STDERR_NOSG=$(
-    cd "$REPO_NOSG"
+    cd "$REPO_NOSG" || exit
     PATH="$_NO_SG_PATH" \
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_NOSG" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
@@ -422,7 +440,7 @@ git -C "$REPO_FMT" add -A
 MOCK_PASS_FMT=$(create_mock_pass_runner)
 
 (
-    cd "$REPO_FMT"
+    cd "$REPO_FMT" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_FMT" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_FMT" \
@@ -535,7 +553,7 @@ MOCKEOF
 chmod +x "$MOCK_FAIL_RUNNER"
 
 (
-    cd "$REPO_FAIL"
+    cd "$REPO_FAIL" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_FAIL" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_FAIL_RUNNER" \
@@ -606,7 +624,7 @@ MOCKEOF
 chmod +x "$MOCK_TIMEOUT_RUNNER"
 
 (
-    cd "$REPO_TIMEOUT"
+    cd "$REPO_TIMEOUT" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_TIMEOUT" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_TIMEOUT_RUNNER" \
@@ -769,7 +787,7 @@ git -C "$REPO_CFG" add -A
 MOCK_PASS_CFG=$(create_mock_pass_runner)
 
 (
-    cd "$REPO_CFG"
+    cd "$REPO_CFG" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CFG" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_CFG" \
@@ -852,7 +870,7 @@ git -C "$REPO_NOKEY" add -A
 MOCK_PASS_NOKEY=$(create_mock_pass_runner)
 
 (
-    cd "$REPO_NOKEY"
+    cd "$REPO_NOKEY" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_NOKEY" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_NOKEY" \
@@ -961,7 +979,7 @@ git -C "$REPO_XLANG" add -A
 MOCK_PASS_XLANG=$(create_mock_pass_runner)
 
 (
-    cd "$REPO_XLANG"
+    cd "$REPO_XLANG" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_XLANG" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_XLANG" \
@@ -1047,7 +1065,7 @@ git -C "$REPO_EMPTY" add -A
 MOCK_PASS_EMPTY=$(create_mock_pass_runner)
 
 (
-    cd "$REPO_EMPTY"
+    cd "$REPO_EMPTY" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_EMPTY" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_EMPTY" \
@@ -1117,7 +1135,7 @@ MOCK_PASS_CACHE=$(create_mock_pass_runner)
 
 # First run
 (
-    cd "$REPO_CACHE"
+    cd "$REPO_CACHE" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CACHE" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_CACHE" \
@@ -1147,7 +1165,7 @@ git -C "$REPO_CACHE" add -A
 
 # Second run (different hash)
 (
-    cd "$REPO_CACHE"
+    cd "$REPO_CACHE" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CACHE" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_CACHE" \
@@ -1227,7 +1245,7 @@ git -C "$REPO_BIG" add -A
 MOCK_PASS_BIG=$(create_mock_pass_runner)
 
 (
-    cd "$REPO_BIG"
+    cd "$REPO_BIG" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_BIG" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_BIG" \
@@ -1306,7 +1324,7 @@ git -C "$REPO_THRESH_A" add -A
 MOCK_PASS_THRESH=$(create_mock_pass_runner)
 
 (
-    cd "$REPO_THRESH_A"
+    cd "$REPO_THRESH_A" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_THRESH_A" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_THRESH" \
@@ -1353,7 +1371,7 @@ git -C "$REPO_THRESH_B" add -A
 MOCK_PASS_THRESH_B=$(create_mock_pass_runner)
 
 (
-    cd "$REPO_THRESH_B"
+    cd "$REPO_THRESH_B" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_THRESH_B" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_THRESH_B" \
@@ -1425,7 +1443,7 @@ MOCK_PASS_CLEAN=$(create_mock_pass_runner)
 
 # First run → creates cache for H1
 (
-    cd "$REPO_CLEAN"
+    cd "$REPO_CLEAN" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CLEAN" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_CLEAN" \
@@ -1451,7 +1469,7 @@ git -C "$REPO_CLEAN" add -A
 
 # Second run → should clean up H1 cache and create H2 cache
 (
-    cd "$REPO_CLEAN"
+    cd "$REPO_CLEAN" || exit
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CLEAN" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
     RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_CLEAN" \
