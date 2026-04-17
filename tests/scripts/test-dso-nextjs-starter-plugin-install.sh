@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Structural validation for the DSO NextJS Starter plugin install consent design document.
-# Tests: existence of plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md,
+# Tests: existence of docs/designs/dso-nextjs-starter-plugin-install.md,
 #        required section headers, extraKnownMarketplaces reference, 'authoritative' keyword.
 # RED test — assertions fail until the design document is created (task 0367-e46f).
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-DESIGN_DOC="${REPO_ROOT}/plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md"
+DESIGN_DOC="${REPO_ROOT}/docs/designs/dso-nextjs-starter-plugin-install.md"
 
 PASS=0
 FAIL=0
@@ -19,7 +19,7 @@ test_plugin_consent_doc_has_required_sections() {
 
   # Check 1: file exists
   if [ ! -f "$DESIGN_DOC" ]; then
-    fail "Design doc not found: plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md"
+    fail "Design doc not found: docs/designs/dso-nextjs-starter-plugin-install.md"
     return
   fi
   pass "Design doc exists"

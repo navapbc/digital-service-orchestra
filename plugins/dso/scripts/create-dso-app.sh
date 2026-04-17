@@ -155,7 +155,9 @@ check_homebrew_deps() {
 
   # Inject Node 20.x PATH (keg-only — must be explicit)
   if brew list node@20 >/dev/null 2>&1; then
-    export PATH="$(brew --prefix node@20)/bin:$PATH"
+    local node20_prefix
+    node20_prefix="$(brew --prefix node@20)"
+    export PATH="$node20_prefix/bin:$PATH"
   fi
 
   # Check Claude Code
