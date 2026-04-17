@@ -228,7 +228,7 @@ Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encou
 
 ### Phase 1 Gate
 
-When you have enough to propose approaches, transition to Phase 2 via this 3-step sequence. The gate covers: (1) a structured **Understanding Summary** covering problem, users, scope, and success that waits for user confirmation; (2) an **Intent Gap Analysis** using targeted questions — one at a time, at most 3 total — about inferred or assumed content; and (3) proceeding to Phase 2.
+When you have enough to propose approaches, transition to Phase 2 via this 3-step sequence. The gate covers: (1) a structured **Understanding Summary** covering problem, users, scope, and success that waits for user confirmation; (2) an **Intent Gap Analysis** using targeted questions — one at a time — about inferred or assumed content; and (3) proceeding to Phase 2.
 
 **Step 1 — Understanding Summary**: Produce a structured summary of what you understand so far and wait for user confirmation before proceeding to the gap analysis.
 
@@ -267,7 +267,7 @@ Format for **subsequent** gap questions (no skip prompt — the user already kno
 Before I propose approaches: [Targeted gap question]
 ```
 
-**Bounded gap loop**: Ask at most 3 questions total, one at a time. After each answer, ask the next highest-priority gap question (if any remain) or proceed to Phase 2. If the user wants to continue refining after the initial set, they can opt-in by asking for more questions or clarifying further. Do not loop indefinitely.
+**Bounded gap loop**: Ask one question at a time. After each answer, ask the next highest-priority gap question (if any remain) or proceed to Phase 2 once you have enough context to propose approaches. Terminate the loop when either (a) you have enough to propose approaches or (b) the user says "proceed" (the first gap-question prompt surfaces this option — see format below). Do not loop indefinitely — every question must target a specific unresolved inferred/assumed item; stop when no such items remain.
 
 Do NOT proceed to Phase 2 until the user confirms the understanding summary or explicitly skips the gap analysis.
 
@@ -853,6 +853,6 @@ Skill tool:
 
 | Phase | Goal | Key Activities |
 |-------|------|---------------|
-| 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop; Phase 1 Gate: Understanding Summary (problem/users/scope/success structured bullets, wait for confirmation) → Intent Gap Analysis (self-reflect on inferred content, one question at a time, at most 3 questions total, exclude confirmed content, opt-in continuation) → proceed to Phase 2 |
+| 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop; Phase 1 Gate: Understanding Summary (problem/users/scope/success structured bullets, wait for confirmation) → Intent Gap Analysis (self-reflect on inferred content, one question at a time, exclude confirmed content; loop terminates when approach-proposal is well-founded or user says "proceed") → proceed to Phase 2 |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Provenance Tracking (4 categories: explicit, confirmed-via-gap-question, inferred, researched); Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); Step 2.75 scenario analysis (red team + blue team sonnet sub-agents; always runs when ≥5 SCs or integration signal, reduced/cap 3 when 3-4 SCs, skip when ≤2 SCs; targets epic-level spec gaps — distinct from preplanning adversarial review which targets cross-story gaps); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics); Step 4 approval gate (annotation summary line before options: "N of M criteria confirmed; K inferred requiring review"; inferred/researched → bold, explicit/confirmed → normal; 4-option AskUserQuestion: approve/scenario re-run/web research re-run/discuss; labels reflect initial-run vs re-run; planning-intelligence log appended on approve) |
 | 3: Ticket Integration | Create the epic, classify complexity, route to next skill | Follow-on epic gate (HARD-GATE: present + approve each follow-on before `ticket create`). `.claude/scripts/dso ticket create epic "<title>" -d "..."`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE, pass success_criteria_count + scenario_survivor_count), apply session-signal override (SC≥7 or scenarios≥10 → COMPLEX), output classification line + invoke Skill tool in same response: TRIVIAL → `/dso:implementation-plan`, MODERATE+High → `/dso:preplanning --lightweight`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |
