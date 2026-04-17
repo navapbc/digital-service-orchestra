@@ -116,6 +116,21 @@ The diff hash is captured here — AFTER Step 1's format/lint/type-check pass �
 
 **Note**: The diff hash is staging-invariant for tracked file changes — `git add -u` produces the same hash as the pre-add state.
 
+### Step 2b: Huge-Diff File-Count Gate
+
+Run the file-count threshold check against the current staging state (`git diff --name-only HEAD`), which reflects the same working tree used by Step 2's diff hash:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+".claude/scripts/dso" review-huge-diff-check.sh
+HUGE_EXIT=$?
+```
+
+- **Exit 0**: file count is below threshold → proceed to Step 3 (standard path)
+- **Exit 2**: file count meets or exceeds `review.huge_diff_file_threshold` → divert:
+  Follow REVIEW-WORKFLOW-HUGE.md and return; do not continue to Step 3
+- **Exit 1**: configuration error (invalid threshold) → surface error to user; do not proceed
+
 ## Step 3: Classify Review Tier (MANDATORY — run the classifier, do not evaluate mentally)
 
 **You MUST run this command and use its output.** Do NOT select a tier based on your assessment of diff complexity or file types — the classifier computes the tier deterministically from the diff.
