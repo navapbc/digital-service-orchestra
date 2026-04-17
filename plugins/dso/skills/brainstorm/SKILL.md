@@ -742,6 +742,35 @@ If the epic depends on others identified in Phase 1:
 
 Fix any issues before finalizing.
 
+### Step 3a: Write brainstorm:complete Tag
+
+Write a durable ticket-level tag to record that brainstorm has completed. This removes any `scrutiny:pending` tag while preserving all other existing tags (e.g., `design:approved`, `CLI_user`).
+
+```bash
+# Read current tags from the epic
+current_tags_json=$(.claude/scripts/dso ticket show <epic-id>)
+current_tags=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+tags = data.get('tags', [])
+print('\n'.join(tags))
+" "$current_tags_json")
+
+# Remove scrutiny:pending if present, then append brainstorm:complete
+# (grep -vxF exits 1 when all lines filtered; || true handles empty-tag case)
+filtered_tags=$(echo "$current_tags" | grep -vxF "scrutiny:pending" | tr '\n' ',' | sed 's/,$//') || true
+if [ -n "$filtered_tags" ]; then
+    new_tags="${filtered_tags},brainstorm:complete"
+else
+    new_tags="brainstorm:complete"
+fi
+
+# Write merged tags via ticket edit --tags=
+.claude/scripts/dso ticket edit <epic-id> "--tags=${new_tags}"
+```
+
+Pattern mirrors `${CLAUDE_PLUGIN_ROOT}/scripts/design-approve.sh` read-merge-write. Replace `<epic-id>` with the actual epic ID variable available at Phase 3 execution context.
+
 ### Step 3b: Write Brainstorm Completion Sentinel
 
 Write a sentinel file to record that brainstorm has completed for this session. This file is checked by the EnterPlanMode PreToolUse hook to enforce brainstorm-before-plan-mode.
