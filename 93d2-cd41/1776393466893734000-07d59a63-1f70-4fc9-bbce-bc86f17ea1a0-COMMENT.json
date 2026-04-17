@@ -1,0 +1,1 @@
+{"timestamp": 1776393466893734000, "uuid": "07d59a63-1f70-4fc9-bbce-bc86f17ea1a0", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT:batch-complete \u2014 Done \u2713 \u2014 Committed in 4a5276f5 (batch 2 of sprint 91f5-0aec)"}}
