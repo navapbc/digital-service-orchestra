@@ -1,0 +1,116 @@
+{
+  "findings": [
+    {
+      "type": "modify_done_definition",
+      "target_story_id": "S2",
+      "title": "Specify artifact file format and cleanup semantics for ux_probe_fired flag",
+      "description": "S2 creates `$ARTIFACTS_DIR/ux-probe-fired-<epic-id>` but does not specify: (a) file content format, (b) cleanup behavior, (c) behavior when file exists but epic ID changes mid-session, (d) whether flag survives brainstorm re-invocations. Add done definition: 'Flag file format is documented (sentinel with ISO-8601 timestamp); flag persistence specified (survives across brainstorm re-invocations for same epic ID; not cleaned by $ARTIFACTS_DIR sweep); regression test asserts re-invocation on same epic ID does not re-fire probes.'",
+      "rationale": "Without format and lifecycle specification, consumers that clean `$ARTIFACTS_DIR` may reset the flag causing duplicate probe firing. Consumer Enumeration directive #5 flags this category.",
+      "taxonomy_category": "implicit_shared_state",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "add_consideration",
+      "target_story_id": "S2",
+      "title": "Define probe set data structure for forward-compatible dynamic retrieval swap",
+      "description": "aaa1-7100 will replace static probe set with dynamic principle injection. S2 marks this as maintainability consideration but no structural contract. Add consideration: 'Static probe set stored as structured list (array of {id, dimension, prompt, example_good, example_bad}) in dedicated file/data block, NOT inlined prose. Loop-back state machine (S3) consumes probes by iterating structure, not hardcoded prompt text. Allows aaa1-7100 swap without touching SKILL.md flow logic.'",
+      "rationale": "Risk #5 names forward-compatibility but provides no structural guidance. If S2 inlines probe prompts as prose, aaa1-7100 will require rewriting Phase 1 Step 2.5 flow logic.",
+      "taxonomy_category": "conflicting_assumptions",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "add_dependency",
+      "target_story_id": "S3",
+      "title": "S3 loop-back must consume probe structure defined in S2",
+      "description": "S3's UX probe checkpoint loop-back may embed assumptions about 3 hardcoded probes. Add done definition to S3: 'Loop-back state machine consumes UX probe checkpoint by name/symbol defined in S2, not by hardcoded reference to specific probe content.'",
+      "rationale": "Without this linkage, S3 may break forward-compatibility with aaa1-7100.",
+      "taxonomy_category": "ordering_violation",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "modify_done_definition",
+      "target_story_id": "S3",
+      "title": "Define termination semantics when Tell Me More surfaces no new questions",
+      "description": "S3 specifies 'termination requires empty gap list AND same-turn confirmation'. But S4 (anti-redundancy) suppresses questions duplicating prior turns. If all candidate questions are suppressed but gap list is non-empty, deadlock. Add done definition: 'When loop-back triggers Tell Me More and anti-redundancy suppresses all candidate questions, state machine resolves gap as unanswerable and records UNRESOLVABLE_INTENT_GAP in epic, then terminates. Regression test covers this case.'",
+      "rationale": "Interaction between S3 (loop-back) and S4 (suppression) creates deadlock scenario not covered by either story. No numeric cap + question suppression = infinite loop risk.",
+      "taxonomy_category": "conflicting_assumptions",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "add_dependency",
+      "target_story_id": "S5",
+      "title": "S5 must depend on S3 to correctly bypass loop-back",
+      "description": "S5 skips probes but S3 adds loop-back at Phase 1 Gate triggered by intent gaps regardless of probe state. If S5 only skips probes without amending loop-back path, non-interactive mode may still trigger loop-back and block on Tell Me More. Add S3 as dependency of S5 and done definition: 'Non-interactive mode bypasses both UX probe set AND Phase 1 Gate loop-back on UX-probe-sourced gaps; regression test asserts Phase 1 terminates in non-interactive mode even when intent gaps exist.'",
+      "rationale": "S5 currently only depends on S2. Non-interactive branch must interact with S3's loop-back correctly.",
+      "taxonomy_category": "dependency_gap",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "modify_done_definition",
+      "target_story_id": "S7",
+      "title": "Update consumer documentation for ui_probes:deferred tag",
+      "description": "S7 updates CLAUDE.md but does not address whether consumers (preplanning, sprint, roadmap) should change behavior when encountering `ui_probes:deferred`. Add done definition: 'S7 documents `ui_probes:deferred` tag semantics and identifies whether preplanning/sprint need to react to it or treat it as informational. If reactive handling needed, file follow-up or add done definition to relevant story.'",
+      "rationale": "Consumer Enumeration #4 flags consumers reading epic tags. If preplanning proceeds normally on `ui_probes:deferred` epic, the epic reaches implementation-plan with unresolved UX intent, defeating epic's purpose.",
+      "taxonomy_category": "consumer_impact",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "new_story",
+      "target_story_id": null,
+      "title": "Preplanning consumer handling for ui_probes:deferred epics",
+      "description": "Add story updating `/dso:preplanning` to detect `ui_probes:deferred` tag and either (a) block entry with message directing user to re-run brainstorm interactively, or (b) inject PREPLANNING_CONTEXT note flagging unresolved UI intent. Mirror existing `scrutiny:pending` and `interaction:deferred` patterns.",
+      "rationale": "Without preplanning-side consumer update, `ui_probes:deferred` tag has no enforcement — epics flow through to implementation-plan with missing UX intent, causing the cascading rework the epic aims to prevent.",
+      "taxonomy_category": "consumer_impact",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "modify_done_definition",
+      "target_story_id": "S1",
+      "title": "Identify and update existing brainstorm test fixtures that assume 6-dimension probe table",
+      "description": "S1 adds 7th dimension but doesn't enumerate existing tests in `tests/skills/brainstorm/` that may assert dimension count. Add done definition: 'Before merging, grep `tests/skills/brainstorm/` for dimension count assertions (e.g., `== 6`, `six dimensions`) and update fixtures; progressive validation test passes after Surface addition without disabling existing assertions.'",
+      "rationale": "Consumer Enumeration #1 is explicit. Without proactive fixture enumeration, S1 may break existing regression tests hardcoding 6-dimension assumption.",
+      "taxonomy_category": "residual_references",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "add_consideration",
+      "target_story_id": "S4",
+      "title": "Anti-redundancy directive interaction with mandatory UX probe set",
+      "description": "S4 suppresses questions user already answered. S2 specifies 3 UX probes. If seed covers a probe topic, S4 suppresses that probe — but SC8 asserts 'all 3 UX probes asked' in E2E test. Add consideration: 'Anti-redundancy must be reconciled with SC8 E2E assertion: either (a) E2E test seed crafted to not pre-answer any probe, or (b) SC8 assertion relaxed to `at least one probe asked and suppressed probes have topic coverage in ticket description`.'",
+      "rationale": "Direct conflict between S4 done definition ('one UX probe suppressed when user has answered topic') and S6 done definition ('all 3 probes asked').",
+      "taxonomy_category": "conflicting_assumptions",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "add_dependency",
+      "target_story_id": "S2",
+      "title": "S2 must specify classifier dispatch interface before S6 can stub it",
+      "description": "S6 stubs haiku classifier to return 'ui'. For deterministic stubbing, S2 must define stable mockable interface contract (env var, prompt file path, or dispatch function). Add done definition to S2: 'Classifier dispatch interface defined as named, mockable boundary (env var like `BRAINSTORM_UI_CLASSIFIER_STUB=ui` or discrete script invocation) and documented so S6 can stub without patching SKILL.md.'",
+      "rationale": "Risk #1 flags mock-compatible interface but doesn't require mock seam definition in S2. Without explicit interface, S6 may reach into SKILL.md to inject stubs, leaking test concerns into production.",
+      "taxonomy_category": "dependency_gap",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "modify_done_definition",
+      "target_story_id": "S2",
+      "title": "Specify keyword first-pass behavior when default lexicon and project override both present",
+      "description": "S2 defines default surface-lexicon AND project override via `brainstorm.ui_keywords`. Done definitions don't specify merge semantics: replace, extend, or subtract. Add done definition: 'Project override semantics for `brainstorm.ui_keywords` specified (replace vs. merge) and documented in CONFIGURATION-REFERENCE.md (covered by S7); regression test covers replace-case and merge-case if applicable.'",
+      "rationale": "Ambiguous merge semantics produce inconsistent keyword scan results. Keyword scan is first-pass gate before classifier dispatch — ambiguity directly affects SC6.",
+      "taxonomy_category": "conflicting_assumptions",
+      "disposition": "accept",
+      "rejection_rationale": null
+    }
+  ],
+  "rejected": [],
+  "artifact_path": ".claude/artifacts/adversarial-review-fdeb-4c03.json"
+}
