@@ -19,6 +19,9 @@ set -euo pipefail
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
+
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 VERBOSE="${1:-}"
 FAILURES=0
