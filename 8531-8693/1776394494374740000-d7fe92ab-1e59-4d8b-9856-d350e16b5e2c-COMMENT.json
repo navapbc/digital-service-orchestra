@@ -1,1 +1,0 @@
-{"timestamp": 1776394494374740000, "uuid": "d7fe92ab-1e59-4d8b-9856-d350e16b5e2c", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 1/6: Applied both changes \u2014 dso-setup.sh echo updated to 'See INSTALL.md', RED marker removed from .test-index. Running tests."}}
