@@ -74,9 +74,8 @@ echo ""
 # Outputs (environment variables set by this function):
 #   REVIEW_AGENT      — Agent to dispatch (e.g., "dso:code-reviewer-light")
 #   REVIEW_TIER       — Tier selected (light/standard/deep)
-#   SIZE_ACTION       — size_action from classifier (none/upgrade/reject)
-#   SIZE_REJECTION    — "1" if review is rejected due to size; "0" otherwise
-#   SIZE_REJECTION_MSG — Human-readable rejection message (when SIZE_REJECTION=1)
+#   SIZE_ACTION       — size_action from classifier (none/upgrade/warn)
+#   SIZE_WARNING_MSG  — Human-readable warning message (when SIZE_ACTION=warn; empty otherwise)
 # ============================================================
 _simulate_step3_dispatch() {
     local classifier_json="${CLASSIFIER_JSON:-}"
@@ -115,7 +114,7 @@ _simulate_step3_dispatch() {
     # - merge commits bypass size limits entirely
     # - re-review passes (REVIEW_PASS_NUM >= 2) bypass size limits
     # - size_action=upgrade: upgrade agent to opus
-    # - size_action=reject: reject with guidance
+    # - size_action=warn: emit SIZE_WARNING_MSG and continue (does not reject)
     # - size_action=none: no change
 
     # Bypass conditions
@@ -170,25 +169,12 @@ test_workflow_step3_upgrade_when_size_action_is_upgrade() {
 }
 
 test_workflow_step3_reject_when_size_action_is_reject() {
-    # Given classifier JSON with size_action: "reject", assert the workflow outputs
-    # a rejection message containing the path large-diff-splitting-guide.md and sets rejection flag.
-    _snapshot_fail
-    CLASSIFIER_JSON='{"selected_tier":"standard","size_action":"reject","is_merge_commit":false,"blast_radius":2,"computed_total":4}'
-    REVIEW_PASS_NUM=1
-    _simulate_step3_dispatch
-    assert_eq "test_workflow_step3_reject_when_size_action_is_reject: SIZE_REJECTION is set to 1" \
-        "1" "$SIZE_REJECTION"
-    assert_contains "test_workflow_step3_reject_when_size_action_is_reject: rejection message contains large-diff-splitting-guide.md" \
-        "large-diff-splitting-guide.md" "$SIZE_REJECTION_MSG"
-    assert_pass_if_clean "test_workflow_step3_reject_when_size_action_is_reject: helper logic"
-
-    # RED check: verify REVIEW-WORKFLOW.md Step 3 has the reject logic (fails until implemented)
-    _snapshot_fail
+    # Regression guard: verify REVIEW-WORKFLOW.md Step 3b no longer contains reject logic.
+    # The reject path was removed in favor of warn (epic 97fc-b2ca).
     step3_has_reject_logic=0
-    grep -qE 'size_action.*reject|large-diff-splitting-guide|SIZE_REJECTION' "$WORKFLOW_FILE" 2>/dev/null && step3_has_reject_logic=1
-    assert_eq "test_workflow_step3_reject_when_size_action_is_reject: REVIEW-WORKFLOW.md Step 3 contains reject logic (RED until implemented)" \
-        "1" "$step3_has_reject_logic"
-    assert_pass_if_clean "test_workflow_step3_reject_when_size_action_is_reject"
+    grep -qE '"reject"|size_action.*reject|SIZE_REJECTION' "$WORKFLOW_FILE" 2>/dev/null && step3_has_reject_logic=1
+    assert_eq "test_workflow_step3_reject_when_size_action_is_reject: REVIEW-WORKFLOW.md Step 3b has no reject logic (removed in 97fc-b2ca)" \
+        "0" "$step3_has_reject_logic"
 }
 
 test_workflow_step3_warn_when_size_action_is_warn() {
@@ -306,8 +292,8 @@ _generate_diff_lines() {
 #
 # Outputs (environment variables):
 #   REVIEW_AGENT_OVERRIDE — set to opus agent when size_action=upgrade (non-merge, pass 1)
-#   STEP3B_REVIEW_RESULT  — set to "rejected" when size_action=reject (non-merge, pass 1)
-#   STEP3B_REJECTION_MSG  — human-readable rejection message when STEP3B_REVIEW_RESULT=rejected
+#   STEP3B_REVIEW_RESULT  — set to "warned" when size_action=warn (non-merge, pass 1); empty otherwise
+#   STEP3B_REJECTION_MSG  — human-readable SIZE_WARNING message when STEP3B_REVIEW_RESULT=warned
 _simulate_step3b_from_classifier_json() {
     local classifier_json="$1"
     local review_pass_num="${2:-1}"
@@ -401,26 +387,15 @@ test_integration_upgrade_path_end_to_end() {
 }
 
 test_integration_reject_path_end_to_end() {
-    # End-to-end: pipe a 600-line diff through the classifier, capture size_action,
-    # run Step 3b logic, assert rejection message contains "large-diff-splitting-guide.md"
-    # and STEP3B_REVIEW_RESULT is "rejected".
-    _snapshot_fail
-
+    # Regression guard: classifier must NOT emit size_action=reject for any diff size.
+    # The reject path was removed in favor of warn (epic 97fc-b2ca).
     local diff_input classifier_json size_action_actual
     diff_input=$(_generate_diff_lines 600)
     classifier_json=$(echo "$diff_input" | env _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
 
-    # Verify classifier produced valid JSON with size_action=reject
     size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")
-    assert_eq "test_integration_reject_path_end_to_end: classifier returns size_action=reject for 600-line diff" \
-        "reject" "$size_action_actual"
-
-    # Run Step 3b branching logic
-    _simulate_step3b_from_classifier_json "$classifier_json" 1
-    assert_eq "test_integration_reject_path_end_to_end: STEP3B_REVIEW_RESULT is rejected" \
-        "rejected" "$STEP3B_REVIEW_RESULT"
-    assert_contains "test_integration_reject_path_end_to_end: rejection message contains large-diff-splitting-guide.md" \
-        "large-diff-splitting-guide.md" "$STEP3B_REJECTION_MSG"
+    assert_eq "test_integration_reject_path_end_to_end: classifier no longer returns size_action=reject for 600-line diff (removed in 97fc-b2ca)" \
+        "warn" "$size_action_actual"
 
     assert_pass_if_clean "test_integration_reject_path_end_to_end"
 }
@@ -440,10 +415,10 @@ test_integration_warn_path_end_to_end() {
     assert_eq "test_integration_warn_path_end_to_end: classifier returns size_action=warn for 600-line diff" \
         "warn" "$size_action_actual"
 
-    # Run Step 3b branching logic — warn must NOT produce rejection
+    # Run Step 3b branching logic — warn sets STEP3B_REVIEW_RESULT to "warned" (not "rejected")
     _simulate_step3b_from_classifier_json "$classifier_json" 1
-    assert_eq "test_integration_warn_path_end_to_end: STEP3B_REVIEW_RESULT is not rejected (warn path)" \
-        "" "$STEP3B_REVIEW_RESULT"
+    assert_eq "test_integration_warn_path_end_to_end: STEP3B_REVIEW_RESULT is warned (not rejected)" \
+        "warned" "$STEP3B_REVIEW_RESULT"
     assert_eq "test_integration_warn_path_end_to_end: SIZE_REJECTION is 0 (warn does not exit-1)" \
         "0" "${SIZE_REJECTION:-0}"
 

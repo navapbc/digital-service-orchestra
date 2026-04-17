@@ -514,15 +514,15 @@ teardown_temp_dir
 assert_pass_if_clean "test_deep_tier_single_writer_invariant"
 
 # ============================================================
-# Step 3 Size Rejection and Model Override Tests (w21-nv42)
+# Step 3 Size Warning and Model Override Tests (w21-nv42)
 # ============================================================
 
 echo ""
-echo "--- Step 3 size rejection and model override ---"
+echo "--- Step 3 size warning and model override ---"
 
 # test_workflow_step3_checks_size_action_field
 # Verify that REVIEW-WORKFLOW.md Step 3 references the size_action field from
-# classifier output and acts on it (warns when size_action is "warn").
+# classifier output and acts on it (emits SIZE_WARNING and continues when size_action is "warn").
 # RED: REVIEW-WORKFLOW.md does not yet reference size_action from classifier output.
 _snapshot_fail
 setup_temp_dir
