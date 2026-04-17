@@ -45,12 +45,27 @@ Count files with identical `transformation_description` (case-insensitive, trim 
 
 ## Step 4: Routing
 
-**CONFIRMED_REFACTOR**: Dispatch standard deep-tier code review.
-*(Note: Specialized haiku batch agents + refactor-anomaly reviewer pending Stories cf76-7091 / efe7-7f1d.)*
+**FALLBACK**: Dispatch with opus model override.
 
-**FALLBACK**: Dispatch standard deep-tier code review with MODEL_OVERRIDE: opus signal emitted before dispatch.
+1. Emit MODEL_OVERRIDE: opus before dispatch.
+2. Use the review classifier to score the diff.
+3. Route by classifier tier:
+   - Light (score 0–2): Dispatch `huge-diff-reviewer-light` agent
+   - Standard (score 3–6): Dispatch `huge-diff-reviewer-standard` agent
+   - Deep (score 7+): Dispatch standard deep-tier code review with `code-reviewer-deep-arch` as synthesis agent
+4. Proceed to Step 5 with `reviewer-findings.json` and `REVIEWER_HASH`.
 
-Both paths produce `reviewer-findings.json` and `REVIEWER_HASH`.
+**CONFIRMED_REFACTOR**: Group files and dispatch anomaly reviewer.
+
+1. Group the full file list using `review-batch-groups.sh`:
+   ```bash
+   REPO_ROOT=$(git rev-parse --show-toplevel)
+   GROUPED=$("$REPO_ROOT/.claude/scripts/dso" review-batch-groups.sh <<< "$SAMPLED_FILES")
+   ```
+2. For each group, dispatch a haiku sub-agent to check conformance against the consensus `transformation_description`.
+3. Collect anomalous files (those that deviate from the pattern).
+4. If anomalous files exist: dispatch `huge-diff-refactor-anomaly` agent with anomalous file diffs.
+5. Proceed to Step 5 with `reviewer-findings.json` and `REVIEWER_HASH`.
 
 ## Step 5: Record Review
 
