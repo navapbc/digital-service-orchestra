@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2164,SC2030,SC2031  # cd/subshell patterns in test setup
 # tests/scripts/test-merge-to-main-ucq2.sh
 # Tests for _check_push_needed helper in merge-to-main.sh
 #
@@ -16,6 +17,7 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
+MERGE_HELPERS_LIB="$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 source "$DSO_PLUGIN_DIR/hooks/lib/merge-state.sh"
@@ -23,7 +25,7 @@ source "$DSO_PLUGIN_DIR/hooks/lib/merge-state.sh"
 # =============================================================================
 # Test 1: _check_push_needed function exists in merge-to-main.sh
 # =============================================================================
-HAS_FUNCTION=$(grep -c '_check_push_needed()' "$MERGE_SCRIPT" || true)
+HAS_FUNCTION=$(grep -c '_check_push_needed()' "$MERGE_SCRIPT" "$MERGE_HELPERS_LIB" 2>/dev/null || true)
 assert_ne "test_check_push_needed_exists_as_function" "0" "$HAS_FUNCTION"
 
 # =============================================================================
@@ -31,6 +33,7 @@ assert_ne "test_check_push_needed_exists_as_function" "0" "$HAS_FUNCTION"
 # The function should fetch the latest remote state before checking.
 # =============================================================================
 FUNC_BODY=$(sed -n '/_check_push_needed()/,/^}/p' "$MERGE_SCRIPT")
+[[ -z "$FUNC_BODY" ]] && FUNC_BODY=$(sed -n '/_check_push_needed()/,/^}/p' "$MERGE_HELPERS_LIB" 2>/dev/null || true)
 HAS_FETCH=$(echo "$FUNC_BODY" | grep -c 'git fetch origin' || true)
 assert_ne "test_check_push_needed_git_fetch_called" "0" "$HAS_FETCH"
 
@@ -58,7 +61,7 @@ assert_ne "test_check_push_needed_fetch_failure_returns_push_needed" "0" "$HAS_F
 # =============================================================================
 # Test 6: _abort_stale_rebase function exists in merge-to-main.sh
 # =============================================================================
-HAS_ABORT_FUNC=$(grep -c '_abort_stale_rebase()' "$MERGE_SCRIPT" || true)
+HAS_ABORT_FUNC=$(grep -c '_abort_stale_rebase()' "$MERGE_SCRIPT" "$MERGE_HELPERS_LIB" 2>/dev/null || true)
 assert_ne "test_abort_stale_rebase_exists_as_function" "0" "$HAS_ABORT_FUNC"
 
 # =============================================================================
@@ -66,6 +69,7 @@ assert_ne "test_abort_stale_rebase_exists_as_function" "0" "$HAS_ABORT_FUNC"
 # The function should check for a stale rebase state file.
 # =============================================================================
 ABORT_FUNC_BODY=$(sed -n '/_abort_stale_rebase()/,/^}/p' "$MERGE_SCRIPT")
+[[ -z "$ABORT_FUNC_BODY" ]] && ABORT_FUNC_BODY=$(sed -n '/_abort_stale_rebase()/,/^}/p' "$MERGE_HELPERS_LIB" 2>/dev/null || true)
 HAS_REBASE_CHECK=$(echo "$ABORT_FUNC_BODY" | grep -cE 'REBASE_HEAD|ms_is_rebase_in_progress' || true)
 assert_ne "test_abort_stale_rebase_checks_rebase_head" "0" "$HAS_REBASE_CHECK"
 
@@ -133,10 +137,15 @@ assert_eq "test_bash_syntax_still_passes" "pass" "$SYNTAX_OK"
 echo ""
 echo "=== Integration tests (temp git repos) ==="
 
-# --- Helper: extract a function from merge-to-main.sh by name ---
+# --- Helper: extract a function from merge-to-main.sh (or merge-helpers.sh) by name ---
 _extract_fn() {
     local fn_name="$1"
-    awk "/^${fn_name}\\(\\)/{found=1} found{print; if(/^\\}$/){exit}}" "$MERGE_SCRIPT"
+    local _body
+    _body=$(awk "/^${fn_name}\\(\\)/{found=1} found{print; if(/^\\}$/){exit}}" "$MERGE_SCRIPT")
+    if [[ -z "$_body" ]] && [[ -f "${MERGE_HELPERS_LIB:-}" ]]; then
+        _body=$(awk "/^${fn_name}\\(\\)/{found=1} found{print; if(/^\\}$/){exit}}" "$MERGE_HELPERS_LIB")
+    fi
+    echo "$_body"
 }
 
 # --- Helper: create a bare "origin" repo and a cloned working repo ---

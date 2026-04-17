@@ -57,7 +57,7 @@ plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/scripts/skill-trace-analyze.py:tests/scripts/test-skill-trace-analyze.sh,tests/scripts/test-skill-trace-analyze-shim.sh
 plugins/dso/scripts/validate-phase.sh:tests/scripts/test-validate-phase-v2-removal.sh,tests/scripts/test-validate-phase-missing-test-unit.sh,tests/test-validate-phase-portability.sh
-plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py
+plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py,tests/scripts/test_worktree_cleanup_gather_progress.py
 plugins/dso/skills/architect-foundation/SKILL.md:tests/plugin/test-audit-skill-resolution.sh,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-fix-bug-skill-directive.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-sprint-skill-doc-writer-dispatch.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-v2-skills-cleanup.sh,tests/scripts/test-skill-script-paths.sh,tests/scripts/test-skill-trace-analyze.sh,tests/scripts/test-create-bug-skill-smoke.sh,tests/scripts/test-skill-trace-analyze-shim.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test-architect-foundation-skill.sh,tests/skills/test-onboarding-skill.sh,tests/skills/test-quick-ref-skill.sh,tests/skills/test-sprint-skill-step10-no-merge-to-main.sh,tests/skills/test-skill-nesting-depth.sh,tests/skills/test-design-skills-cross-stack.sh,tests/skills/test-architect-foundation-ci-skeleton.sh,tests/skills/test-architect-foundation-integration.sh
 plugins/dso/skills/brainstorm/SKILL.md:tests/plugin/test-audit-skill-resolution.sh,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-fix-bug-skill-directive.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-sprint-skill-doc-writer-dispatch.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-v2-skills-cleanup.sh,tests/scripts/test-skill-script-paths.sh,tests/scripts/test-skill-trace-analyze.sh,tests/scripts/test-create-bug-skill-smoke.sh,tests/scripts/test-skill-trace-analyze-shim.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test-architect-foundation-skill.sh,tests/skills/test-onboarding-skill.sh,tests/skills/test-quick-ref-skill.sh,tests/skills/test-sprint-skill-step10-no-merge-to-main.sh,tests/skills/test-skill-nesting-depth.sh,tests/skills/test-design-skills-cross-stack.sh,tests/hooks/test-scenario-sc-revision.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/skills/create-bug/SKILL.md:tests/plugin/test-audit-skill-resolution.sh,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-fix-bug-skill-directive.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-sprint-skill-doc-writer-dispatch.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-v2-skills-cleanup.sh,tests/scripts/test-skill-script-paths.sh,tests/scripts/test-skill-trace-analyze.sh,tests/scripts/test-create-bug-skill-smoke.sh,tests/scripts/test-skill-trace-analyze-shim.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test-architect-foundation-skill.sh,tests/skills/test-onboarding-skill.sh,tests/skills/test-quick-ref-skill.sh,tests/skills/test-sprint-skill-step10-no-merge-to-main.sh,tests/skills/test-skill-nesting-depth.sh,tests/skills/test-design-skills-cross-stack.sh
@@ -150,3 +150,45 @@ plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
 plugins/dso/skills/brainstorm/prompts/cross-epic-scan.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/skills/test-interaction-deferred-gate.sh
+
+# --- bridge/ subpackage modules (c43c-12c8, 5ee9-8591, 9f0d-860d) ---
+plugins/dso/scripts/bridge-inbound.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py,tests/scripts/test_bridge_inbound_comment.py,tests/scripts/test_bridge_inbound_field_coverage.py
+plugins/dso/scripts/bridge-outbound.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py
+plugins/dso/scripts/bridge/_atomic.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_outbound.py
+plugins/dso/scripts/bridge/_comments_inbound.py:tests/scripts/test_bridge_inbound_comment.py,tests/scripts/test_bridge_inbound.py
+plugins/dso/scripts/bridge/_flap.py:tests/scripts/test_bridge_status.py,tests/scripts/test_bridge_inbound.py
+plugins/dso/scripts/bridge/_handle_destructive_guard.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py
+plugins/dso/scripts/bridge/_handle_edit.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_field_coverage.py
+plugins/dso/scripts/bridge/_handle_links.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py
+plugins/dso/scripts/bridge/_handle_status.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_status.py
+plugins/dso/scripts/bridge/_handle_type.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_field_coverage.py
+plugins/dso/scripts/bridge/_inbound_api.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py
+plugins/dso/scripts/bridge/_inbound_utils.py:tests/scripts/test_bridge_inbound.py
+plugins/dso/scripts/bridge/_outbound_api.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py
+plugins/dso/scripts/bridge/_outbound_handlers.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py
+
+# --- ticket_reducer/ subpackage modules (f046-3235) ---
+plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py
+plugins/dso/scripts/ticket_reducer/_cache.py:tests/scripts/test_ticket_reducer.py
+plugins/dso/scripts/ticket_reducer/_processors.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py
+plugins/dso/scripts/ticket_reducer/_sort.py:tests/scripts/test_ticket_reducer.py
+plugins/dso/scripts/ticket_reducer/_state.py:tests/scripts/test_ticket_reducer.py
+
+# --- analyze_tool/ subpackage modules (c43c-12c8) ---
+plugins/dso/scripts/analyze-tool-use.py:tests/scripts/test-skill-trace-analyze.sh,tests/scripts/test-skill-trace-analyze-shim.sh
+plugins/dso/scripts/analyze_tool/_constants.py:tests/scripts/test-skill-trace-analyze.sh
+plugins/dso/scripts/analyze_tool/_detectors.py:tests/scripts/test-skill-trace-analyze.sh
+plugins/dso/scripts/analyze_tool/_log_io.py:tests/scripts/test-skill-trace-analyze.sh
+plugins/dso/scripts/analyze_tool/_models.py:tests/scripts/test-skill-trace-analyze.sh
+plugins/dso/scripts/analyze_tool/_report.py:tests/scripts/test-skill-trace-analyze.sh
+plugins/dso/scripts/analyze_tool/_similarity.py:tests/scripts/test-skill-trace-analyze.sh
+
+# --- ticket_graph/ subpackage modules (c43c-12c8) ---
+plugins/dso/scripts/ticket_graph/_blockers.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_cache.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_graph.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_hierarchy.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_links.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_loader.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_status.py:tests/scripts/test_ticket_graph.py
+INSTALL.md:tests/test-install-doc-contract.sh [test_install_doc_contract]

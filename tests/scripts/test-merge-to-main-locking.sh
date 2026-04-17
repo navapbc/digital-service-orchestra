@@ -28,6 +28,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 source "$DSO_PLUGIN_DIR/hooks/lib/merge-state.sh"
 
 MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
+MERGE_HELPERS_LIB="$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh"
 
 echo "=== test-merge-to-main-locking.sh ==="
 
@@ -39,11 +40,20 @@ trap 'rm -rf "$_TEST_TMP"' EXIT
 
 # Extract lock-related function definitions from the script
 # Use sed to pull from function declaration to the closing brace
-sed -n '/_is_lock_stale()/,/^}/p' "$MERGE_SCRIPT" > "$_TEST_TMP/lock_funcs.sh"
-sed -n '/_acquire_lock()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
-sed -n '/_release_lock()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
-sed -n '/_wait_for_lock()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
-sed -n '/_cleanup_stale_git_state()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
+_extract_to_lock_funcs() {
+    local fn_pat="$1" dest="$2"
+    local _body
+    _body=$(sed -n "/${fn_pat}/,/^}/p" "$MERGE_SCRIPT")
+    if [[ -z "$_body" ]] && [[ -f "${MERGE_HELPERS_LIB:-}" ]]; then
+        _body=$(sed -n "/${fn_pat}/,/^}/p" "$MERGE_HELPERS_LIB")
+    fi
+    echo "$_body" >> "$dest"
+}
+_extract_to_lock_funcs '_is_lock_stale()' "$_TEST_TMP/lock_funcs.sh"
+_extract_to_lock_funcs '_acquire_lock()' "$_TEST_TMP/lock_funcs.sh"
+_extract_to_lock_funcs '_release_lock()' "$_TEST_TMP/lock_funcs.sh"
+_extract_to_lock_funcs '_wait_for_lock()' "$_TEST_TMP/lock_funcs.sh"
+_extract_to_lock_funcs '_cleanup_stale_git_state()' "$_TEST_TMP/lock_funcs.sh"
 
 # Source the extracted functions
 source "$_TEST_TMP/lock_funcs.sh"

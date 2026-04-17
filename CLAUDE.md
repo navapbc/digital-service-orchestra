@@ -54,7 +54,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 **architect-foundation guided mode** (`/dso:architect-foundation`): Reads `project-understanding.md` to generate enforcement artifacts (`ARCH_ENFORCEMENT.md`, `docs/adr/`). Key behaviors: `--auto` flag skips Phase 1 Socratic dialogue and selects recommended defaults; Phase 2.75 batches all artifact confirmations into a single user prompt instead of per-file confirmations; Phase 2.8 always generates ADRs for session decisions without asking; Phase 2.9 re-run idempotency uses append-only merge so existing enforcement rules are never overwritten.
 **Validation gate**: `validate.sh` writes state; hooks block sprint/epic if validation hasn't passed. `--verbose` for real-time progress.
 **Pre-commit hooks** (self-enforcing — print errors with fix instructions): `check-portability.sh` (hardcoded paths; suppress: `# portability-ok`), `check-shim-refs.sh` (direct plugin script refs; suppress: `# shim-exempt: <reason>`; use `.claude/scripts/dso <script-name>` shim instead), `check-contract-schemas.sh` (contract markdown structure), `check-referential-integrity.sh` (dead path references in instruction files), `check-plugin-self-ref.sh` (blocks all `plugins/dso/` literal paths in plugin scripts — no suppression annotation exists; use `_PLUGIN_ROOT` / `_PLUGIN_GIT_PATH` instead).
-**Agent routing**: `discover-agents.sh` resolves routing categories to agents via `agent-routing.conf`; all fall back to `general-purpose`. See `plugins/dso/docs/INSTALL.md`. **Named-agent dispatch** (via `subagent_type`, defined in `plugins/dso/agents/`):
+**Agent routing**: `discover-agents.sh` resolves routing categories to agents via `agent-routing.conf`; all fall back to `general-purpose`. See `INSTALL.md`. **Named-agent dispatch** (via `subagent_type`, defined in `plugins/dso/agents/`):
 
 | Agent | Model | Dispatched by |
 |-------|-------|---------------|
@@ -175,7 +175,7 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 
 **Worktree session setup**: See `plugins/dso/docs/WORKTREE-GUIDE.md` (Session Setup section).
 
-**If `dso` command not found (98ff-99f5)**: The shim lives at `.claude/scripts/dso` in the repo root. If that path does not exist, do NOT use the plugin cache path (`~/.claude/plugins/...`). Run `ls .claude/scripts/dso` to verify; if missing, check `plugins/dso/docs/INSTALL.md` for shim installation steps. The `.tickets-tracker/` directory must also be present (checkout the `tickets` orphan branch: `git worktree add .tickets-tracker tickets 2>/dev/null || git checkout tickets -- . 2>/dev/null || true`).
+**If `dso` command not found (98ff-99f5)**: The shim lives at `.claude/scripts/dso` in the repo root. If that path does not exist, do NOT use the plugin cache path (`~/.claude/plugins/...`). Run `ls .claude/scripts/dso` to verify; if missing, check `INSTALL.md` for shim installation steps. The `.tickets-tracker/` directory must also be present (checkout the `tickets` orphan branch: `git worktree add .tickets-tracker tickets 2>/dev/null || git checkout tickets -- . 2>/dev/null || true`).
 
 **Primary tickets**: Use `/dso:sprint` — it runs `plugins/dso/scripts/validate.sh --ci` automatically and blocks until the codebase is healthy.
 **Bug fixes**: Use `/dso:fix-bug` — TDD-based; investigates before fixing.
