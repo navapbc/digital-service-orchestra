@@ -48,6 +48,7 @@ _ensure_git_fixture_template() {
     git init -q -b main "$_GIT_FIXTURE_TEMPLATE_DIR"
     git -C "$_GIT_FIXTURE_TEMPLATE_DIR" config user.email "test@test.com"
     git -C "$_GIT_FIXTURE_TEMPLATE_DIR" config user.name "Test"
+    git -C "$_GIT_FIXTURE_TEMPLATE_DIR" config commit.gpgsign false
     echo "initial" > "$_GIT_FIXTURE_TEMPLATE_DIR/README.md"
     git -C "$_GIT_FIXTURE_TEMPLATE_DIR" add -A
     git -C "$_GIT_FIXTURE_TEMPLATE_DIR" commit -q -m "init"
