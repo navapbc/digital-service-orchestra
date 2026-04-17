@@ -92,6 +92,20 @@ This is a presence-based check — only block when the tag IS present. Existing 
 
 ---
 
+## Interaction Conflict Gate
+
+Before proceeding, check if the epic has an `interaction:deferred` tag:
+
+1. Run `.claude/scripts/dso ticket show <epic-id>` and check the `tags` field
+2. If `interaction:deferred` is present in the tags array: **HALT immediately**. Output:
+   "This epic has unresolved cross-epic interaction conflicts. Resolve or override them in `/dso:brainstorm <epic-id>` before proceeding to `/dso:preplanning`."
+   Do NOT produce any planning output.
+3. If `interaction:deferred` is NOT present (or tags field is empty/absent): proceed normally.
+
+This is a presence-based check — only block when the tag IS present. Existing epics without the tags field are NOT blocked. If ticket show fails, treat the tag as absent and proceed (fail-open).
+
+---
+
 ## Phase 1: Context Reconciliation & Discovery (/dso:preplanning)
 
 ### Step 1: Select and Load Epic (/dso:preplanning)
