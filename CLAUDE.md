@@ -144,30 +144,13 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 6. **During edit-test iteration, run targeted tests — not the full suite.** 
 7. **Parallelize independent tool calls — always.** When issuing Read, Grep, Glob, or Bash calls with no data dependency between them, place them all in the same response so they run concurrently in the background (e.g., two independent Read calls in one response; Grep + Glob for unrelated patterns). Never serialize calls that could be parallel.
 8. **Always set `timeout: 600000` on Bash calls.** Without it, the timeout ceiling drops from ~73s to ~48s.
-12. **Use `test-batched.sh` for running tests.** Runners: `bash` (test-*.sh), `node` (*.test.js), `pytest`. Prefer `--runner=bash --test-dir=<dir>` for bash suites. Run the printed `RUN:` command in subsequent Bash calls until summary appears. Do NOT use `while` polling loops (killed by ~73s ceiling). See INC-016 in KNOWN-ISSUES.md.
-13. **When a user explicitly requests a bug ticket during interactive conversation (e.g., 'create a ticket for this'), include `--tags CLI_user` in the `.claude/scripts/dso ticket create bug` command.** Do NOT use `--tags CLI_user` for autonomously-discovered bugs (anti-pattern scans in Step 7.5, debug-everything discoveries, or any ticket created without explicit user request).
-14. **When using external API model IDs, tool versions, or service identifiers, verify against authoritative sources before using them.** Run discovery commands (`--help`, `--list-models`, API endpoints), check official documentation, or search for confirmed working examples. Never guess or hallucinate identifiers — even plausible-looking IDs like `claude-sonnet-4-6-20260320` may not exist. Prior knowledge of model ID formats is unreliable; always verify empirically.
-15. **When creating a new `.sh` file, always set the executable bit.** Run `chmod +x <file>` immediately after creating any shell script. The test gate and pre-commit hooks skip non-executable `.sh` files, causing silent test coverage gaps.
-16. **Before any `.claude/scripts/dso ticket` command, verify the exact syntax using `plugins/dso/docs/ticket-cli-reference.md`.** Never guess flag names or option formats. Hallucinated flags like `--parent=<id>` or `--filter-parent <id>` don't exist and will error. Run `.claude/scripts/dso ticket --help` when in doubt. This rule applies to all ticket subcommands: list, show, create, transition, comment, link, sync.
-17. **When the user explicitly says to act (e.g., "apply it", "do it", "yes, fix it"), act immediately without asking for further confirmation (e71a-733f).** A direct user instruction is authorization. Asking "Are you sure?" or "Should I proceed?" when the user just said yes is unnecessary friction. The only valid reason to pause after an explicit "yes" is if you lack the information needed to perform the action safely.
-18. **When searching for multiple independent targets, parallelize into separate targeted tool calls (7c45-ee60).** Each Explore sub-agent or Grep/Glob call should target ONE specific search objective. Do NOT dispatch a single broad search covering multiple unrelated targets. Example: searching for "isolation guard code" AND "all references to it" are two independent searches — dispatch them as two parallel Grep calls, not one Explore sub-agent that searches everything.
-
-## Task Start Workflow
-
-**Worktree session setup**: See `plugins/dso/docs/WORKTREE-GUIDE.md` (Session Setup section).
-
-**If `dso` command not found (98ff-99f5)**: The shim lives at `.claude/scripts/dso` in the repo root. If that path does not exist, do NOT use the plugin cache path (`~/.claude/plugins/...`). Run `ls .claude/scripts/dso` to verify; if missing, check `INSTALL.md` for shim installation steps. The `.tickets-tracker/` directory must also be present (checkout the `tickets` orphan branch: `git worktree add .tickets-tracker tickets 2>/dev/null || git checkout tickets -- . 2>/dev/null || true`).
-
-**Primary tickets**: Use `/dso:sprint` — it runs `plugins/dso/scripts/validate.sh --ci` automatically and blocks until the codebase is healthy.
-**Bug fixes**: Use `/dso:fix-bug` — TDD-based; investigates before fixing.
-**Docs, research**: Start directly. Validation runs at commit time for code changes (skipped for docs-only commits).
-**Before `/dso:debug-everything`**: Run `plugins/dso/scripts/estimate-context-load.sh debug-everything`. If static load >10,000 tokens, trim `MEMORY.md` before starting to avoid premature compaction.
-**`/dso:debug-everything` two-mode flow**: When open bug tickets exist, it enters Bug-Fix Mode — reads `/dso:fix-bug` SKILL.md inline at orchestrator level (preserving Agent tool access) and applies it to each open ticket, then runs Validation Mode (inner fix→validate loop, bounded by `debug.max_fix_validate_cycles`, default 3). When no open bugs exist, it runs the diagnostic scan (Phase 1) → triage sub-agent (Phase 2) → fix pipeline. Interactivity is declared at session start; non-interactive mode defers user-blocking gates as `INTERACTIVITY_DEFERRED` ticket comments instead of pausing. Complexity evaluation happens post-investigation in `/dso:fix-bug` (Step 4.5), after the bug is fully understood — not pre-investigation in `/dso:debug-everything`.
-**`/dso:fix-bug` Sub-Agent Context Detection** — primary method: Agent tool availability check (if Agent tool is unavailable, skill is in sub-agent context). Fallback: orchestrator signal `You are running as a sub-agent` in dispatch prompt.
-
-## Plan Mode Post-Approval Workflow
-
-After ExitPlanMode approval, do NOT begin implementation. Follow `plugins/dso/docs/PLAN-APPROVAL-WORKFLOW.md`.
+9. **Use `test-batched.sh` for running tests.** Runners: `bash` (test-*.sh), `node` (*.test.js), `pytest`. Prefer `--runner=bash --test-dir=<dir>` for bash suites. Run the printed `RUN:` command in subsequent Bash calls until summary appears. Do NOT use `while` polling loops (killed by ~73s ceiling). See INC-016 in KNOWN-ISSUES.md.
+10. **When a user explicitly requests a bug ticket during interactive conversation (e.g., 'create a ticket for this'), include `--tags CLI_user` in the `.claude/scripts/dso ticket create bug` command.** Do NOT use `--tags CLI_user` for autonomously-discovered bugs (anti-pattern scans in Step 7.5, debug-everything discoveries, or any ticket created without explicit user request).
+11. **When using external API model IDs, tool versions, or service identifiers, verify against authoritative sources before using them.** Run discovery commands (`--help`, `--list-models`, API endpoints), check official documentation, or search for confirmed working examples. 
+12. **When creating a new `.sh` file, always set the executable bit.** Run `chmod +x <file>` immediately after creating any shell script. The test gate and pre-commit hooks skip non-executable `.sh` files, causing silent test coverage gaps.
+13. **Before any `.claude/scripts/dso ticket` command, verify the exact syntax using `plugins/dso/docs/ticket-cli-reference.md`.** Never guess flag names or option formats. This rule applies to all ticket subcommands: list, show, create, transition, comment, link, sync.
+14. **When the user explicitly says to act (e.g., "apply it", "do it", "yes, fix it"), act immediately without asking for further confirmation (e71a-733f).** A direct user instruction is authorization. Asking "Are you sure?" or "Should I proceed?" when the user just said yes is unnecessary friction. The only valid reason to pause after an explicit "yes" is if you lack the information needed to perform the action safely.
+15. **When searching for multiple independent targets, parallelize into separate targeted tool calls (7c45-ee60).** Each Explore sub-agent or Grep/Glob call should target ONE specific search objective. Do NOT dispatch a single broad search covering multiple unrelated targets. Example: searching for "isolation guard code" AND "all references to it" are two independent searches — dispatch them as two parallel Grep calls, not one Explore sub-agent that searches everything.
 
 ## Task Completion Workflow (Orchestrator/main session only — does NOT apply inside sub-agents)
 
@@ -180,17 +163,14 @@ After ExitPlanMode approval, do NOT begin implementation. Follow `plugins/dso/do
 #    Phases: sync → merge → version_bump → validate → push → archive → ci_trigger
 #    State file: /tmp/merge-to-main-state-<branch>.json (expires after 4h); lock file: /tmp/merge-to-main-lock-<hash>
 #    On interruption (SIGURG), current phase is saved to state file — re-run with --resume to continue.
-# 3. plugins/dso/scripts/ci-status.sh --wait — must return "success"
-# 4. .claude/scripts/dso ticket transition <id> <current> closed --reason="Fixed: <summary>"  # bug tickets require --reason
+# 3. .claude/scripts/dso ticket transition <id> <current-status> closed --reason="Fixed: <summary>"  # bug tickets require --reason
 ```
 
-**Session close**: Use `/dso:end`.
+**Session close**: Use `/dso:end-session`.
 
 ## Multi-Agent Orchestration
 
 **Sub-agent boundaries**: See `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md` for all sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format, model selection, recovery).
-**Sub-agent guard pattern**: Skills that require the Agent tool or direct user interaction contain a `<SUB-AGENT-GUARD>` block at the top of their `SKILL.md`. When invoked in sub-agent context (via Task tool), the guard instructs the agent to stop immediately and return an error. Two guard variants exist: (1) **Agent tool check** — for skills that dispatch sub-agents (sprint, debug-everything, brainstorm, preplanning, implementation-plan, design-review, roadmap, plan-review, review-protocol, resolve-conflicts, architect-foundation, validate-work, retro, ui-discover); (2) **Orchestrator signal check** — for skills that require user interaction (end-session, onboarding). Tests: `tests/hooks/test-sub-agent-guard.sh`.
-**Onboarding** (`/dso:onboarding`): Runs Step 0 dep pre-scan (bash 4.0+, coreutils, git, pre-commit — required blocking; optional: ast-grep, semgrep). Accepts optional `--doc-folder <path>` to scan existing project docs and pre-populate CONFIDENCE_CONTEXT dimensions (7 dimensions, 3 levels: low/medium/high; elevation-only update rule). Phase 2 routes dialogue depth by confidence: high=skip+summary, medium=prefill+confirm, low=ask. Executes in 6 named batch groups (dependency-install, scaffold-claude-structure, config-write, initial-commit, hook-install, final-commit); each group requires user approval before execution. Displays a Phase N of Y counter (Y decreases when optional template phases are skipped). Integration setup: Jira (section 8), Figma (section 9, config-gated: `design.figma_collaboration`), Confluence (section 10, config-gated: `confluence.enabled`) — all skippable. Asks a natural-language preplanning question: run autonomously or check in at each decision.
 
 Orchestrator-level models: `haiku` (structured I/O), `sonnet` (code gen, review), `opus` (architecture, high-blast-radius); escalate on failure. Recovery: `.claude/scripts/dso ticket list` + `.claude/scripts/dso ticket show <id>` to read CHECKPOINT notes → `git log --oneline -5 && git status --short` for git state.
 
