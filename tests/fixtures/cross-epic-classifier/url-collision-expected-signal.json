@@ -1,0 +1,13 @@
+{
+  "interaction_signals": [
+    {
+      "new_epic_id": "fixture-epic-a",
+      "overlapping_epic_id": "fixture-epic-b",
+      "overlapping_epic_title": "Admin Panel",
+      "severity": "ambiguity",
+      "shared_resource": "/api/users",
+      "description": "Both epics claim overlapping URL routes under /api/users — ownership needs clarification",
+      "integration_constraint": null
+    }
+  ]
+}

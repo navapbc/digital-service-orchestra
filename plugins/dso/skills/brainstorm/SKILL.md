@@ -348,8 +348,75 @@ As you draft the epic spec, classify the origin of each success criterion and ke
 - **confirmed-via-gap-question** — inferred by you, then confirmed by the user during gap analysis (Phase 1 Gate Step 2)
 - **inferred** — derived by you from context without explicit user confirmation
 - **researched** — sourced from web research or external reference material (Step 2.6)
+- **injected** — derived from a cross-epic interaction scan (consideration-level signal); applied before the scrutiny pipeline and rendered as bold at the approval gate
 
 Track provenance internally — you will use these categories in Step 4 to annotate the rendered spec.
+
+### Step 2.25: Cross-Epic Interaction Scan
+
+Read and execute `skills/brainstorm/prompts/cross-epic-scan.md` with the current epic's approach and success criteria as input. This step dispatches haiku-tier classifiers against all open/in-progress epics to detect shared-resource conflicts before the scrutiny pipeline runs.
+
+After the scan completes, route signals by severity:
+- **benign**: log the signal; no action required; proceed to Step 2.5
+- **consideration**: carry `CROSS_EPIC_SIGNALS` forward for AC injection (processed after this step per story 2629-66cb)
+- **ambiguity** or **conflict**: carry `CROSS_EPIC_SIGNALS` forward for halt/resolution handling (processed after this step per story 3c31-8050)
+
+If `CROSS_EPIC_SIGNALS` is empty or contains only benign signals, proceed directly to Step 2.5.
+
+### Step 2.26: Consideration AC Injection
+
+For each signal in `CROSS_EPIC_SIGNALS` where `severity = "consideration"`:
+
+1. **Construct a structured AC** with these three required fields:
+   - (a) Shared resource name: `signal.shared_resource`
+   - (b) Overlapping epic ID + title: `signal.overlapping_epic_id` — `signal.overlapping_epic_title`
+   - (c) Falsifiable integration constraint: `signal.integration_constraint`
+
+2. **Deduplicate by shared resource name**: if multiple CONSIDERATION signals share the same `shared_resource` value, consolidate to a single AC (use the first or most descriptive integration_constraint).
+
+3. **Mark as `injected` provenance**: each constructed AC carries `injected` provenance — applied before the Phase 3 clean-text strip pass.
+
+4. **Append to the epic spec** under a new `## Cross-Epic Interactions` section (separate from `## Success Criteria`). This keeps SC Gap Check and completion verifier operating on user-authored SCs, while injected ACs are tracked independently.
+
+If `CROSS_EPIC_SIGNALS` has no consideration-severity signals, skip this step and proceed to Step 2.27.
+
+### Step 2.27: Halt and Resolution for Ambiguity/Conflict Signals
+
+If `CROSS_EPIC_SIGNALS` (from Step 2.25) contains signals with `severity="ambiguity"` or `severity="conflict"`, halt and present them to the user for resolution before entering the scrutiny pipeline.
+
+1. **Tag the epic** with `interaction:deferred`:
+   ```bash
+   .claude/scripts/dso ticket edit <epic-id> --tags interaction:deferred
+   ```
+
+2. **If running non-interactively** (`BRAINSTORM_INTERACTIVE=false`): log `INTERACTIVITY_DEFERRED: cross-epic interaction signals require practitioner resolution. Epic tagged interaction:deferred. Re-run /dso:brainstorm <epic-id> interactively to resolve.` and exit without proceeding to Step 2.5.
+
+3. **If running interactively**: Present the signals to the user:
+
+   ```
+   Cross-epic interaction signals detected:
+
+   - Epic <overlapping_epic_id>: <overlapping_epic_title>
+     Shared resource: <shared_resource>
+     Signal severity: <conflict | ambiguity>
+     Description: <description>
+     Constraint: <integration_constraint>
+
+   This epic has been tagged interaction:deferred. How would you like to proceed?
+
+   (a) Resolve — I will clarify the approach or scope to eliminate the conflict (return to Phase 1)
+   (b) Override — proceed to scrutiny anyway (removes interaction:deferred tag)
+   (c) Halt — stop now; I will address the conflict separately
+   ```
+
+   Wait for the user's response:
+   - **(a) Resolve**: Re-enter Phase 1 (Context + Socratic Dialogue) with the conflict context as seeding material. After the user provides clarification, return to Step 2.25 and re-run the scan.
+   - **(b) Override**: Remove the `interaction:deferred` tag: `.claude/scripts/dso ticket edit <epic-id> --tags ""` (or remove the tag selectively). Log: `"CROSS_EPIC_SIGNALS overridden by practitioner — proceeding to scrutiny pipeline."` Continue to Step 2.5.
+   - **(c) Halt**: Log: `"Brainstorm halted at practitioner request — cross-epic signals unresolved. Epic remains tagged interaction:deferred."` Stop. Do NOT proceed to Step 2.5.
+
+4. **If no ambiguity or conflict signals**: proceed to Step 2.5 normally.
+
+**Failure contract**: If tagging fails, log a warning and present signals to the user anyway — do not block on infrastructure failures.
 
 ### Steps 2.5, 2.6, 2.75, and Step 3: Epic Scrutiny Pipeline
 
@@ -417,6 +484,43 @@ After the scrutiny pipeline completes (with no unresolved FEASIBILITY_GAP), insp
    - **(b) Modify:** Incorporate user changes, present again.
    - **(c) Skip:** Log `"SC gap check: user opted to skip revision."` and proceed to Step 4 with original SCs.
 
+### Step 2.28: Relates-to AC Injection
+
+After the SC Gap Check completes, scan the epic spec for cross-epic consideration signals produced by the epic scrutiny pipeline's Part C Cross-Epic Relates_to extension. For each relates_to signal that includes a `shared_resource` field, inject a structured acceptance criterion (AC) into the `## Cross-Epic Interactions` section of the epic spec.
+
+#### URL Navigability Classification
+
+For each `signal.shared_resource` value, classify the resource type:
+
+- **Navigable URL**: the `shared_resource` value starts with `/` OR contains `http://` or `https://`
+- **Non-URL resource**: all other values (file paths, config keys, CLI tool names, data structures, etc.)
+
+#### AC Structure
+
+**For navigable URL signals** (4-field AC):
+```
+- Resource: <shared_resource>
+  Interaction: <description of the cross-epic interaction>
+  Gate: <acceptance condition>
+  Playwright assertion: await page.goto('<shared_resource>'); await expect(page).not.toHaveURL(/4[0-9]{2}/);
+```
+
+**For non-URL resource signals** (3-field AC, no Playwright assertion):
+```
+- Resource: <shared_resource>
+  Interaction: <description of the cross-epic interaction>
+  Gate: <acceptance condition>
+```
+
+#### Injection Procedure
+
+1. If the epic spec does not already contain a `## Cross-Epic Interactions` section, append one after the `## Dependencies` section.
+2. For each cross-epic signal with a `shared_resource`, determine its URL navigability classification (above).
+3. Append the appropriate AC entry (3-field or 4-field) to the `## Cross-Epic Interactions` section.
+4. If no cross-epic signals with `shared_resource` fields are present, skip this step and log: `"Step 2.28 skipped: no shared_resource signals from Part C extension."`
+
+The Playwright assertion is always appended within the same AC entry as the 4th field — it is not a separate section or bullet. Non-URL resources receive no Playwright assertion and use only the 3-field structure.
+
 ### Step 4: Approval Gate
 
 <HARD-GATE>
@@ -441,13 +545,14 @@ Present the validated spec to the user using **AskUserQuestion** with 4 options.
 
 **Provenance annotation rendering**: Before presenting success criteria, render each criterion with a bold/normal annotation based on its provenance:
 - **inferred** or **researched** criteria → render in **bold** (visually prominent — these require user review)
+- **injected** criteria → render in **bold** (same as inferred/researched — requires practitioner awareness)
 - **explicit** or **confirmed-via-gap-question** criteria → render in normal text (user already confirmed these)
 
 Immediately before the option list, include an annotation summary line in this format:
 ```
-N of M criteria confirmed; K inferred requiring review
+N of M criteria confirmed; K inferred requiring review; J injected from cross-epic scan
 ```
-where N = count of explicit + confirmed-via-gap-question criteria, M = total criteria count, K = count of inferred + researched criteria. This provenance summary line appears before the (a)/(b)/(c)/(d) options.
+where N = count of explicit + confirmed-via-gap-question criteria, M = total criteria count, K = count of inferred + researched criteria, J = count of injected criteria. This provenance summary line appears before the (a)/(b)/(c)/(d) options.
 
 Note: summary confirmation (Phase 1 Gate Step 1) does NOT collapse with gap analysis (Phase 1 Gate Step 2) — they are always presented as separate steps.
 
@@ -518,7 +623,7 @@ Log format to append (the heading is **Planning Intelligence Log**, level 3):
 
 **Goal**: Create the epic in the ticket system and hand off to the next step.
 
-**Clean-text instruction**: Strip all provenance markers and bold emphasis before writing the ticket description. Provenance annotations are used only during the approval-gate review phase — the final ticket description must be written as clean plain text with no markup from the provenance tracking step.
+**Clean-text instruction**: Strip all provenance markers and bold emphasis before writing the ticket description. Provenance annotations are used only during the approval-gate review phase — the final ticket description must be written as clean plain text with no markup from the provenance tracking step. Note: `injected` provenance is applied BEFORE the Phase 3 clean-text strip pass. The approval gate (Step 4, which runs before Phase 3) presents injected ACs in **bold** so practitioners see them clearly. Clean-text strips all provenance markers including `injected` annotations for the final ticket description.
 
 ### Step 0: Follow-on and Derivative Epic Gate (/dso:brainstorm)
 

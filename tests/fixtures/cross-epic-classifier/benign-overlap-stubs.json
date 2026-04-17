@@ -1,0 +1,24 @@
+{
+  "new_epic": {
+    "id": "fixture-epic-c",
+    "title": "User Management",
+    "approach_summary": "PostgreSQL database with users and user_roles tables",
+    "success_criteria": [
+      "Users table stores account credentials and profile data",
+      "User_roles table manages permission assignments",
+      "Database migrations are idempotent and reversible"
+    ]
+  },
+  "open_epics": [
+    {
+      "id": "fixture-epic-d",
+      "title": "Order Processing",
+      "approach_summary": "PostgreSQL database with orders, order_items, and payments tables",
+      "success_criteria": [
+        "Orders table tracks order status and customer reference",
+        "Order_items table stores line items with quantity and price",
+        "Payments table records payment method and transaction IDs"
+      ]
+    }
+  ]
+}
