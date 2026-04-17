@@ -1,0 +1,1 @@
+{"timestamp": 1776464373145753000, "uuid": "bad6f3ed-508b-4557-87f0-c243d368d691", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Follow .claude/docs/DOCUMENTATION-GUIDE.md (or plugins/dso/docs/DOCUMENTATION-GUIDE.md) for documentation formatting, structure, and conventions."}}
