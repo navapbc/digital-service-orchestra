@@ -1,1 +1,0 @@
-{"timestamp": 1776444897821691000, "uuid": "bd082858-341d-4e74-b1f1-a90ce0b4b3e6", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT:batch-complete \u2014 Done \u2713 \u2014 Committed in cae3abff (Batch 1 of epic c737-977d worktree integration)"}}
