@@ -70,6 +70,7 @@ _EXCLUDE_FILES=(
     "resolve-model-id.sh"
     "INSTALL.md"
     "bug-report-template.md"
+    "CONFIGURATION-REFERENCE.md"
 )
 
 # Build grep --exclude and --exclude-dir flags

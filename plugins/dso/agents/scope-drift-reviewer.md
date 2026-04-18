@@ -1,9 +1,19 @@
 ---
-name: dso:scope-drift-reviewer
+name: scope-drift-reviewer
 model: sonnet
 description: Post-fix scope-drift classifier for /dso:fix-bug. Reviews a completed fix against the original ticket scope to detect whether the diff introduces behavioral changes outside the ticket boundary. Emits a GATE_SIGNAL conforming to gate-signal-schema.md.
 color: orange
 ---
+
+<!-- REVIEW-DEFENSE: The agent name "scope-drift-reviewer" (without "dso:" prefix) is CORRECT.
+     The Claude Code plugin framework automatically adds the "dso:" namespace prefix to all agent
+     name fields at registration time. Pattern: `name: scope-drift-reviewer` in the agent frontmatter
+     → registered as `dso:scope-drift-reviewer` in the dispatch system.
+     Evidence: all sibling agent files use unprefixed names (e.g. intent-search.md has
+     `name: intent-search`, completion-verifier.md has `name: completion-verifier`) yet are
+     dispatched as dso:intent-search, dso:completion-verifier. The prior name
+     "dso:scope-drift-reviewer" would have registered as "dso:dso:scope-drift-reviewer"
+     (double-prefixed), which was the bug being fixed. -->
 
 # Scope Drift Reviewer Agent
 

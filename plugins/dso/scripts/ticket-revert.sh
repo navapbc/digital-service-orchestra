@@ -131,7 +131,7 @@ target_event_uuid = sys.argv[3]
 target_event_type = sys.argv[4]
 reason = sys.argv[5]
 
-timestamp = int(time.time())
+timestamp = time.time_ns()
 event_uuid = str(_uuid_mod.uuid4())
 
 event = {

@@ -240,6 +240,12 @@ if [[ -z "$REVIEWER_HASH" ]]; then
     echo "ERROR: --reviewer-hash is required — the code-reviewer sub-agent must report the hash" >&2
     echo "" >&2
     echo "Usage: record-review.sh --reviewer-hash HASH [--expected-hash HASH]" >&2
+    echo "" >&2
+    echo "Where to get REVIEWER_HASH:" >&2
+    echo "  The code-reviewer sub-agent (dso:code-reviewer-light, dso:code-reviewer-standard," >&2
+    echo "  or dso:code-reviewer-deep-arch) writes reviewer-findings.json and reports its" >&2
+    echo "  SHA256 hash in the output as: REVIEWER_HASH: <hash>" >&2
+    echo "  Pass that value here via: record-review.sh --reviewer-hash <hash>" >&2
     exit 1
 fi
 

@@ -129,7 +129,7 @@ def write_create_events(
         ticket_dir = tickets_tracker / local_id
         ticket_dir.mkdir(parents=True, exist_ok=True)
 
-        ts = int(time.time())
+        ts = time.time_ns()
         event_uuid = str(uuid.uuid4())
         filename = f"{ts}-{event_uuid}-CREATE.json"
 
@@ -237,7 +237,7 @@ def write_status_event(
     """Write a bridge-authored STATUS event file for a Jira status change."""
     ticket_dir.mkdir(parents=True, exist_ok=True)
 
-    ts = int(time.time())
+    ts = time.time_ns()
     event_uuid = str(uuid.uuid4())
     filename = f"{ts}-{event_uuid}-STATUS.json"
 
@@ -286,7 +286,7 @@ def write_edit_event(
     """Write a bridge-authored EDIT event file for Jira field changes."""
     ticket_dir.mkdir(parents=True, exist_ok=True)
 
-    ts = int(time.time())
+    ts = time.time_ns()
     event_uuid = str(uuid.uuid4())
     filename = f"{ts}-{event_uuid}-EDIT.json"
 
@@ -316,7 +316,7 @@ def write_bridge_alert(
     ticket_dir = tickets_root / ticket_id
     ticket_dir.mkdir(parents=True, exist_ok=True)
 
-    ts = int(time.time())
+    ts = time.time_ns()
     event_uuid = str(uuid.uuid4())
     filename = f"{ts}-{event_uuid}-BRIDGE_ALERT.json"
 
