@@ -89,7 +89,7 @@ Emitted when the review-complexity classifier selects a tier.
 | `floor_rule_applied` | boolean | required | `true` if a floor rule overrode the threshold-derived tier. |
 | `diff_lines` | integer | required | Count of added lines in non-test, non-generated source files. |
 | `file_count` | integer | required | Number of staged source files included in the classification. |
-| `size_action` | string | required | Size threshold result: `none`, `upgrade`, or `reject`. |
+| `size_action` | string | required | Size threshold result: `none`, `upgrade`, or `warn`. |
 
 ### `overlay_trigger`
 

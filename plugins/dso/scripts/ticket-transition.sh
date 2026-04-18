@@ -384,6 +384,13 @@ print(','.join(ids)) if ids else None
     # Compact-on-close: squash event log into SNAPSHOT (non-blocking)
     compact_script="${DSO_COMPACT_SCRIPT:-$SCRIPT_DIR/ticket-compact.sh}"
     bash "$compact_script" "$ticket_id" --threshold=0 --skip-sync 2>/dev/null || true
+
+    # Epic-close reminder: emit /dso:end-session prompt when an epic is closed
+    ticket_type_on_close=$(python3 "$REDUCER" "$TRACKER_DIR/$ticket_id" 2>/dev/null \
+        | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('ticket_type',''))" 2>/dev/null) || ticket_type_on_close=""
+    if [ "$ticket_type_on_close" = "epic" ]; then
+        echo "REMINDER: Epic closed — run /dso:end-session to complete the sprint cleanly."
+    fi
 fi
 
 exit 0

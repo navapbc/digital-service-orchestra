@@ -7,7 +7,7 @@
 
 ## Purpose
 
-This document defines the interface between `review-complexity-classifier.sh` (emitter) and `REVIEW-WORKFLOW.md` (parser) for diff size threshold fields. The classifier computes the scorable line count of the staged diff and determines whether the review should proceed normally, be escalated to opus, or be rejected entirely. The parser uses these fields to apply size-based routing before dispatching any review agent.
+This document defines the interface between `review-complexity-classifier.sh` (emitter) and `REVIEW-WORKFLOW.md` (parser) for diff size threshold fields. The classifier computes the scorable line count of the staged diff and determines whether the review should proceed normally, be escalated to opus, or receive a SIZE_WARNING and continue through the review. The parser uses these fields to apply size-based routing before dispatching any review agent.
 
 This contract must be agreed upon before either side is implemented to prevent implicit assumptions and ensure emitter and parser stay in sync.
 
@@ -42,7 +42,7 @@ The size fields are emitted as part of the existing classifier JSON object along
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `diff_size_lines` | integer | required | Count of added lines in non-test, non-generated source files in the staged diff. Test files (matching `tests/`, `*_test.*`, `test_*.py` patterns) and generated files (matching the review-gate allowlist) are excluded from this count. |
-| `size_action` | string | required | Threshold determination result. One of: `none`, `upgrade`, `reject`. See **Size Action Values** below. |
+| `size_action` | string | required | Threshold determination result. One of: none, upgrade, warn. See **Size Action Values** below. |
 | `is_merge_commit` | boolean | required | `true` when `MERGE_HEAD` is present and resolves to a valid commit object; `false` otherwise. When `true`, the parser must skip all size-based routing for this review pass. |
 
 ### Size Action Values
@@ -51,7 +51,7 @@ The size fields are emitted as part of the existing classifier JSON object along
 |---|---|---|
 | `none` | < 300 | Proceed normally — no size-based routing change |
 | `upgrade` | 300–599 | Upgrade the review model to opus at the current tier's scope (light → light-opus, standard → standard-opus, deep → deep-opus) |
-| `reject` | ≥ 600 | Emit rejection message to the user referencing `docs/workflows/prompts/large-diff-splitting-guide.md`; do not dispatch any review agent |
+| `warn` | ≥ 600 | Emit SIZE_WARNING:<count> to stderr; continue processing |
 
 ---
 

@@ -204,3 +204,16 @@ INSTALL.md:tests/test-install-doc-contract.sh,tests/scripts/test-no-unguarded-pl
 # --- scan-config-keys: config gap detection (epic 91f5-0aec, task e4cf-92a3) ---
 plugins/dso/scripts/scan-config-keys.sh:tests/scripts/test-scan-config-keys.sh
 plugins/dso/docs/CONFIGURATION-REFERENCE.md:tests/scripts/test-config-keys-documented.sh
+
+
+# --- review-sample-files.sh: stratified sampler (epic 97fc-b2ca, task 4337-a84d) ---
+plugins/dso/scripts/review-sample-files.sh:tests/unit/scripts/test-review-sample-files.sh
+
+# --- review-batch-groups.sh: batch grouper (epic 97fc-b2ca, task 2462-28a0) ---
+plugins/dso/scripts/review-batch-groups.sh:tests/scripts/test-review-batch-groups.sh
+
+# --- REVIEW-WORKFLOW-HUGE.md fallback/confirmed-refactor agents (epic 97fc-b2ca, tasks f787-d995, 5275-a50f) ---
+plugins/dso/docs/workflows/REVIEW-WORKFLOW-HUGE.md:tests/workflows/test-review-workflow-huge.sh
+plugins/dso/agents/huge-diff-reviewer-light.md:tests/workflows/test-review-workflow-huge.sh
+plugins/dso/agents/huge-diff-reviewer-standard.md:tests/workflows/test-review-workflow-huge.sh
+plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-workflow-huge.sh
