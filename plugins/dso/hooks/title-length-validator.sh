@@ -20,7 +20,7 @@
 
 TITLE_MAX=255
 
-HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
 trap 'printf "{\"ts\":\"%s\",\"hook\":\"title-length-validator.sh\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; exit 0' ERR
 
 # Source shared dependency library

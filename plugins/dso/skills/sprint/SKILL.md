@@ -2197,6 +2197,7 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
    Closure). Proceed immediately to step 2 (close the epic). Do NOT stop, wait for user
    input, or treat merge-to-main.sh completion as a session end. Exiting after step 1
    without completing steps 2–4 is the specific failure mode documented in bug 89fe-bad1.
+   Exception: if merge-to-main.sh output begins with `ESCALATE:`, this continuation mandate does NOT apply — stop immediately and surface the escalation to the user per end-session Step 4.
    </ORCHESTRATOR_RESUME>
 2. Close the epic:
    ```bash

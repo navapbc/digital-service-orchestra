@@ -41,8 +41,8 @@ Partition the candidate epics into batches of up to 20 epics each. If there are 
 Before dispatching classifier agents, perform a usage-aware pre-check:
 
 ```bash
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-PRE_CHECK_OUTPUT=$(bash "$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh" pre-check 2>/dev/null || echo "MAX_AGENTS: unlimited")
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"  # shim-exempt: prompt template — PLUGIN_SCRIPTS derived from CLAUDE_PLUGIN_ROOT by the executing sub-agent, not a hardcoded path
+PRE_CHECK_OUTPUT=$(bash "$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh" pre-check 2>/dev/null || echo "MAX_AGENTS: unlimited")  # shim-exempt: prompt template — uses CLAUDE_PLUGIN_ROOT-derived PLUGIN_SCRIPTS
 MAX_AGENTS=$(echo "$PRE_CHECK_OUTPUT" | grep "^MAX_AGENTS:" | awk '{print $2}')
 MAX_AGENTS="${MAX_AGENTS:-unlimited}"
 ```

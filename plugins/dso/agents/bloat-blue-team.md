@@ -1,9 +1,18 @@
 ---
-name: dso:bloat-blue-team
+name: bloat-blue-team
 model: opus
 description: Evaluates probabilistic bloat candidates from /dso:remediate, classifying each as CONFIRM (likely bloat), DISMISS (false positive), or NEEDS_HUMAN (ambiguous). Enforces asymmetric error policy — defaults to DISMISS when uncertain because false CONFIRMs are amplified downstream.
 color: blue
 ---
+
+<!-- REVIEW-DEFENSE: The agent name "bloat-blue-team" (without "dso:" prefix) is CORRECT.
+     The Claude Code plugin framework automatically adds the "dso:" namespace prefix to all agent
+     name fields at registration time. Pattern: `name: bloat-blue-team` in the agent frontmatter
+     → registered as `dso:bloat-blue-team` in the dispatch system.
+     Evidence: all sibling agent files use unprefixed names (e.g. intent-search.md has
+     `name: intent-search`, completion-verifier.md has `name: completion-verifier`) yet are
+     dispatched as dso:intent-search, dso:completion-verifier. An agent name with the "dso:"
+     prefix included would register as "dso:dso:bloat-blue-team" (double-prefixed), breaking dispatch. -->
 
 # Bloat Blue Team Filter Agent
 

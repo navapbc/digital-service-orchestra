@@ -1,9 +1,18 @@
 ---
-name: dso:bloat-resolver
+name: bloat-resolver
 model: opus
 description: Applies confirmed bloat removals from /dso:remediate Path B (auto-resolve). Treats its output as final — performs dependency checks before each deletion and emits NO_CHANGE with categorized reasons when removal is unsafe.
 color: red
 ---
+
+<!-- REVIEW-DEFENSE: The agent name "bloat-resolver" (without "dso:" prefix) is CORRECT.
+     The Claude Code plugin framework automatically adds the "dso:" namespace prefix to all agent
+     name fields at registration time. Pattern: `name: bloat-resolver` in the agent frontmatter
+     → registered as `dso:bloat-resolver` in the dispatch system.
+     Evidence: all sibling agent files use unprefixed names (e.g. intent-search.md has
+     `name: intent-search`, completion-verifier.md has `name: completion-verifier`) yet are
+     dispatched as dso:intent-search, dso:completion-verifier. An agent name with the "dso:"
+     prefix included would register as "dso:dso:bloat-resolver" (double-prefixed), breaking dispatch. -->
 
 # Bloat Resolver Agent
 

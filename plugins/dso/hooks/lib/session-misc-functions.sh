@@ -254,10 +254,11 @@ hook_inject_using_lockpick() {
 # ---------------------------------------------------------------------------
 # SessionStart hook: analyze hook error log and create bugs for recurring errors
 hook_session_safety_check() {
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
+    local HOOK_ERROR_LOG_LEGACY="$HOME/.claude/hook-error-log.jsonl"
     local THRESHOLD=10
 
-    if [[ ! -f "$HOOK_ERROR_LOG" ]]; then
+    if [[ ! -f "$HOOK_ERROR_LOG" && ! -f "$HOOK_ERROR_LOG_LEGACY" ]]; then
         return 0
     fi
 
@@ -278,19 +279,28 @@ hook_session_safety_check() {
     COUNTS=$(python3 -c "
 import sys, json
 cutoff = sys.argv[1]
-for line in sys.stdin:
-    line = line.strip()
-    if not line:
-        continue
+paths = sys.argv[2:]
+hooks = []
+for path in paths:
     try:
-        obj = json.loads(line)
-        ts = obj.get('ts', '')
-        hook = obj.get('hook', '')
-        if ts and ts >= cutoff and hook:
-            print(hook)
-    except (json.JSONDecodeError, KeyError):
+        with open(path, 'r') as f:
+            for raw_line in f:
+                raw_line = raw_line.strip()
+                if not raw_line:
+                    continue
+                try:
+                    obj = json.loads(raw_line)
+                    ts = obj.get('ts', '')
+                    hook = obj.get('hook', '')
+                    if ts and hook and str(ts) >= cutoff:
+                        hooks.append(hook)
+                except (json.JSONDecodeError, KeyError):
+                    pass
+    except (OSError, IOError):
         pass
-" "$CUTOFF" < "$HOOK_ERROR_LOG" 2>/dev/null | sort | uniq -c | sort -rn || echo "")
+for h in sorted(hooks):
+    print(h)
+" "$CUTOFF" "$HOOK_ERROR_LOG" "$HOOK_ERROR_LOG_LEGACY" 2>/dev/null | sort | uniq -c | sort -rn || echo "")
 
     if [[ -z "$COUNTS" ]]; then
         return 0
@@ -321,7 +331,7 @@ for line in sys.stdin:
         echo "The following hooks have exceeded the error threshold (${THRESHOLD}/24h):"
         echo -e "$WARNINGS"
         echo ""
-        echo "Review: ~/.claude/hook-error-log.jsonl"
+        echo "Review: ~/.claude/logs/dso-hook-errors.jsonl"
     fi
 
     return 0
@@ -334,7 +344,7 @@ for line in sys.stdin:
 # NOTE: Uses python3 for JSON parsing (matches original hook behavior).
 hook_post_compact_review_check() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
 
     local SOURCE
     SOURCE=$(echo "$INPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('source',''))" 2>/dev/null || echo "")
@@ -660,7 +670,7 @@ hook_track_tool_errors() {
     local _MONITORING; _MONITORING="${DSO_MONITORING_TOOL_ERRORS:-$(bash "$_PLUGIN_ROOT/scripts/read-config.sh" monitoring.tool_errors 2>/dev/null || echo "false")}"
     [[ "$_MONITORING" != "true" ]] && return 0
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
 
     check_tool python3 || return 0
 
@@ -788,7 +798,7 @@ print(json.dumps(data))
 # has been recorded.
 hook_plan_review_gate() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"plan-review-gate\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     local TOOL_NAME
@@ -850,7 +860,7 @@ hook_plan_review_gate() {
 #   Set to false to disable the gate (e.g., for sessions that don't require brainstorm).
 hook_brainstorm_gate() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"brainstorm-gate\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     local TOOL_NAME
@@ -941,7 +951,7 @@ hook_brainstorm_gate() {
 # PreToolUse hook: block TaskOutput calls with block=false
 hook_taskoutput_block_guard() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"taskoutput-block-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     local BLOCK_VALUE=""

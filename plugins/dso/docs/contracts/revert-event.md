@@ -45,7 +45,7 @@ lists all fields, including base-schema fields, for completeness.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `event_type` | string | yes | Always `"REVERT"`. The parser must validate this value and reject other strings. |
-| `timestamp` | integer | yes | UTC epoch seconds at the moment the event was written. |
+| `timestamp` | integer | yes | UTC epoch nanoseconds at the moment the event was written. |
 | `uuid` | string (UUID4) | yes | Unique event identifier; lowercase, hyphens preserved (e.g., `"3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c"`). |
 | `env_id` | string (UUID4) | yes | Value of `.tickets-tracker/.env-id` at write time; identifies the environment that emitted the event. |
 | `author` | string | yes | `git user.name` of the initiator. Informational only — `env_id` is the authoritative machine identity. |
@@ -57,7 +57,7 @@ lists all fields, including base-schema fields, for completeness.
 
 - `event_type`: must equal the string `"REVERT"` exactly (case-sensitive); parsers must reject any
   other value.
-- `timestamp`: positive integer; UTC epoch seconds; must not be zero.
+- `timestamp`: positive integer; UTC epoch nanoseconds; must not be zero.
 - `uuid`: UUID4 in lowercase with hyphens; must be unique across all events in the ticket's event
   log (duplicate UUIDs indicate a system integrity violation — see `ticket-event-format.md`
   invariant).
@@ -89,7 +89,7 @@ Representative REVERT event JSON payload:
 ```json
 {
   "event_type": "REVERT",
-  "timestamp": 1742605200,
+  "timestamp": 1742605200123456789,
   "uuid": "7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d",
   "env_id": "3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c",
   "author": "Jane Developer",
@@ -106,7 +106,7 @@ Example with empty `reason` (reason is optional):
 ```json
 {
   "event_type": "REVERT",
-  "timestamp": 1742691600,
+  "timestamp": 1742691600987654321,
   "uuid": "b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e",
   "env_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "author": "Joe Developer",
@@ -167,7 +167,7 @@ When `ticket-reducer.py` encounters a REVERT event during reduction:
       "uuid": "7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d",
       "target_event_uuid": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
       "target_event_type": "STATUS",
-      "timestamp": 1742605200,
+      "timestamp": 1742605200123456789,
       "author": "Jane Developer"
     }
   ]

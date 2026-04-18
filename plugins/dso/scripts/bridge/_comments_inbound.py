@@ -93,7 +93,7 @@ def pull_comments(
                 continue
 
         # New comment — write COMMENT event
-        ts = int(time.time())
+        ts = time.time_ns()
         event_uuid = str(uuid.uuid4())
         stripped_body = _strip_uuid_marker(body)
 

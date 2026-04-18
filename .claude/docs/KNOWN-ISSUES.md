@@ -139,8 +139,8 @@
 - **Keywords**: hook cascade, pre-bash.sh, hook-error-log, cascade circuit breaker, dispatcher
 - **Symptom**: One hook error causes cascading failures across multiple hook dispatchers. Subsequent tool calls fail with hook errors unrelated to the original issue.
 - **Root cause**: The consolidated hook dispatcher runs multiple hooks in sequence. If one hook fails, it can affect subsequent hooks. The cascade circuit breaker trips if the error threshold is exceeded.
-- **Detection**: Check ~/.claude/hook-error-log.jsonl for repeated hook errors. Multiple unrelated commands fail with hook errors.
-- **Fix**: Check ~/.claude/hook-error-log.jsonl to identify the root hook. Fix the root hook error. Run /dso:fix-cascade-recovery if more than 5 cascading failures have occurred.
+- **Detection**: Check ~/.claude/logs/dso-hook-errors.jsonl for repeated hook errors. Multiple unrelated commands fail with hook errors.
+- **Fix**: Check ~/.claude/logs/dso-hook-errors.jsonl to identify the root hook. Fix the root hook error. Run /dso:fix-cascade-recovery if more than 5 cascading failures have occurred.
 - **Rule added**: Never continue fixing after 5 cascading failures.
 
 ---

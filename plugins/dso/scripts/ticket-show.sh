@@ -24,14 +24,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Unset git hook env vars so git commands target the correct repo.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
 # Allow tests to inject a custom tracker directory via TICKETS_TRACKER_DIR env var.
-# When GIT_DIR is set (e.g., in tests), derive REPO_ROOT from its parent to avoid
-# requiring an actual git repository at that path.
 if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
     TRACKER_DIR="$TICKETS_TRACKER_DIR"
-elif [ -n "${GIT_DIR:-}" ]; then
-    REPO_ROOT="$(dirname "$GIT_DIR")"
-    TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 else
     REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
     TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
@@ -79,48 +77,37 @@ if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
 fi
 
 # ── Invoke reducer ────────────────────────────────────────────────────────────
-raw_output=$(python3 "$SCRIPT_DIR/ticket-reducer.py" "$TRACKER_DIR/$ticket_id") || {
-    echo "Error: ticket '$ticket_id' has no CREATE or SNAPSHOT event" >&2
-    exit 1
-}
+# Single python3 process handles reduce + format (no subprocess pipeline).
+_TICKET_DIR="$TRACKER_DIR/$ticket_id" _TICKET_ID="$ticket_id" \
+_FORMAT="$format" _SCRIPT_DIR="$SCRIPT_DIR" python3 -c "
+import sys, os, json
+sys.path.insert(0, os.environ['_SCRIPT_DIR'])
+from ticket_reducer import reduce_ticket
 
-# ── Format and output ────────────────────────────────────────────────────────
-if [ "$format" = "llm" ]; then
-    # LLM format: minified JSON with shortened keys, stripped nulls/empty lists,
-    # and no verbose timestamps (created_at, env_id, and comment timestamps omitted).
-    # Key mapping: ticket_id→id, ticket_type→t, title→ttl, status→st,
-    #              author→au, parent_id→pid,
-    #              comments→cm (comment sub-keys: body→b, author→au),
-    #              deps→dp (dep sub-keys: target_id→tid, relation→r)
-    echo "$raw_output" | _TICKET_LLM_FMT="$SCRIPT_DIR/ticket-llm-format.py" python3 -c "
-import json, sys, importlib.util, pathlib, os
+ticket_dir = os.environ['_TICKET_DIR']
+ticket_id = os.environ['_TICKET_ID']
+fmt = os.environ.get('_FORMAT', 'default')
 
-_mod_path = pathlib.Path(os.environ['_TICKET_LLM_FMT'])
-try:
-    _spec = importlib.util.spec_from_file_location('ticket_llm_format', _mod_path)
-    if _spec is None or _spec.loader is None:
-        raise ImportError(f'Cannot load module from {_mod_path}')
-    _mod = importlib.util.module_from_spec(_spec)
-    _spec.loader.exec_module(_mod)
-    to_llm = _mod.to_llm
-except (ImportError, FileNotFoundError, OSError) as _e:
-    print(f'ERROR: failed to load ticket-llm-format.py: {_e}', file=sys.stderr)
+state = reduce_ticket(ticket_dir)
+if state is None:
+    print(f'Error: ticket \"{ticket_id}\" has no CREATE or SNAPSHOT event', file=sys.stderr)
+    sys.exit(1)
+if state.get('status') in ('error', 'fsck_needed'):
+    print(json.dumps(state, ensure_ascii=False))
+    print(f'Error: ticket \"{ticket_id}\" has status \"{state[\"status\"]}\"', file=sys.stderr)
     sys.exit(1)
 
-state = json.load(sys.stdin)
-print(json.dumps(to_llm(state), ensure_ascii=False, separators=(',', ':')))
-"
-else
-    # Default: pretty-print JSON
-    echo "$raw_output" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin), indent=2, ensure_ascii=False))"
-    # Emit a passive health warning to stderr when unresolved bridge alerts exist.
-    unresolved_count=$(echo "$raw_output" | python3 -c "
-import json, sys
-state = json.load(sys.stdin)
-alerts = state.get('bridge_alerts', [])
-print(sum(1 for a in alerts if not a.get('resolved', False)))
-" 2>/dev/null || echo "0")
-    if [ "${unresolved_count:-0}" -gt 0 ] 2>/dev/null; then
-        echo "WARNING: ticket $ticket_id has $unresolved_count unresolved bridge alert(s). Run: ticket bridge-status for details." >&2
-    fi
-fi
+if fmt == 'llm':
+    from ticket_reducer.llm_format import to_llm
+    print(json.dumps(to_llm(state), ensure_ascii=False, separators=(',', ':')))
+else:
+    print(json.dumps(state, indent=2, ensure_ascii=False))
+    alerts = state.get('bridge_alerts', [])
+    unresolved = sum(1 for a in alerts if not a.get('resolved', False))
+    if unresolved > 0:
+        print(
+            f'WARNING: ticket {ticket_id} has {unresolved} unresolved bridge alert(s).'
+            ' Run: ticket bridge-status for details.',
+            file=sys.stderr,
+        )
+" || exit $?
