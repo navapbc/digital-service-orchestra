@@ -1,0 +1,1 @@
+{"timestamp": 1776479540005636000, "uuid": "1a7adb8f-6ba3-4d6a-9c4f-6c5ea6e3e54d", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "onboarding: git init and pre-commit hook install require user confirmation -> should execute automatically"}}}
