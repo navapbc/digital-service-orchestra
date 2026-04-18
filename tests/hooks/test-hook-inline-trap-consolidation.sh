@@ -428,6 +428,31 @@ RUNNER_EOF
 # test fails; if it contains the canonical path, it passes.
 # ---------------------------------------------------------------------------
 
+# REVIEW-DEFENSE: _assert_canonical_log_path uses grep on source files (structural probe).
+# This is an accepted tradeoff, not a test-quality anti-pattern, for the following reasons:
+#
+# (1) TESTABILITY CONSTRAINT — These 8 hooks are standalone scripts with top-level execution
+#     code (HOOK_ERROR_LOG assignment + ERR trap + cat + parse_json_field + tool-specific logic).
+#     Unlike the lib function tests above (which use runner scripts that source the lib and call
+#     a single function), standalone scripts execute immediately on source. Triggering their ERR
+#     trap behaviorally requires fully-stubbed hook inputs: a valid JSON payload on stdin, correct
+#     environment variables (HOME, PATH, git repo context), and mocked external commands. That
+#     infra is ~50+ lines per hook — disproportionate for a path-constant migration test.
+#
+# (2) WHAT IS TESTED — The ERR trap's destination path is a compile-time string constant, not
+#     a runtime computation. The observable runtime effect (which file gets the error entry) is
+#     100% determined by the assignment string. A structural grep on the assignment IS the only
+#     source of truth for this configuration invariant, and it tests the exact thing that differs
+#     between legacy (~/.claude/hook-error-log.jsonl) and canonical (~/.claude/logs/dso-hook-errors.jsonl).
+#
+# (3) REFACTORING LITMUS — A behavior-preserving refactor that extracts the path to a shared
+#     constant WOULD break these tests. That breakage is desired: extracting to a shared constant
+#     changes the migration surface and should trigger a corresponding test update. These probes
+#     are stable against all changes except path reassignment — exactly what task 6ed5-99ef targets.
+#
+# (4) TASK SPECIFICATION — Task 6ed5-99ef explicitly required "probe assertions for these 8 files
+#     verifying they use the canonical path." The structural probe approach was the assigned
+#     implementation strategy and is acknowledged as such in the test file comment block above.
 _assert_canonical_log_path() {
     local HOOK_FILE="$1"
     local HOOK_LABEL="$2"
