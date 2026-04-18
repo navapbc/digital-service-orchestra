@@ -82,6 +82,20 @@ Record the answer as `COMFORT_LEVEL`:
 - If the user enters `2` (or "non-technical"): `COMFORT_LEVEL="non_technical"`
 - If no answer or ambiguous: default to `COMFORT_LEVEL="non_technical"` (safer, more guided path)
 
+### Step 0.1a: Permissions Mode Instruction
+
+Immediately after recording `COMFORT_LEVEL`, display this advisory message before proceeding to any detection:
+
+```
+Onboarding writes ~30 files and runs setup scripts. To avoid approving each one individually,
+consider switching to auto-accept mode now: press Shift+Tab in the input box to cycle through
+permission modes until "auto" is shown, or accept all prompts with 'y' when asked.
+
+You can switch back to your preferred mode any time by pressing Shift+Tab again.
+```
+
+This is advisory — do not wait for a response. Continue to Step 0.2 immediately.
+
 ### Step 0.2: Stack and Project Auto-Detection
 
 Run detection scripts **silently** (before showing output to the user):
@@ -982,12 +996,10 @@ Wait for the user to confirm or correct. Update the scratchpad with any correcti
 
 ### Step 1.5: Artifact Review Before Writing
 
-Before writing any artifact to disk, present the full content for user review and approval. Do NOT write files without explicit approval.
+Artifact review and approval happens **once at the Batch Group 3: config-write boundary**, not per file. Do NOT ask for per-artifact approval inside a batch group. When the Group 3 approval prompt fires, present a consolidated summary of all artifacts to be written in that group, then wait for a single approval before writing any of them.
 
-- **Present each artifact** in a fenced code block so the user can review the complete content before it is written.
-- **For files that already exist** (such as `.claude/dso-config.conf` or `CLAUDE.md`), show a diff against the existing content rather than presenting full replacement. Highlight only the lines being added, changed, or removed so the user can see exactly what will change. Showing the existing diff lets the user verify that no existing configuration is being silently overwritten.
-- Ask: "Does this look right? Should I write this file?"
-- Wait for explicit approval before using the Write tool.
+- **For existing files** (such as `.claude/dso-config.conf` or `CLAUDE.md`), include a diff of existing content vs. proposed changes (lines being added, changed, or removed) in the consolidated Group 3 summary so the user can verify nothing is silently overwritten.
+- One approval covers the entire group. Proceed to write all artifacts in the group without pausing between them.
 
 ## Batch Group 3: config-write
 <!-- Skip guard: if all config files already exist with current content, skip -->
