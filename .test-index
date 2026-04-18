@@ -178,6 +178,8 @@ plugins/dso/scripts/bridge/_outbound_handlers.py:tests/scripts/test_bridge_outbo
 plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py [test_reduce_all_tickets_skips_dir_with_archived_marker]
 plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py
 plugins/dso/scripts/ticket_reducer/_cache.py:tests/scripts/test_ticket_reducer.py
+plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py
+plugins/dso/scripts/ticket_reducer/_cache.py:tests/scripts/test_ticket_reducer.py [test_cache_hash_differs_with_marker_present]
 plugins/dso/scripts/ticket_reducer/_processors.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py
 plugins/dso/scripts/ticket_reducer/_sort.py:tests/scripts/test_ticket_reducer.py
 plugins/dso/scripts/ticket_reducer/_state.py:tests/scripts/test_ticket_reducer.py

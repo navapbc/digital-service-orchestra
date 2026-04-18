@@ -2676,3 +2676,168 @@ def test_reduce_all_tickets_fallback_without_marker_correct_state(
         "Ticket with ARCHIVED event but no .archived marker must have archived=True "
         f"in returned state (slow-path fallback correctness); got {state.get('archived')!r}"
     )
+# ---------------------------------------------------------------------------
+# Tests (UPDATE — 71ee-f1de): compute_dir_hash() must be sensitive to
+# .archived marker presence/absence (SC5).
+# These tests import compute_dir_hash directly and test the hashing contract.
+# They FAIL on current code (which excludes .archived from the hash) and must
+# PASS once compute_dir_hash() is updated to include the .archived marker.
+# ---------------------------------------------------------------------------
+
+
+_SCRIPTS_DIR = str(REPO_ROOT / "plugins" / "dso" / "scripts")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+
+from ticket_reducer._cache import compute_dir_hash as _compute_dir_hash  # noqa: E402
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_cache_hash_differs_with_marker_present(tmp_path: Path) -> None:
+    """Hash must change after an .archived marker is written to the ticket dir.
+
+    UPDATE: compute_dir_hash() currently ignores .archived, so the hash does
+    not change when the marker is present. This test will FAIL until
+    compute_dir_hash() is updated to include the .archived marker in its input.
+
+    Setup: create a ticket dir with one event file. Compute the hash (no marker).
+    Write an .archived marker. Compute the hash again.
+
+    Asserts: the two hashes are different (marker presence changes the hash).
+    """
+    ticket_dir = tmp_path / "tkt-marker-present"
+    ticket_dir.mkdir()
+
+    event_file = ticket_dir / f"1742605200-{_UUID}-CREATE.json"
+    event_file.write_text(
+        json.dumps(
+            {
+                "timestamp": 1742605200,
+                "uuid": _UUID,
+                "event_type": "CREATE",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "author": "Alice",
+                "data": {"ticket_type": "task", "title": "Marker hash test"},
+            }
+        )
+    )
+
+    ticket_dir_str = str(ticket_dir)
+    event_filenames = [event_file.name]
+
+    # Hash without .archived marker
+    hash_without_marker = _compute_dir_hash(ticket_dir_str, event_filenames)
+
+    # Write the .archived marker (simulates write_marker())
+    (ticket_dir / ".archived").touch()
+
+    # Hash with .archived marker present — must differ
+    hash_with_marker = _compute_dir_hash(ticket_dir_str, event_filenames)
+
+    assert hash_without_marker != hash_with_marker, (
+        "compute_dir_hash() must return a different hash when .archived marker is present; "
+        "currently the marker is excluded from the hash (SC5 — UPDATE mode, expected to fail)"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_cache_hash_stable_when_no_marker_change(tmp_path: Path) -> None:
+    """Hash must be stable across calls when events and marker state are unchanged.
+
+    This verifies the positive case: no spurious cache invalidation when nothing changes.
+
+    Setup: create a ticket dir with one event file and no marker.
+    Compute the hash twice with the same inputs.
+
+    Asserts: both hashes are identical (stable hash with no changes).
+    """
+    ticket_dir = tmp_path / "tkt-hash-stable"
+    ticket_dir.mkdir()
+
+    event_file = ticket_dir / f"1742605200-{_UUID}-CREATE.json"
+    event_file.write_text(
+        json.dumps(
+            {
+                "timestamp": 1742605200,
+                "uuid": _UUID,
+                "event_type": "CREATE",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "author": "Alice",
+                "data": {"ticket_type": "task", "title": "Stable hash test"},
+            }
+        )
+    )
+
+    ticket_dir_str = str(ticket_dir)
+    event_filenames = [event_file.name]
+
+    # Compute hash twice with identical inputs — must be stable
+    hash_first = _compute_dir_hash(ticket_dir_str, event_filenames)
+    hash_second = _compute_dir_hash(ticket_dir_str, event_filenames)
+
+    assert hash_first == hash_second, (
+        "compute_dir_hash() must return the same hash when called twice with "
+        "identical event files and no marker change; got unstable hashes"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_cache_hash_differs_after_marker_removal(tmp_path: Path) -> None:
+    """Hash must change again after .archived marker is removed.
+
+    UPDATE: compute_dir_hash() currently ignores .archived, so removal does not
+    change the hash. This test will FAIL until compute_dir_hash() is updated.
+
+    Setup: create a ticket dir with one event file. Write .archived marker.
+    Compute hash (with marker). Remove .archived. Compute hash again.
+
+    Asserts:
+      - hash_with_marker != hash_without_marker_after_removal (removal changes hash)
+      - hash_without_marker_after_removal == original hash_without_marker (symmetric)
+    """
+    ticket_dir = tmp_path / "tkt-marker-removed"
+    ticket_dir.mkdir()
+
+    event_file = ticket_dir / f"1742605200-{_UUID}-CREATE.json"
+    event_file.write_text(
+        json.dumps(
+            {
+                "timestamp": 1742605200,
+                "uuid": _UUID,
+                "event_type": "CREATE",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "author": "Alice",
+                "data": {"ticket_type": "task", "title": "Marker removal hash test"},
+            }
+        )
+    )
+
+    ticket_dir_str = str(ticket_dir)
+    event_filenames = [event_file.name]
+
+    # Baseline hash — no marker
+    hash_baseline = _compute_dir_hash(ticket_dir_str, event_filenames)
+
+    # Write .archived marker (simulates write_marker())
+    marker_path = ticket_dir / ".archived"
+    marker_path.touch()
+
+    hash_with_marker = _compute_dir_hash(ticket_dir_str, event_filenames)
+
+    # Remove .archived marker (simulates remove_marker())
+    marker_path.unlink()
+
+    hash_after_removal = _compute_dir_hash(ticket_dir_str, event_filenames)
+
+    assert hash_with_marker != hash_after_removal, (
+        "compute_dir_hash() must return a different hash after .archived marker removal; "
+        "currently marker removal is not detected (SC5 — UPDATE mode, expected to fail)"
+    )
+    assert hash_after_removal == hash_baseline, (
+        "compute_dir_hash() hash after marker removal must equal the original "
+        f"baseline hash (symmetric); baseline={hash_baseline!r}, "
+        f"after_removal={hash_after_removal!r}"
+    )
