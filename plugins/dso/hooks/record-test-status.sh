@@ -757,6 +757,45 @@ fi
 
 # --- No associated tests: exit cleanly (exempt) ---
 if [[ ${#ASSOCIATED_TESTS[@]} -eq 0 ]] && [[ "$FULL_SUITE" != "true" ]]; then
+    # Before exiting, clear any stale "failed" status caused by RED markers that
+    # have since been removed from .test-index (137a-b61a). When only .test-index
+    # is staged (not the original source file), ASSOCIATED_TESTS is empty and the
+    # hook would exit 0 without updating the status file, leaving a stale "failed"
+    # that blocks the pre-commit gate even though the marker is gone.
+    _exempt_status_file="$ARTIFACTS_DIR/test-gate-status"
+    if [[ -f "$_exempt_status_file" ]]; then
+        _exempt_status=$(head -1 "$_exempt_status_file" 2>/dev/null || echo "")
+        _exempt_failed=$(grep '^failed_tests=' "$_exempt_status_file" 2>/dev/null | head -1 | cut -d= -f2- || echo "")
+        if [[ "$_exempt_status" == "failed" ]] && [[ "$_exempt_failed" == *"stale-red-marker:"* ]]; then
+            _all_markers_gone=true
+            # Pre-check: any non-stale-marker failure means we cannot safely clear
+            # (mixed real + stale failures must not lose the real failure record)
+            while IFS= read -r _entry; do
+                [[ -z "$_entry" ]] && continue
+                if [[ "$_entry" != *"stale-red-marker:"* ]]; then
+                    _all_markers_gone=false
+                    break
+                fi
+            done < <(echo "$_exempt_failed" | tr ',' '\n')
+            # If all entries are stale-marker entries, check each marker is gone
+            if [[ "$_all_markers_gone" == "true" ]]; then
+                while IFS= read -r _entry; do
+                    if [[ "$_entry" == *"stale-red-marker:"* ]]; then
+                        _marker="${_entry##*stale-red-marker:}"
+                        _marker="${_marker%%]*}"
+                        if grep -qF "[$_marker]" "${REPO_ROOT}/.test-index" 2>/dev/null; then
+                            _all_markers_gone=false
+                            break
+                        fi
+                    fi
+                done < <(echo "$_exempt_failed" | tr ',' '\n')
+            fi
+            if [[ "$_all_markers_gone" == "true" ]]; then
+                echo "INFO: Stale RED-marker 'failed' status cleared — markers no longer in .test-index" >&2
+                rm -f "$_exempt_status_file"
+            fi
+        fi
+    fi
     # No associated tests — exit cleanly without writing
     # test-gate-status (the gate exempts files with no associated tests)
     exit 0
