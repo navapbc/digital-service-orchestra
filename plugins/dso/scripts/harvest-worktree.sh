@@ -91,9 +91,33 @@ fi
 
 TEST_GATE_STATUS=$(head -1 "$WORKTREE_ARTIFACTS_DIR/test-gate-status")
 if [[ "$TEST_GATE_STATUS" != "passed" ]]; then
-    echo "ERROR: test-gate-status is '$TEST_GATE_STATUS' (expected 'passed')" >&2
-    _harvest_exit_code=2
-    exit 2
+    # Check if all failed tests are covered by RED markers in the worktree's
+    # .test-index. When a worktree contains only RED test files, record-test-status.sh
+    # may write failed (all failures in RED zone that weren't fully tolerated). If
+    # every test in failed_tests has a RED marker entry, the harvest is exempt (6810-8607).
+    _failed_tests=$(grep '^failed_tests=' "$WORKTREE_ARTIFACTS_DIR/test-gate-status" 2>/dev/null | head -1 | cut -d= -f2-) || true
+    _worktree_testindex=$(git show "$WORKTREE_BRANCH:.test-index" 2>/dev/null || echo "")
+    _all_red_exempt=false
+    if [[ -n "$_failed_tests" ]] && [[ -n "$_worktree_testindex" ]]; then
+        _all_red_exempt=true
+        while IFS= read -r _ft; do
+            [[ -z "$_ft" ]] && continue
+            if ! echo "$_worktree_testindex" | grep -qF "$_ft ["; then
+                _all_red_exempt=false
+                break
+            fi
+        done < <(echo "$_failed_tests" | tr ',' '\n')
+    fi
+    if [[ "$_all_red_exempt" != "true" ]]; then
+        echo "ERROR: test-gate-status is '$TEST_GATE_STATUS' (expected 'passed')" >&2
+        _harvest_exit_code=2
+        exit 2
+    fi
+    # All failed tests are RED-marker-covered — rewrite status to "passed" so
+    # the --attest call below can proceed (attestation reads line 1 for status).
+    echo "INFO: test-gate-status '$TEST_GATE_STATUS' — all failed tests have RED markers, rewriting as red-marker-exempt passed" >&2
+    _tgs_rest=$(tail -n +2 "$WORKTREE_ARTIFACTS_DIR/test-gate-status" 2>/dev/null || echo "")
+    printf 'passed\n%s\nred_marker_exempt=true\n' "$_tgs_rest" > "$WORKTREE_ARTIFACTS_DIR/test-gate-status"
 fi
 
 # Check review-status

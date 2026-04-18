@@ -1,4 +1,4 @@
-"""Unit tests for ticket-llm-format.py.
+"""Unit tests for ticket_reducer.llm_format.
 
 Covers to_llm(), shorten_comment(), and shorten_dep() in isolation.
 
@@ -7,31 +7,33 @@ Test: python3 -m pytest tests/scripts/test_ticket_llm_format.py -v
 
 from __future__ import annotations
 
-import importlib.util
+import sys
 from pathlib import Path
-from types import ModuleType
 
 import pytest
 
+# Ensure plugins/dso/scripts/ is on sys.path so that `from ticket_reducer...` resolves.
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[2] / "plugins" / "dso" / "scripts")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+
+from ticket_reducer.llm_format import to_llm, shorten_comment, shorten_dep  # noqa: E402
+
 # ---------------------------------------------------------------------------
-# Module loading — filename has hyphens so we use importlib
+# Fixture shim — provides a 'mod' namespace with the three public functions
+# so existing test methods that call mod.to_llm() etc. work unchanged.
 # ---------------------------------------------------------------------------
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "ticket-llm-format.py"
 
-
-def _load_module() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("ticket_llm_format", SCRIPT_PATH)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # type: ignore[union-attr]
-    return module
+class _Mod:
+    to_llm = staticmethod(to_llm)
+    shorten_comment = staticmethod(shorten_comment)
+    shorten_dep = staticmethod(shorten_dep)
 
 
 @pytest.fixture(scope="module")
-def mod() -> ModuleType:
-    return _load_module()
+def mod() -> _Mod:
+    return _Mod()
 
 
 # ---------------------------------------------------------------------------

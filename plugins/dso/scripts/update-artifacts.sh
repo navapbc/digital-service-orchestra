@@ -284,6 +284,7 @@ _check_config_conflict_keys() {
         [[ -z "$_ckey" ]] && continue
 
         local _escaped_ckey
+        # shellcheck disable=SC2016  # single quotes intentional: & is a sed metachar, not a shell variable
         _escaped_ckey=$(printf '%s' "$_ckey" | sed 's/[.[\*^$()+?{|\\]/\\&/g')
 
         local host_val plugin_val
@@ -409,6 +410,14 @@ if [[ -f "$_CI_EXAMPLE" && -f "$_CI_DEST" ]]; then
     fi
 elif [[ -f "$_CI_EXAMPLE" && ! -f "$_CI_DEST" ]]; then
     echo "[update-artifacts] No CI workflow at $_CI_DEST — skip" >&2
+fi
+
+# ── 5. Brainstorm tag migration ────────────────────────────────────────────────
+if [[ -z "$_DRYRUN" ]]; then
+    # best-effort — migration failure never fails artifact update
+    bash "$_SCRIPT_DIR/ticket-migrate-brainstorm-tags.sh" --target "$_TARGET" &>/dev/stderr || {
+        echo '[update-artifacts] Migration warning: brainstorm tag migration exited non-zero — see stderr for details' >&2
+    }
 fi
 
 # ── Emit conflict JSON and exit 2 if any conflicts occurred ───────────────────

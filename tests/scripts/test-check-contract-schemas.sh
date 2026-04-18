@@ -286,4 +286,33 @@ test_signal_contract_missing_canonical_prefix
 test_signal_contract_empty_canonical_prefix
 test_real_contracts_pass
 
+# ── test 9: pre-commit config uses pass_filenames: true for contract-schema-check ──
+# Structural boundary test: the pre-commit config must set pass_filenames: true
+# so only staged contract files are validated (not all 33), preventing the 30+s
+# timeout when any contract file is staged (bug 186c-1254).
+test_contract_schema_check_uses_pass_filenames_true() {
+    local config_file
+    config_file="$(git rev-parse --show-toplevel 2>/dev/null)/.pre-commit-config.yaml"
+    if [ ! -f "$config_file" ]; then
+        echo "SKIP: .pre-commit-config.yaml not found" >&2
+        return
+    fi
+    # Extract the contract-schema-check block and verify pass_filenames: true
+    local block
+    block=$(awk '
+        /id: contract-schema-check/ { in_block=1 }
+        in_block && /^      - id:/ && !/contract-schema-check/ { in_block=0 }
+        in_block { print }
+    ' "$config_file")
+    local has_pass_filenames_true=false
+    if echo "$block" | grep -q "pass_filenames: true"; then
+        has_pass_filenames_true=true
+    fi
+    assert_eq \
+        "contract-schema-check must use pass_filenames: true to limit scan to staged files only" \
+        "true" \
+        "$has_pass_filenames_true"
+}
+test_contract_schema_check_uses_pass_filenames_true
+
 print_summary

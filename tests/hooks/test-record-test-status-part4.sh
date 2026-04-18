@@ -290,7 +290,7 @@ assert_eq "progress_file_written_after_pass: exits 0" "0" "$EXIT_PROG1"
 
 # After a full successful run, the progress file should be cleaned up
 DIFF_HASH_PROG1=$(cd "$TEST_REPO_PROG1" && bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null || echo "unknown")
-PROGRESS_FILE_PROG1=$(ls "$ARTIFACTS_PROG1"/test-gate-progress-* 2>/dev/null | head -1 || echo "")
+PROGRESS_FILE_PROG1=$(find "$ARTIFACTS_PROG1" -name "test-gate-progress-*" 2>/dev/null | head -1 || echo "")
 assert_eq "progress_file_cleaned_up_after_full_run: no progress file remains" "" "$PROGRESS_FILE_PROG1"
 
 # test-gate-status should record 'passed'
@@ -744,7 +744,7 @@ test_merge_commit_filters_incoming_only() {
     # Create a test repo with two source files and associated tests
     local tmp
     tmp=$(mktemp -d)
-    trap "rm -rf '$tmp'" EXIT
+    trap 'rm -rf "$tmp"' EXIT
 
     local repo="$tmp/repo"
     mkdir -p "$repo"
@@ -1043,5 +1043,108 @@ rm -rf "$TEST_REPO_CACHE" "$ARTIFACTS_CACHE"
 trap - EXIT
 
 assert_pass_if_clean "test_progress_cache_invalidated_on_test_index_change"
+
+# ============================================================
+# test_stale_red_marker_status_cleared_when_only_test_index_staged
+# Bug: 137a-b61a
+#
+# Scenario: source file is staged → hook runs → test exits 0 but has RED marker
+# → STATUS="failed" written to test-gate-status. Then developer removes the marker
+# from .test-index and stages ONLY .test-index (source file not re-staged).
+# Hook re-runs → ASSOCIATED_TESTS=[] (no source file staged) → early exit at
+# the no-associated-tests guard → stale "failed" status persists → commit blocked.
+#
+# Before fix: hook exits 0 silently; stale "failed" test-gate-status untouched.
+# After fix:  hook detects stale-red-marker entries whose markers no longer exist
+#             in .test-index and clears the status file so the gate allows commit.
+# ============================================================
+echo ""
+echo "=== test_stale_red_marker_status_cleared_when_only_test_index_staged ==="
+_snapshot_fail
+
+TEST_REPO_STALE=$(create_test_repo)
+ARTIFACTS_STALE=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-stale-XXXXXX")
+trap 'rm -rf "$TEST_REPO_STALE" "$ARTIFACTS_STALE"' EXIT
+
+mkdir -p "$TEST_REPO_STALE/scripts" "$TEST_REPO_STALE/tests"
+
+cat > "$TEST_REPO_STALE/scripts/worker.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "worker"
+SHEOF
+chmod +x "$TEST_REPO_STALE/scripts/worker.sh"
+
+# Test file must exist so the hook can find and run it
+cat > "$TEST_REPO_STALE/tests/test-worker.sh" << 'SHEOF'
+#!/usr/bin/env bash
+test_worker_done() { echo "test_worker_done: PASS"; }
+test_worker_done
+SHEOF
+chmod +x "$TEST_REPO_STALE/tests/test-worker.sh"
+
+# Mock test runner that always exits 0 (all tests pass — RED zone complete)
+MOCK_PASS=$(mktemp "${TMPDIR:-/tmp}/mock-pass-XXXXXX")
+chmod +x "$MOCK_PASS"
+cat > "$MOCK_PASS" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_worker_done: PASS"
+exit 0
+MOCKEOF
+
+# .test-index WITH a RED marker (marker is present on first run)
+cat > "$TEST_REPO_STALE/.test-index" << 'IDXEOF'
+scripts/worker.sh: tests/test-worker.sh [test_worker_done]
+IDXEOF
+
+# Commit all initial state so HEAD exists and staged diff is clean
+git -C "$TEST_REPO_STALE" add scripts/worker.sh tests/test-worker.sh .test-index
+git -C "$TEST_REPO_STALE" commit -m "initial with marker" --quiet 2>/dev/null
+
+# Stage a change to the source file (so ASSOCIATED_TESTS gets populated on first run)
+echo "# v2" >> "$TEST_REPO_STALE/scripts/worker.sh"
+git -C "$TEST_REPO_STALE" add scripts/worker.sh
+
+# First run: source file staged, RED marker present, test exits 0 → stale marker → STATUS=failed → hook exits 1
+_RUN1_EXIT=$(
+    cd "$TEST_REPO_STALE"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_STALE" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS" \
+    run_hook_exit
+)
+assert_eq "stale_marker_run1: hook exits 1 (stale marker detected)" "1" "$_RUN1_EXIT"
+_RUN1_STATUS=$(head -1 "$ARTIFACTS_STALE/test-gate-status" 2>/dev/null || echo "missing")
+assert_eq "stale_marker_run1: status is failed due to stale RED marker" "failed" "$_RUN1_STATUS"
+
+# Now developer removes the RED marker from .test-index and stages ONLY .test-index
+# (source file is NOT re-staged — this is the problematic scenario)
+cat > "$TEST_REPO_STALE/.test-index" << 'IDXEOF'
+scripts/worker.sh: tests/test-worker.sh
+IDXEOF
+git -C "$TEST_REPO_STALE" add .test-index
+# Unstage source file (simulate: developer staged .test-index but not source)
+git -C "$TEST_REPO_STALE" restore --staged scripts/worker.sh 2>/dev/null || true
+
+# Second run: only .test-index staged → ASSOCIATED_TESTS=[] → stale status should be cleared
+_RUN2_EXIT=$(
+    cd "$TEST_REPO_STALE"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_STALE" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS" \
+    run_hook_exit
+)
+assert_eq "stale_marker_run2: hook exits 0" "0" "$_RUN2_EXIT"
+
+# Critical: stale "failed" status must be cleared — marker is gone from .test-index
+_RUN2_STATUS=$(head -1 "$ARTIFACTS_STALE/test-gate-status" 2>/dev/null || echo "missing")
+# Before fix: status is still "failed" (early exit left it untouched) → this assertion FAILS
+# After fix:  status is "missing" (file cleared) or "passed" → PASSES
+assert_ne "stale_marker_run2: stale failed status cleared after marker removal" "failed" "$_RUN2_STATUS"
+
+rm -f "$MOCK_PASS"
+rm -rf "$TEST_REPO_STALE" "$ARTIFACTS_STALE"
+trap - EXIT
+
+assert_pass_if_clean "test_stale_red_marker_status_cleared_when_only_test_index_staged"
 
 print_summary
