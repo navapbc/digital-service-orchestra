@@ -220,3 +220,6 @@ plugins/dso/docs/workflows/REVIEW-WORKFLOW-HUGE.md:tests/workflows/test-review-w
 plugins/dso/agents/huge-diff-reviewer-light.md:tests/workflows/test-review-workflow-huge.sh
 plugins/dso/agents/huge-diff-reviewer-standard.md:tests/workflows/test-review-workflow-huge.sh
 plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-workflow-huge.sh
+
+# --- scripts/release.sh: automated release script (epic 36a7-dbb5, task c19e-e459) ---
+scripts/release.sh:tests/scripts/test-release.sh
