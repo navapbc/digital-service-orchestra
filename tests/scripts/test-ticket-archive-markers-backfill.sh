@@ -88,11 +88,11 @@ _marker_count() {
     find "$tracker_dir" -maxdepth 2 -name '.archived' 2>/dev/null | wc -l | tr -d ' '
 }
 
-# ── Helper: run backfill with TICKETS_TRACKER_DIR injection ───────────────────
+# ── Helper: run backfill with TICKET_TRACKER_DIR injection ────────────────────
 _run_backfill() {
     local tracker_dir="$1"
     shift
-    TICKETS_TRACKER_DIR="$tracker_dir" bash "$BACKFILL_SCRIPT" "$@"
+    TICKET_TRACKER_DIR="$tracker_dir" bash "$BACKFILL_SCRIPT" "$@"
 }
 
 # ===========================================================================

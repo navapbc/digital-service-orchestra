@@ -18,6 +18,8 @@
 #  13. test_release_tag_already_exists
 #  14. test_release_push_failure
 #  15. test_release_no_upstream_configured
+#  16. test_release_ci_polls_in_progress_then_succeeds
+#  17. test_release_ci_polls_in_progress_then_fails
 #
 # Usage: bash tests/scripts/test-release.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail (RED: expect exit 1)
@@ -889,5 +891,168 @@ _noup_stderr=$(cat "$_tmp_noup/stderr.txt" 2>/dev/null || true)
 assert_ne "test_release_no_upstream_configured: exit non-zero" "0" "$_noup_exit"
 assert_contains "test_release_no_upstream_configured: upstream in stderr" "upstream" "$_noup_stderr"
 assert_pass_if_clean "test_release_no_upstream_configured"
+
+# =============================================================================
+# test_release_ci_polls_in_progress_then_succeeds
+# Given: gh returns in_progress on the first call, then success on the second
+# When:  scripts/release.sh 1.2.3 --yes is called
+# Then:  exits zero (release proceeds) and "rechecking" appears in stderr
+# =============================================================================
+echo ""
+echo "--- test_release_ci_polls_in_progress_then_succeeds ---"
+_snapshot_fail
+
+_tmp_poll_ok="$(_make_tmp)"
+_mock_poll_ok="$_tmp_poll_ok/bin"
+mkdir -p "$_mock_poll_ok"
+_fake_repo_poll_ok="$(_make_git_repo)"
+mkdir -p "$_fake_repo_poll_ok/.claude-plugin"
+printf '{"name":"p","version":"1.0.0"}' > "$_fake_repo_poll_ok/.claude-plugin/marketplace.json"
+
+mkdir -p "$_fake_repo_poll_ok/.claude/scripts"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$_fake_repo_poll_ok/.claude/scripts/dso"
+chmod +x "$_fake_repo_poll_ok/.claude/scripts/dso"
+
+# gh: first run list call returns in_progress (no conclusion), second returns success
+_poll_ok_call_file="$_tmp_poll_ok/gh_call_count"
+echo "0" > "$_poll_ok_call_file"
+cat > "$_mock_poll_ok/gh" << STUB
+#!/usr/bin/env bash
+_CALL_FILE="$_poll_ok_call_file"
+case "\$1" in
+  auth) exit 0 ;;
+  run)
+    _count=\$(cat "\$_CALL_FILE" 2>/dev/null || echo 0)
+    _count=\$(( _count + 1 ))
+    echo "\$_count" > "\$_CALL_FILE"
+    if [[ "\$_count" -le 1 ]]; then
+      echo '[{"status":"in_progress","conclusion":""}]'
+    else
+      echo '[{"status":"completed","conclusion":"success"}]'
+    fi
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+STUB
+chmod +x "$_mock_poll_ok/gh"
+
+# Mock sleep so the test doesn't actually wait 30s
+cat > "$_mock_poll_ok/sleep" << 'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+chmod +x "$_mock_poll_ok/sleep"
+
+cat > "$_mock_poll_ok/git" << STUB
+#!/usr/bin/env bash
+case "\$1" in
+  branch)    echo "main"; exit 0 ;;
+  status)    exit 0 ;;
+  fetch)     exit 0 ;;
+  rev-list)  echo "0"; exit 0 ;;
+  rev-parse)
+    case "\$2" in
+      --show-toplevel) echo "$_fake_repo_poll_ok"; exit 0 ;;
+      --abbrev-ref)    echo "origin/main"; exit 0 ;;
+      *)               echo "deadbeef000000"; exit 0 ;;
+    esac
+    ;;
+  tag)  exit 0 ;;
+  push) exit 0 ;;
+  *)    exit 0 ;;
+esac
+STUB
+chmod +x "$_mock_poll_ok/git"
+
+_poll_ok_exit=0
+(
+    cd "$_fake_repo_poll_ok"
+    PATH="$_mock_poll_ok:$PATH" bash "$SCRIPT" "1.2.3" --yes \
+        < /dev/null > /dev/null 2>"$_tmp_poll_ok/stderr.txt"
+) || _poll_ok_exit=$?
+_poll_ok_stderr=$(cat "$_tmp_poll_ok/stderr.txt" 2>/dev/null || true)
+
+assert_eq  "test_release_ci_polls_in_progress_then_succeeds: exit zero" "0" "$_poll_ok_exit"
+assert_contains "test_release_ci_polls_in_progress_then_succeeds: rechecking in stderr" "rechecking" "$_poll_ok_stderr"
+assert_pass_if_clean "test_release_ci_polls_in_progress_then_succeeds"
+
+# =============================================================================
+# test_release_ci_polls_in_progress_then_fails
+# Given: gh returns in_progress on the first call, then failure on the second
+# When:  scripts/release.sh 1.2.3 --yes is called
+# Then:  exits non-zero and "CI" appears in stderr
+# =============================================================================
+echo ""
+echo "--- test_release_ci_polls_in_progress_then_fails ---"
+_snapshot_fail
+
+_tmp_poll_fail="$(_make_tmp)"
+_mock_poll_fail="$_tmp_poll_fail/bin"
+mkdir -p "$_mock_poll_fail"
+_fake_repo_poll_fail="$(_make_git_repo)"
+mkdir -p "$_fake_repo_poll_fail/.claude-plugin"
+printf '{"name":"p","version":"1.0.0"}' > "$_fake_repo_poll_fail/.claude-plugin/marketplace.json"
+
+_poll_fail_call_file="$_tmp_poll_fail/gh_call_count"
+echo "0" > "$_poll_fail_call_file"
+cat > "$_mock_poll_fail/gh" << STUB
+#!/usr/bin/env bash
+_CALL_FILE="$_poll_fail_call_file"
+case "\$1" in
+  auth) exit 0 ;;
+  run)
+    _count=\$(cat "\$_CALL_FILE" 2>/dev/null || echo 0)
+    _count=\$(( _count + 1 ))
+    echo "\$_count" > "\$_CALL_FILE"
+    if [[ "\$_count" -le 1 ]]; then
+      echo '[{"status":"in_progress","conclusion":""}]'
+    else
+      echo '[{"status":"completed","conclusion":"failure"}]'
+    fi
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+STUB
+chmod +x "$_mock_poll_fail/gh"
+
+cat > "$_mock_poll_fail/sleep" << 'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+chmod +x "$_mock_poll_fail/sleep"
+
+cat > "$_mock_poll_fail/git" << STUB
+#!/usr/bin/env bash
+case "\$1" in
+  branch)    echo "main"; exit 0 ;;
+  status)    exit 0 ;;
+  fetch)     exit 0 ;;
+  rev-list)  echo "0"; exit 0 ;;
+  rev-parse)
+    case "\$2" in
+      --show-toplevel) echo "$_fake_repo_poll_fail"; exit 0 ;;
+      --abbrev-ref)    echo "origin/main"; exit 0 ;;
+      *)               echo "deadbeef000000"; exit 0 ;;
+    esac
+    ;;
+  push) exit 0 ;;
+  *)    exit 0 ;;
+esac
+STUB
+chmod +x "$_mock_poll_fail/git"
+
+_poll_fail_exit=0
+(
+    cd "$_fake_repo_poll_fail"
+    PATH="$_mock_poll_fail:$PATH" bash "$SCRIPT" "1.2.3" --yes \
+        < /dev/null > /dev/null 2>"$_tmp_poll_fail/stderr.txt"
+) || _poll_fail_exit=$?
+_poll_fail_stderr=$(cat "$_tmp_poll_fail/stderr.txt" 2>/dev/null || true)
+
+assert_ne "test_release_ci_polls_in_progress_then_fails: exit non-zero" "0" "$_poll_fail_exit"
+assert_contains "test_release_ci_polls_in_progress_then_fails: CI in stderr" "CI" "$_poll_fail_stderr"
+assert_pass_if_clean "test_release_ci_polls_in_progress_then_fails"
 
 print_summary
