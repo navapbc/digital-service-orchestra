@@ -1221,6 +1221,159 @@ else
     (( FAIL++ ))
 fi
 
+# ── Helper: create v3 ticket with tags ───────────────────────────────────────
+# make_v3_ticket_tagged: like make_v3_ticket but accepts a 9th arg: space-separated tags list.
+# Tags are passed as a JSON array in the CREATE event data.
+make_v3_ticket_tagged() {
+    local tracker_dir="$1" id="$2" type="$3" status="$4" priority="$5"
+    local deps_raw="$6" title="$7" parent="${8:-}" tags_raw="${9:-}"
+
+    mkdir -p "$tracker_dir/$id"
+
+    # CREATE event (with optional tags)
+    local ts=1000000001
+    local create_data
+    create_data=$(python3 -c "
+import json, sys
+d = {'ticket_type': sys.argv[1], 'title': sys.argv[2], 'priority': int(sys.argv[3])}
+if sys.argv[4]:
+    d['parent_id'] = sys.argv[4]
+if sys.argv[5]:
+    d['tags'] = sys.argv[5].split()
+print(json.dumps(d))
+" "$type" "$title" "$priority" "$parent" "$tags_raw")
+
+    cat > "$tracker_dir/$id/${ts}-aaaa-CREATE.json" << EOF
+{"timestamp": ${ts}, "uuid": "aaaa-${id}", "event_type": "CREATE", "data": ${create_data}}
+EOF
+
+    # STATUS event (if not open)
+    if [ "$status" != "open" ]; then
+        local ts2=1000000002
+        cat > "$tracker_dir/$id/${ts2}-bbbb-STATUS.json" << EOF
+{"timestamp": ${ts2}, "uuid": "bbbb-${id}", "event_type": "STATUS", "data": {"status": "${status}"}}
+EOF
+    fi
+
+    # LINK events for each dependency
+    if [ -n "$deps_raw" ]; then
+        local ts3=1000000003
+        local dep_idx=0
+        for dep_id in $deps_raw; do
+            dep_idx=$(( dep_idx + 1 ))
+            local link_ts=$(( ts3 + dep_idx ))
+            cat > "$tracker_dir/$id/${link_ts}-link${dep_idx}-${id}-LINK.json" << EOF
+{"timestamp": ${link_ts}, "uuid": "link${dep_idx}-${id}", "event_type": "LINK", "data": {"target_id": "${dep_id}", "relation": "depends_on"}}
+EOF
+        done
+    fi
+}
+
+# ── Test 45: --has-tag positive match — both tagged epics returned ────────────
+echo "Test 45: test_has_tag_positive_match — --has-tag returns only epics with that tag"
+test_has_tag_positive_match() {
+    local TDIR45
+    TDIR45=$(mktemp -d)
+    trap 'rm -rf "$TDIR45"' RETURN
+
+    # 2 epics with target tag "sprint-ready", 1 without any tag
+    make_v3_ticket_tagged "$TDIR45" "epic-tag-a" "epic" "open" "1" "" "Tagged Epic A" "" "sprint-ready"
+    make_v3_ticket_tagged "$TDIR45" "epic-tag-b" "epic" "open" "2" "" "Tagged Epic B" "" "sprint-ready"
+    make_v3_ticket_tagged "$TDIR45" "epic-notag" "epic" "open" "3" "" "Untagged Epic"  "" ""
+
+    local out45
+    out45=$(TICKETS_TRACKER_DIR="$TDIR45" bash "$SCRIPT" --has-tag=sprint-ready 2>/dev/null)
+
+    # Both tagged epics must appear
+    [[ "$out45" == *epic-tag-a* ]] || return 1
+    [[ "$out45" == *epic-tag-b* ]] || return 1
+    # Untagged epic must NOT appear
+    ! [[ "$out45" == *epic-notag* ]] || return 1
+}
+if test_has_tag_positive_match; then
+    echo "  PASS: --has-tag returns both epics with the tag, excludes untagged"
+    (( PASS++ ))
+else
+    echo "  FAIL: --has-tag did not filter correctly (positive match)" >&2
+    TDIR45_DBG=$(mktemp -d)
+    make_v3_ticket_tagged "$TDIR45_DBG" "epic-tag-a" "epic" "open" "1" "" "Tagged Epic A" "" "sprint-ready"
+    make_v3_ticket_tagged "$TDIR45_DBG" "epic-tag-b" "epic" "open" "2" "" "Tagged Epic B" "" "sprint-ready"
+    make_v3_ticket_tagged "$TDIR45_DBG" "epic-notag" "epic" "open" "3" "" "Untagged Epic"  "" ""
+    actual_out45=$(TICKETS_TRACKER_DIR="$TDIR45_DBG" bash "$SCRIPT" --has-tag=sprint-ready 2>/dev/null || true)
+    echo "  Output: $actual_out45" >&2
+    rm -rf "$TDIR45_DBG"
+    (( FAIL++ ))
+fi
+
+# ── Test 46: --has-tag negative match — epic without tag excluded ─────────────
+echo "Test 46: test_has_tag_negative_match — --has-tag excludes epic that lacks the tag"
+test_has_tag_negative_match() {
+    local TDIR46
+    TDIR46=$(mktemp -d)
+    trap 'rm -rf "$TDIR46"' RETURN
+
+    # 1 epic with "sprint-ready", 1 with a different tag, 1 with no tags
+    make_v3_ticket_tagged "$TDIR46" "epic-match"    "epic" "open" "1" "" "Matching Epic"    "" "sprint-ready"
+    make_v3_ticket_tagged "$TDIR46" "epic-other-tag" "epic" "open" "2" "" "Other Tag Epic"  "" "backlog"
+    make_v3_ticket_tagged "$TDIR46" "epic-no-tag"   "epic" "open" "3" "" "No Tag Epic"      "" ""
+
+    local out46
+    out46=$(TICKETS_TRACKER_DIR="$TDIR46" bash "$SCRIPT" --has-tag=sprint-ready 2>/dev/null)
+
+    # Only epic-match must appear
+    [[ "$out46" == *epic-match* ]] || return 1
+    # Other-tag and no-tag epics must NOT appear
+    ! [[ "$out46" == *epic-other-tag* ]] || return 1
+    ! [[ "$out46" == *epic-no-tag* ]] || return 1
+}
+if test_has_tag_negative_match; then
+    echo "  PASS: --has-tag excludes epics with wrong or no tags"
+    (( PASS++ ))
+else
+    echo "  FAIL: --has-tag did not exclude epics missing the tag" >&2
+    TDIR46_DBG=$(mktemp -d)
+    make_v3_ticket_tagged "$TDIR46_DBG" "epic-match"     "epic" "open" "1" "" "Matching Epic"   "" "sprint-ready"
+    make_v3_ticket_tagged "$TDIR46_DBG" "epic-other-tag" "epic" "open" "2" "" "Other Tag Epic"  "" "backlog"
+    make_v3_ticket_tagged "$TDIR46_DBG" "epic-no-tag"    "epic" "open" "3" "" "No Tag Epic"     "" ""
+    actual_out46=$(TICKETS_TRACKER_DIR="$TDIR46_DBG" bash "$SCRIPT" --has-tag=sprint-ready 2>/dev/null || true)
+    echo "  Output: $actual_out46" >&2
+    rm -rf "$TDIR46_DBG"
+    (( FAIL++ ))
+fi
+
+# ── Test 47: --has-tag with empty-tags epic — excluded ───────────────────────
+echo "Test 47: test_has_tag_empty_tags — epic with empty tags list is excluded by --has-tag"
+test_has_tag_empty_tags() {
+    local TDIR47
+    TDIR47=$(mktemp -d)
+    trap 'rm -rf "$TDIR47"' RETURN
+
+    # Epic with the target tag and epic with explicitly empty tags
+    make_v3_ticket_tagged "$TDIR47" "epic-with-tag"    "epic" "open" "1" "" "Epic With Tag"   "" "myfeature"
+    make_v3_ticket_tagged "$TDIR47" "epic-empty-tags"  "epic" "open" "2" "" "Epic Empty Tags" "" ""
+
+    local out47
+    out47=$(TICKETS_TRACKER_DIR="$TDIR47" bash "$SCRIPT" --has-tag=myfeature 2>/dev/null)
+
+    # Only epic-with-tag must appear
+    [[ "$out47" == *epic-with-tag* ]] || return 1
+    # Epic with empty tags must NOT appear
+    ! [[ "$out47" == *epic-empty-tags* ]] || return 1
+}
+if test_has_tag_empty_tags; then
+    echo "  PASS: --has-tag correctly excludes epic with empty tags list"
+    (( PASS++ ))
+else
+    echo "  FAIL: --has-tag included epic with empty tags list" >&2
+    TDIR47_DBG=$(mktemp -d)
+    make_v3_ticket_tagged "$TDIR47_DBG" "epic-with-tag"   "epic" "open" "1" "" "Epic With Tag"   "" "myfeature"
+    make_v3_ticket_tagged "$TDIR47_DBG" "epic-empty-tags" "epic" "open" "2" "" "Epic Empty Tags" "" ""
+    actual_out47=$(TICKETS_TRACKER_DIR="$TDIR47_DBG" bash "$SCRIPT" --has-tag=myfeature 2>/dev/null || true)
+    echo "  Output: $actual_out47" >&2
+    rm -rf "$TDIR47_DBG"
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

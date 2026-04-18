@@ -34,15 +34,29 @@ Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write 
 
 When invoked with a free-text description (argument present but does not match the ticket ID format `[a-z0-9]{4}-[a-z0-9]{4}`), treat the argument as seeding context and immediately begin the Socratic dialogue at Phase 1. Do NOT show the epic selection list. Open with: *"Got it — I'll use that as our starting point. Let me ask a few questions to sharpen the scope."* then proceed to Phase 1 Step 2 with the user's text as the established problem statement seed.
 
-When invoked without a ticket ID, run:
+When invoked without a ticket ID, run two queries:
 
 ```bash
+# Zero-child epics (not yet decomposed)
 .claude/scripts/dso sprint-list-epics.sh --max-children=0
+
+# Scrutiny-gap epics (decomposed, not yet brainstormed)
+.claude/scripts/dso sprint-list-epics.sh --min-children=1 --without-tag=brainstorm:complete
 ```
 
-If the command returns one or more epics, present a numbered selection list of those epics plus a "start fresh" option (always last). Also display below the list the count of epics that have one or more children (i.e., epics excluded from the list because they already have child tickets). Wait for the user to choose; if they select an existing epic, proceed as if invoked with that epic's ticket ID. If they select "start fresh", open with: *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
+Combine results into a single numbered selection list with two labeled categories:
 
-If the command returns zero epics (no 0-child epics exist), automatically fall through to the fresh dialogue: open with *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
+**Zero-child epics (not yet decomposed)**
+1. [P<N>] <title> (<epic-id>)
+...
+
+**Scrutiny-gap epics (decomposed, not yet brainstormed)**
+N+1. [P<N>] <title> (<epic-id>)
+...
+
+Always append a "start fresh" option as the last item. If both queries return zero epics, automatically fall through to the fresh dialogue: open with *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
+
+Wait for the user to choose; if they select an existing epic, proceed as if invoked with that epic's ticket ID. If they select "start fresh", open with: *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
 
 When invoked with a ticket ID, check the ticket type first (see the gate section below).
 
@@ -741,6 +755,35 @@ If the epic depends on others identified in Phase 1:
 ```
 
 Fix any issues before finalizing.
+
+### Step 3a: Write brainstorm:complete Tag
+
+Write a durable ticket-level tag to record that brainstorm has completed. This removes any `scrutiny:pending` tag while preserving all other existing tags (e.g., `design:approved`, `CLI_user`).
+
+```bash
+# Read current tags from the epic
+current_tags_json=$(.claude/scripts/dso ticket show <epic-id>)
+current_tags=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+tags = data.get('tags', [])
+print('\n'.join(tags))
+" "$current_tags_json")
+
+# Remove scrutiny:pending if present, then append brainstorm:complete
+# (grep -vxF exits 1 when all lines filtered; || true handles empty-tag case)
+filtered_tags=$(echo "$current_tags" | grep -vxF "scrutiny:pending" | tr '\n' ',' | sed 's/,$//') || true
+if [ -n "$filtered_tags" ]; then
+    new_tags="${filtered_tags},brainstorm:complete"
+else
+    new_tags="brainstorm:complete"
+fi
+
+# Write merged tags via ticket edit --tags=
+.claude/scripts/dso ticket edit <epic-id> "--tags=${new_tags}"
+```
+
+Pattern mirrors `${CLAUDE_PLUGIN_ROOT}/scripts/design-approve.sh` read-merge-write. Replace `<epic-id>` with the actual epic ID variable available at Phase 3 execution context.
 
 ### Step 3b: Write Brainstorm Completion Sentinel
 
