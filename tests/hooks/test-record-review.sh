@@ -451,4 +451,53 @@ else
 fi
 assert_eq "test_per_finding_strip_removes_out_of_diff_findings: status is 'passed' after stripping hallucinated critical" "passed" "$STRIP_FIRST_LINE"
 
+# ---------------------------------------------------------------------------
+# test_fallback_artifacts_dir_found (a74e-1671)
+#
+# Given: reviewer-findings.json was written to .claude/artifacts/ (the relative
+#        fallback path used by sub-agents when WORKFLOW_PLUGIN_ARTIFACTS_DIR is
+#        not set and they resolve a different REPO_ROOT), but the primary
+#        WORKFLOW_PLUGIN_ARTIFACTS_DIR is a different /tmp/ path.
+# When:  record-review.sh is invoked without --findings-file (primary path is empty).
+# Then:  The script finds reviewer-findings.json in the fallback location
+#        ($REPO_ROOT/.claude/artifacts/), reads it, and exits 0.
+#
+# RED: Currently exits 1 with "reviewer-findings.json not found" because
+#      record-review.sh only checks ARTIFACTS_DIR and does not fall back to
+#      $REPO_ROOT/.claude/artifacts/.
+# GREEN: After fix, record-review.sh checks the fallback path and succeeds.
+# ---------------------------------------------------------------------------
+_FALLBACK_ARTIFACTS_TMPDIR=$(mktemp -d)
+trap 'rm -rf "$_FALLBACK_ARTIFACTS_TMPDIR"' EXIT
+
+# Set up a fresh /tmp/ artifacts dir with no reviewer-findings.json
+_FALLBACK_PRIMARY_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-rr-primary-XXXXXX")
+trap 'rm -rf "$_FALLBACK_PRIMARY_DIR"' EXIT
+
+# Set up a fake repo root with a .claude/artifacts/ fallback dir
+_FALLBACK_REPO_DIR=$(mktemp -d)
+trap 'rm -rf "$_FALLBACK_REPO_DIR"' EXIT
+git -C "$_FALLBACK_REPO_DIR" init --quiet 2>/dev/null || true
+mkdir -p "$_FALLBACK_REPO_DIR/.claude/artifacts"
+
+# Write a valid reviewer-findings.json to the FALLBACK location only
+_FALLBACK_FINDINGS="$_FALLBACK_REPO_DIR/.claude/artifacts/reviewer-findings.json"
+cat > "$_FALLBACK_FINDINGS" <<'EOFJ'
+{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"Fallback path test: all checks passed."}
+EOFJ
+_FALLBACK_HASH=$(shasum -a 256 "$_FALLBACK_FINDINGS" | awk '{print $1}')
+
+# Invoke record-review.sh with WORKFLOW_PLUGIN_ARTIFACTS_DIR pointing to the
+# primary dir (which has no reviewer-findings.json). REPO_ROOT is the fake repo
+# with .claude/artifacts/reviewer-findings.json. The script should find the
+# fallback and succeed.
+_FALLBACK_EXIT=0
+(
+    cd "$_FALLBACK_REPO_DIR"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_FALLBACK_PRIMARY_DIR" \
+    RECORD_REVIEW_CHANGED_FILES="src/foo.py" \
+    bash "$HOOK" --reviewer-hash "$_FALLBACK_HASH" 2>/dev/null
+) || _FALLBACK_EXIT=$?
+assert_eq "test_fallback_artifacts_dir_found: exits 0 when reviewer-findings.json in .claude/artifacts/" "0" "$_FALLBACK_EXIT"
+
 print_summary

@@ -23,6 +23,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import sys
 import time
 import warnings
 from pathlib import Path
@@ -2498,4 +2499,338 @@ def test_comment_empty_dict_body_coerced_to_json_string(
     )
     assert body == "{}", (
         f"empty dict body must be coerced to '{{}}' via json.dumps, not {body!r} (6bc8-91bc)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tests: reduce_all_tickets() .archived marker fast-skip (c125-f82e)
+#
+# T1: fast-skip — .archived marker present + exclude_archived=True → reduce_ticket()
+#     is NOT called for that dir (marker detected before reduce_ticket() dispatch).
+# T2: slow-path fallback — ARCHIVED event present but NO .archived marker
+#     (crash-injection scenario) + exclude_archived=False → reduce_ticket() IS
+#     called and returns correct archived=True state.
+#
+# RED: both tests fail until reduce_all_tickets() is updated to check for a
+# .archived marker file before calling reduce_ticket() (fast-skip path).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reduce_all_tickets_skips_dir_with_archived_marker(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """reduce_all_tickets(exclude_archived=True) must NOT call reduce_ticket()
+    for a ticket directory that has a .archived marker file.
+
+    RED: current implementation calls reduce_ticket() on every directory and
+    filters archived tickets only AFTER reduce_ticket() returns.  Once the
+    fast-skip path is implemented, the .archived marker is detected before
+    reduce_ticket() is called, so the archived ticket never appears in the
+    returned results.
+
+    Setup:
+      - One ticket directory with an ARCHIVED event AND a .archived marker file.
+    When: reduce_all_tickets(tracker_dir, exclude_archived=True) is called.
+    Then: the ticket is absent from the returned results entirely (fast-skip).
+    """
+    import unittest.mock
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    ticket_dir = tracker_dir / "tkt-archived-marker"
+    ticket_dir.mkdir()
+
+    # Write a valid CREATE + ARCHIVED event sequence
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Archived with marker"},
+    )
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_UUID2,
+        event_type="ARCHIVED",
+        data={},
+    )
+
+    # Write the .archived marker file (simulates successful marker write after event)
+    (ticket_dir / ".archived").write_text("")
+
+    # Spy on reduce_ticket to detect if it was called for our archived dir
+    original_reduce_ticket = reducer.reduce_ticket
+    called_dirs: list[str] = []
+
+    def spy_reduce_ticket(
+        ticket_dir_path: "str | os.PathLike[str]",
+        **kwargs: object,
+    ) -> "dict | None":
+        called_dirs.append(str(ticket_dir_path))
+        return original_reduce_ticket(ticket_dir_path, **kwargs)
+
+    with unittest.mock.patch.object(
+        reducer, "reduce_ticket", side_effect=spy_reduce_ticket
+    ):
+        results = reducer.reduce_all_tickets(str(tracker_dir), exclude_archived=True)
+
+    # Verify the archived ticket dir was NOT processed by reduce_ticket()
+    archived_dir_str = str(ticket_dir)
+    assert not any(
+        os.path.normpath(d) == os.path.normpath(archived_dir_str) for d in called_dirs
+    ), (
+        "reduce_all_tickets(exclude_archived=True) must skip calling reduce_ticket() "
+        "for directories with a .archived marker file (fast-skip path not implemented); "
+        f"reduce_ticket was called for dirs: {called_dirs}"
+    )
+
+    # Ticket must not appear in the returned results
+    returned_ids = [r.get("ticket_id") for r in results]
+    assert "tkt-archived-marker" not in returned_ids, (
+        "Ticket with .archived marker must not appear in results when "
+        f"exclude_archived=True; got {returned_ids}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reduce_all_tickets_fallback_without_marker_correct_state(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """reduce_all_tickets(exclude_archived=False) must call reduce_ticket() for
+    a ticket directory that has an ARCHIVED event but NO .archived marker file,
+    and the returned state must have archived=True.
+
+    This verifies the SC 1 correctness fallback: when a crash occurs between
+    writing the ARCHIVED event and writing the .archived marker, the slow path
+    (full reduce_ticket() replay) still returns the correct archived=True state.
+
+    Setup:
+      - One ticket directory with a CREATE event + an ARCHIVED event.
+      - NO .archived marker file (simulates crash between event write and marker write).
+    When: reduce_all_tickets(tracker_dir, exclude_archived=False) is called.
+    Then: reduce_ticket() IS called; result contains the ticket with archived=True.
+    """
+    import unittest.mock
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    ticket_dir = tracker_dir / "tkt-archived-no-marker"
+    ticket_dir.mkdir()
+
+    # Write a valid CREATE + ARCHIVED event sequence (NO .archived marker file)
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Archived without marker"},
+    )
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_UUID2,
+        event_type="ARCHIVED",
+        data={},
+    )
+
+    # Deliberately do NOT create a .archived marker — simulates crash-injection scenario
+
+    # Spy on reduce_ticket to verify it IS called for this dir
+    original_reduce_ticket = reducer.reduce_ticket
+    called_dirs: list[str] = []
+
+    def spy_reduce_ticket(
+        ticket_dir_path: "str | os.PathLike[str]",
+        **kwargs: object,
+    ) -> "dict | None":
+        called_dirs.append(str(ticket_dir_path))
+        return original_reduce_ticket(ticket_dir_path, **kwargs)
+
+    with unittest.mock.patch.object(
+        reducer, "reduce_ticket", side_effect=spy_reduce_ticket
+    ):
+        results = reducer.reduce_all_tickets(str(tracker_dir), exclude_archived=False)
+
+    # Verify reduce_ticket() WAS called for the crash-scenario dir (slow path)
+    archived_dir_str = str(ticket_dir)
+    assert any(
+        os.path.normpath(d) == os.path.normpath(archived_dir_str) for d in called_dirs
+    ), (
+        "reduce_all_tickets(exclude_archived=False) must call reduce_ticket() for dirs "
+        "with ARCHIVED event but no .archived marker (slow-path fallback); "
+        f"reduce_ticket was called for dirs: {called_dirs}"
+    )
+
+    # Verify the returned state has archived=True (slow-path correctness)
+    assert len(results) == 1, f"Expected 1 result, got {len(results)}: {results}"
+    state = results[0]
+    assert state.get("ticket_id") == "tkt-archived-no-marker", (
+        f"Expected ticket_id='tkt-archived-no-marker', got {state.get('ticket_id')!r}"
+    )
+    assert state.get("archived") is True, (
+        "Ticket with ARCHIVED event but no .archived marker must have archived=True "
+        f"in returned state (slow-path fallback correctness); got {state.get('archived')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tests: compute_dir_hash() is sensitive to .archived marker presence/absence (SC5).
+# These tests import compute_dir_hash directly and test the hashing contract.
+# compute_dir_hash() includes marker:present/marker:absent in its hash input.
+# ---------------------------------------------------------------------------
+
+
+_SCRIPTS_DIR = str(REPO_ROOT / "plugins" / "dso" / "scripts")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+
+from ticket_reducer._cache import compute_dir_hash as _compute_dir_hash  # noqa: E402
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_cache_hash_differs_with_marker_present(tmp_path: Path) -> None:
+    """Hash must change after an .archived marker is written to the ticket dir.
+
+    Setup: create a ticket dir with one event file. Compute the hash (no marker).
+    Write an .archived marker. Compute the hash again.
+
+    Asserts: the two hashes are different (marker presence changes the hash).
+    """
+    ticket_dir = tmp_path / "tkt-marker-present"
+    ticket_dir.mkdir()
+
+    event_file = ticket_dir / f"1742605200-{_UUID}-CREATE.json"
+    event_file.write_text(
+        json.dumps(
+            {
+                "timestamp": 1742605200,
+                "uuid": _UUID,
+                "event_type": "CREATE",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "author": "Alice",
+                "data": {"ticket_type": "task", "title": "Marker hash test"},
+            }
+        )
+    )
+
+    ticket_dir_str = str(ticket_dir)
+    event_filenames = [event_file.name]
+
+    # Hash without .archived marker
+    hash_without_marker = _compute_dir_hash(ticket_dir_str, event_filenames)
+
+    # Write the .archived marker (simulates write_marker())
+    (ticket_dir / ".archived").touch()
+
+    # Hash with .archived marker present — must differ
+    hash_with_marker = _compute_dir_hash(ticket_dir_str, event_filenames)
+
+    assert hash_without_marker != hash_with_marker, (
+        "compute_dir_hash() must return a different hash when .archived marker is present; "
+        "compute_dir_hash() must include marker presence in hash (SC5)"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_cache_hash_stable_when_no_marker_change(tmp_path: Path) -> None:
+    """Hash must be stable across calls when events and marker state are unchanged.
+
+    This verifies the positive case: no spurious cache invalidation when nothing changes.
+
+    Setup: create a ticket dir with one event file and no marker.
+    Compute the hash twice with the same inputs.
+
+    Asserts: both hashes are identical (stable hash with no changes).
+    """
+    ticket_dir = tmp_path / "tkt-hash-stable"
+    ticket_dir.mkdir()
+
+    event_file = ticket_dir / f"1742605200-{_UUID}-CREATE.json"
+    event_file.write_text(
+        json.dumps(
+            {
+                "timestamp": 1742605200,
+                "uuid": _UUID,
+                "event_type": "CREATE",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "author": "Alice",
+                "data": {"ticket_type": "task", "title": "Stable hash test"},
+            }
+        )
+    )
+
+    ticket_dir_str = str(ticket_dir)
+    event_filenames = [event_file.name]
+
+    # Compute hash twice with identical inputs — must be stable
+    hash_first = _compute_dir_hash(ticket_dir_str, event_filenames)
+    hash_second = _compute_dir_hash(ticket_dir_str, event_filenames)
+
+    assert hash_first == hash_second, (
+        "compute_dir_hash() must return the same hash when called twice with "
+        "identical event files and no marker change; got unstable hashes"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_cache_hash_differs_after_marker_removal(tmp_path: Path) -> None:
+    """Hash must change again after .archived marker is removed.
+
+    Setup: create a ticket dir with one event file. Write .archived marker.
+    Compute hash (with marker). Remove .archived. Compute hash again.
+
+    Asserts:
+      - hash_with_marker != hash_without_marker_after_removal (removal changes hash)
+      - hash_without_marker_after_removal == original hash_without_marker (symmetric)
+    """
+    ticket_dir = tmp_path / "tkt-marker-removed"
+    ticket_dir.mkdir()
+
+    event_file = ticket_dir / f"1742605200-{_UUID}-CREATE.json"
+    event_file.write_text(
+        json.dumps(
+            {
+                "timestamp": 1742605200,
+                "uuid": _UUID,
+                "event_type": "CREATE",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "author": "Alice",
+                "data": {"ticket_type": "task", "title": "Marker removal hash test"},
+            }
+        )
+    )
+
+    ticket_dir_str = str(ticket_dir)
+    event_filenames = [event_file.name]
+
+    # Baseline hash — no marker
+    hash_baseline = _compute_dir_hash(ticket_dir_str, event_filenames)
+
+    # Write .archived marker (simulates write_marker())
+    marker_path = ticket_dir / ".archived"
+    marker_path.touch()
+
+    hash_with_marker = _compute_dir_hash(ticket_dir_str, event_filenames)
+
+    # Remove .archived marker (simulates remove_marker())
+    marker_path.unlink()
+
+    hash_after_removal = _compute_dir_hash(ticket_dir_str, event_filenames)
+
+    assert hash_with_marker != hash_after_removal, (
+        "compute_dir_hash() must return a different hash after .archived marker removal"
+    )
+    assert hash_after_removal == hash_baseline, (
+        "compute_dir_hash() hash after marker removal must equal the original "
+        f"baseline hash (symmetric); baseline={hash_baseline!r}, "
+        f"after_removal={hash_after_removal!r}"
     )

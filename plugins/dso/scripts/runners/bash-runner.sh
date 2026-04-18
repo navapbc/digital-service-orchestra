@@ -14,6 +14,8 @@
 #   TIMEOUT       — timeout in seconds
 #   DEFAULT_TIMEOUT — default timeout value (for resume command construction)
 #   CMD           — fallback command (optional for bash runner)
+#   FILTER_PATTERN — optional glob pattern; when set, only test files whose
+#                    basename matches the pattern are run (set by test-batched.sh)
 #
 # After sourcing, the caller checks USE_BASH_RUNNER and, if set, calls
 # _bash_runner_run to execute the bash runner path.
@@ -38,6 +40,28 @@ _bash_discover_files() {
     [ "$found" -eq 1 ]
 }
 
+# _bash_apply_filter <pattern>
+# Filters BASH_FILES in-place, keeping only files whose basename matches
+# the given glob pattern. When no files match, prints a warning to stderr.
+# No-op when pattern is empty.
+_bash_apply_filter() {
+    local pattern="${1:-}"
+    [ -z "$pattern" ] && return 0
+    local filtered=()
+    for f in "${BASH_FILES[@]+"${BASH_FILES[@]}"}"; do
+        local base
+        base="$(basename "$f")"
+        # shellcheck disable=SC2254
+        case "$base" in
+            $pattern) filtered+=("$f") ;;
+        esac
+    done
+    if [ "${#filtered[@]}" -eq 0 ]; then
+        echo "WARNING: --filter=$pattern: no test files matched; nothing to run." >&2
+    fi
+    BASH_FILES=("${filtered[@]+"${filtered[@]}"}")
+}
+
 # Determine effective runner ──────────────────────────────────────────────────
 USE_BASH_RUNNER=0
 BASH_FILES=()
@@ -51,8 +75,16 @@ if [ "$RUNNER" = "bash" ]; then
             BASH_FILES+=("$f")
         done < <(_bash_discover_files "$TEST_DIR" 2>/dev/null || true)
 
+        # Apply filename filter if set
+        _bash_apply_filter "${FILTER_PATTERN:-}"
+
         if [ "${#BASH_FILES[@]}" -eq 0 ]; then
-            echo "WARNING: --runner=bash: no test-*.sh files found under $TEST_DIR; falling back to generic runner." >&2
+            if [ -n "${FILTER_PATTERN:-}" ]; then
+                # Filter matched nothing — warning already printed; exit cleanly (not an error).
+                exit 0
+            else
+                echo "WARNING: --runner=bash: no test-*.sh files found under $TEST_DIR; falling back to generic runner." >&2
+            fi
         else
             USE_BASH_RUNNER=1
         fi
@@ -63,6 +95,9 @@ elif [ -z "$RUNNER" ] && [ -n "$TEST_DIR" ]; then
     while IFS= read -r f; do
         BASH_FILES+=("$f")
     done < <(_bash_discover_files "$TEST_DIR" 2>/dev/null || true)
+
+    # Apply filename filter if set
+    _bash_apply_filter "${FILTER_PATTERN:-}"
 
     if [ "${#BASH_FILES[@]}" -gt 0 ]; then
         USE_BASH_RUNNER=1
@@ -106,7 +141,9 @@ _bash_runner_run() {
         local resume_dir_arg="--test-dir=${TEST_DIR}"
         local resume_timeout_arg=""
         [ "$TIMEOUT" -ne "$DEFAULT_TIMEOUT" ] && resume_timeout_arg="--timeout=$TIMEOUT "
-        local resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 ${resume_runner_arg} ${resume_dir_arg} ${resume_timeout_arg}${CMD:+"'$CMD'"}"
+        local resume_filter_arg=""
+        [ -n "${FILTER_PATTERN:-}" ] && resume_filter_arg="--filter=${FILTER_PATTERN} "
+        local resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 ${resume_runner_arg} ${resume_dir_arg} ${resume_timeout_arg}${resume_filter_arg}${CMD:+"'$CMD'"}"
         echo ""
         echo "$done_count/$TOTAL tests completed."
         echo ""
