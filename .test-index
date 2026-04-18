@@ -222,4 +222,4 @@ plugins/dso/agents/huge-diff-reviewer-standard.md:tests/workflows/test-review-wo
 plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-workflow-huge.sh
 
 # --- ticket-transition flock section guard (task 1835-528f) ---
-plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition-flock.sh
+plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition-flock.sh [test_flock_llm_format_referenced]
