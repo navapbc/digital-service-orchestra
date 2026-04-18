@@ -24,14 +24,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Unset git hook env vars so git commands target the correct repo.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
 # Allow tests to inject a custom tracker directory via TICKETS_TRACKER_DIR env var.
-# When GIT_DIR is set (e.g., in tests), derive REPO_ROOT from its parent to avoid
-# requiring an actual git repository at that path.
 if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
     TRACKER_DIR="$TICKETS_TRACKER_DIR"
-elif [ -n "${GIT_DIR:-}" ]; then
-    REPO_ROOT="$(dirname "$GIT_DIR")"
-    TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 else
     REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
     TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
