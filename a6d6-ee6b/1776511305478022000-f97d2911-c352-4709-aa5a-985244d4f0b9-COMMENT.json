@@ -1,0 +1,1 @@
+{"timestamp": 1776511305478022000, "uuid": "f97d2911-c352-4709-aa5a-985244d4f0b9", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "STATUS:complete\nTasks: T1=cf7e-9d63 (RED tests for 7 pre-* dispatchers), T2=398e-2165 (implement handler sourcing in all 7). Dependency: T2 depends_on T1."}}
