@@ -218,7 +218,7 @@ plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 
 # --- ticket-lifecycle.sh: .archived marker (epic bc06-74f4, task de12-3482) ---
-plugins/dso/scripts/ticket-lifecycle.sh:tests/scripts/test-ticket-lifecycle.sh [test_lifecycle_writes_archived_marker]
+plugins/dso/scripts/ticket-lifecycle.sh:tests/scripts/test-ticket-lifecycle.sh
 
 # --- review-sample-files.sh: stratified sampler (epic 97fc-b2ca, task 4337-a84d) ---
 plugins/dso/scripts/review-sample-files.sh:tests/unit/scripts/test-review-sample-files.sh
@@ -237,4 +237,4 @@ plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-wor
 # --- scripts/release.sh: automated release script (epic 36a7-dbb5, task c19e-e459) ---
 scripts/release.sh:tests/scripts/test-release.sh
 # --- ticket-archive-markers-backfill.sh (5ad5-be4d / bc06-74f4 batch) ---
-plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh [test_creates_marker_for_ticket_with_archived_event]
+plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh

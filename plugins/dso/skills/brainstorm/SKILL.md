@@ -783,7 +783,7 @@ fi
 .claude/scripts/dso ticket edit <epic-id> "--tags=${new_tags}"
 ```
 
-Pattern mirrors `${CLAUDE_PLUGIN_ROOT}/scripts/design-approve.sh` read-merge-write. Replace `<epic-id>` with the actual epic ID variable available at Phase 3 execution context.
+Pattern mirrors `.claude/scripts/dso design-approve.sh` read-merge-write. Replace `<epic-id>` with the actual epic ID variable available at Phase 3 execution context.
 
 ### Step 3b: Write Brainstorm Completion Sentinel
 
