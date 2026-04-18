@@ -21,10 +21,11 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 _REAL_HOME="$HOME"
 TEST_HOME=$(mktemp -d)
 export HOME="$TEST_HOME"
+mkdir -p "$TEST_HOME/.claude/logs"
 mkdir -p "$TEST_HOME/.claude"
 trap 'export HOME="$_REAL_HOME"; rm -rf "$TEST_HOME"' EXIT
 
-HOOK_ERROR_LOG="$TEST_HOME/.claude/hook-error-log.jsonl"
+HOOK_ERROR_LOG="$TEST_HOME/.claude/logs/dso-hook-errors.jsonl"
 
 run_hook_exit() {
     local exit_code=0
