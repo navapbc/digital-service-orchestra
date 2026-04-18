@@ -12,6 +12,11 @@ set -uo pipefail
 # Options:
 #   --help              Show this help and exit
 #   --timeout=N         Stop after N seconds (default: 50)
+#   --per-test-timeout=N  Mark a single test as interrupted-timeout-exceeded (not retried)
+#                         when it individually exceeds N seconds. Without this flag, any
+#                         test killed by the global --timeout is marked as "interrupted"
+#                         (retried on resume), which causes an infinite loop when a test
+#                         always exceeds the budget (bug 07f1-f8b6).
 #   --state-file=PATH   Path to JSON state file (default: /tmp/test-batched-state.json)
 #   --runner=RUNNER     Test runner driver: node, pytest, or generic (default: auto-detect)
 #   --test-dir=PATH     Directory to search for test files (used by runner drivers)
@@ -186,6 +191,7 @@ STATE_TTL="${STATE_TTL:-$DEFAULT_STATE_TTL}"
 CMD=""
 RUNNER=""
 TEST_DIR=""
+PER_TEST_TIMEOUT=""
 
 for arg in "$@"; do
     case "$arg" in
@@ -195,6 +201,9 @@ for arg in "$@"; do
             ;;
         --timeout=*)
             TIMEOUT="${arg#--timeout=}"
+            ;;
+        --per-test-timeout=*)
+            PER_TEST_TIMEOUT="${arg#--per-test-timeout=}"
             ;;
         --state-file=*)
             STATE_FILE="${arg#--state-file=}"

@@ -144,4 +144,64 @@ fi
 
 assert_pass_if_clean "test_staged_test_red_marker_found_when_source_not_exist"
 
+# ============================================================
+# test_doc_only_staged_writes_passed_status (a2e0-3ae8)
+#
+# Scenario: only a doc file is staged; .test-index has no entry for it.
+#   ASSOCIATED_TESTS is empty → record-test-status.sh previously exited 0
+#   without writing test-gate-status, causing harvest-worktree.sh to block
+#   with "ERROR: test-gate-status not found".
+#
+# Expected: record-test-status.sh writes test-gate-status=passed with
+#   tested_files=doc-only-exempt so harvest-worktree.sh can proceed.
+#
+# RED (bug present): test-gate-status not written → file missing
+# GREEN (bug fixed):  test-gate-status written as "passed"
+# ============================================================
+echo ""
+echo "=== test_doc_only_staged_writes_passed_status (a2e0-3ae8) ==="
+_snapshot_fail
+
+REPO=$(_make_tmpdir)
+ARTIFACTS=$(_make_tmpdir)
+
+git -C "$REPO" init --quiet 2>/dev/null
+git -C "$REPO" config user.email "test@test.com"
+git -C "$REPO" config user.name "Test"
+touch "$REPO/.gitkeep"
+git -C "$REPO" add .gitkeep
+git -C "$REPO" commit -m "init" --quiet 2>/dev/null
+
+# .test-index has NO entry for the doc file
+cat > "$REPO/.test-index" <<'IDXEOF'
+src/module.py: tests/test_module.sh
+IDXEOF
+
+# Stage only a doc file — no .test-index entry for it
+mkdir -p "$REPO/docs"
+echo "# Doc content" > "$REPO/docs/guide.md"
+git -C "$REPO" add docs/guide.md .test-index
+git -C "$REPO" commit -m "add doc file" --quiet 2>/dev/null
+echo "updated" >> "$REPO/docs/guide.md"
+git -C "$REPO" add docs/guide.md
+
+EXIT_CODE=0
+(
+    cd "$REPO"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    bash "$HOOK" 2>/dev/null
+) || EXIT_CODE=$?
+
+assert_eq "doc-only staged: hook exits 0" "0" "$EXIT_CODE"
+
+if [[ -f "$ARTIFACTS/test-gate-status" ]]; then
+    STATUS_LINE=$(head -1 "$ARTIFACTS/test-gate-status")
+    assert_eq "doc-only staged: test-gate-status is 'passed'" "passed" "$STATUS_LINE"
+else
+    assert_eq "doc-only staged: test-gate-status file must exist" "exists" "missing"
+fi
+
+assert_pass_if_clean "test_doc_only_staged_writes_passed_status"
+
 print_summary

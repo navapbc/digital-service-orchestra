@@ -157,9 +157,20 @@ _bash_runner_run() {
         local bash_exit=0
         bash "$bash_file" &
         local _test_bg_pid=$!
+        local _test_start_time
+        _test_start_time=$(date +%s)
 
         # Monitor: poll until the test finishes or the time budget runs out.
         while kill -0 "$_test_bg_pid" 2>/dev/null; do
+            # Per-test timeout: if this individual test has run longer than
+            # PER_TEST_TIMEOUT seconds, mark it as terminal (not retried on resume).
+            if [ -n "${PER_TEST_TIMEOUT:-}" ] && [ $(( $(date +%s) - _test_start_time )) -ge "$PER_TEST_TIMEOUT" ]; then
+                kill -- -"$_test_bg_pid" 2>/dev/null || kill "$_test_bg_pid" 2>/dev/null || true
+                wait "$_test_bg_pid" 2>/dev/null || true
+                COMPLETED_LIST+=("$test_id")
+                RESULTS_JSON=$(_results_add "$RESULTS_JSON" "$test_id" "interrupted-timeout-exceeded")
+                _save_state_and_resume_bash
+            fi
             if [ "$(_elapsed)" -ge "$TIMEOUT" ]; then
                 # Kill entire process group (negative PID) so child processes
                 # spawned by the test script don't survive as orphans.
@@ -191,14 +202,19 @@ _bash_runner_run() {
     done
 
     # All bash files processed — print summary
-    local pass_count fail_count interrupted_count total_done
+    local pass_count fail_count interrupted_count timed_out_count total_done
     pass_count=$(_results_count "$RESULTS_JSON" "pass")
     fail_count=$(_results_count "$RESULTS_JSON" "fail")
     interrupted_count=$(_results_count "$RESULTS_JSON" "interrupted")
+    timed_out_count=$(_results_count "$RESULTS_JSON" "interrupted-timeout-exceeded")
     total_done=${#COMPLETED_LIST[@]}
 
     echo ""
-    echo "All tests done. $total_done/$TOTAL tests completed. $pass_count passed, $fail_count failed, $interrupted_count interrupted."
+    if [ "$timed_out_count" -gt 0 ]; then
+        echo "All tests done. $total_done/$TOTAL tests completed. $pass_count passed, $fail_count failed, $interrupted_count interrupted, $timed_out_count timed-out (skipped on resume)."
+    else
+        echo "All tests done. $total_done/$TOTAL tests completed. $pass_count passed, $fail_count failed, $interrupted_count interrupted."
+    fi
 
     if [ "$fail_count" -gt 0 ]; then
         echo ""
@@ -209,6 +225,6 @@ _bash_runner_run() {
     fi
 
     rm -f "$STATE_FILE"
-    # Interrupted tests are non-passing — exit non-zero if any tests failed or were interrupted
-    [ "$fail_count" -gt 0 ] || [ "$interrupted_count" -gt 0 ] && exit 1 || exit 0
+    # Interrupted and timed-out tests are non-passing — exit non-zero if any tests failed or were interrupted
+    [ "$fail_count" -gt 0 ] || [ "$interrupted_count" -gt 0 ] || [ "$timed_out_count" -gt 0 ] && exit 1 || exit 0
 }
