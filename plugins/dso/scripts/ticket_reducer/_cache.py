@@ -49,6 +49,11 @@ def compute_dir_hash(ticket_dir: str, event_filenames: list[str]) -> str:
         except OSError:
             size = -1
         hash_parts.append(f"{name}:{size}")
+    hash_parts.append(
+        "marker:present"
+        if os.path.exists(os.path.join(ticket_dir, ".archived"))
+        else "marker:absent"
+    )
     return hashlib.sha256("|".join(hash_parts).encode()).hexdigest()
 
 
