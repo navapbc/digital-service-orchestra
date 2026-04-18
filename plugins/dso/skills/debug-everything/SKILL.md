@@ -362,6 +362,15 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 - **Diagnostic scan skipped** (Phase 1 Steps 0.5, 1a, 1b, 1c, 2): No `validate.sh --ci`, no preflight checks, no diagnostic sub-agent, no clustering.
 - **Triage skipped** (Phase 2): No triage sub-agent dispatch, no new epic creation, no issue clustering.
 
+<COMPACTION_RESUME>
+**If resuming after an auto-compact event in Bug-Fix Mode**: Re-read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline immediately — do NOT attempt to investigate from Step 0. Check the in-progress ticket's most recent CHECKPOINT comment to determine the last completed fix-bug step, then resume from the next step in fix-bug's pipeline:
+- CHECKPOINT at Step 2 (investigation dispatched) → resume at Step 3 (analyze results)
+- CHECKPOINT at Step 3 (hypothesis confirmed) → resume at Step 4 (fix approval) or Step 5 (RED test)
+- CHECKPOINT at Step 5 (RED test written) → resume at Step 6 (implement fix)
+- CHECKPOINT at Step 7 (fix verified) → resume at Step 8 (commit and close)
+- No CHECKPOINT found → re-dispatch the investigation sub-agent from Step 2 (do NOT read test files, grep for root causes, or run tests without a specific hypothesis — that is unstructured investigation, not the fix-bug protocol)
+</COMPACTION_RESUME>
+
 ### Bug-Fix Mode Execution
 
 1. **List all open and in_progress bug tickets**:
@@ -1309,7 +1318,8 @@ TDD routing: read `prompts/tdd-enforcement-table.md`.
 | AWS auth expired (Tier 6 fix) | Sub-agent cannot proceed with infra fix. Report to user, recommend `aws sso login`, move to next task |
 | DB not running | `make db-start` from app/. Wait for health check. |
 | All sub-agents fail in a batch | Do not retry same session. Graceful shutdown. |
-| Context compaction | Immediate graceful shutdown. Checkpoint everything. |
+| Context compaction (Diagnostic Mode — Phase 5/6) | Immediate graceful shutdown. Checkpoint everything. |
+| Context compaction (Bug-Fix Mode) | Re-read fix-bug/SKILL.md inline. Check ticket CHECKPOINT comment for last completed step. Resume fix-bug at the next step — do NOT restart investigation from Step 0. |
 | Git push fails (no upstream) | This is an ephemeral worktree branch — push is not required. Commit locally. |
 | Merge to main fails (conflict) | Invoke `/dso:resolve-conflicts`. |
 | CI fails on main after merge | Return to Phase 2. Maximum 2 retries, then report to user for manual intervention. |
