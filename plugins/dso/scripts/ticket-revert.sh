@@ -170,6 +170,12 @@ with open(sys.argv[2], 'w', encoding='utf-8') as f:
     exit 1
 }
 
+# ── Remove .archived marker when reverting an ARCHIVED event (best-effort) ───
+if [ "$target_event_type" = "ARCHIVED" ]; then
+    python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); from ticket_reducer.marker import remove_marker; remove_marker(sys.argv[2], sys.argv[3])' \
+        "$SCRIPT_DIR" "$TRACKER_DIR" "$ticket_id" 2>/dev/null || true
+fi
+
 # ── Commit to tracker git worktree (if available) ────────────────────────────
 # Skip git operations if tracker is not a valid git worktree (e.g., test environments).
 if [ -f "$TRACKER_DIR/.git" ] && git -C "$TRACKER_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
