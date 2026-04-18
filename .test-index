@@ -204,4 +204,5 @@ INSTALL.md:tests/test-install-doc-contract.sh,tests/scripts/test-no-unguarded-pl
 plugins/dso/scripts/scan-config-keys.sh:tests/scripts/test-scan-config-keys.sh
 plugins/dso/docs/CONFIGURATION-REFERENCE.md:tests/scripts/test-config-keys-documented.sh
 
-plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh,tests/scripts/test-sprint-list-epics-without-tag.sh
+plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh,tests/scripts/test-sprint-list-epics-without-tag.sh,tests/scripts/test-brainstorm-tag-flow.sh
+plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
