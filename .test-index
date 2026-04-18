@@ -249,7 +249,7 @@ plugins/dso/agents/huge-diff-reviewer-standard.md:tests/workflows/test-review-wo
 plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-workflow-huge.sh
 
 # RED marker for marketplace.json two-entry git-subdir restructure (task 1a94-b9e9)
-.claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh [test_marketplace_json_has_two_plugins]
+.claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh
 # --- scripts/release.sh: automated release script (epic 36a7-dbb5, task c19e-e459) ---
 scripts/release.sh:tests/scripts/test-release.sh
 # --- ticket-archive-markers-backfill.sh (5ad5-be4d / bc06-74f4 batch) ---
