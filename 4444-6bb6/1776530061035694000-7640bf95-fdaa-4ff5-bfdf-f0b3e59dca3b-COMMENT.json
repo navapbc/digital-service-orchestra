@@ -1,1 +1,0 @@
-{"timestamp": 1776530061035694000, "uuid": "7640bf95-fdaa-4ff5-bfdf-f0b3e59dca3b", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT:batch-complete \u2014 Done \u2713 \u2014 Files: tests/hooks/test-session-safety.sh, .test-index. UPDATE test added (RED \u2014 fails until T4 implements dual-read)."}}
