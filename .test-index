@@ -198,7 +198,7 @@ plugins/dso/scripts/ticket_graph/_hierarchy.py:tests/scripts/test_ticket_graph.p
 plugins/dso/scripts/ticket_graph/_links.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_loader.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_status.py:tests/scripts/test_ticket_graph.py
-INSTALL.md:tests/test-install-doc-contract.sh [test_install_doc_contract]
+INSTALL.md:tests/test-install-doc-contract.sh
 plugins/dso/skills/shared/prompts/single-agent-integrate.md:tests/hooks/test-single-agent-integrate-structure.sh
 INSTALL.md:tests/test-install-doc-contract.sh,tests/scripts/test-no-unguarded-plugin-refs.sh,tests/test-install-integration-setup.sh
 
