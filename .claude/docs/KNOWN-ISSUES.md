@@ -16,7 +16,7 @@
 | [Hooks/Gates](#hooks-and-gates) | 1 | 2026-03 |
 | [Tickets/Version Control](#tickets-and-version-control) | 1 | 2026-03 |
 | [Recipe Execution](#recipe-execution) | 1 | 2026-04 |
-| [Plugin System](#plugin-system) | 1 | 2026-04 |
+| [Plugin System](#plugin-system) | 2 | 2026-04 |
 
 ## Quick Reference by Incident ID
 
@@ -34,6 +34,7 @@
 | INC-010 | Cascading Failure Runaway | Timeouts/Performance | cascading failure, runaway, fix-cascade-recovery |
 | INC-018 | Recipe Engine Prerequisites | Recipe Execution | recipe, rope, ts-morph, isort, scaffold |
 | INC-019 | /reload-plugins Skill Count Undercounts | Plugin System | reload-plugins, skill count, 3 skills, commands, allowed-tools |
+| INC-020 | validate.sh ENOBUFS / OSError 75 in CI | Plugin System | validate.sh, ENOBUFS, OSError 75, file descriptor, ulimit, CI |
 
 ---
 
@@ -202,6 +203,22 @@
 ---
 
 ## Plugin System
+
+### INC-020: validate.sh ENOBUFS / OSError 75 Under CI File-Descriptor Limits
+
+- **Date**: 2026-04
+- **Keywords**: validate.sh, ENOBUFS, OSError 75, file descriptor, fd limit, CI, ulimit, resource exhaustion
+- **Ticket**: 3cd9-5a95
+- **Symptom**: `validate.sh --ci` exits with `OSError: [Errno 75] Value too large for defined data type` (ENOBUFS on some platforms) during subprocess execution inside CI. The failure is non-deterministic and more likely under parallelism or when many files are open.
+- **Root cause**: The CI runner hits its file-descriptor ceiling (`ulimit -n`). When subprocesses inherit open FDs from the parent shell and the OS-level limit is reached, writes to pipes or sockets fail with ENOBUFS (errno 75). This is a resource-exhaustion condition, not a test logic error.
+- **Detection**: Exit code from validate.sh is non-zero; stderr contains `OSError: [Errno 75]` or `ENOBUFS`. The failure is intermittent and correlates with parallel job counts.
+- **Fix**:
+  1. Raise the file-descriptor limit before running: `ulimit -n 65536 && .claude/scripts/dso validate.sh --ci`
+  2. In CI job YAML, add `ulimit -n 65536` as a pre-step shell command, or set `nofile` via the runner's resource-limits config.
+  3. If the runner does not allow raising limits, reduce parallelism: set `orchestration.max_agents=1` in `dso-config.conf` for the CI job.
+- **Rule candidate**: 3+ occurrences → propose CLAUDE.md rule to always raise `ulimit -n` before running validate.sh in CI.
+
+---
 
 ### INC-019: /reload-plugins Skill Count Undercounts — Shows 3 Instead of 32
 

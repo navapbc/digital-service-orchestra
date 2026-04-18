@@ -97,6 +97,17 @@ if [ ! -f "$SCRIPT_PATH" ] && [ -f "${SCRIPT_PATH}.sh" ]; then
     SCRIPT_PATH="${SCRIPT_PATH}.sh"
 fi
 
+# Fallback: hook scripts live in hooks/ not scripts/ (7f36-1317, d122-20d3)
+if [ ! -f "$SCRIPT_PATH" ]; then
+    HOOK_PATH="$DSO_ROOT/hooks/$CMD"
+    if [ ! -f "$HOOK_PATH" ] && [ -f "${HOOK_PATH}.sh" ]; then
+        HOOK_PATH="${HOOK_PATH}.sh"
+    fi
+    if [ -f "$HOOK_PATH" ]; then
+        SCRIPT_PATH="$HOOK_PATH"
+    fi
+fi
+
 if [ ! -f "$SCRIPT_PATH" ]; then
     printf 'dso: command not found: %s\n' "$CMD" >&2
     printf 'dso: (looked for %s)\n' "$SCRIPT_PATH" >&2

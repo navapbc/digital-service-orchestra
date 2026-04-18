@@ -443,7 +443,12 @@ if [[ "$_RESTART" == true ]]; then
 fi
 
 # Determine repo root
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+# Use resolve_repo_root() from deps.sh (sourced above) so that PROJECT_ROOT and
+# CLAUDE_PROJECT_DIR override git rev-parse --show-toplevel. This is critical when
+# the script is invoked with a worktree CWD (e.g., the DSO plugin worktree) but the
+# --source-file refers to a file in the host project: git rev-parse would return the
+# worktree path instead of the host project root, causing a silent no-op (c7f3-3de6).
+REPO_ROOT=$(resolve_repo_root)
 if [[ -z "$REPO_ROOT" ]]; then
     echo "ERROR: not in a git repository" >&2
     exit 1

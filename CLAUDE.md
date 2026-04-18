@@ -33,6 +33,7 @@
 | Review event stats | `.claude/scripts/dso review-stats.sh` |
 | Run a recipe transform | `.claude/scripts/dso recipe-executor.sh <recipe-name> [--param key=value ...]` |
 | Sync stale host-project artifacts to current plugin version | `.claude/scripts/dso update-artifacts` |
+| Cut a plugin release (stable channel) | `scripts/release.sh` |
 
 Less common: `check-skill-refs.sh`, `qualify-skill-refs.sh`.
 
@@ -95,6 +96,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 **GAP_CLASSIFICATION** (contract: `plugins/dso/docs/contracts/gap-classification-output.md`): `intent_gap` → brainstorm (with user confirmation), `implementation_gap` → remediation (`ROUTING: implementation-plan` is a signal label, NOT a direct skill invocation).
 **Figma design collaboration** (config-gated, `design.figma_collaboration`; default false): Sprint filters `design:awaiting_import` stories from batch execution. See sprint SKILL.md and preplanning SKILL.md for details. **Pull-back workflow**: when a story has `design:awaiting_review`, run `figma-resync.py <ticket-id>` to pull Figma changes via REST API (requires `design.figma_pat` or `FIGMA_PAT` env var), merge visual updates into the 3-artifact manifest (spatial-layout.json, wireframe.svg, tokens.md) while preserving behavioral specs, confirm with the designer, then swap tag to `design:approved`. Use `--non-interactive` in CI. The merge uses an advisory file lock (30-min TTL, stale-lock auto-cleanup) to prevent concurrent re-syncs on the same ticket. Schema fields added by pull-back: `designer_added` (boolean) and `behavioral_spec_status` (COMPLETE/INCOMPLETE/PENDING) on each component in spatial-layout.json.
 **Config keys:** see `plugins/dso/docs/CONFIGURATION-REFERENCE.md`. Merge-to-main phases: `sync → merge → version_bump → validate → push → archive → ci_trigger`; state file `/tmp/merge-to-main-state-<branch>.json` (4h TTL); `--resume` continues from checkpoint.
+**Two-channel release model**: The plugin marketplace (`marketplace.json`) exposes two channels: `dso` (stable, pinned to a release tag after the first `scripts/release.sh` run) and `dso-dev` (dev, pinned to `main` HEAD). Advancing the stable channel requires running `scripts/release.sh` at the repo root, which enforces 10 precondition gates (semver validation, gh auth, tag uniqueness, on-main, clean tree, upstream sync, CI green, validate.sh --ci, marketplace.json validity, and interactive confirmation) before creating and pushing the release tag. Consumers who want stability should install `dso`; consumers who want every merge should install `dso-dev`.
 
 
 **Worktree lifecycle** (`claude-safe`): After Claude exits, `_offer_worktree_cleanup` auto-removes the worktree if: (1) branch is ancestor of main (`is_merged`), AND (2) `git status --porcelain` is empty (`is_clean`). No special filtering — `.tickets-tracker/` files block removal like any other dirty file. `/dso:end-session` ensures the worktree meets these criteria by: generating technical learnings (Step 2.8) and creating bug tickets (Step 2.85) before commit/merge, and verifying `is_merged` + `is_clean` (Step 4.75) before session summary.

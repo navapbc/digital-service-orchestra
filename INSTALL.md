@@ -28,6 +28,19 @@ Run the following commands inside Claude Code while your working directory is se
 
 After the plugin is installed, proceed to [Getting Started with /dso:onboarding](#getting-started-with-dsoonboarding) below.
 
+### Release Channels
+
+DSO is published on two channels. Choose the channel that fits your team's risk tolerance:
+
+| Channel | Install command | When it advances |
+|---------|----------------|-----------------|
+| **Stable** (default) | `/plugin install dso@digital-service-orchestra` | Tagged releases only |
+| **Dev** | `/plugin install dso-dev@digital-service-orchestra` | Every merge to main |
+
+**Version semantics**: dso advances on tagged releases; dso-dev advances on every merge to main.
+
+**Recommendation**: Enable auto-update for your chosen channel in the marketplace via the `/plugin` UI so you receive fixes and improvements automatically without a manual reinstall.
+
 ## Optional Dependencies
 
 - **ast-grep** (`sg`): enables structural code search in `/dso:fix-bug`, `/dso:sprint`, and other skills. DSO falls back to text grep when `ast-grep` is absent, but structural search significantly reduces false positives when tracing call sites and dependency graphs. Install with:
