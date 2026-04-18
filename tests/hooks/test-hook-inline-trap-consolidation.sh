@@ -1,0 +1,387 @@
+#!/usr/bin/env bash
+# tests/hooks/test-hook-inline-trap-consolidation.sh
+# RED behavioral tests: verify that inline ERR traps in hook functions write
+# to the NEW canonical log path ~/.claude/logs/dso-hook-errors.jsonl, not
+# the legacy path ~/.claude/hook-error-log.jsonl.
+#
+# Currently RED because all tested functions still have inline traps that
+# write to the legacy path. Will go GREEN after task b36e-a03a migrates
+# them to use hook-error-handler.sh and the new canonical path.
+#
+# Observable surfaces tested:
+#   - Filesystem side effect: which JSONL log file receives the error entry
+#     when the inline ERR trap fires
+#
+# Approach:
+#   Each test writes a standalone bash runner to an isolated tmpdir and
+#   executes it. The runner sources the relevant hook file, defines a probe
+#   function that replicates the exact HOOK_ERROR_LOG assignment and trap
+#   setup from the real function, then triggers ERR via `false`. The test
+#   checks which log path the trap wrote to.
+#
+# ERR trigger for worktree guards (REAL function bodies):
+#   Override git() to return a nonexistent --git-common-dir path, causing
+#   the bare assignment `MAIN_GIT_DIR=$(cd $WORKTREE_ROOT && cd $BAD && pwd)`
+#   to fail, which fires the inline ERR trap.
+#
+# ERR trigger for probe functions (functions with all-guarded paths):
+#   Probe function has same trap setup as original, then calls `false` as
+#   a bare command to reliably trigger ERR.
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
+
+source "$REPO_ROOT/tests/lib/assert.sh"
+
+# Isolated temp-dir registry for cleanup on EXIT
+declare -a _TEST_TMPDIRS=()
+_cleanup_tmpdirs() {
+    local d
+    for d in "${_TEST_TMPDIRS[@]:-}"; do
+        [[ -e "$d" ]] && rm -rf "$d"
+    done
+}
+trap '_cleanup_tmpdirs' EXIT
+
+# _make_test_home: create an isolated HOME directory with .claude/logs/ created
+_make_test_home() {
+    local tmp
+    tmp=$(mktemp -d)
+    _TEST_TMPDIRS+=("$tmp")
+    mkdir -p "$tmp/.claude/logs"
+    echo "$tmp"
+}
+
+# _make_runner: create an isolated runner script in a temp directory.
+# Each call produces a unique file via mktemp -d.
+_make_runner() {
+    local runner_dir
+    runner_dir=$(mktemp -d)
+    _TEST_TMPDIRS+=("$runner_dir")
+    echo "$runner_dir/runner.sh"
+}
+
+# ---------------------------------------------------------------------------
+# HELPER: write and run a probe-based runner for hook ERR trap log path tests.
+#
+# The probe function replicates EXACTLY the HOOK_ERROR_LOG variable assignment
+# and trap setup from the real hook function, then triggers ERR via `false`.
+# After migration (b36e-a03a), HOOK_ERROR_LOG will be changed to the new path;
+# the probe will then write to the new path and the test will go GREEN.
+#
+# $1: hook name (used in HOOK_ERROR_LOG and trap printf)
+# $2: source file basename (pre-bash-functions.sh, pre-all-functions.sh, etc.)
+# $3: TEST_HOME path
+# Returns the exit status of the runner (always 0 -- errors recorded in log)
+_run_probe_test() {
+    local HOOK_NAME="$1"
+    local SOURCE_FILE="$2"
+    local TEST_HOME="$3"
+
+    local runner
+    runner=$(_make_runner)
+
+    # Write the runner using cat with quoted heredoc to avoid variable expansion issues
+    cat > "$runner" << RUNNER_EOF
+#!/usr/bin/env bash
+export HOME='${TEST_HOME}'
+export CLAUDE_PLUGIN_ROOT='${DSO_PLUGIN_DIR}'
+export _PRE_BASH_FUNCTIONS_LOADED=''
+export _PRE_ALL_FUNCTIONS_LOADED=''
+export _SESSION_MISC_FUNCTIONS_LOADED=''
+source '${DSO_PLUGIN_DIR}/hooks/lib/${SOURCE_FILE}'
+probe_hook_err_trap() {
+    local HOOK_ERROR_LOG="\$HOME/.claude/hook-error-log.jsonl"
+    trap 'printf "{\"ts\":\"test\",\"hook\":\"${HOOK_NAME}\",\"line\":%s}\\n" "\$LINENO" >> "\$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
+    false
+}
+probe_hook_err_trap 2>/dev/null; true
+RUNNER_EOF
+
+    chmod +x "$runner"
+    bash "$runner" 2>/dev/null
+}
+
+# ---------------------------------------------------------------------------
+# TEST: hook_worktree_bash_guard (pre-bash-functions.sh) — REAL function, real ERR
+#
+# ERR trigger: git() returns nonexistent --git-common-dir path, causing the
+# bare assignment `MAIN_GIT_DIR=$(cd WORKTREE && cd BAD && pwd)` to fail.
+# This is the bare (non-local) assignment at line ~320 of pre-bash-functions.sh.
+# ---------------------------------------------------------------------------
+test_hook_worktree_bash_guard_real_err_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+
+    local runner
+    runner=$(_make_runner)
+
+    cat > "$runner" << RUNNER_EOF
+#!/usr/bin/env bash
+export HOME='${TEST_HOME}'
+export CLAUDE_PLUGIN_ROOT='${DSO_PLUGIN_DIR}'
+export _PRE_BASH_FUNCTIONS_LOADED=''
+source '${DSO_PLUGIN_DIR}/hooks/lib/pre-bash-functions.sh'
+is_worktree() { return 0; }
+git() {
+    case "\$1 \$2" in
+        'rev-parse --show-toplevel') echo /tmp; return 0 ;;
+        'rev-parse --git-common-dir') echo /bad_nonexistent_path_xyz; return 0 ;;
+        *) command git "\$@" ;;
+    esac
+}
+INPUT='{"tool_name":"Bash","tool_input":{"command":"echo test"}}'
+hook_worktree_bash_guard "\$INPUT" 2>/dev/null; true
+RUNNER_EOF
+
+    chmod +x "$runner"
+    bash "$runner" 2>/dev/null
+
+    local NEW_LOG="$TEST_HOME/.claude/logs/dso-hook-errors.jsonl"
+    local LEGACY_LOG="$TEST_HOME/.claude/hook-error-log.jsonl"
+
+    local new_exists="no"
+    [[ -f "$NEW_LOG" ]] && new_exists="yes"
+    assert_eq "hook_worktree_bash_guard real ERR: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$LEGACY_LOG" ]] && legacy_exists="yes"
+    assert_eq "hook_worktree_bash_guard real ERR: legacy log NOT written" "no" "$legacy_exists"
+}
+
+# ---------------------------------------------------------------------------
+# TEST: hook_worktree_edit_guard (pre-bash-functions.sh) — REAL function, real ERR
+# Same git override as above — same bare assignment exists in this function.
+# ---------------------------------------------------------------------------
+test_hook_worktree_edit_guard_real_err_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+
+    local runner
+    runner=$(_make_runner)
+
+    cat > "$runner" << RUNNER_EOF
+#!/usr/bin/env bash
+export HOME='${TEST_HOME}'
+export CLAUDE_PLUGIN_ROOT='${DSO_PLUGIN_DIR}'
+export _PRE_BASH_FUNCTIONS_LOADED=''
+source '${DSO_PLUGIN_DIR}/hooks/lib/pre-bash-functions.sh'
+is_worktree() { return 0; }
+git() {
+    case "\$1 \$2" in
+        'rev-parse --show-toplevel') echo /tmp; return 0 ;;
+        'rev-parse --git-common-dir') echo /bad_nonexistent_path_xyz; return 0 ;;
+        *) command git "\$@" ;;
+    esac
+}
+INPUT='{"tool_name":"Edit","tool_input":{"file_path":"/some/path"}}'
+hook_worktree_edit_guard "\$INPUT" 2>/dev/null; true
+RUNNER_EOF
+
+    chmod +x "$runner"
+    bash "$runner" 2>/dev/null
+
+    local NEW_LOG="$TEST_HOME/.claude/logs/dso-hook-errors.jsonl"
+    local LEGACY_LOG="$TEST_HOME/.claude/hook-error-log.jsonl"
+
+    local new_exists="no"
+    [[ -f "$NEW_LOG" ]] && new_exists="yes"
+    assert_eq "hook_worktree_edit_guard real ERR: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$LEGACY_LOG" ]] && legacy_exists="yes"
+    assert_eq "hook_worktree_edit_guard real ERR: legacy log NOT written" "no" "$legacy_exists"
+}
+
+# ---------------------------------------------------------------------------
+# PROBE TESTS: for functions whose all internal paths are guarded (local
+# assignments, ||, if-conditions), we use a probe function with the EXACT
+# same HOOK_ERROR_LOG and trap setup as the real function. The probe triggers
+# ERR via `false` to verify which log path the trap writes to.
+#
+# These tests are RED because the real functions assign:
+#   local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"  (legacy path)
+#
+# They go GREEN when the assignment changes to:
+#   local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"  (new path)
+# ---------------------------------------------------------------------------
+
+test_hook_test_failure_guard_trap_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+    _run_probe_test "test-failure-guard" "pre-bash-functions.sh" "$TEST_HOME"
+
+    local new_exists="no"
+    [[ -f "$TEST_HOME/.claude/logs/dso-hook-errors.jsonl" ]] && new_exists="yes"
+    assert_eq "hook_test_failure_guard trap: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$TEST_HOME/.claude/hook-error-log.jsonl" ]] && legacy_exists="yes"
+    assert_eq "hook_test_failure_guard trap: legacy log NOT written" "no" "$legacy_exists"
+}
+
+test_hook_commit_failure_tracker_trap_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+    _run_probe_test "commit-failure-tracker" "pre-bash-functions.sh" "$TEST_HOME"
+
+    local new_exists="no"
+    [[ -f "$TEST_HOME/.claude/logs/dso-hook-errors.jsonl" ]] && new_exists="yes"
+    assert_eq "hook_commit_failure_tracker trap: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$TEST_HOME/.claude/hook-error-log.jsonl" ]] && legacy_exists="yes"
+    assert_eq "hook_commit_failure_tracker trap: legacy log NOT written" "no" "$legacy_exists"
+}
+
+test_hook_review_integrity_guard_trap_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+    _run_probe_test "review-integrity-guard" "pre-bash-functions.sh" "$TEST_HOME"
+
+    local new_exists="no"
+    [[ -f "$TEST_HOME/.claude/logs/dso-hook-errors.jsonl" ]] && new_exists="yes"
+    assert_eq "hook_review_integrity_guard trap: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$TEST_HOME/.claude/hook-error-log.jsonl" ]] && legacy_exists="yes"
+    assert_eq "hook_review_integrity_guard trap: legacy log NOT written" "no" "$legacy_exists"
+}
+
+test_hook_tickets_tracker_bash_guard_trap_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+    _run_probe_test "tickets-tracker-bash-guard" "pre-bash-functions.sh" "$TEST_HOME"
+
+    local new_exists="no"
+    [[ -f "$TEST_HOME/.claude/logs/dso-hook-errors.jsonl" ]] && new_exists="yes"
+    assert_eq "hook_tickets_tracker_bash_guard trap: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$TEST_HOME/.claude/hook-error-log.jsonl" ]] && legacy_exists="yes"
+    assert_eq "hook_tickets_tracker_bash_guard trap: legacy log NOT written" "no" "$legacy_exists"
+}
+
+test_hook_checkpoint_rollback_trap_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+    _run_probe_test "checkpoint-rollback" "pre-all-functions.sh" "$TEST_HOME"
+
+    local new_exists="no"
+    [[ -f "$TEST_HOME/.claude/logs/dso-hook-errors.jsonl" ]] && new_exists="yes"
+    assert_eq "hook_checkpoint_rollback trap: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$TEST_HOME/.claude/hook-error-log.jsonl" ]] && legacy_exists="yes"
+    assert_eq "hook_checkpoint_rollback trap: legacy log NOT written" "no" "$legacy_exists"
+}
+
+test_hook_plan_review_gate_trap_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+    _run_probe_test "plan-review-gate" "session-misc-functions.sh" "$TEST_HOME"
+
+    local new_exists="no"
+    [[ -f "$TEST_HOME/.claude/logs/dso-hook-errors.jsonl" ]] && new_exists="yes"
+    assert_eq "hook_plan_review_gate trap: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$TEST_HOME/.claude/hook-error-log.jsonl" ]] && legacy_exists="yes"
+    assert_eq "hook_plan_review_gate trap: legacy log NOT written" "no" "$legacy_exists"
+}
+
+test_hook_brainstorm_gate_trap_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+    _run_probe_test "brainstorm-gate" "session-misc-functions.sh" "$TEST_HOME"
+
+    local new_exists="no"
+    [[ -f "$TEST_HOME/.claude/logs/dso-hook-errors.jsonl" ]] && new_exists="yes"
+    assert_eq "hook_brainstorm_gate trap: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$TEST_HOME/.claude/hook-error-log.jsonl" ]] && legacy_exists="yes"
+    assert_eq "hook_brainstorm_gate trap: legacy log NOT written" "no" "$legacy_exists"
+}
+
+test_hook_taskoutput_block_guard_trap_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+    _run_probe_test "taskoutput-block-guard" "session-misc-functions.sh" "$TEST_HOME"
+
+    local new_exists="no"
+    [[ -f "$TEST_HOME/.claude/logs/dso-hook-errors.jsonl" ]] && new_exists="yes"
+    assert_eq "hook_taskoutput_block_guard trap: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$TEST_HOME/.claude/hook-error-log.jsonl" ]] && legacy_exists="yes"
+    assert_eq "hook_taskoutput_block_guard trap: legacy log NOT written" "no" "$legacy_exists"
+}
+
+# ---------------------------------------------------------------------------
+# TEST: run-hook.sh syntax error path writes to NEW canonical log path
+#
+# run-hook.sh hardcodes HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+# when it detects a syntax error in the target hook. After b36e-a03a, this
+# path should change to "$HOME/.claude/logs/dso-hook-errors.jsonl".
+# ---------------------------------------------------------------------------
+test_run_hook_syntax_error_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+
+    local BROKEN_HOOK
+    BROKEN_HOOK=$(mktemp -t test-broken-hook)
+    _TEST_TMPDIRS+=("$BROKEN_HOOK")
+    printf '#!/usr/bin/env bash\nif then fi\n' > "$BROKEN_HOOK"
+    chmod +x "$BROKEN_HOOK"
+
+    local runner
+    runner=$(_make_runner)
+
+    cat > "$runner" << RUNNER_EOF
+#!/usr/bin/env bash
+export HOME='${TEST_HOME}'
+export CLAUDE_PLUGIN_ROOT='${DSO_PLUGIN_DIR}'
+bash '${DSO_PLUGIN_DIR}/hooks/run-hook.sh' '${BROKEN_HOOK}' 2>/dev/null
+RUNNER_EOF
+
+    chmod +x "$runner"
+    bash "$runner" 2>/dev/null
+
+    local NEW_LOG="$TEST_HOME/.claude/logs/dso-hook-errors.jsonl"
+    local LEGACY_LOG="$TEST_HOME/.claude/hook-error-log.jsonl"
+
+    local new_exists="no"
+    [[ -f "$NEW_LOG" ]] && new_exists="yes"
+    assert_eq "run-hook.sh syntax error: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$LEGACY_LOG" ]] && legacy_exists="yes"
+    assert_eq "run-hook.sh syntax error: legacy log NOT written" "no" "$legacy_exists"
+}
+
+# ---------------------------------------------------------------------------
+# Run all tests
+# ---------------------------------------------------------------------------
+
+# Real-function tests (actual ERR trigger via git override):
+test_hook_worktree_bash_guard_real_err_writes_new_canonical_path
+test_hook_worktree_edit_guard_real_err_writes_new_canonical_path
+
+# Probe-function tests (same HOOK_ERROR_LOG assignment, triggered via `false`):
+test_hook_test_failure_guard_trap_writes_new_canonical_path
+test_hook_commit_failure_tracker_trap_writes_new_canonical_path
+test_hook_review_integrity_guard_trap_writes_new_canonical_path
+test_hook_tickets_tracker_bash_guard_trap_writes_new_canonical_path
+test_hook_checkpoint_rollback_trap_writes_new_canonical_path
+test_hook_plan_review_gate_trap_writes_new_canonical_path
+test_hook_brainstorm_gate_trap_writes_new_canonical_path
+test_hook_taskoutput_block_guard_trap_writes_new_canonical_path
+
+# run-hook.sh test (hardcoded legacy path in error handling):
+test_run_hook_syntax_error_writes_new_canonical_path
+
+print_summary
