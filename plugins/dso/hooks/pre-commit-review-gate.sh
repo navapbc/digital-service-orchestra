@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
+# hook-boundary: enforcement
 _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+# shellcheck disable=SC2295  # Pre-existing: inner $(…) in pattern expansion — safe here
 _PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)/}"
 # hooks/pre-commit-review-gate.sh
 # git pre-commit hook: default-deny allowlist check + review-status validation.
@@ -317,6 +319,7 @@ if [[ "$_has_staged_fragments" == "true" ]]; then
 
     # Find all generated agent files in the repo
     _stale_agents=()
+    # shellcheck disable=SC2231  # Pre-existing: glob in for-loop with variable prefix — intentional
     for _agent_file in ${_PLUGIN_GIT_PATH}/agents/code-reviewer-*.md; do
         [[ -f "$_agent_file" ]] || continue
 

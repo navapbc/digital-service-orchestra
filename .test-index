@@ -255,4 +255,4 @@ plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition-flock.sh [test_flock_llm_format_referenced]
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
 plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh
-plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh [test_enforcement_boundary_blocks_handler_source]
+plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
