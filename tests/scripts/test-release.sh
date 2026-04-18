@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 # tests/scripts/test-release.sh
-# RED phase tests for scripts/release.sh precondition logic.
-#
-# All tests MUST FAIL because scripts/release.sh does not yet exist.
+# Tests for scripts/release.sh precondition logic.
 #
 # Test cases:
-#   1. test_release_ci_not_green              [RED MARKER]
+#   1. test_release_ci_not_green
 #   2. test_release_dirty_tree
 #   3. test_release_not_on_main
 #   4. test_release_not_up_to_date
@@ -15,6 +13,11 @@
 #   8. test_release_yes_flag_accepted
 #   9. test_release_all_preconditions_pass
 #  10. test_release_yes_does_not_bypass_preconditions
+#  11. test_release_invalid_semver
+#  12. test_release_gh_not_authenticated
+#  13. test_release_tag_already_exists
+#  14. test_release_push_failure
+#  15. test_release_no_upstream_configured
 #
 # Usage: bash tests/scripts/test-release.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail (RED: expect exit 1)
@@ -151,7 +154,7 @@ fi
 assert_eq "scripts/release.sh exists and is executable" "executable" "$actual"
 
 # =============================================================================
-# test_release_ci_not_green  [RED MARKER]
+# test_release_ci_not_green
 # Given: gh returns a CI failure status
 # When:  scripts/release.sh 1.2.3 is called
 # Then:  exits non-zero AND "CI" appears in stderr
@@ -171,21 +174,25 @@ make_mock "$_mock_ci" "git" 0
 cat > "$_mock_ci/git" << 'STUB'
 #!/usr/bin/env bash
 case "$1" in
-  branch)   echo "main"; exit 0 ;;
-  status)   exit 0 ;;
-  fetch)    exit 0 ;;
-  rev-list) echo "0"; exit 0 ;;  # up-to-date; CI check is the failure
-  push)     exit 0 ;;
-  *)        exit 0 ;;
+  branch)    echo "main"; exit 0 ;;
+  status)    exit 0 ;;
+  fetch)     exit 0 ;;
+  rev-list)  echo "0"; exit 0 ;;  # up-to-date; CI check is the failure
+  rev-parse) echo "deadbeef000000"; exit 0 ;;
+  push)      exit 0 ;;
+  *)         exit 0 ;;
 esac
 STUB
 chmod +x "$_mock_ci/git"
 
-# gh returns failure
+# gh: auth succeeds, but run list returns non-success conclusion (CI not green)
 cat > "$_mock_ci/gh" << 'STUB'
 #!/usr/bin/env bash
-echo "completed  failure  main  CI  1234" >&2
-exit 1
+case "$1" in
+  auth) exit 0 ;;  # auth status passes
+  run)  echo '[{"conclusion":"failure"}]'; exit 0 ;;  # CI failed conclusion
+  *)    exit 0 ;;
+esac
 STUB
 chmod +x "$_mock_ci/gh"
 
@@ -220,17 +227,18 @@ mkdir -p "$_mock_dirty"
 cat > "$_mock_dirty/git" << 'STUB'
 #!/usr/bin/env bash
 case "$1" in
-  branch)   echo "main"; exit 0 ;;
-  status)   echo " M some-file.txt"; exit 0 ;;  # always dirty
-  fetch)    exit 0 ;;
-  rev-list) echo "0"; exit 0 ;;  # up-to-date; dirty tree is the failure
-  push)     exit 0 ;;
-  *)        exit 0 ;;
+  branch)    echo "main"; exit 0 ;;
+  status)    echo " M some-file.txt"; exit 0 ;;  # always dirty
+  fetch)     exit 0 ;;
+  rev-list)  echo "0"; exit 0 ;;  # up-to-date; dirty tree is the failure
+  rev-parse) echo "deadbeef000000"; exit 0 ;;
+  push)      exit 0 ;;
+  *)         exit 0 ;;
 esac
 STUB
 chmod +x "$_mock_dirty/git"
 
-make_mock "$_mock_dirty" "gh" 0 "completed  success  main  CI  1234"
+make_mock "$_mock_dirty" "gh" 0 '[{"conclusion":"success"}]'
 make_mock "$_mock_dirty" "dso" 0
 
 _dirty_exit=0
@@ -262,17 +270,18 @@ mkdir -p "$_mock_branch"
 cat > "$_mock_branch/git" << 'STUB'
 #!/usr/bin/env bash
 case "$1" in
-  branch)   echo "feature-x"; exit 0 ;;  # wrong branch — the failure
-  status)   exit 0 ;;
-  fetch)    exit 0 ;;
-  rev-list) echo "0"; exit 0 ;;  # up-to-date; branch check is the failure
-  push)     exit 0 ;;
-  *)        exit 0 ;;
+  branch)    echo "feature-x"; exit 0 ;;  # wrong branch — the failure
+  status)    exit 0 ;;
+  fetch)     exit 0 ;;
+  rev-list)  echo "0"; exit 0 ;;  # up-to-date; branch check is the failure
+  rev-parse) echo "deadbeef000000"; exit 0 ;;
+  push)      exit 0 ;;
+  *)         exit 0 ;;
 esac
 STUB
 chmod +x "$_mock_branch/git"
 
-make_mock "$_mock_branch" "gh" 0 "completed  success  main  CI  1234"
+make_mock "$_mock_branch" "gh" 0 '[{"conclusion":"success"}]'
 make_mock "$_mock_branch" "dso" 0
 
 _branch_exit=0
@@ -304,17 +313,18 @@ mkdir -p "$_mock_behind"
 cat > "$_mock_behind/git" << 'STUB'
 #!/usr/bin/env bash
 case "$1" in
-  branch)   echo "main"; exit 0 ;;
-  status)   exit 0 ;;  # clean tree (no --porcelain output)
-  fetch)    exit 0 ;;  # fetch succeeds
-  rev-list) echo "3"; exit 0 ;;  # 3 commits behind origin (HEAD..@{u})
-  push)     exit 0 ;;
-  *)        exit 0 ;;
+  branch)    echo "main"; exit 0 ;;
+  status)    exit 0 ;;  # clean tree (no --porcelain output)
+  fetch)     exit 0 ;;  # fetch succeeds
+  rev-list)  echo "3"; exit 0 ;;  # 3 commits behind origin (HEAD..@{u})
+  rev-parse) echo "deadbeef000000"; exit 0 ;;
+  push)      exit 0 ;;
+  *)         exit 0 ;;
 esac
 STUB
 chmod +x "$_mock_behind/git"
 
-make_mock "$_mock_behind" "gh" 0 "completed  success  main  CI  1234"
+make_mock "$_mock_behind" "gh" 0 '[{"conclusion":"success"}]'
 make_mock "$_mock_behind" "dso" 0
 
 _behind_exit=0
@@ -342,6 +352,15 @@ _fake_repo_val="$(_make_git_repo)"
 mkdir -p "$_fake_repo_val/.claude-plugin"
 printf '{"name":"p","version":"1.0.0"}' > "$_fake_repo_val/.claude-plugin/marketplace.json"
 
+# Create failing dso shim at the absolute path release.sh will call
+mkdir -p "$_fake_repo_val/.claude/scripts"
+cat > "$_fake_repo_val/.claude/scripts/dso" << 'STUB'
+#!/usr/bin/env bash
+echo "validation failed" >&2
+exit 1
+STUB
+chmod +x "$_fake_repo_val/.claude/scripts/dso"
+
 mkdir -p "$_mock_val"
 cat > "$_mock_val/git" << 'STUB'
 #!/usr/bin/env bash
@@ -356,19 +375,14 @@ esac
 STUB
 chmod +x "$_mock_val/git"
 
-make_mock "$_mock_val" "gh" 0 "completed  success  main  CI  1234"
-
-# dso shim: exits non-zero on validate
-cat > "$_mock_val/dso" << 'STUB'
-#!/usr/bin/env bash
-echo "validation failed" >&2
-exit 1
-STUB
-chmod +x "$_mock_val/dso"
+make_mock "$_mock_val" "gh" 0 '[{"conclusion":"success"}]'
 
 _val_exit=0
-PATH="$_mock_val:$PATH" bash "$SCRIPT" "1.2.3" --yes \
-    < /dev/null > /dev/null 2>"$_tmp_val/stderr.txt" || _val_exit=$?
+(
+    cd "$_fake_repo_val"
+    PATH="$_mock_val:$PATH" bash "$SCRIPT" "1.2.3" --yes \
+        < /dev/null > /dev/null 2>"$_tmp_val/stderr.txt"
+) || _val_exit=$?
 _val_stderr=$(cat "$_tmp_val/stderr.txt" 2>/dev/null || true)
 
 assert_ne "test_release_validate_fails: exit non-zero" "0" "$_val_exit"
@@ -392,6 +406,11 @@ mkdir -p "$_fake_repo_json/.claude-plugin"
 # Write intentionally invalid JSON
 printf 'not valid json {{{' > "$_fake_repo_json/.claude-plugin/marketplace.json"
 
+# Passing dso shim so validate check succeeds and JSON check is the failure
+mkdir -p "$_fake_repo_json/.claude/scripts"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$_fake_repo_json/.claude/scripts/dso"
+chmod +x "$_fake_repo_json/.claude/scripts/dso"
+
 mkdir -p "$_mock_json"
 cat > "$_mock_json/git" << 'STUB'
 #!/usr/bin/env bash
@@ -406,16 +425,18 @@ esac
 STUB
 chmod +x "$_mock_json/git"
 
-make_mock "$_mock_json" "gh" 0 "completed  success  main  CI  1234"
+make_mock "$_mock_json" "gh" 0 '[{"conclusion":"success"}]'
 make_mock "$_mock_json" "dso" 0
 
 _json_exit=0
 (
     cd "$_fake_repo_json"
-    PATH="$_mock_json:$PATH" bash "$SCRIPT" "1.2.3" --yes < /dev/null > /dev/null 2>/dev/null
+    PATH="$_mock_json:$PATH" bash "$SCRIPT" "1.2.3" --yes < /dev/null > /dev/null 2>"$_tmp_json/stderr.txt"
 ) || _json_exit=$?
+_json_stderr=$(cat "$_tmp_json/stderr.txt" 2>/dev/null || true)
 
 assert_ne "test_release_invalid_json: exit non-zero" "0" "$_json_exit"
+assert_contains "test_release_invalid_json: marketplace.json in stderr" "marketplace.json" "$_json_stderr"
 assert_pass_if_clean "test_release_invalid_json"
 
 # =============================================================================
@@ -435,6 +456,11 @@ mkdir -p "$_fake_repo_conf/.claude-plugin"
 printf '{"name":"p","version":"1.0.0"}' > "$_fake_repo_conf/.claude-plugin/marketplace.json"
 _push_log_conf="$_tmp_conf/push-calls.log"
 
+# Passing dso shim so confirmation check is the failure (not missing dso)
+mkdir -p "$_fake_repo_conf/.claude/scripts"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$_fake_repo_conf/.claude/scripts/dso"
+chmod +x "$_fake_repo_conf/.claude/scripts/dso"
+
 mkdir -p "$_mock_conf"
 cat > "$_mock_conf/git" << STUB
 #!/usr/bin/env bash
@@ -449,7 +475,7 @@ esac
 STUB
 chmod +x "$_mock_conf/git"
 
-make_mock "$_mock_conf" "gh" 0 "completed  success  main  CI  1234"
+make_mock "$_mock_conf" "gh" 0 '[{"conclusion":"success"}]'
 make_mock "$_mock_conf" "dso" 0
 
 _conf_exit=0
@@ -460,7 +486,7 @@ _conf_exit=0
 
 _push_calls_conf=0
 if [[ -f "$_push_log_conf" ]]; then
-    _push_calls_conf=$(wc -l < "$_push_log_conf")
+    _push_calls_conf=$(wc -l < "$_push_log_conf" | tr -d ' ')
 fi
 
 assert_ne "test_release_confirmation_required: exit non-zero without --yes" "0" "$_conf_exit"
@@ -483,6 +509,12 @@ _fake_repo_yes="$(_make_git_repo)"
 mkdir -p "$_fake_repo_yes/.claude-plugin"
 printf '{"name":"p","version":"1.0.0"}' > "$_fake_repo_yes/.claude-plugin/marketplace.json"
 _push_log_yes="$_tmp_yes/push-calls.log"
+_tag_log_yes="$_tmp_yes/tag-calls.log"
+
+# Passing dso shim at the absolute path release.sh will invoke
+mkdir -p "$_fake_repo_yes/.claude/scripts"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$_fake_repo_yes/.claude/scripts/dso"
+chmod +x "$_fake_repo_yes/.claude/scripts/dso"
 
 mkdir -p "$_mock_yes"
 cat > "$_mock_yes/git" << STUB
@@ -491,15 +523,25 @@ case "\$1" in
   branch)   echo "main"; exit 0 ;;
   status)   exit 0 ;;
   fetch)    exit 0 ;;
-  rev-list) echo "0"; exit 0 ;;  # up-to-date
-  push)     echo "called" >> "$_push_log_yes"; exit 0 ;;
-  *)        exit 0 ;;
+  rev-list) echo "0"; exit 0 ;;
+  rev-parse)
+    case "\$2" in
+      --show-toplevel) echo "$_fake_repo_yes"; exit 0 ;;
+      --abbrev-ref)    echo "origin/main"; exit 0 ;;
+      *)               echo "deadbeef000000"; exit 0 ;;
+    esac
+    ;;
+  tag)
+    [[ "\$2" == "-a" ]] && echo "called" >> "$_tag_log_yes"  # only record tag creation
+    exit 0
+    ;;
+  push) echo "called" >> "$_push_log_yes"; exit 0 ;;
+  *)    exit 0 ;;
 esac
 STUB
 chmod +x "$_mock_yes/git"
 
-make_mock "$_mock_yes" "gh" 0 "completed  success  main  CI  1234"
-make_mock "$_mock_yes" "dso" 0
+make_mock "$_mock_yes" "gh" 0 '[{"conclusion":"success"}]'
 
 _yes_exit=0
 (
@@ -509,10 +551,15 @@ _yes_exit=0
 
 _push_calls_yes=0
 if [[ -f "$_push_log_yes" ]]; then
-    _push_calls_yes=$(wc -l < "$_push_log_yes")
+    _push_calls_yes=$(wc -l < "$_push_log_yes" | tr -d ' ')
+fi
+_tag_calls_yes=0
+if [[ -f "$_tag_log_yes" ]]; then
+    _tag_calls_yes=$(wc -l < "$_tag_log_yes" | tr -d ' ')
 fi
 
 assert_eq "test_release_yes_flag_accepted: exits 0" "0" "$_yes_exit"
+assert_eq "test_release_yes_flag_accepted: tag called" "1" "$_tag_calls_yes"
 assert_eq "test_release_yes_flag_accepted: push called exactly once" "1" "$_push_calls_yes"
 assert_pass_if_clean "test_release_yes_flag_accepted"
 
@@ -531,23 +578,40 @@ _mock_pass="$_tmp_pass/bin"
 _fake_repo_pass="$(_make_git_repo)"
 mkdir -p "$_fake_repo_pass/.claude-plugin"
 printf '{"name":"p","version":"1.0.0"}' > "$_fake_repo_pass/.claude-plugin/marketplace.json"
+_tag_log_pass="$_tmp_pass/tag-calls.log"
+_push_log_pass="$_tmp_pass/push-calls.log"
+
+# Passing dso shim at the absolute path release.sh will invoke
+mkdir -p "$_fake_repo_pass/.claude/scripts"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$_fake_repo_pass/.claude/scripts/dso"
+chmod +x "$_fake_repo_pass/.claude/scripts/dso"
 
 mkdir -p "$_mock_pass"
-cat > "$_mock_pass/git" << 'STUB'
+cat > "$_mock_pass/git" << STUB
 #!/usr/bin/env bash
-case "$1" in
+case "\$1" in
   branch)   echo "main"; exit 0 ;;
   status)   exit 0 ;;
   fetch)    exit 0 ;;
-  rev-list) echo "0"; exit 0 ;;  # up-to-date
-  push)     exit 0 ;;
-  *)        exit 0 ;;
+  rev-list) echo "0"; exit 0 ;;
+  rev-parse)
+    case "\$2" in
+      --show-toplevel) echo "$_fake_repo_pass"; exit 0 ;;
+      --abbrev-ref)    echo "origin/main"; exit 0 ;;
+      *)               echo "deadbeef000000"; exit 0 ;;
+    esac
+    ;;
+  tag)
+    [[ "\$2" == "-a" ]] && echo "called" >> "$_tag_log_pass"
+    exit 0
+    ;;
+  push) echo "called" >> "$_push_log_pass"; exit 0 ;;
+  *)    exit 0 ;;
 esac
 STUB
 chmod +x "$_mock_pass/git"
 
-make_mock "$_mock_pass" "gh" 0 "completed  success  main  CI  1234"
-make_mock "$_mock_pass" "dso" 0
+make_mock "$_mock_pass" "gh" 0 '[{"conclusion":"success"}]'
 
 _pass_exit=0
 (
@@ -555,7 +619,18 @@ _pass_exit=0
     PATH="$_mock_pass:$PATH" bash "$SCRIPT" "1.2.3" --yes < /dev/null > /dev/null 2>/dev/null
 ) || _pass_exit=$?
 
+_tag_calls_pass=0
+if [[ -f "$_tag_log_pass" ]]; then
+    _tag_calls_pass=$(wc -l < "$_tag_log_pass" | tr -d ' ')
+fi
+_push_calls_pass=0
+if [[ -f "$_push_log_pass" ]]; then
+    _push_calls_pass=$(wc -l < "$_push_log_pass" | tr -d ' ')
+fi
+
 assert_eq "test_release_all_preconditions_pass: exits 0" "0" "$_pass_exit"
+assert_eq "test_release_all_preconditions_pass: tag created" "1" "$_tag_calls_pass"
+assert_eq "test_release_all_preconditions_pass: push called" "1" "$_push_calls_pass"
 assert_pass_if_clean "test_release_all_preconditions_pass"
 
 # =============================================================================
@@ -601,7 +676,7 @@ esac
 STUB
 chmod +x "$_mock_bypass/git"
 
-make_mock "$_mock_bypass" "gh" 0 "completed  success  main  CI  1234"
+make_mock "$_mock_bypass" "gh" 0 '[{"conclusion":"success"}]'
 make_mock "$_mock_bypass" "dso" 0
 
 _bypass_exit=0
@@ -612,11 +687,207 @@ _bypass_exit=0
 
 _push_calls_bypass=0
 if [[ -f "$_push_log_bypass" ]]; then
-    _push_calls_bypass=$(wc -l < "$_push_log_bypass")
+    _push_calls_bypass=$(wc -l < "$_push_log_bypass" | tr -d ' ')
 fi
 
 assert_ne "test_release_yes_does_not_bypass_preconditions: exit non-zero" "0" "$_bypass_exit"
 assert_eq "test_release_yes_does_not_bypass_preconditions: push NOT called" "0" "$_push_calls_bypass"
 assert_pass_if_clean "test_release_yes_does_not_bypass_preconditions"
+
+# =============================================================================
+# test_release_invalid_semver
+# Given: VERSION is not valid semver (e.g., "1.2" or "v1.2.3")
+# When:  scripts/release.sh is called
+# Then:  exits non-zero AND "semver" or "Invalid" appears in stderr
+# =============================================================================
+echo ""
+echo "--- test_release_invalid_semver ---"
+_snapshot_fail
+
+_tmp_semver="$(_make_tmp)"
+_mock_semver="$_tmp_semver/bin"
+
+_semver_exit=0
+PATH="$_mock_semver:$PATH" bash "$SCRIPT" "1.2" --yes \
+    < /dev/null > /dev/null 2>"$_tmp_semver/stderr.txt" || _semver_exit=$?
+_semver_stderr=$(cat "$_tmp_semver/stderr.txt" 2>/dev/null || true)
+
+assert_ne "test_release_invalid_semver: exit non-zero for '1.2'" "0" "$_semver_exit"
+assert_contains "test_release_invalid_semver: error in stderr" "Invalid" "$_semver_stderr"
+
+_semver2_exit=0
+PATH="$_mock_semver:$PATH" bash "$SCRIPT" "v1.2.3" --yes \
+    < /dev/null > /dev/null 2>"$_tmp_semver/stderr2.txt" || _semver2_exit=$?
+_semver2_stderr=$(cat "$_tmp_semver/stderr2.txt" 2>/dev/null || true)
+
+assert_ne "test_release_invalid_semver: exit non-zero for 'v1.2.3'" "0" "$_semver2_exit"
+assert_contains "test_release_invalid_semver: error in stderr for v-prefixed" "Invalid" "$_semver2_stderr"
+assert_pass_if_clean "test_release_invalid_semver"
+
+# =============================================================================
+# test_release_gh_not_authenticated
+# Given: gh auth status exits non-zero
+# When:  scripts/release.sh 1.2.3 is called
+# Then:  exits non-zero AND "gh" or "authenticated" appears in stderr
+# =============================================================================
+echo ""
+echo "--- test_release_gh_not_authenticated ---"
+_snapshot_fail
+
+_tmp_ghauth="$(_make_tmp)"
+_mock_ghauth="$_tmp_ghauth/bin"
+mkdir -p "$_mock_ghauth"
+
+make_mock "$_mock_ghauth" "git" 0
+# gh auth status returns non-zero (not authenticated)
+cat > "$_mock_ghauth/gh" << 'STUB'
+#!/usr/bin/env bash
+echo "You are not logged into any GitHub hosts." >&2
+exit 1
+STUB
+chmod +x "$_mock_ghauth/gh"
+
+_ghauth_exit=0
+PATH="$_mock_ghauth:$PATH" bash "$SCRIPT" "1.2.3" --yes \
+    < /dev/null > /dev/null 2>"$_tmp_ghauth/stderr.txt" || _ghauth_exit=$?
+_ghauth_stderr=$(cat "$_tmp_ghauth/stderr.txt" 2>/dev/null || true)
+
+assert_ne "test_release_gh_not_authenticated: exit non-zero" "0" "$_ghauth_exit"
+assert_contains "test_release_gh_not_authenticated: gh in stderr" "gh" "$_ghauth_stderr"
+assert_pass_if_clean "test_release_gh_not_authenticated"
+
+# =============================================================================
+# test_release_tag_already_exists
+# Given: git tag -l returns the tag (it already exists)
+# When:  scripts/release.sh 1.2.3 is called
+# Then:  exits non-zero AND "already exists" appears in stderr
+# =============================================================================
+echo ""
+echo "--- test_release_tag_already_exists ---"
+_snapshot_fail
+
+_tmp_tagex="$(_make_tmp)"
+_mock_tagex="$_tmp_tagex/bin"
+mkdir -p "$_mock_tagex"
+
+# gh auth passes
+make_mock "$_mock_tagex" "gh" 0 '[{"conclusion":"success"}]'
+
+# git mock: tag -l returns the tag (already exists)
+cat > "$_mock_tagex/git" << 'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  tag)      echo "v1.2.3"; exit 0 ;;  # tag already exists
+  branch)   echo "main"; exit 0 ;;
+  status)   exit 0 ;;
+  fetch)    exit 0 ;;
+  rev-list) echo "0"; exit 0 ;;
+  push)     exit 0 ;;
+  *)        exit 0 ;;
+esac
+STUB
+chmod +x "$_mock_tagex/git"
+
+_tagex_exit=0
+PATH="$_mock_tagex:$PATH" bash "$SCRIPT" "1.2.3" --yes \
+    < /dev/null > /dev/null 2>"$_tmp_tagex/stderr.txt" || _tagex_exit=$?
+_tagex_stderr=$(cat "$_tmp_tagex/stderr.txt" 2>/dev/null || true)
+
+assert_ne "test_release_tag_already_exists: exit non-zero" "0" "$_tagex_exit"
+assert_contains "test_release_tag_already_exists: already exists in stderr" "already exists" "$_tagex_stderr"
+assert_pass_if_clean "test_release_tag_already_exists"
+
+# =============================================================================
+# test_release_push_failure
+# Given: git push --follow-tags fails (e.g., rejected by remote)
+# When:  scripts/release.sh 1.2.3 --yes is called
+# Then:  exits non-zero (set -euo pipefail aborts on push failure)
+# =============================================================================
+echo ""
+echo "--- test_release_push_failure ---"
+_snapshot_fail
+
+_tmp_push_fail="$(_make_tmp)"
+_mock_push_fail="$_tmp_push_fail/bin"
+_fake_repo_push_fail="$(_make_git_repo)"
+mkdir -p "$_fake_repo_push_fail/.claude-plugin"
+printf '{"name":"p","version":"1.0.0"}' > "$_fake_repo_push_fail/.claude-plugin/marketplace.json"
+
+mkdir -p "$_fake_repo_push_fail/.claude/scripts"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$_fake_repo_push_fail/.claude/scripts/dso"
+chmod +x "$_fake_repo_push_fail/.claude/scripts/dso"
+
+mkdir -p "$_mock_push_fail"
+cat > "$_mock_push_fail/git" << STUB
+#!/usr/bin/env bash
+case "\$1" in
+  branch)    echo "main"; exit 0 ;;
+  status)    exit 0 ;;
+  fetch)     exit 0 ;;
+  rev-list)  echo "0"; exit 0 ;;
+  rev-parse) echo "deadbeef000000"; exit 0 ;;
+  tag)       exit 0 ;;   # tag creation succeeds
+  push)      echo "remote: push rejected" >&2; exit 1 ;;  # push fails
+  *)         exit 0 ;;
+esac
+STUB
+chmod +x "$_mock_push_fail/git"
+
+make_mock "$_mock_push_fail" "gh" 0 '[{"conclusion":"success"}]'
+
+_push_fail_exit=0
+(
+    cd "$_fake_repo_push_fail"
+    PATH="$_mock_push_fail:$PATH" bash "$SCRIPT" "1.2.3" --yes < /dev/null > /dev/null 2>/dev/null
+) || _push_fail_exit=$?
+
+assert_ne "test_release_push_failure: exits non-zero when push fails" "0" "$_push_fail_exit"
+assert_pass_if_clean "test_release_push_failure"
+
+# =============================================================================
+# test_release_no_upstream_configured
+# Given: git rev-parse --abbrev-ref HEAD@{upstream} exits non-zero (no upstream)
+# When:  scripts/release.sh 1.2.3 --yes is called
+# Then:  exits non-zero AND "upstream" or "tracking" appears in stderr
+# =============================================================================
+echo ""
+echo "--- test_release_no_upstream_configured ---"
+_snapshot_fail
+
+_tmp_noup="$(_make_tmp)"
+_mock_noup="$_tmp_noup/bin"
+mkdir -p "$_mock_noup"
+
+cat > "$_mock_noup/git" << 'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  branch)   echo "main"; exit 0 ;;
+  status)   exit 0 ;;
+  fetch)    exit 0 ;;
+  rev-parse)
+    if [[ "$2" == "--abbrev-ref" ]]; then
+      # Simulate no upstream tracking branch configured
+      echo "fatal: no upstream configured for branch 'main'" >&2
+      exit 1
+    fi
+    echo "deadbeef000000"; exit 0
+    ;;
+  rev-list) echo "0"; exit 0 ;;
+  push)     exit 0 ;;
+  *)        exit 0 ;;
+esac
+STUB
+chmod +x "$_mock_noup/git"
+
+make_mock "$_mock_noup" "gh" 0 '[{"conclusion":"success"}]'
+
+_noup_exit=0
+PATH="$_mock_noup:$PATH" bash "$SCRIPT" "1.2.3" --yes \
+    < /dev/null > /dev/null 2>"$_tmp_noup/stderr.txt" || _noup_exit=$?
+_noup_stderr=$(cat "$_tmp_noup/stderr.txt" 2>/dev/null || true)
+
+assert_ne "test_release_no_upstream_configured: exit non-zero" "0" "$_noup_exit"
+assert_contains "test_release_no_upstream_configured: upstream in stderr" "upstream" "$_noup_stderr"
+assert_pass_if_clean "test_release_no_upstream_configured"
 
 print_summary
