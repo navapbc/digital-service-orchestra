@@ -128,6 +128,9 @@ CLAUDE.md:tests/scripts/test-docs-behavioral-drift-prevention.sh
 plugins/dso/agents/red-team-reviewer.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/blue-team-filter.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/red-test-writer.md:tests/hooks/test-agent-standard-reference.sh
+plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test-ticket-subprocess-count.sh [test_list_llm_branch_single_python3]
+plugins/dso/scripts/ticket-show.sh:tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-subprocess-count.sh [test_list_llm_branch_single_python3]
+plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh,tests/scripts/test-ticket-subprocess-count.sh [test_list_llm_branch_single_python3]
 plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-reference.sh
 plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard-reference.sh
 plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
