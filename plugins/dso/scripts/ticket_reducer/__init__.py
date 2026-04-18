@@ -38,6 +38,7 @@ from ticket_reducer._processors import (
     replay_events,
     scan_for_latest_snapshot,
 )
+from ticket_reducer.marker import check_marker, remove_marker, write_marker
 
 __all__ = [
     "make_initial_state",
@@ -59,4 +60,7 @@ __all__ = [
     "process_snapshot",
     "scan_for_latest_snapshot",
     "replay_events",
+    "write_marker",
+    "remove_marker",
+    "check_marker",
 ]
