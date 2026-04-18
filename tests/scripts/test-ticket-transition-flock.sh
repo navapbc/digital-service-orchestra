@@ -1,0 +1,192 @@
+#!/usr/bin/env bash
+# tests/scripts/test-ticket-transition-flock.sh
+# Structural assertion: verifies the flock critical section boundary in
+# ticket-transition.sh is not widened by the S2 consolidation (e768-2bae).
+#
+# The flock section must contain ONLY:
+#   - status read (reducer call)
+#   - optimistic concurrency verify
+#   - status event write (temp file + rename)
+#   - git add + commit
+#
+# LLM formatting (to_llm / llm_format) must happen OUTSIDE the lock.
+#
+# Test 1 (RED until S2): assert ticket-transition.sh references llm_format/to_llm
+#   (fails on pre-S2 code where the import has not been added yet)
+# Test 2 (guard): assert to_llm/llm_format does NOT appear inside the flock section
+#   (protects against accidentally widening the lock to include formatting work)
+#
+# Usage: bash tests/scripts/test-ticket-transition-flock.sh
+# Returns: exit non-zero (RED) until S2 consolidation adds llm_format to transition.
+
+# NOTE: -e is intentionally omitted — test functions return non-zero by design.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+TRANSITION_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-transition.sh"
+
+source "$REPO_ROOT/tests/lib/assert.sh"
+
+echo "=== test-ticket-transition-flock.sh ==="
+echo ""
+
+# ── Helper: extract text between flock acquire and first release ──────────────
+# Returns the content of ticket-transition.sh from the line containing
+# fcntl.LOCK_EX (lock acquire) up to (but not including) the first
+# 'os.close(fd)' line that follows the acquire — which is the lock release.
+#
+# This captures the critical section body: everything the script does
+# while holding the lock.
+_extract_flock_section() {
+    local src="$1"
+    python3 - "$src" <<'PYEOF'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as f:
+    lines = f.readlines()
+
+# Find the flock acquire line
+acquire_idx = None
+for i, line in enumerate(lines):
+    if 'fcntl.LOCK_EX' in line and 'fcntl.flock' in line:
+        acquire_idx = i
+        break
+
+if acquire_idx is None:
+    print("FLOCK_ACQUIRE_NOT_FOUND", file=sys.stderr)
+    sys.exit(1)
+
+# Find the first os.close(fd) after the acquire — this is the lock release
+# (closing the file descriptor releases the advisory lock)
+release_idx = None
+for i in range(acquire_idx + 1, len(lines)):
+    if 'os.close(fd)' in lines[i]:
+        release_idx = i
+        break
+
+if release_idx is None:
+    print("FLOCK_RELEASE_NOT_FOUND", file=sys.stderr)
+    sys.exit(1)
+
+# Print the content between acquire and release (exclusive of both boundary lines)
+for line in lines[acquire_idx + 1:release_idx]:
+    sys.stdout.write(line)
+PYEOF
+}
+
+# ── Test 1 (RED until S2): llm_format referenced in ticket-transition.sh ──────
+# After the S2 consolidation, ticket-transition.sh will import to_llm from
+# ticket_reducer.llm_format as part of the single-process pipeline.
+# Until S2 is done, the reference is absent and this test fails RED.
+echo "Test 1 (RED until S2): ticket-transition.sh references llm_format or to_llm"
+test_flock_llm_format_referenced() {
+    _snapshot_fail
+
+    if [ ! -f "$TRANSITION_SCRIPT" ]; then
+        assert_eq "flock-ref: ticket-transition.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_flock_llm_format_referenced"
+        return
+    fi
+
+    # grep returns 0 if found, 1 if not found
+    local grep_exit=0
+    grep -qE 'llm_format|to_llm' "$TRANSITION_SCRIPT" 2>/dev/null || grep_exit=$?
+
+    # Assert: at least one reference to llm_format or to_llm exists in the file
+    # RED: before S2, neither import is present → grep returns 1 → assertion fails
+    if [ "$grep_exit" -eq 0 ]; then
+        assert_eq "flock-ref: llm_format/to_llm referenced in ticket-transition.sh" "found" "found"
+    else
+        assert_eq "flock-ref: llm_format/to_llm referenced in ticket-transition.sh" "found" "not-found (S2 not yet applied)"
+    fi
+
+    assert_pass_if_clean "test_flock_llm_format_referenced"
+}
+test_flock_llm_format_referenced
+
+# ── Test 2 (guard): llm_format/to_llm NOT inside flock critical section ───────
+# This guard asserts the S2 implementation kept formatting work outside the lock.
+# The flock section must contain only: status read, concurrency verify,
+# event write, git add+commit. LLM formatting must happen outside the lock.
+echo ""
+echo "Test 2 (guard): to_llm/llm_format does NOT appear inside the flock section"
+test_flock_boundary_not_widened() {
+    _snapshot_fail
+
+    if [ ! -f "$TRANSITION_SCRIPT" ]; then
+        assert_eq "flock-boundary: ticket-transition.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_flock_boundary_not_widened"
+        return
+    fi
+
+    # Extract the flock critical section (content between acquire and first release)
+    local flock_section
+    flock_section=$(_extract_flock_section "$TRANSITION_SCRIPT" 2>/dev/null) || {
+        local extract_err
+        extract_err=$(_extract_flock_section "$TRANSITION_SCRIPT" 2>&1 >/dev/null) || true
+        assert_eq "flock-boundary: flock section extractable" "extracted" "error: $extract_err"
+        assert_pass_if_clean "test_flock_boundary_not_widened"
+        return
+    }
+
+    # Assert: the flock section does NOT reference llm_format or to_llm
+    # GREEN on current code (not there at all), GREEN after S2 (added outside the lock),
+    # RED if S2 accidentally puts the formatting call inside the lock.
+    if echo "$flock_section" | grep -qE 'llm_format|to_llm' 2>/dev/null; then
+        # Found inside lock — boundary was widened (regression)
+        local offending_lines
+        offending_lines=$(echo "$flock_section" | grep -E 'llm_format|to_llm' | head -5 | tr '\n' '|')
+        assert_eq "flock-boundary: llm_format/to_llm NOT inside flock section" \
+            "not-inside-lock" \
+            "found-inside-lock: $offending_lines"
+    else
+        assert_eq "flock-boundary: llm_format/to_llm NOT inside flock section" \
+            "not-inside-lock" \
+            "not-inside-lock"
+    fi
+
+    assert_pass_if_clean "test_flock_boundary_not_widened"
+}
+test_flock_boundary_not_widened
+
+# ── Test 3 (guard): flock section does not reference ticket-llm-format.py ─────
+# The importlib dance used in ticket-list.sh and ticket-show.sh must NOT be
+# pulled inside the flock section during S2 consolidation.
+echo ""
+echo "Test 3 (guard): importlib / ticket-llm-format path NOT inside flock section"
+test_flock_no_importlib_inside_lock() {
+    _snapshot_fail
+
+    if [ ! -f "$TRANSITION_SCRIPT" ]; then
+        assert_eq "flock-importlib: ticket-transition.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_flock_no_importlib_inside_lock"
+        return
+    fi
+
+    local flock_section
+    flock_section=$(_extract_flock_section "$TRANSITION_SCRIPT" 2>/dev/null) || {
+        # If extraction fails (flock section not yet present), skip this guard
+        assert_eq "flock-importlib: flock section extractable" "extracted" "not-extractable"
+        assert_pass_if_clean "test_flock_no_importlib_inside_lock"
+        return
+    }
+
+    # Assert: the flock section does NOT reference the old importlib-based llm_format path
+    if echo "$flock_section" | grep -qE 'importlib|ticket.llm.format' 2>/dev/null; then
+        local offending_lines
+        offending_lines=$(echo "$flock_section" | grep -E 'importlib|ticket.llm.format' | head -5 | tr '\n' '|')
+        assert_eq "flock-importlib: no importlib/ticket-llm-format inside flock section" \
+            "not-inside-lock" \
+            "found-inside-lock: $offending_lines"
+    else
+        assert_eq "flock-importlib: no importlib/ticket-llm-format inside flock section" \
+            "not-inside-lock" \
+            "not-inside-lock"
+    fi
+
+    assert_pass_if_clean "test_flock_no_importlib_inside_lock"
+}
+test_flock_no_importlib_inside_lock
+
+print_summary
