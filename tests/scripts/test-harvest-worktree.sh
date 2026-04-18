@@ -24,6 +24,7 @@
 #  14. test_cleanup_deletes_backing_branch_after_successful_merge — branch deleted after merge (afdb-8418)
 #  15. test_cleanup_skipped_on_gate_failure — worktree+branch preserved when merge blocked by gate (afdb-8418)
 #  16. test_cleanup_handles_missing_worktree_gracefully — no error when branch has no backing worktree (afdb-8418)
+#  17. test_exit0_when_failed_tests_all_have_red_markers — harvest passes when all failed tests have RED markers (6810-8607)
 
 set -uo pipefail
 
@@ -671,6 +672,50 @@ output=$(cd "$tmpdir/session" && bash "$HARVEST_SCRIPT" \
 assert_eq "no-worktree branch merge exits 0" "0" "$exit_code"
 
 assert_pass_if_clean "test_cleanup_handles_missing_worktree_gracefully"
+
+# =============================================================================
+# Test 17: test_exit0_when_failed_tests_all_have_red_markers (6810-8607)
+# Given: worktree branch with test-gate-status=failed, but all failed_tests
+#        have RED markers in the worktree's .test-index
+# When: harvest-worktree.sh is invoked
+# Then: exits 0 — RED-marker-only failures are exempt from the harvest gate
+# =============================================================================
+echo "--- test_exit0_when_failed_tests_all_have_red_markers ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Add .test-index with RED marker to the worktree branch
+git -C "$SESSION_REPO" checkout "$WORKTREE_BRANCH" >/dev/null 2>&1
+printf '%s\n' "src/newfeature.py: tests/test_newfeature.sh [test_new_behavior]" \
+    > "$SESSION_REPO/.test-index"
+git -C "$SESSION_REPO" add .test-index
+git -C "$SESSION_REPO" commit -m "add test-index red marker" >/dev/null 2>&1
+git -C "$SESSION_REPO" checkout session-branch >/dev/null 2>&1
+
+# Compute a valid-format diff_hash from the worktree branch's last commit
+_wt_diff_hash=$(git -C "$SESSION_REPO" show "$WORKTREE_BRANCH" --format='' | shasum -a 256 | cut -d' ' -f1)
+
+# Override test-gate-status: failed with failed_tests matching the RED-marked test
+# (diff_hash must be a valid 64-char SHA-256 hex string for --attest to accept it)
+cat > "$ARTIFACTS_DIR/test-gate-status" <<EOF
+failed
+diff_hash=${_wt_diff_hash}
+timestamp=2026-01-01T00:00:00Z
+tested_files=tests/test_newfeature.sh
+failed_tests=tests/test_newfeature.sh
+EOF
+
+exit_code=0
+cd "$SESSION_REPO" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    >/dev/null 2>&1 || exit_code=$?
+
+assert_eq "red-marker failed tests: harvest exits 0" "0" "$exit_code"
+
+assert_pass_if_clean "test_exit0_when_failed_tests_all_have_red_markers"
 
 # =============================================================================
 print_summary

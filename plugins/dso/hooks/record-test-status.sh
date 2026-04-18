@@ -796,8 +796,16 @@ if [[ ${#ASSOCIATED_TESTS[@]} -eq 0 ]] && [[ "$FULL_SUITE" != "true" ]]; then
             fi
         fi
     fi
-    # No associated tests — exit cleanly without writing
-    # test-gate-status (the gate exempts files with no associated tests)
+    # No associated tests — write passed with doc-only-exempt note so
+    # harvest-worktree.sh finds the file (without this, harvest exits 2 with
+    # "test-gate-status not found" even though the pre-commit gate passed the
+    # doc-only commit as exempt — a2e0-3ae8).
+    cat > "$ARTIFACTS_DIR/test-gate-status" <<EOF
+passed
+diff_hash=${DIFF_HASH}
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+tested_files=doc-only-exempt
+EOF
     exit 0
 fi
 
