@@ -179,6 +179,7 @@ plugins/dso/scripts/ticket_reducer/_cache.py:tests/scripts/test_ticket_reducer.p
 plugins/dso/scripts/ticket_reducer/_processors.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py
 plugins/dso/scripts/ticket_reducer/_sort.py:tests/scripts/test_ticket_reducer.py
 plugins/dso/scripts/ticket_reducer/_state.py:tests/scripts/test_ticket_reducer.py
+plugins/dso/scripts/ticket_reducer/marker.py:tests/scripts/test_ticket_reducer_marker.py [test_marker_imports_from_package]
 
 # --- analyze_tool/ subpackage modules (c43c-12c8) ---
 plugins/dso/scripts/analyze-tool-use.py:tests/scripts/test-skill-trace-analyze.sh,tests/scripts/test-skill-trace-analyze-shim.sh
