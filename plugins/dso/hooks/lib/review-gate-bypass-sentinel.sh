@@ -29,7 +29,7 @@ source "$_LIB_DIR/deps.sh"
 
 hook_review_bypass_sentinel() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"review-bypass-sentinel\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     # Only act on Bash tool calls

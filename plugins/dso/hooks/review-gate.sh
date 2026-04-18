@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# hook-boundary: enforcement
 # hooks/review-gate.sh
 # PreToolUse hook (Bash matcher): Layer 2 of the two-layer review gate.
 #

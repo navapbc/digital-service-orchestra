@@ -18,14 +18,22 @@
 # DEFENSE-IN-DEPTH: Guarantee exit 0 and non-empty stdout on any unexpected failure.
 _HOOK_HAS_OUTPUT=""
 trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi; exit 0' EXIT
-trap 'exit 0' ERR
-
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
 if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" || ! -d "${CLAUDE_PLUGIN_ROOT:-}/hooks/lib" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 
 HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
+
+# Source shared ERR handler (fail-open: if missing, keep original silent trap behavior)
+_HOOKS_LIB_DIR="${_HOOKS_LIB_DIR:-${HOOKS_LIB_DIR}}"
+if [[ -f "${HOOKS_LIB_DIR}/hook-error-handler.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "${HOOKS_LIB_DIR}/hook-error-handler.sh" 2>/dev/null || true
+    _dso_register_hook_err_handler "post-bash.sh"
+else
+    trap 'exit 0' ERR
+fi
 
 # Source the dispatcher framework (provides run_hooks)
 source "$HOOKS_LIB_DIR/dispatcher.sh"

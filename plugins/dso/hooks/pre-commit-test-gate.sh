@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# hook-boundary: enforcement
 # hooks/pre-commit-test-gate.sh
 # git pre-commit hook: fuzzy-match-based test gate for staged source files.
 #

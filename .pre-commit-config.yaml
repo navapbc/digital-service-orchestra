@@ -111,6 +111,17 @@ repos:
         files: ^tests/
 
 
+      # Enforcement boundary check (timeout: 10s)
+      # Blocks commits where a file annotated with '# hook-boundary: enforcement'
+      # also sources hook-error-handler.sh. Annotation-driven (no hardcoded list).
+      - id: enforcement-boundary-check
+        name: Enforcement Boundary Check (10s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh enforcement-boundary-check 10 "./plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: \.sh$
+
       # ShellCheck (timeout: 15s) — project-local, not distributed with the plugin.
       # Runs shellcheck on staged .sh files. Skips gracefully if shellcheck not installed.
       - id: shellcheck

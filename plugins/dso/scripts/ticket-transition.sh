@@ -441,8 +441,13 @@ print(','.join(ids)) if ids else None
     bash "$compact_script" "$ticket_id" --threshold=0 --skip-sync 2>/dev/null || true
 
     # Epic-close reminder: emit /dso:end-session prompt when an epic is closed
-    ticket_type_on_close=$(python3 "$REDUCER" "$TRACKER_DIR/$ticket_id" 2>/dev/null \
-        | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('ticket_type',''))" 2>/dev/null) || ticket_type_on_close=""
+    ticket_type_on_close=$(_TRACKER="$TRACKER_DIR" _TID="$ticket_id" _SDIR="$SCRIPT_DIR" python3 -c "
+import sys, os
+sys.path.insert(0, os.environ['_SDIR'])
+from ticket_reducer import reduce_ticket
+state = reduce_ticket(os.path.join(os.environ['_TRACKER'], os.environ['_TID']))
+print((state or {}).get('ticket_type', ''))
+" 2>/dev/null) || ticket_type_on_close=""
     if [ "$ticket_type_on_close" = "epic" ]; then
         echo "REMINDER: Epic closed — run /dso:end-session to complete the sprint cleanly."
     fi
