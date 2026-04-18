@@ -2,10 +2,11 @@
 # scripts/release.sh — Automated release script with sequential precondition gating.
 #
 # Usage:
-#   scripts/release.sh <VERSION> [--yes]
+#   scripts/release.sh [<VERSION>] [--yes]
 #
 # Arguments:
 #   VERSION  Semver string WITHOUT the 'v' prefix, e.g. '1.2.3'
+#            If omitted, defaults to the version in plugins/dso/.claude-plugin/plugin.json
 #   --yes    Skip interactive confirmation prompt (required for non-TTY invocation)
 #
 # Preconditions (checked in order):
@@ -45,7 +46,7 @@ for arg in "$@"; do
         --yes) YES_FLAG=true ;;
         -*)
             echo "ERROR: Unknown flag: $arg" >&2
-            echo "Usage: $(basename "$0") <VERSION> [--yes]" >&2
+            echo "Usage: $(basename "$0") [<VERSION>] [--yes]" >&2
             exit 1
             ;;
         *)
@@ -64,9 +65,16 @@ done
 # ---------------------------------------------------------------------------
 
 if [[ -z "$VERSION" ]]; then
-    echo "ERROR: VERSION argument is required (e.g. 1.2.3)" >&2
-    echo "Usage: $(basename "$0") <VERSION> [--yes]" >&2
-    exit 1
+    _plugin_json="$SCRIPT_DIR/../plugins/dso/.claude-plugin/plugin.json"
+    if [[ -f "$_plugin_json" ]]; then
+        VERSION="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$_plugin_json" 2>/dev/null || echo "")"
+    fi
+    if [[ -z "$VERSION" ]]; then
+        echo "ERROR: VERSION argument is required (e.g. 1.2.3) and could not be read from plugin.json" >&2
+        echo "Usage: $(basename "$0") [<VERSION>] [--yes]" >&2
+        exit 1
+    fi
+    echo "Using version from plugin.json: $VERSION" >&2
 fi
 
 SEMVER_RE='^[0-9]+\.[0-9]+\.[0-9]+$'
@@ -144,8 +152,25 @@ fi
 # ---------------------------------------------------------------------------
 
 HEAD_SHA="$(git rev-parse HEAD 2>/dev/null || echo "")"
-CI_CONCLUSION="$(gh run list --commit "$HEAD_SHA" --limit 1 --json conclusion 2>/dev/null \
-    | python3 -c 'import json,sys; runs=json.load(sys.stdin); print(runs[0]["conclusion"] if runs else "")' 2>/dev/null || echo "")"
+_ci_get_status() {
+    gh run list --commit "$HEAD_SHA" --limit 1 --json status,conclusion 2>/dev/null \
+        | python3 -c '
+import json, sys
+runs = json.load(sys.stdin)
+if not runs:
+    print("no_runs")
+else:
+    r = runs[0]
+    print(r["conclusion"] if r["conclusion"] else r["status"])
+' 2>/dev/null || echo ""
+}
+CI_STATUS="$(_ci_get_status)"
+while [[ "$CI_STATUS" == "in_progress" || "$CI_STATUS" == "queued" || "$CI_STATUS" == "waiting" || "$CI_STATUS" == "requested" || "$CI_STATUS" == "pending" ]]; do
+    echo "CI is ${CI_STATUS} on HEAD ($HEAD_SHA) — rechecking in 30s..." >&2
+    sleep 30
+    CI_STATUS="$(_ci_get_status)"
+done
+CI_CONCLUSION="$CI_STATUS"
 if [[ "$CI_CONCLUSION" != "success" ]]; then
     echo "ERROR: CI is not green on HEAD ($HEAD_SHA) — conclusion: '${CI_CONCLUSION:-unknown}' — aborting release" >&2
     exit 1

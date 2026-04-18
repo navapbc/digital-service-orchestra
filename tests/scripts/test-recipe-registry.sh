@@ -36,7 +36,7 @@ assert_eq "test_schema_file_exists" "exists" "$actual"
 # When:  we validate it against the recipe-registry-schema.json using python3 -m jsonschema
 # Then:  jsonschema exits 0 (validation succeeds)
 _snapshot_fail
-_tmpfile_valid=$(mktemp /tmp/test-recipe-registry-valid.XXXXXX.py)
+_tmpfile_valid=$(mktemp /tmp/test-recipe-registry-valid.XXXXXX)
 cat > "$_tmpfile_valid" <<'PYEOF'
 import json, sys, os, subprocess
 
@@ -80,7 +80,7 @@ assert_pass_if_clean "test_valid_entry_passes_schema"
 # Then:  jsonschema exits with code 2 (ValidationError caught), NOT exit 0 or exit 1
 # Note: exit 1 = schema file missing (infrastructure failure, not schema validation failure).
 #       This test only PASSes when the schema exists and actively rejects the malformed entry.
-_tmpfile_malformed=$(mktemp /tmp/test-recipe-registry-malformed.XXXXXX.py)
+_tmpfile_malformed=$(mktemp /tmp/test-recipe-registry-malformed.XXXXXX)
 cat > "$_tmpfile_malformed" <<'PYEOF'
 import json, sys, os, subprocess
 
@@ -140,7 +140,7 @@ assert_pass_if_clean "test_registry_yaml_parseable"
 # When:  we search for an entry with name=add-parameter and language=python
 # Then:  exactly one such entry is found
 _snapshot_fail
-_tmpfile_registry=$(mktemp /tmp/test-recipe-registry-check.XXXXXX.py)
+_tmpfile_registry=$(mktemp /tmp/test-recipe-registry-check.XXXXXX)
 cat > "$_tmpfile_registry" <<'PYEOF'
 import yaml, sys, os, subprocess
 
@@ -183,7 +183,7 @@ assert_pass_if_clean "test_registry_has_add_parameter_python"
 # When:  we search for an entry with name=add-parameter and language=typescript
 # Then:  exactly one such entry is found
 _snapshot_fail
-_tmpfile_registry_ts=$(mktemp /tmp/test-recipe-registry-ts-check.XXXXXX.py)
+_tmpfile_registry_ts=$(mktemp /tmp/test-recipe-registry-ts-check.XXXXXX)
 cat > "$_tmpfile_registry_ts" <<'PYEOF'
 import yaml, sys, os, subprocess
 
@@ -229,7 +229,7 @@ assert_pass_if_clean "test_registry_has_add_parameter_typescript"
 # and nextjs — framework is selected at runtime via RECIPE_PARAM_FRAMEWORK rather
 # than via separate registry entries (avoids duplicate-name lookup failure).
 _snapshot_fail
-_tmpfile_scaffold_flask=$(mktemp /tmp/test-recipe-registry-scaffold-flask.XXXXXX.py)
+_tmpfile_scaffold_flask=$(mktemp /tmp/test-recipe-registry-scaffold-flask.XXXXXX)
 cat > "$_tmpfile_scaffold_flask" <<'PYEOF'
 import yaml, sys, os, subprocess
 
@@ -275,7 +275,7 @@ assert_pass_if_clean "test_registry_has_scaffold_route_flask"
 # and nextjs — framework is selected at runtime via RECIPE_PARAM_FRAMEWORK rather
 # than via separate registry entries (avoids duplicate-name lookup failure).
 _snapshot_fail
-_tmpfile_scaffold_nextjs=$(mktemp /tmp/test-recipe-registry-scaffold-nextjs.XXXXXX.py)
+_tmpfile_scaffold_nextjs=$(mktemp /tmp/test-recipe-registry-scaffold-nextjs.XXXXXX)
 cat > "$_tmpfile_scaffold_nextjs" <<'PYEOF'
 import yaml, sys, os, subprocess
 
@@ -318,7 +318,7 @@ assert_pass_if_clean "test_registry_has_scaffold_route_nextjs"
 # When:  we validate it against the schema
 # Then:  jsonschema exits 0 (validation succeeds)
 _snapshot_fail
-_tmpfile_generative=$(mktemp /tmp/test-recipe-registry-generative.XXXXXX.py)
+_tmpfile_generative=$(mktemp /tmp/test-recipe-registry-generative.XXXXXX)
 cat > "$_tmpfile_generative" <<'PYEOF'
 import json, sys, os, subprocess
 
@@ -363,7 +363,7 @@ assert_pass_if_clean "test_generative_recipe_type_valid"
 # When:  we validate it against the schema
 # Then:  jsonschema exits 0 (validation succeeds)
 _snapshot_fail
-_tmpfile_transform=$(mktemp /tmp/test-recipe-registry-transform.XXXXXX.py)
+_tmpfile_transform=$(mktemp /tmp/test-recipe-registry-transform.XXXXXX)
 cat > "$_tmpfile_transform" <<'PYEOF'
 import json, sys, os, subprocess
 
@@ -407,7 +407,7 @@ assert_pass_if_clean "test_transform_recipe_type_valid"
 # When:  we search for an entry with name=normalize-imports and language=python
 # Then:  exactly one such entry is found
 _snapshot_fail
-_tmpfile_normalize_py=$(mktemp /tmp/test-recipe-registry-normalize-py.XXXXXX.py)
+_tmpfile_normalize_py=$(mktemp /tmp/test-recipe-registry-normalize-py.XXXXXX)
 cat > "$_tmpfile_normalize_py" <<'PYEOF'
 import yaml, sys, os, subprocess
 
@@ -450,7 +450,7 @@ assert_pass_if_clean "test_registry_has_normalize_imports_python"
 # When:  we search for an entry with name=normalize-imports and language=typescript
 # Then:  exactly one such entry is found
 _snapshot_fail
-_tmpfile_normalize_ts=$(mktemp /tmp/test-recipe-registry-normalize-ts.XXXXXX.py)
+_tmpfile_normalize_ts=$(mktemp /tmp/test-recipe-registry-normalize-ts.XXXXXX)
 cat > "$_tmpfile_normalize_ts" <<'PYEOF'
 import yaml, sys, os, subprocess
 
