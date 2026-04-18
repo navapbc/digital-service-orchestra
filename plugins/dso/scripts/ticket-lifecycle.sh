@@ -135,6 +135,11 @@ import json, sys
 event = {'timestamp': int(sys.argv[1]), 'uuid': sys.argv[2], 'event_type': 'ARCHIVED', 'env_id': sys.argv[3], 'author': sys.argv[4], 'data': {}}
 with open(sys.argv[5], 'w') as f: json.dump(event, f)
 " "$ts" "$event_uuid" "$env_id" "$author" "$event_file"
+    # Write .archived marker (error-tolerant — degraded to slow path on failure)
+    python3 -c "
+import sys, pathlib
+pathlib.Path(sys.argv[1]).touch()
+" "$ticket_dir/.archived" 2>/dev/null || true
     archived_count=$((archived_count + 1))
 done < <(python3 -c "
 import json, sys
