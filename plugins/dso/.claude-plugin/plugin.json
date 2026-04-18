@@ -1,6 +1,6 @@
 {
   "name": "dso",
-  "version": "1.12.41",
+  "version": "1.12.42",
   "description": "Workflow infrastructure plugin for Claude Code projects",
   "commands": "./commands/",
   "skills": "./skills/",
@@ -26,6 +26,9 @@
     "./agents/cross-epic-interaction-classifier.md",
     "./agents/doc-writer.md",
     "./agents/feasibility-reviewer.md",
+    "./agents/huge-diff-refactor-anomaly.md",
+    "./agents/huge-diff-reviewer-light.md",
+    "./agents/huge-diff-reviewer-standard.md",
     "./agents/intent-search.md",
     "./agents/plan-review.md",
     "./agents/red-team-reviewer.md",
