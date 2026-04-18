@@ -183,7 +183,7 @@ plugins/dso/scripts/ticket_reducer/_processors.py:tests/scripts/test_ticket_redu
 plugins/dso/scripts/ticket_reducer/_sort.py:tests/scripts/test_ticket_reducer.py
 plugins/dso/scripts/ticket_reducer/_state.py:tests/scripts/test_ticket_reducer.py
 plugins/dso/scripts/ticket_reducer/marker.py:tests/scripts/test_ticket_reducer.py
-plugins/dso/scripts/ticket_reducer/llm_format.py:tests/scripts/test_ticket_reducer_llm_format.py,tests/scripts/test_ticket_llm_format.py
+plugins/dso/scripts/ticket_reducer/llm_format.py:tests/scripts/test_ticket_llm_format.py
 
 # --- ticket-revert.sh explicit mapping (bc06-74f4 — not fuzzy-matchable) ---
 plugins/dso/scripts/ticket-revert.sh:tests/scripts/test_revert_event.py
@@ -206,7 +206,7 @@ plugins/dso/scripts/ticket_graph/_hierarchy.py:tests/scripts/test_ticket_graph.p
 plugins/dso/scripts/ticket_graph/_links.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_loader.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_status.py:tests/scripts/test_ticket_graph.py
-INSTALL.md:tests/test-install-doc-contract.sh [test_install_doc_contract]
+INSTALL.md:tests/test-install-doc-contract.sh
 plugins/dso/skills/shared/prompts/single-agent-integrate.md:tests/hooks/test-single-agent-integrate-structure.sh
 INSTALL.md:tests/test-install-doc-contract.sh,tests/scripts/test-no-unguarded-plugin-refs.sh,tests/test-install-integration-setup.sh
 
@@ -232,5 +232,9 @@ plugins/dso/agents/huge-diff-reviewer-light.md:tests/workflows/test-review-workf
 plugins/dso/agents/huge-diff-reviewer-standard.md:tests/workflows/test-review-workflow-huge.sh
 plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-workflow-huge.sh
 
+# RED marker for marketplace.json two-entry git-subdir restructure (task 1a94-b9e9)
+.claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh [test_marketplace_json_has_two_plugins]
+# --- scripts/release.sh: automated release script (epic 36a7-dbb5, task c19e-e459) ---
+scripts/release.sh:tests/scripts/test-release.sh
 # --- ticket-archive-markers-backfill.sh (5ad5-be4d / bc06-74f4 batch) ---
 plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh [test_creates_marker_for_ticket_with_archived_event]

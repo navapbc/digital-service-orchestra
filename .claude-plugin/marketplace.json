@@ -6,8 +6,23 @@
     "plugins": [
       {
         "name": "dso",
-        "source": "./plugins/dso",
-        "description": "Workflow infrastructure plugin for Claude Code projects"
+        "source": {
+          "source": "git-subdir",
+          "url": "navapbc/digital-service-orchestra",
+          "path": "plugins/dso",
+          "ref": "main"
+        },
+        "description": "Workflow infrastructure plugin for Claude Code projects (stable channel)"
+      },
+      {
+        "name": "dso-dev",
+        "source": {
+          "source": "git-subdir",
+          "url": "navapbc/digital-service-orchestra",
+          "path": "plugins/dso",
+          "ref": "main"
+        },
+        "description": "Workflow infrastructure plugin for Claude Code projects (dev channel — updates on every merge to main)"
       }
     ]
 }
