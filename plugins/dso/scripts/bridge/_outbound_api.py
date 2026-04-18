@@ -105,7 +105,7 @@ def write_sync_event(
     run_id: str = "",
 ) -> Path:
     """Write a SYNC event file to the ticket directory."""
-    ts = int(time.time())
+    ts = time.time_ns()
     event_uuid = str(uuid.uuid4())
     filename = f"{ts}-{event_uuid}-SYNC.json"
     payload = {
@@ -173,7 +173,7 @@ def write_bridge_alert(
     bridge_env_id: str = "",
 ) -> Path:
     """Write a BRIDGE_ALERT event file to the ticket directory."""
-    ts = int(time.time())
+    ts = time.time_ns()
     event_uuid = str(uuid.uuid4())
     filename = f"{ts}-{event_uuid}-BRIDGE_ALERT.json"
     payload = {

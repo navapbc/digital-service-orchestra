@@ -84,7 +84,7 @@ def _write_link_event(
         os.makedirs(source_dir, exist_ok=True)
 
     link_uuid = str(uuid.uuid4())
-    timestamp = int(time.time())
+    timestamp = time.time_ns()
 
     link_event = {
         "event_type": "LINK",

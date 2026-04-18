@@ -167,7 +167,7 @@ plugins/dso/scripts/bridge/_comments_inbound.py:tests/scripts/test_bridge_inboun
 plugins/dso/scripts/bridge/_flap.py:tests/scripts/test_bridge_status.py,tests/scripts/test_bridge_inbound.py
 plugins/dso/scripts/bridge/_handle_destructive_guard.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py
 plugins/dso/scripts/bridge/_handle_edit.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_field_coverage.py
-plugins/dso/scripts/bridge/_handle_links.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py
+plugins/dso/scripts/bridge/_handle_links.py:tests/scripts/test_bridge_outbound_link.py,tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py
 plugins/dso/scripts/bridge/_handle_status.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_status.py
 plugins/dso/scripts/bridge/_handle_type.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_field_coverage.py
 plugins/dso/scripts/bridge/_inbound_api.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py
