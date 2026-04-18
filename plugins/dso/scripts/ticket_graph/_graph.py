@@ -8,7 +8,11 @@ from typing import Any
 import ticket_graph._loader as _loader_module
 
 from ticket_graph._blockers import _find_direct_blockers
-from ticket_graph._cache import _compute_cache_key, _read_graph_cache, _write_graph_cache
+from ticket_graph._cache import (
+    _compute_cache_key,
+    _read_graph_cache,
+    _write_graph_cache,
+)
 from ticket_graph._status import _get_ticket_status
 
 # Use module-level accessor so tests can patch _loader_module.reducer.reduce_all_tickets
@@ -59,7 +63,9 @@ def _compute_dep_graph(
     ticket_id: str, tracker_dir: str, exclude_archived: bool = True
 ) -> dict[str, Any]:
     """Compute (without cache) the dependency graph for ticket_id."""
-    all_states_list = _loader_module.reducer.reduce_all_tickets(tracker_dir, exclude_archived=False)
+    all_states_list = _loader_module.reducer.reduce_all_tickets(
+        tracker_dir, exclude_archived=False
+    )
     ticket_states: dict[str, Any] = {}
     for t in all_states_list:
         tid = t.get("ticket_id", "")

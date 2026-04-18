@@ -135,7 +135,8 @@ _close_ticket() {
     local ticket_dir="$tracker_dir/$ticket_id"
     local ts
     ts=$(date +%s)
-    local uuid="close-$(printf '%04x%04x' $RANDOM $RANDOM)"
+    local uuid
+    uuid="close-$(printf '%04x%04x' $RANDOM $RANDOM)"
     _write_event "$ticket_dir" "$ts" "$uuid" "STATUS" \
         '{"status": "closed", "current_status": "in_progress"}'
     git -C "$tracker_dir" add "$ticket_id/" 2>/dev/null
@@ -376,5 +377,53 @@ test_lifecycle_configurable_base_path() {
     assert_pass_if_clean "test_lifecycle_configurable_base_path"
 }
 test_lifecycle_configurable_base_path
+
+# ── Test 6: lifecycle writes .archived marker after ARCHIVED event commit ──────
+echo "Test 6: lifecycle writes .archived marker after ARCHIVED event commit"
+test_lifecycle_writes_archived_marker() {
+    _snapshot_fail
+
+    if [ ! -f "$LIFECYCLE_SCRIPT" ]; then
+        assert_eq "ticket-lifecycle.sh exists" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create a closed, archive-eligible ticket (CREATE + STATUS=closed, no ARCHIVED event)
+    local ticket_id="tkt-marker"
+    local ticket_dir
+    ticket_dir=$(_create_ticket_with_events "$repo" "$ticket_id" 12)
+    _commit_tracker "$tracker_dir"
+
+    # Close the ticket so it becomes archive-eligible
+    _close_ticket "$tracker_dir" "$ticket_id"
+
+    # Run lifecycle
+    local exit_code=0
+    (cd "$repo" && bash "$LIFECYCLE_SCRIPT") 2>/dev/null || exit_code=$?
+    assert_eq "lifecycle exits 0" "0" "$exit_code"
+
+    # Assert: ARCHIVED event file exists
+    local archived_event
+    archived_event=$(find "$ticket_dir" -maxdepth 1 -name '*-ARCHIVED.json' 2>/dev/null | head -1)
+    local archived_count
+    archived_count=$(find "$ticket_dir" -maxdepth 1 -name '*-ARCHIVED.json' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "ARCHIVED event file exists" "1" "$archived_count"
+
+    # Assert: .archived marker file exists in the ticket directory
+    local marker_file="$ticket_dir/.archived"
+    if [ -f "$marker_file" ]; then
+        assert_eq ".archived marker exists" "exists" "exists"
+    else
+        assert_eq ".archived marker exists" "exists" "missing"
+        return
+    fi
+
+    assert_pass_if_clean "test_lifecycle_writes_archived_marker"
+}
+test_lifecycle_writes_archived_marker
 
 print_summary

@@ -134,9 +134,7 @@ def _write_link_event(
             finally:
                 _fcntl.flock(_lock_fd, _fcntl.LOCK_UN)
     except _sp.CalledProcessError as e:
-        print(
-            f"Warning: git commit failed for LINK event: {e.stderr}", file=sys.stderr
-        )
+        print(f"Warning: git commit failed for LINK event: {e.stderr}", file=sys.stderr)
 
 
 def add_dependency(
