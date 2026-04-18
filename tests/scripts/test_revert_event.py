@@ -624,3 +624,84 @@ def test_revert_non_archived_event_preserves_marker(tmp_path: Path) -> None:
         f".archived marker must be preserved after reverting a non-ARCHIVED (STATUS) event; "
         f"file was unexpectedly removed from {archived_marker}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 8 (RED — c578-c6cd): REVERT event timestamp is nanosecond precision
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_ticket_revert_writes_nanosecond_timestamp(tmp_path: Path) -> None:
+    """ticket-revert.sh must write the REVERT event timestamp in nanoseconds
+    (time.time_ns()), not seconds (int(time.time())).
+
+    Observable: the 'timestamp' field in the written REVERT event JSON file
+    must be > 1_000_000_000_000 (13+ digits).
+
+    RED: int(time.time()) returns ~1.7e9 (10 digits) which is < 1e12 → FAIL.
+    GREEN: time.time_ns() returns ~1.7e18 (19 digits) which is > 1e12 → PASS.
+
+    Bug: c578-c6cd — ticket-revert.sh uses seconds precision for timestamp.
+    """
+    ticket_id = "tkt-rev-008"
+    tracker_dir = _setup_tracker(tmp_path, ticket_id)
+    ticket_dir = tracker_dir / ticket_id
+    ticket_dir.mkdir(parents=True)
+
+    # Write CREATE event (prerequisite)
+    _write_event(
+        ticket_dir,
+        timestamp=1742600000,
+        uuid=_CREATE_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Timestamp precision test",
+            "parent_id": None,
+        },
+    )
+
+    # Write STATUS event — this is the target we will revert
+    _write_event(
+        ticket_dir,
+        timestamp=1742600100,
+        uuid=_STATUS_UUID,
+        event_type="STATUS",
+        data={"status": "closed", "current_status": "open"},
+    )
+
+    result = _run_ticket_revert(
+        tracker_dir, ticket_id, _STATUS_UUID, reason="timestamp precision test"
+    )
+
+    assert result.returncode == 0, (
+        f"ticket revert must exit 0 on success; got {result.returncode}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+    revert_files = sorted(ticket_dir.glob("*-REVERT.json"))
+    assert len(revert_files) == 1, (
+        f"Expected exactly 1 REVERT event file in {ticket_dir}, "
+        f"found: {[f.name for f in revert_files]}"
+    )
+
+    event = json.loads(revert_files[0].read_text())
+
+    assert "timestamp" in event, (
+        f"REVERT event file must contain a 'timestamp' field; got keys: {list(event.keys())}"
+    )
+
+    ts = event["timestamp"]
+    assert isinstance(ts, int), (
+        f"timestamp must be an integer; got type {type(ts).__name__!r}, value: {ts!r}"
+    )
+
+    # 1_000_000_000_000 == 1e12: seconds-precision (~1.7e9) is < 1e12 → RED
+    # nanoseconds-precision (~1.7e18) is > 1e12 → GREEN
+    assert ts > 1_000_000_000_000, (
+        f"REVERT event timestamp must be nanosecond precision (> 1_000_000_000_000); "
+        f"got {ts} — this is seconds precision (int(time.time())), not nanoseconds. "
+        f"Fix: use time.time_ns() in ticket-revert.sh."
+    )
