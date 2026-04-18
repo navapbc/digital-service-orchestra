@@ -2641,8 +2641,11 @@ def test_reduce_all_tickets_fallback_without_marker_correct_state(
 
     # Deliberately do NOT create a .archived marker — simulates crash-injection scenario
 
-    # Spy on reduce_ticket to verify it IS called for this dir
-    original_reduce_ticket = reducer.reduce_ticket
+    # Spy on reduce_ticket to verify it IS called for this dir.
+    # reduce_all_tickets lives in ticket_reducer._api, so patch the name there.
+    import ticket_reducer._api as _api_mod
+
+    original_reduce_ticket = _api_mod.reduce_ticket
     called_dirs: list[str] = []
 
     def spy_reduce_ticket(
@@ -2653,7 +2656,7 @@ def test_reduce_all_tickets_fallback_without_marker_correct_state(
         return original_reduce_ticket(ticket_dir_path, **kwargs)
 
     with unittest.mock.patch.object(
-        reducer, "reduce_ticket", side_effect=spy_reduce_ticket
+        _api_mod, "reduce_ticket", side_effect=spy_reduce_ticket
     ):
         results = reducer.reduce_all_tickets(str(tracker_dir), exclude_archived=False)
 

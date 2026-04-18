@@ -190,9 +190,9 @@ After event replay, a secondary filter removes any ticket whose reduced state ha
 
 ### Orphan Marker Behavior
 
-An orphan marker is a `.archived` file that is present in a ticket directory but has no corresponding `ARCHIVED` event in the event log (e.g., after a `git reset` on the `tickets` branch). When `reduce_all_tickets()` is called with `exclude_archived=True` and encounters an orphan marker, the ticket is fast-skipped and excluded from results — indistinguishable from a legitimately archived ticket.
+An orphan marker is a `.archived` file that is present in a ticket directory but whose corresponding `ARCHIVED` event has been cancelled by a subsequent `REVERT` event (net-archived state is false). When `reduce_all_tickets()` is called with `exclude_archived=True` and encounters a stale `.archived` marker, it calls `_is_net_archived()` to confirm the net archival state. If `_is_net_archived()` returns `False` (all ARCHIVED events are cancelled), the marker is removed via `remove_marker()` and the ticket falls through to the slow path (event replay), returning its correct active state.
 
-To detect and recover orphans, run `ticket-archive-markers-backfill.sh --dry-run` to audit marker state. Use `remove_marker()` from `ticket_reducer.marker` to remove a specific orphan marker and restore the ticket to the active read path.
+To audit marker state across all tickets, run `archive-markers-backfill --dry-run`. To manually remove a specific orphan marker, use `remove_marker()` from `ticket_reducer.marker`.
 
 ### `compute_dir_hash()` Marker Extension
 
