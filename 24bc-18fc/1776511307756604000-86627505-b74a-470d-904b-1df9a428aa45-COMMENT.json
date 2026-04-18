@@ -1,0 +1,1 @@
+{"timestamp": 1776511307756604000, "uuid": "86627505-b74a-470d-904b-1df9a428aa45", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "STATUS:complete\nTasks: T1=451f-2029 (RED tests for 5 post-* dispatchers JSONL logging), T2=36a8-27a9 (replace silent traps with logging handler). Dependency: T2 depends_on T1."}}
