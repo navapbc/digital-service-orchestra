@@ -35,7 +35,7 @@ repos:
         name: Contract Schema Check (60s timeout)
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh contract-schema-check 60 "plugins/dso/scripts/check-contract-schemas.sh"
         language: system
-        pass_filenames: false
+        pass_filenames: true
         stages: [pre-commit]
         files: ^plugins/dso/docs/contracts/
 
