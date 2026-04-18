@@ -274,7 +274,7 @@ The 6 batch groups and their skip conditions are:
 | 2 | scaffold-claude-structure | `.claude/` structure already present and shim already installed |
 | 3 | config-write | All config files already exist with current content |
 | 4 | initial-commit | All artifacts already committed |
-| 5 | hook-install | Hooks already installed |
+| 5 | hook-install | Hooks already installed AND no new hook artifacts to commit; OR project is not a git repository (skip entirely — ticket system init and hook install both require git) |
 | 6 | final-commit | No hook artifacts to commit |
 
 ---
@@ -735,7 +735,7 @@ At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`.
 
 ### Dialogue Rules
 
-**One question at a time** — never present multiple questions in a single message. Pick the most important unknown and ask about it.
+**One question at a time** — never present multiple questions in a single message. Pick the most important unknown and ask about it. Do NOT combine questions in a single sentence or append follow-up questions with "and" or "or" (e.g., "Where does this run? And does it connect to external services?" is a violation — ask only the first question, then wait for the response before asking the next).
 
 **Confirmation over discovery** — when detection already answered an area, present the detected value and ask the user to confirm or correct it. Do not ask from scratch.
 
@@ -766,7 +766,8 @@ When `comfort_level` is `"non-technical"`, skip or default engineering-specific 
 |------|-----------------------|
 | commands | Use detected commands or defaults (`make test` / `make lint`); never ask about npm vs. Docker invocation style |
 | ci | Use detected CI workflow filename; skip deep CI trigger configuration questions |
-| enforcement | Apply recommended DSO defaults; skip technical gate configuration questions |
+| enforcement | Apply recommended DSO defaults; skip technical gate configuration questions (linting tools, commit message conventions, coverage thresholds) |
+| design | Ask only the high-level UI question ("Does this project have a UI layer?"); skip WCAG standard selection and deep accessibility questions — default to WCAG AA |
 
 For non-technical users: confirm detected values rather than asking open-ended engineering questions. Show summaries, not prompts.
 
@@ -1456,7 +1457,16 @@ After hook installation, confirm with the user which hook manager was used and w
 
 #### Ticket System Initialization
 
-Initialize the DSO ticket system by creating an orphan branch and setting up the `.tickets-tracker/` directory:
+**Git repository guard:** Before running any ticket system init commands, verify this is an initialized git repository. If not, skip this section and warn the user:
+
+```bash
+if ! git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "WARNING: Not a git repository. Run 'git init' first, then re-run /dso:onboarding to initialize the ticket system."
+    # skip ticket system init — cannot create orphan branch without git
+fi
+```
+
+If the git guard passes, initialize the DSO ticket system by creating an orphan branch and setting up the `.tickets-tracker/` directory:
 
 ```bash
 # Create orphan branch for ticket event storage
@@ -1714,11 +1724,15 @@ I can now codify this understanding into durable project artifacts using /dso:ar
 Would you like me to invoke /dso:architect-foundation now?
 ```
 
-If the user says yes, invoke:
+If the user says yes, invoke `/dso:architect-foundation`. When `COMFORT_LEVEL` is set, pass the appropriate flag:
+
+- `COMFORT_LEVEL="non_technical"`: invoke with `--auto` (skips interactive prompts, applies sensible defaults)
+- `COMFORT_LEVEL="technical"` or not set: invoke without flags
 
 ```
 Skill tool:
   skill: "dso:architect-foundation"
+  args: "--auto"   # omit if COMFORT_LEVEL != "non_technical"
 ```
 
 If the user says no or wants to continue manually, proceed to Step 7.
