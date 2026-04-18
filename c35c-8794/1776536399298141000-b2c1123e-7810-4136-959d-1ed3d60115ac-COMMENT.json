@@ -1,1 +1,0 @@
-{"timestamp": 1776536399298141000, "uuid": "b2c1123e-7810-4136-959d-1ed3d60115ac", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: llm-behavioral \u2014 agent deviated from prescribed OPEN_BUG_COUNT check in debug-everything SKILL.md; Gate 1a skipped (CLI_user)"}}

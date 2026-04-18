@@ -1,1 +1,0 @@
-{"timestamp": 1776535039270983000, "uuid": "59ccd760-c5d8-41da-9b3a-656746a64073", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "debug-everything: OPEN_BUG_COUNT check misses bugs -> declares session complete prematurely"}}}
