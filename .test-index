@@ -217,3 +217,6 @@ plugins/dso/docs/workflows/REVIEW-WORKFLOW-HUGE.md:tests/workflows/test-review-w
 plugins/dso/agents/huge-diff-reviewer-light.md:tests/workflows/test-review-workflow-huge.sh
 plugins/dso/agents/huge-diff-reviewer-standard.md:tests/workflows/test-review-workflow-huge.sh
 plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-workflow-huge.sh
+
+# --- ticket-archive-markers-backfill.sh (5ad5-be4d / bc06-74f4 batch) ---
+plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh [test_creates_marker_for_ticket_with_archived_event]
