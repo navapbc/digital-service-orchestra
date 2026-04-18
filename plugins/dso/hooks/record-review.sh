@@ -210,6 +210,17 @@ if [[ -n "$FINDINGS_FILE_OVERRIDE" ]]; then
     FINDINGS_FILE="$FINDINGS_FILE_OVERRIDE"
 else
     FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
+    # Fallback: if not found in the primary artifacts dir, check $REPO_ROOT/.claude/artifacts/
+    # This handles the case where the code-reviewer sub-agent resolved a different REPO_ROOT
+    # (or WORKFLOW_PLUGIN_ARTIFACTS_DIR was not propagated), causing it to write
+    # reviewer-findings.json to the relative .claude/artifacts/ path. (a74e-1671)
+    if [[ ! -f "$FINDINGS_FILE" && -n "$REPO_ROOT" ]]; then
+        _FALLBACK_FINDINGS="$REPO_ROOT/.claude/artifacts/reviewer-findings.json"
+        if [[ -f "$_FALLBACK_FINDINGS" ]]; then
+            echo "INFO: reviewer-findings.json not found in primary artifacts dir; using fallback: $_FALLBACK_FINDINGS"
+            FINDINGS_FILE="$_FALLBACK_FINDINGS"
+        fi
+    fi
 fi
 if [[ ! -f "$FINDINGS_FILE" ]]; then
     echo "ERROR: reviewer-findings.json not found — review sub-agent must write this file" >&2
@@ -219,6 +230,7 @@ if [[ ! -f "$FINDINGS_FILE" ]]; then
     echo "Run /dso:review to dispatch a sub-agent review." >&2
     if [[ -z "$FINDINGS_FILE_OVERRIDE" ]]; then
         echo "  Hint: if the reviewer ran in a different worktree, pass --findings-file <path>." >&2
+        echo "  Hint: also checked fallback: \$REPO_ROOT/.claude/artifacts/reviewer-findings.json" >&2
     fi
     exit 1
 fi
