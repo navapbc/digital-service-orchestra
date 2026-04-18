@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # scripts/release.sh — Automated release script with sequential precondition gating.
 #
 # Usage:
@@ -25,8 +26,6 @@
 #   - Delegates version bump to plugins/dso/scripts/tag-release.sh
 #   - Creates git tag v<VERSION>
 #   - Pushes tag and branch to origin
-
-set -euo pipefail
 
 # ---------------------------------------------------------------------------
 # Script location (for finding sibling plugin scripts)
