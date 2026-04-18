@@ -241,3 +241,4 @@ plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-wor
 plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh [test_creates_marker_for_ticket_with_archived_event]
 # --- ticket-transition flock section guard (task 1835-528f) ---
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition-flock.sh [test_flock_llm_format_referenced]
+plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh [test_register_hook_err_handler_sets_trap]
