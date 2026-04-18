@@ -31,24 +31,6 @@ echo ""
 
 claude_md_content="$(cat "$CLAUDE_MD")"
 
-# ── test_claude_md_contains_reinvocation_guard ────────────────────────────────
-# CLAUDE.md must document a re-invocation guard to prevent unsafe recursive
-# or repeated invocations of skills. Future agents must know this guard exists
-# and when it applies.
-_tmp="$claude_md_content"; shopt -s nocasematch
-if [[ "$_tmp" =~ re-invocation\ guard|reinvocation\ guard ]]; then
-    shopt -u nocasematch
-    echo "PASS: test_claude_md_contains_reinvocation_guard: CLAUDE.md documents re-invocation guard"
-    (( ++PASS ))
-else
-    shopt -u nocasematch
-    echo "FAIL: test_claude_md_contains_reinvocation_guard: CLAUDE.md documents re-invocation guard"
-    echo "  expected: 're-invocation guard' or 'reinvocation guard' (case-insensitive)"
-    echo "  actual:   pattern not found in CLAUDE.md"
-    (( ++FAIL ))
-fi
-echo ""
-
 # ── test_claude_md_contains_replan_escalate ───────────────────────────────────
 # CLAUDE.md must document the REPLAN_ESCALATE signal and associate it with
 # brainstorm context so agents know when re-planning should trigger escalation

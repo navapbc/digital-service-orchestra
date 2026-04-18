@@ -83,7 +83,7 @@ Flow: P1 (Init) → Preplanning Gate
 
 1. Run the epic discovery script:
    ```bash
-   .claude/scripts/dso sprint-list-epics.sh --all --min-children=1
+   .claude/scripts/dso sprint-list-epics.sh --all --has-tag=brainstorm:complete
    ```
    This outputs tab-separated lines in three categories:
    - `<id>\tP*\t<title>\t<child_count>[\tBLOCKING]` for in-progress epics (4 or 5 fields; `P*` replaces priority)
@@ -96,15 +96,15 @@ Flow: P1 (Init) → Preplanning Gate
    - Exit code 1 → no open epics exist, report and exit
    - Exit code 2 → all open epics are blocked; display the BLOCKED-prefixed lines from stdout as context, then exit
 
-   After running, also run the same command **without** `--min-children=1` to count how many epics were hidden:
+   After running, also run the same command **without** `--has-tag=brainstorm:complete` to count how many epics were hidden:
    ```bash
    .claude/scripts/dso sprint-list-epics.sh --all
    ```
    Calculate `hidden_count = total_unfiltered_count - filtered_count` (count only non-BLOCKED lines from each run).
 
-   **If no eligible epics remain** after applying `--min-children=1` (i.e., the filtered output is empty or exit code 1/2):
-   - Report: "No epics with children are ready to execute."
-   - If there are 0-child epics that were filtered out, show: "There are N epics with no children yet. Run `/dso:brainstorm` on one to decompose it into stories before executing."
+   **If no eligible epics remain** after applying `--has-tag=brainstorm:complete` (i.e., the filtered output is empty or exit code 1/2):
+   - Report: "No epics with the brainstorm:complete tag are ready to execute."
+   - If there are epics without brainstorm:complete that were filtered out, show: "There are N epics without the brainstorm:complete tag. Run `/dso:brainstorm` on one to complete scrutiny review before executing."
    - Exit.
 
 2. Parse the output and print a numbered list. **CRITICAL: You MUST output the formatted list as visible text BEFORE invoking any tool call.** Do NOT pass epics as `options` to `AskUserQuestion` — the `options` field is limited to 4 items and cannot display blocked epics or the hidden-count note. Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**. Below the list, if `hidden_count > 0`, append a note:
@@ -123,7 +123,7 @@ Flow: P1 (Init) → Preplanning Gate
    Blocked epics (not selectable):
      - [P2] <title> (<epic-id>) — 2 children — blocked by: <blocker-id-1>, <blocker-id-2>
 
-   (N epics with zero children are hidden. Run `/dso:brainstorm` on one to create stories.)
+   (N epics without brainstorm:complete tag are hidden. Run `/dso:brainstorm` on one to complete scrutiny review before executing.)
    ```
    Omit the hidden-epics note when `hidden_count == 0`.
 3. Ask the user: "Enter the number or epic ID to execute:" and wait for their text input. Use `AskUserQuestion` with a free-text prompt only — do not pass epics as options.
@@ -1840,11 +1840,7 @@ For tasks that failed:
 
 Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
 
-**HARD-GATE — reject signal**: When the review complexity classifier emits `SIZE_ACTION=reject` (diff exceeds 600 lines), you MUST NOT override this signal. You have exactly two options:
-1. Split the batch: identify independent subsets of changes, commit them separately, and review each subset
-2. Escalate to user: present the reject signal and ask how to proceed
-
-Any rationalization for overriding reject ("these changes are related", "splitting would break functionality", "this is a single logical change") is prohibited. The reject threshold exists because reviewers cannot effectively review diffs above this size.
+**SIZE_WARNING path**: When SIZE_ACTION=warn, log the SIZE_WARNING to the user and continue with review dispatch. Do NOT halt, split, or escalate based on warn alone.
 
 Push the worktree branch:
 

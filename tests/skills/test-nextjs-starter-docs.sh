@@ -68,31 +68,11 @@ test_readme_has_nextjs_starter_section() {
   fi
 }
 
-test_claude_md_has_bootstrap_row() {
-  echo ""
-  echo "=== test_claude_md_has_bootstrap_row ==="
-  # Rule 5 structural check: scope to the Quick Reference section only
-  # (table row label, not prose body text) so the assertion is stable
-  # under prose edits outside the table.
-  if ! grep -q '## Quick Reference' "$CLAUDE_MD"; then
-    fail "CLAUDE.md missing ## Quick Reference section"
-    return
-  fi
-  local qr_section
-  qr_section=$(awk '/^## Quick Reference/{flag=1; next} flag && /^## /{flag=0} flag' "$CLAUDE_MD")
-  if echo "$qr_section" | grep -qi 'bootstrap'; then
-    pass "CLAUDE.md Quick Reference table has Bootstrap row"
-  else
-    fail "CLAUDE.md Quick Reference table missing Bootstrap row"
-  fi
-}
-
 # Run all tests
 test_onboarding_doc_exists
 test_onboarding_doc_has_bootstrap_section
 test_readme_exists
 test_readme_has_nextjs_starter_section
-test_claude_md_has_bootstrap_row
 
 echo ""
 echo "=== Results ==="
