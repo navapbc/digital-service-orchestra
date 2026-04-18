@@ -322,6 +322,61 @@ test_hook_taskoutput_block_guard_trap_writes_new_canonical_path() {
 }
 
 # ---------------------------------------------------------------------------
+# PROBE TESTS: pre-edit-write-functions.sh functions with HOOK_ERROR_LOG assignments
+#
+# Three functions in pre-edit-write-functions.sh have inline ERR traps with
+# HOOK_ERROR_LOG assignments:
+#   - hook_title_length_validator
+#   - hook_tickets_tracker_guard
+#   - hook_block_generated_reviewer_agents
+#
+# Each probe sources pre-edit-write-functions.sh and verifies the canonical
+# log path is used (not the legacy path).
+# ---------------------------------------------------------------------------
+
+test_hook_title_length_validator_trap_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+    _run_probe_test "title-length-validator" "pre-edit-write-functions.sh" "$TEST_HOME"
+
+    local new_exists="no"
+    [[ -f "$TEST_HOME/.claude/logs/dso-hook-errors.jsonl" ]] && new_exists="yes"
+    assert_eq "hook_title_length_validator trap: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$TEST_HOME/.claude/hook-error-log.jsonl" ]] && legacy_exists="yes"
+    assert_eq "hook_title_length_validator trap: legacy log NOT written" "no" "$legacy_exists"
+}
+
+test_hook_tickets_tracker_guard_trap_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+    _run_probe_test "tickets-tracker-guard" "pre-edit-write-functions.sh" "$TEST_HOME"
+
+    local new_exists="no"
+    [[ -f "$TEST_HOME/.claude/logs/dso-hook-errors.jsonl" ]] && new_exists="yes"
+    assert_eq "hook_tickets_tracker_guard trap: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$TEST_HOME/.claude/hook-error-log.jsonl" ]] && legacy_exists="yes"
+    assert_eq "hook_tickets_tracker_guard trap: legacy log NOT written" "no" "$legacy_exists"
+}
+
+test_hook_block_generated_reviewer_agents_trap_writes_new_canonical_path() {
+    local TEST_HOME
+    TEST_HOME=$(_make_test_home)
+    _run_probe_test "block-generated-reviewer-agents" "pre-edit-write-functions.sh" "$TEST_HOME"
+
+    local new_exists="no"
+    [[ -f "$TEST_HOME/.claude/logs/dso-hook-errors.jsonl" ]] && new_exists="yes"
+    assert_eq "hook_block_generated_reviewer_agents trap: new canonical log written" "yes" "$new_exists"
+
+    local legacy_exists="no"
+    [[ -f "$TEST_HOME/.claude/hook-error-log.jsonl" ]] && legacy_exists="yes"
+    assert_eq "hook_block_generated_reviewer_agents trap: legacy log NOT written" "no" "$legacy_exists"
+}
+
+# ---------------------------------------------------------------------------
 # TEST: run-hook.sh syntax error path writes to NEW canonical log path
 #
 # run-hook.sh hardcodes HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
@@ -364,6 +419,83 @@ RUNNER_EOF
 }
 
 # ---------------------------------------------------------------------------
+# PATH-PROBE TESTS: top-level standalone hook scripts
+#
+# These scripts use a top-level HOOK_ERROR_LOG assignment (not inside a
+# function) so triggering their ERR trap requires fully stubbed inputs.
+# Instead, we assert the assignment string itself uses the canonical path.
+# This is a structural probe: if the file contains the legacy path, the
+# test fails; if it contains the canonical path, it passes.
+# ---------------------------------------------------------------------------
+
+_assert_canonical_log_path() {
+    local HOOK_FILE="$1"
+    local HOOK_LABEL="$2"
+    local BASENAME
+    BASENAME="$(basename "$HOOK_FILE")"
+
+    local has_canonical="no"
+    local has_legacy="no"
+    if grep -q 'HOOK_ERROR_LOG=.*\.claude/logs/dso-hook-errors\.jsonl' "$HOOK_FILE" 2>/dev/null; then
+        has_canonical="yes"
+    fi
+    if grep -q 'HOOK_ERROR_LOG=.*\.claude/hook-error-log\.jsonl' "$HOOK_FILE" 2>/dev/null; then
+        has_legacy="yes"
+    fi
+
+    assert_eq "$HOOK_LABEL: canonical path present" "yes" "$has_canonical"
+    assert_eq "$HOOK_LABEL: legacy path absent" "no" "$has_legacy"
+}
+
+test_standalone_review_gate_bypass_sentinel_canonical_path() {
+    _assert_canonical_log_path \
+        "$DSO_PLUGIN_DIR/hooks/lib/review-gate-bypass-sentinel.sh" \
+        "review-gate-bypass-sentinel.sh"
+}
+
+test_standalone_plan_review_gate_canonical_path() {
+    _assert_canonical_log_path \
+        "$DSO_PLUGIN_DIR/hooks/plan-review-gate.sh" \
+        "plan-review-gate.sh"
+}
+
+test_standalone_taskoutput_block_guard_canonical_path() {
+    _assert_canonical_log_path \
+        "$DSO_PLUGIN_DIR/hooks/taskoutput-block-guard.sh" \
+        "taskoutput-block-guard.sh"
+}
+
+test_standalone_track_cascade_failures_canonical_path() {
+    _assert_canonical_log_path \
+        "$DSO_PLUGIN_DIR/hooks/track-cascade-failures.sh" \
+        "track-cascade-failures.sh"
+}
+
+test_standalone_title_length_validator_canonical_path() {
+    _assert_canonical_log_path \
+        "$DSO_PLUGIN_DIR/hooks/title-length-validator.sh" \
+        "title-length-validator.sh"
+}
+
+test_standalone_track_tool_errors_canonical_path() {
+    _assert_canonical_log_path \
+        "$DSO_PLUGIN_DIR/hooks/track-tool-errors.sh" \
+        "track-tool-errors.sh"
+}
+
+test_standalone_review_stop_check_canonical_path() {
+    _assert_canonical_log_path \
+        "$DSO_PLUGIN_DIR/hooks/review-stop-check.sh" \
+        "review-stop-check.sh"
+}
+
+test_standalone_check_validation_failures_canonical_path() {
+    _assert_canonical_log_path \
+        "$DSO_PLUGIN_DIR/hooks/check-validation-failures.sh" \
+        "check-validation-failures.sh"
+}
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 
@@ -380,6 +512,21 @@ test_hook_checkpoint_rollback_trap_writes_new_canonical_path
 test_hook_plan_review_gate_trap_writes_new_canonical_path
 test_hook_brainstorm_gate_trap_writes_new_canonical_path
 test_hook_taskoutput_block_guard_trap_writes_new_canonical_path
+
+# Probe-function tests for pre-edit-write-functions.sh:
+test_hook_title_length_validator_trap_writes_new_canonical_path
+test_hook_tickets_tracker_guard_trap_writes_new_canonical_path
+test_hook_block_generated_reviewer_agents_trap_writes_new_canonical_path
+
+# Path-probe tests for standalone top-level hook scripts:
+test_standalone_review_gate_bypass_sentinel_canonical_path
+test_standalone_plan_review_gate_canonical_path
+test_standalone_taskoutput_block_guard_canonical_path
+test_standalone_track_cascade_failures_canonical_path
+test_standalone_title_length_validator_canonical_path
+test_standalone_track_tool_errors_canonical_path
+test_standalone_review_stop_check_canonical_path
+test_standalone_check_validation_failures_canonical_path
 
 # run-hook.sh test (hardcoded legacy path in error handling):
 test_run_hook_syntax_error_writes_new_canonical_path
