@@ -86,8 +86,8 @@ assert_pass_if_clean "test_marketplace_json_has_plugins_array"
 
 # ── test_marketplace_json_plugin_has_required_fields ──────────────────────────
 _snapshot_fail
-PLUGIN_FIELDS=(name source description)
-for field in "${PLUGIN_FIELDS[@]}"; do
+# Check name and description as non-empty strings; source may be a string or object (git-subdir format)
+for field in name description; do
     if [[ -f "$MARKETPLACE_JSON" ]] && python3 -c "
 import json, sys
 data = json.load(open('$MARKETPLACE_JSON'))
@@ -100,6 +100,20 @@ sys.exit(0 if isinstance(plugin.get('$field'), str) and len(plugin['$field']) > 
     fi
     assert_eq "test_marketplace_json_plugin_has_required_fields: plugins[0].$field present" "present" "$actual_field"
 done
+# source may be a non-empty string or a non-null object (git-subdir format)
+if [[ -f "$MARKETPLACE_JSON" ]] && python3 -c "
+import json, sys
+data = json.load(open('$MARKETPLACE_JSON'))
+plugin = data.get('plugins', [{}])[0]
+src = plugin.get('source')
+ok = (isinstance(src, str) and len(src) > 0) or (isinstance(src, dict) and len(src) > 0)
+sys.exit(0 if ok else 1)
+" 2>/dev/null; then
+    actual_field="present"
+else
+    actual_field="missing"
+fi
+assert_eq "test_marketplace_json_plugin_has_required_fields: plugins[0].source present" "present" "$actual_field"
 assert_pass_if_clean "test_marketplace_json_plugin_has_required_fields"
 
 # ── test_marketplace_json_plugin_name_matches_plugin_json ─────────────────────
