@@ -223,3 +223,5 @@ plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-wor
 
 # RED marker for marketplace.json two-entry git-subdir restructure (task 1a94-b9e9)
 .claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh [test_marketplace_json_has_two_plugins]
+# --- scripts/release.sh: release precondition logic (task 4d61-cd7c) ---
+scripts/release.sh:tests/scripts/test-release.sh [test_release_ci_not_green]
