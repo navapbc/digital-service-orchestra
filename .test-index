@@ -220,3 +220,4 @@ plugins/dso/docs/workflows/REVIEW-WORKFLOW-HUGE.md:tests/workflows/test-review-w
 plugins/dso/agents/huge-diff-reviewer-light.md:tests/workflows/test-review-workflow-huge.sh
 plugins/dso/agents/huge-diff-reviewer-standard.md:tests/workflows/test-review-workflow-huge.sh
 plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-workflow-huge.sh
+plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh [test_register_hook_err_handler_sets_trap]
