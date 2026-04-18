@@ -1,0 +1,1 @@
+{"timestamp": 1776552319371113000, "uuid": "eb007286-667c-4da3-a58a-83a6231a55da", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "merge-to-main.sh: agent uses --version-bump flag -> silently ignored, wrong version type applied"}}}
