@@ -230,6 +230,11 @@ def reduce_all_tickets(
         if not os.path.isdir(entry_path):
             continue
 
+        # Fast-skip: if .archived marker present and we are excluding archived tickets,
+        # skip expensive event replay entirely.
+        if exclude_archived and os.path.exists(os.path.join(entry_path, ".archived")):
+            continue
+
         state = reduce_ticket(entry_path)
 
         if state is None:
