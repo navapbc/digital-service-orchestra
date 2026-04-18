@@ -2,10 +2,11 @@
 # scripts/release.sh — Automated release script with sequential precondition gating.
 #
 # Usage:
-#   scripts/release.sh <VERSION> [--yes]
+#   scripts/release.sh [<VERSION>] [--yes]
 #
 # Arguments:
 #   VERSION  Semver string WITHOUT the 'v' prefix, e.g. '1.2.3'
+#            If omitted, defaults to the version in plugins/dso/.claude-plugin/plugin.json
 #   --yes    Skip interactive confirmation prompt (required for non-TTY invocation)
 #
 # Preconditions (checked in order):
@@ -45,7 +46,7 @@ for arg in "$@"; do
         --yes) YES_FLAG=true ;;
         -*)
             echo "ERROR: Unknown flag: $arg" >&2
-            echo "Usage: $(basename "$0") <VERSION> [--yes]" >&2
+            echo "Usage: $(basename "$0") [<VERSION>] [--yes]" >&2
             exit 1
             ;;
         *)
@@ -64,9 +65,16 @@ done
 # ---------------------------------------------------------------------------
 
 if [[ -z "$VERSION" ]]; then
-    echo "ERROR: VERSION argument is required (e.g. 1.2.3)" >&2
-    echo "Usage: $(basename "$0") <VERSION> [--yes]" >&2
-    exit 1
+    _plugin_json="$SCRIPT_DIR/../plugins/dso/.claude-plugin/plugin.json"
+    if [[ -f "$_plugin_json" ]]; then
+        VERSION="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$_plugin_json" 2>/dev/null || echo "")"
+    fi
+    if [[ -z "$VERSION" ]]; then
+        echo "ERROR: VERSION argument is required (e.g. 1.2.3) and could not be read from plugin.json" >&2
+        echo "Usage: $(basename "$0") [<VERSION>] [--yes]" >&2
+        exit 1
+    fi
+    echo "Using version from plugin.json: $VERSION" >&2
 fi
 
 SEMVER_RE='^[0-9]+\.[0-9]+\.[0-9]+$'

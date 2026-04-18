@@ -20,6 +20,7 @@
 #  15. test_release_no_upstream_configured
 #  16. test_release_ci_polls_in_progress_then_succeeds
 #  17. test_release_ci_polls_in_progress_then_fails
+#  18. test_release_defaults_version_from_plugin_json
 #
 # Usage: bash tests/scripts/test-release.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail (RED: expect exit 1)
@@ -1054,5 +1055,86 @@ _poll_fail_stderr=$(cat "$_tmp_poll_fail/stderr.txt" 2>/dev/null || true)
 assert_ne "test_release_ci_polls_in_progress_then_fails: exit non-zero" "0" "$_poll_fail_exit"
 assert_contains "test_release_ci_polls_in_progress_then_fails: CI in stderr" "CI" "$_poll_fail_stderr"
 assert_pass_if_clean "test_release_ci_polls_in_progress_then_fails"
+
+# =============================================================================
+# test_release_defaults_version_from_plugin_json
+# Given: no VERSION argument, plugin.json exists with a valid semver
+# When:  scripts/release.sh --yes is called (no positional VERSION)
+# Then:  exits 0, stderr contains "Using version from plugin.json:", and
+#        the version used matches the one in plugin.json
+# =============================================================================
+echo ""
+echo "--- test_release_defaults_version_from_plugin_json ---"
+_snapshot_fail
+
+_tmp_defver="$(_make_tmp)"
+_mock_defver="$_tmp_defver/bin"
+mkdir -p "$_mock_defver"
+_fake_repo_defver="$(_make_git_repo)"
+
+mkdir -p "$_fake_repo_defver/.claude-plugin"
+printf '{"name":"p","version":"1.0.0"}' > "$_fake_repo_defver/.claude-plugin/marketplace.json"
+mkdir -p "$_fake_repo_defver/.claude/scripts"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$_fake_repo_defver/.claude/scripts/dso"
+chmod +x "$_fake_repo_defver/.claude/scripts/dso"
+
+# Read expected version from real plugin.json (the path the script will resolve to)
+_defver_expected=$(python3 -c "
+import json, os, sys
+p = os.path.join('$REPO_ROOT', 'plugins', 'dso', '.claude-plugin', 'plugin.json')
+print(json.load(open(p))['version'])
+" 2>/dev/null || echo "")
+_defver_tag="v${_defver_expected}"
+_defver_tag_log="$_tmp_defver/tag-calls.log"
+
+cat > "$_mock_defver/git" << STUB
+#!/usr/bin/env bash
+case "\$1" in
+  branch)   echo "main"; exit 0 ;;
+  status)   exit 0 ;;
+  fetch)    exit 0 ;;
+  rev-list) echo "0"; exit 0 ;;
+  rev-parse)
+    case "\$2" in
+      --show-toplevel) echo "$_fake_repo_defver"; exit 0 ;;
+      --abbrev-ref)    echo "origin/main"; exit 0 ;;
+      *)               echo "deadbeef000000"; exit 0 ;;
+    esac
+    ;;
+  tag)
+    if [[ "\$2" == "-a" ]]; then
+      echo "\$3" >> "$_defver_tag_log"
+    fi
+    exit 0
+    ;;
+  push) exit 0 ;;
+  *)    exit 0 ;;
+esac
+STUB
+chmod +x "$_mock_defver/git"
+
+make_mock "$_mock_defver" "gh" 0 '[{"conclusion":"success"}]'
+
+_defver_exit=0
+_defver_stderr=""
+(
+    cd "$_fake_repo_defver"
+    PATH="$_mock_defver:$PATH" bash "$SCRIPT" --yes < /dev/null > /dev/null 2>"$_tmp_defver/stderr.txt"
+) || _defver_exit=$?
+_defver_stderr=$(cat "$_tmp_defver/stderr.txt" 2>/dev/null || true)
+
+assert_eq "test_release_defaults_version_from_plugin_json: exits 0" "0" "$_defver_exit"
+assert_contains "test_release_defaults_version_from_plugin_json: stderr reports version source" \
+    "Using version from plugin.json" "$_defver_stderr"
+
+# Verify the tag used matches the version from plugin.json
+_defver_tagged=""
+if [[ -f "$_defver_tag_log" ]]; then
+    _defver_tagged=$(head -1 "$_defver_tag_log" | tr -d '[:space:]')
+fi
+assert_eq "test_release_defaults_version_from_plugin_json: tag uses plugin.json version" \
+    "$_defver_tag" "$_defver_tagged"
+
+assert_pass_if_clean "test_release_defaults_version_from_plugin_json"
 
 print_summary
