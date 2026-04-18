@@ -223,7 +223,7 @@ plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 
 # --- ticket-lifecycle.sh: .archived marker (epic bc06-74f4, task de12-3482) ---
-plugins/dso/scripts/ticket-lifecycle.sh:tests/scripts/test-ticket-lifecycle.sh [test_lifecycle_writes_archived_marker]
+plugins/dso/scripts/ticket-lifecycle.sh:tests/scripts/test-ticket-lifecycle.sh
 
 # --- review-sample-files.sh: stratified sampler (epic 97fc-b2ca, task 4337-a84d) ---
 plugins/dso/scripts/review-sample-files.sh:tests/unit/scripts/test-review-sample-files.sh

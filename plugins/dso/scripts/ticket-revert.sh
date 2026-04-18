@@ -181,7 +181,13 @@ fi
 if [ -f "$TRACKER_DIR/.git" ] && git -C "$TRACKER_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
     git -C "$TRACKER_DIR" config gc.auto 0 2>/dev/null || true
     git -C "$TRACKER_DIR" add "$ticket_id/$final_filename" 2>/dev/null || true
-    git -C "$TRACKER_DIR" commit -q --no-verify -m "ticket: REVERT $ticket_id" 2>/dev/null || true
+    commit_exit=0
+    git -C "$TRACKER_DIR" commit -q --no-verify -m "ticket: REVERT $ticket_id" 2>/dev/null || commit_exit=$?
+    # SC3: rollback marker removal if commit failed
+    if [ "$commit_exit" -ne 0 ] && [ "${target_event_type:-}" = "ARCHIVED" ]; then
+        python3 -c "import sys, pathlib; pathlib.Path(sys.argv[1]).touch()" \
+            "$TRACKER_DIR/$ticket_id/.archived" 2>/dev/null || true
+    fi
 fi
 
 echo "Reverted event '$target_uuid' on ticket '$ticket_id'"

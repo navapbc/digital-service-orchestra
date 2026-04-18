@@ -561,6 +561,193 @@ def test_revert_archived_event_removes_marker(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Test 8: .archived marker is rolled back when reverting ARCHIVED event and
+#         the git commit fails
+# ---------------------------------------------------------------------------
+
+_ARCHIVED_UUID2 = "eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_revert_archived_event_rollback_marker_on_commit_failure(
+    tmp_path: Path,
+) -> None:
+    """If the git commit fails after marker removal, the .archived marker must be
+    re-created (rolled back) so the ticket stays in a consistent state.
+
+    RED: before the fix, the marker is removed and never restored on commit failure.
+    GREEN: after the fix, the marker is restored via the SC3 rollback path.
+
+    Setup:
+    - Initialize a real git repo in the tracker dir so the script enters the
+      git commit block (needs a .git *file* in TRACKER_DIR).
+    - Inject a fake 'git' shim via PATH that passes all git subcommands through
+      to the real git, but exits 1 for 'commit' (simulating a commit failure).
+    - Ensure the .archived marker exists before calling ticket-revert.sh.
+
+    Assert:
+    - ticket-revert.sh exits 0 (the commit failure is non-fatal per spec).
+    - The .archived marker STILL EXISTS after the call (was rolled back).
+    """
+    ticket_id = "tkt-rev-008"
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir(parents=True)
+    (tracker_dir / ".env-id").write_text(_ENV_ID)
+
+    ticket_dir = tracker_dir / ticket_id
+    ticket_dir.mkdir(parents=True)
+
+    # Write CREATE event
+    _write_event(
+        ticket_dir,
+        timestamp=1742600000,
+        uuid=_CREATE_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Rollback marker test",
+            "parent_id": None,
+        },
+    )
+
+    # Write ARCHIVED event — this is the event we will revert
+    _write_event(
+        ticket_dir,
+        timestamp=1742600100,
+        uuid=_ARCHIVED_UUID2,
+        event_type="ARCHIVED",
+        data={"reason": "archiving for test"},
+    )
+
+    # Place the .archived marker file
+    archived_marker = ticket_dir / ".archived"
+    archived_marker.write_text("")
+    assert archived_marker.exists(), (
+        "precondition: .archived marker must exist before revert"
+    )
+
+    # ── Set up a real git repo inside tracker_dir so the script's git-block fires ──
+    # The condition is: [ -f "$TRACKER_DIR/.git" ]
+    # We create an actual git worktree by init-ing a bare repo and creating a
+    # linked worktree, OR simply init a regular repo directly in tracker_dir and
+    # write a .git file pointing to it.
+    #
+    # Simplest: git init tracker_dir directly (creates .git/ directory), but the
+    # script checks for [ -f "$TRACKER_DIR/.git" ] (a *file*, not a dir).
+    # So instead: init a bare repo alongside, then create tracker_dir/.git as a file
+    # pointing to it (linked worktree style).
+    bare_repo = tmp_path / "bare.git"
+    subprocess.run(
+        ["git", "init", "--bare", str(bare_repo)],
+        check=True,
+        capture_output=True,
+    )
+    # Configure the bare repo so git add/commit won't complain about identity
+    subprocess.run(
+        ["git", "-C", str(bare_repo), "config", "user.email", "test@test.com"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(bare_repo), "config", "user.name", "Test"],
+        check=True,
+        capture_output=True,
+    )
+
+    # Create a linked worktree by writing a .git file (gitfile) pointing to the bare repo
+    # For a linked worktree the gitdir pointer inside .git file needs a GIT_DIR
+    # We'll use a standard git init instead of bare so we can stage/commit
+    real_git_dir = tmp_path / "real_git"
+    real_git_dir.mkdir()
+    subprocess.run(
+        ["git", "init", str(real_git_dir)],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(real_git_dir), "config", "user.email", "test@test.com"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(real_git_dir), "config", "user.name", "Test"],
+        check=True,
+        capture_output=True,
+    )
+
+    # Write a .git file in tracker_dir that points to real_git_dir/.git
+    # This makes [ -f "$TRACKER_DIR/.git" ] true
+    # and git -C "$TRACKER_DIR" rev-parse --is-inside-work-tree will succeed
+    (tracker_dir / ".git").write_text(f"gitdir: {real_git_dir / '.git'}\n")
+
+    # Make the real git repo know about tracker_dir as the work tree
+    # by setting core.worktree in the git config
+    subprocess.run(
+        ["git", "-C", str(real_git_dir), "config", "core.worktree", str(tracker_dir)],
+        check=True,
+        capture_output=True,
+    )
+
+    # ── Create a fake 'git' shim that fails on commit ──────────────────────────
+    fake_bin_dir = tmp_path / "fake_bin"
+    fake_bin_dir.mkdir()
+    fake_git = fake_bin_dir / "git"
+    real_git = subprocess.check_output(["which", "git"], text=True).strip()
+    fake_git.write_text(
+        f"""#!/usr/bin/env bash
+# Fake git shim: pass everything through EXCEPT commit, which exits 1
+if [ "${{1:-}}" = "-C" ] && [ "${{3:-}}" = "commit" ]; then
+    exit 1
+fi
+if [ "${{1:-}}" = "commit" ]; then
+    exit 1
+fi
+exec {real_git} "$@"
+"""
+    )
+    fake_git.chmod(0o755)
+
+    # ── Run ticket-revert.sh with the fake git on PATH ────────────────────────
+    env = {
+        **os.environ,
+        "TICKETS_TRACKER_DIR": str(tracker_dir),
+        "PATH": f"{fake_bin_dir}:{os.environ.get('PATH', '')}",
+    }
+    # Do NOT set GIT_DIR here — we want the script to use its own tracker_dir
+    # git detection ([ -f "$TRACKER_DIR/.git" ]).
+    # But we must unset GIT_DIR so the script doesn't override TRACKER_DIR.
+    env.pop("GIT_DIR", None)
+
+    cmd = [
+        "bash",
+        str(REPO_ROOT / "plugins" / "dso" / "scripts" / "ticket-revert.sh"),
+        ticket_id,
+        _ARCHIVED_UUID2,
+        "--reason=rollback test",
+    ]
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(REPO_ROOT),
+        timeout=15,
+    )
+
+    assert result.returncode == 0, (
+        f"ticket-revert.sh must exit 0 even when git commit fails (non-fatal); "
+        f"got {result.returncode}.\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+    assert archived_marker.exists(), (
+        f".archived marker must be RESTORED (rolled back) after a failed git commit "
+        f"when reverting an ARCHIVED event; marker was not found at {archived_marker}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Test 7: .archived marker is preserved when reverting a non-ARCHIVED event
 # ---------------------------------------------------------------------------
 
