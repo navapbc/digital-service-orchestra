@@ -23,6 +23,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import sys
 import time
 import warnings
 from pathlib import Path
@@ -2676,12 +2677,12 @@ def test_reduce_all_tickets_fallback_without_marker_correct_state(
         "Ticket with ARCHIVED event but no .archived marker must have archived=True "
         f"in returned state (slow-path fallback correctness); got {state.get('archived')!r}"
     )
+
+
 # ---------------------------------------------------------------------------
-# Tests (UPDATE — 71ee-f1de): compute_dir_hash() must be sensitive to
-# .archived marker presence/absence (SC5).
+# Tests: compute_dir_hash() is sensitive to .archived marker presence/absence (SC5).
 # These tests import compute_dir_hash directly and test the hashing contract.
-# They FAIL on current code (which excludes .archived from the hash) and must
-# PASS once compute_dir_hash() is updated to include the .archived marker.
+# compute_dir_hash() includes marker:present/marker:absent in its hash input.
 # ---------------------------------------------------------------------------
 
 
@@ -2696,10 +2697,6 @@ from ticket_reducer._cache import compute_dir_hash as _compute_dir_hash  # noqa:
 @pytest.mark.scripts
 def test_cache_hash_differs_with_marker_present(tmp_path: Path) -> None:
     """Hash must change after an .archived marker is written to the ticket dir.
-
-    UPDATE: compute_dir_hash() currently ignores .archived, so the hash does
-    not change when the marker is present. This test will FAIL until
-    compute_dir_hash() is updated to include the .archived marker in its input.
 
     Setup: create a ticket dir with one event file. Compute the hash (no marker).
     Write an .archived marker. Compute the hash again.
@@ -2737,7 +2734,7 @@ def test_cache_hash_differs_with_marker_present(tmp_path: Path) -> None:
 
     assert hash_without_marker != hash_with_marker, (
         "compute_dir_hash() must return a different hash when .archived marker is present; "
-        "currently the marker is excluded from the hash (SC5 — UPDATE mode, expected to fail)"
+        "compute_dir_hash() must include marker presence in hash (SC5)"
     )
 
 
@@ -2788,9 +2785,6 @@ def test_cache_hash_stable_when_no_marker_change(tmp_path: Path) -> None:
 def test_cache_hash_differs_after_marker_removal(tmp_path: Path) -> None:
     """Hash must change again after .archived marker is removed.
 
-    UPDATE: compute_dir_hash() currently ignores .archived, so removal does not
-    change the hash. This test will FAIL until compute_dir_hash() is updated.
-
     Setup: create a ticket dir with one event file. Write .archived marker.
     Compute hash (with marker). Remove .archived. Compute hash again.
 
@@ -2833,8 +2827,7 @@ def test_cache_hash_differs_after_marker_removal(tmp_path: Path) -> None:
     hash_after_removal = _compute_dir_hash(ticket_dir_str, event_filenames)
 
     assert hash_with_marker != hash_after_removal, (
-        "compute_dir_hash() must return a different hash after .archived marker removal; "
-        "currently marker removal is not detected (SC5 — UPDATE mode, expected to fail)"
+        "compute_dir_hash() must return a different hash after .archived marker removal"
     )
     assert hash_after_removal == hash_baseline, (
         "compute_dir_hash() hash after marker removal must equal the original "
