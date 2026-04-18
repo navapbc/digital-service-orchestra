@@ -94,7 +94,7 @@ export _PRE_ALL_FUNCTIONS_LOADED=''
 export _SESSION_MISC_FUNCTIONS_LOADED=''
 source '${DSO_PLUGIN_DIR}/hooks/lib/${SOURCE_FILE}'
 probe_hook_err_trap() {
-    local HOOK_ERROR_LOG="\$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="\$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"test\",\"hook\":\"${HOOK_NAME}\",\"line\":%s}\\n" "\$LINENO" >> "\$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
     false
 }

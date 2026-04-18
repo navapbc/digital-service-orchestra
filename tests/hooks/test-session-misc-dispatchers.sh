@@ -323,11 +323,13 @@ assert_eq "test_cleanup_orphaned_processes_uses_pgid_not_pid: uses ps -o pgid=" 
 # Verify the kill line uses a PGID variable, not $pid directly for group kill
 # The kill -- -<var> should use a variable named *pgid* or *PGID*, not $pid
 _kill_uses_pgid=0
+# shellcheck disable=SC2016  # single-quoted pattern is intentional: searching for literal $ in source code
 grep -qE 'kill.*-.*\$(.*pgid|.*PGID)' "$SESSION_MISC_FUNCTIONS" && _kill_uses_pgid=1
 assert_eq "test_cleanup_orphaned_processes_uses_pgid_not_pid: kill uses PGID var" "1" "$_kill_uses_pgid"
 
 # Verify the old buggy pattern (kill -- -"$pid") is NOT present
 _old_pattern_absent=1
+# shellcheck disable=SC2016  # single-quoted pattern is intentional: searching for literal $ in source code
 grep -q 'kill -- -"$pid"' "$SESSION_MISC_FUNCTIONS" && _old_pattern_absent=0
 assert_eq "test_cleanup_orphaned_processes_uses_pgid_not_pid: old kill -pid pattern removed" "1" "$_old_pattern_absent"
 

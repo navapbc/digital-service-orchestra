@@ -35,6 +35,13 @@ fi
 
 HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
 
+# Source shared ERR handler (fail-open: if missing, continue without trap)
+if [[ -f "${HOOKS_LIB_DIR}/hook-error-handler.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "${HOOKS_LIB_DIR}/hook-error-handler.sh" 2>/dev/null || true
+    _dso_register_hook_err_handler "pre-bash.sh"
+fi
+
 # macOS-compatible millisecond timestamp (date +%s%N unavailable on macOS)
 # Guarantees a numeric result — falls back to python3, then 0.
 _get_ms() {

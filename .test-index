@@ -31,27 +31,27 @@ plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-p
 plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/hooks/test-review-protocol-workflow.sh,tests/skills/test_review_workflow_model_escalation.py,tests/workflows/test-review-workflow-classifier-failure-guards.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-light.md:tests/docs/test-reviewer-polyglot-compliance.sh
 plugins/dso/docs/workflows/TEST-FAILURE-DISPATCH.md:plugins/dso/skills/sprint/prompts/test-failure-dispatch-protocol.md
-plugins/dso/hooks/dispatchers/post-agent.sh:tests/hooks/test-post-agent-sentinel.sh,tests/hooks/test-post-dispatcher-err-handler.sh [test_post_agent_err_writes_jsonl]
-plugins/dso/hooks/dispatchers/post-bash.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh [test_post_bash_err_writes_jsonl]
-plugins/dso/hooks/dispatchers/post-edit.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh [test_post_edit_err_writes_jsonl]
-plugins/dso/hooks/dispatchers/post-write.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh [test_post_write_err_writes_jsonl]
-plugins/dso/hooks/dispatchers/post-all.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh [test_post_all_err_writes_jsonl]
-plugins/dso/hooks/dispatchers/post-failure.sh:tests/hooks/test-post-dispatcher-err-handler.sh [test_post_failure_err_writes_jsonl]
-plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh [test_pre_bash_err_fails_open]
-plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh [test_pre_edit_err_fails_open]
-plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh [test_pre_write_err_fails_open]
-plugins/dso/hooks/dispatchers/pre-enterplanmode.sh:tests/hooks/test-session-misc-dispatchers.sh,tests/hooks/test-pre-dispatcher-err-handler.sh [test_pre_enterplanmode_err_fails_open]
-plugins/dso/hooks/dispatchers/pre-exitplanmode.sh:tests/hooks/test-session-misc-dispatchers.sh,tests/hooks/test-pre-dispatcher-err-handler.sh [test_pre_exitplanmode_err_fails_open]
-plugins/dso/hooks/dispatchers/pre-taskoutput.sh:tests/hooks/test-session-misc-dispatchers.sh,tests/hooks/test-pre-dispatcher-err-handler.sh [test_pre_taskoutput_err_fails_open]
-plugins/dso/hooks/dispatchers/pre-all.sh:tests/hooks/test-pre-dispatcher-err-handler.sh [test_pre_all_err_fails_open]
+plugins/dso/hooks/dispatchers/post-agent.sh:tests/hooks/test-post-agent-sentinel.sh,tests/hooks/test-post-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/post-bash.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/post-edit.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/post-write.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/post-all.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/post-failure.sh:tests/hooks/test-post-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh [test_pre_bash_dispatcher_record_test_status_direct_call_blocked],tests/hooks/test-pre-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/pre-enterplanmode.sh:tests/hooks/test-session-misc-dispatchers.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/pre-exitplanmode.sh:tests/hooks/test-session-misc-dispatchers.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/pre-taskoutput.sh:tests/hooks/test-session-misc-dispatchers.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/pre-all.sh:tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-staging-invariance.sh,tests/hooks/test-behavioral-equivalence-allowlist.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh
 plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-part4.sh,tests/hooks/test-record-test-status-part1.sh,tests/hooks/test-record-test-status-accumulative.sh,tests/hooks/test-record-test-status-centrality.sh,tests/hooks/test-record-test-status-eagain.sh,tests/hooks/test-record-test-status-split-guard.sh,tests/hooks/test-record-test-status-part2.sh,tests/hooks/test-record-test-status-part3.sh,tests/hooks/test-record-test-status-attest.sh,tests/hooks/test-record-test-status-batch-threshold.sh,tests/hooks/test-record-test-status-staged-test-no-source.sh
 plugins/dso/hooks/record-review.sh:tests/hooks/test-record-review-attest.sh
-plugins/dso/hooks/run-hook.sh:tests/hooks/test-run-hook-relative-paths.sh,tests/hooks/test-hook-inline-trap-consolidation.sh [test_run_hook_syntax_error_writes_new_canonical_path]
-plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh [test_hook_worktree_bash_guard_real_err_writes_new_canonical_path]
-plugins/dso/hooks/lib/pre-all-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh [test_hook_checkpoint_rollback_trap_writes_new_canonical_path]
-plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh [test_hook_plan_review_gate_trap_writes_new_canonical_path]
+plugins/dso/hooks/run-hook.sh:tests/hooks/test-run-hook-relative-paths.sh,tests/hooks/test-hook-inline-trap-consolidation.sh
+plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
+plugins/dso/hooks/lib/pre-all-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
+plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/scripts/blast-radius-score.py:tests/scripts/test-blast-radius-score.sh
 plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-resume-cwd.sh,tests/scripts/test-merge-to-main-resume-push-idempotent.sh,tests/scripts/test-merge-to-main-cleanliness.sh,tests/scripts/test-merge-to-main-locking.sh,tests/scripts/test-merge-to-main-version-bump.sh,tests/scripts/test-merge-to-main-version-bump-integration.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-config-driven.sh,tests/scripts/test-merge-to-main-ci-workflow-name.sh,tests/scripts/test-merge-to-main-ucq2.sh,tests/hooks/test-merge-to-main-portability.sh
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-generic.sh

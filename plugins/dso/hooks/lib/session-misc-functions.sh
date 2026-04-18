@@ -344,7 +344,7 @@ for h in sorted(hooks):
 # NOTE: Uses python3 for JSON parsing (matches original hook behavior).
 hook_post_compact_review_check() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
 
     local SOURCE
     SOURCE=$(echo "$INPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('source',''))" 2>/dev/null || echo "")
@@ -670,7 +670,7 @@ hook_track_tool_errors() {
     local _MONITORING; _MONITORING="${DSO_MONITORING_TOOL_ERRORS:-$(bash "$_PLUGIN_ROOT/scripts/read-config.sh" monitoring.tool_errors 2>/dev/null || echo "false")}"
     [[ "$_MONITORING" != "true" ]] && return 0
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
 
     check_tool python3 || return 0
 
@@ -798,7 +798,7 @@ print(json.dumps(data))
 # has been recorded.
 hook_plan_review_gate() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"plan-review-gate\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     local TOOL_NAME
@@ -860,7 +860,7 @@ hook_plan_review_gate() {
 #   Set to false to disable the gate (e.g., for sessions that don't require brainstorm).
 hook_brainstorm_gate() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"brainstorm-gate\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     local TOOL_NAME
@@ -951,7 +951,7 @@ hook_brainstorm_gate() {
 # PreToolUse hook: block TaskOutput calls with block=false
 hook_taskoutput_block_guard() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"taskoutput-block-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     local BLOCK_VALUE=""
