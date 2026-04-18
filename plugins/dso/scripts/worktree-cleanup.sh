@@ -369,9 +369,11 @@ fi
 # Get the actual main worktree (might differ from MAIN_REPO if script is in a worktree)
 MAIN_WORKTREE=$(git -C "$MAIN_REPO" worktree list --porcelain | head -1 | sed 's/^worktree //')
 
-# Derive the main branch name from git symbolic-ref; fall back to 'main' if unavailable
-MAIN_BRANCH=$(git -C "$MAIN_WORKTREE" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|^refs/remotes/origin/||') || MAIN_BRANCH='main'
-[[ -z "$MAIN_BRANCH" ]] && MAIN_BRANCH='main'
+# Derive the main branch name from git symbolic-ref; fall back to actual HEAD branch, then 'main'
+MAIN_BRANCH=$(git -C "$MAIN_WORKTREE" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|^refs/remotes/origin/||') || true
+if [[ -z "$MAIN_BRANCH" ]]; then
+    MAIN_BRANCH=$(git -C "$MAIN_WORKTREE" symbolic-ref --short HEAD 2>/dev/null || echo 'main')
+fi
 
 # Current directory (to avoid removing the worktree we're in)
 CURRENT_DIR="$(pwd -P)"

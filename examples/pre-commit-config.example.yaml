@@ -183,6 +183,28 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/
 
+      # Enforcement boundary check (timeout: 10s)
+      # Validates that enforcement files (pre-commit hooks, review gates) are not
+      # modified without explicit user approval in the current session.
+      - id: enforcement-boundary-check
+        name: Enforcement Boundary Check (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh enforcement-boundary-check 10 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/hooks/pre-commit-enforcement-boundary-check.sh\""
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: \.sh$
+
+      # Plugin boundary check (timeout: 10s)
+      # Validates that files outside plugins/dso/ do not import or reference
+      # internal plugin implementation details directly.
+      - id: plugin-boundary-check
+        name: Plugin Boundary Check (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh plugin-boundary-check 10 "./.claude/hooks/pre-commit/check-plugin-boundary.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/
+
       # Plugin self-ref check (timeout: 10s)
       # Blocks hardcoded plugins/dso/ paths in plugin scripts — scripts must use
       # _PLUGIN_ROOT or _PLUGIN_GIT_PATH variables instead of hardcoded paths.
@@ -242,6 +264,16 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+
+      # ShellCheck (timeout: 15s)
+      # Runs shellcheck on staged .sh files. Skips gracefully if shellcheck not installed.
+      - id: shellcheck
+        name: ShellCheck (15s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh shellcheck 15 "./.claude/hooks/pre-commit/shellcheck.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: \.sh$
 
       # Review gate (timeout: 10s)
       # Blocks commits containing non-allowlisted files without a valid review-status.
