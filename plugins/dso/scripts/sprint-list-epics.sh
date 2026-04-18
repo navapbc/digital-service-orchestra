@@ -25,12 +25,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 show_all=false
 # min_children and max_children are intentionally unset by default (use ${var+x} set-check)
 # has_tag is intentionally unset by default (use ${has_tag+x} set-check)
+# without_tag is intentionally unset by default (use ${without_tag+x} set-check)
 for _arg in "$@"; do
     case "$_arg" in
         --all) show_all=true ;;
         --min-children=*) min_children="${_arg#--min-children=}" ;;
         --max-children=*) max_children="${_arg#--max-children=}" ;;
         --has-tag=*) has_tag="${_arg#--has-tag=}" ;;
+        --without-tag=*) without_tag="${_arg#--without-tag=}" ;;
     esac
 done
 unset _arg
@@ -221,6 +223,8 @@ SPRINT_MIN_CHILDREN_SET="${min_children+1}" \
 SPRINT_MAX_CHILDREN_SET="${max_children+1}" \
 SPRINT_HAS_TAG="${has_tag:-}" \
 SPRINT_HAS_TAG_SET="${has_tag+1}" \
+SPRINT_WITHOUT_TAG="${without_tag:-}" \
+SPRINT_WITHOUT_TAG_SET="${without_tag+1}" \
 python3 -c "
 import json, os, sys
 
@@ -232,6 +236,9 @@ max_children = int(os.environ['SPRINT_MAX_CHILDREN']) if os.environ.get('SPRINT_
 
 # Tag filter — use _SET sentinel to distinguish empty string from unset
 has_tag = os.environ['SPRINT_HAS_TAG'] if os.environ.get('SPRINT_HAS_TAG_SET') == '1' else None
+
+# Without-tag filter — use _SET sentinel to distinguish empty string from unset
+without_tag = os.environ['SPRINT_WITHOUT_TAG'] if os.environ.get('SPRINT_WITHOUT_TAG_SET') == '1' else None
 
 # Load index and child counts from stdin (avoids ARG_MAX for large ticket systems)
 try:
@@ -317,6 +324,14 @@ if has_tag is not None:
     in_progress    = [e for e in in_progress    if _passes_tag_filter(e)]
     open_unblocked = [e for e in open_unblocked if _passes_tag_filter(e)]
     open_blocked   = [e for e in open_blocked   if _passes_tag_filter(e)]
+
+# Apply without-tag filter (after tag filter, before output)
+if without_tag is not None:
+    def _passes_without_tag_filter(e):
+        return without_tag not in e.get('tags', [])
+    in_progress    = [e for e in in_progress    if _passes_without_tag_filter(e)]
+    open_unblocked = [e for e in open_unblocked if _passes_without_tag_filter(e)]
+    open_blocked   = [e for e in open_blocked   if _passes_without_tag_filter(e)]
 
 # Display P0 bugs above the epic list (if any exist) -- must come BEFORE the
 # 'no open epics' early exit so P0 bugs are always visible.

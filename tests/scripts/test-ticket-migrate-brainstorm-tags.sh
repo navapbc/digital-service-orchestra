@@ -139,7 +139,11 @@ for fname in sorted(os.listdir(ticket_dir)):
         with open(fpath) as f:
             event = json.load(f)
         data = event.get('data', {})
-        tags = data.get('tags', None)
+        event_type = event.get('event_type', '')
+        if event_type == 'EDIT':
+            tags = data.get('fields', {}).get('tags', None)
+        else:
+            tags = data.get('tags', None)
         if tags is not None:
             if isinstance(tags, list) and target_tag in tags:
                 sys.exit(0)
@@ -176,7 +180,7 @@ for fname in sorted(os.listdir(ticket_dir)):
         with open(fpath) as f:
             event = json.load(f)
         data = event.get('data', {})
-        tags = data.get('tags', None)
+        tags = data.get('fields', {}).get('tags', None)
         if tags is not None:
             tag_list = tags if isinstance(tags, list) else tags.split(',')
             if 'brainstorm:complete' in tag_list:

@@ -34,15 +34,29 @@ Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write 
 
 When invoked with a free-text description (argument present but does not match the ticket ID format `[a-z0-9]{4}-[a-z0-9]{4}`), treat the argument as seeding context and immediately begin the Socratic dialogue at Phase 1. Do NOT show the epic selection list. Open with: *"Got it — I'll use that as our starting point. Let me ask a few questions to sharpen the scope."* then proceed to Phase 1 Step 2 with the user's text as the established problem statement seed.
 
-When invoked without a ticket ID, run:
+When invoked without a ticket ID, run two queries:
 
 ```bash
+# Zero-child epics (not yet decomposed)
 .claude/scripts/dso sprint-list-epics.sh --max-children=0
+
+# Scrutiny-gap epics (decomposed, not yet brainstormed)
+.claude/scripts/dso sprint-list-epics.sh --min-children=1 --without-tag=brainstorm:complete
 ```
 
-If the command returns one or more epics, present a numbered selection list of those epics plus a "start fresh" option (always last). Also display below the list the count of epics that have one or more children (i.e., epics excluded from the list because they already have child tickets). Wait for the user to choose; if they select an existing epic, proceed as if invoked with that epic's ticket ID. If they select "start fresh", open with: *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
+Combine results into a single numbered selection list with two labeled categories:
 
-If the command returns zero epics (no 0-child epics exist), automatically fall through to the fresh dialogue: open with *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
+**Zero-child epics (not yet decomposed)**
+1. [P<N>] <title> (<epic-id>)
+...
+
+**Scrutiny-gap epics (decomposed, not yet brainstormed)**
+N+1. [P<N>] <title> (<epic-id>)
+...
+
+Always append a "start fresh" option as the last item. If both queries return zero epics, automatically fall through to the fresh dialogue: open with *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
+
+Wait for the user to choose; if they select an existing epic, proceed as if invoked with that epic's ticket ID. If they select "start fresh", open with: *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
 
 When invoked with a ticket ID, check the ticket type first (see the gate section below).
 
