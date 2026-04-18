@@ -18,8 +18,12 @@ set -uo pipefail
 #                         (retried on resume), which causes an infinite loop when a test
 #                         always exceeds the budget (bug 07f1-f8b6).
 #   --state-file=PATH   Path to JSON state file (default: /tmp/test-batched-state.json)
-#   --runner=RUNNER     Test runner driver: node, pytest, or generic (default: auto-detect)
+#   --runner=RUNNER     Test runner driver: node, pytest, bash, or generic (default: auto-detect)
 #   --test-dir=PATH     Directory to search for test files (used by runner drivers)
+#   --filter=PATTERN    Only run test files whose basename matches PATTERN (glob).
+#                       Applied after discovery; no matches prints a warning and exits 0.
+#                       Works with bash runner (and pytest runner via -k flag).
+#                       Example: --filter=test_check*
 #
 # Runner drivers:
 #   node      Discovers *.test.js and *.test.mjs files under --test-dir and runs
@@ -134,7 +138,9 @@ except Exception:
             if [ -n "${RUNNER:-}" ] && [ -n "${TEST_DIR:-}" ]; then
                 local _timeout_arg=""
                 [ "${TIMEOUT:-0}" -ne "${DEFAULT_TIMEOUT:-40}" ] 2>/dev/null && _timeout_arg="--timeout=${TIMEOUT} "
-                resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 --runner=${RUNNER} --test-dir=${TEST_DIR} ${_timeout_arg}${CMD:+"'$CMD'"}"
+                local _filter_arg=""
+                [ -n "${FILTER_PATTERN:-}" ] && _filter_arg="--filter=${FILTER_PATTERN} "
+                resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 --runner=${RUNNER} --test-dir=${TEST_DIR} ${_timeout_arg}${_filter_arg}${CMD:+"'$CMD'"}"
             elif [ -n "${CMD:-}" ]; then
                 local _timeout_arg=""
                 [ "${TIMEOUT:-0}" -ne "${DEFAULT_TIMEOUT:-40}" ] 2>/dev/null && _timeout_arg="--timeout=${TIMEOUT} "
@@ -192,6 +198,7 @@ CMD=""
 RUNNER=""
 TEST_DIR=""
 PER_TEST_TIMEOUT=""
+FILTER_PATTERN=""
 
 for arg in "$@"; do
     case "$arg" in
@@ -213,6 +220,9 @@ for arg in "$@"; do
             ;;
         --test-dir=*)
             TEST_DIR="${arg#--test-dir=}"
+            ;;
+        --filter=*)
+            FILTER_PATTERN="${arg#--filter=}"
             ;;
         --*)
             echo "ERROR: Unknown option: $arg" >&2

@@ -324,3 +324,55 @@ class TestTokenSecurity:
         captured = capsys.readouterr()
         assert secret_token not in captured.out, "Token leaked to stdout"
         assert secret_token not in captured.err, "Token leaked to stderr"
+
+
+# ---------------------------------------------------------------------------
+# Fresh API path normalization (5c32-6925, 63f3-11a4)
+# ---------------------------------------------------------------------------
+
+
+class TestFreshApiPathNormalization:
+    """Fresh API data (not from cache) must normalize whole-number utilization.
+
+    Bug: when fetch_usage returns utilization=49.0 (whole-number %), the
+    live-API code path used the raw value directly instead of normalizing via
+    _norm(), causing USAGE_5HR to print as 4900% and triggering VERDICT: 2
+    (paused) for normal usage sessions.
+    """
+
+    def test_whole_number_utilization_from_api_prints_below_100pct(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
+        """API returning whole-number % (49.0 for 49%) must NOT produce USAGE_5HR: 4900%.
+
+        RED: fails before fix because raw value is used without _norm().
+        GREEN: passes after _norm() is applied to fresh API data path.
+        """
+        cache_file = str(tmp_path / "usage-cache.json")
+        with (
+            mock.patch.object(_module, "get_oauth_token", return_value="fake-token"),
+            mock.patch.object(
+                _module,
+                "fetch_usage",
+                return_value={
+                    "five_hour": {"utilization": 49.0},
+                    "seven_day": {"utilization": 14.0},
+                },
+            ),
+            mock.patch.object(_module, "CACHE_PATH", cache_file),
+        ):
+            exit_code = main()
+        captured = capsys.readouterr()
+        assert "USAGE_5HR: 4900%" not in captured.out, (
+            "Raw whole-number utilization (49.0) must not print as 4900%"
+        )
+        assert "USAGE_7DAY: 1400%" not in captured.out, (
+            "Raw whole-number utilization (14.0) must not print as 1400%"
+        )
+        assert "USAGE_5HR: 49%" in captured.out, (
+            f"Expected USAGE_5HR: 49%, got: {captured.out}"
+        )
+        assert exit_code != 2, (
+            "Verdict should not be paused (2) for 49% usage — "
+            f"exit_code={exit_code}, output={captured.out}"
+        )

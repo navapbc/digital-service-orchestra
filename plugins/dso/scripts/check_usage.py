@@ -172,6 +172,15 @@ def read_cache(cache_path: str) -> dict | None:
         return None
 
 
+def _normalize_utilization(v: float) -> float:
+    """Normalize utilization to 0.0–1.0 fraction.
+
+    The Anthropic API can return either fractional (0.07 for 7%) or
+    whole-number percentages (7.0 for 7%). Divide by 100 when v > 1.0.
+    """
+    return v / 100.0 if v > 1.0 else v
+
+
 def write_cache(cache_path: str, data: dict) -> None:
     """Write usage data to cache with atomic rename and flock on separate lock file.
 
@@ -186,15 +195,13 @@ def write_cache(cache_path: str, data: dict) -> None:
 
     lock_path = os.path.join(os.path.dirname(cache_path), "usage-cache.lock")
 
-    # Flatten nested API data into flat cache fields.
-    # Normalize utilization: API can return whole-number percentages (e.g. 7 for 7%)
-    # instead of fractions (0.07). Divide by 100 when value > 1.0 to normalize.
-    def _norm(v: float) -> float:
-        return v / 100.0 if v > 1.0 else v
-
     enriched = {
-        "five_hour_pct": _norm(data.get("five_hour", {}).get("utilization", 0.0)),
-        "seven_day_pct": _norm(data.get("seven_day", {}).get("utilization", 0.0)),
+        "five_hour_pct": _normalize_utilization(
+            data.get("five_hour", {}).get("utilization", 0.0)
+        ),
+        "seven_day_pct": _normalize_utilization(
+            data.get("seven_day", {}).get("utilization", 0.0)
+        ),
         "timestamp": int(time.time()),
         "resets_at": data.get("resets_at", ""),
     }
@@ -339,11 +346,12 @@ def main() -> int:
         except Exception:
             pass  # cache write failure is non-fatal
 
-        five_hr = usage_data.get("five_hour", {}).get("utilization", 0.0)
-        seven_day = usage_data.get("seven_day", {}).get("utilization", 0.0)
-        # Note: usage_data is the raw API response (nested format).
-        # write_cache() flattens it to five_hour_pct/seven_day_pct.
-        # We extract from raw here since we have it in hand.
+        five_hr = _normalize_utilization(
+            usage_data.get("five_hour", {}).get("utilization", 0.0)
+        )
+        seven_day = _normalize_utilization(
+            usage_data.get("seven_day", {}).get("utilization", 0.0)
+        )
     else:
         # Should not reach here, but fail-closed
         print("USAGE_SOURCE: unknown")
