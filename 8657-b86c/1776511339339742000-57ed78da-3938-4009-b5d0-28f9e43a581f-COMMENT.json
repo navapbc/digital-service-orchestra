@@ -1,0 +1,1 @@
+{"timestamp": 1776511339339742000, "uuid": "57ed78da-3938-4009-b5d0-28f9e43a581f", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "STATUS:complete\nTasks: T1=b445-1a6d (update CLAUDE.md + KNOWN-ISSUES.md, testing_mode: GREEN). Single task \u2014 doc-only story."}}
