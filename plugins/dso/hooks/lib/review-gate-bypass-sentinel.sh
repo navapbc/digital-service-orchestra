@@ -134,7 +134,9 @@ hook_review_bypass_sentinel() {
         if [[ "$COMMAND" == *"record-test-status.sh"* ]]; then
             return 0
         fi
-        # Check for write patterns: redirect operators, cp, mv, tee, echo/printf with redirect
+        # Check for write patterns: redirect operators, cp, mv, tee, echo/printf with redirect,
+        # or scripting interpreter invocations (python3, python, perl, ruby, node) that could
+        # open and write to the file without a shell redirect operator (bug 4600-02a3).
         if [[ "$COMMAND" =~ \>[[:space:]]*[^[:space:]]*test-gate-status ]] || \
            [[ "$COMMAND" =~ \>[[:space:]]*[^[:space:]]*test-status/ ]] || \
            [[ "$COMMAND" =~ (tee)[[:space:]]*[^[:space:]]*test-gate-status ]] || \
@@ -142,7 +144,8 @@ hook_review_bypass_sentinel() {
            [[ "$COMMAND" =~ (cp|mv)[[:space:]].*test-gate-status ]] || \
            [[ "$COMMAND" =~ (cp|mv)[[:space:]].*test-status/ ]] || \
            [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>.*test-gate-status ]] || \
-           [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>.*test-status/ ]]; then
+           [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>.*test-status/ ]] || \
+           [[ "$COMMAND" =~ (python3?|perl|ruby|node)[[:space:]] ]]; then
             echo "BLOCKED [bypass-sentinel]: direct write to test-gate-status detected. Use record-test-status.sh to record test results." >&2
             trap - ERR; return 2
         fi

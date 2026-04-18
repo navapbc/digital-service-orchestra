@@ -249,4 +249,23 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":"find .tickets-tracker/ -name
 EXIT_CODE=$(call_sentinel "$INPUT")
 assert_eq "test_tickets_tracker_find_not_blocked" "0" "$EXIT_CODE"
 
+# ============================================================
+# Pattern g extension: python3/scripting interpreter write to test-gate-status (4600-02a3)
+# ============================================================
+
+# test_python3_open_write_to_test_gate_status_blocked
+# A python3 command using open().write() to test-gate-status must be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"python3 -c \"open(\"/tmp/workflow-plugin-xxx/test-gate-status\", \"w\").write(\"passed\\n\")\""}}'
+RESULT=$(call_sentinel_with_stderr "$INPUT")
+EXIT_CODE="${RESULT%%|*}"
+STDERR="${RESULT#*|}"
+assert_eq "test_python3_open_write_to_test_gate_status_blocked" "2" "$EXIT_CODE"
+assert_contains "test_python3_open_write_to_test_gate_status_blocked_msg" "test-gate-status" "$STDERR"
+
+# test_python3_with_record_test_status_not_blocked
+# A python3 command that also invokes record-test-status.sh must NOT be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"python3 something.py && bash record-test-status.sh --source-file test-gate-status"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_python3_with_record_test_status_not_blocked" "0" "$EXIT_CODE"
+
 print_summary
