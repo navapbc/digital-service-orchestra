@@ -179,4 +179,75 @@ assert_eq "test_stamp_format_consistent: ci.yml version matches plugin.json" "ma
 
 assert_pass_if_clean "test_stamp_format_consistent"
 
+# ── test_marketplace_json_has_two_plugins ─────────────────────────────────────
+# RED marker: [test_marketplace_json_has_two_plugins]
+# FAILS until marketplace.json is updated to two git-subdir entries.
+_snapshot_fail
+if [[ -f "$MARKETPLACE_JSON" ]] && python3 -c "
+import json, sys
+data = json.load(open('$MARKETPLACE_JSON'))
+plugins = data.get('plugins', [])
+sys.exit(0 if len(plugins) == 2 else 1)
+" 2>/dev/null; then
+    actual_two_plugins="two"
+else
+    actual_two_plugins="not-two"
+fi
+assert_eq "test_marketplace_json_has_two_plugins: plugins array has exactly 2 entries" "two" "$actual_two_plugins"
+assert_pass_if_clean "test_marketplace_json_has_two_plugins"
+
+# ── test_marketplace_json_dso_uses_git_subdir ─────────────────────────────────
+_snapshot_fail
+if [[ -f "$MARKETPLACE_JSON" ]] && python3 -c "
+import json, sys
+data = json.load(open('$MARKETPLACE_JSON'))
+plugins = data.get('plugins', [])
+dso = next((p for p in plugins if p.get('name') == 'dso'), None)
+if dso is None:
+    sys.exit(1)
+src = dso.get('source', {})
+if not isinstance(src, dict):
+    sys.exit(1)
+ok = (
+    src.get('source') == 'git-subdir'
+    and 'navapbc/digital-service-orchestra' in src.get('url', '')
+    and src.get('path') == 'plugins/dso'
+    and src.get('ref') == 'main'
+)
+sys.exit(0 if ok else 1)
+" 2>/dev/null; then
+    actual_dso_gitsubdir="valid"
+else
+    actual_dso_gitsubdir="invalid"
+fi
+assert_eq "test_marketplace_json_dso_uses_git_subdir: dso entry uses git-subdir source" "valid" "$actual_dso_gitsubdir"
+assert_pass_if_clean "test_marketplace_json_dso_uses_git_subdir"
+
+# ── test_marketplace_json_dso_dev_uses_git_subdir ─────────────────────────────
+_snapshot_fail
+if [[ -f "$MARKETPLACE_JSON" ]] && python3 -c "
+import json, sys
+data = json.load(open('$MARKETPLACE_JSON'))
+plugins = data.get('plugins', [])
+dso_dev = next((p for p in plugins if p.get('name') == 'dso-dev'), None)
+if dso_dev is None:
+    sys.exit(1)
+src = dso_dev.get('source', {})
+if not isinstance(src, dict):
+    sys.exit(1)
+ok = (
+    src.get('source') == 'git-subdir'
+    and 'navapbc/digital-service-orchestra' in src.get('url', '')
+    and src.get('path') == 'plugins/dso'
+    and src.get('ref') == 'main'
+)
+sys.exit(0 if ok else 1)
+" 2>/dev/null; then
+    actual_dso_dev_gitsubdir="valid"
+else
+    actual_dso_dev_gitsubdir="invalid"
+fi
+assert_eq "test_marketplace_json_dso_dev_uses_git_subdir: dso-dev entry uses git-subdir source" "valid" "$actual_dso_dev_gitsubdir"
+assert_pass_if_clean "test_marketplace_json_dso_dev_uses_git_subdir"
+
 print_summary

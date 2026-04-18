@@ -220,3 +220,6 @@ plugins/dso/docs/workflows/REVIEW-WORKFLOW-HUGE.md:tests/workflows/test-review-w
 plugins/dso/agents/huge-diff-reviewer-light.md:tests/workflows/test-review-workflow-huge.sh
 plugins/dso/agents/huge-diff-reviewer-standard.md:tests/workflows/test-review-workflow-huge.sh
 plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-workflow-huge.sh
+
+# RED marker for marketplace.json two-entry git-subdir restructure (task 1a94-b9e9)
+.claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh [test_marketplace_json_has_two_plugins]
