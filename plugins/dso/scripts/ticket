@@ -134,6 +134,10 @@ case "$subcommand" in
         _ensure_initialized
         exec bash "$SCRIPT_DIR/ticket-compact.sh" "$@"
         ;;
+    compact-all)
+        _ensure_initialized
+        exec bash "$SCRIPT_DIR/ticket-compact-all.sh" "$@"
+        ;;
     fsck)
         # ticket-fsck.sh: JSON validity + CREATE presence + index.lock cleanup
         _ensure_initialized
