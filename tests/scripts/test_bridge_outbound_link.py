@@ -39,6 +39,10 @@ def _load_module() -> ModuleType:
 def bridge() -> ModuleType:
     """Return the bridge-outbound module, failing all tests if absent (RED)."""
     if not SCRIPT_PATH.exists():
+        # REVIEW-DEFENSE: pre-existing guard pattern (not introduced by this diff).
+        # The "expected RED state" comment reflects TDD workflow convention for stub-first
+        # scripts; bridge-outbound.py already exists in production, so this path is
+        # unreachable in normal test runs. No behavior change from this diff.
         pytest.fail(
             f"bridge-outbound.py not found at {SCRIPT_PATH} -- "
             "this is expected RED state; implement the script to make tests pass."
@@ -1705,4 +1709,89 @@ def test_link_unlink_sorted_while_non_link_events_maintain_original_order(
         f"(timestamp={t2_create}) when LINK has an earlier timestamp. "
         f"Actual call order: {call_order}. "
         f"Timestamp ordering not yet implemented in process_outbound."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bug 8190-121b: _handle_links.py LINK event writer must use nanosecond timestamps
+# ---------------------------------------------------------------------------
+
+_INBOUND_SCRIPT_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "bridge-inbound.py"
+
+
+def _load_inbound_module() -> "ModuleType":
+    import importlib.util as _ilu
+
+    spec = _ilu.spec_from_file_location("bridge_inbound", _INBOUND_SCRIPT_PATH)
+    assert spec is not None and spec.loader is not None
+    mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_handle_links_writes_link_event_with_nanosecond_timestamp(
+    tmp_path: Path,
+) -> None:
+    """_write_bidirectional_relates_link (called via handle_links) writes a LINK
+    event whose 'timestamp' field is at nanosecond scale (> 1_000_000_000_000).
+
+    This test is RED: current code in _handle_links.py uses int(time.time())
+    which produces a seconds-scale integer (~1.7e9), well below the 1e12
+    threshold. After the fix uses time.time_ns() the value will be ~1.7e18.
+    """
+    if not _INBOUND_SCRIPT_PATH.exists():
+        pytest.fail(
+            f"bridge-inbound.py not found at {_INBOUND_SCRIPT_PATH} — "
+            "this is expected RED state."
+        )
+    inbound = _load_inbound_module()
+
+    tickets_root = tmp_path / ".tickets-tracker"
+    tickets_root.mkdir()
+
+    src_dir = tickets_root / "jira-dso-9190"
+    src_dir.mkdir()
+
+    # Construct a Jira issue with a single "Relates" issuelink so that
+    # handle_links calls _write_bidirectional_relates_link.
+    issue = {
+        "key": "DSO-9190",
+        "fields": {
+            "summary": "Nanosecond link timestamp test",
+            "issuetype": {"name": "Task"},
+            "issuelinks": [
+                {
+                    "type": {"name": "Relates"},
+                    "outwardIssue": {"key": "DSO-9191"},
+                }
+            ],
+        },
+    }
+
+    mock_acli = MagicMock()
+    inbound.handle_links(
+        issue,
+        tickets_root=tickets_root,
+        bridge_env_id=_BRIDGE_ENV_ID,
+        acli_client=mock_acli,
+        persist_relationship_rejection_fn=inbound.persist_relationship_rejection,
+        write_bridge_alert_fn=inbound.write_bridge_alert,
+    )
+
+    # A LINK event file must have been written in the source ticket directory
+    link_files = list(src_dir.glob("*-LINK.json"))
+    assert len(link_files) >= 1, (
+        f"handle_links must write at least one LINK event file in {src_dir}; "
+        f"found {len(link_files)}"
+    )
+
+    event_data = json.loads(link_files[0].read_text(encoding="utf-8"))
+    ts = event_data.get("timestamp")
+    assert isinstance(ts, int), f"timestamp must be an int, got {type(ts).__name__}"
+    assert ts > 1_000_000_000_000, (
+        f"timestamp must be nanosecond-scale (> 1_000_000_000_000); "
+        f"got {ts} — current code uses int(time.time()) which is seconds-scale (~1.7e9). "
+        f"Fix: use time.time_ns() in _handle_links.py."
     )

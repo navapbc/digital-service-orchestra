@@ -1767,3 +1767,86 @@ class TestPerBatchCheckpoint:
             f"With batch_resume_cursor=100 and resume=True, pagination must start "
             f"at start_at=100; got first start_at={start_at_values[0]}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Bug 8190-121b: inbound event writers must use nanosecond timestamps
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_write_create_event_timestamp_is_nanosecond_scale(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """write_create_events writes a CREATE event whose 'timestamp' field is at
+    nanosecond scale (> 1_000_000_000_000).
+
+    This test is RED: current code uses int(time.time()) which produces a
+    seconds-scale integer (~1.7e9), well below the 1e12 threshold. After the
+    fix uses time.time_ns() the value will be ~1.7e18, above the threshold.
+    """
+    tickets_tracker = tmp_path / ".tickets-tracker"
+    tickets_tracker.mkdir()
+
+    issue = _make_jira_issue(
+        key="DSO-9190",
+        summary="Nanosecond timestamp test",
+        created="2026-04-18T10:00:00.000+0000",
+        updated="2026-04-18T10:00:00.000+0000",
+    )
+
+    written = bridge.write_create_events(
+        [issue],
+        tickets_tracker=tickets_tracker,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert len(written) == 1, "Expected 1 CREATE event written"
+    event_path = Path(written[0])
+    assert event_path.exists(), f"CREATE event file must exist: {event_path}"
+
+    event_data = json.loads(event_path.read_text(encoding="utf-8"))
+    ts = event_data.get("timestamp")
+    assert isinstance(ts, int), f"timestamp must be an int, got {type(ts).__name__}"
+    assert ts > 1_000_000_000_000, (
+        f"timestamp must be nanosecond-scale (> 1_000_000_000_000); "
+        f"got {ts} — current code uses int(time.time()) which is seconds-scale (~1.7e9). "
+        f"Fix: use time.time_ns() instead."
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_write_status_event_timestamp_is_nanosecond_scale(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """write_status_event writes a STATUS event whose 'timestamp' field is at
+    nanosecond scale (> 1_000_000_000_000).
+
+    This test is RED: current code uses int(time.time()) which produces a
+    seconds-scale integer (~1.7e9), well below the 1e12 threshold.
+    """
+    ticket_dir = tmp_path / "jira-dso-9190"
+    ticket_dir.mkdir()
+
+    bridge.write_status_event(
+        ticket_id="jira-dso-9190",
+        status="in_progress",
+        ticket_dir=ticket_dir,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    status_files = list(ticket_dir.glob("*-STATUS.json"))
+    assert len(status_files) == 1, (
+        f"write_status_event must write exactly 1 STATUS file; found {len(status_files)}"
+    )
+
+    event_data = json.loads(status_files[0].read_text(encoding="utf-8"))
+    ts = event_data.get("timestamp")
+    assert isinstance(ts, int), f"timestamp must be an int, got {type(ts).__name__}"
+    assert ts > 1_000_000_000_000, (
+        f"timestamp must be nanosecond-scale (> 1_000_000_000_000); "
+        f"got {ts} — current code uses int(time.time()) which is seconds-scale (~1.7e9). "
+        f"Fix: use time.time_ns() instead."
+    )

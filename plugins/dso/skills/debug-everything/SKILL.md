@@ -363,7 +363,15 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 - **Triage skipped** (Phase 2): No triage sub-agent dispatch, no new epic creation, no issue clustering.
 
 <COMPACTION_RESUME>
-**If resuming after an auto-compact event in Bug-Fix Mode**: Re-read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline immediately — do NOT attempt to investigate from Step 0. Check the in-progress ticket's most recent CHECKPOINT comment to determine the last completed fix-bug step, then resume from the next step in fix-bug's pipeline:
+**If resuming after an auto-compact event in Bug-Fix Mode**: First, re-establish OPEN_BUG_COUNT using the canonical bash approach — do NOT filter the output with Python-side type checking (`t.get('type') == 'bug'` always returns 0 because `ticket list --type=bug` strips the `type` field from returned objects):
+
+```bash
+_open_bugs=$(.claude/scripts/dso ticket list --type=bug --status=open 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+_inprog_bugs=$(.claude/scripts/dso ticket list --type=bug --status=in_progress 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+OPEN_BUG_COUNT=$((_open_bugs + _inprog_bugs))
+```
+
+Then re-read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline immediately — do NOT attempt to investigate from Step 0. Check the in-progress ticket's most recent CHECKPOINT comment to determine the last completed fix-bug step, then resume from the next step in fix-bug's pipeline:
 - CHECKPOINT at Step 2 (investigation dispatched) → resume at Step 3 (analyze results)
 - CHECKPOINT at Step 3 (hypothesis confirmed) → resume at Step 4 (fix approval) or Step 5 (RED test)
 - CHECKPOINT at Step 5 (RED test written) → resume at Step 6 (implement fix)
