@@ -23,6 +23,7 @@
     "./agents/completion-verifier.md",
     "./agents/complexity-evaluator.md",
     "./agents/conflict-analyzer.md",
+    "./agents/cross-epic-interaction-classifier.md",
     "./agents/doc-writer.md",
     "./agents/feasibility-reviewer.md",
     "./agents/intent-search.md",

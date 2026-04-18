@@ -54,8 +54,8 @@ _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pre-commit.sh" || true
 
 # --- Load merge utility helpers (state file, lock, recovery, push-idempotency) ---
-# shellcheck source=${_SCRIPT_DIR}/../hooks/lib/merge-helpers.sh
-_MERGE_HELPERS_LIB="${_SCRIPT_DIR}/../hooks/lib/merge-helpers.sh"
+# shellcheck source=${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-helpers.sh
+_MERGE_HELPERS_LIB="${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-helpers.sh"
 if [[ -f "$_MERGE_HELPERS_LIB" ]]; then
     source "$_MERGE_HELPERS_LIB"
 fi
