@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# hook-boundary: enforcement
 # hooks/pre-commit-ticket-gate.sh
 # git commit-msg hook: blocks commits lacking a valid v3 ticket ID in the message.
 #
@@ -34,6 +35,7 @@ set -uo pipefail
 # ── Fail-open on timeout ─────────────────────────────────────────────────────
 # pre-commit sends SIGTERM after timeout; Claude Code tool timeout sends SIGURG.
 # A gate timeout is infrastructure failure — fail open so commits aren't blocked.
+# shellcheck disable=SC2329  # Pre-existing: function invoked indirectly via trap SIGTERM/SIGURG
 _fail_open_on_timeout() {
     echo "pre-commit-ticket-gate: WARNING: timed out — failing open (commit allowed)" >&2
     exit 0
@@ -142,6 +144,7 @@ for _id in "${TICKET_IDS[@]+"${TICKET_IDS[@]}"}"; do
     _ticket_dir="${TRACKER_DIR}/${_id}"
     if [[ -d "$_ticket_dir" ]]; then
         # Check for a CREATE event file in the ticket directory
+        # shellcheck disable=SC2012  # Pre-existing: ls used for glob expansion with head — intentional pattern
         _create_file=$(ls "$_ticket_dir/"*-CREATE.json 2>/dev/null | head -1 || echo "")
         if [[ -n "$_create_file" ]]; then
             # Found a valid ticket — allow commit

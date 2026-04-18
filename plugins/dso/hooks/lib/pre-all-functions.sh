@@ -38,10 +38,10 @@ source "$_PRE_ALL_FUNC_DIR/deps.sh"
 #
 # Fast path: if no marker file exists, returns immediately (zero overhead).
 #
-# Fail-open: any error logs to hook-error-log.jsonl and returns 0.
+# Fail-open: any error logs to dso-hook-errors.jsonl and returns 0.
 hook_checkpoint_rollback() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"checkpoint-rollback\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     # Resolve repo root

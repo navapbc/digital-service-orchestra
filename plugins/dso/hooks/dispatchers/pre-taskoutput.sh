@@ -17,6 +17,13 @@ fi
 
 HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
 
+# Source shared ERR handler (fail-open: if missing, continue without trap)
+if [[ -f "${HOOKS_LIB_DIR}/hook-error-handler.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "${HOOKS_LIB_DIR}/hook-error-handler.sh" 2>/dev/null || true
+    _dso_register_hook_err_handler "pre-taskoutput.sh"
+fi
+
 # Source the dispatcher framework
 source "$HOOKS_LIB_DIR/dispatcher.sh"
 
