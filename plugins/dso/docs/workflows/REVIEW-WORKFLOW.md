@@ -116,6 +116,21 @@ The diff hash is captured here — AFTER Step 1's format/lint/type-check pass �
 
 **Note**: The diff hash is staging-invariant for tracked file changes — `git add -u` produces the same hash as the pre-add state.
 
+### Step 2b: Huge-Diff File-Count Gate
+
+Run the file-count threshold check against the current staging state (`git diff --name-only HEAD`), which reflects the same working tree used by Step 2's diff hash:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+".claude/scripts/dso" review-huge-diff-check.sh
+HUGE_EXIT=$?
+```
+
+- **Exit 0**: file count is below threshold → proceed to Step 3 (standard path)
+- **Exit 2**: file count meets or exceeds `review.huge_diff_file_threshold` → divert:
+  Follow REVIEW-WORKFLOW-HUGE.md and return; do not continue to Step 3
+- **Exit 1**: configuration error (invalid threshold) → surface error to user; do not proceed
+
 ## Step 3: Classify Review Tier (MANDATORY — run the classifier, do not evaluate mentally)
 
 **You MUST run this command and use its output.** Do NOT select a tier based on your assessment of diff complexity or file types — the classifier computes the tier deterministically from the diff.
@@ -145,7 +160,7 @@ echo "REVIEW_TIER=$REVIEW_TIER REVIEW_AGENT=$REVIEW_AGENT"
 
 ### Step 3b: Size-Based Branching (post-classifier)
 
-After tier selection, extract size fields from the classifier output and apply size-based routing. The `size_action` field determines whether the review proceeds normally, upgrades to opus, or is rejected. See `docs/contracts/classifier-size-output.md` for the full contract.
+After tier selection, extract size fields from the classifier output and apply size-based routing. The `size_action` field determines whether the review proceeds normally, upgrades to opus, or emits a size warning. See `docs/contracts/classifier-size-output.md` for the full contract.
 
 ```bash
 # Extract size fields from classifier output (defaults match failure contract)
@@ -175,13 +190,8 @@ if [[ "$IS_MERGE" != "true" ]] && [[ "$REVIEW_PASS_NUM" -le 1 ]]; then
         echo "SIZE_UPGRADE: diff has ${DIFF_SIZE_LINES} scorable lines — upgrading to opus reviewer at ${REVIEW_TIER} tier scope"
     fi
 
-    if [[ "$SIZE_ACTION" == "reject" ]]; then
-        echo "REVIEW_RESULT: rejected"
-        echo "REVIEW_REJECTED: diff has ${DIFF_SIZE_LINES} scorable lines (≥600 threshold)."
-        echo "Large diffs exhaust reviewer context and degrade review quality."
-        echo "Split your changes into smaller commits before re-running review."
-        echo "Guidance: ${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/large-diff-splitting-guide.md"
-        exit 1
+    if [[ "$SIZE_ACTION" == "warn" ]]; then
+        echo "SIZE_WARNING: ${DIFF_SIZE_LINES} scorable lines (≥600 threshold) — proceeding with review"
     fi
 fi
 ```

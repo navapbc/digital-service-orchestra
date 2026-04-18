@@ -1840,11 +1840,7 @@ For tasks that failed:
 
 Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
 
-**HARD-GATE — reject signal**: When the review complexity classifier emits `SIZE_ACTION=reject` (diff exceeds 600 lines), you MUST NOT override this signal. You have exactly two options:
-1. Split the batch: identify independent subsets of changes, commit them separately, and review each subset
-2. Escalate to user: present the reject signal and ask how to proceed
-
-Any rationalization for overriding reject ("these changes are related", "splitting would break functionality", "this is a single logical change") is prohibited. The reject threshold exists because reviewers cannot effectively review diffs above this size.
+**SIZE_WARNING path**: When SIZE_ACTION=warn, log the SIZE_WARNING to the user and continue with review dispatch. Do NOT halt, split, or escalate based on warn alone.
 
 Push the worktree branch:
 

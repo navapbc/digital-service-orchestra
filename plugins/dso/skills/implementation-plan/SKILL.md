@@ -842,16 +842,7 @@ Once the plan is approved (Score: 5 or user-approved), create tasks in the ticke
 
 ### Create Tasks
 
-For each task in the plan:
-
-```bash
-# Create a task with parent and priority:
-TASK_ID=$(.claude/scripts/dso ticket create task "{task title}" --parent=<story-id> --priority={priority})
-```
-
-If `.claude/scripts/dso ticket create` fails, retry once. If still failing, report the error.
-
-### Task Content Requirements
+For each task in the plan, use the following command form. The `-d` flag is required — pass the full task body (testing mode, acceptance criteria, implementation notes) at creation time. **Do not create the task first and add the body as a comment** — the `description` field is the canonical task spec.
 
 Each task must include:
 
@@ -860,9 +851,9 @@ Each task must include:
 | **Title** | Concise and atomic |
 | **Description** | Implementation steps, file paths, constraints |
 | **TDD Requirement** | Specific failing test to write first |
-| **Acceptance Criteria** | Included via `-d/--description` at creation time (see format below) |
+| **Acceptance Criteria** | Included via `-d/--description` at creation time |
 
-**Acceptance criteria format** (pass via `-d` at creation time):
+**Required command form** — always include acceptance criteria via `-d`:
 
 ```bash
 # Create the task with acceptance criteria included in description
@@ -887,6 +878,8 @@ DESCRIPTION
 
 Universal criteria (test, lint, format) are always the first three lines.
 Task-specific criteria follow, drawn from the template library and customized.
+
+If `.claude/scripts/dso ticket create` fails, retry once. If still failing, report the error.
 
 ### Add Dependencies
 
