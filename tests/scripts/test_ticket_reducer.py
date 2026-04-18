@@ -2780,6 +2780,220 @@ def test_cache_hash_stable_when_no_marker_change(tmp_path: Path) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Tests: reduce_all_tickets() orphan-marker self-heal (96e0-4634)
+#
+# SC7: Orphan-marker self-heal — .archived marker present but NO *-ARCHIVED.json
+#      event file → reduce_all_tickets() removes the stale marker and falls back
+#      to slow path, returning correct active state.
+# SC8 (cache): After self-heal removes the marker, a second reduce_all_tickets()
+#      call also returns correct active state (marker absence propagated to cache).
+#
+# UPDATE: these tests assert new behavior not yet present in reduce_all_tickets().
+# They must FAIL on current code (orphan marker triggers the fast-skip instead
+# of self-heal) and pass once the self-heal logic is added.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_orphan_marker_removed_and_slow_path_taken(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """reduce_all_tickets() must detect an orphan .archived marker (no matching
+    *-ARCHIVED.json event) and self-heal by removing it, then fall back to slow
+    path and return the correct active (non-archived) state.
+
+    UPDATE: currently the fast-skip fires unconditionally when .archived is
+    present, returning an empty result list. After self-heal is implemented,
+    the marker is removed and the active ticket is returned.
+
+    Setup:
+      - One ticket directory with a CREATE event only (active ticket).
+      - A stale .archived marker file (orphan — no ARCHIVED event present).
+    When: reduce_all_tickets(tracker_dir, exclude_archived=True) is called.
+    Then:
+      - The .archived marker is removed (self-heal).
+      - The ticket IS included in results (slow path returns active state).
+      - The returned state has archived=False (or archived absent/None).
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    ticket_dir = tracker_dir / "tkt-orphan-marker"
+    ticket_dir.mkdir()
+
+    # Write only a CREATE event — no ARCHIVED event (active ticket)
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Active ticket with orphan marker"},
+    )
+
+    # Write a stale .archived marker with NO matching *-ARCHIVED.json event
+    marker_path = ticket_dir / ".archived"
+    marker_path.write_text("")
+
+    # Call reduce_all_tickets — self-heal must fire, removing orphan marker
+    results = reducer.reduce_all_tickets(str(tracker_dir), exclude_archived=True)
+
+    # Orphan marker must be removed by self-heal
+    assert not marker_path.exists(), (
+        "reduce_all_tickets() must remove the stale .archived marker when no "
+        "*-ARCHIVED.json event file is present (orphan self-heal not implemented)"
+    )
+
+    # Active ticket must appear in results (slow path taken after self-heal)
+    returned_ids = [r.get("ticket_id") for r in results]
+    assert "tkt-orphan-marker" in returned_ids, (
+        "reduce_all_tickets() must include the ticket after self-healing an orphan "
+        f"marker and falling back to slow path; got returned_ids={returned_ids}"
+    )
+
+    # Returned state must not be archived
+    state = next(r for r in results if r.get("ticket_id") == "tkt-orphan-marker")
+    assert not state.get("archived"), (
+        "After orphan self-heal, returned ticket must not have archived=True; "
+        f"got state['archived']={state.get('archived')!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_valid_marker_not_removed(tmp_path: Path, reducer: ModuleType) -> None:
+    """reduce_all_tickets() must NOT remove a valid .archived marker that has a
+    corresponding *-ARCHIVED.json event file.
+
+    This is the complement of the orphan self-heal test: a legitimately archived
+    ticket (marker + event both present) must keep its marker intact.
+
+    Setup:
+      - One ticket directory with a CREATE event + an ARCHIVED event.
+      - A .archived marker (valid — ARCHIVED event is present).
+    When: reduce_all_tickets(tracker_dir, exclude_archived=True) is called.
+    Then:
+      - The .archived marker is NOT removed (no self-heal triggered).
+      - The ticket is absent from results (fast-skip still fires).
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    ticket_dir = tracker_dir / "tkt-valid-marker"
+    ticket_dir.mkdir()
+
+    # Write CREATE + ARCHIVED events (legitimate archived ticket)
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Legitimately archived"},
+    )
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_UUID2,
+        event_type="ARCHIVED",
+        data={},
+    )
+
+    # Write .archived marker (valid — ARCHIVED event is present)
+    marker_path = ticket_dir / ".archived"
+    marker_path.write_text("")
+
+    # Call reduce_all_tickets — self-heal must NOT fire for a valid marker
+    results = reducer.reduce_all_tickets(str(tracker_dir), exclude_archived=True)
+
+    # Valid marker must remain untouched
+    assert marker_path.exists(), (
+        "reduce_all_tickets() must NOT remove a valid .archived marker when a "
+        "*-ARCHIVED.json event file is present; marker was incorrectly removed"
+    )
+
+    # Ticket must be absent from results (fast-skip still applies to valid marker)
+    returned_ids = [r.get("ticket_id") for r in results]
+    assert "tkt-valid-marker" not in returned_ids, (
+        "Ticket with valid .archived marker must be excluded when exclude_archived=True; "
+        f"got returned_ids={returned_ids}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_orphan_marker_cache_miss_on_self_heal(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """After orphan self-heal removes .archived marker, a second reduce_all_tickets()
+    call must also return the correct active state (cache invalidated by marker removal).
+
+    This tests the SC8 cache-key interaction: compute_dir_hash() includes marker
+    presence/absence, so removing the marker during self-heal must cause a cache
+    miss on the next call.
+
+    Setup:
+      - One ticket directory with a CREATE event only (active ticket).
+      - A stale .archived marker (orphan — no ARCHIVED event present).
+    When: reduce_all_tickets() is called TWICE (first call self-heals; second call
+          must see the updated state, not a stale cache).
+    Then:
+      - First call: marker is removed, ticket returned as active.
+      - Second call: ticket still returned as active (cache miss due to marker removal).
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    ticket_dir = tracker_dir / "tkt-orphan-cache"
+    ticket_dir.mkdir()
+
+    # Write only a CREATE event (active ticket)
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Cache miss after self-heal"},
+    )
+
+    # Write stale .archived marker (no ARCHIVED event)
+    marker_path = ticket_dir / ".archived"
+    marker_path.write_text("")
+
+    # First call — self-heal fires, marker removed, slow path returns active state
+    results_first = reducer.reduce_all_tickets(str(tracker_dir), exclude_archived=True)
+
+    assert not marker_path.exists(), (
+        "First reduce_all_tickets() call must remove the orphan .archived marker "
+        "(self-heal not implemented)"
+    )
+
+    ids_first = [r.get("ticket_id") for r in results_first]
+    assert "tkt-orphan-cache" in ids_first, (
+        "First call must return the ticket after orphan self-heal; "
+        f"got ids_first={ids_first}"
+    )
+
+    # Second call — cache must NOT serve stale archived=True; marker is absent now
+    results_second = reducer.reduce_all_tickets(str(tracker_dir), exclude_archived=True)
+
+    ids_second = [r.get("ticket_id") for r in results_second]
+    assert "tkt-orphan-cache" in ids_second, (
+        "Second reduce_all_tickets() call must also return the ticket as active "
+        "after orphan self-heal (cache must reflect marker absence); "
+        f"got ids_second={ids_second}"
+    )
+
+    # Both calls must agree on active (non-archived) state
+    state_second = next(
+        r for r in results_second if r.get("ticket_id") == "tkt-orphan-cache"
+    )
+    assert not state_second.get("archived"), (
+        "Second call: ticket must not have archived=True after orphan self-heal; "
+        f"got state['archived']={state_second.get('archived')!r}"
+    )
+
+
 @pytest.mark.unit
 @pytest.mark.scripts
 def test_cache_hash_differs_after_marker_removal(tmp_path: Path) -> None:
