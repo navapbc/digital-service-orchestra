@@ -1,1 +1,0 @@
-{"timestamp": 1776471380484130000, "uuid": "290e613c-5e77-4842-bc8a-cf196509ecd7", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed in commit 582272fd (batch 4). See commit message for scope."}}
