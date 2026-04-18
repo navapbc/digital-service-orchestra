@@ -24,7 +24,15 @@ ticket_reducer/__init__.py re-exports to_llm.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
+
+# Ensure ticket_reducer package is importable regardless of invocation directory.
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[2] / "plugins" / "dso" / "scripts")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
 
 
 # ---------------------------------------------------------------------------

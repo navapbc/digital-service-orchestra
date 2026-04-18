@@ -39,6 +39,7 @@ from ticket_reducer._processors import (
     scan_for_latest_snapshot,
 )
 from ticket_reducer.marker import check_marker, remove_marker, write_marker
+from ticket_reducer.llm_format import to_llm
 
 __all__ = [
     "make_initial_state",
@@ -63,4 +64,5 @@ __all__ = [
     "write_marker",
     "remove_marker",
     "check_marker",
+    "to_llm",
 ]

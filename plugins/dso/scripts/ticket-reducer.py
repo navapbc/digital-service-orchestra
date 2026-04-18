@@ -35,6 +35,7 @@ from ticket_reducer import (  # noqa: E402
     replay_events,
     write_cache,
 )
+from ticket_reducer.marker import remove_marker  # noqa: E402
 
 
 def _make_error_dict(ticket_id: str, status: str, error: str) -> dict:
@@ -202,6 +203,37 @@ def reduce_ticket(
     return result
 
 
+def _is_net_archived(ticket_dir: str) -> bool:
+    """Return True only if the ticket's net archival state is archived.
+
+    A ticket is net-archived when it has at least one ARCHIVED event whose UUID
+    has not been cancelled by a subsequent REVERT event (data.target_event_uuid
+    matches the ARCHIVED UUID). Mirrors the logic in ticket-archive-markers-backfill.sh.
+    """
+    archived_uuids: set[str] = set()
+    reverted_uuids: set[str] = set()
+
+    for fname in os.listdir(ticket_dir):
+        if fname.startswith(".") or not fname.endswith(".json"):
+            continue
+        fpath = os.path.join(ticket_dir, fname)
+        try:
+            with open(fpath, encoding="utf-8") as fh:
+                event = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            continue
+        etype = event.get("event_type", "")
+        uuid = event.get("uuid", "")
+        if etype == "ARCHIVED" and uuid:
+            archived_uuids.add(uuid)
+        elif etype == "REVERT":
+            target = event.get("data", {}).get("target_event_uuid", "")
+            if target:
+                reverted_uuids.add(target)
+
+    return bool(archived_uuids - reverted_uuids)
+
+
 def reduce_all_tickets(
     tracker_dir: str | os.PathLike[str],
     exclude_archived: bool = False,
@@ -232,8 +264,16 @@ def reduce_all_tickets(
 
         # Fast-skip: if .archived marker present and we are excluding archived tickets,
         # skip expensive event replay entirely.
+        # Orphan self-heal: if the marker exists but net archival state is false (no
+        # ARCHIVED event exists, or all ARCHIVED events have been cancelled by REVERTs),
+        # the marker is stale — remove it and fall through to slow path.
         if exclude_archived and os.path.exists(os.path.join(entry_path, ".archived")):
-            continue
+            if _is_net_archived(entry_path):
+                # Valid marker — fast-skip as normal (S1a behavior preserved)
+                continue
+            # Orphan marker: no net-archived state — remove stale marker and
+            # fall through to slow-path reduce_ticket() below.
+            remove_marker(entry_path)
 
         state = reduce_ticket(entry_path)
 

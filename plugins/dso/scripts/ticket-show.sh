@@ -97,6 +97,7 @@ import json, sys, importlib.util, pathlib, os
 
 _mod_path = pathlib.Path(os.environ['_TICKET_LLM_FMT'])
 try:
+    sys.path.insert(0, str(_mod_path.parent))
     _spec = importlib.util.spec_from_file_location('ticket_llm_format', _mod_path)
     if _spec is None or _spec.loader is None:
         raise ImportError(f'Cannot load module from {_mod_path}')

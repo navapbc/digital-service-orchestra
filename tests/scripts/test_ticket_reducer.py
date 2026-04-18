@@ -3048,3 +3048,72 @@ def test_cache_hash_differs_after_marker_removal(tmp_path: Path) -> None:
         f"baseline hash (symmetric); baseline={hash_baseline!r}, "
         f"after_removal={hash_after_removal!r}"
     )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reverted_archived_marker_is_orphan(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """reduce_all_tickets() must remove a .archived marker when the ARCHIVED event
+    has been cancelled by a subsequent REVERT (net non-archived state).
+
+    A ticket with ARCHIVED + REVERT(targeting that ARCHIVED UUID) has a net
+    non-archived state: _is_net_archived() must return False and trigger self-heal.
+
+    Note: the slow path still produces archived=True in state (process_revert does
+    not undo ARCHIVED — pre-existing behavior, separate from this fix). The marker
+    removal is what this test verifies; result set behaviour is not asserted here.
+
+    Setup:
+      - One ticket directory with CREATE + ARCHIVED + REVERT(target=ARCHIVED UUID) events.
+      - A .archived marker (stale — the ARCHIVED event has been cancelled by REVERT).
+    When: reduce_all_tickets(tracker_dir, exclude_archived=True) is called.
+    Then:
+      - The stale .archived marker is removed by the self-heal logic.
+      - The slow path runs (reduce_ticket() is called on the ticket).
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    ticket_dir = tracker_dir / "tkt-reverted-archive"
+    ticket_dir.mkdir()
+
+    archived_uuid = _UUID2
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Ticket archived then un-archived"},
+    )
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=archived_uuid,
+        event_type="ARCHIVED",
+        data={},
+    )
+    _write_event(
+        ticket_dir,
+        timestamp=1742605400,
+        uuid=_UUID3,
+        event_type="REVERT",
+        data={
+            "target_event_uuid": archived_uuid,
+            "target_event_type": "ARCHIVED",
+            "reason": "",
+        },
+    )
+
+    marker_path = ticket_dir / ".archived"
+    marker_path.write_text("")
+
+    # Self-heal must fire and remove the stale marker (REVERT cancels ARCHIVED)
+    reducer.reduce_all_tickets(str(tracker_dir), exclude_archived=True)
+
+    assert not marker_path.exists(), (
+        "reduce_all_tickets() must remove the .archived marker when the ARCHIVED event "
+        "has been cancelled by a REVERT (net non-archived state); marker not removed"
+    )
