@@ -52,3 +52,6 @@ tests/scripts/fixtures/isolation-rules/tmp-*
 
 # Review artifacts (transient — written by code-reviewer sub-agents, never committed)
 reviewer-findings.json
+
+# Validation/review runtime artifacts (session-local, never committed)
+.claude/artifacts/
