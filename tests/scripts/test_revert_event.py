@@ -483,3 +483,144 @@ def test_reducer_revert_does_not_undo_status_automatically(
     assert len(state["reverts"]) == 1, (
         f"state['reverts'] must have 1 entry; got {len(state['reverts'])}: {state['reverts']}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 6: .archived marker is removed when reverting an ARCHIVED event
+# ---------------------------------------------------------------------------
+
+_ARCHIVED_UUID = "dddddddd-dddd-4ddd-dddd-dddddddddddd"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_revert_archived_event_removes_marker(tmp_path: Path) -> None:
+    """ticket-revert.sh must remove the .archived marker when the reverted event
+    is an ARCHIVED event.
+
+    Given: a temp tracker with a ticket that has an ARCHIVED event AND a
+           .archived marker file
+    When:  ticket-revert.sh is called with the UUID of the ARCHIVED event
+    Then:  the .archived marker file NO LONGER EXISTS in the ticket dir
+    AND:   a REVERT event file IS written
+    """
+    ticket_id = "tkt-rev-006"
+    tracker_dir = _setup_tracker(tmp_path, ticket_id)
+    ticket_dir = tracker_dir / ticket_id
+    ticket_dir.mkdir(parents=True)
+
+    # Write CREATE event
+    _write_event(
+        ticket_dir,
+        timestamp=1742600000,
+        uuid=_CREATE_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Archived marker test",
+            "parent_id": None,
+        },
+    )
+
+    # Write ARCHIVED event — this is the event we will revert
+    _write_event(
+        ticket_dir,
+        timestamp=1742600100,
+        uuid=_ARCHIVED_UUID,
+        event_type="ARCHIVED",
+        data={"reason": "archiving ticket"},
+    )
+
+    # Place the .archived marker file (as written by archive logic)
+    archived_marker = ticket_dir / ".archived"
+    archived_marker.write_text("")
+
+    assert archived_marker.exists(), (
+        "precondition: .archived marker must exist before revert"
+    )
+
+    result = _run_ticket_revert(
+        tracker_dir, ticket_id, _ARCHIVED_UUID, reason="unarchiving"
+    )
+
+    assert result.returncode == 0, (
+        f"ticket revert of ARCHIVED event must exit 0; got {result.returncode}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+    assert not archived_marker.exists(), (
+        f".archived marker must be removed after reverting an ARCHIVED event; "
+        f"file still exists at {archived_marker}"
+    )
+
+    revert_files = sorted(ticket_dir.glob("*-REVERT.json"))
+    assert len(revert_files) == 1, (
+        f"Expected exactly 1 REVERT event file in {ticket_dir}, "
+        f"found: {[f.name for f in revert_files]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 7: .archived marker is preserved when reverting a non-ARCHIVED event
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_revert_non_archived_event_preserves_marker(tmp_path: Path) -> None:
+    """ticket-revert.sh must NOT remove the .archived marker when the reverted
+    event is NOT an ARCHIVED event.
+
+    Given: a temp tracker with a ticket that has a STATUS event AND a
+           .archived marker file (unusual but possible)
+    When:  ticket-revert.sh is called with the UUID of the STATUS event
+    Then:  the .archived marker file STILL EXISTS (marker not removed)
+    """
+    ticket_id = "tkt-rev-007"
+    tracker_dir = _setup_tracker(tmp_path, ticket_id)
+    ticket_dir = tracker_dir / ticket_id
+    ticket_dir.mkdir(parents=True)
+
+    # Write CREATE event
+    _write_event(
+        ticket_dir,
+        timestamp=1742600000,
+        uuid=_CREATE_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Preserve marker test",
+            "parent_id": None,
+        },
+    )
+
+    # Write STATUS event — this is the event we will revert (NOT an ARCHIVED event)
+    _write_event(
+        ticket_dir,
+        timestamp=1742600100,
+        uuid=_STATUS_UUID,
+        event_type="STATUS",
+        data={"status": "closed", "current_status": "open"},
+    )
+
+    # Place the .archived marker file (as if ticket was previously archived)
+    archived_marker = ticket_dir / ".archived"
+    archived_marker.write_text("")
+
+    assert archived_marker.exists(), (
+        "precondition: .archived marker must exist before revert"
+    )
+
+    result = _run_ticket_revert(
+        tracker_dir, ticket_id, _STATUS_UUID, reason="test preserve"
+    )
+
+    assert result.returncode == 0, (
+        f"ticket revert of STATUS event must exit 0; got {result.returncode}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+    assert archived_marker.exists(), (
+        f".archived marker must be preserved after reverting a non-ARCHIVED (STATUS) event; "
+        f"file was unexpectedly removed from {archived_marker}"
+    )
