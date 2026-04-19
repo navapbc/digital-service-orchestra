@@ -73,9 +73,8 @@ _create_fixture_ticket() {
         create_args+=("--tags" "$initial_tags")
     fi
 
-    TICKETS_TRACKER_DIR="$repo_dir/.tickets-tracker" \
-        "$REPO_ROOT/.claude/scripts/dso" ticket create "${create_args[@]}" \
-        2>/dev/null | tr -d '[:space:]'
+    (cd "$repo_dir" && bash "$TICKET_SCRIPT" create "${create_args[@]}" 2>/dev/null) \
+        | tr -d '[:space:]'
 }
 
 # ── Helper: get most-recent EDIT event file path in tracker ──────────────────

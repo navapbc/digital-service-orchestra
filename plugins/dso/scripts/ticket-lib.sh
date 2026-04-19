@@ -158,7 +158,7 @@ write_commit_event() {
 
     local repo_root
     repo_root="$(git rev-parse --show-toplevel)"
-    local tracker_dir_raw="$repo_root/.tickets-tracker"
+    local tracker_dir_raw="${TICKETS_TRACKER_DIR:-$repo_root/.tickets-tracker}"
     # Resolve to canonical path so that callers using a symlink and callers using
     # the real path always contend on the same lock file (cross-path serialization).
     local tracker_dir
@@ -323,4 +323,183 @@ import json, sys
 state = json.loads(sys.argv[1])
 print(state.get('status', ''))
 " "$state_json"
+}
+
+# _tag_add <ticket_id> <tag>
+# Idempotently adds a tag to a ticket by writing an EDIT event.
+# If the tag is already present, exits 0 without writing an event.
+#
+# Honors TICKET_CMD env var (for testability); otherwise uses ticket script
+# relative to this file. Honors TICKETS_TRACKER_DIR env var for tracker path.
+_tag_add() {
+    local ticket_id="$1"
+    local tag="$2"
+
+    # Resolve ticket command
+    local _lib_dir
+    _lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local _ticket_cmd="${TICKET_CMD:-$_lib_dir/ticket}"
+
+    # Resolve tracker dir
+    local _repo_root
+    _repo_root="$(git rev-parse --show-toplevel)"
+    local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root/.tickets-tracker}"
+
+    # Read current tags via authoritative Python reducer
+    local _current_tags
+    _current_tags=$(TICKETS_TRACKER_DIR="$_tracker_dir" bash "$_ticket_cmd" show "$ticket_id" 2>/dev/null \
+        | python3 -c "import json,sys; tags=json.load(sys.stdin).get('tags',[]); print(','.join(tags) if tags else '')" 2>/dev/null || echo "")
+
+    # Idempotency: skip if tag already present
+    if echo ",$_current_tags," | grep -qF ",$tag,"; then
+        return 0
+    fi
+
+    # Build new tags list
+    local _new_tags_json
+    _new_tags_json=$(python3 -c "
+import json, sys
+current = [t for t in sys.argv[1].split(',') if t] if sys.argv[1] else []
+tag = sys.argv[2]
+current.append(tag)
+print(json.dumps(current))
+" "$_current_tags" "$tag")
+
+    # Read env-id and author
+    local _env_id
+    _env_id=$(cat "$_tracker_dir/.env-id" 2>/dev/null || echo "")
+    local _author
+    _author=$(git config user.name 2>/dev/null || echo "unknown")
+
+    # Build EDIT event JSON
+    local _temp_event
+    _temp_event=$(mktemp "$_tracker_dir/.tmp-tag-add-XXXXXX")
+
+    python3 -c "
+import json, sys, time, uuid
+
+env_id = sys.argv[1]
+author = sys.argv[2]
+tags = json.loads(sys.argv[3])
+out_path = sys.argv[4]
+
+event = {
+    'timestamp': time.time_ns(),
+    'uuid': str(uuid.uuid4()),
+    'event_type': 'EDIT',
+    'env_id': env_id,
+    'author': author,
+    'data': {
+        'fields': {
+            'tags': tags
+        }
+    }
+}
+
+with open(out_path, 'w', encoding='utf-8') as f:
+    json.dump(event, f, ensure_ascii=False)
+" "$_env_id" "$_author" "$_new_tags_json" "$_temp_event" || {
+        rm -f "$_temp_event"
+        echo "Error: failed to build EDIT event JSON for _tag_add" >&2
+        return 1
+    }
+
+    write_commit_event "$ticket_id" "$_temp_event" || {
+        rm -f "$_temp_event"
+        echo "Error: failed to write EDIT event for _tag_add" >&2
+        return 1
+    }
+
+    rm -f "$_temp_event"
+    return 0
+}
+
+# _tag_remove <ticket_id> <tag>
+# Idempotently removes a tag from a ticket by writing an EDIT event.
+# If the tag is absent, exits 0 without writing an event.
+# When removing the last tag, writes data.fields.tags = [] (not null).
+#
+# Honors TICKET_CMD env var (for testability); otherwise uses ticket script
+# relative to this file. Honors TICKETS_TRACKER_DIR env var for tracker path.
+_tag_remove() {
+    local ticket_id="$1"
+    local tag="$2"
+
+    # Resolve ticket command
+    local _lib_dir
+    _lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local _ticket_cmd="${TICKET_CMD:-$_lib_dir/ticket}"
+
+    # Resolve tracker dir
+    local _repo_root
+    _repo_root="$(git rev-parse --show-toplevel)"
+    local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root/.tickets-tracker}"
+
+    # Read current tags via authoritative Python reducer
+    local _current_tags
+    _current_tags=$(TICKETS_TRACKER_DIR="$_tracker_dir" bash "$_ticket_cmd" show "$ticket_id" 2>/dev/null \
+        | python3 -c "import json,sys; tags=json.load(sys.stdin).get('tags',[]); print(','.join(tags) if tags else '')" 2>/dev/null || echo "")
+
+    # Idempotency: skip if tag is absent
+    if ! echo ",$_current_tags," | grep -qF ",$tag,"; then
+        return 0
+    fi
+
+    # Build new tags list (excluding removed tag)
+    local _new_tags_json
+    _new_tags_json=$(python3 -c "
+import json, sys
+current = [t for t in sys.argv[1].split(',') if t] if sys.argv[1] else []
+tag = sys.argv[2]
+remaining = [t for t in current if t != tag]
+print(json.dumps(remaining))
+" "$_current_tags" "$tag")
+
+    # Read env-id and author
+    local _env_id
+    _env_id=$(cat "$_tracker_dir/.env-id" 2>/dev/null || echo "")
+    local _author
+    _author=$(git config user.name 2>/dev/null || echo "unknown")
+
+    # Build EDIT event JSON
+    local _temp_event
+    _temp_event=$(mktemp "$_tracker_dir/.tmp-tag-remove-XXXXXX")
+
+    python3 -c "
+import json, sys, time, uuid
+
+env_id = sys.argv[1]
+author = sys.argv[2]
+tags = json.loads(sys.argv[3])
+out_path = sys.argv[4]
+
+event = {
+    'timestamp': time.time_ns(),
+    'uuid': str(uuid.uuid4()),
+    'event_type': 'EDIT',
+    'env_id': env_id,
+    'author': author,
+    'data': {
+        'fields': {
+            'tags': tags
+        }
+    }
+}
+
+with open(out_path, 'w', encoding='utf-8') as f:
+    json.dump(event, f, ensure_ascii=False)
+" "$_env_id" "$_author" "$_new_tags_json" "$_temp_event" || {
+        rm -f "$_temp_event"
+        echo "Error: failed to build EDIT event JSON for _tag_remove" >&2
+        return 1
+    }
+
+    write_commit_event "$ticket_id" "$_temp_event" || {
+        rm -f "$_temp_event"
+        echo "Error: failed to write EDIT event for _tag_remove" >&2
+        return 1
+    }
+
+    rm -f "$_temp_event"
+    return 0
 }

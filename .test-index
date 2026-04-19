@@ -262,11 +262,7 @@ plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enfo
 plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh
 
 # --- _tag_add, _tag_remove helpers and ticket tag/untag CLI (task e0f5-c81c) ---
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_tag_add_appends_new_tag_preserves_siblings]
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_tag_add_idempotent]
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_tag_remove_removes_target_preserves_siblings]
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_tag_remove_idempotent_when_absent]
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_tag_remove_empty_set_uses_fields_schema]
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_tag_cli_adds_tag]
 plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_tag_cli_adds_tag]
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_untag_cli_removes_tag]
 plugins/dso/scripts/ticket:tests/unit/scripts/test-ticket-tag.sh
