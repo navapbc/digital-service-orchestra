@@ -172,10 +172,49 @@ check_homebrew_deps() {
     export PATH="$node20_prefix/bin:$PATH"
   fi
 
+  # Check Python 3
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "Installing python3 via Homebrew..."
+    brew install python3 || missing+=("python3")
+  fi
+
   # Check Claude Code
   if ! command -v claude >/dev/null 2>&1; then
     echo "Installing Claude Code via Homebrew..."
     brew install --cask claude-code || missing+=("claude-code (cask)")
+  fi
+
+  # Check uv (Python package manager — required by nava-platform)
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "Installing uv via Homebrew..."
+    brew install uv || missing+=("uv")
+  fi
+
+  # Check ast-grep (structural code search — used by test quality gate and CLAUDE.md search)
+  if ! command -v sg >/dev/null 2>&1; then
+    echo "Installing ast-grep via Homebrew..."
+    brew install ast-grep || missing+=("ast-grep")
+  fi
+
+  # Check semgrep (SAST — used by test quality gate when test_quality.tool=semgrep)
+  if ! command -v semgrep >/dev/null 2>&1; then
+    echo "Installing semgrep via Homebrew..."
+    brew install semgrep || missing+=("semgrep")
+  fi
+
+  # Check container runtime (Docker or Colima) — required for template projects
+  if ! command -v docker >/dev/null 2>&1; then
+    if ! command -v colima >/dev/null 2>&1; then
+      echo "Installing Colima (container runtime) via Homebrew..."
+      brew install colima || missing+=("colima")
+    fi
+    if command -v colima >/dev/null 2>&1; then
+      if ! colima status 2>/dev/null | grep -q "Running"; then
+        echo "Starting Colima..."
+        colima start --cpu 4 --memory 8 || \
+          echo "WARNING: Colima installed but could not be started automatically — run 'colima start' manually if container features are needed." >&2
+      fi
+    fi
   fi
 
   if [ ${#missing[@]} -gt 0 ]; then
@@ -390,7 +429,16 @@ main() {
   fi
 
   # Step 5b: Detect DSO plugin root and write to project dso-config.conf
-  detect_dso_plugin_root "$project_dir" >/dev/null
+  local resolved_plugin_root
+  resolved_plugin_root=$(detect_dso_plugin_root "$project_dir")
+
+  # Step 5c: Configure project with DSO defaults (shim, CLAUDE.md, hooks)
+  local _setup_script="$resolved_plugin_root/scripts/dso-setup.sh"
+  if [[ -f "$_setup_script" ]]; then
+    echo "Configuring project with DSO defaults..."
+    bash "$_setup_script" "$project_dir" "$resolved_plugin_root" \
+      || echo "WARNING: DSO project setup encountered issues — run '.claude/scripts/dso validate.sh' manually if needed." >&2
+  fi
 
   # All steps succeeded — clear the cleanup trap before writing the sentinel
   trap - EXIT

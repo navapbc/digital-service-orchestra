@@ -16,7 +16,7 @@ WORKTREE_ARTIFACTS=$(cd "$WORKTREE_PATH" && source ${CLAUDE_PLUGIN_ROOT}/hooks/l
 - REVIEW-WORKFLOW.md Step 0: Clear stale review artifacts in `$WORKTREE_ARTIFACTS`
 - REVIEW-WORKFLOW.md Step 1: Auto-fix pass (format/lint/type-check) — skip if `$WORKTREE_ARTIFACTS/validation-status` is fresh
 - REVIEW-WORKFLOW.md Step 2: Capture diff hash via `compute-diff-hash.sh` and write diff/stat files to `$WORKTREE_ARTIFACTS`
-- REVIEW-WORKFLOW.md Step 3: Classify review tier via `review-complexity-classifier.sh`
+- REVIEW-WORKFLOW.md Step 3: Classify review tier via `review-complexity-classifier.sh` — **MUST be invoked with `WORKFLOW_PLUGIN_ARTIFACTS_DIR="$WORKTREE_ARTIFACTS"` exported** so `classifier-telemetry.jsonl` is written into the worktree's artifacts dir (same directory as the reviewer's findings). Without this, telemetry lands in the orchestrator's artifacts dir and `record-review.sh` fail-opens on tier verification (bug 21d7-b84a).
 
 **Review sub-agent dispatch** (REVIEW-WORKFLOW.md Step 4): Do NOT set `isolation: "worktree"` on the Agent tool (per REVIEW-WORKFLOW.md — isolation creates a separate branch, hiding findings from the orchestrator). Pass the sub-agent:
 - `DIFF_FILE`: absolute path (already in `$WORKTREE_ARTIFACTS`, no CWD dependency)

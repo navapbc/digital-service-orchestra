@@ -72,10 +72,10 @@ STAT_FILE="$WORKTREE_ARTIFACTS/review-stat-${DIFF_HASH_SHORT}.txt"
 cd "$WORKTREE_PATH" && "$ORCHESTRATOR_ROOT/.claude/scripts/dso" capture-review-diff.sh "$DIFF_FILE" "$STAT_FILE"
 ```
 
-Classify the review tier following REVIEW-WORKFLOW.md Step 3:
+Classify the review tier following REVIEW-WORKFLOW.md Step 3. **Export `WORKFLOW_PLUGIN_ARTIFACTS_DIR=$WORKTREE_ARTIFACTS`** so the classifier writes `classifier-telemetry.jsonl` into the worktree's artifacts dir — the same directory where the reviewer writes `reviewer-findings.json` and where `record-review.sh` looks for telemetry (bug 21d7-b84a: without this, telemetry lands in the orchestrator's artifacts dir, causing tier verification to fail-open in record-review).
 
 ```bash
-CLASSIFIER_OUTPUT=$("$ORCHESTRATOR_ROOT/.claude/scripts/dso" review-complexity-classifier.sh < "$DIFF_FILE" 2>/dev/null)
+CLASSIFIER_OUTPUT=$(WORKFLOW_PLUGIN_ARTIFACTS_DIR="$WORKTREE_ARTIFACTS" "$ORCHESTRATOR_ROOT/.claude/scripts/dso" review-complexity-classifier.sh < "$DIFF_FILE" 2>/dev/null)
 ```
 
 ---

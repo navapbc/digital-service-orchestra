@@ -254,6 +254,8 @@ If no issue is associated with the current work, omit the issue context section.
 
 ### Dispatch (Light / Standard Tiers)
 
+**VERBATIM REQUIRED** — you MUST read the agent file and pass its content as the first element of the prompt. Do NOT write a constructed prompt (e.g., "Review the code changes for correctness and security.") — that is fabrication and violates CLAUDE.md rule 8. This applies in every session state, including post-compaction and long-running sessions. If you have not yet executed the bash block below to read the agent file, STOP and do it now before filling in the `prompt:` field.
+
 For `light` and `standard` tiers, dispatch a single named review agent. When `REVIEW_AGENT_OVERRIDE` is set (from the size upgrade path in Step 3b), use `REVIEW_AGENT_OVERRIDE` instead of `REVIEW_AGENT` — this ensures the opus upgrade takes effect at the current tier's scope:
 
 ```bash
@@ -280,6 +282,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
 
     === DIFF STAT ===
     {content of STAT_FILE from Step 2}
@@ -302,6 +305,8 @@ When `REVIEW_TIER` is `deep`, dispatch 3 parallel sonnet sub-agents in a single 
 | c | `dso:code-reviewer-deep-hygiene` | `$ARTIFACTS_DIR/reviewer-findings-c.json` |
 
 **SERIAL DISPATCH PROHIBITED**: All 3 sonnet agents MUST be launched in a single response as 3 parallel Agent tool calls. Dispatching them one at a time (serial) triples review time and is a critical workflow violation. A single response must contain all three Agent tool invocations with no waiting between them.
+
+**VERBATIM REQUIRED** — read all three agent files inline before dispatching. Do NOT construct your own review instructions in any of the three prompt fields. Each prompt MUST begin with the verbatim agent file content.
 
 Read the three agent files inline and dispatch all three in one message:
 
@@ -328,6 +333,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
     FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-a.json
 
     === DIFF STAT ===
@@ -345,6 +351,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
     FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-b.json
 
     === DIFF STAT ===
@@ -362,6 +369,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
     FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-c.json
 
     === DIFF STAT ===
@@ -388,6 +396,8 @@ FINDINGS_C=$(python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-
 
 **Step 2: Dispatch `dso:code-reviewer-deep-arch` (model: opus) with inline sonnet findings:**
 
+**VERBATIM REQUIRED** — read the arch agent file inline before dispatching. Do NOT construct your own synthesis prompt — that is fabrication.
+
 Read the arch agent file inline before dispatching:
 
 ```bash
@@ -406,6 +416,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
 
     === DIFF STAT ===
     {content of STAT_FILE from Step 2}
