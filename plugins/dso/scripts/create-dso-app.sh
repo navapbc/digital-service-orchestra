@@ -172,6 +172,12 @@ check_homebrew_deps() {
     export PATH="$node20_prefix/bin:$PATH"
   fi
 
+  # Check Python 3
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "Installing python3 via Homebrew..."
+    brew install python3 || missing+=("python3")
+  fi
+
   # Check Claude Code
   if ! command -v claude >/dev/null 2>&1; then
     echo "Installing Claude Code via Homebrew..."

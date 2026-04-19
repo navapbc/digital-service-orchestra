@@ -85,6 +85,7 @@ BREWEOF
     _write_stub "$stub_bin" "git" "exit 0"
     _write_stub "$stub_bin" "greadlink" "exit 0"
     _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "python3" "exit 0"
     _write_stub "$stub_bin" "node" "echo \"$node_ver\"; exit 0"
     _write_stub "$stub_bin" "claude" "exit 0"
     # Proxy stubs: the script calls grep/head/dirname/tr for version parsing
@@ -340,6 +341,7 @@ GITSTUB
     _write_stub "$stub_bin" "bash" "echo \"GNU bash, version 5.2.15(1)-release (x86_64)\"; exit 0"
     _write_stub "$stub_bin" "greadlink" "exit 0"
     _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "python3" "exit 0"
     _write_stub "$stub_bin" "npm" "exit 0"
     _write_stub "$stub_bin" "node" "echo \"$node_ver\"; exit 0"
     _write_stub "$stub_bin" "claude" "exit 0"
@@ -678,5 +680,67 @@ BREWEOF
 
 test_missing_git_auto_installs_via_brew
 test_brew_shellenv_path_injection_prevents_false_missing
+
+# ── test_missing_python3_brew_failure_reports_missing ────────────────────────
+# When python3 is absent from PATH AND `brew install python3` fails (exit 1),
+# the script must exit non-zero and include "python3" in the error output.
+#
+# RED: fails before fix because check_homebrew_deps() has no python3 check at
+# all — python3 absence is silently ignored, brew install python3 is never
+# called, and the script exits 0 with "All dependencies satisfied".
+#
+# GREEN: after fix, the script detects missing python3, calls
+# `brew install python3`, gets exit 1, accumulates python3 in missing[], and
+# exits non-zero with "python3" in the error output.
+test_missing_python3_brew_failure_reports_missing() {
+    local stub_bin node_prefix
+    stub_bin=$(_make_stub_bin)
+    node_prefix=$(mktemp -d)
+    TMPDIRS+=("$node_prefix")
+    mkdir -p "$node_prefix/bin"
+
+    # brew stub: `brew install python3` fails (exit 1) — simulates install failure
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+case "\$*" in
+  "install python3")    exit 1 ;;
+  "install node@20")    exit 0 ;;
+  "list node@20")       exit 0 ;;
+  "--prefix node@20")   echo "$node_prefix"; exit 0 ;;
+  "install --cask "*)   exit 0 ;;
+  "--version"|"-v")     echo "Homebrew 4.0.0"; exit 0 ;;
+  *)                    exit 0 ;;
+esac
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # Provide all deps EXCEPT python3 — python3 intentionally absent so brew
+    # auto-install fires and fails, triggering the missing[] accumulation path
+    _write_stub "$stub_bin" "bash"       "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
+    _write_stub "$stub_bin" "git"        "exit 0"
+    _write_stub "$stub_bin" "greadlink"  "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "node"       "echo \"v20.11.0\"; exit 0"
+    _write_stub "$stub_bin" "claude"     "exit 0"
+    # Proxy stubs for commands used in bash --version parsing and path detection
+    _write_stub "$stub_bin" "grep"       '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"       '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname"    '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"         '/usr/bin/tr "$@"'
+
+    # Run with strictly isolated PATH — /usr/bin/python3 must NOT be reachable
+    local output exit_code=0
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) || exit_code=$?
+
+    assert_ne "missing python3 (brew install fails): exits non-zero" "0" "$exit_code"
+
+    local python3_listed="no"
+    if echo "$output" | grep -qi "python3"; then
+        python3_listed="yes"
+    fi
+    assert_eq "missing python3 (brew install fails): listed in output" "yes" "$python3_listed"
+}
+
+test_missing_python3_brew_failure_reports_missing
 
 print_summary
