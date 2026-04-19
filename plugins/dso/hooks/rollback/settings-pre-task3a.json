@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/inject-using-lockpick.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/inject-using-dso.sh"
           },
           {
             "type": "command",

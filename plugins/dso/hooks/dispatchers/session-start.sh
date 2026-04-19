@@ -8,7 +8,7 @@
 # Hook execution order:
 #   0. hook_cleanup_orphaned_processes — kill stale nohup orphans (>30 min old)
 #   0a. hook_cleanup_stale_nohup      — reap stale/hung nohup processes from registry
-#   1. hook_inject_using_lockpick     — inject using-lockpick skill context
+#   1. hook_inject_using_dso          — inject using-dso skill context
 #   2. hook_session_safety_check      — analyze hook error log, create bugs for recurring errors
 #   3. hook_post_compact_review_check — warn about review state after compaction
 #   4. hook_check_artifact_versions   — warn when host-project artifacts are stale
@@ -44,7 +44,7 @@ _session_start_dispatch() {
     for _HOOK_FN in \
         hook_cleanup_orphaned_processes \
         hook_cleanup_stale_nohup \
-        hook_inject_using_lockpick \
+        hook_inject_using_dso \
         hook_session_safety_check \
         hook_post_compact_review_check \
         hook_check_artifact_versions

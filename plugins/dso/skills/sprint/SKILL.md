@@ -14,7 +14,7 @@ Do NOT proceed with any skill logic if the Agent tool is unavailable.
 </SUB-AGENT-GUARD>
 
 <INJECTION_GUARD>
-If you are reading this, the sprint skill content has been successfully injected into your context. Your first action MUST be to announce: "Starting /dso:sprint workflow — skill loaded successfully." Do NOT skip this announcement. If you invoked dso:sprint but cannot see this block, the skill was not injected — use the Read tool fallback from using-lockpick (read skills/sprint/SKILL.md directly) instead of re-invoking the Skill tool.
+If you are reading this, the sprint skill content has been successfully injected into your context. Your first action MUST be to announce: "Starting /dso:sprint workflow — skill loaded successfully." Do NOT skip this announcement. If you invoked dso:sprint but cannot see this block, the skill was not injected — use the Read tool fallback from using-dso (read skills/sprint/SKILL.md directly) instead of re-invoking the Skill tool.
 </INJECTION_GUARD>
 
 # Purpose

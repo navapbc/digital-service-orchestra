@@ -10,7 +10,7 @@
 #   stdout: permissionDecision message (only consumed when return 2)
 #
 # Functions defined:
-#   hook_inject_using_lockpick        — inject skill context at session start
+#   hook_inject_using_dso             — inject skill context at session start
 #   hook_cleanup_stale_nohup          — reap stale/hung nohup processes from registry
 #   hook_session_safety_check         — analyze hook error log and warn
 #   hook_post_compact_review_check    — warn about review state after compaction
@@ -25,7 +25,7 @@
 #
 # Usage:
 #   source hooks/lib/session-misc-functions.sh
-#   hook_inject_using_lockpick "$INPUT_JSON"
+#   hook_inject_using_dso "$INPUT_JSON"
 
 # Guard: only load once
 [[ "${_SESSION_MISC_FUNCTIONS_LOADED:-}" == "1" ]] && return 0
@@ -230,15 +230,15 @@ hook_cleanup_stale_nohup() {
 }
 
 # ---------------------------------------------------------------------------
-# hook_inject_using_lockpick
+# hook_inject_using_dso
 # ---------------------------------------------------------------------------
-# SessionStart hook: inject using-lockpick skill context into conversation
-hook_inject_using_lockpick() {
+# SessionStart hook: inject using-dso skill context into conversation
+hook_inject_using_dso() {
     local REPO_ROOT
     REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
     local PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
-    local HOOK_FILE="$PLUGIN_ROOT/skills/using-lockpick/HOOK-INJECTION.md"
-    local SKILL_FILE="$PLUGIN_ROOT/skills/using-lockpick/SKILL.md"
+    local HOOK_FILE="$PLUGIN_ROOT/skills/using-dso/HOOK-INJECTION.md"
+    local SKILL_FILE="$PLUGIN_ROOT/skills/using-dso/SKILL.md"
 
     if [[ -f "$HOOK_FILE" ]]; then
         cat "$HOOK_FILE"

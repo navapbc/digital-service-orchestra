@@ -1,5 +1,5 @@
 ---
-name: using-lockpick
+name: using-dso
 description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -147,7 +147,7 @@ When encountering repeated friction — unclear instructions, confusing skill st
   --source "agent" \
   --observation "<what happened or what was unclear>" \
   --recommendation "<what would make this smoother>" \
-  --skill-name "using-lockpick"
+  --skill-name "using-dso"
 ```
 
 This is advisory, not a gate. Use it when you notice something worth improving — repeated confusion about a step, a skill that gave ambiguous guidance, or a workaround you had to devise. These suggestions feed into the project's continuous improvement cycle.
