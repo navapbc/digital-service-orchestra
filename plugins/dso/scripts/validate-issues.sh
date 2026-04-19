@@ -283,7 +283,7 @@ for o in orphans:
         dt = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
         hour_key = dt.strftime('%Y-%m-%d %H:00')
         clusters[hour_key].append(o)
-    except (ValueError, IndexError, TypeError):
+    except (ValueError, IndexError, TypeError, OSError, OverflowError):
         pass
 
 # Output individual orphans as warnings
