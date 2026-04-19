@@ -267,3 +267,11 @@ plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket:tests/unit/scripts/test-ticket-tag.sh
 
+
+# --- tag policy documentation (story c120-9e90, task 93bd-7940) ---
+plugins/dso/docs/ticket-system-v3-architecture.md:tests/scripts/test-tag-policy-docs.sh [test_arch_doc_has_tag_policy_section]
+plugins/dso/docs/ticket-system-v3-architecture.md:tests/scripts/test-tag-policy-docs.sh [test_arch_doc_tag_policy_covers_guarded_tags]
+plugins/dso/docs/ticket-system-v3-architecture.md:tests/scripts/test-tag-policy-docs.sh [test_arch_doc_tag_policy_covers_writer_taxonomy]
+plugins/dso/docs/contracts/scrutiny-pending-tag.md:tests/scripts/test-tag-policy-docs.sh [test_scrutiny_tag_doc_has_policy_crossref]
+plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-policy-docs.sh [test_interaction_deferred_doc_has_policy_crossref]
+CLAUDE.md:tests/scripts/test-tag-policy-docs.sh [test_claude_md_has_ticket_tag_commands]
