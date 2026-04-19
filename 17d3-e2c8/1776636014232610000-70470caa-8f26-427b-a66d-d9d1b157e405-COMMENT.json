@@ -1,1 +1,0 @@
-{"timestamp": 1776636014232610000, "uuid": "70470caa-8f26-427b-a66d-d9d1b157e405", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Anti-pattern scan: no other callers of detect_dso_plugin_root() outside scripts/create-dso-app.sh and tests/scripts/test-create-dso-app.sh. Proceeding to commit."}}
