@@ -1,0 +1,1 @@
+{"schema_version": 1, "timestamp": 1776556828775, "session_id": "fd84297c-ac04-4bf7-8820-b03c7a86263d", "source": "unit-test", "observation": "metrics check", "metrics": {"wall_clock_s": 45, "tokens": 3000}}
