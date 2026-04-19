@@ -39,6 +39,14 @@ Resolved commands used in this skill:
 - `LINT_CMD` — used in fix verification (Step 7)
 - `FORMAT_CHECK_CMD` — used in fix verification (Step 7)
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
 ## Empirical Validation Directive
 
 **Core principle: validate assumptions — never assume unobserved behavior.**

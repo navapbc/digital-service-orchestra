@@ -28,6 +28,15 @@ This command is always interactive. It guides you through 6 phases with explicit
 
 **Supports dryrun mode.** Use `/dso:dryrun /dso:roadmap` to preview without changes.
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
 ## Execution Framework
 
 ### Phase 0: Onboarding Prerequisite Check (/dso:roadmap)
