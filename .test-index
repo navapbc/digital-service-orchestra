@@ -137,6 +137,8 @@ plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh
 tests/lib/git-fixtures.sh:tests/scripts/test-create-bug-skill-smoke.sh
 CLAUDE.md:tests/scripts/test-claude-md-hook-error-handler.sh,tests/scripts/test-docs-behavioral-drift-prevention.sh
+# RED: template file not yet created (future generate-claude-md epic)
+plugins/dso/templates/CLAUDE.md.template:tests/scripts/test-generate-claude-md.sh [test_generate_claude_md_template_file_exists]
 plugins/dso/agents/red-team-reviewer.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/blue-team-filter.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/red-test-writer.md:tests/hooks/test-agent-standard-reference.sh
@@ -269,12 +271,10 @@ plugins/dso/scripts/ticket:tests/unit/scripts/test-ticket-tag.sh
 
 
 # --- tag policy documentation (story c120-9e90, task 93bd-7940) ---
-plugins/dso/docs/ticket-system-v3-architecture.md:tests/scripts/test-tag-policy-docs.sh [test_arch_doc_has_tag_policy_section]
-plugins/dso/docs/ticket-system-v3-architecture.md:tests/scripts/test-tag-policy-docs.sh [test_arch_doc_tag_policy_covers_guarded_tags]
-plugins/dso/docs/ticket-system-v3-architecture.md:tests/scripts/test-tag-policy-docs.sh [test_arch_doc_tag_policy_covers_writer_taxonomy]
-plugins/dso/docs/contracts/scrutiny-pending-tag.md:tests/scripts/test-tag-policy-docs.sh [test_scrutiny_tag_doc_has_policy_crossref]
-plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-policy-docs.sh [test_interaction_deferred_doc_has_policy_crossref]
-CLAUDE.md:tests/scripts/test-tag-policy-docs.sh [test_claude_md_has_ticket_tag_commands]
+plugins/dso/docs/ticket-system-v3-architecture.md:tests/scripts/test-tag-policy-docs.sh
+plugins/dso/docs/contracts/scrutiny-pending-tag.md:tests/scripts/test-tag-policy-docs.sh
+plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-policy-docs.sh
+CLAUDE.md:tests/scripts/test-tag-policy-docs.sh
 # --- ticket tag/untag CLI refactor: instruction files use ticket tag/untag (task 7cdb-e8df) ---
 plugins/dso/skills/brainstorm/SKILL.md:tests/scripts/test-tag-cli-refactor.sh
 plugins/dso/skills/roadmap/SKILL.md:tests/scripts/test-tag-cli-refactor.sh

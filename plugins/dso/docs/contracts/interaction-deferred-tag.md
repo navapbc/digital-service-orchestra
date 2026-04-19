@@ -87,3 +87,4 @@ If a downstream skill cannot determine tag presence (e.g., ticket read failure),
 ## Related Contracts
 
 - `scrutiny:pending` tag (`docs/contracts/scrutiny-pending-tag.md`) — same gate pattern; blocks when epic has not been through the scrutiny pipeline
+- [Tag Policy](../ticket-system-v3-architecture.md#tag-policy) — meta-policy governing tag guards, writer taxonomy, and accepted limitations

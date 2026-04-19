@@ -101,21 +101,15 @@ if ! echo "$current_tags" | grep -qxF "$TAG_AWAITING_IMPORT"; then
     exit 1
 fi
 
-# ── Build new tag list: remove TAG_AWAITING_IMPORT, append TAG_APPROVED ──────
-# grep -vxF exits 1 when no lines match (all lines were filtered), which triggers
-# set -e / pipefail. Use `|| true` to treat "no remaining tags" as empty string.
-filtered_tags=$(echo "$current_tags" | grep -vxF "$TAG_AWAITING_IMPORT" | tr '\n' ',' | sed 's/,$//') || true
-if [ -n "$filtered_tags" ]; then
-    new_tags="${filtered_tags},${TAG_APPROVED}"
-else
-    new_tags="$TAG_APPROVED"
-fi
-
-# ── Write merged tags via ticket edit --tags= ─────────────────────────────────
-_run_ticket edit "$story_id" "--tags=${new_tags}" || {
-    echo "Error: failed to update tags for story '$story_id'" >&2
+# ── Update tags via ticket tag/untag subcommands ──────────────────────────────
+_run_ticket tag "$story_id" "$TAG_APPROVED" || {
+    echo "Error: failed to add tag '$TAG_APPROVED' for story '$story_id'" >&2
+    exit 1
+}
+_run_ticket untag "$story_id" "$TAG_AWAITING_IMPORT" || {
+    echo "Error: failed to remove tag '$TAG_AWAITING_IMPORT' for story '$story_id'" >&2
     exit 1
 }
 
 # ── Success ───────────────────────────────────────────────────────────────────
-echo "Design approved for story '$story_id'. Tags updated: $new_tags"
+echo "Design approved for story '$story_id'."

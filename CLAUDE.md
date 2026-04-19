@@ -32,6 +32,8 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Create a ticket | `.claude/scripts/dso ticket create <type> <title> [--description <text>] [--tags <tag>] [--parent <parent>] [--priority <priority>]` |
 | Close a ticket | `.claude/scripts/dso ticket transition <id> <current-status> closed` (bug tickets require `--reason="Fixed: <summary>"`) |
 | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` |
+| Add tag to a ticket | `.claude/scripts/dso ticket tag <id> <tag>` |
+| Remove tag from a ticket | `.claude/scripts/dso ticket untag <id> <tag>` |
 | Review event stats | `.claude/scripts/dso review-stats.sh` |
 | Run a recipe transform | `.claude/scripts/dso recipe-executor.sh <recipe-name> [--param key=value ...]` |
 | Sync stale host-project artifacts to current plugin version | `.claude/scripts/dso update-artifacts` |
