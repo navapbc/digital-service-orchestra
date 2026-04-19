@@ -1,0 +1,1 @@
+{"timestamp": 1776564835810096000, "uuid": "48123223-3aeb-4ad1-a1c7-451eac69d8d4", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fix approved (A+C code; B manual). testing_mode=RED (new coverage for SNAPSHOT/EDIT-fields PIL detection)."}}
