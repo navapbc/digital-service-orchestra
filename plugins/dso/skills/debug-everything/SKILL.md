@@ -924,6 +924,14 @@ Before verifying results, check whether any sub-agent Task call returned an **in
 
 Dispatch failure retries are sequential (error recovery, not planned work) and do not count toward batch size limits.
 
+### Step 0.5: Worktree Integration (/dso:debug-everything)
+
+When `DISPATCH_ISOLATION=true`, sub-agents in Phase 5 ran in isolated worktree branches — their changes are NOT on the session branch in the orchestrator's CWD. Before any subsequent step runs `git diff` (Step 1a file-overlap, Step 1b critic review, Step 5 semantic conflict check) or `git commit` (Step 6), each sub-agent's worktree changes MUST be integrated onto the session branch.
+
+**When `DISPATCH_ISOLATION=true`**: For each sub-agent that returned successfully (including any that succeeded on retry from Step 0), follow `skills/shared/prompts/single-agent-integrate.md` to integrate its worktree changes back into the session branch. This mirrors the Bug-Fix Mode per-result integration pattern (see Bug-Fix Mode Execution step 2 above) so downstream `git diff` / commit operations in Phase 6 observe the combined batch changes.
+
+**When `DISPATCH_ISOLATION=false`**: Skip this step — sub-agents wrote directly to the session branch and the changes are already visible via `git diff` in Step 1a and beyond.
+
 ### Step 1: Verify Results (/dso:debug-everything)
 
 For each sub-agent (including any that succeeded on retry), check the Task result:

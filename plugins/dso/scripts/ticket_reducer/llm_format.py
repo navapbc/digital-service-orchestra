@@ -16,6 +16,7 @@ Key mapping:
   priority    → pr
   assignee    → asn
   description → desc
+  tags        → tg
   comments    → cm  (sub-keys: body→b, author→au; timestamp omitted)
   deps        → dp  (sub-keys: target_id→tid, relation→r; link_uuid omitted)
   conflicts   → cf
@@ -33,6 +34,7 @@ KEY_MAP = {
     "priority": "pr",
     "assignee": "asn",
     "description": "desc",
+    "tags": "tg",
     "comments": "cm",
     "deps": "dp",
     "conflicts": "cf",

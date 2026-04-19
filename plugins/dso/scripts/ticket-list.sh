@@ -18,6 +18,7 @@
 #                   priority    → pr
 #                   assignee    → asn
 #                   comments    → cm (sub-keys: body→b, author→au)
+#                   tags        → tg
 #                   deps        → dp (sub-keys: target_id→tid, relation→r)
 #   Errors go to stderr; exits 0 on success (even if some tickets have errors).
 #   Empty tracker outputs [] (default) or nothing (llm format).

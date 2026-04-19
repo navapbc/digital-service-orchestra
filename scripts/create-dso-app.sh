@@ -147,6 +147,14 @@ check_homebrew_deps() {
     brew install bash || missing+=("bash")
   fi
 
+  # Inject Homebrew bash PATH so subsequent `bash "$_setup_script"` calls
+  # resolve to bash>=4, not macOS /bin/bash 3.2 (mirrors node@20 pattern).
+  if brew list bash >/dev/null 2>&1; then
+    local bash_prefix
+    bash_prefix="$(brew --prefix bash)"
+    export PATH="$bash_prefix/bin:$PATH"
+  fi
+
   # Check git
   if ! command -v git >/dev/null 2>&1; then
     echo "Installing git via Homebrew..."
