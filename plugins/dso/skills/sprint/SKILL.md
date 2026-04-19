@@ -162,7 +162,24 @@ If the ticket type is `epic` AND status is `in_progress`:
         - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
      4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
      5. **Backward compatibility**: Sprint reads old positional-counter checkpoints (CHECKPOINT N/6) without error and resumes from the last completed phase — no migration of existing checkpoint notes is required. Semantic-named checkpoints (CHECKPOINT:batch-complete, CHECKPOINT:review-passed, CHECKPOINT:validation-passed) are equivalent in resume logic.
-   - After checkpoint processing, proceed to Phase 3.
+   - After checkpoint processing, run the **WORKTREE_TRACKING Auto-Resume Detection** scan before proceeding to Phase 3:
+
+     **WORKTREE_TRACKING Auto-Resume Detection Scan** (runs after checkpoint processing):
+     1. Enumerate tickets to scan: the top-level epic ticket + all child story/task tickets
+        - Get children via: `.claude/scripts/dso ticket deps <primary_ticket_id>` (open + closed, use `--include-archived`)
+        - Also scan the top-level ticket itself
+     2. For each ticket, read comments (`.claude/scripts/dso ticket show <id>`) and find `WORKTREE_TRACKING:start` comments with no corresponding `:complete` (for task tickets) or `:landed` (for story/bug tickets)
+     3. If multiple unmatched starts exist, apply tiebreak cascade to select which to merge (most recently-started first; ties broken by: most checkpoint progress → fewest conflicts in dry-run → first alphabetically by branch name → discard all beyond first)
+     4. For each unmatched start, extract the branch name:
+        - If branch no longer exists locally: skip without error, log `'Branch <b> not found — skipping'`
+        - If branch is ancestor of HEAD (already merged): write retroactive `:complete` with `outcome=already_merged`, skip re-merge
+        - If git is in mid-merge state (MERGE_HEAD exists): run `git merge --abort` first
+        - If branch has unique commits (not in HEAD): attempt `git merge --no-edit <branch>`
+          - On success: log `'Merged abandoned branch <b>'`
+          - On conflict: run `git merge --abort`, log `'Conflict in <b> — discarded'`
+     5. After scan: if repo is clean, proceed to Phase 3
+
+   - Proceed to Phase 3.
 
 (e) **Non-epic tickets** (story, task, bug) with `in_progress` status are NOT affected by auto-resume detection — they proceed through Non-Epic Routing as before. Auto-resume only applies to epic-type tickets.
 
