@@ -47,6 +47,8 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 
 ## Architecture
 
+**DSO NextJS template repo**: `navapbc/digital-service-orchestra-nextjs-template` is the live template the `scripts/create-dso-app.sh` installer clones. Apache-2.0 attribution to upstream `navapbc/template-application-nextjs` is preserved in the template's NOTICE file. Real-URL e2e validation lives at `tests/scripts/test-create-dso-app-real-url.sh` (opt-in via `RUN_REAL_URL_E2E=1`; runs daily in CI). Interface contract: `docs/designs/create-dso-app-template-contract.md`.
+
 **Ticket system v3 (event-sourced)**: Orphan branch `tickets` → `.tickets-tracker/`. CLI: `.claude/scripts/dso ticket <subcommand>` (ref: `plugins/dso/docs/ticket-cli-reference.md`). Archived tickets excluded from list/deps by default; `--include-archived` to override. The --tags flag sets tags atomically at creation time (comma-separated). The CLI_user tag marks bugs reported explicitly by a human during an interactive session; See `plugins/dso/docs/ticket-cli-reference.md` for full rules and examples.
 **Suggestion capture**: `suggestion-record.sh` records agent friction/suggestions as immutable JSON files to `.tickets-tracker/.suggestions/`; fields include `source`, `observation`, `recommendation`, `skill_name`, `affected_file`, and `metrics`. 
 **Review gate (two-layer)**: Layer 1 — `pre-commit-review-gate.sh` (git hook); Layer 2 — `review-gate.sh` (PreToolUse hook) blocks `--no-verify` and plumbing bypasses. Both layers handle MERGE_HEAD and REBASE_HEAD via `merge-state.sh`. 
