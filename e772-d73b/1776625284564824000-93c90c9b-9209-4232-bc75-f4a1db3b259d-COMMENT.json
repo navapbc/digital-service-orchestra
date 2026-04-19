@@ -1,0 +1,1 @@
+{"timestamp": 1776625284564824000, "uuid": "93c90c9b-9209-4232-bc75-f4a1db3b259d", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Adversarial review: 8 findings, 8 accepted (opus blue team). Full exchange: /tmp/dso-artifacts/adversarial-review-e772-d73b.json"}}
