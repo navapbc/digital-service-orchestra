@@ -10,8 +10,8 @@
 #   3. Get story data via ticket show
 #   4. Find design UUID from story comments or use story-id as design dir
 #   5. Validate designs/{uuid}/figma-revision.png exists and is non-empty
-#   6. Read current tags, remove TAG_AWAITING_IMPORT, append TAG_APPROVED
-#   7. Write merged tags via ticket edit --tags=
+#   6. Verify story has TAG_AWAITING_IMPORT
+#   7. Add TAG_APPROVED and remove TAG_AWAITING_IMPORT via ticket tag/untag
 #   8. Print success message
 set -euo pipefail
 

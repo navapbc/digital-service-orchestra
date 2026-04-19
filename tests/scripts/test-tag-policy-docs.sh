@@ -75,6 +75,10 @@ assert_contains \
     "test_claude_md_quick_ref_has_tag_and_untag: CLAUDE.md Quick Reference has ticket tag entry" \
     "ticket tag" \
     "$claude_content"
+assert_contains \
+    "test_claude_md_quick_ref_has_tag_and_untag: CLAUDE.md Quick Reference has ticket untag entry" \
+    "ticket untag" \
+    "$claude_content"
 echo ""
 
 print_summary

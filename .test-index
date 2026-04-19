@@ -270,6 +270,8 @@ plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket:tests/unit/scripts/test-ticket-tag.sh
 
 
+# --- design-approve.sh uses ticket tag/untag (story d808-cba0, task a2ed-df22) ---
+plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
 # --- tag policy documentation (story c120-9e90, task 93bd-7940) ---
 plugins/dso/docs/ticket-system-v3-architecture.md:tests/scripts/test-tag-policy-docs.sh
 plugins/dso/docs/contracts/scrutiny-pending-tag.md:tests/scripts/test-tag-policy-docs.sh
