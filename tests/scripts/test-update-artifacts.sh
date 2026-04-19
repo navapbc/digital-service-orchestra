@@ -122,7 +122,7 @@ _make_plugin_templates() {
     local new_version="${2:-$PLUGIN_VERSION}"
 
     mkdir -p "$dir/templates/host-project"
-    mkdir -p "$dir/examples"
+    mkdir -p "$dir/docs/examples"
 
     # Plugin shim template (current version)
     cat > "$dir/templates/host-project/dso" <<SHIM
@@ -143,7 +143,7 @@ new_key_beta=new_value_beta
 CONF
 
     # Pre-commit example with DSO hooks
-    cat > "$dir/examples/pre-commit-config.example.yaml" <<YAML
+    cat > "$dir/docs/examples/pre-commit-config.example.yaml" <<YAML
 repos:
   - repo: local
     hooks:
@@ -162,7 +162,7 @@ repos:
 YAML
 
     # CI example with DSO job
-    cat > "$dir/examples/ci.example.yml" <<WORKFLOW
+    cat > "$dir/docs/examples/ci.example.yml" <<WORKFLOW
 name: CI
 on:
   push:
@@ -316,8 +316,8 @@ _snapshot_fail
 tmpdir=$(_mktemp_tracked)
 
 HOST_CI="$tmpdir/host/.github/workflows/ci.yml"
-PLUGIN_CI="$tmpdir/plugin/examples/ci.example.yml"
-mkdir -p "$tmpdir/host/.github/workflows" "$tmpdir/plugin/examples"
+PLUGIN_CI="$tmpdir/plugin/docs/examples/ci.example.yml"
+mkdir -p "$tmpdir/host/.github/workflows" "$tmpdir/plugin/docs/examples"
 
 cat > "$HOST_CI" <<WORKFLOW
 name: CI
@@ -727,6 +727,7 @@ detected_flag=$(bash -c "
 
 if [[ $rc -eq 0 && -n "$detected_flag" ]]; then
     # Encode multi-line input using the detected flag; output must be a single line
+    # shellcheck disable=SC2086  # word splitting intentional: $detected_flag may be "-w 0"
     encoded=$(echo "$MULTI_LINE_INPUT" | base64 $detected_flag 2>/dev/null || echo "ENCODE_FAILED")
     line_count=$(echo "$encoded" | wc -l | tr -d ' ')
     assert_eq "test_update_platform_base64_flag: encoded output is single line (no wrap)" "1" "$line_count"

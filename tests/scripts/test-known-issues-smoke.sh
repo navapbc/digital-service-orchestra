@@ -14,7 +14,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-KNOWN_ISSUES="$REPO_ROOT/.claude/docs/KNOWN-ISSUES.md"
+KNOWN_ISSUES="$REPO_ROOT/docs/KNOWN-ISSUES.md"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
@@ -50,7 +50,8 @@ test_has_ten_incidents() {
 test_inc_ids_sequential() {
     _snapshot_fail
     for i in 1 2 3 4 5 6 7 8 9 10; do
-        local id="INC-$(printf '%03d' "$i")"
+        local id
+        id="INC-$(printf '%03d' "$i")"
         if ! grep -q "^### $id" "$KNOWN_ISSUES" 2>/dev/null; then
             (( ++FAIL ))
             printf "FAIL: missing incident heading ### %s\n" "$id" >&2
