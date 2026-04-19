@@ -132,6 +132,28 @@ that exists in the real template — not just the stub's invented one.
 | 3. Post-clone steps | ✓ matches | none |
 | 4. Test fixture | ✗ stub created `app/` at root; real template uses `src/app/` | Fixed in-PR: updated stub and assertion in `tests/scripts/test-create-dso-app.sh`. No separate bug filed — fix is trivial and lands with the contract doc. |
 
+### SC2 strip-list grep — NOTICE exclusion
+
+Epic SC2(a) reads:
+
+> `git grep -E 'nava-platform|\.copier-answers|^copier\.yml$|template-only-(bin|docs)|code\.json'` returns zero hits in tracked files.
+
+The Apache-2.0 NOTICE file (delivered by story `ac74-2505`) necessarily
+enumerates the stripped upstream artifacts as part of §4 attribution
+("modifications made"). The verbatim grep above will match NOTICE for
+that reason — but the SC2 *intent* is "no nava-platform tooling remains
+in the source tree", not "the strip cannot be documented". Documentation
+referencing stripped artifacts is exempt.
+
+The real-URL e2e test in `tests/scripts/test-create-dso-app-real-url.sh`
+implements this with the canonical pathspec exclusion:
+
+```
+git grep -E '<pattern>' -- ':!NOTICE'
+```
+
+Apply the same exclusion when running the SC2 grep verification by hand.
+
 Real-URL end-to-end validation (the missing piece per bug `068c-1e8a` and
 epic SC7) is delivered by story `6bf8-858d` (Real-URL e2e installer
 validation). That story exercises this contract end-to-end against the
