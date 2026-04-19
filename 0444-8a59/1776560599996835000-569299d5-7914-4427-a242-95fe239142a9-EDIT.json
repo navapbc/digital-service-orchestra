@@ -1,0 +1,1 @@
+{"timestamp": 1776560599996835000, "uuid": "569299d5-7914-4427-a242-95fe239142a9", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "merge-to-main.sh: dirty main branch from CLAUDE_PLUGIN_ROOT edits -> merge fails with overwrite error"}}}
