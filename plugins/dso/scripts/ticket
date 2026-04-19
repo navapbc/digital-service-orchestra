@@ -17,6 +17,8 @@
 #   ticket deps <ticket_id>                       — show dependency graph for a ticket (JSON)
 #   ticket bridge-status [--format=json]          — show last bridge run status
 #   ticket bridge-fsck [--tickets-tracker=<path>] — audit bridge mappings (orphans, duplicates, stale SYNCs)
+#   ticket tag <ticket_id> <tag>                  — add a tag to a ticket
+#   ticket untag <ticket_id> <tag>                — remove a tag from a ticket
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,8 +37,10 @@ _usage() {
     echo "  unlink      Remove a link between two tickets"
     echo "  deps        Show dependency graph for a ticket (<ticket_id>)"
     echo "  edit          Edit ticket fields (--title, --priority, --assignee, --ticket_type)"
-    echo "  bridge-status Show last bridge run status [--format=json]
-  bridge-fsck   Audit bridge mappings (orphans, duplicates, stale SYNCs)"
+    echo "  tag           Add a tag to a ticket"
+    echo "  untag         Remove a tag from a ticket"
+    echo "  bridge-status Show last bridge run status [--format=json]"
+    echo "  bridge-fsck   Audit bridge mappings (orphans, duplicates, stale SYNCs)"
     exit 1
 }
 
@@ -190,6 +194,14 @@ case "$subcommand" in
     edit)
         _ensure_initialized
         exec bash "$SCRIPT_DIR/ticket-edit.sh" "$@"
+        ;;
+    tag)
+        _ensure_initialized
+        exec bash "$SCRIPT_DIR/ticket-tag.sh" "$@"
+        ;;
+    untag)
+        _ensure_initialized
+        exec bash "$SCRIPT_DIR/ticket-untag.sh" "$@"
         ;;
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2

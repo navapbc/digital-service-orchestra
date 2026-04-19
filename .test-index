@@ -202,7 +202,7 @@ plugins/dso/scripts/ticket_reducer/marker.py:tests/scripts/test_ticket_reducer.p
 plugins/dso/scripts/ticket_reducer/llm_format.py:tests/scripts/test_ticket_llm_format.py
 
 # ticket-revert.sh mapping covered by line with RED marker above (bc06-74f4)
-plugins/dso/scripts/ticket_reducer/marker.py:tests/scripts/test_ticket_reducer_marker.py [test_marker_imports_from_package]
+plugins/dso/scripts/ticket_reducer/marker.py:tests/scripts/test_ticket_reducer_marker.py
 plugins/dso/scripts/ticket_reducer/llm_format.py:tests/scripts/test_ticket_reducer_llm_format.py
 
 # --- analyze_tool/ subpackage modules (c43c-12c8) ---
@@ -253,7 +253,7 @@ plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-wor
 # --- scripts/release.sh: automated release script (epic 36a7-dbb5, task c19e-e459) ---
 scripts/release.sh:tests/scripts/test-release.sh
 # --- ticket-archive-markers-backfill.sh (5ad5-be4d / bc06-74f4 batch) ---
-plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh [test_creates_marker_for_ticket_with_archived_event]
+plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh
 # --- ticket-transition flock section guard (task 1835-528f) ---
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition-flock.sh [test_flock_llm_format_referenced]
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
@@ -262,7 +262,7 @@ plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enfo
 plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh
 
 # --- _tag_add, _tag_remove helpers and ticket tag/untag CLI (task e0f5-c81c) ---
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_tag_cli_adds_tag]
-plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_tag_cli_adds_tag]
-plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_untag_cli_removes_tag]
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh
+plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
+plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket:tests/unit/scripts/test-ticket-tag.sh
