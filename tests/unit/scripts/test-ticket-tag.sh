@@ -461,8 +461,9 @@ test_ticket_untag_cli_removes_tag
 # These MUST FAIL until ticket-lib.sh implements _ticket_has_pil and
 # _tag_add_checked, and ticket-tag.sh dispatches through _tag_add_checked.
 #
-# PIL marker convention: events containing "PLANNING_INTELLIGENCE_LOG"
-# in description or comment body are treated as evidence of scrutiny.
+# PIL marker convention: events containing "### Planning Intelligence Log"
+# heading in description or comment body are treated as evidence of scrutiny.
+# This matches the heading written by /dso:brainstorm (brainstorm SKILL.md).
 
 # ── Test 8: _ticket_has_pil — finds PIL in CREATE description ─────────────────
 echo ""
@@ -476,7 +477,9 @@ test_ticket_has_pil_finds_pil_in_create_description() {
     # Create an epic with PIL marker in the description
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "PIL epic" \
-        --description "PLANNING_INTELLIGENCE_LOG: scrutiny complete" 2>/dev/null | tr -d '[:space:]')
+        --description "### Planning Intelligence Log
+
+scrutiny complete" 2>/dev/null | tr -d '[:space:]')
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_has_pil_finds_pil_in_create_description: could not create ticket" >&2; return; }
 
@@ -505,7 +508,9 @@ test_ticket_has_pil_finds_pil_in_edit_fields_description() {
 
     # Edit the ticket to add PIL marker in description
     (cd "$repo" && bash "$TICKET_SCRIPT" edit "$ticket_id" \
-        --description "PLANNING_INTELLIGENCE_LOG: added via edit" 2>/dev/null) || {
+        --description "### Planning Intelligence Log
+
+added via edit" 2>/dev/null) || {
         (( ++FAIL ))
         echo "FAIL: test_ticket_has_pil_finds_pil_in_edit_fields_description: ticket edit setup failed" >&2
         return
@@ -535,7 +540,9 @@ test_ticket_has_pil_finds_pil_in_comment_body() {
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_has_pil_finds_pil_in_comment_body: could not create ticket" >&2; return; }
 
     (cd "$repo" && bash "$TICKET_SCRIPT" comment "$ticket_id" \
-        "PLANNING_INTELLIGENCE_LOG: brainstorm complete, see attached notes" 2>/dev/null) || {
+        "### Planning Intelligence Log
+
+brainstorm complete, see attached notes" 2>/dev/null) || {
         (( ++FAIL ))
         echo "FAIL: test_ticket_has_pil_finds_pil_in_comment_body: ticket comment setup failed" >&2
         return
@@ -635,7 +642,9 @@ test_tag_add_checked_allows_brainstorm_complete_with_pil() {
 
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "PIL present epic" \
-        --description "PLANNING_INTELLIGENCE_LOG: brainstorm done" 2>/dev/null | tr -d '[:space:]')
+        --description "### Planning Intelligence Log
+
+brainstorm done" 2>/dev/null | tr -d '[:space:]')
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_tag_add_checked_allows_brainstorm_complete_with_pil: could not create ticket" >&2; return; }
 
@@ -659,7 +668,9 @@ test_ticket_tag_pil_round_trip() {
 
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Round-trip PIL epic" \
-        --description "PLANNING_INTELLIGENCE_LOG: all checks done" 2>/dev/null | tr -d '[:space:]')
+        --description "### Planning Intelligence Log
+
+all checks done" 2>/dev/null | tr -d '[:space:]')
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_tag_pil_round_trip: could not create ticket" >&2; return; }
 

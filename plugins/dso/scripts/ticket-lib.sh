@@ -503,3 +503,69 @@ with open(out_path, 'w', encoding='utf-8') as f:
     rm -f "$_temp_event"
     return 0
 }
+
+# _ticket_has_pil <ticket_id>
+# Returns exit 0 if the ticket has a "### Planning Intelligence Log" heading in
+# any event (CREATE description, EDIT fields.description, or COMMENT body).
+# Returns exit 1 if the marker is absent.
+#
+# Honors TICKET_CMD and TICKETS_TRACKER_DIR env vars for testability.
+_ticket_has_pil() {
+    local ticket_id="$1"
+
+    local _lib_dir
+    _lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local _ticket_cmd="${TICKET_CMD:-$_lib_dir/ticket}"
+
+    local _repo_root=""
+    if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
+        _repo_root="$(git rev-parse --show-toplevel)"
+    fi
+    local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root/.tickets-tracker}"
+
+    TICKETS_TRACKER_DIR="$_tracker_dir" bash "$_ticket_cmd" show "$ticket_id" 2>/dev/null | python3 -c "
+import json, sys
+try:
+    state = json.load(sys.stdin)
+except (json.JSONDecodeError, ValueError):
+    sys.exit(1)
+marker = '### Planning Intelligence Log'
+desc = state.get('description', '') or ''
+if marker in desc:
+    sys.exit(0)
+for comment in state.get('comments', []):
+    body = comment.get('body', '') or ''
+    if marker in body:
+        sys.exit(0)
+sys.exit(1)
+"
+}
+
+# _tag_add_checked <ticket_id> <tag>
+# Adds a tag to a ticket with a PIL guard for brainstorm:complete.
+# For any tag other than "brainstorm:complete", delegates directly to _tag_add.
+# For "brainstorm:complete", requires _ticket_has_pil to return 0 first;
+# emits an error to stderr and returns 1 if the PIL marker is absent.
+#
+# REVIEW-DEFENSE: ticket-tag.sh is wired to call _tag_add_checked (instead of
+# _tag_add directly) in task fd3c-21b5, which follows this task in the same story.
+# The TDD decomposition: this task (0abf-422e) implements the guard in ticket-lib.sh;
+# the CLI wire-up is the next task. The RED marker for test_ticket_tag_cli_rejects_
+# brainstorm_complete_without_pil in .test-index is retained until fd3c-21b5 lands.
+_tag_add_checked() {
+    local ticket_id="$1"
+    local tag="$2"
+
+    if [[ "$tag" != "brainstorm:complete" ]]; then
+        _tag_add "$ticket_id" "$tag"
+        return $?
+    fi
+
+    if ! _ticket_has_pil "$ticket_id" 2>/dev/null; then
+        echo "Error: cannot add 'brainstorm:complete' tag: Planning Intelligence Log not found in ticket events." >&2
+        echo "Run /dso:brainstorm on this epic first to generate the Planning Intelligence Log." >&2
+        return 1
+    fi
+
+    _tag_add "$ticket_id" "$tag"
+}
