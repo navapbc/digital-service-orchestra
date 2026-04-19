@@ -186,6 +186,37 @@ test_bug_fix_mode_queries_in_progress_tickets() {
     assert_eq "test_bug_fix_mode_queries_in_progress_tickets: SKILL.md must include --status=in_progress in bug ticket queries" "found" "$result"
 }
 
+# ============================================================
+# test_compaction_resume_continues_after_ticket
+# After a compaction event, COMPACTION_RESUME resumes the in-progress
+# ticket — but must also instruct the agent to continue processing
+# remaining bugs, not stop after the one resumed ticket.
+# Also verifies that the past compaction is NOT treated as a live
+# Phase 9 shutdown trigger (e7e8-22b7).
+# ============================================================
+test_compaction_resume_continues_after_ticket() {
+    local skill_content
+    skill_content=$(cat "$SKILL_FILE" 2>/dev/null || true)
+
+    local continue_found="missing"
+    local no_phase9_found="missing"
+
+    # Must instruct the agent to continue to the next bug after the resumed ticket completes.
+    # Require a pattern unique to the COMPACTION_RESUME continuation clause — not the
+    # CONTEXT ANCHOR "Do NOT stop or wait" lines that predate this fix.
+    if echo "$skill_content" | grep -qiE "do NOT stop.*re-query|After.*in.progress ticket.*complet.*do NOT stop|re-query remaining open.*continu"; then
+        continue_found="found"
+    fi
+
+    # Must clarify that the past compaction does NOT trigger Phase 9 shutdown
+    if echo "$skill_content" | grep -qiE "compaction.{0,60}(NOT|not).{0,60}(signal|trigger).{0,60}Phase 9|Phase 9.{0,60}(NOT|not).{0,60}(triggered|fired).{0,60}compaction|prior.{0,60}compaction.{0,60}NOT|not.{0,60}Phase 9.{0,60}shutdown"; then
+        no_phase9_found="found"
+    fi
+
+    assert_eq "test_compaction_resume_continues_after_ticket: COMPACTION_RESUME must instruct agent to continue remaining bugs" "found" "$continue_found"
+    assert_eq "test_compaction_resume_no_phase9_shutdown: COMPACTION_RESUME must clarify past compaction does NOT trigger Phase 9" "found" "$no_phase9_found"
+}
+
 # Run all tests
 test_orchestration_flow_has_bug_fix_branch
 test_bug_detection_step_exists
@@ -194,5 +225,6 @@ test_bug_fix_mode_skips_triage
 test_orchestrator_level_fix_bug_invocation
 test_bug_fix_mode_extracts_cli_user_tag
 test_bug_fix_mode_queries_in_progress_tickets
+test_compaction_resume_continues_after_ticket
 
 print_summary

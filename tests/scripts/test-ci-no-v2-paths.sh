@@ -26,8 +26,8 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 echo "=== test-ci-no-v2-paths.sh ==="
 
 CI_YML="$REPO_ROOT/.github/workflows/ci.yml"
-CI_EXAMPLE_YML="$REPO_ROOT/examples/ci.example.yml"
-PRECOMMIT_EXAMPLE="$REPO_ROOT/examples/pre-commit-config.example.yaml"
+CI_EXAMPLE_YML="$REPO_ROOT/plugins/dso/docs/examples/ci.example.yml"
+PRECOMMIT_EXAMPLE="$REPO_ROOT/plugins/dso/docs/examples/pre-commit-config.example.yaml"
 
 # ── test_ci_yml_no_tickets_paths ─────────────────────────────────────────────
 # .github/workflows/ci.yml must contain no .tickets/ path-ignore entries.

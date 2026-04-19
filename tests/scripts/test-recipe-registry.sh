@@ -13,8 +13,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCHEMA_PATH="$REPO_ROOT/recipes/schemas/recipe-registry-schema.json"
-REGISTRY_PATH="$REPO_ROOT/recipes/recipe-registry.yaml"
+SCHEMA_PATH="$REPO_ROOT/plugins/dso/recipes/schemas/recipe-registry-schema.json"
+REGISTRY_PATH="$REPO_ROOT/plugins/dso/recipes/recipe-registry.yaml"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
@@ -43,7 +43,7 @@ import json, sys, os, subprocess
 repo_root = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-schema_path = os.path.join(repo_root, "recipes", "schemas", "recipe-registry-schema.json")
+schema_path = os.path.join(repo_root, "plugins", "dso", "recipes", "schemas", "recipe-registry-schema.json")
 
 if not os.path.exists(schema_path):
     print(f"MISSING_SCHEMA: {schema_path}")
@@ -87,7 +87,7 @@ import json, sys, os, subprocess
 repo_root = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-schema_path = os.path.join(repo_root, "recipes", "schemas", "recipe-registry-schema.json")
+schema_path = os.path.join(repo_root, "plugins", "dso", "recipes", "schemas", "recipe-registry-schema.json")
 
 if not os.path.exists(schema_path):
     print(f"MISSING_SCHEMA: {schema_path}")
@@ -147,7 +147,7 @@ import yaml, sys, os, subprocess
 repo_root = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-registry_path = os.path.join(repo_root, "recipes", "recipe-registry.yaml")
+registry_path = os.path.join(repo_root, "plugins", "dso", "recipes", "recipe-registry.yaml")
 
 if not os.path.exists(registry_path):
     print(f"MISSING_REGISTRY: {registry_path}")
@@ -190,7 +190,7 @@ import yaml, sys, os, subprocess
 repo_root = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-registry_path = os.path.join(repo_root, "recipes", "recipe-registry.yaml")
+registry_path = os.path.join(repo_root, "plugins", "dso", "recipes", "recipe-registry.yaml")
 
 if not os.path.exists(registry_path):
     print(f"MISSING_REGISTRY: {registry_path}")
@@ -236,7 +236,7 @@ import yaml, sys, os, subprocess
 repo_root = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-registry_path = os.path.join(repo_root, "recipes", "recipe-registry.yaml")
+registry_path = os.path.join(repo_root, "plugins", "dso", "recipes", "recipe-registry.yaml")
 
 if not os.path.exists(registry_path):
     print(f"MISSING_REGISTRY: {registry_path}")
@@ -282,7 +282,7 @@ import yaml, sys, os, subprocess
 repo_root = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-registry_path = os.path.join(repo_root, "recipes", "recipe-registry.yaml")
+registry_path = os.path.join(repo_root, "plugins", "dso", "recipes", "recipe-registry.yaml")
 
 if not os.path.exists(registry_path):
     print(f"MISSING_REGISTRY: {registry_path}")
@@ -325,7 +325,7 @@ import json, sys, os, subprocess
 repo_root = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-schema_path = os.path.join(repo_root, "recipes", "schemas", "recipe-registry-schema.json")
+schema_path = os.path.join(repo_root, "plugins", "dso", "recipes", "schemas", "recipe-registry-schema.json")
 
 if not os.path.exists(schema_path):
     print(f"MISSING_SCHEMA: {schema_path}")
@@ -370,7 +370,7 @@ import json, sys, os, subprocess
 repo_root = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-schema_path = os.path.join(repo_root, "recipes", "schemas", "recipe-registry-schema.json")
+schema_path = os.path.join(repo_root, "plugins", "dso", "recipes", "schemas", "recipe-registry-schema.json")
 
 if not os.path.exists(schema_path):
     print(f"MISSING_SCHEMA: {schema_path}")
@@ -414,7 +414,7 @@ import yaml, sys, os, subprocess
 repo_root = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-registry_path = os.path.join(repo_root, "recipes", "recipe-registry.yaml")
+registry_path = os.path.join(repo_root, "plugins", "dso", "recipes", "recipe-registry.yaml")
 
 if not os.path.exists(registry_path):
     print(f"MISSING_REGISTRY: {registry_path}")
@@ -457,7 +457,7 @@ import yaml, sys, os, subprocess
 repo_root = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-registry_path = os.path.join(repo_root, "recipes", "recipe-registry.yaml")
+registry_path = os.path.join(repo_root, "plugins", "dso", "recipes", "recipe-registry.yaml")
 
 if not os.path.exists(registry_path):
     print(f"MISSING_REGISTRY: {registry_path}")

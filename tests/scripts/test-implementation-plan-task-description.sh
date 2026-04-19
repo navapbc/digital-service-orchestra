@@ -85,8 +85,38 @@ test_operative_template_includes_description_flag() {
     "1" "$_found_with_d"
 }
 
+# ===========================================================================
+# test_integration_test_rule_has_primary_path_constraint
+#
+# Given: implementation-plan/SKILL.md Integration Test Task Rule
+# When: we look for the Primary path constraint (33a8-6762)
+# Then: the skill must contain a constraint prohibiting privileged bypass paths
+#       when user-facing flows are in the success criteria
+#
+# Structural boundary: the "Primary path constraint" paragraph must exist in the
+# Integration Test Task Rule section, co-located with the exemption list.
+# RED before fix: constraint absent → agent free to use admin-initiate-auth bypass.
+# GREEN after fix: constraint present → agent must exercise browser/user path.
+# ===========================================================================
+test_integration_test_rule_has_primary_path_constraint() {
+  local _skill_content
+  _skill_content=$(cat "$SKILL_FILE" 2>/dev/null || true)
+
+  local _found_primary_path="missing"
+
+  # Must contain the primary-path constraint at the integration test rule site
+  if echo "$_skill_content" | grep -qiE "Primary path constraint|privileged bypass.*not satisfy|administrative.*bypass.*does not satisfy"; then
+    _found_primary_path="found"
+  fi
+
+  assert_eq \
+    "test_integration_test_rule_has_primary_path_constraint: integration test rule must prohibit admin/CLI bypass for user-facing flow SCs (33a8-6762)" \
+    "found" "$_found_primary_path"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_no_bare_create_without_description_flag
 test_operative_template_includes_description_flag
+test_integration_test_rule_has_primary_path_constraint
 
 print_summary

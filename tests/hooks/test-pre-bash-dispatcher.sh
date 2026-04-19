@@ -204,6 +204,15 @@ rm -rf "$_timing_test_dir"
 # security/integrity violation. The hook_record_test_status_guard (entry 8
 # in the dispatch loop, before hook_tickets_tracker_bash_guard) must
 # intercept these calls and return exit 2.
+#
+# REVIEW-DEFENSE: This test covers the FULL regression path for bug 530e-13d8
+# (EXIT trap override). It invokes the complete dispatcher script via
+# `bash "$DISPATCHER"` (not sourced), with CLAUDE_PLUGIN_ROOT set so
+# hook-error-handler.sh is sourced and the EXIT trap is registered, and
+# asserts the final process exit code is 2. Before the fix, this test
+# produced exit 0 because the EXIT trap converted the intentional exit 2 to
+# 0. After the `trap - EXIT` fix, exit 2 is preserved end-to-end. The RED
+# marker in .test-index (now removed as GREEN) documented the pre-fix failure.
 # ============================================================
 echo "--- test_pre_bash_dispatcher_record_test_status_direct_call_blocked ---"
 _INPUT='{"tool_name":"Bash","tool_input":{"command":"bash plugins/dso/hooks/record-test-status.sh --source-file=foo.py"}}'
