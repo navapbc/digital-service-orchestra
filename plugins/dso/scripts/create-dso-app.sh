@@ -184,6 +184,24 @@ check_homebrew_deps() {
     brew install --cask claude-code || missing+=("claude-code (cask)")
   fi
 
+  # Check uv (Python package manager — required by nava-platform)
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "Installing uv via Homebrew..."
+    brew install uv || missing+=("uv")
+  fi
+
+  # Check ast-grep (structural code search — used by test quality gate and CLAUDE.md search)
+  if ! command -v sg >/dev/null 2>&1; then
+    echo "Installing ast-grep via Homebrew..."
+    brew install ast-grep || missing+=("ast-grep")
+  fi
+
+  # Check semgrep (SAST — used by test quality gate when test_quality.tool=semgrep)
+  if ! command -v semgrep >/dev/null 2>&1; then
+    echo "Installing semgrep via Homebrew..."
+    brew install semgrep || missing+=("semgrep")
+  fi
+
   # Check container runtime (Docker or Colima) — required for template projects
   if ! command -v docker >/dev/null 2>&1; then
     if ! command -v colima >/dev/null 2>&1; then
