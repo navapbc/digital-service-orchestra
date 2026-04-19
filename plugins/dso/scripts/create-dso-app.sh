@@ -400,7 +400,16 @@ main() {
   fi
 
   # Step 5b: Detect DSO plugin root and write to project dso-config.conf
-  detect_dso_plugin_root "$project_dir" >/dev/null
+  local resolved_plugin_root
+  resolved_plugin_root=$(detect_dso_plugin_root "$project_dir")
+
+  # Step 5c: Configure project with DSO defaults (shim, CLAUDE.md, hooks)
+  local _setup_script="$resolved_plugin_root/scripts/dso-setup.sh"
+  if [[ -f "$_setup_script" ]]; then
+    echo "Configuring project with DSO defaults..."
+    bash "$_setup_script" "$project_dir" "$resolved_plugin_root" \
+      || echo "WARNING: DSO project setup encountered issues — run '.claude/scripts/dso validate.sh' manually if needed." >&2
+  fi
 
   # All steps succeeded — clear the cleanup trap before writing the sentinel
   trap - EXIT

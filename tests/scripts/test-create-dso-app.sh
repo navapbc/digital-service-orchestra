@@ -1087,4 +1087,58 @@ test_missing_uv_brew_failure_reports_missing
 test_missing_astgrep_brew_failure_reports_missing
 test_missing_semgrep_brew_failure_reports_missing
 
+# ── test_installer_configures_dso_shim_after_deps ────────────────────────────
+# After a successful install, the DSO shim must exist at .claude/scripts/dso
+# in the project directory (placed there by dso-setup.sh invocation).
+#
+# RED: fails before fix because create-dso-app.sh never calls dso-setup.sh —
+# it installs deps and immediately writes the sentinel and launches Claude Code
+# without running any project configuration step.
+#
+# GREEN: after fix, main() calls dso-setup.sh after detect_dso_plugin_root,
+# the stub dso-setup.sh creates .claude/scripts/dso, assertion passes.
+test_installer_configures_dso_shim_after_deps() {
+    local stub_bin T project_dir fake_plugin_root
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    project_dir="$T/my-project"
+    fake_plugin_root="$T/fake-plugin"
+
+    # Fake plugin root: plugin.json sentinel + stub dso-setup.sh that creates the shim
+    mkdir -p "$fake_plugin_root/.claude-plugin" "$fake_plugin_root/scripts"
+    echo '{"name":"dso","version":"1.0.0"}' > "$fake_plugin_root/.claude-plugin/plugin.json"
+    cat > "$fake_plugin_root/scripts/dso-setup.sh" <<'SETUPEOF'
+#!/bin/sh
+target="${1:-}"
+if [ -n "$target" ]; then
+    /bin/mkdir -p "$target/.claude/scripts"
+    printf '#!/bin/sh\nexec dso "$@"\n' > "$target/.claude/scripts/dso"
+    /bin/chmod +x "$target/.claude/scripts/dso"
+fi
+exit 0
+SETUPEOF
+    chmod +x "$fake_plugin_root/scripts/dso-setup.sh"
+
+    stub_bin=$(_installer_stub_bin)
+    # Override bash stub: handle --version (returns >=4 for version check) but
+    # pass all other calls through to real /bin/bash so dso-setup.sh stub runs
+    cat > "$stub_bin/bash" <<'BASHEOF'
+#!/bin/sh
+case "$1" in
+  --version|-v) echo "GNU bash, version 5.2.15(1)-release (x86_64-pc-linux-gnu)"; exit 0 ;;
+  *) exec /bin/bash "$@" ;;
+esac
+BASHEOF
+    chmod +x "$stub_bin/bash"
+
+    CLAUDE_PLUGIN_ROOT="$fake_plugin_root" \
+    PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'\n' >/dev/null 2>&1 || true
+
+    local shim_ok="no"
+    [[ -f "$project_dir/.claude/scripts/dso" ]] && [[ -x "$project_dir/.claude/scripts/dso" ]] && shim_ok="yes"
+    assert_eq "installer runs dso-setup: .claude/scripts/dso shim installed" "yes" "$shim_ok"
+}
+
+test_installer_configures_dso_shim_after_deps
+
 print_summary
