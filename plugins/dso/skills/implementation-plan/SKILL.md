@@ -235,6 +235,15 @@ After loading the story with `.claude/scripts/dso ticket show <story-id>`, check
    - Log: `"No recent preplanning context found on epic <parent-epic-id> — running full Input Analysis"`
    - Proceed with normal Input Analysis below
 
+**Backward compatibility (schema_version-aware parsing):**
+
+The PREPLANNING_CONTEXT payload carries a `schema_version` field. Readers MUST apply version-aware parsing to remain compatible with legacy contexts:
+
+- Check `schema_version` after parsing the JSON payload. If the field is **absent** or its value is less than `2`, apply v1 compatibility mode: the `researchFindings` field is not expected — treat as empty array and continue.
+- If `schema_version >= 2`, the `researchFindings` field is expected; if `researchFindings` is **absent** from a v2+ payload, treat as empty array (fail-open) — do NOT block context loading.
+- **Fail-open contract**: any parsing failure on the `researchFindings` field (corrupt structure, unexpected type, missing nested keys) MUST NOT block context loading. Treat as empty array, emit a warning log line (`"researchFindings parse failed on epic <parent-epic-id> — treating as empty"`), and continue with the rest of the payload.
+- Existing Context File Check behavior (epic data, sibling stories, walking skeleton flags, classifications, traceability lines, story dashboard) is unaffected when `researchFindings` is absent or unparseable.
+
 ### Input Analysis
 
 Load the story and its parent epic for full context:
