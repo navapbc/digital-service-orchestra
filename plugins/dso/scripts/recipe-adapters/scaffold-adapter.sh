@@ -52,8 +52,10 @@ fi
 
 # ── Template directory ────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_ADAPTERS_PARENT="$(cd "$SCRIPT_DIR/.." && pwd)"
+_PLUGIN_ROOT="$(cd "$_ADAPTERS_PARENT/.." && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-TEMPLATES_DIR="${RECIPE_TEMPLATES_DIR:-$SCRIPT_DIR/../../recipes/templates/$RECIPE_FRAMEWORK}"
+TEMPLATES_DIR="${RECIPE_TEMPLATES_DIR:-$_PLUGIN_ROOT/recipes/templates/$RECIPE_FRAMEWORK}"
 
 if [[ ! -d "$TEMPLATES_DIR" ]]; then
     emit_failure "template directory not found: $TEMPLATES_DIR (unknown framework: $RECIPE_FRAMEWORK)"

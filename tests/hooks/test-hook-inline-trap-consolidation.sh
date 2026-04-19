@@ -388,7 +388,7 @@ test_run_hook_syntax_error_writes_new_canonical_path() {
     TEST_HOME=$(_make_test_home)
 
     local BROKEN_HOOK
-    BROKEN_HOOK=$(mktemp -t test-broken-hook)
+    BROKEN_HOOK=$(mktemp -t test-broken-hookXXXXX)
     _TEST_TMPDIRS+=("$BROKEN_HOOK")
     printf '#!/usr/bin/env bash\nif then fi\n' > "$BROKEN_HOOK"
     chmod +x "$BROKEN_HOOK"
