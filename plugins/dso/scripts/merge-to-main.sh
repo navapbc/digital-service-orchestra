@@ -375,6 +375,31 @@ _phase_merge() {
     # non-ticket-data changes (used for the CI trigger check after push).
     PRE_MERGE_SHA=$(git rev-parse HEAD)
 
+    # Stash dirty tracked files on main before merging. Hook scripts that load
+    # library files from the main repo via CLAUDE_PLUGIN_ROOT can leave modified
+    # tracked files on main, causing "local changes would be overwritten" errors.
+    _MERGE_PHASE_STASHED=false
+    if ! git diff --quiet 2>/dev/null; then
+        local _dirty_count
+        _dirty_count=$(git diff --name-only 2>/dev/null | wc -l | tr -d ' ')
+        echo "INFO: Stashing ${_dirty_count} dirty file(s) on main before merge..."
+        if git stash push --quiet -m "merge-to-main: pre-merge stash" 2>/dev/null; then
+            _MERGE_PHASE_STASHED=true
+        else
+            echo "WARNING: Failed to stash dirty files before merge — proceeding without stash."
+        fi
+    fi
+
+    # Helper: restore stash after merge (pop on success, reset+drop on conflict).
+    _restore_pre_merge_stash() {
+        if ! $_MERGE_PHASE_STASHED; then return 0; fi
+        if ! git stash pop --quiet 2>/dev/null; then
+            echo "WARNING: Pre-merge stash pop conflicted — dropping stash (merged content takes precedence)."
+            git reset --merge 2>/dev/null || true
+            git stash drop --quiet 2>/dev/null || true
+        fi
+    }
+
     echo "Merging $BRANCH into main..."
     if ! git merge --no-ff "$BRANCH" -m "$MERGE_MSG" --quiet 2>&1; then
         # First attempt failed — abort the merge and try squash-rebase recovery
@@ -394,9 +419,11 @@ _phase_merge() {
             echo "INFO: Squash-rebase recovery succeeded. Retrying merge..."
             if git merge --no-ff "$BRANCH" -m "$MERGE_MSG" --quiet 2>&1; then
                 echo "OK: Merged $BRANCH into main (after squash-rebase recovery)."
+                _restore_pre_merge_stash
             else
                 # Retry also failed — increment retry count and exit with directive
                 git merge --abort 2>/dev/null || true
+                _restore_pre_merge_stash
                 _state_increment_retry
                 echo "ERROR: Merge retry failed after squash-rebase recovery."
                 echo "  Run: merge-to-main.sh --resume"
@@ -405,6 +432,7 @@ _phase_merge() {
         else
             # Recovery failed — return to main repo, increment retry, exit with directive
             cd "$_MERGE_SAVED_DIR"
+            _restore_pre_merge_stash
             _state_increment_retry
             echo "ERROR: Squash-rebase recovery failed. Cannot resolve automatically."
             echo "  Run: merge-to-main.sh --resume"
@@ -412,6 +440,7 @@ _phase_merge() {
         fi
     else
         echo "OK: Merged $BRANCH into main."
+        _restore_pre_merge_stash
     fi
 
     _state_record_merge_sha "$(git rev-parse HEAD)"
