@@ -1330,6 +1330,25 @@ A single broad Explore dispatch is a known anti-pattern that produces lower qual
 
 Launch up to `max_agents` sub-agents (determined by Phase 3 Step 1's MAX_AGENTS protocol — `unlimited`, `N`, or `0`) via the Task tool. When `max_agents=0`, this phase is skipped entirely (see Phase 3 Step 1). Each sub-agent gets a structured prompt:
 
+### Retry Budget Parsing (sub-agent dispatch)
+
+Before dispatching each sub-agent task, the orchestrator MUST parse the `## Retry Budget` block from the task description and honour it during the dispatch loop. This is distinct from the red-test-writer Tier 1/2/3 escalation in `### RED Task Dispatch — Escalation Protocol` below — it governs the dispatch retry budget for the task sub-agent itself.
+
+**Fields parsed from each task description's `## Retry Budget` block:**
+
+- `MAX_ATTEMPTS` — per-tier attempt cap (default: 3). The orchestrator retries the sub-agent up to this many times on the base tier before escalating model.
+- `MODEL_TIER_ORDER` — ordered list of model tiers, e.g. `sonnet, opus`. The first tier is the base; subsequent tiers are escalation targets.
+- `ESCALATION_DIAGNOSTICS` — when escalating tiers, the orchestrator collects all prior failure messages and forwards them as diagnostic context to the next tier.
+
+**Sub-agent failure protocol (MAX_ATTEMPTS-driven, sonnet→opus escalation):**
+
+1. **Base tier (sonnet)** — Retry the sub-agent up to `MAX_ATTEMPTS` (default: 3) on `sonnet`. Each retry receives the prior failure message in its prompt.
+2. **Escalate to opus** — After 3 sonnet failures (MAX_ATTEMPTS exhausted on the base tier), collect all 3 failure messages and re-dispatch on `opus` with the concatenated diagnostic context. The opus tier also gets `MAX_ATTEMPTS` (default: 3) attempts.
+3. **Escalate to user** — After 3 opus failures (6 total attempts across both tiers), STOP the dispatch loop and escalate to the user with the full failure history (all 6 messages plus diagnostic context). Do NOT silently drop the task or mark it complete.
+4. **MAX_AGENTS: 0 mid-escalation** — If the throttle verdict reaches `MAX_AGENTS: 0` at the sonnet→opus escalation boundary, SKIP the opus tier entirely and escalate to the user immediately. This avoids burning the larger model budget under throttle.
+
+**Defaults when `## Retry Budget` block is absent from a task description:** `MAX_ATTEMPTS=3`, `MODEL_TIER_ORDER=sonnet,opus`. Tasks without an explicit retry budget still receive the same sonnet→opus escalation behaviour for backward compatibility.
+
 ### Display Batch Task List
 
 Print a numbered list of all tasks in the batch. Each line must show the task ID and title:

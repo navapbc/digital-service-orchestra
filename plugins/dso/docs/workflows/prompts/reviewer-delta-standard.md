@@ -218,6 +218,53 @@ Apply the file-type sub-criteria above in addition to the generic checks here.
 
 ---
 
+## AI Blindspot Annotations
+
+These annotations cover failure modes that AI-generated code is statistically prone to but
+that the 5 scoring dimensions do not directly target. The standard tier covers **all four**
+checks below at **less depth** than the deep-tier specialists. Mention any observed pattern
+in the `summary` field of `reviewer-findings.json` using the listed prefix. Do NOT add a new
+top-level scoring dimension — the JSON schema enforces exactly 3 top-level keys (scores,
+findings, summary) and exactly 5 score keys.
+
+If any check below returns substantive findings (more than a passing mention), recommend
+escalation to the deep tier in your summary so a specialist can perform a thorough pass.
+
+### Domain Mismatch (`domain_mismatch:`)
+
+Watch for generic library patterns where a project-internal utility should be preferred:
+generic HTTP/JSON/datetime calls instead of repo-wrapped clients, hallucinated method names
+on imported modules (verify with Grep when a name looks unfamiliar), or reimplementation of
+existing helpers. When flagging, name the existing project utility the diff should be using.
+
+### UI Artifacts (`ui_artifacts:`)
+
+Scan the diff for terminal output, transcript fragments, or merge markers leaked into source:
+ANSI escape codes (`\x1b[...m`) outside TTY-rendering code, unresolved merge markers
+(`<<<<<<<`, `=======`, `>>>>>>>`), truncation tokens (`...`, `[truncated]`, `(N more lines)`),
+or pasted prompt fragments (`Assistant:`, `Human:`, `<system-reminder>`). These are almost
+always unintentional — flag immediately.
+
+### Spaghetti Patching (`spaghetti_patching:`)
+
+Watch for fixes that mask symptoms rather than address root causes: defensive `if x is not
+None:` guards added at boundaries where `x` should never have been None (the real bug is
+upstream nullability), near-duplicate code paths that diverge only in error handling
+(copy-paste fix instead of a unified abstraction), or layered try/except / retry accretion
+without a unifying model of why the failure occurs. Severity maps to `important` under
+`correctness` when the patch demonstrably hides a deeper bug.
+
+### Asymmetric Change (`asymmetric_change:`)
+
+Use Grep to verify all call sites and consumers when the diff modifies a public interface.
+Watch for: function signature changes (added/renamed/reordered parameters) without
+corresponding call-site updates, new model/dataclass/schema fields without serializer or
+migration updates, and producer/consumer drift (emitter adds a field consumers do not parse,
+or consumers expect a field producers never emit). Severity is `critical` when call sites
+will break at runtime, `important` when behavior silently diverges.
+
+---
+
 ## Overlay Classification
 
 Always evaluate these two items and include the results in your summary field text:

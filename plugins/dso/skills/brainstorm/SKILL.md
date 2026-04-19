@@ -488,7 +488,40 @@ After the scrutiny pipeline returns, check whether the epic spec contains a `## 
 5. **If `feasibility_cycle_count >= max_feasibility_cycles`**: Escalate to the user. Present the unresolved gap and ask whether to proceed with the gap noted, abort, or manually adjust the spec. Log: `"FEASIBILITY_GAP unresolved after {max_feasibility_cycles} cycles — escalating to user."`
 6. Expose `feasibility_cycle_count` as a named state variable for Story 4 (7067-dae6) to consume in the log extensions.
 
-**If FEASIBILITY_GAP is NOT present:** Continue to the SC Gap Check below.
+**If FEASIBILITY_GAP is NOT present:** Continue to the Research Findings Persistence step below.
+
+#### Research Findings Persistence (post-pipeline)
+
+After the feasibility-reviewer sub-agent returns (regardless of FEASIBILITY_GAP outcome), persist its capability/status findings as a structured ticket comment on the epic so that downstream agents (preplanning, implementation-plan, sprint) can consume them without re-running web research.
+
+**Skip this step entirely** when no feasibility-reviewer output exists for this brainstorm session (e.g., scrutiny pipeline did not dispatch the reviewer because no integration signals were detected).
+
+**Procedure:**
+
+1. From the feasibility-reviewer output, extract each (capability, status) pair the reviewer evaluated. Map each pair to one researchFindings entry with these fields:
+   - `capability` (string): the integration/dependency/capability the reviewer evaluated
+   - `status` (enum): one of `verified`, `partially_verified`, `unverified`, `contradicted`
+   - `source` (string): the URL or reference the reviewer cited (use `"reviewer:internal"` when the reviewer relied solely on codebase evidence)
+   - `skill_name` (string): always `"brainstorm"`
+   - `timestamp` (string): ISO 8601 UTC timestamp (`date -u +%Y-%m-%dT%H:%M:%SZ`)
+
+2. Assemble the entries into a single JSON array.
+
+3. Write the array as a ticket comment on the epic using the `RESEARCH_FINDINGS:` prefix:
+
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "RESEARCH_FINDINGS: <JSON>"
+   ```
+
+   Example payload:
+   ```json
+   [
+     {"capability": "Figma REST API node export", "status": "verified", "source": "https://www.figma.com/developers/api#get-files-endpoint", "skill_name": "brainstorm", "timestamp": "2026-04-19T18:30:00Z"},
+     {"capability": "Concurrent worktree merge safety", "status": "partially_verified", "source": "reviewer:internal", "skill_name": "brainstorm", "timestamp": "2026-04-19T18:30:00Z"}
+   ]
+   ```
+
+4. Continue to the SC Gap Check below.
 
 #### SC Gap Check
 
