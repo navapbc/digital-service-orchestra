@@ -1,0 +1,1 @@
+{"timestamp": 1776557762308569000, "uuid": "f7d256f5-a4af-4035-b8cf-f392c442625f", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "story", "title": "test story", "parent_id": "", "description": "", "tags": ["last-tag"], "priority": 2, "assignee": "Test"}}
