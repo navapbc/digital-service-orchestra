@@ -44,6 +44,14 @@ Resolved commands used in this skill:
 - `VISUAL_CMD` — replaces `make test-visual` in post-batch checks
 - `E2E_CMD` — replaces `make test-e2e` in post-batch checks
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
 ## Usage
 
 ```

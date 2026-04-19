@@ -18,6 +18,12 @@ set -uo pipefail
 # of the repo root, breaking all subsequent path resolution.
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
 
+# Unset PROJECT_ROOT exported by the .claude/scripts/dso shim. Without this,
+# ticket-create.sh and ticket-lib.sh both resolve REPO_ROOT to the host repo
+# (via the shim-exported PROJECT_ROOT) instead of the isolated temp repo this
+# test creates — leaking test tickets into the host tracker (bug bb42-1291).
+unset PROJECT_ROOT 2>/dev/null || true
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
