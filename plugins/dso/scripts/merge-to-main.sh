@@ -620,6 +620,15 @@ _phase_push() {
             git -C "$_TRACKER_DIR" add -A 2>/dev/null
             git -C "$_TRACKER_DIR" commit -q --no-verify -m "chore: commit uncommitted ticket state before sync" 2>/dev/null || true
         fi
+        # Remove stale SNAPSHOT files before pull to prevent "untracked files
+        # would be overwritten by merge" errors. SNAPSHOTs are regenerated on
+        # demand by the compact-all command and are safe to delete (3534-b90d).
+        while IFS= read -r _snap_rel; do
+            [[ -z "$_snap_rel" ]] && continue
+            rm -f "$_TRACKER_DIR/$_snap_rel" 2>/dev/null && \
+                echo "INFO: Removed stale SNAPSHOT before tickets sync: $_snap_rel" || true
+        done < <(git -C "$_TRACKER_DIR" ls-files --others 2>/dev/null | grep -E "SNAPSHOT\.json$" || true)
+
         # Pull inbound bridge changes (SYNC events, Jira-originated tickets)
         if git -C "$_TRACKER_DIR" pull --rebase origin tickets 2>&1; then
             # Capture remote SHA before push to detect no-op pushes (71fa-c068).

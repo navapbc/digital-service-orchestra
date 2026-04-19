@@ -729,4 +729,20 @@ assert_eq "test_outbound_bridge_no_push_trigger: push trigger on tickets branch 
 assert_pass_if_clean "test_outbound_bridge_no_push_trigger"
 
 # =============================================================================
+# Test: _phase_push removes stale SNAPSHOT files before tickets pull (3534-b90d)
+# Without this, untracked SNAPSHOTs in the tickets worktree cause
+# "untracked files would be overwritten by merge" errors on git pull --rebase.
+# =============================================================================
+echo "--- test_snapshot_cleanup_before_tickets_pull ---"
+_snapshot_fail
+_push_body_snap=$(sed -n '/_phase_push()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
+_has_snapshot_cleanup=0
+if echo "$_push_body_snap" | grep -qE "SNAPSHOT\.json|Remove.*stale.*SNAPSHOT|stale SNAPSHOT"; then
+    _has_snapshot_cleanup=1
+fi
+assert_eq "test_snapshot_cleanup_before_tickets_pull: _phase_push must remove stale SNAPSHOT.json files before tickets pull (3534-b90d)" \
+    "1" "$_has_snapshot_cleanup"
+assert_pass_if_clean "test_snapshot_cleanup_before_tickets_pull"
+
+# =============================================================================
 print_summary
