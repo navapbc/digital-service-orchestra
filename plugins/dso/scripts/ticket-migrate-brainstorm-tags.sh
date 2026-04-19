@@ -258,7 +258,7 @@ tags = [t for t in csv.split(',') if t and t != 'scrutiny:pending']
 if 'brainstorm:complete' not in tags:
     tags.append('brainstorm:complete')
 print(','.join(tags))
-" "$_current_tags")
+" "$_current_tags") || { echo "WARN: python3 tag computation failed for $_ticket_id — skipping" >&2; continue; }
 
         _event_file=$(_write_tag_edit_event "$_ticket_dir" "$_new_tags")
         # REVIEW-DEFENSE: Direct git operations are intentional here rather than routing
