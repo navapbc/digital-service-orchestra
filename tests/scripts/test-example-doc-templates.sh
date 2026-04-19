@@ -13,7 +13,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-TEMPLATES="$PLUGIN_ROOT/templates"
+TEMPLATES="$PLUGIN_ROOT/plugins/dso/templates"
 
 # --- KNOWN-ISSUES.example.md has been removed (superseded by plugins/dso/docs/templates/KNOWN-ISSUES.md) ---
 

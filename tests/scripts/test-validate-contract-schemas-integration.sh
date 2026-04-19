@@ -29,7 +29,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 VALIDATE_SH="$DSO_PLUGIN_DIR/scripts/validate.sh"
 PRECOMMIT_CONFIG="$PLUGIN_ROOT/.pre-commit-config.yaml"
-EXAMPLE_PRECOMMIT_CONFIG="$PLUGIN_ROOT/examples/pre-commit-config.example.yaml"
+EXAMPLE_PRECOMMIT_CONFIG="$PLUGIN_ROOT/plugins/dso/docs/examples/pre-commit-config.example.yaml"
 
 echo "=== test-validate-contract-schemas-integration.sh ==="
 
