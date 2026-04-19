@@ -835,6 +835,42 @@ Scan the output for any existing task whose title contains `Contract:` and the s
 
 The contract task must be declared as a dependency of all implementation tasks that touch either side of the interface — both the emitter side and the parser side. This ensures the interface is specified before either side is implemented.
 
+### Retry Budget
+
+Each implementation task carries a retry budget that the orchestrator parses and enforces when dispatching sub-agents. The budget defines the maximum attempts at each model tier before escalating, and the terminal user-escalation point.
+
+```
+## Retry Budget
+MAX_ATTEMPTS: 3 (sonnet model)
+On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)
+On 3 consecutive opus failures (6 total): escalate to user with full failure history
+If MAX_AGENTS: 0 at sonnet→opus escalation time: skip opus step, escalate to user immediately
+```
+
+The orchestrator parses `MAX_ATTEMPTS` from the generated task description as the per-tier attempt cap. Include this block verbatim in every task description — the structural marker `MAX_ATTEMPTS` is the integration token sub-agent dispatchers use to determine the retry cap.
+
+#### Opus Escalation
+
+When a sub-agent at the sonnet tier fails `MAX_ATTEMPTS` consecutive times, the orchestrator re-dispatches the task at the opus tier. The escalation dispatch MUST include the full diagnostic context from all sonnet failures:
+
+- Each failed sub-agent's final report
+- Test output / error messages from each failure
+- Files modified across all attempts (with diffs if available)
+- Any `RESOLUTION_RESULT` or contract-violation signals emitted
+
+This context lets opus see the full failure trajectory rather than starting cold. If `MAX_AGENTS: 0` (paused) is in effect at the moment escalation would trigger, skip the opus tier and proceed directly to user escalation — opus dispatch is gated by usage capacity.
+
+#### User Escalation
+
+After 6 total consecutive failures (3 sonnet + 3 opus), the orchestrator terminates the autonomous retry loop and escalates to the user. The escalation report MUST include the full failure history:
+
+- All 6 failed sub-agent reports in chronological order
+- The diagnostic context that was passed to opus
+- A concise summary of what was attempted and why each attempt failed
+- The current state of the working tree (files modified, tests failing)
+
+User escalation is also the immediate path when `MAX_AGENTS: 0` blocks opus dispatch, in which case the report contains the 3 sonnet failures plus an explicit note that opus escalation was skipped due to usage throttling.
+
 ---
 
 ## Step 4: Implementation Plan Review (/dso:implementation-plan)
