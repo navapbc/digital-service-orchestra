@@ -75,8 +75,9 @@ _ensure_initialized() {
             marker_time=$(cat "$sync_marker" 2>/dev/null || echo 0)
             marker_age=$(( now - marker_time ))
         fi
-        # Sync at most once every 5 minutes (300 seconds)
-        if [[ "$marker_age" -ge 300 ]]; then
+        # Sync at most once per minute to shrink the divergence window during
+        # rapid-fire ticket operations (brainstorm sessions). 87f3-3b57.
+        if [[ "$marker_age" -ge 60 ]]; then
             if git -C "$tracker_dir" fetch origin tickets --quiet 2>/dev/null; then
                 if git -C "$tracker_dir" rev-parse --verify origin/tickets &>/dev/null; then
                     # Two-phase sync guard (0051-3428 + eb00-efd0):
