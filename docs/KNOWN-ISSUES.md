@@ -14,7 +14,7 @@
 | [Paths/Directories](#paths-and-directories) | 2 | 2026-03 |
 | [Sub-Agents/Orchestration](#sub-agents-and-orchestration) | 3 | 2026-03 |
 | [Hooks/Gates](#hooks-and-gates) | 1 | 2026-03 |
-| [Tickets/Version Control](#tickets-and-version-control) | 1 | 2026-03 |
+| [Tickets/Version Control](#tickets-and-version-control) | 2 | 2026-04 |
 | [Recipe Execution](#recipe-execution) | 1 | 2026-04 |
 | [Plugin System](#plugin-system) | 2 | 2026-04 |
 
@@ -35,6 +35,7 @@
 | INC-018 | Recipe Engine Prerequisites | Recipe Execution | recipe, rope, ts-morph, isort, scaffold |
 | INC-019 | /reload-plugins Skill Count Undercounts | Plugin System | reload-plugins, skill count, 3 skills, commands, allowed-tools |
 | INC-020 | validate.sh ENOBUFS / OSError 75 in CI | Plugin System | validate.sh, ENOBUFS, OSError 75, file descriptor, ulimit, CI |
+| INC-022 | `git checkout tickets` Fails Silently, Rebase Hits Wrong Branch | Tickets/Version Control | checkout tickets, tickets worktree, rebase wrong branch, .tickets-tracker, push ticket changes |
 
 ---
 
@@ -155,6 +156,23 @@
 - **Detection**: git merge main produces conflict markers inside ticket tracker JSON files. git status shows both modified for tracker files.
 - **Fix**: Use `merge-to-main.sh` which handles ticket branch syncing inline via `_phase_sync`. Never use raw `git merge main` in worktrees.
 - **Rule added**: Always use `merge-to-main.sh` (which includes inline ticket sync) for worktree merge operations.
+
+---
+
+### INC-022: `git checkout tickets` Fails Silently, Rebase Hits Wrong Branch
+- **Date**: 2026-04
+- **Keywords**: checkout tickets, tickets worktree, rebase wrong branch, .tickets-tracker, push ticket changes, fast-forward rejected, git -C
+- **Symptom**: Pushing accumulated ticket events (ticket creates, edits, links, comments, tags) is rejected because `origin/tickets` has diverged. The natural recovery — `git checkout tickets && git rebase origin/tickets` — fails on the checkout step but does NOT stop the script; the subsequent `git rebase` then runs against the current branch (typically the feature branch), attempting to replay hundreds of unrelated commits onto `origin/tickets`, producing conflicts on files like `.gitignore`, `CLAUDE.md`, and source code that have nothing to do with the tickets branch.
+- **Root cause**: The tickets orphan branch is always checked out as a worktree at `.tickets-tracker/`. Git refuses to check out a branch in a second working tree (`fatal: 'tickets' is already used by worktree at '...'`), but this is a fatal-to-the-command error, not a fatal-to-the-script error — the checkout fails while the shell continues. A following `git rebase origin/tickets` then acts on the current branch, which is the feature branch, not tickets.
+- **Detection**: You see `fatal: 'tickets' is already used by worktree at '.tickets-tracker'` followed by a `Rebasing (1/N)` progress message where N is much larger than the ~10 ticket commits you expected (indicating the feature branch is being replayed). Conflicts appear on files that tickets branch does not track (e.g., `.gitignore`, source files, CLAUDE.md).
+- **Fix**: Abort immediately with `git rebase --abort`. Then operate on the tickets branch via its worktree using the `-C .tickets-tracker` flag — do not attempt to `checkout tickets` from the main worktree. Canonical sequence:
+  ```bash
+  git -C .tickets-tracker fetch origin tickets
+  git -C .tickets-tracker rebase origin/tickets
+  git -C .tickets-tracker push origin tickets
+  ```
+  For routine pushes, prefer `.claude/scripts/dso merge-to-main.sh` (which handles the tickets branch sync inline), or the ticket CLI's built-in best-effort auto-push via `_push_tickets_branch`.
+- **Prevention**: When a push is rejected on the tickets branch, always use `git -C .tickets-tracker` to operate on the tickets worktree directly. Never attempt to `git checkout tickets` from the primary worktree — it will silently fail and expose the following rebase to the wrong branch.
 
 ---
 
