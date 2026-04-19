@@ -718,4 +718,100 @@ assert_eq "red-marker failed tests: harvest exits 0" "0" "$exit_code"
 assert_pass_if_clean "test_exit0_when_failed_tests_all_have_red_markers"
 
 # =============================================================================
+# Test 18: test_complete_comment_written_on_success (ed2b-9e72 / WORKTREE_TRACKING)
+# Given: harvest-worktree.sh called with --ticket-id test-ticket-123 and a
+#        valid worktree branch with passing gates
+# When: the merge completes successfully (exit 0)
+# Then: the ticket comment command was invoked with "WORKTREE_TRACKING:complete"
+#       and "outcome=merged"
+# =============================================================================
+echo "--- test_complete_comment_written_on_success ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Create a stub .claude/scripts/dso that logs all calls to a file
+STUB_BIN_DIR="$tmpdir/stub-bin"
+mkdir -p "$STUB_BIN_DIR"
+STUB_CALL_LOG="$tmpdir/dso-calls.log"
+cat > "$STUB_BIN_DIR/dso" <<STUBEOF
+#!/usr/bin/env bash
+# Stub: log all arguments to call log, then exit 0
+echo "\$@" >> "$STUB_CALL_LOG"
+exit 0
+STUBEOF
+chmod +x "$STUB_BIN_DIR/dso"
+
+exit_code=0
+output=$(cd "$SESSION_REPO" && PATH="$STUB_BIN_DIR:$PATH" bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    --ticket-id "test-ticket-123" \
+    2>&1) || exit_code=$?
+
+assert_eq "complete-on-success: harvest exits 0" "0" "$exit_code"
+
+# Assert: stub was called with WORKTREE_TRACKING:complete and outcome=merged
+stub_invoked="no"
+if [[ -f "$STUB_CALL_LOG" ]]; then
+    stub_invoked="yes"
+fi
+assert_eq "complete-on-success: ticket CLI was invoked" "yes" "$stub_invoked"
+
+tracking_comment_found="no"
+if [[ -f "$STUB_CALL_LOG" ]] && grep -q "WORKTREE_TRACKING:complete" "$STUB_CALL_LOG" && grep -q "outcome=merged" "$STUB_CALL_LOG"; then
+    tracking_comment_found="yes"
+fi
+assert_eq "complete-on-success: comment contains WORKTREE_TRACKING:complete and outcome=merged" "yes" "$tracking_comment_found"
+
+assert_pass_if_clean "test_complete_comment_written_on_success"
+
+# =============================================================================
+# Test 19: test_complete_comment_written_on_failure (ed2b-9e72 / WORKTREE_TRACKING)
+# Given: harvest-worktree.sh called with --ticket-id test-ticket-123 and a
+#        branch that causes a gate failure (test-gate-status=failed)
+# When: the script exits non-zero (gate failure)
+# Then: WORKTREE_TRACKING:complete written with outcome=discarded
+# =============================================================================
+echo "--- test_complete_comment_written_on_failure ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "failed" "passed"
+
+# Create a stub .claude/scripts/dso that logs all calls to a file
+STUB_BIN_DIR="$tmpdir/stub-bin"
+mkdir -p "$STUB_BIN_DIR"
+STUB_CALL_LOG="$tmpdir/dso-calls.log"
+cat > "$STUB_BIN_DIR/dso" <<STUBEOF
+#!/usr/bin/env bash
+# Stub: log all arguments to call log, then exit 0
+echo "\$@" >> "$STUB_CALL_LOG"
+exit 0
+STUBEOF
+chmod +x "$STUB_BIN_DIR/dso"
+
+cd "$SESSION_REPO" && PATH="$STUB_BIN_DIR:$PATH" bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    --ticket-id "test-ticket-123" \
+    >/dev/null 2>&1 || true
+
+# Assert: stub was called with WORKTREE_TRACKING:complete and outcome=discarded
+stub_invoked="no"
+if [[ -f "$STUB_CALL_LOG" ]]; then
+    stub_invoked="yes"
+fi
+assert_eq "complete-on-failure: ticket CLI was invoked" "yes" "$stub_invoked"
+
+tracking_discard_found="no"
+if [[ -f "$STUB_CALL_LOG" ]] && grep -q "WORKTREE_TRACKING:complete" "$STUB_CALL_LOG" && grep -q "outcome=discarded" "$STUB_CALL_LOG"; then
+    tracking_discard_found="yes"
+fi
+assert_eq "complete-on-failure: comment contains WORKTREE_TRACKING:complete and outcome=discarded" "yes" "$tracking_discard_found"
+
+assert_pass_if_clean "test_complete_comment_written_on_failure"
+
+# =============================================================================
 print_summary

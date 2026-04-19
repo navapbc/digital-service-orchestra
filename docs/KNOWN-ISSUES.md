@@ -231,3 +231,14 @@
 - **History**: Three fix attempts targeted `allowed-tools` frontmatter (bugs 06fc-1ebc, 9a3b-7426, 844b-f190) before root cause was identified as upstream. The `allowed-tools` fixes were not wrong (null values did need fixing) but were unrelated to the reported count.
 - **Upstream**: [anthropics/claude-code#41842](https://github.com/anthropics/claude-code/issues/41842), [#35641](https://github.com/anthropics/claude-code/issues/35641), [#36646](https://github.com/anthropics/claude-code/issues/36646)
 - **Rule candidate**: Do not treat the `/reload-plugins` skill count as a correctness indicator. Verify skill availability via the system-reminder skill list or by invoking the Skill tool directly.
+
+---
+
+### INC-021: debug-everything worktree tracking gap
+
+- **Date**: 2026-04
+- **Keywords**: debug-everything, WORKTREE_TRACKING, resume scan, abandoned worktree, bug-fix mode
+- **Symptom**: Sub-agents dispatched by debug-everything have `WORKTREE_TRACKING:start` comments (from the sub-agent task-execution prompt), but debug-everything's Bug-Fix Mode has no resume scan. If a debug-everything session is interrupted mid-sub-agent, the abandoned worktree is not automatically recovered on the next run.
+- **Root cause**: The WORKTREE_TRACKING resume scan was added to sprint and fix-bug orchestrators but not to debug-everything's Bug-Fix Mode. debug-everything operates differently (dispatches many parallel bug-fix sub-agents) and the scan logic was not ported.
+- **Workaround**: Before re-running debug-everything, check for `WORKTREE_TRACKING:start` comments on open bug tickets via `.claude/scripts/dso ticket show <id>`. If unmatched `:start` comments are found, manually invoke `.claude/scripts/dso harvest-worktree <branch> <artifacts-dir>` for each abandoned branch, or run `resolve-abandoned-worktrees.sh` if available.
+- **Fix**: Add a WORKTREE_TRACKING resume scan step to debug-everything's Bug-Fix Mode initialization (tracked as future work).

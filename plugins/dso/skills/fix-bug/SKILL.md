@@ -202,6 +202,33 @@ Ensure a bug ticket exists and is set to in-progress before investigation begins
 
 Store the ticket ID as `BUG_TICKET_ID` for use throughout the workflow.
 
+Post WORKTREE_TRACKING:start on the bug ticket (fail silently if .tickets-tracker/ unavailable):
+```bash
+_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+.claude/scripts/dso ticket comment "$BUG_TICKET_ID" "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
+```
+
+#### Auto-Resume Detection
+
+After transitioning the bug ticket to in_progress, scan for abandoned worktrees from prior sessions:
+
+1. Read comments on the bug ticket (`.claude/scripts/dso ticket show "$BUG_TICKET_ID"`) and find `WORKTREE_TRACKING:start` entries with no corresponding `:complete`
+2. For each unmatched start, extract the branch:
+   - If branch no longer exists: skip without error
+   - If branch is ancestor of HEAD: write retroactive `:complete` with `outcome=already_merged`
+   - If mid-merge state (MERGE_HEAD exists): run `git merge --abort` first
+   - If branch has unique commits: attempt `git merge --no-edit <branch>`
+     - Success: log `'Merged abandoned branch <b>'`
+     - Conflict: run `git merge --abort`, log `'Conflict in <b> — discarded'`
+3. If multiple competing branches found (N>1 unmatched starts from distinct branch names), apply tiebreak cascade:
+   - Stage 1: task-list criterion count (verbatim `- [ ]`/`- [x]` matches in branch diff)
+   - Stage 2: test-gate-status artifact (`passed` > `failed` > absent)
+   - Stage 3: conflict count via dry-run merge
+   - Stage 4: most recent `WORKTREE_TRACKING:start` timestamp
+   - Merge the winner; discard (log, skip) the rest
+4. Proceed with normal fix-bug flow
+
 ### Step 1: Score and Classify (/dso:fix-bug)
 
 1. Read the bug description, error messages, and stack traces
