@@ -45,6 +45,9 @@ _dso_hook_exit_handler() {
     local _exit_rc="$?"
     # Only act on non-zero exits (errors); skip clean exits
     [[ "$_exit_rc" -eq 0 ]] && return 0
+    # exit 2 = intentional block signal from a hook (e.g., brainstorm gate, cascade breaker).
+    # Pass through without logging — blocking is not an error.
+    [[ "$_exit_rc" -eq 2 ]] && exit 2
     # Invoke the main error handler (which will exit 0 — fail-open)
     _dso_hook_err_handler
 }

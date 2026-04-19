@@ -222,11 +222,16 @@ if dso is None:
 src = dso.get('source', {})
 if not isinstance(src, dict):
     sys.exit(1)
+import re
+ref = src.get('ref', '')
+# After cutover, dso stable channel is pinned to a semver tag (v*.*.*)
+# Pre-cutover it was 'main' — accept both so the test is not brittle across releases
+valid_ref = ref == 'main' or bool(re.match(r'^v\d+\.\d+\.\d+$', ref))
 ok = (
     src.get('source') == 'git-subdir'
     and 'navapbc/digital-service-orchestra' in src.get('url', '')
     and src.get('path') == 'plugins/dso'
-    and src.get('ref') == 'main'
+    and valid_ref
 )
 sys.exit(0 if ok else 1)
 " 2>/dev/null; then

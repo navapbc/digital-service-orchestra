@@ -93,13 +93,13 @@ fi
 # When --plugin-root is given (test mode), templates live inside it:
 #   $_EFFECTIVE_PLUGIN_ROOT/templates/host-project/dso
 #   $_EFFECTIVE_PLUGIN_ROOT/templates/host-project/dso-config.conf
-#   $_EFFECTIVE_PLUGIN_ROOT/examples/pre-commit-config.example.yaml
-#   $_EFFECTIVE_PLUGIN_ROOT/examples/ci.example.yml
+#   $_EFFECTIVE_PLUGIN_ROOT/docs/examples/pre-commit-config.example.yaml
+#   $_EFFECTIVE_PLUGIN_ROOT/docs/examples/ci.example.yml
 #   $_EFFECTIVE_PLUGIN_ROOT/.claude-plugin/plugin.json
-# When running from the real plugin, templates live at the repo root:
-#   $REPO_ROOT/templates/host-project/dso
-#   $REPO_ROOT/examples/ci.example.yml
-#   $REPO_ROOT/examples/pre-commit-config.example.yaml
+# When running from the real plugin, templates live at the plugin root:
+#   $_EFFECTIVE_PLUGIN_ROOT/templates/host-project/dso
+#   $_EFFECTIVE_PLUGIN_ROOT/docs/examples/ci.example.yml
+#   $_EFFECTIVE_PLUGIN_ROOT/docs/examples/pre-commit-config.example.yaml
 
 # ── Resolve template root ─────────────────────────────────────────────────────
 # Test mode (--plugin-root given): templates are inside the given plugin root.
@@ -316,8 +316,8 @@ _CI_DEST="$_TARGET/.github/workflows/ci.yml"
 
 _SHIM_TEMPLATE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/templates/host-project/dso}"
 _CONFIG_TEMPLATE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/templates/host-project/dso-config.conf}"
-_PRECOMMIT_EXAMPLE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/examples/pre-commit-config.example.yaml}"
-_CI_EXAMPLE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/examples/ci.example.yml}"
+_PRECOMMIT_EXAMPLE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/docs/examples/pre-commit-config.example.yaml}"
+_CI_EXAMPLE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/docs/examples/ci.example.yml}"
 
 # ── 1. Shim: overwrite + stamp ────────────────────────────────────────────────
 if [[ -f "$_SHIM_TEMPLATE" ]]; then

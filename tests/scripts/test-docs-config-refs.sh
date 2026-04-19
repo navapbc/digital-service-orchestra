@@ -28,6 +28,8 @@ while IFS= read -r line; do
     [[ "$file" == *"/decisions/"* ]] && continue
     # Allow references in FLAT-CONFIG-MIGRATION.md (historical context)
     [[ "$file" == *"FLAT-CONFIG-MIGRATION.md"* ]] && continue
+    # Allow references in example/template files (instructional content showing users how to configure)
+    [[ "$file" == *"/examples/"* ]] && continue
     # Allow legacy/fallback context mentions (lines that explain .yaml is the old format)
     content="${line#*:}"
     # Skip lines that mention .yaml in the context of legacy/fallback/old format

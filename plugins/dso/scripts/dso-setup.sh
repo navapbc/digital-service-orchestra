@@ -108,7 +108,7 @@ source "$_SCRIPT_PLUGIN_DIR/scripts/artifact-merge-lib.sh"
 
 # ── Read plugin version (used for artifact stamps) ────────────────────────────
 _PLUGIN_VERSION=$(python3 -c "import json; print(json.load(open('$_SCRIPT_PLUGIN_DIR/.claude-plugin/plugin.json'))['version'])" 2>/dev/null || echo "unknown")
-# DIST_ROOT: the repository root containing shared assets (templates/, examples/)
+# DIST_ROOT: the repository root containing shared assets (templates/, docs/examples/)
 # that live outside the plugin subdir. Falls back to PLUGIN_ROOT for backward
 # compatibility when this script is called with the repo root as PLUGIN_ROOT.
 # Resolve from git rev-parse (always reliable) rather than relative paths.
@@ -117,6 +117,8 @@ DIST_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || DIST_ROOT="$PLUGIN_R
 if [ ! -d "$DIST_ROOT/templates" ] && [ -d "$PLUGIN_ROOT/templates" ]; then
     DIST_ROOT="$PLUGIN_ROOT"
 fi
+# Examples moved from examples/ to docs/examples/ inside the plugin dir
+EXAMPLES_ROOT="$DIST_ROOT/docs/examples"
 
 # Ensure TARGET_REPO is a git repository so the dso shim can locate
 # .claude/dso-config.conf via `git rev-parse --show-toplevel`.
@@ -341,9 +343,9 @@ $stamp_line" "$file_path" && rm -f "${file_path}.bak"
 TARGET_PRECOMMIT="$TARGET_REPO/.pre-commit-config.yaml"
 if [[ -z "$DRYRUN" ]]; then
     if [ ! -f "$TARGET_PRECOMMIT" ]; then
-        cp "$DIST_ROOT/examples/pre-commit-config.example.yaml" "$TARGET_PRECOMMIT"
+        cp "$EXAMPLES_ROOT/pre-commit-config.example.yaml" "$TARGET_PRECOMMIT"
     else
-        merge_precommit_hooks "$TARGET_PRECOMMIT" "$DIST_ROOT/examples/pre-commit-config.example.yaml" ""
+        merge_precommit_hooks "$TARGET_PRECOMMIT" "$EXAMPLES_ROOT/pre-commit-config.example.yaml" ""
     fi
 
     mkdir -p "$TARGET_REPO/.github/workflows"
@@ -354,18 +356,18 @@ if [[ -z "$DRYRUN" ]]; then
     done
     if [[ ${#_existing_workflows[@]} -eq 0 ]]; then
         # No workflow files exist — copy the example (original behavior)
-        cp "$DIST_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
+        cp "$EXAMPLES_ROOT/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
     else
         # Workflow file(s) exist — merge DSO CI jobs into the first workflow file,
         # then run CI guard analysis using detection output.
-        merge_ci_workflow "${_existing_workflows[0]}" "$DIST_ROOT/examples/ci.example.yml" ""
+        merge_ci_workflow "${_existing_workflows[0]}" "$EXAMPLES_ROOT/ci.example.yml" ""
         _run_ci_guard_analysis "" "$TARGET_REPO"
     fi
 else
     if [ ! -f "$TARGET_PRECOMMIT" ]; then
         echo "[dryrun] Would copy pre-commit-config.example.yaml -> $TARGET_REPO/.pre-commit-config.yaml (file absent)"
     else
-        merge_precommit_hooks "$TARGET_PRECOMMIT" "$DIST_ROOT/examples/pre-commit-config.example.yaml" "1"
+        merge_precommit_hooks "$TARGET_PRECOMMIT" "$EXAMPLES_ROOT/pre-commit-config.example.yaml" "1"
     fi
     # Check for ANY existing workflow file (not just ci.yml) under .github/workflows/
     _existing_workflows_dry=()
@@ -376,7 +378,7 @@ else
         echo "[dryrun] Would copy ci.example.yml -> $TARGET_REPO/.github/workflows/ci.yml (only if absent)"
     else
         # Workflow file(s) exist — preview DSO CI job merge, then CI guard analysis (dryrun mode)
-        merge_ci_workflow "${_existing_workflows_dry[0]}" "$DIST_ROOT/examples/ci.example.yml" "1"
+        merge_ci_workflow "${_existing_workflows_dry[0]}" "$EXAMPLES_ROOT/ci.example.yml" "1"
         _run_ci_guard_analysis "1" "$TARGET_REPO"
     fi
 fi

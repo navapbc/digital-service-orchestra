@@ -52,8 +52,10 @@ fi
 
 # ── Template directory ────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_ADAPTERS_PARENT="$(cd "$SCRIPT_DIR/.." && pwd)"
+_PLUGIN_ROOT="$(cd "$_ADAPTERS_PARENT/.." && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-TEMPLATES_DIR="${RECIPE_TEMPLATES_DIR:-$REPO_ROOT/recipes/templates/$RECIPE_FRAMEWORK}"
+TEMPLATES_DIR="${RECIPE_TEMPLATES_DIR:-$_PLUGIN_ROOT/recipes/templates/$RECIPE_FRAMEWORK}"
 
 if [[ ! -d "$TEMPLATES_DIR" ]]; then
     emit_failure "template directory not found: $TEMPLATES_DIR (unknown framework: $RECIPE_FRAMEWORK)"
@@ -76,6 +78,7 @@ print(''.join(p.capitalize() for p in parts if p))
 CREATED_FILES=()
 ADAPTER_FAILED=0
 
+# shellcheck disable=SC2329  # invoked via trap EXIT below
 cleanup() {
     if [[ $ADAPTER_FAILED -eq 1 ]]; then
         for f in "${CREATED_FILES[@]:-}"; do
