@@ -121,8 +121,10 @@ After Review section. All fix attempts prefix Bash calls with `cd "$WORKTREE_PAT
 From the worktree context, record test results before commit:
 
 ```bash
-cd "$WORKTREE_PATH" && bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
+cd "$WORKTREE_PATH" && DSO_COMMIT_WORKFLOW=1 bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
 ```
+
+The `DSO_COMMIT_WORKFLOW=1` prefix is required — `hook_record_test_status_guard` (PreToolUse) blocks unprefixed direct calls.
 
 ---
 
