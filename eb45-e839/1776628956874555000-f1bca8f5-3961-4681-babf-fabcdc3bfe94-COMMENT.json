@@ -1,0 +1,1 @@
+{"timestamp": 1776628956874555000, "uuid": "f1bca8f5-3961-4681-babf-fabcdc3bfe94", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Triaged (debug-everything): SC line-count/nesting violation \u2014 fix requires decomposition too large for autonomous fix. Deferred to end-of-session user review."}}
