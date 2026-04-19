@@ -242,3 +242,19 @@
 - **Root cause**: The WORKTREE_TRACKING resume scan was added to sprint and fix-bug orchestrators but not to debug-everything's Bug-Fix Mode. debug-everything operates differently (dispatches many parallel bug-fix sub-agents) and the scan logic was not ported.
 - **Workaround**: Before re-running debug-everything, check for `WORKTREE_TRACKING:start` comments on open bug tickets via `.claude/scripts/dso ticket show <id>`. If unmatched `:start` comments are found, manually invoke `.claude/scripts/dso harvest-worktree <branch> <artifacts-dir>` for each abandoned branch, or run `resolve-abandoned-worktrees.sh` if available.
 - **Fix**: Add a WORKTREE_TRACKING resume scan step to debug-everything's Bug-Fix Mode initialization (tracked as future work).
+
+---
+
+### INC-022: Epic shipped without external deliverable (TDD-exemption misuse)
+
+- **Date**: 2026-04
+- **Keywords**: TDD exemption, external deliverable, repository not found, baff-7163, completion-verifier, smoke test, PATH stubbing
+- **Symptom**: Epic `baff-7163` (the original DSO NextJS template work) was marked complete and merged. When users tried to run `bash <(curl ... create-dso-app.sh) my-project`, the installer failed with `fatal: repository not found` because the live template repo at `navapbc/digital-service-orchestra-nextjs-template` had never been created. The completion-verifier and smoke-test gates both passed because the only verification path was a unit test that PATH-stubbed `git`.
+- **Root cause**: A combination of four process gaps:
+  1. **TDD exemption**: story `caf7-e03d` / task `0e30-57fd` closed under a TDD exemption that allowed claiming completion of an external-system deliverable with no out-of-repo verification (bug `0f2a-95c9`).
+  2. **Narrative evidence accepted**: completion-verifier accepted prose evidence (a closing comment that asserted the repo was created) for an observable-behavior success criterion (bug `b306-d9ac`).
+  3. **URL drift undetected**: the story's done-definition URL was never reconciled against the implementation; review did not flag the gap (bug `91aa-b725`).
+  4. **Mocked verification path**: the only smoke test PATH-stubbed `git`, so a successful clone was never exercised against a real URL (bug `068c-1e8a`, resolved by epic `e772-d73b` story `6bf8-858d`).
+- **Detection**: A user attempted to run the installer; the failure surfaced immediately because the repo did not exist. No automated detection was possible because every gate had a vacuous-pass path.
+- **Fix**: Epic `e772-d73b` delivered the missing template repo, the NOTICE attribution, and a real-URL e2e validation path (`tests/scripts/test-create-dso-app-real-url.sh`) that does not stub `git`. The four contributing process bugs (`0f2a-95c9`, `b306-d9ac`, `91aa-b725`, `068c-1e8a`) are tracked separately so the underlying gates can be hardened independently. `068c-1e8a` is closed; the others remain open.
+- **Rule candidate**: When a story's done-definition references an externally-observable artifact (a URL, a published package, a deployed service), the verification path MUST exercise the real artifact end-to-end. PATH-stubbing, mocking, or accepting a closing comment as "evidence" all fail open. Either the test runs against the real artifact (preferred) or the closure requires explicit human attestation that the artifact is reachable.
