@@ -28,6 +28,13 @@
 # harmless for non-ticket tests.
 export _TICKET_TEST_NO_SYNC=1
 
+# Unset PROJECT_ROOT so ticket scripts fall back to git rev-parse --show-toplevel
+# rather than inheriting the orchestrator's project root. When record-test-status.sh
+# is invoked via the dso shim, PROJECT_ROOT is exported into the environment and
+# causes ticket-create.sh and other scripts to use the real .tickets-tracker instead
+# of the isolated test repo's tracker, breaking all ticket-based tests.
+unset PROJECT_ROOT
+
 # Temp dir cleanup on exit (guarded for sourced usage — avoid clobbering caller state)
 if [[ -z "${_CLEANUP_DIRS+set}" ]]; then
     _CLEANUP_DIRS=()
