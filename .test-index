@@ -37,7 +37,7 @@ plugins/dso/hooks/dispatchers/post-edit.sh:tests/hooks/test-post-dispatchers.sh,
 plugins/dso/hooks/dispatchers/post-write.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/post-all.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/post-failure.sh:tests/hooks/test-post-dispatcher-err-handler.sh
-plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh [test_pre_bash_dispatcher_record_test_status_direct_call_blocked],tests/hooks/test-pre-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/pre-enterplanmode.sh:tests/hooks/test-session-misc-dispatchers.sh,tests/hooks/test-pre-dispatcher-err-handler.sh

@@ -82,6 +82,20 @@ Record the answer as `COMFORT_LEVEL`:
 - If the user enters `2` (or "non-technical"): `COMFORT_LEVEL="non_technical"`
 - If no answer or ambiguous: default to `COMFORT_LEVEL="non_technical"` (safer, more guided path)
 
+### Step 0.1a: Permissions Mode Instruction
+
+Immediately after recording `COMFORT_LEVEL`, display this advisory message before proceeding to any detection:
+
+```
+Onboarding writes ~30 files and runs setup scripts. To avoid approving each one individually,
+consider switching to auto-accept mode now: press Shift+Tab in the input box to cycle through
+permission modes until "auto" is shown, or accept all prompts with 'y' when asked.
+
+You can switch back to your preferred mode any time by pressing Shift+Tab again.
+```
+
+This is advisory — do not wait for a response. Continue to Step 0.2 immediately.
+
 ### Step 0.2: Stack and Project Auto-Detection
 
 Run detection scripts **silently** (before showing output to the user):
@@ -260,7 +274,7 @@ The 6 batch groups and their skip conditions are:
 | 2 | scaffold-claude-structure | `.claude/` structure already present and shim already installed |
 | 3 | config-write | All config files already exist with current content |
 | 4 | initial-commit | All artifacts already committed |
-| 5 | hook-install | Hooks already installed |
+| 5 | hook-install | Hooks already installed AND no new hook artifacts to commit; OR project is not a git repository (skip entirely — ticket system init and hook install both require git) |
 | 6 | final-commit | No hook artifacts to commit |
 
 ---
@@ -721,7 +735,7 @@ At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`.
 
 ### Dialogue Rules
 
-**One question at a time** — never present multiple questions in a single message. Pick the most important unknown and ask about it.
+**One question at a time** — never present multiple questions in a single message. Pick the most important unknown and ask about it. Do NOT combine questions in a single sentence or append follow-up questions with "and" or "or" (e.g., "Where does this run? And does it connect to external services?" is a violation — ask only the first question, then wait for the response before asking the next).
 
 **Confirmation over discovery** — when detection already answered an area, present the detected value and ask the user to confirm or correct it. Do not ask from scratch.
 
@@ -752,7 +766,8 @@ When `comfort_level` is `"non-technical"`, skip or default engineering-specific 
 |------|-----------------------|
 | commands | Use detected commands or defaults (`make test` / `make lint`); never ask about npm vs. Docker invocation style |
 | ci | Use detected CI workflow filename; skip deep CI trigger configuration questions |
-| enforcement | Apply recommended DSO defaults; skip technical gate configuration questions |
+| enforcement | Apply recommended DSO defaults; skip technical gate configuration questions (linting tools, commit message conventions, coverage thresholds) |
+| design | Ask only the high-level UI question ("Does this project have a UI layer?"); skip WCAG standard selection and deep accessibility questions — default to WCAG AA |
 
 For non-technical users: confirm detected values rather than asking open-ended engineering questions. Show summaries, not prompts.
 
@@ -982,12 +997,10 @@ Wait for the user to confirm or correct. Update the scratchpad with any correcti
 
 ### Step 1.5: Artifact Review Before Writing
 
-Before writing any artifact to disk, present the full content for user review and approval. Do NOT write files without explicit approval.
+Artifact review and approval happens **once at the Batch Group 3: config-write boundary**, not per file. Do NOT ask for per-artifact approval inside a batch group. When the Group 3 approval prompt fires, present a consolidated summary of all artifacts to be written in that group, then wait for a single approval before writing any of them.
 
-- **Present each artifact** in a fenced code block so the user can review the complete content before it is written.
-- **For files that already exist** (such as `.claude/dso-config.conf` or `CLAUDE.md`), show a diff against the existing content rather than presenting full replacement. Highlight only the lines being added, changed, or removed so the user can see exactly what will change. Showing the existing diff lets the user verify that no existing configuration is being silently overwritten.
-- Ask: "Does this look right? Should I write this file?"
-- Wait for explicit approval before using the Write tool.
+- **For existing files** (such as `.claude/dso-config.conf` or `CLAUDE.md`), include a diff of existing content vs. proposed changes (lines being added, changed, or removed) in the consolidated Group 3 summary so the user can verify nothing is silently overwritten.
+- One approval covers the entire group. Proceed to write all artifacts in the group without pausing between them.
 
 ## Batch Group 3: config-write
 <!-- Skip guard: if all config files already exist with current content, skip -->
@@ -1444,7 +1457,16 @@ After hook installation, confirm with the user which hook manager was used and w
 
 #### Ticket System Initialization
 
-Initialize the DSO ticket system by creating an orphan branch and setting up the `.tickets-tracker/` directory:
+**Git repository guard:** Before running any ticket system init commands, verify this is an initialized git repository. If not, skip this section and warn the user:
+
+```bash
+if ! git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "WARNING: Not a git repository. Run 'git init' first, then re-run /dso:onboarding to initialize the ticket system."
+    # skip ticket system init — cannot create orphan branch without git
+fi
+```
+
+If the git guard passes, initialize the DSO ticket system by creating an orphan branch and setting up the `.tickets-tracker/` directory:
 
 ```bash
 # Create orphan branch for ticket event storage
@@ -1702,11 +1724,15 @@ I can now codify this understanding into durable project artifacts using /dso:ar
 Would you like me to invoke /dso:architect-foundation now?
 ```
 
-If the user says yes, invoke:
+If the user says yes, invoke `/dso:architect-foundation`. When `COMFORT_LEVEL` is set, pass the appropriate flag:
+
+- `COMFORT_LEVEL="non_technical"`: invoke with `--auto` (skips interactive prompts, applies sensible defaults)
+- `COMFORT_LEVEL="technical"` or not set: invoke without flags
 
 ```
 Skill tool:
   skill: "dso:architect-foundation"
+  args: "--auto"   # omit if COMFORT_LEVEL != "non_technical"
 ```
 
 If the user says no or wants to continue manually, proceed to Step 7.

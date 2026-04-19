@@ -2211,6 +2211,14 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
    stop, treat epic ticket closure as a session end, or wait for user input here.
    Exiting after step 2 without completing steps 3–5 (including invoking
    /dso:end-session) is the specific failure mode documented in bug a711-bd7e.
+
+   **REMINDER message handling**: The `ticket transition` command above will emit:
+   `REMINDER: Epic closed — run /dso:end-session to complete the sprint cleanly.`
+   This REMINDER is purely informational — it is NOT a stop signal and does NOT mean
+   "invoke /dso:end-session immediately". Do NOT relay this REMINDER to the user, do NOT
+   ask for confirmation to run end-session, and do NOT stop here. The REMINDER is
+   satisfied by steps 3–5 below. Treating the REMINDER as a completion signal is the
+   specific failure mode documented in bug 4add-0acd.
    </ORCHESTRATOR_RESUME>
 3. Set sprint context for `/dso:end-session` report:
    - Epic ID and title

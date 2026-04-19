@@ -52,6 +52,12 @@ def _read_json(path: Path) -> dict | None:
         return None
 
 
+def _to_ns(ts: int | float) -> int:
+    """Normalize a timestamp to nanoseconds, handling legacy seconds-scale values."""
+    ts_int = int(ts)
+    return ts_int * 1_000_000_000 if ts_int < _NS_THRESHOLD else ts_int
+
+
 def audit_bridge_mappings(
     tickets_tracker: Path,
     now_ts: int | None = None,
@@ -140,10 +146,6 @@ def audit_bridge_mappings(
                 # Normalize alert timestamps to nanoseconds so mixed-precision
                 # comparisons (legacy seconds-scale SYNC vs. ns-scale BRIDGE_ALERT)
                 # are handled correctly.
-                def _to_ns(ts: int | float) -> int:
-                    ts_int = int(ts)
-                    return ts_int * 1_000_000_000 if ts_int < _NS_THRESHOLD else ts_int
-
                 has_post_sync_alert = any(
                     _to_ns(alert.get("timestamp", 0)) > sync_ts_ns
                     for alert in bridge_alert_events

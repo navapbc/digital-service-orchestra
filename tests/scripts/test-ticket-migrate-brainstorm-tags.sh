@@ -443,4 +443,80 @@ test_plugin_source_repo_guard() {
 test_plugin_source_repo_guard
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# test_python3_failure_guard
+#
+# Behavioral test: when python3 -c tag-computation exits non-zero, the migration
+# loop must skip the ticket without writing a tag-edit event (3cb1-429e).
+#
+# Observable behavior tested: no EDIT event file in the ticket directory after
+# a migration run where python3 -c fails on the tag computation step.
+#
+# Mechanism: prepend a PATH entry containing a python3 wrapper that passes
+# through all "python3 -" (heredoc/stdin) calls but exits non-zero for any
+# "python3 -c" invocation (the tag-computation inline script).
+#
+# RED before fix: no guard → _write_tag_edit_event called → EDIT event written
+# GREEN after fix: guard fires → continue → no EDIT event written (3cb1-429e)
+test_python3_failure_guard() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Set up one PIL-bearing epic (will reach the tag-computation step)
+    local tracker_dir="$repo/.tickets-tracker"
+    local EPIC_PIL_DESC_ID="epic-guard-test-01"
+    local dir1="$tracker_dir/$EPIC_PIL_DESC_ID"
+    mkdir -p "$dir1"
+    local desc1
+    desc1='{"ticket_type": "epic", "title": "Epic for guard test", "parent_id": null, "description": "## Background\n\n### Planning Intelligence Log\n\nSome notes."}'
+    _write_event "$dir1" "1742700100" "00000000-0000-4000-8000-guard001cr001" "CREATE" "$desc1"
+
+    # Create a python3 wrapper: pass-through for "python3 -" (heredoc/stdin calls),
+    # exit 1 for "python3 -c" (the tag-computation inline script).
+    local mock_dir
+    mock_dir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$mock_dir")
+    local real_python3
+    real_python3=$(command -v python3)
+    cat > "$mock_dir/python3" <<WRAPPER
+#!/usr/bin/env bash
+if [ "\${1:-}" = "-c" ]; then
+    echo "MOCK: python3 -c failed (simulating tag computation failure)" >&2
+    exit 1
+fi
+exec "$real_python3" "\$@"
+WRAPPER
+    chmod +x "$mock_dir/python3"
+
+    # Count EDIT events before migration
+    local before_count
+    before_count=$(find "$dir1" -name '*-EDIT.json' 2>/dev/null | wc -l | tr -d ' ')
+
+    # Run migration with mocked python3 prepended to PATH
+    local exit_code=0
+    (cd "$repo" && PATH="$mock_dir:$PATH" bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || exit_code=$?
+
+    # Migration must still exit 0 (the guard uses 'continue', not abort)
+    assert_eq \
+        "test_python3_failure_guard: migration exits 0 when python3 -c fails" \
+        "0" "$exit_code"
+
+    # No EDIT event must have been written for this ticket
+    local after_count
+    after_count=$(find "$dir1" -name '*-EDIT.json' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq \
+        "test_python3_failure_guard: no EDIT event written when python3 tag-computation fails (3cb1-429e)" \
+        "$before_count" "$after_count"
+
+    assert_pass_if_clean "test_python3_failure_guard"
+}
+test_python3_failure_guard
+
+# ═══════════════════════════════════════════════════════════════════════════════
 print_summary
