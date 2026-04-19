@@ -282,6 +282,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
 
     === DIFF STAT ===
     {content of STAT_FILE from Step 2}
@@ -332,6 +333,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
     FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-a.json
 
     === DIFF STAT ===
@@ -349,6 +351,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
     FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-b.json
 
     === DIFF STAT ===
@@ -366,6 +369,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
     FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-c.json
 
     === DIFF STAT ===
@@ -412,6 +416,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
 
     === DIFF STAT ===
     {content of STAT_FILE from Step 2}

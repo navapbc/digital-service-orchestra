@@ -276,6 +276,74 @@ fi
 assert_eq "test_tier_missing_review_tier_fail_open: tier_verified=false in review-status" "yes" "$TIER_VERIFIED_PRESENT"
 
 # ---------------------------------------------------------------------------
+# Tier verification via findings.selected_tier (bug 21d7-b84a)
+#
+# record-review.sh should prefer selected_tier embedded in reviewer-findings.json
+# over classifier-telemetry.jsonl. This closes the artifacts-dir split under
+# worktree dispatch where telemetry lands in a different dir than findings.
+# ---------------------------------------------------------------------------
+
+# Helper: write findings with both review_tier AND selected_tier fields.
+_write_findings_with_selected() {
+    local review_tier="$1" selected_tier="$2"
+    cleanup
+    mkdir -p "$ARTIFACTS_DIR"
+    cat > "$FINDINGS_FILE" <<EOFJ
+{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found.","review_tier":"${review_tier}","selected_tier":"${selected_tier}"}
+EOFJ
+    shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}'
+}
+
+# test_tier_verified_from_findings_no_telemetry
+# findings.selected_tier=standard, review_tier=standard, NO telemetry file →
+# exit 0, NO tier_verified=false line (tier was verified via findings).
+HASH=$(_write_findings_with_selected "standard" "standard")
+rm -f "$ARTIFACTS_DIR/classifier-telemetry.jsonl"
+EXIT_CODE=0
+STDERR_OUT=$(bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+assert_eq "test_tier_verified_from_findings_no_telemetry: exits 0" "0" "$EXIT_CODE"
+REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+if [[ -f "$REVIEW_STATUS_FILE" ]] && grep -q 'tier_verified=false' "$REVIEW_STATUS_FILE"; then
+    TIER_VERIFIED_PRESENT="yes"
+else
+    TIER_VERIFIED_PRESENT="no"
+fi
+assert_eq "test_tier_verified_from_findings_no_telemetry: tier_verified=false absent" "no" "$TIER_VERIFIED_PRESENT"
+
+# test_tier_downgrade_rejected_via_findings
+# findings.review_tier=light, findings.selected_tier=standard, NO telemetry →
+# exit non-zero (downgrade detected via findings path).
+HASH=$(_write_findings_with_selected "light" "standard")
+rm -f "$ARTIFACTS_DIR/classifier-telemetry.jsonl"
+EXIT_CODE=0
+STDERR_OUT=$(bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+assert_ne "test_tier_downgrade_rejected_via_findings: exits non-zero" "0" "$EXIT_CODE"
+assert_contains "test_tier_downgrade_rejected_via_findings: stderr mentions downgrade" "downgrade" "$STDERR_OUT"
+
+# test_tier_findings_preferred_over_telemetry
+# findings.selected_tier=deep (requires deep review), review_tier=standard,
+# telemetry says selected_tier=standard. Findings wins → reject downgrade.
+HASH=$(_write_findings_with_selected "standard" "deep")
+_write_telemetry "standard"
+EXIT_CODE=0
+STDERR_OUT=$(bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+assert_ne "test_tier_findings_preferred_over_telemetry: exits non-zero" "0" "$EXIT_CODE"
+assert_contains "test_tier_findings_preferred_over_telemetry: stderr names findings source" "findings" "$STDERR_OUT"
+
+# test_tier_max_rank_prevents_agent_self_downgrade
+# Attack vector: a compromised or prompt-injected reviewer could self-declare
+# findings.selected_tier=light to escape a classifier-issued deep tier. With
+# max(rank) precedence, telemetry's higher tier wins and the downgrade is rejected.
+# findings.review_tier=light, findings.selected_tier=light, telemetry.selected_tier=deep →
+# exit non-zero (max uses deep from telemetry, rejecting the light review).
+HASH=$(_write_findings_with_selected "light" "light")
+_write_telemetry "deep"
+EXIT_CODE=0
+STDERR_OUT=$(bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+assert_ne "test_tier_max_rank_prevents_agent_self_downgrade: exits non-zero" "0" "$EXIT_CODE"
+assert_contains "test_tier_max_rank_prevents_agent_self_downgrade: stderr names telemetry(max) source" "telemetry(max)" "$STDERR_OUT"
+
+# ---------------------------------------------------------------------------
 # test_fragile_severity_accepted_no_validation_error
 #
 # Given: reviewer-findings.json with a finding of severity "fragile" and

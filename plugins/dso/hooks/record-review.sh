@@ -343,7 +343,10 @@ import re
 review_tier = data.get('review_tier', '')
 # Sanitize review_tier: only lowercase letters allowed to prevent colon-delimiter corruption
 review_tier = re.sub(r'[^a-z]', '', review_tier) if review_tier else ''
-print(f'OK:{min_score}:{critical_flag}:{review_tier}:{files_str}')
+selected_tier = data.get('selected_tier', '')
+selected_tier = re.sub(r'[^a-z]', '', selected_tier) if selected_tier else ''
+# Emit selected_tier before files_str (files_str is the tail — everything after the last expected colon).
+print(f'OK:{min_score}:{critical_flag}:{review_tier}:{selected_tier}:{files_str}')
 " 2>&1)
 REVIEWER_EXIT=$?
 set -e
@@ -353,13 +356,15 @@ if [[ $REVIEWER_EXIT -ne 0 || "$REVIEWER_SCORE" == ERROR:* ]]; then
     exit 1
 fi
 
-# Parse the OK response: OK:<score>:<critical_flag>:<review_tier>:<files>
+# Parse the OK response: OK:<score>:<critical_flag>:<review_tier>:<selected_tier>:<files>
 RESULT_BODY="${REVIEWER_SCORE#OK:}"
 SCORE="${RESULT_BODY%%:*}"
 REMAINDER="${RESULT_BODY#*:}"
 HAS_CRITICAL="${REMAINDER%%:*}"
 REMAINDER="${REMAINDER#*:}"
 REVIEW_TIER="${REMAINDER%%:*}"
+REMAINDER="${REMAINDER#*:}"
+FINDINGS_SELECTED_TIER="${REMAINDER%%:*}"
 FILES_FROM_FINDINGS="${REMAINDER#*:}"
 
 # --- Validate files overlap with actual changed files ---
@@ -618,9 +623,19 @@ fi
 REVIEW_HASH="$ACTUAL_HASH"
 
 # --- Tier enforcement: verify review tier matches or exceeds classified tier ---
-# REVIEW-DEFENSE: The --review-tier wiring into the review dispatch workflow is
-# tracked separately (epic 1627-1ecf). Until wired, review_tier will be absent
-# from findings JSON and this block will correctly fail-open with a warning.
+# Verification sources (bug 21d7-b84a):
+#   1. findings.selected_tier — hash-integrity-covered, always co-located with
+#      findings, but agent-self-reported (a compromised reviewer could self-
+#      declare a lower tier).
+#   2. classifier-telemetry.jsonl — written by the classifier (not the reviewer)
+#      so trust-authoritative, but under worktree dispatch may live in a
+#      different artifacts dir (closed by WORKFLOW_PLUGIN_ARTIFACTS_DIR export
+#      in single-agent-integrate.md and per-worktree-review-commit.md).
+#
+# Precedence: when both are present, use max(rank) so an agent cannot
+# self-declare a lower selected_tier to escape a higher classified tier.
+# When only one is present, use it. When neither, fail-open.
+#
 # Tier rank: light=1, standard=2, deep=3
 _tier_rank() {
     case "$1" in
@@ -633,28 +648,45 @@ _tier_rank() {
 
 TIER_VERIFIED="true"
 TELEMETRY_FILE="$ARTIFACTS_DIR/classifier-telemetry.jsonl"
+TELEMETRY_SELECTED_TIER=""
+if [[ -f "$TELEMETRY_FILE" ]]; then
+    TELEMETRY_SELECTED_TIER=$(tail -1 "$TELEMETRY_FILE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('selected_tier',''))" 2>/dev/null || echo "")
+fi
 
-if [[ ! -f "$TELEMETRY_FILE" ]]; then
-    echo "WARNING: classifier-telemetry.jsonl not found — cannot verify tier; allowing review (fail-open)" >&2
+SELECTED_TIER=""
+SELECTED_TIER_SOURCE=""
+
+if [[ -n "${FINDINGS_SELECTED_TIER:-}" && -n "$TELEMETRY_SELECTED_TIER" ]]; then
+    # Both present — use max(rank) so the agent cannot self-downgrade.
+    F_RANK=$(_tier_rank "$FINDINGS_SELECTED_TIER")
+    T_RANK=$(_tier_rank "$TELEMETRY_SELECTED_TIER")
+    if [[ "$F_RANK" -ge "$T_RANK" ]]; then
+        SELECTED_TIER="$FINDINGS_SELECTED_TIER"
+        SELECTED_TIER_SOURCE="findings"
+    else
+        SELECTED_TIER="$TELEMETRY_SELECTED_TIER"
+        SELECTED_TIER_SOURCE="telemetry(max)"
+    fi
+elif [[ -n "${FINDINGS_SELECTED_TIER:-}" ]]; then
+    SELECTED_TIER="$FINDINGS_SELECTED_TIER"
+    SELECTED_TIER_SOURCE="findings"
+elif [[ -n "$TELEMETRY_SELECTED_TIER" ]]; then
+    SELECTED_TIER="$TELEMETRY_SELECTED_TIER"
+    SELECTED_TIER_SOURCE="telemetry"
+fi
+
+if [[ -z "$SELECTED_TIER" ]]; then
+    echo "WARNING: selected_tier not found in reviewer-findings.json or classifier-telemetry.jsonl — cannot verify tier; allowing review (fail-open)" >&2
     TIER_VERIFIED="false"
 elif [[ -z "${REVIEW_TIER// /}" ]]; then
-    # review_tier absent, empty, or whitespace-only in findings JSON — expected until
-    # --review-tier injection is wired into the review dispatch workflow. Fail-open.
     echo "WARNING: review_tier missing or empty in reviewer-findings.json — cannot verify tier; allowing review (fail-open)" >&2
     TIER_VERIFIED="false"
 else
-    # Read selected_tier from last line of telemetry
-    SELECTED_TIER=$(tail -1 "$TELEMETRY_FILE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('selected_tier',''))" 2>/dev/null || echo "")
-    if [[ -z "$SELECTED_TIER" ]]; then
-        echo "WARNING: selected_tier missing from classifier telemetry — cannot verify tier; allowing review (fail-open)" >&2
-        TIER_VERIFIED="false"
-    else
-        REVIEW_RANK=$(_tier_rank "$REVIEW_TIER")
-        SELECTED_RANK=$(_tier_rank "$SELECTED_TIER")
-        if [[ "$REVIEW_RANK" -lt "$SELECTED_RANK" ]]; then
-            echo "TIER IMMUTABILITY VIOLATION: review tier '${REVIEW_TIER}' is a downgrade from classified tier '${SELECTED_TIER}'. Re-run /dso:review." >&2
-            exit 1
-        fi
+    REVIEW_RANK=$(_tier_rank "$REVIEW_TIER")
+    SELECTED_RANK=$(_tier_rank "$SELECTED_TIER")
+    if [[ "$REVIEW_RANK" -lt "$SELECTED_RANK" ]]; then
+        echo "TIER IMMUTABILITY VIOLATION: review tier '${REVIEW_TIER}' is a downgrade from classified tier '${SELECTED_TIER}' (source: ${SELECTED_TIER_SOURCE}). Re-run /dso:review." >&2
+        exit 1
     fi
 fi
 
