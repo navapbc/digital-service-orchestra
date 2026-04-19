@@ -871,6 +871,23 @@ After 6 total consecutive failures (3 sonnet + 3 opus), the orchestrator termina
 
 User escalation is also the immediate path when `MAX_AGENTS: 0` blocks opus dispatch, in which case the report contains the 3 sonnet failures plus an explicit note that opus escalation was skipped due to usage throttling.
 
+### Pattern Reference
+
+When the upstream `dso:complexity-evaluator` output specifies `pattern_familiarity: low` or `medium` for a task, enrich the generated task description with a `## Pattern Reference` block containing up to 30 lines of representative codebase examples. This gives the implementation sub-agent concrete prior art to mirror, reducing the chance of inventing a novel pattern when an established one already exists.
+
+#### Gating Rule
+
+- `pattern_familiarity: low` — REQUIRED: include a Pattern Reference block.
+- `pattern_familiarity: medium` — REQUIRED: include a Pattern Reference block.
+- `pattern_familiarity: high` (or no evaluator output) — OMIT the section entirely; the sub-agent already knows the pattern and extra context is noise.
+
+#### Retrieval Rules
+
+- Use local `grep`/`glob` only to find representative examples — no external lookups, no nested LLM calls.
+- Search anchors come from the task's file impact list and the evaluator's identified pattern keywords.
+- Cap the included excerpt at **≤30 lines total** across all examples so task descriptions stay concise. If a single example exceeds 30 lines, truncate with `# ...` and prefer the most representative slice (function signature + body fragment).
+- Cite each example with its source path (e.g., `# from src/utils/example.sh:42-58`).
+
 ---
 
 ## Step 4: Implementation Plan Review (/dso:implementation-plan)
