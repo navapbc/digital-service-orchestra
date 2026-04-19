@@ -175,6 +175,51 @@ When ticket or issue context is provided in the dispatch prompt (e.g., `ISSUE_CO
 - [ ] If the diff introduces behavior that contradicts the ticket's stated scope (e.g., modifies OUT-of-scope functionality), flag as `important` — scope drift can introduce unintended side effects
 - [ ] When the ticket mentions a specific file, script, or function as the target of the change, verify that file is actually modified in the diff
 
+## AI Blindspot Annotations
+
+LLM-authored code is prone to two correctness blindspots that human reviewers may miss when
+focused only on surface-level logic. Evaluate the diff for both patterns and surface findings
+in the `summary` field text using the prefixes `spaghetti_patching:` and `asymmetric_change:`.
+These are summary annotations only — they do NOT add a new scoring dimension and do NOT add
+new top-level keys to the JSON output.
+
+### Spaghetti Patching Detection
+
+Watch for fixes that mask symptoms rather than address root causes:
+
+- **Defensive conditionals as symptom suppression**: `if x is not None:` guards added around
+  call sites where `x` should never have been None — the real bug is upstream nullability.
+  A defensive guard at the boundary of the bug is a patch; the underlying contract violation
+  remains.
+- **Near-duplicate code paths with divergent error handling**: two branches that share most
+  logic but differ only in how they catch/swallow exceptions, suggesting a copy-paste fix
+  rather than a unified abstraction.
+- **Trial-and-error accretion**: layered try/except blocks, repeated retries with slightly
+  different parameters, or successive guards that each handle one observed failure mode
+  without a unifying model of why the failure occurs.
+
+When detected, note in the summary as `spaghetti_patching: <brief description>`. Severity
+maps to `important` under `correctness` when the patch demonstrably hides a deeper bug.
+
+### Asymmetric Change Detection
+
+Watch for diffs that modify one side of an interface contract without updating the other:
+
+- **Schema/interface modification without caller updates**: a function signature changes
+  (added/renamed/reordered parameter) but Grep across the repo shows call sites still using
+  the old form.
+- **New model field without serializer/migration updates**: a field is added to a dataclass,
+  ORM model, or JSON schema without corresponding changes to serializers, deserializers,
+  database migrations, or fixture data.
+- **Producer/consumer drift**: an event emitter adds a new field that downstream consumers
+  do not parse, or a consumer expects a field that producers never emit.
+
+Use Grep to verify all call sites and consumers when the diff modifies a public interface.
+When detected, note in the summary as `asymmetric_change: <brief description>`. Severity is
+`critical` when call sites will break at runtime, `important` when behavior silently diverges.
+
+---
+
 ## Overlay Classification
 
 Always evaluate these two items and include the results in your summary field text:
