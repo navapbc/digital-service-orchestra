@@ -770,4 +770,75 @@ print(json.dumps(payload))
 test_compacted_epic_already_tagged_is_noop
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Test 14: Write-failure containment (3cb1-429e architecture-adapted)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Original test (main 08efcf49) mocked `python3 -c` to simulate tag-computation
+# failure in the old per-ticket bash loop. The single-pass python rewrite moves
+# tag computation inside one Python scan, so PATH-mocking python3 no longer
+# exercises the guard path. This adapted test preserves the behavioral intent:
+# when an individual ticket's event write fails (OSError from read-only dir),
+# the migration must skip that ticket without emitting a WROTE: line, so the
+# bash commit loop never attempts to commit a partially-written event.
+echo "Test 14: migration skips ticket when event write fails, does not mis-commit"
+test_write_failure_containment() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local tracker_dir="$repo/.tickets-tracker"
+    # One healthy epic — should get tagged normally
+    local good_id="epic-containment-good-14a"
+    local good_dir="$tracker_dir/$good_id"
+    mkdir -p "$good_dir"
+    local good_desc
+    good_desc='{"ticket_type": "epic", "title": "Good epic", "parent_id": null, "description": "### Planning Intelligence Log\n\nHealthy."}'
+    _write_event "$good_dir" "1742700100" "00000000-0000-4000-8000-good001cr001" "CREATE" "$good_desc"
+
+    # One epic that cannot be written to — forces OSError inside single-pass python
+    # (the write_edit_event call's open(fpath, 'w') will fail on a read-only dir)
+    local bad_id="epic-containment-bad-14b"
+    local bad_dir="$tracker_dir/$bad_id"
+    mkdir -p "$bad_dir"
+    local bad_desc
+    bad_desc='{"ticket_type": "epic", "title": "Bad epic", "parent_id": null, "description": "### Planning Intelligence Log\n\nWrite will fail."}'
+    _write_event "$bad_dir" "1742700200" "00000000-0000-4000-8000-bad0001cr001" "CREATE" "$bad_desc"
+    # Make the ticket dir read-only so the python write_edit_event raises OSError
+    chmod 555 "$bad_dir"
+    # Ensure cleanup can still remove it (trap rm -rf 2>/dev/null || true tolerates)
+
+    local exit_code=0
+    (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || exit_code=$?
+
+    # Restore perms so the test cleanup trap can remove the dir
+    chmod 755 "$bad_dir" 2>/dev/null || true
+
+    # Migration must still exit 0 — OSError on one ticket does not abort the run
+    assert_eq "test_write_failure_containment: migration exits 0 despite per-ticket write failure" "0" "$exit_code"
+
+    # Good ticket was tagged
+    if _ticket_has_tag "$tracker_dir" "$good_id" "brainstorm:complete"; then
+        assert_eq "test_write_failure_containment: healthy ticket tagged" "tagged" "tagged"
+    else
+        assert_eq "test_write_failure_containment: healthy ticket tagged" "tagged" "not-tagged"
+    fi
+
+    # Bad ticket was NOT tagged (no EDIT event committed — would have been ignored
+    # by the bash commit loop since python emits ERROR: not WROTE: on failure)
+    if _ticket_has_tag "$tracker_dir" "$bad_id" "brainstorm:complete"; then
+        assert_eq "test_write_failure_containment: failed-write ticket not tagged" "not-tagged" "tagged"
+    else
+        assert_eq "test_write_failure_containment: failed-write ticket not tagged" "not-tagged" "not-tagged"
+    fi
+
+    assert_pass_if_clean "test_write_failure_containment"
+}
+test_write_failure_containment
+
+# ═══════════════════════════════════════════════════════════════════════════════
 print_summary

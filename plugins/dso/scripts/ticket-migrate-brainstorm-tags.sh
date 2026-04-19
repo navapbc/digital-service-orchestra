@@ -219,6 +219,12 @@ PYEOF
 #   (d) ticket-edit.sh uses `git config user.name` and the session env_id — it cannot
 #       emit the migration-specific author ("ticket-migrate-brainstorm-tags") and
 #       env_id ("00000000-0000-4000-8000-migration001") needed for auditability.
+#
+# Failure containment: the single-pass python scan emits `WROTE:` only after the
+# EDIT event file has been successfully written; on OSError it emits `ERROR:` to
+# stderr and skips to the next ticket. The bash loop only commits `WROTE:` lines,
+# so a partial-write failure on one ticket cannot cause a mis-committed EDIT for
+# that ticket (subsumes main's 3cb1-429e guard for the old per-ticket python3 call).
 while IFS= read -r _line; do
     [[ -z "$_line" ]] && continue
     case "$_line" in

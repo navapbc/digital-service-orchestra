@@ -729,4 +729,31 @@ assert_eq "test_outbound_bridge_no_push_trigger: push trigger on tickets branch 
 assert_pass_if_clean "test_outbound_bridge_no_push_trigger"
 
 # =============================================================================
+# Test: _phase_push removes stale SNAPSHOT files before tickets pull (3534-b90d)
+# Without this, untracked SNAPSHOTs in the tickets worktree cause
+# "untracked files would be overwritten by merge" errors on git pull --rebase.
+# =============================================================================
+echo "--- test_snapshot_cleanup_before_tickets_pull ---"
+_snapshot_fail
+_push_body_snap=$(sed -n '/_phase_push()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
+_has_snapshot_cleanup=0
+if echo "$_push_body_snap" | grep -qE "SNAPSHOT\.json|Remove.*stale.*SNAPSHOT|stale SNAPSHOT"; then
+    _has_snapshot_cleanup=1
+fi
+assert_eq "test_snapshot_cleanup_before_tickets_pull: _phase_push must remove stale SNAPSHOT.json files before tickets pull (3534-b90d)" \
+    "1" "$_has_snapshot_cleanup"
+assert_pass_if_clean "test_snapshot_cleanup_before_tickets_pull"
+
+# =============================================================================
+echo "--- test_sync_phase_resets_stale_ahead_local_main ---"
+_sync_body_ahead=$(sed -n '/_phase_sync()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
+_has_ahead_reset=0
+if echo "$_sync_body_ahead" | grep -qE "rev-list.*count.*origin/main.*HEAD|reset.*hard.*origin/main"; then
+    _has_ahead_reset=1
+fi
+assert_eq "test_sync_phase_resets_stale_ahead_local_main: _phase_sync must detect stale-ahead local main and hard-reset to origin/main (35eb-1824)" \
+    "1" "$_has_ahead_reset"
+assert_pass_if_clean "test_sync_phase_resets_stale_ahead_local_main"
+
+# =============================================================================
 print_summary

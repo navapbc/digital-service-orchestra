@@ -37,7 +37,7 @@ plugins/dso/hooks/dispatchers/post-edit.sh:tests/hooks/test-post-dispatchers.sh,
 plugins/dso/hooks/dispatchers/post-write.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/post-all.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/post-failure.sh:tests/hooks/test-post-dispatcher-err-handler.sh
-plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh [test_pre_bash_dispatcher_record_test_status_direct_call_blocked],tests/hooks/test-pre-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/pre-enterplanmode.sh:tests/hooks/test-session-misc-dispatchers.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
@@ -137,6 +137,8 @@ plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh
 tests/lib/git-fixtures.sh:tests/scripts/test-create-bug-skill-smoke.sh
 CLAUDE.md:tests/scripts/test-claude-md-hook-error-handler.sh,tests/scripts/test-docs-behavioral-drift-prevention.sh
+# RED: template file not yet created (future generate-claude-md epic)
+plugins/dso/templates/CLAUDE.md.template:tests/scripts/test-generate-claude-md.sh [test_generate_claude_md_template_file_exists]
 plugins/dso/agents/red-team-reviewer.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/blue-team-filter.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/red-test-writer.md:tests/hooks/test-agent-standard-reference.sh
@@ -202,7 +204,7 @@ plugins/dso/scripts/ticket_reducer/marker.py:tests/scripts/test_ticket_reducer.p
 plugins/dso/scripts/ticket_reducer/llm_format.py:tests/scripts/test_ticket_llm_format.py
 
 # ticket-revert.sh mapping covered by line with RED marker above (bc06-74f4)
-plugins/dso/scripts/ticket_reducer/marker.py:tests/scripts/test_ticket_reducer_marker.py [test_marker_imports_from_package]
+plugins/dso/scripts/ticket_reducer/marker.py:tests/scripts/test_ticket_reducer_marker.py
 plugins/dso/scripts/ticket_reducer/llm_format.py:tests/scripts/test_ticket_reducer_llm_format.py
 
 # --- analyze_tool/ subpackage modules (c43c-12c8) ---
@@ -260,3 +262,25 @@ plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.
 plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
 plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh
+
+# --- _tag_add, _tag_remove helpers and ticket tag/untag CLI (task e0f5-c81c) ---
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh
+plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
+plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
+plugins/dso/scripts/ticket:tests/unit/scripts/test-ticket-tag.sh
+
+
+# --- design-approve.sh uses ticket tag/untag (story d808-cba0, task a2ed-df22) ---
+plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
+# --- tag policy documentation (story c120-9e90, task 93bd-7940) ---
+plugins/dso/docs/ticket-system-v3-architecture.md:tests/scripts/test-tag-policy-docs.sh
+plugins/dso/docs/contracts/scrutiny-pending-tag.md:tests/scripts/test-tag-policy-docs.sh
+plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-policy-docs.sh
+CLAUDE.md:tests/scripts/test-tag-policy-docs.sh
+# --- ticket tag/untag CLI refactor: instruction files use ticket tag/untag (task 7cdb-e8df) ---
+plugins/dso/skills/brainstorm/SKILL.md:tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/skills/roadmap/SKILL.md:tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md:tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/skills/preplanning/SKILL.md:tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/scripts/ticket:tests/scripts/test-tag-cli-refactor.sh

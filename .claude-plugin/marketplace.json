@@ -10,7 +10,7 @@
         "source": "git-subdir",
         "url": "https://github.com/navapbc/digital-service-orchestra.git",
         "path": "plugins/dso",
-        "ref": "main"
+        "ref": "v1.13.0"
       },
       "description": "Workflow infrastructure plugin for Claude Code projects (stable channel)"
     },
@@ -22,7 +22,7 @@
         "path": "plugins/dso",
         "ref": "main"
       },
-      "description": "Workflow infrastructure plugin for Claude Code projects (dev channel \u2014 updates on every merge to main)"
+      "description": "Workflow infrastructure plugin for Claude Code projects (dev channel — updates on every merge to main)"
     }
   ],
   "version": "1.13.0"

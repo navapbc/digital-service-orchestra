@@ -234,16 +234,12 @@ review_feedback = null
          then continue to Section 5:
          ```bash
          .claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: design review for story <story-id> did not pass after <max_review_cycles> cycles. Blocking findings: <review_feedback>. Manual review required: run /dso:review-protocol on <design_artifacts.manifest> and resolve findings before sprint."
-         EXISTING_TAGS=$(.claude/scripts/dso ticket show <story-id> | python3 -c "import sys,json; t=json.load(sys.stdin).get('tags',[]); print(','.join(t))")
-         NEW_TAGS="${EXISTING_TAGS:+${EXISTING_TAGS},}design:pending_review"
-         .claude/scripts/dso ticket edit <story-id> "--tags=${NEW_TAGS}"
+         .claude/scripts/dso ticket tag <story-id> design:pending_review
          ```
 
 **REVIEW_PASS path** — tag the story `design:approved` after the loop exits:
 ```bash
-EXISTING_TAGS=$(.claude/scripts/dso ticket show <story-id> | python3 -c "import sys,json; t=json.load(sys.stdin).get('tags',[]); print(','.join(t))")
-NEW_TAGS="${EXISTING_TAGS:+${EXISTING_TAGS},}design:approved"
-.claude/scripts/dso ticket edit <story-id> "--tags=${NEW_TAGS}"
+.claude/scripts/dso ticket tag <story-id> design:approved
 ```
 Log: `"Design artifacts approved for story <story-id> after <review_cycle_count + 1> review cycle(s)."`
 

@@ -691,6 +691,8 @@ An integration test task may be omitted only if one of the following applies:
 
 Either exemption requires a justification requirement documented in the task description and validated by the plan reviewer in Step 4.
 
+**Primary path constraint**: When the story's success criteria describe a user-facing flow (sign-in, checkout, form submission, API call from a browser client), the integration test must exercise that exact path — not an administrative, server-side, or CLI equivalent that bypasses user-facing infrastructure (e.g., OAuth browser callback, CSRF validation, session cookie issuance). A test that reaches the same external service via a privileged bypass does not satisfy this rule even if it passes. Document which user-facing path is covered in the task description.
+
 ### Test Filename Conventions (Fuzzy-Match Compatibility)
 
 The tech-stack-agnostic test gate associates source files with their tests using **fuzzy matching**: the source file's basename is normalized (all non-alphanumeric characters stripped, lowercased) and then checked as a substring against normalized test file basenames.

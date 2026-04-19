@@ -314,3 +314,36 @@ Conflict detection is handled at the **semantic** level by the reducer, not at t
 - **Deduplication**: The `LastTimestampWinsStrategy` deduplicates events by UUID (first occurrence wins) and sorts by timestamp. This handles the case where the same event file appears in both environments' histories after a sync.
 
 For multi-environment conflict resolution strategy (`MostStatusEventsWinsStrategy`), see `docs/contracts/ticket-reducer-strategy-contract.md`.
+
+---
+
+## Tag Policy
+
+### Guarded Tags
+
+| Tag | Guard | Writer |
+|-----|-------|--------|
+| `brainstorm:complete` | Requires `### Planning Intelligence Log` heading in ticket events (enforced by `_tag_add_checked` in `ticket-lib.sh`) | `/dso:brainstorm` via `.claude/scripts/dso ticket tag` |
+
+Explicitly removable via `.claude/scripts/dso ticket untag`.
+
+### Unguarded Tags
+
+All other tags (e.g., `scrutiny:pending`, `interaction:deferred`, `design:approved`, `design:awaiting_import`, `design:pending_review`) are unguarded. Policy errs toward flexibility — guards are added only when incorrect application causes irreversible harm.
+
+### Writer Taxonomy
+
+**Additive writes** (single-tag operations):
+- CLI: `.claude/scripts/dso ticket tag <id> <tag>` and `.claude/scripts/dso ticket untag <id> <tag>`
+- Library: `_tag_add` / `_tag_remove` in `ticket-lib.sh`
+
+**Full-replacement writes** (replaces entire tags array):
+- CLI: `ticket edit --tags=<json-array>`
+- Reserved for: migration script (`ticket-migrate-brainstorm-tags.sh`) and direct tag array resets
+
+Concurrent-writer race between additive and full-replacement writes is accepted — same tolerance as pre-existing full-replacement behavior.
+
+### Accepted Limitations
+
+- **Concurrent-writer race**: two simultaneous additive tag operations can produce a last-writer-wins outcome. Accepted given low concurrency in practice.
+- **Source enforcement infeasible**: "only skill X may write tag Y" cannot be enforced at the CLI level. Policy is documented here for reference; enforcement relies on skill instructions.

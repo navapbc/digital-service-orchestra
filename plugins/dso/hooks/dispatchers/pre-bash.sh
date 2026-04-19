@@ -137,5 +137,11 @@ _pre_bash_dispatch() {
 # Detection: BASH_SOURCE[0] == $0 means we were invoked directly.
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     _pre_bash_dispatch
-    exit $?
+    _dispatch_exit=$?
+    # Disable the hook-error-handler EXIT trap before exiting so it cannot
+    # convert an intentional exit 2 (block) into exit 0 (fail-open).
+    # The EXIT trap is designed for unexpected errors; exit 2 is a valid block
+    # response from hook_record_test_status_guard and similar guards.
+    trap - EXIT 2>/dev/null || true
+    exit "$_dispatch_exit"
 fi
