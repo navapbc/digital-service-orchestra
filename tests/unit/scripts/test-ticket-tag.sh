@@ -456,5 +456,255 @@ test_ticket_untag_cli_removes_tag() {
 
 test_ticket_untag_cli_removes_tag
 
+# ── PIL detection and _tag_add_checked guard (Story 2: c095-26fe) ─────────────
+# RED tests for _ticket_has_pil and _tag_add_checked (task 4d04-b152).
+# These MUST FAIL until ticket-lib.sh implements _ticket_has_pil and
+# _tag_add_checked, and ticket-tag.sh dispatches through _tag_add_checked.
+#
+# PIL marker convention: events containing "PLANNING_INTELLIGENCE_LOG"
+# in description or comment body are treated as evidence of scrutiny.
+
+# ── Test 8: _ticket_has_pil — finds PIL in CREATE description ─────────────────
+echo ""
+echo "--- test_ticket_has_pil_finds_pil_in_create_description ---"
+
+test_ticket_has_pil_finds_pil_in_create_description() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create an epic with PIL marker in the description
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "PIL epic" \
+        --description "PLANNING_INTELLIGENCE_LOG: scrutiny complete" 2>/dev/null | tr -d '[:space:]')
+
+    [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_has_pil_finds_pil_in_create_description: could not create ticket" >&2; return; }
+
+    local _exit=0
+    (cd "$repo" && source "$TICKET_LIB" && _ticket_has_pil "$ticket_id") 2>/dev/null || _exit=$?
+
+    assert_eq "test_ticket_has_pil_finds_pil_in_create_description: exit 0 when PIL in description" "0" "$_exit"
+    assert_pass_if_clean "test_ticket_has_pil_finds_pil_in_create_description"
+}
+
+test_ticket_has_pil_finds_pil_in_create_description
+
+# ── Test 9: _ticket_has_pil — finds PIL in EDIT fields.description ────────────
+echo ""
+echo "--- test_ticket_has_pil_finds_pil_in_edit_fields_description ---"
+
+test_ticket_has_pil_finds_pil_in_edit_fields_description() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Edit PIL epic" 2>/dev/null | tr -d '[:space:]')
+
+    [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_has_pil_finds_pil_in_edit_fields_description: could not create ticket" >&2; return; }
+
+    # Edit the ticket to add PIL marker in description
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$ticket_id" \
+        --description "PLANNING_INTELLIGENCE_LOG: added via edit" 2>/dev/null) || {
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_finds_pil_in_edit_fields_description: ticket edit setup failed" >&2
+        return
+    }
+
+    local _exit=0
+    (cd "$repo" && source "$TICKET_LIB" && _ticket_has_pil "$ticket_id") 2>/dev/null || _exit=$?
+
+    assert_eq "test_ticket_has_pil_finds_pil_in_edit_fields_description: exit 0 when PIL in edit description" "0" "$_exit"
+    assert_pass_if_clean "test_ticket_has_pil_finds_pil_in_edit_fields_description"
+}
+
+test_ticket_has_pil_finds_pil_in_edit_fields_description
+
+# ── Test 10: _ticket_has_pil — finds PIL in comment body ─────────────────────
+echo ""
+echo "--- test_ticket_has_pil_finds_pil_in_comment_body ---"
+
+test_ticket_has_pil_finds_pil_in_comment_body() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Comment PIL epic" 2>/dev/null | tr -d '[:space:]')
+
+    [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_has_pil_finds_pil_in_comment_body: could not create ticket" >&2; return; }
+
+    (cd "$repo" && bash "$TICKET_SCRIPT" comment "$ticket_id" \
+        "PLANNING_INTELLIGENCE_LOG: brainstorm complete, see attached notes" 2>/dev/null) || {
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_finds_pil_in_comment_body: ticket comment setup failed" >&2
+        return
+    }
+
+    local _exit=0
+    (cd "$repo" && source "$TICKET_LIB" && _ticket_has_pil "$ticket_id") 2>/dev/null || _exit=$?
+
+    assert_eq "test_ticket_has_pil_finds_pil_in_comment_body: exit 0 when PIL in comment" "0" "$_exit"
+    assert_pass_if_clean "test_ticket_has_pil_finds_pil_in_comment_body"
+}
+
+test_ticket_has_pil_finds_pil_in_comment_body
+
+# ── Test 11: _ticket_has_pil — returns exit 1 when PIL absent ────────────────
+# Uses assert_eq "1" to fail RED (function missing → exit 127) but pass GREEN
+# (function implemented → exit 1 for absent PIL).
+echo ""
+echo "--- test_ticket_has_pil_returns_nonzero_when_absent ---"
+
+test_ticket_has_pil_returns_nonzero_when_absent() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "No PIL epic" \
+        --description "Just a regular description" 2>/dev/null | tr -d '[:space:]')
+
+    [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_has_pil_returns_nonzero_when_absent: could not create ticket" >&2; return; }
+
+    local _exit=0
+    (cd "$repo" && source "$TICKET_LIB" && _ticket_has_pil "$ticket_id") 2>/dev/null || _exit=$?
+
+    assert_eq "test_ticket_has_pil_returns_nonzero_when_absent: exit 1 when PIL absent" "1" "$_exit"
+    assert_pass_if_clean "test_ticket_has_pil_returns_nonzero_when_absent"
+}
+
+test_ticket_has_pil_returns_nonzero_when_absent
+
+# ── Test 12: _tag_add_checked — bypasses PIL check for non-brainstorm tags ────
+echo ""
+echo "--- test_tag_add_checked_bypasses_check_for_non_brainstorm_tags ---"
+
+test_tag_add_checked_bypasses_check_for_non_brainstorm_tags() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Non-brainstorm task" 2>/dev/null | tr -d '[:space:]')
+
+    [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_tag_add_checked_bypasses_check_for_non_brainstorm_tags: could not create ticket" >&2; return; }
+
+    local _exit=0
+    (cd "$repo" && source "$TICKET_LIB" && _tag_add_checked "$ticket_id" "priority:high") 2>/dev/null || _exit=$?
+
+    assert_eq "test_tag_add_checked_bypasses_check_for_non_brainstorm_tags: exit 0 for non-brainstorm tag" "0" "$_exit"
+    assert_pass_if_clean "test_tag_add_checked_bypasses_check_for_non_brainstorm_tags"
+}
+
+test_tag_add_checked_bypasses_check_for_non_brainstorm_tags
+
+# ── Test 13: _tag_add_checked — rejects brainstorm:complete without PIL ───────
+# Uses assert_eq "1" to fail RED (function missing → exit 127) but pass GREEN
+# (function implemented → exit 1 for rejected tag).
+echo ""
+echo "--- test_tag_add_checked_rejects_brainstorm_complete_without_pil ---"
+
+test_tag_add_checked_rejects_brainstorm_complete_without_pil() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "No PIL epic" 2>/dev/null | tr -d '[:space:]')
+
+    [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_tag_add_checked_rejects_brainstorm_complete_without_pil: could not create ticket" >&2; return; }
+
+    local _exit=0
+    (cd "$repo" && source "$TICKET_LIB" && _tag_add_checked "$ticket_id" "brainstorm:complete") 2>/dev/null || _exit=$?
+
+    assert_eq "test_tag_add_checked_rejects_brainstorm_complete_without_pil: exit 1 when PIL absent" "1" "$_exit"
+    assert_pass_if_clean "test_tag_add_checked_rejects_brainstorm_complete_without_pil"
+}
+
+test_tag_add_checked_rejects_brainstorm_complete_without_pil
+
+# ── Test 14: _tag_add_checked — allows brainstorm:complete with PIL ───────────
+echo ""
+echo "--- test_tag_add_checked_allows_brainstorm_complete_with_pil ---"
+
+test_tag_add_checked_allows_brainstorm_complete_with_pil() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "PIL present epic" \
+        --description "PLANNING_INTELLIGENCE_LOG: brainstorm done" 2>/dev/null | tr -d '[:space:]')
+
+    [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_tag_add_checked_allows_brainstorm_complete_with_pil: could not create ticket" >&2; return; }
+
+    local _exit=0
+    (cd "$repo" && source "$TICKET_LIB" && _tag_add_checked "$ticket_id" "brainstorm:complete") 2>/dev/null || _exit=$?
+
+    assert_eq "test_tag_add_checked_allows_brainstorm_complete_with_pil: exit 0 when PIL present" "0" "$_exit"
+    assert_pass_if_clean "test_tag_add_checked_allows_brainstorm_complete_with_pil"
+}
+
+test_tag_add_checked_allows_brainstorm_complete_with_pil
+
+# ── Test 15: Round-trip via _tag_add_checked lib call (fails RED until Task 2) ──
+echo ""
+echo "--- test_ticket_tag_pil_round_trip ---"
+
+test_ticket_tag_pil_round_trip() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Round-trip PIL epic" \
+        --description "PLANNING_INTELLIGENCE_LOG: all checks done" 2>/dev/null | tr -d '[:space:]')
+
+    [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_tag_pil_round_trip: could not create ticket" >&2; return; }
+
+    # Call _tag_add_checked directly (fails RED until lib implements it)
+    local _exit=0
+    (cd "$repo" && source "$TICKET_LIB" && _tag_add_checked "$ticket_id" "brainstorm:complete") 2>/dev/null || _exit=$?
+
+    assert_eq "test_ticket_tag_pil_round_trip: exit 0 when PIL present" "0" "$_exit"
+
+    local tags
+    tags=$(_get_tags "$repo" "$ticket_id")
+    assert_contains "test_ticket_tag_pil_round_trip: brainstorm:complete in tags" "brainstorm:complete" "$tags"
+
+    assert_pass_if_clean "test_ticket_tag_pil_round_trip"
+}
+
+test_ticket_tag_pil_round_trip
+
+# ── Test 16: CLI rejects brainstorm:complete without PIL ─────────────────────
+echo ""
+echo "--- test_ticket_tag_cli_rejects_brainstorm_complete_without_pil ---"
+
+test_ticket_tag_cli_rejects_brainstorm_complete_without_pil() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "No PIL epic for CLI" 2>/dev/null | tr -d '[:space:]')
+
+    [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_tag_cli_rejects_brainstorm_complete_without_pil: could not create ticket" >&2; return; }
+
+    local _exit=0
+    local _stderr
+    _stderr=$(cd "$repo" && bash "$TICKET_SCRIPT" tag "$ticket_id" "brainstorm:complete" 2>&1 >/dev/null) || _exit=$?
+
+    assert_eq "test_ticket_tag_cli_rejects_brainstorm_complete_without_pil: exit 1 when PIL absent" "1" "$_exit"
+    assert_contains "test_ticket_tag_cli_rejects_brainstorm_complete_without_pil: stderr mentions Planning Intelligence Log" \
+        "Planning Intelligence Log" "$_stderr"
+    assert_contains "test_ticket_tag_cli_rejects_brainstorm_complete_without_pil: stderr mentions /dso:brainstorm" \
+        "/dso:brainstorm" "$_stderr"
+    assert_pass_if_clean "test_ticket_tag_cli_rejects_brainstorm_complete_without_pil"
+}
+
+test_ticket_tag_cli_rejects_brainstorm_complete_without_pil
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

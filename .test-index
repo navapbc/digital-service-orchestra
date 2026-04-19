@@ -266,3 +266,14 @@ plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket:tests/unit/scripts/test-ticket-tag.sh
+
+# --- PIL detection and _tag_add_checked guard (Story 2: c095-26fe, task 4d04-b152) ---
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_has_pil_finds_pil_in_create_description]
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_has_pil_finds_pil_in_edit_fields_description]
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_has_pil_finds_pil_in_comment_body]
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_has_pil_returns_nonzero_when_absent]
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_tag_add_checked_bypasses_check_for_non_brainstorm_tags]
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_tag_add_checked_rejects_brainstorm_complete_without_pil]
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_tag_add_checked_allows_brainstorm_complete_with_pil]
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_tag_pil_round_trip]
+plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_tag_cli_rejects_brainstorm_complete_without_pil]
