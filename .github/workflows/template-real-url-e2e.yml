@@ -1,0 +1,50 @@
+# Real-URL end-to-end validation for the DSO NextJS template repo.
+#
+# This workflow runs tests/scripts/test-create-dso-app-real-url.sh against
+# the live template repo at navapbc/digital-service-orchestra-nextjs-template.
+# Unlike the standard installer test suite (which stubs git), this test
+# exercises real git clone and verifies every interface contract surface from
+# docs/designs/create-dso-app-template-contract.md.
+#
+# Triggers (network-dependent — kept off the per-PR fast lane):
+#   - Daily at 06:00 UTC                       (cron schedule)
+#   - Manually via the Actions tab             (workflow_dispatch)
+#   - Tag push matching v*                     (release-gate)
+#
+# The test is opt-in via the RUN_REAL_URL_E2E=1 environment variable. This
+# workflow sets that env var; running the test script without it produces a
+# SKIP exit-0 line and runs no network calls.
+
+name: Template Real-URL E2E
+
+on:
+  schedule:
+    # Daily 06:00 UTC — well before US workday so failures are visible by morning
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+# Network-dependent — do not race with other release workflows.
+concurrency:
+  group: template-real-url-e2e
+  cancel-in-progress: false
+
+jobs:
+  real-url-e2e:
+    name: Real-URL contract verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out plugin repo
+        uses: actions/checkout@v4
+
+      - name: Run real-URL e2e against the live template
+        env:
+          RUN_REAL_URL_E2E: '1'
+          # GH_TOKEN exposes a token to gh CLI for the LICENSE blob SHA lookup
+          # (the test falls back to raw curl when gh is unavailable, so this is
+          # belt-and-suspenders rather than strict requirement).
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash tests/scripts/test-create-dso-app-real-url.sh

@@ -331,11 +331,15 @@ if [ "$1" = "clone" ]; then
         case "$arg" in -*) ;; *) target="$arg" ;; esac
     done
     if [ -n "$target" ] && [ "$target" != "clone" ]; then
-        mkdir -p "$target/app"
-        printf '{"name":"template","scripts":{"dev":"next dev"},"dependencies":{"next":"^14.0.0"}}\n' \
+        # Mirror the real template structure: Next.js App Router under src/app/,
+        # not a top-level app/ directory. See
+        # docs/designs/create-dso-app-template-contract.md for the contract.
+        mkdir -p "$target/src/app"
+        printf '{"name":"{{PROJECT_NAME}}","scripts":{"dev":"next dev"},"dependencies":{"next":"^14.0.0"}}\n' \
             > "$target/package.json"
-        touch "$target/app/page.tsx"
+        touch "$target/src/app/page.tsx"
         mkdir -p "$target/.claude"
+        touch "$target/CLAUDE.md"
     fi
     exit 0
 fi
@@ -388,9 +392,13 @@ test_project_structure_created() {
     [[ -f "$project_dir/package.json" ]] && pkg_ok="yes"
     assert_eq "project structure: package.json present" "yes" "$pkg_ok"
 
+    # Accept all valid Next.js app entry-point layouts. The real DSO NextJS
+    # template uses src/app/ (App Router with src/ convention). app/ and pages/
+    # are accepted for templates that diverge from the src/ convention. See
+    # docs/designs/create-dso-app-template-contract.md.
     local app_ok="no"
-    { [[ -d "$project_dir/app" ]] || [[ -d "$project_dir/pages" ]]; } && app_ok="yes"
-    assert_eq "project structure: app/ or pages/ present" "yes" "$app_ok"
+    { [[ -d "$project_dir/src/app" ]] || [[ -d "$project_dir/app" ]] || [[ -d "$project_dir/pages" ]]; } && app_ok="yes"
+    assert_eq "project structure: src/app/, app/, or pages/ present" "yes" "$app_ok"
 
     local infra_ok="no"
     { [[ -d "$project_dir/.claude" ]] || [[ -f "$project_dir/CLAUDE.md" ]]; } && infra_ok="yes"

@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 # create-dso-app.sh — DSO NextJS Starter one-command bootstrap installer
+#
+# Clones the live template repo at:
+#   https://github.com/navapbc/digital-service-orchestra-nextjs-template
+# (public, Apache-2.0 — derived from navapbc/template-application-nextjs;
+#  upstream attribution preserved in the template's NOTICE file).
+#
+# Interface contract: docs/designs/create-dso-app-template-contract.md
+# Real-URL e2e test:  tests/scripts/test-create-dso-app-real-url.sh
+#                     (opt-in via RUN_REAL_URL_E2E=1; CI-scheduled daily)
+#
 # Partial-download protection: all logic inside main(), invoked at end of file.
 set -euo pipefail
 
