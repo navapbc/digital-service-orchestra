@@ -138,6 +138,20 @@ Exit the loop as soon as the confidence test passes — do not ask more question
 
 **Dogfooding Evaluation**: Define *intent-match* as: the agent's final action matches the user's actual intent on the first attempt. Log each clarification loop entry and score intent-match after each interaction. Target: 80% intent-match rate across 20+ interactions. This measures success of the clarification loop.
 
+## Sub-Agent Delegation
+
+Claude defaults to sequential, inline work. These thoughts mean STOP—delegate instead:
+
+| Thought | Reality |
+|---------|---------|
+| "I'll read these files one by one" | 10+ files? Use Agent (Explore) — sequential reads waste context. |
+| "I'll edit each file in sequence" | Independent edits can run in parallel — dispatch sub-agents. |
+| "I'll review my own changes" | Use /dso:review — self-review misses what you optimized away. |
+
+**Scope**: Sub-agents dispatched by this guidance must NOT re-apply this startup hook guidance to spawn further sub-agents. Recursive agent spawning is prohibited.
+
+**Limits**: Sub-agent count caps and commit-before-new-batch requirements are governed by CLAUDE.md Never-Do rules (rules 1–2).
+
 ## Friction Recording
 
 When encountering repeated friction — unclear instructions, confusing skill steps, workflows that required workarounds, or patterns that slowed you down — consider calling the suggestion recorder to capture the observation for future improvement:
