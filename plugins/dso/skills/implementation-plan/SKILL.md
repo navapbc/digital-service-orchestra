@@ -593,6 +593,31 @@ Before drafting tasks, enumerate all files affected by the story. This produces 
 
 Use this table to determine which TDD task types to create (see TDD Task Structure below). Files classified `still-valid` require no test task. Files classified `needs-modification` require a **modify-existing-test** RED task. Files classified `needs-removal` require a **remove-test** task. Files classified `needs-creation` require a **create-test** RED task (the existing flow).
 
+### Consumer Detection Pass
+
+For every file in the impact table whose action is `modify` or `remove`, run a downstream consumer detection pass to identify callers/callsites outside the immediate task scope. A change that looks local can still break external consumers — those callsites must be enumerated before the task is drafted, not discovered at implementation time.
+
+**Prefer `sg` (ast-grep) over text grep** — `sg` is syntax-aware and distinguishes real symbol references from comments and strings. Guard against unavailability:
+
+```bash
+if command -v sg >/dev/null 2>&1; then
+    # Find every callsite of a symbol (function, method, etc.)
+    sg --pattern '$FUNC($$$)' --lang python . | grep -F '<symbol_name>'
+    # Or, target a specific symbol directly:
+    sg --pattern '<symbol_name>($$$)' --lang python .
+else
+    # Fall back to grep — accept the false-positive cost
+    grep -rn '<symbol_name>(' .
+fi
+```
+
+When external consumers (callers / callsites in files outside the current task's scope) are found, document them in the task's File Impact section with one of two explicit dispositions:
+
+- **Update** — the external callsite must be changed in this task; add the consumer file to the impact table with action `modify` and pull its tests in.
+- **Accept the breaking change** — the change is intentionally breaking for that consumer; record the rationale and ensure the consumer's owner story or follow-on ticket is linked.
+
+A modify/remove task with un-triaged external consumers is incomplete and must be revised before it leaves Step 3.
+
 ### Testing Mode Classification
 
 Each task in the plan must carry an explicit `testing_mode` field — either **RED**, **GREEN**, or **UPDATE** — derived from the file impact table. The classification describes what the code does to observable behavior, not what text it adds or removes from source files.
