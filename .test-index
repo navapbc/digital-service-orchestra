@@ -29,7 +29,11 @@ plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow
 plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh,tests/docs/test-reviewer-base-repo-root-context.sh,tests/scripts/test-reviewer-agent-review-tier.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
 plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/hooks/test-review-protocol-workflow.sh,tests/skills/test_review_workflow_model_escalation.py,tests/workflows/test-review-workflow-classifier-failure-guards.sh
-plugins/dso/docs/workflows/prompts/reviewer-delta-light.md:tests/docs/test-reviewer-polyglot-compliance.sh
+plugins/dso/docs/workflows/prompts/reviewer-delta-light.md:tests/docs/test-reviewer-polyglot-compliance.sh,tests/docs/test-reviewer-blindspot-annotations.sh
+plugins/dso/docs/workflows/prompts/reviewer-delta-deep-hygiene.md:tests/docs/test-reviewer-blindspot-annotations.sh [test_blindspot_in_deep_hygiene]
+plugins/dso/docs/workflows/prompts/reviewer-delta-deep-correctness.md:tests/docs/test-reviewer-blindspot-annotations.sh
+plugins/dso/docs/workflows/prompts/reviewer-delta-deep-arch.md:tests/docs/test-reviewer-blindspot-annotations.sh
+plugins/dso/docs/workflows/prompts/reviewer-delta-standard.md:tests/docs/test-reviewer-blindspot-annotations.sh
 plugins/dso/docs/workflows/TEST-FAILURE-DISPATCH.md:plugins/dso/skills/sprint/prompts/test-failure-dispatch-protocol.md
 plugins/dso/hooks/dispatchers/post-agent.sh:tests/hooks/test-post-agent-sentinel.sh,tests/hooks/test-post-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/post-bash.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
@@ -171,7 +175,7 @@ plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh
 CLAUDE.md:tests/skills/test-nextjs-starter-docs.sh
 docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh
 plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh
-scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
+plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
 plugins/dso/skills/brainstorm/prompts/cross-epic-scan.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/skills/test-interaction-deferred-gate.sh
