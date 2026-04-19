@@ -810,6 +810,23 @@ Scan the output for any existing task whose title contains `Contract:` and the s
 
 The contract task must be declared as a dependency of all implementation tasks that touch either side of the interface — both the emitter side and the parser side. This ensures the interface is specified before either side is implemented.
 
+### Pattern Reference
+
+When the upstream `dso:complexity-evaluator` output specifies `pattern_familiarity: low` or `medium` for a task, enrich the generated task description with a `## Pattern Reference` block containing up to 30 lines of representative codebase examples. This gives the implementation sub-agent concrete prior art to mirror, reducing the chance of inventing a novel pattern when an established one already exists.
+
+#### Gating Rule
+
+- `pattern_familiarity: low` — REQUIRED: include a Pattern Reference block.
+- `pattern_familiarity: medium` — REQUIRED: include a Pattern Reference block.
+- `pattern_familiarity: high` (or no evaluator output) — OMIT the section entirely; the sub-agent already knows the pattern and extra context is noise.
+
+#### Retrieval Rules
+
+- Use local `grep`/`glob` only to find representative examples — no external lookups, no nested LLM calls.
+- Search anchors come from the task's file impact list and the evaluator's identified pattern keywords.
+- Cap the included excerpt at **≤30 lines total** across all examples so task descriptions stay concise. If a single example exceeds 30 lines, truncate with `# ...` and prefer the most representative slice (function signature + body fragment).
+- Cite each example with its source path (e.g., `# from src/utils/example.sh:42-58`).
+
 ---
 
 ## Step 4: Implementation Plan Review (/dso:implementation-plan)
