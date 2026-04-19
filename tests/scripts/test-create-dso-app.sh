@@ -85,6 +85,8 @@ BREWEOF
     _write_stub "$stub_bin" "git" "exit 0"
     _write_stub "$stub_bin" "greadlink" "exit 0"
     _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "python3" "exit 0"
+    _write_stub "$stub_bin" "docker" "exit 0"
     _write_stub "$stub_bin" "node" "echo \"$node_ver\"; exit 0"
     _write_stub "$stub_bin" "claude" "exit 0"
     # Proxy stubs: the script calls grep/head/dirname/tr for version parsing
@@ -93,6 +95,10 @@ BREWEOF
     _write_stub "$stub_bin" "head"    '/usr/bin/head "$@"'
     _write_stub "$stub_bin" "dirname" '/usr/bin/dirname "$@"'
     _write_stub "$stub_bin" "tr"      '/usr/bin/tr "$@"'
+    # Stubs for plugin-prerequisites added in e8c4-d3ed fix
+    _write_stub "$stub_bin" "uv"      "exit 0"
+    _write_stub "$stub_bin" "sg"      "exit 0"
+    _write_stub "$stub_bin" "semgrep" "exit 0"
 
     echo "$stub_bin"
 }
@@ -340,6 +346,8 @@ GITSTUB
     _write_stub "$stub_bin" "bash" "echo \"GNU bash, version 5.2.15(1)-release (x86_64)\"; exit 0"
     _write_stub "$stub_bin" "greadlink" "exit 0"
     _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "python3" "exit 0"
+    _write_stub "$stub_bin" "docker" "exit 0"
     _write_stub "$stub_bin" "npm" "exit 0"
     _write_stub "$stub_bin" "node" "echo \"$node_ver\"; exit 0"
     _write_stub "$stub_bin" "claude" "exit 0"
@@ -355,6 +363,10 @@ GITSTUB
     _write_stub "$stub_bin" "date"    '/bin/date "$@"'
     # rm is used by the partial-init start-fresh path and cleanup trap
     _write_stub "$stub_bin" "rm"      '/bin/rm "$@"'
+    # Stubs for plugin-prerequisites added in e8c4-d3ed fix
+    _write_stub "$stub_bin" "uv"      "exit 0"
+    _write_stub "$stub_bin" "sg"      "exit 0"
+    _write_stub "$stub_bin" "semgrep" "exit 0"
 
     echo "$stub_bin"
 }
@@ -678,6 +690,456 @@ BREWEOF
 
 test_missing_git_auto_installs_via_brew
 test_brew_shellenv_path_injection_prevents_false_missing
+
+# ── test_missing_python3_brew_failure_reports_missing ────────────────────────
+# When python3 is absent from PATH AND `brew install python3` fails (exit 1),
+# the script must exit non-zero and include "python3" in the error output.
+#
+# RED: fails before fix because check_homebrew_deps() has no python3 check at
+# all — python3 absence is silently ignored, brew install python3 is never
+# called, and the script exits 0 with "All dependencies satisfied".
+#
+# GREEN: after fix, the script detects missing python3, calls
+# `brew install python3`, gets exit 1, accumulates python3 in missing[], and
+# exits non-zero with "python3" in the error output.
+test_missing_python3_brew_failure_reports_missing() {
+    local stub_bin node_prefix
+    stub_bin=$(_make_stub_bin)
+    node_prefix=$(mktemp -d)
+    TMPDIRS+=("$node_prefix")
+    mkdir -p "$node_prefix/bin"
+
+    # brew stub: `brew install python3` fails (exit 1) — simulates install failure
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+case "\$*" in
+  "install python3")    exit 1 ;;
+  "install node@20")    exit 0 ;;
+  "list node@20")       exit 0 ;;
+  "--prefix node@20")   echo "$node_prefix"; exit 0 ;;
+  "install --cask "*)   exit 0 ;;
+  "--version"|"-v")     echo "Homebrew 4.0.0"; exit 0 ;;
+  *)                    exit 0 ;;
+esac
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # Provide all deps EXCEPT python3 — python3 intentionally absent so brew
+    # auto-install fires and fails, triggering the missing[] accumulation path
+    _write_stub "$stub_bin" "bash"       "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
+    _write_stub "$stub_bin" "git"        "exit 0"
+    _write_stub "$stub_bin" "greadlink"  "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "node"       "echo \"v20.11.0\"; exit 0"
+    _write_stub "$stub_bin" "claude"     "exit 0"
+    # Proxy stubs for commands used in bash --version parsing and path detection
+    _write_stub "$stub_bin" "grep"       '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"       '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname"    '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"         '/usr/bin/tr "$@"'
+
+    # Run with strictly isolated PATH — /usr/bin/python3 must NOT be reachable
+    local output exit_code=0
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) || exit_code=$?
+
+    assert_ne "missing python3 (brew install fails): exits non-zero" "0" "$exit_code"
+
+    local python3_listed="no"
+    if echo "$output" | grep -qi "python3"; then
+        python3_listed="yes"
+    fi
+    assert_eq "missing python3 (brew install fails): listed in output" "yes" "$python3_listed"
+}
+
+test_missing_python3_brew_failure_reports_missing
+
+# ── test_missing_docker_colima_brew_failure_reports_missing ──────────────────
+# When neither docker NOR colima is on PATH AND `brew install colima` fails
+# (exit 1), the script must exit non-zero and include "colima" in the error
+# output.
+#
+# RED: fails before fix because check_homebrew_deps() has no container runtime
+# check at all — docker/colima absence is silently ignored, brew install colima
+# is never called, and the script exits 0 with "All dependencies satisfied"
+# even though no container runtime is present.
+#
+# GREEN: after fix, the script detects neither docker nor colima is present,
+# calls `brew install colima`, gets exit 1, accumulates colima in missing[],
+# and exits non-zero with "colima" in the error output.
+test_missing_docker_colima_brew_failure_reports_missing() {
+    local stub_bin node_prefix
+    stub_bin=$(_make_stub_bin)
+    node_prefix=$(mktemp -d)
+    TMPDIRS+=("$node_prefix")
+    mkdir -p "$node_prefix/bin"
+
+    # brew stub: `brew install colima` fails (exit 1) — simulates install
+    # failure; all other brew invocations succeed so they don't interfere
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+case "\$*" in
+  "install colima")    exit 1 ;;
+  "install node@20")   exit 0 ;;
+  "list node@20")      exit 0 ;;
+  "--prefix node@20")  echo "$node_prefix"; exit 0 ;;
+  "install --cask "*) exit 0 ;;
+  "--version"|"-v")   echo "Homebrew 4.0.0"; exit 0 ;;
+  *)                  exit 0 ;;
+esac
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # Provide all deps EXCEPT docker and colima — both are intentionally absent
+    # so the container runtime detection block fires and brew auto-install runs
+    _write_stub "$stub_bin" "bash"       "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
+    _write_stub "$stub_bin" "git"        "exit 0"
+    _write_stub "$stub_bin" "greadlink"  "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "python3"    "exit 0"
+    _write_stub "$stub_bin" "node"       "echo \"v20.11.0\"; exit 0"
+    _write_stub "$stub_bin" "claude"     "exit 0"
+    # Proxy stubs for commands used in bash --version parsing and path detection
+    _write_stub "$stub_bin" "grep"       '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"       '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname"    '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"         '/usr/bin/tr "$@"'
+    # NOTE: docker and colima are deliberately NOT added to stub_bin
+
+    # Run with strictly isolated PATH — system docker/colima must NOT be reachable
+    local output exit_code=0
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) || exit_code=$?
+
+    assert_ne "missing docker+colima (brew install fails): exits non-zero" "0" "$exit_code"
+
+    local colima_listed="no"
+    if echo "$output" | grep -qi "colima"; then
+        colima_listed="yes"
+    fi
+    assert_eq "missing docker+colima (brew install fails): colima listed in output" "yes" "$colima_listed"
+}
+
+test_missing_docker_colima_brew_failure_reports_missing
+
+# ── test_colima_start_failure_emits_warning ───────────────────────────────────
+# When colima is installed but `colima start` fails (exit 1), the script must
+# NOT exit non-zero (start failures are non-fatal) but MUST emit a WARNING to
+# stderr indicating manual intervention may be needed.
+test_colima_start_failure_emits_warning() {
+    local stub_bin node_prefix
+    stub_bin=$(_make_stub_bin)
+    node_prefix=$(mktemp -d)
+    TMPDIRS+=("$node_prefix")
+    mkdir -p "$node_prefix/bin"
+
+    # colima stub: installed (command -v succeeds) but start fails, status shows not-Running
+    cat > "$stub_bin/colima" <<'COLIMAEOF'
+#!/bin/sh
+case "$1" in
+  status) echo "colima is stopped"; exit 0 ;;
+  start)  exit 1 ;;
+  *)      exit 0 ;;
+esac
+COLIMAEOF
+    chmod +x "$stub_bin/colima"
+
+    # brew stub: all installs succeed; --prefix returns node prefix
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+case "\$*" in
+  "install node@20")   exit 0 ;;
+  "list node@20")      exit 0 ;;
+  "--prefix node@20")  echo "$node_prefix"; exit 0 ;;
+  "install --cask "*) exit 0 ;;
+  "--version"|"-v")   echo "Homebrew 4.0.0"; exit 0 ;;
+  *)                  exit 0 ;;
+esac
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # All deps present including colima; docker intentionally absent so start block fires
+    _write_stub "$stub_bin" "bash"       "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
+    _write_stub "$stub_bin" "git"        "exit 0"
+    _write_stub "$stub_bin" "greadlink"  "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "python3"    "exit 0"
+    _write_stub "$stub_bin" "node"       "echo \"v20.11.0\"; exit 0"
+    _write_stub "$stub_bin" "claude"     "exit 0"
+    _write_stub "$stub_bin" "grep"       '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"       '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname"    '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"         '/usr/bin/tr "$@"'
+    # docker intentionally NOT added — triggers colima path
+
+    local output exit_code=0
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) || exit_code=$?
+
+    assert_eq "colima start failure: script exits 0 (start is non-fatal)" "0" "$exit_code"
+
+    local warning_present="no"
+    if echo "$output" | grep -qi "WARNING"; then
+        warning_present="yes"
+    fi
+    assert_eq "colima start failure: WARNING emitted in output" "yes" "$warning_present"
+}
+
+test_colima_start_failure_emits_warning
+
+# ── test_missing_uv_brew_failure_reports_missing ─────────────────────────────
+# When uv is absent from PATH AND `brew install uv` fails (exit 1), the script
+# must exit non-zero and include "uv" in the error output.
+#
+# RED: fails before fix because check_homebrew_deps() has no uv check at all —
+# uv absence is silently ignored, brew install uv is never called, and the
+# script exits 0 with "All dependencies satisfied".
+#
+# GREEN: after fix, the script detects missing uv, calls `brew install uv`,
+# gets exit 1, accumulates uv in missing[], and exits non-zero with "uv" in
+# the error output.
+test_missing_uv_brew_failure_reports_missing() {
+    local stub_bin node_prefix
+    stub_bin=$(_make_stub_bin)
+    node_prefix=$(mktemp -d)
+    TMPDIRS+=("$node_prefix")
+    mkdir -p "$node_prefix/bin"
+
+    # brew stub: `brew install uv` fails (exit 1) — simulates install failure;
+    # all other brew invocations succeed so they don't interfere
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+case "\$*" in
+  "install uv")          exit 1 ;;
+  "install node@20")     exit 0 ;;
+  "list node@20")        exit 0 ;;
+  "--prefix node@20")    echo "$node_prefix"; exit 0 ;;
+  "install --cask "*)    exit 0 ;;
+  "--version"|"-v")      echo "Homebrew 4.0.0"; exit 0 ;;
+  *)                     exit 0 ;;
+esac
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # Provide all deps EXCEPT uv — uv intentionally absent so brew auto-install
+    # fires and fails, triggering the missing[] accumulation path
+    _write_stub "$stub_bin" "bash"       "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
+    _write_stub "$stub_bin" "git"        "exit 0"
+    _write_stub "$stub_bin" "greadlink"  "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "python3"    "exit 0"
+    _write_stub "$stub_bin" "docker"     "exit 0"
+    _write_stub "$stub_bin" "node"       "echo \"v20.11.0\"; exit 0"
+    _write_stub "$stub_bin" "claude"     "exit 0"
+    _write_stub "$stub_bin" "sg"         "exit 0"
+    _write_stub "$stub_bin" "semgrep"    "exit 0"
+    # Proxy stubs for commands used in bash --version parsing and path detection
+    _write_stub "$stub_bin" "grep"       '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"       '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname"    '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"         '/usr/bin/tr "$@"'
+    # NOTE: uv is deliberately NOT added to stub_bin
+
+    # Run with strictly isolated PATH — system uv must NOT be reachable
+    local output exit_code=0
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) || exit_code=$?
+
+    assert_ne "missing uv (brew install fails): exits non-zero" "0" "$exit_code"
+
+    local uv_listed="no"
+    if echo "$output" | grep -qi "uv"; then
+        uv_listed="yes"
+    fi
+    assert_eq "missing uv (brew install fails): listed in output" "yes" "$uv_listed"
+}
+
+# ── test_missing_astgrep_brew_failure_reports_missing ────────────────────────
+# When ast-grep (CLI binary: sg) is absent from PATH AND `brew install ast-grep`
+# fails (exit 1), the script must exit non-zero and include "ast-grep" in the
+# error output.
+#
+# RED: fails before fix because check_homebrew_deps() has no ast-grep check at
+# all — sg absence is silently ignored, brew install ast-grep is never called,
+# and the script exits 0 with "All dependencies satisfied".
+#
+# GREEN: after fix, the script detects missing sg (ast-grep), calls
+# `brew install ast-grep`, gets exit 1, accumulates ast-grep in missing[], and
+# exits non-zero with "ast-grep" in the error output.
+test_missing_astgrep_brew_failure_reports_missing() {
+    local stub_bin node_prefix
+    stub_bin=$(_make_stub_bin)
+    node_prefix=$(mktemp -d)
+    TMPDIRS+=("$node_prefix")
+    mkdir -p "$node_prefix/bin"
+
+    # brew stub: `brew install ast-grep` fails (exit 1) — simulates install
+    # failure; all other brew invocations succeed so they don't interfere
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+case "\$*" in
+  "install ast-grep")    exit 1 ;;
+  "install node@20")     exit 0 ;;
+  "list node@20")        exit 0 ;;
+  "--prefix node@20")    echo "$node_prefix"; exit 0 ;;
+  "install --cask "*)    exit 0 ;;
+  "--version"|"-v")      echo "Homebrew 4.0.0"; exit 0 ;;
+  *)                     exit 0 ;;
+esac
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # Provide all deps EXCEPT sg (the ast-grep CLI binary) — sg intentionally
+    # absent so `command -v sg` fails and brew auto-install fires and fails
+    _write_stub "$stub_bin" "bash"       "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
+    _write_stub "$stub_bin" "git"        "exit 0"
+    _write_stub "$stub_bin" "greadlink"  "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "python3"    "exit 0"
+    _write_stub "$stub_bin" "docker"     "exit 0"
+    _write_stub "$stub_bin" "node"       "echo \"v20.11.0\"; exit 0"
+    _write_stub "$stub_bin" "claude"     "exit 0"
+    _write_stub "$stub_bin" "uv"         "exit 0"
+    _write_stub "$stub_bin" "semgrep"    "exit 0"
+    # Proxy stubs for commands used in bash --version parsing and path detection
+    _write_stub "$stub_bin" "grep"       '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"       '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname"    '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"         '/usr/bin/tr "$@"'
+    # NOTE: sg (ast-grep binary) is deliberately NOT added to stub_bin
+
+    # Run with strictly isolated PATH — system sg must NOT be reachable
+    local output exit_code=0
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) || exit_code=$?
+
+    assert_ne "missing ast-grep/sg (brew install fails): exits non-zero" "0" "$exit_code"
+
+    local astgrep_listed="no"
+    if echo "$output" | grep -qi "ast-grep"; then
+        astgrep_listed="yes"
+    fi
+    assert_eq "missing ast-grep/sg (brew install fails): listed in output" "yes" "$astgrep_listed"
+}
+
+# ── test_missing_semgrep_brew_failure_reports_missing ────────────────────────
+# When semgrep is absent from PATH AND `brew install semgrep` fails (exit 1),
+# the script must exit non-zero and include "semgrep" in the error output.
+#
+# RED: fails before fix because check_homebrew_deps() has no semgrep check at
+# all — semgrep absence is silently ignored, brew install semgrep is never
+# called, and the script exits 0 with "All dependencies satisfied".
+#
+# GREEN: after fix, the script detects missing semgrep, calls
+# `brew install semgrep`, gets exit 1, accumulates semgrep in missing[], and
+# exits non-zero with "semgrep" in the error output.
+test_missing_semgrep_brew_failure_reports_missing() {
+    local stub_bin node_prefix
+    stub_bin=$(_make_stub_bin)
+    node_prefix=$(mktemp -d)
+    TMPDIRS+=("$node_prefix")
+    mkdir -p "$node_prefix/bin"
+
+    # brew stub: `brew install semgrep` fails (exit 1) — simulates install
+    # failure; all other brew invocations succeed so they don't interfere
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+case "\$*" in
+  "install semgrep")     exit 1 ;;
+  "install node@20")     exit 0 ;;
+  "list node@20")        exit 0 ;;
+  "--prefix node@20")    echo "$node_prefix"; exit 0 ;;
+  "install --cask "*)    exit 0 ;;
+  "--version"|"-v")      echo "Homebrew 4.0.0"; exit 0 ;;
+  *)                     exit 0 ;;
+esac
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # Provide all deps EXCEPT semgrep — semgrep intentionally absent so brew
+    # auto-install fires and fails, triggering the missing[] accumulation path
+    _write_stub "$stub_bin" "bash"       "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
+    _write_stub "$stub_bin" "git"        "exit 0"
+    _write_stub "$stub_bin" "greadlink"  "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "python3"    "exit 0"
+    _write_stub "$stub_bin" "docker"     "exit 0"
+    _write_stub "$stub_bin" "node"       "echo \"v20.11.0\"; exit 0"
+    _write_stub "$stub_bin" "claude"     "exit 0"
+    _write_stub "$stub_bin" "uv"         "exit 0"
+    _write_stub "$stub_bin" "sg"         "exit 0"
+    # Proxy stubs for commands used in bash --version parsing and path detection
+    _write_stub "$stub_bin" "grep"       '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"       '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname"    '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"         '/usr/bin/tr "$@"'
+    # NOTE: semgrep is deliberately NOT added to stub_bin
+
+    # Run with strictly isolated PATH — system semgrep must NOT be reachable
+    local output exit_code=0
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) || exit_code=$?
+
+    assert_ne "missing semgrep (brew install fails): exits non-zero" "0" "$exit_code"
+
+    local semgrep_listed="no"
+    if echo "$output" | grep -qi "semgrep"; then
+        semgrep_listed="yes"
+    fi
+    assert_eq "missing semgrep (brew install fails): listed in output" "yes" "$semgrep_listed"
+}
+
+test_missing_uv_brew_failure_reports_missing
+test_missing_astgrep_brew_failure_reports_missing
+test_missing_semgrep_brew_failure_reports_missing
+
+# ── test_installer_configures_dso_shim_after_deps ────────────────────────────
+# After a successful install, the DSO shim must exist at .claude/scripts/dso
+# in the project directory (placed there by dso-setup.sh invocation).
+#
+# RED: fails before fix because create-dso-app.sh never calls dso-setup.sh —
+# it installs deps and immediately writes the sentinel and launches Claude Code
+# without running any project configuration step.
+#
+# GREEN: after fix, main() calls dso-setup.sh after detect_dso_plugin_root,
+# the stub dso-setup.sh creates .claude/scripts/dso, assertion passes.
+test_installer_configures_dso_shim_after_deps() {
+    local stub_bin T project_dir fake_plugin_root
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    project_dir="$T/my-project"
+    fake_plugin_root="$T/fake-plugin"
+
+    # Fake plugin root: plugin.json sentinel + stub dso-setup.sh that creates the shim
+    mkdir -p "$fake_plugin_root/.claude-plugin" "$fake_plugin_root/scripts"
+    echo '{"name":"dso","version":"1.0.0"}' > "$fake_plugin_root/.claude-plugin/plugin.json"
+    cat > "$fake_plugin_root/scripts/dso-setup.sh" <<'SETUPEOF'
+#!/bin/sh
+target="${1:-}"
+if [ -n "$target" ]; then
+    /bin/mkdir -p "$target/.claude/scripts"
+    printf '#!/bin/sh\nexec dso "$@"\n' > "$target/.claude/scripts/dso"
+    /bin/chmod +x "$target/.claude/scripts/dso"
+fi
+exit 0
+SETUPEOF
+    chmod +x "$fake_plugin_root/scripts/dso-setup.sh"
+
+    stub_bin=$(_installer_stub_bin)
+    # Override bash stub: handle --version (returns >=4 for version check) but
+    # pass all other calls through to real /bin/bash so dso-setup.sh stub runs
+    cat > "$stub_bin/bash" <<'BASHEOF'
+#!/bin/sh
+case "$1" in
+  --version|-v) echo "GNU bash, version 5.2.15(1)-release (x86_64-pc-linux-gnu)"; exit 0 ;;
+  *) exec /bin/bash "$@" ;;
+esac
+BASHEOF
+    chmod +x "$stub_bin/bash"
+
+    CLAUDE_PLUGIN_ROOT="$fake_plugin_root" \
+    PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'\n' >/dev/null 2>&1 || true
+
+    local shim_ok="no"
+    [[ -f "$project_dir/.claude/scripts/dso" ]] && [[ -x "$project_dir/.claude/scripts/dso" ]] && shim_ok="yes"
+    assert_eq "installer runs dso-setup: .claude/scripts/dso shim installed" "yes" "$shim_ok"
+}
+
+test_installer_configures_dso_shim_after_deps
 
 # ── test_no_project_name_no_tty_prints_usage_hint ────────────────────────────
 # Bug 3ce2-f279: running the script with no positional arg and no tty silently

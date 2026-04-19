@@ -227,15 +227,18 @@ if [[ -x "$TAG_RELEASE_SCRIPT" ]]; then
     fi
     rm -f "$_TAG_RELEASE_STDERR"
     trap - EXIT
-    # If tag-release.sh left uncommitted files, warn but do not commit them here.
-    # Committing from within release.sh would bypass the pre-commit review gate
-    # (Rule 18 in CLAUDE.md). The caller must ensure tag-release.sh commits its
-    # own changes before invoking release.sh, or use /dso:commit to commit them
-    # with proper review after the release completes.
+    # Commit version bump files before creating the tag so the tag lands on the
+    # bump commit, not the pre-bump HEAD. plugin.json and marketplace.json are in
+    # review-gate-allowlist.conf so this commit does not require a review pass.
     BUMP_DIRTY="$(git status --porcelain 2>/dev/null)"
     if [[ -n "$BUMP_DIRTY" ]]; then
-        echo "WARNING: tag-release.sh left uncommitted changes — tag $TAG points to the pre-bump commit" >&2
-        echo "         Run '/dso:commit' or commit manually to include the version bump in history" >&2
+        _UNEXPECTED=$(echo "$BUMP_DIRTY" | grep -v 'plugin\.json\|marketplace\.json' || true)
+        if [[ -n "$_UNEXPECTED" ]]; then
+            echo "WARNING: tag-release.sh left unexpected dirty files (not committed):" >&2
+            echo "$_UNEXPECTED" >&2
+        fi
+        git add "plugins/dso/.claude-plugin/plugin.json" ".claude-plugin/marketplace.json" 2>/dev/null || true
+        git commit -m "chore: bump version to $TAG"
     fi
 fi
 

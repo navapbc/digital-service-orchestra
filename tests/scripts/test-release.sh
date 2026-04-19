@@ -1137,4 +1137,91 @@ assert_eq "test_release_defaults_version_from_plugin_json: tag uses plugin.json 
 
 assert_pass_if_clean "test_release_defaults_version_from_plugin_json"
 
+# =============================================================================
+# test_release_tag_points_to_bump_commit
+# Given: tag-release.sh leaves version files dirty (simulated by stateful git
+#        status mock returning dirty after the precondition clean check)
+# When:  scripts/release.sh 1.2.3 --yes is called
+# Then:  git commit is called BEFORE git tag -a (so tag lands on bump commit)
+# =============================================================================
+echo ""
+echo "--- test_release_tag_points_to_bump_commit ---"
+_snapshot_fail
+
+_tmp_order="$(_make_tmp)"
+_mock_order="$_tmp_order/bin"
+_fake_repo_order="$(_make_git_repo)"
+mkdir -p "$_fake_repo_order/.claude-plugin"
+printf '{"name":"p","version":"1.0.0"}' > "$_fake_repo_order/.claude-plugin/marketplace.json"
+_call_seq_log="$_tmp_order/call-sequence.log"
+_status_call_count="$_tmp_order/status-call-count"
+echo "0" > "$_status_call_count"
+
+mkdir -p "$_fake_repo_order/.claude/scripts"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$_fake_repo_order/.claude/scripts/dso"
+chmod +x "$_fake_repo_order/.claude/scripts/dso"
+
+mkdir -p "$_mock_order"
+cat > "$_mock_order/git" << STUB
+#!/usr/bin/env bash
+case "\$1" in
+  branch)   echo "main"; exit 0 ;;
+  fetch)    exit 0 ;;
+  rev-list) echo "0"; exit 0 ;;
+  rev-parse)
+    case "\$2" in
+      --show-toplevel) echo "$_fake_repo_order"; exit 0 ;;
+      --abbrev-ref)    echo "origin/main"; exit 0 ;;
+      *)               echo "deadbeef000000"; exit 0 ;;
+    esac
+    ;;
+  status)
+    # First call: clean (precondition check). Subsequent calls: dirty (post-bump).
+    _cnt=\$(cat "$_status_call_count" 2>/dev/null || echo 0)
+    echo \$((_cnt + 1)) > "$_status_call_count"
+    if [[ "\$_cnt" -gt 0 ]]; then
+      echo " M plugins/dso/.claude-plugin/plugin.json"
+    fi
+    exit 0
+    ;;
+  add)    exit 0 ;;
+  commit)
+    echo "commit" >> "$_call_seq_log"
+    exit 0
+    ;;
+  tag)
+    [[ "\$2" == "-a" ]] && echo "tag" >> "$_call_seq_log"
+    exit 0
+    ;;
+  push)   exit 0 ;;
+  *)      exit 0 ;;
+esac
+STUB
+chmod +x "$_mock_order/git"
+
+make_mock "$_mock_order" "gh" 0 '[{"conclusion":"success"}]'
+
+_order_exit=0
+(
+    cd "$_fake_repo_order"
+    PATH="$_mock_order:$PATH" bash "$SCRIPT" "1.2.3" --yes < /dev/null > /dev/null 2>/dev/null
+) || _order_exit=$?
+
+assert_eq "test_release_tag_points_to_bump_commit: exits 0" "0" "$_order_exit"
+
+# Verify commit appeared before tag in the call sequence
+_commit_line=0
+_tag_line=0
+if [[ -f "$_call_seq_log" ]]; then
+    _commit_line=$(grep -n "^commit$" "$_call_seq_log" | head -1 | cut -d: -f1 || echo 0)
+    _tag_line=$(grep -n "^tag$" "$_call_seq_log" | head -1 | cut -d: -f1 || echo 0)
+fi
+_commit_before_tag=0
+if [[ -n "$_commit_line" && -n "$_tag_line" && "$_commit_line" -gt 0 && "$_tag_line" -gt 0 && "$_commit_line" -lt "$_tag_line" ]]; then
+    _commit_before_tag=1
+fi
+assert_eq "test_release_tag_points_to_bump_commit: commit called before tag (tag lands on bump commit)" "1" "$_commit_before_tag"
+
+assert_pass_if_clean "test_release_tag_points_to_bump_commit"
+
 print_summary
