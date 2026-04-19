@@ -267,4 +267,3 @@ plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket:tests/unit/scripts/test-ticket-tag.sh
 
-plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh [test_ticket_tag_cli_rejects_brainstorm_complete_without_pil]
