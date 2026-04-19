@@ -17,7 +17,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SCRIPT_UNDER_TEST="$PLUGIN_ROOT/plugins/dso/scripts/create-dso-app.sh"
+SCRIPT_UNDER_TEST="$PLUGIN_ROOT/scripts/create-dso-app.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -270,7 +270,7 @@ test_installer_writes_plugin_root_to_config() {
     bash -c "
         MARKETPLACE_BASE='$mock_marketplace' \
         CLAUDE_PLUGIN_ROOT='' \
-        source '$PLUGIN_ROOT/plugins/dso/scripts/create-dso-app.sh'
+        source '$PLUGIN_ROOT/scripts/create-dso-app.sh'
         detect_dso_plugin_root '$project_dir'
     " 2>/dev/null || invoke_exit=$?
 
@@ -1140,5 +1140,40 @@ BASHEOF
 }
 
 test_installer_configures_dso_shim_after_deps
+
+# ── test_no_project_name_no_tty_prints_usage_hint ────────────────────────────
+# Bug 3ce2-f279: running the script with no positional arg and no tty silently
+# exits 0 after "All dependencies satisfied." — user gets no hint about how to
+# invoke it. Fix: when non-interactive and no project name, print usage hint to
+# stderr before exit 0. Test harness has no controlling tty, so [ -t 0 ] is
+# false and the non-interactive branch is exercised.
+test_no_project_name_no_tty_prints_usage_hint() {
+    echo ""
+    echo "→ test_no_project_name_no_tty_prints_usage_hint"
+
+    local stub_bin output exit_code
+    stub_bin=$(_all_deps_stub_bin)
+
+    # Run with NO positional argument. Redirect stdin from /dev/null so
+    # [ -t 0 ] is false inside the script (no tty path).
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" </dev/null 2>&1)
+    exit_code=$?
+
+    # Backward-compat: still exits 0
+    assert_eq "no-arg no-tty: exit 0 preserved" "0" "$exit_code"
+
+    # Backward-compat: still prints deps-satisfied message
+    local satisfied="no"
+    echo "$output" | grep -q "All dependencies satisfied" && satisfied="yes"
+    assert_eq "no-arg no-tty: deps-satisfied message preserved" "yes" "$satisfied"
+
+    # RED assertion: output must mention "project-name" so the user knows how
+    # to re-invoke. Currently fails — script emits no usage hint.
+    local has_hint="no"
+    echo "$output" | grep -qi "project-name" && has_hint="yes"
+    assert_eq "no-arg no-tty: usage hint mentions project-name" "yes" "$has_hint"
+}
+
+test_no_project_name_no_tty_prints_usage_hint
 
 print_summary

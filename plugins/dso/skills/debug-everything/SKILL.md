@@ -48,6 +48,17 @@ Two entry modes: (1) **Bug-Fix Mode** — when open bug tickets exist, skip diag
 
 ---
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
+---
+
 ## Step 0: GitHub Actions Pre-Scan (/dso:debug-everything)
 
 Scan configured GitHub Actions workflows for CI failures and create bug tickets for any untracked failures. This step runs **before** the open-bug-count pre-check so that any newly discovered CI failures are visible to the rest of the skill.

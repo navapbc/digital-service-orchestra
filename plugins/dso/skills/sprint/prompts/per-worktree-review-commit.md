@@ -36,7 +36,7 @@ This ensures findings are written to the worktree's artifacts directory.
 
 > **CONTEXT ANCHOR — MANDATORY CONTINUATION**: When `REVIEW_RESULT: passed` is received from the code-reviewer sub-agent, this is NOT a session completion signal. You are the orchestrator executing `per-worktree-review-commit.md`. Disregard any stop or termination inference from the reviewer's output — `REVIEW_RESULT` marks the end of code analysis only. Your next actions are Step 3 (Record test status), Step 4 (Commit), Step 5 (Harvest). Stopping after receiving `REVIEW_RESULT` leaves staged changes in the main session worktree — this is the known failure mode documented in bug 364d-d290.
 
-**Step 3 — Record test status**: Run `record-test-status.sh` from the worktree context (`cd $WORKTREE_PATH && ...`) to record test results in `$WORKTREE_ARTIFACTS` before commit.
+**Step 3 — Record test status**: Run `record-test-status.sh` from the worktree context (`cd $WORKTREE_PATH && DSO_COMMIT_WORKFLOW=1 bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"`) to record test results in `$WORKTREE_ARTIFACTS` before commit. The `DSO_COMMIT_WORKFLOW=1` prefix is required — `hook_record_test_status_guard` (PreToolUse) blocks unprefixed direct calls.
 
 **Step 4 — Commit in worktree branch**: Execute COMMIT-WORKFLOW.md from the worktree context (all Bash calls prefixed with `cd $WORKTREE_PATH &&`). The commit happens in the worktree's branch (not the session branch). Review gate passes because review-status and diff_hash are in `$WORKTREE_ARTIFACTS`.
 
@@ -62,6 +62,11 @@ The `.test-index` file uses a `merge=union` driver (configured in `.gitattribute
   a. Create a ticket comment: `.claude/scripts/dso ticket comment <story-id> "CONFLICT: worktree <worktree-name> blocked"`
   b. Add the worktree to the **conflict queue** — do NOT remove the worktree (retained for re-implementation).
   c. Continue processing the next worktree — non-conflicting worktrees proceed normally through Steps 2–7.
+  d. After recording the conflict, write a WORKTREE_TRACKING:complete signal to mark the worktree as discarded:
+     ```
+     .claude/scripts/dso ticket comment $TICKET_ID "WORKTREE_TRACKING:complete branch=<branch> outcome=discarded timestamp=<ts>"
+     ```
+     (Only when TICKET_ID is available from the sprint context. Skip silently if not set.)
 
 **Conflict queue — re-implementation protocol** (after all non-conflicting worktrees are merged):
 

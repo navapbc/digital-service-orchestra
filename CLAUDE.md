@@ -32,6 +32,8 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Create a ticket | `.claude/scripts/dso ticket create <type> <title> [--description <text>] [--tags <tag>] [--parent <parent>] [--priority <priority>]` |
 | Close a ticket | `.claude/scripts/dso ticket transition <id> <current-status> closed` (bug tickets require `--reason="Fixed: <summary>"`) |
 | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` |
+| Add tag to a ticket | `.claude/scripts/dso ticket tag <id> <tag>` |
+| Remove tag from a ticket | `.claude/scripts/dso ticket untag <id> <tag>` |
 | Review event stats | `.claude/scripts/dso review-stats.sh` |
 | Run a recipe transform | `.claude/scripts/dso recipe-executor.sh <recipe-name> [--param key=value ...]` |
 | Sync stale host-project artifacts to current plugin version | `.claude/scripts/dso update-artifacts` |
@@ -103,6 +105,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 
 **Worktree lifecycle** (`claude-safe`): After Claude exits, `_offer_worktree_cleanup` auto-removes the worktree if: (1) branch is ancestor of main (`is_merged`), AND (2) `git status --porcelain` is empty (`is_clean`). No special filtering — `.tickets-tracker/` files block removal like any other dirty file. `/dso:end-session` ensures the worktree meets these criteria by: generating technical learnings (Step 2.8) and creating bug tickets (Step 2.85) before commit/merge, and verifying `is_merged` + `is_clean` (Step 4.75) before session summary.
 **Worktree isolation** (`worktree.isolation_enabled`, default: true): Sprint, fix-bug, and debug-everything dispatch implementation sub-agents with `isolation: worktree`, giving each agent its own working directory. Orchestrator reviews and commits each worktree serially via `per-worktree-review-commit.md`, then merges into session branch via `harvest-worktree.sh` which verifies gate artifacts (test-gate-status + review-status) and writes attested status to the session (contract: `plugins/dso/docs/contracts/harvest-attestation-format.md`). See `plugins/dso/skills/shared/prompts/worktree-dispatch.md`.
+**WORKTREE_TRACKING comment lifecycle**: Sprint, fix-bug, and sub-agent task-execution write `WORKTREE_TRACKING:start` (on transition to in_progress), `:complete` (via `harvest-worktree.sh` `_harvest_cleanup` trap — `outcome=merged` or `discarded`), and `:landed` (in end-session after `merge-to-main.sh`) as ticket comments. At resume time, sprint and fix-bug scan for unmatched `:start` comments and autonomously merge (unique commits, no conflicts) or discard (already merged / conflict) each abandoned branch, applying a 4-stage tiebreak cascade for multiple competing branches. See `plugins/dso/docs/contracts/worktree-tracking-comment.md` for comment format. Known gap: debug-everything dispatches bug-fix sub-agents with worktree isolation but does not include a resume scan; follow-up tracked in KNOWN-ISSUES.md INC-021.
 
 **File placement**: Design documents go in `docs/designs/` (project-local) or `plugins/dso/skills/<skill>/docs/` (plugin-local) — not bare `designs/` at repo root.
 

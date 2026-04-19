@@ -24,6 +24,15 @@ Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write 
 
 **Supports dryrun mode.** Use `/dso:dryrun /dso:brainstorm` to preview without changes.
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
 ## Usage
 
 ```
@@ -400,7 +409,7 @@ If `CROSS_EPIC_SIGNALS` (from Step 2.25) contains signals with `severity="ambigu
 
 1. **Tag the epic** with `interaction:deferred`:
    ```bash
-   .claude/scripts/dso ticket edit <epic-id> --tags interaction:deferred
+   .claude/scripts/dso ticket tag <epic-id> interaction:deferred
    ```
 
 2. **If running non-interactively** (`BRAINSTORM_INTERACTIVE=false`): log `INTERACTIVITY_DEFERRED: cross-epic interaction signals require practitioner resolution. Epic tagged interaction:deferred. Re-run /dso:brainstorm <epic-id> interactively to resolve.` and exit without proceeding to Step 2.5.
@@ -425,7 +434,7 @@ If `CROSS_EPIC_SIGNALS` (from Step 2.25) contains signals with `severity="ambigu
 
    Wait for the user's response:
    - **(a) Resolve**: Re-enter Phase 1 (Context + Socratic Dialogue) with the conflict context as seeding material. After the user provides clarification, return to Step 2.25 and re-run the scan.
-   - **(b) Override**: Remove the `interaction:deferred` tag: `.claude/scripts/dso ticket edit <epic-id> --tags ""` (or remove the tag selectively). Log: `"CROSS_EPIC_SIGNALS overridden by practitioner — proceeding to scrutiny pipeline."` Continue to Step 2.5.
+   - **(b) Override**: Remove the `interaction:deferred` tag: `.claude/scripts/dso ticket untag <epic-id> interaction:deferred`. Log: `"CROSS_EPIC_SIGNALS overridden by practitioner — proceeding to scrutiny pipeline."` Continue to Step 2.5.
    - **(c) Halt**: Log: `"Brainstorm halted at practitioner request — cross-epic signals unresolved. Epic remains tagged interaction:deferred."` Stop. Do NOT proceed to Step 2.5.
 
 4. **If no ambiguity or conflict signals**: proceed to Step 2.5 normally.
@@ -761,29 +770,12 @@ Fix any issues before finalizing.
 Write a durable ticket-level tag to record that brainstorm has completed. This removes any `scrutiny:pending` tag while preserving all other existing tags (e.g., `design:approved`, `CLI_user`).
 
 ```bash
-# Read current tags from the epic
-current_tags_json=$(.claude/scripts/dso ticket show <epic-id>)
-current_tags=$(python3 -c "
-import json, sys
-data = json.loads(sys.argv[1])
-tags = data.get('tags', [])
-print('\n'.join(tags))
-" "$current_tags_json")
-
-# Remove scrutiny:pending if present, then append brainstorm:complete
-# (grep -vxF exits 1 when all lines filtered; || true handles empty-tag case)
-filtered_tags=$(echo "$current_tags" | grep -vxF "scrutiny:pending" | tr '\n' ',' | sed 's/,$//') || true
-if [ -n "$filtered_tags" ]; then
-    new_tags="${filtered_tags},brainstorm:complete"
-else
-    new_tags="brainstorm:complete"
-fi
-
-# Write merged tags via ticket edit --tags=
-.claude/scripts/dso ticket edit <epic-id> "--tags=${new_tags}"
+# Remove scrutiny:pending (no-op if not present) and add brainstorm:complete
+.claude/scripts/dso ticket untag <epic-id> scrutiny:pending
+.claude/scripts/dso ticket tag <epic-id> brainstorm:complete
 ```
 
-Pattern mirrors `.claude/scripts/dso design-approve.sh` read-merge-write. Replace `<epic-id>` with the actual epic ID variable available at Phase 3 execution context.
+Replace `<epic-id>` with the actual epic ID variable available at Phase 3 execution context.
 
 ### Step 3b: Write Brainstorm Completion Sentinel
 

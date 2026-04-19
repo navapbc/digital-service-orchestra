@@ -264,9 +264,38 @@ main() {
   # Repo URL is always the DSO NextJS template — not user-configurable via CLI args
   local repo_url="https://github.com/navapbc/digital-service-orchestra-nextjs-template"
 
-  # Dep-check-only mode: no project name means the caller just wanted to verify deps
+  # No project name supplied: try to prompt interactively when a terminal is
+  # available (covers `bash <(curl ...)` invocations where the script body is
+  # on stdin but /dev/tty is reachable). Fall back to dep-check-only exit 0
+  # with a usage hint for non-interactive / CI invocations.
   if [ -z "$project_name" ]; then
-    exit 0
+    # Reattach stdin to /dev/tty when we're not already on one — needed for
+    # curl|bash pipe invocations where stdin is the script body.
+    if [ ! -t 0 ] && [ -e /dev/tty ]; then
+      exec < /dev/tty 2>/dev/null || true
+    fi
+
+    if [ -t 0 ]; then
+      # Interactive: prompt for a project name
+      printf 'Project name: ' >&2
+      if ! read -r project_name; then
+        echo "" >&2
+        echo "No project name provided. Exiting." >&2
+        exit 1
+      fi
+      if [ -z "$project_name" ]; then
+        echo "No project name provided. Exiting." >&2
+        exit 1
+      fi
+    else
+      # Non-interactive (CI / no tty): print usage hint and exit 0 for
+      # backward-compatible dep-check-only behavior.
+      echo "" >&2
+      echo "No project name supplied — dep-check-only mode." >&2
+      echo "To scaffold a project, re-run with a <project-name> argument, e.g.:" >&2
+      echo "  bash <(curl -fsSL https://raw.githubusercontent.com/navapbc/digital-service-orchestra/HEAD/scripts/create-dso-app.sh) my-project" >&2
+      exit 0
+    fi
   fi
 
   # Step 2: Sanitize project name

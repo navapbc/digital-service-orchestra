@@ -10,8 +10,8 @@
 #   3. Get story data via ticket show
 #   4. Find design UUID from story comments or use story-id as design dir
 #   5. Validate designs/{uuid}/figma-revision.png exists and is non-empty
-#   6. Read current tags, remove TAG_AWAITING_IMPORT, append TAG_APPROVED
-#   7. Write merged tags via ticket edit --tags=
+#   6. Verify story has TAG_AWAITING_IMPORT
+#   7. Add TAG_APPROVED and remove TAG_AWAITING_IMPORT via ticket tag/untag
 #   8. Print success message
 set -euo pipefail
 
@@ -101,21 +101,15 @@ if ! echo "$current_tags" | grep -qxF "$TAG_AWAITING_IMPORT"; then
     exit 1
 fi
 
-# ── Build new tag list: remove TAG_AWAITING_IMPORT, append TAG_APPROVED ──────
-# grep -vxF exits 1 when no lines match (all lines were filtered), which triggers
-# set -e / pipefail. Use `|| true` to treat "no remaining tags" as empty string.
-filtered_tags=$(echo "$current_tags" | grep -vxF "$TAG_AWAITING_IMPORT" | tr '\n' ',' | sed 's/,$//') || true
-if [ -n "$filtered_tags" ]; then
-    new_tags="${filtered_tags},${TAG_APPROVED}"
-else
-    new_tags="$TAG_APPROVED"
-fi
-
-# ── Write merged tags via ticket edit --tags= ─────────────────────────────────
-_run_ticket edit "$story_id" "--tags=${new_tags}" || {
-    echo "Error: failed to update tags for story '$story_id'" >&2
+# ── Update tags via ticket tag/untag subcommands ──────────────────────────────
+_run_ticket tag "$story_id" "$TAG_APPROVED" || {
+    echo "Error: failed to add tag '$TAG_APPROVED' for story '$story_id'" >&2
+    exit 1
+}
+_run_ticket untag "$story_id" "$TAG_AWAITING_IMPORT" || {
+    echo "Error: failed to remove tag '$TAG_AWAITING_IMPORT' for story '$story_id'" >&2
     exit 1
 }
 
 # ── Success ───────────────────────────────────────────────────────────────────
-echo "Design approved for story '$story_id'. Tags updated: $new_tags"
+echo "Design approved for story '$story_id'."

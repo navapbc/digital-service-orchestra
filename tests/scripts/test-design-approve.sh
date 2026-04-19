@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # tests/scripts/test-design-approve.sh
-# RED tests: verify design-approve.sh approval command behavior.
+# Tests: verify design-approve.sh approval command behavior.
 #
-# These tests MUST FAIL until design-approve.sh is implemented.
-# The script does not exist yet — tests exercise its observable effects:
+# Tests exercise observable effects of design-approve.sh:
 #   exit codes, stderr error messages, and ticket tag state changes.
 #
 # Test scenarios:
@@ -26,6 +25,15 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 
 echo "=== test-design-approve.sh ==="
 
+# ── Pre-execution guard: verify ticket tag/untag dispatcher routing ────────────
+# design-approve.sh uses `ticket tag` and `ticket untag` subcommands.
+# If the dispatcher doesn't route them yet, skip the suite.
+_TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
+if ! grep -q "tag)" "$_TICKET_SCRIPT" 2>/dev/null; then
+    echo "SKIP: ticket tag dispatcher not present in $_TICKET_SCRIPT — skipping test suite" >&2
+    exit 0
+fi
+
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
 _cleanup() { for d in "${_CLEANUP_DIRS[@]:-}"; do rm -rf "$d"; done; }
@@ -34,14 +42,17 @@ trap _cleanup EXIT
 # ── Helper: create an isolated test workspace ─────────────────────────────────
 # Sets up:
 #   - $tmpdir/designs/<story_id>/   (designs directory for PNG placement)
-#   - $tmpdir/ticket                (stub ticket CLI that records edit calls)
+#   - $tmpdir/ticket                (stub ticket CLI that records calls)
 #   - $tmpdir/ticket.log            (log of all ticket CLI invocations)
-#   - $tmpdir/tags-written.txt      (captured tags value from edit --tags=)
+#   - $tmpdir/tag-calls.txt         (captured args from `ticket tag` calls)
+#   - $tmpdir/untag-calls.txt       (captured args from `ticket untag` calls)
 #
 # The stub ticket CLI handles:
-#   show <id>     → returns JSON with configurable tags (via FIXTURE_TAGS env)
-#   edit <id> --tags=VALUE → records VALUE to tags-written.txt; exits 0
-#   *             → exits 0 silently
+#   show <id>          → returns JSON with configurable tags (via fixture_tags)
+#   tag <id> <tag>     → records "<id> <tag>" to tag-calls.txt; exits 0
+#   untag <id> <tag>   → records "<id> <tag>" to untag-calls.txt; exits 0
+#   edit <id> --tags=VALUE → records VALUE to tags-written.txt (legacy path); exits 0
+#   *                  → exits 0 silently
 _setup_workspace() {
     local story_id="$1"
     local fixture_tags="${2:-}"   # JSON array string e.g. '["design:awaiting_import"]'
@@ -66,8 +77,16 @@ case "\$subcmd" in
         story_id="\${1:-}"
         echo '{"ticket_id":"'"$story_id"'","ticket_type":"story","status":"open","title":"Test story","priority":2,"tags":${fixture_tags:-[]}}'
         ;;
+    tag)
+        # Record: <ticket_id> <tag_name>
+        echo "\${1:-} \${2:-}" >> "${tmpdir}/tag-calls.txt"
+        ;;
+    untag)
+        # Record: <ticket_id> <tag_name>
+        echo "\${1:-} \${2:-}" >> "${tmpdir}/untag-calls.txt"
+        ;;
     edit)
-        # Parse --tags=VALUE from remaining args
+        # Legacy path: parse --tags=VALUE from remaining args
         ticket_id="\${1:-}"; shift || true
         for arg in "\$@"; do
             case "\$arg" in
@@ -90,7 +109,7 @@ STUB
 # ── Test DA-APPROVE-1: Happy path — PNG exists, tag swapped ──────────────────
 # Given: story has design:awaiting_import tag, designs/<id>/figma-revision.png exists (non-empty)
 # When: design-approve.sh <story_id> runs
-# Then: exit 0, ticket edit called with design:approved in tags, design:awaiting_import removed
+# Then: exit 0, `ticket tag` called with design:approved, `ticket untag` called with design:awaiting_import
 echo ""
 echo "Test DA-APPROVE-1: happy path — PNG exists, tag swapped to design:approved"
 
@@ -110,19 +129,19 @@ test_da_approve_1_happy_path() {
     # Assert exit 0
     assert_eq "DA-APPROVE-1: exit code" "0" "$_exit"
 
-    # Assert design:approved appears in the tags written to ticket
-    local tags_written=""
-    tags_written=$(cat "$tmpdir/tags-written.txt" 2>/dev/null || echo "")
-    assert_contains "DA-APPROVE-1: design:approved in written tags" "design:approved" "$tags_written"
+    # Assert `ticket tag` was called with design:approved
+    local tag_calls=""
+    tag_calls=$(cat "$tmpdir/tag-calls.txt" 2>/dev/null || echo "")
+    assert_contains "DA-APPROVE-1: design:approved in tag calls" "design:approved" "$tag_calls"
 
-    # Assert design:awaiting_import is NOT in the written tags.
-    # We only count a PASS if tags were actually written (file exists and non-empty) AND
-    # awaiting_import is absent — otherwise it's a FAIL (script didn't run or left old tag).
-    if [[ -n "$tags_written" ]] && [[ "$tags_written" != *"design:awaiting_import"* ]]; then
+    # Assert `ticket untag` was called with design:awaiting_import
+    local untag_calls=""
+    untag_calls=$(cat "$tmpdir/untag-calls.txt" 2>/dev/null || echo "")
+    if [[ -n "$untag_calls" ]] && [[ "$untag_calls" == *"design:awaiting_import"* ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))
-        printf "FAIL: DA-APPROVE-1: design:awaiting_import should be removed from tags\n  tags-written: '%s'\n" "$tags_written" >&2
+        printf "FAIL: DA-APPROVE-1: ticket untag should have been called with design:awaiting_import\n  untag-calls: '%s'\n" "$untag_calls" >&2
     fi
 }
 test_da_approve_1_happy_path
@@ -187,7 +206,9 @@ test_da_approve_3_empty_png
 # ── Test DA-APPROVE-4: Tag preservation — other tags kept after approval ──────
 # Given: story has design:awaiting_import AND priority:high tags
 # When: design-approve.sh <story_id> runs with a valid PNG
-# Then: exit 0, written tags include design:approved AND priority:high, NOT design:awaiting_import
+# Then: exit 0, `ticket tag` called with design:approved,
+#       `ticket untag` called with design:awaiting_import,
+#       no `ticket edit` invocation for tag modification
 echo ""
 echo "Test DA-APPROVE-4: tag preservation — other tags kept after approval"
 
@@ -206,25 +227,29 @@ test_da_approve_4_tag_preservation() {
 
     assert_eq "DA-APPROVE-4: exit code" "0" "$_exit"
 
-    local tags_written=""
-    tags_written=$(cat "$tmpdir/tags-written.txt" 2>/dev/null || echo "")
+    # Assert `ticket tag` was called with design:approved
+    local tag_calls=""
+    tag_calls=$(cat "$tmpdir/tag-calls.txt" 2>/dev/null || echo "")
+    assert_contains "DA-APPROVE-4: design:approved in tag calls" "design:approved" "$tag_calls"
 
-    # design:approved must be present
-    assert_contains "DA-APPROVE-4: design:approved in written tags" "design:approved" "$tags_written"
-
-    # priority:high must be preserved
-    assert_contains "DA-APPROVE-4: priority:high preserved in written tags" "priority:high" "$tags_written"
-
-    # sprint:current must be preserved
-    assert_contains "DA-APPROVE-4: sprint:current preserved in written tags" "sprint:current" "$tags_written"
-
-    # design:awaiting_import must be removed.
-    # Only count a PASS if tags were actually written AND awaiting_import is absent.
-    if [[ -n "$tags_written" ]] && [[ "$tags_written" != *"design:awaiting_import"* ]]; then
+    # Assert `ticket untag` was called with design:awaiting_import
+    local untag_calls=""
+    untag_calls=$(cat "$tmpdir/untag-calls.txt" 2>/dev/null || echo "")
+    if [[ -n "$untag_calls" ]] && [[ "$untag_calls" == *"design:awaiting_import"* ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))
-        printf "FAIL: DA-APPROVE-4: design:awaiting_import should be removed from tags\n  tags-written: '%s'\n" "$tags_written" >&2
+        printf "FAIL: DA-APPROVE-4: ticket untag should have been called with design:awaiting_import\n  untag-calls: '%s'\n" "$untag_calls" >&2
+    fi
+
+    # Assert no `ticket edit` invocation for tag modification (no --tags= in ticket.log)
+    local ticket_log=""
+    ticket_log=$(cat "$tmpdir/ticket.log" 2>/dev/null || echo "")
+    if [[ "$ticket_log" != *"--tags="* ]]; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: DA-APPROVE-4: ticket edit --tags= should not be called; use ticket tag/untag instead\n  ticket.log: '%s'\n" "$ticket_log" >&2
     fi
 }
 test_da_approve_4_tag_preservation

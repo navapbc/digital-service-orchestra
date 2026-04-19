@@ -17,6 +17,13 @@ echo "Git root verified: $SUB_AGENT_ROOT (differs from orchestrator root: $ORCHE
 If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and continue.
 
 ### Instructions
+Post WORKTREE_TRACKING:start on this task ticket (fail silently if .tickets-tracker/ unavailable):
+```bash
+_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+.claude/scripts/dso ticket comment {id} "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
+```
+
 1. Run `.claude/scripts/dso ticket show {id}` to read your full task description and acceptance criteria
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 1/6: Task context loaded ✓"`
 2. Run `pwd` to confirm working directory

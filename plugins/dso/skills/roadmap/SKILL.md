@@ -28,6 +28,15 @@ This command is always interactive. It guides you through 6 phases with explicit
 
 **Supports dryrun mode.** Use `/dso:dryrun /dso:roadmap` to preview without changes.
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
 ## Execution Framework
 
 ### Phase 0: Onboarding Prerequisite Check (/dso:roadmap)
@@ -253,7 +262,7 @@ The quadrant placement maps to priority ranges: Quick Wins → P0–P1, Strategi
 
    - **If `SCRUTINY_OPT_IN` is false**: Write the `scrutiny:pending` tag to signal that the epic has not been scrutinized:
      ```bash
-     .claude/scripts/dso ticket edit <epic-id> --tags="scrutiny:pending"
+     .claude/scripts/dso ticket tag <epic-id> scrutiny:pending
      ```
      This marks the epic for downstream skills (`/dso:preplanning`, `/dso:implementation-plan`) to gate on per the `docs/contracts/scrutiny-pending-tag.md` contract.
 

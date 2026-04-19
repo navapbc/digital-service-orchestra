@@ -8,7 +8,7 @@ A one-command bootstrap for non-engineer NextJS prototyping. The nextjs-starter 
 
 **Quick start**: See [`docs/onboarding.md`](../../docs/onboarding.md) for the full bootstrap command.
 
-To install the nextjs-starter scaffolding, run the `create-dso-app.sh` installer script from the `scripts/` directory.
+To install the nextjs-starter scaffolding, run the `create-dso-app.sh` installer script from the `scripts/` directory, passing the desired project name as the first argument (e.g. `bash scripts/create-dso-app.sh my-project`). Running it without an argument performs a dependency check only.
 
 ## Features
 

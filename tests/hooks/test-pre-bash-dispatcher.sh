@@ -238,6 +238,27 @@ assert_ne "test_pre_bash_dispatcher_record_test_status_attest_allowed: not exit 
 assert_eq "test_pre_bash_dispatcher_record_test_status_attest_allowed: exit 0 (allowed path succeeds)" "0" "$_exit_code"
 
 # ============================================================
+# test_pre_bash_dispatcher_record_test_status_commit_workflow_sentinel_allowed
+# When the command is prefixed with the DSO_COMMIT_WORKFLOW=1 env-var sentinel
+# (set by COMMIT-WORKFLOW.md Step 4.5, single-agent-integrate.md, and
+# per-worktree-review-commit.md), the dispatcher must allow the invocation.
+# This restores the legitimate commit path that pre-commit-test-gate.sh
+# depends on — the gate reads test-gate-status, and record-test-status.sh
+# is the only writer. Without this allowlist, direct orchestrator commits
+# fail 100% of the time (ticket 4344-7243).
+#
+# The sentinel is a weak signal (any caller can copy it), but the real
+# security property is the diff_hash check inside pre-commit-test-gate.sh
+# which catches status recorded against a mismatched staged diff.
+# ============================================================
+echo "--- test_pre_bash_dispatcher_record_test_status_commit_workflow_sentinel_allowed ---"
+_INPUT='{"tool_name":"Bash","tool_input":{"command":"DSO_COMMIT_WORKFLOW=1 bash plugins/dso/hooks/record-test-status.sh --source-file=foo.py"}}'
+_exit_code=0
+printf '%s' "$_INPUT" | CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$DISPATCHER" 2>/dev/null || _exit_code=$?
+assert_ne "test_pre_bash_dispatcher_record_test_status_commit_workflow_sentinel_allowed: not exit 2 (should be allowed)" "2" "$_exit_code"
+assert_eq "test_pre_bash_dispatcher_record_test_status_commit_workflow_sentinel_allowed: exit 0 (allowed path succeeds)" "0" "$_exit_code"
+
+# ============================================================
 # Summary
 # ============================================================
 print_summary
