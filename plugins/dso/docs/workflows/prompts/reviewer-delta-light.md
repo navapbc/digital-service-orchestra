@@ -108,6 +108,24 @@ Do NOT report findings that are already enforced by the project's automated tool
 - **The project's configured type checker**: type annotation violations run pre-commit. Do
   not flag missing type annotations or type mismatches unless they indicate a logic bug.
 
+## AI Blindspot Annotations
+
+Light tier covers ONLY the surface-level UI artifact check. The other three blindspot
+checks (domain mismatch, spaghetti patching, asymmetric change) require deeper context
+and are deferred to standard or deep tier review.
+
+- [ ] **UI artifacts in source**: Scan the diff for terminal/agent output accidentally
+  pasted into source files: ANSI escape sequences (`\x1b[`, `\033[`), merge conflict
+  markers (`<<<<<<<`, `=======`, `>>>>>>>`), truncated output blocks (`...`,
+  `[truncated]`, `[output truncated]`), terminal control sequences, or prompt fragments
+  (e.g., leaked `Human:` / `Assistant:` lines). Flag as `important` under `hygiene`.
+
+Include the result in your summary field text with the prefix `ui_artifacts:` (e.g.,
+`ui_artifacts: none` or `ui_artifacts: ANSI escapes in foo.py:42`). This is a summary
+annotation only — do NOT add a new top-level scoring dimension.
+
+---
+
 ## Overlay Classification
 
 Always evaluate these two items and include the results in your summary field text:

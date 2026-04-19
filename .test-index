@@ -30,7 +30,7 @@ plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-bas
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
 plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/hooks/test-review-protocol-workflow.sh,tests/skills/test_review_workflow_model_escalation.py,tests/workflows/test-review-workflow-classifier-failure-guards.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-light.md:tests/docs/test-reviewer-polyglot-compliance.sh,tests/docs/test-reviewer-blindspot-annotations.sh
-plugins/dso/docs/workflows/prompts/reviewer-delta-deep-hygiene.md:tests/docs/test-reviewer-blindspot-annotations.sh [test_blindspot_in_deep_hygiene]
+plugins/dso/docs/workflows/prompts/reviewer-delta-deep-hygiene.md:tests/docs/test-reviewer-blindspot-annotations.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-deep-correctness.md:tests/docs/test-reviewer-blindspot-annotations.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-deep-arch.md:tests/docs/test-reviewer-blindspot-annotations.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-standard.md:tests/docs/test-reviewer-blindspot-annotations.sh
