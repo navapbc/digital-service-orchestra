@@ -169,7 +169,12 @@ If the ticket type is `epic` AND status is `in_progress`:
         - Get children via: `.claude/scripts/dso ticket deps <primary_ticket_id>` (open + closed, use `--include-archived`)
         - Also scan the top-level ticket itself
      2. For each ticket, read comments (`.claude/scripts/dso ticket show <id>`) and find `WORKTREE_TRACKING:start` comments with no corresponding `:complete` (for task tickets) or `:landed` (for story/bug tickets)
-     3. If multiple unmatched starts exist, apply tiebreak cascade to select which to merge (most recently-started first; ties broken by: most checkpoint progress → fewest conflicts in dry-run → first alphabetically by branch name → discard all beyond first)
+     3. If multiple unmatched starts exist, de-duplicate by branch name (keep most recent timestamp per branch), then apply tiebreak cascade:
+        - Stage 1: Count verbatim task-list criterion matches (`- [ ]`/`- [x]` items in ticket description that appear in the branch's git diff). Higher wins.
+        - Stage 2: Compare test-gate-status artifact in each branch (`passed` > `failed` > absent). Winner proceeds.
+        - Stage 3: Count merge conflicts via dry-run (`git merge --no-commit --no-ff <branch>`; count conflict markers; then `git merge --abort`). Lower wins.
+        - Stage 4: Most recent `WORKTREE_TRACKING:start` timestamp wins.
+        - Merge the winner; discard (log, skip) the rest.
      4. For each unmatched start, extract the branch name:
         - If branch no longer exists locally: skip without error, log `'Branch <b> not found — skipping'`
         - If branch is ancestor of HEAD (already merged): write retroactive `:complete` with `outcome=already_merged`, skip re-merge

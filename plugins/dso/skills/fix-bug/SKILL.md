@@ -213,7 +213,13 @@ After transitioning the bug ticket to in_progress, scan for abandoned worktrees 
    - If branch has unique commits: attempt `git merge --no-edit <branch>`
      - Success: log `'Merged abandoned branch <b>'`
      - Conflict: run `git merge --abort`, log `'Conflict in <b> — discarded'`
-3. Proceed with normal fix-bug flow
+3. If multiple competing branches found (N>1 unmatched starts from distinct branch names), apply tiebreak cascade:
+   - Stage 1: task-list criterion count (verbatim `- [ ]`/`- [x]` matches in branch diff)
+   - Stage 2: test-gate-status artifact (`passed` > `failed` > absent)
+   - Stage 3: conflict count via dry-run merge
+   - Stage 4: most recent `WORKTREE_TRACKING:start` timestamp
+   - Merge the winner; discard (log, skip) the rest
+4. Proceed with normal fix-bug flow
 
 ### Step 1: Score and Classify (/dso:fix-bug)
 
