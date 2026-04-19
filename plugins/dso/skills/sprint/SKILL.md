@@ -168,6 +168,14 @@ If the ticket type is `epic` AND status is `in_progress`:
 
 2. Run `.claude/scripts/dso ticket deps <primary_ticket_id>` — if 100% complete, skip to Phase 6 (validation)
 3. Mark ticket in-progress: `.claude/scripts/dso ticket transition <primary_ticket_id> in_progress`
+
+Post WORKTREE_TRACKING:start on the epic ticket (fail silently if .tickets-tracker/ unavailable):
+```bash
+_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+.claude/scripts/dso ticket comment <primary_ticket_id> "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
+```
+
 4. Mark the **Select and validate primary ticket** todo item `completed`.
 
 **Non-epic routing**: After validation, check the ticket type and route accordingly:

@@ -62,6 +62,11 @@ The `.test-index` file uses a `merge=union` driver (configured in `.gitattribute
   a. Create a ticket comment: `.claude/scripts/dso ticket comment <story-id> "CONFLICT: worktree <worktree-name> blocked"`
   b. Add the worktree to the **conflict queue** — do NOT remove the worktree (retained for re-implementation).
   c. Continue processing the next worktree — non-conflicting worktrees proceed normally through Steps 2–7.
+  d. After recording the conflict, write a WORKTREE_TRACKING:complete signal to mark the worktree as discarded:
+     ```
+     .claude/scripts/dso ticket comment $TICKET_ID "WORKTREE_TRACKING:complete branch=<branch> outcome=discarded timestamp=<ts>"
+     ```
+     (Only when TICKET_ID is available from the sprint context. Skip silently if not set.)
 
 **Conflict queue — re-implementation protocol** (after all non-conflicting worktrees are merged):
 

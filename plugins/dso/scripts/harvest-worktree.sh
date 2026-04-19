@@ -4,12 +4,13 @@
 # that the worktree's gate artifacts (test-gate-status, review-status) pass.
 #
 # Usage:
-#   harvest-worktree.sh <worktree-branch> <worktree-artifacts-dir> [--session-artifacts <dir>]
+#   harvest-worktree.sh <worktree-branch> <worktree-artifacts-dir> [--session-artifacts <dir>] [--ticket-id <id>]
 #
 # Arguments:
 #   worktree-branch        Git branch name to merge
 #   worktree-artifacts-dir Path to the worktree's artifacts directory containing gate files
 #   --session-artifacts    Optional: directory to write attested gate files for the session
+#   --ticket-id            Optional: ticket ID to post a WORKTREE_TRACKING:complete comment to
 #
 # Exit codes:
 #   0  Success (merge commit created, or branch already merged)
@@ -23,11 +24,16 @@ set -euo pipefail
 WORKTREE_BRANCH=""
 WORKTREE_ARTIFACTS_DIR=""
 SESSION_ARTIFACTS_DIR=""
+TICKET_ID=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --session-artifacts)
             SESSION_ARTIFACTS_DIR="$2"
+            shift 2
+            ;;
+        --ticket-id)
+            TICKET_ID="$2"
             shift 2
             ;;
         *)
@@ -52,6 +58,17 @@ fi
 # ── Verify no MERGE_HEAD on entry ────────────────────────────────────────────
 
 GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo ".git")
+_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+# Prefer the absolute shim path so `dso` works without it being on PATH.
+# Fall back to bare `dso` (PATH lookup) when the shim is absent — this keeps
+# the test harness working when tests inject a stub via PATH="$STUB_BIN_DIR:$PATH"
+# without creating a full .claude/scripts/dso file in the temp repo.
+_DSO_SHIM_PATH="${PROJECT_ROOT:-${_REPO_ROOT}}/.claude/scripts/dso"
+if [[ -x "$_DSO_SHIM_PATH" ]]; then
+    _DSO_SHIM="$_DSO_SHIM_PATH"
+else
+    _DSO_SHIM="dso"
+fi
 
 if [[ -f "$GIT_DIR/MERGE_HEAD" ]]; then
     echo "ERROR: MERGE_HEAD already exists — a merge is in progress. Abort or complete it first." >&2
@@ -66,6 +83,20 @@ _harvest_cleanup() {
     local ec=${_harvest_exit_code:-$?}
     if [[ -f "$GIT_DIR/MERGE_HEAD" ]]; then
         git merge --abort 2>/dev/null || true
+    fi
+    if [[ -n "${TICKET_ID:-}" ]]; then
+        local outcome
+        if [[ "$ec" -eq 0 ]]; then
+            outcome="merged"
+        else
+            outcome="discarded"
+        fi
+        local ts
+        ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+        "$_DSO_SHIM" ticket comment "$TICKET_ID" "WORKTREE_TRACKING:complete branch=${WORKTREE_BRANCH:-unknown} outcome=$outcome timestamp=$ts" 2>/dev/null || true
+        # Clear TICKET_ID so the EXIT trap does not post a duplicate comment
+        # when the ERR trap also fires and calls exit (which re-triggers EXIT).
+        TICKET_ID=""
     fi
     exit "$ec"
 }

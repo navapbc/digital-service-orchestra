@@ -194,6 +194,13 @@ Ensure a bug ticket exists and is set to in-progress before investigation begins
 
 Store the ticket ID as `BUG_TICKET_ID` for use throughout the workflow.
 
+Post WORKTREE_TRACKING:start on the bug ticket (fail silently if .tickets-tracker/ unavailable):
+```bash
+_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+.claude/scripts/dso ticket comment "$BUG_TICKET_ID" "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
+```
+
 ### Step 1: Score and Classify (/dso:fix-bug)
 
 1. Read the bug description, error messages, and stack traces
