@@ -270,6 +270,15 @@ A story qualifies for integration research if it references any of:
 
 ### Research Process (shared)
 
+**Pre-flight: deduplicate against `researchFindings`**. Before issuing any WebSearch call for a qualifying story's capability, check the merged `researchFindings` array (loaded from the epic's last `RESEARCH_FINDINGS:` ticket comment per Step 5a) for a matching `capability` entry:
+
+- `verified` → skip WebSearch entirely for this capability and reuse the prior `source` citation directly. (Skipping verified entries avoids redundant network calls and accelerates preplanning when upstream skills have already established the constraint.)
+- `partially_verified` → run a light WebSearch (1 spot-check query) to confirm the prior finding still holds.
+- `unverified` or `contradicted` → run full WebSearch verification as described below.
+- Empty array (no prior findings) → run full WebSearch verification for every qualifying capability.
+
+After research, append new entries (or upgrade existing entries) to `researchFindings` with the latest `status`, `source`, `skill_name: "preplanning"`, and current `timestamp` so downstream consumers benefit from the same dedup.
+
 For each qualifying story:
 
 1. Use WebSearch to find known-working code that uses the specific integration or topic. Search GitHub for repositories that import or call the tool/API.
@@ -752,6 +761,10 @@ If the user requests changes, iterate on the plan and re-present. Once the user 
 
 Write the accumulated context as a structured comment on the epic ticket so that `/dso:implementation-plan` can load richer context when planning individual stories from this epic, regardless of which session or environment runs next.
 
+**Schema version**: The `schema_version` integer field (current value: `2`) is used by consumers for forward/backward compatibility — bump it whenever the payload structure changes in a non-additive way. Consumers reading an unfamiliar `schema_version` should fall back to defensive parsing rather than failing.
+
+**Merging prior research findings (RESEARCH_FINDINGS:)**: Before writing the new `PREPLANNING_CONTEXT:` comment, scan the epic's ticket comments for the most recent `RESEARCH_FINDINGS:` comment (a JSON array of `{capability, status, source, skill_name, timestamp}` entries written by upstream skills like brainstorm or prior preplanning runs). Parse it and merge into the `researchFindings` array of the new context payload. Treat a missing or corrupt `RESEARCH_FINDINGS:` comment as an empty array (fail-open — never block the write). This compounds research across pipeline stages so downstream skills (implementation-plan, sprint) can deduplicate WebSearch calls.
+
 **Command** (use Python subprocess to avoid shell ARG_MAX limits for large payloads). This write is an optional cache — if the ticket CLI call fails, log a warning and continue; do not abort the phase:
 ```python
 import json, subprocess
@@ -769,10 +782,11 @@ if result.returncode != 0:
 
 Serialize the JSON payload to a single minified line (no whitespace between keys/values) and write it as a ticket comment. If `/dso:preplanning` runs again on the same epic, write a new comment — `/dso:implementation-plan` will use the last `PREPLANNING_CONTEXT:` comment in the array.
 
-**Schema** (version 1):
+**Schema** (version 1, schema_version 2):
 ```json
 {
   "version": 1,
+  "schema_version": 2,
   "epicId": "<epic-id>",
   "generatedAt": "<ISO-8601 timestamp>",
   "generatedBy": "preplanning",
@@ -781,6 +795,15 @@ Serialize the JSON payload to a single minified line (no whitespace between keys
     "description": "...",
     "successCriteria": ["..."]
   },
+  "researchFindings": [
+    {
+      "capability": "<short capability description>",
+      "status": "verified|partially_verified|unverified|contradicted",
+      "source": "<URL or citation>",
+      "skill_name": "preplanning|implementation-plan|brainstorm|...",
+      "timestamp": "<ISO-8601 timestamp>"
+    }
+  ],
   "stories": [
     {
       "id": "<story-id>",

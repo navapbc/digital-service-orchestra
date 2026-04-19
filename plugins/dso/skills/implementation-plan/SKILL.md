@@ -235,6 +235,15 @@ After loading the story with `.claude/scripts/dso ticket show <story-id>`, check
    - Log: `"No recent preplanning context found on epic <parent-epic-id> — running full Input Analysis"`
    - Proceed with normal Input Analysis below
 
+**Backward compatibility (schema_version-aware parsing):**
+
+The PREPLANNING_CONTEXT payload carries a `schema_version` field. Readers MUST apply version-aware parsing to remain compatible with legacy contexts:
+
+- Check `schema_version` after parsing the JSON payload. If the field is **absent** or its value is less than `2`, apply v1 compatibility mode: the `researchFindings` field is not expected — treat as empty array and continue.
+- If `schema_version >= 2`, the `researchFindings` field is expected; if `researchFindings` is **absent** from a v2+ payload, treat as empty array (fail-open) — do NOT block context loading.
+- **Fail-open contract**: any parsing failure on the `researchFindings` field (corrupt structure, unexpected type, missing nested keys) MUST NOT block context loading. Treat as empty array, emit a warning log line (`"researchFindings parse failed on epic <parent-epic-id> — treating as empty"`), and continue with the rest of the payload.
+- Existing Context File Check behavior (epic data, sibling stories, walking skeleton flags, classifications, traceability lines, story dashboard) is unaffected when `researchFindings` is absent or unparseable.
+
 ### Input Analysis
 
 Load the story and its parent epic for full context:
@@ -593,6 +602,31 @@ Before drafting tasks, enumerate all files affected by the story. This produces 
 
 Use this table to determine which TDD task types to create (see TDD Task Structure below). Files classified `still-valid` require no test task. Files classified `needs-modification` require a **modify-existing-test** RED task. Files classified `needs-removal` require a **remove-test** task. Files classified `needs-creation` require a **create-test** RED task (the existing flow).
 
+### Consumer Detection Pass
+
+For every file in the impact table whose action is `modify` or `remove`, run a downstream consumer detection pass to identify callers/callsites outside the immediate task scope. A change that looks local can still break external consumers — those callsites must be enumerated before the task is drafted, not discovered at implementation time.
+
+**Prefer `sg` (ast-grep) over text grep** — `sg` is syntax-aware and distinguishes real symbol references from comments and strings. Guard against unavailability:
+
+```bash
+if command -v sg >/dev/null 2>&1; then
+    # Find every callsite of a symbol (function, method, etc.)
+    sg --pattern '$FUNC($$$)' --lang python . | grep -F '<symbol_name>'
+    # Or, target a specific symbol directly:
+    sg --pattern '<symbol_name>($$$)' --lang python .
+else
+    # Fall back to grep — accept the false-positive cost
+    grep -rn '<symbol_name>(' .
+fi
+```
+
+When external consumers (callers / callsites in files outside the current task's scope) are found, document them in the task's File Impact section with one of two explicit dispositions:
+
+- **Update** — the external callsite must be changed in this task; add the consumer file to the impact table with action `modify` and pull its tests in.
+- **Accept the breaking change** — the change is intentionally breaking for that consumer; record the rationale and ensure the consumer's owner story or follow-on ticket is linked.
+
+A modify/remove task with un-triaged external consumers is incomplete and must be revised before it leaves Step 3.
+
 ### Testing Mode Classification
 
 Each task in the plan must carry an explicit `testing_mode` field — either **RED**, **GREEN**, or **UPDATE** — derived from the file impact table. The classification describes what the code does to observable behavior, not what text it adds or removes from source files.
@@ -744,6 +778,19 @@ If the story introduces or modifies user-facing behavior, API endpoints, or cros
 
 If purely internal (no behavior change), document why E2E coverage is not needed.
 
+### Visual Verification Metadata (visual_verification)
+
+When a task's File Impact list contains files matching UI patterns — `.css`, `.js`, `.ts`, `.tsx`, `.html`, `.jinja2`, or files inside component directories — the generated task description MUST declare visual verification:
+
+- Add the metadata field `requires_visual_verification: true` to the task description.
+- Add a Playwright acceptance criterion: "Run `playwright test` targeting the affected component; verify no visual regression against baseline."
+
+When the task touches no UI files, omit both the `requires_visual_verification` field and the Playwright AC entirely (do not emit `requires_visual_verification: false` — absence is the signal).
+
+The sub-agent executing the task is responsible for running Playwright as part of satisfying its acceptance criteria. The sprint orchestrator does NOT add a separate Playwright dispatch step — the verification is owned by the implementing task.
+
+The `requires_visual_verification` token is a structural contract surface consumed by downstream automation (sprint, fix-bug). Use the literal token verbatim.
+
 ### Documentation Updates
 
 If the story introduces or modifies patterns, conventions, or significant technical decisions, include a documentation task:
@@ -809,6 +856,59 @@ Scan the output for any existing task whose title contains `Contract:` and the s
 #### Contract Task as First Dependency
 
 The contract task must be declared as a dependency of all implementation tasks that touch either side of the interface — both the emitter side and the parser side. This ensures the interface is specified before either side is implemented.
+
+### Retry Budget
+
+Each implementation task carries a retry budget that the orchestrator parses and enforces when dispatching sub-agents. The budget defines the maximum attempts at each model tier before escalating, and the terminal user-escalation point.
+
+```
+## Retry Budget
+MAX_ATTEMPTS: 3 (sonnet model)
+On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)
+On 3 consecutive opus failures (6 total): escalate to user with full failure history
+If MAX_AGENTS: 0 at sonnet→opus escalation time: skip opus step, escalate to user immediately
+```
+
+The orchestrator parses `MAX_ATTEMPTS` from the generated task description as the per-tier attempt cap. Include this block verbatim in every task description — the structural marker `MAX_ATTEMPTS` is the integration token sub-agent dispatchers use to determine the retry cap.
+
+#### Opus Escalation
+
+When a sub-agent at the sonnet tier fails `MAX_ATTEMPTS` consecutive times, the orchestrator re-dispatches the task at the opus tier. The escalation dispatch MUST include the full diagnostic context from all sonnet failures:
+
+- Each failed sub-agent's final report
+- Test output / error messages from each failure
+- Files modified across all attempts (with diffs if available)
+- Any `RESOLUTION_RESULT` or contract-violation signals emitted
+
+This context lets opus see the full failure trajectory rather than starting cold. If `MAX_AGENTS: 0` (paused) is in effect at the moment escalation would trigger, skip the opus tier and proceed directly to user escalation — opus dispatch is gated by usage capacity.
+
+#### User Escalation
+
+After 6 total consecutive failures (3 sonnet + 3 opus), the orchestrator terminates the autonomous retry loop and escalates to the user. The escalation report MUST include the full failure history:
+
+- All 6 failed sub-agent reports in chronological order
+- The diagnostic context that was passed to opus
+- A concise summary of what was attempted and why each attempt failed
+- The current state of the working tree (files modified, tests failing)
+
+User escalation is also the immediate path when `MAX_AGENTS: 0` blocks opus dispatch, in which case the report contains the 3 sonnet failures plus an explicit note that opus escalation was skipped due to usage throttling.
+
+### Pattern Reference
+
+When the upstream `dso:complexity-evaluator` output specifies `pattern_familiarity: low` or `medium` for a task, enrich the generated task description with a `## Pattern Reference` block containing up to 30 lines of representative codebase examples. This gives the implementation sub-agent concrete prior art to mirror, reducing the chance of inventing a novel pattern when an established one already exists.
+
+#### Gating Rule
+
+- `pattern_familiarity: low` — REQUIRED: include a Pattern Reference block.
+- `pattern_familiarity: medium` — REQUIRED: include a Pattern Reference block.
+- `pattern_familiarity: high` (or no evaluator output) — OMIT the section entirely; the sub-agent already knows the pattern and extra context is noise.
+
+#### Retrieval Rules
+
+- Use local `grep`/`glob` only to find representative examples — no external lookups, no nested LLM calls.
+- Search anchors come from the task's file impact list and the evaluator's identified pattern keywords.
+- Cap the included excerpt at **≤30 lines total** across all examples so task descriptions stay concise. If a single example exceeds 30 lines, truncate with `# ...` and prefer the most representative slice (function signature + body fragment).
+- Cite each example with its source path (e.g., `# from src/utils/example.sh:42-58`).
 
 ---
 
