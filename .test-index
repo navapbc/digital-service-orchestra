@@ -276,9 +276,9 @@ plugins/dso/docs/contracts/scrutiny-pending-tag.md:tests/scripts/test-tag-policy
 plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-policy-docs.sh [test_interaction_deferred_doc_has_policy_crossref]
 CLAUDE.md:tests/scripts/test-tag-policy-docs.sh [test_claude_md_has_ticket_tag_commands]
 # --- ticket tag/untag CLI refactor: instruction files use ticket tag/untag (task 7cdb-e8df) ---
-plugins/dso/skills/brainstorm/SKILL.md:tests/scripts/test-tag-cli-refactor.sh [test_brainstorm_skill_no_ticket_edit_tags]
-plugins/dso/skills/roadmap/SKILL.md:tests/scripts/test-tag-cli-refactor.sh [test_roadmap_skill_no_ticket_edit_tags]
-plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md:tests/scripts/test-tag-cli-refactor.sh [test_ui_designer_dispatch_no_ticket_edit_tags]
-plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-cli-refactor.sh [test_interaction_deferred_contract_updated]
-plugins/dso/skills/preplanning/SKILL.md:tests/scripts/test-tag-cli-refactor.sh [test_preplanning_skill_table_updated]
+plugins/dso/skills/brainstorm/SKILL.md:tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/skills/roadmap/SKILL.md:tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md:tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/skills/preplanning/SKILL.md:tests/scripts/test-tag-cli-refactor.sh
 plugins/dso/scripts/ticket:tests/scripts/test-tag-cli-refactor.sh
