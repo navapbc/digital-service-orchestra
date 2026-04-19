@@ -778,6 +778,19 @@ If the story introduces or modifies user-facing behavior, API endpoints, or cros
 
 If purely internal (no behavior change), document why E2E coverage is not needed.
 
+### Visual Verification Metadata (visual_verification)
+
+When a task's File Impact list contains files matching UI patterns — `.css`, `.js`, `.ts`, `.tsx`, `.html`, `.jinja2`, or files inside component directories — the generated task description MUST declare visual verification:
+
+- Add the metadata field `requires_visual_verification: true` to the task description.
+- Add a Playwright acceptance criterion: "Run `playwright test` targeting the affected component; verify no visual regression against baseline."
+
+When the task touches no UI files, omit both the `requires_visual_verification` field and the Playwright AC entirely (do not emit `requires_visual_verification: false` — absence is the signal).
+
+The sub-agent executing the task is responsible for running Playwright as part of satisfying its acceptance criteria. The sprint orchestrator does NOT add a separate Playwright dispatch step — the verification is owned by the implementing task.
+
+The `requires_visual_verification` token is a structural contract surface consumed by downstream automation (sprint, fix-bug). Use the literal token verbatim.
+
 ### Documentation Updates
 
 If the story introduces or modifies patterns, conventions, or significant technical decisions, include a documentation task:
