@@ -2,11 +2,13 @@
 
 ## Bootstrapping a New NextJS Project
 
-Use the DSO NextJS Starter to scaffold a fully-configured project with one command:
+Use the DSO NextJS Starter to scaffold a fully-configured project with one command. Pass your project name as the first argument:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/navapbc/digital-service-orchestra/HEAD/plugins/dso/scripts/create-dso-app.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/navapbc/digital-service-orchestra/HEAD/scripts/create-dso-app.sh) my-project
 ```
+
+Running the installer without a project-name argument runs dep-check-only mode (verifies prerequisites and exits). When the installer is invoked interactively (a terminal is available) without an argument, it will prompt you for a project name.
 
 ## What the installer does
 
