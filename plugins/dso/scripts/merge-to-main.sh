@@ -281,8 +281,20 @@ _phase_sync() {
         echo "WARNING: git fetch origin main failed in main repo — continuing with local state."
     }
     if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
-        # origin/main is already in main's history — pull is a no-op, skip it.
-        echo "OK: origin/main is already an ancestor of main — skipping pull."
+        # origin/main is an ancestor of main. Distinguish two sub-cases:
+        # (a) equal (HEAD == origin/main): local is up-to-date, skip pull.
+        # (b) ahead (HEAD has commits not on origin): stale squash commits from a prior
+        #     worktree session create false plugin.json conflicts in _phase_merge.
+        #     Hard-reset to origin/main to restore a clean base (35eb-1824).
+        _AHEAD_COUNT=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "0")
+        if [ "$_AHEAD_COUNT" -gt 0 ]; then
+            echo "INFO: Local main is ${_AHEAD_COUNT} commit(s) ahead of origin/main (stale) — resetting to origin/main."
+            git reset --hard origin/main -q 2>&1 || {
+                echo "WARNING: Could not reset local main to origin/main — _phase_merge may encounter false conflicts."
+            }
+        else
+            echo "OK: origin/main is already an ancestor of main — skipping pull."
+        fi
     else
         # main and origin have diverged — try merge (more tolerant than rebase).
         # Stash any local changes so the merge can proceed cleanly.

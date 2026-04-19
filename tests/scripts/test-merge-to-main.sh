@@ -745,4 +745,15 @@ assert_eq "test_snapshot_cleanup_before_tickets_pull: _phase_push must remove st
 assert_pass_if_clean "test_snapshot_cleanup_before_tickets_pull"
 
 # =============================================================================
+echo "--- test_sync_phase_resets_stale_ahead_local_main ---"
+_sync_body_ahead=$(sed -n '/_phase_sync()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
+_has_ahead_reset=0
+if echo "$_sync_body_ahead" | grep -qE "rev-list.*count.*origin/main.*HEAD|reset.*hard.*origin/main"; then
+    _has_ahead_reset=1
+fi
+assert_eq "test_sync_phase_resets_stale_ahead_local_main: _phase_sync must detect stale-ahead local main and hard-reset to origin/main (35eb-1824)" \
+    "1" "$_has_ahead_reset"
+assert_pass_if_clean "test_sync_phase_resets_stale_ahead_local_main"
+
+# =============================================================================
 print_summary
