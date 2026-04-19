@@ -184,6 +184,21 @@ check_homebrew_deps() {
     brew install --cask claude-code || missing+=("claude-code (cask)")
   fi
 
+  # Check container runtime (Docker or Colima) — required for template projects
+  if ! command -v docker >/dev/null 2>&1; then
+    if ! command -v colima >/dev/null 2>&1; then
+      echo "Installing Colima (container runtime) via Homebrew..."
+      brew install colima || missing+=("colima")
+    fi
+    if command -v colima >/dev/null 2>&1; then
+      if ! colima status 2>/dev/null | grep -q "Running"; then
+        echo "Starting Colima..."
+        colima start --cpu 4 --memory 8 || \
+          echo "WARNING: Colima installed but could not be started automatically — run 'colima start' manually if container features are needed." >&2
+      fi
+    fi
+  fi
+
   if [ ${#missing[@]} -gt 0 ]; then
     for pkg in "${missing[@]}"; do
       echo "  Run: brew install $pkg"

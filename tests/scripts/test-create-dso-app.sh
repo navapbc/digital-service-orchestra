@@ -86,6 +86,7 @@ BREWEOF
     _write_stub "$stub_bin" "greadlink" "exit 0"
     _write_stub "$stub_bin" "pre-commit" "exit 0"
     _write_stub "$stub_bin" "python3" "exit 0"
+    _write_stub "$stub_bin" "docker" "exit 0"
     _write_stub "$stub_bin" "node" "echo \"$node_ver\"; exit 0"
     _write_stub "$stub_bin" "claude" "exit 0"
     # Proxy stubs: the script calls grep/head/dirname/tr for version parsing
@@ -342,6 +343,7 @@ GITSTUB
     _write_stub "$stub_bin" "greadlink" "exit 0"
     _write_stub "$stub_bin" "pre-commit" "exit 0"
     _write_stub "$stub_bin" "python3" "exit 0"
+    _write_stub "$stub_bin" "docker" "exit 0"
     _write_stub "$stub_bin" "npm" "exit 0"
     _write_stub "$stub_bin" "node" "echo \"$node_ver\"; exit 0"
     _write_stub "$stub_bin" "claude" "exit 0"
@@ -742,5 +744,136 @@ BREWEOF
 }
 
 test_missing_python3_brew_failure_reports_missing
+
+# ── test_missing_docker_colima_brew_failure_reports_missing ──────────────────
+# When neither docker NOR colima is on PATH AND `brew install colima` fails
+# (exit 1), the script must exit non-zero and include "colima" in the error
+# output.
+#
+# RED: fails before fix because check_homebrew_deps() has no container runtime
+# check at all — docker/colima absence is silently ignored, brew install colima
+# is never called, and the script exits 0 with "All dependencies satisfied"
+# even though no container runtime is present.
+#
+# GREEN: after fix, the script detects neither docker nor colima is present,
+# calls `brew install colima`, gets exit 1, accumulates colima in missing[],
+# and exits non-zero with "colima" in the error output.
+test_missing_docker_colima_brew_failure_reports_missing() {
+    local stub_bin node_prefix
+    stub_bin=$(_make_stub_bin)
+    node_prefix=$(mktemp -d)
+    TMPDIRS+=("$node_prefix")
+    mkdir -p "$node_prefix/bin"
+
+    # brew stub: `brew install colima` fails (exit 1) — simulates install
+    # failure; all other brew invocations succeed so they don't interfere
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+case "\$*" in
+  "install colima")    exit 1 ;;
+  "install node@20")   exit 0 ;;
+  "list node@20")      exit 0 ;;
+  "--prefix node@20")  echo "$node_prefix"; exit 0 ;;
+  "install --cask "*) exit 0 ;;
+  "--version"|"-v")   echo "Homebrew 4.0.0"; exit 0 ;;
+  *)                  exit 0 ;;
+esac
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # Provide all deps EXCEPT docker and colima — both are intentionally absent
+    # so the container runtime detection block fires and brew auto-install runs
+    _write_stub "$stub_bin" "bash"       "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
+    _write_stub "$stub_bin" "git"        "exit 0"
+    _write_stub "$stub_bin" "greadlink"  "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "python3"    "exit 0"
+    _write_stub "$stub_bin" "node"       "echo \"v20.11.0\"; exit 0"
+    _write_stub "$stub_bin" "claude"     "exit 0"
+    # Proxy stubs for commands used in bash --version parsing and path detection
+    _write_stub "$stub_bin" "grep"       '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"       '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname"    '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"         '/usr/bin/tr "$@"'
+    # NOTE: docker and colima are deliberately NOT added to stub_bin
+
+    # Run with strictly isolated PATH — system docker/colima must NOT be reachable
+    local output exit_code=0
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) || exit_code=$?
+
+    assert_ne "missing docker+colima (brew install fails): exits non-zero" "0" "$exit_code"
+
+    local colima_listed="no"
+    if echo "$output" | grep -qi "colima"; then
+        colima_listed="yes"
+    fi
+    assert_eq "missing docker+colima (brew install fails): colima listed in output" "yes" "$colima_listed"
+}
+
+test_missing_docker_colima_brew_failure_reports_missing
+
+# ── test_colima_start_failure_emits_warning ───────────────────────────────────
+# When colima is installed but `colima start` fails (exit 1), the script must
+# NOT exit non-zero (start failures are non-fatal) but MUST emit a WARNING to
+# stderr indicating manual intervention may be needed.
+test_colima_start_failure_emits_warning() {
+    local stub_bin node_prefix
+    stub_bin=$(_make_stub_bin)
+    node_prefix=$(mktemp -d)
+    TMPDIRS+=("$node_prefix")
+    mkdir -p "$node_prefix/bin"
+
+    # colima stub: installed (command -v succeeds) but start fails, status shows not-Running
+    cat > "$stub_bin/colima" <<'COLIMAEOF'
+#!/bin/sh
+case "$1" in
+  status) echo "colima is stopped"; exit 0 ;;
+  start)  exit 1 ;;
+  *)      exit 0 ;;
+esac
+COLIMAEOF
+    chmod +x "$stub_bin/colima"
+
+    # brew stub: all installs succeed; --prefix returns node prefix
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+case "\$*" in
+  "install node@20")   exit 0 ;;
+  "list node@20")      exit 0 ;;
+  "--prefix node@20")  echo "$node_prefix"; exit 0 ;;
+  "install --cask "*) exit 0 ;;
+  "--version"|"-v")   echo "Homebrew 4.0.0"; exit 0 ;;
+  *)                  exit 0 ;;
+esac
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # All deps present including colima; docker intentionally absent so start block fires
+    _write_stub "$stub_bin" "bash"       "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
+    _write_stub "$stub_bin" "git"        "exit 0"
+    _write_stub "$stub_bin" "greadlink"  "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "python3"    "exit 0"
+    _write_stub "$stub_bin" "node"       "echo \"v20.11.0\"; exit 0"
+    _write_stub "$stub_bin" "claude"     "exit 0"
+    _write_stub "$stub_bin" "grep"       '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"       '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname"    '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"         '/usr/bin/tr "$@"'
+    # docker intentionally NOT added — triggers colima path
+
+    local output exit_code=0
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) || exit_code=$?
+
+    assert_eq "colima start failure: script exits 0 (start is non-fatal)" "0" "$exit_code"
+
+    local warning_present="no"
+    if echo "$output" | grep -qi "WARNING"; then
+        warning_present="yes"
+    fi
+    assert_eq "colima start failure: WARNING emitted in output" "yes" "$warning_present"
+}
+
+test_colima_start_failure_emits_warning
 
 print_summary
