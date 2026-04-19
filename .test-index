@@ -253,7 +253,7 @@ plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-wor
 # --- scripts/release.sh: automated release script (epic 36a7-dbb5, task c19e-e459) ---
 scripts/release.sh:tests/scripts/test-release.sh
 # --- ticket-archive-markers-backfill.sh (5ad5-be4d / bc06-74f4 batch) ---
-plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh [test_creates_marker_for_ticket_with_archived_event]
+plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh
 # --- ticket-transition flock section guard (task 1835-528f) ---
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition-flock.sh [test_flock_llm_format_referenced]
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh

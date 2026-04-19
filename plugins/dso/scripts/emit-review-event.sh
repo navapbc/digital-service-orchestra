@@ -74,10 +74,14 @@ if [ "$valid" = false ]; then
 fi
 
 # ── Locate .tickets-tracker ───────────────────────────────────────────────
-repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
-    echo "Error: not inside a git repository" >&2
-    exit 1
-}
+# Respect PROJECT_ROOT exported by the .claude/scripts/dso shim (bb42-1291).
+repo_root="${PROJECT_ROOT:-}"
+if [ -z "$repo_root" ]; then
+    repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+        echo "Error: not inside a git repository" >&2
+        exit 1
+    }
+fi
 
 tracker_dir="$repo_root/.tickets-tracker"
 if [ ! -d "$tracker_dir" ]; then

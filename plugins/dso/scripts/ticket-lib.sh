@@ -157,7 +157,13 @@ write_commit_event() {
     local temp_event_json_path="$2"
 
     local repo_root
-    repo_root="$(git rev-parse --show-toplevel)"
+    # Respect PROJECT_ROOT exported by the .claude/scripts/dso shim so this function
+    # targets the same tracker as the calling script's top-level REPO_ROOT. Without
+    # this, ticket-create.sh's `REPO_ROOT="${PROJECT_ROOT:-…}"` resolves to the host
+    # repo while this commit path resolves to `git rev-parse --show-toplevel` (the
+    # CWD), producing a "not initialized" failure whenever a caller has cd'd into a
+    # different tree (e.g. test harnesses that use a temp repo — bug bb42-1291).
+    repo_root="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
     local tracker_dir_raw="$repo_root/.tickets-tracker"
     # Resolve to canonical path so that callers using a symlink and callers using
     # the real path always contend on the same lock file (cross-path serialization).
