@@ -146,7 +146,7 @@ fi
 echo "Test 2: migration stdout contains UNMATCHED lines for non-PIL epics"
 test_migration_unmatched_lines() {
     # Remove marker so migration runs again
-    rm -f "$TDIR/.claude/.brainstorm-tag-migration-v1"
+    rm -f "$TDIR/.claude/.brainstorm-tag-migration-v2"
     # Reset brainstorm:complete tags (idempotent — will skip already-tagged)
     local out
     out=$(bash "$MIGRATION" --target "$TDIR" 2>/dev/null)

@@ -14,7 +14,7 @@
 #   1. Migration exits 0
 #   2. 2 PIL-bearing epics get brainstorm:complete tag added (inspect tracker state)
 #   3. UNMATCHED: <epic-id> printed to stdout for the 1 non-PIL epic
-#   4. Marker file .claude/.brainstorm-tag-migration-v1 written at repo root
+#   4. Marker file .claude/.brainstorm-tag-migration-v2 written at repo root
 #   5. Re-run exits 0 immediately (marker present) with no new tracker changes
 #   6. Plugin-source-repo guard: exits 0 with a logged notice, no changes
 #
@@ -308,7 +308,7 @@ test_unmatched_printed_for_non_pil_epic() {
 test_unmatched_printed_for_non_pil_epic
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Test 5: Marker file .claude/.brainstorm-tag-migration-v1 written at repo root
+# Test 5: Marker file .claude/.brainstorm-tag-migration-v2 written at repo root
 # ═══════════════════════════════════════════════════════════════════════════════
 echo "Test 5: marker file written at repo root after migration"
 test_marker_file_written() {
@@ -326,7 +326,7 @@ test_marker_file_written() {
 
     (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || true
 
-    if [ -f "$repo/.claude/.brainstorm-tag-migration-v1" ]; then
+    if [ -f "$repo/.claude/.brainstorm-tag-migration-v2" ]; then
         assert_eq "marker file written" "exists" "exists"
     else
         assert_eq "marker file written" "exists" "missing"
@@ -419,7 +419,7 @@ test_plugin_source_repo_guard() {
     fi
 
     # Marker file must NOT be written (guard bailed before making changes)
-    if [ -f "$repo/.claude/.brainstorm-tag-migration-v1" ]; then
+    if [ -f "$repo/.claude/.brainstorm-tag-migration-v2" ]; then
         assert_eq "plugin-source-repo guard: marker NOT written" "not-written" "written"
     else
         assert_eq "plugin-source-repo guard: marker NOT written" "not-written" "not-written"
@@ -441,6 +441,333 @@ test_plugin_source_repo_guard() {
     assert_pass_if_clean "test_plugin_source_repo_guard"
 }
 test_plugin_source_repo_guard
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 8: PIL in SNAPSHOT compiled_state.description gets brainstorm:complete tag
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 8: PIL in SNAPSHOT compiled_state.description triggers brainstorm:complete tag"
+test_pil_in_snapshot_compiled_state_description() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local epic_id="epic-pil-snapshot-desc-08"
+    local ticket_dir="$tracker_dir/$epic_id"
+    mkdir -p "$ticket_dir"
+
+    # CREATE event with no PIL in description (ordinary text only)
+    local create_data
+    create_data='{"ticket_type": "epic", "title": "Snapshot PIL desc epic", "parent_id": null, "description": "No PIL here."}'
+    _write_event "$ticket_dir" "1742606100" "00000000-0000-4000-8000-snap0desc0001" "CREATE" "$create_data"
+
+    # SNAPSHOT event: PIL lives in compiled_state.description (not in top-level data)
+    python3 -c "
+import json
+payload = {
+    'timestamp': 1742606200,
+    'uuid': '00000000-0000-4000-8000-snap0desc0002',
+    'event_type': 'SNAPSHOT',
+    'env_id': '00000000-0000-4000-8000-000000000001',
+    'author': 'Test User',
+    'data': {
+        'compiled_state': {
+            'description': '## Background\n\n### Planning Intelligence Log\n\nBrainstorm findings from SNAPSHOT.',
+            'comments': []
+        }
+    }
+}
+print(json.dumps(payload))
+" > "$ticket_dir/1742606200-00000000-0000-4000-8000-snap0desc0002-SNAPSHOT.json"
+
+    (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || true
+
+    if _ticket_has_tag "$tracker_dir" "$epic_id" "brainstorm:complete"; then
+        assert_eq "snapshot-compiled_state.description: has brainstorm:complete tag" "tagged" "tagged"
+    else
+        assert_eq "snapshot-compiled_state.description: has brainstorm:complete tag" "tagged" "not-tagged"
+    fi
+
+    assert_pass_if_clean "test_pil_in_snapshot_compiled_state_description"
+}
+test_pil_in_snapshot_compiled_state_description
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 9: PIL in SNAPSHOT compiled_state.comments[0].body gets brainstorm:complete tag
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 9: PIL in SNAPSHOT compiled_state.comments[0].body triggers brainstorm:complete tag"
+test_pil_in_snapshot_compiled_state_comment_body() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local epic_id="epic-pil-snapshot-cmt-09"
+    local ticket_dir="$tracker_dir/$epic_id"
+    mkdir -p "$ticket_dir"
+
+    # CREATE event with no PIL anywhere
+    local create_data
+    create_data='{"ticket_type": "epic", "title": "Snapshot PIL comment epic", "parent_id": null, "description": "No PIL here."}'
+    _write_event "$ticket_dir" "1742606300" "00000000-0000-4000-8000-snap1cmt00001" "CREATE" "$create_data"
+
+    # SNAPSHOT event: PIL lives in compiled_state.comments[0].body (not in description)
+    python3 -c "
+import json
+payload = {
+    'timestamp': 1742606400,
+    'uuid': '00000000-0000-4000-8000-snap1cmt00002',
+    'event_type': 'SNAPSHOT',
+    'env_id': '00000000-0000-4000-8000-000000000001',
+    'author': 'Test User',
+    'data': {
+        'compiled_state': {
+            'description': 'No PIL in the description.',
+            'comments': [
+                {'body': '### Planning Intelligence Log\n\nCapture from a planning session.'},
+                {'body': 'Unrelated follow-up comment.'}
+            ]
+        }
+    }
+}
+print(json.dumps(payload))
+" > "$ticket_dir/1742606400-00000000-0000-4000-8000-snap1cmt00002-SNAPSHOT.json"
+
+    (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || true
+
+    if _ticket_has_tag "$tracker_dir" "$epic_id" "brainstorm:complete"; then
+        assert_eq "snapshot-compiled_state.comments[0].body: has brainstorm:complete tag" "tagged" "tagged"
+    else
+        assert_eq "snapshot-compiled_state.comments[0].body: has brainstorm:complete tag" "tagged" "not-tagged"
+    fi
+
+    assert_pass_if_clean "test_pil_in_snapshot_compiled_state_comment_body"
+}
+test_pil_in_snapshot_compiled_state_comment_body
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 10: PIL in EDIT fields.description gets brainstorm:complete tag
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 10: PIL in EDIT fields.description triggers brainstorm:complete tag"
+test_pil_in_edit_fields_description() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local epic_id="epic-pil-edit-desc-010"
+    local ticket_dir="$tracker_dir/$epic_id"
+    mkdir -p "$ticket_dir"
+
+    # CREATE event with no PIL in description
+    local create_data
+    create_data='{"ticket_type": "epic", "title": "Edit PIL desc epic", "parent_id": null, "description": "Original description — no PIL."}'
+    _write_event "$ticket_dir" "1742606500" "00000000-0000-4000-8000-editdesc0001" "CREATE" "$create_data"
+
+    # EDIT event: PIL is in data.fields.description (description was later edited to include PIL)
+    python3 -c "
+import json
+payload = {
+    'timestamp': 1742606600,
+    'uuid': '00000000-0000-4000-8000-editdesc0002',
+    'event_type': 'EDIT',
+    'env_id': '00000000-0000-4000-8000-000000000001',
+    'author': 'Test User',
+    'data': {
+        'fields': {
+            'description': '## Background\n\n### Planning Intelligence Log\n\nAdded via description edit.'
+        }
+    }
+}
+print(json.dumps(payload))
+" > "$ticket_dir/1742606600-00000000-0000-4000-8000-editdesc0002-EDIT.json"
+
+    (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || true
+
+    if _ticket_has_tag "$tracker_dir" "$epic_id" "brainstorm:complete"; then
+        assert_eq "edit-fields.description: has brainstorm:complete tag" "tagged" "tagged"
+    else
+        assert_eq "edit-fields.description: has brainstorm:complete tag" "tagged" "not-tagged"
+    fi
+
+    assert_pass_if_clean "test_pil_in_edit_fields_description"
+}
+test_pil_in_edit_fields_description
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 11: Marker file written is v2 (not v1) after successful migration
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 11: marker file path is .brainstorm-tag-migration-v2 (not v1)"
+test_marker_file_is_v2_not_v1() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    _setup_epic_fixture "$repo/.tickets-tracker"
+    mkdir -p "$repo/.claude"
+
+    (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || true
+
+    # v2 marker must exist
+    if [ -f "$repo/.claude/.brainstorm-tag-migration-v2" ]; then
+        assert_eq "v2 marker file exists" "exists" "exists"
+    else
+        assert_eq "v2 marker file exists" "exists" "missing"
+    fi
+
+    # v1 marker must NOT exist (script was bumped to v2)
+    if [ -f "$repo/.claude/.brainstorm-tag-migration-v1" ]; then
+        assert_eq "v1 marker file must not be created" "absent" "present"
+    else
+        assert_eq "v1 marker file must not be created" "absent" "absent"
+    fi
+
+    assert_pass_if_clean "test_marker_file_is_v2_not_v1"
+}
+test_marker_file_is_v2_not_v1
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 12: Compacted epic (SNAPSHOT-only, ticket_type + tags in compiled_state)
+#          gets brainstorm:complete tag when PIL is present in compiled_state
+# ═══════════════════════════════════════════════════════════════════════════════
+# Real-world compaction: older tickets have had their CREATE/EDIT/COMMENT events
+# collapsed into a single SNAPSHOT event. ticket_type, tags, description, and
+# comments all live under data.compiled_state.*. The migration must still detect
+# these as epics and tag them — otherwise snapshotted epics are silently skipped.
+echo "Test 12: compacted SNAPSHOT-only epic (ticket_type + tags in compiled_state) gets tagged"
+test_compacted_epic_in_compiled_state_gets_tagged() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local epic_id="epic-compacted-snapshot-only-12"
+    local ticket_dir="$tracker_dir/$epic_id"
+    mkdir -p "$ticket_dir"
+
+    # SNAPSHOT-only epic: no CREATE, no EDIT, no COMMENT.
+    # ticket_type, tags, description all live under data.compiled_state.
+    python3 -c "
+import json
+payload = {
+    'timestamp': 1742606700,
+    'uuid': '00000000-0000-4000-8000-compactedsn01',
+    'event_type': 'SNAPSHOT',
+    'env_id': '00000000-0000-4000-8000-000000000001',
+    'author': 'Test User',
+    'data': {
+        'compiled_state': {
+            'ticket_id': 'epic-compacted-snapshot-only-12',
+            'ticket_type': 'epic',
+            'title': 'Compacted epic with PIL in compiled_state',
+            'status': 'open',
+            'tags': [],
+            'description': '## Problem\n\n### Planning Intelligence Log\n\nBrainstorm findings preserved through compaction.',
+            'comments': []
+        }
+    }
+}
+print(json.dumps(payload))
+" > "$ticket_dir/1742606700-00000000-0000-4000-8000-compactedsn01-SNAPSHOT.json"
+
+    (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || true
+
+    if _ticket_has_tag "$tracker_dir" "$epic_id" "brainstorm:complete"; then
+        assert_eq "compacted-snapshot-only epic: has brainstorm:complete tag" "tagged" "tagged"
+    else
+        assert_eq "compacted-snapshot-only epic: has brainstorm:complete tag" "tagged" "not-tagged"
+    fi
+
+    assert_pass_if_clean "test_compacted_epic_in_compiled_state_gets_tagged"
+}
+test_compacted_epic_in_compiled_state_gets_tagged
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 13: Compacted epic ALREADY tagged brainstorm:complete (tags in
+#          compiled_state.tags) is NOT re-tagged — idempotency across SNAPSHOT
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 13: compacted SNAPSHOT epic already tagged (tags in compiled_state) is left alone"
+test_compacted_epic_already_tagged_is_noop() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local epic_id="epic-compacted-already-tagged-13"
+    local ticket_dir="$tracker_dir/$epic_id"
+    mkdir -p "$ticket_dir"
+
+    python3 -c "
+import json
+payload = {
+    'timestamp': 1742606800,
+    'uuid': '00000000-0000-4000-8000-compactedsn02',
+    'event_type': 'SNAPSHOT',
+    'env_id': '00000000-0000-4000-8000-000000000001',
+    'author': 'Test User',
+    'data': {
+        'compiled_state': {
+            'ticket_type': 'epic',
+            'status': 'open',
+            'tags': ['brainstorm:complete'],
+            'description': '### Planning Intelligence Log\n\nAlready tagged.',
+            'comments': []
+        }
+    }
+}
+print(json.dumps(payload))
+" > "$ticket_dir/1742606800-00000000-0000-4000-8000-compactedsn02-SNAPSHOT.json"
+
+    # Count EDIT events before (should be zero)
+    local edit_count_before
+    edit_count_before=$(find "$ticket_dir" -name '*-EDIT.json' 2>/dev/null | wc -l | tr -d ' ')
+
+    (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || true
+
+    local edit_count_after
+    edit_count_after=$(find "$ticket_dir" -name '*-EDIT.json' 2>/dev/null | wc -l | tr -d ' ')
+
+    # Migration must NOT have written an EDIT event for an already-tagged epic
+    assert_eq "already-tagged compacted epic: no new EDIT events" "$edit_count_before" "$edit_count_after"
+
+    assert_pass_if_clean "test_compacted_epic_already_tagged_is_noop"
+}
+test_compacted_epic_already_tagged_is_noop
 
 # ═══════════════════════════════════════════════════════════════════════════════
 print_summary
