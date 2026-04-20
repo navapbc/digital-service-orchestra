@@ -256,4 +256,5 @@ plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test
 plugins/dso/scripts/preconditions-benchmark.sh:tests/scripts/test-preconditions-benchmark.sh [test_benchmark_measures_p95_per_stage]
 plugins/dso/scripts/fp-rate-tracker.sh:tests/scripts/test-fp-rate-tracker.sh [test_fp_rate_tracker_engages_fallback]
 plugins/dso/scripts/sc13-restart-analysis.sh:tests/scripts/test-sc13-restart-analysis.sh [test_sc13_analysis_computes_drop]
-tests/fixtures/818-corpus/generate-corpus-fixture.sh:tests/fixtures/818-corpus/test-corpus-fixture.sh [test_corpus_fixture_generates_valid_json]
+tests/fixtures/818-corpus/generate-corpus-fixture.sh:tests/fixtures/818-corpus/test-corpus-fixture.sh
+plugins/dso/scripts/preconditions-coverage-harness.sh:tests/scripts/test-818-coverage-harness.sh [test_coverage_harness_counts_preventions]
