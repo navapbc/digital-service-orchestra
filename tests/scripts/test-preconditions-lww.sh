@@ -33,8 +33,8 @@ _make_ticket_repo() {
     tmp=$(mktemp -d)
     _CLEANUP_DIRS+=("$tmp")
     clone_test_repo "$tmp/repo"
-    # Initialize ticket system
-    (cd "$tmp/repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+    # Initialize ticket system (suppress stdout — ticket init echoes status messages)
+    (cd "$tmp/repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" init >/dev/null 2>/dev/null) || true
     echo "$tmp/repo"
 }
 

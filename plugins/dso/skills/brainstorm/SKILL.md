@@ -881,6 +881,13 @@ Fix any issues before finalizing.
 Write a durable ticket-level tag to record that brainstorm has completed. This removes any `scrutiny:pending` tag while preserving all other existing tags (e.g., `design:approved`, `CLI_user`).
 
 ```bash
+# Record brainstorm preconditions baseline before tagging complete
+.claude/scripts/dso preconditions-record.sh \
+  --ticket-id "$epic_id" \
+  --gate-name "brainstorm_complete" \
+  --session-id "${SESSION_ID:-unknown}" \
+  --tier "minimal" 2>/dev/null || true
+
 # Remove scrutiny:pending (no-op if not present) and add brainstorm:complete
 .claude/scripts/dso ticket untag <epic-id> scrutiny:pending
 .claude/scripts/dso ticket tag <epic-id> brainstorm:complete

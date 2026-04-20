@@ -668,3 +668,68 @@ with open(staging_path, 'w', encoding='utf-8') as f:
 
     echo "Preconditions recorded: $final_filename"
 }
+
+# _read_latest_preconditions <ticket_id> <gate_name> <session_id>
+# Scans all *-PRECONDITIONS.json files in .tickets-tracker/<ticket_id>/ for files
+# matching the gate_name + session_id composite key, then returns the content of
+# the file with the lexicographically highest timestamp prefix (ISO8601 sort = LWW).
+# Returns empty string and exits 0 when no matching file exists.
+#
+# Args:
+#   ticket_id:   ticket directory name (e.g., test-t1a2)
+#   gate_name:   gate name to filter by (must match 'gate_name' field in JSON)
+#   session_id:  session identifier to filter by (must match 'session_id' field in JSON)
+_read_latest_preconditions() {
+    local ticket_id="$1"
+    local gate_name="$2"
+    local session_id="$3"
+
+    local repo_root
+    repo_root="$(git rev-parse --show-toplevel)"
+    local tracker_dir_raw="${TICKETS_TRACKER_DIR:-$repo_root/.tickets-tracker}"
+    local tracker_dir
+    tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$tracker_dir_raw")
+
+    local ticket_dir="$tracker_dir/$ticket_id"
+
+    if [ ! -d "$ticket_dir" ]; then
+        return 0
+    fi
+
+    python3 -c "
+import json, os, sys
+
+ticket_dir = sys.argv[1]
+gate_name  = sys.argv[2]
+session_id = sys.argv[3]
+
+# Collect all PRECONDITIONS files
+candidates = []
+try:
+    entries = os.listdir(ticket_dir)
+except OSError:
+    sys.exit(0)
+
+for fname in entries:
+    if not fname.endswith('-PRECONDITIONS.json'):
+        continue
+    fpath = os.path.join(ticket_dir, fname)
+    try:
+        with open(fpath, encoding='utf-8') as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        continue
+    if data.get('gate_name') == gate_name and data.get('session_id') == session_id:
+        candidates.append((fname, fpath))
+
+if not candidates:
+    sys.exit(0)
+
+# Lexicographic sort on filename (ISO8601 timestamp prefix = chronological order)
+candidates.sort(key=lambda x: x[0])
+_, latest_path = candidates[-1]
+
+with open(latest_path, encoding='utf-8') as f:
+    print(f.read(), end='')
+" "$ticket_dir" "$gate_name" "$session_id"
+}
