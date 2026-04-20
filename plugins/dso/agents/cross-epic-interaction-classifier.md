@@ -76,7 +76,7 @@ Both epics interact with the same resource in a way that requires design-time co
 **Examples:**
 - New epic adds a new field to a shared JSON schema; open epic reads from the same schema — both can proceed if the new field has a defined default.
 - New epic modifies a shared configuration key; open epic reads that same key with expected behavior — document the ordering constraint.
-- Two epics both modify the same shell script in different sections — requires merge coordination.
+- Two epics both modify the same shell script in **semantically overlapping regions** (e.g., both change the same function's control flow) — requires design coordination beyond merge ordering.
 
 **Action**: Carry forward as an acceptance-criteria injection candidate (per story 2629-66cb). Record `integration_constraint`.
 
@@ -124,6 +124,8 @@ For each open epic, identify any resources that both the `new_epic` and the `ope
 
 Do NOT flag generic framework or language sharing (e.g., "both use bash" or "both call a Python function") as a shared resource unless both epics modify the same specific component of that framework.
 
+**Sub-file scope qualifier**: When both epics modify the same file, identify the **specific sub-file region each touches** (function name, section header, line-range, or named block). A resource is shared only when the regions **semantically overlap** — i.e., both epics change the same function's behavior, the same code path, or the same named section. Disjoint-region edits (different functions, different sections, non-overlapping line ranges) are **merge-order coordination**, not shared-resource contention, and should be classified as **benign** unless other signals apply.
+
 ### Step 3: Classify Each Overlap
 
 For each shared resource identified:
@@ -134,10 +136,12 @@ For each shared resource identified:
    - Scoped (affects a named subset) vs. global (affects the whole resource)
 
 2. Select the severity tier based on the combination of claims:
-   - Both read-only or clearly additive → **benign**
-   - One or both mutate, but the interaction is predictable and constrainable → **consideration**
-   - Claims overlap in a way that is unclear whether they can coexist → **ambiguity**
-   - Claims are mutually exclusive → **conflict**
+   - Both read-only, clearly additive, OR **both touch disjoint sub-file regions** (merge-order coordination only) → **benign**
+   - One or both mutate the same semantic region, but the interaction is predictable and constrainable → **consideration**
+   - Claims overlap in a way that is unclear whether they can coexist (semantic overlap, not merge-order) → **ambiguity**
+   - Claims are mutually exclusive (semantic contention, not merge-order) → **conflict**
+
+   **Merge-order exclusion**: `ambiguity` and `conflict` require **semantic overlap** — two epics changing the same function/section/path. Two epics that modify different sections of the same file without semantic interaction are **merge-order coordination** and fall under `benign` (no `integration_constraint` needed beyond standard git merge discipline).
 
 3. Write the `shared_resource` field as the specific named resource (e.g., `hooks/pre-commit.sh`, `dso-config.conf: test_gate.enabled`, `ticket show CLI command`). Never use generic descriptions.
 
