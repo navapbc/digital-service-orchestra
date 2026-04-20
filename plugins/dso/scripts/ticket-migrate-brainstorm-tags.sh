@@ -4,10 +4,11 @@
 # heading with brainstorm:complete, and remove scrutiny:pending if present.
 #
 # Usage:
-#   ticket-migrate-brainstorm-tags.sh [--target <host-project-root>]
+#   ticket-migrate-brainstorm-tags.sh [--target <host-project-root>] [--dry-run]
 #
 # Flags:
 #   --target <path>     Path to the host project root (default: git rev-parse --show-toplevel)
+#   --dry-run           Show what would change without making any changes (read-only)
 #
 # Exit codes:
 #   0 — Success (including idempotent re-run and plugin-source-repo guard)
@@ -20,6 +21,7 @@ _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 _TARGET=""
+_DRYRUN=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -29,6 +31,10 @@ while [ $# -gt 0 ]; do
             ;;
         --target=*)
             _TARGET="${1#--target=}"
+            shift
+            ;;
+        --dry-run)
+            _DRYRUN=1
             shift
             ;;
         *)
@@ -86,11 +92,13 @@ fi
 #
 # stdout contract:
 #   WROTE:<ticket_id>:<event_filename>   — EDIT event written; bash must git add+commit
+#   WOULD_WRITE:<ticket_id>              — dry-run: would write EDIT event (no file created)
 #   UNMATCHED:<ticket_id>                — epic with no brainstorm:complete tag and no PIL
-_migrate_output=$(python3 - "$_TRACKER_DIR" <<'PYEOF'
+_migrate_output=$(python3 - "$_TRACKER_DIR" "$_DRYRUN" <<'PYEOF'
 import json, os, sys, time, uuid
 
 TRACKER = sys.argv[1]
+DRYRUN = len(sys.argv) > 2 and sys.argv[2] == "1" 
 PIL = "### Planning Intelligence Log"
 
 def scan_ticket(tdir):
@@ -201,11 +209,16 @@ for tid in entries:
     new_tags = [t for t in tags if t and t != 'scrutiny:pending']
     if 'brainstorm:complete' not in new_tags:
         new_tags.append('brainstorm:complete')
-    try:
-        fname = write_edit_event(tdir, new_tags)
-        print(f'WROTE:{tid}:{fname}')
-    except OSError as e:
-        print(f'ERROR:{tid}:{e}', file=sys.stderr)
+    if DRYRUN:
+        removed = [t for t in tags if t == 'scrutiny:pending']
+        note = f" (removes: {removed})" if removed else ""
+        print(f'WOULD_WRITE:{tid}{note}')
+    else:
+        try:
+            fname = write_edit_event(tdir, new_tags)
+            print(f'WROTE:{tid}:{fname}')
+        except OSError as e:
+            print(f'ERROR:{tid}:{e}', file=sys.stderr)
 PYEOF
 )
 
@@ -236,14 +249,19 @@ while IFS= read -r _line; do
                 git -C "$_TRACKER_DIR" commit -m "migration: add brainstorm:complete tag to $_ticket_id" 2>/dev/null || \
                 git -C "$_TRACKER_DIR" reset 2>/dev/null || true
             ;;
+        WOULD_WRITE:*)
+            echo "DRY-RUN: ${_line#WOULD_WRITE:}"
+            ;;
         UNMATCHED:*)
             echo "UNMATCHED: ${_line#UNMATCHED:}"
             ;;
     esac
 done <<< "$_migrate_output"
 
-# ── Write marker file ─────────────────────────────────────────────────────────
-mkdir -p "$(dirname "$_MARKER_FILE")"
-touch "$_MARKER_FILE"
+# ── Write marker file (skipped in dry-run mode) ───────────────────────────────
+if [ "$_DRYRUN" = "0" ]; then
+    mkdir -p "$(dirname "$_MARKER_FILE")"
+    touch "$_MARKER_FILE"
+fi
 
 exit 0
