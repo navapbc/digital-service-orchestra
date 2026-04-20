@@ -238,7 +238,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Linter command. |
 | **Accepted values** | Any shell command string (e.g., `make lint`, `npm run lint`) |
 | **Default** | Stack-derived (see per-stack defaults table below) |
-| **Used by** | Skills: `/dso:sprint`, `/dso:fix-bug`, validate-work |
+| **Used by** | Skills: `/dso:sprint`, `/dso:fix-bug`, validate-work; `validate.sh` (as of story 8657-e8cc); `validate-phase.sh` (when present) |
 
 ---
 
@@ -249,7 +249,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Auto-formatter command — modifies files in place. |
 | **Accepted values** | Any shell command string (e.g., `make format`, `cargo fmt`) |
 | **Default** | Stack-derived (see per-stack defaults table below) |
-| **Used by** | `hooks/auto-format.sh`, skills |
+| **Used by** | `hooks/auto-format.sh` (as of story 5278-dfae), skills; `validate-phase.sh` (when present) |
 
 ---
 
@@ -260,7 +260,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Formatting check command — fails if files need reformatting, does not modify files. |
 | **Accepted values** | Any shell command string (e.g., `make format-check`, `cargo fmt --check`) |
 | **Default** | Stack-derived (see per-stack defaults table below) |
-| **Used by** | `.claude/scripts/dso validate.sh`, pre-commit hooks |
+| **Used by** | `.claude/scripts/dso validate.sh`, pre-commit hooks; `gate-2b-blast-radius.sh` (as of story 5b0c-7928); `gate-2d-dependency-check.sh` (as of story 5b0c-7928); `validate-phase.sh` (when present) |
 
 ---
 
