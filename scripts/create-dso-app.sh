@@ -574,6 +574,22 @@ main() {
       || echo "WARNING: DSO project setup encountered issues — run '.claude/scripts/dso validate.sh' manually if needed." >&2
   fi
 
+  # Step 5c.5: Shim fallback — if dso-setup.sh failed or was absent, install the
+  # shim directly so .claude/scripts/dso is always present after install.
+  # (Bug 14f9-060b: a failing dso-setup.sh left the shim missing even though
+  # create-dso-app.sh reported success and wrote the sentinel.)
+  if [[ ! -f "$project_dir/.claude/scripts/dso" ]]; then
+    local _shim_template="$resolved_plugin_root/templates/host-project/dso"
+    if [[ -f "$_shim_template" ]]; then
+      mkdir -p "$project_dir/.claude/scripts"
+      cp "$_shim_template" "$project_dir/.claude/scripts/dso"
+      chmod +x "$project_dir/.claude/scripts/dso"
+      echo "Installed DSO shim directly from plugin template."
+    else
+      echo "WARNING: DSO shim template not found at $resolved_plugin_root/templates/host-project/dso — .claude/scripts/dso not installed." >&2
+    fi
+  fi
+
   # Clean up detection output after dso-setup consumed it
   [[ -n "$_detect_output" && -f "$_detect_output" ]] && rm -f "$_detect_output"
 

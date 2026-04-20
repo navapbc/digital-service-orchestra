@@ -372,6 +372,9 @@ GITSTUB
     _write_stub "$stub_bin" "uv"      "exit 0"
     _write_stub "$stub_bin" "sg"      "exit 0"
     _write_stub "$stub_bin" "semgrep" "exit 0"
+    # cp and chmod used by shim fallback install in Step 5c.5 (bug 14f9-060b fix)
+    _write_stub "$stub_bin" "cp"      '/bin/cp "$@"'
+    _write_stub "$stub_bin" "chmod"   '/bin/chmod "$@"'
 
     echo "$stub_bin"
 }
@@ -1149,6 +1152,59 @@ BASHEOF
 }
 
 test_installer_configures_dso_shim_after_deps
+
+# ── test_installer_shim_installed_even_when_dso_setup_fails ──────────────────
+# Bug 14f9-060b: when dso-setup.sh exits non-zero (e.g., missing timeout,
+# bash < 4, or artifact-merge-lib.sh failure), create-dso-app.sh swallows the
+# error via '|| echo WARNING' — but the shim was never created, so
+# .claude/scripts/dso is absent after a nominally-successful install.
+#
+# Fix (Step 5c.5): after dso-setup.sh returns, if .claude/scripts/dso is
+# missing, copy it directly from $resolved_plugin_root/templates/host-project/dso.
+#
+# GREEN: after fix, even with a failing dso-setup.sh, the shim is present.
+test_installer_shim_installed_even_when_dso_setup_fails() {
+    local stub_bin T project_dir fake_plugin_root
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    project_dir="$T/my-project"
+    fake_plugin_root="$T/fake-plugin"
+
+    # Fake plugin root: plugin.json sentinel + FAILING dso-setup.sh + shim template
+    mkdir -p "$fake_plugin_root/.claude-plugin" "$fake_plugin_root/scripts" \
+             "$fake_plugin_root/templates/host-project"
+    echo '{"name":"dso","version":"1.0.0"}' > "$fake_plugin_root/.claude-plugin/plugin.json"
+    # dso-setup.sh that exits 1 (simulates detect_prerequisites failure)
+    cat > "$fake_plugin_root/scripts/dso-setup.sh" <<'SETUPEOF'
+#!/bin/sh
+exit 1
+SETUPEOF
+    chmod +x "$fake_plugin_root/scripts/dso-setup.sh"
+    # Shim template that the fallback should copy
+    printf '#!/bin/sh\n# DSO shim\nexec dso "$@"\n' \
+        > "$fake_plugin_root/templates/host-project/dso"
+    chmod +x "$fake_plugin_root/templates/host-project/dso"
+
+    stub_bin=$(_installer_stub_bin)
+    # Override bash stub: handle --version but pass other calls to real /bin/bash
+    cat > "$stub_bin/bash" <<'BASHEOF'
+#!/bin/sh
+case "$1" in
+  --version|-v) echo "GNU bash, version 5.2.15(1)-release (x86_64-pc-linux-gnu)"; exit 0 ;;
+  *) exec /bin/bash "$@" ;;
+esac
+BASHEOF
+    chmod +x "$stub_bin/bash"
+
+    CLAUDE_PLUGIN_ROOT="$fake_plugin_root" \
+    PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'\n' >/dev/null 2>&1 || true
+
+    local shim_ok="no"
+    [[ -f "$project_dir/.claude/scripts/dso" ]] && [[ -x "$project_dir/.claude/scripts/dso" ]] && shim_ok="yes"
+    assert_eq "shim fallback: .claude/scripts/dso installed even when dso-setup.sh fails" "yes" "$shim_ok"
+}
+
+test_installer_shim_installed_even_when_dso_setup_fails
 
 # ── test_no_project_name_no_tty_prints_usage_hint ────────────────────────────
 # Bug 3ce2-f279: running the script with no positional arg and no tty silently
