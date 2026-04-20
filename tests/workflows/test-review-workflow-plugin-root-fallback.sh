@@ -47,20 +47,32 @@ assert_eq "test_fallback_reads_dso_config: fallback reads dso.plugin_root from c
     "1" "$_has_config_read"
 assert_pass_if_clean "test_fallback_reads_dso_config"
 
-# ── test_fallback_final_default ───────────────────────────────────────────────
-# The fallback must construct a default plugin path as a safety net when both
-# the env var and config read fail. Uses a variable-constructed path to avoid
-# literal plugin path strings (blocked by plugin-self-ref hook).
+# ── test_fallback_uses_shim ───────────────────────────────────────────────────
+# The final fallback must resolve via the dso shim (--lib mode) rather than
+# constructing $REPO_ROOT/plugins/<name> directly. The shim handles plugin-cache
+# installs (worktree sessions) where the plugin is NOT in the repo tree.
+# Bug dcdc-8c7b: direct REPO_ROOT/plugins path injection causes exit 127 in
+# worktree sessions.
 echo ""
-echo "--- test_fallback_error_on_unset ---"
+echo "--- test_fallback_uses_shim ---"
 _snapshot_fail
 
-_has_final_default=0
-# The fallback assigns CLAUDE_PLUGIN_ROOT from a constructed path using $REPO_ROOT/plugins/
-grep -q 'CLAUDE_PLUGIN_ROOT=.*REPO_ROOT.*/plugins/' "$WORKFLOW_FILE" && _has_final_default=1 || true
-assert_eq "test_fallback_final_default: fallback constructs default plugin path" \
-    "1" "$_has_final_default"
-assert_pass_if_clean "test_fallback_final_default"
+_has_shim_fallback=0
+# The fallback must use the shim in --lib mode to get DSO_ROOT, not construct
+# a raw path from $REPO_ROOT/plugins/<name>.
+grep -q '\.claude/scripts/dso.*--lib\|--lib.*\.claude/scripts/dso' "$WORKFLOW_FILE" && _has_shim_fallback=1 || true
+assert_eq "test_fallback_uses_shim: final fallback resolves via dso shim --lib mode" \
+    "1" "$_has_shim_fallback"
+assert_pass_if_clean "test_fallback_uses_shim"
+
+# Ensure the old broken pattern (constructing CLAUDE_PLUGIN_ROOT from REPO_ROOT/plugins/)
+# is NOT present — that pattern breaks in worktree sessions.
+_has_broken_path_construction=0
+# shellcheck disable=SC2016  # single quotes intentional: searching for literal $REPO_ROOT text in file
+grep -qE 'CLAUDE_PLUGIN_ROOT=.*\$REPO_ROOT/plugins/|CLAUDE_PLUGIN_ROOT=.*\$\{REPO_ROOT\}/plugins/' "$WORKFLOW_FILE" && _has_broken_path_construction=1 || true
+assert_eq "test_fallback_no_broken_repo_root_path: fallback must NOT construct path via REPO_ROOT/plugins/" \
+    "0" "$_has_broken_path_construction"
+assert_pass_if_clean "test_fallback_no_broken_repo_root_path"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
