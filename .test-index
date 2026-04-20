@@ -257,4 +257,4 @@ plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test
 plugins/dso/scripts/preconditions-baseline-collect.sh:tests/scripts/test-preconditions-baseline.sh
 plugins/dso/scripts/preconditions-validator.sh:tests/scripts/test-preconditions-validator.sh,tests/skills/test-preplanning-preconditions-integration.sh
 plugins/dso/scripts/preconditions-depth-classifier.sh:tests/scripts/test-preconditions-depth-classifier.sh
-plugins/dso/hooks/lib/preconditions-validator-lib.sh:tests/hooks/test-preconditions-validator-lib.sh [test_pv_entry_check_accepts_valid_minimal_event],tests/hooks/test-preconditions-validator-lib.sh [test_pv_entry_check_rejects_schema_invalid],tests/hooks/test-preconditions-validator-lib.sh [test_pv_entry_check_ignores_unknown_fields],tests/hooks/test-preconditions-validator-lib.sh [test_pv_exit_write_emits_preconditions],tests/hooks/test-preconditions-validator-lib.sh [test_pv_exit_write_schema_roundtrip],tests/hooks/test-preconditions-validator-lib.sh [test_pv_exit_write_chain_link]
+plugins/dso/hooks/lib/preconditions-validator-lib.sh:tests/hooks/test-preconditions-validator-lib.sh
