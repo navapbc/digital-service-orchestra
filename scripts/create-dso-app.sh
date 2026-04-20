@@ -194,6 +194,19 @@ detect_dso_plugin_root() {
     exit 1
   fi
 
+  # 6. Register + enable the plugin for THIS project.
+  # Filesystem presence (probes 1-3) is insufficient — Claude Code loads plugins
+  # based on installed_plugins.json registry membership. Run `claude plugin install
+  # --scope project` from the project dir so the fresh project gets its own enabled
+  # registration. Idempotent: the CLI no-ops if already registered at project scope.
+  if [ -n "$project_dir" ] && command -v claude >/dev/null 2>&1; then
+    local _mp_name="digital-service-orchestra"
+    local _mp_url="https://github.com/navapbc/digital-service-orchestra"
+    # Ensure marketplace is known before installing (idempotent).
+    claude plugin marketplace add "$_mp_url" >/dev/null 2>&1 || true
+    (cd "$project_dir" && claude plugin install "dso@${_mp_name}" --scope project >/dev/null 2>&1) || true
+  fi
+
   # Write dso.plugin_root to project config if the file already exists
   if [ -n "$project_dir" ] && [ -f "$project_dir/.claude/dso-config.conf" ]; then
     if grep -q '^dso\.plugin_root=' "$project_dir/.claude/dso-config.conf" 2>/dev/null; then
@@ -541,6 +554,18 @@ main() {
   local resolved_plugin_root
   resolved_plugin_root=$(detect_dso_plugin_root "$project_dir")
 
+  # Step 5b.5: Run project detection so dso-setup can analyze CI guard coverage
+  # against the freshly cloned template (populates DSO_DETECT_OUTPUT contract).
+  # Uses a path under project_dir rather than mktemp so it works under restricted
+  # PATH environments (e.g., test stubs) that may not have /usr/bin/mktemp.
+  local _detect_output=""
+  local _detect_script="$resolved_plugin_root/scripts/project-detect.sh"
+  if [[ -x "$_detect_script" ]] && [[ -d "$project_dir" ]]; then
+    _detect_output="$project_dir/.dso-detect-output.tmp"
+    "$_detect_script" "$project_dir" > "$_detect_output" 2>/dev/null || : > "$_detect_output"
+    export DSO_DETECT_OUTPUT="$_detect_output"
+  fi
+
   # Step 5c: Configure project with DSO defaults (shim, CLAUDE.md, hooks)
   local _setup_script="$resolved_plugin_root/scripts/dso-setup.sh"
   if [[ -f "$_setup_script" ]]; then
@@ -548,6 +573,9 @@ main() {
     bash "$_setup_script" "$project_dir" "$resolved_plugin_root" \
       || echo "WARNING: DSO project setup encountered issues — run '.claude/scripts/dso validate.sh' manually if needed." >&2
   fi
+
+  # Clean up detection output after dso-setup consumed it
+  [[ -n "$_detect_output" && -f "$_detect_output" ]] && rm -f "$_detect_output"
 
   # All steps succeeded — clear the cleanup trap before writing the sentinel
   trap - EXIT
