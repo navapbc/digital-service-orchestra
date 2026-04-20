@@ -1,0 +1,1 @@
+{"timestamp": 1776647847335726000, "uuid": "6379c6fc-83df-4266-ae68-1dab46b76261", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "[create-dso-app]: fresh-template install never runs project-detect -> CI guard analysis silently skipped, template ci.yml drift goes undetected"}}}
