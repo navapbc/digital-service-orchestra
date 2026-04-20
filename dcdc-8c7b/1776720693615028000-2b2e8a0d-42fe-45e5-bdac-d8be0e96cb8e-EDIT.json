@@ -1,0 +1,1 @@
+{"timestamp": 1776720693615028000, "uuid": "2b2e8a0d-42fe-45e5-bdac-d8be0e96cb8e", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "[compute-diff-hash]: absolute REPO_ROOT path in worktrees -> exit 127 (file not found)"}}}
