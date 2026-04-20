@@ -23,6 +23,7 @@ Skills that emit or consume this block must conform to this schema to ensure con
 | `claude_has_access` | enum | yes | Whether Claude can currently verify or use this dependency autonomously. See accepted values below. |
 | `verification_command` | string | no | Shell command that verifies Claude has access to the dependency (e.g., `"psql $DATABASE_URL -c 'SELECT 1'"`, `"curl -sf $API_BASE_URL/health"`). If omitted, a `justification` note must be included explaining why verification is not possible. |
 | `justification` | string | conditional | Free-text explanation of why `verification_command` is absent. Required when `verification_command` is omitted; omit when `verification_command` is present. |
+| `confirmation_token_required` | boolean | no | Default `false`. When `true`, sprint's pause handshake requires the user to type a confirmation token before the `user_manual` step is marked complete. The token is logged to the ticket as an audit trail. Valid only on entries where `verification_command` is omitted. |
 
 ---
 
@@ -77,6 +78,7 @@ external_dependencies:
     handling: user_manual
     claude_has_access: no
     justification: "API key is a human-managed secret stored in 1Password; no programmatic health check is available without exposing the key in a command."
+    confirmation_token_required: true
 
   - name: "Auth0 tenant (staging)"
     ownership: linked-epic-a68d-9346
@@ -95,6 +97,7 @@ external_dependencies:
 4. **`handling: user_manual` + `claude_has_access: yes`**: Valid and permitted. Claude can observe or health-check the dependency autonomously, but a human step is still required before Claude can use it (e.g., Claude can verify a service is running but a human must rotate the key before the next phase). Skills should log a note suggesting upgrade to `claude_auto` only if the manual step is purely administrative (e.g., an approval), not when the step involves secret rotation or external provisioning. The `DEPENDENCY_BLOCKED` signal is still emitted; the difference is that Claude can confirm the dependency exists while waiting.
 5. **`handling: claude_auto` + `claude_has_access: no`**: A contradiction — Claude cannot proceed autonomously without access. Emitters MUST flag this as `EXTERNAL_DEPENDENCY_CONTRADICTION: <name> — handling=claude_auto conflicts with claude_has_access=no` and treat it as a blocking condition equivalent to `user_manual`.
 6. **`claude_has_access: unknown`**: Skills should attempt verification via `verification_command` at the start of each relevant phase and update the field to `yes` or `no` before recording findings. Leaving a field as `unknown` after a verification attempt is a malformed state.
+7. **`confirmation_token_required: true` + `verification_command` present**: Invalid combination — `confirmation_token_required` is only meaningful on entries where `verification_command` is absent. Emitters MUST NOT set both. Consumers that encounter this combination MUST log a warning and ignore `confirmation_token_required`.
 
 ---
 
@@ -120,3 +123,4 @@ This contract is versioned. Breaking changes (field renames, enum removals, requ
 ### Change Log
 
 - **2026-04-19**: Initial version — defines External Dependencies block schema for planning pipeline skills. Establishes `ownership`, `handling`, `claude_has_access`, and `verification_command` fields with full enum definitions, optionality rules, and consumer table.
+- **2026-04-19**: Additive — added `confirmation_token_required` (boolean, optional, default false) for sprint pause-handshake audit trail on `user_manual` entries without `verification_command`.

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../..}" # REVIEW-DEFENSE: dirname gives skills/preplanning/tests/; /../../.. ascends three levels to plugin root.
 # Structural-boundary tests for preplanning SKILL.md Phase 1.5 External Dependencies block reader.
 # Rule 5 (behavioral-testing-standard.md): SKILL.md is non-executable; tests assert structural
 # contracts (section headings, referenced flags, tag names, path references).
 set -euo pipefail
 
-SKILL_MD="${_PLUGIN_ROOT}/skills/preplanning/SKILL.md"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILL_MD="${_SCRIPT_DIR}/../SKILL.md"
 
 PASS=0
 FAIL=0
@@ -15,7 +15,7 @@ fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 echo "=== Phase 1.5 section heading exists ==="
 # test_phase_1_5_section_heading_exists
-# RED marker boundary: assert Phase 1.5 External Dependencies Block Reading section heading present.
+# Assert Phase 1.5 External Dependencies Block Reading section heading present.
 if grep -qi "Phase 1\.5.*External Dep\|External Dep.*Phase 1\.5" "$SKILL_MD"; then
     pass "test_phase_1_5_section_heading_exists: Phase 1.5 External Dependencies heading found"
 else
@@ -30,16 +30,6 @@ if grep -q "planning\.external_dependency_block_enabled\|is_external_dep_block_e
     pass "test_flag_check_reference_present: planning flag reference found"
 else
     fail "test_flag_check_reference_present: planning flag reference missing from SKILL.md"
-fi
-
-echo ""
-echo "=== Refusal Gate section heading exists ==="
-# test_refusal_gate_section_heading_exists
-# Assert that the Refusal Gate section heading exists in SKILL.md.
-if grep -qi "Refusal Gate" "$SKILL_MD"; then
-    pass "test_refusal_gate_section_heading_exists: Refusal Gate heading found"
-else
-    fail "test_refusal_gate_section_heading_exists: Refusal Gate heading not found in SKILL.md"
 fi
 
 echo ""
@@ -65,7 +55,7 @@ fi
 echo ""
 echo "=== Idempotency check instruction present ==="
 # test_idempotency_check_instruction_present
-# Assert that SKILL.md Phase 1.5 contains idempotency check guidance (skip if block already present).
+# Assert that SKILL.md Phase 1.5 contains idempotency check guidance.
 if grep -qi "idempoten\|already.*present.*skip\|skip.*already.*present" "$SKILL_MD"; then
     pass "test_idempotency_check_instruction_present: idempotency check instruction found"
 else
@@ -85,11 +75,22 @@ fi
 echo ""
 echo "=== Refusal diagnostic references brainstorm ==="
 # test_refusal_diagnostic_references_brainstorm
-# Assert that the Refusal Gate section directs users to /dso:brainstorm.
-if grep -qi "dso:brainstorm\|/dso:brainstorm" "$SKILL_MD"; then
-    pass "test_refusal_diagnostic_references_brainstorm: /dso:brainstorm reference found in SKILL.md"
+# Assert that the Refusal Gate section specifically directs users to /dso:brainstorm.
+# Scoped check: Refusal Gate heading must exist AND brainstorm must appear within 20 lines of it.
+if grep -qi "Refusal Gate" "$SKILL_MD" && grep -A20 -i "Refusal Gate" "$SKILL_MD" | grep -qi "brainstorm"; then
+    pass "test_refusal_diagnostic_references_brainstorm: Refusal Gate section references /dso:brainstorm"
 else
-    fail "test_refusal_diagnostic_references_brainstorm: /dso:brainstorm reference missing from Refusal Gate section"
+    fail "test_refusal_diagnostic_references_brainstorm: Refusal Gate section missing or does not reference /dso:brainstorm within 20 lines"
+fi
+
+echo ""
+echo "=== Refusal Gate section heading exists ==="
+# test_refusal_gate_section_heading_exists
+# RED marker boundary: assert Refusal Gate section heading exists. Fails until task 68e7-8085 adds it.
+if grep -qi "Refusal Gate" "$SKILL_MD"; then
+    pass "test_refusal_gate_section_heading_exists: Refusal Gate heading found"
+else
+    fail "test_refusal_gate_section_heading_exists: Refusal Gate heading not found in SKILL.md"
 fi
 
 echo ""

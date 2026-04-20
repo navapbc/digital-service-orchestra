@@ -396,5 +396,5 @@ plugins/dso/scripts/classify-sc-shape.sh:tests/skills/test-brainstorm-shape-heur
 # --- brainstorm SKILL.md: contradiction gate (task 62f4-fe71 RED / task fb5a-9ae4 impl) ---
 plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-brainstorm-external-dep-contradiction-gate.sh [test_contradiction_gate_section_heading_present]
 
-# --- preplanning SKILL.md: Phase 1.5 ext dep block reader (task bb8f-cde2 RED / task c1c6-50f4 impl) ---
-plugins/dso/skills/preplanning/SKILL.md:plugins/dso/skills/preplanning/tests/test_external_dep_block_reader.sh [test_phase_1_5_section_heading_exists]
+# --- preplanning SKILL.md: Refusal Gate (task bb8f-cde2 RED / task 68e7-8085 impl) ---
+plugins/dso/skills/preplanning/SKILL.md:plugins/dso/skills/preplanning/tests/test_external_dep_block_reader.sh [test_refusal_diagnostic_references_brainstorm]

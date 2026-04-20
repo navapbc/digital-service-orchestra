@@ -150,6 +150,14 @@ If `--lightweight` was passed: run Phase 1 Step 1 only, skip Step 1b, run abbrev
 
 If `--lightweight` was NOT passed, continue to Phase 1 Step 2 as normal.
 
+Source the planning flag helper now to determine whether External Dependencies processing is enabled:
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh"
+```
+
+If `is_external_dep_block_enabled` returns exit 1 (flag absent or `false`), set `EXTERNAL_DEP_BLOCK_ENABLED=false` — Phase 1.5 will be skipped. When the function returns exit 0, set `EXTERNAL_DEP_BLOCK_ENABLED=true`.
+
 ### Step 2: Audit Existing Children (/dso:preplanning)
 
 Gather all existing child items:
@@ -201,6 +209,49 @@ Use `AskUserQuestion` to get user approval before proceeding:
 - Options: ["Approve — proceed with story creation", "Request changes"]
 
 If the user requests changes, iterate on the reconciliation plan and re-present.
+
+---
+
+## Phase 1.5: External Dependencies Block Reading (/dso:preplanning)
+
+**Skip this phase when `EXTERNAL_DEP_BLOCK_ENABLED=false`.**
+
+### Purpose
+
+After auditing existing children (Step 2), read the parent epic's `## External Dependencies` block (conforming to `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`) and generate the corresponding child stories.
+
+### Reading the Block
+
+Parse the epic's description field for a YAML block under the `## External Dependencies` heading. If no block exists, skip this phase entirely and proceed to Phase 2.
+
+**Validation**: For each entry, if `confirmation_token_required: true` is present alongside a `verification_command`, log a warning and ignore `confirmation_token_required`: `"Entry <name>: confirmation_token_required is only meaningful when verification_command is absent — ignoring."` Do not block story creation.
+
+### Idempotency Check
+
+Before creating any story for a block entry, get the epic's current children:
+
+```bash
+.claude/scripts/dso ticket deps <epic-id>
+```
+
+Parse the `children` field from the JSON output (not `deps` or `blockers`). Check whether any child is already tagged `manual:awaiting_user` with a title matching the entry's `name` field. If a match is found, skip creation for that entry to avoid duplicates. Log: `"Skipping <name> — existing manual:awaiting_user story already created (idempotency)."`
+
+### Story Generation
+
+For each entry in the `external_dependencies` block:
+
+**`handling: claude_auto` entries:**
+- Create a standard automation story as a child of the epic (same Phase 4 story creation flow).
+- Story title: `"Verify and integrate <name>"`.
+- Done definition: verification_command passes and Claude has confirmed access.
+
+**`handling: user_manual` entries:**
+- Create a story tagged `manual:awaiting_user` as a child of the epic.
+- Story title: `"Complete manual step: <name>"`.
+- Done definitions must include:
+  - The entry's `justification` field verbatim (if present, explain why the step requires human action).
+  - If `verification_command` is present: the command as the verification step.
+  - If `verification_command` is absent: a confirmation-token prompt using `confirmation_token_required` (if `true`) or a simple acknowledgment (if `false` or absent).
 
 ---
 
