@@ -428,3 +428,5 @@ plugins/dso/scripts/validate-phase.sh:tests/scripts/test-residual-callers-polygl
 plugins/dso/scripts/validate-phase.sh:tests/scripts/test-residual-callers-polyglot.sh [test_validate_phase_guards_run_check_with_nonempty_check]
 plugins/dso/scripts/format-and-lint.sh:tests/scripts/test-residual-callers-polyglot.sh [test_format_and_lint_has_python_only_rationale_comment]
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-residual-callers-polyglot.sh [test_pre_commit_format_fix_has_python_only_rationale_comment]
+plugins/dso/scripts/gate-2b-blast-radius.sh:tests/scripts/test-gate-format-check.sh [test_gate2b_reads_format_check_from_config]
+plugins/dso/scripts/gate-2d-dependency-check.sh:tests/scripts/test-gate-format-check.sh
