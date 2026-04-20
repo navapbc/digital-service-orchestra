@@ -257,9 +257,10 @@ test_installer_writes_plugin_root_to_config() {
     local mock_marketplace="$tmpdir/mock-dso"
     local project_dir="$tmpdir/test-project"
 
-    # Create mock marketplace sentinel
-    mkdir -p "$mock_marketplace/digital-service-orchestra/.claude-plugin"
-    echo '{"name":"dso"}' > "$mock_marketplace/digital-service-orchestra/.claude-plugin/plugin.json"
+    # Create mock marketplace sentinel at the real Claude Code layout:
+    # <base>/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json
+    mkdir -p "$mock_marketplace/digital-service-orchestra/plugins/dso/.claude-plugin"
+    echo '{"name":"dso"}' > "$mock_marketplace/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json"
 
     # Create project with default dso.plugin_root
     mkdir -p "$project_dir/.claude"
@@ -285,7 +286,7 @@ test_installer_writes_plugin_root_to_config() {
     # Verify config was updated — only reached when invoke_exit == 0
     local actual_root
     actual_root=$(grep '^dso\.plugin_root=' "$project_dir/.claude/dso-config.conf" | cut -d= -f2-)
-    local expected_root="$mock_marketplace/digital-service-orchestra"
+    local expected_root="$mock_marketplace/digital-service-orchestra/plugins/dso"
 
     assert_eq "dso.plugin_root written correctly" "$expected_root" "$actual_root"
 }
@@ -1183,5 +1184,147 @@ test_no_project_name_no_tty_prints_usage_hint() {
 }
 
 test_no_project_name_no_tty_prints_usage_hint
+
+# ── test_detect_dso_plugin_root_marketplace_internal_layout ──────────────────
+# RED: detect_dso_plugin_root() must find plugin.json at the real Claude Code
+# marketplace-internal layout: <base>/digital-service-orchestra/plugins/dso/
+# .claude-plugin/plugin.json. The old code probed the wrong path
+# (<base>/digital-service-orchestra/.claude-plugin/plugin.json) — this test
+# asserts the correct layout is detected (bug 17d3-e2c8).
+test_detect_dso_plugin_root_marketplace_internal_layout() {
+    echo ""
+    echo "→ test_detect_dso_plugin_root_marketplace_internal_layout"
+
+    local T mock_base detected exit_code
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    mock_base="$T/marketplaces"
+
+    # Correct layout: <base>/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json
+    mkdir -p "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin"
+    echo '{"name":"dso","version":"1.0.0"}' \
+        > "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json"
+
+    detected=$(
+        MARKETPLACE_BASE="$mock_base" \
+        CLAUDE_PLUGIN_ROOT='' \
+        /bin/bash -c "
+            source '$PLUGIN_ROOT/scripts/create-dso-app.sh'
+            detect_dso_plugin_root ''
+        " 2>/dev/null
+    ) || exit_code=$?
+    exit_code=${exit_code:-0}
+
+    assert_eq "detect_dso_plugin_root: marketplace-internal layout resolves" \
+        "$mock_base/digital-service-orchestra/plugins/dso" "$detected"
+    assert_eq "detect_dso_plugin_root: exits 0" "0" "$exit_code"
+}
+
+# ── test_detect_dso_plugin_root_auto_installs_when_missing ───────────────────
+# RED: when no plugin is found via static paths, detect_dso_plugin_root() must
+# invoke `claude plugin marketplace add` and `claude plugin install dso`, then
+# re-detect successfully rather than exiting 1 with an error (bug 17d3-e2c8).
+test_detect_dso_plugin_root_auto_installs_when_missing() {
+    echo ""
+    echo "→ test_detect_dso_plugin_root_auto_installs_when_missing"
+
+    local T stub_bin mock_base installed_path detected exit_code
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    stub_bin=$(mktemp -d)
+    TMPDIRS+=("$stub_bin")
+    mock_base="$T/marketplaces"
+    # Stub `claude` to simulate `plugin marketplace add` + `plugin install dso`:
+    # writes plugin.json into the mock marketplace base so the re-probe finds it.
+    cat > "$stub_bin/claude" <<CLAUDEOF
+#!/bin/sh
+case "\$*" in
+  "plugin marketplace add"*) exit 0 ;;
+  "plugin install dso"*)
+    mkdir -p "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin"
+    echo '{"name":"dso","version":"1.0.0"}' > "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json"
+    exit 0 ;;
+  *) exit 0 ;;
+esac
+CLAUDEOF
+    chmod +x "$stub_bin/claude"
+
+    # Use an isolated HOME so probe 2b (cache scan) finds no real installation,
+    # forcing the auto-install code path to be exercised.
+    local fake_home="$T/fakehome"
+    mkdir -p "$fake_home"
+
+    detected=$(
+        PATH="$stub_bin:/usr/bin:/bin" \
+        HOME="$fake_home" \
+        MARKETPLACE_BASE="$mock_base" \
+        CLAUDE_PLUGIN_ROOT='' \
+        /bin/bash -c "
+            source '$PLUGIN_ROOT/scripts/create-dso-app.sh'
+            detect_dso_plugin_root ''
+        " 2>/dev/null
+    ) || exit_code=$?
+    exit_code=${exit_code:-0}
+
+    assert_eq "detect_dso_plugin_root: auto-install invoked, exits 0" "0" "$exit_code"
+    local has_path="no"
+    [[ "$detected" == *"$mock_base"* ]] && has_path="yes"
+    assert_eq "detect_dso_plugin_root: returns a path after auto-install" "yes" "$has_path"
+}
+
+# ── test_detect_dso_plugin_root_bash_source_guard ────────────────────────────
+# RED: when BASH_SOURCE[0] is a /dev/fd/* path (process substitution, as with
+# `bash <(curl ...)`), _PLUGIN_ROOT must not be set to a /dev/* path. The
+# guard should fall through to the DSO_PLUGIN_ROOT env var fallback instead
+# (bug 17d3-e2c8).
+test_detect_dso_plugin_root_bash_source_guard() {
+    echo ""
+    echo "→ test_detect_dso_plugin_root_bash_source_guard"
+
+    local T mock_base detected
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    mock_base="$T/marketplaces"
+
+    # Provide plugin via marketplace so re-detection after bad _PLUGIN_ROOT succeeds
+    mkdir -p "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin"
+    echo '{"name":"dso","version":"1.0.0"}' \
+        > "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json"
+
+    # Simulate a stdin/pipe BASH_SOURCE path (e.g. bash -s or bash <(curl ...)):
+    # source the script via a heredoc so BASH_SOURCE[0] is not a real file path.
+    # The same guard applies to /dev/fd/N (process substitution) and /dev/stdin
+    # (pipe) — both fail the `[ -f ]` check, causing _PLUGIN_ROOT to be unset
+    # and falling through to the marketplace probe. Verify two things:
+    # (1) _PLUGIN_ROOT is not set to a /dev* path (negative: guard is effective)
+    # (2) detect_dso_plugin_root() still succeeds and returns the mock_base path
+    #     (positive: fallback probe works after guard clears _PLUGIN_ROOT)
+    local plugin_root_leaked="no"
+    local output exit_code
+    output=$(
+        MARKETPLACE_BASE="$mock_base" \
+        CLAUDE_PLUGIN_ROOT='' \
+        /bin/bash -s <<HEREDOC 2>&1
+source "$PLUGIN_ROOT/scripts/create-dso-app.sh"
+# After source, _PLUGIN_ROOT should NOT be /dev or /dev/fd/*
+if [[ "\${_PLUGIN_ROOT:-}" == /dev* ]]; then
+    echo "LEAKED:/dev"
+fi
+detect_dso_plugin_root ''
+HEREDOC
+    ); exit_code=$?
+
+    echo "$output" | grep -q "LEAKED:/dev" && plugin_root_leaked="yes"
+    assert_eq "_PLUGIN_ROOT not set to /dev* when sourced via heredoc/pipe" "no" "$plugin_root_leaked"
+
+    local returned_path_ok="no"
+    [[ "$output" == *"$mock_base"* ]] && returned_path_ok="yes"
+    assert_eq "detect_dso_plugin_root() succeeds and returns mock_base path" "yes" "$returned_path_ok"
+    assert_eq "detect_dso_plugin_root() exits 0" "0" "$exit_code"
+}
+
+test_detect_dso_plugin_root_marketplace_internal_layout
+test_detect_dso_plugin_root_auto_installs_when_missing
+test_detect_dso_plugin_root_bash_source_guard
 
 print_summary
