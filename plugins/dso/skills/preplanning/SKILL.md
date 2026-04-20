@@ -108,6 +108,8 @@ This is a presence-based check — only block when the tag IS present. Existing 
 
 ### Preconditions Entry Gate (/dso:preplanning)
 
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
 [Instructions for the LLM: Before Phase 1 Step 1, validate that a brainstorm PRECONDITIONS event exists.
 Run: `.claude/scripts/dso preconditions-validator.sh <epic_id> brainstorm_complete [--event-file=<path if known>]`
 (or use preconditions-record.sh invocation from brainstorm; fail-open if script not found)

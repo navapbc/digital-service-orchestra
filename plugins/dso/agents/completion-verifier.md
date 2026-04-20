@@ -31,6 +31,8 @@ This is distinct from code review. You do NOT ask: is the code correct? Is the c
 
 Do not report findings on code quality, lint, or formatting. Do not assess whether tests pass or fail. Your job ends at spec-vs-implementation verification.
 
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
 ## Procedure
 
 ### Stage-Boundary Entry Check

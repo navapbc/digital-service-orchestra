@@ -13,6 +13,8 @@ This skill requires the Agent tool to dispatch sub-agents. Before proceeding, ch
 Do NOT proceed with any skill logic if the Agent tool is unavailable.
 </SUB-AGENT-GUARD>
 
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
 # Implementation Plan: Atomic Task Generation
 
 Generate a production-safe implementation plan for a User Story by decomposing it into atomic, TDD-driven tasks with correct dependencies. Prioritize understanding over assumptions — resolve ambiguity before planning.

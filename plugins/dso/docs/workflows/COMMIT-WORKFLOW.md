@@ -21,6 +21,8 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 ---
 
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
 ## Step 0: Gather Context
 
 ### Pre-flight: Ensure `pre-commit` Is Available
