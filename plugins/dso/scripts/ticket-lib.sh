@@ -642,10 +642,19 @@ try:
 except json.JSONDecodeError:
     data_obj = {}
 
+# Derive schema_version and manifest_depth from tier
+# (per preconditions-schema-v2.md contract)
+tier_to_schema = {
+    'minimal':  (1, 'minimal'),
+    'standard': (2, 'standard'),
+    'deep':     (2, 'deep'),
+}
+sv, md = tier_to_schema.get(tier, (1, 'minimal'))
+
 payload = {
     'event_type': 'PRECONDITIONS',
-    'schema_version': 1,
-    'manifest_depth': 'minimal',
+    'schema_version': sv,
+    'manifest_depth': md,
     'gate_name': gate_name,
     'session_id': session_id,
     'worktree_id': worktree_id,
@@ -704,11 +713,12 @@ _read_latest_preconditions() {
     fi
 
     python3 -c "
-import json, os, sys
+import json, os, sys, tempfile
 
 ticket_dir = sys.argv[1]
 gate_name  = sys.argv[2]
 session_id = sys.argv[3]
+ticket_id  = os.path.basename(ticket_dir)
 
 # Collect all PRECONDITIONS files
 candidates = []
@@ -727,14 +737,29 @@ for fname in entries:
     except (OSError, json.JSONDecodeError):
         continue
     if data.get('gate_name') == gate_name and data.get('session_id') == session_id:
-        candidates.append((fname, fpath))
+        candidates.append((fname, fpath, data))
 
 if not candidates:
     sys.exit(0)
 
 # Lexicographic sort on filename (ISO8601 timestamp prefix = chronological order)
 candidates.sort(key=lambda x: x[0])
-_, latest_path = candidates[-1]
+_, latest_path, latest_data = candidates[-1]
+
+# Forward-compat: warn once per (ticket_id, schema_version) when schema_version is unknown (> 2)
+schema_version = latest_data.get('schema_version', 1)
+if isinstance(schema_version, int) and schema_version > 2:
+    warn_dir = os.path.join(tempfile.gettempdir(), 'dso-preconditions-warn')
+    os.makedirs(warn_dir, exist_ok=True)
+    warn_key = '{}_{}_v{}'.format(ticket_id, gate_name, schema_version)
+    warn_file = os.path.join(warn_dir, warn_key)
+    if not os.path.exists(warn_file):
+        print(
+            '[DSO WARN] preconditions reader: unknown schema_version={} for ticket {} '
+            '-- falling back to minimal-tier interpretation'.format(schema_version, ticket_id),
+            file=sys.stderr
+        )
+        open(warn_file, 'w').close()
 
 with open(latest_path, encoding='utf-8') as f:
     print(f.read(), end='')
