@@ -14,13 +14,17 @@
 set -euo pipefail
 
 # Self-detect plugin root via BASH_SOURCE (never hardcode paths)
-# When invoked via bash <(curl ...), BASH_SOURCE[0] is /dev/stdin — fall back to pwd
-if [ "${BASH_SOURCE[0]}" != "/dev/stdin" ] && [ -n "${BASH_SOURCE[0]}" ]; then
-  _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# bash <(curl ...) sets BASH_SOURCE[0] to /dev/stdin or /dev/fd/N (process
+# substitution) — both are non-filesystem paths so _PLUGIN_ROOT derivation
+# would yield /dev or /dev/fd, which is always wrong.  Guard against both
+# forms: require the path to exist as a regular file on disk before accepting.
+_BASH_SOURCE_0="${BASH_SOURCE[0]:-}"
+if [ -n "$_BASH_SOURCE_0" ] && [ -f "$_BASH_SOURCE_0" ]; then
+  _SCRIPT_DIR="$(cd "$(dirname "$_BASH_SOURCE_0")" && pwd)"
   # _PLUGIN_ROOT is parent of scripts/
   _PLUGIN_ROOT="$(dirname "$_SCRIPT_DIR")"
 else
-  # Invoked via curl pipe — use installed path from dso-config.conf if available
+  # Invoked via curl pipe or process substitution — no BASH_SOURCE filesystem path
   _PLUGIN_ROOT="${DSO_PLUGIN_ROOT:-}"
 fi
 
@@ -48,10 +52,14 @@ _DSO_MARKETPLACE_BASE="${MARKETPLACE_BASE:-}"
 #
 # Priority:
 #   1. $CLAUDE_PLUGIN_ROOT env var — if set and sentinel exists
-#   2. ${MARKETPLACE_BASE:-$HOME/.claude/plugins/marketplaces}/digital-service-orchestra/
-#      (MARKETPLACE_BASE is an env var override for test isolation)
-#   3. Dev env: _PLUGIN_ROOT (resolved from BASH_SOURCE) when it contains the sentinel
-#   4. Fatal error — prints actionable message and exits 1
+#   2. Marketplace-internal checkout: <base>/digital-service-orchestra/plugins/*/
+#      (MARKETPLACE_BASE overrides <base> for test isolation)
+#   2b. Channel cache: ~/.claude/plugins/cache/digital-service-orchestra/
+#       (prefers `dso` stable channel; first version found within each channel)
+#   3. Dev env: _PLUGIN_ROOT (resolved from BASH_SOURCE as a real filesystem file)
+#   4. Auto-install via `claude plugin marketplace add` + `claude plugin install dso`
+#      then re-probe priorities 2 and 2b
+#   5. Fatal error — prints actionable message and exits 1
 detect_dso_plugin_root() {
   local project_dir="${1:-}"
   local plugin_root=""
@@ -80,13 +88,46 @@ detect_dso_plugin_root() {
     plugin_root="$_effective_plugin_root"
   fi
 
-  # 2. Marketplace path
+  # 2. Marketplace path — Claude Code lays out installed plugins under:
+  #    <base>/digital-service-orchestra/plugins/<name>/.claude-plugin/plugin.json
   if [ -z "$plugin_root" ]; then
     local _marketplace_base="${_effective_marketplace_base:-$HOME/.claude/plugins/marketplaces}"
-    local _marketplace_path="$_marketplace_base/digital-service-orchestra"
-    if [ -f "$_marketplace_path/.claude-plugin/plugin.json" ]; then
-      plugin_root="$_marketplace_path"
+    local _mp_dir="$_marketplace_base/digital-service-orchestra/plugins"
+    # Iterate every plugin sub-directory and accept the first with plugin.json
+    if [ -d "$_mp_dir" ]; then
+      local _candidate
+      for _candidate in "$_mp_dir"/*/; do
+        if [ -f "$_candidate.claude-plugin/plugin.json" ]; then
+          plugin_root="${_candidate%/}"
+          break
+        fi
+      done
     fi
+  fi
+
+  # 2b. Channel cache path — active installed channel under:
+  #    ~/.claude/plugins/cache/digital-service-orchestra/<channel>/<version>/
+  #    Prefer the stable `dso` channel; within each channel accept the first version
+  #    returned by glob (lexicographic — works for zero-padded semver directories).
+  if [ -z "$plugin_root" ]; then
+    local _cache_base="$HOME/.claude/plugins/cache/digital-service-orchestra"
+    local _best="" _best_channel_rank=99
+    for _channel_dir in "$_cache_base"/*/; do
+      [ -d "$_channel_dir" ] || continue
+      local _channel
+      _channel="$(basename "$_channel_dir")"
+      local _rank=1
+      [ "$_channel" = "dso" ] && _rank=0  # prefer stable
+      for _ver_dir in "$_channel_dir"*/; do
+        [ -f "$_ver_dir.claude-plugin/plugin.json" ] || continue
+        # Accept this candidate if it's a better channel or first found
+        if [ -z "$_best" ] || [ "$_rank" -lt "$_best_channel_rank" ]; then
+          _best="${_ver_dir%/}"
+          _best_channel_rank="$_rank"
+        fi
+      done
+    done
+    [ -n "$_best" ] && plugin_root="$_best"
   fi
 
   # 3. Dev env: _PLUGIN_ROOT resolved at script load time via BASH_SOURCE
@@ -97,9 +138,59 @@ detect_dso_plugin_root() {
     fi
   fi
 
-  # 4. Fatal error
+  # 4. Auto-install: plugin not found via any static path — invoke Claude Code
+  #    plugin installer, then re-run detection (probes 2 and 2b only).
+  #    Install format: `dso@<marketplace>` per `claude plugin install --help`
+  #    ("use plugin@marketplace for specific marketplace").
+  local _auto_install_attempted=false
+  if [ -z "$plugin_root" ] && command -v claude >/dev/null 2>&1; then
+    _auto_install_attempted=true
+    echo "DSO plugin not found locally — installing via Claude Code marketplace..." >&2
+    local _mp_name="digital-service-orchestra"
+    local _mp_url="https://github.com/navapbc/digital-service-orchestra"
+    # Add marketplace (idempotent — exits 0 if already present)
+    claude plugin marketplace add "$_mp_url" 2>/dev/null || true
+    # Install the stable dso plugin at user scope
+    if claude plugin install "dso@${_mp_name}" --scope user 2>/dev/null; then
+      # Re-probe marketplace-internal layout (probe 2)
+      local _mp_dir2
+      local _mp_base2="${_effective_marketplace_base:-$HOME/.claude/plugins/marketplaces}"
+      _mp_dir2="$_mp_base2/${_mp_name}/plugins"
+      if [ -d "$_mp_dir2" ]; then
+        for _candidate in "$_mp_dir2"/*/; do
+          if [ -f "$_candidate.claude-plugin/plugin.json" ]; then
+            plugin_root="${_candidate%/}"
+            break
+          fi
+        done
+      fi
+      # Re-probe cache (probe 2b) if marketplace layout not found
+      if [ -z "$plugin_root" ]; then
+        local _cache_base2="$HOME/.claude/plugins/cache/${_mp_name}"
+        local _best2="" _best_rank2=99
+        for _ch in "$_cache_base2"/*/; do
+          [ -d "$_ch" ] || continue
+          local _r=1; [ "$(basename "$_ch")" = "dso" ] && _r=0
+          for _v in "$_ch"*/; do
+            [ -f "$_v.claude-plugin/plugin.json" ] || continue
+            if [ -z "$_best2" ] || [ "$_r" -lt "$_best_rank2" ]; then
+              _best2="${_v%/}"; _best_rank2="$_r"
+            fi
+          done
+        done
+        [ -n "$_best2" ] && plugin_root="$_best2"
+      fi
+    fi
+  fi
+
+  # 5. Fatal error — static probes and auto-install both failed
   if [ -z "$plugin_root" ]; then
-    echo "Error: DSO plugin not found. Install via Claude Code marketplace or set CLAUDE_PLUGIN_ROOT." >&2
+    if $_auto_install_attempted; then
+      echo "Error: DSO plugin not found. Auto-install was attempted but failed." >&2
+      echo "To install manually: claude plugin marketplace add https://github.com/navapbc/digital-service-orchestra && claude plugin install dso@digital-service-orchestra --scope user" >&2
+    else
+      echo "Error: DSO plugin not found. Install via Claude Code marketplace or set CLAUDE_PLUGIN_ROOT." >&2
+    fi
     exit 1
   fi
 
