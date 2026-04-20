@@ -1,0 +1,1 @@
+{"timestamp": 1776661268912522000, "uuid": "0fb4f439-df2b-463f-90f4-4f4fbe5196bf", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "task", "title": "Bash-native test", "parent_id": "", "description": "", "tags": [], "priority": 2, "assignee": "Test"}}
