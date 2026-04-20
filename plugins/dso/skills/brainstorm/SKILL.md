@@ -306,7 +306,7 @@ Do NOT proceed to Phase 2 until the user confirms the understanding summary or e
    ```
 
 2. If any SC returns `external-outcome`:
-   - Run the classification dialogue: ask the user to specify `ownership`, `claude_has_access`, and (optionally) `verification_command` for each external-outcome dependency.
+   - Run the classification dialogue: ask the user to specify `ownership`, `handling` (`claude_auto` or `user_manual`), `claude_has_access`, and (optionally) `verification_command` for each external-outcome dependency.
    - Warn if `verification_command` runs destructive operations (deletes, writes to production).
    - Render the External Dependencies block in the epic description per the schema in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
 
