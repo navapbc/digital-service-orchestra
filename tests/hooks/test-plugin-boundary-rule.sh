@@ -64,23 +64,36 @@ test_claude_md_contains_permitted_dirs() {
 }
 
 # ── Assertion 1c: NEVER-statement appears before positive enumeration ─────────
-# The NEVER ref to plugins/dso must appear on a line that comes BEFORE the first
-# mention of docs/designs/ in the same rule block (within 10 lines of each other).
+# Within the plugin-boundary rule itself (Architectural Invariant #3), the
+# NEVER-statement must appear before the list of permitted project-local dirs.
+# We target the specific "NEVER place dev-team artifacts" phrasing of Invariant #3
+# rather than any "Never .* plugins/dso" occurrence — broader grep patterns are
+# false-positive prone because CLAUDE.md legitimately references `docs/designs/`
+# in unrelated sections (e.g. the NextJS template repo entry) and mentions
+# `plugins/dso/` in advisory bullets like the Plugin Path Pattern guidance.
 test_never_statement_before_enumeration() {
     local never_line designs_line
-    never_line=$(grep -n "NEVER.*plugins/dso\|Never.*plugins/dso" "$CLAUDE_MD" 2>/dev/null | head -1 | cut -d: -f1)
-    designs_line=$(grep -n "docs/designs" "$CLAUDE_MD" 2>/dev/null | head -1 | cut -d: -f1)
+    never_line=$(grep -n "NEVER place .*plugins/dso" "$CLAUDE_MD" 2>/dev/null | head -1 | cut -d: -f1)
 
-    if [[ -z "$never_line" || -z "$designs_line" ]]; then
+    if [[ -z "$never_line" ]]; then
         (( ++FAIL ))
-        printf "FAIL: Could not find NEVER-statement (%s) or docs/designs (%s) line in CLAUDE.md\n" \
-            "${never_line:-missing}" "${designs_line:-missing}" >&2
+        printf "FAIL: Could not find 'NEVER place ... plugins/dso' (Architectural Invariant #3) in CLAUDE.md\n" >&2
         return
     fi
 
-    if [[ "$never_line" -lt "$designs_line" ]]; then
+    # The docs/designs reference that this rule enumerates must be on or after
+    # the NEVER-statement line (they are typically on the same line of the rule).
+    designs_line=$(awk -v start="$never_line" 'NR>=start && /docs\/designs/ { print NR; exit }' "$CLAUDE_MD")
+
+    if [[ -z "$designs_line" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: NEVER-statement at line %s does not enumerate docs/designs on or after that line\n" "$never_line" >&2
+        return
+    fi
+
+    if [[ "$never_line" -le "$designs_line" ]]; then
         (( ++PASS ))
-        echo "PASS: NEVER-statement (line $never_line) appears before positive enumeration (line $designs_line)"
+        echo "PASS: NEVER-statement (line $never_line) precedes permitted-dirs enumeration (line $designs_line)"
     else
         (( ++FAIL ))
         printf "FAIL: NEVER-statement (line %s) does not appear before docs/designs (line %s)\n" \
