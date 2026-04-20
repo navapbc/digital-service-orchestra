@@ -233,7 +233,7 @@ plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
 plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-ticket-lib.sh,tests/scripts/test-ticket-write-commit-event.sh
 plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
