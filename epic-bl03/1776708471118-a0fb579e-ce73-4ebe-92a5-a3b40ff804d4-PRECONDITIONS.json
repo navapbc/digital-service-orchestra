@@ -1,0 +1,1 @@
+{"event_type": "PRECONDITIONS", "schema_version": 1, "manifest_depth": "minimal", "gate_name": "restart_rate_baseline", "session_id": "sess-baseline-003", "worktree_id": "worktree-20260420-091920", "tier": "minimal", "timestamp": 1776708471118, "gate_verdicts": [], "evidence_ref": {}, "affects_fields": [], "data": {}}
