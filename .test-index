@@ -147,7 +147,7 @@ plugins/dso/agents/red-team-reviewer.md:tests/hooks/test-escalate-to-epic-taxono
 plugins/dso/agents/blue-team-filter.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/red-test-writer.md:tests/hooks/test-agent-standard-reference.sh
 plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test-ticket-subprocess-count.sh
-plugins/dso/scripts/preconditions-record.sh:tests/scripts/test-preconditions-record.sh [test_preconditions_record_writes_event]
+plugins/dso/scripts/preconditions-record.sh:tests/scripts/test-preconditions-record.sh
 plugins/dso/scripts/ticket-show.sh:tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-subprocess-count.sh
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-transition-flock.sh [test_flock_llm_format_referenced]
 plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-reference.sh

@@ -569,3 +569,102 @@ _tag_add_checked() {
 
     _tag_add "$ticket_id" "$tag"
 }
+
+# _write_preconditions <ticket_id> <gate_name> <session_id> <worktree_id> <tier> <data_json>
+# Writes an immutable PRECONDITIONS event JSON into .tickets-tracker/<ticket_id>/
+# using _flock_stage_commit for atomic writes (same contract as write_commit_event).
+#
+# Args:
+#   ticket_id:   ticket directory name (e.g., test-t1a2)
+#   gate_name:   name of the gate being recorded (e.g., "story_gate")
+#   session_id:  session identifier
+#   worktree_id: worktree branch identifier
+#   tier:        review tier (e.g., "light", "standard", "deep")
+#   data_json:   JSON object with additional data (defaults to {})
+_write_preconditions() {
+    local ticket_id="$1"
+    local gate_name="$2"
+    local session_id="$3"
+    local worktree_id="$4"
+    local tier="$5"
+    local data_json="${6:-{}}"
+
+    local repo_root
+    repo_root="$(git rev-parse --show-toplevel)"
+    local tracker_dir_raw="${TICKETS_TRACKER_DIR:-$repo_root/.tickets-tracker}"
+    local tracker_dir
+    tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$tracker_dir_raw")
+
+    # ── Validate: ticket system must be initialized ──────────────────────────
+    if [ ! -d "$tracker_dir" ] || [ ! -f "$tracker_dir/.git" ]; then
+        echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
+        return 1
+    fi
+
+    # ── Generate timestamp and UUID ──────────────────────────────────────────
+    local timestamp_ms file_uuid
+    timestamp_ms=$(python3 -c "import time; print(int(time.time() * 1000))")
+    file_uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+
+    # ── Determine ticket dir and final path ──────────────────────────────────
+    local ticket_dir="$tracker_dir/$ticket_id"
+    local final_filename="${timestamp_ms}-${file_uuid}-PRECONDITIONS.json"
+    local final_path="$ticket_dir/$final_filename"
+
+    # ── Create ticket directory ──────────────────────────────────────────────
+    mkdir -p "$ticket_dir"
+
+    # ── Stage temp in tracker_dir (same filesystem for atomic rename) ────────
+    local staging_temp
+    staging_temp=$(mktemp "$tracker_dir/.tmp-preconditions-stage-XXXXXX")
+    trap 'rm -f "${staging_temp:-}"' EXIT
+
+    python3 -c "
+import json, sys, time
+
+timestamp_ms = int(sys.argv[1])
+gate_name    = sys.argv[2]
+session_id   = sys.argv[3]
+worktree_id  = sys.argv[4]
+tier         = sys.argv[5]
+data_json    = sys.argv[6]
+staging_path = sys.argv[7]
+
+try:
+    data_obj = json.loads(data_json)
+except json.JSONDecodeError:
+    data_obj = {}
+
+payload = {
+    'event_type': 'PRECONDITIONS',
+    'schema_version': 1,
+    'manifest_depth': 'minimal',
+    'gate_name': gate_name,
+    'session_id': session_id,
+    'worktree_id': worktree_id,
+    'tier': tier,
+    'timestamp': timestamp_ms,
+    'gate_verdicts': [],
+    'evidence_ref': {},
+    'affects_fields': [],
+    'data': data_obj,
+}
+
+with open(staging_path, 'w', encoding='utf-8') as f:
+    json.dump(payload, f, ensure_ascii=False)
+" "$timestamp_ms" "$gate_name" "$session_id" "$worktree_id" "$tier" "$data_json" "$staging_temp" || {
+        echo "Error: failed to write preconditions payload" >&2
+        return 1
+    }
+
+    # ── Acquire flock, atomic rename, and commit ─────────────────────────────
+    local commit_msg="preconditions: RECORD ${ticket_id}"
+    _flock_stage_commit "$tracker_dir" "$staging_temp" "$final_path" "$commit_msg" || return $?
+
+    # Clear trap — file has been renamed
+    trap - EXIT
+
+    _push_tickets_branch "$tracker_dir"
+
+    echo "Preconditions recorded: $final_filename"
+}
