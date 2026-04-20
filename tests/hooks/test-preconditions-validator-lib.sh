@@ -6,7 +6,7 @@
 # Tests use temp dirs for isolation — no shared mutable state between runs.
 # shellcheck disable=SC2030,SC2031,SC2329
 # SC2030/SC2031: TICKETS_TRACKER_DIR export is intentionally local to subshells (test isolation)
-# SC2329: _read_latest_preconditions stub defined inside subshell for mock override — invoked by sourced library
+# SC2329: _dso_pv_read_latest_by_gate stub defined inside subshell for mock override — invoked by sourced library
 
 set -uo pipefail
 
@@ -135,8 +135,8 @@ test_pv_entry_check_accepts_valid_minimal_event() {
     local exit_code=0
     (
         source "$LIB_PATH" 2>/dev/null
-        # Override _read_latest_preconditions to return our fixture
-        _read_latest_preconditions() { cat "$fixture_file"; }
+        # Override _dso_pv_read_latest_by_gate to return our fixture
+        _dso_pv_read_latest_by_gate() { cat "$fixture_file"; }
         _dso_pv_entry_check "preplanning" "brainstorm_complete" "test-ticket-001"
     ) >/dev/null 2>&1 || exit_code=$?
 
@@ -159,7 +159,7 @@ test_pv_entry_check_rejects_schema_invalid() {
     stderr_output=$(
         (
             source "$LIB_PATH" 2>/dev/null
-            _read_latest_preconditions() { cat "$fixture_file"; }
+            _dso_pv_read_latest_by_gate() { cat "$fixture_file"; }
             _dso_pv_entry_check "preplanning" "brainstorm_complete" "test-ticket-002"
         ) 2>&1 >/dev/null
     ) || exit_code=$?
@@ -186,7 +186,7 @@ test_pv_entry_check_ignores_unknown_fields() {
     local exit_code=0
     (
         source "$LIB_PATH" 2>/dev/null
-        _read_latest_preconditions() { cat "$fixture_file"; }
+        _dso_pv_read_latest_by_gate() { cat "$fixture_file"; }
         _dso_pv_entry_check "preplanning" "brainstorm_complete" "test-ticket-003"
     ) >/dev/null 2>&1 || exit_code=$?
 

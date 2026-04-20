@@ -95,19 +95,15 @@ PYEOF
 # in the ticket dir matching gate_name, ignoring session_id (cross-stage reads
 # may cross session boundaries). Prints JSON content to stdout; exits 0 on success,
 # exits 1 if no matching event found.
-# In tests, override _read_latest_preconditions to control what this returns.
+#
+# Test injection: define _dso_pv_read_latest_by_gate AFTER sourcing this lib to
+# override the production scanner with a fixture provider.
 _dso_pv_read_latest_by_gate() {
     local ticket_id="$1"
     local gate_name="$2"
 
-    # Test hook: if _read_latest_preconditions is overridden in the calling scope,
-    # use it (tests inject fixtures via function override in subshell)
-    if declare -f _read_latest_preconditions >/dev/null 2>&1; then
-        _read_latest_preconditions "$ticket_id" "$gate_name" "" 2>/dev/null
-        return $?
-    fi
-
     # Production path: scan ticket dir directly for matching gate_name (session-agnostic)
+    # TICKETS_TRACKER_DIR env var overrides tracker location (used in tests and CI)
     local repo_root
     repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || repo_root=""
     local tracker_dir_raw="${TICKETS_TRACKER_DIR:-${repo_root}/.tickets-tracker}"
