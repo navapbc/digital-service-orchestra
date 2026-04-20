@@ -256,7 +256,7 @@ check_homebrew_deps() {
   if brew list bash >/dev/null 2>&1; then
     local bash_prefix
     bash_prefix="$(brew --prefix bash)"
-    export PATH="$bash_prefix/bin:$PATH"
+    [ -n "$bash_prefix" ] && export PATH="$bash_prefix/bin:$PATH"
   fi
 
   # Check git
