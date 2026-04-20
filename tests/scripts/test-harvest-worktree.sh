@@ -1004,4 +1004,31 @@ assert_eq "EMPTY_BRANCH in stderr via artifacts/base-commit (1eda-6a0c)" "yes" "
 assert_pass_if_clean "test_empty_branch_exits3_when_base_commit_file_present"
 
 # =============================================================================
+echo "--- test_harvest_reads_preconditions_summary ---"
+# After a successful merge, harvest-worktree.sh must read PRECONDITIONS context
+# via _read_latest_preconditions (sourced from ticket-lib.sh) and log it to stderr.
+# RED: harvest-worktree.sh does not yet source ticket-lib.sh or call _read_latest_preconditions.
+_harvest_has_preconditions=0
+if grep -qE "_read_latest_preconditions|ticket-lib\.sh" "$HARVEST_SCRIPT" 2>/dev/null; then
+    _harvest_has_preconditions=1
+fi
+assert_eq "test_harvest_reads_preconditions_summary: harvest-worktree.sh references _read_latest_preconditions" \
+    "1" "$_harvest_has_preconditions"
+assert_pass_if_clean "test_harvest_reads_preconditions_summary"
+
+# =============================================================================
+echo "--- test_harvest_preconditions_zero_events_no_regression ---"
+# harvest-worktree.sh must guard _read_latest_preconditions with || true so that
+# tickets with zero PRECONDITIONS events (pre-manifest / legacy) do not break harvest.
+# RED: harvest-worktree.sh has no such guard because the call doesn't exist yet.
+_harvest_has_guard=0
+if grep -qE "_read_latest_preconditions.*\|\|" "$HARVEST_SCRIPT" 2>/dev/null || \
+   grep -A2 "_read_latest_preconditions" "$HARVEST_SCRIPT" 2>/dev/null | grep -qE "\|\| true|\|\| :"; then
+    _harvest_has_guard=1
+fi
+assert_eq "test_harvest_preconditions_zero_events_no_regression: harvest guards _read_latest_preconditions with || true" \
+    "1" "$_harvest_has_guard"
+assert_pass_if_clean "test_harvest_preconditions_zero_events_no_regression"
+
+# =============================================================================
 print_summary

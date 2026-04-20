@@ -117,6 +117,83 @@ def _is_net_archived(ticket_dir: str) -> bool:
     return bool(archived_uuids - reverted_uuids)
 
 
+def _compute_preconditions_summary(ticket_dir: str) -> dict:
+    """Scan ticket_dir for PRECONDITIONS events and compute LWW-merged summary.
+
+    Transparently handles both flat event format and compacted snapshot format.
+    Excludes *.retired files. Returns {"status": "pre-manifest"} when no events exist.
+    """
+    # Check for compacted snapshot first
+    snapshot_files = sorted(
+        f
+        for f in os.listdir(ticket_dir)
+        if f.endswith("-PRECONDITIONS-SNAPSHOT.json") and not f.endswith(".retired")
+    )
+    if snapshot_files:
+        snap_path = os.path.join(ticket_dir, snapshot_files[-1])
+        try:
+            with open(snap_path, encoding="utf-8") as fh:
+                snap = json.load(fh)
+            data = snap.get("data", snap)
+            return {
+                "status": "present",
+                "manifest_depth": data.get("manifest_depth", 0),
+                "gate_verdicts": data.get("gate_verdicts", {}),
+                "source_count": data.get("source_count", 1),
+                "compacted": True,
+            }
+        except (OSError, json.JSONDecodeError):
+            pass  # fall through to flat event scan
+
+    # Scan flat PRECONDITIONS event files (exclude snapshots and retired)
+    event_files = sorted(
+        f
+        for f in os.listdir(ticket_dir)
+        if (
+            f.endswith("-PRECONDITIONS.json")
+            and not f.endswith("-PRECONDITIONS-SNAPSHOT.json")
+            and not f.endswith(".retired")
+        )
+    )
+    if not event_files:
+        return {"status": "pre-manifest"}
+
+    # LWW merge: composite key = (gate_name, session_id, worktree_id)
+    merged: dict[tuple[str, str, str], dict] = {}
+    for fname in event_files:
+        fpath = os.path.join(ticket_dir, fname)
+        try:
+            with open(fpath, encoding="utf-8") as fh:
+                ev = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            continue
+        data = ev.get("data", {})
+        key = (
+            data.get("gate_name", ""),
+            data.get("session_id", ""),
+            data.get("worktree_id", ""),
+        )
+        ev_ts = ev.get("timestamp", 0)
+        if key not in merged or ev_ts > merged[key]["_ts"]:
+            merged[key] = dict(data)
+            merged[key]["_ts"] = ev_ts
+
+    gate_verdicts: dict[str, str] = {}
+    manifest_depth = 0
+    for payload in merged.values():
+        gate_verdicts.update(payload.get("gate_verdicts", {}))
+        d = payload.get("manifest_depth", 0)
+        if d > manifest_depth:
+            manifest_depth = d
+
+    return {
+        "status": "present",
+        "manifest_depth": manifest_depth,
+        "gate_verdicts": gate_verdicts,
+        "source_count": len(event_files),
+    }
+
+
 def reduce_ticket(
     ticket_dir_path: str | os.PathLike[str],
     strategy: ReducerStrategy | None = None,
@@ -151,6 +228,11 @@ def reduce_ticket(
         result = state
 
     if result is not None:
+        # Attach PRECONDITIONS summary (transparent to snapshot vs flat events)
+        try:
+            result["preconditions_summary"] = _compute_preconditions_summary(ticket_dir)
+        except OSError:
+            result["preconditions_summary"] = {"status": "pre-manifest"}
         write_cache(cache_path, dir_hash, result, ticket_dir)
 
     return result

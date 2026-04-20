@@ -315,5 +315,25 @@ else
 fi
 
 _harvest_exit_code=0
+
+# ── Read PRECONDITIONS context (informational, fail-open) ────────────────────
+# Source ticket-lib.sh to get _read_latest_preconditions; read the preconditions
+# summary for the ticket being harvested and log it. Fails gracefully for legacy
+# tickets with zero PRECONDITIONS events (pre-manifest state).
+if [[ -f "$SCRIPT_DIR/ticket-lib.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "$SCRIPT_DIR/ticket-lib.sh" 2>/dev/null || true
+    if [[ -n "${TICKET_ID:-}" ]] && declare -f _read_latest_preconditions >/dev/null 2>&1; then
+        _ticket_dir="${_REPO_ROOT}/.tickets-tracker/${TICKET_ID}"
+        _preconditions_json=""
+        _preconditions_json=$(_read_latest_preconditions "$_ticket_dir" 2>/dev/null) || true
+        if [[ -n "$_preconditions_json" ]]; then
+            echo "[harvest] preconditions: $_preconditions_json" >&2
+        else
+            echo "[harvest] preconditions: pre-manifest (no PRECONDITIONS events for $TICKET_ID)" >&2
+        fi
+    fi
+fi
+
 echo "Worktree $WORKTREE_BRANCH merged successfully" >&2
 exit 0

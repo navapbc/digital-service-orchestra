@@ -773,4 +773,32 @@ assert_eq "test_merge_phase_resets_stale_ahead_local_main: _phase_merge must res
 assert_pass_if_clean "test_merge_phase_resets_stale_ahead_local_main"
 
 # =============================================================================
+echo "--- test_merge_archive_includes_preconditions_summary ---"
+# _phase_archive must call _read_latest_preconditions (or source ticket-lib.sh) and
+# include the PRECONDITIONS summary in its log output.
+# RED: _phase_archive is a no-op stub — no preconditions read.
+_archive_body=$(sed -n '/_phase_archive()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
+_archive_has_preconditions=0
+if echo "$_archive_body" | grep -qE "_read_latest_preconditions|preconditions"; then
+    _archive_has_preconditions=1
+fi
+assert_eq "test_merge_archive_includes_preconditions_summary: _phase_archive reads preconditions" \
+    "1" "$_archive_has_preconditions"
+assert_pass_if_clean "test_merge_archive_includes_preconditions_summary"
+
+# =============================================================================
+echo "--- test_merge_archive_legacy_ticket_pre_manifest ---"
+# _phase_archive must handle the case where no PRECONDITIONS events exist (legacy ticket).
+# It should not crash — _read_latest_preconditions exits 1 for pre-manifest,
+# and _phase_archive must guard with || true.
+# RED: _phase_archive is a no-op stub with no guard.
+_archive_has_fallback=0
+if echo "$_archive_body" | grep -qE "\|\| true|\|\| :"; then
+    _archive_has_fallback=1
+fi
+assert_eq "test_merge_archive_legacy_ticket_pre_manifest: _phase_archive guards _read_latest_preconditions with || true" \
+    "1" "$_archive_has_fallback"
+assert_pass_if_clean "test_merge_archive_legacy_ticket_pre_manifest"
+
+# =============================================================================
 print_summary

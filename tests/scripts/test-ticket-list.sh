@@ -1211,4 +1211,58 @@ test_help_flag_prints_usage_and_exits_0() {
 }
 test_help_flag_prints_usage_and_exits_0
 
+# ── Test 15: ticket list output includes preconditions_summary field ──────────
+echo "Test 15: ticket list output includes preconditions_summary field for each ticket"
+test_ticket_list_preconditions_summary_field() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LIST_SCRIPT" ]; then
+        assert_eq "ticket-list.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_list_preconditions_summary_field"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a story ticket
+    local ticket_id=""
+    ticket_id=$(_create_ticket "$repo" story "preconditions list test story")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for preconditions_summary field check" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_list_preconditions_summary_field"
+        return
+    fi
+
+    # List tickets
+    local list_output
+    local exit_code=0
+    list_output=$(cd "$repo" && bash "$TICKET_SCRIPT" list 2>/dev/null) || exit_code=$?
+    assert_eq "ticket list exits 0 for preconditions_summary check" "0" "$exit_code"
+
+    # Assert: each ticket entry has a preconditions_summary field
+    # (RED: reducer does not yet emit preconditions_summary)
+    local field_check
+    field_check=$(python3 -c "
+import json, sys
+try:
+    tickets = json.loads(sys.argv[1])
+    if not tickets:
+        print('NO_TICKETS')
+        sys.exit(0)
+    missing = [t.get('ticket_id','?') for t in tickets if 'preconditions_summary' not in t]
+    if missing:
+        print('MISSING:' + ','.join(missing))
+    else:
+        print('OK')
+except Exception as e:
+    print(f'PARSE_ERROR:{e}')
+" "$list_output" 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "ticket list entries contain preconditions_summary field" "OK" "$field_check"
+
+    assert_pass_if_clean "test_ticket_list_preconditions_summary_field"
+}
+test_ticket_list_preconditions_summary_field
+
 print_summary

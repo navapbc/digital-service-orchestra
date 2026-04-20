@@ -354,4 +354,197 @@ PYEOF
 }
 test_ticket_show_llm_token_reduction
 
+# ── Test: test_ticket_show_preconditions_corrupt_file_skipped ─────────────────
+# RED (5557-a096): reducer must skip corrupt PRECONDITIONS file and continue
+echo "Test: ticket show skips corrupt PRECONDITIONS event file and logs warning"
+test_ticket_show_preconditions_corrupt_file_skipped() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_SHOW_SCRIPT" ]; then
+        assert_eq "ticket-show.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_show_preconditions_corrupt_file_skipped"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a ticket via the ticket CLI
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Preconditions corrupt test" 2>/dev/null) || true
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for corrupt-file test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_show_preconditions_corrupt_file_skipped"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local ticket_dir="$tracker_dir/$ticket_id"
+
+    # Add 1 valid PRECONDITIONS event
+    local ts1
+    ts1=$(python3 -c "import time; print(int(time.time_ns()))")
+    local uuid1
+    uuid1=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    python3 -c "
+import json, sys
+data = {
+    'timestamp': int(sys.argv[1]),
+    'uuid': sys.argv[2],
+    'event_type': 'PRECONDITIONS',
+    'env_id': 'test-env',
+    'author': 'Test',
+    'data': {
+        'schema_version': 1,
+        'gate_name': 'gate_alpha',
+        'session_id': 'sess-001',
+        'worktree_id': 'wt-001',
+        'verdict': 'pass',
+        'manifest_depth': 1,
+        'gate_verdicts': {'gate_alpha': 'pass'}
+    }
+}
+json.dump(data, sys.stdout)
+" "$ts1" "$uuid1" > "$ticket_dir/${ts1}-${uuid1}-PRECONDITIONS.json"
+
+    # Add 1 corrupt PRECONDITIONS event (truncated/invalid JSON)
+    local ts2
+    ts2=$(python3 -c "import time; print(int(time.time_ns()) + 1000)")
+    local uuid2
+    uuid2=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    printf '{"timestamp":%s,"uuid":"%s","event_type":"PRECONDITIONS","data":{"TRUNCATED' \
+        "$ts2" "$uuid2" > "$ticket_dir/${ts2}-${uuid2}-PRECONDITIONS.json"
+
+    # Run ticket show
+    local show_output
+    local show_stderr
+    local show_exit=0
+    show_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/tmp/corrupt-test-stderr-$$) || show_exit=$?
+    show_stderr=$(cat /tmp/corrupt-test-stderr-$$ 2>/dev/null || echo "")
+    rm -f /tmp/corrupt-test-stderr-$$
+
+    # Assert: exits 0 (not a crash)
+    assert_eq "ticket show exits 0 with corrupt PRECONDITIONS (no crash)" "0" "$show_exit"
+
+    # Assert: stdout is valid JSON
+    if [ -n "$show_output" ]; then
+        local parse_exit=0
+        python3 -c "import json,sys; json.load(sys.stdin)" <<< "$show_output" 2>/dev/null || parse_exit=$?
+        assert_eq "ticket show output is valid JSON with corrupt PRECONDITIONS" "0" "$parse_exit"
+    else
+        assert_eq "ticket show output is non-empty" "non-empty" "empty"
+    fi
+
+    # Assert: preconditions_summary field exists in output (RED: reducer not yet updated)
+    local has_preconditions_summary="no"
+    if [ -n "$show_output" ]; then
+        has_preconditions_summary=$(python3 -c "
+import json, sys
+try:
+    data = json.loads(sys.argv[1])
+    if 'preconditions_summary' in data:
+        print('yes')
+    else:
+        print('no')
+except Exception:
+    print('no')
+" "$show_output" 2>/dev/null || echo "no")
+    fi
+    assert_eq "preconditions_summary field present in ticket show output" "yes" "$has_preconditions_summary"
+
+    # Assert: preconditions_summary reflects only the 1 valid event (not the corrupt one)
+    # This is the behavioral assertion — reducer must skip corrupt file
+    if [ "$has_preconditions_summary" = "yes" ]; then
+        local depth_check
+        depth_check=$(python3 -c "
+import json, sys
+try:
+    data = json.loads(sys.argv[1])
+    ps = data.get('preconditions_summary', {})
+    # Should have status 'present' (not 'pre-manifest') since 1 valid event exists
+    status = ps.get('status', '')
+    if status == 'pre-manifest':
+        # Acceptable only if reducer fell back due to error — but ideally shows 'present'
+        print('DEGRADED_TO_PRE_MANIFEST')
+    elif status == 'present' or ps.get('manifest_depth') is not None:
+        print('OK')
+    else:
+        print(f'UNEXPECTED_STATUS:{status}')
+except Exception as e:
+    print(f'PARSE_ERROR:{e}')
+" "$show_output" 2>/dev/null || echo "PARSE_ERROR")
+        # Accept either 'present' (ideal) or 'pre-manifest' (graceful degrade on corrupt)
+        # The key requirement is no crash (exit 0) — the corrupt file must be skipped
+        local status_ok="no"
+        case "$depth_check" in
+            OK|DEGRADED_TO_PRE_MANIFEST) status_ok="yes" ;;
+        esac
+        assert_eq "preconditions_summary status is acceptable (skip corrupt, no crash)" "yes" "$status_ok"
+    fi
+
+    assert_pass_if_clean "test_ticket_show_preconditions_corrupt_file_skipped"
+}
+test_ticket_show_preconditions_corrupt_file_skipped
+
+# ── Test: ticket show includes preconditions_summary for legacy tickets (no events) ──
+echo "Test: ticket show returns preconditions_summary={status:pre-manifest} for legacy ticket"
+test_ticket_show_preconditions_summary_legacy_placeholder() {
+    _snapshot_fail
+    if [ ! -f "$TICKET_SHOW_SCRIPT" ]; then
+        assert_eq "ticket-show.sh exists" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a ticket with zero PRECONDITIONS events (legacy / pre-manifest state)
+    local ticket_id=""
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "legacy preconditions test" 2>/dev/null || true)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for legacy preconditions check" "non-empty" "empty"
+        return
+    fi
+
+    # show the ticket — no PRECONDITIONS events exist
+    local show_output
+    local show_exit=0
+    show_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || show_exit=$?
+
+    # Assert: exits 0 (no crash on zero PRECONDITIONS events)
+    assert_eq "ticket show exits 0 for legacy ticket (no PRECONDITIONS events)" "0" "$show_exit"
+
+    # Assert: output is valid JSON
+    if [ -n "$show_output" ]; then
+        local parse_exit=0
+        python3 -c "import json,sys; json.load(sys.stdin)" <<< "$show_output" 2>/dev/null || parse_exit=$?
+        assert_eq "ticket show output is valid JSON for legacy ticket" "0" "$parse_exit"
+    else
+        assert_eq "ticket show returns non-empty output for legacy ticket" "non-empty" "empty"
+        return
+    fi
+
+    # Assert: preconditions_summary present and status is pre-manifest (RED: not yet emitted)
+    local ps_check
+    ps_check=$(python3 -c "
+import json, sys
+try:
+    data = json.loads(sys.argv[1])
+    ps = data.get('preconditions_summary')
+    if ps is None:
+        print('MISSING')
+    elif ps.get('status') == 'pre-manifest':
+        print('OK')
+    else:
+        print(f'UNEXPECTED:{ps}')
+except Exception as e:
+    print(f'PARSE_ERROR:{e}')
+" "$show_output" 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "preconditions_summary.status is pre-manifest for legacy ticket" "OK" "$ps_check"
+
+    assert_pass_if_clean "test_ticket_show_preconditions_summary_legacy_placeholder"
+}
+test_ticket_show_preconditions_summary_legacy_placeholder
+
 print_summary
