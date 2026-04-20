@@ -1,1 +1,0 @@
-{"timestamp": 1776628990330546000, "uuid": "f1c38159-39ed-4389-945d-b477d27110b0", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Triaged (debug-everything): orchestration/worktree bug. Fix spans multiple scripts; autonomous scope too broad. Deferred to end-of-session user review."}}
