@@ -253,8 +253,9 @@ plugins/dso/scripts/gate-2b-blast-radius.sh:tests/scripts/test-gate-format-check
 plugins/dso/scripts/gate-2d-dependency-check.sh:tests/scripts/test-gate-format-check.sh
 plugins/dso/scripts/dso-setup.sh:tests/scripts/test-dso-setup-stack-aware-ci.sh,tests/scripts/test-dso-setup-next-steps-install-ref.sh
 plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test-index-duplicates.sh
-plugins/dso/scripts/preconditions-benchmark.sh:tests/scripts/test-preconditions-benchmark.sh [test_benchmark_measures_p95_per_stage]
-plugins/dso/scripts/fp-rate-tracker.sh:tests/scripts/test-fp-rate-tracker.sh [test_fp_rate_tracker_engages_fallback]
-plugins/dso/scripts/sc13-restart-analysis.sh:tests/scripts/test-sc13-restart-analysis.sh [test_sc13_analysis_computes_drop]
+plugins/dso/scripts/preconditions-benchmark.sh:tests/scripts/test-preconditions-benchmark.sh
+plugins/dso/scripts/fp-rate-tracker.sh:tests/scripts/test-fp-rate-tracker.sh,tests/scripts/test-fp-fallback-integration.sh
+plugins/dso/scripts/sc13-restart-analysis.sh:tests/scripts/test-sc13-restart-analysis.sh
 tests/fixtures/818-corpus/generate-corpus-fixture.sh:tests/fixtures/818-corpus/test-corpus-fixture.sh
-plugins/dso/scripts/preconditions-coverage-harness.sh:tests/scripts/test-818-coverage-harness.sh [test_coverage_harness_counts_preventions]
+plugins/dso/scripts/preconditions-coverage-harness.sh:tests/scripts/test-818-coverage-harness.sh
+plugins/dso/docs/contracts/fp-auto-fallback-scope.md:tests/scripts/test-fp-rate-tracker.sh
