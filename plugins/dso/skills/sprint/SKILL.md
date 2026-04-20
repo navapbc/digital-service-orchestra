@@ -1338,6 +1338,36 @@ This phase runs **only** when all of the following are true:
 - `awaiting_manual_stories` list is non-empty
 - All autonomous tasks in the current batch have completed (or there are no autonomous tasks in this batch)
 
+### Pause State Management
+
+Before starting the handshake, manage the pause state file via `sprint-pause-state.sh` (the SIGURG recovery state manager):
+
+```bash
+# 1. Remove stale state files from prior sessions (fail-open — no-op when flag is off)
+.claude/scripts/dso sprint-pause-state.sh stale-cleanup  # shim-exempt: internal orchestration script
+
+# 2. Check whether a pause state already exists for this epic (--resume path)
+.claude/scripts/dso sprint-pause-state.sh is-fresh <epic-id>  # shim-exempt: internal orchestration script
+```
+
+- **If `is-fresh` exits 0** (fresh state exists): a prior SIGURG interrupted the handshake. Present the user with: `"Found existing pause state for epic <epic-id>. Use --resume when re-invoking sprint to continue the handshake."` Then call `sprint-pause-state.sh resume-context <epic-id>` to get the first unanswered story and rehydrate the handshake from that story forward.
+- **If `is-fresh` exits non-zero** (no fresh state): call `sprint-pause-state.sh init <epic-id>` to create a fresh state file.
+
+```bash
+# 3. Initialize fresh pause state (no-op when flag is off or state already fresh)
+.claude/scripts/dso sprint-pause-state.sh init <epic-id>  # shim-exempt: internal orchestration script
+```
+
+**SIGURG trap**: register `_spause_sigurg_handler <epic-id>` (by sourcing `sprint-pause-state.sh`) as the SIGURG handler. On interrupt, the handler sets `in_progress_marker=false` without removing the state file — the state is preserved for `--resume` on re-invocation.
+
+**Per-story state writes**: after each manual story answer is collected via `sprint-manual-drain.sh`, record the answer:
+
+```bash
+.claude/scripts/dso sprint-pause-state.sh write <epic-id> <story-id> <answer>  # shim-exempt: internal orchestration script
+```
+
+**After all stories answered**: call `sprint-pause-state.sh cleanup <epic-id>` to remove the state file.
+
 **Steps:**
 
 1. Write the sorted manual story list to a temp JSON file. Each entry must include the fields expected by `sprint-manual-drain.sh`:
@@ -1359,7 +1389,7 @@ This phase runs **only** when all of the following are true:
 
 4. After handshake completes: run `.claude/scripts/dso sprint-next-batch.sh <epic-id>` again to pick up any autonomous stories that were unblocked by the manual step completion.
 
-5. Clean up: `rm -f "$MANUAL_JSON_FILE"`
+5. Clean up: `rm -f "$MANUAL_JSON_FILE"` and `sprint-pause-state.sh cleanup <epic-id>`
 
 ---
 

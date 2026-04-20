@@ -410,3 +410,6 @@ plugins/dso/scripts/sprint-manual-drain.sh:tests/test-sprint-manual-drain.sh
 
 # --- sprint-pause-state.sh: SIGURG recovery pause-state mechanism (task bd67-c045 RED) ---
 plugins/dso/scripts/sprint-pause-state.sh:tests/scripts/test-sprint-pause-state.sh
+
+# --- sprint SKILL.md pause-state boundary (task d384-a569 RED) ---
+plugins/dso/skills/sprint/SKILL.md:tests/skills/test-sprint-pause-state-skill-boundary.sh
