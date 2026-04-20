@@ -1368,6 +1368,16 @@ Before starting the handshake, manage the pause state file via `sprint-pause-sta
 
 **After all stories answered**: call `sprint-pause-state.sh cleanup <epic-id>` to remove the state file.
 
+### Handshake Input Contract
+
+Stories tagged `manual:awaiting_user` are collected into `awaiting_manual_stories` and presented to the practitioner one at a time by `sprint-manual-drain.sh`. The script accepts three inputs per story:
+
+- **`done`** — story complete; if a `verification_command` is present, execute it in a constrained subshell (timeout: `planning.verification_command_timeout_seconds`, default 30s); if absent, require a user-typed confirmation token (`MANUAL_CONFIRMATION_TOKEN`) and log it as a ticket comment audit entry.
+- **`done <story-id>`** — same as `done` but explicitly names the story, used when multiple stories are presented.
+- **`skip`** — mark the story skipped; `sprint-manual-drain.sh` writes a sentinel with `handshake_outcome=skip` and propagates skip to transitive dependents.
+
+**Confirmation-token audit path**: when `verification_command` is omitted, `sprint-manual-drain.sh` prompts for a `MANUAL_CONFIRMATION_TOKEN` (a short user-typed string) and writes it as a `MANUAL_PAUSE_SENTINEL` ticket comment. `dso:completion-verifier` reads this sentinel at Step 10a to verify the manual story without re-executing the manual step.
+
 **Steps:**
 
 1. Write the sorted manual story list to a temp JSON file. Each entry must include the fields expected by `sprint-manual-drain.sh`:

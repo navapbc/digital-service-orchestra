@@ -396,7 +396,11 @@ plugins/dso/scripts/classify-sc-shape.sh:tests/skills/test-brainstorm-shape-heur
 # --- brainstorm SKILL.md: contradiction gate ---
 plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-brainstorm-external-dep-contradiction-gate.sh
 
+# --- brainstorm SKILL.md: SC2 claude_auto+no/unknown refusal trigger, Phase 2 gate position, confirmation_token_required (task 6387-2c18) ---
+plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-external-dep-sc2-brainstorm.sh
+
 # --- preplanning SKILL.md: Phase 1.5 + Refusal Gate ---
+plugins/dso/skills/preplanning/SKILL.md:tests/skills/test-external-dep-sc3-preplanning.sh
 plugins/dso/skills/preplanning/SKILL.md:plugins/dso/skills/preplanning/tests/test_external_dep_block_reader.sh
 
 # --- implementation-plan SKILL.md: Manual Story Tag Guard (task f7c6-5c7b RED / task 93a4-f3d4 impl) ---
@@ -413,3 +417,6 @@ plugins/dso/scripts/sprint-pause-state.sh:tests/scripts/test-sprint-pause-state.
 
 # --- sprint SKILL.md pause-state boundary (task d384-a569 RED) ---
 plugins/dso/skills/sprint/SKILL.md:tests/skills/test-sprint-pause-state-skill-boundary.sh
+
+# --- sprint SKILL.md SC5 manual-pause handshake boundary (task a35f-db8d RED) ---
+plugins/dso/skills/sprint/SKILL.md:tests/skills/test-external-dep-sc5-sprint.sh
