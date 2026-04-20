@@ -118,6 +118,9 @@ KNOWN_KEYS=(
     # Preplanning
     preplanning.interactive
 
+    # Planning
+    planning.external_dependency_block_enabled
+
     # Persistence — source patterns
     persistence.source_patterns
     persistence.test_patterns
@@ -141,9 +144,6 @@ KNOWN_KEYS=(
     tickets.directory
     tickets.sync.jira_project_key
     tickets.sync.bidirectional_comments
-
-    # Preplanning
-    preplanning.interactive
 )
 
 # ── KNOWN_LIST_KEYS — keys that allow repetition ────────────────────────────

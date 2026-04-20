@@ -386,4 +386,4 @@ plugins/dso/skills/sprint/prompts/task-execution.md:tests/skills/test-worktree-t
 plugins/dso/scripts/resolve-abandoned-worktrees.sh:tests/scripts/test-worktree-resume-integration.sh
 
 # --- planning-config.sh: external dep block flag (task 88a7-fa68 RED / task d5f0-9633 impl) ---
-plugins/dso/hooks/lib/planning-config.sh:tests/hooks/test-planning-config.sh [test_flag_true_returns_exit_0]
+plugins/dso/hooks/lib/planning-config.sh:tests/hooks/test-planning-config.sh
