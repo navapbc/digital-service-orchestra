@@ -1327,4 +1327,101 @@ test_detect_dso_plugin_root_marketplace_internal_layout
 test_detect_dso_plugin_root_auto_installs_when_missing
 test_detect_dso_plugin_root_bash_source_guard
 
+# ── test_detect_dso_plugin_root_registers_plugin_even_when_probe_matches ─────
+# RED: when a filesystem probe (probe 2 — marketplace stale files) matches and
+# returns plugin_root, detect_dso_plugin_root() must STILL invoke
+#   claude plugin install dso@digital-service-orchestra --scope project
+# from inside $project_dir so the plugin is registered/enabled for the newly
+# created project. The current code only runs `claude plugin install` inside the
+# `[ -z "$plugin_root" ]` guard (probe 4), so when probe 2 matches early the
+# install is never called and /dso:* commands are unavailable in the new project.
+#
+# Observable behavior: after detect_dso_plugin_root "$project_dir" completes,
+# the capture log written by the stubbed `claude` CLI must contain a line that
+# includes all three of: "plugin install", "dso@", and "--scope project",
+# and the pwd for that invocation must equal $project_dir.
+test_detect_dso_plugin_root_registers_plugin_even_when_probe_matches() {
+    echo ""
+    echo "→ test_detect_dso_plugin_root_registers_plugin_even_when_probe_matches"
+
+    local T stub_bin mock_base capture_log project_dir exit_code output
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    stub_bin=$(mktemp -d)
+    TMPDIRS+=("$stub_bin")
+
+    # ── fake marketplace layout so probe 2 succeeds immediately ──────────────
+    # This is the "stale files from prior install" scenario — probe 2 matches,
+    # so the real code short-circuits probe 4 and never calls claude plugin install.
+    mock_base="$T/marketplaces"
+    mkdir -p "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin"
+    printf '{"name":"dso","version":"1.0.0-stale"}\n' \
+        > "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json"
+
+    # ── fixture project dir with dso-config.conf (required for config write) ─
+    project_dir="$T/myproject"
+    mkdir -p "$project_dir/.claude"
+    printf 'dso.plugin_root=\n' > "$project_dir/.claude/dso-config.conf"
+
+    # ── claude stub: logs every invocation's argv + pwd to capture_log ───────
+    capture_log="$T/claude-invocations.log"
+    cat > "$stub_bin/claude" <<CLAUDESTUB
+#!/bin/sh
+# Record argv (space-joined) and cwd for every invocation
+printf 'argv=%s\tpwd=%s\n' "\$*" "\$(pwd)" >> "$capture_log"
+exit 0
+CLAUDESTUB
+    chmod +x "$stub_bin/claude"
+
+    # Stub dso shim (smoke test calls dso ticket show --help inside project_dir)
+    mkdir -p "$project_dir/.claude/scripts"
+    cat > "$project_dir/.claude/scripts/dso" <<'SHIMSTUB'
+#!/bin/sh
+exit 0
+SHIMSTUB
+    chmod +x "$project_dir/.claude/scripts/dso"
+
+    # ── invoke detect_dso_plugin_root with probe-2-matching marketplace ───────
+    output=$(
+        PATH="$stub_bin:/usr/bin:/bin" \
+        MARKETPLACE_BASE="$mock_base" \
+        CLAUDE_PLUGIN_ROOT='' \
+        /bin/bash -c "
+            source '$PLUGIN_ROOT/scripts/create-dso-app.sh'
+            detect_dso_plugin_root '$project_dir'
+        " 2>&1
+    ) && exit_code=0 || exit_code=$?
+
+    # ── assertions ────────────────────────────────────────────────────────────
+
+    # Assert 1: detect_dso_plugin_root exits 0 (probe 2 matched — no regression)
+    assert_eq "detect_dso_plugin_root exits 0 when probe 2 matches" "0" "$exit_code"
+
+    # Assert 2: claude was invoked at all (capture log exists and is non-empty)
+    local claude_called="no"
+    [[ -s "$capture_log" ]] && claude_called="yes"
+    assert_eq "claude CLI was invoked at least once" "yes" "$claude_called"
+
+    if [[ "$claude_called" != "yes" ]]; then
+        printf "DIAGNOSTIC: script output:\n%s\n" "$output" >&2
+        return
+    fi
+
+    # Assert 3: one of those invocations was 'plugin install dso@... --scope project'
+    local install_called="no"
+    local install_line
+    install_line=$(grep 'plugin install' "$capture_log" | grep 'dso@' | grep -- '--scope project' || true)
+    [[ -n "$install_line" ]] && install_called="yes"
+    assert_eq "claude plugin install dso@... --scope project was invoked" "yes" "$install_called"
+
+    # Assert 4: that invocation's pwd equals project_dir
+    if [[ "$install_called" == "yes" ]]; then
+        local install_pwd
+        install_pwd=$(printf '%s' "$install_line" | cut -f2 | sed 's/^pwd=//')
+        assert_eq "plugin install was run from inside project_dir" "$project_dir" "$install_pwd"
+    fi
+}
+
+test_detect_dso_plugin_root_registers_plugin_even_when_probe_matches
+
 print_summary
