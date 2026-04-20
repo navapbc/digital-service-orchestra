@@ -65,8 +65,24 @@ test_skill_has_codebase_investigation_gate_section() {
     assert_eq "skill has codebase investigation gate section heading (a3e6-ac52)" "1" "$found"
 }
 
+# ============================================================
+# test_brainstorm_skill_references_preconditions_record (ee92-7fb9)
+#
+# The brainstorm SKILL.md must reference preconditions-record.sh at the
+# brainstorm:complete transition point so the preconditions baseline is
+# captured before the tag is written.
+#
+# Structural boundary: presence of the script reference in the skill file.
+# ============================================================
+test_brainstorm_skill_references_preconditions_record() {
+    local found
+    found=$(grep -c "preconditions-record.sh" "$SKILL_FILE" 2>/dev/null || echo "0")
+    assert_eq "brainstorm SKILL.md references preconditions-record.sh" "1" "$([ "${found:-0}" -ge 1 ] && echo 1 || echo 0)"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_skill_has_understanding_summary_phrasing_section
 test_skill_has_codebase_investigation_gate_section
+test_brainstorm_skill_references_preconditions_record
 
 print_summary

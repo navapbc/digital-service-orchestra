@@ -22,6 +22,7 @@ def make_initial_state() -> dict:
         "deps": [],
         "bridge_alerts": [],
         "reverts": [],
+        "preconditions_summary": {"status": "pre-manifest"},
     }
 
 

@@ -106,6 +106,20 @@ This is a presence-based check — only block when the tag IS present. Existing 
 
 ---
 
+### Preconditions Entry Gate (/dso:preplanning)
+
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
+[Instructions for the LLM: Before Phase 1 Step 1, validate that a brainstorm PRECONDITIONS event exists.
+Run: `.claude/scripts/dso preconditions-validator.sh <epic_id> brainstorm_complete [--event-file=<path if known>]`
+(or use preconditions-record.sh invocation from brainstorm; fail-open if script not found)
+If exit 0: continue. If exit 1: BLOCK with PRECONDITIONS_GATE_BLOCKED diagnostic.
+If exit 2 (not found): BLOCK with "Run /dso:brainstorm first" message.
+Fail-open: if preconditions-validator.sh itself is not found (command not found), emit WARN and continue.
+This gate is depth-agnostic — unknown fields in the event are ignored, not rejected.]
+
+---
+
 ## Phase 1: Context Reconciliation & Discovery (/dso:preplanning)
 
 ### Step 1: Select and Load Epic (/dso:preplanning)
@@ -1111,6 +1125,15 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 - **Done Definitions**:
   - When complete, a user can see a confidence percentage and sub-categories for each classification ← Satisfies: "Users can understand why a document was classified a certain way"
 - **Depends on**: Story 1
+
+---
+
+### Preconditions Exit Emit (/dso:preplanning)
+
+[Instructions: Before the skill exits, record preplanning PRECONDITIONS event:
+Run: `.claude/scripts/dso preconditions-record.sh --ticket-id <epic_id> --gate-name preplanning_complete --session-id <session_id> --tier minimal`
+Self-verify: run preconditions-validator.sh --event-file=<just-written-file>; if fails emit WARN but do not block.
+This validator reads only minimal-tier fields. Future standard/deep additions are ignored (depth-agnostic forward-compat contract).]
 
 ---
 

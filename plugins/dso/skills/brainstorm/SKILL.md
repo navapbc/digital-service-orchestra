@@ -43,6 +43,8 @@ bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # 
 
 When invoked with a free-text description (argument present but does not match the ticket ID format `[a-z0-9]{4}-[a-z0-9]{4}`), treat the argument as seeding context and immediately begin the Socratic dialogue at Phase 1. Do NOT show the epic selection list. Open with: *"Got it — I'll use that as our starting point. Let me ask a few questions to sharpen the scope."* then proceed to Phase 1 Step 2 with the user's text as the established problem statement seed.
 
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
 When invoked without a ticket ID, run two queries:
 
 ```bash
@@ -881,6 +883,13 @@ Fix any issues before finalizing.
 Write a durable ticket-level tag to record that brainstorm has completed. This removes any `scrutiny:pending` tag while preserving all other existing tags (e.g., `design:approved`, `CLI_user`).
 
 ```bash
+# Record brainstorm preconditions baseline before tagging complete
+.claude/scripts/dso preconditions-record.sh \
+  --ticket-id "$epic_id" \
+  --gate-name "brainstorm_complete" \
+  --session-id "${SESSION_ID:-unknown}" \
+  --tier "minimal" 2>/dev/null || true
+
 # Remove scrutiny:pending (no-op if not present) and add brainstorm:complete
 .claude/scripts/dso ticket untag <epic-id> scrutiny:pending
 .claude/scripts/dso ticket tag <epic-id> brainstorm:complete

@@ -44,12 +44,23 @@ Resolved commands used in this skill:
 - `VISUAL_CMD` — replaces `make test-visual` in post-batch checks
 - `E2E_CMD` — replaces `make test-e2e` in post-batch checks
 
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
 ## Migration Check
 
 Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
 
 ```bash
 bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
+## Stage-Boundary Entry Check
+
+Source the preconditions validator library and run the entry check for the sprint stage (fail-open: `|| true` prevents blocking when no upstream implementation-plan event exists yet):
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/preconditions-validator-lib.sh" 2>/dev/null || true
+_dso_pv_entry_check "sprint" "implementation-plan" "${primary_ticket_id:-}" || true
 ```
 
 ## Usage
@@ -2324,6 +2335,14 @@ Extract the SCORE from the validation agent's output:
 Read and execute `prompts/remediation-loop.md` for the full remediation protocol (gap classification, oscillation check, user confirmation, task creation, and safety bounds).
 
 ---
+
+## Stage-Boundary Exit Write
+
+Before entering Phase 8 (Primary Ticket Closure), write the preconditions exit event for the sprint stage (fail-open):
+
+```bash
+_dso_pv_exit_write "sprint" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:-}" "${primary_ticket_id:-}" || true
+```
 
 ## Phase 8: Primary Ticket Closure (/dso:sprint)
 

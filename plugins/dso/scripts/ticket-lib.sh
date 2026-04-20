@@ -754,6 +754,159 @@ sys.exit(1)
 "
 }
 
+# _compact_preconditions <ticket_dir> <epic_id>
+# Compacts all flat PRECONDITIONS event files in ticket_dir into a single
+# PRECONDITIONS-SNAPSHOT.json, then retires the originals by renaming them
+# to *.retired (preserving the audit trail).
+#
+# Args:
+#   ticket_dir: absolute path to the ticket event directory
+#   epic_id:    ticket ID (used for diagnostic log)
+#
+# Steps:
+#   1. Enumerate *-PRECONDITIONS.json files (excluding *-PRECONDITIONS-SNAPSHOT.json and *.retired)
+#   2. Build merged payload applying LWW across composite keys (gate_name, session_id, worktree_id)
+#   3. Write merged payload to temp file, then atomic rename to final SNAPSHOT path
+#   4. Rename each original to *.retired (audit trail preserved)
+#   5. Clean up any .tmp files on failure
+#
+# Exit codes:
+#   0 = success
+#   1 = error (no events found or filesystem error)
+_compact_preconditions() {
+    local ticket_dir="$1"
+    local epic_id="${2:-unknown}"
+
+    if [ ! -d "$ticket_dir" ]; then
+        echo "[compact_preconditions] ERROR: ticket dir not found: $ticket_dir" >&2
+        return 1
+    fi
+
+    # Enumerate live PRECONDITIONS events (exclude snapshots and retired files)
+    local event_files=()
+    while IFS= read -r -d '' f; do
+        event_files+=("$f")
+    done < <(find "$ticket_dir" -maxdepth 1 \
+        -name '*-PRECONDITIONS.json' \
+        ! -name '*-PRECONDITIONS-SNAPSHOT.json' \
+        ! -name '*.retired' \
+        -print0 2>/dev/null | sort -z)
+
+    if [ "${#event_files[@]}" -eq 0 ]; then
+        echo "[compact_preconditions] INFO: no live PRECONDITIONS events for $epic_id — skipping" >&2
+        return 1
+    fi
+
+    # Build merged payload via LWW across composite keys using Python
+    local ts
+    ts=$(python3 -c "import time; print(int(time.time_ns()))")
+    local snap_uuid
+    snap_uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    local tmp_path="$ticket_dir/${ts}-${snap_uuid}-PRECONDITIONS-SNAPSHOT.json.tmp"
+    local final_path="$ticket_dir/${ts}-${snap_uuid}-PRECONDITIONS-SNAPSHOT.json"
+
+    # Build file list as NUL-separated string for Python
+    local file_list_str
+    file_list_str=$(printf '%s\0' "${event_files[@]}" | python3 -c "
+import sys
+parts = sys.stdin.buffer.read().split(b'\x00')
+print('\n'.join(p.decode('utf-8') for p in parts if p))
+")
+
+    local merge_exit=0
+    python3 -c "
+import json, sys, os, time, uuid as uuid_mod
+
+event_files = [l for l in sys.argv[1].split('\n') if l.strip()]
+ticket_dir = sys.argv[2]
+ts = int(sys.argv[3])
+snap_uuid = sys.argv[4]
+tmp_path = sys.argv[5]
+epic_id = sys.argv[6]
+
+# LWW merge: composite key = (gate_name, session_id, worktree_id)
+# Last-write-wins by timestamp within each composite key group.
+merged = {}
+for fpath in event_files:
+    try:
+        with open(fpath, encoding='utf-8') as fh:
+            ev = json.load(fh)
+    except (OSError, json.JSONDecodeError) as e:
+        print(f'[compact_preconditions] WARN: skipping corrupt file {fpath}: {e}', file=sys.stderr)
+        continue
+    data = ev.get('data', {})
+    key = (
+        data.get('gate_name', ''),
+        data.get('session_id', ''),
+        data.get('worktree_id', ''),
+    )
+    ev_ts = ev.get('timestamp', 0)
+    if key not in merged or ev_ts > merged[key]['_ts']:
+        merged[key] = dict(data)
+        merged[key]['_ts'] = ev_ts
+
+# Build final merged gate_verdicts and manifest_depth
+gate_verdicts = {}
+manifest_depth = 0
+for key, payload in merged.items():
+    gv = payload.get('gate_verdicts', {})
+    gate_verdicts.update(gv)
+    d = payload.get('manifest_depth', 0)
+    if d > manifest_depth:
+        manifest_depth = d
+
+snapshot = {
+    'timestamp': ts,
+    'uuid': snap_uuid,
+    'event_type': 'PRECONDITIONS',
+    'compacted': True,
+    'env_id': 'compaction',
+    'author': 'compact_preconditions',
+    'data': {
+        'schema_version': 1,
+        'gate_name': 'compacted',
+        'session_id': 'compacted',
+        'worktree_id': 'compacted',
+        'verdict': 'pass',
+        'manifest_depth': manifest_depth,
+        'gate_verdicts': gate_verdicts,
+        'source_count': len(event_files),
+    }
+}
+
+with open(tmp_path, 'w', encoding='utf-8') as fh:
+    json.dump(snapshot, fh)
+
+print(f'[compact_preconditions] snapshot written: {tmp_path}', file=sys.stderr)
+" "$file_list_str" "$ticket_dir" "$ts" "$snap_uuid" "$tmp_path" "$epic_id" || merge_exit=$?
+
+    if [ "$merge_exit" -ne 0 ]; then
+        rm -f "$tmp_path"
+        echo "[compact_preconditions] ERROR: merge failed for $epic_id" >&2
+        return 1
+    fi
+
+    # Atomic rename: tmp → final
+    local rename_exit=0
+    mv "$tmp_path" "$final_path" || rename_exit=$?
+    if [ "$rename_exit" -ne 0 ]; then
+        rm -f "$tmp_path"
+        echo "[compact_preconditions] ERROR: atomic rename failed for $epic_id" >&2
+        return 1
+    fi
+
+    echo "[compact_preconditions] snapshot written: $final_path" >&2
+
+    # Retire original event files
+    local f
+    for f in "${event_files[@]}"; do
+        mv "$f" "${f}.retired" 2>/dev/null || \
+            echo "[compact_preconditions] WARN: could not retire $f" >&2
+    done
+
+    return 0
+}
+
 # _tag_add_checked <ticket_id> <tag>
 # Adds a tag to a ticket with a PIL guard for brainstorm:complete.
 # For any tag other than "brainstorm:complete", delegates directly to _tag_add.
@@ -781,4 +934,285 @@ _tag_add_checked() {
     fi
 
     _tag_add "$ticket_id" "$tag"
+}
+
+# _write_preconditions <ticket_id> <gate_name> <session_id> <worktree_id> <tier> <data_json>
+# Writes an immutable PRECONDITIONS event JSON into .tickets-tracker/<ticket_id>/
+# using _flock_stage_commit for atomic writes (same contract as write_commit_event).
+#
+# Args:
+#   ticket_id:   ticket directory name (e.g., test-t1a2)
+#   gate_name:   name of the gate being recorded (e.g., "story_gate")
+#   session_id:  session identifier
+#   worktree_id: worktree branch identifier
+#   tier:        review tier (e.g., "light", "standard", "deep")
+#   data_json:   JSON object with additional data (defaults to {})
+_write_preconditions() {
+    local ticket_id="$1"
+    local gate_name="$2"
+    local session_id="$3"
+    local worktree_id="$4"
+    local tier="$5"
+    # NOTE: ${6:-{}} appends a literal '}' when $6 is set (bash parse ambiguity).
+    # Use explicit if/else to safely default to '{}' only when $6 is absent.
+    local data_json
+    if [[ -n "${6:-}" ]]; then
+        data_json="$6"
+    else
+        data_json="{}"
+    fi
+
+    local repo_root
+    repo_root="$(git rev-parse --show-toplevel)"
+    local tracker_dir_raw="${TICKETS_TRACKER_DIR:-$repo_root/.tickets-tracker}"
+    local tracker_dir
+    tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$tracker_dir_raw")
+
+    # ── Validate: ticket system must be initialized ──────────────────────────
+    if [ ! -d "$tracker_dir" ] || [ ! -f "$tracker_dir/.git" ]; then
+        echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
+        return 1
+    fi
+
+    # ── Generate timestamp and UUID ──────────────────────────────────────────
+    local timestamp_ms file_uuid
+    timestamp_ms=$(python3 -c "import time; print(int(time.time() * 1000))")
+    file_uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+
+    # ── Determine ticket dir and final path ──────────────────────────────────
+    local ticket_dir="$tracker_dir/$ticket_id"
+    local final_filename="${timestamp_ms}-${file_uuid}-PRECONDITIONS.json"
+    local final_path="$ticket_dir/$final_filename"
+
+    # ── Create ticket directory ──────────────────────────────────────────────
+    mkdir -p "$ticket_dir"
+
+    # ── Stage temp in tracker_dir (same filesystem for atomic rename) ────────
+    local staging_temp
+    staging_temp=$(mktemp "$tracker_dir/.tmp-preconditions-stage-XXXXXX")
+    trap 'rm -f "${staging_temp:-}"' EXIT
+
+    python3 -c "
+import json, sys, time
+
+timestamp_ms = int(sys.argv[1])
+gate_name    = sys.argv[2]
+session_id   = sys.argv[3]
+worktree_id  = sys.argv[4]
+tier         = sys.argv[5]
+data_json    = sys.argv[6]
+staging_path = sys.argv[7]
+
+try:
+    data_obj = json.loads(data_json)
+except json.JSONDecodeError:
+    data_obj = {}
+
+# Derive schema_version and manifest_depth from tier
+# (per preconditions-schema-v2.md contract)
+tier_to_schema = {
+    'minimal':  (1, 'minimal'),
+    'standard': (2, 'standard'),
+    'deep':     (2, 'deep'),
+}
+sv, md = tier_to_schema.get(tier, (1, 'minimal'))
+
+payload = {
+    'event_type': 'PRECONDITIONS',
+    'schema_version': sv,
+    'manifest_depth': md,
+    'gate_name': gate_name,
+    'session_id': session_id,
+    'worktree_id': worktree_id,
+    'tier': tier,
+    'timestamp': timestamp_ms,
+    'gate_verdicts': [],
+    'evidence_ref': {},
+    'affects_fields': [],
+    'data': data_obj,
+}
+
+with open(staging_path, 'w', encoding='utf-8') as f:
+    json.dump(payload, f, ensure_ascii=False)
+" "$timestamp_ms" "$gate_name" "$session_id" "$worktree_id" "$tier" "$data_json" "$staging_temp" || {
+        echo "Error: failed to write preconditions payload" >&2
+        return 1
+    }
+
+    # ── Acquire flock, atomic rename, and commit ─────────────────────────────
+    local commit_msg="preconditions: RECORD ${ticket_id}"
+    _flock_stage_commit "$tracker_dir" "$staging_temp" "$final_path" "$commit_msg" || return $?
+
+    # Clear trap — file has been renamed
+    trap - EXIT
+
+    _push_tickets_branch "$tracker_dir"
+
+    echo "Preconditions recorded: $final_filename"
+}
+
+# _read_latest_preconditions <ticket_id_or_dir> [<gate_name> <session_id>]
+# Reads PRECONDITIONS events. Supports two calling conventions:
+#   1-arg  (ticket_dir):            full path to ticket event dir; returns latest event overall
+#   3-arg  (ticket_id, gate, sess): derives dir from tracker; filters by composite key (LWW)
+# Snapshot-aware: checks for *-PRECONDITIONS-SNAPSHOT.json first in both modes.
+# Retry-once: sleeps 50ms and retries on transient ENOENT/OSError before giving up.
+# Invariant: ticket_ids must never begin with '/' — the leading-slash heuristic dispatches
+#   between 1-arg absolute-path mode and 3-arg ticket_id mode.
+# Returns empty string and exits 0 when no matching events exist (3-arg mode only).
+# Exits 1 when no events exist or on persistent error (1-arg mode).
+_read_latest_preconditions() {
+    local ticket_id="$1"
+    local gate_name="${2:-}"
+    local session_id="${3:-}"
+
+    local ticket_dir
+    if [[ "$ticket_id" == /* ]]; then
+        # 1-arg form: full absolute path passed directly (used by compaction tests)
+        ticket_dir="$ticket_id"
+    else
+        local repo_root
+        repo_root="$(git rev-parse --show-toplevel)"
+        local tracker_dir_raw="${TICKETS_TRACKER_DIR:-$repo_root/.tickets-tracker}"
+        local tracker_dir
+        tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$tracker_dir_raw")
+        ticket_dir="$tracker_dir/$ticket_id"
+    fi
+
+    # Retry-once on transient ENOENT (50ms sleep)
+    local attempt=0
+    while [ "$attempt" -lt 2 ]; do
+        attempt=$((attempt + 1))
+
+        if [ ! -d "$ticket_dir" ]; then
+            if [ "$attempt" -lt 2 ]; then
+                sleep 0.05  # retry-once: 50ms sleep on transient ENOENT
+                continue
+            fi
+            # 1-arg callers (full path) expect exit 1 for nonexistent dir; 3-arg callers tolerate 0
+            [[ "$ticket_id" == /* ]] && return 1 || return 0
+        fi
+
+        local _result
+        local _exit=0
+        _result=$(python3 -c "
+import json, os, sys, tempfile
+
+ticket_dir = sys.argv[1]
+gate_name  = sys.argv[2]
+session_id = sys.argv[3]
+filter_by_key = bool(gate_name and session_id)
+ticket_id  = os.path.basename(ticket_dir)
+
+try:
+    entries = os.listdir(ticket_dir)
+except OSError:
+    sys.exit(1 if not filter_by_key else 0)
+
+# Check for snapshot first (snapshot-aware read)
+snapshots = sorted(
+    f for f in entries
+    if f.endswith('-PRECONDITIONS-SNAPSHOT.json') and not f.endswith('.retired')
+)
+if snapshots:
+    snap_path = os.path.join(ticket_dir, snapshots[-1])
+    try:
+        with open(snap_path, encoding='utf-8') as f:
+            snap = json.load(f)
+        snap_data = snap.get('data', snap)
+        if not filter_by_key:
+            # 1-arg mode: normalize to same contract as flat-event path and _api.py
+            print(json.dumps({
+                'status': 'present',
+                'gate_verdicts': snap_data.get('gate_verdicts', {}),
+                'manifest_depth': snap_data.get('manifest_depth', 0),
+                'compacted': True,
+            }))
+            sys.exit(0)
+        elif (snap_data.get('gate_name') == gate_name and
+              snap_data.get('session_id') == session_id):
+            # 3-arg mode: return raw snapshot data for the matching key
+            print(json.dumps(snap_data))
+            sys.exit(0)
+    except (OSError, json.JSONDecodeError):
+        pass  # fall through to flat events
+
+# Collect all flat PRECONDITIONS files
+candidates = []
+for fname in entries:
+    if not fname.endswith('-PRECONDITIONS.json'):
+        continue
+    if fname.endswith('-PRECONDITIONS-SNAPSHOT.json') or fname.endswith('.retired'):
+        continue
+    fpath = os.path.join(ticket_dir, fname)
+    try:
+        with open(fpath, encoding='utf-8') as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        continue
+    if filter_by_key:
+        if data.get('gate_name') == gate_name and data.get('session_id') == session_id:
+            candidates.append((fname, fpath, data))
+    else:
+        candidates.append((fname, fpath, data))
+
+if not candidates:
+    # 1-arg mode (no filter): pre-manifest = no events → exit 1 (callers use || true)
+    # 3-arg mode (with filter): no matching events is graceful → exit 0 (pre-manifest ticket)
+    sys.exit(1 if not filter_by_key else 0)
+
+# Lexicographic sort on filename (ISO8601 timestamp prefix = chronological order)
+candidates.sort(key=lambda x: x[0])
+
+if not filter_by_key:
+    # 1-arg mode: LWW merge — collect all gate_verdicts and max manifest_depth
+    merged_gv = {}
+    manifest_depth = 0
+    for fname, fpath, event in candidates:
+        inner = event.get('data', event)
+        merged_gv.update(inner.get('gate_verdicts', {}))
+        # Also pick up individual gate verdict from gate_name field
+        gn = inner.get('gate_name', '')
+        if gn and 'verdict' in inner:
+            merged_gv[gn] = inner['verdict']
+        d = inner.get('manifest_depth', 0)
+        if isinstance(d, int) and d > manifest_depth:
+            manifest_depth = d
+    print(json.dumps({'status': 'present', 'gate_verdicts': merged_gv, 'manifest_depth': manifest_depth}))
+    sys.exit(0)
+
+_, latest_path, latest_data = candidates[-1]
+
+# Forward-compat: warn once per (ticket_id, schema_version) when schema_version is unknown (> 2)
+schema_version = latest_data.get('schema_version', 1)
+if isinstance(schema_version, int) and schema_version > 2:
+    warn_dir = os.path.join(tempfile.gettempdir(), 'dso-preconditions-warn')
+    os.makedirs(warn_dir, exist_ok=True)
+    warn_key = '{}_{}_v{}'.format(ticket_id, gate_name, schema_version)
+    warn_file = os.path.join(warn_dir, warn_key)
+    if not os.path.exists(warn_file):
+        print(
+            '[DSO WARN] preconditions reader: unknown schema_version={} for ticket {} '
+            '-- falling back to minimal-tier interpretation'.format(schema_version, ticket_id),
+            file=sys.stderr
+        )
+        open(warn_file, 'w').close()
+
+with open(latest_path, encoding='utf-8') as f:
+    print(f.read(), end='')
+" "$ticket_dir" "$gate_name" "$session_id") || _exit=$?
+
+        if [ "$_exit" -ne 0 ]; then
+            if [ "$attempt" -lt 2 ]; then
+                sleep 0.05  # retry-once: 50ms sleep on transient read error
+                continue
+            fi
+            [[ "$ticket_id" == /* ]] && return 1 || return 0
+        fi
+
+        echo "$_result"
+        return 0
+    done
+
+    [[ "$ticket_id" == /* ]] && return 1 || return 0
 }
