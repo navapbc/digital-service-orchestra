@@ -16,6 +16,7 @@
 #   0  Success (merge commit created, or branch already merged)
 #   1  Conflict in non-.test-index files, or MERGE_HEAD present on entry
 #   2  Gate verification failed (test-gate-status or review-status missing/failed)
+#   3  Empty branch — no commits beyond expected base (agent commit was blocked)
 
 set -euo pipefail
 
@@ -25,6 +26,7 @@ WORKTREE_BRANCH=""
 WORKTREE_ARTIFACTS_DIR=""
 SESSION_ARTIFACTS_DIR=""
 TICKET_ID=""
+EXPECTED_BASE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -34,6 +36,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --ticket-id)
             TICKET_ID="$2"
+            shift 2
+            ;;
+        --expected-base)
+            EXPECTED_BASE="$2"
             shift 2
             ;;
         *)
@@ -112,6 +118,26 @@ _harvest_cleanup() {
 }
 trap '_harvest_exit_code=$?; _harvest_cleanup' ERR EXIT
 trap '_harvest_exit_code=1; _harvest_cleanup' TERM INT HUP
+
+# ── Detect empty branch (agent commit blocked by pre-commit gate) ─────────────
+# If a base commit is known (via --expected-base or artifacts/base-commit), check
+# whether the branch tip advanced past that base. If not, the agent's commit was
+# blocked and no work was integrated — emit EMPTY_BRANCH (exit 3) rather than
+# silently treating the empty branch as "already merged" (1eda-6a0c).
+
+if [[ -z "$EXPECTED_BASE" && -f "$WORKTREE_ARTIFACTS_DIR/base-commit" ]]; then
+    EXPECTED_BASE=$(head -1 "$WORKTREE_ARTIFACTS_DIR/base-commit" 2>/dev/null | tr -d '[:space:]')
+fi
+
+if [[ -n "$EXPECTED_BASE" ]]; then
+    _branch_tip=$(git rev-parse "$WORKTREE_BRANCH" 2>/dev/null || echo "")
+    if [[ "$_branch_tip" == "$EXPECTED_BASE" ]]; then
+        echo "EMPTY_BRANCH: $WORKTREE_BRANCH tip ($EXPECTED_BASE) == expected base — agent commit was likely blocked by a pre-commit gate. No work to harvest." >&2
+        echo "  To recover: re-enter the worktree, fix the gate failure, commit, and re-run harvest." >&2
+        _harvest_exit_code=3
+        exit 3
+    fi
+fi
 
 # ── Check if branch is already merged ────────────────────────────────────────
 
