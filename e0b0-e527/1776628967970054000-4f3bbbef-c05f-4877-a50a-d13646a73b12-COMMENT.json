@@ -1,1 +1,0 @@
-{"timestamp": 1776628967970054000, "uuid": "4f3bbbef-c05f-4877-a50a-d13646a73b12", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Triaged (debug-everything): safeguard hook file. Per CLAUDE.md rule 22, modifications require explicit user approval. Deferred to end-of-session user review."}}
