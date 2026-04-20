@@ -403,7 +403,7 @@ plugins/dso/skills/preplanning/SKILL.md:plugins/dso/skills/preplanning/tests/tes
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test-implementation-plan-manual-tag-guard.sh
 
 # --- sprint-next-batch.sh: manual awaiting_* filter ---
-plugins/dso/scripts/sprint-next-batch.sh:tests/test-sprint-next-batch.sh [test_sprint_next_batch_skips_manual_awaiting_user_story]
+plugins/dso/scripts/sprint-next-batch.sh:tests/test-sprint-next-batch.sh
 
 # --- sprint-manual-drain.sh: manual-pause handshake ---
 plugins/dso/scripts/sprint-manual-drain.sh:tests/test-sprint-manual-drain.sh [test_drain_done_runs_verification_command_exit_0_proceeds]

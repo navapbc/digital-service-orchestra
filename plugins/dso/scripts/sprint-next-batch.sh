@@ -107,6 +107,21 @@ CFG_TEST_DIR="${CFG_TEST_DIR:-tests}"
 CFG_TEST_UNIT_DIR="${CFG_TEST_UNIT_DIR:-tests/unit}"
 CFG_EXTRA_DIR_ROOTS="${CFG_EXTRA_DIR_ROOTS:-}"
 
+# Source planning tag constants (manual:awaiting_user filter)
+# shellcheck source=../skills/shared/constants/planning-tags.conf
+if [ -f "${CLAUDE_PLUGIN_ROOT}/skills/shared/constants/planning-tags.conf" ]; then
+    source "${CLAUDE_PLUGIN_ROOT}/skills/shared/constants/planning-tags.conf"
+fi
+
+# Read flag for manual:awaiting_user filter
+_PLANNING_FLAG_ENABLED=false
+if [ -x "$READ_CONFIG" ]; then
+    _flag_val=$("$READ_CONFIG" planning.external_dependency_block_enabled "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null || true)
+    if [ "$_flag_val" = "true" ] || [ "$_flag_val" = "1" ] || [ "$_flag_val" = "yes" ]; then
+        _PLANNING_FLAG_ENABLED=true
+    fi
+fi
+
 # --- Argument parsing ---
 
 epic_id=""
@@ -300,6 +315,7 @@ SPRINT_CFG_TEST_UNIT_DIR="$CFG_TEST_UNIT_DIR" \
 SPRINT_CFG_EXTRA_DIR_ROOTS="$CFG_EXTRA_DIR_ROOTS" \
 SPRINT_TRACKER_DIR="$TRACKER_DIR" \
 SPRINT_REDUCER="$REDUCER" \
+SPRINT_PLANNING_FLAG_ENABLED="$_PLANNING_FLAG_ENABLED" \
 python3 - <<'PYEOF'
 import json
 import os
@@ -335,6 +351,9 @@ if reducer_path and os.path.exists(reducer_path):
         pass
 
 OPUS_CAP = 2
+
+# Flag: planning.external_dependency_block_enabled (passed from bash section)
+_FLAG_ENABLED = os.environ.get("SPRINT_PLANNING_FLAG_ENABLED", "false").lower() in ("true", "1", "yes")
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -668,11 +687,12 @@ def is_parent_story_blocked(task_id):
         return parent_id
     return None
 
-# Tag constant from ${CLAUDE_PLUGIN_ROOT}/skills/shared/constants/figma-tags.conf
-_DESIGN_AWAITING_IMPORT_TAG = "design:awaiting_import"
+# Tag constants from ${CLAUDE_PLUGIN_ROOT}/skills/shared/constants/
+_DESIGN_AWAITING_IMPORT_TAG = "design:awaiting_import"  # from figma-tags.conf
+_MANUAL_AWAITING_USER_TAG = "manual:awaiting_user"      # from planning-tags.conf
 
-def is_parent_story_design_awaiting(task_id):
-    """Check if a task's parent story has the design:awaiting_import tag.
+def is_parent_story_awaiting(task_id, tag):
+    """Check if a task's parent story has the given awaiting tag.
 
     Returns the parent story ID if the tag is present, None otherwise.
     """
@@ -681,14 +701,19 @@ def is_parent_story_design_awaiting(task_id):
         return None
     parent_data = ticket_show(parent_id)
     tags = parent_data.get("tags") or []
-    if _DESIGN_AWAITING_IMPORT_TAG in tags:
+    if tag in tags:
         return parent_id
     return None
+
+def is_parent_story_design_awaiting(task_id):
+    """Backward-compatible wrapper for design:awaiting_import check."""
+    return is_parent_story_awaiting(task_id, _DESIGN_AWAITING_IMPORT_TAG)
 
 # ── Build candidate list ───────────────────────────────────────────────────────
 
 skipped_blocked_story    = []   # (task_id, title, story_id)
 skipped_design_awaiting  = []   # (task_id, title, story_id)
+skipped_manual_awaiting  = []   # (task_id, title, story_id)
 skipped_in_progress    = []   # (task_id, title)
 skipped_needs_planning = []   # (task_id, title) — stories with 0 impl children
 candidates_raw         = []   # raw task dicts that are eligible
@@ -734,6 +759,13 @@ for raw in ready_tasks:
     if design_awaiting_parent:
         skipped_design_awaiting.append((tid, title, design_awaiting_parent))
         continue
+
+    # Manual gate: skip if parent story is awaiting user manual step (flag-gated)
+    if _FLAG_ENABLED:
+        manual_awaiting_parent = is_parent_story_awaiting(tid, _MANUAL_AWAITING_USER_TAG)
+        if manual_awaiting_parent:
+            skipped_manual_awaiting.append((tid, title, manual_awaiting_parent))
+            continue
 
     candidates_raw.append(raw)
 
@@ -929,6 +961,10 @@ if json_mode:
             {"id": tid, "title": title, "blocked_story": sid}
             for tid, title, sid in skipped_design_awaiting
         ],
+        "skipped_manual_awaiting": [
+            {"id": tid, "title": title, "blocked_story": sid}
+            for tid, title, sid in skipped_manual_awaiting
+        ],
         "skipped_in_progress": [
             {"id": tid, "title": title}
             for tid, title in skipped_in_progress
@@ -955,6 +991,8 @@ else:
         print(f"SKIPPED_BLOCKED_STORY: {tid}\tdeferred (parent story {sid} is blocked)")
     for tid, title, sid in skipped_design_awaiting:
         print(f"SKIPPED_DESIGN_AWAITING: {tid}\tdeferred (parent story {sid} awaiting designer import)")
+    for tid, title, sid in skipped_manual_awaiting:
+        print(f"SKIPPED_MANUAL_AWAITING: {tid}\tdeferred (parent story {sid} awaiting manual user step)")
     for tid, title in skipped_in_progress:
         print(f"SKIPPED_IN_PROGRESS: {tid}\talready in_progress")
     for tid, title in skipped_needs_planning:
