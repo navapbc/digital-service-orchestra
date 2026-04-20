@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-sprint-pause-state.sh
-# RED tests for sprint-pause-state.sh (script does not yet exist).
-# All 11 tests must FAIL until plugins/dso/scripts/sprint-pause-state.sh is implemented.
+# Behavioral tests for sprint-pause-state.sh (SIGURG recovery pause-state mechanism).
 #
 # Usage: bash tests/scripts/test-sprint-pause-state.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -50,7 +49,7 @@ if test -f "$_state_file"; then
         jq -e '.epic_id'          "$_state_file" >/dev/null 2>&1 && _has_epic_id=1
         jq -e '.stories'          "$_state_file" >/dev/null 2>&1 && _has_stories=1
         jq -e '.story_answers'    "$_state_file" >/dev/null 2>&1 && _has_story_answers=1
-        jq -e '.in_progress_marker' "$_state_file" >/dev/null 2>&1 && _has_in_progress=1
+        jq -e 'has("in_progress_marker")' "$_state_file" >/dev/null 2>&1 && _has_in_progress=1
         jq -e '.created_at'       "$_state_file" >/dev/null 2>&1 && _has_created_at=1
     fi
 fi
@@ -118,6 +117,20 @@ _is_zero=0
 if [[ "$_exit_code" -eq 0 ]]; then _is_zero=1; fi
 assert_eq "test_spause_is_fresh_fresh_returns_zero: is-fresh after init must exit 0" "1" "$_is_zero"
 assert_pass_if_clean "test_spause_is_fresh_fresh_returns_zero"
+
+# ── test_spause_is_fresh_stale_returns_nonzero ────────────────────────────────
+_snapshot_fail
+_state_file="$SPRINT_PAUSE_STATE_DIR/sprint-pause-state-test-epic-42.json"
+rm -f "$_state_file"
+bash "$SCRIPT" init test-epic-42 2>/dev/null
+# Set mtime to 5 hours ago (older than 240-min TTL) using Python for portability
+python3 -c "import os,time; t=time.time()-5*3600; os.utime('$_state_file',(t,t))" 2>/dev/null || true
+bash "$SCRIPT" is-fresh test-epic-42 2>/dev/null
+_exit_code=$?
+_is_nonzero=0
+if [[ "$_exit_code" -ne 0 ]]; then _is_nonzero=1; fi
+assert_eq "test_spause_is_fresh_stale_returns_nonzero: is-fresh on 5h-old file must exit non-zero" "1" "$_is_nonzero"
+assert_pass_if_clean "test_spause_is_fresh_stale_returns_nonzero"
 
 # ── test_spause_cleanup_removes_file ─────────────────────────────────────────
 _snapshot_fail
