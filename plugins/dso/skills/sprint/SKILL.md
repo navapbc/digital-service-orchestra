@@ -1495,6 +1495,8 @@ ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" 
 
 When `ISOLATION_ENABLED` equals `true`, add `isolation: "worktree"` to each Agent/Task dispatch call and pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each sub-agent's prompt so sub-agents can verify isolation. When `ISOLATION_ENABLED` is `false`, empty, or absent, omit the `isolation` parameter entirely.
 
+**Parallel dispatch and stale HEAD**: All worktrees in a batch branch from the session HEAD at the moment of dispatch. When sub-agents are dispatched in parallel and harvested serially, the second and later harvests will encounter merge conflicts because those worktrees were created before earlier harvests advanced the session HEAD. This is **expected and normal** — not a bug. The per-worktree-review-commit.md conflict queue protocol (Step 6 exit 1) handles this case: after the clean worktrees are harvested, conflicting worktrees are rebased onto the updated session HEAD and re-processed through the review → commit → harvest pipeline. No full task re-implementation is needed for conflicts that arise solely from this ordering effect.
+
 ### Design Context Population
 
 Before dispatch, source the figma tag constants and check whether the parent story has the `design:approved` tag:
@@ -1605,6 +1607,8 @@ context:
 **Agent description**: 3-5 word summary from ticket title (e.g., Fix review gate hash).
 
 **Important**: Launch ALL sub-agents in the batch within a single message, each with `run_in_background: true`. The number of Task calls is governed by `max_agents` from Phase 3 Step 1 (unlimited = all candidates, N = cap at N, 0 = skip dispatch).
+
+**Stale HEAD warning (4ad5-25df)**: When `ISOLATION_ENABLED=true`, all agent worktrees are branched from the session HEAD at the moment of dispatch. Agents that complete later will be missing commits from agents that were harvested earlier in the same batch. This is expected and handled by the conflict queue protocol in `per-worktree-review-commit.md` Step 6: if `harvest-worktree.sh` returns exit 1 (merge conflict), the conflicting worktree is queued for post-batch resolution (rebase first, full re-implementation only as a last resort). Do NOT attempt to resolve conflicts during the serial harvest loop — finish all non-conflicting harvests first, then work through the conflict queue.
 
 **Worktree boundary**: If in a worktree, append to every sub-agent prompt: `"IMPORTANT: Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path."` When `ISOLATION_ENABLED=true`, also add `isolation: "worktree"` to the Task dispatch call (see Worktree Isolation Configuration above).
 

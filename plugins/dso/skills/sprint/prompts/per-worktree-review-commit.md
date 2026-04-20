@@ -1,5 +1,7 @@
 ## Per-Worktree Review, Commit, and Merge Protocol
 
+> **Stale HEAD note (4ad5-25df)**: All agent worktrees in a batch are branched from the session HEAD at dispatch time. When multiple agents complete and are harvested serially, later harvests operate on branches that were cut before earlier harvests landed — they are missing those commits. This is the expected behavior. The conflict queue in Step 6 handles this: if `harvest-worktree.sh` returns exit 1 (merge conflict), the worktree is queued for post-batch resolution (rebase first, full re-implementation only as a last resort). Do NOT attempt to resolve conflicts during the initial serial harvest loop — finish harvesting all non-conflicting worktrees first, then work through the conflict queue.
+
 For each worktree returned by implementation sub-agents (process in completion order — first-pass-first-merge):
 
 **Step 1 — Enter worktree context**: Note the worktree path as `WORKTREE_PATH`. Compute the worktree's artifacts directory and record the base commit for empty-branch detection:
@@ -82,22 +84,40 @@ The `.test-index` file uses a `merge=union` driver (configured in `.gitattribute
 - **Success** (exit 0): Proceed to Step 7 (cleanup).
 - **Gate failure** (exit 2): The worktree's test or review gate did not pass. Do NOT merge. Investigate and re-run gates in the worktree context (Steps 2–4), then retry Step 5.
 - **Conflict** (exit 1): Non-`.test-index` merge conflict detected. `harvest-worktree.sh` automatically aborts the merge and cleans up MERGE_HEAD.
-- **Empty branch** (exit 3): Branch tip equals the recorded base commit — the agent's `git commit` was blocked by a pre-commit gate (e.g., TIER IMMUTABILITY VIOLATION). The post-commit verification in Step 4 should have caught this first; if harvest returns exit 3, something bypassed that check. Do NOT destroy the worktree. Add a CHECKPOINT comment, surface the gate error, and re-investigate the commit failure before re-attempting.
-  a. Create a ticket comment: `.claude/scripts/dso ticket comment <story-id> "CONFLICT: worktree <worktree-name> blocked"`
-  b. Add the worktree to the **conflict queue** — do NOT remove the worktree (retained for re-implementation).
+
+  > **Why this happens with parallel dispatch**: When multiple sub-agents are dispatched in the same batch, every worktree branches from the session HEAD at dispatch time. As earlier worktrees are harvested serially, the session HEAD advances. Later worktrees are now stale — they are missing the commits from the earlier harvests — and `git merge --no-commit` conflicts on lines that were already modified by a prior harvest. This is **expected and normal**, not a task implementation failure.
+
+  Resolution path — try in order before falling through to full re-implementation:
+  1. **Rebase the worktree branch onto the updated session HEAD** (from the session root):
+     ```bash
+     git -C "$WORKTREE_PATH" rebase <session-branch>
+     ```
+     If the rebase succeeds cleanly (no conflicts), the worktree's changes are now layered on top of the earlier harvests. Re-run the review → commit → harvest pipeline (Steps 2–5) against the rebased branch. This is sufficient for the common case where the conflicts are purely due to ordering.
+  2. **Manual conflict resolution**: If the rebase produces true conflicts (the same lines changed by two different tasks for different reasons), resolve them in the worktree, then continue the rebase (`git rebase --continue`) and re-run Steps 2–5.
+  3. **Full task re-implementation** (last resort — see conflict queue below): Use only when the conflict cannot be resolved by rebase (e.g., the task's entire approach is incompatible with what was already merged).
+
+  Regardless of which resolution path applies:
+  a. Create a ticket comment: `.claude/scripts/dso ticket comment <story-id> "CONFLICT: worktree <worktree-name> blocked — attempting rebase resolution"`
+  b. Add the worktree to the **conflict queue** — do NOT remove the worktree (retained for resolution).
   c. Continue processing the next worktree — non-conflicting worktrees proceed normally through Steps 2–7.
-  d. After recording the conflict, write a WORKTREE_TRACKING:complete signal to mark the worktree as discarded:
+  d. After recording the conflict, write a WORKTREE_TRACKING:complete signal to mark the worktree as discarded (written now; a successful rebase+harvest later does NOT update this signal — the tracking comment records the initial outcome):
      ```
      .claude/scripts/dso ticket comment $TICKET_ID "WORKTREE_TRACKING:complete branch=<branch> outcome=discarded timestamp=<ts>"
      ```
      (Only when TICKET_ID is available from the sprint context. Skip silently if not set.)
 
-**Conflict queue — re-implementation protocol** (after all non-conflicting worktrees are merged):
+- **Empty branch** (exit 3): Branch tip equals the recorded base commit — the agent's `git commit` was blocked by a pre-commit gate (e.g., TIER IMMUTABILITY VIOLATION). The post-commit verification in Step 4 should have caught this first; if harvest returns exit 3, something bypassed that check. Do NOT destroy the worktree. Add a CHECKPOINT comment, surface the gate error, and re-investigate the commit failure before re-attempting.
+
+**Conflict queue — resolution protocol** (after all non-conflicting worktrees are merged):
 
 For each worktree in the conflict queue, serialized one at a time against the latest session state:
-1. Re-dispatch the original task in the conflicting worktree context (the worktree is still present and available).
-2. Each re-implementation targets the post-merge session branch (so it incorporates all previously merged worktrees).
-3. After successful re-implementation: follow the full Steps 2–7 flow (review → commit → harvest → cleanup).
+1. **Attempt rebase resolution first** (covers the common parallel-dispatch ordering case):
+   ```bash
+   git -C "$WORKTREE_PATH" rebase <session-branch>
+   ```
+   On clean rebase: proceed directly to Steps 2–5 (review → commit → harvest) in the rebased worktree. No re-implementation needed.
+2. **On rebase conflict**: Resolve the conflicting hunks in the worktree, `git rebase --continue`, then proceed to Steps 2–5.
+3. **Full re-implementation** (only when rebase is structurally incompatible): Re-dispatch the original task in the conflicting worktree context. Each re-implementation targets the post-merge session branch (so it incorporates all previously merged worktrees). After successful re-implementation: follow the full Steps 2–7 flow.
 4. If re-implementation also conflicts: escalate to the user — do not re-queue indefinitely.
 
 **Step 7 — Worktree cleanup**: Only after successful harvest (exit 0), remove the worktree directory and delete the per-agent branch:
