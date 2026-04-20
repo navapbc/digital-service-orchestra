@@ -254,4 +254,4 @@ plugins/dso/scripts/gate-2b-blast-radius.sh:tests/scripts/test-gate-format-check
 plugins/dso/scripts/gate-2d-dependency-check.sh:tests/scripts/test-gate-format-check.sh
 plugins/dso/scripts/dso-setup.sh:tests/scripts/test-dso-setup-stack-aware-ci.sh,tests/scripts/test-dso-setup-next-steps-install-ref.sh
 plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test-index-duplicates.sh
-plugins/dso/scripts/preconditions-baseline-collect.sh:tests/scripts/test-preconditions-baseline.sh [test_baseline_collect_writes_preconditions]
+plugins/dso/scripts/preconditions-baseline-collect.sh:tests/scripts/test-preconditions-baseline.sh

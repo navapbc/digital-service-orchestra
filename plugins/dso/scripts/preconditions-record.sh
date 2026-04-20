@@ -108,4 +108,4 @@ _write_preconditions \
     "$session_id_arg" \
     "$WORKTREE_ID" \
     "$tier_arg" \
-    "${data_arg:-{}}"
+    "${data_arg}"

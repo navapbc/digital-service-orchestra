@@ -587,7 +587,14 @@ _write_preconditions() {
     local session_id="$3"
     local worktree_id="$4"
     local tier="$5"
-    local data_json="${6:-{}}"
+    # NOTE: ${6:-{}} appends a literal '}' when $6 is set (bash parse ambiguity).
+    # Use explicit if/else to safely default to '{}' only when $6 is absent.
+    local data_json
+    if [[ -n "${6:-}" ]]; then
+        data_json="$6"
+    else
+        data_json="{}"
+    fi
 
     local repo_root
     repo_root="$(git rev-parse --show-toplevel)"
