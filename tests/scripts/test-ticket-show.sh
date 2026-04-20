@@ -486,4 +486,65 @@ except Exception as e:
 }
 test_ticket_show_preconditions_corrupt_file_skipped
 
+# ── Test: ticket show includes preconditions_summary for legacy tickets (no events) ──
+echo "Test: ticket show returns preconditions_summary={status:pre-manifest} for legacy ticket"
+test_ticket_show_preconditions_summary_legacy_placeholder() {
+    _snapshot_fail
+    if [ ! -f "$TICKET_SHOW_SCRIPT" ]; then
+        assert_eq "ticket-show.sh exists" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a ticket with zero PRECONDITIONS events (legacy / pre-manifest state)
+    local ticket_id=""
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "legacy preconditions test" 2>/dev/null || true)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for legacy preconditions check" "non-empty" "empty"
+        return
+    fi
+
+    # show the ticket — no PRECONDITIONS events exist
+    local show_output
+    local show_exit=0
+    show_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || show_exit=$?
+
+    # Assert: exits 0 (no crash on zero PRECONDITIONS events)
+    assert_eq "ticket show exits 0 for legacy ticket (no PRECONDITIONS events)" "0" "$show_exit"
+
+    # Assert: output is valid JSON
+    if [ -n "$show_output" ]; then
+        local parse_exit=0
+        python3 -c "import json,sys; json.load(sys.stdin)" <<< "$show_output" 2>/dev/null || parse_exit=$?
+        assert_eq "ticket show output is valid JSON for legacy ticket" "0" "$parse_exit"
+    else
+        assert_eq "ticket show returns non-empty output for legacy ticket" "non-empty" "empty"
+        return
+    fi
+
+    # Assert: preconditions_summary present and status is pre-manifest (RED: not yet emitted)
+    local ps_check
+    ps_check=$(python3 -c "
+import json, sys
+try:
+    data = json.loads(sys.argv[1])
+    ps = data.get('preconditions_summary')
+    if ps is None:
+        print('MISSING')
+    elif ps.get('status') == 'pre-manifest':
+        print('OK')
+    else:
+        print(f'UNEXPECTED:{ps}')
+except Exception as e:
+    print(f'PARSE_ERROR:{e}')
+" "$show_output" 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "preconditions_summary.status is pre-manifest for legacy ticket" "OK" "$ps_check"
+
+    assert_pass_if_clean "test_ticket_show_preconditions_summary_legacy_placeholder"
+}
+test_ticket_show_preconditions_summary_legacy_placeholder
+
 print_summary

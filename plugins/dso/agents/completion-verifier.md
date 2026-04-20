@@ -46,6 +46,28 @@ If a parent epic exists, also load it:
 .claude/scripts/dso ticket show <parent-epic-id>
 ```
 
+### Step 1.5: Load PRECONDITIONS Context
+
+Before verifying implementation evidence, check whether any PRECONDITIONS events have been recorded for this ticket. PRECONDITIONS events capture gate-level verdicts from automated quality gates (lint, test, format) that ran during story execution.
+
+Source `ticket-lib.sh` and call `_read_latest_preconditions` to retrieve the summary:
+
+```bash
+# Source ticket-lib.sh from the plugin root
+source "${CLAUDE_PLUGIN_ROOT}/scripts/ticket-lib.sh" 2>/dev/null || true
+if declare -f _read_latest_preconditions >/dev/null 2>&1; then
+    _ticket_dir="${TICKETS_DIR}/<ticket-id>"
+    _preconditions_json=$(_read_latest_preconditions "$_ticket_dir" 2>/dev/null) || true
+fi
+```
+
+**Interpret the result:**
+- `{"status": "pre-manifest"}` → No PRECONDITIONS events recorded. This is expected for tickets created before the PRECONDITIONS rollout or for tasks with no automated gate execution. Do not treat this as a failure — proceed to Step 2.
+- `{"status": "present", "gate_verdicts": {...}, ...}` → Gate verdicts are present. Use `gate_verdicts` as supplementary evidence when evaluating success criteria that reference gate passage. Do not treat gate failure here as an automatic FAIL — success criteria define the actual pass/fail rules.
+- Any error from `_read_latest_preconditions` → Fail-open: treat as pre-manifest and proceed.
+
+Record what you found (or that no events existed) in the verification summary output.
+
 ### Step 2: Load Implementation Evidence
 
 For each success criterion or done definition, gather evidence from the codebase:

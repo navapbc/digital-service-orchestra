@@ -688,10 +688,34 @@ _phase_push() {
     fi
 }
 
-# --- 4.5) Archive phase (no-op — archive-closed-tickets.sh removed in v3 cleanup) ---
+# --- 4.5) Archive phase — read PRECONDITIONS context and log; no-op on failure ---
 _phase_archive() {
     _CURRENT_PHASE="archive"
     _state_write_phase "archive"
+
+    # Read PRECONDITIONS context for informational logging (fail-open).
+    # Tickets with no PRECONDITIONS events (legacy / pre-manifest) exit non-zero
+    # from _read_latest_preconditions; the || true guard prevents phase failure.
+    local _ticket_lib="$_SCRIPT_DIR/ticket-lib.sh"
+    if [[ -f "$_ticket_lib" ]]; then
+        # shellcheck source=/dev/null
+        source "$_ticket_lib" 2>/dev/null || true
+        if declare -f _read_latest_preconditions >/dev/null 2>&1; then
+            local _tkdir="$_CFG_TKDIR"
+            # If no tickets directory is configured, use the default
+            [[ -z "$_tkdir" ]] && _tkdir="${REPO_ROOT}/.tickets-tracker"
+            local _epic_id="${BRANCH_NAME:-unknown}"
+            local _ticket_dir="$_tkdir/$_epic_id"
+            local _preconditions_json=""
+            _preconditions_json=$(_read_latest_preconditions "$_ticket_dir" 2>/dev/null) || true
+            if [[ -n "$_preconditions_json" ]]; then
+                echo "[merge-to-main] archive: preconditions summary: $_preconditions_json" >&2
+            else
+                echo "[merge-to-main] archive: preconditions: pre-manifest (no events for $_epic_id)" >&2
+            fi
+        fi
+    fi
+
     _state_mark_complete "archive"
 }
 
