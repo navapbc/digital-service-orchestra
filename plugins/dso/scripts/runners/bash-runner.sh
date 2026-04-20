@@ -194,6 +194,7 @@ _bash_runner_run() {
         local bash_exit=0
         bash "$bash_file" &
         local _test_bg_pid=$!
+        _ACTIVE_CHILD_PID=$_test_bg_pid
         local _test_start_time
         _test_start_time=$(date +%s)
 
@@ -202,6 +203,7 @@ _bash_runner_run() {
             # Per-test timeout: if this individual test has run longer than
             # PER_TEST_TIMEOUT seconds, mark it as terminal (not retried on resume).
             if [ -n "${PER_TEST_TIMEOUT:-}" ] && [ $(( $(date +%s) - _test_start_time )) -ge "$PER_TEST_TIMEOUT" ]; then
+                _ACTIVE_CHILD_PID=""
                 kill -- -"$_test_bg_pid" 2>/dev/null || kill "$_test_bg_pid" 2>/dev/null || true
                 wait "$_test_bg_pid" 2>/dev/null || true
                 COMPLETED_LIST+=("$test_id")
@@ -211,6 +213,7 @@ _bash_runner_run() {
             if [ "$(_elapsed)" -ge "$TIMEOUT" ]; then
                 # Kill entire process group (negative PID) so child processes
                 # spawned by the test script don't survive as orphans.
+                _ACTIVE_CHILD_PID=""
                 kill -- -"$_test_bg_pid" 2>/dev/null || kill "$_test_bg_pid" 2>/dev/null || true
                 wait "$_test_bg_pid" 2>/dev/null || true
                 COMPLETED_LIST+=("$test_id")
@@ -222,6 +225,7 @@ _bash_runner_run() {
 
         # `wait` on a direct child always returns the child's actual exit code —
         # no file-write race is possible here.
+        _ACTIVE_CHILD_PID=""
         wait "$_test_bg_pid" 2>/dev/null; bash_exit=$?
 
         local bash_outcome

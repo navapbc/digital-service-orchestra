@@ -146,9 +146,11 @@ _node_runner_run() {
             echo $? > "$_exit_code_file"
         ) &
         local NODE_PID=$!
+        _ACTIVE_CHILD_PID=$NODE_PID
 
         while kill -0 "$NODE_PID" 2>/dev/null; do
             if [ "$(_elapsed)" -ge "$TIMEOUT" ]; then
+                _ACTIVE_CHILD_PID=""
                 kill -- -"$NODE_PID" 2>/dev/null || kill "$NODE_PID" 2>/dev/null || true
                 wait "$NODE_PID" 2>/dev/null || true
                 rm -f "$_exit_code_file"
@@ -159,6 +161,7 @@ _node_runner_run() {
             sleep 0.1 2>/dev/null || sleep 1
         done
 
+        _ACTIVE_CHILD_PID=""
         wait "$NODE_PID" 2>/dev/null; local node_exit=$?
         if [ -f "$_exit_code_file" ]; then
             node_exit=$(cat "$_exit_code_file" 2>/dev/null || echo "$node_exit")
