@@ -33,6 +33,15 @@ Do not report findings on code quality, lint, or formatting. Do not assess wheth
 
 ## Procedure
 
+### Stage-Boundary Entry Check
+
+Source the preconditions validator library and run the epic-closure entry check (fail-open: `|| true` prevents blocking when no upstream commit event exists yet):
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/preconditions-validator-lib.sh" 2>/dev/null || true
+_dso_pv_entry_check "epic-closure" "commit" "${EPIC_ID:-}" || true
+```
+
 ### Step 1: Load the Ticket
 
 ```bash
@@ -150,6 +159,12 @@ For each failed criterion or failed consumer smoke test, include a remediation r
 **The orchestrator creates the actual tickets** — this agent does not write to the ticket system directly. The orchestrator reads the `remediation_tasks_created` array and creates bug tasks that integrate with the `sprint-next-batch.sh` pickup flow.
 
 ### Step 6: Output Verdict
+
+Before returning results, emit the preconditions exit event for epic-closure (fail-open):
+
+```bash
+_dso_pv_exit_write "epic-closure" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:-}" "${EPIC_ID:-}" || true
+```
 
 Return a structured JSON block matching the output schema below. After the JSON block, include a plain-text **Verification Summary** section.
 
