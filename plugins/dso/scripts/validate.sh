@@ -136,7 +136,11 @@ CMD_BUILD=$(_cfg "commands.build" "")
 # separate ruff + mypy checks. When absent, the individual commands.lint_ruff
 # and commands.lint_mypy checks run as before (backward compatible).
 CMD_LINT=$(_cfg "commands.lint" "")
-if [[ -z "$CMD_LINT" ]]; then
+# Check if any lint is configured: commands.lint (unified) OR the legacy ruff/mypy keys.
+# Only warn when ALL are absent — legacy keys still provide lint coverage.
+_CMD_LINT_RUFF_PRESENT=$(_cfg "commands.lint_ruff" "")
+_CMD_LINT_MYPY_PRESENT=$(_cfg "commands.lint_mypy" "")
+if [[ -z "$CMD_LINT" && -z "$_CMD_LINT_RUFF_PRESENT" && -z "$_CMD_LINT_MYPY_PRESENT" ]]; then
     echo "[DSO WARN] commands.lint not configured — lint step will be skipped." >&2
 fi
 

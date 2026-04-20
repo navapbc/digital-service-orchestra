@@ -1157,10 +1157,14 @@ When writing initial config, use these per-stack defaults if the config key is a
 |-------|--------------|-----------------|----------------------|
 | python-poetry | `poetry run ruff check .` | `poetry run ruff format .` | `poetry run ruff format --check .` |
 | node-npm / node-yarn | `npx eslint --no-error-on-unmatched-pattern .` | `npx prettier --write .` | `npx prettier --check .` |
-| ruby / ruby-bundler | `bundle exec rubocop` | `bundle exec rubocop --autocorrect` | `bundle exec rubocop --dry-run` |
+| ruby / ruby-bundler | `bundle exec rubocop` | `bundle exec rubocop --autocorrect` | `bundle exec rubocop --format simple` |
 | go | `go vet ./...` | `gofmt -w .` | `gofmt -l .` |
 
 These defaults preserve existing behavior for Python-poetry projects and add first-class support for Node.js, Ruby, and Go projects.
+
+**Key-presence skip rule**: If a key already exists in the config with a non-empty value, do NOT overwrite it. Emit `[DSO INFO] commands.lint already set — skipping` (or the equivalent for `commands.format` / `commands.format_check`) and leave the existing value intact. An empty string is treated as not-set and triggers the per-stack default.
+
+**Ordering constraint**: Always write `commands.test_runner` before `commands.lint`, `commands.format`, and `commands.format_check`. Stack detection populates the test runner; lint/format defaults depend on the confirmed stack and should follow.
 
 #### Required Config Keys
 

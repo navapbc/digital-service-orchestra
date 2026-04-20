@@ -1476,9 +1476,42 @@ test_step2b_nodejs_defaults_present() {
     assert_pass_if_clean "test_step2b_nodejs_defaults_present"
 }
 
+# test_step2b_key_presence_skip_signal: SKILL.md must document [DSO INFO] skip signal
+# when a config key is already set, preventing overwrites during merge.
+# RED until Step 2b key-presence skip rule is added to SKILL.md.
+test_step2b_key_presence_skip_signal() {
+    _snapshot_fail
+    local has_dso_info="missing"
+    local has_already_set="missing"
+    if grep -q '\[DSO INFO\]' "$SKILL_MD" 2>/dev/null; then
+        has_dso_info="found"
+    fi
+    if grep -q 'already set' "$SKILL_MD" 2>/dev/null; then
+        has_already_set="found"
+    fi
+    assert_eq "test_step2b_key_presence_skip_signal: [DSO INFO] present" "found" "$has_dso_info"
+    assert_eq "test_step2b_key_presence_skip_signal: 'already set' phrase present" "found" "$has_already_set"
+    assert_pass_if_clean "test_step2b_key_presence_skip_signal"
+}
+
+# test_step2b_empty_string_treated_as_not_set: SKILL.md must clarify that an empty
+# string value is treated as not-set and triggers the per-stack default.
+# RED until Step 2b documents empty-string = not-set behavior.
+test_step2b_empty_string_treated_as_not_set() {
+    _snapshot_fail
+    local found="missing"
+    if grep -q 'empty string' "$SKILL_MD" 2>/dev/null; then
+        found="found"
+    fi
+    assert_eq "test_step2b_empty_string_treated_as_not_set" "found" "$found"
+    assert_pass_if_clean "test_step2b_empty_string_treated_as_not_set"
+}
+
 # RED Step 2b format_check tests — fail until SKILL.md Step 2b is updated
 test_step2b_has_commands_format_check_key
 test_step2b_ruby_defaults_present
 test_step2b_nodejs_defaults_present
+test_step2b_key_presence_skip_signal
+test_step2b_empty_string_treated_as_not_set
 
 print_summary

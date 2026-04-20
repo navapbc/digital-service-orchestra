@@ -186,8 +186,6 @@ _VLW_CFG="$_VLW_DIR/dso-config-no-lint.conf"
 cat > "$_VLW_CFG" << VLWEOT
 commands.syntax_check=true
 commands.format_check=true
-commands.lint_ruff=true
-commands.lint_mypy=true
 VLWEOT
 
 _vlt_warn_out=""
@@ -202,5 +200,33 @@ fi
 assert_eq "validate.sh emits [DSO WARN] when commands.lint absent" "1" "$_vlt_has_warn"
 
 assert_pass_if_clean "test_validate_warns_when_no_lint_configured"
+
+# ── test_validate_no_warn_when_legacy_lint_configured ─────────────────────────
+# Behavioral: when commands.lint is absent but commands.lint_ruff or commands.lint_mypy
+# is explicitly set, validate.sh must NOT emit [DSO WARN] — legacy lint commands
+# still provide coverage. Expected to FAIL before the warn-condition fix.
+_snapshot_fail
+
+_VNW_DIR=$(mktemp -d /tmp/test-validate-no-warn-XXXXXX)
+_VNW_CFG="$_VNW_DIR/dso-config-legacy-lint.conf"
+cat > "$_VNW_CFG" << VNWEOT
+commands.syntax_check=true
+commands.format_check=true
+commands.lint_ruff=true
+commands.lint_mypy=true
+VNWEOT
+
+_vnw_out=""
+_vnw_out=$(CONFIG_FILE="$_VNW_CFG" VALIDATE_CMD_TEST=true \
+    bash "$VALIDATE_SH" --skip-ci 2>&1 || true)
+rm -rf "$_VNW_DIR"
+
+_vnw_has_warn=0
+if echo "$_vnw_out" | grep -q '\[DSO WARN\].*commands.lint'; then
+    _vnw_has_warn=1
+fi
+assert_eq "validate.sh suppresses [DSO WARN] when legacy lint keys configured" "0" "$_vnw_has_warn"
+
+assert_pass_if_clean "test_validate_no_warn_when_legacy_lint_configured"
 
 print_summary
