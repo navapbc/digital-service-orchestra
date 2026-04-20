@@ -53,10 +53,10 @@ Returning prose, markdown, or raw JSON instead of this format will force a re-di
 
 ### Step 1 — Validate and read the diff file
 
-Run the diff verification script via the `.claude/scripts/dso` shim:
+Run the diff verification script via the `.claude/scripts/dso` shim. Use the `REPO_ROOT` value provided in your dispatch prompt — do NOT re-derive it via `git rev-parse --show-toplevel` (in worktree sessions that returns the worktree path, not the repo root):
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
+# REPO_ROOT is provided in your dispatch prompt — do not re-derive it here
 "$REPO_ROOT/.claude/scripts/dso" verify-review-diff.sh "$DIFF_FILE_PATH"
 ```
 
@@ -241,7 +241,7 @@ dispatch flows. If `SELECTED_TIER` is not provided in your dispatch context, omi
 the flag — `record-review.sh` falls back to the telemetry file.
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
+# REPO_ROOT is provided in your dispatch prompt — do not re-derive it here
 _OUTPUT_FLAG=""
 [[ -n "${FINDINGS_OUTPUT:-}" ]] && _OUTPUT_FLAG="--output $FINDINGS_OUTPUT"
 _SELECTED_TIER_FLAG=""
