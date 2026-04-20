@@ -1287,17 +1287,48 @@ STATUS_FILE="$ARTIFACTS_DIR/test-gate-status"
 if [[ -n "$SOURCE_FILE" ]] && [[ -f "$STATUS_FILE" ]]; then
     _existing_tested=$(grep '^tested_files=' "$STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
     _existing_status=$(head -1 "$STATUS_FILE" 2>/dev/null || echo "")
+    # Capture new-run-only tested files BEFORE merging with existing.
+    # Used below to strip covered tests from _existing_failed (bug a8b0-7fbc).
+    _new_run_tested="$TESTED_FILES_LIST"
     if [[ -n "$_existing_tested" ]]; then
         # Merge: append new tested_files, deduplicate
         _merged=$(printf '%s\n' "$_existing_tested" "$TESTED_FILES_LIST" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u | paste -sd ',' -)
         TESTED_FILES_LIST="$_merged"
     fi
-    # Merge failed_tests list
+    # Merge failed_tests list.
+    # The new run is authoritative for any test it covered (_new_run_tested).
+    # Strip those from _existing_failed before restoring, to prevent re-adding
+    # RED-zone-tolerated failures from historical state (bug a8b0-7fbc).
     _existing_failed=$(grep '^failed_tests=' "$STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
-    if [[ -n "$_existing_failed" ]] && [[ -n "$FAILED_TESTS_LIST" ]]; then
-        FAILED_TESTS_LIST=$(printf '%s\n' "$_existing_failed" "$FAILED_TESTS_LIST" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u | paste -sd ',' -)
-    elif [[ -n "$_existing_failed" ]]; then
-        FAILED_TESTS_LIST="$_existing_failed"
+    if [[ -n "$_existing_failed" ]]; then
+        _new_run_tests=$(printf '%s\n' "$_new_run_tested" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$')
+        _filtered_existing_failed=""
+        while IFS= read -r _ef_entry; do
+            [[ -z "$_ef_entry" ]] && continue
+            _ef_base="${_ef_entry%%\[*}"
+            _ef_base="${_ef_base%"${_ef_base##*[![:space:]]}"}"
+            _covered=false
+            while IFS= read -r _nt; do
+                [[ -z "$_nt" ]] && continue
+                if [[ "$_ef_base" == "$_nt" ]]; then
+                    _covered=true
+                    break
+                fi
+            done <<< "$_new_run_tests"
+            if [[ "$_covered" == false ]]; then
+                if [[ -n "$_filtered_existing_failed" ]]; then
+                    _filtered_existing_failed="${_filtered_existing_failed},$_ef_entry"
+                else
+                    _filtered_existing_failed="$_ef_entry"
+                fi
+            fi
+        done < <(printf '%s\n' "$_existing_failed" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$')
+        if [[ -n "$_filtered_existing_failed" ]] && [[ -n "$FAILED_TESTS_LIST" ]]; then
+            FAILED_TESTS_LIST=$(printf '%s\n' "$_filtered_existing_failed" "$FAILED_TESTS_LIST" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u | paste -sd ',' -)
+        elif [[ -n "$_filtered_existing_failed" ]]; then
+            FAILED_TESTS_LIST="$_filtered_existing_failed"
+        fi
+        # (if _filtered_existing_failed empty, FAILED_TESTS_LIST stays as-is from new run)
     fi
     # Enforce severity hierarchy: timeout > failed > resource_exhaustion; passed from suite-engine is authoritative over resource_exhaustion
     # Compare both existing and current, keep the more severe.

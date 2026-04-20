@@ -50,7 +50,7 @@ plugins/dso/hooks/dispatchers/pre-taskoutput.sh:tests/hooks/test-session-misc-di
 plugins/dso/hooks/dispatchers/pre-all.sh:tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-staging-invariance.sh,tests/hooks/test-behavioral-equivalence-allowlist.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh
-plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-part4.sh,tests/hooks/test-record-test-status-part1.sh,tests/hooks/test-record-test-status-accumulative.sh,tests/hooks/test-record-test-status-centrality.sh,tests/hooks/test-record-test-status-eagain.sh,tests/hooks/test-record-test-status-split-guard.sh,tests/hooks/test-record-test-status-part2.sh,tests/hooks/test-record-test-status-part3.sh,tests/hooks/test-record-test-status-attest.sh,tests/hooks/test-record-test-status-staged-test-no-source.sh
+plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-part4.sh,tests/hooks/test-record-test-status-part1.sh,tests/hooks/test-record-test-status-accumulative.sh,tests/hooks/test-record-test-status-centrality.sh,tests/hooks/test-record-test-status-eagain.sh,tests/hooks/test-record-test-status-split-guard.sh,tests/hooks/test-record-test-status-part2.sh,tests/hooks/test-record-test-status-part3.sh,tests/hooks/test-record-test-status-attest.sh,tests/hooks/test-record-test-status-staged-test-no-source.sh,tests/hooks/test-record-test-status-red-zone-merge.sh
 plugins/dso/hooks/record-review.sh:tests/hooks/test-record-review-attest.sh
 plugins/dso/hooks/run-hook.sh:tests/hooks/test-run-hook-relative-paths.sh,tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
@@ -254,3 +254,4 @@ plugins/dso/scripts/gate-2d-dependency-check.sh:tests/scripts/test-gate-format-c
 plugins/dso/scripts/dso-setup.sh:tests/scripts/test-dso-setup-stack-aware-ci.sh,tests/scripts/test-dso-setup-next-steps-install-ref.sh
 plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test-index-duplicates.sh
 plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-review-gate-bypass-sentinel.sh
+plugins/dso/hooks/lib/session-process-cleanup-functions.sh: tests/hooks/test-session-misc-dispatchers.sh
