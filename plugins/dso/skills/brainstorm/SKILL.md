@@ -305,6 +305,24 @@ Before I propose approaches: [Targeted gap question]
 
 Do NOT proceed to Phase 2 until the user confirms the understanding summary or explicitly skips the gap analysis.
 
+### Step 3 — Shape Heuristic Scan (config-gated)
+
+**Config gate**: Source `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh` and call `is_external_dep_block_enabled`. If the function returns exit 1 (flag absent or false), skip this sub-step entirely and proceed to Phase 2.
+
+**When enabled:**
+
+1. For each Success Criterion in the Understanding Summary, pipe the SC text to `classify-sc-shape.sh`:
+   ```bash
+   result=$(echo "<sc-text>" | .claude/scripts/dso classify-sc-shape.sh)
+   ```
+
+2. If any SC returns `external-outcome`:
+   - Run the classification dialogue: ask the user to specify `ownership`, `handling` (`claude_auto` or `user_manual`), `claude_has_access`, and (optionally) `verification_command` for each external-outcome dependency.
+   - Warn if `verification_command` runs destructive operations (deletes, writes to production).
+   - Render the External Dependencies block in the epic description per the schema in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
+
+3. If no SC returns `external-outcome`: skip block rendering entirely.
+
 ---
 
 ## Phase 2: Approach + Spec Definition (/dso:brainstorm)
@@ -602,6 +620,27 @@ Do NOT present this gate unless ALL of the following have completed or gracefull
 
 If any of the above has NOT completed, stop and execute it before presenting this gate. The user's ability to request a re-run via option (b) or (c) is for second-pass cycles only — it does not substitute for a mandatory first pass.
 </HARD-GATE>
+
+### External Dependencies Contradiction Gate
+
+When `planning.external_dependency_block_enabled` is on (source: `planning-config.sh`):
+
+1. Read the `## External Dependencies` block from the current epic spec.
+2. Scan each entry for contradictions: an entry where `handling: claude_auto` AND `claude_has_access` is `no` or `unknown`.
+3. If any contradiction is found:
+   - Do NOT present approval gate options.
+   - Emit a diagnostic naming the contradicting entry:
+     ```
+     Approval gate blocked: External Dependency "<name>" is declared handling=claude_auto but claude_has_access=<no|unknown>.
+     Resolve this contradiction before the gate can open:
+     - Option 1: Set handling=user_manual (mark as manual step for sprint)
+     - Option 2: Confirm claude_has_access=yes if you have verified access
+     ```
+   - Wait for the practitioner to resolve the contradiction, then re-run this gate check.
+4. For each entry where `verification_command` is omitted and `confirmation_token_required` is not already set:
+   - Add `confirmation_token_required: true` to the entry if the entry is `handling: user_manual`.
+   - This `confirmation_token_required` marker is consumed by sprint at pause-handshake time.
+5. If `planning.external_dependency_block_enabled` is off: skip this gate entirely and proceed to approval gate presentation.
 
 Present the validated spec to the user using **AskUserQuestion** with 4 options. Use **"Spec Review"** as the question header (do NOT use "Approval" — it primes misinterpretation of non-approving options as approval). Label options (b) and (c) to reflect whether this is a first re-run or subsequent re-run (the scrutiny pipeline must complete before this gate; these labels apply only to gate-triggered re-runs):
 
@@ -960,6 +999,6 @@ Skill tool:
 
 | Phase | Goal | Key Activities |
 |-------|------|---------------|
-| 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop; Phase 1 Gate: Understanding Summary (problem/users/scope/success structured bullets, wait for confirmation) → Intent Gap Analysis (self-reflect on inferred content, one question at a time, exclude confirmed content; loop terminates when approach-proposal is well-founded or user says "proceed") → proceed to Phase 2 |
+| 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop; Phase 1 Gate: Understanding Summary (problem/users/scope/success structured bullets, wait for confirmation) → Intent Gap Analysis (self-reflect on inferred content, one question at a time, exclude confirmed content; loop terminates when approach-proposal is well-founded or user says "proceed") → proceed to Phase 2. When `planning.external_dependency_block_enabled=true`: Phase 1 runs External Dependencies shape heuristic + classification dialogue; Phase 2 approval gate checks for contradiction resolution. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`. |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Provenance Tracking (4 categories: explicit, confirmed-via-gap-question, inferred, researched); Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); Step 2.75 scenario analysis (red team + blue team sonnet sub-agents; always runs when ≥5 SCs or integration signal, reduced/cap 3 when 3-4 SCs, skip when ≤2 SCs; targets epic-level spec gaps — distinct from preplanning adversarial review which targets cross-story gaps); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics); Step 4 approval gate (annotation summary line before options: "N of M criteria confirmed; K inferred requiring review"; inferred/researched → bold, explicit/confirmed → normal; 4-option AskUserQuestion: approve/scenario re-run/web research re-run/discuss; labels reflect initial-run vs re-run; planning-intelligence log appended on approve) |
 | 3: Ticket Integration | Create the epic, classify complexity, route to next skill | Follow-on epic gate (HARD-GATE: present + approve each follow-on before `ticket create`). `.claude/scripts/dso ticket create epic "<title>" -d "..."`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE, pass success_criteria_count + scenario_survivor_count), apply session-signal override (SC≥7 or scenarios≥10 → COMPLEX), output classification line + invoke Skill tool in same response: TRIVIAL → `/dso:implementation-plan`, MODERATE+High → `/dso:preplanning --lightweight`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |

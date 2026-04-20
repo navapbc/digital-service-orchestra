@@ -150,6 +150,14 @@ If `--lightweight` was passed: run Phase 1 Step 1 only, skip Step 1b, run abbrev
 
 If `--lightweight` was NOT passed, continue to Phase 1 Step 2 as normal.
 
+Source the planning flag helper now to determine whether External Dependencies processing is enabled:
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh"
+```
+
+If `is_external_dep_block_enabled` returns exit 1 (flag absent or `false`), set `EXTERNAL_DEP_BLOCK_ENABLED=false` — Phase 1.5 will be skipped. When the function returns exit 0, set `EXTERNAL_DEP_BLOCK_ENABLED=true`.
+
 ### Step 2: Audit Existing Children (/dso:preplanning)
 
 Gather all existing child items:
@@ -201,6 +209,49 @@ Use `AskUserQuestion` to get user approval before proceeding:
 - Options: ["Approve — proceed with story creation", "Request changes"]
 
 If the user requests changes, iterate on the reconciliation plan and re-present.
+
+---
+
+## Phase 1.5: External Dependencies Block Reading (/dso:preplanning)
+
+**Skip this phase when `EXTERNAL_DEP_BLOCK_ENABLED=false`.**
+
+### Purpose
+
+After auditing existing children (Step 2), read the parent epic's `## External Dependencies` block (conforming to `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`) and generate the corresponding child stories.
+
+### Reading the Block
+
+Parse the epic's description field for a YAML block under the `## External Dependencies` heading. If no block exists, skip this phase entirely and proceed to Phase 2.
+
+**Validation**: For each entry, if `confirmation_token_required: true` is present alongside a `verification_command`, log a warning and ignore `confirmation_token_required`: `"Entry <name>: confirmation_token_required is only meaningful when verification_command is absent — ignoring."` Do not block story creation.
+
+### Idempotency Check
+
+Before creating any story for a block entry, get the epic's current children:
+
+```bash
+.claude/scripts/dso ticket deps <epic-id>
+```
+
+Parse the `children` field from the JSON output (not `deps` or `blockers`). Check whether any child is already tagged `manual:awaiting_user` with a title matching the entry's `name` field. If a match is found, skip creation for that entry to avoid duplicates. Log: `"Skipping <name> — existing manual:awaiting_user story already created (idempotency)."`
+
+### Story Generation
+
+For each entry in the `external_dependencies` block:
+
+**`handling: claude_auto` entries:**
+- Create a standard automation story as a child of the epic (same Phase 4 story creation flow).
+- Story title: `"Verify and integrate <name>"`.
+- Done definition: verification_command passes and Claude has confirmed access.
+
+**`handling: user_manual` entries:**
+- Create a story tagged `manual:awaiting_user` as a child of the epic.
+- Story title: `"Complete manual step: <name>"`.
+- Done definitions must include:
+  - The entry's `justification` field verbatim (if present, explain why the step requires human action).
+  - If `verification_command` is present: the command as the verification step.
+  - If `verification_command` is absent: a confirmation-token prompt using `confirmation_token_required` (if `true`) or a simple acknowledgment (if `false` or absent).
 
 ---
 
@@ -371,6 +422,34 @@ After processing blue team findings, persist the full exchange for post-mortem a
 ### Step 4: Continue to Phase 3
 
 Proceed to Phase 3 (Walking Skeleton & Vertical Slicing) with the updated story map. New stories from adversarial review are included in the walking skeleton analysis.
+
+---
+
+## Refusal Gate: External Dependencies Block Check (/dso:preplanning)
+
+**Skip this gate when `EXTERNAL_DEP_BLOCK_ENABLED=false`.**
+
+Before proceeding to Phase 3 story decomposition, check whether the parent epic's External Dependencies block adequately covers any externally-shaped Success Criteria.
+
+### When to fire
+
+This gate fires when ALL of the following are true:
+- `planning.external_dependency_block_enabled` is on (set during Phase 1.5 flag check)
+- The epic has Success Criteria that are externally-shaped (their outcomes are observable only in deployed or external contexts — e.g., "users can log in with OAuth", "emails are delivered", "the API responds to external callers")
+
+### Gate check
+
+1. Identify externally-shaped SCs from the epic's Success Criteria list (SCs whose pass/fail depends on an external system, credential, or deployed environment).
+2. For each externally-shaped SC, check whether the parent epic's `## External Dependencies` block contains an entry covering that dependency.
+3. If ANY externally-shaped SC has no matching block entry (block is missing or the relevant entry is absent or incomplete per the schema in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`):
+   - **HALT decomposition.** Do not proceed to Phase 3.
+   - Emit the following diagnostic, naming the specific SC(s) without block coverage:
+     > "Preplanning cannot decompose this epic: the following success criteria are externally-shaped but have no corresponding entry in the External Dependencies block: [list of SC names]. Run `/dso:brainstorm <epic-id>` to capture the dependency information, then retry `/dso:preplanning`."
+4. If all externally-shaped SCs have valid block entries (or there are no externally-shaped SCs): proceed to Phase 3 normally.
+
+### Behavioral testing note
+
+SKILL.md is a non-executable LLM instruction file. The structural tests verify only that this section heading exists. Behavioral correctness of the refusal logic is probabilistic per Rule 5 (behavioral-testing-standard.md).
 
 ---
 
@@ -999,6 +1078,7 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 | 2.5: Adversarial Review | Red team attack on story map, blue team filter findings (skip if < 3 stories) | `Task` (opus red team, sonnet blue team) |
 | 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `.claude/scripts/dso ticket link` |
 | 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket comment`, `validate-issues.sh`, `dso:ui-designer` (via Agent tool), `.claude/scripts/dso ticket tag`/`.claude/scripts/dso ticket untag` (design:approved on REVIEW_PASS; design:pending_review on deferred/failed review) |
+| Flag-gated: external deps | When `planning.external_dependency_block_enabled=true`: reads External Dependencies block from epic, generates `manual:awaiting_user` stories for `user_manual` entries, refuses decomposition when block is missing. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md` | `.claude/scripts/dso ticket tag` |
 
 ## Example: Reconciliation + Story Creation
 

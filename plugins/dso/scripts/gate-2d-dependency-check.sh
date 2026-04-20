@@ -19,6 +19,8 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # ── Argument parsing ──────────────────────────────────────────────────────────
 
 REPO_ROOT=""
@@ -49,12 +51,38 @@ if [[ -z "$REPO_ROOT" ]]; then
     REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo ".")"
 fi
 
+# ── Format check config resolution ───────────────────────────────────────────
+
+_FORMAT_CHECK_EVIDENCE=""
+CMD_FORMAT_CHECK=""
+_fc_config=""
+if [[ -n "${WORKFLOW_CONFIG_FILE:-}" && -f "${WORKFLOW_CONFIG_FILE}" ]]; then
+    _fc_config="${WORKFLOW_CONFIG_FILE}"
+elif [[ -f "$REPO_ROOT/.claude/dso-config.conf" ]]; then
+    _fc_config="$REPO_ROOT/.claude/dso-config.conf"
+fi
+if [[ -n "$_fc_config" && -f "$SCRIPT_DIR/read-config.sh" ]]; then
+    CMD_FORMAT_CHECK=$("$SCRIPT_DIR/read-config.sh" "commands.format_check" "$_fc_config" 2>/dev/null || true)
+fi
+if [[ -z "$CMD_FORMAT_CHECK" ]]; then
+    echo "[DSO WARN] commands.format_check not configured — skipping format check in gate-2d." >&2
+else
+    _fc_out=$(eval "$CMD_FORMAT_CHECK" 2>&1) && _fc_exit=0 || _fc_exit=$?
+    if [[ "$_fc_exit" -ne 0 ]]; then
+        _FORMAT_CHECK_EVIDENCE="Format check failed: $_fc_out"
+    fi
+fi
+
 # ── JSON output helper ────────────────────────────────────────────────────────
 
 emit_signal() {
     local triggered="$1"
     local evidence="$2"
     local confidence="$3"
+    # Append format check evidence when non-empty
+    if [[ -n "${_FORMAT_CHECK_EVIDENCE:-}" ]]; then
+        evidence="${evidence}; ${_FORMAT_CHECK_EVIDENCE}"
+    fi
     # Convert bash true/false to Python True/False
     local py_bool="True"
     [[ "$triggered" == "false" ]] && py_bool="False"

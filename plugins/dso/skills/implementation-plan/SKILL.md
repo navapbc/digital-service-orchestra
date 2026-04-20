@@ -149,6 +149,35 @@ This is a presence-based check — only block when the tag IS present. Existing 
 
 ---
 
+## Manual Story Tag Guard
+
+Before proceeding, check if the story being planned is tagged `manual:awaiting_user`:
+
+1. Check the flag gate: `EXTERNAL_DEP_ENABLED=$(bash "$PLUGIN_SCRIPTS/read-config.sh" planning.external_dependency_block_enabled)`. If the flag is absent, empty, or `false`, skip this gate entirely and proceed normally — baseline behavior is preserved.
+2. Run `.claude/scripts/dso ticket show <story-id>` and check the `tags` field for `manual:awaiting_user`.
+3. If `manual:awaiting_user` is NOT present: proceed normally (not a manual story).
+4. If `manual:awaiting_user` IS present: enter the branching logic below.
+
+### Branching Logic for manual:awaiting_user Stories
+
+**Prep-work detection heuristic**: Check the story's done definitions for references to artifacts that do not yet exist in the codebase — specifically: a verification script path, a user-facing instructions document path, or a CLI wrapper that would need to be authored. Use Glob and `test -f` to check if referenced paths exist.
+
+**Branch A — No prep work needed** (heuristic: done definitions reference no new code artifacts):
+- Do NOT decompose the story into tasks.
+- Emit a refusal diagnostic explaining that this story is a manual step handled as a unit by sprint.
+- Emit: `STATUS:blocked REASON:manual_story_no_prep STORY:<story-id>`
+- The manual verification step is never decomposed into a task.
+
+**Branch B — Prep work required** (heuristic: done definitions reference at least one artifact not yet in the codebase):
+- Decompose ONLY the prep tasks using standard RED/GREEN/UPDATE classification.
+- The manual verification step itself is NEVER included as a decomposed task — it is a user-performed action.
+- Read the parent epic's External Dependencies block (conforming to `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`) to seed prep-task context: use the `name`, `verification_command`, and `justification` fields from the relevant block entry to populate prep-task descriptions with real resource names and verification commands rather than invented placeholders.
+- Continue to Step 1 (Contextual Discovery) with only the prep tasks in scope.
+
+This is a presence-based check — only activate when `manual:awaiting_user` IS present AND the flag is enabled. Existing stories without this tag are NOT affected.
+
+---
+
 ## Step 1: Contextual Discovery (/dso:implementation-plan)
 
 ### Select Story
@@ -1107,7 +1136,7 @@ After processing findings (or skipping/failing), update the summary output to in
 
 | Step | Purpose | Key Commands |
 |------|---------|--------------|
-| 1 | Contextual Discovery | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`, Glob/Grep, clarify ambiguities, cross-cutting detection |
+| 1 | Contextual Discovery | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`, Glob/Grep, clarify ambiguities, cross-cutting detection. When `planning.external_dependency_block_enabled=true`: if story is tagged `manual:awaiting_user`, refuse decomposition (no prep needed) or produce prep-only tasks (prep work exists); block seeds prep-task context; manual verification step never appears as a task. |
 | 2 | Architectural Review | `REVIEW-PROTOCOL-WORKFLOW.md` inline (>= 4, max 3 iterations); forced if cross-cutting detected |
 | 3 | Atomic Task Drafting | TDD-first, sequential order, E2E + docs coverage |
 | 4 | Plan Review | `REVIEW-PROTOCOL-WORKFLOW.md` inline (all dims = 5, max 3 iterations) |

@@ -259,6 +259,41 @@ assert_ne "test_pre_bash_dispatcher_record_test_status_commit_workflow_sentinel_
 assert_eq "test_pre_bash_dispatcher_record_test_status_commit_workflow_sentinel_allowed: exit 0 (allowed path succeeds)" "0" "$_exit_code"
 
 # ============================================================
+# test_pre_bash_dispatcher_block_path_no_spurious_error_trailers
+# When the dispatcher blocks a command (exits 2), the output must NOT contain
+# the spurious error lines produced by leaked function-scope ERR traps:
+#   - "pre-bash.sh: line N: : No such file or directory"
+#   - "pre-bash.sh: line N: return: can only return from a function or sourced script"
+# Bug 1c89-68ee: guard functions set ERR traps referencing function-local
+# HOOK_ERROR_LOG; on happy-path return, the trap leaks into the caller scope.
+# When the dispatcher later exits 2 (block), the leaked trap fires on the
+# non-zero return from _pre_bash_dispatch and produces these two spurious lines.
+# ============================================================
+echo "--- test_pre_bash_dispatcher_block_path_no_spurious_error_trailers ---"
+_INPUT='{"tool_name":"Bash","tool_input":{"command":"echo test > /tmp/artifacts/review-status"}}'
+_exit_code=0
+_stderr_file=$(mktemp)
+( cd "$_bug_test_repo" && printf '%s' "$_INPUT" | ARTIFACTS_DIR="$_bug_artifacts_dir" CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$DISPATCHER" >"$_stderr_file.stdout" 2>"$_stderr_file" ) \
+    || _exit_code=$?
+_stderr_content=$(cat "$_stderr_file")
+rm -f "$_stderr_file" "$_stderr_file.stdout"
+
+# The block must still work (exit 2)
+assert_eq "test_pre_bash_dispatcher_block_path_no_spurious_error_trailers: exit 2" "2" "$_exit_code"
+
+# No spurious "No such file or directory" trailer from leaked ERR trap
+_has_no_such_file=0
+echo "$_stderr_content" | grep -q "No such file or directory" && _has_no_such_file=1 || true
+assert_eq "test_pre_bash_dispatcher_block_path_no_spurious_error_trailers: no 'No such file' spurious error" \
+    "0" "$_has_no_such_file"
+
+# No spurious "return: can only return from a function" trailer from leaked ERR trap
+_has_return_error=0
+echo "$_stderr_content" | grep -q "return: can only" && _has_return_error=1 || true
+assert_eq "test_pre_bash_dispatcher_block_path_no_spurious_error_trailers: no 'return from function' spurious error" \
+    "0" "$_has_return_error"
+
+# ============================================================
 # Summary
 # ============================================================
 print_summary

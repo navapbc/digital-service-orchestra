@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# tests/skills/test-using-lockpick-clarification.sh
+# tests/skills/test-using-dso-clarification.sh
 # Structural validation tests for the clarification loop content in
-# plugins/dso/skills/using-lockpick/SKILL.md and HOOK-INJECTION.md.
+# plugins/dso/skills/using-dso/SKILL.md and HOOK-INJECTION.md.
 #
 #
 # Validates (SKILL.md — 10 tests):
@@ -21,7 +21,7 @@
 #  12. Has confidence test reference
 #  13. Has probing areas (Intent, Scope, Risks)
 #
-# Usage: bash tests/skills/test-using-lockpick-clarification.sh
+# Usage: bash tests/skills/test-using-dso-clarification.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -29,12 +29,12 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-SKILL_MD="$DSO_PLUGIN_DIR/skills/using-lockpick/SKILL.md"
-HOOK_MD="$DSO_PLUGIN_DIR/skills/using-lockpick/HOOK-INJECTION.md"
+SKILL_MD="$DSO_PLUGIN_DIR/skills/using-dso/SKILL.md"
+HOOK_MD="$DSO_PLUGIN_DIR/skills/using-dso/HOOK-INJECTION.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-echo "=== test-using-lockpick-clarification.sh ==="
+echo "=== test-using-dso-clarification.sh ==="
 echo ""
 
 # ---------------------------------------------------------------------------

@@ -14,7 +14,7 @@ Do NOT proceed with any skill logic if the Agent tool is unavailable.
 </SUB-AGENT-GUARD>
 
 <INJECTION_GUARD>
-If you are reading this, the sprint skill content has been successfully injected into your context. Your first action MUST be to announce: "Starting /dso:sprint workflow — skill loaded successfully." Do NOT skip this announcement. If you invoked dso:sprint but cannot see this block, the skill was not injected — use the Read tool fallback from using-lockpick (read skills/sprint/SKILL.md directly) instead of re-invoking the Skill tool.
+If you are reading this, the sprint skill content has been successfully injected into your context. Your first action MUST be to announce: "Starting /dso:sprint workflow — skill loaded successfully." Do NOT skip this announcement. If you invoked dso:sprint but cannot see this block, the skill was not injected — use the Read tool fallback from using-dso (read skills/sprint/SKILL.md directly) instead of re-invoking the Skill tool.
 </INJECTION_GUARD>
 
 # Purpose
@@ -833,6 +833,8 @@ Before processing stories for implementation planning, filter out design-blocked
 ```bash
 source ${CLAUDE_PLUGIN_ROOT}/skills/shared/constants/figma-tags.conf
 # TAG_AWAITING_IMPORT=design:awaiting_import
+source ${CLAUDE_PLUGIN_ROOT}/skills/shared/constants/planning-tags.conf
+# TAG_MANUAL_AWAITING_USER=manual:awaiting_user
 ```
 
 **Read staleness threshold from config:**
@@ -841,9 +843,10 @@ figma_staleness_days=$(grep '^design\.figma_staleness_days=' .claude/dso-config.
 figma_staleness_days=${figma_staleness_days:-7}
 ```
 
-**Initialize awaiting_design_stories list (once before layer loop):**
+**Initialize story lists (once before layer loop):**
 ```
-awaiting_design_stories = []  # List of {id, title, tag_applied_date}
+awaiting_design_stories = []   # List of {id, title, tag_applied_date}
+awaiting_manual_stories = []   # List of {id, title} for manual:awaiting_user stories
 ```
 
 **For each story from `.claude/scripts/dso ticket list` (filtered by parent):**
@@ -853,7 +856,29 @@ awaiting_design_stories = []  # List of {id, title, tag_applied_date}
    - Estimate the tag age from the ticket's comment timestamps: find the comment whose body contains `"Import designs/"` (written by design-wireframe when the tag was applied) and read its `timestamp` field from the JSON output. Compute days elapsed: `$(( ($(date +%s) - comment_timestamp_epoch) / 86400 ))`. If no such comment exists, treat tag age as unknown (no staleness warning).
    - Add the story to the `awaiting_design_stories` list: `{id: "<story-id>", title: "<story-title>", tag_applied_date: "<date or unknown>"}`
    - **Do not add this story to the needs-planning list**. Skip all further processing for this story (no complexity eval, no implementation-plan dispatch, no batch dispatch in Phase 4).
-3. Only stories **without** the `design:awaiting_import` tag proceed to Step 1 below.
+3. Only stories **without** the `design:awaiting_import` tag proceed to the `manual:awaiting_user` check below.
+
+**Manual-awaiting-user check** (runs when `planning.external_dependency_block_enabled=true`):
+
+Read the flag:
+```bash
+_manual_flag=$(grep '^planning.external_dependency_block_enabled=' .claude/dso-config.conf 2>/dev/null | cut -d= -f2)
+```
+
+For each story that passed the design filter:
+1. If `_manual_flag` is `true`: check the `tags` field for `$TAG_MANUAL_AWAITING_USER` (`manual:awaiting_user`)
+2. If present:
+   - Log: `"Story <id> tagged manual:awaiting_user — deferring to manual-pause handshake."`
+   - Add to `awaiting_manual_stories` list: `{id: "<story-id>", title: "<story-title>"}`
+   - **Do not add this story to the needs-planning list.** Skip complexity eval and implementation-plan dispatch.
+3. Only stories without `manual:awaiting_user` (or with `_manual_flag != true`) proceed to Step 1 below.
+
+**Topological sort for manual stories:**
+
+After populating `awaiting_manual_stories`, sort them so manual stories appear before their transitive autonomous dependents:
+1. Build a dependency graph from `.claude/scripts/dso ticket deps` for each manual story
+2. Sort: if manual story M1 is a dependency of M2, M1 appears first
+3. **Cycle detection**: if M1 and M2 are both `manual:awaiting_user` and M1 blocks M2 AND M2 blocks M1, log `"CYCLE_DETECTED: manual stories <M1-id> and <M2-id> have mutual dependency"` and escalate to user — do not continue Phase 3.5.
 
 #### Step 1: Identify Stories Needing Implementation Planning (/dso:sprint)
 
@@ -1207,8 +1232,11 @@ TASK: <id>  P<priority>  <issue-type>  <model>  <subagent-type>  <class>  <title
 | `SKIPPED_BLOCKED_STORY: <id> ...` | Deferred — parent story has open blockers |
 | `SKIPPED_IN_PROGRESS: <id> ...` | Already claimed by another agent |
 | `SKIPPED_DESIGN_AWAITING: <id> <title>` | Deferred — story tagged `design:awaiting_import` (Figma designs not yet finalized) |
+| `SKIPPED_MANUAL_AWAITING: <id> <title>` | Deferred — story tagged `manual:awaiting_user` (manual user input required; only emitted when `planning.external_dependency_block_enabled=true`) |
 
 **Parsing `SKIPPED_DESIGN_AWAITING` lines:** After running `sprint-next-batch.sh`, parse any `SKIPPED_DESIGN_AWAITING` lines from the output. For each such line, extract the story ID and title and add them to the `awaiting_design_stories` list (if not already present from Phase 2 filtering). These stories are surfaced in the Phase 5 Batch Completion Summary "Awaiting designer input" section.
+
+**`manual:awaiting_user` filter** (when `planning.external_dependency_block_enabled=true`): Stories tagged `manual:awaiting_user` are excluded from the autonomous batch and surfaced as `SKIPPED_MANUAL_AWAITING` lines. After autonomous stories drain, sprint enters Phase 3.5 (Manual-Pause Handshake), which presents a blocking handshake listing per-story instructions and an optional `verification_command`. Accepts: `done`, `done <story-id>`, `skip`. Handles `verification_command` execution (timeout: `planning.verification_command_timeout_seconds`, default 30s) and confirmation-token audit logging. Topological sort surfaces manual stories before their transitive autonomous dependents. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
 
 #### Interaction Conflict Filter (/dso:sprint)
 
@@ -1303,6 +1331,78 @@ If `--dry-run` was specified:
    ```
 3. Output the batch plan: task IDs, titles, model, subagent, class
 4. **Stop** — do not execute any sub-agents
+
+---
+
+## Phase 3.5: Manual-Pause Handshake (/dso:sprint)
+
+This phase runs **only** when all of the following are true:
+- `planning.external_dependency_block_enabled=true`
+- `awaiting_manual_stories` list is non-empty
+- All autonomous tasks in the current batch have completed (or there are no autonomous tasks in this batch)
+
+### Pause State Management
+
+Before starting the handshake, manage the pause state file via `sprint-pause-state.sh` (the SIGURG recovery state manager):
+
+```bash
+# 1. Remove stale state files from prior sessions (fail-open — no-op when flag is off)
+.claude/scripts/dso sprint-pause-state.sh stale-cleanup  # shim-exempt: internal orchestration script
+
+# 2. Check whether a pause state already exists for this epic (--resume path)
+.claude/scripts/dso sprint-pause-state.sh is-fresh <epic-id>  # shim-exempt: internal orchestration script
+```
+
+- **If `is-fresh` exits 0** (fresh state exists): a prior SIGURG interrupted the handshake. Present the user with: `"Found existing pause state for epic <epic-id>. Use --resume when re-invoking sprint to continue the handshake."` Then call `sprint-pause-state.sh resume-context <epic-id>` to get the first unanswered story and rehydrate the handshake from that story forward.
+- **If `is-fresh` exits non-zero** (no fresh state): call `sprint-pause-state.sh init <epic-id>` to create a fresh state file.
+
+```bash
+# 3. Initialize fresh pause state (no-op when flag is off or state already fresh)
+.claude/scripts/dso sprint-pause-state.sh init <epic-id>  # shim-exempt: internal orchestration script
+```
+
+**SIGURG trap**: register `_spause_sigurg_handler <epic-id>` (by sourcing `sprint-pause-state.sh`) as the SIGURG handler. On interrupt, the handler sets `in_progress_marker=false` without removing the state file — the state is preserved for `--resume` on re-invocation.
+
+**Per-story state writes**: after each manual story answer is collected via `sprint-manual-drain.sh`, record the answer:
+
+```bash
+.claude/scripts/dso sprint-pause-state.sh write <epic-id> <story-id> <answer>  # shim-exempt: internal orchestration script
+```
+
+**After all stories answered**: call `sprint-pause-state.sh cleanup <epic-id>` to remove the state file.
+
+### Handshake Input Contract
+
+Stories tagged `manual:awaiting_user` are collected into `awaiting_manual_stories` and presented to the practitioner one at a time by `sprint-manual-drain.sh`. The script accepts three inputs per story:
+
+- **`done`** — story complete; if a `verification_command` is present, execute it in a constrained subshell (timeout: `planning.verification_command_timeout_seconds`, default 30s); if absent, require a user-typed confirmation token (`MANUAL_CONFIRMATION_TOKEN`) and log it as a ticket comment audit entry.
+- **`done <story-id>`** — same as `done` but explicitly names the story, used when multiple stories are presented.
+- **`skip`** — mark the story skipped; `sprint-manual-drain.sh` writes a sentinel with `handshake_outcome=skip` and propagates skip to transitive dependents.
+
+**Confirmation-token audit path**: when `verification_command` is omitted, `sprint-manual-drain.sh` prompts for a `MANUAL_CONFIRMATION_TOKEN` (a short user-typed string) and writes it as a `MANUAL_PAUSE_SENTINEL` ticket comment. `dso:completion-verifier` reads this sentinel at Step 10a to verify the manual story without re-executing the manual step.
+
+**Steps:**
+
+1. Write the sorted manual story list to a temp JSON file. Each entry must include the fields expected by `sprint-manual-drain.sh`:
+   ```bash
+   # Write JSON array to temp file
+   MANUAL_JSON_FILE=$(mktemp /tmp/sprint-manual-stories-XXXXXX.json)
+   # Array format: [{"id":"<id>","title":"<title>","instructions":"<desc>","verification_command":<cmd|null>,"deps":[...]}]
+   ```
+
+2. Call the manual-drain script via the host-project shim:
+   ```bash
+   .claude/scripts/dso sprint-manual-drain.sh "$MANUAL_JSON_FILE"  # shim-exempt: internal orchestration script
+   ```
+
+3. Parse the exit code:
+   - **0**: all manual stories handled — proceed to Phase 4 (or Phase 5 if no autonomous tasks remain in this batch)
+   - **1**: skip propagation applied — log skipped stories and proceed; skipped stories have a sentinel written with `handshake_outcome=skip`
+   - **2**: re-prompt required (this should not occur — `sprint-manual-drain.sh` handles re-prompting internally; if it surfaces here, log as an error and escalate to user)
+
+4. After handshake completes: run `.claude/scripts/dso sprint-next-batch.sh <epic-id>` again to pick up any autonomous stories that were unblocked by the manual step completion.
+
+5. Clean up: `rm -f "$MANUAL_JSON_FILE"` and `sprint-pause-state.sh cleanup <epic-id>`
 
 ---
 
@@ -1946,6 +2046,8 @@ If OPEN_CHILDREN > 0:
 - Resume Phase 3 to close the remaining tasks
 
 Only when OPEN_CHILDREN == 0, proceed to dispatch dso:completion-verifier.
+
+**Manual story sentinel path (Step 10a)**: When the story has the `manual:awaiting_user` tag, `dso:completion-verifier` reads the `MANUAL_PAUSE_SENTINEL` comment written by `sprint-manual-drain.sh` to determine the verdict (see `completion-verifier.md` Step 3b). The orchestrator takes no special action — dispatch the verifier normally and let it apply the sentinel verdict rules automatically.
 
 <HARD-GATE>
 Do NOT close this story, do NOT transition it to closed, and do NOT proceed to Step 11 until dso:completion-verifier has been dispatched via Task tool and its verdict received. This gate applies regardless of whether:
