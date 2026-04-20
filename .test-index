@@ -259,3 +259,4 @@ plugins/dso/scripts/sc13-restart-analysis.sh:tests/scripts/test-sc13-restart-ana
 tests/fixtures/818-corpus/generate-corpus-fixture.sh:tests/fixtures/818-corpus/test-corpus-fixture.sh
 plugins/dso/scripts/preconditions-coverage-harness.sh:tests/scripts/test-818-coverage-harness.sh
 plugins/dso/docs/contracts/fp-auto-fallback-scope.md:tests/scripts/test-fp-rate-tracker.sh
+plugins/dso/agents/completion-verifier.md:tests/scripts/test-epic-closure-sc-report.sh
