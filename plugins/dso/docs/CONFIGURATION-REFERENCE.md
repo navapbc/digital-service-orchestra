@@ -486,6 +486,19 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+## Planning
+
+### `planning.external_dependency_block_enabled`
+
+| | |
+|---|---|
+| **Description** | When `true`, skills emit an External Dependencies block and pause for user confirmation on manual-step dependencies. When `false` (default), the shape heuristic never fires and all four skills behave identically to the pre-feature baseline. |
+| **Accepted values** | `true` / `false` |
+| **Default** | `false` |
+| **Used by** | `/dso:brainstorm` (Phase 1 Gate shape heuristic + block renderer), `/dso:preplanning` (block reader + story generator), `/dso:implementation-plan` (tag guard), `/dso:sprint` (manual-pause handshake) |
+
+---
+
 ### `visual.baseline_directory`
 
 | | |
