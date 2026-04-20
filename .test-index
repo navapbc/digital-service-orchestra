@@ -407,3 +407,6 @@ plugins/dso/scripts/sprint-next-batch.sh:tests/test-sprint-next-batch.sh
 
 # --- sprint-manual-drain.sh: manual-pause handshake ---
 plugins/dso/scripts/sprint-manual-drain.sh:tests/test-sprint-manual-drain.sh
+
+# --- sprint-pause-state.sh: SIGURG recovery pause-state mechanism (task bd67-c045 RED) ---
+plugins/dso/scripts/sprint-pause-state.sh:tests/scripts/test-sprint-pause-state.sh [test_spause_script_exists_and_executable]
