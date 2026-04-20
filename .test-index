@@ -391,4 +391,4 @@ plugins/dso/scripts/resolve-abandoned-worktrees.sh:tests/scripts/test-worktree-r
 plugins/dso/hooks/lib/planning-config.sh:tests/hooks/test-planning-config.sh
 
 # --- classify-sc-shape.sh: SC shape heuristic (task d00a-20ca RED / task 1a43-a73f impl) ---
-plugins/dso/scripts/classify-sc-shape.sh:tests/skills/test-brainstorm-shape-heuristic.sh [test_external_sc_returns_external_outcome]
+plugins/dso/scripts/classify-sc-shape.sh:tests/skills/test-brainstorm-shape-heuristic.sh
