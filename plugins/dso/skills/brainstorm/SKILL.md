@@ -294,6 +294,24 @@ Before I propose approaches: [Targeted gap question]
 
 Do NOT proceed to Phase 2 until the user confirms the understanding summary or explicitly skips the gap analysis.
 
+### Step 3 — Shape Heuristic Scan (config-gated)
+
+**Config gate**: Source `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh` and call `is_external_dep_block_enabled`. If the function returns exit 1 (flag absent or false), skip this sub-step entirely and proceed to Phase 2.
+
+**When enabled:**
+
+1. For each Success Criterion in the Understanding Summary, pipe the SC text to `classify-sc-shape.sh`:
+   ```bash
+   result=$(echo "<sc-text>" | .claude/scripts/dso classify-sc-shape.sh)
+   ```
+
+2. If any SC returns `external-outcome`:
+   - Run the classification dialogue: ask the user to specify `ownership`, `claude_has_access`, and (optionally) `verification_command` for each external-outcome dependency.
+   - Warn if `verification_command` runs destructive operations (deletes, writes to production).
+   - Render the External Dependencies block in the epic description per the schema in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
+
+3. If no SC returns `external-outcome`: skip block rendering entirely.
+
 ---
 
 ## Phase 2: Approach + Spec Definition (/dso:brainstorm)
