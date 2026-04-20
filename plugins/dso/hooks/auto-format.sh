@@ -164,7 +164,8 @@ elif [[ "$FILE_PATH" == *.py ]]; then
         echo "auto-format: failed on $REL_PATH — run 'make format' manually if needed"
     fi
 else
-    # No format command configured for this extension — skip silently
+    # No format command configured for this extension — emit a warning
+    echo "[DSO WARN] commands.format not configured — skipping format for ${FILE_PATH##*.} files."
     _HOOK_HAS_OUTPUT=1
 fi
 
