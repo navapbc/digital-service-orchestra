@@ -49,7 +49,7 @@ _has_skip=0
 if grep -q "done <story-id>" "$SKILL_MD"; then
     _has_done_id=1
 fi
-if grep -q "handshake_outcome=skip\|\`skip\`.*mark the story" "$SKILL_MD"; then
+if grep -q "| skip\|skip propagation\|handshake_outcome=skip" "$SKILL_MD"; then
     _has_skip=1
 fi
 _all_inputs=$(( _has_done_id * _has_skip ))

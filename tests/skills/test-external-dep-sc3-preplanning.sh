@@ -1,57 +1,69 @@
 #!/usr/bin/env bash
-# tests/skills/test-external-dep-sc3-preplanning.sh
-# Structural boundary tests for preplanning SKILL.md External Dependencies SC3 features.
-#
-# Rule 5 compliant: tests structural tokens that preplanning SKILL.md must contain —
-# section headings and behavioral boundary tokens, not content assertions.
+# Structural boundary test for preplanning SKILL.md External Dependencies SC3 features.
+# Rule 5 compliant: tests structural tokens that the SKILL.md must contain —
+# section headings and behavioral boundary tokens are structural identifiers,
+# not content assertions.
 #
 # Asserts:
-#   1. SKILL.md contains Phase 1.5 External Dependencies block reader section
-#   2. SKILL.md contains the Refusal Gate section with diagnostic when block is missing
+#   1. SKILL.md contains the Phase 1.5 External Dependencies block reader section
+#   2. SKILL.md contains the Refusal Gate section with diagnostic when block is
+#      missing or incomplete
 #   3. SKILL.md contains the handling=user_manual → manual:awaiting_user tag assignment
-#
-# Usage: bash tests/skills/test-external-dep-sc3-preplanning.sh
-# Returns: exit 0 if all tests pass, exit 1 if any fail
-set -uo pipefail
-# Note: -e intentionally omitted — assert.sh uses arithmetic ((++FAIL)) which exits non-zero under -e
+set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SKILL_MD="${REPO_ROOT}/plugins/dso/skills/preplanning/SKILL.md"
 
-source "${REPO_ROOT}/tests/lib/assert.sh"
+PASS=0
+FAIL=0
 
-echo "=== test-external-dep-sc3-preplanning.sh ==="
+# ---------------------------------------------------------------------------
+# Test 1: Phase 1.5 External Dependencies Block Reading section exists
+# ---------------------------------------------------------------------------
+# shellcheck disable=SC2329
+test_skill_md_has_ext_dep_block_reader_section() {
+    grep -q 'Phase 1.5: External Dependencies Block Reading' "$SKILL_MD" || { echo "FAIL: ${FUNCNAME[0]}"; return 1; }
+    echo "PASS: ${FUNCNAME[0]}"
+}
 
-if [[ ! -f "$SKILL_MD" ]]; then
-    echo "FATAL: preplanning SKILL.md not found at $SKILL_MD" >&2
+# ---------------------------------------------------------------------------
+# Test 2: Refusal Gate section with diagnostic for missing/incomplete block exists
+# ---------------------------------------------------------------------------
+# shellcheck disable=SC2329
+test_skill_md_has_refusal_gate_section() {
+    grep -q 'Refusal Gate: External Dependencies Block Check' "$SKILL_MD" || { echo "FAIL: ${FUNCNAME[0]}"; return 1; }
+    echo "PASS: ${FUNCNAME[0]}"
+}
+
+# ---------------------------------------------------------------------------
+# Test 3: handling=user_manual entries get tagged manual:awaiting_user
+# ---------------------------------------------------------------------------
+# shellcheck disable=SC2329
+test_skill_md_has_user_manual_awaiting_tag() {
+    grep -q 'manual:awaiting_user' "$SKILL_MD" || { echo "FAIL: ${FUNCNAME[0]}"; return 1; }
+    echo "PASS: ${FUNCNAME[0]}"
+}
+
+# ---------------------------------------------------------------------------
+# Run all tests
+# ---------------------------------------------------------------------------
+tests=(
+    test_skill_md_has_ext_dep_block_reader_section
+    test_skill_md_has_refusal_gate_section
+    test_skill_md_has_user_manual_awaiting_tag
+)
+
+for t in "${tests[@]}"; do
+    if "$t"; then
+        PASS=$((PASS + 1))
+    else
+        FAIL=$((FAIL + 1))
+    fi
+done
+
+echo ""
+echo "Results: $PASS passed, $FAIL failed"
+if [ "$FAIL" -gt 0 ]; then
     exit 1
 fi
-
-# ── test_skill_md_has_ext_dep_block_reader_section ───────────────────────────
-_snapshot_fail
-_has=0
-if grep -q 'Phase 1.5: External Dependencies Block Reading' "$SKILL_MD"; then
-    _has=1
-fi
-assert_eq "test_skill_md_has_ext_dep_block_reader_section: Phase 1.5 External Dependencies heading must be in SKILL.md" "1" "$_has"
-assert_pass_if_clean "test_skill_md_has_ext_dep_block_reader_section"
-
-# ── test_skill_md_has_refusal_gate_section ────────────────────────────────────
-_snapshot_fail
-_has=0
-if grep -q 'Refusal Gate: External Dependencies Block Check' "$SKILL_MD"; then
-    _has=1
-fi
-assert_eq "test_skill_md_has_refusal_gate_section: Refusal Gate section heading must be in SKILL.md" "1" "$_has"
-assert_pass_if_clean "test_skill_md_has_refusal_gate_section"
-
-# ── test_skill_md_has_user_manual_awaiting_tag ───────────────────────────────
-_snapshot_fail
-_has=0
-if grep -q 'manual:awaiting_user' "$SKILL_MD"; then
-    _has=1
-fi
-assert_eq "test_skill_md_has_user_manual_awaiting_tag: manual:awaiting_user tag assignment must be in SKILL.md" "1" "$_has"
-assert_pass_if_clean "test_skill_md_has_user_manual_awaiting_tag"
-
-print_summary
+exit 0
