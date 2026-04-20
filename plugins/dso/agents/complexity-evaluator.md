@@ -207,6 +207,20 @@ Count of external systems, tools, APIs, or services the ticket interacts with. Z
 
 ---
 
+## manifest_depth Mapping
+
+After classification, set `manifest_depth` based on the final `classification` value:
+
+| Classification | manifest_depth |
+|---|---|
+| TRIVIAL or SIMPLE | `minimal` |
+| MODERATE | `standard` |
+| COMPLEX | `deep` |
+
+`manifest_depth` governs which preconditions fields are written at stage boundaries. Callers pass this value (or the `classification` field) to `_write_preconditions()` as the `tier` parameter.
+
+---
+
 ## Epic-Only Qualitative Override Dimensions
 
 **Applicable when evaluating epics only** (when `tier_schema=SIMPLE` or ticket `type: epic`). Do NOT apply these dimensions when evaluating stories or bugs.
@@ -256,6 +270,7 @@ Return a single JSON block. Fields `qualitative_overrides`, `missing_done_defini
 ```json
 {
   "classification": "TRIVIAL|MODERATE|COMPLEX",
+  "manifest_depth": "minimal|standard|deep",
   "confidence": "high|medium",
   "files_estimated": ["path/to/file.py"],
   "layers_touched": ["Service", "Route"],
@@ -275,6 +290,7 @@ Return a single JSON block. Fields `qualitative_overrides`, `missing_done_defini
 
 **Rules:**
 
+- `manifest_depth` MUST be derived from `classification` per the manifest_depth Mapping table: TRIVIAL/SIMPLE → `"minimal"`, MODERATE → `"standard"`, COMPLEX → `"deep"`
 - `classification` MUST use the tier vocabulary matching the `tier_schema` argument:
   - `tier_schema=TRIVIAL` (default): TRIVIAL, MODERATE, or COMPLEX
   - `tier_schema=SIMPLE`: SIMPLE, MODERATE, or COMPLEX
