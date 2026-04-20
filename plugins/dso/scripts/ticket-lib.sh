@@ -541,6 +541,308 @@ sys.exit(1)
 "
 }
 
+# _compact_preconditions <ticket_dir> <epic_id>
+# Compacts all flat PRECONDITIONS event files in ticket_dir into a single
+# PRECONDITIONS-SNAPSHOT.json, then retires the originals by renaming them
+# to *.retired (preserving the audit trail).
+#
+# Args:
+#   ticket_dir: absolute path to the ticket event directory
+#   epic_id:    ticket ID (used for diagnostic log)
+#
+# Steps:
+#   1. Enumerate *-PRECONDITIONS.json files (excluding *-PRECONDITIONS-SNAPSHOT.json and *.retired)
+#   2. Build merged payload applying LWW across composite keys (gate_name, session_id, worktree_id)
+#   3. Write merged payload to temp file, then atomic rename to final SNAPSHOT path
+#   4. Rename each original to *.retired (audit trail preserved)
+#   5. Clean up any .tmp files on failure
+#
+# Exit codes:
+#   0 = success
+#   1 = error (no events found or filesystem error)
+_compact_preconditions() {
+    local ticket_dir="$1"
+    local epic_id="${2:-unknown}"
+
+    if [ ! -d "$ticket_dir" ]; then
+        echo "[compact_preconditions] ERROR: ticket dir not found: $ticket_dir" >&2
+        return 1
+    fi
+
+    # Enumerate live PRECONDITIONS events (exclude snapshots and retired files)
+    local event_files=()
+    while IFS= read -r -d '' f; do
+        event_files+=("$f")
+    done < <(find "$ticket_dir" -maxdepth 1 \
+        -name '*-PRECONDITIONS.json' \
+        ! -name '*-PRECONDITIONS-SNAPSHOT.json' \
+        ! -name '*.retired' \
+        -print0 2>/dev/null | sort -z)
+
+    if [ "${#event_files[@]}" -eq 0 ]; then
+        echo "[compact_preconditions] INFO: no live PRECONDITIONS events for $epic_id — skipping" >&2
+        return 1
+    fi
+
+    # Build merged payload via LWW across composite keys using Python
+    local ts
+    ts=$(python3 -c "import time; print(int(time.time_ns()))")
+    local snap_uuid
+    snap_uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    local tmp_path="$ticket_dir/${ts}-${snap_uuid}-PRECONDITIONS-SNAPSHOT.json.tmp"
+    local final_path="$ticket_dir/${ts}-${snap_uuid}-PRECONDITIONS-SNAPSHOT.json"
+
+    # Build file list as NUL-separated string for Python
+    local file_list_str
+    file_list_str=$(printf '%s\0' "${event_files[@]}" | python3 -c "
+import sys
+parts = sys.stdin.buffer.read().split(b'\x00')
+print('\n'.join(p.decode('utf-8') for p in parts if p))
+")
+
+    local merge_exit=0
+    python3 -c "
+import json, sys, os, time, uuid as uuid_mod
+
+event_files = [l for l in sys.argv[1].split('\n') if l.strip()]
+ticket_dir = sys.argv[2]
+ts = int(sys.argv[3])
+snap_uuid = sys.argv[4]
+tmp_path = sys.argv[5]
+epic_id = sys.argv[6]
+
+# LWW merge: composite key = (gate_name, session_id, worktree_id)
+# Last-write-wins by timestamp within each composite key group.
+merged = {}
+for fpath in event_files:
+    try:
+        with open(fpath, encoding='utf-8') as fh:
+            ev = json.load(fh)
+    except (OSError, json.JSONDecodeError) as e:
+        print(f'[compact_preconditions] WARN: skipping corrupt file {fpath}: {e}', file=sys.stderr)
+        continue
+    data = ev.get('data', {})
+    key = (
+        data.get('gate_name', ''),
+        data.get('session_id', ''),
+        data.get('worktree_id', ''),
+    )
+    ev_ts = ev.get('timestamp', 0)
+    if key not in merged or ev_ts > merged[key]['_ts']:
+        merged[key] = dict(data)
+        merged[key]['_ts'] = ev_ts
+
+# Build final merged gate_verdicts and manifest_depth
+gate_verdicts = {}
+manifest_depth = 0
+for key, payload in merged.items():
+    gv = payload.get('gate_verdicts', {})
+    gate_verdicts.update(gv)
+    d = payload.get('manifest_depth', 0)
+    if d > manifest_depth:
+        manifest_depth = d
+
+snapshot = {
+    'timestamp': ts,
+    'uuid': snap_uuid,
+    'event_type': 'PRECONDITIONS',
+    'compacted': True,
+    'env_id': 'compaction',
+    'author': 'compact_preconditions',
+    'data': {
+        'schema_version': 1,
+        'gate_name': 'compacted',
+        'session_id': 'compacted',
+        'worktree_id': 'compacted',
+        'verdict': 'pass',
+        'manifest_depth': manifest_depth,
+        'gate_verdicts': gate_verdicts,
+        'source_count': len(event_files),
+    }
+}
+
+with open(tmp_path, 'w', encoding='utf-8') as fh:
+    json.dump(snapshot, fh)
+
+print(f'[compact_preconditions] snapshot written: {tmp_path}', file=sys.stderr)
+" "$file_list_str" "$ticket_dir" "$ts" "$snap_uuid" "$tmp_path" "$epic_id" || merge_exit=$?
+
+    if [ "$merge_exit" -ne 0 ]; then
+        rm -f "$tmp_path"
+        echo "[compact_preconditions] ERROR: merge failed for $epic_id" >&2
+        return 1
+    fi
+
+    # Atomic rename: tmp → final
+    local rename_exit=0
+    mv "$tmp_path" "$final_path" || rename_exit=$?
+    if [ "$rename_exit" -ne 0 ]; then
+        rm -f "$tmp_path"
+        echo "[compact_preconditions] ERROR: atomic rename failed for $epic_id" >&2
+        return 1
+    fi
+
+    echo "[compact_preconditions] snapshot written: $final_path" >&2
+
+    # Retire original event files
+    local f
+    for f in "${event_files[@]}"; do
+        mv "$f" "${f}.retired" 2>/dev/null || \
+            echo "[compact_preconditions] WARN: could not retire $f" >&2
+    done
+
+    return 0
+}
+
+# _read_latest_preconditions <ticket_dir>
+# Returns the latest merged PRECONDITIONS payload for a ticket directory.
+# Transparently handles both flat event format and compacted snapshot format.
+# Implements retry-once on transient ENOENT (50ms sleep).
+#
+# Args:
+#   ticket_dir: absolute path to the ticket event directory
+#
+# Outputs:
+#   JSON payload to stdout (either snapshot or LWW-merged flat events)
+#
+# Exit codes:
+#   0 = success (payload on stdout)
+#   1 = no events (pre-manifest) or persistent error
+_read_latest_preconditions() {
+    local ticket_dir="$1"
+    local attempt=0
+    local max_attempts=2
+
+    while [ "$attempt" -lt "$max_attempts" ]; do
+        attempt=$((attempt + 1))
+
+        # Try to read — if missing or empty dir, handle as pre-manifest
+        if [ ! -d "$ticket_dir" ]; then
+            if [ "$attempt" -lt "$max_attempts" ]; then
+                sleep 0.05  # retry-once: 50ms sleep on transient ENOENT
+                continue
+            fi
+            echo "[read_latest_preconditions] ERROR: ticket dir not found: $ticket_dir" >&2
+            return 1
+        fi
+
+        # Check for snapshot first
+        local snapshot_file=""
+        snapshot_file=$(find "$ticket_dir" -maxdepth 1 \
+            -name '*-PRECONDITIONS-SNAPSHOT.json' \
+            ! -name '*.retired' \
+            2>/dev/null | sort | tail -1)
+
+        if [ -n "$snapshot_file" ] && [ -f "$snapshot_file" ]; then
+            # Snapshot exists — read it directly
+            local snap_content=""
+            snap_content=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as fh:
+        data = json.load(fh)
+    # Return the data payload for consumers
+    print(json.dumps(data.get('data', data)))
+except (OSError, json.JSONDecodeError) as e:
+    print(f'ERROR:{e}', file=sys.stderr)
+    sys.exit(1)
+" "$snapshot_file" 2>/dev/null) || {
+                if [ "$attempt" -lt "$max_attempts" ]; then
+                    sleep 0.05
+                    continue
+                fi
+                echo "[read_latest_preconditions] ERROR: failed to read snapshot $snapshot_file" >&2
+                return 1
+            }
+            echo "$snap_content"
+            return 0
+        fi
+
+        # No snapshot — check for flat PRECONDITIONS events
+        local event_files=()
+        while IFS= read -r -d '' f; do
+            event_files+=("$f")
+        done < <(find "$ticket_dir" -maxdepth 1 \
+            -name '*-PRECONDITIONS.json' \
+            ! -name '*-PRECONDITIONS-SNAPSHOT.json' \
+            ! -name '*.retired' \
+            -print0 2>/dev/null | sort -z)
+
+        if [ "${#event_files[@]}" -eq 0 ]; then
+            # No events — pre-manifest state
+            echo "[read_latest_preconditions] INFO: no PRECONDITIONS events in $ticket_dir (pre-manifest)" >&2
+            return 1
+        fi
+
+        # LWW merge across flat events
+        local file_list_str
+        file_list_str=$(printf '%s\0' "${event_files[@]}" | python3 -c "
+import sys
+parts = sys.stdin.buffer.read().split(b'\x00')
+print('\n'.join(p.decode('utf-8') for p in parts if p))
+")
+
+        local merge_result=""
+        local merge_exit=0
+        merge_result=$(python3 -c "
+import json, sys
+
+event_files = [l for l in sys.argv[1].split('\n') if l.strip()]
+
+merged = {}
+for fpath in event_files:
+    try:
+        with open(fpath, encoding='utf-8') as fh:
+            ev = json.load(fh)
+    except (OSError, json.JSONDecodeError) as e:
+        print(f'[read_latest_preconditions] WARN: skipping corrupt file {fpath}: {e}', file=sys.stderr)
+        continue
+    data = ev.get('data', {})
+    key = (
+        data.get('gate_name', ''),
+        data.get('session_id', ''),
+        data.get('worktree_id', ''),
+    )
+    ev_ts = ev.get('timestamp', 0)
+    if key not in merged or ev_ts > merged[key]['_ts']:
+        merged[key] = dict(data)
+        merged[key]['_ts'] = ev_ts
+
+gate_verdicts = {}
+manifest_depth = 0
+for key, payload in merged.items():
+    gv = payload.get('gate_verdicts', {})
+    gate_verdicts.update(gv)
+    d = payload.get('manifest_depth', 0)
+    if d > manifest_depth:
+        manifest_depth = d
+
+result = {
+    'status': 'present',
+    'manifest_depth': manifest_depth,
+    'gate_verdicts': gate_verdicts,
+    'source_count': len(event_files),
+}
+print(json.dumps(result))
+" "$file_list_str" 2>/dev/null) || merge_exit=$?
+
+        if [ "$merge_exit" -ne 0 ] || [ -z "$merge_result" ]; then
+            if [ "$attempt" -lt "$max_attempts" ]; then
+                sleep 0.05
+                continue
+            fi
+            echo "[read_latest_preconditions] ERROR: merge failed for $ticket_dir" >&2
+            return 1
+        fi
+
+        echo "$merge_result"
+        return 0
+    done
+
+    echo "[read_latest_preconditions] ERROR: persistent failure reading $ticket_dir after $max_attempts attempts" >&2
+    return 1
+}
+
 # _tag_add_checked <ticket_id> <tag>
 # Adds a tag to a ticket with a PIL guard for brainstorm:complete.
 # For any tag other than "brainstorm:complete", delegates directly to _tag_add.

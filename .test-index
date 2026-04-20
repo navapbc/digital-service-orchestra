@@ -233,7 +233,7 @@ plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
 plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-preconditions-compaction.sh [test_compact_preconditions_writes_snapshot],tests/scripts/test-preconditions-compaction.sh [test_read_latest_handles_snapshot_format],tests/scripts/test-preconditions-compaction.sh [test_read_latest_retry_once_on_transient_miss],tests/integration/test-preconditions-fault-injection.sh [test_retry_once_succeeds_on_second_attempt],tests/integration/test-preconditions-fault-injection.sh [test_retry_once_fails_with_diagnostic_on_persistent_miss]
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-preconditions-compaction.sh,tests/integration/test-preconditions-fault-injection.sh
 plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
