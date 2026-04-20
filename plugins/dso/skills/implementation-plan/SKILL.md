@@ -1136,7 +1136,7 @@ After processing findings (or skipping/failing), update the summary output to in
 
 | Step | Purpose | Key Commands |
 |------|---------|--------------|
-| 1 | Contextual Discovery | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`, Glob/Grep, clarify ambiguities, cross-cutting detection |
+| 1 | Contextual Discovery | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`, Glob/Grep, clarify ambiguities, cross-cutting detection. When `planning.external_dependency_block_enabled=true`: if story is tagged `manual:awaiting_user`, refuse decomposition (no prep needed) or produce prep-only tasks (prep work exists); block seeds prep-task context; manual verification step never appears as a task. |
 | 2 | Architectural Review | `REVIEW-PROTOCOL-WORKFLOW.md` inline (>= 4, max 3 iterations); forced if cross-cutting detected |
 | 3 | Atomic Task Drafting | TDD-first, sequential order, E2E + docs coverage |
 | 4 | Plan Review | `REVIEW-PROTOCOL-WORKFLOW.md` inline (all dims = 5, max 3 iterations) |

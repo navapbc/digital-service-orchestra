@@ -499,6 +499,17 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `planning.verification_command_timeout_seconds`
+
+| | |
+|---|---|
+| **Description** | Maximum time in seconds to wait for a `verification_command` to complete during `/dso:sprint`'s manual-pause handshake. If the command does not exit within this window, the handshake is treated as unverified. |
+| **Accepted values** | Positive integer (seconds) |
+| **Default** | `30` |
+| **Used by** | `/dso:sprint` (manual-pause handshake `verification_command` execution) |
+
+---
+
 ### `visual.baseline_directory`
 
 | | |

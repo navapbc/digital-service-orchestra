@@ -1232,8 +1232,11 @@ TASK: <id>  P<priority>  <issue-type>  <model>  <subagent-type>  <class>  <title
 | `SKIPPED_BLOCKED_STORY: <id> ...` | Deferred — parent story has open blockers |
 | `SKIPPED_IN_PROGRESS: <id> ...` | Already claimed by another agent |
 | `SKIPPED_DESIGN_AWAITING: <id> <title>` | Deferred — story tagged `design:awaiting_import` (Figma designs not yet finalized) |
+| `SKIPPED_MANUAL_AWAITING: <id> <title>` | Deferred — story tagged `manual:awaiting_user` (manual user input required; only emitted when `planning.external_dependency_block_enabled=true`) |
 
 **Parsing `SKIPPED_DESIGN_AWAITING` lines:** After running `sprint-next-batch.sh`, parse any `SKIPPED_DESIGN_AWAITING` lines from the output. For each such line, extract the story ID and title and add them to the `awaiting_design_stories` list (if not already present from Phase 2 filtering). These stories are surfaced in the Phase 5 Batch Completion Summary "Awaiting designer input" section.
+
+**`manual:awaiting_user` filter** (when `planning.external_dependency_block_enabled=true`): Stories tagged `manual:awaiting_user` are excluded from the autonomous batch and surfaced as `SKIPPED_MANUAL_AWAITING` lines. After autonomous stories drain, sprint enters Phase 3.5 (Manual-Pause Handshake), which presents a blocking handshake listing per-story instructions and an optional `verification_command`. Accepts: `done`, `done <story-id>`, `skip`. Handles `verification_command` execution (timeout: `planning.verification_command_timeout_seconds`, default 30s) and confirmation-token audit logging. Topological sort surfaces manual stories before their transitive autonomous dependents. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
 
 #### Interaction Conflict Filter (/dso:sprint)
 

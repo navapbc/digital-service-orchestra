@@ -1078,6 +1078,7 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 | 2.5: Adversarial Review | Red team attack on story map, blue team filter findings (skip if < 3 stories) | `Task` (opus red team, sonnet blue team) |
 | 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `.claude/scripts/dso ticket link` |
 | 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket comment`, `validate-issues.sh`, `dso:ui-designer` (via Agent tool), `.claude/scripts/dso ticket tag`/`.claude/scripts/dso ticket untag` (design:approved on REVIEW_PASS; design:pending_review on deferred/failed review) |
+| Flag-gated: external deps | When `planning.external_dependency_block_enabled=true`: reads External Dependencies block from epic, generates `manual:awaiting_user` stories for `user_manual` entries, refuses decomposition when block is missing. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md` | `.claude/scripts/dso ticket tag` |
 
 ## Example: Reconciliation + Story Creation
 
