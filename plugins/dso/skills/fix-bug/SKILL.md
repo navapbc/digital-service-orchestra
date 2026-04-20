@@ -1218,6 +1218,8 @@ After the fix is verified GREEN and before committing, check whether the source 
 
 **When running as orchestrator (not a sub-agent)**:
 
+> **CRITICAL — Review invocation**: COMMIT-WORKFLOW.md Step 5 handles the DSO review gate internally. NEVER invoke `Skill("review")` or the bare `/review` command — these trigger the built-in Claude Code PR-review skill, NOT the DSO code reviewer (`/dso:review`). The only valid review invocation is to read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline (which calls REVIEW-WORKFLOW.md at Step 5). Do NOT call `Skill("review")`, `/review`, or `/dso:review` directly from fix-bug.
+
 1. Complete the commit workflow per `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
 2. Close the bug ticket only after a successful code fix:
    ```bash
