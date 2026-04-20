@@ -1,1 +1,0 @@
-{"timestamp": 1776628978008212000, "uuid": "247ae387-64d7-444e-8a65-ae3a66a33671", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Triaged (debug-everything): test-file anti-pattern (Rule 5 or change-detector). Requires careful per-test conversion or deletion. Deferred to end-of-session user review."}}
