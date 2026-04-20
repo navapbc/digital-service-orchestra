@@ -393,8 +393,8 @@ plugins/dso/hooks/lib/planning-config.sh:tests/hooks/test-planning-config.sh
 # --- classify-sc-shape.sh: SC shape heuristic (task d00a-20ca RED / task 1a43-a73f impl) ---
 plugins/dso/scripts/classify-sc-shape.sh:tests/skills/test-brainstorm-shape-heuristic.sh
 
-# --- brainstorm SKILL.md: contradiction gate (task 62f4-fe71 RED / task fb5a-9ae4 impl) ---
-plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-brainstorm-external-dep-contradiction-gate.sh [test_contradiction_gate_section_heading_present]
+# --- brainstorm SKILL.md: contradiction gate ---
+plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-brainstorm-external-dep-contradiction-gate.sh
 
-# --- preplanning SKILL.md: Refusal Gate (task bb8f-cde2 RED / task 68e7-8085 impl) ---
-plugins/dso/skills/preplanning/SKILL.md:plugins/dso/skills/preplanning/tests/test_external_dep_block_reader.sh [test_refusal_diagnostic_references_brainstorm]
+# --- preplanning SKILL.md: Phase 1.5 + Refusal Gate ---
+plugins/dso/skills/preplanning/SKILL.md:plugins/dso/skills/preplanning/tests/test_external_dep_block_reader.sh

@@ -425,6 +425,34 @@ Proceed to Phase 3 (Walking Skeleton & Vertical Slicing) with the updated story 
 
 ---
 
+## Refusal Gate: External Dependencies Block Check (/dso:preplanning)
+
+**Skip this gate when `EXTERNAL_DEP_BLOCK_ENABLED=false`.**
+
+Before proceeding to Phase 3 story decomposition, check whether the parent epic's External Dependencies block adequately covers any externally-shaped Success Criteria.
+
+### When to fire
+
+This gate fires when ALL of the following are true:
+- `planning.external_dependency_block_enabled` is on (set during Phase 1.5 flag check)
+- The epic has Success Criteria that are externally-shaped (their outcomes are observable only in deployed or external contexts — e.g., "users can log in with OAuth", "emails are delivered", "the API responds to external callers")
+
+### Gate check
+
+1. Identify externally-shaped SCs from the epic's Success Criteria list (SCs whose pass/fail depends on an external system, credential, or deployed environment).
+2. For each externally-shaped SC, check whether the parent epic's `## External Dependencies` block contains an entry covering that dependency.
+3. If ANY externally-shaped SC has no matching block entry (block is missing or the relevant entry is absent or incomplete per the schema in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`):
+   - **HALT decomposition.** Do not proceed to Phase 3.
+   - Emit the following diagnostic, naming the specific SC(s) without block coverage:
+     > "Preplanning cannot decompose this epic: the following success criteria are externally-shaped but have no corresponding entry in the External Dependencies block: [list of SC names]. Run `/dso:brainstorm <epic-id>` to capture the dependency information, then retry `/dso:preplanning`."
+4. If all externally-shaped SCs have valid block entries (or there are no externally-shaped SCs): proceed to Phase 3 normally.
+
+### Behavioral testing note
+
+SKILL.md is a non-executable LLM instruction file. The structural tests verify only that this section heading exists. Behavioral correctness of the refusal logic is probabilistic per Rule 5 (behavioral-testing-standard.md).
+
+---
+
 ## Phase 3: Walking Skeleton & Vertical Slicing (/dso:preplanning)
 
 ### Step 1: Identify the Walking Skeleton (/dso:preplanning)

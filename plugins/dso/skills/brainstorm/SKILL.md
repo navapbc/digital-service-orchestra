@@ -610,6 +610,27 @@ Do NOT present this gate unless ALL of the following have completed or gracefull
 If any of the above has NOT completed, stop and execute it before presenting this gate. The user's ability to request a re-run via option (b) or (c) is for second-pass cycles only — it does not substitute for a mandatory first pass.
 </HARD-GATE>
 
+### External Dependencies Contradiction Gate
+
+When `planning.external_dependency_block_enabled` is on (source: `planning-config.sh`):
+
+1. Read the `## External Dependencies` block from the current epic spec.
+2. Scan each entry for contradictions: an entry where `handling: claude_auto` AND `claude_has_access` is `no` or `unknown`.
+3. If any contradiction is found:
+   - Do NOT present approval gate options.
+   - Emit a diagnostic naming the contradicting entry:
+     ```
+     Approval gate blocked: External Dependency "<name>" is declared handling=claude_auto but claude_has_access=<no|unknown>.
+     Resolve this contradiction before the gate can open:
+     - Option 1: Set handling=user_manual (mark as manual step for sprint)
+     - Option 2: Confirm claude_has_access=yes if you have verified access
+     ```
+   - Wait for the practitioner to resolve the contradiction, then re-run this gate check.
+4. For each entry where `verification_command` is omitted and `confirmation_token_required` is not already set:
+   - Add `confirmation_token_required: true` to the entry if the entry is `handling: user_manual`.
+   - This `confirmation_token_required` marker is consumed by sprint at pause-handshake time.
+5. If `planning.external_dependency_block_enabled` is off: skip this gate entirely and proceed to approval gate presentation.
+
 Present the validated spec to the user using **AskUserQuestion** with 4 options. Use **"Spec Review"** as the question header (do NOT use "Approval" — it primes misinterpretation of non-approving options as approval). Label options (b) and (c) to reflect whether this is a first re-run or subsequent re-run (the scrutiny pipeline must complete before this gate; these labels apply only to gate-triggered re-runs):
 
 - **If web research (Step 2.6) ran during the mandatory pipeline pass**: label (c) as "Re-run web research phase"
