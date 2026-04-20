@@ -77,7 +77,7 @@ plugins/dso/scripts/skill-trace-analyze.py:tests/scripts/test-skill-trace-analyz
 plugins/dso/scripts/validate-phase.sh:tests/scripts/test-validate-phase-v2-removal.sh,tests/scripts/test-validate-phase-missing-test-unit.sh,tests/test-validate-phase-portability.sh
 plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py,tests/scripts/test_worktree_cleanup_gather_progress.py,tests/scripts/test-worktree-cleanup.sh
 plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh,tests/skills/test-onboarding-skill.sh,tests/skills/test-architect-foundation-ci-skeleton.sh,tests/skills/test-architect-foundation-integration.sh
-plugins/dso/skills/brainstorm/SKILL.md:tests/hooks/test-scenario-sc-revision.sh,tests/hooks/test-residual-state-e2e.sh,tests/skills/test-brainstorm-tag-writer.sh,tests/skills/test-brainstorm-no-arg-block.sh,tests/skills/test-brainstorm-research-findings-persistence.sh [test_brainstorm_research_findings_comment_format],tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/skills/brainstorm/SKILL.md:tests/hooks/test-scenario-sc-revision.sh,tests/hooks/test-residual-state-e2e.sh,tests/skills/test-brainstorm-tag-writer.sh,tests/skills/test-brainstorm-no-arg-block.sh,tests/skills/test-brainstorm-research-findings-persistence.sh,tests/scripts/test-tag-cli-refactor.sh
 plugins/dso/skills/create-bug/SKILL.md:tests/scripts/test-create-bug-skill-smoke.sh
 plugins/dso/skills/debug-everything/prompts/shared/read-only-enforcement.md:tests/plugin/test-debug-everything-readonly-enforcement.sh
 plugins/dso/skills/debug-everything/prompts/test-failure-fix.md:plugins/dso/skills/debug-everything/prompts/test-failure-fix.md
@@ -135,7 +135,8 @@ plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/ticket-compact-all.sh:tests/scripts/test-ticket-compact-all.sh
-plugins/dso/scripts/ticket:tests/scripts/test-ticket-compact-all.sh,tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-tag-cli-refactor.sh,tests/scripts/test-ticket-init-bash-native.sh [test_ensure_initialized_no_python3]
+plugins/dso/scripts/ticket:tests/scripts/test-ticket-compact-all.sh,tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-tag-cli-refactor.sh,tests/scripts/test-ticket-init-bash-native.sh [test_ensure_initialized_no_python3],tests/scripts/test-ticket-lib-api.sh [test_ticket_dispatcher_no_exec_to_show_script]
+plugins/dso/scripts/ticket-lib-api.sh:tests/scripts/test-ticket-lib-api.sh [test_ticketlib_api_sourceability_strict_mode]
 plugins/dso/agents/scope-drift-reviewer.md:tests/scripts/test-scope-drift-reviewer.sh
 plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh

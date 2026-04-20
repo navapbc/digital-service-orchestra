@@ -218,6 +218,9 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 cat "$REPO_ROOT/PRD.md" 2>/dev/null || cat "$REPO_ROOT/docs/PRD.md" 2>/dev/null
 cat "$REPO_ROOT/.claude/design-notes.md" 2>/dev/null
 .claude/scripts/dso ticket list  # filter to epics via: .claude/scripts/dso ticket list --type=epic
+# Resolve session context silently — never ask the user about CWD, repo identity, or ticket-store location
+git remote get-url origin 2>/dev/null
+git rev-parse --show-toplevel 2>/dev/null
 ```
 
 If a PRD or .claude/design-notes.md exists, open with a brief summary of what you already know, then probe deeper rather than starting from scratch.
@@ -229,6 +232,10 @@ Before presenting ANY question to the user, you MUST first check whether the ans
 **Exploration decomposition**: When a context question is compound or spans multiple sources (web research, multiple codebase layers, ambiguous scope), apply the shared exploration decomposition protocol at `skills/shared/prompts/exploration-decomposition.md` to classify it as SINGLE_SOURCE or MULTI_SOURCE before proceeding. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings contradict.
 
 ### Step 2: The "Tell Me More" Loop
+
+<HARD-GATE>
+Before sending any user-facing message in this dialogue: count the distinct questions in your draft. If the count is greater than 1, stop — select only the single highest-priority unknown and remove all others. A message with two numbered questions, two lettered choices on different topics, or one main question plus a follow-up sub-question ALL violate this rule. No exception exists for "quick context checks" or efficiency arguments.
+</HARD-GATE>
 
 Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encourage depth. After each answer, either ask a follow-up or move to the next area.
 
@@ -268,6 +275,8 @@ Before we move to approaches, here's my understanding:
 Does this capture your intent? If anything is off, tell me what to adjust.
 ```
 
+**Scope bullet validation (required before presenting this summary)**: Every bullet under **Scope** must name a concrete deliverable or a confirmed exclusion. A bullet is invalid if it contains any of these patterns: "verify whether", "check if", "TBD", "outcome is no changes", or "depends on investigation". If a scope item cannot be stated as a concrete in/out decision, either (a) investigate it silently now and resolve it, OR (b) ask one more Socratic question to resolve it before presenting the summary, OR (c) move it to a **Pending Investigation** bullet clearly separated from the in-scope list. Do NOT carry unresolved research tasks into the in-scope list.
+
 #### Understanding Summary Phrasing Requirement
 
 You MUST close the Understanding Summary with exactly this sentence: **"Does this capture your intent? If anything is off, tell me what to adjust."** Do not paraphrase (e.g., "Does this sound right?" or "Let me know if anything needs adjusting." are not acceptable). This exact phrasing is required — it is a standardized closing, not an example.
@@ -291,6 +300,8 @@ Before I propose approaches: [Targeted gap question]
 ```
 
 **Bounded gap loop**: Ask one question at a time. After each answer, ask the next highest-priority gap question (if any remain) or proceed to Phase 2 once you have enough context to propose approaches. Terminate the loop when either (a) you have enough to propose approaches or (b) the user says "proceed" (the first gap-question prompt surfaces this option — see format below). Do not loop indefinitely — every question must target a specific unresolved inferred/assumed item; stop when no such items remain.
+
+**Compression anti-pattern (prohibited)**: Do NOT reframe N independent decisions as a single "core question" with N sub-options or sub-lists. If your draft response contains "Rather than asking", "Instead of asking", or more than one decision sub-list under one heading, STOP — split into separate sequential questions. Each question must cover exactly one independent axis. The user's cognitive cost of evaluating N×M combinations is not reduced by renaming the composite a "core question".
 
 Do NOT proceed to Phase 2 until the user confirms the understanding summary or explicitly skips the gap analysis.
 
@@ -753,6 +764,20 @@ Wait for the user's response before calling `ticket create`. If approved, create
 
 ## Scenario Analysis
 {scenario analysis content from scrutiny pipeline, if generated}
+
+### Planning Intelligence Log
+
+- **Web research (Step 2.6)**: [not triggered | triggered | re-triggered via gate]
+  - Bright-line conditions that fired: [list conditions, or "none"]
+- **Scenario analysis (Step 2.75)**: [not triggered | triggered | re-triggered via gate]
+  - Scenarios surviving blue team filter: [count, or "skipped — ≤2 success criteria"]
+- **Practitioner-requested additional cycles**: [none | web research re-run N time(s) | scenario analysis re-run N time(s) | both re-run]
+- **Follow-on scrutiny (Step 0)**: [not triggered | triggered — depth: <follow_on_scrutiny_depth>]
+- **Feasibility resolution (Step 2.5)**: [not triggered | triggered — cycles: <feasibility_cycle_count>, gap: <triggering gap description>]
+- **LLM-instruction signal (Step 5)**: [not triggered | triggered — keyword: <matched_keyword>]
+- **Scale context (Step 0)**: [<numeric estimate> | small scale (default) | not applicable | user-provided: <value>]
+
+<!-- REQUIRED: populate this section from the approval-gate log recorded at Phase 2 Step 4. Do NOT omit this heading — it is a contract signal consumed by ticket-migrate-brainstorm-tags.sh and downstream tooling. -->
 DESCRIPTION
 )"
 ```
@@ -776,6 +801,20 @@ DESCRIPTION
 
 ## Scenario Analysis
 {scenario analysis content from scrutiny pipeline, if generated}
+
+### Planning Intelligence Log
+
+- **Web research (Step 2.6)**: [not triggered | triggered | re-triggered via gate]
+  - Bright-line conditions that fired: [list conditions, or "none"]
+- **Scenario analysis (Step 2.75)**: [not triggered | triggered | re-triggered via gate]
+  - Scenarios surviving blue team filter: [count, or "skipped — ≤2 success criteria"]
+- **Practitioner-requested additional cycles**: [none | web research re-run N time(s) | scenario analysis re-run N time(s) | both re-run]
+- **Follow-on scrutiny (Step 0)**: [not triggered | triggered — depth: <follow_on_scrutiny_depth>]
+- **Feasibility resolution (Step 2.5)**: [not triggered | triggered — cycles: <feasibility_cycle_count>, gap: <triggering gap description>]
+- **LLM-instruction signal (Step 5)**: [not triggered | triggered — keyword: <matched_keyword>]
+- **Scale context (Step 0)**: [<numeric estimate> | small scale (default) | not applicable | user-provided: <value>]
+
+<!-- REQUIRED: populate this section from the approval-gate log recorded at Phase 2 Step 4. Do NOT omit this heading — it is a contract signal consumed by ticket-migrate-brainstorm-tags.sh and downstream tooling. -->
 DESCRIPTION
 )"
 ```
