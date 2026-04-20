@@ -756,4 +756,21 @@ assert_eq "test_sync_phase_resets_stale_ahead_local_main: _phase_sync must detec
 assert_pass_if_clean "test_sync_phase_resets_stale_ahead_local_main"
 
 # =============================================================================
+echo "--- test_merge_phase_resets_stale_ahead_local_main ---"
+# _phase_merge must also contain drift-detection-and-reset logic, mirroring
+# _phase_sync. Without it, --resume can skip _phase_sync and enter _phase_merge
+# directly with local main still ahead of origin/main (e.g., after an
+# interrupted version_bump), causing a plugin.json conflict on the merge retry.
+# Before fix: _phase_merge has NO such reset → test FAILS (RED).
+# After fix:  _phase_merge contains reset --hard origin/main → test PASSES.
+_merge_body_drift=$(sed -n '/_phase_merge()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
+_has_merge_drift_reset=0
+if echo "$_merge_body_drift" | grep -qE "reset[[:space:]]+--hard[[:space:]]+origin/main"; then
+    _has_merge_drift_reset=1
+fi
+assert_eq "test_merge_phase_resets_stale_ahead_local_main: _phase_merge must reset stale-ahead local main to origin/main (f6c6-362c)" \
+    "1" "$_has_merge_drift_reset"
+assert_pass_if_clean "test_merge_phase_resets_stale_ahead_local_main"
+
+# =============================================================================
 print_summary

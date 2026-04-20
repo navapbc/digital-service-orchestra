@@ -162,7 +162,7 @@ repos:
 YAML
 
     # CI example with DSO job
-    cat > "$dir/docs/examples/ci.example.yml" <<WORKFLOW
+    cat > "$dir/docs/examples/ci.example.python-poetry.yml" <<WORKFLOW
 name: CI
 on:
   push:
@@ -316,7 +316,7 @@ _snapshot_fail
 tmpdir=$(_mktemp_tracked)
 
 HOST_CI="$tmpdir/host/.github/workflows/ci.yml"
-PLUGIN_CI="$tmpdir/plugin/docs/examples/ci.example.yml"
+PLUGIN_CI="$tmpdir/plugin/docs/examples/ci.example.python-poetry.yml"
 mkdir -p "$tmpdir/host/.github/workflows" "$tmpdir/plugin/docs/examples"
 
 cat > "$HOST_CI" <<WORKFLOW
@@ -736,6 +736,47 @@ else
     assert_eq "test_update_platform_base64_flag: lib loadable and flag function exported" "0" "$rc"
 fi
 assert_pass_if_clean "test_update_platform_base64_flag"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# test_update_ci_example_stack_aware_selection
+# Verifies the stack-aware _CI_EXAMPLE resolution in update-artifacts.sh by
+# extracting and invoking the production _resolve_ci_example_for_update function
+# against fixtures (not inlining a copy of the resolution logic).
+# ─────────────────────────────────────────────────────────────────────────────
+_snapshot_fail
+tmpdir=$(_mktemp_tracked)
+
+# Set up a plugin tree with both example files
+mkdir -p "$tmpdir/plugin/docs/examples"
+printf 'name: CI\njobs:\n  nodejob:\n    runs-on: ubuntu-latest\n' > "$tmpdir/plugin/docs/examples/ci.example.node-npm.yml"
+printf 'name: CI\njobs:\n  pyjob:\n    runs-on: ubuntu-latest\n' > "$tmpdir/plugin/docs/examples/ci.example.python-poetry.yml"
+
+# Extract _resolve_ci_example_for_update from update-artifacts.sh (awk block) so
+# the test calls the PRODUCTION function rather than replicating its logic.
+UA_SCRIPT="$(git rev-parse --show-toplevel)/plugins/dso/scripts/update-artifacts.sh"
+RESOLVER_EXTRACT=$(awk '/^_resolve_ci_example_for_update\(\)/,/^}$/' "$UA_SCRIPT")
+
+# Target with stack=node-npm
+mkdir -p "$tmpdir/target/.claude"
+printf 'stack=node-npm\n' > "$tmpdir/target/.claude/dso-config.conf"
+
+_CI_EXAMPLE=$(bash -c "$RESOLVER_EXTRACT; _resolve_ci_example_for_update '$tmpdir/plugin' '$tmpdir/target'")
+assert_eq "test_update_ci_example_stack_aware_selection: node-npm target picks node-npm example" \
+    "$tmpdir/plugin/docs/examples/ci.example.node-npm.yml" "$_CI_EXAMPLE"
+
+# Unknown stack → python-poetry fallback
+printf 'stack=mystery-stack\n' > "$tmpdir/target/.claude/dso-config.conf"
+_CI_EXAMPLE=$(bash -c "$RESOLVER_EXTRACT; _resolve_ci_example_for_update '$tmpdir/plugin' '$tmpdir/target'")
+assert_eq "test_update_ci_example_stack_aware_selection: unknown stack falls back to python-poetry" \
+    "$tmpdir/plugin/docs/examples/ci.example.python-poetry.yml" "$_CI_EXAMPLE"
+
+# No target config → falls back to python-poetry (legacy install compatibility)
+rm "$tmpdir/target/.claude/dso-config.conf"
+_CI_EXAMPLE=$(bash -c "$RESOLVER_EXTRACT; _resolve_ci_example_for_update '$tmpdir/plugin' '$tmpdir/target'")
+assert_eq "test_update_ci_example_stack_aware_selection: no config falls back to python-poetry" \
+    "$tmpdir/plugin/docs/examples/ci.example.python-poetry.yml" "$_CI_EXAMPLE"
+
+assert_pass_if_clean "test_update_ci_example_stack_aware_selection"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Summary

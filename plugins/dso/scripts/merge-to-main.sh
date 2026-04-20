@@ -369,6 +369,22 @@ _phase_merge() {
     # regardless of how the phase was reached. (Fixes 34cc-526c, 687d-b448.)
     cd "$MAIN_REPO"
 
+    # Detect and reset stale local main before merging (f6c6-362c).
+    # Mirrors _phase_sync's drift-reset block. Needed because --resume can skip
+    # _phase_sync and enter _phase_merge directly with local main still ahead of
+    # origin/main (e.g., after an interrupted version_bump), causing a
+    # plugin.json conflict on the merge retry.
+    git fetch origin main --quiet 2>/dev/null || true
+    if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+        _MERGE_PHASE_AHEAD=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "0")
+        if [ "$_MERGE_PHASE_AHEAD" -gt 0 ]; then
+            echo "INFO: _phase_merge: local main is ${_MERGE_PHASE_AHEAD} commit(s) ahead of origin/main (stale version bump?) — resetting to origin/main."
+            git reset --hard origin/main -q 2>/dev/null || {
+                echo "WARNING: _phase_merge: Could not reset to origin/main — merge may encounter false conflicts."
+            }
+        fi
+    fi
+
     # Find the last meaningful commit message from the worktree branch (skip chore/cleanup commits)
     if [ -n "$MSG_EXCLUSION_PATTERN" ]; then
         LAST_MSG=$(git log "$BRANCH" --format='%s' --no-merges -- \

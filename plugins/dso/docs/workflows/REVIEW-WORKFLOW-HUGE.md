@@ -8,6 +8,14 @@ It is invoked from REVIEW-WORKFLOW.md Step 2b when the file-count threshold is m
 `DIFF_HASH` and `ARTIFACTS_DIR` are passed from the REVIEW-WORKFLOW.md Step 2b diversion caller.
 The caller already computed these in REVIEW-WORKFLOW.md Steps 1–2. Do NOT recompute them here.
 
+**ARTIFACTS_DIR propagation (mandatory)**: Every sub-agent dispatched from this workflow that writes to an artifacts-dir-derived path (`reviewer-findings.json`, `classifier-telemetry.jsonl`, review-status, etc.) MUST receive `WORKFLOW_PLUGIN_ARTIFACTS_DIR=$ARTIFACTS_DIR` in its dispatch context. Under worktree isolation, a sub-agent that re-derives the artifacts dir via `get_artifacts_dir()` resolves against its own worktree root, writing findings where no downstream consumer will look. This includes the Step 2 pattern-extraction agents (if they emit structured artifacts), Step 4 FALLBACK `huge-diff-reviewer-*` agents (write `reviewer-findings.json`), and Step 4 CONFIRMED_REFACTOR `huge-diff-refactor-anomaly` agent (writes `reviewer-findings.json`). Pass as an explicit prompt line:
+
+```
+WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+```
+
+Do NOT rely on the sub-agent to compute its own artifacts dir.
+
 ## Step 1: Sampling
 
 Run the stratified file sampler to select up to 7 representative files:

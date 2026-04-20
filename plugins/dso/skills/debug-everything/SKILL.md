@@ -390,6 +390,8 @@ Then re-read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline immediately — do NO
 - No CHECKPOINT found → re-dispatch the investigation sub-agent from Step 2 (do NOT read test files, grep for root causes, or run tests without a specific hypothesis — that is unstructured investigation, not the fix-bug protocol)
 
 **After the in-progress ticket completes**, do NOT stop — re-query remaining open and in_progress bugs and continue processing them in priority order (return to Bug-Fix Mode Execution step 1). The compaction event that triggered this resume does NOT signal Phase 9 shutdown. Phase 9 is only triggered by a compaction that occurs **during the current active session**. A compaction from a prior invocation that produced this resume context is historical state, not a live shutdown trigger.
+
+**Re-assert delegation constraint after compaction**: The HARD-GATE from Bug-Fix Mode Execution step 2 applies with full force from this point forward — including to the first post-resume ticket. Do NOT investigate bugs inline. Do NOT modify code at the orchestrator level. EVERY bug ticket MUST be processed by reading `fix-bug/SKILL.md` inline and executing its steps — NOT by direct orchestrator investigation or editing. Emit the HARD-GATE token before any Edit/Write call: `HARD-GATE: CLEARED for ticket <id> — classification: <type>, investigation: <agent-id>, hypothesis: <confirmed/disproved>`. Compaction does not waive this gate — it strengthens the requirement to re-read fix-bug/SKILL.md before proceeding.
 </COMPACTION_RESUME>
 
 ### Bug-Fix Mode Execution
