@@ -274,8 +274,16 @@ _push_tickets_branch() {
             git -C "$base_path" rebase origin/tickets 2>/dev/null || _rebase_exit=$?
             if [ "$_rebase_exit" -ne 0 ]; then
                 git -C "$base_path" rebase --abort 2>/dev/null || true
-                echo "Warning: tickets branch push failed (rebase conflict, attempt $_attempt)" >&2
-                return 0  # Best-effort: don't fail the caller
+                # Rebase failed (e.g., compaction deleted files diverged). Fall back to merge.
+                # Ticket event files use UUID-named append-only filenames, so merge is safe
+                # even across compaction boundaries where rebase would conflict.
+                local _merge_exit=0
+                git -C "$base_path" merge origin/tickets --no-edit 2>/dev/null || _merge_exit=$?
+                if [ "$_merge_exit" -ne 0 ]; then
+                    git -C "$base_path" merge --abort 2>/dev/null || true
+                    echo "Warning: tickets branch push failed (rebase and merge conflict, attempt $_attempt)" >&2
+                    return 0  # Best-effort: don't fail the caller
+                fi
             fi
         else
             echo "Warning: tickets branch push failed (exit $_push_exit): $_push_stderr" >&2
