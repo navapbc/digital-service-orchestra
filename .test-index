@@ -400,4 +400,4 @@ plugins/dso/skills/brainstorm/SKILL.md:tests/skills/test-brainstorm-external-dep
 plugins/dso/skills/preplanning/SKILL.md:plugins/dso/skills/preplanning/tests/test_external_dep_block_reader.sh
 
 # --- implementation-plan SKILL.md: Manual Story Tag Guard (task f7c6-5c7b RED / task 93a4-f3d4 impl) ---
-plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test-implementation-plan-manual-tag-guard.sh [test_manual_tag_guard_section_heading_present]
+plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test-implementation-plan-manual-tag-guard.sh 
