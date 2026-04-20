@@ -1,1 +1,0 @@
-{"timestamp": 1776628975755664000, "uuid": "4f595f9a-8a4e-4a59-86b8-62ade5566885", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Triaged (debug-everything): LLM-behavioral bug (skill/agent/prompt). Requires bot-psychologist investigation and user approval. Deferred to end-of-session user review."}}
