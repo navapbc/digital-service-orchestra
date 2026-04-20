@@ -242,5 +242,5 @@ plugins/dso/skills/sprint/prompts/per-worktree-review-commit.md:tests/skills/tes
 plugins/dso/docs/contracts/worktree-tracking-comment.md:tests/skills/test-worktree-tracking-start-writes.sh
 plugins/dso/skills/sprint/prompts/task-execution.md:tests/skills/test-worktree-tracking-start-writes.sh [test_sprint_skill_worktree_tracking_start_present]
 plugins/dso/scripts/resolve-abandoned-worktrees.sh:tests/scripts/test-worktree-resume-integration.sh
-plugins/dso/scripts/dso-setup.sh:tests/scripts/test-dso-setup-stack-aware-ci.sh
+plugins/dso/scripts/dso-setup.sh:tests/scripts/test-dso-setup-stack-aware-ci.sh,tests/scripts/test-dso-setup-next-steps-install-ref.sh
 plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test-index-duplicates.sh
