@@ -265,7 +265,7 @@ Trigger: epic references external integrations (third-party APIs, CI/CD, infrast
 
 **Note**: The complexity evaluator's `feasibility_review_recommended` field provides the same signal during preplanning (Phase 2.25 Integration Research) where it is available from the sprint classification. In brainstorm, the keyword scan is the primary trigger since the complexity evaluator has not yet run.
 
-The three core reviewers (Agent Clarity, Scope, Value) **always run as separate, independent Agent calls sent in the same message**. If feasibility review is triggered, dispatch `subagent_type: "dso:feasibility-reviewer"` (model: sonnet) as a **4th parallel Agent call** alongside the existing 3 — all four Agent calls sent in a single message so they run concurrently. Each is its own isolated agent.
+The three core reviewers (Agent Clarity, Scope, Value) **always run as separate, independent Agent calls sent in the same message**. If feasibility review is triggered, dispatch the `dso:feasibility-reviewer` agent as a **4th parallel Agent call** alongside the existing 3 — all four Agent calls sent in a single message so they run concurrently. (`dso:feasibility-reviewer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Read `agents/feasibility-reviewer.md` inline and use `subagent_type: "general-purpose"` with `model: "sonnet"`. Each is its own isolated agent.
 
 **Pass threshold**: All dimensions must score 4 or above. When the feasibility reviewer runs, `technical_feasibility` and `integration_risk` are also included in the pass threshold check.
 

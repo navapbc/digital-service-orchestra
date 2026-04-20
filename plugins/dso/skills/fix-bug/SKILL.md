@@ -107,12 +107,16 @@ LLM-behavioral bugs follow a combined investigation+fix path (SC5 — HARD-GATE 
 <SUB-AGENT-GUARD>
 Agent tool availability check: if the Agent tool is unavailable, use the inline fallback below instead of dispatching a sub-agent.
 
-**If the Agent tool is available** (orchestrator context): dispatch `dso:bot-psychologist` sub-agent:
+**If the Agent tool is available** (orchestrator context): dispatch `dso:bot-psychologist` sub-agent. (`dso:bot-psychologist` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Read `agents/bot-psychologist.md` inline and use `subagent_type: "general-purpose"` with the `model:` from that file's frontmatter:
 
 ```
 Read: ${CLAUDE_PLUGIN_ROOT}/agents/bot-psychologist.md
-Dispatch: subagent_type: dso:bot-psychologist
-Input: bug description, affected skill/agent/prompt file path, ticket content, behavioral symptoms observed
+subagent_type: "general-purpose"
+model: {model from bot-psychologist.md frontmatter}
+prompt: |
+  {verbatim content of agents/bot-psychologist.md}
+
+  Input: bug description, affected skill/agent/prompt file path, ticket content, behavioral symptoms observed
 ```
 
 **If the Agent tool is unavailable** (sub-agent context — inline investigation fallback): Read `agents/bot-psychologist.md` as a REFERENCE only — use it for the llm-behavioral taxonomy definitions and probe definitions. Do NOT attempt to follow bot-psychologist's own investigation steps (bot-psychologist contains its own SUB-AGENT-GUARD that blocks all diagnosis steps in nested contexts). Instead, perform the investigation directly using fix-bug's own Step 2/3 investigation framework, applying the llm-behavioral taxonomy from bot-psychologist.md. Specifically: identify the behavioral gap type (prompt regression, guidance gap, behavioral drift, etc.) using the taxonomy, then run static analysis on the affected skill/agent/prompt file (grep for relevant patterns, read the file, identify the defect). Skip any steps requiring user-provided experimental results — record them as `INTERACTIVITY_DEFERRED` in the investigation RESULT and surface them for the calling orchestrator to escalate to the user. This fallback ensures LLM-behavioral investigation degrades gracefully when nested dispatch is prohibited, while clearly signaling which investigation steps could not complete.
@@ -288,16 +292,19 @@ INTENT_SEARCH_BUDGET=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.intent_search
 # Default: 20
 ```
 
-**Dispatch intent-search agent:**
+**Dispatch intent-search agent:** (`dso:intent-search` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Read `agents/intent-search.md` inline and use `subagent_type: "general-purpose"` with the `model:` from that file's frontmatter:
 
 ```
-subagent_type: dso:intent-search
-inputs:
+subagent_type: "general-purpose"
+model: {model from intent-search.md frontmatter}
+prompt: |
+  {verbatim content of agents/intent-search.md}
+
   ticket_id: <BUG_TICKET_ID>
   intent_search_budget: <INTENT_SEARCH_BUDGET>
 ```
 
-**Inline fallback**: If the Agent tool rejects the `dso:intent-search` subagent type (e.g., "Unknown agent type", "not supported", or any dispatch failure before the agent runs), read `agents/intent-search.md` inline and execute its instructions directly with the same `ticket_id` and `intent_search_budget` inputs. This fallback covers the case where plugin agent types are not available in the current Claude Code configuration.
+**Inline fallback**: If the `agents/intent-search.md` file is missing or the Agent tool is unavailable, read `agents/intent-search.md` inline and execute its instructions directly with the same `ticket_id` and `intent_search_budget` inputs. This fallback covers the case where plugin agent files are not available in the current Claude Code configuration.
 
 The agent returns a gate signal conforming to the shared contract defined in `docs/contracts/gate-signal-schema.md`.
 
@@ -867,7 +874,7 @@ After Step 7 (Verify Fix) passes and before running Gates 2a–2d, check whether
 2. **Agent file existence check (hard-fail)**: Read `agents/scope-drift-reviewer.md` using the Read tool. If the file is not found, ABORT Step 7.1 with a clear error message — do NOT silently skip. The scope-drift-reviewer agent must be present for this step to run.
 
 3. **Dispatch pattern** (mirrors intent-search Step 1.5):
-   - If Agent tool available: dispatch `scope-drift-reviewer` (subagent_type: `dso:scope-drift-reviewer`) with inputs:
+   - If Agent tool available: dispatch `scope-drift-reviewer`. (`dso:scope-drift-reviewer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Read `agents/scope-drift-reviewer.md` inline and use `subagent_type: "general-purpose"` with the `model:` from that file's frontmatter. Pass inputs:
      - `ticket_text`: original bug ticket description
      - `root_cause_report`: investigation findings from Step 4
      - `git_diff`: output of `git diff` at the current working tree
