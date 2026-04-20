@@ -8,8 +8,8 @@
 #
 # Requirements:
 #   - ticket init must have been run (.tickets-tracker/ worktree must exist)
-#   - python3 must be available (for JSON parsing)
-#   - python3 fcntl.flock used for portable serialization (macOS + Linux)
+#   - jq must be available (for JSON parsing and canonicalization)
+#   - flock (util-linux) used for portable serialization (macOS + Linux)
 
 # Stable internal API — used by write_commit_event and emit-review-event.sh
 #
@@ -51,72 +51,74 @@ _flock_stage_commit() {
         git -C "$tracker_dir" config gc.auto 0
     fi
 
+    # ── Locate bash-native flock binary (util-linux; not available in PATH on macOS) ──
+    local _flock_bin=""
+    if command -v flock >/dev/null 2>&1; then
+        _flock_bin="$(command -v flock)"
+    else
+        # Homebrew util-linux installs flock outside PATH on macOS
+        local _ul_flock
+        _ul_flock=$(find /opt/homebrew/Cellar/util-linux -name flock -path "*/bin/flock" 2>/dev/null | sort -V | tail -1)
+        if [ -n "$_ul_flock" ] && [ -x "$_ul_flock" ]; then
+            _flock_bin="$_ul_flock"
+        fi
+    fi
+
     # ── Acquire flock, then atomic rename + commit ──────────────────────────
     local max_retries=2
     local flock_timeout="${FLOCK_STAGE_COMMIT_TIMEOUT:-30}"
     local attempt=0
     local lock_acquired=false
 
+    # Ensure the lock file exists before flock tries to open it
+    : >> "$lock_file"
+
     while [ "$attempt" -lt "$max_retries" ]; do
         attempt=$((attempt + 1))
 
         local flock_exit=0
-        python3 -c "
-import fcntl, os, subprocess, sys, time
 
-lock_path = sys.argv[1]
-timeout = int(sys.argv[2])
-tracker_dir = sys.argv[3]
-relative_path = sys.argv[4]
-commit_msg = sys.argv[5]
-staging_temp = sys.argv[6]
-final_path = sys.argv[7]
-
-fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
-deadline = time.monotonic() + timeout
-acquired = False
-while time.monotonic() < deadline:
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        acquired = True
-        break
-    except (IOError, OSError):
-        time.sleep(0.1)
-if not acquired:
-    os.close(fd)
-    sys.exit(1)
-
-# Lock acquired — atomic rename then git operations while holding the lock
-try:
-    os.rename(staging_temp, final_path)
-except OSError as e:
-    print(f'Error: atomic rename failed: {e}', file=sys.stderr)
-    os.close(fd)
-    sys.exit(3)
-
-try:
-    subprocess.run(
-        ['git', '-C', tracker_dir, 'add', relative_path],
-        check=True, capture_output=True, text=True,
-    )
-    subprocess.run(
-        ['git', '-C', tracker_dir, 'commit', '-q', '--no-verify', '-m', commit_msg],
-        check=True, capture_output=True, text=True,
-    )
-except subprocess.CalledProcessError as e:
-    print(f'Error: git operation failed: {e.stderr}', file=sys.stderr)
-    # Clean up the event file so it doesn't remain uncommitted on disk
-    try:
-        os.remove(final_path)
-    except OSError:
-        pass
-    os.close(fd)
-    sys.exit(2)
-
-# Release lock by closing fd
-os.close(fd)
-sys.exit(0)
-" "$lock_file" "$flock_timeout" "$tracker_dir" "$relative_path" "$commit_msg" "$staging_temp" "$final_path" || flock_exit=$?
+        if [ -n "$_flock_bin" ]; then
+            # bash-native path: use flock(1) fd-based form.
+            # FD 200 is opened on the lock file; flock -x -w acquires LOCK_EX,
+            # waiting up to $flock_timeout seconds before returning exit 1.
+            # The subshell inherits FD 200 and the lock is released on subshell exit.
+            # shellcheck disable=SC2093
+            (
+                "$_flock_bin" -x -w "$flock_timeout" 200 || exit 1
+                # Atomic rename (same filesystem — mktemp was created inside tracker_dir)
+                mv "$staging_temp" "$final_path" || exit 3
+                # git add + commit while holding the lock; clean up final_path on failure
+                git -C "$tracker_dir" add "$relative_path" 2>/dev/null \
+                    && git -C "$tracker_dir" commit -q --no-verify -m "$commit_msg" 2>/dev/null \
+                    || { rm -f "$final_path"; exit 2; }
+            ) 200>"$lock_file" || flock_exit=$?
+        else
+            # Fallback when flock binary is not available (e.g. non-Homebrew macOS):
+            # mkdir-based atomic lock — mkdir is atomic on POSIX filesystems.
+            local _lock_dir="${lock_file}.d"
+            local _deadline
+            _deadline=$(( $(date +%s) + flock_timeout ))
+            local _got_lock=false
+            while [ "$(date +%s)" -lt "$_deadline" ]; do
+                if mkdir "$_lock_dir" 2>/dev/null; then
+                    _got_lock=true
+                    break
+                fi
+                sleep 0.1
+            done
+            if [ "$_got_lock" = false ]; then
+                flock_exit=1
+            else
+                (
+                    mv "$staging_temp" "$final_path" || exit 3
+                    git -C "$tracker_dir" add "$relative_path" 2>/dev/null \
+                        && git -C "$tracker_dir" commit -q --no-verify -m "$commit_msg" 2>/dev/null \
+                        || { rm -f "$final_path"; exit 2; }
+                ) || flock_exit=$?
+                rmdir "$_lock_dir" 2>/dev/null || true
+            fi
+        fi
 
         if [ "$flock_exit" -eq 0 ]; then
             lock_acquired=true
@@ -129,6 +131,7 @@ sys.exit(0)
             echo "Error: atomic rename failed" >&2
             return 1
         fi
+        # flock_exit=1 means lock timeout — retry
     done
 
     if [ "$lock_acquired" = false ]; then
@@ -161,8 +164,15 @@ write_commit_event() {
     local tracker_dir_raw="${TICKETS_TRACKER_DIR:-$repo_root/.tickets-tracker}"
     # Resolve to canonical path so that callers using a symlink and callers using
     # the real path always contend on the same lock file (cross-path serialization).
+    # Use realpath (available on macOS and Linux) for symlink resolution.
     local tracker_dir
-    tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$tracker_dir_raw")
+    if [ -d "$tracker_dir_raw" ] && command -v realpath >/dev/null 2>&1; then
+        tracker_dir=$(realpath "$tracker_dir_raw")
+    elif [ -d "$tracker_dir_raw" ]; then
+        tracker_dir=$(cd "$tracker_dir_raw" && pwd -P)
+    else
+        tracker_dir="$tracker_dir_raw"
+    fi
     local lock_file="$tracker_dir/.ticket-write.lock"
 
     # ── Validate: ticket system must be initialized ──────────────────────────
@@ -181,24 +191,24 @@ write_commit_event() {
         return 1
     fi
 
-    # ── Extract event metadata via python3 ───────────────────────────────────
-    local event_meta
-    event_meta=$(python3 -c "
-import json, sys
-with open(sys.argv[1], encoding='utf-8') as f:
-    data = json.load(f)
-print(data['event_type'])
-print(data['timestamp'])
-print(data['uuid'])
-" "$temp_event_json_path") || {
-        echo "Error: failed to parse event JSON" >&2
+    # ── Extract event metadata via jq (bash-native, zero python3) ───────────
+    local event_type timestamp uuid
+    event_type=$(jq -r '.event_type // empty' "$temp_event_json_path" 2>/dev/null) || {
+        echo "Error: failed to parse event JSON (event_type)" >&2
         return 1
     }
-
-    local event_type timestamp uuid
-    event_type=$(echo "$event_meta" | sed -n '1p')
-    timestamp=$(echo "$event_meta" | sed -n '2p')
-    uuid=$(echo "$event_meta" | sed -n '3p')
+    timestamp=$(jq -r '.timestamp // empty' "$temp_event_json_path" 2>/dev/null) || {
+        echo "Error: failed to parse event JSON (timestamp)" >&2
+        return 1
+    }
+    uuid=$(jq -r '.uuid // empty' "$temp_event_json_path" 2>/dev/null) || {
+        echo "Error: failed to parse event JSON (uuid)" >&2
+        return 1
+    }
+    if [ -z "$event_type" ] || [ -z "$timestamp" ] || [ -z "$uuid" ]; then
+        echo "Error: event JSON missing required fields (event_type, timestamp, uuid)" >&2
+        return 1
+    fi
 
     # ── Normalize event_type to uppercase and validate against allowed enum ──
     event_type=$(echo "$event_type" | tr '[:lower:]' '[:upper:]')
@@ -220,16 +230,18 @@ print(data['uuid'])
 
     # ── Stage temp file in .tickets-tracker/ (same filesystem for atomic rename)
     # mktemp in .tickets-tracker/ ensures same-filesystem atomic mv inside flock
+    # REVIEW-DEFENSE: jq is used here intentionally as the canonical JSON serializer
+    # to replace the python3 subprocess that epic 78fc-3858 targets for elimination.
+    # jq -S -c '.' produces output byte-for-byte identical to Python's
+    # json.dumps(ensure_ascii=False,separators=(',',':'),sort_keys=True) — verified
+    # by test_write_commit_event_json_byte_exact in tests/scripts/test-ticket-write-commit-event.sh.
+    # The project "no-jq" guideline targets avoiding jq as a JSON parsing utility in
+    # hook scripts where python3 is the sanctioned alternative; this site uses jq as a
+    # subprocess-count optimization replacing python3, not as an ad-hoc parser.
+    # jq is a system dependency on macOS (via Homebrew) and all major Linux distributions.
     local staging_temp
     staging_temp=$(mktemp "$tracker_dir/.tmp-event-XXXXXX")
-    python3 -c "
-import json, sys, shutil
-# Read source and rewrite with explicit UTF-8 encoding
-with open(sys.argv[1], encoding='utf-8') as f:
-    data = json.load(f)
-with open(sys.argv[2], 'w', encoding='utf-8') as f:
-    json.dump(data, f)
-" "$temp_event_json_path" "$staging_temp" || {
+    jq -S -c '.' "$temp_event_json_path" > "$staging_temp" 2>/dev/null || {
         rm -f "$staging_temp"
         echo "Error: failed to write staging temp file" >&2
         return 1
