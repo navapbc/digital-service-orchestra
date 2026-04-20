@@ -694,155 +694,6 @@ print(f'[compact_preconditions] snapshot written: {tmp_path}', file=sys.stderr)
     return 0
 }
 
-# _read_latest_preconditions <ticket_dir>
-# Returns the latest merged PRECONDITIONS payload for a ticket directory.
-# Transparently handles both flat event format and compacted snapshot format.
-# Implements retry-once on transient ENOENT (50ms sleep).
-#
-# Args:
-#   ticket_dir: absolute path to the ticket event directory
-#
-# Outputs:
-#   JSON payload to stdout (either snapshot or LWW-merged flat events)
-#
-# Exit codes:
-#   0 = success (payload on stdout)
-#   1 = no events (pre-manifest) or persistent error
-_read_latest_preconditions() {
-    local ticket_dir="$1"
-    local attempt=0
-    local max_attempts=2
-
-    while [ "$attempt" -lt "$max_attempts" ]; do
-        attempt=$((attempt + 1))
-
-        # Try to read — if missing or empty dir, handle as pre-manifest
-        if [ ! -d "$ticket_dir" ]; then
-            if [ "$attempt" -lt "$max_attempts" ]; then
-                sleep 0.05  # retry-once: 50ms sleep on transient ENOENT
-                continue
-            fi
-            echo "[read_latest_preconditions] ERROR: ticket dir not found: $ticket_dir" >&2
-            return 1
-        fi
-
-        # Check for snapshot first
-        local snapshot_file=""
-        snapshot_file=$(find "$ticket_dir" -maxdepth 1 \
-            -name '*-PRECONDITIONS-SNAPSHOT.json' \
-            ! -name '*.retired' \
-            2>/dev/null | sort | tail -1)
-
-        if [ -n "$snapshot_file" ] && [ -f "$snapshot_file" ]; then
-            # Snapshot exists — read it directly
-            local snap_content=""
-            snap_content=$(python3 -c "
-import json, sys
-try:
-    with open(sys.argv[1], encoding='utf-8') as fh:
-        data = json.load(fh)
-    # Return the data payload for consumers
-    print(json.dumps(data.get('data', data)))
-except (OSError, json.JSONDecodeError) as e:
-    print(f'ERROR:{e}', file=sys.stderr)
-    sys.exit(1)
-" "$snapshot_file" 2>/dev/null) || {
-                if [ "$attempt" -lt "$max_attempts" ]; then
-                    sleep 0.05
-                    continue
-                fi
-                echo "[read_latest_preconditions] ERROR: failed to read snapshot $snapshot_file" >&2
-                return 1
-            }
-            echo "$snap_content"
-            return 0
-        fi
-
-        # No snapshot — check for flat PRECONDITIONS events
-        local event_files=()
-        while IFS= read -r -d '' f; do
-            event_files+=("$f")
-        done < <(find "$ticket_dir" -maxdepth 1 \
-            -name '*-PRECONDITIONS.json' \
-            ! -name '*-PRECONDITIONS-SNAPSHOT.json' \
-            ! -name '*.retired' \
-            -print0 2>/dev/null | sort -z)
-
-        if [ "${#event_files[@]}" -eq 0 ]; then
-            # No events — pre-manifest state
-            echo "[read_latest_preconditions] INFO: no PRECONDITIONS events in $ticket_dir (pre-manifest)" >&2
-            return 1
-        fi
-
-        # LWW merge across flat events
-        local file_list_str
-        file_list_str=$(printf '%s\0' "${event_files[@]}" | python3 -c "
-import sys
-parts = sys.stdin.buffer.read().split(b'\x00')
-print('\n'.join(p.decode('utf-8') for p in parts if p))
-")
-
-        local merge_result=""
-        local merge_exit=0
-        merge_result=$(python3 -c "
-import json, sys
-
-event_files = [l for l in sys.argv[1].split('\n') if l.strip()]
-
-merged = {}
-for fpath in event_files:
-    try:
-        with open(fpath, encoding='utf-8') as fh:
-            ev = json.load(fh)
-    except (OSError, json.JSONDecodeError) as e:
-        print(f'[read_latest_preconditions] WARN: skipping corrupt file {fpath}: {e}', file=sys.stderr)
-        continue
-    data = ev.get('data', {})
-    key = (
-        data.get('gate_name', ''),
-        data.get('session_id', ''),
-        data.get('worktree_id', ''),
-    )
-    ev_ts = ev.get('timestamp', 0)
-    if key not in merged or ev_ts > merged[key]['_ts']:
-        merged[key] = dict(data)
-        merged[key]['_ts'] = ev_ts
-
-gate_verdicts = {}
-manifest_depth = 0
-for key, payload in merged.items():
-    gv = payload.get('gate_verdicts', {})
-    gate_verdicts.update(gv)
-    d = payload.get('manifest_depth', 0)
-    if d > manifest_depth:
-        manifest_depth = d
-
-result = {
-    'status': 'present',
-    'manifest_depth': manifest_depth,
-    'gate_verdicts': gate_verdicts,
-    'source_count': len(event_files),
-}
-print(json.dumps(result))
-" "$file_list_str" 2>/dev/null) || merge_exit=$?
-
-        if [ "$merge_exit" -ne 0 ] || [ -z "$merge_result" ]; then
-            if [ "$attempt" -lt "$max_attempts" ]; then
-                sleep 0.05
-                continue
-            fi
-            echo "[read_latest_preconditions] ERROR: merge failed for $ticket_dir" >&2
-            return 1
-        fi
-
-        echo "$merge_result"
-        return 0
-    done
-
-    echo "[read_latest_preconditions] ERROR: persistent failure reading $ticket_dir after $max_attempts attempts" >&2
-    return 1
-}
-
 # _tag_add_checked <ticket_id> <tag>
 # Adds a tag to a ticket with a PIL guard for brainstorm:complete.
 # For any tag other than "brainstorm:complete", delegates directly to _tag_add.
@@ -987,50 +838,98 @@ with open(staging_path, 'w', encoding='utf-8') as f:
     echo "Preconditions recorded: $final_filename"
 }
 
-# _read_latest_preconditions <ticket_id> <gate_name> <session_id>
-# Scans all *-PRECONDITIONS.json files in .tickets-tracker/<ticket_id>/ for files
-# matching the gate_name + session_id composite key, then returns the content of
-# the file with the lexicographically highest timestamp prefix (ISO8601 sort = LWW).
-# Returns empty string and exits 0 when no matching file exists.
-#
-# Args:
-#   ticket_id:   ticket directory name (e.g., test-t1a2)
-#   gate_name:   gate name to filter by (must match 'gate_name' field in JSON)
-#   session_id:  session identifier to filter by (must match 'session_id' field in JSON)
+# _read_latest_preconditions <ticket_id_or_dir> [<gate_name> <session_id>]
+# Reads PRECONDITIONS events. Supports two calling conventions:
+#   1-arg  (ticket_dir):            full path to ticket event dir; returns latest event overall
+#   3-arg  (ticket_id, gate, sess): derives dir from tracker; filters by composite key (LWW)
+# Snapshot-aware: checks for *-PRECONDITIONS-SNAPSHOT.json first in both modes.
+# Retry-once: sleeps 50ms and retries on transient ENOENT/OSError before giving up.
+# Invariant: ticket_ids must never begin with '/' — the leading-slash heuristic dispatches
+#   between 1-arg absolute-path mode and 3-arg ticket_id mode.
+# Returns empty string and exits 0 when no matching events exist (3-arg mode only).
+# Exits 1 when no events exist or on persistent error (1-arg mode).
 _read_latest_preconditions() {
     local ticket_id="$1"
-    local gate_name="$2"
-    local session_id="$3"
+    local gate_name="${2:-}"
+    local session_id="${3:-}"
 
-    local repo_root
-    repo_root="$(git rev-parse --show-toplevel)"
-    local tracker_dir_raw="${TICKETS_TRACKER_DIR:-$repo_root/.tickets-tracker}"
-    local tracker_dir
-    tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$tracker_dir_raw")
-
-    local ticket_dir="$tracker_dir/$ticket_id"
-
-    if [ ! -d "$ticket_dir" ]; then
-        return 0
+    local ticket_dir
+    if [[ "$ticket_id" == /* ]]; then
+        # 1-arg form: full absolute path passed directly (used by compaction tests)
+        ticket_dir="$ticket_id"
+    else
+        local repo_root
+        repo_root="$(git rev-parse --show-toplevel)"
+        local tracker_dir_raw="${TICKETS_TRACKER_DIR:-$repo_root/.tickets-tracker}"
+        local tracker_dir
+        tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$tracker_dir_raw")
+        ticket_dir="$tracker_dir/$ticket_id"
     fi
 
-    python3 -c "
+    # Retry-once on transient ENOENT (50ms sleep)
+    local attempt=0
+    while [ "$attempt" -lt 2 ]; do
+        attempt=$((attempt + 1))
+
+        if [ ! -d "$ticket_dir" ]; then
+            if [ "$attempt" -lt 2 ]; then
+                sleep 0.05  # retry-once: 50ms sleep on transient ENOENT
+                continue
+            fi
+            # 1-arg callers (full path) expect exit 1 for nonexistent dir; 3-arg callers tolerate 0
+            [[ "$ticket_id" == /* ]] && return 1 || return 0
+        fi
+
+        local _result
+        local _exit=0
+        _result=$(python3 -c "
 import json, os, sys, tempfile
 
 ticket_dir = sys.argv[1]
 gate_name  = sys.argv[2]
 session_id = sys.argv[3]
+filter_by_key = bool(gate_name and session_id)
 ticket_id  = os.path.basename(ticket_dir)
 
-# Collect all PRECONDITIONS files
-candidates = []
 try:
     entries = os.listdir(ticket_dir)
 except OSError:
-    sys.exit(0)
+    sys.exit(1 if not filter_by_key else 0)
 
+# Check for snapshot first (snapshot-aware read)
+snapshots = sorted(
+    f for f in entries
+    if f.endswith('-PRECONDITIONS-SNAPSHOT.json') and not f.endswith('.retired')
+)
+if snapshots:
+    snap_path = os.path.join(ticket_dir, snapshots[-1])
+    try:
+        with open(snap_path, encoding='utf-8') as f:
+            snap = json.load(f)
+        snap_data = snap.get('data', snap)
+        if not filter_by_key:
+            # 1-arg mode: normalize to same contract as flat-event path and _api.py
+            print(json.dumps({
+                'status': 'present',
+                'gate_verdicts': snap_data.get('gate_verdicts', {}),
+                'manifest_depth': snap_data.get('manifest_depth', 0),
+                'compacted': True,
+            }))
+            sys.exit(0)
+        elif (snap_data.get('gate_name') == gate_name and
+              snap_data.get('session_id') == session_id):
+            # 3-arg mode: return raw snapshot data for the matching key
+            print(json.dumps(snap_data))
+            sys.exit(0)
+    except (OSError, json.JSONDecodeError):
+        pass  # fall through to flat events
+
+# Collect all flat PRECONDITIONS files
+candidates = []
 for fname in entries:
     if not fname.endswith('-PRECONDITIONS.json'):
+        continue
+    if fname.endswith('-PRECONDITIONS-SNAPSHOT.json') or fname.endswith('.retired'):
         continue
     fpath = os.path.join(ticket_dir, fname)
     try:
@@ -1038,14 +937,37 @@ for fname in entries:
             data = json.load(f)
     except (OSError, json.JSONDecodeError):
         continue
-    if data.get('gate_name') == gate_name and data.get('session_id') == session_id:
+    if filter_by_key:
+        if data.get('gate_name') == gate_name and data.get('session_id') == session_id:
+            candidates.append((fname, fpath, data))
+    else:
         candidates.append((fname, fpath, data))
 
 if not candidates:
-    sys.exit(0)
+    # 1-arg mode (no filter): pre-manifest = no events → exit 1 (callers use || true)
+    # 3-arg mode (with filter): no matching events is graceful → exit 0 (pre-manifest ticket)
+    sys.exit(1 if not filter_by_key else 0)
 
 # Lexicographic sort on filename (ISO8601 timestamp prefix = chronological order)
 candidates.sort(key=lambda x: x[0])
+
+if not filter_by_key:
+    # 1-arg mode: LWW merge — collect all gate_verdicts and max manifest_depth
+    merged_gv = {}
+    manifest_depth = 0
+    for fname, fpath, event in candidates:
+        inner = event.get('data', event)
+        merged_gv.update(inner.get('gate_verdicts', {}))
+        # Also pick up individual gate verdict from gate_name field
+        gn = inner.get('gate_name', '')
+        if gn and 'verdict' in inner:
+            merged_gv[gn] = inner['verdict']
+        d = inner.get('manifest_depth', 0)
+        if isinstance(d, int) and d > manifest_depth:
+            manifest_depth = d
+    print(json.dumps({'status': 'present', 'gate_verdicts': merged_gv, 'manifest_depth': manifest_depth}))
+    sys.exit(0)
+
 _, latest_path, latest_data = candidates[-1]
 
 # Forward-compat: warn once per (ticket_id, schema_version) when schema_version is unknown (> 2)
@@ -1065,5 +987,19 @@ if isinstance(schema_version, int) and schema_version > 2:
 
 with open(latest_path, encoding='utf-8') as f:
     print(f.read(), end='')
-" "$ticket_dir" "$gate_name" "$session_id"
+" "$ticket_dir" "$gate_name" "$session_id") || _exit=$?
+
+        if [ "$_exit" -ne 0 ]; then
+            if [ "$attempt" -lt 2 ]; then
+                sleep 0.05  # retry-once: 50ms sleep on transient read error
+                continue
+            fi
+            [[ "$ticket_id" == /* ]] && return 1 || return 0
+        fi
+
+        echo "$_result"
+        return 0
+    done
+
+    [[ "$ticket_id" == /* ]] && return 1 || return 0
 }
