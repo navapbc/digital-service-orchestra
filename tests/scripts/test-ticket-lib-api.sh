@@ -146,4 +146,308 @@ test_ticketlib_api_sourceability_strict_mode() {
 }
 test_ticketlib_api_sourceability_strict_mode
 
+# ── Helper: invoke a library function via `source` + dispatch in a subshell ───
+# Prints the function's stdout. Exits non-zero if the function is undefined or
+# fails. RED tests for unimplemented functions hit the "command not found" path.
+_invoke_lib_op() {
+    local op="$1"
+    shift
+    TICKET_LIB_API="$TICKET_LIB_API" bash -c '
+        # shellcheck source=/dev/null
+        source "$TICKET_LIB_API" || exit 97
+        op="$1"
+        shift
+        if ! declare -f "$op" >/dev/null 2>&1; then
+            exit 98
+        fi
+        "$op" "$@"
+    ' _invoke_lib_op "$op" "$@"
+}
+
+# ── Test 4: ticket_tag via library ────────────────────────────────────────────
+echo "Test 4: ticket_tag via library adds tag to ticket"
+test_ticket_tag_via_library() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "tag test" 2>/dev/null) || true
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    (
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        _invoke_lib_op ticket_tag "$ticket_id" testlabel >/dev/null 2>&1
+    ) || true
+
+    local show_output
+    show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || true
+
+    if echo "$show_output" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if 'testlabel' in d.get('tags',[]) else 1)" 2>/dev/null; then
+        assert_eq "tags contains testlabel" "yes" "yes"
+    else
+        assert_eq "tags contains testlabel" "yes" "no"
+    fi
+}
+test_ticket_tag_via_library
+
+# ── Test 5: ticket_untag via library ──────────────────────────────────────────
+echo "Test 5: ticket_untag via library removes tag from ticket"
+test_ticket_untag_via_library() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "untag test" --tags testlabel 2>/dev/null) || true
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    (
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        _invoke_lib_op ticket_untag "$ticket_id" testlabel >/dev/null 2>&1
+    ) || true
+
+    local show_output
+    show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || true
+
+    if echo "$show_output" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if 'testlabel' not in d.get('tags',[]) else 1)" 2>/dev/null; then
+        assert_eq "tags does not contain testlabel" "removed" "removed"
+    else
+        assert_eq "tags does not contain testlabel" "removed" "still present"
+    fi
+}
+test_ticket_untag_via_library
+
+# ── Test 6: ticket_comment via library ────────────────────────────────────────
+echo "Test 6: ticket_comment via library appends comment"
+test_ticket_comment_via_library() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "comment test" 2>/dev/null) || true
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    (
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        _invoke_lib_op ticket_comment "$ticket_id" "hello world" >/dev/null 2>&1
+    ) || true
+
+    local show_output
+    show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || true
+
+    if echo "$show_output" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+comments = d.get('comments', [])
+found = any('hello world' in (c.get('body','') if isinstance(c, dict) else str(c)) for c in comments)
+sys.exit(0 if found else 1)
+" 2>/dev/null; then
+        assert_eq "comment body present" "yes" "yes"
+    else
+        assert_eq "comment body present" "yes" "no"
+    fi
+}
+test_ticket_comment_via_library
+
+# ── Test 7: ticket_edit via library ───────────────────────────────────────────
+echo "Test 7: ticket_edit via library updates title"
+test_ticket_edit_via_library() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "original title" 2>/dev/null) || true
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    (
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        _invoke_lib_op ticket_edit "$ticket_id" --title "new title" >/dev/null 2>&1
+    ) || true
+
+    local show_output
+    show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || true
+
+    local title
+    title=$(echo "$show_output" | python3 -c "import json,sys; print(json.load(sys.stdin).get('title',''))" 2>/dev/null || echo "")
+
+    assert_eq "title updated" "new title" "$title"
+}
+test_ticket_edit_via_library
+
+# ── Test 8: ticket_create via library ─────────────────────────────────────────
+echo "Test 8: ticket_create via library returns valid ticket id"
+test_ticket_create_via_library() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local created_id
+    created_id=$(
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        _invoke_lib_op ticket_create task "test creation" 2>/dev/null
+    ) || true
+
+    if [ -z "$created_id" ]; then
+        assert_eq "ticket_create returned id" "non-empty" "empty"
+        return
+    fi
+
+    local show_output
+    show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" show "$created_id" 2>/dev/null) || true
+
+    local check
+    check=$(echo "$show_output" | python3 -c "
+import json,sys
+try:
+    d=json.load(sys.stdin)
+except Exception:
+    print('parse_error'); sys.exit(0)
+ok = d.get('ticket_type')=='task' and d.get('title')=='test creation'
+print('OK' if ok else f\"type={d.get('ticket_type')!r} title={d.get('title')!r}\")
+" 2>/dev/null || echo "parse_error")
+
+    assert_eq "created ticket has correct type/title" "OK" "$check"
+}
+test_ticket_create_via_library
+
+# ── Test 9: ticket_link via library ───────────────────────────────────────────
+echo "Test 9: ticket_link via library establishes dependency"
+test_ticket_link_via_library() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local t1 t2
+    t1=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "T1" 2>/dev/null) || true
+    t2=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "T2" 2>/dev/null) || true
+
+    if [ -z "$t1" ] || [ -z "$t2" ]; then
+        assert_eq "created both tickets" "non-empty" "empty"
+        return
+    fi
+
+    (
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        _invoke_lib_op ticket_link "$t1" "$t2" depends_on >/dev/null 2>&1
+    ) || true
+
+    local deps_output
+    deps_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" deps "$t1" 2>/dev/null) || true
+
+    if echo "$deps_output" | grep -q "$t2"; then
+        assert_eq "T1 depends on T2" "yes" "yes"
+    else
+        assert_eq "T1 depends on T2" "yes" "no"
+    fi
+}
+test_ticket_link_via_library
+
+# ── Test 10: ticket_list via library ──────────────────────────────────────────
+echo "Test 10: ticket_list via library returns valid JSON array"
+test_ticket_list_via_library() {
+    local repo
+    repo=$(_make_test_repo)
+
+    cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "list seed" >/dev/null 2>&1 || true
+
+    local list_output
+    list_output=$(
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        _invoke_lib_op ticket_list 2>/dev/null
+    ) || true
+
+    local check
+    check=$(echo "$list_output" | python3 -c "
+import json,sys
+try:
+    d=json.load(sys.stdin)
+except Exception:
+    print('parse_error'); sys.exit(0)
+if not isinstance(d, list):
+    print(f'not_array:{type(d).__name__}'); sys.exit(0)
+if len(d) < 1:
+    print('empty'); sys.exit(0)
+if not any('ticket_id' in t for t in d if isinstance(t, dict)):
+    print('no_ticket_id_field'); sys.exit(0)
+print('OK')
+" 2>/dev/null || echo "parse_error")
+
+    assert_eq "ticket_list returns valid JSON array" "OK" "$check"
+}
+test_ticket_list_via_library
+
+# ── Test 11: ticket_transition via library ────────────────────────────────────
+echo "Test 11: ticket_transition via library changes status"
+test_ticket_transition_via_library() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "transition test" 2>/dev/null) || true
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    (
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        _invoke_lib_op ticket_transition "$ticket_id" open in_progress >/dev/null 2>&1
+    ) || true
+
+    local show_output
+    show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || true
+
+    local status
+    status=$(echo "$show_output" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
+
+    assert_eq "ticket transitioned to in_progress" "in_progress" "$status"
+}
+test_ticket_transition_via_library
+
 print_summary
