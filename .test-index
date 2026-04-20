@@ -420,3 +420,10 @@ plugins/dso/skills/sprint/SKILL.md:tests/skills/test-sprint-pause-state-skill-bo
 
 # --- sprint SKILL.md SC5 manual-pause handshake boundary (task a35f-db8d RED) ---
 plugins/dso/skills/sprint/SKILL.md:tests/skills/test-external-dep-sc5-sprint.sh
+
+# --- residual callers polyglot: validate-phase.sh + format-and-lint.sh + pre-commit-format-fix.sh (task a48a-fdb1 RED / tasks 3886-648a + a33d-2ac8 impl) ---
+plugins/dso/scripts/validate-phase.sh:tests/scripts/test-residual-callers-polyglot.sh [test_validate_phase_no_cfg_required_for_format_check]
+plugins/dso/scripts/validate-phase.sh:tests/scripts/test-residual-callers-polyglot.sh [test_validate_phase_warns_when_format_check_absent]
+plugins/dso/scripts/validate-phase.sh:tests/scripts/test-residual-callers-polyglot.sh [test_validate_phase_guards_run_check_with_nonempty_check]
+plugins/dso/scripts/format-and-lint.sh:tests/scripts/test-residual-callers-polyglot.sh [test_format_and_lint_has_python_only_rationale_comment]
+plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-residual-callers-polyglot.sh [test_pre_commit_format_fix_has_python_only_rationale_comment]
