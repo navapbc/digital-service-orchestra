@@ -177,7 +177,10 @@ case "$subcommand" in
         ;;
     create)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-create.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_create "$@"
+        exit $?
         ;;
     show)
         _ensure_initialized
@@ -192,11 +195,17 @@ case "$subcommand" in
         ;;
     list)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-list.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_list "$@"
+        exit $?
         ;;
     comment)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-comment.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_comment "$@"
+        exit $?
         ;;
     compact)
         _ensure_initialized
