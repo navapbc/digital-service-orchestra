@@ -268,4 +268,41 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":"python3 something.py && bash
 EXIT_CODE=$(call_sentinel "$INPUT")
 assert_eq "test_python3_with_record_test_status_not_blocked" "0" "$EXIT_CODE"
 
+# ============================================================
+# False positive fix (63a6-50e8): quoted description strings must not trigger patterns
+# ============================================================
+
+# test_ticket_create_desc_no_verify_not_blocked
+# ticket create with --no-verify in a quoted description must NOT be blocked.
+# The description is JSON-encoded so quotes appear as \" in the command field.
+INPUT='{"tool_name":"Bash","tool_input":{"command":".claude/scripts/dso ticket create bug \"--no-verify bypass risk\" --description \"--no-verify flag\""}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_ticket_create_desc_no_verify_not_blocked" "0" "$EXIT_CODE"
+
+# test_ticket_create_desc_test_gate_status_not_blocked
+# ticket create with test-gate-status in a quoted description must NOT be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":".claude/scripts/dso ticket create bug \"test-gate-status file issue\" --description \"writes to test-gate-status dir\""}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_ticket_create_desc_test_gate_status_not_blocked" "0" "$EXIT_CODE"
+
+# test_ticket_create_desc_core_hookspath_not_blocked
+# ticket create with core.hooksPath= in a quoted description must NOT be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":".claude/scripts/dso ticket create bug \"core.hooksPath= override\" --description \"attacker sets core.hooksPath=/dev/null\""}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_ticket_create_desc_core_hookspath_not_blocked" "0" "$EXIT_CODE"
+
+# test_ticket_create_desc_tickets_tracker_not_blocked
+# ticket create with .tickets-tracker/ in a quoted description must NOT be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":".claude/scripts/dso ticket create bug \"bad write to .tickets-tracker/\" --description \"script writes directly to .tickets-tracker/\""}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_ticket_create_desc_tickets_tracker_not_blocked" "0" "$EXIT_CODE"
+
+# test_no_verify_outside_quotes_still_blocked
+# --no-verify outside quotes (real bypass attempt) must still be BLOCKED even when
+# the command also has a quoted description containing innocuous text.
+INPUT='{"tool_name":"Bash","tool_input":{"command":".claude/scripts/dso ticket create bug \"some title\" && git commit --no-verify -m msg"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_no_verify_outside_quotes_still_blocked" "2" "$EXIT_CODE"
+
+
 print_summary
