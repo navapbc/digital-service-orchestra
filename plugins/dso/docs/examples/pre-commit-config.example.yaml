@@ -160,6 +160,18 @@ repos:
         stages: [pre-commit]
         files: \.sh$
 
+      # .test-index duplicate keys check (timeout: 5s)
+      # Prevents duplicate keys in .test-index which cause silent test-coverage masking.
+      # always_run: true is required because duplicates can be introduced by git merges
+      # even when .test-index itself was not directly edited in this commit.
+      - id: test-index-duplicates-check
+        name: .test-index Duplicate Keys Check (5s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh test-index-duplicates-check 5 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/scripts/check-test-index-duplicates.sh\""
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
       # Portability check (timeout: 5s)
       # Detects hardcoded home-directory paths that break portability across machines.
       # Debug command: DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && "$DSO_ROOT/scripts/check-portability.sh"
@@ -172,7 +184,7 @@ repos:
         stages: [pre-commit]
 
       # Shim refs check (timeout: 5s)
-      # Detects direct plugin path references in plugins/dso/ that should use
+      # Detects direct plugin path references that should use
       # the .claude/scripts/dso shim instead.
       # Debug command: DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && "$DSO_ROOT/scripts/check-shim-refs.sh"
       - id: shim-refs-check
@@ -181,7 +193,6 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
-        files: ^plugins/dso/
 
       # Enforcement boundary check (timeout: 10s)
       # Validates that enforcement files (pre-commit hooks, review gates) are not
@@ -195,7 +206,7 @@ repos:
         files: \.sh$
 
       # Plugin boundary check (timeout: 10s)
-      # Validates that files outside plugins/dso/ do not import or reference
+      # Validates that files do not import or reference
       # internal plugin implementation details directly.
       - id: plugin-boundary-check
         name: Plugin Boundary Check (10s timeout)
@@ -203,10 +214,9 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
-        files: ^plugins/dso/
 
       # Plugin self-ref check (timeout: 10s)
-      # Blocks hardcoded plugins/dso/ paths in plugin scripts — scripts must use
+      # Blocks hardcoded plugin paths in plugin scripts — scripts must use
       # _PLUGIN_ROOT or _PLUGIN_GIT_PATH variables instead of hardcoded paths.
       - id: plugin-self-ref-check
         name: Plugin Self-Ref Check (10s timeout)
@@ -214,7 +224,6 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
-        files: ^plugins/dso/
 
       # Contract schema validation (timeout: 5s)
       # Validates that contract markdown files have required sections (Purpose, Schema, etc.)
@@ -230,7 +239,6 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
-        files: ^plugins/dso/docs/contracts/
 
       # Referential integrity check (timeout: 10s)
       # Validates that skill/agent files reference existing scripts, agents, and contracts.
@@ -241,7 +249,6 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
-        files: ^plugins/dso/(skills|agents)/
 
       # Assertion density check
       # Debug command: python scripts/check_assertion_density.py app/tests/ --min-density 1.0

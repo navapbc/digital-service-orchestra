@@ -40,9 +40,14 @@ assert_pass_if_clean "test_ci_yml_no_tickets_paths"
 
 # ── test_ci_example_yml_no_tickets_paths ─────────────────────────────────────
 # examples/ci.example.yml must contain no .tickets/ path-ignore entries.
+# If the file does not exist, the test passes (no references possible).
+# Stack-specific examples (ci.example.python-poetry.yml, ci.example.node-npm.yml)
+# superseded the generic ci.example.yml; an absent file means 0 references.
 _snapshot_fail
 count=0
-count=$(grep -c '\.tickets' "$CI_EXAMPLE_YML" 2>/dev/null || true)
+if [[ -f "$CI_EXAMPLE_YML" ]]; then
+    count=$(grep -c '\.tickets' "$CI_EXAMPLE_YML" 2>/dev/null || true)
+fi
 assert_eq "test_ci_example_yml_no_tickets_paths" "0" "$count"
 assert_pass_if_clean "test_ci_example_yml_no_tickets_paths"
 

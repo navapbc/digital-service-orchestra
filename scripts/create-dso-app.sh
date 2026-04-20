@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # create-dso-app.sh — DSO NextJS Starter one-command bootstrap installer
 #
 # Clones the live template repo at:
@@ -11,7 +12,6 @@
 #                     (opt-in via RUN_REAL_URL_E2E=1; CI-scheduled daily)
 #
 # Partial-download protection: all logic inside main(), invoked at end of file.
-set -euo pipefail
 
 # Self-detect plugin root via BASH_SOURCE (never hardcode paths)
 # bash <(curl ...) sets BASH_SOURCE[0] to /dev/stdin or /dev/fd/N (process

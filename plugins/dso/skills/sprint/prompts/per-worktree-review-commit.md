@@ -2,10 +2,17 @@
 
 For each worktree returned by implementation sub-agents (process in completion order — first-pass-first-merge):
 
-**Step 1 — Enter worktree context**: Note the worktree path as `WORKTREE_PATH`. Compute the worktree's artifacts directory:
+**Step 1 — Enter worktree context**: Note the worktree path as `WORKTREE_PATH`. Compute the worktree's artifacts directory and record the base commit for empty-branch detection:
 
 ```bash
 WORKTREE_ARTIFACTS=$(cd "$WORKTREE_PATH" && source ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh && get_artifacts_dir)
+
+# Record the branch tip BEFORE any commit so harvest-worktree.sh can detect
+# the empty-branch case (agent commit blocked by pre-commit gate → tip unchanged).
+WORKTREE_BASE_COMMIT=$(cd "$WORKTREE_PATH" && git rev-parse HEAD 2>/dev/null || echo "")
+if [[ -n "$WORKTREE_BASE_COMMIT" ]]; then
+    echo "$WORKTREE_BASE_COMMIT" > "$WORKTREE_ARTIFACTS/base-commit"
+fi
 ```
 
 **CWD constraint**: The shell CWD resets between Bash calls and does NOT propagate to Agent tool dispatches. Every Bash call that must run in the worktree's git context must be prefixed with `cd $WORKTREE_PATH &&`. Sub-agents dispatched via the Agent tool always start in the orchestrator's primary CWD — this cannot be changed.
@@ -40,6 +47,22 @@ This ensures findings are written to the worktree's artifacts directory.
 
 **Step 4 — Commit in worktree branch**: Execute COMMIT-WORKFLOW.md from the worktree context (all Bash calls prefixed with `cd $WORKTREE_PATH &&`). The commit happens in the worktree's branch (not the session branch). Review gate passes because review-status and diff_hash are in `$WORKTREE_ARTIFACTS`.
 
+**Post-commit verification (mandatory — 1eda-6a0c)**: After the commit workflow, verify the branch tip actually advanced before proceeding to harvest:
+
+```bash
+WORKTREE_TIP_AFTER=$(cd "$WORKTREE_PATH" && git rev-parse HEAD 2>/dev/null || echo "")
+if [[ "$WORKTREE_TIP_AFTER" == "$WORKTREE_BASE_COMMIT" ]]; then
+    echo "ERROR: commit failed — branch tip unchanged after commit attempt (pre-commit gate likely blocked it)." >&2
+    echo "  Base: $WORKTREE_BASE_COMMIT" >&2
+    echo "  Check the commit output above for TIER IMMUTABILITY VIOLATION or review gate errors." >&2
+    # DO NOT proceed to harvest — the worktree is empty and harvest would false-positive as "already merged".
+    # Transition ticket back to open for re-investigation.
+    exit 1
+fi
+```
+
+If this check fails: do NOT call harvest-worktree.sh. Leave the worktree intact, add a CHECKPOINT comment to the ticket, and surface the commit gate error to the orchestrator for investigation.
+
 **Step 5 — Harvest worktree into session branch**: From the session branch directory, run `harvest-worktree.sh` to merge the worktree branch, attest gate results, and commit in a single invocation:
 
 ```bash
@@ -59,6 +82,7 @@ The `.test-index` file uses a `merge=union` driver (configured in `.gitattribute
 - **Success** (exit 0): Proceed to Step 7 (cleanup).
 - **Gate failure** (exit 2): The worktree's test or review gate did not pass. Do NOT merge. Investigate and re-run gates in the worktree context (Steps 2–4), then retry Step 5.
 - **Conflict** (exit 1): Non-`.test-index` merge conflict detected. `harvest-worktree.sh` automatically aborts the merge and cleans up MERGE_HEAD.
+- **Empty branch** (exit 3): Branch tip equals the recorded base commit — the agent's `git commit` was blocked by a pre-commit gate (e.g., TIER IMMUTABILITY VIOLATION). The post-commit verification in Step 4 should have caught this first; if harvest returns exit 3, something bypassed that check. Do NOT destroy the worktree. Add a CHECKPOINT comment, surface the gate error, and re-investigate the commit failure before re-attempting.
   a. Create a ticket comment: `.claude/scripts/dso ticket comment <story-id> "CONFLICT: worktree <worktree-name> blocked"`
   b. Add the worktree to the **conflict queue** — do NOT remove the worktree (retained for re-implementation).
   c. Continue processing the next worktree — non-conflicting worktrees proceed normally through Steps 2–7.

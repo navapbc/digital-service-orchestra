@@ -259,3 +259,10 @@ plugins/dso/scripts/preconditions-validator.sh:tests/scripts/test-preconditions-
 plugins/dso/scripts/preconditions-depth-classifier.sh:tests/scripts/test-preconditions-depth-classifier.sh
 plugins/dso/hooks/lib/preconditions-validator-lib.sh:tests/hooks/test-preconditions-validator-lib.sh,tests/integration/test-preconditions-chain-5stage.sh
 plugins/dso/agents/completion-verifier.md:tests/skills/test-preconditions-epic-closure-validator.sh
+plugins/dso/scripts/preconditions-benchmark.sh:tests/scripts/test-preconditions-benchmark.sh
+plugins/dso/scripts/fp-rate-tracker.sh:tests/scripts/test-fp-rate-tracker.sh,tests/scripts/test-fp-fallback-integration.sh
+plugins/dso/scripts/sc13-restart-analysis.sh:tests/scripts/test-sc13-restart-analysis.sh
+tests/fixtures/818-corpus/generate-corpus-fixture.sh:tests/fixtures/818-corpus/test-corpus-fixture.sh
+plugins/dso/scripts/preconditions-coverage-harness.sh:tests/scripts/test-818-coverage-harness.sh
+plugins/dso/docs/contracts/fp-auto-fallback-scope.md:tests/scripts/test-fp-rate-tracker.sh
+plugins/dso/agents/completion-verifier.md:tests/scripts/test-epic-closure-sc-report.sh
