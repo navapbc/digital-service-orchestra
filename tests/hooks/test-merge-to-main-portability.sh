@@ -30,6 +30,11 @@ export GIT_CONFIG_VALUE_0="${GIT_CONFIG_VALUE_0:-false}"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
+# Prevent PROJECT_ROOT from leaking into temp-repo merge-to-main.sh invocations.
+# The dso shim exports PROJECT_ROOT; if inherited, merge-to-main.sh uses the
+# actual project root instead of the temp repo, causing false dirty-worktree failures.
+unset PROJECT_ROOT
+
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
 _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
