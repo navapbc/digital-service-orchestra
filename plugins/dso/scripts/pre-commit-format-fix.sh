@@ -21,6 +21,10 @@ set -uo pipefail
 # Exit codes:
 #   0  — all staged Python files are properly formatted (possibly after auto-fix)
 #   1  — ruff encountered an error it could not auto-fix (e.g., syntax error)
+#
+# Stack: intentionally Python-only (pre-commit format-fix hook for .py files).
+# For polyglot projects, configure format auto-fix in .pre-commit-config.yaml
+# per language. commands.format is not used here.
 
 set -uo pipefail
 

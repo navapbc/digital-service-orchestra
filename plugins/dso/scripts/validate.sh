@@ -132,6 +132,13 @@ CMD_TEST_E2E=$(_cfg "commands.test_e2e" "make test-e2e")
 # Optional: run a build/compile step (e.g., npm run build, poetry build).
 # Empty string (default) disables the build check — no impact on repos without a build step.
 CMD_BUILD=$(_cfg "commands.build" "")
+# Optional: unified lint command (commands.lint). When set, it replaces the
+# separate ruff + mypy checks. When absent, the individual commands.lint_ruff
+# and commands.lint_mypy checks run as before (backward compatible).
+CMD_LINT=$(_cfg "commands.lint" "")
+if [[ -z "$CMD_LINT" ]]; then
+    echo "[DSO WARN] commands.lint not configured — lint step will be skipped." >&2
+fi
 
 # Detect if running in a worktree
 if [ -f "$REPO_ROOT/.git" ]; then
@@ -186,6 +193,7 @@ TIMEOUT_SYNTAX="${VALIDATE_TIMEOUT_SYNTAX:-60}"  # E999 + bash/YAML/JSON syntax 
 TIMEOUT_FORMAT="${VALIDATE_TIMEOUT_FORMAT:-30}"
 TIMEOUT_RUFF="${VALIDATE_TIMEOUT_RUFF:-60}"
 TIMEOUT_MYPY="${VALIDATE_TIMEOUT_MYPY:-120}"
+TIMEOUT_LINT="${VALIDATE_TIMEOUT_LINT:-60}"
 TIMEOUT_TESTS="${VALIDATE_TIMEOUT_TESTS:-600}"  # 10 minutes default - test suite is large
 TIMEOUT_E2E="${VALIDATE_TIMEOUT_E2E:-900}"      # 15 minutes for E2E tests (local is ~2-3x slower than CI ~180s)
 TIMEOUT_CI="${VALIDATE_TIMEOUT_CI:-60}"  # GitHub API call — 60s headroom for rate limiting/slow network
@@ -426,7 +434,13 @@ fi
 # Track launched checks for crash detection (missing .rc file = process crash)
 # REVIEW-DEFENSE: Keep this list in sync with the run_check/check_* calls below.
 # Each name must match the first argument passed to run_check or check_*.
-LAUNCHED_CHECKS="syntax format ruff mypy tests migrate"
+LAUNCHED_CHECKS="syntax format tests migrate"
+if [[ -n "$CMD_LINT" ]]; then
+    LAUNCHED_CHECKS="$LAUNCHED_CHECKS lint"
+elif [[ -n "$CMD_LINT_RUFF" || -n "$CMD_LINT_MYPY" ]]; then
+    [[ -n "$CMD_LINT_RUFF" ]] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS ruff"
+    [[ -n "$CMD_LINT_MYPY" ]] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS mypy"
+fi
 if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     LAUNCHED_CHECKS="$LAUNCHED_CHECKS hook-drift"
 fi
@@ -446,10 +460,27 @@ fi
 run_check "syntax" "$TIMEOUT_SYNTAX" $CMD_SYNTAX_CHECK &
 # shellcheck disable=SC2086
 run_check "format" "$TIMEOUT_FORMAT" $CMD_FORMAT_CHECK &
-# shellcheck disable=SC2086
-run_check "ruff" "$TIMEOUT_RUFF" $CMD_LINT_RUFF &
-# shellcheck disable=SC2086
-run_check "mypy" "$TIMEOUT_MYPY" $CMD_LINT_MYPY &
+# Lint: commands.lint (unified) takes precedence over individual ruff/mypy checks.
+# When commands.lint is set, run it as a single "lint" check; otherwise fall back
+# to the individual ruff + mypy checks (backward compatible).
+if [[ -n "$CMD_LINT" ]]; then
+    # shellcheck disable=SC2086
+    (run_check "lint" "$TIMEOUT_LINT" $CMD_LINT) &
+    LINT_PID=$!
+elif [[ -n "$CMD_LINT_RUFF" ]]; then
+    # shellcheck disable=SC2086
+    run_check "ruff" "$TIMEOUT_RUFF" $CMD_LINT_RUFF &
+    RUFF_PID=$!
+    if [[ -n "$CMD_LINT_MYPY" ]]; then
+        # shellcheck disable=SC2086
+        run_check "mypy" "$TIMEOUT_MYPY" $CMD_LINT_MYPY &
+        MYPY_PID=$!
+    fi
+elif [[ -n "$CMD_LINT_MYPY" ]]; then
+    # shellcheck disable=SC2086
+    run_check "mypy" "$TIMEOUT_MYPY" $CMD_LINT_MYPY &
+    MYPY_PID=$!
+fi
 # Tests use run_test_check (test-batched.sh integration) for time-bounded execution.
 # This allows validate.sh to run in < 73s even for test suites that take 120+ seconds.
 run_test_check &
@@ -608,8 +639,12 @@ tally_check() {
 if [ "$VERBOSE" = "0" ]; then
     report_check "syntax" "syntax" "$TIMEOUT_SYNTAX"
     report_check "format" "format" "$TIMEOUT_FORMAT"
-    report_check "ruff" "ruff" "$TIMEOUT_RUFF"
-    report_check "mypy" "mypy" "$TIMEOUT_MYPY"
+    if [[ -n "$CMD_LINT" ]]; then
+        report_check "lint" "lint" "$TIMEOUT_LINT"
+    else
+        [[ -n "$CMD_LINT_RUFF" ]] && report_check "ruff" "ruff" "$TIMEOUT_RUFF"
+        [[ -n "$CMD_LINT_MYPY" ]] && report_check "mypy" "mypy" "$TIMEOUT_MYPY"
+    fi
     report_check "tests" "tests" "$TIMEOUT_TESTS"
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && report_check "script-writes" "script-writes" "$TIMEOUT_SYNTAX" "python3 $PLUGIN_SCRIPTS/check-script-writes.py --scan-dir=$SCRIPT_WRITE_SCAN_DIR"
     if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
@@ -623,8 +658,12 @@ if [ "$VERBOSE" = "0" ]; then
 else
     tally_check "syntax" "syntax"
     tally_check "format" "format"
-    tally_check "ruff" "ruff"
-    tally_check "mypy" "mypy"
+    if [[ -n "$CMD_LINT" ]]; then
+        tally_check "lint" "lint"
+    else
+        [[ -n "$CMD_LINT_RUFF" ]] && tally_check "ruff" "ruff"
+        [[ -n "$CMD_LINT_MYPY" ]] && tally_check "mypy" "mypy"
+    fi
     tally_check "tests" "tests"
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && tally_check "script-writes" "script-writes"
     if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
