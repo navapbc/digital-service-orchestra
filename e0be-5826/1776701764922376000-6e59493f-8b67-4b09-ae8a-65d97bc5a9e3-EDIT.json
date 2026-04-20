@@ -1,0 +1,1 @@
+{"timestamp": 1776701764922376000, "uuid": "6e59493f-8b67-4b09-ae8a-65d97bc5a9e3", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "test-index-duplicates-check: auto-union on merge -> hook exits 1, requires two commit attempts"}}}
