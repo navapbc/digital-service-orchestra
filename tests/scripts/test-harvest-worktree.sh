@@ -27,6 +27,8 @@
 #  17. test_exit0_when_failed_tests_all_have_red_markers — harvest passes when all failed tests have RED markers (6810-8607)
 #  20. test_harvest_errors_when_called_from_inside_worktree — exits 1 when CWD is inside the target worktree (d888-632b)
 #  21. test_branch_deleted_in_no_worktree_case — branch still deleted when no backing worktree exists (a44a-0f63 regression guard)
+#  22. test_empty_branch_exits3_when_expected_base_provided — exits 3 (EMPTY_BRANCH) when branch tip == base commit (1eda-6a0c)
+#  23. test_empty_branch_exits3_when_base_commit_file_present — exits 3 via artifacts/base-commit file (1eda-6a0c)
 
 set -uo pipefail
 
@@ -894,6 +896,112 @@ branch_after=$(cd "$SESSION_REPO" && git branch --list "$WORKTREE_BRANCH")
 assert_eq "branch deleted after harvest in no-worktree case (a44a-0f63)" "" "$branch_after"
 
 assert_pass_if_clean "test_branch_deleted_in_no_worktree_case"
+
+# =============================================================================
+# Test 22: test_empty_branch_exits3_when_expected_base_provided (1eda-6a0c)
+# Given: a worktree branch whose tip == the base commit (no new commits made,
+#        e.g. because the pre-commit hook blocked the agent's commit)
+# When: harvest-worktree.sh is called with --expected-base <base-sha>
+# Then: exits 3 with EMPTY_BRANCH in stderr (NOT exit 0 "already merged")
+# This is a RED test — it documents the desired behavior BEFORE the fix.
+# =============================================================================
+echo "--- test_empty_branch_exits3_when_expected_base_provided ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+# Set up a repo with a session branch and a worktree branch that has NO commits
+# beyond the session-branch base (simulates a pre-commit-blocked agent).
+git init --bare "$tmpdir/origin22.git" >/dev/null 2>&1
+git clone "$tmpdir/origin22.git" "$tmpdir/session22" >/dev/null 2>&1
+SESSION_REPO22="$tmpdir/session22"
+cd "$SESSION_REPO22" || exit 1
+git config user.email "test@test.com"
+git config user.name "Test"
+echo "initial" > file.txt
+git add file.txt
+git commit -m "initial" >/dev/null 2>&1
+git checkout -b session-branch22 >/dev/null 2>&1
+
+# Record the base commit BEFORE creating the worktree branch
+BASE_SHA22=$(git rev-parse HEAD)
+
+# Create a worktree branch with NO new commits (tip == base — agent commit was blocked)
+WORKTREE_BRANCH22="worktree-empty-$$-$RANDOM"
+git checkout -b "$WORKTREE_BRANCH22" >/dev/null 2>&1
+git checkout session-branch22 >/dev/null 2>&1
+
+# Create artifacts dir with passing gates (review and tests "passed" in the worktree)
+ARTIFACTS22="$tmpdir/artifacts22"
+mkdir -p "$ARTIFACTS22"
+echo "passed" > "$ARTIFACTS22/test-gate-status"
+echo "passed" > "$ARTIFACTS22/review-status"
+
+# harvest with --expected-base: should emit EMPTY_BRANCH and exit 3
+exit_code22=0
+output22=$(cd "$SESSION_REPO22" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH22" \
+    "$ARTIFACTS22" \
+    --expected-base "$BASE_SHA22" \
+    2>&1) || exit_code22=$?
+
+assert_eq "empty branch with --expected-base exits 3 (1eda-6a0c)" "3" "$exit_code22"
+
+empty_branch_in_output22="no"
+if echo "$output22" | grep -q "EMPTY_BRANCH"; then
+    empty_branch_in_output22="yes"
+fi
+assert_eq "EMPTY_BRANCH in stderr when tip == base (1eda-6a0c)" "yes" "$empty_branch_in_output22"
+
+assert_pass_if_clean "test_empty_branch_exits3_when_expected_base_provided"
+
+# =============================================================================
+# Test 23: test_empty_branch_exits3_when_base_commit_file_present (1eda-6a0c)
+# Given: same empty-branch scenario, but base commit recorded in artifacts/base-commit
+#        (not passed via --expected-base flag)
+# When: harvest-worktree.sh is called WITHOUT --expected-base
+# Then: exits 3 with EMPTY_BRANCH (reads base from artifacts/base-commit file)
+# =============================================================================
+echo "--- test_empty_branch_exits3_when_base_commit_file_present ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+git init --bare "$tmpdir/origin23.git" >/dev/null 2>&1
+git clone "$tmpdir/origin23.git" "$tmpdir/session23" >/dev/null 2>&1
+SESSION_REPO23="$tmpdir/session23"
+cd "$SESSION_REPO23" || exit 1
+git config user.email "test@test.com"
+git config user.name "Test"
+echo "initial" > file.txt
+git add file.txt
+git commit -m "initial" >/dev/null 2>&1
+git checkout -b session-branch23 >/dev/null 2>&1
+
+BASE_SHA23=$(git rev-parse HEAD)
+WORKTREE_BRANCH23="worktree-empty2-$$-$RANDOM"
+git checkout -b "$WORKTREE_BRANCH23" >/dev/null 2>&1
+git checkout session-branch23 >/dev/null 2>&1
+
+ARTIFACTS23="$tmpdir/artifacts23"
+mkdir -p "$ARTIFACTS23"
+echo "passed" > "$ARTIFACTS23/test-gate-status"
+echo "passed" > "$ARTIFACTS23/review-status"
+echo "$BASE_SHA23" > "$ARTIFACTS23/base-commit"
+
+exit_code23=0
+output23=$(cd "$SESSION_REPO23" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH23" \
+    "$ARTIFACTS23" \
+    2>&1) || exit_code23=$?
+
+assert_eq "empty branch via base-commit file exits 3 (1eda-6a0c)" "3" "$exit_code23"
+
+empty_branch_in_output23="no"
+if echo "$output23" | grep -q "EMPTY_BRANCH"; then
+    empty_branch_in_output23="yes"
+fi
+assert_eq "EMPTY_BRANCH in stderr via artifacts/base-commit (1eda-6a0c)" "yes" "$empty_branch_in_output23"
+
+assert_pass_if_clean "test_empty_branch_exits3_when_base_commit_file_present"
 
 # =============================================================================
 print_summary

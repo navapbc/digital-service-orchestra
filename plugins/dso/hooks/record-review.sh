@@ -223,11 +223,11 @@ else
     fi
 fi
 if [[ ! -f "$FINDINGS_FILE" ]]; then
-    echo "ERROR: reviewer-findings.json not found — review sub-agent must write this file" >&2
+    echo "REVIEW BLOCKED: reviewer-findings.json not found — commit cannot proceed." >&2
     echo "  Expected at: $FINDINGS_FILE" >&2
     echo "" >&2
-    echo "The code-reviewer sub-agent writes this file via write-reviewer-findings.sh." >&2
-    echo "Run /dso:review to dispatch a sub-agent review." >&2
+    echo "  This is an ERROR, not guidance. The pre-commit gate will block until this is resolved." >&2
+    echo "  Recovery: run /dso:review to dispatch a code-reviewer sub-agent, which writes this file." >&2
     if [[ -z "$FINDINGS_FILE_OVERRIDE" ]]; then
         echo "  Hint: if the reviewer ran in a different worktree, pass --findings-file <path>." >&2
         echo "  Hint: also checked fallback: \$REPO_ROOT/.claude/artifacts/reviewer-findings.json" >&2
