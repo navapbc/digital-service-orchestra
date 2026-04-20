@@ -1,5 +1,5 @@
 ---
-name: using-lockpick
+name: using-dso
 description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
 ---
 
@@ -60,3 +60,15 @@ When a user message signals intent to build something new, invoke `/dso:brainsto
 - **(c) Risks** — what could break or go wrong, what constraints exist? Ask what concerns or side effects to avoid.
 
 **Exit Condition**: Once the confidence test passes, proceed immediately. Do not request explicit confirmation.
+
+## Sub-Agent Delegation
+
+Delegate when these Red Flags appear:
+
+| Thought | Reality |
+|---------|---------|
+| "I'll read these files one by one" | 10+ files? Use Agent (Explore) for parallel reads. |
+| "I'll edit each file in sequence" | Independent edits can be parallelized. |
+| "I'll review my own changes" | Use /dso:review — sub-agents give objective review. |
+
+**Scope**: Sub-agents dispatched here must NOT re-apply this delegation guidance to spawn further sub-agents.

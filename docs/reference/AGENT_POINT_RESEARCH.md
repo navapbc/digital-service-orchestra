@@ -224,7 +224,7 @@ Applied 8-dimension rubric to Epic 2.
 
 ### 8-Dimension Rubric Analysis for Epic 2
 
-**Dimension 1 — Files**: 6 files (kudos-snapshot.sh, completion-verifier.md, approach-decision-maker.md, doc-writer.md, using-lockpick/SKILL.md, worktree-create.sh) → **COMPLEX signal (>3)**
+**Dimension 1 — Files**: 6 files (kudos-snapshot.sh, completion-verifier.md, approach-decision-maker.md, doc-writer.md, using-dso/SKILL.md, worktree-create.sh) → **COMPLEX signal (>3)**
 
 **Dimension 2 — Layers**: Skill/prompt/agent files = 0 architectural layers; plugin scripts = 0 architectural layers → **0 layers (SIMPLE signal)**
 
@@ -254,7 +254,7 @@ Applied 8-dimension rubric to Epic 2.
     "plugins/dso/agents/completion-verifier.md",
     "plugins/dso/agents/approach-decision-maker.md",
     "plugins/dso/agents/doc-writer.md",
-    "plugins/dso/skills/using-lockpick/SKILL.md",
+    "plugins/dso/skills/using-dso/SKILL.md",
     "plugins/dso/scripts/worktree-create.sh"
   ],
   "qualitative_overrides": ["success_criteria_overflow", "single_concern_failure"],
@@ -378,7 +378,7 @@ Phase 2.5 of `/dso:preplanning` for Epic 2. Currently running (agent ID: a56b6e4
 - K: Snapshot-dependent triggers T1/T2 (SC-E2-3, SC-E2-4)
 - L: T4 trigger — pre-session dedup reduction (SC-E2-5)
 - M: Agent contract updates — completion-verifier, approach-decision-maker, doc-writer (SC-E2-6, SC-E2-7, SC-E2-8)
-- N: SKILL.md kudos awareness — using-lockpick (SC-E2-9)
+- N: SKILL.md kudos awareness — using-dso (SC-E2-9)
 - H2: Documentation update
 
 ### Consumer Enumeration (submitted to red team)
@@ -386,7 +386,7 @@ Phase 2.5 of `/dso:preplanning` for Epic 2. Currently running (agent ID: a56b6e4
 - completion-verifier.md: /dso:sprint Step 10a and Phase 7 Step 0.75
 - approach-decision-maker.md: /dso:implementation-plan proposal resolution loop
 - doc-writer.md: /dso:sprint doc stories, /dso:update-docs
-- using-lockpick/SKILL.md: /dso:sprint and related orchestrators
+- using-dso/SKILL.md: /dso:sprint and related orchestrators
 - worktree-create.sh: /dso:sprint, /dso:fix-bug, /dso:debug-everything
 
 ### Results

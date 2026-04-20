@@ -1149,6 +1149,23 @@ Migration logic (run silently during config merge):
 
 This deprecation migration ensures existing projects continue to work without manual config edits when upgrading to the `ci.workflow_name` key introduced in a later DSO version.
 
+#### Per-Stack Command Defaults
+
+When writing initial config, use these per-stack defaults if the config key is absent:
+
+| Stack | commands.lint | commands.format | commands.format_check |
+|-------|--------------|-----------------|----------------------|
+| python-poetry | `poetry run ruff check .` | `poetry run ruff format .` | `poetry run ruff format --check .` |
+| node-npm / node-yarn | `npx eslint --no-error-on-unmatched-pattern .` | `npx prettier --write .` | `npx prettier --check .` |
+| ruby / ruby-bundler | `bundle exec rubocop` | `bundle exec rubocop --autocorrect` | `bundle exec rubocop --format simple` |
+| go | `go vet ./...` | `gofmt -w .` | `gofmt -l .` |
+
+These defaults preserve existing behavior for Python-poetry projects and add first-class support for Node.js, Ruby, and Go projects.
+
+**Key-presence skip rule**: If a key already exists in the config with a non-empty value, do NOT overwrite it. Emit `[DSO INFO] commands.lint already set — skipping` (or the equivalent for `commands.format` / `commands.format_check`) and leave the existing value intact. An empty string is treated as not-set and triggers the per-stack default.
+
+**Ordering constraint**: Always write `commands.test_runner` before `commands.lint`, `commands.format`, and `commands.format_check`. Stack detection populates the test runner; lint/format defaults depend on the confirmed stack and should follow.
+
 #### Required Config Keys
 
 Generate all of the following config keys (flat `KEY=VALUE` format). For each key that cannot be auto-detected, apply the fallback behavior described below.
@@ -1249,7 +1266,7 @@ Use the user's response to populate `ci.integration_workflow` and the CI job key
 |----------|-------------|--------|
 | `format` | `format.line_length`, `format.indent` | Enforcement answers |
 | `ci` | `ci.workflow_name`, `ci.fast_gate_job`, `ci.fast_fail_job`, `ci.test_ceil_job`, `ci.integration_workflow` | Confirmed from workflow filenames + `ci_workflow_names` detection (`ci.workflow_name` replaces deprecated `merge.ci_workflow_name`; see auto-migration above) |
-| `commands` | `commands.test`, `commands.lint`, `commands.format` | Commands area answers |
+| `commands` | `commands.test`, `commands.lint`, `commands.format`, `commands.format_check` | Commands area answers |
 | `jira` | `jira.project` (if Jira integration desired) | User-stated |
 | `design` | `design.system_name`, `design.component_library` | Design area answers |
 | `tickets` | `tickets.prefix` | Derived from project name (see below) |

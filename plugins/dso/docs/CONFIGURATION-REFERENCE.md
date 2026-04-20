@@ -238,7 +238,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Linter command. |
 | **Accepted values** | Any shell command string (e.g., `make lint`, `npm run lint`) |
 | **Default** | Stack-derived (see per-stack defaults table below) |
-| **Used by** | Skills: `/dso:sprint`, `/dso:fix-bug`, validate-work |
+| **Used by** | Skills: `/dso:sprint`, `/dso:fix-bug`, validate-work; `validate.sh` (as of story 8657-e8cc); `validate-phase.sh` (when present) |
 
 ---
 
@@ -249,7 +249,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Auto-formatter command — modifies files in place. |
 | **Accepted values** | Any shell command string (e.g., `make format`, `cargo fmt`) |
 | **Default** | Stack-derived (see per-stack defaults table below) |
-| **Used by** | `hooks/auto-format.sh`, skills |
+| **Used by** | `hooks/auto-format.sh` (as of story 5278-dfae), skills; `validate-phase.sh` (when present) |
 
 ---
 
@@ -260,7 +260,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Formatting check command — fails if files need reformatting, does not modify files. |
 | **Accepted values** | Any shell command string (e.g., `make format-check`, `cargo fmt --check`) |
 | **Default** | Stack-derived (see per-stack defaults table below) |
-| **Used by** | `.claude/scripts/dso validate.sh`, pre-commit hooks |
+| **Used by** | `.claude/scripts/dso validate.sh`, pre-commit hooks; `gate-2b-blast-radius.sh` (as of story 5b0c-7928); `gate-2d-dependency-check.sh` (as of story 5b0c-7928); `validate-phase.sh` (when present) |
 
 ---
 
@@ -483,6 +483,30 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Accepted values** | Positive integer (number of days) |
 | **Default** | `7` |
 | **Used by** | `/dso:sprint` (story dashboard display, Phase 2) |
+
+---
+
+## Planning
+
+### `planning.external_dependency_block_enabled`
+
+| | |
+|---|---|
+| **Description** | When `true`, skills emit an External Dependencies block and pause for user confirmation on manual-step dependencies. When `false` (default), the shape heuristic never fires and all four skills behave identically to the pre-feature baseline. |
+| **Accepted values** | `true` / `false` |
+| **Default** | `false` |
+| **Used by** | `/dso:brainstorm` (Phase 1 Gate shape heuristic + block renderer), `/dso:preplanning` (block reader + story generator), `/dso:implementation-plan` (tag guard), `/dso:sprint` (manual-pause handshake) |
+
+---
+
+### `planning.verification_command_timeout_seconds`
+
+| | |
+|---|---|
+| **Description** | Maximum time in seconds to wait for a `verification_command` to complete during `/dso:sprint`'s manual-pause handshake. If the command does not exit within this window, the handshake is treated as unverified. |
+| **Accepted values** | Positive integer (seconds) |
+| **Default** | `30` |
+| **Used by** | `/dso:sprint` (manual-pause handshake `verification_command` execution) |
 
 ---
 

@@ -120,6 +120,7 @@ assert_pass_if_clean "test_workflow_config_has_all_validate_keys"
 # The guard in validate.sh falls back to REPO_ROOT when APP_DIR is absent.
 _snapshot_fail
 
+# shellcheck disable=SC2016  # intentional: searching for literal '$APP_DIR' text in validate.sh
 found=$(grep -c '"\$APP_DIR" \]; then' "$VALIDATE_SH" || true)
 assert_ne "validate_sh_guards_cd_to_app_dir" "0" "$found"
 
@@ -144,5 +145,88 @@ cmd_test_plugin_count=$(grep -c 'CMD_TEST_PLUGIN' "$VALIDATE_SH" || true)
 assert_eq "CMD_TEST_PLUGIN absent from validate.sh" "0" "$cmd_test_plugin_count"
 
 assert_pass_if_clean "test_validate_sh_no_cmd_test_plugin"
+
+# ── test_validate_reads_commands_lint_from_config ─────────────────────────
+# Behavioral RED: when commands.lint is configured, validate.sh must invoke it.
+# All other commands are stubbed to 'true' so only the lint sentinel matters.
+# Expected to FAIL before task 9d97-f2cb adds the implementation.
+_snapshot_fail
+
+_VLT_DIR=$(mktemp -d /tmp/test-validate-lint-XXXXXX)
+_VLT_SENTINEL="$_VLT_DIR/lint-called"
+_VLT_LINT="$_VLT_DIR/mock-lint.sh"
+printf '#!/usr/bin/env bash\ntouch "%s"\n' "$_VLT_SENTINEL" > "$_VLT_LINT"
+chmod +x "$_VLT_LINT"
+_VLT_CFG="$_VLT_DIR/dso-config.conf"
+cat > "$_VLT_CFG" << VLTEOT
+commands.syntax_check=true
+commands.format_check=true
+commands.lint_ruff=true
+commands.lint_mypy=true
+commands.lint=$_VLT_LINT
+VLTEOT
+
+CONFIG_FILE="$_VLT_CFG" VALIDATE_CMD_TEST=true \
+    bash "$VALIDATE_SH" --skip-ci >/dev/null 2>&1 || true
+
+_vlt_lint_called=0
+[[ -f "$_VLT_SENTINEL" ]] && _vlt_lint_called=1
+rm -rf "$_VLT_DIR"
+assert_eq "validate.sh invokes commands.lint when configured" "1" "$_vlt_lint_called"
+
+assert_pass_if_clean "test_validate_reads_commands_lint_from_config"
+
+# ── test_validate_warns_when_no_lint_configured ───────────────────────────
+# Behavioral RED: when commands.lint is absent from config, validate.sh must
+# emit a [DSO WARN] to stdout. Expected to FAIL before 9d97-f2cb.
+_snapshot_fail
+
+_VLW_DIR=$(mktemp -d /tmp/test-validate-lint-warn-XXXXXX)
+_VLW_CFG="$_VLW_DIR/dso-config-no-lint.conf"
+cat > "$_VLW_CFG" << VLWEOT
+commands.syntax_check=true
+commands.format_check=true
+VLWEOT
+
+_vlt_warn_out=""
+_vlt_warn_out=$(CONFIG_FILE="$_VLW_CFG" VALIDATE_CMD_TEST=true \
+    bash "$VALIDATE_SH" --skip-ci 2>&1 || true)
+rm -rf "$_VLW_DIR"
+
+_vlt_has_warn=0
+if echo "$_vlt_warn_out" | grep -q '\[DSO WARN\]'; then
+    _vlt_has_warn=1
+fi
+assert_eq "validate.sh emits [DSO WARN] when commands.lint absent" "1" "$_vlt_has_warn"
+
+assert_pass_if_clean "test_validate_warns_when_no_lint_configured"
+
+# ── test_validate_no_warn_when_legacy_lint_configured ─────────────────────────
+# Behavioral: when commands.lint is absent but commands.lint_ruff or commands.lint_mypy
+# is explicitly set, validate.sh must NOT emit [DSO WARN] — legacy lint commands
+# still provide coverage. Expected to FAIL before the warn-condition fix.
+_snapshot_fail
+
+_VNW_DIR=$(mktemp -d /tmp/test-validate-no-warn-XXXXXX)
+_VNW_CFG="$_VNW_DIR/dso-config-legacy-lint.conf"
+cat > "$_VNW_CFG" << VNWEOT
+commands.syntax_check=true
+commands.format_check=true
+commands.lint_ruff=true
+commands.lint_mypy=true
+VNWEOT
+
+_vnw_out=""
+_vnw_out=$(CONFIG_FILE="$_VNW_CFG" VALIDATE_CMD_TEST=true \
+    bash "$VALIDATE_SH" --skip-ci 2>&1 || true)
+rm -rf "$_VNW_DIR"
+
+_vnw_has_warn=0
+if echo "$_vnw_out" | grep -q '\[DSO WARN\].*commands.lint'; then
+    _vnw_has_warn=1
+fi
+assert_eq "validate.sh suppresses [DSO WARN] when legacy lint keys configured" "0" "$_vnw_has_warn"
+
+assert_pass_if_clean "test_validate_no_warn_when_legacy_lint_configured"
 
 print_summary

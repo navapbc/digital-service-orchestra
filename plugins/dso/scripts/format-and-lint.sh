@@ -15,6 +15,10 @@ set -uo pipefail
 # Exit codes:
 #   0 — all checks pass
 #   non-zero — first failing check's exit code
+#
+# Stack: intentionally Python-only (pre-commit hook for staged .py files).
+# For polyglot projects, configure format/lint in .pre-commit-config.yaml
+# per language. commands.format and commands.lint are not used here.
 
 set -uo pipefail
 

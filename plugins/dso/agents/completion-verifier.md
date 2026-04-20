@@ -89,7 +89,28 @@ When verifying an **epic**, check whether all child stories have already been cl
 
 This prevents the epic verifier from applying stricter criteria than the story verifier used, which causes unnecessary remediation cycles when a story-level PASS is overturned at epic level.
 
+### Step 3b: Manual Story Sentinel Check
+
+When a story has the tag `manual:awaiting_user`:
+
+1. Scan the story's ticket comments for a comment whose body starts with `MANUAL_PAUSE_SENTINEL: `.
+2. Parse the JSON payload after the prefix (see `${CLAUDE_PLUGIN_ROOT}/docs/contracts/manual-pause-sentinel.md` for schema).
+3. Apply verdict rules:
+
+   | Sentinel state | Verdict |
+   |---|---|
+   | **Absent** | `PENDING` — story may be mid-handshake; do not count as FAIL. Log: "Manual story `<id>` has no sentinel yet — story may be mid-handshake. Skipping done-definition evaluation." Mark all done definitions `PENDING`. overall_verdict for this story: `PENDING`. |
+   | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code=0` | All done definitions `PASS`. |
+   | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code=null`, `user_input` non-null | All done definitions `PASS` (confirmation token confirmed). |
+   | Present, `handshake_outcome=skip` | All done definitions `SKIPPED` (not FAIL — skip is a legitimate outcome). |
+   | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code != 0` | Done definitions `FAIL`. |
+   | Present but JSON malformed | Treat as absent (`PENDING`). Log warning. |
+
+4. **Do NOT re-execute `verification_command`. Do NOT re-prompt the user. The sentinel is the authoritative record.**
+
 ### Step 4: Consumer Smoke Tests (Infrastructure Epics)
+
+**Exception**: Stories tagged `manual:awaiting_user` skip consumer smoke tests — they are process steps, not code behaviors.
 
 When the ticket modifies **shared infrastructure** — the ticket system, hooks, merge workflow, sprint tooling, or any other component consumed by multiple callers — perform consumer smoke tests.
 
@@ -140,11 +161,11 @@ Return a structured JSON block matching the output schema below. After the JSON 
 {
   "ticket_id": "<id>",
   "ticket_type": "epic|story",
-  "overall_verdict": "PASS|FAIL",
+  "overall_verdict": "PASS|FAIL|PENDING|SKIPPED",
   "criteria_results": [
     {
       "criterion": "<verbatim criterion text>",
-      "verdict": "PASS|FAIL",
+      "verdict": "PASS|FAIL|SKIPPED|PENDING",
       "evidence_sought": "<what was looked for>",
       "evidence_found": "<what was found or not found>"
     }
@@ -170,7 +191,7 @@ Return a structured JSON block matching the output schema below. After the JSON 
 
 **Rules:**
 
-- `overall_verdict` is `PASS` only when ALL criteria results AND all consumer smoke tests are `PASS`. A single `FAIL` makes the overall verdict `FAIL`.
+- `overall_verdict` is `PASS` only when ALL criteria results AND all consumer smoke tests are `PASS`. A single `FAIL` makes the overall verdict `FAIL`. `PENDING` is used when a `manual:awaiting_user` story has no sentinel yet (Step 3b). `SKIPPED` is used when a story was explicitly skipped during the manual handshake.
 - `consumer_smoke_tests` may be an empty array `[]` when the ticket does not modify shared infrastructure.
 - `remediation_tasks_created` is an empty array `[]` when overall_verdict is `PASS`.
 - Do NOT fabricate evidence — if you cannot find evidence for a criterion, record what you searched and mark `FAIL`.
