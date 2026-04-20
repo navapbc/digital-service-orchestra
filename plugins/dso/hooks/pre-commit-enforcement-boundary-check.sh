@@ -17,7 +17,9 @@
 
 set -euo pipefail
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
+# Pre-commit hooks are invoked by git from the repository root, so all
+# git commands below operate against the correct working tree without
+# needing an explicit REPO_ROOT.
 
 violations=()
 
