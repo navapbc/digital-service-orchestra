@@ -144,3 +144,55 @@ Required fields for all tiers: `event_type`, `gate_name`, `session_id`, `worktre
 1. Check if the upstream stage ran successfully
 2. Verify the ticket directory exists: `ls "$TICKETS_DIR/$TICKET_ID/"*-PRECONDITIONS.json`
 3. If missing, re-run the upstream stage to write the event
+
+---
+
+## Performance Budgets (p95 Latency)
+
+Committed p95 latency targets measured on a standard dev machine (10-sample run via
+`plugins/dso/scripts/preconditions-benchmark.sh`):
+
+| Stage | p95 Budget | Script entry point |
+|-------|-----------|-------------------|
+| `write_preconditions` | ≤ 500ms | `_write_preconditions()` in ticket-lib.sh |
+| `read_latest_preconditions` | ≤ 300ms | `_read_latest_preconditions()` in ticket-lib.sh |
+| `validate_preconditions` | ≤ 300ms | `preconditions-validator-lib.sh` |
+| `compact_preconditions` | ≤ 250ms | `_compact_preconditions()` in ticket-lib.sh |
+| `classify_depth` | ≤ 200ms | complexity-evaluator → `manifest_depth` mapping |
+
+Baseline measurements (2026-04-20, 10-sample):
+- write_preconditions: p95=225ms
+- read_latest_preconditions: p95=144ms
+- validate_preconditions: p95=132ms
+- compact_preconditions: p95=113ms
+- classify_depth: p95=80ms
+
+**To re-measure**: `bash plugins/dso/scripts/preconditions-benchmark.sh --iterations=50 --output=json`
+
+If any stage exceeds its budget in CI, investigate: slow filesystem, large ticket event directories
+(>1000 files → compact), or Python startup overhead (use `python3 -m` warm-start pattern).
+
+---
+
+## Review Adjacency — Validator Cost in /dso:review Flow
+
+The PRECONDITIONS validator runs **before** the review gate, not adjacent to it. The cost model:
+
+```
+Stage-boundary write (upstream) → commit → pre-commit hook runs validators
+                                         → review gate (if validator passes, review proceeds)
+```
+
+The validator (`preconditions-validator-lib.sh`) adds ≤300ms p95 to the pre-commit hook chain.
+This is **not** in the hot path of `/dso:review` itself — review dispatches sub-agents which have
+their own timeout budget. The validator's exit code is checked before review sub-agents are
+dispatched; a failed validator blocks review dispatch (fail-fast to preserve sub-agent budget).
+
+**Review flow with PRECONDITIONS**:
+1. Pre-commit hook runs `preconditions-validator-lib.sh` (≤300ms)
+2. If exit 0: proceed to review gate and `/dso:review` dispatch
+3. If exit 2 (pre-manifest, no events): proceed with warning logged to stderr
+4. If exit 1 (validation failure): block commit; reviewer sub-agents are not dispatched
+
+This design ensures reviewer sub-agent budget is not wasted on commits that will fail
+preconditions checks downstream.
