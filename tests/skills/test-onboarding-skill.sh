@@ -1435,4 +1435,50 @@ test_phase2_medium_confidence_prefill_confirm_present
 test_phase2_nontechnical_path_present
 test_phase2_all_seven_dimensions_routed
 
+# ── RED Step 2b format_check config key and per-stack defaults tests (aaed-b41e) ─
+
+# test_step2b_has_commands_format_check_key: SKILL.md must reference 'commands.format_check'
+# as a config key in Step 2b dso-config.conf generation.
+# RED until Step 2b is updated to include the commands.format_check key.
+test_step2b_has_commands_format_check_key() {
+    _snapshot_fail
+    local found="missing"
+    if grep -q 'commands\.format_check' "$SKILL_MD" 2>/dev/null; then
+        found="found"
+    fi
+    assert_eq "test_step2b_has_commands_format_check_key" "found" "$found"
+    assert_pass_if_clean "test_step2b_has_commands_format_check_key"
+}
+
+# test_step2b_ruby_defaults_present: SKILL.md must contain Ruby per-stack format defaults
+# including 'bundle exec rubocop' for the commands.format_check config key.
+# RED until Step 2b per-stack Ruby defaults are added to SKILL.md.
+test_step2b_ruby_defaults_present() {
+    _snapshot_fail
+    local found="missing"
+    if grep -q 'bundle exec rubocop' "$SKILL_MD" 2>/dev/null; then
+        found="found"
+    fi
+    assert_eq "test_step2b_ruby_defaults_present" "found" "$found"
+    assert_pass_if_clean "test_step2b_ruby_defaults_present"
+}
+
+# test_step2b_nodejs_defaults_present: SKILL.md must contain Node.js per-stack format defaults
+# including 'npx eslint' or 'npx prettier' for the commands.format_check config key.
+# RED until Step 2b per-stack Node.js defaults are added to SKILL.md.
+test_step2b_nodejs_defaults_present() {
+    _snapshot_fail
+    local found="missing"
+    if grep -qE 'npx eslint|npx prettier' "$SKILL_MD" 2>/dev/null; then
+        found="found"
+    fi
+    assert_eq "test_step2b_nodejs_defaults_present" "found" "$found"
+    assert_pass_if_clean "test_step2b_nodejs_defaults_present"
+}
+
+# RED Step 2b format_check tests — fail until SKILL.md Step 2b is updated
+test_step2b_has_commands_format_check_key
+test_step2b_ruby_defaults_present
+test_step2b_nodejs_defaults_present
+
 print_summary
