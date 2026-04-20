@@ -9,9 +9,11 @@
 # 18 duplicate lines → 377 tests measured vs. 25 unique tests).
 #
 # Behavior: when duplicate keys are found, union the test associations in place
-# (preserving first-occurrence order of both keys and tests) and — if the file
-# was staged — re-stage it. This is idempotent, loss-free (union never drops a
-# test entry), and deterministic, so auto-fixing is safe.
+# (preserving first-occurrence order of both keys and tests), auto-stage .test-index
+# (so the commit proceeds in one step without a second git add), and exit 0.
+# This is idempotent, loss-free (union never drops a test entry), and deterministic,
+# so auto-fixing is safe. (bug e0be-5826: previously the hook only re-staged the
+# file when it was already staged, forcing a second manual git add in merge scenarios.)
 
 set -uo pipefail
 
@@ -29,12 +31,6 @@ fi
 _dups=$(awk -F: '/^[^#]/ && NF>=2 { print $1 }' "$INDEX_FILE" | sort | uniq -d)
 if [[ -z "$_dups" ]]; then
     exit 0
-fi
-
-# Check whether the file is staged, so we know whether to re-stage after union.
-_was_staged=0
-if git -C "$REPO_ROOT" diff --cached --name-only 2>/dev/null | grep -qx ".test-index"; then
-    _was_staged=1
 fi
 
 # Auto-union duplicates in place. Explicit exit-code check because the hook runs
@@ -83,11 +79,10 @@ while IFS= read -r key; do
     printf "  %s\n" "$key" >&2
 done <<< "$_dups"
 
-if [[ $_was_staged -eq 1 ]]; then
-    git -C "$REPO_ROOT" add .test-index
-    echo "Re-staged .test-index with deduplicated content." >&2
-else
-    echo "Note: .test-index was not staged; the deduplicated file is left in the working tree." >&2
-fi
+# Always auto-stage so the commit proceeds in one step without requiring a manual
+# git add (bug e0be-5826). This is safe because the union is deterministic and
+# idempotent — staging the fixed content can never silently swallow user edits.
+git -C "$REPO_ROOT" add .test-index
+echo "Auto-staged .test-index with deduplicated content." >&2
 
 exit 0
