@@ -62,9 +62,12 @@ Do not assume — verify each criterion explicitly.
 For each success criterion (epic) or done definition (story):
 
 1. State the criterion verbatim
-2. Describe what you looked for (evidence sought)
-3. Describe what you found (or did not find)
-4. Assign a verdict: `PASS` or `FAIL`
+2. **Classify the criterion (required before verdict):**
+   - **observable-behavior**: outcome only producible by running external commands, network calls, or end-to-end user flows (e.g., "installer completes within 10 minutes", "curl returns 200", "Claude Code launches"). Evidence MUST be a real execution trace with exit code and output. Documentation, commit history, or code inspection alone is NOT sufficient — verdict MUST be FAIL if no execution trace exists. If the criterion cannot be executed (requires interactive setup, live network endpoint, deployed environment), mark FAIL with reason: "Execution required but not performed — cannot verify without live run."
+   - **documented-behavior**: the criterion describes code structure, configuration, or in-repo artifacts verifiable via Grep/Read/Glob. Narrative and code-level evidence is accepted.
+3. Describe what you looked for (evidence sought)
+4. Describe what you found (or did not find)
+5. Assign a verdict: `PASS` or `FAIL`
 
 A criterion **PASSES** when:
 - The implementation contains the described behavior, file, or output

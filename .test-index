@@ -77,7 +77,7 @@ plugins/dso/scripts/skill-trace-analyze.py:tests/scripts/test-skill-trace-analyz
 plugins/dso/scripts/validate-phase.sh:tests/scripts/test-validate-phase-v2-removal.sh,tests/scripts/test-validate-phase-missing-test-unit.sh,tests/test-validate-phase-portability.sh
 plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py,tests/scripts/test_worktree_cleanup_gather_progress.py,tests/scripts/test-worktree-cleanup.sh
 plugins/dso/skills/architect-foundation/SKILL.md:tests/skills/test-architect-foundation-skill.sh,tests/skills/test-onboarding-skill.sh,tests/skills/test-architect-foundation-ci-skeleton.sh,tests/skills/test-architect-foundation-integration.sh
-plugins/dso/skills/brainstorm/SKILL.md:tests/hooks/test-scenario-sc-revision.sh,tests/hooks/test-residual-state-e2e.sh,tests/skills/test-brainstorm-tag-writer.sh,tests/skills/test-brainstorm-no-arg-block.sh,tests/skills/test-brainstorm-research-findings-persistence.sh [test_brainstorm_research_findings_comment_format],tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/skills/brainstorm/SKILL.md:tests/hooks/test-scenario-sc-revision.sh,tests/hooks/test-residual-state-e2e.sh,tests/skills/test-brainstorm-tag-writer.sh,tests/skills/test-brainstorm-no-arg-block.sh,tests/skills/test-brainstorm-research-findings-persistence.sh,tests/scripts/test-tag-cli-refactor.sh
 plugins/dso/skills/create-bug/SKILL.md:tests/scripts/test-create-bug-skill-smoke.sh
 plugins/dso/skills/debug-everything/prompts/shared/read-only-enforcement.md:tests/plugin/test-debug-everything-readonly-enforcement.sh
 plugins/dso/skills/debug-everything/prompts/test-failure-fix.md:plugins/dso/skills/debug-everything/prompts/test-failure-fix.md

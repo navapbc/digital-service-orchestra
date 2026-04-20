@@ -133,6 +133,8 @@ Group findings into three priority tiers:
 - **Improvement (P2)**: Outdated deps, code smells, test quality issues, ticket health 3-4, stale worktrees; shift-left gaps where a test exists but doesn't cover the failure path (missing assertion, wrong mock boundary)
 - **Cleanup (P3-P4)**: KNOWN-ISSUES archival, TODO/FIXME/HACK comments (deferred tasks), naming issues, doc updates, outdated plugins; shift-left findings where the gap is a pre-commit hook or lock-file update step
 
+**Fix-vs-build tiebreaker**: When a finding has a direct current-state fix (e.g., adding missing rows to an existing table, verifying a bounded set of files, correcting a known path), create a task to apply that fix — not to build a system that would prevent the gap in future. New infrastructure proposals are only appropriate when the fix requires tooling that does not exist. A task to "complete the routing table" is always preferred over "build an agent metadata system".
+
 ### User Confirmation
 
 Use AskUserQuestion to present findings by tier with estimated effort, then ask which categories to include in the remediation epic. Options: All, Critical + Improvement only, Critical only, Cancel.
@@ -148,6 +150,8 @@ Create a ticket epic with remediation tasks based on user-confirmed scope.
 1. **Create epic**: `.claude/scripts/dso ticket create epic "Retro: {YYYY-MM-DD} - {key-findings-summary}"` with description documenting assessment date, health score, top 3 findings, and target outcome.
 
 2. **Create child tasks**: For each finding in scope, create a task with appropriate type/priority. Each task description must include: Issue (what), Location (file paths), Acceptance Criteria (checkboxes), and Context (why it matters).
+
+   **Before creating each task**: ask "Is there a direct fix to the current-state problem?" If yes, create a task to APPLY that fix. Only propose new infrastructure if no direct fix is possible. A current-state remediation task is always preferred over a meta-process task.
 
 3. **Add dependencies** where task order matters (e.g., worktree cleanup before orphan resolution).
 

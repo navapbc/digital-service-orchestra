@@ -94,6 +94,10 @@ Based on the evidence gathered, classify each integration signal:
 | **Unverified** | No official documentation found AND no working GitHub example found |
 | **Contradicted** | Evidence found that the capability does not exist, is deprecated, or works differently than assumed |
 
+**Environment precondition check — auth signal only**: When an integration signal falls in the "Authentication/credential flows" category (OAuth, OIDC, SSO, Cognito, Auth0, Okta, SAML), additionally verify:
+- Whether the target deployment environment supports HTTPS. OAuth/OIDC providers universally require HTTPS for redirect/callback URIs. An HTTP-only environment is a **Contradicted** signal for any OAuth callback flow regardless of API capability verification.
+- Flag as a **critical capability gap** if the epic does not confirm HTTPS availability in the deployment environment.
+
 ### Step 3: Assess Critical Capability Gaps
 
 A **critical capability gap** exists when ANY integration signal is classified as **Unverified** or **Contradicted** for a core requirement (not a nice-to-have).
