@@ -80,7 +80,9 @@ _format_mean() {
 
 BENCH_SHOW_JSON="/tmp/bench-show-$$.json"
 BENCH_LIST_JSON="/tmp/bench-list-$$.json"
-_CLEANUP_FILES=("$BENCH_SHOW_JSON" "$BENCH_LIST_JSON")
+BENCH_CREATE_JSON="/tmp/bench-create-$$.json"
+BENCH_COMMENT_JSON="/tmp/bench-comment-$$.json"
+_CLEANUP_FILES=("$BENCH_SHOW_JSON" "$BENCH_LIST_JSON" "$BENCH_CREATE_JSON" "$BENCH_COMMENT_JSON")
 # shellcheck disable=SC2329  # invoked via trap EXIT
 _cleanup_files() {
     local f
@@ -92,6 +94,12 @@ _cleanup_files() {
 trap '_cleanup; _cleanup_files' EXIT
 
 THRESHOLD=0.15
+# Write-path ops (ticket create, ticket comment) involve git add+commit per
+# event and therefore run significantly slower than read-path ops.  The
+# threshold below is set to 0.6s (~2× the observed ~300ms mean on a quiet
+# macOS developer machine) to provide a regression guard without being so tight
+# that normal variance on a loaded CI host causes spurious failures.
+WRITE_THRESHOLD=0.6
 
 # ── Step 3: Benchmark ticket show ─────────────────────────────────────────────
 echo "--- Benchmarking: ticket show $TICKET_ID ---"
@@ -123,12 +131,44 @@ if ! hyperfine \
 fi
 echo ""
 
+# ── Step 4b: Benchmark ticket create ─────────────────────────────────────────
+echo "--- Benchmarking: ticket create ---"
+if ! hyperfine \
+    --warmup 3 \
+    --runs 10 \
+    --export-json "$BENCH_CREATE_JSON" \
+    --shell bash \
+    "cd '$TEST_REPO' && _TICKET_TEST_NO_SYNC=1 TICKETS_TRACKER_DIR='$TRACKER_DIR' bash '$TICKET_SCRIPT' create task 'perf-create-bench'" \
+    2>&1; then
+    echo "FAIL: hyperfine failed for ticket create"
+    exit 1
+fi
+echo ""
+
+# ── Step 4c: Benchmark ticket comment ────────────────────────────────────────
+echo "--- Benchmarking: ticket comment $TICKET_ID ---"
+if ! hyperfine \
+    --warmup 3 \
+    --runs 10 \
+    --export-json "$BENCH_COMMENT_JSON" \
+    --shell bash \
+    "cd '$TEST_REPO' && _TICKET_TEST_NO_SYNC=1 TICKETS_TRACKER_DIR='$TRACKER_DIR' bash '$TICKET_SCRIPT' comment '$TICKET_ID' 'perf-bench-comment'" \
+    2>&1; then
+    echo "FAIL: hyperfine failed for ticket comment"
+    exit 1
+fi
+echo ""
+
 # ── Step 5: Parse results and assert ─────────────────────────────────────────
 SHOW_MEAN=$(_extract_mean "$BENCH_SHOW_JSON")
 LIST_MEAN=$(_extract_mean "$BENCH_LIST_JSON")
+CREATE_MEAN=$(_extract_mean "$BENCH_CREATE_JSON")
+COMMENT_MEAN=$(_extract_mean "$BENCH_COMMENT_JSON")
 
 SHOW_PASS=false
 LIST_PASS=false
+CREATE_PASS=false
+COMMENT_PASS=false
 
 # Compare using python3 for reliable float comparison
 if python3 -c "import sys; sys.exit(0 if float('$SHOW_MEAN') < $THRESHOLD else 1)"; then
@@ -145,14 +185,31 @@ else
     echo "FAIL: ticket list mean=$(_format_mean "$LIST_MEAN") (>=${THRESHOLD}s)"
 fi
 
+if python3 -c "import sys; sys.exit(0 if float('$CREATE_MEAN') < $WRITE_THRESHOLD else 1)"; then
+    CREATE_PASS=true
+    echo "PASS: ticket create mean=$(_format_mean "$CREATE_MEAN") (<${WRITE_THRESHOLD}s)"
+else
+    echo "FAIL: ticket create mean=$(_format_mean "$CREATE_MEAN") (>=${WRITE_THRESHOLD}s)"
+fi
+
+if python3 -c "import sys; sys.exit(0 if float('$COMMENT_MEAN') < $WRITE_THRESHOLD else 1)"; then
+    COMMENT_PASS=true
+    echo "PASS: ticket comment mean=$(_format_mean "$COMMENT_MEAN") (<${WRITE_THRESHOLD}s)"
+else
+    echo "FAIL: ticket comment mean=$(_format_mean "$COMMENT_MEAN") (>=${WRITE_THRESHOLD}s)"
+fi
+
 # ── Step 6: Optional baseline comparison ────────────────────────────────────
 if [ -f "$BASELINE_FIXTURE" ]; then
     echo ""
     echo "--- Baseline comparison (informational) ---"
-    python3 - "$BASELINE_FIXTURE" "$SHOW_MEAN" "$LIST_MEAN" <<'PYEOF'
+    python3 - "$BASELINE_FIXTURE" "$SHOW_MEAN" "$LIST_MEAN" "$CREATE_MEAN" "$COMMENT_MEAN" <<'PYEOF'
 import json, sys
 
-fixture_path, show_mean, list_mean = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
+fixture_path, show_mean, list_mean, create_mean, comment_mean = (
+    sys.argv[1], float(sys.argv[2]), float(sys.argv[3]),
+    float(sys.argv[4]), float(sys.argv[5])
+)
 with open(fixture_path) as f:
     baseline = json.load(f)
 
@@ -171,15 +228,17 @@ def compare_op(op_name, current_mean):
 
 compare_op("show", show_mean)
 compare_op("list", list_mean)
+compare_op("create", create_mean)
+compare_op("comment", comment_mean)
 PYEOF
 fi
 
 # ── Exit ──────────────────────────────────────────────────────────────────────
 echo ""
-if $SHOW_PASS && $LIST_PASS; then
-    echo "Results: both ticket show and ticket list within ${THRESHOLD}s threshold"
+if $SHOW_PASS && $LIST_PASS && $CREATE_PASS && $COMMENT_PASS; then
+    echo "Results: ticket show, list, create, and comment all within threshold"
     exit 0
 else
-    echo "Results: one or more operations exceeded ${THRESHOLD}s threshold"
+    echo "Results: one or more operations exceeded threshold (read: ${THRESHOLD}s, write: ${WRITE_THRESHOLD}s)"
     exit 1
 fi

@@ -484,6 +484,245 @@ test_write_commit_event_exit_codes() {
     return 0
 }
 
+# ── Test 6: 50-randomized-input JSON byte-exact test ─────────────────────────
+# Generates ≥50 random title strings covering: double-quotes, backslashes,
+# newlines, tabs, unicode (título, 中文, emoji).  For each input, creates a
+# ticket, writes a CREATE event via write_commit_event, reads the resulting
+# event file, and compares its md5 against Python's canonical json.dumps output.
+# GREEN: byte-exact match is expected because write_commit_event uses jq -S -c
+# which produces output identical to Python's
+# json.dumps(ensure_ascii=False, separators=(',',':'), sort_keys=True).
+test_write_commit_event_json_byte_exact_randomized() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Generate ≥50 test titles covering edge cases.
+    # Use a fixed seed-like array for reproducibility without relying on $RANDOM seeding.
+    local titles=(
+        'plain ascii title'
+        'título con acento'
+        '中文标题'
+        'emoji 🎸🔥'
+        'with "double quotes" inside'
+        'back\\slash test'
+        'tab	here'
+        $'newline\nembedded'
+        'both "quotes" and back\\slashes'
+        'triple \"\"\" quotes'
+        'unicode café résumé naïve'
+        '日本語テスト'
+        '한국어 테스트'
+        'Ελληνικά'
+        'mixed: "quoted" and \\escaped'
+        'emoji combo 🎉🎊🎈'
+        'zero-width\xe2\x80\x8bspace'
+        'em—dash and en–dash'
+        "curly \"quotes\" and apostrophe"
+        'slash / and backslash \\ pair'
+        'angle <brackets> & ampersand'
+        'percent % sign 100%'
+        'at @ symbol test'
+        'hash # number sign'
+        "dollar literal-sign expansion"
+        "backtick literal-cmd test"
+        'pipe | character'
+        'semicolon ; separator'
+        'null-like string (not really)'
+        'very long title: ' + "$(python3 -c "print('x'*80)" 2>/dev/null || printf '%0.sx' {1..80})"
+        'unicode snowman ☃'
+        'musical note ♪♫'
+        'copyright © and registered ®'
+        'trademark ™ symbol'
+        'degree 45° angle'
+        'bullet • point'
+        'ellipsis … three dots'
+        'section § symbol'
+        'paragraph ¶ mark'
+        'checkmark ✓ and cross ✗'
+        'left «guillemets» right'
+        'fraction ½ and ¾'
+        'superscript E=mc²'
+        'subscript H₂O'
+        'combining diacritics: â ê î ô û'
+        'right-to-left: مرحبا'
+        'hebrew: שלום'
+        'cyrillic: привет'
+        'mixed script: hello مرحبا 你好'
+        'control-adjacent: \\t\\n\\r literal'
+    )
+
+    local total=0
+    local mismatches=0
+    local failures=0
+
+    for title in "${titles[@]}"; do
+        total=$((total + 1))
+
+        # Create a ticket for this input.
+        local ticket_id
+        ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "$title" 2>/dev/null | tr -d '[:space:]')
+        if [ -z "$ticket_id" ]; then
+            failures=$((failures + 1))
+            continue
+        fi
+
+        local event_json
+        event_json=$(_make_event_json "$repo" "$ticket_id" "$title")
+
+        # Compute expected canonical form via Python.
+        local expected_md5
+        expected_md5=$(python3 - "$event_json" <<'PYEOF'
+import json, sys, hashlib
+with open(sys.argv[1], encoding='utf-8') as f:
+    data = json.load(f)
+canonical = json.dumps(data, ensure_ascii=False, separators=(',', ':'), sort_keys=True)
+print(hashlib.md5(canonical.encode('utf-8')).hexdigest())
+PYEOF
+        ) || { failures=$((failures + 1)); continue; }
+
+        # Call write_commit_event (no shim — we only care about byte correctness here).
+        local wce_exit=0
+        (
+            cd "$repo"
+            _TICKET_TEST_NO_SYNC=1 bash -c "
+                source '$TICKET_LIB'
+                write_commit_event '$ticket_id' '$event_json'
+            " 2>/dev/null
+        ) || wce_exit=$?
+
+        if [ "$wce_exit" -ne 0 ]; then
+            failures=$((failures + 1))
+            continue
+        fi
+
+        # Find the written event file.
+        local tracker_dir="$repo/.tickets-tracker"
+        local event_file
+        event_file=$(find "$tracker_dir/$ticket_id" -maxdepth 1 -name '*-CREATE.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+        if [ -z "$event_file" ] || [ ! -f "$event_file" ]; then
+            failures=$((failures + 1))
+            continue
+        fi
+
+        # Compute actual md5 of the raw bytes written (strip trailing newline to match).
+        local actual_md5
+        actual_md5=$(python3 - "$event_file" <<'PYEOF'
+import sys, hashlib
+raw = open(sys.argv[1], 'rb').read().rstrip(b'\n')
+print(hashlib.md5(raw).hexdigest())
+PYEOF
+        ) || { failures=$((failures + 1)); continue; }
+
+        if [ "$expected_md5" != "$actual_md5" ]; then
+            mismatches=$((mismatches + 1))
+        fi
+    done
+
+    if [ "$failures" -gt 0 ]; then
+        echo "  $failures/$total inputs failed setup or write_commit_event"
+        return 1
+    fi
+    if [ "$mismatches" -gt 0 ]; then
+        echo "  $mismatches/$total inputs had JSON byte mismatches"
+        return 1
+    fi
+    if [ "$total" -lt 50 ]; then
+        echo "  only $total test inputs generated (expected ≥50)"
+        return 1
+    fi
+    return 0
+}
+
+# ── Test 7: read-after-write consistency ─────────────────────────────────────
+# Verifies that immediately after a ticket comment is written, ticket show
+# reflects the comment in its JSON output, and ticket list shows the ticket.
+# No stale cache should interfere (the event-sourced design has no read cache).
+test_write_commit_event_read_after_write() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Step 1: Create a ticket.
+    local ticket_id
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Read-after-write test" 2>/dev/null | tr -d '[:space:]')
+    if [ -z "$ticket_id" ]; then
+        echo "  setup failed: ticket create returned empty ID"
+        return 1
+    fi
+
+    # Step 2: Add a comment via ticket comment.
+    local comment_text
+    comment_text="unique-comment-$(date +%s%N 2>/dev/null || date +%s)"
+    local comment_exit=0
+    (
+        cd "$repo"
+        _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" comment "$ticket_id" "$comment_text" 2>/dev/null
+    ) || comment_exit=$?
+
+    if [ "$comment_exit" -ne 0 ]; then
+        echo "  ticket comment failed with exit $comment_exit"
+        return 1
+    fi
+
+    # Step 3: Immediately run ticket show and verify the comment appears.
+    local show_output
+    show_output=$(
+        cd "$repo" || return 1
+        _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null
+    )
+
+    if [ -z "$show_output" ]; then
+        echo "  ticket show returned empty output"
+        return 1
+    fi
+
+    if ! echo "$show_output" | python3 -c "import json,sys; json.load(sys.stdin)" 2>/dev/null; then
+        echo "  ticket show output is not valid JSON"
+        return 1
+    fi
+
+    # The comment text must appear somewhere in the show output.
+    if ! echo "$show_output" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+comments = data.get('comments', [])
+# comments may be a list of strings or a list of objects with a body/text field
+found = False
+for c in comments:
+    if isinstance(c, str) and '$comment_text' in c:
+        found = True
+    elif isinstance(c, dict):
+        for v in c.values():
+            if isinstance(v, str) and '$comment_text' in v:
+                found = True
+if not found:
+    sys.exit(1)
+" 2>/dev/null; then
+        echo "  comment '$comment_text' not found in ticket show output"
+        echo "  show output (comments): $(echo "$show_output" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('comments','no-comments-key'))" 2>/dev/null || echo "$show_output")"
+        return 1
+    fi
+
+    # Step 4: Run ticket list and verify the ticket appears.
+    local list_output
+    list_output=$(
+        cd "$repo" || return 1
+        _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" list 2>/dev/null
+    )
+
+    if [ -z "$list_output" ]; then
+        echo "  ticket list returned empty output"
+        return 1
+    fi
+
+    # The ticket ID must appear in the list output.
+    if ! echo "$list_output" | grep -q "$ticket_id" 2>/dev/null; then
+        echo "  ticket $ticket_id not found in ticket list output"
+        return 1
+    fi
+
+    return 0
+}
+
 # ── Runner ─────────────────────────────────────────────────────────────────────
 pass=0
 fail=0
@@ -492,7 +731,9 @@ for fn in \
     test_write_commit_event_json_byte_exact \
     test_write_commit_event_concurrent_no_corruption \
     test_write_commit_event_retry_on_locked_file \
-    test_write_commit_event_exit_codes
+    test_write_commit_event_exit_codes \
+    test_write_commit_event_json_byte_exact_randomized \
+    test_write_commit_event_read_after_write
 do
     if $fn; then
         echo "PASS: $fn"
