@@ -406,4 +406,4 @@ plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test-implementation
 plugins/dso/scripts/sprint-next-batch.sh:tests/test-sprint-next-batch.sh
 
 # --- sprint-manual-drain.sh: manual-pause handshake ---
-plugins/dso/scripts/sprint-manual-drain.sh:tests/test-sprint-manual-drain.sh [test_drain_done_runs_verification_command_exit_0_proceeds]
+plugins/dso/scripts/sprint-manual-drain.sh:tests/test-sprint-manual-drain.sh
