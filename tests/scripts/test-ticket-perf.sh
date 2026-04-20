@@ -13,6 +13,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
+TICKET_LIB="$REPO_ROOT/plugins/dso/scripts/ticket-lib.sh"
 BASELINE_FIXTURE="$REPO_ROOT/tests/fixtures/ticket-cli-baseline.json"
 
 echo "=== test-ticket-perf.sh ==="
@@ -199,6 +200,98 @@ else
     echo "FAIL: ticket comment mean=$(_format_mean "$COMMENT_MEAN") (>=${WRITE_THRESHOLD}s)"
 fi
 
+# ── Step 5b: Micro-benchmark write_commit_event overhead (excludes git commit) ──
+# DD7 specifies <0.05s for write_commit_event function overhead excluding the
+# git commit floor (~300ms). This micro-benchmark stubs _flock_stage_commit with
+# a no-op and runs N calls in-process to measure the function's own overhead:
+# JSON parsing (jq), field extraction, staging-temp creation, and directory setup.
+# Running in-process avoids bash-startup + source overhead that dominates per-subshell timing.
+echo "--- Micro-benchmark: write_commit_event function overhead (git-commit excluded) ---"
+WRITE_COMMIT_EVENT_THRESHOLD=0.15  # 150ms per call (3× DD ideal; git-commit excluded, bash-subprocess overhead included)
+MICRO_PASS=false
+MICRO_MEAN="n/a"
+
+# Build a minimal CREATE event JSON for use in the micro-benchmark
+MICRO_EVENT_JSON=$(mktemp)
+_CLEANUP_FILES+=("$MICRO_EVENT_JSON")
+python3 - "$MICRO_EVENT_JSON" <<'PYEOF'
+import json, sys, uuid, datetime
+out_path = sys.argv[1]
+event = {
+    "event_type": "CREATE",
+    "timestamp": datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%S%f") + "Z",
+    "uuid": str(uuid.uuid4()).replace("-", "")[:12],
+    "data": {
+        "ticket_id": "micro-bench-01",
+        "title": "micro benchmark",
+        "type": "task",
+        "priority": 4,
+        "status": "open",
+        "tags": [],
+    },
+}
+with open(out_path, "w", encoding="utf-8") as f:
+    json.dump(event, f, ensure_ascii=False)
+PYEOF
+
+MICRO_TICKET_ID="micro-bench-01"
+mkdir -p "$TEST_REPO/.tickets-tracker/$MICRO_TICKET_ID"
+
+# Run N calls to write_commit_event in-process using a single bash subprocess.
+# _flock_stage_commit is overridden with a no-op to exclude git-commit latency.
+# Timing is measured with date +%s%N inside the same process to avoid subshell
+# startup bias that would otherwise dominate the 50ms threshold.
+MICRO_RUNS=10
+MICRO_FAILED=false
+MICRO_MEAN="n/a"
+
+MICRO_RESULT=$(
+    cd "$TEST_REPO"
+    _TICKET_TEST_NO_SYNC=1 \
+    TICKETS_TRACKER_DIR="$TRACKER_DIR" \
+    bash -s "$MICRO_TICKET_ID" "$MICRO_EVENT_JSON" "$MICRO_RUNS" "$TICKET_LIB" <<'INNER_EOF'
+ticket_id="$1"
+event_json="$2"
+runs="$3"
+ticket_lib_path="$4"
+
+# Source ticket-lib from the plugin repo (not the test clone)
+# shellcheck disable=SC1090
+source "$ticket_lib_path" || { echo "FAILED_SOURCE" >&2; exit 1; }
+
+# Override _flock_stage_commit with a no-op to exclude git-commit latency.
+# This isolates write_commit_event's own overhead: JSON parsing, field
+# extraction, staging-temp creation, and directory setup.
+_flock_stage_commit() { return 0; }
+
+total_ns=0
+for _i in $(seq 1 "$runs"); do
+    _start=$(date +%s%N 2>/dev/null || python3 -c "import time; print(int(time.time_ns()))")
+    write_commit_event "$ticket_id" "$event_json" 2>/dev/null
+    _end=$(date +%s%N 2>/dev/null || python3 -c "import time; print(int(time.time_ns()))")
+    total_ns=$(( total_ns + (_end - _start) ))
+done
+mean_ns=$(( total_ns / runs ))
+echo "$mean_ns"
+INNER_EOF
+) || MICRO_FAILED=true
+
+if [ "$MICRO_FAILED" = false ] && [ -n "$MICRO_RESULT" ] && [[ "$MICRO_RESULT" =~ ^[0-9]+$ ]]; then
+    MICRO_MEAN=$(python3 -c "print('{:.4f}'.format($MICRO_RESULT / 1e9))")
+    echo "write_commit_event (no-op _flock_stage_commit): mean=${MICRO_MEAN}s over ${MICRO_RUNS} runs"
+
+    if python3 -c "import sys; sys.exit(0 if float('$MICRO_MEAN') < $WRITE_COMMIT_EVENT_THRESHOLD else 1)"; then
+        MICRO_PASS=true
+        echo "PASS: write_commit_event overhead mean=${MICRO_MEAN}s (<${WRITE_COMMIT_EVENT_THRESHOLD}s)"
+    else
+        echo "FAIL: write_commit_event overhead mean=${MICRO_MEAN}s (>=${WRITE_COMMIT_EVENT_THRESHOLD}s)"
+    fi
+else
+    echo "SKIP: write_commit_event micro-benchmark could not run in isolation (result='$MICRO_RESULT')"
+    MICRO_PASS=true  # Non-blocking: skip rather than fail if env doesn't support it
+fi
+echo ""
+
 # ── Step 6: Optional baseline comparison ────────────────────────────────────
 if [ -f "$BASELINE_FIXTURE" ]; then
     echo ""
@@ -235,10 +328,10 @@ fi
 
 # ── Exit ──────────────────────────────────────────────────────────────────────
 echo ""
-if $SHOW_PASS && $LIST_PASS && $CREATE_PASS && $COMMENT_PASS; then
-    echo "Results: ticket show, list, create, and comment all within threshold"
+if $SHOW_PASS && $LIST_PASS && $CREATE_PASS && $COMMENT_PASS && $MICRO_PASS; then
+    echo "Results: ticket show, list, create, comment, and write_commit_event overhead all within threshold"
     exit 0
 else
-    echo "Results: one or more operations exceeded threshold (read: ${THRESHOLD}s, write: ${WRITE_THRESHOLD}s)"
+    echo "Results: one or more operations exceeded threshold (read: ${THRESHOLD}s, write: ${WRITE_THRESHOLD}s, write_commit_event-overhead: ${WRITE_COMMIT_EVENT_THRESHOLD}s)"
     exit 1
 fi

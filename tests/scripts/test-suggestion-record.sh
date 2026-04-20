@@ -472,4 +472,97 @@ test_metrics_invalid() {
 }
 test_metrics_invalid
 
+# ── Test 13: write_commit_event and suggestion-record.sh coexist in same tracker ──
+echo "Test 13: write_commit_event and suggestion-record.sh both produce output in the same tracker dir"
+test_suggestion_record_write_commit_event_coexistence() {
+    if [ ! -f "$SUGGESTION_SCRIPT" ]; then
+        assert_eq "suggestion-record.sh exists for coexistence test" "exists" "missing"
+        return
+    fi
+
+    # Use clone_ticket_repo so .tickets-tracker is fully initialized with a git worktree
+    local ticket_repo
+    ticket_repo=$(mktemp -d)
+    _CLEANUP_DIRS+=("$ticket_repo")
+    clone_ticket_repo "$ticket_repo/repo"
+    ticket_repo="$ticket_repo/repo"
+
+    # ── Step 1: create a ticket event via write_commit_event (bash-native) ──────
+    local ticket_id="wce-sg-coexist-01"
+    mkdir -p "$ticket_repo/.tickets-tracker/$ticket_id"
+
+    local event_json
+    event_json=$(mktemp)
+    _CLEANUP_DIRS+=("$event_json")
+    python3 - "$event_json" "$ticket_id" <<'PYEOF'
+import json, sys, uuid, datetime
+out_path = sys.argv[1]
+ticket_id = sys.argv[2]
+event = {
+    "event_type": "CREATE",
+    "timestamp": datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%S%f") + "Z",
+    "uuid": str(uuid.uuid4()).replace("-", "")[:12],
+    "data": {
+        "ticket_id": ticket_id,
+        "title": "suggestion coexistence test",
+        "type": "task",
+        "priority": 4,
+        "status": "open",
+        "tags": [],
+    },
+}
+with open(out_path, "w", encoding="utf-8") as f:
+    json.dump(event, f, ensure_ascii=False)
+PYEOF
+
+    local wce_exit=0
+    (
+        cd "$ticket_repo"
+        _TICKET_TEST_NO_SYNC=1 \
+        TICKETS_TRACKER_DIR="$ticket_repo/.tickets-tracker" \
+        bash -c "
+            source '$REPO_ROOT/plugins/dso/scripts/ticket-lib.sh'
+            write_commit_event '$ticket_id' '$event_json'
+        " 2>/dev/null
+    ) || wce_exit=$?
+
+    assert_eq "write_commit_event exits zero" "0" "$wce_exit"
+
+    # Verify write_commit_event produced an event file in the ticket dir
+    local wce_file_count
+    wce_file_count=$(find "$ticket_repo/.tickets-tracker/$ticket_id" -name '*.json' -type f 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "write_commit_event produces one event file" "1" "$wce_file_count"
+
+    # ── Step 2: call suggestion-record.sh in the same tracker dir ───────────────
+    local sg_exit=0
+    (cd "$ticket_repo" && bash "$SUGGESTION_SCRIPT" \
+        --observation "coexistence with write_commit_event" \
+        --source "integration-test") 2>/dev/null || sg_exit=$?
+
+    assert_eq "suggestion-record.sh exits zero" "0" "$sg_exit"
+
+    # Verify suggestion-record produced a JSON file in .suggestions/
+    local sg_file_count
+    sg_file_count=$(find "$ticket_repo/.tickets-tracker/.suggestions" -name '*.json' -type f 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "suggestion-record.sh produces one suggestions file" "1" "$sg_file_count"
+
+    # ── Step 3: both output files are valid JSON ─────────────────────────────────
+    local wce_file sg_file
+    wce_file=$(find "$ticket_repo/.tickets-tracker/$ticket_id" -name '*.json' -type f 2>/dev/null | head -1)
+    sg_file=$(find "$ticket_repo/.tickets-tracker/.suggestions" -name '*.json' -type f 2>/dev/null | head -1)
+
+    if [ -n "$wce_file" ]; then
+        local wce_parse_exit=0
+        python3 -c "import json; json.load(open('$wce_file'))" 2>/dev/null || wce_parse_exit=$?
+        assert_eq "write_commit_event output is valid JSON" "0" "$wce_parse_exit"
+    fi
+
+    if [ -n "$sg_file" ]; then
+        local sg_parse_exit=0
+        python3 -c "import json; json.load(open('$sg_file'))" 2>/dev/null || sg_parse_exit=$?
+        assert_eq "suggestion-record output is valid JSON" "0" "$sg_parse_exit"
+    fi
+}
+test_suggestion_record_write_commit_event_coexistence
+
 print_summary
