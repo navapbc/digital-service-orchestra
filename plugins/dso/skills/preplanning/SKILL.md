@@ -106,6 +106,8 @@ This is a presence-based check — only block when the tag IS present. Existing 
 
 ---
 
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
 ## Phase 1: Context Reconciliation & Discovery (/dso:preplanning)
 
 ### Step 1: Select and Load Epic (/dso:preplanning)
