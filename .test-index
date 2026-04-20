@@ -193,7 +193,7 @@ plugins/dso/scripts/bridge/_inbound_api.py:tests/scripts/test_bridge_inbound.py,
 plugins/dso/scripts/bridge/_inbound_utils.py:tests/scripts/test_bridge_inbound.py
 plugins/dso/scripts/bridge/_outbound_api.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py
 plugins/dso/scripts/bridge/_outbound_handlers.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py
-plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py
+plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py,tests/scripts/test-ticket-show.sh [test_ticket_show_preconditions_corrupt_file_skipped]
 plugins/dso/scripts/ticket_reducer/_api.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_strategy.py,tests/scripts/test_ticket_reducer_conflict.py
 plugins/dso/scripts/ticket_reducer/_cache.py:tests/scripts/test_ticket_reducer.py
 plugins/dso/scripts/ticket_reducer/_processors.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py
@@ -233,7 +233,7 @@ plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
 plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-preconditions-compaction.sh [test_compact_preconditions_writes_snapshot],tests/scripts/test-preconditions-compaction.sh [test_read_latest_handles_snapshot_format],tests/scripts/test-preconditions-compaction.sh [test_read_latest_retry_once_on_transient_miss],tests/integration/test-preconditions-fault-injection.sh [test_retry_once_succeeds_on_second_attempt],tests/integration/test-preconditions-fault-injection.sh [test_retry_once_fails_with_diagnostic_on_persistent_miss]
 plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
