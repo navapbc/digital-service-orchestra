@@ -1,1 +1,0 @@
-{"timestamp": 1776647466889359000, "uuid": "0c23abff-98dd-4f84-8744-c4d103ace6ba", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: behavioral, Score: 3 (INTERMEDIATE) \u2014 false ancestor check when harvest called with CWD inside worktree"}}
