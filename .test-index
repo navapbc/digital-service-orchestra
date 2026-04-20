@@ -135,7 +135,8 @@ plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/ticket-compact-all.sh:tests/scripts/test-ticket-compact-all.sh
-plugins/dso/scripts/ticket:tests/scripts/test-ticket-compact-all.sh,tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/scripts/ticket:tests/scripts/test-ticket-compact-all.sh,tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-tag-cli-refactor.sh,tests/scripts/test-ticket-lib-api.sh [test_ticket_dispatcher_no_exec_to_show_script]
+plugins/dso/scripts/ticket-lib-api.sh:tests/scripts/test-ticket-lib-api.sh [test_ticketlib_api_sourceability_strict_mode]
 plugins/dso/agents/scope-drift-reviewer.md:tests/scripts/test-scope-drift-reviewer.sh
 plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh
