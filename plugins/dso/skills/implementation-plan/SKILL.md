@@ -13,6 +13,8 @@ This skill requires the Agent tool to dispatch sub-agents. Before proceeding, ch
 Do NOT proceed with any skill logic if the Agent tool is unavailable.
 </SUB-AGENT-GUARD>
 
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
 # Implementation Plan: Atomic Task Generation
 
 Generate a production-safe implementation plan for a User Story by decomposing it into atomic, TDD-driven tasks with correct dependencies. Prioritize understanding over assumptions — resolve ambiguity before planning.
@@ -63,6 +65,15 @@ Field notes:
 - `elapsed_ms`: always `null` at SKILL_ENTER (not yet known)
 - `termination_directive`: always `null` at SKILL_ENTER
 - `user_interaction_count`: `0` at SKILL_ENTER (no interactions yet)
+
+## Stage-Boundary Entry Check
+
+Source the preconditions validator library and run the entry check for the implementation-plan stage (fail-open: `|| true` prevents blocking when no upstream preplanning event exists yet):
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/preconditions-validator-lib.sh" 2>/dev/null || true
+_dso_pv_entry_check "implementation-plan" "preplanning" "${STORY_ID:-${primary_ticket_id:-}}" || true
+```
 
 ## Usage
 
@@ -1161,6 +1172,14 @@ After processing findings (or skipping/failing), update the summary output to in
 | Blocking on gap analysis failure | Gap analysis failure is non-blocking — log warning and continue |
 | Tasks requiring co-commit | Every task must be independently committable and green. If Task B is broken without Task A in the same commit, merge them or reorder so each stands alone. Inert (does nothing yet) is fine; broken is not. |
 | Test filename not fuzzy-matchable | Verify the normalized source basename is a substring of the normalized test basename. If not, require a `.test-index` entry in acceptance criteria — the test gate will produce a false negative without it. |
+
+## Stage-Boundary Exit Write
+
+Before emitting any STATUS line, write the preconditions exit event for the implementation-plan stage (fail-open):
+
+```bash
+_dso_pv_exit_write "implementation-plan" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:-}" "${STORY_ID:-${primary_ticket_id:-}}" || true
+```
 
 ## Observability: SKILL_EXIT Breadcrumb
 
