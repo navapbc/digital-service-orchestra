@@ -75,6 +75,16 @@ if [[ -f "$GIT_DIR/MERGE_HEAD" ]]; then
     exit 1
 fi
 
+# Guard against being called from inside the target worktree (d888-632b).
+# When CWD is the agent worktree, HEAD resolves to WORKTREE_BRANCH itself and
+# the --is-ancestor check below trivially returns true ("already merged") even
+# when the branch has commits not yet in the session branch.
+_current_ref=$(git symbolic-ref HEAD 2>/dev/null || echo "")
+if [[ "$_current_ref" == "refs/heads/$WORKTREE_BRANCH" ]]; then
+    echo "ERROR: harvest-worktree.sh must be called from the session root, not from inside the worktree being harvested. CWD is on branch '$WORKTREE_BRANCH'; cd to the session root first." >&2
+    exit 1
+fi
+
 # ── Trap: clean up MERGE_HEAD on any failure ─────────────────────────────────
 
 _harvest_exit_code=0
@@ -264,14 +274,19 @@ _harvest_worktree_path=$(git worktree list --porcelain 2>/dev/null | awk -v b="$
 ')
 if [[ -n "$_harvest_worktree_path" ]]; then
     _harvest_session_root=$(git rev-parse --show-toplevel 2>/dev/null)
-    # Never remove the caller's own working tree (would orphan the shell)
+    # Never remove the caller's own working tree (would orphan the shell).
+    # Also skip branch deletion when the guard fires: git rejects deleting the
+    # currently-checked-out branch anyway, and attempting it is misleading (a44a-0f63).
     if [[ "$_harvest_worktree_path" != "$_harvest_session_root" ]]; then
         git worktree unlock "$_harvest_worktree_path" 2>/dev/null || true
         git worktree remove "$_harvest_worktree_path" --force 2>/dev/null || true
         git worktree prune 2>/dev/null || true
+        git branch -D "$WORKTREE_BRANCH" 2>/dev/null || true
     fi
+else
+    # No backing worktree — delete the branch directly.
+    git branch -D "$WORKTREE_BRANCH" 2>/dev/null || true
 fi
-git branch -D "$WORKTREE_BRANCH" 2>/dev/null || true
 
 _harvest_exit_code=0
 echo "Worktree $WORKTREE_BRANCH merged successfully" >&2

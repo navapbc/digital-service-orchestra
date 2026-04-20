@@ -25,6 +25,8 @@
 #  15. test_cleanup_skipped_on_gate_failure — worktree+branch preserved when merge blocked by gate (afdb-8418)
 #  16. test_cleanup_handles_missing_worktree_gracefully — no error when branch has no backing worktree (afdb-8418)
 #  17. test_exit0_when_failed_tests_all_have_red_markers — harvest passes when all failed tests have RED markers (6810-8607)
+#  20. test_harvest_errors_when_called_from_inside_worktree — exits 1 when CWD is inside the target worktree (d888-632b)
+#  21. test_branch_deleted_in_no_worktree_case — branch still deleted when no backing worktree exists (a44a-0f63 regression guard)
 
 set -uo pipefail
 
@@ -32,6 +34,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$SCRIPT_DIR/../lib/assert.sh"
+
+# Prevent PROJECT_ROOT from leaking into temp-repo harvest-worktree.sh invocations.
+# The dso shim exports PROJECT_ROOT; if inherited, harvest-worktree.sh resolves
+# _DSO_SHIM_PATH against the actual project root instead of the stub injected via PATH.
+unset PROJECT_ROOT
 
 HARVEST_SCRIPT="$REPO_ROOT/plugins/dso/scripts/harvest-worktree.sh"
 
@@ -812,6 +819,81 @@ fi
 assert_eq "complete-on-failure: comment contains WORKTREE_TRACKING:complete and outcome=discarded" "yes" "$tracking_discard_found"
 
 assert_pass_if_clean "test_complete_comment_written_on_failure"
+
+# =============================================================================
+# Test 20: test_harvest_errors_when_called_from_inside_worktree (d888-632b)
+# Given: a real git worktree exists for WORKTREE_BRANCH at $tmpdir/agent-wt/
+# When: harvest-worktree.sh is invoked with CWD inside that worktree
+# Then: exits non-zero (error) — NOT 0 / "already merged" — because HEAD
+#       inside the agent worktree resolves to WORKTREE_BRANCH itself, making
+#       the --is-ancestor check trivially true (false "already merged")
+#       unless a CWD-guard detects and rejects the invocation.
+# =============================================================================
+echo "--- test_harvest_errors_when_called_from_inside_worktree ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Create a real git worktree for WORKTREE_BRANCH at $tmpdir/agent-wt/
+AGENT_WORKTREE_PATH="$tmpdir/agent-wt"
+(cd "$SESSION_REPO" && git worktree add "$AGENT_WORKTREE_PATH" "$WORKTREE_BRANCH" >/dev/null 2>&1)
+
+# Call harvest from WITHIN the agent worktree (CWD = AGENT_WORKTREE_PATH)
+exit_code=0
+output=$(cd "$AGENT_WORKTREE_PATH" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    2>&1) || exit_code=$?
+
+# Assert: harvest must exit non-zero — calling from inside the worktree is an error
+assert_ne "harvest exits non-zero when called from inside the worktree (d888-632b)" \
+    "0" "$exit_code"
+
+# Assert: error message must NOT say "already merged" (that would be the false-negative)
+already_merged_in_output="no"
+if echo "$output" | grep -qi "already merged"; then
+    already_merged_in_output="yes"
+fi
+assert_eq "harvest must NOT report false 'already merged' when called from inside worktree (d888-632b)" \
+    "no" "$already_merged_in_output"
+
+assert_pass_if_clean "test_harvest_errors_when_called_from_inside_worktree"
+
+# =============================================================================
+# Test 21: test_branch_deleted_in_no_worktree_case (a44a-0f63 regression guard)
+# Given: WORKTREE_BRANCH has passing gates but NO backing git worktree
+#        (plain branch in session repo — no `git worktree add` was performed)
+# When: harvest-worktree.sh merges it successfully
+# Then: exit code is 0 AND the branch no longer exists in `git branch --list`
+# This guards against a naive fix that moves `git branch -D` inside the
+# worktree-guard `if` block without an `else` — which would silently skip
+# branch deletion in the no-worktree case.
+# =============================================================================
+echo "--- test_branch_deleted_in_no_worktree_case ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Confirm no backing worktree for the branch
+wt_path_before=""
+wt_path_before=$(cd "$SESSION_REPO" && git worktree list --porcelain 2>/dev/null \
+    | awk '/^worktree /{p=$2}/branch refs\/heads\/'"$WORKTREE_BRANCH"'/{print p}' || true)
+assert_eq "no backing worktree before harvest" "" "$wt_path_before"
+
+exit_code=0
+cd "$SESSION_REPO" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    >/dev/null 2>&1 || exit_code=$?
+
+assert_eq "no-worktree harvest exits 0" "0" "$exit_code"
+
+branch_after=$(cd "$SESSION_REPO" && git branch --list "$WORKTREE_BRANCH")
+assert_eq "branch deleted after harvest in no-worktree case (a44a-0f63)" "" "$branch_after"
+
+assert_pass_if_clean "test_branch_deleted_in_no_worktree_case"
 
 # =============================================================================
 print_summary
