@@ -833,6 +833,8 @@ Before processing stories for implementation planning, filter out design-blocked
 ```bash
 source ${CLAUDE_PLUGIN_ROOT}/skills/shared/constants/figma-tags.conf
 # TAG_AWAITING_IMPORT=design:awaiting_import
+source ${CLAUDE_PLUGIN_ROOT}/skills/shared/constants/planning-tags.conf
+# TAG_MANUAL_AWAITING_USER=manual:awaiting_user
 ```
 
 **Read staleness threshold from config:**
@@ -841,9 +843,10 @@ figma_staleness_days=$(grep '^design\.figma_staleness_days=' .claude/dso-config.
 figma_staleness_days=${figma_staleness_days:-7}
 ```
 
-**Initialize awaiting_design_stories list (once before layer loop):**
+**Initialize story lists (once before layer loop):**
 ```
-awaiting_design_stories = []  # List of {id, title, tag_applied_date}
+awaiting_design_stories = []   # List of {id, title, tag_applied_date}
+awaiting_manual_stories = []   # List of {id, title} for manual:awaiting_user stories
 ```
 
 **For each story from `.claude/scripts/dso ticket list` (filtered by parent):**
@@ -853,7 +856,29 @@ awaiting_design_stories = []  # List of {id, title, tag_applied_date}
    - Estimate the tag age from the ticket's comment timestamps: find the comment whose body contains `"Import designs/"` (written by design-wireframe when the tag was applied) and read its `timestamp` field from the JSON output. Compute days elapsed: `$(( ($(date +%s) - comment_timestamp_epoch) / 86400 ))`. If no such comment exists, treat tag age as unknown (no staleness warning).
    - Add the story to the `awaiting_design_stories` list: `{id: "<story-id>", title: "<story-title>", tag_applied_date: "<date or unknown>"}`
    - **Do not add this story to the needs-planning list**. Skip all further processing for this story (no complexity eval, no implementation-plan dispatch, no batch dispatch in Phase 4).
-3. Only stories **without** the `design:awaiting_import` tag proceed to Step 1 below.
+3. Only stories **without** the `design:awaiting_import` tag proceed to the `manual:awaiting_user` check below.
+
+**Manual-awaiting-user check** (runs when `planning.external_dependency_block_enabled=true`):
+
+Read the flag:
+```bash
+_manual_flag=$(grep '^planning.external_dependency_block_enabled=' .claude/dso-config.conf 2>/dev/null | cut -d= -f2)
+```
+
+For each story that passed the design filter:
+1. If `_manual_flag` is `true`: check the `tags` field for `$TAG_MANUAL_AWAITING_USER` (`manual:awaiting_user`)
+2. If present:
+   - Log: `"Story <id> tagged manual:awaiting_user — deferring to manual-pause handshake."`
+   - Add to `awaiting_manual_stories` list: `{id: "<story-id>", title: "<story-title>"}`
+   - **Do not add this story to the needs-planning list.** Skip complexity eval and implementation-plan dispatch.
+3. Only stories without `manual:awaiting_user` (or with `_manual_flag != true`) proceed to Step 1 below.
+
+**Topological sort for manual stories:**
+
+After populating `awaiting_manual_stories`, sort them so manual stories appear before their transitive autonomous dependents:
+1. Build a dependency graph from `.claude/scripts/dso ticket deps` for each manual story
+2. Sort: if manual story M1 is a dependency of M2, M1 appears first
+3. **Cycle detection**: if M1 and M2 are both `manual:awaiting_user` and M1 blocks M2 AND M2 blocks M1, log `"CYCLE_DETECTED: manual stories <M1-id> and <M2-id> have mutual dependency"` and escalate to user — do not continue Phase 3.5.
 
 #### Step 1: Identify Stories Needing Implementation Planning (/dso:sprint)
 
@@ -1303,6 +1328,38 @@ If `--dry-run` was specified:
    ```
 3. Output the batch plan: task IDs, titles, model, subagent, class
 4. **Stop** — do not execute any sub-agents
+
+---
+
+## Phase 3.5: Manual-Pause Handshake (/dso:sprint)
+
+This phase runs **only** when all of the following are true:
+- `planning.external_dependency_block_enabled=true`
+- `awaiting_manual_stories` list is non-empty
+- All autonomous tasks in the current batch have completed (or there are no autonomous tasks in this batch)
+
+**Steps:**
+
+1. Write the sorted manual story list to a temp JSON file. Each entry must include the fields expected by `sprint-manual-drain.sh`:
+   ```bash
+   # Write JSON array to temp file
+   MANUAL_JSON_FILE=$(mktemp /tmp/sprint-manual-stories-XXXXXX.json)
+   # Array format: [{"id":"<id>","title":"<title>","instructions":"<desc>","verification_command":<cmd|null>,"deps":[...]}]
+   ```
+
+2. Call the manual-drain script via the host-project shim:
+   ```bash
+   .claude/scripts/dso sprint-manual-drain.sh "$MANUAL_JSON_FILE"  # shim-exempt: internal orchestration script
+   ```
+
+3. Parse the exit code:
+   - **0**: all manual stories handled — proceed to Phase 4 (or Phase 5 if no autonomous tasks remain in this batch)
+   - **1**: skip propagation applied — log skipped stories and proceed; skipped stories have a sentinel written with `handshake_outcome=skip`
+   - **2**: re-prompt required (this should not occur — `sprint-manual-drain.sh` handles re-prompting internally; if it surfaces here, log as an error and escalate to user)
+
+4. After handshake completes: run `.claude/scripts/dso sprint-next-batch.sh <epic-id>` again to pick up any autonomous stories that were unblocked by the manual step completion.
+
+5. Clean up: `rm -f "$MANUAL_JSON_FILE"`
 
 ---
 
@@ -1946,6 +2003,8 @@ If OPEN_CHILDREN > 0:
 - Resume Phase 3 to close the remaining tasks
 
 Only when OPEN_CHILDREN == 0, proceed to dispatch dso:completion-verifier.
+
+**Manual story sentinel path (Step 10a)**: When the story has the `manual:awaiting_user` tag, `dso:completion-verifier` reads the `MANUAL_PAUSE_SENTINEL` comment written by `sprint-manual-drain.sh` to determine the verdict (see `completion-verifier.md` Step 3b). The orchestrator takes no special action — dispatch the verifier normally and let it apply the sentinel verdict rules automatically.
 
 <HARD-GATE>
 Do NOT close this story, do NOT transition it to closed, and do NOT proceed to Step 11 until dso:completion-verifier has been dispatched via Task tool and its verdict received. This gate applies regardless of whether:
