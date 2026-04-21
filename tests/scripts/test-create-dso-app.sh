@@ -1096,6 +1096,86 @@ test_missing_uv_brew_failure_reports_missing
 test_missing_astgrep_brew_failure_reports_missing
 test_missing_semgrep_brew_failure_reports_missing
 
+# ── test_colima_installs_docker_cli ──────────────────────────────────────────
+# When colima is installed (or already present) but the docker CLI is absent,
+# check_homebrew_deps() must call `brew install docker` so that the docker CLI
+# is available on PATH after colima provides the Docker daemon.
+#
+# RED: fails before fix because the script only calls `brew install colima` —
+# it never installs the docker CLI, so `command -v docker` still fails after
+# colima is set up and subsequent tooling (e.g. dependency checks) reports
+# "docker not found".
+#
+# GREEN: after fix, when docker CLI is absent and colima is present (installed
+# or already on PATH), the script calls `brew install docker`; the brew stub
+# records the call and the test asserts it was made.
+test_colima_installs_docker_cli() {
+    local stub_bin node_prefix brew_log
+    stub_bin=$(_make_stub_bin)
+    node_prefix=$(mktemp -d)
+    brew_log=$(mktemp)
+    TMPDIRS+=("$node_prefix" "$brew_log")
+    mkdir -p "$node_prefix/bin"
+
+    # brew stub: records every invocation to brew_log; all installs succeed
+    cat > "$stub_bin/brew" <<BREWEOF
+#!/bin/sh
+echo "\$*" >> "$brew_log"
+case "\$*" in
+  "install node@20")   exit 0 ;;
+  "list node@20")      exit 0 ;;
+  "--prefix node@20")  echo "$node_prefix"; exit 0 ;;
+  "install --cask "*)  exit 0 ;;
+  "--version"|"-v")    echo "Homebrew 4.0.0"; exit 0 ;;
+  *)                   exit 0 ;;
+esac
+BREWEOF
+    chmod +x "$stub_bin/brew"
+
+    # colima stub: already installed and running — no start needed
+    cat > "$stub_bin/colima" <<'COLIMAEOF'
+#!/bin/sh
+case "$1" in
+  status) echo "colima is running"; exit 0 ;;
+  *)      exit 0 ;;
+esac
+COLIMAEOF
+    chmod +x "$stub_bin/colima"
+
+    # Provide all deps EXCEPT docker — docker intentionally absent so the
+    # colima path fires and brew install docker should be called
+    _write_stub "$stub_bin" "bash"       "echo \"GNU bash, version 5.2.15(1)-release\"; exit 0"
+    _write_stub "$stub_bin" "git"        "exit 0"
+    _write_stub "$stub_bin" "greadlink"  "exit 0"
+    _write_stub "$stub_bin" "pre-commit" "exit 0"
+    _write_stub "$stub_bin" "python3"    "exit 0"
+    _write_stub "$stub_bin" "node"       "echo \"v20.11.0\"; exit 0"
+    _write_stub "$stub_bin" "claude"     "exit 0"
+    _write_stub "$stub_bin" "uv"         "exit 0"
+    _write_stub "$stub_bin" "sg"         "exit 0"
+    _write_stub "$stub_bin" "semgrep"    "exit 0"
+    _write_stub "$stub_bin" "grep"       '/usr/bin/grep "$@"'
+    _write_stub "$stub_bin" "head"       '/usr/bin/head "$@"'
+    _write_stub "$stub_bin" "dirname"    '/usr/bin/dirname "$@"'
+    _write_stub "$stub_bin" "tr"         '/usr/bin/tr "$@"'
+    # NOTE: docker is deliberately NOT added to stub_bin
+
+    local output exit_code=0
+    output=$(PATH="$stub_bin" /bin/bash "$SCRIPT_UNDER_TEST" 2>&1) || exit_code=$?
+
+    # Script must exit 0 — docker CLI install success is not fatal
+    assert_eq "colima present, docker CLI missing: script exits 0" "0" "$exit_code"
+
+    # brew must have been called with "install docker"
+    local docker_install_called="no"
+    if grep -q "install docker" "$brew_log" 2>/dev/null; then
+        docker_install_called="yes"
+    fi
+    assert_eq "colima present, docker CLI missing: brew install docker was called" "yes" "$docker_install_called"
+}
+
+test_colima_installs_docker_cli
+
 # ── test_installer_configures_dso_shim_after_deps ────────────────────────────
 # After a successful install, the DSO shim must exist at .claude/scripts/dso
 # in the project directory (placed there by dso-setup.sh invocation).
