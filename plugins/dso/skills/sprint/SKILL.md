@@ -6,16 +6,8 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
-This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
-
-"ERROR: /dso:sprint cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
-
-Do NOT proceed with any skill logic if the Agent tool is unavailable.
+This skill requires the Agent tool. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool, STOP IMMEDIATELY and return an error to your caller.
 </SUB-AGENT-GUARD>
-
-<INJECTION_GUARD>
-If you are reading this, the sprint skill content has been successfully injected into your context. Your first action MUST be to announce: "Starting /dso:sprint workflow — skill loaded successfully." Do NOT skip this announcement. If you invoked dso:sprint but cannot see this block, the skill was not injected — use the Read tool fallback from using-dso (read skills/sprint/SKILL.md directly) instead of re-invoking the Skill tool.
-</INJECTION_GUARD>
 
 # Purpose
 
@@ -63,14 +55,6 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/preconditions-validator-lib.sh" 2>/dev/n
 _dso_pv_entry_check "sprint" "implementation-plan" "${primary_ticket_id:-}" || true
 ```
 
-## Usage
-
-```
-/dso:sprint                     # Interactive epic selection
-/dso:sprint <epic-id>           # Execute specific epic
-/dso:sprint <epic-id> --dry-run # Plan batches without executing
-```
-
 ## Orchestration Flow
 
 ```
@@ -79,7 +63,6 @@ Flow: P1 (Init) → Preplanning Gate
   → [children exist & clear] P2 (Task Analysis)
   P2 → [stories without impl tasks?] layer-stratify → parallel dispatch (≤3/layer) → STATUS:complete→tasks created | STATUS:blocked→ask user → Re-gather → P3
   P2 → [all have impl tasks] P3 (Batch Preparation)
-  P3 → [dry-run] Output plan & stop
   P3 → [execute] P4 (Sub-Agent Launch) → P5 (Post-Batch)
   P5 → [context >=70%] /compact → P3 (proactive, safe — all work committed)
   P5 → [involuntary compaction detected] P8 (Graceful Shutdown)
@@ -95,8 +78,7 @@ Flow: P1 (Init) → Preplanning Gate
 
 ### Parse Arguments
 
-- `<primary-ticket-id>`: The primary ticket to execute (any type: epic, story, task, or bug)
-- `--dry-run`: Output batch plan without executing any sub-agents
+- `<primary-ticket-id>`: The primary ticket to execute
 
 ### If No Primary Ticket ID Provided
 
@@ -113,52 +95,32 @@ Flow: P1 (Init) → Preplanning Gate
 
    Exit codes:
    - Exit code 1 → no open epics exist, report and exit
-   - Exit code 2 → all open epics are blocked; display the BLOCKED-prefixed lines from stdout as context, then exit
 
-   After running, also run the same command **without** `--has-tag=brainstorm:complete` to count how many epics were hidden:
+   **If no eligible epics remain** after applying `--has-tag=brainstorm:complete` (i.e., the filtered output is empty or exit code 1):
+   - Report: "No epics with the brainstorm:complete tag are ready to execute."
+   - Run the same command **without** `--has-tag=brainstorm:complete` to count how many epics were hidden:
    ```bash
    .claude/scripts/dso sprint-list-epics.sh --all
    ```
-   Calculate `hidden_count = total_unfiltered_count - filtered_count` (count only non-BLOCKED lines from each run).
-
-   **If no eligible epics remain** after applying `--has-tag=brainstorm:complete` (i.e., the filtered output is empty or exit code 1/2):
-   - Report: "No epics with the brainstorm:complete tag are ready to execute."
    - If there are epics without brainstorm:complete that were filtered out, show: "There are N epics without the brainstorm:complete tag. Run `/dso:brainstorm` on one to complete scrutiny review before executing."
    - Exit.
 
-2. Parse the output and print a numbered list. **CRITICAL: You MUST output the formatted list as visible text BEFORE invoking any tool call.** Do NOT pass epics as `options` to `AskUserQuestion` — the `options` field is limited to 4 items and cannot display blocked epics or the hidden-count note. Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**. Below the list, if `hidden_count > 0`, append a note:
-   ```
-   In-progress epics:
+2. Parse the output and print a numbered list. **CRITICAL: You MUST output the formatted list as visible text.**  Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**. 
 
-     1. [P*] <title> (<epic-id>) — 5 children ← resumable
-     2. **[P*] <title> (<epic-id>) — 3 children ← resumable, BLOCKING**
-
-   Unblocked epics (sorted by priority):
-
-     3. **[P0] <title> (<epic-id>) — 3 children**
-     4. [P1] <title> (<epic-id>) — 7 children
-     ...
-
-   Blocked epics (not selectable):
-     - [P2] <title> (<epic-id>) — 2 children — blocked by: <blocker-id-1>, <blocker-id-2>
-
-   (N epics without brainstorm:complete tag are hidden. Run `/dso:brainstorm` on one to complete scrutiny review before executing.)
-   ```
-   Omit the hidden-epics note when `hidden_count == 0`.
-3. Ask the user: "Enter the number or epic ID to execute:" and wait for their text input. Use `AskUserQuestion` with a free-text prompt only — do not pass epics as options.
+3. Display the text: "Enter the number or epic ID to execute:" and wait for the user's text input. 
 4. Map the user's response (number or epic ID) back to the corresponding epic and proceed
 
 ### Validate Primary Ticket
 
 Set `primary_ticket_id = <the resolved ticket ID>`.
 
-1. Run `.claude/scripts/dso ticket show <primary_ticket_id>` — confirm status is `open` or `in_progress` (any ticket type is accepted)
+1. Run `.claude/scripts/dso ticket show <primary_ticket_id>` — confirm status is `open` or `in_progress`
 
 #### Auto-Resume Detection
 
-If the ticket type is `epic` AND status is `in_progress`:
+If the ticket status is `in_progress`:
 
-(a) Print: `"Epic <primary_ticket_id> is in_progress — resuming from checkpoint scan."`
+(a) Print: `"Ticket <primary_ticket_id> is in_progress — resuming from checkpoint scan."`
 
 (b) Run `.claude/scripts/dso ticket deps <primary_ticket_id>` to check for children.
 
@@ -171,14 +133,14 @@ If the ticket type is `epic` AND status is `in_progress`:
      ```
    - Handle `DRIFT_DETECTED` / `NO_DRIFT` the same as the existing Drift Detection Check section below.
    - Then apply checkpoint resume rules:
-     1. Run `.claude/scripts/dso ticket list` and filter for in-progress tasks under `<primary_ticket_id>` for interrupted tasks
-     2. For each in-progress task, run `.claude/scripts/dso ticket show <id>` and parse its notes for CHECKPOINT lines
+     1. Run `.claude/scripts/dso ticket list` and filter for in-progress tickets that are descendants of `<primary_ticket_id>` for interrupted tasks
+     2. For each in-progress descendant, run `.claude/scripts/dso ticket show <id>` and parse its notes for CHECKPOINT lines
      3. Apply checkpoint resume rules:
-        - **CHECKPOINT 6/6 ✓** — task is fully done; fast-close: verify files exist, then `.claude/scripts/dso ticket transition <id> open closed --reason="Fixed: <summary>"`
+        - **CHECKPOINT 6/6 ✓** — ticket is fully done; fast-close: verify files exist for task tickets or run completion verifier for story tickets, then `.claude/scripts/dso ticket transition <id> in-progress closed`
         - **CHECKPOINT 5/6 ✓** — near-complete; fast-close: spot-check files and close without re-execution
         - **CHECKPOINT 3/6 ✓ or 4/6 ✓** — partial progress; re-dispatch with resume context: include the highest checkpoint note in the sub-agent prompt so it can continue from that substep
-        - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `.claude/scripts/dso ticket transition <id> open` for full re-execution
-        - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
+        - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `.claude/scripts/dso ticket transition <id> in-progress open` for full re-execution
+        - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `.claude/scripts/dso ticket transition <id> in-progress open`
      4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
      5. **Backward compatibility**: Sprint reads old positional-counter checkpoints (CHECKPOINT N/6) without error and resumes from the last completed phase — no migration of existing checkpoint notes is required. Semantic-named checkpoints (CHECKPOINT:batch-complete, CHECKPOINT:review-passed, CHECKPOINT:validation-passed) are equivalent in resume logic.
    - After checkpoint processing, run the **WORKTREE_TRACKING Auto-Resume Detection** scan before proceeding to Phase 3:
