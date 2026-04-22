@@ -129,31 +129,23 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
 .claude/scripts/dso ticket comment <primary_ticket_id> "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
 ```
 
-4. Mark the **Select and validate primary ticket** todo item `completed`.
-
 **Non-epic routing**: After validation, check the ticket type and route accordingly:
 
 | Ticket type | Route |
 |-------------|-------|
 | `epic` | Continue to Drift Detection → Preplanning Gate (standard flow) |
-| `bug` | Dispatch `/dso:fix-bug` as sub-skill (SC4) — see Bug Routing below |
-| `story` or `task` | Run complexity evaluation then optional `/dso:implementation-plan` (SC1) — see Non-Epic Routing below |
+| `bug` | Dispatch `/dso:fix-bug` as sub-skill — see Bug Routing below |
+| `story` or `task` | Run complexity evaluation then optional `/dso:implementation-plan` — see Non-Epic Routing below |
 
 #### Bug Routing (SC4)
 
-<!-- REVIEW-DEFENSE: Finding 3 — The absence of an explicit ORCHESTRATOR_RESUME fence here is intentional.
-     SC4 is a terminal routing path: the sprint orchestrator exits after fix-bug completes (step 4 proceeds directly
-     to Phase 8 Session Close). There is no sprint phase to resume into after fix-bug returns, so the ORCHESTRATOR_RESUME
-     pattern (which guards against fix-bug's own termination directives overriding the caller) is not applicable.
-     The fix-bug skill's SUB-AGENT-GUARD handles nested sub-agent context as designed per the epic's success criteria. -->
 When ticket type is `bug`:
 
 1. Log: `"Primary ticket <primary_ticket_id> is a bug — dispatching /dso:fix-bug."`
-2. Emit SKILL_INVOKE breadcrumb then invoke `/dso:fix-bug <primary_ticket_id>` via Skill tool.
-3. Emit SKILL_RESUMED breadcrumb after the skill returns.
-4. Exit Phase 1 and proceed to Phase 8 (Session Close). Do not continue to the Preplanning Gate or Phase 2.
+2. Invoke `/dso:fix-bug <primary_ticket_id>` via Skill tool.
+3. Exit Phase 1 and proceed to Phase 8 (Session Close). Do not continue to the Preplanning Gate or Phase 2.
 
-#### Non-Epic Routing (SC1)
+#### Non-Epic Routing
 
 When ticket type is `story` or `task`:
 
@@ -165,19 +157,9 @@ When ticket type is `story` or `task`:
 3. Route based on the complexity classification:
    - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Before proceeding, run a **file-count guard**: estimate the number of files the task will touch by running `enrich-file-impact.sh` or by counting file paths mentioned in the ticket description. If the estimated file count exceeds 30, split the task into parallel sub-tasks by directory or alphabetical range (each sub-task ≤ 30 files), create child task tickets for each subset, and proceed to Phase 3 with the split tasks. If ≤ 30 files, proceed directly to Phase 3 (Batch Preparation) with the ticket as the sole task.
    - **TRIVIAL (medium)** or **MODERATE/COMPLEX (any)**: Invoke `/dso:implementation-plan <primary_ticket_id>` via Skill tool.
-<!-- REVIEW-DEFENSE: Finding — "TRIVIAL (medium) treated as MODERATE but evaluator contract says medium→COMPLEX."
-     The TRIVIAL (medium) branch is a deliberate routing policy decision, not a contract violation. The
-     complexity-evaluator contract describes the evaluator's *output* classification space; it does not govern
-     sprint orchestrator routing policy. The evaluator may or may not promote TRIVIAL(medium) to COMPLEX
-     depending on version and context — what matters here is the routing outcome. Both TRIVIAL(medium) and
-     MODERATE/COMPLEX(any) are collapsed into a single branch that routes to /dso:implementation-plan, which
-     is correct in both cases. This mirrors the pre-existing epic routing table (Phase 1 Step 2b, same file),
-     which uses the same TRIVIAL(medium)→lightweight-preplanning pattern by design. If the evaluator contract
-     guarantees TRIVIAL(medium) is never emitted, this branch is harmlessly unreachable and causes no
-     incorrect behavior — the routing table remains correct for all reachable inputs. -->
+
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Non-Epic Routing (SC1). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your next action is step 4: continue to Phase 3.
-   Stopping here is a known bug (7d7a-b707). Do not stop.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Non-Epic Routing. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your next action is step 4: continue to Phase 3.
    </ORCHESTRATOR_RESUME>
 4. After routing, continue to Phase 3. Non-epics **skip** the Preplanning Gate and proceed directly to Phase 3.
 
@@ -194,10 +176,6 @@ max_replan_cycles = read_config("sprint.max_replan_cycles", default=2)
 
 **Run the drift check:**
 
-<!-- REVIEW-DEFENSE: Finding 1 — `<epic-id>` here is a SKILL.md instruction placeholder, not a literal string.
-     The orchestrator substitutes the actual primary ticket ID at runtime, consistent with the placeholder convention
-     used throughout this file (Phase 2, Phase 5, Phase 7, Phase 8, etc.). Renaming all occurrences from <epic-id>
-     to <primary_ticket_id> is tracked in task 6450-ce70 which handles the broader Phase naming migration. -->
 ```bash
 DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
 ```
@@ -211,11 +189,10 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Files drifted: <files>. Re-invoking implementation-plan for affected stories."
    ```
 4. Identify which stories' tasks reference any of the drifted files (inspect each child task's `## File Impact` or `## Files to Modify` section).
-5. For each affected story, emit a SKILL_INVOKE breadcrumb and re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as Phase 2 Step 2).
+5. For each affected story, re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as Phase 2 Step 2).
 
    <ORCHESTRATOR_RESUME>
    **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
-   Stopping here is a known bug (7d7a-b707). Do not stop.
    </ORCHESTRATOR_RESUME>
 
    - **On success (`STATUS:complete`)**: continue.
