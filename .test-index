@@ -3,7 +3,6 @@
 # Format: source/path: test/path1[, test/path2...]
 
 .github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh
-README.md:tests/test-readme-structure.sh
 plugins/dso/.claude-plugin/plugin.json:tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-dir-structure.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
 plugins/dso/agents/bot-psychologist.md:tests/scripts/test-bot-psychologist-agent.sh
@@ -138,7 +137,7 @@ plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/ticket-compact-all.sh:tests/scripts/test-ticket-compact-all.sh
 plugins/dso/scripts/ticket:tests/scripts/test-ticket-compact-all.sh,tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-tag-cli-refactor.sh,tests/scripts/test-ticket-init-bash-native.sh [test_ensure_initialized_no_python3]
-plugins/dso/scripts/ticket-lib-api.sh:tests/scripts/test-ticket-lib-api.sh
+plugins/dso/scripts/ticket-lib-api.sh:tests/scripts/test-ticket-lib-api.sh,tests/scripts/test-ticket-lib-sourceability.sh
 plugins/dso/agents/scope-drift-reviewer.md:tests/scripts/test-scope-drift-reviewer.sh
 plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh
