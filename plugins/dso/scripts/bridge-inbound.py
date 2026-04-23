@@ -290,10 +290,24 @@ def process_inbound(
     type_mapping = config.get("type_mapping", {})
     checkpoint_file = config.get("checkpoint_file", "")
     run_id = config.get("run_id", "")
+    overlap_buffer_minutes = config.get("overlap_buffer_minutes", 15)
+    project = config.get("project") or ""
+
+    # Observability: emit run-start summary so success/failure is distinguishable in logs.
+    # Bug 0e38-a5da: silent fetch regressions previously went undetected for 7+ days
+    # because the script produced zero output on success.
+    print(
+        f"[inbound-bridge] start run={run_id} project={project or '(none)'} "
+        f"window_start={last_pull_ts} overlap_minutes={overlap_buffer_minutes} "
+        f"bridge_env_id={bridge_env_id[:8] if bridge_env_id else '(none)'}",
+        flush=True,
+    )
 
     issues = _fetch_issues_with_checkpoint(
         acli_client, last_pull_ts=last_pull_ts, config=config
     )
+
+    print(f"[inbound-bridge] fetched {len(issues)} issue(s)", flush=True)
 
     reducer_path = Path(__file__).resolve().parent / "ticket-reducer.py"
     try:
@@ -327,6 +341,24 @@ def process_inbound(
         bridge_env_id=bridge_env_id,
         run_id=run_id,
     )
+
+    # Observability: emit run-complete summary with issue disposition counts.
+    # A window that expected issues but got zero is the canonical failure signal
+    # for the silent-fetch regression (bug 0e38-a5da).
+    print(
+        f"[inbound-bridge] complete run={run_id} fetched={len(issues)} "
+        f"unmapped_type={len(unmapped_type_keys)} create_events={len(creatable_issues)}",
+        flush=True,
+    )
+    if len(issues) == 0:
+        logging.warning(
+            "[inbound-bridge] zero issues fetched for project=%r window_start=%s "
+            "overlap=%sm — if you expected issues in this window, the fetch "
+            "may be silently broken (bug 0e38-a5da).",
+            project or "(none)",
+            last_pull_ts,
+            overlap_buffer_minutes,
+        )
     _write_success_checkpoint(checkpoint_file, run_id)
 
 
