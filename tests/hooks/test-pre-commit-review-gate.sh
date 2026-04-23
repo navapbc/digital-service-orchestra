@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2030,SC2031  # Subshell isolation for test independence (export in $() is intentional)
+# shellcheck disable=SC2164         # cd into known-valid mktemp dirs in test helpers — cannot fail
+# shellcheck disable=SC2155         # Declare-and-assign in subshell context — test-only pattern
+# shellcheck disable=SC2069         # Redirect order in run_hook_stderr — pre-existing, intentional
 # tests/hooks/test-pre-commit-review-gate.sh
 # Tests for hooks/pre-commit-review-gate.sh
 #
@@ -419,6 +423,135 @@ PYEOF
     assert_eq "test_code_change_after_review_blocked: hook exits 1" "1" "$exit_code"
 }
 
+# ============================================================
+# test_shellcheck_disable_only_drift_self_heals
+#
+# When a shellcheck directive comment (# shellcheck disable=...) is added to a
+# staged .sh file after review but before commit, the pre-commit hook should
+# self-heal the diff hash and allow the commit (exit 0) without requiring a
+# full re-review.
+#
+# Simulates: review -> shellcheck directive added to .sh file -> commit attempt
+# Expected: self-healed -> exit 0
+# ============================================================
+test_shellcheck_disable_only_drift_self_heals() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Commit an initial shell script to HEAD so it has a base version
+    cat > "$_repo/myscript.sh" << 'SHEOF'
+#!/usr/bin/env bash
+my_func() {
+    local arr=()
+    for item in $1; do
+        arr+=("$item")
+    done
+    echo "${arr[@]}"
+}
+SHEOF
+    chmod +x "$_repo/myscript.sh"
+    git -C "$_repo" add "myscript.sh"
+    git -C "$_repo" commit -q -m "add script"
+
+    # Stage the file in its original state -- simulate what was reviewed
+    git -C "$_repo" add "myscript.sh"
+
+    # Compute the diff hash before adding the shellcheck directive -- simulate review
+    local diff_hash_before
+    diff_hash_before=$(compute_hash_in_repo "$_repo" "$_artifacts")
+    write_valid_review_status "$_artifacts" "$diff_hash_before"
+
+    # Add a shellcheck disable directive to the .sh file (non-functional change)
+    cat > "$_repo/myscript.sh" << 'SHEOF'
+#!/usr/bin/env bash
+my_func() {
+    local arr=()
+    # shellcheck disable=SC2206
+    for item in $1; do
+        arr+=("$item")
+    done
+    echo "${arr[@]}"
+}
+SHEOF
+    chmod +x "$_repo/myscript.sh"
+    git -C "$_repo" add "myscript.sh"
+
+    # At this point: review-status has the old hash, but only a shellcheck directive was added.
+    # The hash will now differ. The hook should self-heal (shellcheck-directive-only drift).
+    local exit_code
+    exit_code=$(
+        cd "$_repo"
+        export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+        bash "$HOOK" 2>/dev/null; echo $?
+    )
+
+    assert_eq "test_shellcheck_disable_only_drift_self_heals: hook exits 0" "0" "$exit_code"
+}
+
+# ============================================================
+# test_shellcheck_disable_with_real_code_change_blocked
+#
+# When a shellcheck directive comment AND a real code change are both added to a
+# staged .sh file after review, the pre-commit hook should still block (exit 1)
+# because there is a real code change beyond the directive comment.
+#
+# Simulates: review -> shellcheck directive + real code change -> commit attempt
+# Expected: blocked -> exit 1
+# ============================================================
+test_shellcheck_disable_with_real_code_change_blocked() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Commit an initial shell script to HEAD
+    cat > "$_repo/myscript.sh" << 'SHEOF'
+#!/usr/bin/env bash
+my_func() {
+    echo "hello"
+}
+SHEOF
+    chmod +x "$_repo/myscript.sh"
+    git -C "$_repo" add "myscript.sh"
+    git -C "$_repo" commit -q -m "add script"
+
+    # Stage the original file -- simulate reviewed state
+    git -C "$_repo" add "myscript.sh"
+
+    # Compute the diff hash -- simulate review at this state
+    local diff_hash_before
+    diff_hash_before=$(compute_hash_in_repo "$_repo" "$_artifacts")
+    write_valid_review_status "$_artifacts" "$diff_hash_before"
+
+    # Add both a shellcheck directive AND a real new function (substantive change)
+    cat > "$_repo/myscript.sh" << 'SHEOF'
+#!/usr/bin/env bash
+my_func() {
+    echo "hello"
+}
+
+# shellcheck disable=SC2120
+new_function() {
+    echo "new behavior added after review"
+}
+SHEOF
+    chmod +x "$_repo/myscript.sh"
+    git -C "$_repo" add "myscript.sh"
+
+    # At this point: review-status has the old hash, real code was added after review.
+    # The hook should NOT self-heal -- must block with exit 1.
+    local exit_code
+    exit_code=$(
+        cd "$_repo"
+        export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+        bash "$HOOK" 2>/dev/null; echo $?
+    )
+
+    assert_eq "test_shellcheck_disable_with_real_code_change_blocked: hook exits 1" "1" "$exit_code"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_allowlisted_only_commit_passes
 test_tickets_only_commit_passes
@@ -429,5 +562,7 @@ test_blocked_error_message_directs_to_commit_or_review
 test_hook_reads_from_shared_allowlist
 test_formatting_only_drift_self_heals
 test_code_change_after_review_blocked
+test_shellcheck_disable_only_drift_self_heals
+test_shellcheck_disable_with_real_code_change_blocked
 
 print_summary
