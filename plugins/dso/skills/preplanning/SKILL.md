@@ -409,15 +409,21 @@ Adversarial review complete:
 
 ### Step 3.5: Persist Adversarial Review Exchange (/dso:preplanning)
 
-After processing blue team findings, persist the full exchange for post-mortem analysis:
+After processing blue team findings, the orchestrator persists the full exchange for post-mortem analysis. The blue team agent does NOT write files (it cannot run shell commands) — it returns `artifact_path: null`, and the orchestrator handles persistence here using the red team findings and the blue team's `findings`/`rejected` arrays.
 
-1. Parse the blue team agent's output for the `artifact_path` field. If present, it points to the persisted JSON file at `$ARTIFACTS_DIR/adversarial-review-<epic-id>.json`
-2. If `artifact_path` is present, add a one-line ticket comment referencing the artifact:
+1. Resolve the artifact path and write the full exchange JSON:
    ```bash
-   .claude/scripts/dso ticket comment <epic-id> "Adversarial review: <N> findings, <M> accepted. Full exchange: <artifact_path>"
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
+   ARTIFACTS_DIR=$(get_artifacts_dir)
+   ARTIFACT_PATH="$ARTIFACTS_DIR/adversarial-review-<epic-id>.json"
+   # Write JSON combining the red team output and blue team findings/rejected arrays
    ```
-3. **If `artifact_path` is absent** (agent failed to persist, or returned malformed output): log a warning `"Adversarial review artifact not persisted — blue team agent did not return artifact_path"` and continue. Artifact persistence failure is non-blocking.
-4. This artifact is available for future post-mortem analysis but is not surfaced in normal `ticket show` output
+2. Add a one-line ticket comment referencing the artifact:
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "Adversarial review: <N> findings, <M> accepted. Full exchange: $ARTIFACT_PATH"
+   ```
+3. If writing the artifact fails (disk full, permission error): log a warning and continue — persistence failure is non-blocking.
+4. The artifact is available for future post-mortem analysis but is not surfaced in normal `ticket show` output.
 
 ### Step 4: Continue to Phase 3
 
