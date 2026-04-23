@@ -331,6 +331,11 @@ check_homebrew_deps() {
       brew install colima || missing+=("colima")
     fi
     if command -v colima >/dev/null 2>&1; then
+      # Colima provides the Docker daemon but not the docker CLI — install it separately
+      if ! command -v docker >/dev/null 2>&1; then
+        echo "Installing docker CLI via Homebrew (required alongside Colima)..."
+        brew install docker || echo "WARNING: Could not install docker CLI — run 'brew install docker' manually." >&2
+      fi
       if ! colima status 2>/dev/null | grep -q "Running"; then
         echo "Starting Colima..."
         colima start --cpu 4 --memory 8 || \

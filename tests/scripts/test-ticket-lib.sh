@@ -657,4 +657,342 @@ test_write_commit_event_regression_after_extraction() {
 }
 test_write_commit_event_regression_after_extraction
 
+# ── Tests 9-15: forward-compat and schema_version derivation (RED) ────────────
+# These test new behaviors in _write_preconditions and _read_latest_preconditions
+# that don't exist yet. Tests 9-11 test unknown schema_version handling in the
+# reader. Tests 12-15 test schema_version derivation in the writer.
+
+# ── Test 9: unknown schema_version logs warning ───────────────────────────────
+echo "Test 9: _read_latest_preconditions emits warning for unknown schema_version=99"
+test_forward_compat_reader_unknown_schema_version_logs_warning() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists" "exists" "missing"
+        return
+    fi
+
+    # Manually write a PRECONDITIONS event with schema_version=99
+    local ticket_id="test-fwdcompat-001"
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    mkdir -p "$ticket_dir"
+    local ts
+    ts=$(python3 -c "import time; print(int(time.time() * 1000))")
+    local uuid
+    uuid=$(python3 -c "import uuid; print(uuid.uuid4())")
+    local event_file="$ticket_dir/${ts}-${uuid}-PRECONDITIONS.json"
+
+    python3 -c "
+import json, sys
+payload = {
+    'event_type': 'PRECONDITIONS',
+    'schema_version': 99,
+    'manifest_depth': 'minimal',
+    'gate_name': 'test_gate',
+    'session_id': 'sess-fwd-001',
+    'worktree_id': 'wt-fwd-001',
+    'tier': 'minimal',
+    'timestamp': int('$ts'),
+    'gate_verdicts': [],
+    'evidence_ref': {},
+    'affects_fields': [],
+    'data': {},
+}
+with open(sys.argv[1], 'w') as f:
+    json.dump(payload, f)
+" "$event_file"
+
+    # Commit the event so it's in the git tree
+    (cd "$repo/.tickets-tracker" && git add "$ticket_id/" && \
+        git commit -m "test: fwd-compat event" 2>/dev/null) || true
+
+    # Read the event and capture stderr
+    local stderr_out
+    stderr_out=$(cd "$repo" && source "$TICKET_LIB" && \
+        _read_latest_preconditions "$ticket_id" "test_gate" "sess-fwd-001" 2>&1 >/dev/null)
+
+    # Assert: warning appeared in stderr
+    local has_warning
+    has_warning=$(echo "$stderr_out" | grep -ic "unknown schema_version\|schema_version=99\|DSO WARN" || true)
+    assert_eq "stderr contains unknown-schema_version warning" "1" \
+        "$([ "${has_warning:-0}" -gt 0 ] && echo 1 || echo 0)"
+}
+test_forward_compat_reader_unknown_schema_version_logs_warning
+
+# ── Test 10: unknown schema_version → exit 0 (no rejection) ──────────────────
+echo "Test 10: _read_latest_preconditions does NOT reject unknown schema_version=99 (exits 0)"
+test_forward_compat_reader_unknown_schema_version_no_rejection() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id="test-fwdcompat-002"
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    mkdir -p "$ticket_dir"
+    local ts
+    ts=$(python3 -c "import time; print(int(time.time() * 1000))")
+    local uuid
+    uuid=$(python3 -c "import uuid; print(uuid.uuid4())")
+    local event_file="$ticket_dir/${ts}-${uuid}-PRECONDITIONS.json"
+
+    python3 -c "
+import json, sys
+payload = {
+    'event_type': 'PRECONDITIONS',
+    'schema_version': 99,
+    'manifest_depth': 'minimal',
+    'gate_name': 'test_gate2',
+    'session_id': 'sess-fwd-002',
+    'worktree_id': 'wt-fwd-002',
+    'tier': 'minimal',
+    'timestamp': int('$ts'),
+    'gate_verdicts': [],
+    'evidence_ref': {},
+    'affects_fields': [],
+    'data': {},
+}
+with open(sys.argv[1], 'w') as f:
+    json.dump(payload, f)
+" "$event_file"
+
+    (cd "$repo/.tickets-tracker" && git add "$ticket_id/" && \
+        git commit -m "test: fwd-compat event 2" 2>/dev/null) || true
+
+    local exit_code=0
+    (cd "$repo" && source "$TICKET_LIB" && \
+        _read_latest_preconditions "$ticket_id" "test_gate2" "sess-fwd-002" 2>/dev/null) || exit_code=$?
+
+    assert_eq "unknown schema_version does not cause exit non-zero" "0" "$exit_code"
+}
+test_forward_compat_reader_unknown_schema_version_no_rejection
+
+# ── Test 11: unknown schema_version → event_type still accessible ────────────
+echo "Test 11: _read_latest_preconditions returns JSON with event_type=PRECONDITIONS for schema_version=99"
+test_forward_compat_reader_minimal_fields_accessible_on_unknown_version() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id="test-fwdcompat-003"
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    mkdir -p "$ticket_dir"
+    local ts
+    ts=$(python3 -c "import time; print(int(time.time() * 1000))")
+    local uuid
+    uuid=$(python3 -c "import uuid; print(uuid.uuid4())")
+    local event_file="$ticket_dir/${ts}-${uuid}-PRECONDITIONS.json"
+
+    python3 -c "
+import json, sys
+payload = {
+    'event_type': 'PRECONDITIONS',
+    'schema_version': 99,
+    'manifest_depth': 'minimal',
+    'gate_name': 'test_gate3',
+    'session_id': 'sess-fwd-003',
+    'worktree_id': 'wt-fwd-003',
+    'tier': 'minimal',
+    'timestamp': int('$ts'),
+    'gate_verdicts': [],
+    'evidence_ref': {},
+    'affects_fields': [],
+    'data': {},
+}
+with open(sys.argv[1], 'w') as f:
+    json.dump(payload, f)
+" "$event_file"
+
+    (cd "$repo/.tickets-tracker" && git add "$ticket_id/" && \
+        git commit -m "test: fwd-compat event 3" 2>/dev/null) || true
+
+    local json
+    json=$(cd "$repo" && source "$TICKET_LIB" && \
+        _read_latest_preconditions "$ticket_id" "test_gate3" "sess-fwd-003" 2>/dev/null)
+
+    if [ -z "$json" ]; then
+        assert_eq "returned JSON nonempty" "nonempty" "empty"
+        return
+    fi
+
+    local event_type
+    event_type=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('event_type','missing'))" "$json" 2>/dev/null)
+    assert_eq "event_type=PRECONDITIONS accessible on schema_version=99" "PRECONDITIONS" "$event_type"
+}
+test_forward_compat_reader_minimal_fields_accessible_on_unknown_version
+
+# ── Test 12: writer schema_version for tier=minimal → 1 ──────────────────────
+echo "Test 12: _write_preconditions tier=minimal → schema_version=1 in written file"
+test_writer_schema_version_minimal() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id="test-sv-min-001"
+    (cd "$repo" && source "$TICKET_LIB" && \
+        _write_preconditions "$ticket_id" "gate_min" "sess-sv-001" "wt-sv-001" "minimal") \
+        2>/dev/null || true
+
+    local event_file
+    event_file=$(find "$repo/.tickets-tracker/$ticket_id" -name '*-PRECONDITIONS.json' | head -1)
+    if [ -z "$event_file" ]; then
+        assert_eq "event file written" "found" "not-found"
+        return
+    fi
+
+    local sv
+    sv=$(python3 -c "import json; d=json.load(open('$event_file')); print(d.get('schema_version','missing'))" 2>/dev/null)
+    assert_eq "tier=minimal → schema_version=1" "1" "$sv"
+}
+test_writer_schema_version_minimal
+
+# ── Test 13: writer schema_version + manifest_depth for tier=standard → 2, standard ─
+echo "Test 13: _write_preconditions tier=standard → schema_version=2 AND manifest_depth=standard"
+test_writer_schema_version_standard() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id="test-sv-std-001"
+    (cd "$repo" && source "$TICKET_LIB" && \
+        _write_preconditions "$ticket_id" "gate_std" "sess-sv-002" "wt-sv-002" "standard") \
+        2>/dev/null || true
+
+    local event_file
+    event_file=$(find "$repo/.tickets-tracker/$ticket_id" -name '*-PRECONDITIONS.json' | head -1)
+    if [ -z "$event_file" ]; then
+        assert_eq "event file written" "found" "not-found"
+        return
+    fi
+
+    local sv md
+    sv=$(python3 -c "import json; d=json.load(open('$event_file')); print(d.get('schema_version','missing'))" 2>/dev/null)
+    md=$(python3 -c "import json; d=json.load(open('$event_file')); print(d.get('manifest_depth','missing'))" 2>/dev/null)
+
+    assert_eq "tier=standard → schema_version=2" "2" "$sv"
+    assert_eq "tier=standard → manifest_depth=standard" "standard" "$md"
+}
+test_writer_schema_version_standard
+
+# ── Test 14: writer schema_version + manifest_depth for tier=deep → 2, deep ──
+echo "Test 14: _write_preconditions tier=deep → schema_version=2 AND manifest_depth=deep"
+test_writer_schema_version_deep() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id="test-sv-deep-001"
+    (cd "$repo" && source "$TICKET_LIB" && \
+        _write_preconditions "$ticket_id" "gate_deep" "sess-sv-003" "wt-sv-003" "deep") \
+        2>/dev/null || true
+
+    local event_file
+    event_file=$(find "$repo/.tickets-tracker/$ticket_id" -name '*-PRECONDITIONS.json' | head -1)
+    if [ -z "$event_file" ]; then
+        assert_eq "event file written" "found" "not-found"
+        return
+    fi
+
+    local sv md
+    sv=$(python3 -c "import json; d=json.load(open('$event_file')); print(d.get('schema_version','missing'))" 2>/dev/null)
+    md=$(python3 -c "import json; d=json.load(open('$event_file')); print(d.get('manifest_depth','missing'))" 2>/dev/null)
+
+    assert_eq "tier=deep → schema_version=2" "2" "$sv"
+    assert_eq "tier=deep → manifest_depth=deep" "deep" "$md"
+}
+test_writer_schema_version_deep
+
+# ── Test 15: warning deduplication — second call with same (ticket, sv=99) no duplicate ─
+echo "Test 15: _read_latest_preconditions warning deduplication — no second warning on repeat call"
+test_forward_compat_warning_deduplication() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id="test-fwdcompat-dedup"
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    mkdir -p "$ticket_dir"
+    local ts
+    ts=$(python3 -c "import time; print(int(time.time() * 1000))")
+    local uuid
+    uuid=$(python3 -c "import uuid; print(uuid.uuid4())")
+    local event_file="$ticket_dir/${ts}-${uuid}-PRECONDITIONS.json"
+
+    python3 -c "
+import json, sys
+payload = {
+    'event_type': 'PRECONDITIONS',
+    'schema_version': 99,
+    'manifest_depth': 'minimal',
+    'gate_name': 'test_gate_dedup',
+    'session_id': 'sess-dedup-001',
+    'worktree_id': 'wt-dedup-001',
+    'tier': 'minimal',
+    'timestamp': int('$ts'),
+    'gate_verdicts': [],
+    'evidence_ref': {},
+    'affects_fields': [],
+    'data': {},
+}
+with open(sys.argv[1], 'w') as f:
+    json.dump(payload, f)
+" "$event_file"
+
+    (cd "$repo/.tickets-tracker" && git add "$ticket_id/" && \
+        git commit -m "test: dedup event" 2>/dev/null) || true
+
+    # First call — should log warning
+    local first_stderr
+    first_stderr=$(cd "$repo" && source "$TICKET_LIB" && \
+        _read_latest_preconditions "$ticket_id" "test_gate_dedup" "sess-dedup-001" 2>&1 >/dev/null)
+
+    # Second call (same process, same ticket, same schema_version) — should NOT log duplicate
+    local second_stderr
+    second_stderr=$(cd "$repo" && source "$TICKET_LIB" && \
+        _read_latest_preconditions "$ticket_id" "test_gate_dedup" "sess-dedup-001" 2>&1 >/dev/null)
+
+    # First call must have had a warning
+    local first_has_warning
+    first_has_warning=$(echo "$first_stderr" | grep -ic "unknown schema_version\|schema_version=99\|DSO WARN" || true)
+    assert_eq "first call emits warning" "1" \
+        "$([ "${first_has_warning:-0}" -gt 0 ] && echo 1 || echo 0)"
+
+    # Second call must NOT have a warning (deduplicated)
+    local second_has_warning
+    second_has_warning=$(echo "$second_stderr" | grep -ic "unknown schema_version\|schema_version=99\|DSO WARN" || true)
+    assert_eq "second call does NOT emit duplicate warning" "0" "$second_has_warning"
+}
+test_forward_compat_warning_deduplication
+
 print_summary
