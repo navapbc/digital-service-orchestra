@@ -141,7 +141,7 @@ CMD_LINT=$(_cfg "commands.lint" "")
 _CMD_LINT_RUFF_PRESENT=$(_cfg "commands.lint_ruff" "")
 _CMD_LINT_MYPY_PRESENT=$(_cfg "commands.lint_mypy" "")
 if [[ -z "$CMD_LINT" && -z "$_CMD_LINT_RUFF_PRESENT" && -z "$_CMD_LINT_MYPY_PRESENT" ]]; then
-    echo "[DSO WARN] commands.lint not configured — lint step will be skipped." >&2
+    echo "[DSO WARN] commands.lint not configured — using ruff/mypy fallback defaults for .py files." >&2
 fi
 
 # Detect if running in a worktree
@@ -470,20 +470,16 @@ run_check "format" "$TIMEOUT_FORMAT" $CMD_FORMAT_CHECK &
 if [[ -n "$CMD_LINT" ]]; then
     # shellcheck disable=SC2086
     (run_check "lint" "$TIMEOUT_LINT" $CMD_LINT) &
-    LINT_PID=$!
 elif [[ -n "$CMD_LINT_RUFF" ]]; then
     # shellcheck disable=SC2086
     run_check "ruff" "$TIMEOUT_RUFF" $CMD_LINT_RUFF &
-    RUFF_PID=$!
     if [[ -n "$CMD_LINT_MYPY" ]]; then
         # shellcheck disable=SC2086
         run_check "mypy" "$TIMEOUT_MYPY" $CMD_LINT_MYPY &
-        MYPY_PID=$!
     fi
 elif [[ -n "$CMD_LINT_MYPY" ]]; then
     # shellcheck disable=SC2086
     run_check "mypy" "$TIMEOUT_MYPY" $CMD_LINT_MYPY &
-    MYPY_PID=$!
 fi
 # Tests use run_test_check (test-batched.sh integration) for time-bounded execution.
 # This allows validate.sh to run in < 73s even for test suites that take 120+ seconds.
