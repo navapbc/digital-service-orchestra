@@ -352,4 +352,114 @@ os.close(fd)
 }
 test_emit_graceful_failure_lock_exhaustion
 
+# ── Test 7: write_commit_event and emit-review-event.sh coexist in same tracker ──
+echo "Test 7: write_commit_event and emit-review-event.sh produce valid JSON in the same tracker dir"
+test_emit_review_event_write_commit_event_path() {
+    # emit-review-event.sh must exist
+    if [ ! -f "$EMIT_SCRIPT" ]; then
+        assert_eq "emit-review-event.sh exists for coexistence test" "exists" "missing"
+        return
+    fi
+
+    # Use clone_ticket_repo so .tickets-tracker is fully initialized
+    local ticket_repo
+    ticket_repo=$(mktemp -d)
+    _CLEANUP_DIRS+=("$ticket_repo")
+    clone_ticket_repo "$ticket_repo/repo"
+    ticket_repo="$ticket_repo/repo"
+
+    # Create .review-events directory (used by emit-review-event.sh)
+    mkdir -p "$ticket_repo/.tickets-tracker/.review-events"
+
+    # ── Step 1: create a ticket event via write_commit_event (bash-native) ──────
+    local ticket_id="wce-coexist-01"
+    mkdir -p "$ticket_repo/.tickets-tracker/$ticket_id"
+
+    local event_json
+    event_json=$(mktemp)
+    _CLEANUP_DIRS+=("$event_json")
+    python3 - "$event_json" "$ticket_id" <<'PYEOF'
+import json, sys, uuid, datetime
+out_path = sys.argv[1]
+ticket_id = sys.argv[2]
+event = {
+    "event_type": "CREATE",
+    "timestamp": datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%S%f") + "Z",
+    "uuid": str(uuid.uuid4()).replace("-", "")[:12],
+    "data": {
+        "ticket_id": ticket_id,
+        "title": "coexistence integration test",
+        "type": "task",
+        "priority": 4,
+        "status": "open",
+        "tags": [],
+    },
+}
+with open(out_path, "w", encoding="utf-8") as f:
+    json.dump(event, f, ensure_ascii=False)
+PYEOF
+
+    local wce_exit=0
+    (
+        cd "$ticket_repo"
+        _TICKET_TEST_NO_SYNC=1 \
+        TICKETS_TRACKER_DIR="$ticket_repo/.tickets-tracker" \
+        bash -c "
+            source '$REPO_ROOT/plugins/dso/scripts/ticket-lib.sh'
+            write_commit_event '$ticket_id' '$event_json'
+        " 2>/dev/null
+    ) || wce_exit=$?
+
+    assert_eq "write_commit_event exits zero" "0" "$wce_exit"
+
+    # Verify write_commit_event produced a JSON file in the ticket dir
+    local wce_file_count
+    wce_file_count=$(find "$ticket_repo/.tickets-tracker/$ticket_id" -name '*.json' -type f 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "write_commit_event produces one event file" "1" "$wce_file_count"
+
+    # ── Step 2: call emit-review-event.sh in the same tracker dir ───────────────
+    local payload
+    payload=$(_review_result_payload)
+
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$tmpdir"
+
+    local emit_exit=0
+    (cd "$ticket_repo" && bash "$EMIT_SCRIPT" "$payload") 2>/dev/null || emit_exit=$?
+
+    assert_eq "emit-review-event.sh exits zero" "0" "$emit_exit"
+
+    # Verify emit-review-event produced a JSON file in .review-events
+    local emit_file_count
+    emit_file_count=$(find "$ticket_repo/.tickets-tracker/.review-events" -type f 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "emit-review-event.sh produces one review-events file" "1" "$emit_file_count"
+
+    # ── Step 3: both output files are valid JSON ─────────────────────────────────
+    local wce_file emit_file
+    wce_file=$(find "$ticket_repo/.tickets-tracker/$ticket_id" -name '*.json' -type f 2>/dev/null | head -1)
+    emit_file=$(find "$ticket_repo/.tickets-tracker/.review-events" -type f 2>/dev/null | head -1)
+
+    if [ -n "$wce_file" ]; then
+        local wce_parse_exit=0
+        python3 -c "import json; json.load(open('$wce_file'))" 2>/dev/null || wce_parse_exit=$?
+        assert_eq "write_commit_event output is valid JSON" "0" "$wce_parse_exit"
+    fi
+
+    if [ -n "$emit_file" ]; then
+        local emit_parse_exit=0
+        python3 -c "
+import json
+with open('$emit_file') as f:
+    for line in f:
+        line = line.strip()
+        if line:
+            json.loads(line)
+" 2>/dev/null || emit_parse_exit=$?
+        assert_eq "emit-review-event output is valid JSON" "0" "$emit_parse_exit"
+    fi
+}
+test_emit_review_event_write_commit_event_path
+
 print_summary

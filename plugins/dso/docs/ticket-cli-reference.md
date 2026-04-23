@@ -845,6 +845,7 @@ $ .claude/scripts/dso ticket bridge-fsck --tickets-tracker=/path/to/tracker
 | `DSO_UNBLOCK_SCRIPT` | `.claude/scripts/dso ticket transition` | Override the path to `ticket-unblock.py` |
 | `JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN` | `.claude/scripts/dso ticket sync` | Jira credentials for sync |
 | `JIRA_SYNC_TIMEOUT_SECONDS` | `.claude/scripts/dso ticket sync` | Override the sync lock timeout |
+| `DSO_TICKET_LEGACY` | `.claude/scripts/dso ticket` dispatcher | Set to `1` to route `_ensure_initialized` to the pre-refactor Python-backed path. See [Troubleshooting](#troubleshooting) below. |
 
 ---
 
@@ -905,3 +906,40 @@ id=$(.claude/scripts/dso ticket create bug "Login fails on mobile Safari")
 .claude/scripts/dso ticket bridge-status
 .claude/scripts/dso ticket bridge-fsck
 ```
+
+---
+
+## Troubleshooting
+
+### `DSO_TICKET_LEGACY=1` — Rollback flag for `_ensure_initialized`
+
+**Syntax:**
+
+```bash
+DSO_TICKET_LEGACY=1 .claude/scripts/dso ticket <subcommand>
+```
+
+**Effect:**
+
+Routes the `_ensure_initialized` function in the ticket dispatcher to the pre-refactor Python-backed path instead of the current bash-native implementation. All subcommands that call `_ensure_initialized` (e.g., `list`, `create`, `show`, `transition`) are affected.
+
+**When to use:**
+
+- On regression in the bash-native `_ensure_initialized` path (e.g., incorrect sync behavior, unexpected exits).
+- When investigating a suspected performance bug introduced in the bash-native refactor.
+
+Do not use this flag as a permanent workaround. File a bug ticket and reference the session where the regression was first observed.
+
+**Observable behavior:**
+
+When active, the dispatcher emits a notice to stderr before running initialization:
+
+```
+DSO_TICKET_LEGACY=1: using Python-backed _ensure_initialized path
+```
+
+This notice is intentional — it signals that the legacy path is active and should not be suppressed.
+
+**Deprecation plan:**
+
+`DSO_TICKET_LEGACY` is scheduled for removal after 2 stable plugin releases with no reported issues against the bash-native path. Once removed, setting this variable will have no effect.

@@ -2,6 +2,8 @@
 # Maps source files to test files that fuzzy match misses.
 # Format: source/path: test/path1[, test/path2...]
 
+.github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh
+README.md:tests/test-readme-structure.sh
 plugins/dso/.claude-plugin/plugin.json:tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-dir-structure.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
 plugins/dso/agents/bot-psychologist.md:tests/scripts/test-bot-psychologist-agent.sh
@@ -135,7 +137,8 @@ plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/ticket-compact-all.sh:tests/scripts/test-ticket-compact-all.sh
-plugins/dso/scripts/ticket:tests/scripts/test-ticket-compact-all.sh,tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-tag-cli-refactor.sh
+plugins/dso/scripts/ticket:tests/scripts/test-ticket-compact-all.sh,tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-tag-cli-refactor.sh,tests/scripts/test-ticket-init-bash-native.sh [test_ensure_initialized_no_python3]
+plugins/dso/scripts/ticket-lib-api.sh:tests/scripts/test-ticket-lib-api.sh
 plugins/dso/agents/scope-drift-reviewer.md:tests/scripts/test-scope-drift-reviewer.sh
 plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh
@@ -145,9 +148,9 @@ plugins/dso/templates/CLAUDE.md.template:tests/scripts/test-generate-claude-md.s
 plugins/dso/agents/red-team-reviewer.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/blue-team-filter.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/red-test-writer.md:tests/hooks/test-agent-standard-reference.sh
-plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test-ticket-subprocess-count.sh
+plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-perf.sh
+plugins/dso/scripts/ticket-show.sh:tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-perf.sh
 plugins/dso/scripts/preconditions-record.sh:tests/scripts/test-preconditions-record.sh
-plugins/dso/scripts/ticket-show.sh:tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-subprocess-count.sh
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-transition-flock.sh [test_flock_llm_format_referenced]
 plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-reference.sh
 plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard-reference.sh
@@ -233,7 +236,7 @@ plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
 plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-ticket-push-rebase-conflict.sh,tests/scripts/test-preconditions-lww.sh,tests/scripts/test-ticket-lib.sh,tests/scripts/test-preconditions-compaction.sh,tests/integration/test-preconditions-fault-injection.sh,tests/integration/test-preconditions-mixed-corpus.sh,tests/integration/test-preconditions-compaction-ordering.sh,tests/scripts/test-ticket-write-commit-event.sh
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-ticket-write-commit-event.sh,tests/scripts/test-ticket-lib.sh,tests/scripts/test-preconditions-lww.sh,tests/scripts/test-preconditions-compaction.sh,tests/integration/test-preconditions-fault-injection.sh,tests/integration/test-preconditions-mixed-corpus.sh,tests/integration/test-preconditions-compaction-ordering.sh,tests/scripts/test-ticket-push-rebase-conflict.sh
 plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
@@ -253,6 +256,8 @@ plugins/dso/scripts/gate-2b-blast-radius.sh:tests/scripts/test-gate-format-check
 plugins/dso/scripts/gate-2d-dependency-check.sh:tests/scripts/test-gate-format-check.sh
 plugins/dso/scripts/dso-setup.sh:tests/scripts/test-dso-setup-stack-aware-ci.sh,tests/scripts/test-dso-setup-next-steps-install-ref.sh
 plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test-index-duplicates.sh
+tests/fixtures/ticket-cli-baseline.json:tests/scripts/test-ticket-cli-baseline-fixture.sh
+tests/scripts/capture-baseline.sh:tests/scripts/test-ticket-cli-baseline-fixture.sh
 plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-review-gate-bypass-sentinel.sh
 plugins/dso/hooks/lib/session-process-cleanup-functions.sh:tests/hooks/test-session-misc-dispatchers.sh
 plugins/dso/scripts/preconditions-baseline-collect.sh:tests/scripts/test-preconditions-baseline.sh
