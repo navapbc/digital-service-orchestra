@@ -215,11 +215,10 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Relates_to epic <closed-epic-id> closed after implementation plan. <summary>. Re-invoking implementation-plan for affected stories."
    ```
 4. Identify which stories' tasks reference any of the drifted relates_to epics (inspect each child task's `## File Impact` or `## Files to Modify` section, or cross-reference the task's dependency/relates-to links).
-5. For each affected story, emit a SKILL_INVOKE breadcrumb and re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as DRIFT_DETECTED handling above).
+5. For each affected story, re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as DRIFT_DETECTED handling above).
 
    <ORCHESTRATOR_RESUME>
    **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection (RELATES_TO_DRIFT). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
-   Stopping here is a known bug (7d7a-b707). Do not stop.
    </ORCHESTRATOR_RESUME>
 
    - **On success (`STATUS:complete`)**: continue.
@@ -337,22 +336,10 @@ Count the number of child tasks returned.
 
 If **more than half** of the children are ambiguous, trigger preplanning for the entire epic.
 
-
-> **CONTROL_LOSS detection note (applies to every SKILL_INVOKE/SKILL_RESUMED pair in this file):**
-> At each call site below, a `SKILL_INVOKE` breadcrumb is emitted immediately before the Skill tool call, and a `SKILL_RESUMED` breadcrumb is emitted immediately after. If the Skill tool call does not return control to the orchestrator (e.g., the skill terminates the session or control is otherwise lost), the `SKILL_RESUMED` breadcrumb will never execute. `CONTROL_LOSS` is **not** a breadcrumb type and is never emitted actively — it is a derived event detected passively by the analysis script (`skill-trace-analyze.py`) when it finds a `SKILL_INVOKE` record with no matching `SKILL_RESUMED` for the same `session_ordinal` + `skill_name`. No additional action is required by the orchestrator; the absence of `SKILL_RESUMED` is itself the signal.
-
 If any trigger condition is met:
 1. Log: `"Epic has ambiguous tasks — running /dso:preplanning to decompose before execution."`
-2. Emit SKILL_INVOKE breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-3. Invoke `/dso:preplanning <epic-id>` (full mode)
-4. Emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-5. After preplanning completes, continue to Phase 2
+2. Invoke `/dso:preplanning <epic-id>` (full mode)
+3. After preplanning completes, continue to Phase 2
 
 If no trigger condition is met, proceed to Step 2a1 (SC Coverage Haiku Gate).
 
@@ -548,43 +535,23 @@ for each child to retrieve the `ticket_type` field. This is required to determin
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: sc_coverage — Missing SCs: <comma-separated list of missing sc_ids and sc_text>. Routing to decomposition skill to add coverage."
    ```
 
-2. Based on the child ticket types (from the children already fetched above), emit SKILL_INVOKE, invoke, and emit SKILL_RESUMED:
+2. Based on the child ticket types (from the children already fetched above), invoke:
 
    **If at least one child has `ticket_type: story`** (route to `/dso:preplanning`):
-
-   Emit SKILL_INVOKE breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
 
    Invoke `/dso:preplanning <epic-id>` via Skill tool.
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The preplanning skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to emit SKILL_RESUMED breadcrumb and proceed to Phase 2. Stopping here is a known bug (7d7a-b707). Do not stop.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The preplanning skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Proceed to Phase 2. Do not stop.
    </ORCHESTRATOR_RESUME>
 
-   Emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-
    **If all children have `ticket_type: task`** (route to `/dso:implementation-plan`):
-
-   Emit SKILL_INVOKE breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
 
    Invoke `/dso:implementation-plan <epic-id>` via Skill tool.
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to emit SKILL_RESUMED breadcrumb and proceed to Phase 2. Stopping here is a known bug (7d7a-b707). Do not stop.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Proceed to Phase 2. Do not stop.
    </ORCHESTRATOR_RESUME>
-
-   Emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
 
    **Otherwise** (children are all epics or have unexpected ticket types): log a warning `"SC coverage REPLAN_TRIGGER: unexpected child types — no story or task children found; proceeding to Phase 2 without decomposition routing"` and proceed to Phase 2.
 
@@ -615,97 +582,49 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 #### Step 3a: Direct Implementation Planning (SIMPLE epics) (/dso:sprint)
 
 1. Log: `"Epic <id> classified as SIMPLE — running /dso:implementation-plan directly on epic."`
-2. Emit SKILL_INVOKE breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-3. Invoke `/dso:implementation-plan` via Skill tool with the epic ID as the argument:
+2. Invoke `/dso:implementation-plan` via Skill tool with the epic ID as the argument:
    ```
    Skill("dso:implementation-plan", args="<epic-id>")
    ```
    The skill handles epic type detection and runs inline (no sub-agent dispatch needed).
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your immediate next actions are:
-   1. Emit the SKILL_RESUMED breadcrumb (step 4 below)
-   2. Parse the STATUS line (step 5 below)
-   3. Continue to Phase 2
-   Stopping here is a known bug (7d7a-b707). Do not stop.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary.
    </ORCHESTRATOR_RESUME>
 
-4. Emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-5. Parse the skill's output using the same STATUS protocol as Phase 2's Implementation Planning Gate
-6. Set `epic_routing = "SIMPLE"` — this flag tells Phase 2 to skip the Implementation Planning Gate
-7. Continue to Phase 2
+3. Parse the skill's output using the same STATUS protocol as Phase 2's Implementation Planning Gate
+4. Set `epic_routing = "SIMPLE"` — this flag tells Phase 2 to skip the Implementation Planning Gate
+5. Continue to Phase 2
 
 #### Step 3b: Lightweight Preplanning (MODERATE epics) (/dso:sprint)
 
 1. Log: `"Epic <id> classified as MODERATE — running /dso:preplanning --lightweight for scope clarification."`
-2. Emit SKILL_INVOKE breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-3. Invoke `/dso:preplanning <epic-id> --lightweight`
-4. Emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-5. Parse the result:
+2. Invoke `/dso:preplanning <epic-id> --lightweight`
+3. Parse the result:
 
 **On `ENRICHED`:**
 - Log: `"Lightweight preplanning complete — epic enriched with done definitions. Running /dso:implementation-plan on epic."`
-- Emit SKILL_INVOKE breadcrumb:
-  ```bash
-  echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-  ```
 - Invoke `/dso:implementation-plan` via Skill tool (same as Step 3a, step 2)
 
   <ORCHESTRATOR_RESUME>
-  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your immediate next actions are:
-  1. Emit the SKILL_RESUMED breadcrumb (below)
-  2. Parse the STATUS line from the skill's output
-  3. Set epic_routing = "MODERATE" and continue to Phase 2
-  Stopping here is a known bug (7d7a-b707). Do not stop.
+  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary.
   </ORCHESTRATOR_RESUME>
 
-- Emit SKILL_RESUMED breadcrumb:
-  ```bash
-  echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-  ```
 - Set `epic_routing = "MODERATE"`
 - Continue to Phase 2
 
 **On `ESCALATED`:**
 - Log: `"Lightweight preplanning escalated to full mode — reason: <reason>. Running full /dso:preplanning."`
-- Emit SKILL_INVOKE breadcrumb:
-  ```bash
-  echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-  ```
 - Invoke `/dso:preplanning <epic-id>` (full mode, no --lightweight flag)
-- Emit SKILL_RESUMED breadcrumb:
-  ```bash
-  echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-  ```
 - Set `epic_routing = "COMPLEX"`
 - Continue to Phase 2
 
 #### Step 3c: Full Preplanning (COMPLEX epics) (/dso:sprint)
 
 1. Log: `"Epic <id> classified as COMPLEX — running /dso:preplanning for full story decomposition."`
-2. Emit SKILL_INVOKE breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-3. Invoke `/dso:preplanning <epic-id>`
-4. Emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-5. After preplanning completes, set `epic_routing = "COMPLEX"`
-6. Continue to Phase 2
+2. Invoke `/dso:preplanning <epic-id>`
+3. After preplanning completes, set `epic_routing = "COMPLEX"`
+4. Continue to Phase 2
 
 ---
 
@@ -879,31 +798,19 @@ This list collects out-of-scope files detected by `sprint-review-scope-check.sh`
 **For each layer (in order Layer 0, Layer 1, ...):**
 
 a. Filter to stories in this layer that need decomposition
-b. For each story in the layer, emit SKILL_INVOKE breadcrumb then invoke `/dso:implementation-plan` via Skill tool:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
+b. For each story in the layer, invoke `/dso:implementation-plan` via Skill tool:
    ```
    Skill("dso:implementation-plan", args="<story-id>")
    ```
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. You have more stories to process in this layer. Your immediate next actions are:
-   1. Emit the SKILL_RESUMED breadcrumb (step c below)
-   2. Parse the STATUS line from the skill's output (step d below)
-   3. Continue to the next story in the layer loop
-   Stopping here is a known bug (7d7a-b707). Do not stop.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. You have more stories to process in this layer.
    </ORCHESTRATOR_RESUME>
 
    **POST-RETURN CONTINUATION (executes after Skill tool result above):** The skill has returned. You are still the sprint orchestrator inside the layer loop. Execute step c immediately — do not stop.
 
-c. After the skill returns, emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-   Wait for the skill invocation to return before processing the next story in the layer
-d. For each skill result, **parse STATUS:**
+c. For each skill result, **parse STATUS:**
    - On `STATUS:complete TASKS:<ids> STORY:<id>`:
      - Extract the comma-separated task IDs from the `TASKS` field
      - Extract the story ID from the `STORY` field
@@ -918,25 +825,9 @@ d. For each skill result, **parse STATUS:**
    - **Fallback — if no STATUS line in skill output:**
      - Run `.claude/scripts/dso ticket deps <story-id>` to check whether tasks were created
      - If children exist → treat as success; log a warning: `"WARNING: skill returned no STATUS line for story <id>, but .claude/scripts/dso ticket deps shows tasks — continuing"`; proceed to post-dispatch validation
-     - If no children → emit SKILL_INVOKE breadcrumb and retry the skill invocation once (same parameters):
-       ```bash
-       echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-       ```
-       After retry returns, emit SKILL_RESUMED breadcrumb:
-       ```bash
-       echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-       ```
+     - If no children → retry the skill invocation once (same parameters)
      - If retry also produces no children → revert story to open (`.claude/scripts/dso ticket transition <story-id> open`); log: `"ERROR: /dso:implementation-plan failed for story <id> after retry — story reverted to open"`; skip to next story
 
-**Skill unavailability terminal condition:** If the retry also produces no children and this is the second consecutive skill-load failure (i.e., the initial attempt AND the retry both produced no children), do NOT retry again. Emit a terminal error and stop:
-
-```
-SKILL_LOAD_ERROR: dso:sprint skill file could not be loaded after 2 attempts.
-Resolution: Verify that ${CLAUDE_PLUGIN_ROOT}/skills/sprint/SKILL.md exists and is readable. Run: ls -la ${CLAUDE_PLUGIN_ROOT}/skills/sprint/SKILL.md
-Do NOT continue looping — this sprint session has ended due to skill unavailability.
-```
-
-Exit the skill immediately. Do not invoke any further skill steps.
 d-collect. **Collect and present blocked-layer stories** — after the full layer batch completes, for each story with `STATUS:blocked`:
    - **Parsing STATUS:blocked**: When `/dso:implementation-plan` returns `STATUS:blocked QUESTIONS:[...]`, parse the JSON array and present each question in human-readable format:
      1. Separate questions by kind: "blocking" (must be answered before proceeding) vs "defaultable" (have a default, can be skipped)
@@ -986,17 +877,15 @@ d-replan-collect. **Collect and handle all REPLAN_ESCALATE stories** — after t
      - **If cap is not yet exhausted:** Present the **cap-not-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current state and continue sprint with these stories as-is".
      - **If user selects (b) or (c):** act accordingly — proceed or abort. Do not enter cascade.
      - **If user selects (a):** Enter the cascade replan per `skills/sprint/docs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
-       1. Emit SKILL_INVOKE breadcrumb for brainstorm, then invoke `/dso:brainstorm <epic-id>` via Skill tool
-       2. Emit SKILL_RESUMED breadcrumb after brainstorm returns
-       3. Emit SKILL_INVOKE breadcrumb for preplanning, then invoke `/dso:preplanning <epic-id>` via Skill tool
-       4. Emit SKILL_RESUMED breadcrumb after preplanning returns
-       5. Increment `replan_cycle_count += 1`
-       6. Re-run Step 2 (implementation planning) for all stories in the epic — re-enter the layer loop from the beginning
-       7. If implementation-plan returns no `REPLAN_ESCALATE` for any story: write the resolved signal, then cascade exits — proceed to step e normally (plan accepted):
+       1. Invoke `/dso:brainstorm <epic-id>` via Skill tool
+       2. Invoke `/dso:preplanning <epic-id>` via Skill tool
+       3. Increment `replan_cycle_count += 1`
+       4. Re-run Step 2 (implementation planning) for all stories in the epic — re-enter the layer loop from the beginning
+       5. If implementation-plan returns no `REPLAN_ESCALATE` for any story: write the resolved signal, then cascade exits — proceed to step e normally (plan accepted):
           ```bash
           .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: brainstorm — Stories re-planned after brainstorm cascade."
           ```
-       8. If implementation-plan still emits `REPLAN_ESCALATE`: repeat from d-replan-collect (check cap first, then present to user)
+       6. If implementation-plan still emits `REPLAN_ESCALATE`: repeat from d-replan-collect (check cap first, then present to user)
 e. **Post-layer-batch ticket validation**:
    ```bash
    .claude/scripts/dso validate-issues.sh --quick --terse
