@@ -246,9 +246,9 @@ When ticket type is `bug`:
 When ticket type is `story` or `task`:
 
 1. Log: `"Primary ticket <primary_ticket_id> is a <type> — running complexity evaluation."`
-2. Dispatch `subagent_type: dso:complexity-evaluator` (model: haiku) with `tier_schema=TRIVIAL` to classify the ticket.
+2. Dispatch the `dso:complexity-evaluator` agent (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` value). Read `agents/complexity-evaluator.md` inline and use `subagent_type: "general-purpose"` with `model: "haiku"`. Pass `tier_schema=TRIVIAL` to classify the ticket.
 
-   **Fallback**: If the `dso:complexity-evaluator` named agent is unavailable, fall back to `subagent_type: general-purpose` and read `agents/complexity-evaluator.md` inline as the task prompt. Pass `tier_schema=TRIVIAL` in the task context.
+   **Fallback**: If the `agents/complexity-evaluator.md` file is missing, log a warning and fall back to inline complexity assessment using the story description and acceptance criteria.
 
 3. Route based on the complexity classification:
    - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Before proceeding, run a **file-count guard**: estimate the number of files the task will touch by running `enrich-file-impact.sh` or by counting file paths mentioned in the ticket description. If the estimated file count exceeds 30, split the task into parallel sub-tasks by directory or alphabetical range (each sub-task ≤ 30 files), create child task tickets for each subset, and proceed to Phase 3 with the split tasks. If ≤ 30 files, proceed directly to Phase 3 (Batch Preparation) with the ticket as the sole task.
@@ -367,12 +367,14 @@ Parse the result:
 
 #### Layer 2: Scope Certainty Assessment
 
-Dispatch `dso:complexity-evaluator` (model: haiku) with the primary ticket context to evaluate `scope_certainty`:
+Dispatch the `dso:complexity-evaluator` agent (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types). Read `agents/complexity-evaluator.md` inline and use `subagent_type: "general-purpose"` with `model: "haiku"`. Pass the primary ticket context to evaluate `scope_certainty`:
 
 ```
-subagent_type: dso:complexity-evaluator
+subagent_type: "general-purpose"
 model: haiku
-input:
+prompt: |
+  {verbatim content of agents/complexity-evaluator.md}
+
   ticket_id: <primary_ticket_id>
   tier_schema: SIMPLE
 ```
@@ -703,13 +705,13 @@ for each child to retrieve the `ticket_type` field. This is required to determin
 
 #### Step 2b: Epic Complexity Evaluation (/dso:sprint)
 
-When the epic has zero children, dispatch `subagent_type: dso:complexity-evaluator` (model: haiku) to classify the epic's complexity before deciding the decomposition path.
+When the epic has zero children, dispatch the `dso:complexity-evaluator` agent to classify the epic's complexity before deciding the decomposition path. (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.)
 
 **Dispatch the evaluator:**
 
-Dispatch via `subagent_type: dso:complexity-evaluator` with `model: haiku`. Pass the epic ID as the task argument. Pass `tier_schema=SIMPLE` as a field in the task context so the agent outputs SIMPLE/MODERATE/COMPLEX tier vocabulary.
+Read `agents/complexity-evaluator.md` inline and use `subagent_type: "general-purpose"` with `model: "haiku"`. Pass the epic ID as the task argument. Pass `tier_schema=SIMPLE` as a field in the task context so the agent outputs SIMPLE/MODERATE/COMPLEX tier vocabulary.
 
-**Fallback**: If the `dso:complexity-evaluator` named agent is unavailable, fall back to `subagent_type: general-purpose` and load the shared rubric prompt from `$PLUGIN_ROOT/skills/sprint/prompts/` (see `epic-complexity-evaluator` prompt file in that directory).
+**Fallback**: If `agents/complexity-evaluator.md` is missing, fall back to `subagent_type: "general-purpose"` and load the shared rubric prompt from `$PLUGIN_ROOT/skills/sprint/prompts/` (see `epic-complexity-evaluator` prompt file in that directory).
 
 **Route based on classification:**
 
@@ -898,9 +900,9 @@ For each ready task from `.claude/scripts/dso ticket list` (filtered by parent):
 2. If it has children → **skip** (already planned)
 3. If it has zero children → run the complexity evaluator:
 
-**Dispatch a haiku complexity-evaluator sub-agent** to classify the story. Dispatch via `subagent_type: dso:complexity-evaluator` with `model: haiku`. Pass the story ID as the task argument. Pass `tier_schema=TRIVIAL` as a field in the task context so the agent outputs TRIVIAL/MODERATE/COMPLEX tier vocabulary.
+**Dispatch a haiku complexity-evaluator sub-agent** to classify the story. Read `agents/complexity-evaluator.md` inline and use `subagent_type: "general-purpose"` with `model: "haiku"`. (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass the story ID as the task argument. Pass `tier_schema=TRIVIAL` as a field in the task context so the agent outputs TRIVIAL/MODERATE/COMPLEX tier vocabulary.
 
-**Fallback**: If the `dso:complexity-evaluator` named agent is unavailable, fall back to `subagent_type: general-purpose` and load the shared rubric prompt from `$PLUGIN_ROOT/skills/sprint/prompts/` (see `complexity-evaluator` prompt file in that directory).
+**Fallback**: If `agents/complexity-evaluator.md` is missing, fall back to `subagent_type: "general-purpose"` and load the shared rubric prompt from `$PLUGIN_ROOT/skills/sprint/prompts/` (see `complexity-evaluator` prompt file in that directory).
 
 **Routing based on classification:**
 
@@ -1568,7 +1570,7 @@ When launching each Task tool call, set `subagent_type` and `model` from the TAS
 | parent_story_has_design_approved | parent_story_complex | task_model | task_class | action |
 |----------------------------------|---------------------|------------|------------|--------|
 | `true` (revision image present) | any | any | any | Override `model` to minimum `sonnet` (if current model is `haiku`, upgrade to `sonnet`; if already `sonnet` or `opus`, no change). Log: `"design:approved story — enforcing sonnet minimum for multimodal."` |
-| any | any | any | any (doc-story title match) | Override `subagent_type` to `dso:doc-writer`, `model` to `sonnet`. Pass `epic_context` and `git_diff` context fields (see Documentation Story Dispatch below). Log: `"Documentation story detected — dispatching to dso:doc-writer instead of generic agent."` |
+| any | any | any | any (doc-story title match) | Use `subagent_type: "general-purpose"` with `model: "sonnet"`. Read `agents/doc-writer.md` inline and pass its content verbatim as the prompt. (`dso:doc-writer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass `epic_context` and `git_diff` context fields (see Documentation Story Dispatch below). Log: `"Documentation story detected — dispatching to dso:doc-writer instead of generic agent."` |
 | any | `COMPLEX` | `sonnet` | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
 | any | `COMPLEX` | `sonnet` | any other | Override `model` to `opus`. Log: `"Story <parent-id> classified COMPLEX — upgrading task <task-id> model to opus."` |
 | any | `COMPLEX` | `opus` | any | No change (already opus). |
