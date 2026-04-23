@@ -1,0 +1,1 @@
+{"author":"Worktree","data":{"body":"Classification: llm-behavioral — ticket references review_tier field missing from agent-written reviewer-findings.json (behavior drift); affected file agents/code-reviewer-standard.md"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1776985070267731000,"uuid":"bd303a36-fb28-4be7-b2a2-a65e0491b3fc"}
