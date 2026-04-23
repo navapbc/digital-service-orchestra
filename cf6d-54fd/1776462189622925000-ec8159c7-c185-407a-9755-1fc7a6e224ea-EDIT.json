@@ -1,1 +1,0 @@
-{"timestamp": 1776462189622925000, "uuid": "ec8159c7-c185-407a-9755-1fc7a6e224ea", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "Worktree cleanup: .tickets-tracker on tickets branch is eligible for removal -> ticket system data inaccessible after cleanup"}}}
