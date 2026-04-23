@@ -740,7 +740,9 @@ ticket_edit() {
         }
 
         # Parse --field=value and --field value pairs
-        declare -A fields
+        # Indexed array (bash 3.2 compatible; avoid declare -A which requires bash 4+)
+        local _parsed_pairs
+        _parsed_pairs=()
         while [ $# -gt 0 ]; do
             local arg="$1"
             case "$arg" in
@@ -752,7 +754,7 @@ ticket_edit() {
                         echo "Error: unknown field '$field_name'. Allowed: $ALLOWED_FIELDS" >&2
                         return 1
                     fi
-                    fields["$field_name"]="$field_value"
+                    _parsed_pairs+=("$field_name=$field_value")
                     shift
                     ;;
                 --*)
@@ -766,7 +768,7 @@ ticket_edit() {
                         return 1
                     fi
                     shift
-                    fields["$field_name"]="$1"
+                    _parsed_pairs+=("$field_name=$1")
                     shift
                     ;;
                 *)
@@ -776,7 +778,7 @@ ticket_edit() {
             esac
         done
 
-        if [ ${#fields[@]} -eq 0 ]; then
+        if [ ${#_parsed_pairs[@]} -eq 0 ]; then
             echo "Error: at least one --field=value pair is required" >&2
             return 1
         fi
@@ -796,13 +798,6 @@ ticket_edit() {
             return 1
         fi
 
-        # Unicode arrow conversion for title field
-        # shellcheck disable=SC2031  # fields[title] here is unrelated to ticket_create's `title` var — different function, different subshell
-        if [[ -n "${fields[title]+x}" ]]; then
-            # shellcheck disable=SC2031
-            fields[title]=$(python3 -c "import sys; print(sys.argv[1].replace('\u2192', '->'))" "${fields[title]}")
-        fi
-
         local env_id
         env_id=$(cat "$TRACKER_DIR/.env-id")
         local author
@@ -813,48 +808,42 @@ ticket_edit() {
         # shellcheck disable=SC2064
         trap "rm -f '$temp_event'" EXIT
 
-        # Build the fields JSON string for python3
-        local fields_json="{"
-        local first=true
-        local key value
-        for key in "${!fields[@]}"; do
-            if [ "$first" = true ]; then
-                first=false
-            else
-                fields_json+=","
-            fi
-            value="${fields[$key]}"
-            # Only `priority` is numeric; other fields (title, assignee, description, ticket_type, tags) stay strings
-            # even when they contain digits (e.g., `--title=123` must emit `"title":"123"`, not `"title":123`).
-            if [ "$key" = "priority" ] && [[ "$value" =~ ^-?[0-9]+$ ]]; then
-                fields_json+="\"$key\":$value"
-            else
-                local escaped_value
-                escaped_value=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$value")
-                fields_json+="\"$key\":$escaped_value"
-            fi
-        done
-        fields_json+="}"
-
+        # Delegate field parsing, unicode conversion, JSON building, and event
+        # writing to python3 — consistent with sibling functions (ticket_create,
+        # ticket_comment, ticket_transition). Pairs are passed as positional argv
+        # ("key=value") so no bash 4+ associative-array syntax is needed.
         python3 -c "
 import json, sys, time, uuid
 
-fields = json.loads(sys.argv[3])
+args     = sys.argv[1:]
+env_id   = args[0]
+author   = args[1]
+out_path = args[-1]
+
+fields = {}
+for pair in args[2:-1]:
+    # partition splits on the FIRST '=' only; values may safely contain '='
+    key, _, val = pair.partition('=')
+    fields[key] = val
+
+if 'title' in fields:
+    fields['title'] = fields['title'].replace('\u2192', '->')
+
+if 'priority' in fields and fields['priority'].lstrip('-').isdigit():
+    fields['priority'] = int(fields['priority'])
 
 event = {
     'timestamp': time.time_ns(),
     'uuid': str(uuid.uuid4()),
     'event_type': 'EDIT',
-    'env_id': sys.argv[1],
-    'author': sys.argv[2],
-    'data': {
-        'fields': fields
-    }
+    'env_id': env_id,
+    'author': author,
+    'data': {'fields': fields}
 }
 
-with open(sys.argv[4], 'w', encoding='utf-8') as f:
+with open(out_path, 'w', encoding='utf-8') as f:
     json.dump(event, f, ensure_ascii=False)
-" "$env_id" "$author" "$fields_json" "$temp_event" || {
+" "$env_id" "$author" "${_parsed_pairs[@]}" "$temp_event" || {
             rm -f "$temp_event"
             echo "Error: failed to build EDIT event JSON" >&2
             return 1
