@@ -208,7 +208,15 @@ def main() -> int:
         print(json.dumps(result))
         return 0
 
-    model = _resolve_model_id("haiku")
+    try:
+        model = _resolve_model_id("haiku")
+    except (RuntimeError, SystemExit):
+        # Fail-open: haiku model not configured in this project — skip the check (f845-1a0a)
+        result = _graceful_error(
+            "haiku model ID not configured — semantic conflict check skipped"
+        )
+        print(json.dumps(result))
+        return 0
 
     # Read diff
     if args.diff_file:

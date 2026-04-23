@@ -35,7 +35,7 @@ repos:
         name: Contract Schema Check (60s timeout)
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh contract-schema-check 60 "plugins/dso/scripts/check-contract-schemas.sh"
         language: system
-        pass_filenames: false
+        pass_filenames: true
         stages: [pre-commit]
         files: ^plugins/dso/docs/contracts/
 
@@ -46,6 +46,14 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
         files: ^plugins/dso/(skills|agents)/
+
+      - id: test-index-duplicates-check
+        name: .test-index Duplicate Keys Check (5s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh test-index-duplicates-check 5 "plugins/dso/scripts/check-test-index-duplicates.sh"
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
 
       - id: format-and-lint
         name: Format + Lint - Ruff (15s timeout)
@@ -110,6 +118,17 @@ repos:
         stages: [pre-commit]
         files: ^tests/
 
+
+      # Enforcement boundary check (timeout: 10s)
+      # Blocks commits where a file annotated with '# hook-boundary: enforcement'
+      # also sources hook-error-handler.sh. Annotation-driven (no hardcoded list).
+      - id: enforcement-boundary-check
+        name: Enforcement Boundary Check (10s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh enforcement-boundary-check 10 "./plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: \.sh$
 
       # ShellCheck (timeout: 15s) — project-local, not distributed with the plugin.
       # Runs shellcheck on staged .sh files. Skips gracefully if shellcheck not installed.

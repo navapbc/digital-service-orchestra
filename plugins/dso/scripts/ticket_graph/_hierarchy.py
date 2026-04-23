@@ -96,6 +96,7 @@ def resolve_hierarchy_link(
         resolved_source = source_chain[-1]
         resolved_target = target_chain[-1]
     else:
+
         def _last_before(chain: list[str], shared_id: str) -> str:
             idx = chain.index(shared_id)
             return chain[idx - 1] if idx > 0 else chain[0]

@@ -89,7 +89,7 @@ Return a JSON object with a single `findings` array containing only the findings
       "rejection_rationale": "This concern is already captured in story abc-005's considerations: '[Reliability] Shares Redis cache namespace -- coordinate cache key prefixes.'"
     }
   ],
-  "artifact_path": "<resolved path where the full exchange JSON was written>"
+  "artifact_path": null
 }
 ```
 
@@ -124,11 +124,7 @@ Return:
 
 ## Artifact Persistence
 
-After filtering, write the full exchange to an artifact file for post-mortem analysis:
-
-- File path: `$ARTIFACTS_DIR/adversarial-review-<epic-id>.json` (where `ARTIFACTS_DIR` is resolved via `get_artifacts_dir` from `hooks/lib/deps.sh`)
-- Content: JSON with both `findings` (accepted) and `rejected` arrays
-- Include the artifact path in your JSON output so the orchestrator can add a ticket comment referencing it (the orchestrator handles ticket writes — this agent does not access the ticket system directly)
+**This agent does not write artifact files.** The Rules section below prohibits running shell commands, so the agent cannot create files on disk. Set `artifact_path` to `null` in your JSON output. The orchestrator (preplanning SKILL.md Step 3.5) handles persistence of the full exchange to the temp artifacts directory (`/tmp/workflow-plugin-<hash>/adversarial-review-<epic-id>.json` via `get_artifacts_dir()` from `hooks/lib/deps.sh`) — never to the repo’s `.claude/artifacts/`.
 
 ## Rules
 

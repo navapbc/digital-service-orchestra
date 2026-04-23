@@ -13,6 +13,8 @@ This skill requires the Agent tool to dispatch sub-agents. Before proceeding, ch
 Do NOT proceed with any skill logic if the Agent tool is unavailable.
 </SUB-AGENT-GUARD>
 
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
 # Implementation Plan: Atomic Task Generation
 
 Generate a production-safe implementation plan for a User Story by decomposing it into atomic, TDD-driven tasks with correct dependencies. Prioritize understanding over assumptions — resolve ambiguity before planning.
@@ -63,6 +65,15 @@ Field notes:
 - `elapsed_ms`: always `null` at SKILL_ENTER (not yet known)
 - `termination_directive`: always `null` at SKILL_ENTER
 - `user_interaction_count`: `0` at SKILL_ENTER (no interactions yet)
+
+## Stage-Boundary Entry Check
+
+Source the preconditions validator library and run the entry check for the implementation-plan stage (fail-open: `|| true` prevents blocking when no upstream preplanning event exists yet):
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/preconditions-validator-lib.sh" 2>/dev/null || true
+_dso_pv_entry_check "implementation-plan" "preplanning" "${STORY_ID:-${primary_ticket_id:-}}" || true
+```
 
 ## Usage
 
@@ -146,6 +157,39 @@ Before proceeding, check if the epic has an `interaction:deferred` tag:
 3. If `interaction:deferred` is NOT present (or tags field is empty/absent): proceed normally.
 
 This is a presence-based check — only block when the tag IS present. Existing epics without the tags field are NOT blocked. If ticket show fails, treat the tag as absent and proceed (fail-open).
+
+---
+
+## Manual Story Tag Guard
+
+Before proceeding, check if the story being planned is tagged `manual:awaiting_user`:
+
+1. Check the flag gate:
+   ```bash
+   EXTERNAL_DEP_ENABLED=$(bash "$PLUGIN_SCRIPTS/read-config.sh" planning.external_dependency_block_enabled)  # shim-exempt: prompt template — PLUGIN_SCRIPTS is CLAUDE_PLUGIN_ROOT-derived by the executing agent
+   ```
+   If the flag is absent, empty, or `false`, skip this gate entirely and proceed normally — baseline behavior is preserved.
+2. Run `.claude/scripts/dso ticket show <story-id>` and check the `tags` field for `manual:awaiting_user`.
+3. If `manual:awaiting_user` is NOT present: proceed normally (not a manual story).
+4. If `manual:awaiting_user` IS present: enter the branching logic below.
+
+### Branching Logic for manual:awaiting_user Stories
+
+**Prep-work detection heuristic**: Check the story's done definitions for references to artifacts that do not yet exist in the codebase — specifically: a verification script path, a user-facing instructions document path, or a CLI wrapper that would need to be authored. Use Glob and `test -f` to check if referenced paths exist.
+
+**Branch A — No prep work needed** (heuristic: done definitions reference no new code artifacts):
+- Do NOT decompose the story into tasks.
+- Emit a refusal diagnostic explaining that this story is a manual step handled as a unit by sprint.
+- Emit: `STATUS:blocked REASON:manual_story_no_prep STORY:<story-id>`
+- The manual verification step is never decomposed into a task.
+
+**Branch B — Prep work required** (heuristic: done definitions reference at least one artifact not yet in the codebase):
+- Decompose ONLY the prep tasks using standard RED/GREEN/UPDATE classification.
+- The manual verification step itself is NEVER included as a decomposed task — it is a user-performed action.
+- Read the parent epic's External Dependencies block (conforming to `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`) to seed prep-task context: use the `name`, `verification_command`, and `justification` fields from the relevant block entry to populate prep-task descriptions with real resource names and verification commands rather than invented placeholders.
+- Continue to Step 1 (Contextual Discovery) with only the prep tasks in scope.
+
+This is a presence-based check — only activate when `manual:awaiting_user` IS present AND the flag is enabled. Existing stories without this tag are NOT affected.
 
 ---
 
@@ -234,6 +278,15 @@ After loading the story with `.claude/scripts/dso ticket show <story-id>`, check
 4. If not found OR stale (>7 days) OR malformed JSON:
    - Log: `"No recent preplanning context found on epic <parent-epic-id> — running full Input Analysis"`
    - Proceed with normal Input Analysis below
+
+**Backward compatibility (schema_version-aware parsing):**
+
+The PREPLANNING_CONTEXT payload carries a `schema_version` field. Readers MUST apply version-aware parsing to remain compatible with legacy contexts:
+
+- Check `schema_version` after parsing the JSON payload. If the field is **absent** or its value is less than `2`, apply v1 compatibility mode: the `researchFindings` field is not expected — treat as empty array and continue.
+- If `schema_version >= 2`, the `researchFindings` field is expected; if `researchFindings` is **absent** from a v2+ payload, treat as empty array (fail-open) — do NOT block context loading.
+- **Fail-open contract**: any parsing failure on the `researchFindings` field (corrupt structure, unexpected type, missing nested keys) MUST NOT block context loading. Treat as empty array, emit a warning log line (`"researchFindings parse failed on epic <parent-epic-id> — treating as empty"`), and continue with the rest of the payload.
+- Existing Context File Check behavior (epic data, sibling stories, walking skeleton flags, classifications, traceability lines, story dashboard) is unaffected when `researchFindings` is absent or unparseable.
 
 ### Input Analysis
 
@@ -593,6 +646,31 @@ Before drafting tasks, enumerate all files affected by the story. This produces 
 
 Use this table to determine which TDD task types to create (see TDD Task Structure below). Files classified `still-valid` require no test task. Files classified `needs-modification` require a **modify-existing-test** RED task. Files classified `needs-removal` require a **remove-test** task. Files classified `needs-creation` require a **create-test** RED task (the existing flow).
 
+### Consumer Detection Pass
+
+For every file in the impact table whose action is `modify` or `remove`, run a downstream consumer detection pass to identify callers/callsites outside the immediate task scope. A change that looks local can still break external consumers — those callsites must be enumerated before the task is drafted, not discovered at implementation time.
+
+**Prefer `sg` (ast-grep) over text grep** — `sg` is syntax-aware and distinguishes real symbol references from comments and strings. Guard against unavailability:
+
+```bash
+if command -v sg >/dev/null 2>&1; then
+    # Find every callsite of a symbol (function, method, etc.)
+    sg --pattern '$FUNC($$$)' --lang python . | grep -F '<symbol_name>'
+    # Or, target a specific symbol directly:
+    sg --pattern '<symbol_name>($$$)' --lang python .
+else
+    # Fall back to grep — accept the false-positive cost
+    grep -rn '<symbol_name>(' .
+fi
+```
+
+When external consumers (callers / callsites in files outside the current task's scope) are found, document them in the task's File Impact section with one of two explicit dispositions:
+
+- **Update** — the external callsite must be changed in this task; add the consumer file to the impact table with action `modify` and pull its tests in.
+- **Accept the breaking change** — the change is intentionally breaking for that consumer; record the rationale and ensure the consumer's owner story or follow-on ticket is linked.
+
+A modify/remove task with un-triaged external consumers is incomplete and must be revised before it leaves Step 3.
+
 ### Testing Mode Classification
 
 Each task in the plan must carry an explicit `testing_mode` field — either **RED**, **GREEN**, or **UPDATE** — derived from the file impact table. The classification describes what the code does to observable behavior, not what text it adds or removes from source files.
@@ -691,6 +769,8 @@ An integration test task may be omitted only if one of the following applies:
 
 Either exemption requires a justification requirement documented in the task description and validated by the plan reviewer in Step 4.
 
+**Primary path constraint**: When the story's success criteria describe a user-facing flow (sign-in, checkout, form submission, API call from a browser client), the integration test must exercise that exact path — not an administrative, server-side, or CLI equivalent that bypasses user-facing infrastructure (e.g., OAuth browser callback, CSRF validation, session cookie issuance). A test that reaches the same external service via a privileged bypass does not satisfy this rule even if it passes. Document which user-facing path is covered in the task description.
+
 ### Test Filename Conventions (Fuzzy-Match Compatibility)
 
 The tech-stack-agnostic test gate associates source files with their tests using **fuzzy matching**: the source file's basename is normalized (all non-alphanumeric characters stripped, lowercased) and then checked as a substring against normalized test file basenames.
@@ -741,6 +821,19 @@ If the story introduces or modifies user-facing behavior, API endpoints, or cros
 - E2E task depends on all implementation tasks (runs last)
 
 If purely internal (no behavior change), document why E2E coverage is not needed.
+
+### Visual Verification Metadata (visual_verification)
+
+When a task's File Impact list contains files matching UI patterns — `.css`, `.js`, `.ts`, `.tsx`, `.html`, `.jinja2`, or files inside component directories — the generated task description MUST declare visual verification:
+
+- Add the metadata field `requires_visual_verification: true` to the task description.
+- Add a Playwright acceptance criterion: "Run `playwright test` targeting the affected component; verify no visual regression against baseline."
+
+When the task touches no UI files, omit both the `requires_visual_verification` field and the Playwright AC entirely (do not emit `requires_visual_verification: false` — absence is the signal).
+
+The sub-agent executing the task is responsible for running Playwright as part of satisfying its acceptance criteria. The sprint orchestrator does NOT add a separate Playwright dispatch step — the verification is owned by the implementing task.
+
+The `requires_visual_verification` token is a structural contract surface consumed by downstream automation (sprint, fix-bug). Use the literal token verbatim.
 
 ### Documentation Updates
 
@@ -808,6 +901,59 @@ Scan the output for any existing task whose title contains `Contract:` and the s
 
 The contract task must be declared as a dependency of all implementation tasks that touch either side of the interface — both the emitter side and the parser side. This ensures the interface is specified before either side is implemented.
 
+### Retry Budget
+
+Each implementation task carries a retry budget that the orchestrator parses and enforces when dispatching sub-agents. The budget defines the maximum attempts at each model tier before escalating, and the terminal user-escalation point.
+
+```
+## Retry Budget
+MAX_ATTEMPTS: 3 (sonnet model)
+On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)
+On 3 consecutive opus failures (6 total): escalate to user with full failure history
+If MAX_AGENTS: 0 at sonnet→opus escalation time: skip opus step, escalate to user immediately
+```
+
+The orchestrator parses `MAX_ATTEMPTS` from the generated task description as the per-tier attempt cap. Include this block verbatim in every task description — the structural marker `MAX_ATTEMPTS` is the integration token sub-agent dispatchers use to determine the retry cap.
+
+#### Opus Escalation
+
+When a sub-agent at the sonnet tier fails `MAX_ATTEMPTS` consecutive times, the orchestrator re-dispatches the task at the opus tier. The escalation dispatch MUST include the full diagnostic context from all sonnet failures:
+
+- Each failed sub-agent's final report
+- Test output / error messages from each failure
+- Files modified across all attempts (with diffs if available)
+- Any `RESOLUTION_RESULT` or contract-violation signals emitted
+
+This context lets opus see the full failure trajectory rather than starting cold. If `MAX_AGENTS: 0` (paused) is in effect at the moment escalation would trigger, skip the opus tier and proceed directly to user escalation — opus dispatch is gated by usage capacity.
+
+#### User Escalation
+
+After 6 total consecutive failures (3 sonnet + 3 opus), the orchestrator terminates the autonomous retry loop and escalates to the user. The escalation report MUST include the full failure history:
+
+- All 6 failed sub-agent reports in chronological order
+- The diagnostic context that was passed to opus
+- A concise summary of what was attempted and why each attempt failed
+- The current state of the working tree (files modified, tests failing)
+
+User escalation is also the immediate path when `MAX_AGENTS: 0` blocks opus dispatch, in which case the report contains the 3 sonnet failures plus an explicit note that opus escalation was skipped due to usage throttling.
+
+### Pattern Reference
+
+When the upstream `dso:complexity-evaluator` output specifies `pattern_familiarity: low` or `medium` for a task, enrich the generated task description with a `## Pattern Reference` block containing up to 30 lines of representative codebase examples. This gives the implementation sub-agent concrete prior art to mirror, reducing the chance of inventing a novel pattern when an established one already exists.
+
+#### Gating Rule
+
+- `pattern_familiarity: low` — REQUIRED: include a Pattern Reference block.
+- `pattern_familiarity: medium` — REQUIRED: include a Pattern Reference block.
+- `pattern_familiarity: high` (or no evaluator output) — OMIT the section entirely; the sub-agent already knows the pattern and extra context is noise.
+
+#### Retrieval Rules
+
+- Use local `grep`/`glob` only to find representative examples — no external lookups, no nested LLM calls.
+- Search anchors come from the task's file impact list and the evaluator's identified pattern keywords.
+- Cap the included excerpt at **≤30 lines total** across all examples so task descriptions stay concise. If a single example exceeds 30 lines, truncate with `# ...` and prefer the most representative slice (function signature + body fragment).
+- Cite each example with its source path (e.g., `# from src/utils/example.sh:42-58`).
+
 ---
 
 ## Step 4: Implementation Plan Review (/dso:implementation-plan)
@@ -842,16 +988,7 @@ Once the plan is approved (Score: 5 or user-approved), create tasks in the ticke
 
 ### Create Tasks
 
-For each task in the plan:
-
-```bash
-# Create a task with parent and priority:
-TASK_ID=$(.claude/scripts/dso ticket create task "{task title}" --parent=<story-id> --priority={priority})
-```
-
-If `.claude/scripts/dso ticket create` fails, retry once. If still failing, report the error.
-
-### Task Content Requirements
+For each task in the plan, use the following command form. The `-d` flag is required — pass the full task body (testing mode, acceptance criteria, implementation notes) at creation time. **Do not create the task first and add the body as a comment** — the `description` field is the canonical task spec.
 
 Each task must include:
 
@@ -860,9 +997,9 @@ Each task must include:
 | **Title** | Concise and atomic |
 | **Description** | Implementation steps, file paths, constraints |
 | **TDD Requirement** | Specific failing test to write first |
-| **Acceptance Criteria** | Included via `-d/--description` at creation time (see format below) |
+| **Acceptance Criteria** | Included via `-d/--description` at creation time |
 
-**Acceptance criteria format** (pass via `-d` at creation time):
+**Required command form** — always include acceptance criteria via `-d`:
 
 ```bash
 # Create the task with acceptance criteria included in description
@@ -887,6 +1024,8 @@ DESCRIPTION
 
 Universal criteria (test, lint, format) are always the first three lines.
 Task-specific criteria follow, drawn from the template library and customized.
+
+If `.claude/scripts/dso ticket create` fails, retry once. If still failing, report the error.
 
 ### Add Dependencies
 
@@ -1012,7 +1151,7 @@ After processing findings (or skipping/failing), update the summary output to in
 
 | Step | Purpose | Key Commands |
 |------|---------|--------------|
-| 1 | Contextual Discovery | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`, Glob/Grep, clarify ambiguities, cross-cutting detection |
+| 1 | Contextual Discovery | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`, Glob/Grep, clarify ambiguities, cross-cutting detection. When `planning.external_dependency_block_enabled=true`: if story is tagged `manual:awaiting_user`, refuse decomposition (no prep needed) or produce prep-only tasks (prep work exists); block seeds prep-task context; manual verification step never appears as a task. |
 | 2 | Architectural Review | `REVIEW-PROTOCOL-WORKFLOW.md` inline (>= 4, max 3 iterations); forced if cross-cutting detected |
 | 3 | Atomic Task Drafting | TDD-first, sequential order, E2E + docs coverage |
 | 4 | Plan Review | `REVIEW-PROTOCOL-WORKFLOW.md` inline (all dims = 5, max 3 iterations) |
@@ -1037,6 +1176,14 @@ After processing findings (or skipping/failing), update the summary output to in
 | Blocking on gap analysis failure | Gap analysis failure is non-blocking — log warning and continue |
 | Tasks requiring co-commit | Every task must be independently committable and green. If Task B is broken without Task A in the same commit, merge them or reorder so each stands alone. Inert (does nothing yet) is fine; broken is not. |
 | Test filename not fuzzy-matchable | Verify the normalized source basename is a substring of the normalized test basename. If not, require a `.test-index` entry in acceptance criteria — the test gate will produce a false negative without it. |
+
+## Stage-Boundary Exit Write
+
+Before emitting any STATUS line, write the preconditions exit event for the implementation-plan stage (fail-open):
+
+```bash
+_dso_pv_exit_write "implementation-plan" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:-}" "${STORY_ID:-${primary_ticket_id:-}}" || true
+```
 
 ## Observability: SKILL_EXIT Breadcrumb
 

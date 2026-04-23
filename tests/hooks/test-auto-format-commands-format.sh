@@ -108,4 +108,29 @@ fi
 
 assert_eq "test_py_file_commands_format_evaluated_before_ruff" "1" "$_ORDERING_CORRECT"
 
+# ── test_non_python_file_without_commands_format_emits_warn ──────────────────
+# Behavioral: when commands.format is absent and the file is NOT .py, the hook
+# must emit [DSO WARN] to stdout (DD2). We run the hook with a .js file
+# configured as a format extension but no commands.format set.
+
+_CONF3="$_TEST_ARTIFACTS/dso-config-warn-test.conf"
+cat > "$_CONF3" << 'CONF3'
+format.extensions=.js
+CONF3
+
+_FAKE_JS="$_FAKE_REPO/app/src/test_warn.js"
+echo "const x = 1;" > "$_FAKE_JS"
+INPUT3="{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$_FAKE_JS\"}}"
+
+_HOOK_OUTPUT3=""
+_HOOK_OUTPUT3=$(WORKFLOW_CONFIG_FILE="$_CONF3" CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    bash -c "cd '$_FAKE_REPO' && echo '$INPUT3' | bash '$HOOK'" 2>/dev/null || true)
+
+_WARN_IN_OUTPUT3=0
+if echo "$_HOOK_OUTPUT3" | grep -q '\[DSO WARN\]'; then
+    _WARN_IN_OUTPUT3=1
+fi
+
+assert_eq "test_non_python_file_without_commands_format_emits_warn" "1" "$_WARN_IN_OUTPUT3"
+
 print_summary

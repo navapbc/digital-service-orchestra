@@ -1243,3 +1243,52 @@ def test_delete_issue_link_raises_on_acli_error(acli_mod: ModuleType) -> None:
     with patch("subprocess.run", side_effect=error):
         with pytest.raises(subprocess.CalledProcessError):
             client.delete_issue_link("link-bad")
+
+
+# ---------------------------------------------------------------------------
+# Bug 8190-121b: outbound event writers must use nanosecond timestamps
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_write_sync_event_timestamp_is_nanosecond_scale(
+    tmp_path: Path,
+) -> None:
+    """write_sync_event writes a SYNC event whose 'timestamp' field is at
+    nanosecond scale (> 1_000_000_000_000).
+
+    This test is RED: current code uses int(time.time()) which produces a
+    seconds-scale integer (~1.7e9), well below the 1e12 threshold. After the
+    fix uses time.time_ns() the value will be ~1.7e18, above the threshold.
+    """
+    # REVIEW-DEFENSE: Direct import is required here — bridge-outbound.py does not re-export
+    # write_sync_event, so the bridge module fixture cannot access it. The other three timestamp
+    # tests use module fixtures that do expose the tested functions. See bridge-outbound.py
+    # line 34-40 (only filter_bridge_events, get_compiled_status, has_existing_sync, etc. are
+    # re-exported; write_sync_event is internal to _outbound_api).
+    from bridge._outbound_api import write_sync_event
+
+    ticket_dir = tmp_path / "w21-ns-sync"
+    ticket_dir.mkdir()
+
+    write_sync_event(
+        ticket_dir=ticket_dir,
+        jira_key="DSO-9190",
+        local_id="w21-ns-sync",
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    sync_files = list(ticket_dir.glob("*-SYNC.json"))
+    assert len(sync_files) == 1, (
+        f"write_sync_event must write exactly 1 SYNC file; found {len(sync_files)}"
+    )
+
+    event_data = json.loads(sync_files[0].read_text(encoding="utf-8"))
+    ts = event_data.get("timestamp")
+    assert isinstance(ts, int), f"timestamp must be an int, got {type(ts).__name__}"
+    assert ts > 1_000_000_000_000, (
+        f"timestamp must be nanosecond-scale (> 1_000_000_000_000); "
+        f"got {ts} — current code uses int(time.time()) which is seconds-scale (~1.7e9). "
+        f"Fix: use time.time_ns() instead."
+    )

@@ -85,7 +85,8 @@ _snapshot_fail
 TMPDIR_RESUME="$(mktemp -d)"
 existing_trap="$(trap -p EXIT | sed "s/trap -- '\\(.*\\)' EXIT/\\1/")"
 if [ -n "$existing_trap" ]; then
-    trap "$existing_trap; rm -rf \"\$TMPDIR_RESUME\"" EXIT
+    # shellcheck disable=SC2064
+    trap "$existing_trap; rm -rf \"$TMPDIR_RESUME\"" EXIT
 else
     trap 'rm -rf "$TMPDIR_RESUME"' EXIT
 fi
@@ -267,11 +268,14 @@ _snapshot_fail
 CHAIN_LOG="$(mktemp)"
 # Subshell: set two chained EXIT traps and exit; both should append to CHAIN_LOG
 (
+    # shellcheck disable=SC2064
     trap "echo first >> \"$CHAIN_LOG\"" EXIT
     existing_trap="$(trap -p EXIT | sed "s/trap -- '\\(.*\\)' EXIT/\\1/")"
     if [ -n "$existing_trap" ]; then
+        # shellcheck disable=SC2064
         trap "$existing_trap; echo second >> \"$CHAIN_LOG\"" EXIT
     else
+        # shellcheck disable=SC2064
         trap "echo second >> \"$CHAIN_LOG\"" EXIT
     fi
     exit 0
@@ -1115,11 +1119,11 @@ OVERHEAD_STATE="$TMPDIR_OVERHEAD/state.json"
 # Create 200 small test scripts and a state file marking all as completed
 mkdir -p "$TMPDIR_OVERHEAD/tests"
 for i in $(seq 1 200); do
-    cat > "$TMPDIR_OVERHEAD/tests/test-gen-$(printf '%03d' $i).sh" << 'SHEOF'
+    cat > "$TMPDIR_OVERHEAD/tests/test-gen-$(printf '%03d' "$i").sh" << 'SHEOF'
 #!/usr/bin/env bash
 exit 0
 SHEOF
-    chmod +x "$TMPDIR_OVERHEAD/tests/test-gen-$(printf '%03d' $i).sh"
+    chmod +x "$TMPDIR_OVERHEAD/tests/test-gen-$(printf '%03d' "$i").sh"
 done
 
 # Build state file marking all 200 as completed
@@ -1234,6 +1238,134 @@ assert_eq "test_sigurg_trap_saves_state_and_exits_cleanly: state file saved" "1"
 
 rm -rf "$TMPDIR_SIGURG"
 assert_pass_if_clean "test_sigurg_trap_saves_state_and_exits_cleanly"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# --filter flag tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── test_filter_runs_only_matching_files ─────────────────────────────────────
+# --filter=test-foo* should run test-foo.sh but NOT test-bar.sh.
+echo ""
+echo "--- test_filter_runs_only_matching_files ---"
+_snapshot_fail
+TMPDIR_FILTER_MATCH="$(mktemp -d)"
+FILTER_MATCH_STATE="$TMPDIR_FILTER_MATCH/state.json"
+
+cat > "$TMPDIR_FILTER_MATCH/test-foo.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+chmod +x "$TMPDIR_FILTER_MATCH/test-foo.sh"
+cat > "$TMPDIR_FILTER_MATCH/test-bar.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+chmod +x "$TMPDIR_FILTER_MATCH/test-bar.sh"
+
+filter_match_out=""
+filter_match_exit=0
+filter_match_out=$(TEST_BATCHED_STATE_FILE="$FILTER_MATCH_STATE" \
+    bash "$SCRIPT" --runner=bash --test-dir="$TMPDIR_FILTER_MATCH" --filter='test-foo*' --timeout=30 2>&1) \
+    || filter_match_exit=$?
+
+# test-foo.sh should appear in output
+foo_ran=0
+[[ "$filter_match_out" == *test-foo.sh* ]] && foo_ran=1
+assert_eq "test_filter_runs_only_matching_files: test-foo.sh was run" "1" "$foo_ran"
+# test-bar.sh must NOT appear in output (filtered out)
+bar_ran=0
+[[ "$filter_match_out" == *test-bar.sh* ]] && bar_ran=1
+assert_eq "test_filter_runs_only_matching_files: test-bar.sh was NOT run" "0" "$bar_ran"
+# Should show 1/1 (only one file matched)
+one_of_one=0
+[[ "$filter_match_out" == *1/1* ]] && one_of_one=1
+assert_eq "test_filter_runs_only_matching_files: shows 1/1 progress (not 2/2)" "1" "$one_of_one"
+assert_eq "test_filter_runs_only_matching_files: exits 0" "0" "$filter_match_exit"
+rm -rf "$TMPDIR_FILTER_MATCH"
+assert_pass_if_clean "test_filter_runs_only_matching_files"
+
+# ── test_filter_no_match_warns_and_exits_zero ────────────────────────────────
+# When --filter matches no files, a warning should be printed and exit code 0.
+echo ""
+echo "--- test_filter_no_match_warns_and_exits_zero ---"
+_snapshot_fail
+TMPDIR_FILTER_NONE="$(mktemp -d)"
+FILTER_NONE_STATE="$TMPDIR_FILTER_NONE/state.json"
+
+cat > "$TMPDIR_FILTER_NONE/test-alpha.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+chmod +x "$TMPDIR_FILTER_NONE/test-alpha.sh"
+
+filter_none_out=""
+filter_none_exit=0
+filter_none_out=$(TEST_BATCHED_STATE_FILE="$FILTER_NONE_STATE" \
+    bash "$SCRIPT" --runner=bash --test-dir="$TMPDIR_FILTER_NONE" --filter='test-nonexistent*' --timeout=30 2>&1) \
+    || filter_none_exit=$?
+
+# Should warn about no matches
+no_match_warn=0
+[[ "${filter_none_out,,}" =~ no.*test.*matched|no.*match|filter.*no|warning ]] && no_match_warn=1
+assert_eq "test_filter_no_match_warns_and_exits_zero: warns about no matches" "1" "$no_match_warn"
+# Should exit 0 (not an error)
+assert_eq "test_filter_no_match_warns_and_exits_zero: exits 0" "0" "$filter_none_exit"
+rm -rf "$TMPDIR_FILTER_NONE"
+assert_pass_if_clean "test_filter_no_match_warns_and_exits_zero"
+
+# ── test_filter_unknown_option_no_longer_errors ──────────────────────────────
+# Before the fix, --filter produced "ERROR: Unknown option". Verify it no longer does.
+echo ""
+echo "--- test_filter_unknown_option_no_longer_errors ---"
+_snapshot_fail
+TMPDIR_FILTER_PARSE="$(mktemp -d)"
+FILTER_PARSE_STATE="$TMPDIR_FILTER_PARSE/state.json"
+
+cat > "$TMPDIR_FILTER_PARSE/test-x.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+chmod +x "$TMPDIR_FILTER_PARSE/test-x.sh"
+
+filter_parse_out=""
+filter_parse_exit=0
+filter_parse_out=$(TEST_BATCHED_STATE_FILE="$FILTER_PARSE_STATE" \
+    bash "$SCRIPT" --runner=bash --test-dir="$TMPDIR_FILTER_PARSE" --filter='test-x*' --timeout=30 2>&1) \
+    || filter_parse_exit=$?
+
+unknown_opt=0
+[[ "$filter_parse_out" == *"Unknown option"* ]] && unknown_opt=1
+assert_eq "test_filter_unknown_option_no_longer_errors: no 'Unknown option' error" "0" "$unknown_opt"
+rm -rf "$TMPDIR_FILTER_PARSE"
+assert_pass_if_clean "test_filter_unknown_option_no_longer_errors"
+
+# ── test_filter_resume_command_includes_filter ────────────────────────────────
+# When a filtered run is interrupted, the RUN: resume command must include --filter.
+echo ""
+echo "--- test_filter_resume_command_includes_filter ---"
+_snapshot_fail
+TMPDIR_FILTER_RESUME="$(mktemp -d)"
+FILTER_RESUME_STATE="$TMPDIR_FILTER_RESUME/state.json"
+
+# Create a slow test so timeout triggers mid-run
+cat > "$TMPDIR_FILTER_RESUME/test-slow.sh" << 'SHEOF'
+#!/usr/bin/env bash
+sleep 5
+exit 0
+SHEOF
+chmod +x "$TMPDIR_FILTER_RESUME/test-slow.sh"
+
+filter_resume_out=""
+# timeout=1 so the slow test gets interrupted and ACTION REQUIRED is emitted
+filter_resume_out=$(TEST_BATCHED_STATE_FILE="$FILTER_RESUME_STATE" \
+    bash "$SCRIPT" --runner=bash --test-dir="$TMPDIR_FILTER_RESUME" --filter='test-slow*' --timeout=1 2>&1) || true
+
+# Resume RUN: line must include --filter
+filter_in_resume=0
+{ _fr_run_lines=$(grep "^RUN:" <<< "$filter_resume_out"); [[ "$_fr_run_lines" == *"--filter="* ]]; } && filter_in_resume=1
+assert_eq "test_filter_resume_command_includes_filter: RUN: line contains --filter" "1" "$filter_in_resume"
+rm -rf "$TMPDIR_FILTER_RESUME"
+assert_pass_if_clean "test_filter_resume_command_includes_filter"
 
 print_summary
 

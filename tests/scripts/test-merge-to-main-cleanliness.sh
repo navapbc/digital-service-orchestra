@@ -29,6 +29,11 @@ MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
+# Prevent PROJECT_ROOT from leaking into temp-repo merge-to-main.sh invocations.
+# The dso shim exports PROJECT_ROOT; if inherited, merge-to-main.sh uses the
+# actual project root instead of the temp repo, causing false dirty-worktree failures.
+unset PROJECT_ROOT
+
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
 _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
@@ -401,6 +406,64 @@ fi
 
 assert_eq "test_sync_phase_has_git_reset_head" "yes" "$_SYNC_HAS_RESET"
 assert_eq "test_sync_phase_clears_staged_files_after_merge" "yes" "$_RESET_AFTER_MERGE"
+
+# =============================================================================
+# Test 8: merge succeeds when main has dirty tracked files (0444-8a59)
+#
+# When CLAUDE_PLUGIN_ROOT points to the main repo, hook scripts can leave
+# dirty tracked files on main. Without a pre-merge stash, git merge fails with
+# "Your local changes to the following files would be overwritten by merge".
+# Fix: _phase_merge stashes dirty files before merging and pops after.
+#
+# RED: before the fix, the merge exits non-zero and output contains "overwrite"
+# GREEN: after the fix, the merge succeeds (output contains "Merged" or "DONE")
+# and the dirty file still has the pre-merge content (stash popped).
+# =============================================================================
+echo "--- Test 8: merge succeeds with dirty tracked files on main (0444-8a59) ---"
+TMPENV8=$(setup_env ".tickets-tracker")
+WT8=$(cd "$TMPENV8/worktree" && pwd -P)
+MAIN8="$TMPENV8/main-clone"
+
+# Commit a shared file on main (and origin) that BOTH the feature branch and
+# the dirty-main scenario will touch — triggering the "overwrite" error.
+echo "original content" > "$MAIN8/tracked-hook-lib.sh"
+(cd "$MAIN8" && git add tracked-hook-lib.sh && git commit -q -m "add hook lib" && git push -q origin main)
+
+# Rebase worktree so it includes the hook-lib file
+(cd "$WT8" && git rebase origin/main -q 2>/dev/null || true)
+
+# Make the feature branch also modify tracked-hook-lib.sh (creates the overwrite condition)
+echo "feature version of hook lib" > "$WT8/tracked-hook-lib.sh"
+echo "feature content 8" > "$WT8/feature8.txt"
+(cd "$WT8" && git add tracked-hook-lib.sh feature8.txt && git commit -q -m "feat: update hook lib + feature8")
+
+# Simulate a hook script dirtying tracked-hook-lib.sh on main (not staged).
+# Because the feature branch also modified this file, git merge would fail
+# with "Your local changes to tracked-hook-lib.sh would be overwritten by merge"
+# without the pre-merge stash fix.
+echo "hook-modified content" > "$MAIN8/tracked-hook-lib.sh"
+
+# Run merge — with the fix, stash shields the dirty file and merge succeeds
+MERGE_OUTPUT8=$(cd "$WT8" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
+    bash "$MERGE_SCRIPT" 2>&1 || true)
+
+# Merge should succeed
+MERGE8_SUCCESS="false"
+if echo "$MERGE_OUTPUT8" | grep -qiE "OK: Merged|DONE"; then
+    MERGE8_SUCCESS="true"
+fi
+assert_eq "test_merge_succeeds_with_dirty_main" "true" "$MERGE8_SUCCESS"
+
+# After successful merge, tracked-hook-lib.sh should have the feature branch content
+# (stash was dropped since merge brought in conflicting content)
+MERGED_CONTENT8=$(cat "$MAIN8/tracked-hook-lib.sh" 2>/dev/null || echo "missing")
+CONTENT8_VALID="false"
+if [[ "$MERGED_CONTENT8" == "feature version of hook lib" || "$MERGED_CONTENT8" == "hook-modified content" ]]; then
+    CONTENT8_VALID="true"
+fi
+assert_eq "test_dirty_file_has_valid_content_after_merge" "true" "$CONTENT8_VALID"
+
+cleanup_env "$TMPENV8"
 
 # =============================================================================
 print_summary

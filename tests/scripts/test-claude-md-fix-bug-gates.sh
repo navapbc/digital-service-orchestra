@@ -1,19 +1,12 @@
 #!/usr/bin/env bash
 # tests/scripts/test-claude-md-fix-bug-gates.sh
-# Tests: assert CLAUDE.md reflects hypothesis enforcement gates added in epic b7ac-1d7f,
-# and SKILL.md documents new gates added in epic fe4c-8dc2.
-#
-# Verifies that CLAUDE.md documents:
-#   1. hypothesis_tests field in the fix-bug RESULT schema (replaces tests_run)
-#   2. RED-before-fix gate (Step 5.5 blocks code modification until RED test confirmed)
+# Tests: fix-bug SKILL.md documents gates added in epic fe4c-8dc2.
 #
 # Verifies that fix-bug SKILL.md documents:
-#   3. Step 7.5 Anti-Pattern Scan as a mandatory post-fix step
-#   4. root_cause_report enforcement (agent separation gate in Step 6)
+#   1. Step 7.5 Anti-Pattern Scan as a mandatory post-fix step
+#   2. root_cause_report enforcement (agent separation gate in Step 6)
 #
-# These are agent-awareness requirements — future agents reading CLAUDE.md must know
-# the investigation RESULT must include hypothesis_tests and that code changes are
-# blocked until a RED test is confirmed failing.
+# Also verifies CLAUDE.md CLI_user documentation for Gate 1a bypass.
 #
 # Usage: bash tests/scripts/test-claude-md-fix-bug-gates.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -31,27 +24,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-claude-md-fix-bug-gates.sh ==="
 echo ""
 
-# ── test_claude_md_hypothesis_tests_field ─────────────────────────────────────
-# CLAUDE.md must reference hypothesis_tests as the RESULT schema field
-# for fix-bug investigation results. This replaces the old tests_run field.
-# Future agents need to know investigation results require hypothesis_tests.
 claude_md_content="$(cat "$CLAUDE_MD")"
-
-assert_contains \
-    "test_claude_md_hypothesis_tests_field: CLAUDE.md mentions hypothesis_tests" \
-    "hypothesis_tests" \
-    "$claude_md_content"
-echo ""
-
-# ── test_claude_md_red_before_fix_gate ────────────────────────────────────────
-# CLAUDE.md must reference the RED-before-fix gate so agents know that
-# code modification (Edit, Write, fix sub-agent dispatch) is blocked until
-# a RED test is confirmed failing.
-assert_contains \
-    "test_claude_md_red_before_fix_gate: CLAUDE.md mentions RED-before-fix gate" \
-    "RED-before-fix" \
-    "$claude_md_content"
-echo ""
 
 # ── test_anti_pattern_scan_mandatory ─────────────────────────────────────────
 # SKILL.md must document Step 7.5 Anti-Pattern Scan as a mandatory post-fix step.

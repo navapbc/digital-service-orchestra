@@ -641,6 +641,75 @@ below threshold (3 <= 5) — skipping compaction
 
 ---
 
+### `archive-markers-backfill`
+
+Backfill `.archived` marker files for all existing tickets that are in a net-archived state but lack the marker file.
+
+```
+.claude/scripts/dso archive-markers-backfill [--dry-run] [--tracker-dir=PATH]
+```
+
+> **One-shot maintenance utility.** This script is not a ticket dispatcher subcommand — it is a standalone script. Run it directly via the shim:
+>
+> ```bash
+> .claude/scripts/dso archive-markers-backfill [options]
+> ```
+
+**Purpose:**
+
+The `.archived` marker file is a fast-path optimization used by `ticket-list.sh` and other tooling to skip archived tickets without parsing full event logs. Tickets archived before the marker convention was introduced do not have this file. This script backfills it in one pass, permanently switching those tickets to the fast-path exclusion check.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `--dry-run` | No | Report which tickets would receive markers without writing anything |
+| `--tracker-dir=PATH` | No | Override the `TICKET_TRACKER_DIR` env var to point at a non-default tracker directory |
+| `--help`, `-h` | No | Show built-in usage help |
+
+**Behavior:**
+
+- Scans all non-hidden ticket directories in the tracker directory
+- Determines net archival state per ticket: a ticket is net archived when it has at least one `ARCHIVED` event whose UUID has not been cancelled by a subsequent `REVERT` event (`data.target_event_uuid` matches the `ARCHIVED` UUID)
+- Skips tickets that already have a `.archived` marker file
+- Writes the `.archived` marker file using `fcntl.flock` (per-ticket exclusive lock, 10 s timeout) — mirrors the contract of `ticket_reducer.marker.write_marker`
+- Idempotent: safe to run multiple times; already-marked tickets are skipped
+
+**When to run:**
+
+| Scenario | Action |
+|---|---|
+| Initial deployment of the `.archived` marker convention | Run once after deploying the new `ticket-list.sh` |
+| Markers fall out of sync (e.g., after manual ticket-branch surgery) | Run as a recovery step |
+| Unsure whether all markers are present | Use `--dry-run` to check without writing |
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | Backfill completed (or dry-run preview printed) |
+| `1` | Tracker directory not found, or unknown argument |
+
+**Example:**
+
+```
+# Preview which tickets would receive markers (no writes):
+$ .claude/scripts/dso archive-markers-backfill --dry-run
+  would write: ab12-cd34/.archived
+  would write: w21-a3f7/.archived
+Dry-run — would write 2 markers, would skip 14 (already present)
+
+# Write markers for real:
+$ .claude/scripts/dso archive-markers-backfill
+Wrote 2 markers, skipped 14 (already present)
+
+# Target a non-default tracker directory:
+$ .claude/scripts/dso archive-markers-backfill --tracker-dir=/tmp/test-tracker
+Wrote 0 markers, skipped 0 (already present)
+```
+
+---
+
 ### `bridge-status`
 
 Show the status of the last bridge (Jira sync) run.
@@ -776,6 +845,7 @@ $ .claude/scripts/dso ticket bridge-fsck --tickets-tracker=/path/to/tracker
 | `DSO_UNBLOCK_SCRIPT` | `.claude/scripts/dso ticket transition` | Override the path to `ticket-unblock.py` |
 | `JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN` | `.claude/scripts/dso ticket sync` | Jira credentials for sync |
 | `JIRA_SYNC_TIMEOUT_SECONDS` | `.claude/scripts/dso ticket sync` | Override the sync lock timeout |
+| `DSO_TICKET_LEGACY` | `.claude/scripts/dso ticket` dispatcher | Set to `1` to route `_ensure_initialized` to the pre-refactor Python-backed path. See [Troubleshooting](#troubleshooting) below. |
 
 ---
 
@@ -836,3 +906,40 @@ id=$(.claude/scripts/dso ticket create bug "Login fails on mobile Safari")
 .claude/scripts/dso ticket bridge-status
 .claude/scripts/dso ticket bridge-fsck
 ```
+
+---
+
+## Troubleshooting
+
+### `DSO_TICKET_LEGACY=1` — Rollback flag for `_ensure_initialized`
+
+**Syntax:**
+
+```bash
+DSO_TICKET_LEGACY=1 .claude/scripts/dso ticket <subcommand>
+```
+
+**Effect:**
+
+Routes the `_ensure_initialized` function in the ticket dispatcher to the pre-refactor Python-backed path instead of the current bash-native implementation. All subcommands that call `_ensure_initialized` (e.g., `list`, `create`, `show`, `transition`) are affected.
+
+**When to use:**
+
+- On regression in the bash-native `_ensure_initialized` path (e.g., incorrect sync behavior, unexpected exits).
+- When investigating a suspected performance bug introduced in the bash-native refactor.
+
+Do not use this flag as a permanent workaround. File a bug ticket and reference the session where the regression was first observed.
+
+**Observable behavior:**
+
+When active, the dispatcher emits a notice to stderr before running initialization:
+
+```
+DSO_TICKET_LEGACY=1: using Python-backed _ensure_initialized path
+```
+
+This notice is intentional — it signals that the legacy path is active and should not be suppressed.
+
+**Deprecation plan:**
+
+`DSO_TICKET_LEGACY` is scheduled for removal after 2 stable plugin releases with no reported issues against the bash-native path. Once removed, setting this variable will have no effect.

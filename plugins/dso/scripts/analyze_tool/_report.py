@@ -30,7 +30,9 @@ def load_error_counter() -> dict[str, int]:
         return {}
 
 
-def _render_findings(lines: list[str], findings: dict[str, list[dict[str, str]]]) -> None:
+def _render_findings(
+    lines: list[str], findings: dict[str, list[dict[str, str]]]
+) -> None:
     """Append anti-pattern finding sections to lines (mutates in place)."""
     lines.append("## Anti-Pattern Findings")
     lines.append("")

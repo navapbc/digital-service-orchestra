@@ -82,7 +82,8 @@ trap '_cleanup' EXIT
 
 if ! bash -n "$HOOK" 2>"$SYNTAX_ERR_LOG"; then
     # Parse error detected — log it and fail-open
-    HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
+    mkdir -p "$HOME/.claude/logs" 2>/dev/null || true
     SYNTAX_ERR=$(cat "$SYNTAX_ERR_LOG" 2>/dev/null || echo "unknown")
     printf '{"ts":"%s","hook":"%s","error":"syntax","detail":"%s"}\n' \
         "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \

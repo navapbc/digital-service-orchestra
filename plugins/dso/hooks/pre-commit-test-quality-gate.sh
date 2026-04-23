@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# hook-boundary: enforcement
 # hooks/pre-commit-test-quality-gate.sh
 # git pre-commit hook: scans staged test files for anti-patterns and blocks
 # commits when low-quality patterns are detected.
@@ -33,6 +34,7 @@
 set -uo pipefail
 
 # ── Fail-open on timeout ─────────────────────────────────────────────────────
+# shellcheck disable=SC2329  # Pre-existing: function invoked indirectly via trap SIGTERM/SIGURG
 _fail_open_on_timeout() {
     echo "pre-commit-test-quality-gate: WARNING: timed out — failing open (commit allowed)" >&2
     exit 0

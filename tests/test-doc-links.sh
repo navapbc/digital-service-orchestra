@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # tests/test-doc-links.sh
-# Automated link-check script that scans README.md and the current INSTALL.md
-# (currently plugins/dso/docs/INSTALL.md; task 24a0-4c55 will migrate to root INSTALL.md
-# once task 93d2-cd41 creates it and task fe56-8919 removes the old path).
+# Automated link-check script that scans README.md and the root INSTALL.md
 # for broken hyperlinks (markdown links and bare URLs).
 #
 # Checks:
@@ -16,6 +14,10 @@
 OPT_OUT_URLS=(
     # Returns 403 on HEAD requests (CDN/WAF blocks non-browser requests); URL is valid
     "https://acli.atlassian.com"
+    # Returns 403 on HEAD requests (same reason); URL is valid — Claude Code install page
+    "https://claude.ai/code"
+    # Placeholder example URL shown in INSTALL.md ("your-org" is a literal placeholder token)
+    "https://your-org.atlassian.net"
 )
 # ---- END OPT-OUT ----
 
@@ -33,7 +35,7 @@ fail() { TESTS=$((TESTS + 1)); FAILURES=$((FAILURES + 1)); echo "  FAIL: $1"; }
 # Files to scan (relative to REPO_ROOT)
 SCAN_FILES=(
     "README.md"
-    "plugins/dso/docs/INSTALL.md"
+    "INSTALL.md"
 )
 
 # Check if a URL is in the opt-out list

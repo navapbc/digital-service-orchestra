@@ -204,6 +204,15 @@ rm -rf "$_timing_test_dir"
 # security/integrity violation. The hook_record_test_status_guard (entry 8
 # in the dispatch loop, before hook_tickets_tracker_bash_guard) must
 # intercept these calls and return exit 2.
+#
+# REVIEW-DEFENSE: This test covers the FULL regression path for bug 530e-13d8
+# (EXIT trap override). It invokes the complete dispatcher script via
+# `bash "$DISPATCHER"` (not sourced), with CLAUDE_PLUGIN_ROOT set so
+# hook-error-handler.sh is sourced and the EXIT trap is registered, and
+# asserts the final process exit code is 2. Before the fix, this test
+# produced exit 0 because the EXIT trap converted the intentional exit 2 to
+# 0. After the `trap - EXIT` fix, exit 2 is preserved end-to-end. The RED
+# marker in .test-index (now removed as GREEN) documented the pre-fix failure.
 # ============================================================
 echo "--- test_pre_bash_dispatcher_record_test_status_direct_call_blocked ---"
 _INPUT='{"tool_name":"Bash","tool_input":{"command":"bash plugins/dso/hooks/record-test-status.sh --source-file=foo.py"}}'
@@ -227,6 +236,62 @@ _exit_code=0
 printf '%s' "$_INPUT" | CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$DISPATCHER" 2>/dev/null || _exit_code=$?
 assert_ne "test_pre_bash_dispatcher_record_test_status_attest_allowed: not exit 2 (should be allowed)" "2" "$_exit_code"
 assert_eq "test_pre_bash_dispatcher_record_test_status_attest_allowed: exit 0 (allowed path succeeds)" "0" "$_exit_code"
+
+# ============================================================
+# test_pre_bash_dispatcher_record_test_status_commit_workflow_sentinel_allowed
+# When the command is prefixed with the DSO_COMMIT_WORKFLOW=1 env-var sentinel
+# (set by COMMIT-WORKFLOW.md Step 4.5, single-agent-integrate.md, and
+# per-worktree-review-commit.md), the dispatcher must allow the invocation.
+# This restores the legitimate commit path that pre-commit-test-gate.sh
+# depends on — the gate reads test-gate-status, and record-test-status.sh
+# is the only writer. Without this allowlist, direct orchestrator commits
+# fail 100% of the time (ticket 4344-7243).
+#
+# The sentinel is a weak signal (any caller can copy it), but the real
+# security property is the diff_hash check inside pre-commit-test-gate.sh
+# which catches status recorded against a mismatched staged diff.
+# ============================================================
+echo "--- test_pre_bash_dispatcher_record_test_status_commit_workflow_sentinel_allowed ---"
+_INPUT='{"tool_name":"Bash","tool_input":{"command":"DSO_COMMIT_WORKFLOW=1 bash plugins/dso/hooks/record-test-status.sh --source-file=foo.py"}}'
+_exit_code=0
+printf '%s' "$_INPUT" | CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$DISPATCHER" 2>/dev/null || _exit_code=$?
+assert_ne "test_pre_bash_dispatcher_record_test_status_commit_workflow_sentinel_allowed: not exit 2 (should be allowed)" "2" "$_exit_code"
+assert_eq "test_pre_bash_dispatcher_record_test_status_commit_workflow_sentinel_allowed: exit 0 (allowed path succeeds)" "0" "$_exit_code"
+
+# ============================================================
+# test_pre_bash_dispatcher_block_path_no_spurious_error_trailers
+# When the dispatcher blocks a command (exits 2), the output must NOT contain
+# the spurious error lines produced by leaked function-scope ERR traps:
+#   - "pre-bash.sh: line N: : No such file or directory"
+#   - "pre-bash.sh: line N: return: can only return from a function or sourced script"
+# Bug 1c89-68ee: guard functions set ERR traps referencing function-local
+# HOOK_ERROR_LOG; on happy-path return, the trap leaks into the caller scope.
+# When the dispatcher later exits 2 (block), the leaked trap fires on the
+# non-zero return from _pre_bash_dispatch and produces these two spurious lines.
+# ============================================================
+echo "--- test_pre_bash_dispatcher_block_path_no_spurious_error_trailers ---"
+_INPUT='{"tool_name":"Bash","tool_input":{"command":"echo test > /tmp/artifacts/review-status"}}'
+_exit_code=0
+_stderr_file=$(mktemp)
+( cd "$_bug_test_repo" && printf '%s' "$_INPUT" | ARTIFACTS_DIR="$_bug_artifacts_dir" CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$DISPATCHER" >"$_stderr_file.stdout" 2>"$_stderr_file" ) \
+    || _exit_code=$?
+_stderr_content=$(cat "$_stderr_file")
+rm -f "$_stderr_file" "$_stderr_file.stdout"
+
+# The block must still work (exit 2)
+assert_eq "test_pre_bash_dispatcher_block_path_no_spurious_error_trailers: exit 2" "2" "$_exit_code"
+
+# No spurious "No such file or directory" trailer from leaked ERR trap
+_has_no_such_file=0
+echo "$_stderr_content" | grep -q "No such file or directory" && _has_no_such_file=1 || true
+assert_eq "test_pre_bash_dispatcher_block_path_no_spurious_error_trailers: no 'No such file' spurious error" \
+    "0" "$_has_no_such_file"
+
+# No spurious "return: can only return from a function" trailer from leaked ERR trap
+_has_return_error=0
+echo "$_stderr_content" | grep -q "return: can only" && _has_return_error=1 || true
+assert_eq "test_pre_bash_dispatcher_block_path_no_spurious_error_trailers: no 'return from function' spurious error" \
+    "0" "$_has_return_error"
 
 # ============================================================
 # Summary

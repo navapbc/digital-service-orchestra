@@ -148,6 +148,58 @@ The optional `strategy` parameter accepts a `ReducerStrategy`-compatible object 
 
 ---
 
+## `.archived` Marker Contract
+
+### Purpose
+
+The `.archived` marker is an empty sentinel file (`<ticket-dir>/.archived`) that allows `reduce_all_tickets()` to skip archived tickets without parsing any event files. Reducing a ticket with 16,000+ event files across thousands of tickets is expensive; the marker makes exclusion an O(1) stat check.
+
+### Writers
+
+Two code paths create the `.archived` marker:
+
+1. **`ticket-lifecycle.sh`** — written immediately after the `ARCHIVED` event file is committed to the `tickets` branch. Writing is error-tolerant: a failure degrades the ticket to the slow (event-replay) path rather than aborting the archive operation.
+2. **`ticket-archive-markers-backfill.sh`** — a one-shot migration script that backfills the marker for all tickets that are in a net-archived state (at least one `ARCHIVED` event with no subsequent `REVERT` event cancelling it) but that predate the marker convention. It uses the same `write_marker()` logic as `ticket_reducer.marker.write_marker`.
+
+### When the Marker Is Written
+
+Both writers apply the same sequencing rule: the marker is created **after** the ARCHIVED event file is durably written and committed to the `tickets` branch. This ensures that a process that reads the marker can always find the corresponding event in the event log.
+
+### Marker I/O API
+
+The canonical API is `ticket_reducer.marker` (`scripts/ticket_reducer/marker.py`):
+
+| Function | Description |
+|----------|-------------|
+| `write_marker(ticket_dir)` | Creates `<ticket_dir>/.archived` under an exclusive per-ticket `fcntl.flock` on `<ticket_dir>/.write.lock`. Idempotent (open with `'a'`). On `OSError`: logs warning to stderr, returns without raising. |
+| `remove_marker(ticket_dir)` | Removes `<ticket_dir>/.archived` under the same exclusive lock. Idempotent (ignores `FileNotFoundError`). On `OSError`: logs warning to stderr. |
+| `check_marker(ticket_dir)` | Returns `True` if `<ticket_dir>/.archived` exists, `False` otherwise. No locking needed — existence checks are naturally consistent. |
+
+The per-ticket lock file (`.write.lock`) is separate from the global `.ticket-write.lock` used for event writes. This allows marker operations to proceed without contending on the global write serializer.
+
+### Read Path: `reduce_all_tickets()` Fast-Skip
+
+`reduce_all_tickets(tracker_dir, exclude_archived=True)` uses the marker as a fast-skip gate before event replay:
+
+```python
+if exclude_archived and os.path.exists(os.path.join(entry_path, ".archived")):
+    continue   # skip without reading any event files
+```
+
+After event replay, a secondary filter removes any ticket whose reduced state has `archived=True` but whose marker was absent when scanned. This two-layer approach ensures correctness even when the marker is slightly behind the event log.
+
+### Orphan Marker Behavior
+
+An orphan marker is a `.archived` file that is present in a ticket directory but whose corresponding `ARCHIVED` event has been cancelled by a subsequent `REVERT` event (net-archived state is false). When `reduce_all_tickets()` is called with `exclude_archived=True` and encounters a stale `.archived` marker, it calls `_is_net_archived()` to confirm the net archival state. If `_is_net_archived()` returns `False` (all ARCHIVED events are cancelled), the marker is removed via `remove_marker()` and the ticket falls through to the slow path (event replay), returning its correct active state.
+
+To audit marker state across all tickets, run `archive-markers-backfill --dry-run`. To manually remove a specific orphan marker, use `remove_marker()` from `ticket_reducer.marker`.
+
+### `compute_dir_hash()` Marker Extension
+
+`compute_dir_hash()` in `scripts/ticket_reducer/_cache.py` appends a `marker:present` or `marker:absent` sentinel to the hash input. This means that writing or removing the `.archived` marker invalidates the ticket's `.cache.json`, forcing a full re-reduction on the next read. Without this extension, a ticket archived after its cache was primed would return stale (non-archived) state from cache.
+
+---
+
 ## Flock Contract Summary
 
 ### What the Write Lock Protects
@@ -240,11 +292,11 @@ The `--format=llm` flag on `.claude/scripts/dso ticket show` and `.claude/script
 
 The LLM format applies three transformations:
 
-1. **Key shortening**: Long field names are mapped to abbreviated equivalents (e.g., `ticket_id` → `id`, `ticket_type` → `t`, `title` → `ttl`). See `scripts/ticket-llm-format.py` for the full key map. # shim-exempt: internal implementation path reference
+1. **Key shortening**: Long field names are mapped to abbreviated equivalents (e.g., `ticket_id` → `id`, `ticket_type` → `t`, `title` → `ttl`). See `scripts/ticket_reducer/llm_format.py` for the full key map. # shim-exempt: internal implementation path reference
 2. **Null and empty-list stripping**: Fields with `null` values or empty lists are omitted entirely. A ticket with no dependencies produces no `deps` key in LLM output.
-3. **Timestamp omission**: `created_at` and `env_id` are omitted (`OMIT_KEYS` in `ticket-llm-format.py`). Comment timestamps are also omitted — agents care about comment content, not when it was written.
+3. **Timestamp omission**: `created_at` and `env_id` are omitted (`OMIT_KEYS` in `ticket_reducer/llm_format.py`). Comment timestamps are also omitted — agents care about comment content, not when it was written.
 
-The formatting logic is centralized in `scripts/ticket-llm-format.py` (`to_llm()` function) and shared by both `ticket-show.sh` and `ticket-list.sh`. # shim-exempt: internal implementation path reference
+The formatting logic lives in `scripts/ticket_reducer/llm_format.py` (`to_llm()` function) and is shared by both `ticket-show.sh` and `ticket-list.sh`. # shim-exempt: internal implementation path reference Callers import it as a regular package module (`from ticket_reducer.llm_format import to_llm`) — no `importlib` dance is needed.
 
 `.claude/scripts/dso ticket list --format=llm` outputs JSON Lines (one minified JSON object per line) rather than a JSON array, so agents can stream and filter with standard Unix tools without loading the full array into memory.
 
@@ -262,3 +314,36 @@ Conflict detection is handled at the **semantic** level by the reducer, not at t
 - **Deduplication**: The `LastTimestampWinsStrategy` deduplicates events by UUID (first occurrence wins) and sorts by timestamp. This handles the case where the same event file appears in both environments' histories after a sync.
 
 For multi-environment conflict resolution strategy (`MostStatusEventsWinsStrategy`), see `docs/contracts/ticket-reducer-strategy-contract.md`.
+
+---
+
+## Tag Policy
+
+### Guarded Tags
+
+| Tag | Guard | Writer |
+|-----|-------|--------|
+| `brainstorm:complete` | Requires `### Planning Intelligence Log` heading in ticket events (enforced by `_tag_add_checked` in `ticket-lib.sh`) | `/dso:brainstorm` via `.claude/scripts/dso ticket tag` |
+
+Explicitly removable via `.claude/scripts/dso ticket untag`.
+
+### Unguarded Tags
+
+All other tags (e.g., `scrutiny:pending`, `interaction:deferred`, `design:approved`, `design:awaiting_import`, `design:pending_review`) are unguarded. Policy errs toward flexibility — guards are added only when incorrect application causes irreversible harm.
+
+### Writer Taxonomy
+
+**Additive writes** (single-tag operations):
+- CLI: `.claude/scripts/dso ticket tag <id> <tag>` and `.claude/scripts/dso ticket untag <id> <tag>`
+- Library: `_tag_add` / `_tag_remove` in `ticket-lib.sh`
+
+**Full-replacement writes** (replaces entire tags array):
+- CLI: `ticket edit --tags=<json-array>`
+- Reserved for: migration script (`ticket-migrate-brainstorm-tags.sh`) and direct tag array resets
+
+Concurrent-writer race between additive and full-replacement writes is accepted — same tolerance as pre-existing full-replacement behavior.
+
+### Accepted Limitations
+
+- **Concurrent-writer race**: two simultaneous additive tag operations can produce a last-writer-wins outcome. Accepted given low concurrency in practice.
+- **Source enforcement infeasible**: "only skill X may write tag Y" cannot be enforced at the CLI level. Policy is documented here for reference; enforcement relies on skill instructions.

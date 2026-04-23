@@ -169,9 +169,9 @@ print(data.get('review_type', 'missing'))
 }
 test_emit_protocol_review_brainstorm_fidelity
 
-# ── Test 3: missing review-protocol-output.json fails ─────────────────────────
-echo "Test 3: emit-protocol-review-result.sh fails when review-protocol-output.json missing"
-test_emit_protocol_review_missing_output_fails() {
+# ── Test 3: missing review-protocol-output.json is a no-op (exit 0) ──────────
+echo "Test 3: emit-protocol-review-result.sh exits 0 (no-op) when review-protocol-output.json missing"
+test_emit_protocol_review_missing_output_noop() {
     if [ ! -f "$EMIT_SCRIPT" ]; then
         assert_eq "emit-protocol-review-result.sh exists for missing-output test" "exists" "missing"
         return
@@ -190,10 +190,9 @@ test_emit_protocol_review_missing_output_fails() {
         --pass-fail=passed \
         --revision-cycles=0 2>/dev/null || exit_code=$?
 
-    assert_eq "exits non-zero without review-protocol-output.json" "1" \
-        "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+    assert_eq "exits zero (no-op) without review-protocol-output.json" "0" "$exit_code"
 }
-test_emit_protocol_review_missing_output_fails
+test_emit_protocol_review_missing_output_noop
 
 # ── Test 4: finding counts by severity ────────────────────────────────────────
 echo "Test 4: emit-protocol-review-result.sh extracts finding_counts_by_severity"

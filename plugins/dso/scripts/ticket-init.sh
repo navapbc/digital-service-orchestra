@@ -10,6 +10,12 @@
 set -euo pipefail
 
 # ── Parse flags ───────────────────────────────────────────────────────────────
+# Unset git hook env vars before any git commands so REPO_ROOT resolves from CWD.
+# When run as a subprocess from a pre-commit hook, GIT_DIR is inherited and would
+# cause git rev-parse --show-toplevel (and all subsequent git -C commands) to
+# operate on the hook's repo instead of the intended target repo.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
 _silent=false
 for _arg in "$@"; do
     if [[ "$_arg" == "--silent" ]]; then
@@ -182,7 +188,8 @@ while [ "$SECONDS" -lt "$_lock_deadline" ]; do
     if mkdir "$_lock_dir" 2>/dev/null; then
         _lock_acquired=true
         # Remove lock on exit (normal or error)
-        trap 'rmdir "$_lock_dir" 2>/dev/null; exit' EXIT INT TERM
+        # shellcheck disable=SC2154
+        trap 'code=$?; rmdir "$_lock_dir" 2>/dev/null; exit $code' EXIT INT TERM
         break
     fi
     sleep 1

@@ -108,7 +108,7 @@ source "$_SCRIPT_PLUGIN_DIR/scripts/artifact-merge-lib.sh"
 
 # ── Read plugin version (used for artifact stamps) ────────────────────────────
 _PLUGIN_VERSION=$(python3 -c "import json; print(json.load(open('$_SCRIPT_PLUGIN_DIR/.claude-plugin/plugin.json'))['version'])" 2>/dev/null || echo "unknown")
-# DIST_ROOT: the repository root containing shared assets (templates/, examples/)
+# DIST_ROOT: the repository root containing shared assets (templates/, docs/examples/)
 # that live outside the plugin subdir. Falls back to PLUGIN_ROOT for backward
 # compatibility when this script is called with the repo root as PLUGIN_ROOT.
 # Resolve from git rev-parse (always reliable) rather than relative paths.
@@ -117,6 +117,8 @@ DIST_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || DIST_ROOT="$PLUGIN_R
 if [ ! -d "$DIST_ROOT/templates" ] && [ -d "$PLUGIN_ROOT/templates" ]; then
     DIST_ROOT="$PLUGIN_ROOT"
 fi
+# Examples moved from examples/ to docs/examples/ inside the plugin dir
+EXAMPLES_ROOT="$DIST_ROOT/docs/examples"
 
 # Ensure TARGET_REPO is a git repository so the dso shim can locate
 # .claude/dso-config.conf via `git rev-parse --show-toplevel`.
@@ -216,6 +218,106 @@ supplement_template_file \
     '<!-- DSO:KNOWN-ISSUES-HEADER -->' \
     "$_SCRIPT_PLUGIN_DIR/docs/templates/KNOWN-ISSUES.md" \
     "KNOWN-ISSUES.md"
+
+# ── _resolve_stack_ci_example: pick CI example by detected stack ──────────────
+# Usage: _resolve_stack_ci_example TARGET_REPO EXAMPLES_ROOT DRYRUN
+#   Emits (stdout) a path to the CI example file to use, OR empty string if
+#   none resolvable. When a skeleton is generated, it is written to a
+#   deterministic path under $TARGET_REPO (.dso-ci-skeleton.tmp) so the caller
+#   can rm -f it without inter-subshell variable propagation (which would not
+#   work — this function is always called via command substitution).
+#
+# Resolution order:
+#   1. Read `stack=` from $DSO_DETECT_OUTPUT (populated by project-detect.sh)
+#      then fall back to `stack=` in $TARGET_REPO/.claude/dso-config.conf
+#   2. If stack matches a file EXAMPLES_ROOT/ci.example.${stack}.yml, use it
+#   3. Otherwise generate a skeleton from dso-config.conf commands.{test,lint,format_check}
+#   4. Last-resort fallback: legacy ci.example.python-poetry.yml (preserves prior
+#      behavior if both stack detection and skeleton generation fail)
+_resolve_stack_ci_example() {
+    local target_repo="$1"
+    local examples_root="$2"
+    local dryrun="${3:-}"
+
+    local _stack=""
+    if [[ -n "${DSO_DETECT_OUTPUT:-}" ]] && [[ -f "${DSO_DETECT_OUTPUT}" ]]; then
+        _stack=$(grep '^stack=' "$DSO_DETECT_OUTPUT" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '[:space:]')
+    fi
+    if [[ -z "$_stack" ]] && [[ -f "$target_repo/.claude/dso-config.conf" ]]; then
+        _stack=$(grep '^stack=' "$target_repo/.claude/dso-config.conf" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '[:space:]')
+    fi
+
+    # Stack-matched example
+    if [[ -n "$_stack" ]] && [[ -f "$examples_root/ci.example.${_stack}.yml" ]]; then
+        printf '%s\n' "$examples_root/ci.example.${_stack}.yml"
+        return 0
+    fi
+
+    # Skeleton from dso-config commands — written to deterministic path under
+    # target_repo (NOT via mktemp/shell var) so the caller can rm -f it after
+    # consumption. Subshell isolation would drop a variable-based marker.
+    # Dryrun honors the no-write contract: skip skeleton generation entirely and
+    # fall through to the last-resort branch. In non-dryrun mode only, write the
+    # skeleton file and return its path.
+    if [[ -z "$dryrun" ]] && [[ -d "$target_repo" ]]; then
+        local _skel_path="$target_repo/.dso-ci-skeleton.tmp"
+        if _generate_ci_skeleton_from_config "$target_repo" "$_stack" "$_skel_path"; then
+            printf '%s\n' "$_skel_path"
+            return 0
+        fi
+    fi
+
+    # Last-resort: legacy python-poetry example (backward compat)
+    if [[ -f "$examples_root/ci.example.python-poetry.yml" ]]; then
+        printf '%s\n' "$examples_root/ci.example.python-poetry.yml"
+        return 0
+    fi
+
+    # No example resolvable — emit empty (caller must guard against empty path).
+    printf ''
+}
+
+# ── _generate_ci_skeleton_from_config: synthesize CI from dso-config commands ─
+# Usage: _generate_ci_skeleton_from_config TARGET_REPO STACK OUTPUT_PATH
+#   Writes a minimal CI workflow derived from commands.{test,lint,format_check}
+#   in dso-config.conf to OUTPUT_PATH. Returns 0 on success, 1 if no commands
+#   are declared (so caller can fall back). Deterministic path — avoids the
+#   subshell-variable-propagation trap that killed the earlier tmpfile approach.
+_generate_ci_skeleton_from_config() {
+    local target_repo="$1"
+    local stack="${2:-unknown}"
+    local out_path="$3"
+    local config="$target_repo/.claude/dso-config.conf"
+
+    [[ -f "$config" ]] || return 1
+
+    local _test_cmd _lint_cmd _format_cmd
+    _test_cmd=$(grep '^commands\.test=' "$config" 2>/dev/null | head -1 | cut -d= -f2-)
+    _lint_cmd=$(grep '^commands\.lint=' "$config" 2>/dev/null | head -1 | cut -d= -f2-)
+    _format_cmd=$(grep '^commands\.format_check=' "$config" 2>/dev/null | head -1 | cut -d= -f2-)
+
+    # Require at least one command to generate anything useful
+    if [[ -z "$_test_cmd" && -z "$_lint_cmd" && -z "$_format_cmd" ]]; then
+        return 1
+    fi
+
+    {
+        printf '# DSO CI skeleton — generated for stack=%s\n' "$stack"
+        printf '# x-dso-version: skeleton\n'
+        printf 'name: CI\n\n'
+        printf 'on:\n  pull_request:\n    branches: [main]\n  push:\n    branches: [main]\n  workflow_dispatch:\n\n'
+        printf 'jobs:\n'
+        if [[ -n "$_lint_cmd" || -n "$_format_cmd" ]]; then
+            printf '  fast-gate:\n    name: Fast Gate\n    runs-on: ubuntu-latest\n    timeout-minutes: 5\n    steps:\n      - uses: actions/checkout@v4\n'
+            [[ -n "$_format_cmd" ]] && printf '      - name: Format check\n        run: %s\n' "$_format_cmd"
+            [[ -n "$_lint_cmd" ]] && printf '      - name: Lint\n        run: %s\n' "$_lint_cmd"
+        fi
+        if [[ -n "$_test_cmd" ]]; then
+            printf '  tests:\n    name: Tests\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n    steps:\n      - uses: actions/checkout@v4\n      - name: Run tests\n        run: %s\n' "$_test_cmd"
+        fi
+    } > "$out_path"
+    return 0
+}
 
 # ── _run_ci_guard_analysis: analyze existing CI workflow for missing guards ────
 # Usage: _run_ci_guard_analysis DRYRUN TARGET_REPO
@@ -341,9 +443,9 @@ $stamp_line" "$file_path" && rm -f "${file_path}.bak"
 TARGET_PRECOMMIT="$TARGET_REPO/.pre-commit-config.yaml"
 if [[ -z "$DRYRUN" ]]; then
     if [ ! -f "$TARGET_PRECOMMIT" ]; then
-        cp "$DIST_ROOT/examples/pre-commit-config.example.yaml" "$TARGET_PRECOMMIT"
+        cp "$EXAMPLES_ROOT/pre-commit-config.example.yaml" "$TARGET_PRECOMMIT"
     else
-        merge_precommit_hooks "$TARGET_PRECOMMIT" "$DIST_ROOT/examples/pre-commit-config.example.yaml" ""
+        merge_precommit_hooks "$TARGET_PRECOMMIT" "$EXAMPLES_ROOT/pre-commit-config.example.yaml" ""
     fi
 
     mkdir -p "$TARGET_REPO/.github/workflows"
@@ -352,33 +454,47 @@ if [[ -z "$DRYRUN" ]]; then
     for _wf in "$TARGET_REPO/.github/workflows"/*.yml "$TARGET_REPO/.github/workflows"/*.yaml; do
         [[ -f "$_wf" ]] && _existing_workflows+=("$_wf")
     done
-    if [[ ${#_existing_workflows[@]} -eq 0 ]]; then
-        # No workflow files exist — copy the example (original behavior)
-        cp "$DIST_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
+    # Resolve stack-matched CI example; generate skeleton from dso-config commands
+    # if no stack match. When a skeleton is generated, it is written to a
+    # deterministic path ($TARGET_REPO/.dso-ci-skeleton.tmp) so we can rm -f it
+    # after consumption — subshell assignments can't propagate out of $(...).
+    _CI_EXAMPLE_RESOLVED=$(_resolve_stack_ci_example "$TARGET_REPO" "$EXAMPLES_ROOT" "")
+    if [[ -z "$_CI_EXAMPLE_RESOLVED" ]]; then
+        echo "[skip] No CI example resolved for target stack — skipping CI workflow setup"
+    elif [[ ${#_existing_workflows[@]} -eq 0 ]]; then
+        # No workflow files exist — copy the stack-matched example
+        cp "$_CI_EXAMPLE_RESOLVED" "$TARGET_REPO/.github/workflows/ci.yml"
     else
-        # Workflow file(s) exist — merge DSO CI jobs into the first workflow file,
-        # then run CI guard analysis using detection output.
-        merge_ci_workflow "${_existing_workflows[0]}" "$DIST_ROOT/examples/ci.example.yml" ""
+        # Workflow file(s) exist — merge stack-matched DSO CI jobs into the first
+        # workflow file, then run CI guard analysis using detection output.
+        merge_ci_workflow "${_existing_workflows[0]}" "$_CI_EXAMPLE_RESOLVED" ""
         _run_ci_guard_analysis "" "$TARGET_REPO"
     fi
+    # Clean up generated skeleton (deterministic path, only exists if skeleton was generated)
+    rm -f "$TARGET_REPO/.dso-ci-skeleton.tmp"
 else
     if [ ! -f "$TARGET_PRECOMMIT" ]; then
         echo "[dryrun] Would copy pre-commit-config.example.yaml -> $TARGET_REPO/.pre-commit-config.yaml (file absent)"
     else
-        merge_precommit_hooks "$TARGET_PRECOMMIT" "$DIST_ROOT/examples/pre-commit-config.example.yaml" "1"
+        merge_precommit_hooks "$TARGET_PRECOMMIT" "$EXAMPLES_ROOT/pre-commit-config.example.yaml" "1"
     fi
     # Check for ANY existing workflow file (not just ci.yml) under .github/workflows/
     _existing_workflows_dry=()
     for _wf in "$TARGET_REPO/.github/workflows"/*.yml "$TARGET_REPO/.github/workflows"/*.yaml; do
         [[ -f "$_wf" ]] && _existing_workflows_dry+=("$_wf")
     done
-    if [[ ${#_existing_workflows_dry[@]} -eq 0 ]]; then
-        echo "[dryrun] Would copy ci.example.yml -> $TARGET_REPO/.github/workflows/ci.yml (only if absent)"
+    _CI_EXAMPLE_RESOLVED=$(_resolve_stack_ci_example "$TARGET_REPO" "$EXAMPLES_ROOT" "1")
+    if [[ -z "$_CI_EXAMPLE_RESOLVED" ]]; then
+        echo "[dryrun][skip] No CI example resolved for target stack — would skip CI workflow setup"
+    elif [[ ${#_existing_workflows_dry[@]} -eq 0 ]]; then
+        echo "[dryrun] Would copy $(basename "$_CI_EXAMPLE_RESOLVED") -> $TARGET_REPO/.github/workflows/ci.yml (only if absent)"
     else
-        # Workflow file(s) exist — preview DSO CI job merge, then CI guard analysis (dryrun mode)
-        merge_ci_workflow "${_existing_workflows_dry[0]}" "$DIST_ROOT/examples/ci.example.yml" "1"
+        # Workflow file(s) exist — preview stack-matched merge, then CI guard analysis (dryrun mode)
+        merge_ci_workflow "${_existing_workflows_dry[0]}" "$_CI_EXAMPLE_RESOLVED" "1"
         _run_ci_guard_analysis "1" "$TARGET_REPO"
     fi
+    # Clean up generated skeleton (deterministic path)
+    rm -f "$TARGET_REPO/.dso-ci-skeleton.tmp"
 fi
 
 # ── Verify hooks/lib installation (required by pre-commit framework hooks) ────
@@ -488,7 +604,7 @@ echo 'Note: Bridge workflows use vars.JIRA_URL and vars.JIRA_USER (not secrets).
 echo '=== Setup complete. Next steps: ==='
 echo '1. Edit .claude/dso-config.conf to configure your project'
 echo '2. Run /dso:onboarding in Claude Code for interactive configuration'
-echo '3. See docs/INSTALL.md for full documentation'
+echo '3. See https://github.com/navapbc/digital-service-orchestra/blob/main/INSTALL.md for full documentation'
 
 # Exit 2 (warnings-only) if any warning-level prerequisites were missing.
 # Setup has completed successfully — exit 2 signals "continue with caution".

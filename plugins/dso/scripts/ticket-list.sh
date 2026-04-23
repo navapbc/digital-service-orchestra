@@ -18,6 +18,7 @@
 #                   priority    → pr
 #                   assignee    → asn
 #                   comments    → cm (sub-keys: body→b, author→au)
+#                   tags        → tg
 #                   deps        → dp (sub-keys: target_id→tid, relation→r)
 #   Errors go to stderr; exits 0 on success (even if some tickets have errors).
 #   Empty tracker outputs [] (default) or nothing (llm format).
@@ -83,31 +84,25 @@ if [ ! -d "$TRACKER_DIR" ]; then
     exit 1
 fi
 
-# ── Batch-reduce all tickets ──────────────────────────────────────────────────
-batch_output=""
-batch_exit=0
-if [ -n "$include_archived" ]; then
-    batch_output=$(python3 "$REDUCER" --batch "$TRACKER_DIR" 2>/dev/null) || batch_exit=$?
-else
-    batch_output=$(python3 "$REDUCER" --batch --exclude-archived "$TRACKER_DIR" 2>/dev/null) || batch_exit=$?
-fi
-
-if [ "$batch_exit" -ne 0 ] && [ -z "$batch_output" ]; then
-    echo "Error: batch reducer failed (exit $batch_exit) with no output" >&2
-    exit 1
-fi
-
 # ── Assemble and output ────────────────────────────────────────────────────────
 if [ "$format" = "llm" ]; then
     # LLM format: JSONL — one minified ticket per line, shortened keys, stripped nulls/empty lists,
     # and no verbose timestamps (created_at, env_id, and comment timestamps omitted).
-    # Convert JSON array to newline-delimited JSON objects, then pipe through LLM formatter.
-    echo "$batch_output" \
-        | _LIST_TYPE_FILTER="$filter_type" _LIST_STATUS_FILTER="$filter_status" python3 -c "
-import json, sys, os
-results = json.loads(sys.stdin.read())
-type_filter = os.environ.get('_LIST_TYPE_FILTER', '')
-status_filter = os.environ.get('_LIST_STATUS_FILTER', '')
+    # Single-process: reduce → filter → to_llm (no subprocess pipeline).
+    _TRACKER_DIR="$TRACKER_DIR" _INCLUDE_ARCHIVED="$include_archived" \
+    _TYPE_FILTER="$filter_type" _STATUS_FILTER="$filter_status" \
+    _SCRIPT_DIR="$SCRIPT_DIR" python3 -c "
+import sys, os, json
+sys.path.insert(0, os.environ['_SCRIPT_DIR'])
+from ticket_reducer import reduce_all_tickets
+from ticket_reducer.llm_format import to_llm
+
+tracker_dir = os.environ['_TRACKER_DIR']
+include_archived = os.environ.get('_INCLUDE_ARCHIVED', '') == 'true'
+type_filter = os.environ.get('_TYPE_FILTER', '')
+status_filter = os.environ.get('_STATUS_FILTER', '')
+
+results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived)
 # Exclude error/fsck_needed tickets unless explicitly requested via --status (d145-e1a9)
 if status_filter not in ('error', 'fsck_needed'):
     results = [t for t in results if t.get('status') not in ('error', 'fsck_needed')]
@@ -117,42 +112,24 @@ if status_filter:
     status_values = {s.strip() for s in status_filter.split(',')}
     results = [t for t in results if t.get('status') in status_values]
 for t in results:
-    print(json.dumps(t))
-" \
-        | _TICKET_LLM_FMT="$SCRIPT_DIR/ticket-llm-format.py" python3 -c "
-import json, sys, importlib.util, pathlib, os
-
-_mod_path = pathlib.Path(os.environ['_TICKET_LLM_FMT'])
-try:
-    _spec = importlib.util.spec_from_file_location('ticket_llm_format', _mod_path)
-    if _spec is None or _spec.loader is None:
-        raise ImportError(f'Cannot load module from {_mod_path}')
-    _mod = importlib.util.module_from_spec(_spec)
-    _spec.loader.exec_module(_mod)
-    to_llm = _mod.to_llm
-except (ImportError, FileNotFoundError, OSError) as _e:
-    print(f'ERROR: failed to load ticket-llm-format.py: {_e}', file=sys.stderr)
-    sys.exit(1)
-
-for line in sys.stdin:
-    line = line.strip()
-    if not line:
-        continue
-    try:
-        obj = json.loads(line)
-        print(json.dumps(to_llm(obj), ensure_ascii=False, separators=(',', ':')))
-    except json.JSONDecodeError as e:
-        print(f'WARNING: skipping malformed JSON line: {e}', file=sys.stderr)
+    print(json.dumps(to_llm(t), ensure_ascii=False, separators=(',', ':')))
 "
 else
-    # Default: JSON array — batch output is already a JSON array; emit directly.
+    # Default: JSON array — reduce, filter, and emit in a single process.
     # Also emit a passive aggregate health warning to stderr when unresolved bridge alerts exist.
-    _LIST_TYPE_FILTER="$filter_type" _LIST_STATUS_FILTER="$filter_status" python3 -c "
-import json, sys, os
+    _TRACKER_DIR="$TRACKER_DIR" _INCLUDE_ARCHIVED="$include_archived" \
+    _TYPE_FILTER="$filter_type" _STATUS_FILTER="$filter_status" \
+    _SCRIPT_DIR="$SCRIPT_DIR" python3 -c "
+import sys, os, json
+sys.path.insert(0, os.environ['_SCRIPT_DIR'])
+from ticket_reducer import reduce_all_tickets
 
-results = json.loads(sys.stdin.read())
-type_filter = os.environ.get('_LIST_TYPE_FILTER', '')
-status_filter = os.environ.get('_LIST_STATUS_FILTER', '')
+tracker_dir = os.environ['_TRACKER_DIR']
+include_archived = os.environ.get('_INCLUDE_ARCHIVED', '') == 'true'
+type_filter = os.environ.get('_TYPE_FILTER', '')
+status_filter = os.environ.get('_STATUS_FILTER', '')
+
+results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived)
 # Exclude error/fsck_needed tickets unless explicitly requested via --status (d145-e1a9)
 if status_filter not in ('error', 'fsck_needed'):
     results = [t for t in results if t.get('status') not in ('error', 'fsck_needed')]
@@ -172,5 +149,5 @@ if alerted_count > 0:
         f'WARNING: {alerted_count} ticket(s) have unresolved bridge alerts. Run: ticket bridge-status for details.',
         file=sys.stderr,
     )
-" <<< "$batch_output"
+"
 fi

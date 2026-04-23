@@ -590,7 +590,15 @@ run_test_suite() {
         for ftname in "${failed_tests[@]}"; do
             if [ -f "$results_dir/$ftname.out" ]; then
                 echo "--- $ftname ---"
-                # Limit to last 30 lines to avoid flooding CI logs
+                # Show all FAIL: lines (unbounded) so no failing assertion is hidden
+                # when a test file has many assertions, then tail -30 for context.
+                local _fail_lines
+                _fail_lines=$(grep -n '^FAIL:\|FAIL: ' "$results_dir/$ftname.out" 2>/dev/null || true)
+                if [ -n "$_fail_lines" ]; then
+                    echo "[all FAIL: lines]"
+                    printf '%s\n' "$_fail_lines"
+                    echo "[last 30 lines of output]"
+                fi
                 tail -30 "$results_dir/$ftname.out"
                 echo "--- end $ftname ---"
             fi

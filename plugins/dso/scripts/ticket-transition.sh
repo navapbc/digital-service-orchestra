@@ -147,8 +147,30 @@ def read_state_from_snapshot(ticket_dir):
     except Exception:
         return None
 
+_UNKNOWN = object()  # Sentinel for corrupt/missing CREATE events (shared across functions)
+
+def read_parent_id_from_create(ticket_dir):
+    """Read parent_id from the CREATE event without running the full reducer.
+
+    Returns the parent_id string (may be None/empty) or the module-level sentinel
+    _UNKNOWN if the CREATE event cannot be read (corrupt/missing).
+    """
+    creates = sorted(glob.glob(os.path.join(ticket_dir, '*-CREATE.json')))
+    if not creates:
+        return _UNKNOWN
+    try:
+        with open(creates[-1]) as f:
+            event = json.load(f)
+        return event.get('data', {}).get('parent_id')
+    except Exception:
+        return _UNKNOWN
+
 def read_state_via_reducer(ticket_dir):
-    """Fallback: invoke reducer subprocess for tickets without a SNAPSHOT."""
+    """Fallback: invoke reducer subprocess for tickets without a SNAPSHOT.
+
+    Only called for tickets confirmed (via snapshot or CREATE) to have
+    parent_id == ticket_id — keeps invocations O(children_count).
+    """
     try:
         result = subprocess.run(
             ['python3', reducer_path, ticket_dir],
@@ -161,20 +183,53 @@ def read_state_via_reducer(ticket_dir):
         return None
 
 # Scan all ticket directories for open children.
-# Fast path: read *-SNAPSHOT.json files directly (no subprocess per ticket).
-# Slow path fallback: invoke reducer for tickets lacking a SNAPSHOT file.
+#
+# Performance fix (babe-ff38): O(N) -> O(children_count)
+# Previous approach: invoke reducer subprocess for ALL tickets lacking a SNAPSHOT
+# (13,526 of 16,636 in production — ~473s total at ~35ms each).
+#
+# New approach (two-pass, targeted):
+#   Pass 1 (fast): for each ticket dir, read parent_id from SNAPSHOT compiled_state
+#     (no subprocess) or from CREATE event (also no subprocess). Skip immediately if
+#     parent_id != ticket_id.
+#   Pass 2 (targeted): only invoke reducer subprocess for confirmed children to get
+#     authoritative current status (handles STATUS events after the last SNAPSHOT).
+#
+# This bounds reducer invocations to O(children_count) — typically 0-10 for leaf
+# nodes — regardless of total ticket count.
 open_children = []
 try:
     for entry in os.scandir(tracker_dir):
         if not entry.is_dir():
             continue
         tid = entry.name
-        state = read_state_from_snapshot(entry.path)
-        if state is None:
+
+        # Pass 1a: try SNAPSHOT (fastest — compiled state, no subprocess)
+        snapshot_state = read_state_from_snapshot(entry.path)
+        if snapshot_state is not None:
+            # Snapshot gives us parent_id without a subprocess.
+            # If parent_id doesn't match, skip immediately.
+            if snapshot_state.get('parent_id') != ticket_id:
+                continue
+            # Parent matches — check status from snapshot.
+            # Still need reducer to account for STATUS events after the snapshot.
             state = read_state_via_reducer(entry.path)
+            if state is None:
+                state = snapshot_state  # fall back to snapshot status
+        else:
+            # Pass 1b: no SNAPSHOT — read parent_id from CREATE event (no subprocess).
+            parent_id_from_create = read_parent_id_from_create(entry.path)
+            if parent_id_from_create is _UNKNOWN:
+                # Cannot determine parent without reducer; skip for safety.
+                # (Corrupt/missing CREATE — not a valid child anyway.)
+                continue
+            if parent_id_from_create != ticket_id:
+                # CREATE event confirms this is not a child — skip without reducer.
+                continue
+            # Confirmed child via CREATE event — run reducer for current status.
+            state = read_state_via_reducer(entry.path)
+
         if state is None:
-            continue
-        if state.get('parent_id') != ticket_id:
             continue
         if state.get('status', 'open') not in CLOSED_STATUSES:
             open_children.append(tid)
@@ -267,7 +322,7 @@ try:
 
     # Optimistic concurrency check
     if actual_status != current_status:
-        print(f'Error: current status is \"{actual_status}\", not \"{current_status}\"', file=sys.stderr)
+        print(f'Error: current status is \"{actual_status}\", not \"{current_status}\". Re-run: ticket transition {ticket_id} {actual_status} {target_status}', file=sys.stderr)
         os.close(fd)
         sys.exit(10)
 
@@ -384,6 +439,18 @@ print(','.join(ids)) if ids else None
     # Compact-on-close: squash event log into SNAPSHOT (non-blocking)
     compact_script="${DSO_COMPACT_SCRIPT:-$SCRIPT_DIR/ticket-compact.sh}"
     bash "$compact_script" "$ticket_id" --threshold=0 --skip-sync 2>/dev/null || true
+
+    # Epic-close reminder: emit /dso:end-session prompt when an epic is closed
+    ticket_type_on_close=$(_TRACKER="$TRACKER_DIR" _TID="$ticket_id" _SDIR="$SCRIPT_DIR" python3 -c "
+import sys, os
+sys.path.insert(0, os.environ['_SDIR'])
+from ticket_reducer import reduce_ticket
+state = reduce_ticket(os.path.join(os.environ['_TRACKER'], os.environ['_TID']))
+print((state or {}).get('ticket_type', ''))
+" 2>/dev/null) || ticket_type_on_close=""
+    if [ "$ticket_type_on_close" = "epic" ]; then
+        echo "REMINDER: Epic closed — run /dso:end-session to complete the sprint cleanly."
+    fi
 fi
 
 exit 0

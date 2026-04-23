@@ -443,7 +443,12 @@ if [[ "$_RESTART" == true ]]; then
 fi
 
 # Determine repo root
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+# Use resolve_repo_root() from deps.sh (sourced above) so that PROJECT_ROOT and
+# CLAUDE_PROJECT_DIR override git rev-parse --show-toplevel. This is critical when
+# the script is invoked with a worktree CWD (e.g., the DSO plugin worktree) but the
+# --source-file refers to a file in the host project: git rev-parse would return the
+# worktree path instead of the host project root, causing a silent no-op (c7f3-3de6).
+REPO_ROOT=$(resolve_repo_root)
 if [[ -z "$REPO_ROOT" ]]; then
     echo "ERROR: not in a git repository" >&2
     exit 1
@@ -757,8 +762,55 @@ fi
 
 # --- No associated tests: exit cleanly (exempt) ---
 if [[ ${#ASSOCIATED_TESTS[@]} -eq 0 ]] && [[ "$FULL_SUITE" != "true" ]]; then
-    # No associated tests — exit cleanly without writing
-    # test-gate-status (the gate exempts files with no associated tests)
+    # Before exiting, clear any stale "failed" status caused by RED markers that
+    # have since been removed from .test-index (137a-b61a). When only .test-index
+    # is staged (not the original source file), ASSOCIATED_TESTS is empty and the
+    # hook would exit 0 without updating the status file, leaving a stale "failed"
+    # that blocks the pre-commit gate even though the marker is gone.
+    _exempt_status_file="$ARTIFACTS_DIR/test-gate-status"
+    if [[ -f "$_exempt_status_file" ]]; then
+        _exempt_status=$(head -1 "$_exempt_status_file" 2>/dev/null || echo "")
+        _exempt_failed=$(grep '^failed_tests=' "$_exempt_status_file" 2>/dev/null | head -1 | cut -d= -f2- || echo "")
+        if [[ "$_exempt_status" == "failed" ]] && [[ "$_exempt_failed" == *"stale-red-marker:"* ]]; then
+            _all_markers_gone=true
+            # Pre-check: any non-stale-marker failure means we cannot safely clear
+            # (mixed real + stale failures must not lose the real failure record)
+            while IFS= read -r _entry; do
+                [[ -z "$_entry" ]] && continue
+                if [[ "$_entry" != *"stale-red-marker:"* ]]; then
+                    _all_markers_gone=false
+                    break
+                fi
+            done < <(echo "$_exempt_failed" | tr ',' '\n')
+            # If all entries are stale-marker entries, check each marker is gone
+            if [[ "$_all_markers_gone" == "true" ]]; then
+                while IFS= read -r _entry; do
+                    if [[ "$_entry" == *"stale-red-marker:"* ]]; then
+                        _marker="${_entry##*stale-red-marker:}"
+                        _marker="${_marker%%]*}"
+                        if grep -qF "[$_marker]" "${REPO_ROOT}/.test-index" 2>/dev/null; then
+                            _all_markers_gone=false
+                            break
+                        fi
+                    fi
+                done < <(echo "$_exempt_failed" | tr ',' '\n')
+            fi
+            if [[ "$_all_markers_gone" == "true" ]]; then
+                echo "INFO: Stale RED-marker 'failed' status cleared — markers no longer in .test-index" >&2
+                rm -f "$_exempt_status_file"
+            fi
+        fi
+    fi
+    # No associated tests — write passed with doc-only-exempt note so
+    # harvest-worktree.sh finds the file (without this, harvest exits 2 with
+    # "test-gate-status not found" even though the pre-commit gate passed the
+    # doc-only commit as exempt — a2e0-3ae8).
+    cat > "$ARTIFACTS_DIR/test-gate-status" <<EOF
+passed
+diff_hash=${DIFF_HASH}
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+tested_files=doc-only-exempt
+EOF
     exit 0
 fi
 
@@ -1235,17 +1287,48 @@ STATUS_FILE="$ARTIFACTS_DIR/test-gate-status"
 if [[ -n "$SOURCE_FILE" ]] && [[ -f "$STATUS_FILE" ]]; then
     _existing_tested=$(grep '^tested_files=' "$STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
     _existing_status=$(head -1 "$STATUS_FILE" 2>/dev/null || echo "")
+    # Capture new-run-only tested files BEFORE merging with existing.
+    # Used below to strip covered tests from _existing_failed (bug a8b0-7fbc).
+    _new_run_tested="$TESTED_FILES_LIST"
     if [[ -n "$_existing_tested" ]]; then
         # Merge: append new tested_files, deduplicate
         _merged=$(printf '%s\n' "$_existing_tested" "$TESTED_FILES_LIST" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u | paste -sd ',' -)
         TESTED_FILES_LIST="$_merged"
     fi
-    # Merge failed_tests list
+    # Merge failed_tests list.
+    # The new run is authoritative for any test it covered (_new_run_tested).
+    # Strip those from _existing_failed before restoring, to prevent re-adding
+    # RED-zone-tolerated failures from historical state (bug a8b0-7fbc).
     _existing_failed=$(grep '^failed_tests=' "$STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
-    if [[ -n "$_existing_failed" ]] && [[ -n "$FAILED_TESTS_LIST" ]]; then
-        FAILED_TESTS_LIST=$(printf '%s\n' "$_existing_failed" "$FAILED_TESTS_LIST" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u | paste -sd ',' -)
-    elif [[ -n "$_existing_failed" ]]; then
-        FAILED_TESTS_LIST="$_existing_failed"
+    if [[ -n "$_existing_failed" ]]; then
+        _new_run_tests=$(printf '%s\n' "$_new_run_tested" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$')
+        _filtered_existing_failed=""
+        while IFS= read -r _ef_entry; do
+            [[ -z "$_ef_entry" ]] && continue
+            _ef_base="${_ef_entry%%\[*}"
+            _ef_base="${_ef_base%"${_ef_base##*[![:space:]]}"}"
+            _covered=false
+            while IFS= read -r _nt; do
+                [[ -z "$_nt" ]] && continue
+                if [[ "$_ef_base" == "$_nt" ]]; then
+                    _covered=true
+                    break
+                fi
+            done <<< "$_new_run_tests"
+            if [[ "$_covered" == false ]]; then
+                if [[ -n "$_filtered_existing_failed" ]]; then
+                    _filtered_existing_failed="${_filtered_existing_failed},$_ef_entry"
+                else
+                    _filtered_existing_failed="$_ef_entry"
+                fi
+            fi
+        done < <(printf '%s\n' "$_existing_failed" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$')
+        if [[ -n "$_filtered_existing_failed" ]] && [[ -n "$FAILED_TESTS_LIST" ]]; then
+            FAILED_TESTS_LIST=$(printf '%s\n' "$_filtered_existing_failed" "$FAILED_TESTS_LIST" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u | paste -sd ',' -)
+        elif [[ -n "$_filtered_existing_failed" ]]; then
+            FAILED_TESTS_LIST="$_filtered_existing_failed"
+        fi
+        # (if _filtered_existing_failed empty, FAILED_TESTS_LIST stays as-is from new run)
     fi
     # Enforce severity hierarchy: timeout > failed > resource_exhaustion; passed from suite-engine is authoritative over resource_exhaustion
     # Compare both existing and current, keep the more severe.

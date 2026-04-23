@@ -57,8 +57,8 @@ fi
 # ── Read review-protocol-output.json ──────────────────────────────────────
 protocol_file="$artifacts_dir/review-protocol-output.json"
 if [[ ! -f "$protocol_file" ]]; then
-    echo "Error: review-protocol-output.json not found at $protocol_file" >&2
-    exit 1
+    # Best-effort: no review protocol file yet â silently succeed (no-op).
+    exit 0
 fi
 
 # ── Assemble JSON payload ─────────────────────────────────────────────────

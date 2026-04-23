@@ -79,45 +79,61 @@ elif ! command -v ruff >/dev/null 2>&1; then
     exit 0
 fi
 
-# ── Helper: create a temp git repo with poetry/ruff available ─────────────────
-setup_test_repo() {
-    local tmpdir
-    tmpdir=$(mktemp -d)
-    local REALENV
-    REALENV=$(cd "$tmpdir" && pwd -P)
+# ── Shared repo setup (one init, reset between tests) ─────────────────────────
+# Creating a git repo per test multiplies process-launch overhead. All tests
+# share one repo and call reset_test_repo() before each test to restore a clean
+# staged state. This reduces git process launches from ~20 to ~7 total.
+TEST_REPO=$(mktemp -d)
+REALENV=$(cd "$TEST_REPO" && pwd -P)
 
-    mkdir -p "$REALENV/app/src" "$REALENV/app/tests"
+mkdir -p "$REALENV/app/src" "$REALENV/app/tests"
 
-    # Create minimal pyproject.toml so ruff can find config
-    cat > "$REALENV/app/pyproject.toml" <<'PYPROJECT'
+cat > "$REALENV/app/pyproject.toml" <<'PYPROJECT'
 [tool.ruff]
 line-length = 88
 [tool.ruff.format]
 quote-style = "double"
 PYPROJECT
 
-    git init -q "$REALENV"
-    git -C "$REALENV" config user.email "test@test.com"
-    git -C "$REALENV" config user.name "Test"
+git init -q "$REALENV"
+git -C "$REALENV" config user.email "test@test.com"
+git -C "$REALENV" config user.name "Test"
+# Disable GPG signing in the temp repo — prevents commit failures on CI machines
+# where commit.gpgsign=true is set globally but no signing key is available.
+git -C "$REALENV" config commit.gpgsign false
 
-    # Initial commit so we have a HEAD
-    echo "# test" > "$REALENV/README.md"
-    git -C "$REALENV" add -A
-    git -C "$REALENV" commit -q -m "init"
+echo "# test" > "$REALENV/README.md"
+git -C "$REALENV" add -A
+git -C "$REALENV" commit -q -m "init"
 
-    echo "$REALENV"
+# Reset repo to clean state (unstaged, no untracked files) between subtests.
+# Removes stale git index lock files before running git commands — a lock can
+# persist when FORMAT_FIX_SCRIPT's git-add is killed mid-operation by a test
+# timeout (TEST_TIMEOUT=45s in suite-engine), causing subsequent git reset to
+# fail with "Unable to create index.lock: File exists".
+reset_test_repo() {
+    # Clear stale git lock files from any interrupted git operation
+    rm -f "$REALENV/.git/index.lock" "$REALENV/.git/config.lock"
+    git -C "$REALENV" reset --mixed HEAD -q
+    git -C "$REALENV" clean -fd -q
+    # Recreate app/src/ in case git clean removed it (it has no committed files)
+    mkdir -p "$REALENV/app/src"
 }
 
-cleanup_test_repo() {
-    rm -rf "$1"
+cleanup_shared_repo() {
+    rm -rf "$TEST_REPO"
 }
+
+# Ensure cleanup on exit or signal (prevents temp dir leaks on timeout/kill)
+trap cleanup_shared_repo EXIT
 
 # =============================================================================
 # TEST A: Already-formatted file passes without modification
 # =============================================================================
 
-TEST_REPO_A=$(setup_test_repo)
-cat > "$TEST_REPO_A/app/src/clean.py" <<'PY'
+reset_test_repo
+
+cat > "$REALENV/app/src/clean.py" <<'PY'
 """A well-formatted module."""
 
 
@@ -125,60 +141,54 @@ def hello():
     """Say hello."""
     return "hello"
 PY
-git -C "$TEST_REPO_A" add -A
-git -C "$TEST_REPO_A" commit -q -m "add clean file"
+git -C "$REALENV" add -A
+git -C "$REALENV" commit -q -m "add clean file"
 
 # Stage a no-op change (touch the file without changing content)
-echo "" >> "$TEST_REPO_A/app/src/clean.py"
-git -C "$TEST_REPO_A" add "$TEST_REPO_A/app/src/clean.py"
+echo "" >> "$REALENV/app/src/clean.py"
+git -C "$REALENV" add "$REALENV/app/src/clean.py"
 
-OUTPUT_A=$(cd "$TEST_REPO_A" && bash "$FORMAT_FIX_SCRIPT" 2>&1) || true
-EXIT_A=$?
+OUTPUT_A=$(cd "$REALENV" && bash "$FORMAT_FIX_SCRIPT" 2>&1); EXIT_A=$?
 
 assert_eq "test_clean_file_exits_zero" "0" "$EXIT_A"
-
-cleanup_test_repo "$TEST_REPO_A"
 
 # =============================================================================
 # TEST B: Unformatted file is auto-fixed and re-staged (exit 0)
 # =============================================================================
 
-TEST_REPO_B=$(setup_test_repo)
+reset_test_repo
 
 # Write a poorly formatted Python file
-cat > "$TEST_REPO_B/app/src/messy.py" <<'PY'
+cat > "$REALENV/app/src/messy.py" <<'PY'
 import   os
 import sys
 def   foo( ):
     x=1
     return   x
 PY
-git -C "$TEST_REPO_B" add "$TEST_REPO_B/app/src/messy.py"
+git -C "$REALENV" add "$REALENV/app/src/messy.py"
 
 # Run the format fix hook
-OUTPUT_B=$(cd "$TEST_REPO_B" && bash "$FORMAT_FIX_SCRIPT" 2>&1) || true
-EXIT_B=$?
+OUTPUT_B=$(cd "$REALENV" && bash "$FORMAT_FIX_SCRIPT" 2>&1); EXIT_B=$?
 
 assert_eq "test_unformatted_file_exits_zero" "0" "$EXIT_B"
 
 # Verify the file was actually formatted (check for the original bad formatting)
-FILE_CONTENTS_B=$(cat "$TEST_REPO_B/app/src/messy.py")
+FILE_CONTENTS_B=$(cat "$REALENV/app/src/messy.py")
 assert_not_contains "test_unformatted_file_was_fixed" "import   os" "$FILE_CONTENTS_B"
 
 # Verify the fixed file is staged (in the index)
-STAGED_DIFF_B=$(cd "$TEST_REPO_B" && git diff --cached --name-only)
+STAGED_DIFF_B=$(cd "$REALENV" && git diff --cached --name-only)
 assert_contains "test_fixed_file_is_staged" "app/src/messy.py" "$STAGED_DIFF_B"
-
-cleanup_test_repo "$TEST_REPO_B"
 
 # =============================================================================
 # TEST C: Staging area is preserved - other staged files remain staged
 # =============================================================================
 
-TEST_REPO_C=$(setup_test_repo)
+reset_test_repo
 
 # Stage a clean Python file
-cat > "$TEST_REPO_C/app/src/other.py" <<'PY'
+cat > "$REALENV/app/src/other.py" <<'PY'
 """Another module."""
 
 
@@ -186,45 +196,41 @@ def bar():
     """Return bar."""
     return "bar"
 PY
-git -C "$TEST_REPO_C" add "$TEST_REPO_C/app/src/other.py"
+git -C "$REALENV" add "$REALENV/app/src/other.py"
 
 # Stage a messy Python file alongside it
-cat > "$TEST_REPO_C/app/src/messy2.py" <<'PY'
+cat > "$REALENV/app/src/messy2.py" <<'PY'
 import   os
 def   baz( ):
     return   1
 PY
-git -C "$TEST_REPO_C" add "$TEST_REPO_C/app/src/messy2.py"
+git -C "$REALENV" add "$REALENV/app/src/messy2.py"
 
 # Run the format fix hook
-OUTPUT_C=$(cd "$TEST_REPO_C" && bash "$FORMAT_FIX_SCRIPT" 2>&1) || true
-EXIT_C=$?
+OUTPUT_C=$(cd "$REALENV" && bash "$FORMAT_FIX_SCRIPT" 2>&1); EXIT_C=$?
 
 assert_eq "test_staging_preserved_exits_zero" "0" "$EXIT_C"
 
 # Verify both files are still staged
-STAGED_C=$(cd "$TEST_REPO_C" && git diff --cached --name-only)
+STAGED_C=$(cd "$REALENV" && git diff --cached --name-only)
 assert_contains "test_other_file_still_staged" "app/src/other.py" "$STAGED_C"
 assert_contains "test_messy_file_still_staged" "app/src/messy2.py" "$STAGED_C"
-
-cleanup_test_repo "$TEST_REPO_C"
 
 # =============================================================================
 # TEST D: Non-Python files are ignored
 # =============================================================================
 
-TEST_REPO_D=$(setup_test_repo)
+reset_test_repo
 
 # Stage a non-Python file
-echo "some text" > "$TEST_REPO_D/app/src/readme.txt"
-git -C "$TEST_REPO_D" add "$TEST_REPO_D/app/src/readme.txt"
+echo "some text" > "$REALENV/app/src/readme.txt"
+git -C "$REALENV" add "$REALENV/app/src/readme.txt"
 
-OUTPUT_D=$(cd "$TEST_REPO_D" && bash "$FORMAT_FIX_SCRIPT" 2>&1) || true
-EXIT_D=$?
+OUTPUT_D=$(cd "$REALENV" && bash "$FORMAT_FIX_SCRIPT" 2>&1); EXIT_D=$?
 
 assert_eq "test_non_python_exits_zero" "0" "$EXIT_D"
 
-cleanup_test_repo "$TEST_REPO_D"
+cleanup_shared_repo
 
 # =============================================================================
 # TEST E: Script source contains key behaviors

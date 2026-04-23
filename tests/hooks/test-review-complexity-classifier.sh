@@ -648,8 +648,8 @@ test_classifier_size_action_upgrade_at_300() {
     teardown_temp_dir
 }
 
-test_classifier_size_action_reject_at_600() {
-    # 600+ scorable added lines → size_action = "reject"
+test_classifier_size_action_warn_at_600() {
+    # 600+ scorable added lines → size_action = "warn"
     setup_temp_dir
     local diff_file
     diff_file=$(create_n_line_diff 600 "src/foo.py")
@@ -659,7 +659,42 @@ test_classifier_size_action_reject_at_600() {
     if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
         size_action=$(json_field "size_action" "$CLASSIFIER_OUTPUT")
     fi
-    assert_eq "600-line diff has size_action=reject" "reject" "$size_action"
+    assert_eq "600-line diff has size_action=warn" "warn" "$size_action"
+    teardown_temp_dir
+}
+
+test_classifier_size_warning_stderr_at_600() {
+    # 600+ scorable added lines → stderr contains SIZE_WARNING: 600
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_n_line_diff 600 "src/foo.py")
+
+    local stderr_output=""
+    local exit_code=0
+    if [[ -x "$CLASSIFIER" ]]; then
+        stderr_output=$(REPO_ROOT="$REPO_ROOT" _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" bash "$CLASSIFIER" < "$diff_file" 2>&1 >/dev/null) || exit_code=$?
+    fi
+
+    local has_warning="false"
+    if echo "$stderr_output" | grep -q 'SIZE_WARNING: 600'; then
+        has_warning="true"
+    fi
+    assert_eq "600-line diff emits SIZE_WARNING: 600 on stderr" "true" "$has_warning"
+    teardown_temp_dir
+}
+
+test_classifier_size_action_upgrade_at_599() {
+    # 599 scorable added lines → size_action = "upgrade" (boundary regression: not "warn")
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_n_line_diff 599 "src/foo.py")
+    run_classifier "$diff_file"
+
+    local size_action=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        size_action=$(json_field "size_action" "$CLASSIFIER_OUTPUT")
+    fi
+    assert_eq "599-line diff has size_action=upgrade (not warn)" "upgrade" "$size_action"
     teardown_temp_dir
 }
 
@@ -819,7 +854,9 @@ print('true' if all(k in d for k in keys) else 'false')
 test_classifier_diff_size_lines_raw_count  # RED: diff_size_lines field not yet implemented
 test_classifier_size_action_none_below_300  # RED: size_action field not yet implemented
 test_classifier_size_action_upgrade_at_300  # RED: size_action field not yet implemented
-test_classifier_size_action_reject_at_600  # RED: size_action field not yet implemented
+test_classifier_size_action_warn_at_600  # RED: size_action=warn not yet implemented (was reject)
+test_classifier_size_warning_stderr_at_600  # RED: SIZE_WARNING stderr not yet implemented
+test_classifier_size_action_upgrade_at_599  # RED: boundary regression test
 test_classifier_size_action_none_for_test_only_diff  # RED: size_action bypass not yet implemented
 test_classifier_size_action_none_for_generated_files  # RED: size_action bypass not yet implemented
 test_classifier_is_merge_commit_false_default  # RED: is_merge_commit field not yet implemented

@@ -12,7 +12,7 @@
 #   - If block=false (or "false"), blocks with an explanation
 #   - Otherwise allows (block=true, or not specified)
 
-HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
 trap 'printf "{\"ts\":\"%s\",\"hook\":\"taskoutput-block-guard.sh\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; exit 0' ERR
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

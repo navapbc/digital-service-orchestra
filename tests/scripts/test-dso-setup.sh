@@ -44,7 +44,7 @@ test_setup_creates_shim() {
     T=$(mktemp -d)
     TMPDIRS+=("$T")
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     if [[ -f "$T/.claude/scripts/dso" ]]; then
         assert_eq "test_setup_creates_shim" "exists" "exists"
@@ -60,7 +60,7 @@ test_setup_shim_executable() {
     T=$(mktemp -d)
     TMPDIRS+=("$T")
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     if [[ -x "$T/.claude/scripts/dso" ]]; then
         assert_eq "test_setup_shim_executable" "executable" "executable"
@@ -77,7 +77,7 @@ test_setup_writes_plugin_root() {
     T=$(mktemp -d)
     TMPDIRS+=("$T")
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local result="missing"
     if grep -q "^dso.plugin_root=" "$T/.claude/dso-config.conf" 2>/dev/null; then
@@ -96,8 +96,8 @@ test_setup_is_idempotent() {
     TMPDIRS+=("$T")
 
     # Run twice — must not duplicate the entry
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local count=0
     count=$(grep -c "^dso.plugin_root=" "$T/.claude/dso-config.conf" 2>/dev/null || echo "0")
@@ -109,7 +109,7 @@ test_setup_is_idempotent() {
     TMPDIRS+=("$T2")
     mkdir -p "$T2/.claude"
     echo "dso.plugin_root=/old/path" > "$T2/.claude/dso-config.conf"
-    bash "$SETUP_SCRIPT" "$T2" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T2" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local count2=0
     count2=$(grep -c "^dso.plugin_root=" "$T2/.claude/dso-config.conf" 2>/dev/null || echo "0")
@@ -143,7 +143,7 @@ EOF
     chmod +x "$FAKE_PATH/bash"
 
     local exit_code=0
-    PATH="$FAKE_PATH:$PATH" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || exit_code=$?
+    PATH="$FAKE_PATH:$PATH" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || exit_code=$?
     assert_eq "test_prereq_bash_version_fatal" "1" "$exit_code"
 }
 
@@ -195,7 +195,7 @@ test_prereq_missing_coreutils_fatal() {
     fake_dir=$(_make_tool_path timeout gtimeout)
 
     local exit_code=0
-    PATH="$fake_dir" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || exit_code=$?
+    PATH="$fake_dir" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || exit_code=$?
     assert_eq "test_prereq_missing_coreutils_fatal" "1" "$exit_code"
 }
 
@@ -207,7 +207,7 @@ test_prereq_missing_precommit_warning() {
     fake_dir=$(_make_tool_path pre-commit)
 
     local exit_code=0
-    PATH="$fake_dir:/bin" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || exit_code=$?
+    PATH="$fake_dir:/bin" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || exit_code=$?
     assert_eq "test_prereq_missing_precommit_warning" "2" "$exit_code"
 }
 
@@ -221,7 +221,7 @@ test_prereq_missing_python3_warning() {
     fake_dir=$(_make_tool_path python3)
 
     local exit_code=0
-    PATH="$fake_dir:/bin" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || exit_code=$?
+    PATH="$fake_dir:/bin" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || exit_code=$?
     assert_eq "test_prereq_missing_python3_warning" "2" "$exit_code"
 }
 
@@ -252,7 +252,7 @@ test_prereq_all_present_exit0() {
     fi
 
     local exit_code=0
-    PATH="$fake_dir:/bin" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || exit_code=$?
+    PATH="$fake_dir:/bin" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || exit_code=$?
     assert_eq "test_prereq_all_present_exit0" "0" "$exit_code"
 }
 
@@ -265,7 +265,7 @@ test_setup_copies_precommit_config() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     if [[ -f "$T/.pre-commit-config.yaml" ]]; then
         assert_eq "test_setup_copies_precommit_config" "exists" "exists"
@@ -283,7 +283,7 @@ test_setup_precommit_config_not_overwritten() {
 
     echo "existing-content" > "$T/.pre-commit-config.yaml"
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local content
     content=$(cat "$T/.pre-commit-config.yaml")
@@ -297,7 +297,7 @@ test_setup_precommit_config_contains_review_gate() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     if grep -q 'pre-commit-review-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
         assert_eq "test_setup_precommit_config_contains_review_gate" "found" "found"
@@ -313,7 +313,7 @@ test_setup_copies_ci_yml() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     if [[ -f "$T/.github/workflows/ci.yml" ]]; then
         assert_eq "test_setup_copies_ci_yml" "exists" "exists"
@@ -332,7 +332,7 @@ test_setup_ci_yml_not_overwritten() {
     mkdir -p "$T/.github/workflows"
     echo "existing-ci" > "$T/.github/workflows/ci.yml"
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local content
     content=$(cat "$T/.github/workflows/ci.yml")
@@ -348,7 +348,7 @@ test_setup_outputs_env_var_guidance() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+    output=$(bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" 2>&1) || true
 
     if [[ "$output" == *"CLAUDE_PLUGIN_ROOT"* ]]; then
         assert_eq "test_setup_outputs_env_var_guidance" "found" "found"
@@ -364,7 +364,7 @@ test_setup_outputs_success_summary() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+    output=$(bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" 2>&1) || true
 
     if [[ "$output" == *"onboarding"* ]]; then
         assert_eq "test_setup_outputs_success_summary" "found" "found"
@@ -383,7 +383,7 @@ test_setup_outputs_optional_dep_guidance() {
     # Build fake PATH without acli; use exclusive PATH to prevent system acli from being found
     fake_dir=$(_make_tool_path acli)
 
-    output=$(PATH="$fake_dir:/bin" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+    output=$(PATH="$fake_dir:/bin" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" 2>&1) || true
 
     if [[ "$output" == *"acli"* ]]; then
         assert_eq "test_setup_outputs_optional_dep_guidance" "found" "found"
@@ -402,7 +402,7 @@ test_pyyaml_check_skipped_when_python3_absent() {
     # Build fake PATH without python3 (exclusive PATH to avoid system stubs)
     fake_dir=$(_make_tool_path python3)
 
-    output=$(PATH="$fake_dir" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+    output=$(PATH="$fake_dir" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" 2>&1) || true
 
     if [[ "$output" != *"PyYAML"* ]]; then
         assert_eq "test_pyyaml_check_skipped_when_python3_absent" "not_found" "not_found"
@@ -418,8 +418,8 @@ test_setup_is_still_idempotent_with_new_features() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local count=0
     count=$(grep -c "^dso.plugin_root=" "$T/.claude/dso-config.conf" 2>/dev/null || echo "0")
@@ -435,7 +435,7 @@ test_setup_dryrun_no_shim_created() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" --dryrun >/dev/null 2>&1 || true
 
     if [[ ! -f "$T/.claude/scripts/dso" ]]; then
         assert_eq "test_setup_dryrun_no_shim_created" "not-created" "not-created"
@@ -451,7 +451,7 @@ test_setup_dryrun_no_config_written() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" --dryrun >/dev/null 2>&1 || true
 
     if [[ ! -f "$T/.claude/dso-config.conf" ]]; then
         assert_eq "test_setup_dryrun_no_config_written" "not-written" "not-written"
@@ -467,7 +467,7 @@ test_setup_dryrun_no_precommit_copied() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" --dryrun >/dev/null 2>&1 || true
 
     if [[ ! -f "$T/.pre-commit-config.yaml" ]]; then
         assert_eq "test_setup_dryrun_no_precommit_copied" "not-copied" "not-copied"
@@ -483,7 +483,7 @@ test_setup_dryrun_output_contains_shim_preview() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun 2>&1) || true
+    output=$(bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" --dryrun 2>&1) || true
 
     if [[ "$output" == *"[dryrun]"* ]]; then
         assert_eq "test_setup_dryrun_output_contains_shim_preview" "found" "found"
@@ -500,7 +500,7 @@ test_setup_dryrun_flag_position_independent() {
     git -C "$T" init -q
 
     # --dryrun is already the 3rd arg (after TARGET_REPO and PLUGIN_ROOT)
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" --dryrun >/dev/null 2>&1 || true
 
     if [[ ! -f "$T/.claude/scripts/dso" ]]; then
         assert_eq "test_setup_dryrun_flag_position_independent" "not-created" "not-created"
@@ -528,7 +528,7 @@ test_claudemd_not_overwritten() {
     mkdir -p "$T/.claude"
     echo "# My existing CLAUDE.md content" > "$T/.claude/CLAUDE.md"
 
-    output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+    output=$(bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" 2>&1) || true
 
     # File must still contain the original content (not overwritten — original line still present)
     if grep -qF "# My existing CLAUDE.md content" "$T/.claude/CLAUDE.md" 2>/dev/null; then
@@ -565,7 +565,7 @@ test_claudemd_supplement_no_duplicate_dso_sections() {
 ## My custom section
 EOF
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     # Count occurrences of the DSO marker — must be exactly 1 (not duplicated)
     local count
@@ -585,7 +585,7 @@ test_claudemd_supplement_appends_dso_scaffolding() {
     mkdir -p "$T/.claude"
     echo "# My existing CLAUDE.md — no DSO sections yet" > "$T/.claude/CLAUDE.md"
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     # After supplement, the DSO marker must be present
     if grep -q '=== GENERATED BY /generate-claude-md' "$T/.claude/CLAUDE.md" 2>/dev/null; then
@@ -606,7 +606,7 @@ test_known_issues_not_overwritten() {
     mkdir -p "$T/.claude/docs"
     echo "# My existing KNOWN-ISSUES content" > "$T/.claude/docs/KNOWN-ISSUES.md"
 
-    output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+    output=$(bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" 2>&1) || true
 
     # File must still contain the original content (not overwritten — original line still present)
     if grep -qF "# My existing KNOWN-ISSUES content" "$T/.claude/docs/KNOWN-ISSUES.md" 2>/dev/null; then
@@ -640,7 +640,7 @@ test_known_issues_supplement_no_duplicate_dso_header() {
 > DSO-generated header already present
 EOF
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     # Count occurrences of the DSO marker — must be exactly 1 (not duplicated)
     local count
@@ -669,7 +669,7 @@ test_supplement_check_uses_string_matching() {
         done
     } > "$T/.claude/CLAUDE.md"
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     if grep -q '=== GENERATED BY /generate-claude-md' "$T/.claude/CLAUDE.md" 2>/dev/null; then
         assert_eq "test_supplement_check_uses_string_matching: large-no-marker gets supplement" "found" "found"
@@ -681,7 +681,7 @@ test_supplement_check_uses_string_matching() {
     mkdir -p "$T2/.claude"
     printf '<!-- === GENERATED BY /generate-claude-md — DO NOT EDIT MANUALLY ===\n     minimal\n=== END GENERATED SECTION === -->\n' > "$T2/.claude/CLAUDE.md"
 
-    bash "$SETUP_SCRIPT" "$T2" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T2" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local count2
     count2=$(grep -c '=== GENERATED BY /generate-claude-md' "$T2/.claude/CLAUDE.md" 2>/dev/null || echo "0")
@@ -727,7 +727,7 @@ test_precommit_merge_not_overwritten() {
     git -C "$T" init -q
     _make_existing_precommit "$T"
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     # The original user hook must still be present
     if grep -q 'user-existing-hook' "$T/.pre-commit-config.yaml" 2>/dev/null; then
@@ -754,7 +754,7 @@ test_precommit_merge_adds_review_gate() {
     git -C "$T" init -q
     _make_existing_precommit "$T"
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     # After merge, the pre-commit-review-gate hook id must be present
     if grep -q 'pre-commit-review-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
@@ -776,8 +776,8 @@ test_precommit_merge_no_duplicate_review_gate() {
     _make_existing_precommit "$T"
 
     # Run twice — first run merges the hook; second run must not duplicate it.
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     # Count occurrences of 'id: pre-commit-review-gate' — must be exactly 1
     local count
@@ -814,7 +814,7 @@ repos:
         stages: [pre-commit]
 EOF
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local result="preserved"
     if ! grep -q 'id: hook-alpha' "$T/.pre-commit-config.yaml" 2>/dev/null; then
@@ -841,7 +841,7 @@ test_precommit_yaml_merge_produces_valid_yaml() {
     git -C "$T" init -q
     _make_existing_precommit "$T"
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     # First verify review-gate was merged in (required precondition — fails RED)
     if grep -q 'pre-commit-review-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
@@ -876,7 +876,7 @@ test_precommit_hook_merge_dryrun_no_changes() {
     local original_content
     original_content=$(cat "$T/.pre-commit-config.yaml")
 
-    output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun 2>&1) || true
+    output=$(bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" --dryrun 2>&1) || true
 
     # After --dryrun, file content must be unchanged (no review-gate merged in)
     local after_content
@@ -945,7 +945,7 @@ jobs:
 EOF
 
     # Setup should detect the existing workflow and not copy ci.example.yml
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     # ci.yml must NOT have been created (the existing build.yml counts as a workflow)
     if [[ ! -f "$T/.github/workflows/ci.yml" ]]; then
@@ -981,7 +981,7 @@ EOF
         "ci_workflow_test_guarded=false" \
         "ci_workflow_format_guarded=false")
 
-    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" 2>&1) || true
 
     # Guard analysis must have run: output must contain a guard-analysis summary line
     # (e.g. "[ci-guard]", "CI guard analysis", "guard check", etc.)
@@ -1029,7 +1029,7 @@ EOF
         "ci_workflow_test_guarded=false" \
         "ci_workflow_format_guarded=false")
 
-    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" 2>&1) || true
 
     # Output must contain a message indicating the missing test guard
     # (matching patterns like "missing test", "test guard", "no test step", etc.)
@@ -1076,7 +1076,7 @@ EOF
         "ci_workflow_test_guarded=false" \
         "ci_workflow_format_guarded=false")
 
-    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" 2>&1) || true
 
     # Script must trust detection output (test=false) and report missing test guard,
     # NOT re-parse the YAML which would say test is present.
@@ -1118,7 +1118,7 @@ EOF
     local original_content
     original_content=$(cat "$T/.github/workflows/ci.yml")
 
-    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun 2>&1) || true
+    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" --dryrun 2>&1) || true
 
     # CI file must be unchanged after --dryrun
     local after_content
@@ -1147,7 +1147,7 @@ test_ci_guard_no_workflow_still_copies_example() {
     git -C "$T" init -q
 
     # No existing workflow, no detection output
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     if [[ -f "$T/.github/workflows/ci.yml" ]]; then
         assert_eq "test_ci_guard_no_workflow_still_copies_example: ci.yml created when absent" "exists" "exists"
@@ -1183,7 +1183,7 @@ EOF
         "ci_workflow_test_guarded=true" \
         "ci_workflow_format_guarded=false")
 
-    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" 2>&1) || true
 
     # Output must contain a message indicating the missing format guard
     if [[ "$output" == *"format"* ]] && \
@@ -1228,7 +1228,7 @@ test_ticket_gate_hook_merged() {
     git -C "$T" init -q
     _make_minimal_precommit "$T"
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     if grep -q 'pre-commit-ticket-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
         assert_eq "test_ticket_gate_hook_merged" "found" "found"
@@ -1247,8 +1247,8 @@ test_ticket_gate_hook_idempotent() {
     _make_minimal_precommit "$T"
 
     # Run twice — second run must not add a duplicate ticket-gate entry
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local count
     count=$(grep -c 'id: pre-commit-ticket-gate' "$T/.pre-commit-config.yaml" 2>/dev/null || echo "0")
@@ -1264,7 +1264,7 @@ test_ticket_gate_hook_preserves_existing_hooks() {
     git -C "$T" init -q
     _make_minimal_precommit "$T"
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     # The original project hook must still be present
     if grep -q 'my-project-hook' "$T/.pre-commit-config.yaml" 2>/dev/null; then
@@ -1293,7 +1293,7 @@ test_ticket_gate_hook_dryrun_no_changes() {
     local original_content
     original_content=$(cat "$T/.pre-commit-config.yaml")
 
-    output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun 2>&1) || true
+    output=$(bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" --dryrun 2>&1) || true
 
     # File must be unchanged after --dryrun
     local after_content
@@ -1330,7 +1330,7 @@ repos:
         stages: [commit-msg]
 PCEOF
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local count
     count=$(grep -c 'id: pre-commit-ticket-gate' "$T/.pre-commit-config.yaml" 2>/dev/null || echo "0")
@@ -1346,7 +1346,7 @@ test_ticket_gate_hook_fresh_install() {
     git -C "$T" init -q
 
     # No pre-commit config — fresh install path
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     if grep -q 'pre-commit-ticket-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
         assert_eq "test_ticket_gate_hook_fresh_install" "found" "found"
@@ -1368,7 +1368,7 @@ test_setup_writes_dso_config_conf() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local result="missing"
     if grep -q "^dso.plugin_root=" "$T/.claude/dso-config.conf" 2>/dev/null; then
@@ -1385,8 +1385,8 @@ test_setup_dso_config_conf_idempotent() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local count=0
     count=$(grep -c "^dso.plugin_root=" "$T/.claude/dso-config.conf" 2>/dev/null || echo "0")
@@ -1401,7 +1401,7 @@ test_setup_dryrun_no_dso_config_conf_written() {
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" --dryrun >/dev/null 2>&1 || true
 
     if [[ ! -f "$T/.claude/dso-config.conf" ]]; then
         assert_eq "test_setup_dryrun_no_dso_config_conf_written" "not-written" "not-written"
@@ -1567,7 +1567,7 @@ dso.plugin_root=/some/path
 version=1.1.0
 EOF
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     # At least one key that exists in the reference config but was absent from the
     # pre-installed config must now be present (additive merge).
@@ -1582,6 +1582,42 @@ EOF
     local plugin_root_count
     plugin_root_count=$(grep -c '^dso\.plugin_root=' "$T/.claude/dso-config.conf" 2>/dev/null || echo "0")
     assert_eq "test_install_merges_new_config_keys: plugin_root not duplicated" "1" "$plugin_root_count"
+}
+
+# ── Root INSTALL.md reference test (6698-43a2) ───────────────────────────────
+#
+# RED phase: dso-setup.sh currently prints "docs/INSTALL.md" in its completion
+# summary. INSTALL.md has moved to the repo root, so the script output must
+# reference the root path ("INSTALL.md"), not the old docs/ path.
+#
+# Behavioral assertion: run the script, capture its observable stdout+stderr,
+# and verify:
+#   (a) the old "docs/INSTALL.md" path does NOT appear in runtime output
+#   (b) a bare "INSTALL.md" reference DOES appear (root path guidance present)
+#
+# This captures user-visible behavior (what the script tells the operator to
+# read). It fails before the fix and passes once the fix updates the echo line.
+test_setup_references_root_install_doc() {
+    local T output
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    output=$(bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" 2>&1) || true
+
+    # (a) The deprecated "docs/INSTALL.md" path must NOT appear in the output.
+    local old_path_result="absent"
+    if grep -q 'docs/INSTALL\.md' <<< "$output"; then
+        old_path_result="present"
+    fi
+    assert_eq "test_setup_references_root_install_doc: old 'docs/INSTALL.md' absent" "absent" "$old_path_result"
+
+    # (b) A root "INSTALL.md" reference must be present (guidance retained).
+    local root_ref_result="missing"
+    if grep -q 'INSTALL\.md' <<< "$output"; then
+        root_ref_result="found"
+    fi
+    assert_eq "test_setup_references_root_install_doc: root 'INSTALL.md' referenced" "found" "$root_ref_result"
 }
 
 # test_install_merges_ci_workflow: when an existing CI workflow file is present,
@@ -1606,7 +1642,7 @@ jobs:
       - run: echo "build"
 EOF
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     # The original job must still be present (merge is additive, not replacing)
     if grep -q 'build:' "$T/.github/workflows/ci.yml" 2>/dev/null; then
@@ -1687,5 +1723,6 @@ test_yaml_stamp_survives_roundtrip
 test_validate_handles_stamped_config
 test_install_merges_new_config_keys
 test_install_merges_ci_workflow
+test_setup_references_root_install_doc
 
 print_summary

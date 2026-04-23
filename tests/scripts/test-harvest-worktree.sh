@@ -24,6 +24,11 @@
 #  14. test_cleanup_deletes_backing_branch_after_successful_merge — branch deleted after merge (afdb-8418)
 #  15. test_cleanup_skipped_on_gate_failure — worktree+branch preserved when merge blocked by gate (afdb-8418)
 #  16. test_cleanup_handles_missing_worktree_gracefully — no error when branch has no backing worktree (afdb-8418)
+#  17. test_exit0_when_failed_tests_all_have_red_markers — harvest passes when all failed tests have RED markers (6810-8607)
+#  20. test_harvest_errors_when_called_from_inside_worktree — exits 1 when CWD is inside the target worktree (d888-632b)
+#  21. test_branch_deleted_in_no_worktree_case — branch still deleted when no backing worktree exists (a44a-0f63 regression guard)
+#  22. test_empty_branch_exits3_when_expected_base_provided — exits 3 (EMPTY_BRANCH) when branch tip == base commit (1eda-6a0c)
+#  23. test_empty_branch_exits3_when_base_commit_file_present — exits 3 via artifacts/base-commit file (1eda-6a0c)
 
 set -uo pipefail
 
@@ -31,6 +36,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$SCRIPT_DIR/../lib/assert.sh"
+
+# Prevent PROJECT_ROOT from leaking into temp-repo harvest-worktree.sh invocations.
+# The dso shim exports PROJECT_ROOT; if inherited, harvest-worktree.sh resolves
+# _DSO_SHIM_PATH against the actual project root instead of the stub injected via PATH.
+unset PROJECT_ROOT
 
 HARVEST_SCRIPT="$REPO_ROOT/plugins/dso/scripts/harvest-worktree.sh"
 
@@ -671,6 +681,354 @@ output=$(cd "$tmpdir/session" && bash "$HARVEST_SCRIPT" \
 assert_eq "no-worktree branch merge exits 0" "0" "$exit_code"
 
 assert_pass_if_clean "test_cleanup_handles_missing_worktree_gracefully"
+
+# =============================================================================
+# Test 17: test_exit0_when_failed_tests_all_have_red_markers (6810-8607)
+# Given: worktree branch with test-gate-status=failed, but all failed_tests
+#        have RED markers in the worktree's .test-index
+# When: harvest-worktree.sh is invoked
+# Then: exits 0 — RED-marker-only failures are exempt from the harvest gate
+# =============================================================================
+echo "--- test_exit0_when_failed_tests_all_have_red_markers ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Add .test-index with RED marker to the worktree branch
+git -C "$SESSION_REPO" checkout "$WORKTREE_BRANCH" >/dev/null 2>&1
+printf '%s\n' "src/newfeature.py: tests/test_newfeature.sh [test_new_behavior]" \
+    > "$SESSION_REPO/.test-index"
+git -C "$SESSION_REPO" add .test-index
+git -C "$SESSION_REPO" commit -m "add test-index red marker" >/dev/null 2>&1
+git -C "$SESSION_REPO" checkout session-branch >/dev/null 2>&1
+
+# Compute a valid-format diff_hash from the worktree branch's last commit
+_wt_diff_hash=$(git -C "$SESSION_REPO" show "$WORKTREE_BRANCH" --format='' | shasum -a 256 | cut -d' ' -f1)
+
+# Override test-gate-status: failed with failed_tests matching the RED-marked test
+# (diff_hash must be a valid 64-char SHA-256 hex string for --attest to accept it)
+cat > "$ARTIFACTS_DIR/test-gate-status" <<EOF
+failed
+diff_hash=${_wt_diff_hash}
+timestamp=2026-01-01T00:00:00Z
+tested_files=tests/test_newfeature.sh
+failed_tests=tests/test_newfeature.sh
+EOF
+
+exit_code=0
+cd "$SESSION_REPO" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    >/dev/null 2>&1 || exit_code=$?
+
+assert_eq "red-marker failed tests: harvest exits 0" "0" "$exit_code"
+
+assert_pass_if_clean "test_exit0_when_failed_tests_all_have_red_markers"
+
+# =============================================================================
+# Test 18: test_complete_comment_written_on_success (ed2b-9e72 / WORKTREE_TRACKING)
+# Given: harvest-worktree.sh called with --ticket-id test-ticket-123 and a
+#        valid worktree branch with passing gates
+# When: the merge completes successfully (exit 0)
+# Then: the ticket comment command was invoked with "WORKTREE_TRACKING:complete"
+#       and "outcome=merged"
+# =============================================================================
+echo "--- test_complete_comment_written_on_success ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Create a stub .claude/scripts/dso that logs all calls to a file
+STUB_BIN_DIR="$tmpdir/stub-bin"
+mkdir -p "$STUB_BIN_DIR"
+STUB_CALL_LOG="$tmpdir/dso-calls.log"
+cat > "$STUB_BIN_DIR/dso" <<STUBEOF
+#!/usr/bin/env bash
+# Stub: log all arguments to call log, then exit 0
+echo "\$@" >> "$STUB_CALL_LOG"
+exit 0
+STUBEOF
+chmod +x "$STUB_BIN_DIR/dso"
+
+exit_code=0
+output=$(cd "$SESSION_REPO" && PATH="$STUB_BIN_DIR:$PATH" bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    --ticket-id "test-ticket-123" \
+    2>&1) || exit_code=$?
+
+assert_eq "complete-on-success: harvest exits 0" "0" "$exit_code"
+
+# Assert: stub was called with WORKTREE_TRACKING:complete and outcome=merged
+stub_invoked="no"
+if [[ -f "$STUB_CALL_LOG" ]]; then
+    stub_invoked="yes"
+fi
+assert_eq "complete-on-success: ticket CLI was invoked" "yes" "$stub_invoked"
+
+tracking_comment_found="no"
+if [[ -f "$STUB_CALL_LOG" ]] && grep -q "WORKTREE_TRACKING:complete" "$STUB_CALL_LOG" && grep -q "outcome=merged" "$STUB_CALL_LOG"; then
+    tracking_comment_found="yes"
+fi
+assert_eq "complete-on-success: comment contains WORKTREE_TRACKING:complete and outcome=merged" "yes" "$tracking_comment_found"
+
+assert_pass_if_clean "test_complete_comment_written_on_success"
+
+# =============================================================================
+# Test 19: test_complete_comment_written_on_failure (ed2b-9e72 / WORKTREE_TRACKING)
+# Given: harvest-worktree.sh called with --ticket-id test-ticket-123 and a
+#        branch that causes a gate failure (test-gate-status=failed)
+# When: the script exits non-zero (gate failure)
+# Then: WORKTREE_TRACKING:complete written with outcome=discarded
+# =============================================================================
+echo "--- test_complete_comment_written_on_failure ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "failed" "passed"
+
+# Create a stub .claude/scripts/dso that logs all calls to a file
+STUB_BIN_DIR="$tmpdir/stub-bin"
+mkdir -p "$STUB_BIN_DIR"
+STUB_CALL_LOG="$tmpdir/dso-calls.log"
+cat > "$STUB_BIN_DIR/dso" <<STUBEOF
+#!/usr/bin/env bash
+# Stub: log all arguments to call log, then exit 0
+echo "\$@" >> "$STUB_CALL_LOG"
+exit 0
+STUBEOF
+chmod +x "$STUB_BIN_DIR/dso"
+
+cd "$SESSION_REPO" && PATH="$STUB_BIN_DIR:$PATH" bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    --ticket-id "test-ticket-123" \
+    >/dev/null 2>&1 || true
+
+# Assert: stub was called with WORKTREE_TRACKING:complete and outcome=discarded
+stub_invoked="no"
+if [[ -f "$STUB_CALL_LOG" ]]; then
+    stub_invoked="yes"
+fi
+assert_eq "complete-on-failure: ticket CLI was invoked" "yes" "$stub_invoked"
+
+tracking_discard_found="no"
+if [[ -f "$STUB_CALL_LOG" ]] && grep -q "WORKTREE_TRACKING:complete" "$STUB_CALL_LOG" && grep -q "outcome=discarded" "$STUB_CALL_LOG"; then
+    tracking_discard_found="yes"
+fi
+assert_eq "complete-on-failure: comment contains WORKTREE_TRACKING:complete and outcome=discarded" "yes" "$tracking_discard_found"
+
+assert_pass_if_clean "test_complete_comment_written_on_failure"
+
+# =============================================================================
+# Test 20: test_harvest_errors_when_called_from_inside_worktree (d888-632b)
+# Given: a real git worktree exists for WORKTREE_BRANCH at $tmpdir/agent-wt/
+# When: harvest-worktree.sh is invoked with CWD inside that worktree
+# Then: exits non-zero (error) — NOT 0 / "already merged" — because HEAD
+#       inside the agent worktree resolves to WORKTREE_BRANCH itself, making
+#       the --is-ancestor check trivially true (false "already merged")
+#       unless a CWD-guard detects and rejects the invocation.
+# =============================================================================
+echo "--- test_harvest_errors_when_called_from_inside_worktree ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Create a real git worktree for WORKTREE_BRANCH at $tmpdir/agent-wt/
+AGENT_WORKTREE_PATH="$tmpdir/agent-wt"
+(cd "$SESSION_REPO" && git worktree add "$AGENT_WORKTREE_PATH" "$WORKTREE_BRANCH" >/dev/null 2>&1)
+
+# Call harvest from WITHIN the agent worktree (CWD = AGENT_WORKTREE_PATH)
+exit_code=0
+output=$(cd "$AGENT_WORKTREE_PATH" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    2>&1) || exit_code=$?
+
+# Assert: harvest must exit non-zero — calling from inside the worktree is an error
+assert_ne "harvest exits non-zero when called from inside the worktree (d888-632b)" \
+    "0" "$exit_code"
+
+# Assert: error message must NOT say "already merged" (that would be the false-negative)
+already_merged_in_output="no"
+if echo "$output" | grep -qi "already merged"; then
+    already_merged_in_output="yes"
+fi
+assert_eq "harvest must NOT report false 'already merged' when called from inside worktree (d888-632b)" \
+    "no" "$already_merged_in_output"
+
+assert_pass_if_clean "test_harvest_errors_when_called_from_inside_worktree"
+
+# =============================================================================
+# Test 21: test_branch_deleted_in_no_worktree_case (a44a-0f63 regression guard)
+# Given: WORKTREE_BRANCH has passing gates but NO backing git worktree
+#        (plain branch in session repo — no `git worktree add` was performed)
+# When: harvest-worktree.sh merges it successfully
+# Then: exit code is 0 AND the branch no longer exists in `git branch --list`
+# This guards against a naive fix that moves `git branch -D` inside the
+# worktree-guard `if` block without an `else` — which would silently skip
+# branch deletion in the no-worktree case.
+# =============================================================================
+echo "--- test_branch_deleted_in_no_worktree_case ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Confirm no backing worktree for the branch
+wt_path_before=""
+wt_path_before=$(cd "$SESSION_REPO" && git worktree list --porcelain 2>/dev/null \
+    | awk '/^worktree /{p=$2}/branch refs\/heads\/'"$WORKTREE_BRANCH"'/{print p}' || true)
+assert_eq "no backing worktree before harvest" "" "$wt_path_before"
+
+exit_code=0
+cd "$SESSION_REPO" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    >/dev/null 2>&1 || exit_code=$?
+
+assert_eq "no-worktree harvest exits 0" "0" "$exit_code"
+
+branch_after=$(cd "$SESSION_REPO" && git branch --list "$WORKTREE_BRANCH")
+assert_eq "branch deleted after harvest in no-worktree case (a44a-0f63)" "" "$branch_after"
+
+assert_pass_if_clean "test_branch_deleted_in_no_worktree_case"
+
+# =============================================================================
+# Test 22: test_empty_branch_exits3_when_expected_base_provided (1eda-6a0c)
+# Given: a worktree branch whose tip == the base commit (no new commits made,
+#        e.g. because the pre-commit hook blocked the agent's commit)
+# When: harvest-worktree.sh is called with --expected-base <base-sha>
+# Then: exits 3 with EMPTY_BRANCH in stderr (NOT exit 0 "already merged")
+# This is a RED test — it documents the desired behavior BEFORE the fix.
+# =============================================================================
+echo "--- test_empty_branch_exits3_when_expected_base_provided ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+# Set up a repo with a session branch and a worktree branch that has NO commits
+# beyond the session-branch base (simulates a pre-commit-blocked agent).
+git init --bare "$tmpdir/origin22.git" >/dev/null 2>&1
+git clone "$tmpdir/origin22.git" "$tmpdir/session22" >/dev/null 2>&1
+SESSION_REPO22="$tmpdir/session22"
+cd "$SESSION_REPO22" || exit 1
+git config user.email "test@test.com"
+git config user.name "Test"
+echo "initial" > file.txt
+git add file.txt
+git commit -m "initial" >/dev/null 2>&1
+git checkout -b session-branch22 >/dev/null 2>&1
+
+# Record the base commit BEFORE creating the worktree branch
+BASE_SHA22=$(git rev-parse HEAD)
+
+# Create a worktree branch with NO new commits (tip == base — agent commit was blocked)
+WORKTREE_BRANCH22="worktree-empty-$$-$RANDOM"
+git checkout -b "$WORKTREE_BRANCH22" >/dev/null 2>&1
+git checkout session-branch22 >/dev/null 2>&1
+
+# Create artifacts dir with passing gates (review and tests "passed" in the worktree)
+ARTIFACTS22="$tmpdir/artifacts22"
+mkdir -p "$ARTIFACTS22"
+echo "passed" > "$ARTIFACTS22/test-gate-status"
+echo "passed" > "$ARTIFACTS22/review-status"
+
+# harvest with --expected-base: should emit EMPTY_BRANCH and exit 3
+exit_code22=0
+output22=$(cd "$SESSION_REPO22" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH22" \
+    "$ARTIFACTS22" \
+    --expected-base "$BASE_SHA22" \
+    2>&1) || exit_code22=$?
+
+assert_eq "empty branch with --expected-base exits 3 (1eda-6a0c)" "3" "$exit_code22"
+
+empty_branch_in_output22="no"
+if echo "$output22" | grep -q "EMPTY_BRANCH"; then
+    empty_branch_in_output22="yes"
+fi
+assert_eq "EMPTY_BRANCH in stderr when tip == base (1eda-6a0c)" "yes" "$empty_branch_in_output22"
+
+assert_pass_if_clean "test_empty_branch_exits3_when_expected_base_provided"
+
+# =============================================================================
+# Test 23: test_empty_branch_exits3_when_base_commit_file_present (1eda-6a0c)
+# Given: same empty-branch scenario, but base commit recorded in artifacts/base-commit
+#        (not passed via --expected-base flag)
+# When: harvest-worktree.sh is called WITHOUT --expected-base
+# Then: exits 3 with EMPTY_BRANCH (reads base from artifacts/base-commit file)
+# =============================================================================
+echo "--- test_empty_branch_exits3_when_base_commit_file_present ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+git init --bare "$tmpdir/origin23.git" >/dev/null 2>&1
+git clone "$tmpdir/origin23.git" "$tmpdir/session23" >/dev/null 2>&1
+SESSION_REPO23="$tmpdir/session23"
+cd "$SESSION_REPO23" || exit 1
+git config user.email "test@test.com"
+git config user.name "Test"
+echo "initial" > file.txt
+git add file.txt
+git commit -m "initial" >/dev/null 2>&1
+git checkout -b session-branch23 >/dev/null 2>&1
+
+BASE_SHA23=$(git rev-parse HEAD)
+WORKTREE_BRANCH23="worktree-empty2-$$-$RANDOM"
+git checkout -b "$WORKTREE_BRANCH23" >/dev/null 2>&1
+git checkout session-branch23 >/dev/null 2>&1
+
+ARTIFACTS23="$tmpdir/artifacts23"
+mkdir -p "$ARTIFACTS23"
+echo "passed" > "$ARTIFACTS23/test-gate-status"
+echo "passed" > "$ARTIFACTS23/review-status"
+echo "$BASE_SHA23" > "$ARTIFACTS23/base-commit"
+
+exit_code23=0
+output23=$(cd "$SESSION_REPO23" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH23" \
+    "$ARTIFACTS23" \
+    2>&1) || exit_code23=$?
+
+assert_eq "empty branch via base-commit file exits 3 (1eda-6a0c)" "3" "$exit_code23"
+
+empty_branch_in_output23="no"
+if echo "$output23" | grep -q "EMPTY_BRANCH"; then
+    empty_branch_in_output23="yes"
+fi
+assert_eq "EMPTY_BRANCH in stderr via artifacts/base-commit (1eda-6a0c)" "yes" "$empty_branch_in_output23"
+
+assert_pass_if_clean "test_empty_branch_exits3_when_base_commit_file_present"
+
+# =============================================================================
+echo "--- test_harvest_reads_preconditions_summary ---"
+# After a successful merge, harvest-worktree.sh must read PRECONDITIONS context
+# via _read_latest_preconditions (sourced from ticket-lib.sh) and log it to stderr.
+# RED: harvest-worktree.sh does not yet source ticket-lib.sh or call _read_latest_preconditions.
+_harvest_has_preconditions=0
+if grep -qE "_read_latest_preconditions|ticket-lib\.sh" "$HARVEST_SCRIPT" 2>/dev/null; then
+    _harvest_has_preconditions=1
+fi
+assert_eq "test_harvest_reads_preconditions_summary: harvest-worktree.sh references _read_latest_preconditions" \
+    "1" "$_harvest_has_preconditions"
+assert_pass_if_clean "test_harvest_reads_preconditions_summary"
+
+# =============================================================================
+echo "--- test_harvest_preconditions_zero_events_no_regression ---"
+# harvest-worktree.sh must guard _read_latest_preconditions with || true so that
+# tickets with zero PRECONDITIONS events (pre-manifest / legacy) do not break harvest.
+# RED: harvest-worktree.sh has no such guard because the call doesn't exist yet.
+_harvest_has_guard=0
+if grep -qE "_read_latest_preconditions.*\|\|" "$HARVEST_SCRIPT" 2>/dev/null || \
+   grep -A2 "_read_latest_preconditions" "$HARVEST_SCRIPT" 2>/dev/null | grep -qE "\|\| true|\|\| :"; then
+    _harvest_has_guard=1
+fi
+assert_eq "test_harvest_preconditions_zero_events_no_regression: harvest guards _read_latest_preconditions with || true" \
+    "1" "$_harvest_has_guard"
+assert_pass_if_clean "test_harvest_preconditions_zero_events_no_regression"
 
 # =============================================================================
 print_summary

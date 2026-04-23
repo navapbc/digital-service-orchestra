@@ -276,6 +276,74 @@ fi
 assert_eq "test_tier_missing_review_tier_fail_open: tier_verified=false in review-status" "yes" "$TIER_VERIFIED_PRESENT"
 
 # ---------------------------------------------------------------------------
+# Tier verification via findings.selected_tier (bug 21d7-b84a)
+#
+# record-review.sh should prefer selected_tier embedded in reviewer-findings.json
+# over classifier-telemetry.jsonl. This closes the artifacts-dir split under
+# worktree dispatch where telemetry lands in a different dir than findings.
+# ---------------------------------------------------------------------------
+
+# Helper: write findings with both review_tier AND selected_tier fields.
+_write_findings_with_selected() {
+    local review_tier="$1" selected_tier="$2"
+    cleanup
+    mkdir -p "$ARTIFACTS_DIR"
+    cat > "$FINDINGS_FILE" <<EOFJ
+{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found.","review_tier":"${review_tier}","selected_tier":"${selected_tier}"}
+EOFJ
+    shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}'
+}
+
+# test_tier_verified_from_findings_no_telemetry
+# findings.selected_tier=standard, review_tier=standard, NO telemetry file →
+# exit 0, NO tier_verified=false line (tier was verified via findings).
+HASH=$(_write_findings_with_selected "standard" "standard")
+rm -f "$ARTIFACTS_DIR/classifier-telemetry.jsonl"
+EXIT_CODE=0
+STDERR_OUT=$(bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+assert_eq "test_tier_verified_from_findings_no_telemetry: exits 0" "0" "$EXIT_CODE"
+REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+if [[ -f "$REVIEW_STATUS_FILE" ]] && grep -q 'tier_verified=false' "$REVIEW_STATUS_FILE"; then
+    TIER_VERIFIED_PRESENT="yes"
+else
+    TIER_VERIFIED_PRESENT="no"
+fi
+assert_eq "test_tier_verified_from_findings_no_telemetry: tier_verified=false absent" "no" "$TIER_VERIFIED_PRESENT"
+
+# test_tier_downgrade_rejected_via_findings
+# findings.review_tier=light, findings.selected_tier=standard, NO telemetry →
+# exit non-zero (downgrade detected via findings path).
+HASH=$(_write_findings_with_selected "light" "standard")
+rm -f "$ARTIFACTS_DIR/classifier-telemetry.jsonl"
+EXIT_CODE=0
+STDERR_OUT=$(bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+assert_ne "test_tier_downgrade_rejected_via_findings: exits non-zero" "0" "$EXIT_CODE"
+assert_contains "test_tier_downgrade_rejected_via_findings: stderr mentions downgrade" "downgrade" "$STDERR_OUT"
+
+# test_tier_findings_preferred_over_telemetry
+# findings.selected_tier=deep (requires deep review), review_tier=standard,
+# telemetry says selected_tier=standard. Findings wins → reject downgrade.
+HASH=$(_write_findings_with_selected "standard" "deep")
+_write_telemetry "standard"
+EXIT_CODE=0
+STDERR_OUT=$(bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+assert_ne "test_tier_findings_preferred_over_telemetry: exits non-zero" "0" "$EXIT_CODE"
+assert_contains "test_tier_findings_preferred_over_telemetry: stderr names findings source" "findings" "$STDERR_OUT"
+
+# test_tier_max_rank_prevents_agent_self_downgrade
+# Attack vector: a compromised or prompt-injected reviewer could self-declare
+# findings.selected_tier=light to escape a classifier-issued deep tier. With
+# max(rank) precedence, telemetry's higher tier wins and the downgrade is rejected.
+# findings.review_tier=light, findings.selected_tier=light, telemetry.selected_tier=deep →
+# exit non-zero (max uses deep from telemetry, rejecting the light review).
+HASH=$(_write_findings_with_selected "light" "light")
+_write_telemetry "deep"
+EXIT_CODE=0
+STDERR_OUT=$(bash "$HOOK" --reviewer-hash "$HASH" 2>&1 >/dev/null) || EXIT_CODE=$?
+assert_ne "test_tier_max_rank_prevents_agent_self_downgrade: exits non-zero" "0" "$EXIT_CODE"
+assert_contains "test_tier_max_rank_prevents_agent_self_downgrade: stderr names telemetry(max) source" "telemetry(max)" "$STDERR_OUT"
+
+# ---------------------------------------------------------------------------
 # test_fragile_severity_accepted_no_validation_error
 #
 # Given: reviewer-findings.json with a finding of severity "fragile" and
@@ -450,5 +518,54 @@ else
     STRIP_FIRST_LINE="not_written"
 fi
 assert_eq "test_per_finding_strip_removes_out_of_diff_findings: status is 'passed' after stripping hallucinated critical" "passed" "$STRIP_FIRST_LINE"
+
+# ---------------------------------------------------------------------------
+# test_fallback_artifacts_dir_found (a74e-1671)
+#
+# Given: reviewer-findings.json was written to .claude/artifacts/ (the relative
+#        fallback path used by sub-agents when WORKFLOW_PLUGIN_ARTIFACTS_DIR is
+#        not set and they resolve a different REPO_ROOT), but the primary
+#        WORKFLOW_PLUGIN_ARTIFACTS_DIR is a different /tmp/ path.
+# When:  record-review.sh is invoked without --findings-file (primary path is empty).
+# Then:  The script finds reviewer-findings.json in the fallback location
+#        ($REPO_ROOT/.claude/artifacts/), reads it, and exits 0.
+#
+# RED: Currently exits 1 with "reviewer-findings.json not found" because
+#      record-review.sh only checks ARTIFACTS_DIR and does not fall back to
+#      $REPO_ROOT/.claude/artifacts/.
+# GREEN: After fix, record-review.sh checks the fallback path and succeeds.
+# ---------------------------------------------------------------------------
+_FALLBACK_ARTIFACTS_TMPDIR=$(mktemp -d)
+trap 'rm -rf "$_FALLBACK_ARTIFACTS_TMPDIR"' EXIT
+
+# Set up a fresh /tmp/ artifacts dir with no reviewer-findings.json
+_FALLBACK_PRIMARY_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-rr-primary-XXXXXX")
+trap 'rm -rf "$_FALLBACK_PRIMARY_DIR"' EXIT
+
+# Set up a fake repo root with a .claude/artifacts/ fallback dir
+_FALLBACK_REPO_DIR=$(mktemp -d)
+trap 'rm -rf "$_FALLBACK_REPO_DIR"' EXIT
+git -C "$_FALLBACK_REPO_DIR" init --quiet 2>/dev/null || true
+mkdir -p "$_FALLBACK_REPO_DIR/.claude/artifacts"
+
+# Write a valid reviewer-findings.json to the FALLBACK location only
+_FALLBACK_FINDINGS="$_FALLBACK_REPO_DIR/.claude/artifacts/reviewer-findings.json"
+cat > "$_FALLBACK_FINDINGS" <<'EOFJ'
+{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"Fallback path test: all checks passed."}
+EOFJ
+_FALLBACK_HASH=$(shasum -a 256 "$_FALLBACK_FINDINGS" | awk '{print $1}')
+
+# Invoke record-review.sh with WORKFLOW_PLUGIN_ARTIFACTS_DIR pointing to the
+# primary dir (which has no reviewer-findings.json). REPO_ROOT is the fake repo
+# with .claude/artifacts/reviewer-findings.json. The script should find the
+# fallback and succeed.
+_FALLBACK_EXIT=0
+(
+    cd "$_FALLBACK_REPO_DIR"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_FALLBACK_PRIMARY_DIR" \
+    RECORD_REVIEW_CHANGED_FILES="src/foo.py" \
+    bash "$HOOK" --reviewer-hash "$_FALLBACK_HASH" 2>/dev/null
+) || _FALLBACK_EXIT=$?
+assert_eq "test_fallback_artifacts_dir_found: exits 0 when reviewer-findings.json in .claude/artifacts/" "0" "$_FALLBACK_EXIT"
 
 print_summary

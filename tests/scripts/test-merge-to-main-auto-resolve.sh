@@ -18,6 +18,11 @@ MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
+# Prevent PROJECT_ROOT from leaking into temp-repo merge-to-main.sh invocations.
+# The dso shim exports PROJECT_ROOT; if inherited, merge-to-main.sh uses the
+# actual project root instead of the temp repo, causing false dirty-worktree failures.
+unset PROJECT_ROOT
+
 _CLEANUP_DIRS=()
 _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
 trap _cleanup EXIT
@@ -247,9 +252,9 @@ if [[ "$MERGE_OUT4" == *$'\nDONE:'* ]] || [[ "$MERGE_OUT4" == DONE:* ]]; then
 fi
 assert_eq "test_ancestor_skip_pull_completes" "true" "$HAS_DONE4"
 
-# Should log the ancestor skip message
+# Should log the stale-ahead reset message (35eb-1824: reset when local main is ahead)
 HAS_SKIP_MSG4="false"
-if [[ "${MERGE_OUT4,,}" =~ origin/main.*ancestor.*skip ]]; then
+if [[ "${MERGE_OUT4,,}" =~ ahead.*origin/main ]] || [[ "${MERGE_OUT4,,}" =~ reset.*origin/main ]] || [[ "${MERGE_OUT4,,}" =~ origin/main.*ancestor.*skip ]]; then
     HAS_SKIP_MSG4="true"
 fi
 assert_eq "test_ancestor_skip_pull_logs_message" "true" "$HAS_SKIP_MSG4"

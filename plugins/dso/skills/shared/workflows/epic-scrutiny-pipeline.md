@@ -233,7 +233,11 @@ If either sub-agent fails to return valid JSON, log: "Scenario analysis sub-agen
 
 ## Step 4: Fidelity Review
 
-Run the epic spec through three reviewers **in parallel** using the Task tool. For each reviewer:
+Dispatch **three independent Agent tool calls in a single message** — one call per reviewer. Each reviewer must be a separate agent with its own isolated context; reviewers must not see each other's prompts or outputs. Send all three Agent calls in the same response so they run concurrently.
+
+**PROHIBITED**: Do NOT merge multiple reviewer prompts into a single Agent call. Combining reviewers in one agent defeats the purpose of independent review — each perspective can see and be influenced by the others.
+
+For each of the three Agent calls:
 
 1. Read the reviewer prompt from `skills/shared/docs/reviewers/` (relative to the repo root)
 2. Pass: the epic title, Context section, Success Criteria, Scenario Analysis section (from Step 3, if present), and (for Scope reviewer) titles of other open epics and Part C covered_by_SC scan output (file_path, matching_line, covered_by_SC tuples)
@@ -261,7 +265,7 @@ Trigger: epic references external integrations (third-party APIs, CI/CD, infrast
 
 **Note**: The complexity evaluator's `feasibility_review_recommended` field provides the same signal during preplanning (Phase 2.25 Integration Research) where it is available from the sprint classification. In brainstorm, the keyword scan is the primary trigger since the complexity evaluator has not yet run.
 
-The three core reviewers (Agent Clarity, Scope, Value) **always run in parallel**. If feasibility review is triggered, dispatch `subagent_type: "dso:feasibility-reviewer"` (model: sonnet) as a **4th parallel reviewer** alongside the existing 3 — all four run concurrently in a single Task tool batch.
+The three core reviewers (Agent Clarity, Scope, Value) **always run as separate, independent Agent calls sent in the same message**. If feasibility review is triggered, dispatch the `dso:feasibility-reviewer` agent as a **4th parallel Agent call** alongside the existing 3 — all four Agent calls sent in a single message so they run concurrently. (`dso:feasibility-reviewer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Read `agents/feasibility-reviewer.md` inline and use `subagent_type: "general-purpose"` with `model: "sonnet"`. Each is its own isolated agent.
 
 **Pass threshold**: All dimensions must score 4 or above. When the feasibility reviewer runs, `technical_feasibility` and `integration_risk` are also included in the pass threshold check.
 

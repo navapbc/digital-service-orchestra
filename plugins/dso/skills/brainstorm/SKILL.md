@@ -24,6 +24,15 @@ Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write 
 
 **Supports dryrun mode.** Use `/dso:dryrun /dso:brainstorm` to preview without changes.
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
 ## Usage
 
 ```
@@ -34,15 +43,31 @@ Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write 
 
 When invoked with a free-text description (argument present but does not match the ticket ID format `[a-z0-9]{4}-[a-z0-9]{4}`), treat the argument as seeding context and immediately begin the Socratic dialogue at Phase 1. Do NOT show the epic selection list. Open with: *"Got it — I'll use that as our starting point. Let me ask a few questions to sharpen the scope."* then proceed to Phase 1 Step 2 with the user's text as the established problem statement seed.
 
-When invoked without a ticket ID, run:
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
+When invoked without a ticket ID, run two queries:
 
 ```bash
+# Zero-child epics (not yet decomposed)
 .claude/scripts/dso sprint-list-epics.sh --max-children=0
+
+# Scrutiny-gap epics (decomposed, not yet brainstormed)
+.claude/scripts/dso sprint-list-epics.sh --min-children=1 --without-tag=brainstorm:complete
 ```
 
-If the command returns one or more epics, present a numbered selection list of those epics plus a "start fresh" option (always last). Also display below the list the count of epics that have one or more children (i.e., epics excluded from the list because they already have child tickets). Wait for the user to choose; if they select an existing epic, proceed as if invoked with that epic's ticket ID. If they select "start fresh", open with: *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
+Combine results into a single numbered selection list with two labeled categories:
 
-If the command returns zero epics (no 0-child epics exist), automatically fall through to the fresh dialogue: open with *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
+**Zero-child epics (not yet decomposed)**
+1. [P<N>] <title> (<epic-id>)
+...
+
+**Scrutiny-gap epics (decomposed, not yet brainstormed)**
+N+1. [P<N>] <title> (<epic-id>)
+...
+
+Always append a "start fresh" option as the last item. If both queries return zero epics, automatically fall through to the fresh dialogue: open with *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
+
+Wait for the user to choose; if they select an existing epic, proceed as if invoked with that epic's ticket ID. If they select "start fresh", open with: *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
 
 When invoked with a ticket ID, check the ticket type first (see the gate section below).
 
@@ -195,6 +220,9 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 cat "$REPO_ROOT/PRD.md" 2>/dev/null || cat "$REPO_ROOT/docs/PRD.md" 2>/dev/null
 cat "$REPO_ROOT/.claude/design-notes.md" 2>/dev/null
 .claude/scripts/dso ticket list  # filter to epics via: .claude/scripts/dso ticket list --type=epic
+# Resolve session context silently — never ask the user about CWD, repo identity, or ticket-store location
+git remote get-url origin 2>/dev/null
+git rev-parse --show-toplevel 2>/dev/null
 ```
 
 If a PRD or .claude/design-notes.md exists, open with a brief summary of what you already know, then probe deeper rather than starting from scratch.
@@ -206,6 +234,10 @@ Before presenting ANY question to the user, you MUST first check whether the ans
 **Exploration decomposition**: When a context question is compound or spans multiple sources (web research, multiple codebase layers, ambiguous scope), apply the shared exploration decomposition protocol at `skills/shared/prompts/exploration-decomposition.md` to classify it as SINGLE_SOURCE or MULTI_SOURCE before proceeding. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings contradict.
 
 ### Step 2: The "Tell Me More" Loop
+
+<HARD-GATE>
+Before sending any user-facing message in this dialogue: count the distinct questions in your draft. If the count is greater than 1, stop — select only the single highest-priority unknown and remove all others. A message with two numbered questions, two lettered choices on different topics, or one main question plus a follow-up sub-question ALL violate this rule. No exception exists for "quick context checks" or efficiency arguments.
+</HARD-GATE>
 
 Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encourage depth. After each answer, either ask a follow-up or move to the next area.
 
@@ -245,6 +277,8 @@ Before we move to approaches, here's my understanding:
 Does this capture your intent? If anything is off, tell me what to adjust.
 ```
 
+**Scope bullet validation (required before presenting this summary)**: Every bullet under **Scope** must name a concrete deliverable or a confirmed exclusion. A bullet is invalid if it contains any of these patterns: "verify whether", "check if", "TBD", "outcome is no changes", or "depends on investigation". If a scope item cannot be stated as a concrete in/out decision, either (a) investigate it silently now and resolve it, OR (b) ask one more Socratic question to resolve it before presenting the summary, OR (c) move it to a **Pending Investigation** bullet clearly separated from the in-scope list. Do NOT carry unresolved research tasks into the in-scope list.
+
 #### Understanding Summary Phrasing Requirement
 
 You MUST close the Understanding Summary with exactly this sentence: **"Does this capture your intent? If anything is off, tell me what to adjust."** Do not paraphrase (e.g., "Does this sound right?" or "Let me know if anything needs adjusting." are not acceptable). This exact phrasing is required — it is a standardized closing, not an example.
@@ -269,7 +303,27 @@ Before I propose approaches: [Targeted gap question]
 
 **Bounded gap loop**: Ask one question at a time. After each answer, ask the next highest-priority gap question (if any remain) or proceed to Phase 2 once you have enough context to propose approaches. Terminate the loop when either (a) you have enough to propose approaches or (b) the user says "proceed" (the first gap-question prompt surfaces this option — see format below). Do not loop indefinitely — every question must target a specific unresolved inferred/assumed item; stop when no such items remain.
 
+**Compression anti-pattern (prohibited)**: Do NOT reframe N independent decisions as a single "core question" with N sub-options or sub-lists. If your draft response contains "Rather than asking", "Instead of asking", or more than one decision sub-list under one heading, STOP — split into separate sequential questions. Each question must cover exactly one independent axis. The user's cognitive cost of evaluating N×M combinations is not reduced by renaming the composite a "core question".
+
 Do NOT proceed to Phase 2 until the user confirms the understanding summary or explicitly skips the gap analysis.
+
+### Step 3 — Shape Heuristic Scan (config-gated)
+
+**Config gate**: Source `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh` and call `is_external_dep_block_enabled`. If the function returns exit 1 (flag absent or false), skip this sub-step entirely and proceed to Phase 2.
+
+**When enabled:**
+
+1. For each Success Criterion in the Understanding Summary, pipe the SC text to `classify-sc-shape.sh`:
+   ```bash
+   result=$(echo "<sc-text>" | .claude/scripts/dso classify-sc-shape.sh)
+   ```
+
+2. If any SC returns `external-outcome`:
+   - Run the classification dialogue: ask the user to specify `ownership`, `handling` (`claude_auto` or `user_manual`), `claude_has_access`, and (optionally) `verification_command` for each external-outcome dependency.
+   - Warn if `verification_command` runs destructive operations (deletes, writes to production).
+   - Render the External Dependencies block in the epic description per the schema in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
+
+3. If no SC returns `external-outcome`: skip block rendering entirely.
 
 ---
 
@@ -386,7 +440,7 @@ If `CROSS_EPIC_SIGNALS` (from Step 2.25) contains signals with `severity="ambigu
 
 1. **Tag the epic** with `interaction:deferred`:
    ```bash
-   .claude/scripts/dso ticket edit <epic-id> --tags interaction:deferred
+   .claude/scripts/dso ticket tag <epic-id> interaction:deferred
    ```
 
 2. **If running non-interactively** (`BRAINSTORM_INTERACTIVE=false`): log `INTERACTIVITY_DEFERRED: cross-epic interaction signals require practitioner resolution. Epic tagged interaction:deferred. Re-run /dso:brainstorm <epic-id> interactively to resolve.` and exit without proceeding to Step 2.5.
@@ -411,7 +465,7 @@ If `CROSS_EPIC_SIGNALS` (from Step 2.25) contains signals with `severity="ambigu
 
    Wait for the user's response:
    - **(a) Resolve**: Re-enter Phase 1 (Context + Socratic Dialogue) with the conflict context as seeding material. After the user provides clarification, return to Step 2.25 and re-run the scan.
-   - **(b) Override**: Remove the `interaction:deferred` tag: `.claude/scripts/dso ticket edit <epic-id> --tags ""` (or remove the tag selectively). Log: `"CROSS_EPIC_SIGNALS overridden by practitioner — proceeding to scrutiny pipeline."` Continue to Step 2.5.
+   - **(b) Override**: Remove the `interaction:deferred` tag: `.claude/scripts/dso ticket untag <epic-id> interaction:deferred`. Log: `"CROSS_EPIC_SIGNALS overridden by practitioner — proceeding to scrutiny pipeline."` Continue to Step 2.5.
    - **(c) Halt**: Log: `"Brainstorm halted at practitioner request — cross-epic signals unresolved. Epic remains tagged interaction:deferred."` Stop. Do NOT proceed to Step 2.5.
 
 4. **If no ambiguity or conflict signals**: proceed to Step 2.5 normally.
@@ -465,7 +519,40 @@ After the scrutiny pipeline returns, check whether the epic spec contains a `## 
 5. **If `feasibility_cycle_count >= max_feasibility_cycles`**: Escalate to the user. Present the unresolved gap and ask whether to proceed with the gap noted, abort, or manually adjust the spec. Log: `"FEASIBILITY_GAP unresolved after {max_feasibility_cycles} cycles — escalating to user."`
 6. Expose `feasibility_cycle_count` as a named state variable for Story 4 (7067-dae6) to consume in the log extensions.
 
-**If FEASIBILITY_GAP is NOT present:** Continue to the SC Gap Check below.
+**If FEASIBILITY_GAP is NOT present:** Continue to the Research Findings Persistence step below.
+
+#### Research Findings Persistence (post-pipeline)
+
+After the feasibility-reviewer sub-agent returns (regardless of FEASIBILITY_GAP outcome), persist its capability/status findings as a structured ticket comment on the epic so that downstream agents (preplanning, implementation-plan, sprint) can consume them without re-running web research.
+
+**Skip this step entirely** when no feasibility-reviewer output exists for this brainstorm session (e.g., scrutiny pipeline did not dispatch the reviewer because no integration signals were detected).
+
+**Procedure:**
+
+1. From the feasibility-reviewer output, extract each (capability, status) pair the reviewer evaluated. Map each pair to one researchFindings entry with these fields:
+   - `capability` (string): the integration/dependency/capability the reviewer evaluated
+   - `status` (enum): one of `verified`, `partially_verified`, `unverified`, `contradicted`
+   - `source` (string): the URL or reference the reviewer cited (use `"reviewer:internal"` when the reviewer relied solely on codebase evidence)
+   - `skill_name` (string): always `"brainstorm"`
+   - `timestamp` (string): ISO 8601 UTC timestamp (`date -u +%Y-%m-%dT%H:%M:%SZ`)
+
+2. Assemble the entries into a single JSON array.
+
+3. Write the array as a ticket comment on the epic using the `RESEARCH_FINDINGS:` prefix:
+
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "RESEARCH_FINDINGS: <JSON>"
+   ```
+
+   Example payload:
+   ```json
+   [
+     {"capability": "Figma REST API node export", "status": "verified", "source": "https://www.figma.com/developers/api#get-files-endpoint", "skill_name": "brainstorm", "timestamp": "2026-04-19T18:30:00Z"},
+     {"capability": "Concurrent worktree merge safety", "status": "partially_verified", "source": "reviewer:internal", "skill_name": "brainstorm", "timestamp": "2026-04-19T18:30:00Z"}
+   ]
+   ```
+
+4. Continue to the SC Gap Check below.
 
 #### SC Gap Check
 
@@ -535,6 +622,27 @@ Do NOT present this gate unless ALL of the following have completed or gracefull
 
 If any of the above has NOT completed, stop and execute it before presenting this gate. The user's ability to request a re-run via option (b) or (c) is for second-pass cycles only — it does not substitute for a mandatory first pass.
 </HARD-GATE>
+
+### External Dependencies Contradiction Gate
+
+When `planning.external_dependency_block_enabled` is on (source: `planning-config.sh`):
+
+1. Read the `## External Dependencies` block from the current epic spec.
+2. Scan each entry for contradictions: an entry where `handling: claude_auto` AND `claude_has_access` is `no` or `unknown`.
+3. If any contradiction is found:
+   - Do NOT present approval gate options.
+   - Emit a diagnostic naming the contradicting entry:
+     ```
+     Approval gate blocked: External Dependency "<name>" is declared handling=claude_auto but claude_has_access=<no|unknown>.
+     Resolve this contradiction before the gate can open:
+     - Option 1: Set handling=user_manual (mark as manual step for sprint)
+     - Option 2: Confirm claude_has_access=yes if you have verified access
+     ```
+   - Wait for the practitioner to resolve the contradiction, then re-run this gate check.
+4. For each entry where `verification_command` is omitted and `confirmation_token_required` is not already set:
+   - Add `confirmation_token_required: true` to the entry if the entry is `handling: user_manual`.
+   - This `confirmation_token_required` marker is consumed by sprint at pause-handshake time.
+5. If `planning.external_dependency_block_enabled` is off: skip this gate entirely and proceed to approval gate presentation.
 
 Present the validated spec to the user using **AskUserQuestion** with 4 options. Use **"Spec Review"** as the question header (do NOT use "Approval" — it primes misinterpretation of non-approving options as approval). Label options (b) and (c) to reflect whether this is a first re-run or subsequent re-run (the scrutiny pipeline must complete before this gate; these labels apply only to gate-triggered re-runs):
 
@@ -697,6 +805,20 @@ Wait for the user's response before calling `ticket create`. If approved, create
 
 ## Scenario Analysis
 {scenario analysis content from scrutiny pipeline, if generated}
+
+### Planning Intelligence Log
+
+- **Web research (Step 2.6)**: [not triggered | triggered | re-triggered via gate]
+  - Bright-line conditions that fired: [list conditions, or "none"]
+- **Scenario analysis (Step 2.75)**: [not triggered | triggered | re-triggered via gate]
+  - Scenarios surviving blue team filter: [count, or "skipped — ≤2 success criteria"]
+- **Practitioner-requested additional cycles**: [none | web research re-run N time(s) | scenario analysis re-run N time(s) | both re-run]
+- **Follow-on scrutiny (Step 0)**: [not triggered | triggered — depth: <follow_on_scrutiny_depth>]
+- **Feasibility resolution (Step 2.5)**: [not triggered | triggered — cycles: <feasibility_cycle_count>, gap: <triggering gap description>]
+- **LLM-instruction signal (Step 5)**: [not triggered | triggered — keyword: <matched_keyword>]
+- **Scale context (Step 0)**: [<numeric estimate> | small scale (default) | not applicable | user-provided: <value>]
+
+<!-- REQUIRED: populate this section from the approval-gate log recorded at Phase 2 Step 4. Do NOT omit this heading — it is a contract signal consumed by ticket-migrate-brainstorm-tags.sh and downstream tooling. -->
 DESCRIPTION
 )"
 ```
@@ -720,6 +842,20 @@ DESCRIPTION
 
 ## Scenario Analysis
 {scenario analysis content from scrutiny pipeline, if generated}
+
+### Planning Intelligence Log
+
+- **Web research (Step 2.6)**: [not triggered | triggered | re-triggered via gate]
+  - Bright-line conditions that fired: [list conditions, or "none"]
+- **Scenario analysis (Step 2.75)**: [not triggered | triggered | re-triggered via gate]
+  - Scenarios surviving blue team filter: [count, or "skipped — ≤2 success criteria"]
+- **Practitioner-requested additional cycles**: [none | web research re-run N time(s) | scenario analysis re-run N time(s) | both re-run]
+- **Follow-on scrutiny (Step 0)**: [not triggered | triggered — depth: <follow_on_scrutiny_depth>]
+- **Feasibility resolution (Step 2.5)**: [not triggered | triggered — cycles: <feasibility_cycle_count>, gap: <triggering gap description>]
+- **LLM-instruction signal (Step 5)**: [not triggered | triggered — keyword: <matched_keyword>]
+- **Scale context (Step 0)**: [<numeric estimate> | small scale (default) | not applicable | user-provided: <value>]
+
+<!-- REQUIRED: populate this section from the approval-gate log recorded at Phase 2 Step 4. Do NOT omit this heading — it is a contract signal consumed by ticket-migrate-brainstorm-tags.sh and downstream tooling. -->
 DESCRIPTION
 )"
 ```
@@ -741,6 +877,25 @@ If the epic depends on others identified in Phase 1:
 ```
 
 Fix any issues before finalizing.
+
+### Step 3a: Write brainstorm:complete Tag
+
+Write a durable ticket-level tag to record that brainstorm has completed. This removes any `scrutiny:pending` tag while preserving all other existing tags (e.g., `design:approved`, `CLI_user`).
+
+```bash
+# Record brainstorm preconditions baseline before tagging complete
+.claude/scripts/dso preconditions-record.sh \
+  --ticket-id "$epic_id" \
+  --gate-name "brainstorm_complete" \
+  --session-id "${SESSION_ID:-unknown}" \
+  --tier "minimal" 2>/dev/null || true
+
+# Remove scrutiny:pending (no-op if not present) and add brainstorm:complete
+.claude/scripts/dso ticket untag <epic-id> scrutiny:pending
+.claude/scripts/dso ticket tag <epic-id> brainstorm:complete
+```
+
+Replace `<epic-id>` with the actual epic ID variable available at Phase 3 execution context.
 
 ### Step 3b: Write Brainstorm Completion Sentinel
 
@@ -853,6 +1008,6 @@ Skill tool:
 
 | Phase | Goal | Key Activities |
 |-------|------|---------------|
-| 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop; Phase 1 Gate: Understanding Summary (problem/users/scope/success structured bullets, wait for confirmation) → Intent Gap Analysis (self-reflect on inferred content, one question at a time, exclude confirmed content; loop terminates when approach-proposal is well-founded or user says "proceed") → proceed to Phase 2 |
+| 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop; Phase 1 Gate: Understanding Summary (problem/users/scope/success structured bullets, wait for confirmation) → Intent Gap Analysis (self-reflect on inferred content, one question at a time, exclude confirmed content; loop terminates when approach-proposal is well-founded or user says "proceed") → proceed to Phase 2. When `planning.external_dependency_block_enabled=true`: Phase 1 runs External Dependencies shape heuristic + classification dialogue; Phase 2 approval gate checks for contradiction resolution. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`. |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Provenance Tracking (4 categories: explicit, confirmed-via-gap-question, inferred, researched); Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); Step 2.75 scenario analysis (red team + blue team sonnet sub-agents; always runs when ≥5 SCs or integration signal, reduced/cap 3 when 3-4 SCs, skip when ≤2 SCs; targets epic-level spec gaps — distinct from preplanning adversarial review which targets cross-story gaps); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics); Step 4 approval gate (annotation summary line before options: "N of M criteria confirmed; K inferred requiring review"; inferred/researched → bold, explicit/confirmed → normal; 4-option AskUserQuestion: approve/scenario re-run/web research re-run/discuss; labels reflect initial-run vs re-run; planning-intelligence log appended on approve) |
 | 3: Ticket Integration | Create the epic, classify complexity, route to next skill | Follow-on epic gate (HARD-GATE: present + approve each follow-on before `ticket create`). `.claude/scripts/dso ticket create epic "<title>" -d "..."`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE, pass success_criteria_count + scenario_survivor_count), apply session-signal override (SC≥7 or scenarios≥10 → COMPLEX), output classification line + invoke Skill tool in same response: TRIVIAL → `/dso:implementation-plan`, MODERATE+High → `/dso:preplanning --lightweight`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |

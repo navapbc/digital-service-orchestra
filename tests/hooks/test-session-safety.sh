@@ -21,10 +21,11 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 _REAL_HOME="$HOME"
 TEST_HOME=$(mktemp -d)
 export HOME="$TEST_HOME"
+mkdir -p "$TEST_HOME/.claude/logs"
 mkdir -p "$TEST_HOME/.claude"
 trap 'export HOME="$_REAL_HOME"; rm -rf "$TEST_HOME"' EXIT
 
-HOOK_ERROR_LOG="$TEST_HOME/.claude/hook-error-log.jsonl"
+HOOK_ERROR_LOG="$TEST_HOME/.claude/logs/dso-hook-errors.jsonl"
 
 run_hook_exit() {
     local exit_code=0
@@ -167,5 +168,47 @@ assert_eq "test_session_safety_counting_matches_expected" "yes" "$_SS_WARNS_PRES
 
 # Clean up
 rm -f "$HOOK_ERROR_LOG" "$_SS_MARKER2"
+
+test_session_safety_reads_legacy_path() {
+    # Test dual-read: session-safety-check.sh must count errors from BOTH log paths
+    # Write 6 entries to legacy path and 6 to new path; combined = 12 >= threshold(10)
+    # With single-path read (current), count = 6 < 10 = no warning (test FAILS RED)
+    # With dual-read (T4), count = 12 >= 10 = warning appears (test passes GREEN)
+    local _DR_TEST_HOME
+    _DR_TEST_HOME=$(mktemp -d)
+    mkdir -p "$_DR_TEST_HOME/.claude/logs"
+    mkdir -p "$_DR_TEST_HOME/.claude"
+
+    local _DR_NOW
+    _DR_NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    # Write 6 recent error entries to LEGACY path
+    local _DR_LEGACY="$_DR_TEST_HOME/.claude/hook-error-log.jsonl"
+    for _i in $(seq 1 6); do
+        printf '{"ts":"%s","hook":"auto-format.sh","line":42}\n' "$_DR_NOW" >> "$_DR_LEGACY"
+    done
+
+    # Write 6 recent error entries to NEW path
+    local _DR_NEW="$_DR_TEST_HOME/.claude/logs/dso-hook-errors.jsonl"
+    for _i in $(seq 1 6); do
+        printf '{"ts":"%s","hook":"auto-format.sh","line":42}\n' "$_DR_NOW" >> "$_DR_NEW"
+    done
+
+    # Run session-safety-check.sh with isolated HOME
+    local _DR_OUTPUT
+    _DR_OUTPUT=$(HOME="$_DR_TEST_HOME" bash plugins/dso/hooks/session-safety-check.sh 2>/dev/null || true)
+
+    rm -rf "$_DR_TEST_HOME"
+
+    # After T4 dual-read: combined 12 entries >= threshold(10) → warning includes auto-format.sh
+    # Before T4 (current): only legacy 6 entries < threshold(10) → no warning, output empty
+    # Assert: output contains "auto-format.sh" (RED now, GREEN after T4)
+    local _DR_WARNS="no"
+    if [[ "$_DR_OUTPUT" =~ auto-format\.sh ]]; then
+        _DR_WARNS="yes"
+    fi
+    assert_eq "test_session_safety_reads_legacy_path" "yes" "$_DR_WARNS"
+}
+test_session_safety_reads_legacy_path
 
 print_summary

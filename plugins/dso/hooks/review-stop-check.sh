@@ -17,7 +17,7 @@
 #   - Review is current and passed
 
 # Never surface errors — log and exit cleanly
-HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
 trap 'printf "{\"ts\":\"%s\",\"hook\":\"review-stop-check.sh\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; exit 0' ERR
 
 # Source shared dependency library (provides get_artifacts_dir)

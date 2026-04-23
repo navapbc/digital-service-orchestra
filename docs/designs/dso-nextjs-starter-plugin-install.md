@@ -1,5 +1,7 @@
 # DSO NextJS Starter: Plugin Install Consent Design
 
+> **Status (2026-04-19)**: The DSO NextJS template referenced in this design is now live at <https://github.com/navapbc/digital-service-orchestra-nextjs-template>. The interface contract between `scripts/create-dso-app.sh` and the template is documented at [`create-dso-app-template-contract.md`](create-dso-app-template-contract.md). This document remains the design rationale for the consent flow.
+
 ## Overview
 
 This document investigates whether placing `extraKnownMarketplaces` and `enabledPlugins` in a

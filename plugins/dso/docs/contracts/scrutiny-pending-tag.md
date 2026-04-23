@@ -64,3 +64,7 @@ Missing tag is treated as **absent** (not pending). Only epics that are explicit
 ## Failure Contract
 
 If a downstream skill cannot determine tag presence (e.g., ticket read failure), it must treat the tag as **absent** and proceed normally. The gate is a guardrail, not a hard blocker on infrastructure failure.
+
+## Related Contracts
+
+- [Tag Policy](../ticket-system-v3-architecture.md#tag-policy) — meta-policy governing tag guards, writer taxonomy, and accepted limitations

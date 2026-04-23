@@ -729,4 +729,76 @@ assert_eq "test_outbound_bridge_no_push_trigger: push trigger on tickets branch 
 assert_pass_if_clean "test_outbound_bridge_no_push_trigger"
 
 # =============================================================================
+# Test: _phase_push removes stale SNAPSHOT files before tickets pull (3534-b90d)
+# Without this, untracked SNAPSHOTs in the tickets worktree cause
+# "untracked files would be overwritten by merge" errors on git pull --rebase.
+# =============================================================================
+echo "--- test_snapshot_cleanup_before_tickets_pull ---"
+_snapshot_fail
+_push_body_snap=$(sed -n '/_phase_push()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
+_has_snapshot_cleanup=0
+if echo "$_push_body_snap" | grep -qE "SNAPSHOT\.json|Remove.*stale.*SNAPSHOT|stale SNAPSHOT"; then
+    _has_snapshot_cleanup=1
+fi
+assert_eq "test_snapshot_cleanup_before_tickets_pull: _phase_push must remove stale SNAPSHOT.json files before tickets pull (3534-b90d)" \
+    "1" "$_has_snapshot_cleanup"
+assert_pass_if_clean "test_snapshot_cleanup_before_tickets_pull"
+
+# =============================================================================
+echo "--- test_sync_phase_resets_stale_ahead_local_main ---"
+_sync_body_ahead=$(sed -n '/_phase_sync()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
+_has_ahead_reset=0
+if echo "$_sync_body_ahead" | grep -qE "rev-list.*count.*origin/main.*HEAD|reset.*hard.*origin/main"; then
+    _has_ahead_reset=1
+fi
+assert_eq "test_sync_phase_resets_stale_ahead_local_main: _phase_sync must detect stale-ahead local main and hard-reset to origin/main (35eb-1824)" \
+    "1" "$_has_ahead_reset"
+assert_pass_if_clean "test_sync_phase_resets_stale_ahead_local_main"
+
+# =============================================================================
+echo "--- test_merge_phase_resets_stale_ahead_local_main ---"
+# _phase_merge must also contain drift-detection-and-reset logic, mirroring
+# _phase_sync. Without it, --resume can skip _phase_sync and enter _phase_merge
+# directly with local main still ahead of origin/main (e.g., after an
+# interrupted version_bump), causing a plugin.json conflict on the merge retry.
+# Before fix: _phase_merge has NO such reset → test FAILS (RED).
+# After fix:  _phase_merge contains reset --hard origin/main → test PASSES.
+_merge_body_drift=$(sed -n '/_phase_merge()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
+_has_merge_drift_reset=0
+if echo "$_merge_body_drift" | grep -qE "reset[[:space:]]+--hard[[:space:]]+origin/main"; then
+    _has_merge_drift_reset=1
+fi
+assert_eq "test_merge_phase_resets_stale_ahead_local_main: _phase_merge must reset stale-ahead local main to origin/main (f6c6-362c)" \
+    "1" "$_has_merge_drift_reset"
+assert_pass_if_clean "test_merge_phase_resets_stale_ahead_local_main"
+
+# =============================================================================
+echo "--- test_merge_archive_includes_preconditions_summary ---"
+# _phase_archive must call _read_latest_preconditions (or source ticket-lib.sh) and
+# include the PRECONDITIONS summary in its log output.
+# RED: _phase_archive is a no-op stub — no preconditions read.
+_archive_body=$(sed -n '/_phase_archive()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
+_archive_has_preconditions=0
+if echo "$_archive_body" | grep -qE "_read_latest_preconditions|preconditions"; then
+    _archive_has_preconditions=1
+fi
+assert_eq "test_merge_archive_includes_preconditions_summary: _phase_archive reads preconditions" \
+    "1" "$_archive_has_preconditions"
+assert_pass_if_clean "test_merge_archive_includes_preconditions_summary"
+
+# =============================================================================
+echo "--- test_merge_archive_legacy_ticket_pre_manifest ---"
+# _phase_archive must handle the case where no PRECONDITIONS events exist (legacy ticket).
+# It should not crash — _read_latest_preconditions exits 1 for pre-manifest,
+# and _phase_archive must guard with || true.
+# RED: _phase_archive is a no-op stub with no guard.
+_archive_has_fallback=0
+if echo "$_archive_body" | grep -qE "\|\| true|\|\| :"; then
+    _archive_has_fallback=1
+fi
+assert_eq "test_merge_archive_legacy_ticket_pre_manifest: _phase_archive guards _read_latest_preconditions with || true" \
+    "1" "$_archive_has_fallback"
+assert_pass_if_clean "test_merge_archive_legacy_ticket_pre_manifest"
+
+# =============================================================================
 print_summary

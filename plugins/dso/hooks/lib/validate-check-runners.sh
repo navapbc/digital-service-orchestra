@@ -127,7 +127,7 @@ check_hook_drift() {
     [ "$VERBOSE" = "1" ] && verbose_print "hook-drift" "running"
 
     local own_config="$REPO_ROOT/.pre-commit-config.yaml"
-    local example_config="$REPO_ROOT/examples/pre-commit-config.example.yaml"
+    local example_config="${CLAUDE_PLUGIN_ROOT}/docs/examples/pre-commit-config.example.yaml"
 
     # Skip if either file is missing (non-DSO-plugin repos won't have both)
     if [ ! -f "$own_config" ] || [ ! -f "$example_config" ]; then

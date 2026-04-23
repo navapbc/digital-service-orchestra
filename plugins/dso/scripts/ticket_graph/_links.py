@@ -84,7 +84,7 @@ def _write_link_event(
         os.makedirs(source_dir, exist_ok=True)
 
     link_uuid = str(uuid.uuid4())
-    timestamp = int(time.time())
+    timestamp = time.time_ns()
 
     link_event = {
         "event_type": "LINK",
@@ -134,9 +134,7 @@ def _write_link_event(
             finally:
                 _fcntl.flock(_lock_fd, _fcntl.LOCK_UN)
     except _sp.CalledProcessError as e:
-        print(
-            f"Warning: git commit failed for LINK event: {e.stderr}", file=sys.stderr
-        )
+        print(f"Warning: git commit failed for LINK event: {e.stderr}", file=sys.stderr)
 
 
 def add_dependency(

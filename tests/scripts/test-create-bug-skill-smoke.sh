@@ -12,6 +12,18 @@
 
 set -uo pipefail
 
+# Unset git hook env vars so git -C commands target the correct repo.
+# When run via record-test-status.sh from a pre-commit hook, GIT_DIR is
+# inherited and causes git rev-parse --show-toplevel to return CWD instead
+# of the repo root, breaking all subsequent path resolution.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+# Unset PROJECT_ROOT exported by the .claude/scripts/dso shim. Without this,
+# ticket-create.sh and ticket-lib.sh both resolve REPO_ROOT to the host repo
+# (via the shim-exported PROJECT_ROOT) instead of the isolated temp repo this
+# test creates — leaking test tickets into the host tracker (bug bb42-1291).
+unset PROJECT_ROOT 2>/dev/null || true
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
@@ -29,7 +41,15 @@ _make_test_repo() {
     tmp=$(mktemp -d)
     _CLEANUP_DIRS+=("$tmp")
     clone_test_repo "$tmp/repo"
-    (cd "$tmp/repo" && bash "$TICKET_SCRIPT" init >/dev/null 2>/dev/null) || true
+    # GIT_CONFIG_NOSYSTEM + GIT_CONFIG_GLOBAL=/dev/null: prevent system/global git
+    # config (e.g., SSH commit signing) from interfering with test repo git commits.
+    # The test repo's .git/config has commit.gpgsign=false which is sufficient.
+    local _init_stderr
+    _init_stderr=$(mktemp)
+    if ! (cd "$tmp/repo" && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null bash "$TICKET_SCRIPT" init >/dev/null 2>"$_init_stderr"); then
+        echo "DIAGNOSTIC: ticket init failed: $(cat "$_init_stderr")" >&2
+    fi
+    rm -f "$_init_stderr"
     echo "$tmp/repo"
 }
 
@@ -83,9 +103,17 @@ The system should process input without errors when given valid JSON.
 
 The system exits with code 1 and prints 'Unexpected token' to stderr."
 
-    # Create a bug ticket with a description following the template structure
+    # Create a bug ticket with a description following the template structure.
+    # GIT_CONFIG_NOSYSTEM + GIT_CONFIG_GLOBAL=/dev/null: prevent system/global git
+    # config (e.g., SSH commit signing) from causing git commits to fail in test repo.
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "Parser: valid JSON input -> Unexpected token (exit 1)" -d "$description" 2>/dev/null) || true
+    local _ticket_stderr
+    _ticket_stderr=$(mktemp)
+    ticket_id=$(cd "$repo" && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null bash "$TICKET_CREATE_SCRIPT" bug "Parser: valid JSON input -> Unexpected token (exit 1)" -d "$description" 2>"$_ticket_stderr") || true
+    if [ -z "$ticket_id" ] && [ -s "$_ticket_stderr" ]; then
+        echo "DIAGNOSTIC: ticket-create stderr: $(cat "$_ticket_stderr")" >&2
+    fi
+    rm -f "$_ticket_stderr"
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket created" "non-empty" "empty"

@@ -172,9 +172,11 @@ _pytest_runner_run() {
         # Run pytest in background; capture exit code via wait (no temp file race)
         pytest "$pytest_test" --tb=short -q --no-header &
         local PYTEST_PID=$!
+        _ACTIVE_CHILD_PID=$PYTEST_PID
 
         while kill -0 "$PYTEST_PID" 2>/dev/null; do
             if [ "$(_elapsed)" -ge "$TIMEOUT" ]; then
+                _ACTIVE_CHILD_PID=""
                 kill -- -"$PYTEST_PID" 2>/dev/null || kill "$PYTEST_PID" 2>/dev/null || true
                 wait "$PYTEST_PID" 2>/dev/null || true
                 COMPLETED_LIST+=("$test_id")
@@ -184,6 +186,7 @@ _pytest_runner_run() {
             sleep 0.1 2>/dev/null || sleep 1
         done
 
+        _ACTIVE_CHILD_PID=""
         wait "$PYTEST_PID" 2>/dev/null; local pytest_exit=$?
 
         local pytest_outcome

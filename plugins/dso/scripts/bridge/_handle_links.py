@@ -105,7 +105,7 @@ def _write_bidirectional_relates_link(
     event in the target ticket dir.
     """
     target_local_id = f"jira-{target_key.lower()}"
-    ts = int(time.time())
+    ts = time.time_ns()
     event_uuid = str(uuid.uuid4())
     filename = f"{ts}-{event_uuid[:8]}-LINK.json"
 

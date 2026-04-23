@@ -141,6 +141,24 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Test 10: Phase 8 ORCHESTRATOR_RESUME at step 2 explicitly handles the
+# ticket-transition REMINDER message that causes agents to stop prematurely.
+# The REMINDER "Epic closed — run /dso:end-session..." triggers sycophantic
+# stop behavior unless the ORCHESTRATOR_RESUME explicitly neutralizes it.
+# (bug 4add-0acd fix)
+#
+# Structural boundary: the ORCHESTRATOR_RESUME block must reference the REMINDER
+# message and clarify it does NOT mean "stop here".
+# ---------------------------------------------------------------------------
+if echo "$phase8_content" | grep -qiE 'REMINDER.*informational|REMINDER.*does not|REMINDER.*do not stop|REMINDER.*not.*stop|ticket.transition.*REMINDER|REMINDER.*Epic closed'; then
+    echo "PASS: test_orchestrator_resume_neutralizes_transition_reminder"
+    (( ++PASS ))
+else
+    echo "FAIL: test_orchestrator_resume_neutralizes_transition_reminder — Phase 8 ORCHESTRATOR_RESUME does not address the ticket-transition REMINDER message (bug 4add-0acd)" >&2
+    (( ++FAIL ))
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""

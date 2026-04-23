@@ -1,6 +1,6 @@
 # Large Diff Splitting Guide
 
-Your diff exceeds 600 scorable lines. The review system has rejected it to prevent reviewer context exhaustion — a reviewer working through hundreds of changed lines across unrelated concerns produces lower-quality findings and misses subtle bugs. Smaller, focused commits produce better reviews.
+Your diff exceeds 600 scorable lines. The review system has emitted a SIZE_WARNING and is proceeding with the review — a reviewer working through hundreds of changed lines across unrelated concerns produces lower-quality findings and misses subtle bugs. Smaller, focused commits produce better reviews.
 
 This guide explains how to split your work into reviewable units.
 
@@ -8,7 +8,7 @@ This guide explains how to split your work into reviewable units.
 
 ## Why the threshold exists
 
-A reviewer has a finite context budget. When a diff mixes unrelated concerns — a new data model, a service layer change, an API endpoint, and a UI component all in one commit — the reviewer must hold all of it in mind simultaneously. Beyond roughly 300–600 lines, the cognitive load causes reviewers (human or automated) to miss interactions between changes. The 600-line threshold is where diminishing returns become severe enough to warrant rejection rather than degraded review quality.
+A reviewer has a finite context budget. When a diff mixes unrelated concerns — a new data model, a service layer change, an API endpoint, and a UI component all in one commit — the reviewer must hold all of it in mind simultaneously. Beyond roughly 300–600 lines, the cognitive load causes reviewers (human or automated) to miss interactions between changes. The 600-line threshold is where diminishing returns become severe enough to warrant a SIZE_WARNING rather than guarantee review quality; the review proceeds but results may be partial.
 
 ---
 

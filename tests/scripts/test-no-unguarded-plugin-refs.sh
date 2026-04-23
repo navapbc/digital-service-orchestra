@@ -316,7 +316,7 @@ test_install_doc_optional_plugins_section() {
     echo ""
     echo "=== test-no-unguarded-plugin-refs (install-docs) ==="
 
-    local install_file="$DSO_PLUGIN_DIR/docs/INSTALL.md"
+    local install_file="$REPO_ROOT/INSTALL.md"
     local removed_plugins=("unit-testing" "debugging-toolkit" "code-simplifier" "backend-api-security" "commit-commands" "claude-md-management")
 
     # Test: INSTALL.md exists

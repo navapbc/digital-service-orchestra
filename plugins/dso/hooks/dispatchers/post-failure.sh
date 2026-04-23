@@ -18,6 +18,15 @@ fi
 
 HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
 
+# Source shared ERR handler (fail-open: if missing, keep original silent trap behavior)
+if [[ -f "${HOOKS_LIB_DIR}/hook-error-handler.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "${HOOKS_LIB_DIR}/hook-error-handler.sh" 2>/dev/null || true
+    _dso_register_hook_err_handler "post-failure.sh"
+else
+    trap 'exit 0' ERR
+fi
+
 # DEFENSE-IN-DEPTH: Guarantee exit 0, suppress stderr, and always produce output.
 # Claude Code bug #10463: 0-byte stdout is treated as "hook error" even with exit 0.
 _HOOK_HAS_OUTPUT=""

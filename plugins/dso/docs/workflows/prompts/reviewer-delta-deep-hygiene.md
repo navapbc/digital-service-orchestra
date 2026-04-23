@@ -127,6 +127,61 @@ Read, Grep, and Glob extensively.
 - [ ] Public API surface: exported names are intentional and documented (not accidental
   leakage of internal helpers)
 
+## AI Blindspot Annotations
+
+These annotations cover failure modes that AI-generated code is statistically prone to but
+that the 5 scoring dimensions do not directly target. They are **summary-field annotations
+only** — when you observe one of these patterns, mention it in the `summary` field of
+`reviewer-findings.json`. Do NOT add them as a new top-level scoring dimension; the JSON
+schema enforces exactly 3 top-level keys (scores, findings, summary) and exactly 5 score
+keys (correctness, verification, hygiene, design, maintainability).
+
+If the underlying issue also maps to one of your owned dimensions (hygiene, design,
+maintainability), you MAY additionally raise a scored finding under that dimension. The
+annotation in the summary is informational; the scored finding (if any) is what affects the
+review verdict.
+
+### Domain Mismatch Detection
+
+AI-generated code often reaches for generic library patterns when the project has internal
+utilities that should be preferred. Watch for:
+
+- Generic HTTP calls (e.g., `requests.get(...)`, `urllib.request.urlopen(...)`,
+  `fetch(...)`) where the project exposes a wrapped HTTP client (with retry, auth, or
+  timeout policy already configured).
+- Direct `datetime.now()` / `time.time()` / `Date.now()` where the project has a
+  centralized clock or freezable time source for testability.
+- Generic JSON parsing (`json.loads`, `JSON.parse`) on hook-payload or config inputs where
+  the project has dedicated parsers (`parse_json_field`, `json_build`) that handle edge
+  cases (NUL bytes, jq-free constraint, etc.).
+- Calls to methods/functions that do not exist in the imported module (hallucinated APIs)
+  — verify with Grep against the imported module's public surface when a name looks
+  unfamiliar.
+- Reimplementation of utilities that already exist elsewhere in the codebase
+  (search before flagging — false positives here are costly).
+
+When flagging, name the existing project utility the diff should be using.
+
+### UI Artifact Detection
+
+AI-generated edits sometimes leak terminal output, transcript fragments, or unresolved
+merge conflict markers into source files. Scan the diff for:
+
+- ANSI escape codes (`\x1b[...m`, `\033[...m`) embedded in source strings (legitimate only
+  in TTY-rendering code; flag elsewhere).
+- Unresolved merge conflict markers: `<<<<<<<`, `=======`, `>>>>>>>` left in the diff.
+- Truncation artifacts copied from terminal output: `...`, `[truncated]`, `[output
+  elided]`, `... (N more lines)` appearing in committed source or fixture files.
+- Terminal control sequences (cursor movement, color resets) embedded in non-TTY code
+  paths.
+- Pasted prompt fragments or assistant transcript text (`Assistant:`, `Human:`,
+  `<system-reminder>`) appearing in source files.
+
+These are almost always introduced unintentionally and should be flagged immediately
+regardless of which dimension the surrounding code falls under.
+
+---
+
 ## Overlay Classification
 
 Always evaluate these two items and include the results in your summary field text:

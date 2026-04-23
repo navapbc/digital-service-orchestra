@@ -228,9 +228,9 @@ with open(output_file) as f:
 
 errors = []
 
-# Must have required top-level keys; review_tier and escalate_review are optional
+# Must have required top-level keys; review_tier, selected_tier, and escalate_review are optional
 required_top = {"scores", "findings", "summary"}
-optional_top = {"review_tier", "escalate_review"}
+optional_top = {"review_tier", "selected_tier", "escalate_review"}
 allowed_top = required_top | optional_top
 actual_top = set(data.keys())
 extra = actual_top - allowed_top
@@ -244,6 +244,11 @@ if missing:
 if "review_tier" in data:
     if data["review_tier"] not in ("light", "standard", "deep"):
         errors.append(f"'review_tier' must be one of: light, standard, deep (got '{data['review_tier']}')")
+
+# Validate selected_tier if present
+if "selected_tier" in data:
+    if data["selected_tier"] not in ("light", "standard", "deep"):
+        errors.append(f"'selected_tier' must be one of: light, standard, deep (got '{data['selected_tier']}')")
 
 # Validate scores
 scores = data.get("scores")

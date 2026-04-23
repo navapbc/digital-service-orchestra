@@ -238,7 +238,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Linter command. |
 | **Accepted values** | Any shell command string (e.g., `make lint`, `npm run lint`) |
 | **Default** | Stack-derived (see per-stack defaults table below) |
-| **Used by** | Skills: `/dso:sprint`, `/dso:fix-bug`, validate-work |
+| **Used by** | Skills: `/dso:sprint`, `/dso:fix-bug`, validate-work; `validate.sh` (as of story 8657-e8cc); `validate-phase.sh` (when present) |
 
 ---
 
@@ -249,7 +249,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Auto-formatter command — modifies files in place. |
 | **Accepted values** | Any shell command string (e.g., `make format`, `cargo fmt`) |
 | **Default** | Stack-derived (see per-stack defaults table below) |
-| **Used by** | `hooks/auto-format.sh`, skills |
+| **Used by** | `hooks/auto-format.sh` (as of story 5278-dfae), skills; `validate-phase.sh` (when present) |
 
 ---
 
@@ -260,7 +260,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Formatting check command — fails if files need reformatting, does not modify files. |
 | **Accepted values** | Any shell command string (e.g., `make format-check`, `cargo fmt --check`) |
 | **Default** | Stack-derived (see per-stack defaults table below) |
-| **Used by** | `.claude/scripts/dso validate.sh`, pre-commit hooks |
+| **Used by** | `.claude/scripts/dso validate.sh`, pre-commit hooks; `gate-2b-blast-radius.sh` (as of story 5b0c-7928); `gate-2d-dependency-check.sh` (as of story 5b0c-7928); `validate-phase.sh` (when present) |
 
 ---
 
@@ -354,6 +354,39 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `commands.syntax_check`
+
+| | |
+|---|---|
+| **Description** | Syntax check command run by `validate.sh` as a parallel lint step. When absent, `validate.sh` falls back to `make syntax-check`. Use `true` (no-op) to skip syntax checking on projects without a dedicated syntax step. |
+| **Accepted values** | Any shell command string (e.g., `make syntax-check`, `true`) |
+| **Default** | `make syntax-check` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` |
+
+---
+
+### `commands.lint_ruff`
+
+| | |
+|---|---|
+| **Description** | Ruff linter command run by `validate.sh` as a parallel lint step. When absent, `validate.sh` falls back to `make lint-ruff`. Use this key to override the default ruff invocation (e.g., to restrict to specific paths or add `--select` flags). |
+| **Accepted values** | Any shell command string (e.g., `ruff check ${CLAUDE_PLUGIN_ROOT}/scripts/*.py tests/**/*.py`, `make lint-ruff`) |
+| **Default** | `make lint-ruff` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` |
+
+---
+
+### `commands.lint_mypy`
+
+| | |
+|---|---|
+| **Description** | MyPy type-check command run by `validate.sh` as a parallel lint step. When absent, `validate.sh` falls back to `make lint-mypy`. Use `true` (no-op) to skip MyPy on projects that do not use type annotations. |
+| **Accepted values** | Any shell command string (e.g., `mypy src/`, `make lint-mypy`, `true`) |
+| **Default** | `make lint-mypy` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` |
+
+---
+
 ### `jira.project`
 
 | | |
@@ -439,6 +472,41 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Accepted values** | Figma PAT string (typically prefixed `figd_`); optional when `FIGMA_PAT` env var is set |
 | **Default** | Absent — `FIGMA_PAT` env var is the fallback; missing PAT produces a clear error with configuration instructions |
 | **Used by** | `scripts/figma-auth.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `design.figma_staleness_days`
+
+| | |
+|---|---|
+| **Description** | Number of days after which a story tagged `design:awaiting_import` is considered stale. When the tag age exceeds this threshold, `/dso:sprint` appends a `⚠️ STALE (>N days)` warning to that story's dashboard line. Requires `design.figma_collaboration=true` to be meaningful. |
+| **Accepted values** | Positive integer (number of days) |
+| **Default** | `7` |
+| **Used by** | `/dso:sprint` (story dashboard display, Phase 2) |
+
+---
+
+## Planning
+
+### `planning.external_dependency_block_enabled`
+
+| | |
+|---|---|
+| **Description** | When `true`, skills emit an External Dependencies block and pause for user confirmation on manual-step dependencies. When `false` (default), the shape heuristic never fires and all four skills behave identically to the pre-feature baseline. |
+| **Accepted values** | `true` / `false` |
+| **Default** | `false` |
+| **Used by** | `/dso:brainstorm` (Phase 1 Gate shape heuristic + block renderer), `/dso:preplanning` (block reader + story generator), `/dso:implementation-plan` (tag guard), `/dso:sprint` (manual-pause handshake) |
+
+---
+
+### `planning.verification_command_timeout_seconds`
+
+| | |
+|---|---|
+| **Description** | Maximum time in seconds to wait for a `verification_command` to complete during `/dso:sprint`'s manual-pause handshake. If the command does not exit within this window, the handshake is treated as unverified. |
+| **Accepted values** | Positive integer (seconds) |
+| **Default** | `30` |
+| **Used by** | `/dso:sprint` (manual-pause handshake `verification_command` execution) |
 
 ---
 
@@ -549,6 +617,17 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Accepted values** | Positive integer |
 | **Default** | `12` |
 | **Used by** | `scripts/worktree-cleanup.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `worktree.isolation_enabled`
+
+| | |
+|---|---|
+| **Description** | When `true`, orchestrators running inside a worktree session pass `isolation: "worktree"` to each Agent/Task dispatch, giving each sub-agent its own sandboxed working directory. When `false` or absent, sub-agents share the orchestrator's working directory (legacy shared-directory mode). Affects `/dso:sprint`, `/dso:fix-bug`, and `/dso:debug-everything` sub-agent dispatch. |
+| **Accepted values** | `true`, `false` |
+| **Default** | `true` |
+| **Used by** | `/dso:sprint`, `/dso:fix-bug`, `/dso:debug-everything`, `skills/shared/prompts/worktree-dispatch.md` |
 
 ---
 
@@ -750,6 +829,16 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `review.huge_diff_file_threshold`
+
+| | |
+|---|---|
+| **Description** | Minimum number of changed files in a diff that activates the large-refactor review path. When a diff meets or exceeds this threshold, review routing switches to the extended large-diff workflow instead of the standard deep-tier path. |
+| **Accepted values** | Positive integer. Values of `0` or negative are a validation error and will halt review dispatch with an error message. |
+| **Default** | `20` |
+
+---
+
 ### `debug.max_fix_validate_cycles`
 
 | | |
@@ -831,6 +920,28 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 | **Accepted values** | Positive integer |
 | **Default** | `2` |
 | **Used by** | `/dso:brainstorm` (cross-epic interaction re-scan loop) |
+
+---
+
+### `brainstorm.enforce_entry_gate`
+
+| | |
+|---|---|
+| **Description** | When `true`, the `pre-enterplanmode.sh` PreToolUse hook blocks EnterPlanMode unless a brainstorm sentinel file exists at `$ARTIFACTS_DIR/brainstorm-sentinel`. Non-feature workflows (fix-bug, debug-everything, sprint, implementation-plan, preplanning, resolve-conflicts, architect-foundation, retro) are exempt via `$ARTIFACTS_DIR/active-skill-context`. Set to `false` to disable the gate entirely. |
+| **Accepted values** | `true`, `false` |
+| **Default** | `true` |
+| **Used by** | `hooks/lib/session-misc-functions.sh` (`pre-enterplanmode.sh` entry gate) |
+
+---
+
+### `brainstorm.max_feasibility_cycles`
+
+| | |
+|---|---|
+| **Description** | Maximum number of feasibility-reviewer re-evaluation cycles brainstorm runs when the epic scrutiny pipeline returns a `FEASIBILITY_GAP`. After each gap annotation, brainstorm re-enters its understanding loop; this key bounds how many times that loop can repeat before brainstorm presents the unresolved gap to the user and stops. |
+| **Accepted values** | Positive integer |
+| **Default** | `2` |
+| **Used by** | `/dso:brainstorm` (epic scrutiny pipeline feasibility loop, Phase 2) |
 
 ---
 
@@ -1039,6 +1150,149 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 | **Accepted values** | Absolute directory path |
 | **Default** | Set by `dso-setup.sh` |
 | **Used by** | `.claude/scripts/dso` shim (host projects) |
+
+---
+
+### `checkpoint.marker_file`
+
+| | |
+|---|---|
+| **Description** | Name of the marker file written to the repo root before a pre-compaction auto-save checkpoint commit. When the marker file is present at `pre-all` hook time, the hook skips its enforcement checks and allows the checkpoint commit to proceed unimpeded. Written by `/dso:onboarding` as `.checkpoint-pending-rollback`. |
+| **Accepted values** | File name (no path separators; written relative to repo root) |
+| **Default** | `.checkpoint-pending-rollback` |
+| **Used by** | `hooks/lib/pre-all-functions.sh` (checkpoint bypass detection) |
+
+---
+
+### `clarity_check.pass_threshold`
+
+| | |
+|---|---|
+| **Description** | Minimum clarity score (integer) for a ticket to pass the heuristic clarity gate in `ticket-clarity-check.sh`. Tickets scoring below this value are flagged as unclear. Valid range: 1 or higher (the script enforces a minimum of 1). |
+| **Accepted values** | Positive integer (e.g., `5`) |
+| **Default** | `5` |
+| **Used by** | `scripts/ticket-clarity-check.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `implementation_plan.approach_resolution`
+
+| | |
+|---|---|
+| **Description** | Controls how the `dso:approach-decision-maker` agent resolves competing implementation proposals. In `autonomous` mode the agent selects the best proposal without user input and proceeds directly to task drafting. In `interactive` mode the proposals are presented to the user who makes the final selection before task drafting begins. |
+| **Accepted values** | `autonomous`, `interactive` |
+| **Default** | `autonomous` |
+| **Used by** | `/dso:implementation-plan` (proposal resolution loop, Phase 1 Step 2) |
+
+---
+
+### `model.haiku`
+
+| | |
+|---|---|
+| **Description** | Canonical model ID for the haiku agent tier. Used by `resolve-model-id.sh` to look up the model string passed to Agent/Task dispatches. Override to pin to a specific model version or substitute a different model for the haiku tier. |
+| **Accepted values** | Anthropic model ID string (e.g., `claude-haiku-4-5-20251001`) |
+| **Default** | No built-in default — **required** when any haiku-tier agent is dispatched |
+| **Used by** | `scripts/resolve-model-id.sh`, `scripts/enrich-file-impact.sh`, `scripts/semantic-conflict-check.py` | # shim-exempt: internal implementation references in config documentation
+
+---
+
+### `model.sonnet`
+
+| | |
+|---|---|
+| **Description** | Canonical model ID for the sonnet agent tier. Used by `resolve-model-id.sh` to look up the model string passed to Agent/Task dispatches. Override to pin to a specific model version or substitute a different model for the sonnet tier. |
+| **Accepted values** | Anthropic model ID string (e.g., `claude-sonnet-4-6`) |
+| **Default** | No built-in default — **required** when any sonnet-tier agent is dispatched |
+| **Used by** | `scripts/resolve-model-id.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `model.opus`
+
+| | |
+|---|---|
+| **Description** | Canonical model ID for the opus agent tier. Used by `resolve-model-id.sh` to look up the model string passed to Agent/Task dispatches. Override to pin to a specific model version or substitute a different model for the opus tier. |
+| **Accepted values** | Anthropic model ID string (e.g., `claude-opus-4-6`) |
+| **Default** | No built-in default — **required** when any opus-tier agent is dispatched |
+| **Used by** | `scripts/resolve-model-id.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `sprint.max_replan_cycles`
+
+| | |
+|---|---|
+| **Description** | Maximum number of brainstorm→preplanning→implementation-plan cascade iterations `/dso:sprint` allows before presenting the last available plan to the user and stopping. One cycle = one full brainstorm → preplanning → implementation-plan pass. When the cap is reached the user must make a decision — the purpose is to prevent unbounded planning loops. |
+| **Accepted values** | Positive integer |
+| **Default** | `2` |
+| **Used by** | `/dso:sprint` (cascade replan protocol), `/dso:preplanning` (escalation guard) |
+
+---
+
+### `suggestion.error_threshold`
+
+| | |
+|---|---|
+| **Description** | Total error count (summed across all categories in `tool-error-counter.json`) that triggers a mechanical-friction suggestion at session end. When the total error count reaches or exceeds this value, the stop-hook calls `suggestion-record.sh` to record a friction observation. A typical healthy session sees 2–5 transient errors; set to a high value (e.g. `9999`) to effectively disable. |
+| **Accepted values** | Positive integer |
+| **Default** | `10` |
+| **Used by** | `hooks/lib/session-misc-functions.sh` (stop-hook suggestion sweep) |
+
+---
+
+### `suggestion.timeout_threshold`
+
+| | |
+|---|---|
+| **Description** | Count of timeout-category errors alone that triggers a mechanical-friction suggestion at session end. Timeouts are high-signal friction indicators. Checked independently from `suggestion.error_threshold` — either threshold reaching its value triggers a suggestion. Set to a high value (e.g. `9999`) to effectively disable. |
+| **Accepted values** | Positive integer |
+| **Default** | `3` |
+| **Used by** | `hooks/lib/session-misc-functions.sh` (stop-hook suggestion sweep) |
+
+---
+
+### `test_gate.centrality_threshold`
+
+| | |
+|---|---|
+| **Description** | Fan-in score above which `record-test-status.sh` escalates from the per-file associated-test path to the full test suite. When a staged source file's import fan-in exceeds this threshold the full suite runs (with no RED-marker tolerance). Set to a large value (e.g. `999999`) to always use the per-file path with RED tolerance. |
+| **Accepted values** | Non-negative integer |
+| **Default** | `8` |
+| **Used by** | `hooks/record-test-status.sh` (centrality-aware test routing) |
+
+---
+
+### `test_gate.batch_threshold`
+
+| | |
+|---|---|
+| **Description** | Advisory batch threshold for per-file associated-test runs. When the number of associated tests for a staged file exceeds this value, `record-test-status.sh` emits a NOTE warning that SIGURG interruption is possible and that the run is resumable via `--restart`. Does not block or change the test execution path — informational only. |
+| **Accepted values** | Positive integer |
+| **Default** | `20` |
+| **Used by** | `hooks/record-test-status.sh` (batch advisory warning) |
+
+---
+
+### `test_quality.enabled`
+
+| | |
+|---|---|
+| **Description** | Enables or disables the pre-commit test quality gate (`pre-commit-test-quality-gate.sh`). When `false`, the hook exits 0 immediately without running any anti-pattern checks. When absent, defaults to `true`. |
+| **Accepted values** | `true`, `false` |
+| **Default** | `true` |
+| **Used by** | `hooks/pre-commit-test-quality-gate.sh` |
+
+---
+
+### `test_quality.tool`
+
+| | |
+|---|---|
+| **Description** | Analysis tool used by the pre-commit test quality gate for anti-pattern detection in staged test files. `bash-grep` uses a zero-dependency grep-based scanner. `semgrep` uses the rules at `${CLAUDE_PLUGIN_ROOT}/hooks/semgrep-rules/test-anti-patterns.yaml` (requires Semgrep to be installed; gate degrades gracefully to disabled if not found). `disabled` skips all checks. |
+| **Accepted values** | `bash-grep`, `semgrep`, `disabled` |
+| **Default** | `bash-grep` |
+| **Used by** | `hooks/pre-commit-test-quality-gate.sh` |
 
 ---
 

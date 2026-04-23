@@ -106,6 +106,20 @@ This is a presence-based check — only block when the tag IS present. Existing 
 
 ---
 
+### Preconditions Entry Gate (/dso:preplanning)
+
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
+[Instructions for the LLM: Before Phase 1 Step 1, validate that a brainstorm PRECONDITIONS event exists.
+Run: `.claude/scripts/dso preconditions-validator.sh <epic_id> brainstorm_complete [--event-file=<path if known>]`
+(or use preconditions-record.sh invocation from brainstorm; fail-open if script not found)
+If exit 0: continue. If exit 1: BLOCK with PRECONDITIONS_GATE_BLOCKED diagnostic.
+If exit 2 (not found): BLOCK with "Run /dso:brainstorm first" message.
+Fail-open: if preconditions-validator.sh itself is not found (command not found), emit WARN and continue.
+This gate is depth-agnostic — unknown fields in the event are ignored, not rejected.]
+
+---
+
 ## Phase 1: Context Reconciliation & Discovery (/dso:preplanning)
 
 ### Step 1: Select and Load Epic (/dso:preplanning)
@@ -149,6 +163,14 @@ Store the selected policy label and its full text as `{escalation_policy_label}`
 If `--lightweight` was passed: run Phase 1 Step 1 only, skip Step 1b, run abbreviated Phase 2, skip Phases 2.5 and 3-4, write done definitions to epic, return ENRICHED or ESCALATED per the Lightweight Mode Appendix below.
 
 If `--lightweight` was NOT passed, continue to Phase 1 Step 2 as normal.
+
+Source the planning flag helper now to determine whether External Dependencies processing is enabled:
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh"
+```
+
+If `is_external_dep_block_enabled` returns exit 1 (flag absent or `false`), set `EXTERNAL_DEP_BLOCK_ENABLED=false` — Phase 1.5 will be skipped. When the function returns exit 0, set `EXTERNAL_DEP_BLOCK_ENABLED=true`.
 
 ### Step 2: Audit Existing Children (/dso:preplanning)
 
@@ -201,6 +223,49 @@ Use `AskUserQuestion` to get user approval before proceeding:
 - Options: ["Approve — proceed with story creation", "Request changes"]
 
 If the user requests changes, iterate on the reconciliation plan and re-present.
+
+---
+
+## Phase 1.5: External Dependencies Block Reading (/dso:preplanning)
+
+**Skip this phase when `EXTERNAL_DEP_BLOCK_ENABLED=false`.**
+
+### Purpose
+
+After auditing existing children (Step 2), read the parent epic's `## External Dependencies` block (conforming to `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`) and generate the corresponding child stories.
+
+### Reading the Block
+
+Parse the epic's description field for a YAML block under the `## External Dependencies` heading. If no block exists, skip this phase entirely and proceed to Phase 2.
+
+**Validation**: For each entry, if `confirmation_token_required: true` is present alongside a `verification_command`, log a warning and ignore `confirmation_token_required`: `"Entry <name>: confirmation_token_required is only meaningful when verification_command is absent — ignoring."` Do not block story creation.
+
+### Idempotency Check
+
+Before creating any story for a block entry, get the epic's current children:
+
+```bash
+.claude/scripts/dso ticket deps <epic-id>
+```
+
+Parse the `children` field from the JSON output (not `deps` or `blockers`). Check whether any child is already tagged `manual:awaiting_user` with a title matching the entry's `name` field. If a match is found, skip creation for that entry to avoid duplicates. Log: `"Skipping <name> — existing manual:awaiting_user story already created (idempotency)."`
+
+### Story Generation
+
+For each entry in the `external_dependencies` block:
+
+**`handling: claude_auto` entries:**
+- Create a standard automation story as a child of the epic (same Phase 4 story creation flow).
+- Story title: `"Verify and integrate <name>"`.
+- Done definition: verification_command passes and Claude has confirmed access.
+
+**`handling: user_manual` entries:**
+- Create a story tagged `manual:awaiting_user` as a child of the epic.
+- Story title: `"Complete manual step: <name>"`.
+- Done definitions must include:
+  - The entry's `justification` field verbatim (if present, explain why the step requires human action).
+  - If `verification_command` is present: the command as the verification step.
+  - If `verification_command` is absent: a confirmation-token prompt using `confirmation_token_required` (if `true`) or a simple acknowledgment (if `false` or absent).
 
 ---
 
@@ -269,6 +334,15 @@ A story qualifies for integration research if it references any of:
 - Authentication/credential flows
 
 ### Research Process (shared)
+
+**Pre-flight: deduplicate against `researchFindings`**. Before issuing any WebSearch call for a qualifying story's capability, check the merged `researchFindings` array (loaded from the epic's last `RESEARCH_FINDINGS:` ticket comment per Step 5a) for a matching `capability` entry:
+
+- `verified` → skip WebSearch entirely for this capability and reuse the prior `source` citation directly. (Skipping verified entries avoids redundant network calls and accelerates preplanning when upstream skills have already established the constraint.)
+- `partially_verified` → run a light WebSearch (1 spot-check query) to confirm the prior finding still holds.
+- `unverified` or `contradicted` → run full WebSearch verification as described below.
+- Empty array (no prior findings) → run full WebSearch verification for every qualifying capability.
+
+After research, append new entries (or upgrade existing entries) to `researchFindings` with the latest `status`, `source`, `skill_name: "preplanning"`, and current `timestamp` so downstream consumers benefit from the same dedup.
 
 For each qualifying story:
 
@@ -349,19 +423,53 @@ Adversarial review complete:
 
 ### Step 3.5: Persist Adversarial Review Exchange (/dso:preplanning)
 
-After processing blue team findings, persist the full exchange for post-mortem analysis:
+After processing blue team findings, the orchestrator persists the full exchange for post-mortem analysis. The blue team agent does NOT write files (it cannot run shell commands) — it returns `artifact_path: null`, and the orchestrator handles persistence here using the red team findings and the blue team's `findings`/`rejected` arrays.
 
-1. Parse the blue team agent's output for the `artifact_path` field. If present, it points to the persisted JSON file at `$ARTIFACTS_DIR/adversarial-review-<epic-id>.json`
-2. If `artifact_path` is present, add a one-line ticket comment referencing the artifact:
+1. Resolve the artifact path and write the full exchange JSON:
    ```bash
-   .claude/scripts/dso ticket comment <epic-id> "Adversarial review: <N> findings, <M> accepted. Full exchange: <artifact_path>"
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
+   ARTIFACTS_DIR=$(get_artifacts_dir)
+   ARTIFACT_PATH="$ARTIFACTS_DIR/adversarial-review-<epic-id>.json"
+   # Write JSON combining the red team output and blue team findings/rejected arrays
    ```
-3. **If `artifact_path` is absent** (agent failed to persist, or returned malformed output): log a warning `"Adversarial review artifact not persisted — blue team agent did not return artifact_path"` and continue. Artifact persistence failure is non-blocking.
-4. This artifact is available for future post-mortem analysis but is not surfaced in normal `ticket show` output
+2. Add a one-line ticket comment referencing the artifact:
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "Adversarial review: <N> findings, <M> accepted. Full exchange: $ARTIFACT_PATH"
+   ```
+3. If writing the artifact fails (disk full, permission error): log a warning and continue — persistence failure is non-blocking.
+4. The artifact is available for future post-mortem analysis but is not surfaced in normal `ticket show` output.
 
 ### Step 4: Continue to Phase 3
 
 Proceed to Phase 3 (Walking Skeleton & Vertical Slicing) with the updated story map. New stories from adversarial review are included in the walking skeleton analysis.
+
+---
+
+## Refusal Gate: External Dependencies Block Check (/dso:preplanning)
+
+**Skip this gate when `EXTERNAL_DEP_BLOCK_ENABLED=false`.**
+
+Before proceeding to Phase 3 story decomposition, check whether the parent epic's External Dependencies block adequately covers any externally-shaped Success Criteria.
+
+### When to fire
+
+This gate fires when ALL of the following are true:
+- `planning.external_dependency_block_enabled` is on (set during Phase 1.5 flag check)
+- The epic has Success Criteria that are externally-shaped (their outcomes are observable only in deployed or external contexts — e.g., "users can log in with OAuth", "emails are delivered", "the API responds to external callers")
+
+### Gate check
+
+1. Identify externally-shaped SCs from the epic's Success Criteria list (SCs whose pass/fail depends on an external system, credential, or deployed environment).
+2. For each externally-shaped SC, check whether the parent epic's `## External Dependencies` block contains an entry covering that dependency.
+3. If ANY externally-shaped SC has no matching block entry (block is missing or the relevant entry is absent or incomplete per the schema in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`):
+   - **HALT decomposition.** Do not proceed to Phase 3.
+   - Emit the following diagnostic, naming the specific SC(s) without block coverage:
+     > "Preplanning cannot decompose this epic: the following success criteria are externally-shaped but have no corresponding entry in the External Dependencies block: [list of SC names]. Run `/dso:brainstorm <epic-id>` to capture the dependency information, then retry `/dso:preplanning`."
+4. If all externally-shaped SCs have valid block entries (or there are no externally-shaped SCs): proceed to Phase 3 normally.
+
+### Behavioral testing note
+
+SKILL.md is a non-executable LLM instruction file. The structural tests verify only that this section heading exists. Behavioral correctness of the refusal logic is probabilistic per Rule 5 (behavioral-testing-standard.md).
 
 ---
 
@@ -752,6 +860,10 @@ If the user requests changes, iterate on the plan and re-present. Once the user 
 
 Write the accumulated context as a structured comment on the epic ticket so that `/dso:implementation-plan` can load richer context when planning individual stories from this epic, regardless of which session or environment runs next.
 
+**Schema version**: The `schema_version` integer field (current value: `2`) is used by consumers for forward/backward compatibility — bump it whenever the payload structure changes in a non-additive way. Consumers reading an unfamiliar `schema_version` should fall back to defensive parsing rather than failing.
+
+**Merging prior research findings (RESEARCH_FINDINGS:)**: Before writing the new `PREPLANNING_CONTEXT:` comment, scan the epic's ticket comments for the most recent `RESEARCH_FINDINGS:` comment (a JSON array of `{capability, status, source, skill_name, timestamp}` entries written by upstream skills like brainstorm or prior preplanning runs). Parse it and merge into the `researchFindings` array of the new context payload. Treat a missing or corrupt `RESEARCH_FINDINGS:` comment as an empty array (fail-open — never block the write). This compounds research across pipeline stages so downstream skills (implementation-plan, sprint) can deduplicate WebSearch calls.
+
 **Command** (use Python subprocess to avoid shell ARG_MAX limits for large payloads). This write is an optional cache — if the ticket CLI call fails, log a warning and continue; do not abort the phase:
 ```python
 import json, subprocess
@@ -769,10 +881,11 @@ if result.returncode != 0:
 
 Serialize the JSON payload to a single minified line (no whitespace between keys/values) and write it as a ticket comment. If `/dso:preplanning` runs again on the same epic, write a new comment — `/dso:implementation-plan` will use the last `PREPLANNING_CONTEXT:` comment in the array.
 
-**Schema** (version 1):
+**Schema** (version 1, schema_version 2):
 ```json
 {
   "version": 1,
+  "schema_version": 2,
   "epicId": "<epic-id>",
   "generatedAt": "<ISO-8601 timestamp>",
   "generatedBy": "preplanning",
@@ -781,6 +894,15 @@ Serialize the JSON payload to a single minified line (no whitespace between keys
     "description": "...",
     "successCriteria": ["..."]
   },
+  "researchFindings": [
+    {
+      "capability": "<short capability description>",
+      "status": "verified|partially_verified|unverified|contradicted",
+      "source": "<URL or citation>",
+      "skill_name": "preplanning|implementation-plan|brainstorm|...",
+      "timestamp": "<ISO-8601 timestamp>"
+    }
+  ],
   "stories": [
     {
       "id": "<story-id>",
@@ -975,7 +1097,8 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 | 2: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
 | 2.5: Adversarial Review | Red team attack on story map, blue team filter findings (skip if < 3 stories) | `Task` (opus red team, sonnet blue team) |
 | 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `.claude/scripts/dso ticket link` |
-| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket comment`, `validate-issues.sh`, `dso:ui-designer` (via Agent tool), `.claude/scripts/dso ticket edit --tags` (design:approved on REVIEW_PASS; design:pending_review on deferred/failed review) |
+| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket comment`, `validate-issues.sh`, `dso:ui-designer` (via Agent tool), `.claude/scripts/dso ticket tag`/`.claude/scripts/dso ticket untag` (design:approved on REVIEW_PASS; design:pending_review on deferred/failed review) |
+| Flag-gated: external deps | When `planning.external_dependency_block_enabled=true`: reads External Dependencies block from epic, generates `manual:awaiting_user` stories for `user_manual` entries, refuses decomposition when block is missing. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md` | `.claude/scripts/dso ticket tag` |
 
 ## Example: Reconciliation + Story Creation
 
@@ -1008,6 +1131,15 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 - **Done Definitions**:
   - When complete, a user can see a confidence percentage and sub-categories for each classification ← Satisfies: "Users can understand why a document was classified a certain way"
 - **Depends on**: Story 1
+
+---
+
+### Preconditions Exit Emit (/dso:preplanning)
+
+[Instructions: Before the skill exits, record preplanning PRECONDITIONS event:
+Run: `.claude/scripts/dso preconditions-record.sh --ticket-id <epic_id> --gate-name preplanning_complete --session-id <session_id> --tier minimal`
+Self-verify: run preconditions-validator.sh --event-file=<just-written-file>; if fails emit WARN but do not block.
+This validator reads only minimal-tier fields. Future standard/deep additions are ignored (depth-agnostic forward-compat contract).]
 
 ---
 

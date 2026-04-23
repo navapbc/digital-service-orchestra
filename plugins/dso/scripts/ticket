@@ -17,6 +17,8 @@
 #   ticket deps <ticket_id>                       — show dependency graph for a ticket (JSON)
 #   ticket bridge-status [--format=json]          — show last bridge run status
 #   ticket bridge-fsck [--tickets-tracker=<path>] — audit bridge mappings (orphans, duplicates, stale SYNCs)
+#   ticket tag <ticket_id> <tag>                  — add a tag to a ticket
+#   ticket untag <ticket_id> <tag>                — remove a tag from a ticket
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,12 +37,64 @@ _usage() {
     echo "  unlink      Remove a link between two tickets"
     echo "  deps        Show dependency graph for a ticket (<ticket_id>)"
     echo "  edit          Edit ticket fields (--title, --priority, --assignee, --ticket_type)"
-    echo "  bridge-status Show last bridge run status [--format=json]
-  bridge-fsck   Audit bridge mappings (orphans, duplicates, stale SYNCs)"
+    echo "  tag           Add a tag to a ticket"
+    echo "  untag         Remove a tag from a ticket"
+    echo "  bridge-status Show last bridge run status [--format=json]"
+    echo "  bridge-fsck   Audit bridge mappings (orphans, duplicates, stale SYNCs)"
     exit 1
 }
 
 _ensure_initialized() {
+    if [[ "${DSO_TICKET_LEGACY:-}" == "1" ]]; then
+        echo "DSO_TICKET_LEGACY=1: using Python-backed _ensure_initialized path" >&2
+        local repo_root
+        repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+            echo "Error: not inside a git repository" >&2
+            exit 1
+        }
+        if [[ ! -d "$repo_root/.tickets-tracker" ]]; then
+            bash "$SCRIPT_DIR/ticket-init.sh" --silent 1>/dev/null || {
+                echo "Error: ticket system initialization failed. Run 'ticket init' manually." >&2
+                exit 1
+            }
+        fi
+        if [[ "${_TICKET_TEST_NO_SYNC:-}" == "1" ]]; then
+            return 0
+        fi
+        local tracker_dir
+        tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$repo_root/.tickets-tracker" 2>/dev/null) || tracker_dir="$repo_root/.tickets-tracker"
+        if [[ -d "$tracker_dir" ]] && git -C "$tracker_dir" rev-parse --verify tickets &>/dev/null; then
+            local sync_marker="/tmp/.ticket-sync-$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$tracker_dir" 2>/dev/null || echo "fallback")"
+            local now
+            now=$(date +%s)
+            local marker_age=9999
+            if [[ -f "$sync_marker" ]]; then
+                local marker_time
+                marker_time=$(cat "$sync_marker" 2>/dev/null || echo 0)
+                marker_age=$(( now - marker_time ))
+            fi
+            # Sync at most once per minute to shrink the divergence window during
+            # rapid-fire ticket operations (brainstorm sessions). 87f3-3b57.
+            if [[ "$marker_age" -ge 60 ]]; then
+                if git -C "$tracker_dir" fetch origin tickets --quiet 2>/dev/null; then
+                    if git -C "$tracker_dir" rev-parse --verify origin/tickets &>/dev/null; then
+                        if ! git -C "$tracker_dir" merge-base tickets origin/tickets &>/dev/null; then
+                            git -C "$tracker_dir" reset --hard origin/tickets --quiet 2>/dev/null || true
+                        else
+                            local _local_ahead
+                            _local_ahead=$(git -C "$tracker_dir" log --oneline origin/tickets..tickets 2>/dev/null) || true
+                            if [ -z "$_local_ahead" ]; then
+                                git -C "$tracker_dir" reset --hard origin/tickets --quiet 2>/dev/null || true
+                            fi
+                        fi
+                    fi
+                fi
+                echo "$now" > "$sync_marker"
+            fi
+        fi
+        return 0
+    fi
+
     local repo_root
     repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
         echo "Error: not inside a git repository" >&2
@@ -60,9 +114,19 @@ _ensure_initialized() {
         return
     fi
     local tracker_dir
-    tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$repo_root/.tickets-tracker" 2>/dev/null) || tracker_dir="$repo_root/.tickets-tracker"
+    if command -v realpath >/dev/null 2>&1; then
+        tracker_dir=$(realpath "$repo_root/.tickets-tracker" 2>/dev/null) || tracker_dir="$repo_root/.tickets-tracker"
+    else
+        tracker_dir=$(cd "$repo_root/.tickets-tracker" 2>/dev/null && pwd -P) || tracker_dir="$repo_root/.tickets-tracker"
+    fi
     if [[ -d "$tracker_dir" ]] && git -C "$tracker_dir" rev-parse --verify tickets &>/dev/null; then
-        local sync_marker="/tmp/.ticket-sync-$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$tracker_dir" 2>/dev/null || echo "fallback")"
+        local _md5_12
+        if command -v md5sum >/dev/null 2>&1; then
+            _md5_12=$(printf '%s' "$tracker_dir" | md5sum | cut -c1-12)
+        else
+            _md5_12=$(printf '%s' "$tracker_dir" | md5 | cut -c1-12)
+        fi
+        local sync_marker="/tmp/.ticket-sync-${_md5_12:-fallback}"
         local now
         now=$(date +%s)
         local marker_age=9999
@@ -71,8 +135,9 @@ _ensure_initialized() {
             marker_time=$(cat "$sync_marker" 2>/dev/null || echo 0)
             marker_age=$(( now - marker_time ))
         fi
-        # Sync at most once every 5 minutes (300 seconds)
-        if [[ "$marker_age" -ge 300 ]]; then
+        # Sync at most once per minute to shrink the divergence window during
+        # rapid-fire ticket operations (brainstorm sessions). 87f3-3b57.
+        if [[ "$marker_age" -ge 60 ]]; then
             if git -C "$tracker_dir" fetch origin tickets --quiet 2>/dev/null; then
                 if git -C "$tracker_dir" rev-parse --verify origin/tickets &>/dev/null; then
                     # Two-phase sync guard (0051-3428 + eb00-efd0):
@@ -112,27 +177,46 @@ case "$subcommand" in
         ;;
     create)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-create.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_create "$@"
+        exit $?
         ;;
     show)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-show.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_show "$@"
+        exit $?
         ;;
     transition)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-transition.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_transition "$@"
+        exit $?
         ;;
     list)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-list.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_list "$@"
+        exit $?
         ;;
     comment)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-comment.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_comment "$@"
+        exit $?
         ;;
     compact)
         _ensure_initialized
         exec bash "$SCRIPT_DIR/ticket-compact.sh" "$@"
+        ;;
+    compact-all)
+        _ensure_initialized
+        exec bash "$SCRIPT_DIR/ticket-compact-all.sh" "$@"
         ;;
     fsck)
         # ticket-fsck.sh: JSON validity + CREATE presence + index.lock cleanup
@@ -157,7 +241,10 @@ case "$subcommand" in
         # state and writes UNLINK events in the same format that ticket-graph.py reads.
         # Both scripts write LINK/UNLINK events to the same append-only event log, so
         # link and unlink remain consistent across the two implementations.
-        exec python3 "$SCRIPT_DIR/ticket-graph.py" --link "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_link "$@"
+        exit $?
         ;;
     unlink)
         _ensure_initialized
@@ -185,7 +272,24 @@ case "$subcommand" in
         ;;
     edit)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-edit.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_edit "$@"
+        exit $?
+        ;;
+    tag)
+        _ensure_initialized
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_tag "$@"
+        exit $?
+        ;;
+    untag)
+        _ensure_initialized
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_untag "$@"
+        exit $?
         ;;
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2

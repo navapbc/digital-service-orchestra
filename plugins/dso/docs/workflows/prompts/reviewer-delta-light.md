@@ -49,6 +49,7 @@ Apply only the following highest-signal checks. Skip all other checks — do not
   without sanitization
 
 **Bash-specific sub-criteria** (apply only to bash scripts / `.sh` files):
+- [ ] **Note on `[[ ]]` semantics**: parentheses inside `[[ ]]` are logical grouping operators, NOT command substitution. Do NOT flag `[[ "$a" == "1" && ( "$b" == "1" || "$c" == "1" ) ]]` as a precedence bug or syntax error — this is valid bash logical grouping. If uncertain about a bash construct's semantics, use `escalate_review` rather than emitting an `important` finding.
 - [ ] Variables used in arithmetic, conditional `[[ ]]`, or concatenation are quoted
   (e.g., `[[ "$var" == "x" ]]` not `[[ $var == x ]]`) — unquoted variables with
   whitespace or glob characters cause silent mis-evaluation; flag as `important`.
@@ -90,6 +91,7 @@ Apply only the following highest-signal checks. Skip all other checks — do not
   vs `minor`, add it to the `escalate_review` array with `finding_index` (zero-based index
   into findings) and `reason`. A more capable model will make the final severity
   determination.
+- [ ] **Factual-uncertainty escalation**: If you are uncertain whether the underlying factual claim is correct — for example, whether a bash construct is a syntax error, whether a file exists, or whether an API method exists — add the finding to `escalate_review` rather than emitting it as `important` or `critical`. Do NOT emit a high-severity finding based on an unverified factual claim.
 - [ ] Do NOT emit `escalate_review` for findings with high confidence in severity assignment.
   Only escalate genuine uncertainty.
 
@@ -107,6 +109,24 @@ Do NOT report findings that are already enforced by the project's automated tool
   Bash-specific sub-criteria above).
 - **The project's configured type checker**: type annotation violations run pre-commit. Do
   not flag missing type annotations or type mismatches unless they indicate a logic bug.
+
+## AI Blindspot Annotations
+
+Light tier covers ONLY the surface-level UI artifact check. The other three blindspot
+checks (domain mismatch, spaghetti patching, asymmetric change) require deeper context
+and are deferred to standard or deep tier review.
+
+- [ ] **UI artifacts in source**: Scan the diff for terminal/agent output accidentally
+  pasted into source files: ANSI escape sequences (`\x1b[`, `\033[`), merge conflict
+  markers (`<<<<<<<`, `=======`, `>>>>>>>`), truncated output blocks (`...`,
+  `[truncated]`, `[output truncated]`), terminal control sequences, or prompt fragments
+  (e.g., leaked `Human:` / `Assistant:` lines). Flag as `important` under `hygiene`.
+
+Include the result in your summary field text with the prefix `ui_artifacts:` (e.g.,
+`ui_artifacts: none` or `ui_artifacts: ANSI escapes in foo.py:42`). This is a summary
+annotation only — do NOT add a new top-level scoring dimension.
+
+---
 
 ## Overlay Classification
 

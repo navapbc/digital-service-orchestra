@@ -483,3 +483,412 @@ def test_reducer_revert_does_not_undo_status_automatically(
     assert len(state["reverts"]) == 1, (
         f"state['reverts'] must have 1 entry; got {len(state['reverts'])}: {state['reverts']}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 6: .archived marker is removed when reverting an ARCHIVED event
+# ---------------------------------------------------------------------------
+
+_ARCHIVED_UUID = "dddddddd-dddd-4ddd-dddd-dddddddddddd"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_revert_archived_event_removes_marker(tmp_path: Path) -> None:
+    """ticket-revert.sh must remove the .archived marker when the reverted event
+    is an ARCHIVED event.
+
+    Given: a temp tracker with a ticket that has an ARCHIVED event AND a
+           .archived marker file
+    When:  ticket-revert.sh is called with the UUID of the ARCHIVED event
+    Then:  the .archived marker file NO LONGER EXISTS in the ticket dir
+    AND:   a REVERT event file IS written
+    """
+    ticket_id = "tkt-rev-006"
+    tracker_dir = _setup_tracker(tmp_path, ticket_id)
+    ticket_dir = tracker_dir / ticket_id
+    ticket_dir.mkdir(parents=True)
+
+    # Write CREATE event
+    _write_event(
+        ticket_dir,
+        timestamp=1742600000,
+        uuid=_CREATE_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Archived marker test",
+            "parent_id": None,
+        },
+    )
+
+    # Write ARCHIVED event — this is the event we will revert
+    _write_event(
+        ticket_dir,
+        timestamp=1742600100,
+        uuid=_ARCHIVED_UUID,
+        event_type="ARCHIVED",
+        data={"reason": "archiving ticket"},
+    )
+
+    # Place the .archived marker file (as written by archive logic)
+    archived_marker = ticket_dir / ".archived"
+    archived_marker.write_text("")
+
+    assert archived_marker.exists(), (
+        "precondition: .archived marker must exist before revert"
+    )
+
+    result = _run_ticket_revert(
+        tracker_dir, ticket_id, _ARCHIVED_UUID, reason="unarchiving"
+    )
+
+    assert result.returncode == 0, (
+        f"ticket revert of ARCHIVED event must exit 0; got {result.returncode}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+    assert not archived_marker.exists(), (
+        f".archived marker must be removed after reverting an ARCHIVED event; "
+        f"file still exists at {archived_marker}"
+    )
+
+    revert_files = sorted(ticket_dir.glob("*-REVERT.json"))
+    assert len(revert_files) == 1, (
+        f"Expected exactly 1 REVERT event file in {ticket_dir}, "
+        f"found: {[f.name for f in revert_files]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 8: .archived marker is rolled back when reverting ARCHIVED event and
+#         the git commit fails
+# ---------------------------------------------------------------------------
+
+_ARCHIVED_UUID2 = "eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_revert_archived_event_rollback_marker_on_commit_failure(
+    tmp_path: Path,
+) -> None:
+    """If the git commit fails after marker removal, the .archived marker must be
+    re-created (rolled back) so the ticket stays in a consistent state.
+
+    RED: before the fix, the marker is removed and never restored on commit failure.
+    GREEN: after the fix, the marker is restored via the SC3 rollback path.
+
+    Setup:
+    - Initialize a real git repo in the tracker dir so the script enters the
+      git commit block (needs a .git *file* in TRACKER_DIR).
+    - Inject a fake 'git' shim via PATH that passes all git subcommands through
+      to the real git, but exits 1 for 'commit' (simulating a commit failure).
+    - Ensure the .archived marker exists before calling ticket-revert.sh.
+
+    Assert:
+    - ticket-revert.sh exits 0 (the commit failure is non-fatal per spec).
+    - The .archived marker STILL EXISTS after the call (was rolled back).
+    """
+    ticket_id = "tkt-rev-008"
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir(parents=True)
+    (tracker_dir / ".env-id").write_text(_ENV_ID)
+
+    ticket_dir = tracker_dir / ticket_id
+    ticket_dir.mkdir(parents=True)
+
+    # Write CREATE event
+    _write_event(
+        ticket_dir,
+        timestamp=1742600000,
+        uuid=_CREATE_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Rollback marker test",
+            "parent_id": None,
+        },
+    )
+
+    # Write ARCHIVED event — this is the event we will revert
+    _write_event(
+        ticket_dir,
+        timestamp=1742600100,
+        uuid=_ARCHIVED_UUID2,
+        event_type="ARCHIVED",
+        data={"reason": "archiving for test"},
+    )
+
+    # Place the .archived marker file
+    archived_marker = ticket_dir / ".archived"
+    archived_marker.write_text("")
+    assert archived_marker.exists(), (
+        "precondition: .archived marker must exist before revert"
+    )
+
+    # ── Set up a real git repo inside tracker_dir so the script's git-block fires ──
+    # The condition is: [ -f "$TRACKER_DIR/.git" ]
+    # We create an actual git worktree by init-ing a bare repo and creating a
+    # linked worktree, OR simply init a regular repo directly in tracker_dir and
+    # write a .git file pointing to it.
+    #
+    # Simplest: git init tracker_dir directly (creates .git/ directory), but the
+    # script checks for [ -f "$TRACKER_DIR/.git" ] (a *file*, not a dir).
+    # So instead: init a bare repo alongside, then create tracker_dir/.git as a file
+    # pointing to it (linked worktree style).
+    bare_repo = tmp_path / "bare.git"
+    subprocess.run(
+        ["git", "init", "--bare", str(bare_repo)],
+        check=True,
+        capture_output=True,
+    )
+    # Configure the bare repo so git add/commit won't complain about identity
+    subprocess.run(
+        ["git", "-C", str(bare_repo), "config", "user.email", "test@test.com"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(bare_repo), "config", "user.name", "Test"],
+        check=True,
+        capture_output=True,
+    )
+
+    # Create a linked worktree by writing a .git file (gitfile) pointing to the bare repo
+    # For a linked worktree the gitdir pointer inside .git file needs a GIT_DIR
+    # We'll use a standard git init instead of bare so we can stage/commit
+    real_git_dir = tmp_path / "real_git"
+    real_git_dir.mkdir()
+    subprocess.run(
+        ["git", "init", str(real_git_dir)],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(real_git_dir), "config", "user.email", "test@test.com"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(real_git_dir), "config", "user.name", "Test"],
+        check=True,
+        capture_output=True,
+    )
+
+    # Write a .git file in tracker_dir that points to real_git_dir/.git
+    # This makes [ -f "$TRACKER_DIR/.git" ] true
+    # and git -C "$TRACKER_DIR" rev-parse --is-inside-work-tree will succeed
+    (tracker_dir / ".git").write_text(f"gitdir: {real_git_dir / '.git'}\n")
+
+    # Make the real git repo know about tracker_dir as the work tree
+    # by setting core.worktree in the git config
+    subprocess.run(
+        ["git", "-C", str(real_git_dir), "config", "core.worktree", str(tracker_dir)],
+        check=True,
+        capture_output=True,
+    )
+
+    # ── Create a fake 'git' shim that fails on commit ──────────────────────────
+    fake_bin_dir = tmp_path / "fake_bin"
+    fake_bin_dir.mkdir()
+    fake_git = fake_bin_dir / "git"
+    real_git = subprocess.check_output(["which", "git"], text=True).strip()
+    fake_git.write_text(
+        f"""#!/usr/bin/env bash
+# Fake git shim: pass everything through EXCEPT commit, which exits 1
+if [ "${{1:-}}" = "-C" ] && [ "${{3:-}}" = "commit" ]; then
+    exit 1
+fi
+if [ "${{1:-}}" = "commit" ]; then
+    exit 1
+fi
+exec {real_git} "$@"
+"""
+    )
+    fake_git.chmod(0o755)
+
+    # ── Run ticket-revert.sh with the fake git on PATH ────────────────────────
+    env = {
+        **os.environ,
+        "TICKETS_TRACKER_DIR": str(tracker_dir),
+        "PATH": f"{fake_bin_dir}:{os.environ.get('PATH', '')}",
+    }
+    # Do NOT set GIT_DIR here — we want the script to use its own tracker_dir
+    # git detection ([ -f "$TRACKER_DIR/.git" ]).
+    # But we must unset GIT_DIR so the script doesn't override TRACKER_DIR.
+    env.pop("GIT_DIR", None)
+
+    cmd = [
+        "bash",
+        str(REPO_ROOT / "plugins" / "dso" / "scripts" / "ticket-revert.sh"),
+        ticket_id,
+        _ARCHIVED_UUID2,
+        "--reason=rollback test",
+    ]
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(REPO_ROOT),
+        timeout=15,
+    )
+
+    assert result.returncode == 0, (
+        f"ticket-revert.sh must exit 0 even when git commit fails (non-fatal); "
+        f"got {result.returncode}.\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+    assert archived_marker.exists(), (
+        f".archived marker must be RESTORED (rolled back) after a failed git commit "
+        f"when reverting an ARCHIVED event; marker was not found at {archived_marker}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 7: .archived marker is preserved when reverting a non-ARCHIVED event
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_revert_non_archived_event_preserves_marker(tmp_path: Path) -> None:
+    """ticket-revert.sh must NOT remove the .archived marker when the reverted
+    event is NOT an ARCHIVED event.
+
+    Given: a temp tracker with a ticket that has a STATUS event AND a
+           .archived marker file (unusual but possible)
+    When:  ticket-revert.sh is called with the UUID of the STATUS event
+    Then:  the .archived marker file STILL EXISTS (marker not removed)
+    """
+    ticket_id = "tkt-rev-007"
+    tracker_dir = _setup_tracker(tmp_path, ticket_id)
+    ticket_dir = tracker_dir / ticket_id
+    ticket_dir.mkdir(parents=True)
+
+    # Write CREATE event
+    _write_event(
+        ticket_dir,
+        timestamp=1742600000,
+        uuid=_CREATE_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Preserve marker test",
+            "parent_id": None,
+        },
+    )
+
+    # Write STATUS event — this is the event we will revert (NOT an ARCHIVED event)
+    _write_event(
+        ticket_dir,
+        timestamp=1742600100,
+        uuid=_STATUS_UUID,
+        event_type="STATUS",
+        data={"status": "closed", "current_status": "open"},
+    )
+
+    # Place the .archived marker file (as if ticket was previously archived)
+    archived_marker = ticket_dir / ".archived"
+    archived_marker.write_text("")
+
+    assert archived_marker.exists(), (
+        "precondition: .archived marker must exist before revert"
+    )
+
+    result = _run_ticket_revert(
+        tracker_dir, ticket_id, _STATUS_UUID, reason="test preserve"
+    )
+
+    assert result.returncode == 0, (
+        f"ticket revert of STATUS event must exit 0; got {result.returncode}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+    assert archived_marker.exists(), (
+        f".archived marker must be preserved after reverting a non-ARCHIVED (STATUS) event; "
+        f"file was unexpectedly removed from {archived_marker}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 8 (RED — c578-c6cd): REVERT event timestamp is nanosecond precision
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_ticket_revert_writes_nanosecond_timestamp(tmp_path: Path) -> None:
+    """ticket-revert.sh must write the REVERT event timestamp in nanoseconds
+    (time.time_ns()), not seconds (int(time.time())).
+
+    Observable: the 'timestamp' field in the written REVERT event JSON file
+    must be > 1_000_000_000_000 (13+ digits).
+
+    RED: int(time.time()) returns ~1.7e9 (10 digits) which is < 1e12 → FAIL.
+    GREEN: time.time_ns() returns ~1.7e18 (19 digits) which is > 1e12 → PASS.
+
+    Bug: c578-c6cd — ticket-revert.sh uses seconds precision for timestamp.
+    """
+    ticket_id = "tkt-rev-008"
+    tracker_dir = _setup_tracker(tmp_path, ticket_id)
+    ticket_dir = tracker_dir / ticket_id
+    ticket_dir.mkdir(parents=True)
+
+    # Write CREATE event (prerequisite)
+    _write_event(
+        ticket_dir,
+        timestamp=1742600000,
+        uuid=_CREATE_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Timestamp precision test",
+            "parent_id": None,
+        },
+    )
+
+    # Write STATUS event — this is the target we will revert
+    _write_event(
+        ticket_dir,
+        timestamp=1742600100,
+        uuid=_STATUS_UUID,
+        event_type="STATUS",
+        data={"status": "closed", "current_status": "open"},
+    )
+
+    result = _run_ticket_revert(
+        tracker_dir, ticket_id, _STATUS_UUID, reason="timestamp precision test"
+    )
+
+    assert result.returncode == 0, (
+        f"ticket revert must exit 0 on success; got {result.returncode}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+    revert_files = sorted(ticket_dir.glob("*-REVERT.json"))
+    assert len(revert_files) == 1, (
+        f"Expected exactly 1 REVERT event file in {ticket_dir}, "
+        f"found: {[f.name for f in revert_files]}"
+    )
+
+    event = json.loads(revert_files[0].read_text())
+
+    assert "timestamp" in event, (
+        f"REVERT event file must contain a 'timestamp' field; got keys: {list(event.keys())}"
+    )
+
+    ts = event["timestamp"]
+    assert isinstance(ts, int), (
+        f"timestamp must be an integer; got type {type(ts).__name__!r}, value: {ts!r}"
+    )
+
+    # 1_000_000_000_000 == 1e12: seconds-precision (~1.7e9) is < 1e12 → RED
+    # nanoseconds-precision (~1.7e18) is > 1e12 → GREEN
+    assert ts > 1_000_000_000_000, (
+        f"REVERT event timestamp must be nanosecond precision (> 1_000_000_000_000); "
+        f"got {ts} — this is seconds precision (int(time.time())), not nanoseconds. "
+        f"Fix: use time.time_ns() in ticket-revert.sh."
+    )

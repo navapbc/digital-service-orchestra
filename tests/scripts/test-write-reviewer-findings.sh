@@ -304,6 +304,61 @@ assert_eq "test_review_tier_wrong_case_LIGHT_rejected" "rejected" "$tier_light_c
 # End --review-tier tests
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# --selected-tier flag tests (bug 21d7-b84a)
+#
+# write-reviewer-findings.sh must accept --selected-tier <light|standard|deep>
+# and inject selected_tier as a top-level key. This carries the classifier's
+# recommended tier into findings so record-review.sh can verify tier without
+# depending on the separately-located classifier-telemetry.jsonl.
+# ---------------------------------------------------------------------------
+
+# test_selected_tier_deep_injected
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$VALID_JSON" | "$SCRIPT" --selected-tier deep 2>/dev/null && sel_deep_exit=0 || sel_deep_exit=$?
+assert_eq "test_selected_tier_deep_exit_code" "0" "$sel_deep_exit"
+
+if [[ -f "$ARTIFACTS_DIR/reviewer-findings.json" ]]; then
+    if python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings.json')); assert d.get('selected_tier') == 'deep'" 2>/dev/null; then
+        sel_deep_field="present"
+    else
+        sel_deep_field="missing_or_wrong"
+    fi
+else
+    sel_deep_field="no_file"
+fi
+assert_eq "test_selected_tier_deep_field_in_json" "present" "$sel_deep_field"
+
+# test_selected_tier_with_review_tier_both_fields
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$VALID_JSON" | "$SCRIPT" --review-tier standard --selected-tier deep 2>/dev/null && sel_both_exit=0 || sel_both_exit=$?
+assert_eq "test_selected_tier_both_fields_exit_code" "0" "$sel_both_exit"
+
+if [[ -f "$ARTIFACTS_DIR/reviewer-findings.json" ]]; then
+    if python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings.json')); assert d.get('review_tier')=='standard' and d.get('selected_tier')=='deep'" 2>/dev/null; then
+        sel_both_fields="present"
+    else
+        sel_both_fields="missing_or_wrong"
+    fi
+else
+    sel_both_fields="no_file"
+fi
+assert_eq "test_selected_tier_both_fields_in_json" "present" "$sel_both_fields"
+
+# test_selected_tier_invalid_rejected
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$VALID_JSON" | "$SCRIPT" --selected-tier invalid 2>/dev/null && sel_inv_exit=0 || sel_inv_exit=$?
+if [[ "$sel_inv_exit" -ne 0 ]]; then
+    sel_inv_result="rejected"
+else
+    sel_inv_result="accepted"
+fi
+assert_eq "test_selected_tier_invalid_rejected" "rejected" "$sel_inv_result"
+
+# ---------------------------------------------------------------------------
+# End --selected-tier tests
+# ---------------------------------------------------------------------------
+
 # test_write_old_dimension_names_rejected
 # Piping JSON with OLD dimension names should exit 1 (validator rejects them).
 OLD_DIM_JSON='{

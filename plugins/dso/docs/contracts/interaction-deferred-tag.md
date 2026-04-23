@@ -43,12 +43,12 @@ Missing tag is treated as **absent** (not deferred). Only epics that are explici
 
 Tag write command:
 ```bash
-.claude/scripts/dso ticket edit <epic-id> --tags interaction:deferred
+.claude/scripts/dso ticket tag <epic-id> interaction:deferred
 ```
 
 Tag removal (on override):
 ```bash
-.claude/scripts/dso ticket edit <epic-id> --tags ""
+.claude/scripts/dso ticket untag <epic-id> interaction:deferred
 ```
 
 ---
@@ -87,3 +87,4 @@ If a downstream skill cannot determine tag presence (e.g., ticket read failure),
 ## Related Contracts
 
 - `scrutiny:pending` tag (`docs/contracts/scrutiny-pending-tag.md`) — same gate pattern; blocks when epic has not been through the scrutiny pipeline
+- [Tag Policy](../ticket-system-v3-architecture.md#tag-policy) — meta-policy governing tag guards, writer taxonomy, and accepted limitations

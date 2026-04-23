@@ -21,6 +21,8 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 ---
 
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
 ## Step 0: Gather Context
 
 ### Pre-flight: Ensure `pre-commit` Is Available
@@ -58,6 +60,15 @@ ARTIFACTS_DIR=$(get_artifacts_dir)
 # Setting ARTIFACTS_DIR externally has no effect; get_artifacts_dir() ignores it.
 mkdir -p "$ARTIFACTS_DIR"
 : > "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
+
+### Preconditions Entry Check
+
+Source the preconditions validator library and run the entry check for the commit stage (fail-open: `|| true` prevents blocking when no upstream event exists yet):
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/preconditions-validator-lib.sh" 2>/dev/null || true
+_dso_pv_entry_check "commit" "sprint" "${STORY_OR_EPIC_ID:-}" || true
 ```
 
 ### Gather State
@@ -365,8 +376,10 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4-stage" >> "$ARTIFACTS_DIR/commit-bre
 
 Run `record-test-status.sh` **after** `git add -u` (Step 4) so that the recorded diff hash matches the staged index — the pre-commit test gate validates against the staged hash, not the working-tree hash.
 
+The invocation must be prefixed with `DSO_COMMIT_WORKFLOW=1` — the PreToolUse `hook_record_test_status_guard` rejects unprefixed direct calls to prevent casual misuse. See `${CLAUDE_PLUGIN_ROOT}/hooks/lib/pre-bash-functions.sh` for the allowlist and `${CLAUDE_PLUGIN_ROOT}/hooks/pre-commit-test-gate.sh` for the defense-in-depth diff_hash check that catches mismatched status regardless.
+
 ```bash
-bash "$(git rev-parse --show-toplevel)/${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
+DSO_COMMIT_WORKFLOW=1 bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
 ```
 
 - **exit 0**: all associated tests passed (or no associated tests found) — continue to Step 5 (Review Gate).
@@ -416,7 +429,13 @@ Create a single git commit following the repository's commit message conventions
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-6-commit" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-After a successful commit, emit the end event:
+After a successful commit, emit the preconditions exit event (fail-open):
+
+```bash
+_dso_pv_exit_write "commit" "${_UPSTREAM_EVENT_ID:-}" "${DIFF_HASH:-}" "${STORY_OR_EPIC_ID:-}" || true
+```
+
+Then emit the end event:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)

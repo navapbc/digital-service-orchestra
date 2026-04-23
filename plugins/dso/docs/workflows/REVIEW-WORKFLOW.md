@@ -34,10 +34,9 @@ if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     if [[ -f "$_cfg" ]]; then
         CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$_cfg" 2>/dev/null | cut -d= -f2-)"
     fi
-    # Final fallback: construct default plugin path from known plugin name
+    # Final fallback: resolve via the shim (handles plugin-cache installs and sentinel detection)
     if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-        _dso_plugin_name="dso"
-        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/$_dso_plugin_name"
+        CLAUDE_PLUGIN_ROOT="$(. "$REPO_ROOT/.claude/scripts/dso" --lib && echo "$DSO_ROOT")"
     fi
 fi
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
@@ -99,7 +98,7 @@ The diff hash is captured here — AFTER Step 1's format/lint/type-check pass �
 
 1. **Capture the diff hash**:
    ```bash
-   DIFF_HASH=$("${CLAUDE_PLUGIN_ROOT}/hooks/compute-diff-hash.sh")
+   DIFF_HASH=$("$REPO_ROOT/.claude/scripts/dso" compute-diff-hash.sh)
    DIFF_HASH_SHORT="${DIFF_HASH:0:8}"
    ```
 
@@ -115,6 +114,21 @@ The diff hash is captured here — AFTER Step 1's format/lint/type-check pass �
 4. Store `DIFF_HASH`, `DIFF_FILE`, and `STAT_FILE` paths for use in Steps 2-5.
 
 **Note**: The diff hash is staging-invariant for tracked file changes — `git add -u` produces the same hash as the pre-add state.
+
+### Step 2b: Huge-Diff File-Count Gate
+
+Run the file-count threshold check against the current staging state (`git diff --name-only HEAD`), which reflects the same working tree used by Step 2's diff hash:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+".claude/scripts/dso" review-huge-diff-check.sh
+HUGE_EXIT=$?
+```
+
+- **Exit 0**: file count is below threshold → proceed to Step 3 (standard path)
+- **Exit 2**: file count meets or exceeds `review.huge_diff_file_threshold` → divert:
+  Follow REVIEW-WORKFLOW-HUGE.md and return; do not continue to Step 3
+- **Exit 1**: configuration error (invalid threshold) → surface error to user; do not proceed
 
 ## Step 3: Classify Review Tier (MANDATORY — run the classifier, do not evaluate mentally)
 
@@ -145,7 +159,7 @@ echo "REVIEW_TIER=$REVIEW_TIER REVIEW_AGENT=$REVIEW_AGENT"
 
 ### Step 3b: Size-Based Branching (post-classifier)
 
-After tier selection, extract size fields from the classifier output and apply size-based routing. The `size_action` field determines whether the review proceeds normally, upgrades to opus, or is rejected. See `docs/contracts/classifier-size-output.md` for the full contract.
+After tier selection, extract size fields from the classifier output and apply size-based routing. The `size_action` field determines whether the review proceeds normally, upgrades to opus, or emits a size warning. See `docs/contracts/classifier-size-output.md` for the full contract.
 
 ```bash
 # Extract size fields from classifier output (defaults match failure contract)
@@ -175,13 +189,8 @@ if [[ "$IS_MERGE" != "true" ]] && [[ "$REVIEW_PASS_NUM" -le 1 ]]; then
         echo "SIZE_UPGRADE: diff has ${DIFF_SIZE_LINES} scorable lines — upgrading to opus reviewer at ${REVIEW_TIER} tier scope"
     fi
 
-    if [[ "$SIZE_ACTION" == "reject" ]]; then
-        echo "REVIEW_RESULT: rejected"
-        echo "REVIEW_REJECTED: diff has ${DIFF_SIZE_LINES} scorable lines (≥600 threshold)."
-        echo "Large diffs exhaust reviewer context and degrade review quality."
-        echo "Split your changes into smaller commits before re-running review."
-        echo "Guidance: ${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/large-diff-splitting-guide.md"
-        exit 1
+    if [[ "$SIZE_ACTION" == "warn" ]]; then
+        echo "SIZE_WARNING: ${DIFF_SIZE_LINES} scorable lines (≥600 threshold) — proceeding with review"
     fi
 fi
 ```
@@ -244,6 +253,8 @@ If no issue is associated with the current work, omit the issue context section.
 
 ### Dispatch (Light / Standard Tiers)
 
+**VERBATIM REQUIRED** — you MUST read the agent file and pass its content as the first element of the prompt. Do NOT write a constructed prompt (e.g., "Review the code changes for correctness and security.") — that is fabrication and violates CLAUDE.md rule 8. This applies in every session state, including post-compaction and long-running sessions. If you have not yet executed the bash block below to read the agent file, STOP and do it now before filling in the `prompt:` field.
+
 For `light` and `standard` tiers, dispatch a single named review agent. When `REVIEW_AGENT_OVERRIDE` is set (from the size upgrade path in Step 3b), use `REVIEW_AGENT_OVERRIDE` instead of `REVIEW_AGENT` — this ensures the opus upgrade takes effect at the current tier's scope:
 
 ```bash
@@ -270,6 +281,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
 
     === DIFF STAT ===
     {content of STAT_FILE from Step 2}
@@ -292,6 +304,8 @@ When `REVIEW_TIER` is `deep`, dispatch 3 parallel sonnet sub-agents in a single 
 | c | `dso:code-reviewer-deep-hygiene` | `$ARTIFACTS_DIR/reviewer-findings-c.json` |
 
 **SERIAL DISPATCH PROHIBITED**: All 3 sonnet agents MUST be launched in a single response as 3 parallel Agent tool calls. Dispatching them one at a time (serial) triples review time and is a critical workflow violation. A single response must contain all three Agent tool invocations with no waiting between them.
+
+**VERBATIM REQUIRED** — read all three agent files inline before dispatching. Do NOT construct your own review instructions in any of the three prompt fields. Each prompt MUST begin with the verbatim agent file content.
 
 Read the three agent files inline and dispatch all three in one message:
 
@@ -318,6 +332,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
     FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-a.json
 
     === DIFF STAT ===
@@ -335,6 +350,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
     FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-b.json
 
     === DIFF STAT ===
@@ -352,6 +368,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
     FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-c.json
 
     === DIFF STAT ===
@@ -378,6 +395,8 @@ FINDINGS_C=$(python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-
 
 **Step 2: Dispatch `dso:code-reviewer-deep-arch` (model: opus) with inline sonnet findings:**
 
+**VERBATIM REQUIRED** — read the arch agent file inline before dispatching. Do NOT construct your own synthesis prompt — that is fabrication.
+
 Read the arch agent file inline before dispatching:
 
 ```bash
@@ -396,6 +415,7 @@ Agent tool:
     DIFF_FILE: {DIFF_FILE from Step 2}
     REPO_ROOT: {REPO_ROOT}
     WORKFLOW_PLUGIN_ARTIFACTS_DIR: {ARTIFACTS_DIR}
+    SELECTED_TIER: {REVIEW_TIER from Step 3 classifier — pass this so the reviewer can embed it in reviewer-findings.json via --selected-tier}
 
     === DIFF STAT ===
     {content of STAT_FILE from Step 2}
@@ -861,7 +881,7 @@ Task tool:
 
 1. Capture a fresh diff hash and diff file (the resolution sub-agent changed the code):
    ```bash
-   NEW_DIFF_HASH=$("${CLAUDE_PLUGIN_ROOT}/hooks/compute-diff-hash.sh")
+   NEW_DIFF_HASH=$("$REPO_ROOT/.claude/scripts/dso" compute-diff-hash.sh)
    NEW_DIFF_HASH_SHORT="${NEW_DIFF_HASH:0:8}"
    NEW_DIFF_FILE="$ARTIFACTS_DIR/review-diff-${NEW_DIFF_HASH_SHORT}.txt"
    NEW_STAT_FILE="$ARTIFACTS_DIR/review-stat-${NEW_DIFF_HASH_SHORT}.txt"

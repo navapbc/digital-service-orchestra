@@ -51,7 +51,7 @@ fi
 # Exempt commits: WIP, merge, pre-compact, checkpoint (same as review_gate).
 hook_test_failure_guard() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"test-failure-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     # Only act on Bash tool calls
@@ -117,7 +117,7 @@ hook_test_failure_guard() {
 # NEVER BLOCKS — warnings only.
 hook_commit_failure_tracker() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"commit-failure-tracker\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     # Only act on Bash tool calls
@@ -291,7 +291,7 @@ is_formatting_only_change() {
 # PreToolUse hook: block Bash commands that cd into the main repo from a worktree.
 hook_worktree_bash_guard() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"worktree-bash-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     # Not a worktree? Allow everything.
@@ -390,7 +390,7 @@ hook_worktree_bash_guard() {
 # PreToolUse hook: block Edit/Write/Bash(mkdir) calls targeting main repo from a worktree.
 hook_worktree_edit_guard() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"worktree-edit-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     # Not a worktree? Allow everything.
@@ -482,7 +482,7 @@ hook_worktree_edit_guard() {
 # of the dedicated Read/Grep tools. WARNING ONLY.
 hook_tool_use_guard() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"tool-use-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     # Fast-path: extract first token without full JSON parse
@@ -540,7 +540,7 @@ hook_tool_use_guard() {
 # PreToolUse hook: block direct writes to review-status files.
 hook_review_integrity_guard() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"review-integrity-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     local COMMAND
@@ -588,7 +588,7 @@ hook_review_integrity_guard() {
 # Safety allowlist: validate.sh and test-batched.sh are never blocked.
 hook_blocked_test_command() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"blocked-test-command\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     # Fast early-exit: skip unless INPUT contains "test" substring (performance)
@@ -742,7 +742,7 @@ print(json.dumps(entry))
 # See: tk show dso-280g
 hook_tickets_tracker_bash_guard() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"tickets-tracker-bash-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     # Only act on Bash tool calls
@@ -826,10 +826,16 @@ hook_tickets_tracker_bash_guard() {
 }
 
 # hook_record_test_status_guard
-# Blocks direct invocations of record-test-status.sh to prevent agents from
-# bypassing the test gate by manually writing status files.
-# Allowlist: --attest flag (used by harvest-worktree.sh for legitimate worktree
-#            trust transfer — transfers test status from isolated worktree to session).
+# Speed-bump against casual misuse of record-test-status.sh. Allows legitimate
+# commit-workflow and worktree-harvest callers via sentinel allowlists.
+# The load-bearing defense against status recorded on a mismatched diff is the
+# diff_hash check inside pre-commit-test-gate.sh (lines 611-618) — this hook
+# does not need to be load-bearing.
+# Allowlist:
+#   --attest flag            harvest-worktree.sh worktree trust transfer
+#   DSO_COMMIT_WORKFLOW=1    env-var sentinel set by COMMIT-WORKFLOW.md Step 4.5
+#                            and related commit-flow prompts (single-agent-integrate,
+#                            per-worktree-review-commit)
 hook_record_test_status_guard() {
     local _json="$1"
     local _cmd
@@ -845,8 +851,14 @@ hook_record_test_status_guard() {
         return 0
     fi
 
+    # Allow DSO_COMMIT_WORKFLOW=1 sentinel: legitimate commit-workflow invocation.
+    if [[ "$_cmd" == *"DSO_COMMIT_WORKFLOW=1"* ]]; then
+        return 0
+    fi
+
     echo "BLOCKED [record-test-status-guard]: Direct calls to record-test-status.sh are not allowed." >&2
     echo "Test status is recorded automatically by the test gate during commits." >&2
     echo "If you need to transfer test status from a worktree, use harvest-worktree.sh (--attest flag)." >&2
+    echo "If you are executing the commit workflow, prefix the call with DSO_COMMIT_WORKFLOW=1." >&2
     trap - ERR; return 2
 }

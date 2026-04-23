@@ -82,6 +82,20 @@ Record the answer as `COMFORT_LEVEL`:
 - If the user enters `2` (or "non-technical"): `COMFORT_LEVEL="non_technical"`
 - If no answer or ambiguous: default to `COMFORT_LEVEL="non_technical"` (safer, more guided path)
 
+### Step 0.1a: Permissions Mode Instruction
+
+Immediately after recording `COMFORT_LEVEL`, display this advisory message before proceeding to any detection:
+
+```
+Onboarding writes ~30 files and runs setup scripts. To avoid approving each one individually,
+consider switching to auto-accept mode now: press Shift+Tab in the input box to cycle through
+permission modes until "auto" is shown, or accept all prompts with 'y' when asked.
+
+You can switch back to your preferred mode any time by pressing Shift+Tab again.
+```
+
+This is advisory — do not wait for a response. Continue to Step 0.2 immediately.
+
 ### Step 0.2: Stack and Project Auto-Detection
 
 Run detection scripts **silently** (before showing output to the user):
@@ -260,7 +274,7 @@ The 6 batch groups and their skip conditions are:
 | 2 | scaffold-claude-structure | `.claude/` structure already present and shim already installed |
 | 3 | config-write | All config files already exist with current content |
 | 4 | initial-commit | All artifacts already committed |
-| 5 | hook-install | Hooks already installed |
+| 5 | hook-install | Hooks already installed AND no new hook artifacts to commit; OR project is not a git repository (skip entirely — ticket system init and hook install both require git) |
 | 6 | final-commit | No hook artifacts to commit |
 
 ---
@@ -436,7 +450,9 @@ Display to user: **(Phase 1 of Y)** where Y = number of phase entries remaining 
 
 ### Step 3: Present Detected Configuration for Confirmation
 
-Before asking any questions, present what was found and ask the user to confirm or correct:
+Before asking any questions, present what was found and ask the user to confirm or correct.
+
+**Stack-aware artifact reporting**: Only list Python-specific artifacts (`pyproject.toml`) if they actually exist on disk. Do NOT list `pyproject.toml` for non-Python projects. Use the `$PYPROJECT` variable set in Step 1 — it is only set when the file exists, so `${PYPROJECT:+present}` is safe to use as the guard.
 
 ```
 I've scanned the project and found:
@@ -446,7 +462,7 @@ I've scanned the project and found:
 - CI workflow filenames: [CI_WORKFLOWS or "none found"]
 - Pre-commit hooks: [.husky/ present / .pre-commit-config.yaml present / "none"]
 - package.json: [present / not found]
-- pyproject.toml: [present / not found]
+[Include this line ONLY if PYPROJECT is set (i.e., pyproject.toml exists): - pyproject.toml: present]
 
 Does this look right, or is anything missing?
 ```
@@ -721,7 +737,7 @@ At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`.
 
 ### Dialogue Rules
 
-**One question at a time** — never present multiple questions in a single message. Pick the most important unknown and ask about it.
+**One question at a time** — never present multiple questions in a single message. Pick the most important unknown and ask about it. Do NOT combine questions in a single sentence or append follow-up questions with "and" or "or" (e.g., "Where does this run? And does it connect to external services?" is a violation — ask only the first question, then wait for the response before asking the next). This rule applies to ALL phases, including the extended design questions — ask one, send the message, wait for a response, then ask the next.
 
 **Confirmation over discovery** — when detection already answered an area, present the detected value and ask the user to confirm or correct it. Do not ask from scratch.
 
@@ -752,7 +768,8 @@ When `comfort_level` is `"non-technical"`, skip or default engineering-specific 
 |------|-----------------------|
 | commands | Use detected commands or defaults (`make test` / `make lint`); never ask about npm vs. Docker invocation style |
 | ci | Use detected CI workflow filename; skip deep CI trigger configuration questions |
-| enforcement | Apply recommended DSO defaults; skip technical gate configuration questions |
+| enforcement | Apply recommended DSO defaults; skip technical gate configuration questions (linting tools, commit message conventions, coverage thresholds) |
+| design | Ask only the high-level UI question ("Does this project have a UI layer?"); skip WCAG standard selection and deep accessibility questions — default to WCAG AA |
 
 For non-technical users: confirm detected values rather than asking open-ended engineering questions. Show summaries, not prompts.
 
@@ -862,7 +879,7 @@ Does this project have a UI or frontend layer? If so, what framework are you usi
 
 **If the answer is "No" (CLI tool, library, infrastructure, or backend-only project):** skip the deep design questions below and record "backend-only / no UI" in the design area of the scratchpad. Do NOT ask vision, archetype, or visual language questions — they are irrelevant for non-UI projects.
 
-**If the answer is "Yes" (project has a UI/frontend component):** continue with the following focused design questions, one at a time:
+**If the answer is "Yes" (project has a UI/frontend component):** continue with the following focused design questions. Ask them **one at a time** — send each question as a separate message and wait for the user's response before sending the next. Do NOT list multiple questions in a single message.
 
 1. **Vision**: "In one sentence, what is the specific value this UI delivers to the user? (e.g., 'Reduces tax filing time by 50% for freelancers')"
 
@@ -876,7 +893,7 @@ Does this project have a UI or frontend layer? If so, what framework are you usi
 
 6. **Accessibility**: "What's your target accessibility standard — WCAG AA, WCAG AAA, or something else?"
 
-After completing these design questions, append findings to the scratchpad under a `## Design (Extended)` section.
+After completing these design questions (each answered in a separate turn), append findings to the scratchpad under a `## Design (Extended)` section.
 
 #### 7. enforcement
 
@@ -982,12 +999,10 @@ Wait for the user to confirm or correct. Update the scratchpad with any correcti
 
 ### Step 1.5: Artifact Review Before Writing
 
-Before writing any artifact to disk, present the full content for user review and approval. Do NOT write files without explicit approval.
+Artifact review and approval happens **once at the Batch Group 3: config-write boundary**, not per file. Do NOT ask for per-artifact approval inside a batch group. When the Group 3 approval prompt fires, present a consolidated summary of all artifacts to be written in that group, then wait for a single approval before writing any of them.
 
-- **Present each artifact** in a fenced code block so the user can review the complete content before it is written.
-- **For files that already exist** (such as `.claude/dso-config.conf` or `CLAUDE.md`), show a diff against the existing content rather than presenting full replacement. Highlight only the lines being added, changed, or removed so the user can see exactly what will change. Showing the existing diff lets the user verify that no existing configuration is being silently overwritten.
-- Ask: "Does this look right? Should I write this file?"
-- Wait for explicit approval before using the Write tool.
+- **For existing files** (such as `.claude/dso-config.conf` or `CLAUDE.md`), include a diff of existing content vs. proposed changes (lines being added, changed, or removed) in the consolidated Group 3 summary so the user can verify nothing is silently overwritten.
+- One approval covers the entire group. Proceed to write all artifacts in the group without pausing between them.
 
 ## Batch Group 3: config-write
 <!-- Skip guard: if all config files already exist with current content, skip -->
@@ -1136,6 +1151,23 @@ Migration logic (run silently during config merge):
 
 This deprecation migration ensures existing projects continue to work without manual config edits when upgrading to the `ci.workflow_name` key introduced in a later DSO version.
 
+#### Per-Stack Command Defaults
+
+When writing initial config, use these per-stack defaults if the config key is absent:
+
+| Stack | commands.lint | commands.format | commands.format_check |
+|-------|--------------|-----------------|----------------------|
+| python-poetry | `poetry run ruff check .` | `poetry run ruff format .` | `poetry run ruff format --check .` |
+| node-npm / node-yarn | `npx eslint --no-error-on-unmatched-pattern .` | `npx prettier --write .` | `npx prettier --check .` |
+| ruby / ruby-bundler | `bundle exec rubocop` | `bundle exec rubocop --autocorrect` | `bundle exec rubocop --format simple` |
+| go | `go vet ./...` | `gofmt -w .` | `gofmt -l .` |
+
+These defaults preserve existing behavior for Python-poetry projects and add first-class support for Node.js, Ruby, and Go projects.
+
+**Key-presence skip rule**: If a key already exists in the config with a non-empty value, do NOT overwrite it. Emit `[DSO INFO] commands.lint already set — skipping` (or the equivalent for `commands.format` / `commands.format_check`) and leave the existing value intact. An empty string is treated as not-set and triggers the per-stack default.
+
+**Ordering constraint**: Always write `commands.test_runner` before `commands.lint`, `commands.format`, and `commands.format_check`. Stack detection populates the test runner; lint/format defaults depend on the confirmed stack and should follow.
+
 #### Required Config Keys
 
 Generate all of the following config keys (flat `KEY=VALUE` format). For each key that cannot be auto-detected, apply the fallback behavior described below.
@@ -1236,7 +1268,7 @@ Use the user's response to populate `ci.integration_workflow` and the CI job key
 |----------|-------------|--------|
 | `format` | `format.line_length`, `format.indent` | Enforcement answers |
 | `ci` | `ci.workflow_name`, `ci.fast_gate_job`, `ci.fast_fail_job`, `ci.test_ceil_job`, `ci.integration_workflow` | Confirmed from workflow filenames + `ci_workflow_names` detection (`ci.workflow_name` replaces deprecated `merge.ci_workflow_name`; see auto-migration above) |
-| `commands` | `commands.test`, `commands.lint`, `commands.format` | Commands area answers |
+| `commands` | `commands.test`, `commands.lint`, `commands.format`, `commands.format_check` | Commands area answers |
 | `jira` | `jira.project` (if Jira integration desired) | User-stated |
 | `design` | `design.system_name`, `design.component_library` | Design area answers |
 | `tickets` | `tickets.prefix` | Derived from project name (see below) |
@@ -1444,7 +1476,16 @@ After hook installation, confirm with the user which hook manager was used and w
 
 #### Ticket System Initialization
 
-Initialize the DSO ticket system by creating an orphan branch and setting up the `.tickets-tracker/` directory:
+**Git repository guard:** Before running any ticket system init commands, verify this is an initialized git repository. If not, skip this section and warn the user:
+
+```bash
+if ! git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "WARNING: Not a git repository. Run 'git init' first, then re-run /dso:onboarding to initialize the ticket system."
+    # skip ticket system init — cannot create orphan branch without git
+fi
+```
+
+If the git guard passes, initialize the DSO ticket system by creating an orphan branch and setting up the `.tickets-tracker/` directory:
 
 ```bash
 # Create orphan branch for ticket event storage
@@ -1702,11 +1743,15 @@ I can now codify this understanding into durable project artifacts using /dso:ar
 Would you like me to invoke /dso:architect-foundation now?
 ```
 
-If the user says yes, invoke:
+If the user says yes, invoke `/dso:architect-foundation`. When `COMFORT_LEVEL` is set, pass the appropriate flag:
+
+- `COMFORT_LEVEL="non_technical"`: invoke with `--auto` (skips interactive prompts, applies sensible defaults)
+- `COMFORT_LEVEL="technical"` or not set: invoke without flags
 
 ```
 Skill tool:
   skill: "dso:architect-foundation"
+  args: "--auto"   # omit if COMFORT_LEVEL != "non_technical"
 ```
 
 If the user says no or wants to continue manually, proceed to Step 7.

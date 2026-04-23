@@ -52,8 +52,18 @@ _make_tmpdir() {
     echo "$d"
 }
 
-# ── Helper: create an isolated git repo for record-test-status tests ────────
-_make_rts_repo() {
+# ── Shared git repos (created once, reused across tests) ─────────────────────
+# Creating a git repo (init + config + commits + staged change) takes ~0.6-1s
+# per repo. The tests need 3 rts repos and 2 gate repos per full run, which
+# compounds under CI load and causes intermittent timeout failures. By creating
+# one repo of each type up-front and reusing it, we cut git overhead by ~60%.
+# record-test-status.sh and the gate hook are read-only against the git repo
+# (they read staged state, diff hash, etc. but do not commit or modify files),
+# so sharing is safe as long as each test uses its own fresh artifacts dir.
+_RTS_REPO=""
+_GATE_REPO=""
+
+_init_shared_rts_repo() {
     local tmpdir
     tmpdir=$(mktemp -d)
     _TEST_TMPDIRS+=("$tmpdir")
@@ -61,10 +71,6 @@ _make_rts_repo() {
     git -C "$tmpdir" init --quiet 2>/dev/null
     git -C "$tmpdir" config user.email "test@test.com"
     git -C "$tmpdir" config user.name "Test"
-
-    touch "$tmpdir/.gitkeep"
-    git -C "$tmpdir" add .gitkeep
-    git -C "$tmpdir" commit -m "initial" --quiet 2>/dev/null
 
     mkdir -p "$tmpdir/src" "$tmpdir/tests"
 
@@ -90,40 +96,42 @@ IDXEOF
     echo "# changed" >> "$tmpdir/src/widget.sh"
     git -C "$tmpdir" add "$tmpdir/src/widget.sh"
 
-    echo "$tmpdir"
+    _RTS_REPO="$tmpdir"
 }
 
-# ── Helper: create a fresh gate test repo ────────────────────────────────────
-_make_gate_repo() {
+_init_shared_gate_repo() {
     local tmpdir
     tmpdir=$(mktemp -d)
     _TEST_TMPDIRS+=("$tmpdir")
-    git -C "$tmpdir" init -q
+
+    git -C "$tmpdir" init -q 2>/dev/null
     git -C "$tmpdir" config user.email "test@test.com"
     git -C "$tmpdir" config user.name "Test"
     git -C "$tmpdir" config commit.gpgsign false
-    echo "initial" > "$tmpdir/README.md"
-    git -C "$tmpdir" add -A
-    git -C "$tmpdir" commit -q -m "init"
 
     mkdir -p "$tmpdir/src" "$tmpdir/tests"
     echo 'def widget(): return 1' > "$tmpdir/src/widget.py"
     echo 'def test_widget(): assert True' > "$tmpdir/tests/test_widget.py"
     git -C "$tmpdir" add -A
-    git -C "$tmpdir" commit -q -m "add widget"
+    git -C "$tmpdir" commit -q -m "add widget" 2>/dev/null
 
     echo '# changed' >> "$tmpdir/src/widget.py"
     git -C "$tmpdir" add "$tmpdir/src/widget.py"
 
-    echo "$tmpdir"
+    _GATE_REPO="$tmpdir"
 }
+
+# Initialize shared repos once before running any tests.
+_init_shared_rts_repo
+_init_shared_gate_repo
 
 # ── Helper: compute diff hash for a gate repo ───────────────────────────────
 _compute_hash_in_repo() {
     local repo_dir="$1"
     local artifacts_dir="$2"
+    # shellcheck disable=SC2030,SC2031  # exports are intentionally scoped to the subshell
     (
-        cd "$repo_dir"
+        cd "$repo_dir" || exit 1
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         bash "$COMPUTE_HASH_SCRIPT" 2>/dev/null
@@ -135,8 +143,9 @@ _run_gate_hook() {
     local repo_dir="$1"
     local artifacts_dir="$2"
     local exit_code=0
+    # shellcheck disable=SC2030,SC2031  # exports are intentionally scoped to the subshell
     (
-        cd "$repo_dir"
+        cd "$repo_dir" || exit 1
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         bash "$GATE_HOOK" 2>/dev/null
@@ -242,13 +251,12 @@ MOCK
 # with --source-file. Verify test-gate-status line 1 = "resource_exhaustion".
 # ============================================================
 test_record_test_status_reclassifies_eagain() {
-    local repo artifacts runner
-    repo=$(_make_rts_repo)
+    local artifacts runner
     artifacts=$(_make_tmpdir)
     runner=$(_make_mock_runner 254 "fork: Resource temporarily unavailable")
 
     (
-        cd "$repo"
+        cd "$_RTS_REPO"
         WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         RECORD_TEST_STATUS_RUNNER="$runner" \
@@ -269,19 +277,18 @@ test_record_test_status_reclassifies_eagain() {
 # Verify non-blocking exit (exit 0).
 # ============================================================
 test_gate_allows_resource_exhaustion() {
-    local repo artifacts
-    repo=$(_make_gate_repo)
+    local artifacts
     artifacts=$(_make_tmpdir)
 
     local diff_hash
-    diff_hash=$(_compute_hash_in_repo "$repo" "$artifacts")
+    diff_hash=$(_compute_hash_in_repo "$_GATE_REPO" "$artifacts")
 
     mkdir -p "$artifacts"
     printf 'resource_exhaustion\ndiff_hash=%s\ntimestamp=2026-04-05T00:00:00Z\ntested_files=tests/test_widget.py\n' \
         "$diff_hash" > "$artifacts/test-gate-status"
 
     local exit_code
-    exit_code=$(_run_gate_hook "$repo" "$artifacts")
+    exit_code=$(_run_gate_hook "$_GATE_REPO" "$artifacts")
 
     assert_eq "gate_allows: gate exits 0 for resource_exhaustion" "0" "$exit_code"
 }
@@ -333,14 +340,13 @@ MOCK
     assert_eq "chain_A: suite-engine retried (called twice)" "2" "$final_count"
     assert_contains "chain_A: suite reports PASS after retry" "test-chain-mock.sh ... PASS" "$suite_output"
 
-    # --- Step B: record-test-status reclassification ---
-    local repo artifacts runner
-    repo=$(_make_rts_repo)
+    # --- Step B: record-test-status reclassification (reuse shared rts repo) ---
+    local artifacts runner
     artifacts=$(_make_tmpdir)
     runner=$(_make_mock_runner 254 "BlockingIOError: [Errno 35] Resource temporarily unavailable")
 
     (
-        cd "$repo"
+        cd "$_RTS_REPO"
         WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         RECORD_TEST_STATUS_RUNNER="$runner" \
@@ -352,20 +358,19 @@ MOCK
     assert_eq "chain_B: record-test-status wrote resource_exhaustion" \
         "resource_exhaustion" "$status"
 
-    # --- Step C: gate non-blocking ---
-    local gate_repo gate_artifacts
-    gate_repo=$(_make_gate_repo)
+    # --- Step C: gate non-blocking (reuse shared gate repo) ---
+    local gate_artifacts
     gate_artifacts=$(_make_tmpdir)
 
     local diff_hash
-    diff_hash=$(_compute_hash_in_repo "$gate_repo" "$gate_artifacts")
+    diff_hash=$(_compute_hash_in_repo "$_GATE_REPO" "$gate_artifacts")
 
     mkdir -p "$gate_artifacts"
     printf 'resource_exhaustion\ndiff_hash=%s\ntimestamp=2026-04-05T00:00:00Z\ntested_files=tests/test_widget.py\n' \
         "$diff_hash" > "$gate_artifacts/test-gate-status"
 
     local gate_exit
-    gate_exit=$(_run_gate_hook "$gate_repo" "$gate_artifacts")
+    gate_exit=$(_run_gate_hook "$_GATE_REPO" "$gate_artifacts")
 
     assert_eq "chain_C: gate allows resource_exhaustion (exit 0)" "0" "$gate_exit"
 }
@@ -418,13 +423,12 @@ MOCK
 # (dual-condition: EAGAIN pattern alone insufficient without exit 254).
 # ============================================================
 test_no_reclassify_without_exit_254() {
-    local repo artifacts runner
-    repo=$(_make_rts_repo)
+    local artifacts runner
     artifacts=$(_make_tmpdir)
     runner=$(_make_mock_runner 1 "fork: Resource temporarily unavailable")
 
     (
-        cd "$repo"
+        cd "$_RTS_REPO"
         WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         RECORD_TEST_STATUS_RUNNER="$runner" \

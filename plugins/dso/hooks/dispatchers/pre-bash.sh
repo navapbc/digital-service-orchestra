@@ -35,6 +35,13 @@ fi
 
 HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
 
+# Source shared ERR handler (fail-open: if missing, continue without trap)
+if [[ -f "${HOOKS_LIB_DIR}/hook-error-handler.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "${HOOKS_LIB_DIR}/hook-error-handler.sh" 2>/dev/null || true
+    _dso_register_hook_err_handler "pre-bash.sh"
+fi
+
 # macOS-compatible millisecond timestamp (date +%s%N unavailable on macOS)
 # Guarantees a numeric result — falls back to python3, then 0.
 _get_ms() {
@@ -129,6 +136,14 @@ _pre_bash_dispatch() {
 # Only execute dispatch logic when run as a script (not sourced).
 # Detection: BASH_SOURCE[0] == $0 means we were invoked directly.
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    _pre_bash_dispatch
-    exit $?
+    _dispatch_exit=0
+    _pre_bash_dispatch || _dispatch_exit=$?
+    # Disable both ERR and EXIT traps before exiting. Guard functions set ERR
+    # traps referencing function-local HOOK_ERROR_LOG; on happy-path return the
+    # trap leaks into this scope. Without clearing ERR, the leaked trap fires on
+    # the non-zero _dispatch_exit and produces spurious 'No such file' and
+    # 'return from function' trailers (bug 1c89-68ee). The || above also
+    # prevents the ERR trap from firing mid-capture of the dispatch return code.
+    trap - ERR EXIT 2>/dev/null || true
+    exit "$_dispatch_exit"
 fi

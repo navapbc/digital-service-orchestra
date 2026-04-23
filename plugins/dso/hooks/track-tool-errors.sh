@@ -17,7 +17,7 @@ trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi; exit 0' EXIT
 exec 2>/dev/null
 
 # Log unexpected errors to JSONL
-HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
 trap 'printf "{\"ts\":\"%s\",\"hook\":\"track-tool-errors.sh\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; exit 0' ERR
 
 # Source shared dependency library

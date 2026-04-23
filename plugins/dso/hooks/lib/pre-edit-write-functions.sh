@@ -156,7 +156,7 @@ hook_cascade_circuit_breaker() {
 #   6. All other cases: return 0 (fail open)
 hook_title_length_validator() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"title-length-validator\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     local TITLE_MAX=255
@@ -243,7 +243,7 @@ hook_title_length_validator() {
 # See: ticket show dso-280g
 hook_tickets_tracker_guard() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"tickets-tracker-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     # Only act on Edit or Write tool calls
@@ -292,7 +292,7 @@ hook_tickets_tracker_guard() {
 #   4. All other cases: return 0 (allow, fail-open)
 hook_block_generated_reviewer_agents() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"block-generated-reviewer-agents\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     # Only act on Edit or Write tool calls

@@ -1,13 +1,29 @@
 {
-    "name": "digital-service-orchestra",
-    "owner": {
-      "name": "Nava PBC"
+  "name": "digital-service-orchestra",
+  "owner": {
+    "name": "Nava PBC"
+  },
+  "plugins": [
+    {
+      "name": "dso",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/navapbc/digital-service-orchestra.git",
+        "path": "plugins/dso",
+        "ref": "v1.13.0"
+      },
+      "description": "Workflow infrastructure plugin for Claude Code projects (stable channel)"
     },
-    "plugins": [
-      {
-        "name": "dso",
-        "source": "./plugins/dso",
-        "description": "Workflow infrastructure plugin for Claude Code projects"
-      }
-    ]
+    {
+      "name": "dso-dev",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/navapbc/digital-service-orchestra.git",
+        "path": "plugins/dso",
+        "ref": "main"
+      },
+      "description": "Workflow infrastructure plugin for Claude Code projects (dev channel — updates on every merge to main)"
+    }
+  ],
+  "version": "1.13.0"
 }

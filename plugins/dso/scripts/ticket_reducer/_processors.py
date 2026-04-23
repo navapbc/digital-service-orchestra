@@ -122,9 +122,7 @@ def process_bridge_alert(state: dict, event: dict, data: dict, event_uuid: str) 
     data.reason (outbound), then data.detail, then empty string.
     Resolution: resolves_uuid (test contract) takes precedence over alert_uuid (spec).
     """
-    reason = (
-        data.get("alert_type") or data.get("reason") or data.get("detail") or ""
-    )
+    reason = data.get("alert_type") or data.get("reason") or data.get("detail") or ""
     if data.get("resolved"):
         target_uuid = data.get("resolves_uuid") or data.get("alert_uuid")
         matched = False
@@ -181,9 +179,7 @@ def process_edit(state: dict, data: dict) -> None:
             if isinstance(new_value, list):
                 state["tags"] = new_value
             elif isinstance(new_value, str):
-                state["tags"] = [
-                    t.strip() for t in new_value.split(",") if t.strip()
-                ]
+                state["tags"] = [t.strip() for t in new_value.split(",") if t.strip()]
             else:
                 state["tags"] = []
         else:

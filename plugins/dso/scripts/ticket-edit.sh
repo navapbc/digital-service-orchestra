@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/ticket-lib.sh"
 
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
-TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {

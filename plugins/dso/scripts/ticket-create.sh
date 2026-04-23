@@ -13,12 +13,15 @@ _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd
 # Outputs the created ticket ID to stdout (only the ID — no other output).
 set -euo pipefail
 
+# Unset git hook env vars before any git commands so REPO_ROOT resolves from CWD.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=${_PLUGIN_ROOT}/scripts/ticket-lib.sh
 source "$SCRIPT_DIR/ticket-lib.sh"
 
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
-TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {

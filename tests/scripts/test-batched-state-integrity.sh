@@ -504,5 +504,63 @@ else
     echo "  FAIL: DEFAULT_TIMEOUT=$_actual_default_timeout exceeds $_max_allowed — risk of platform SIGURG before save-state fires (bug 8141-41eb)" >&2
 fi
 
+# ── test_per_test_timeout_marks_result (07f1-f8b6) ───────────────────────────
+# When --per-test-timeout=N is set and a test runs longer than N seconds, the
+# test must be recorded as "interrupted-timeout-exceeded" (not "interrupted").
+# This allows the resume filter to skip it on the next run instead of retrying.
+#
+# Strategy: create a slow test (sleep 10), run with --per-test-timeout=1, and
+# verify the state file contains "interrupted-timeout-exceeded" for that test.
+echo ""
+echo "--- test_per_test_timeout_marks_result ---"
+_snapshot_fail
+TMPDIR_PERTIMEOUT="$(mktemp -d)"
+
+SLOW_STUB_NAME="test-slow-stub.sh"
+SLOW_STUB_TEST="$TMPDIR_PERTIMEOUT/$SLOW_STUB_NAME"
+cat > "$SLOW_STUB_TEST" <<'STUB'
+#!/usr/bin/env bash
+sleep 30
+echo "slow stub finished"
+exit 0
+STUB
+chmod +x "$SLOW_STUB_TEST"
+
+PERTIMEOUT_STATE="$TMPDIR_PERTIMEOUT/state.json"
+
+pertimeout_out=""
+pertimeout_exit=0
+pertimeout_out=$(TEST_BATCHED_STATE_FILE="$PERTIMEOUT_STATE" bash "$SCRIPT" \
+    --runner=bash --test-dir="$TMPDIR_PERTIMEOUT" \
+    --timeout=20 --per-test-timeout=1 2>&1) || pertimeout_exit=$?
+
+# The slow stub must have been killed (not allowed to finish)
+finished_pt=0
+_tmp="$pertimeout_out"; [[ "$_tmp" == *"slow stub finished"* ]] && finished_pt=1
+assert_eq "test_per_test_timeout_marks_result: slow test was killed before finishing" \
+    "0" "$finished_pt"
+
+# State file must exist (runner saves state on per-test-timeout kill)
+state_exists=0
+[ -f "$PERTIMEOUT_STATE" ] && state_exists=1
+assert_eq "test_per_test_timeout_marks_result: state file saved after per-test timeout" \
+    "1" "$state_exists"
+
+# State must record 'interrupted-timeout-exceeded' for the slow test (not 'interrupted')
+result_val="none"
+if [ -f "$PERTIMEOUT_STATE" ]; then
+    result_val=$(python3 -c "
+import json, sys
+d = json.load(open(sys.argv[1]))
+results = d.get('results', {})
+print(list(results.values())[0] if results else 'empty')
+" "$PERTIMEOUT_STATE" 2>/dev/null || echo "parse-error")
+fi
+assert_eq "test_per_test_timeout_marks_result: slow test recorded as interrupted-timeout-exceeded" \
+    "interrupted-timeout-exceeded" "$result_val"
+
+rm -rf "$TMPDIR_PERTIMEOUT"
+assert_pass_if_clean "test_per_test_timeout_marks_result"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

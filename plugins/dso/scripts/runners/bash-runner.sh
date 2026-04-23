@@ -14,6 +14,8 @@
 #   TIMEOUT       — timeout in seconds
 #   DEFAULT_TIMEOUT — default timeout value (for resume command construction)
 #   CMD           — fallback command (optional for bash runner)
+#   FILTER_PATTERN — optional glob pattern; when set, only test files whose
+#                    basename matches the pattern are run (set by test-batched.sh)
 #
 # After sourcing, the caller checks USE_BASH_RUNNER and, if set, calls
 # _bash_runner_run to execute the bash runner path.
@@ -38,6 +40,28 @@ _bash_discover_files() {
     [ "$found" -eq 1 ]
 }
 
+# _bash_apply_filter <pattern>
+# Filters BASH_FILES in-place, keeping only files whose basename matches
+# the given glob pattern. When no files match, prints a warning to stderr.
+# No-op when pattern is empty.
+_bash_apply_filter() {
+    local pattern="${1:-}"
+    [ -z "$pattern" ] && return 0
+    local filtered=()
+    for f in "${BASH_FILES[@]+"${BASH_FILES[@]}"}"; do
+        local base
+        base="$(basename "$f")"
+        # shellcheck disable=SC2254
+        case "$base" in
+            $pattern) filtered+=("$f") ;;
+        esac
+    done
+    if [ "${#filtered[@]}" -eq 0 ]; then
+        echo "WARNING: --filter=$pattern: no test files matched; nothing to run." >&2
+    fi
+    BASH_FILES=("${filtered[@]+"${filtered[@]}"}")
+}
+
 # Determine effective runner ──────────────────────────────────────────────────
 USE_BASH_RUNNER=0
 BASH_FILES=()
@@ -51,8 +75,16 @@ if [ "$RUNNER" = "bash" ]; then
             BASH_FILES+=("$f")
         done < <(_bash_discover_files "$TEST_DIR" 2>/dev/null || true)
 
+        # Apply filename filter if set
+        _bash_apply_filter "${FILTER_PATTERN:-}"
+
         if [ "${#BASH_FILES[@]}" -eq 0 ]; then
-            echo "WARNING: --runner=bash: no test-*.sh files found under $TEST_DIR; falling back to generic runner." >&2
+            if [ -n "${FILTER_PATTERN:-}" ]; then
+                # Filter matched nothing — warning already printed; exit cleanly (not an error).
+                exit 0
+            else
+                echo "WARNING: --runner=bash: no test-*.sh files found under $TEST_DIR; falling back to generic runner." >&2
+            fi
         else
             USE_BASH_RUNNER=1
         fi
@@ -63,6 +95,9 @@ elif [ -z "$RUNNER" ] && [ -n "$TEST_DIR" ]; then
     while IFS= read -r f; do
         BASH_FILES+=("$f")
     done < <(_bash_discover_files "$TEST_DIR" 2>/dev/null || true)
+
+    # Apply filename filter if set
+    _bash_apply_filter "${FILTER_PATTERN:-}"
 
     if [ "${#BASH_FILES[@]}" -gt 0 ]; then
         USE_BASH_RUNNER=1
@@ -106,7 +141,9 @@ _bash_runner_run() {
         local resume_dir_arg="--test-dir=${TEST_DIR}"
         local resume_timeout_arg=""
         [ "$TIMEOUT" -ne "$DEFAULT_TIMEOUT" ] && resume_timeout_arg="--timeout=$TIMEOUT "
-        local resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 ${resume_runner_arg} ${resume_dir_arg} ${resume_timeout_arg}${CMD:+"'$CMD'"}"
+        local resume_filter_arg=""
+        [ -n "${FILTER_PATTERN:-}" ] && resume_filter_arg="--filter=${FILTER_PATTERN} "
+        local resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 ${resume_runner_arg} ${resume_dir_arg} ${resume_timeout_arg}${resume_filter_arg}${CMD:+"'$CMD'"}"
         echo ""
         echo "$done_count/$TOTAL tests completed."
         echo ""
@@ -157,12 +194,26 @@ _bash_runner_run() {
         local bash_exit=0
         bash "$bash_file" &
         local _test_bg_pid=$!
+        _ACTIVE_CHILD_PID=$_test_bg_pid
+        local _test_start_time
+        _test_start_time=$(date +%s)
 
         # Monitor: poll until the test finishes or the time budget runs out.
         while kill -0 "$_test_bg_pid" 2>/dev/null; do
+            # Per-test timeout: if this individual test has run longer than
+            # PER_TEST_TIMEOUT seconds, mark it as terminal (not retried on resume).
+            if [ -n "${PER_TEST_TIMEOUT:-}" ] && [ $(( $(date +%s) - _test_start_time )) -ge "$PER_TEST_TIMEOUT" ]; then
+                _ACTIVE_CHILD_PID=""
+                kill -- -"$_test_bg_pid" 2>/dev/null || kill "$_test_bg_pid" 2>/dev/null || true
+                wait "$_test_bg_pid" 2>/dev/null || true
+                COMPLETED_LIST+=("$test_id")
+                RESULTS_JSON=$(_results_add "$RESULTS_JSON" "$test_id" "interrupted-timeout-exceeded")
+                _save_state_and_resume_bash
+            fi
             if [ "$(_elapsed)" -ge "$TIMEOUT" ]; then
                 # Kill entire process group (negative PID) so child processes
                 # spawned by the test script don't survive as orphans.
+                _ACTIVE_CHILD_PID=""
                 kill -- -"$_test_bg_pid" 2>/dev/null || kill "$_test_bg_pid" 2>/dev/null || true
                 wait "$_test_bg_pid" 2>/dev/null || true
                 COMPLETED_LIST+=("$test_id")
@@ -174,6 +225,7 @@ _bash_runner_run() {
 
         # `wait` on a direct child always returns the child's actual exit code —
         # no file-write race is possible here.
+        _ACTIVE_CHILD_PID=""
         wait "$_test_bg_pid" 2>/dev/null; bash_exit=$?
 
         local bash_outcome
@@ -191,14 +243,19 @@ _bash_runner_run() {
     done
 
     # All bash files processed — print summary
-    local pass_count fail_count interrupted_count total_done
+    local pass_count fail_count interrupted_count timed_out_count total_done
     pass_count=$(_results_count "$RESULTS_JSON" "pass")
     fail_count=$(_results_count "$RESULTS_JSON" "fail")
     interrupted_count=$(_results_count "$RESULTS_JSON" "interrupted")
+    timed_out_count=$(_results_count "$RESULTS_JSON" "interrupted-timeout-exceeded")
     total_done=${#COMPLETED_LIST[@]}
 
     echo ""
-    echo "All tests done. $total_done/$TOTAL tests completed. $pass_count passed, $fail_count failed, $interrupted_count interrupted."
+    if [ "$timed_out_count" -gt 0 ]; then
+        echo "All tests done. $total_done/$TOTAL tests completed. $pass_count passed, $fail_count failed, $interrupted_count interrupted, $timed_out_count timed-out (skipped on resume)."
+    else
+        echo "All tests done. $total_done/$TOTAL tests completed. $pass_count passed, $fail_count failed, $interrupted_count interrupted."
+    fi
 
     if [ "$fail_count" -gt 0 ]; then
         echo ""
@@ -209,6 +266,6 @@ _bash_runner_run() {
     fi
 
     rm -f "$STATE_FILE"
-    # Interrupted tests are non-passing — exit non-zero if any tests failed or were interrupted
-    [ "$fail_count" -gt 0 ] || [ "$interrupted_count" -gt 0 ] && exit 1 || exit 0
+    # Interrupted and timed-out tests are non-passing — exit non-zero if any tests failed or were interrupted
+    [ "$fail_count" -gt 0 ] || [ "$interrupted_count" -gt 0 ] || [ "$timed_out_count" -gt 0 ] && exit 1 || exit 0
 }

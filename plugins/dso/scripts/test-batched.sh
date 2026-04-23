@@ -12,9 +12,18 @@ set -uo pipefail
 # Options:
 #   --help              Show this help and exit
 #   --timeout=N         Stop after N seconds (default: 50)
+#   --per-test-timeout=N  Mark a single test as interrupted-timeout-exceeded (not retried)
+#                         when it individually exceeds N seconds. Without this flag, any
+#                         test killed by the global --timeout is marked as "interrupted"
+#                         (retried on resume), which causes an infinite loop when a test
+#                         always exceeds the budget (bug 07f1-f8b6).
 #   --state-file=PATH   Path to JSON state file (default: /tmp/test-batched-state.json)
-#   --runner=RUNNER     Test runner driver: node, pytest, or generic (default: auto-detect)
+#   --runner=RUNNER     Test runner driver: node, pytest, bash, or generic (default: auto-detect)
 #   --test-dir=PATH     Directory to search for test files (used by runner drivers)
+#   --filter=PATTERN    Only run test files whose basename matches PATTERN (glob).
+#                       Applied after discovery; no matches prints a warning and exits 0.
+#                       Works with bash runner (and pytest runner via -k flag).
+#                       Example: --filter=test_check*
 #
 # Runner drivers:
 #   node      Discovers *.test.js and *.test.mjs files under --test-dir and runs
@@ -69,6 +78,12 @@ set -m  # Enable job control so background jobs get their own process group
 # when calculating their time budget relative to the Claude Code tool timeout.
 _SCRIPT_ENTRY_TIME=$(date +%s)
 
+# ── Active child PID tracking (for signal handler cleanup) ───────────────────
+# Set to the PID of the currently-running background child process so that
+# signal handlers can kill grandchild processes before killing the subshell,
+# preventing them from becoming orphans (PPID=1 after parent exits).
+_ACTIVE_CHILD_PID=""
+
 # ── Signal handling ────────────────────────────────────────────────────────────
 # Trap SIGTERM, SIGINT, and SIGURG (exit code 144 from Claude Code tool timeout)
 # to save state before exiting, enabling resume on the next invocation.
@@ -81,6 +96,21 @@ _SCRIPT_ENTRY_TIME=$(date +%s)
 
 _signal_handler() {
     local sig="${1:-TERM}"
+    # Kill active child processes before saving state to prevent orphans.
+    # For SIGTERM, SIGHUP, SIGINT (intentional exits — not SIGURG tool timeout):
+    # kill grandchildren FIRST (while subshell is still their parent) so pkill -P
+    # can reach them before they get re-parented to PPID=1.
+    if [ "$sig" != "URG" ]; then
+        trap '' SIGTERM SIGHUP SIGINT  # prevent re-entrancy
+        if [ -n "${_ACTIVE_CHILD_PID:-}" ]; then
+            pkill -TERM -P "$_ACTIVE_CHILD_PID" 2>/dev/null || true
+            kill -TERM "$_ACTIVE_CHILD_PID" 2>/dev/null || true
+            sleep 0.2
+            pkill -KILL -P "$_ACTIVE_CHILD_PID" 2>/dev/null || true
+            kill -KILL "$_ACTIVE_CHILD_PID" 2>/dev/null || true
+        fi
+        pkill -TERM -P "$$" 2>/dev/null || true
+    fi
     # Guard: only write state if STATE_FILE is defined and non-empty
     if [ -n "${STATE_FILE:-}" ]; then
         local completed_json results_json
@@ -129,7 +159,9 @@ except Exception:
             if [ -n "${RUNNER:-}" ] && [ -n "${TEST_DIR:-}" ]; then
                 local _timeout_arg=""
                 [ "${TIMEOUT:-0}" -ne "${DEFAULT_TIMEOUT:-40}" ] 2>/dev/null && _timeout_arg="--timeout=${TIMEOUT} "
-                resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 --runner=${RUNNER} --test-dir=${TEST_DIR} ${_timeout_arg}${CMD:+"'$CMD'"}"
+                local _filter_arg=""
+                [ -n "${FILTER_PATTERN:-}" ] && _filter_arg="--filter=${FILTER_PATTERN} "
+                resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 --runner=${RUNNER} --test-dir=${TEST_DIR} ${_timeout_arg}${_filter_arg}${CMD:+"'$CMD'"}"
             elif [ -n "${CMD:-}" ]; then
                 local _timeout_arg=""
                 [ "${TIMEOUT:-0}" -ne "${DEFAULT_TIMEOUT:-40}" ] 2>/dev/null && _timeout_arg="--timeout=${TIMEOUT} "
@@ -154,6 +186,7 @@ except Exception:
 
 trap '_signal_handler TERM' SIGTERM
 trap '_signal_handler INT'  SIGINT
+trap '_signal_handler HUP'  SIGHUP
 trap '_signal_handler URG'  SIGURG
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -186,6 +219,8 @@ STATE_TTL="${STATE_TTL:-$DEFAULT_STATE_TTL}"
 CMD=""
 RUNNER=""
 TEST_DIR=""
+PER_TEST_TIMEOUT=""
+FILTER_PATTERN=""
 
 for arg in "$@"; do
     case "$arg" in
@@ -196,6 +231,9 @@ for arg in "$@"; do
         --timeout=*)
             TIMEOUT="${arg#--timeout=}"
             ;;
+        --per-test-timeout=*)
+            PER_TEST_TIMEOUT="${arg#--per-test-timeout=}"
+            ;;
         --state-file=*)
             STATE_FILE="${arg#--state-file=}"
             ;;
@@ -204,6 +242,9 @@ for arg in "$@"; do
             ;;
         --test-dir=*)
             TEST_DIR="${arg#--test-dir=}"
+            ;;
+        --filter=*)
+            FILTER_PATTERN="${arg#--filter=}"
             ;;
         --*)
             echo "ERROR: Unknown option: $arg" >&2
@@ -578,12 +619,14 @@ trap 'rm -f "$_exit_code_file"' EXIT
     echo $? > "$_exit_code_file"
 ) &
 CMD_PID=$!
+_ACTIVE_CHILD_PID=$CMD_PID
 
 # Wait for completion or timeout
 while kill -0 "$CMD_PID" 2>/dev/null; do
     if [ "$(_elapsed)" -ge "$TIMEOUT" ]; then
         # Kill the entire process group (negative PID) so child processes
         # spawned by bash -c don't survive as orphans.
+        _ACTIVE_CHILD_PID=""
         kill -- -"$CMD_PID" 2>/dev/null || kill "$CMD_PID" 2>/dev/null || true
         wait "$CMD_PID" 2>/dev/null || true
         rm -f "$_exit_code_file"
@@ -594,6 +637,7 @@ while kill -0 "$CMD_PID" 2>/dev/null; do
     sleep 0.1 2>/dev/null || sleep 1
 done
 
+_ACTIVE_CHILD_PID=""
 wait "$CMD_PID" 2>/dev/null; test_exit=$?
 # Read real exit code if written
 if [ -f "$_exit_code_file" ]; then

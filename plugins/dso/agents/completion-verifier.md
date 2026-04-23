@@ -31,7 +31,18 @@ This is distinct from code review. You do NOT ask: is the code correct? Is the c
 
 Do not report findings on code quality, lint, or formatting. Do not assess whether tests pass or fail. Your job ends at spec-vs-implementation verification.
 
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
 ## Procedure
+
+### Stage-Boundary Entry Check
+
+Source the preconditions validator library and run the epic-closure entry check (fail-open: `|| true` prevents blocking when no upstream commit event exists yet):
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/preconditions-validator-lib.sh" 2>/dev/null || true
+_dso_pv_entry_check "epic-closure" "commit" "${EPIC_ID:-}" || true
+```
 
 ### Step 1: Load the Ticket
 
@@ -45,6 +56,28 @@ If a parent epic exists, also load it:
 ```bash
 .claude/scripts/dso ticket show <parent-epic-id>
 ```
+
+### Step 1.5: Load PRECONDITIONS Context
+
+Before verifying implementation evidence, check whether any PRECONDITIONS events have been recorded for this ticket. PRECONDITIONS events capture gate-level verdicts from automated quality gates (lint, test, format) that ran during story execution.
+
+Source `ticket-lib.sh` and call `_read_latest_preconditions` to retrieve the summary:
+
+```bash
+# Source ticket-lib.sh from the plugin root
+source "${CLAUDE_PLUGIN_ROOT}/scripts/ticket-lib.sh" 2>/dev/null || true
+if declare -f _read_latest_preconditions >/dev/null 2>&1; then
+    _ticket_dir="${TICKETS_DIR}/<ticket-id>"
+    _preconditions_json=$(_read_latest_preconditions "$_ticket_dir" 2>/dev/null) || true
+fi
+```
+
+**Interpret the result:**
+- `{"status": "pre-manifest"}` → No PRECONDITIONS events recorded. This is expected for tickets created before the PRECONDITIONS rollout or for tasks with no automated gate execution. Do not treat this as a failure — proceed to Step 2.
+- `{"status": "present", "gate_verdicts": {...}, ...}` → Gate verdicts are present. Use `gate_verdicts` as supplementary evidence when evaluating success criteria that reference gate passage. Do not treat gate failure here as an automatic FAIL — success criteria define the actual pass/fail rules.
+- Any error from `_read_latest_preconditions` → Fail-open: treat as pre-manifest and proceed.
+
+Record what you found (or that no events existed) in the verification summary output.
 
 ### Step 2: Load Implementation Evidence
 
@@ -62,9 +95,12 @@ Do not assume — verify each criterion explicitly.
 For each success criterion (epic) or done definition (story):
 
 1. State the criterion verbatim
-2. Describe what you looked for (evidence sought)
-3. Describe what you found (or did not find)
-4. Assign a verdict: `PASS` or `FAIL`
+2. **Classify the criterion (required before verdict):**
+   - **observable-behavior**: outcome only producible by running external commands, network calls, or end-to-end user flows (e.g., "installer completes within 10 minutes", "curl returns 200", "Claude Code launches"). Evidence MUST be a real execution trace with exit code and output. Documentation, commit history, or code inspection alone is NOT sufficient — verdict MUST be FAIL if no execution trace exists. If the criterion cannot be executed (requires interactive setup, live network endpoint, deployed environment), mark FAIL with reason: "Execution required but not performed — cannot verify without live run."
+   - **documented-behavior**: the criterion describes code structure, configuration, or in-repo artifacts verifiable via Grep/Read/Glob. Narrative and code-level evidence is accepted.
+3. Describe what you looked for (evidence sought)
+4. Describe what you found (or did not find)
+5. Assign a verdict: `PASS` or `FAIL`
 
 A criterion **PASSES** when:
 - The implementation contains the described behavior, file, or output
@@ -86,7 +122,86 @@ When verifying an **epic**, check whether all child stories have already been cl
 
 This prevents the epic verifier from applying stricter criteria than the story verifier used, which causes unnecessary remediation cycles when a story-level PASS is overturned at epic level.
 
+### Step 3.5: Epic-Closure SC9/SC13/SC14 Gates (Epic Only)
+
+**Applies only when `ticket_type == "epic"`.** Skip this step entirely for stories.
+
+After evaluating all SC criteria but before running consumer smoke tests, run the following three epic-closure gates and include their results in `criteria_results`. These gates are infrastructure checks — their verdicts are mandatory and cannot be skipped.
+
+#### SC9 Coverage Gate
+
+Run the coverage harness to verify ≥100 preventions from the 818-bug corpus:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/preconditions-coverage-harness.sh" \
+  --corpus tests/fixtures/818-corpus/sample-bugs.json \
+  --dry-run --output json
+```
+
+Parse the `COVERAGE_RESULT` JSON from stdout.
+
+**SC9 verdict rules:**
+- If `preventions_count >= 100`: add to `criteria_results` with `verdict: PASS`.
+- If `preventions_count < 100`: add to `criteria_results` with `verdict: FAIL`. Emit signal `SC9_GATE_FAIL` in evidence_found. The overall epic verdict MUST be `FAIL`.
+- If the script exits non-zero or output cannot be parsed: mark `FAIL` with evidence_found = "Script error or unparseable output".
+
+#### SC14 FP Rate Report
+
+Run the FP rate tracker to observe the current false-positive rate for the epic's primary ticket:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/fp-rate-tracker.sh" \
+  --ticket-id=<parent-epic-id> --threshold=0.10
+```
+
+**SC14 verdict rules:**
+- If output is empty (no FALLBACK_ENGAGED): add `verdict: PASS`, evidence_found = "FP rate within threshold (< 10%)".
+- If output contains `FALLBACK_ENGAGED`: add `verdict: PASS` (fallback is advisory, not blocking for epic closure), but include the FALLBACK_ENGAGED JSON in evidence_found as an informational note.
+- SC14 never causes `FAIL` at epic closure — it is informational only.
+
+#### SC13 Restart-Rate Drop Report
+
+Run the SC13 analysis to compute and document the workflow-restart-rate drop:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/sc13-restart-analysis.sh" \
+  --baseline-restart-rate=<baseline> --post-restart-rate=<post> \
+  --sample-size=<N>
+```
+
+Use the baseline rate captured in Story 1 (or pass `0` for both rates when no measurement is available). The analysis is informational only.
+
+**SC13 verdict rules:**
+- Always `verdict: PASS` — include the JSON output in evidence_found for observability.
+- If the script exits non-zero: mark `verdict: FAIL`, evidence_found = "sc13-restart-analysis.sh failed". The overall verdict is NOT affected by SC13 failure (informational only), but record the failure.
+
+Include all three gate results (SC9, SC14, SC13) as separate entries in `criteria_results`, labeled with their SC number in the `criterion` field:
+- `"SC9: Coverage gate — ≥100 preventions from 818-bug corpus"`
+- `"SC14: FP rate gate — rolling FP rate for epic ticket"`
+- `"SC13: Restart-rate drop analysis — documented methodology"`
+
+### Step 3b: Manual Story Sentinel Check
+
+When a story has the tag `manual:awaiting_user`:
+
+1. Scan the story's ticket comments for a comment whose body starts with `MANUAL_PAUSE_SENTINEL: `.
+2. Parse the JSON payload after the prefix (see `${CLAUDE_PLUGIN_ROOT}/docs/contracts/manual-pause-sentinel.md` for schema).
+3. Apply verdict rules:
+
+   | Sentinel state | Verdict |
+   |---|---|
+   | **Absent** | `PENDING` — story may be mid-handshake; do not count as FAIL. Log: "Manual story `<id>` has no sentinel yet — story may be mid-handshake. Skipping done-definition evaluation." Mark all done definitions `PENDING`. overall_verdict for this story: `PENDING`. |
+   | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code=0` | All done definitions `PASS`. |
+   | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code=null`, `user_input` non-null | All done definitions `PASS` (confirmation token confirmed). |
+   | Present, `handshake_outcome=skip` | All done definitions `SKIPPED` (not FAIL — skip is a legitimate outcome). |
+   | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code != 0` | Done definitions `FAIL`. |
+   | Present but JSON malformed | Treat as absent (`PENDING`). Log warning. |
+
+4. **Do NOT re-execute `verification_command`. Do NOT re-prompt the user. The sentinel is the authoritative record.**
+
 ### Step 4: Consumer Smoke Tests (Infrastructure Epics)
+
+**Exception**: Stories tagged `manual:awaiting_user` skip consumer smoke tests — they are process steps, not code behaviors.
 
 When the ticket modifies **shared infrastructure** — the ticket system, hooks, merge workflow, sprint tooling, or any other component consumed by multiple callers — perform consumer smoke tests.
 
@@ -127,6 +242,12 @@ For each failed criterion or failed consumer smoke test, include a remediation r
 
 ### Step 6: Output Verdict
 
+Before returning results, emit the preconditions exit event for epic-closure (fail-open):
+
+```bash
+_dso_pv_exit_write "epic-closure" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:-}" "${EPIC_ID:-}" || true
+```
+
 Return a structured JSON block matching the output schema below. After the JSON block, include a plain-text **Verification Summary** section.
 
 ---
@@ -137,11 +258,11 @@ Return a structured JSON block matching the output schema below. After the JSON 
 {
   "ticket_id": "<id>",
   "ticket_type": "epic|story",
-  "overall_verdict": "PASS|FAIL",
+  "overall_verdict": "PASS|FAIL|PENDING|SKIPPED",
   "criteria_results": [
     {
       "criterion": "<verbatim criterion text>",
-      "verdict": "PASS|FAIL",
+      "verdict": "PASS|FAIL|SKIPPED|PENDING",
       "evidence_sought": "<what was looked for>",
       "evidence_found": "<what was found or not found>"
     }
@@ -167,7 +288,7 @@ Return a structured JSON block matching the output schema below. After the JSON 
 
 **Rules:**
 
-- `overall_verdict` is `PASS` only when ALL criteria results AND all consumer smoke tests are `PASS`. A single `FAIL` makes the overall verdict `FAIL`.
+- `overall_verdict` is `PASS` only when ALL criteria results AND all consumer smoke tests are `PASS`. A single `FAIL` makes the overall verdict `FAIL`. `PENDING` is used when a `manual:awaiting_user` story has no sentinel yet (Step 3b). `SKIPPED` is used when a story was explicitly skipped during the manual handshake.
 - `consumer_smoke_tests` may be an empty array `[]` when the ticket does not modify shared infrastructure.
 - `remediation_tasks_created` is an empty array `[]` when overall_verdict is `PASS`.
 - Do NOT fabricate evidence — if you cannot find evidence for a criterion, record what you searched and mark `FAIL`.

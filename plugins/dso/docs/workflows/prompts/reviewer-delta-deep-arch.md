@@ -191,6 +191,49 @@ generic architectural integrity checks below.
 - [ ] Is the diff consistent with the architecture described in CLAUDE.md and any
   relevant design documents? Use Read to check if referenced patterns actually exist.
 
+## AI Blindspot Annotations
+
+These annotations cover failure modes that AI-generated code is statistically prone to but
+that the 5 scoring dimensions do not directly target. They are **summary-field annotations
+only** — when you observe one of these patterns, mention it in the `summary` field of
+`reviewer-findings.json` with a `execution_trace:` prefix. Do NOT add them as a new
+top-level scoring dimension; the JSON schema enforces exactly 3 top-level keys (scores,
+findings, summary) and exactly 5 score keys (correctness, verification, hygiene, design,
+maintainability).
+
+If the underlying issue also maps to one of the five scored dimensions, you MAY
+additionally raise a scored finding under that dimension. The annotation in the summary is
+informational; the scored finding (if any) is what affects the review verdict.
+
+### Execution Tracing
+
+Static analysis (which the sonnet specialists already perform) misses logic errors that
+only surface when execution is followed step-by-step against a concrete input. As the
+opus architectural reviewer, you are the last layer that can catch these before merge.
+
+For each modified code path in the diff:
+
+- Mentally trace execution with at least one edge-case input (empty input, boundary
+  value, missing optional field, concurrent re-entry, error-from-dependency, etc.).
+- Record the actual path traversed: the call chain (function → function → function),
+  the branch decisions taken at each conditional, and any state mutations performed
+  along the way.
+- Note any undefined or ambiguous state encountered: variables that may be unset on
+  this path, return values that the caller does not check, error conditions that are
+  silently swallowed, or invariants that the path assumes but does not verify.
+- When you find a logic error via tracing, surface it in the `summary` field with a
+  prefix like `execution_trace: <path> with <input> reaches <bad state>`. If the error
+  also maps to `correctness`, raise a scored finding there as well.
+
+**CRITICAL: The reviewer MUST NOT invoke any tools during execution tracing — no Bash,
+no Read beyond the diff already provided, no Grep.** This is a pure mental-execution
+exercise. Tool invocation here would explode review time and defeats the purpose of the
+annotation, which is to catch logic errors that survive static analysis. If you cannot
+trace a path confidently from the diff alone, note the uncertainty in the summary and
+move on; do not attempt to verify by running code or reading additional files.
+
+---
+
 ## Overlay Classification
 
 Always evaluate these two items and include the results in your summary field text:

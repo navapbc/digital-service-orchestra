@@ -42,6 +42,7 @@ mkdir -p "$ARTIFACTS_DIR"
 # Parse flags
 _OUTPUT_PATH=""
 _REVIEW_TIER=""
+_SELECTED_TIER=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --output) _OUTPUT_PATH="${2:?--output requires a path argument}"; shift 2 ;;
@@ -49,6 +50,14 @@ while [[ $# -gt 0 ]]; do
             _REVIEW_TIER="${2:?--review-tier requires a value (light|standard|deep)}"
             if [[ "$_REVIEW_TIER" != "light" && "$_REVIEW_TIER" != "standard" && "$_REVIEW_TIER" != "deep" ]]; then
                 echo "ERROR: --review-tier must be one of: light, standard, deep (got '$_REVIEW_TIER')" >&2
+                exit 2
+            fi
+            shift 2
+            ;;
+        --selected-tier)
+            _SELECTED_TIER="${2:?--selected-tier requires a value (light|standard|deep)}"
+            if [[ "$_SELECTED_TIER" != "light" && "$_SELECTED_TIER" != "standard" && "$_SELECTED_TIER" != "deep" ]]; then
+                echo "ERROR: --selected-tier must be one of: light, standard, deep (got '$_SELECTED_TIER')" >&2
                 exit 2
             fi
             shift 2
@@ -115,6 +124,21 @@ data['review_tier'] = sys.argv[2]
 with open(sys.argv[1], 'w') as f:
     json.dump(data, f, indent=2)
 " "$PENDING_FILE" "$_REVIEW_TIER"
+fi
+
+# Inject selected_tier field if --selected-tier was provided. This carries the
+# classifier's recommended tier into findings so record-review.sh can verify tier
+# match without depending on classifier-telemetry.jsonl (which lives in a separate
+# artifacts dir in worktree dispatch flows — see bug 21d7-b84a).
+if [[ -n "$_SELECTED_TIER" ]]; then
+    python3 -c "
+import json, sys
+with open(sys.argv[1], 'r') as f:
+    data = json.load(f)
+data['selected_tier'] = sys.argv[2]
+with open(sys.argv[1], 'w') as f:
+    json.dump(data, f, indent=2)
+" "$PENDING_FILE" "$_SELECTED_TIER"
 fi
 
 # Validate schema BEFORE writing to canonical location.

@@ -36,7 +36,8 @@ from pathlib import Path
 # Constants
 # ---------------------------------------------------------------------------
 
-_STALE_THRESHOLD_SECS = 30 * 24 * 3600  # 30 days in seconds
+_STALE_THRESHOLD_NS = 30 * 24 * 3600 * 1_000_000_000  # 30 days in nanoseconds
+_NS_THRESHOLD = 1_000_000_000_000  # timestamps >= this are nanosecond-scale
 
 # ---------------------------------------------------------------------------
 # Core audit logic
@@ -51,6 +52,12 @@ def _read_json(path: Path) -> dict | None:
         return None
 
 
+def _to_ns(ts: int | float) -> int:
+    """Normalize a timestamp to nanoseconds, handling legacy seconds-scale values."""
+    ts_int = int(ts)
+    return ts_int * 1_000_000_000 if ts_int < _NS_THRESHOLD else ts_int
+
+
 def audit_bridge_mappings(
     tickets_tracker: Path,
     now_ts: int | None = None,
@@ -59,8 +66,8 @@ def audit_bridge_mappings(
 
     Args:
         tickets_tracker: Path to the .tickets-tracker directory.
-        now_ts: Optional reference timestamp (UTC epoch seconds) to use as
-            'now' for stale-detection calculations. Defaults to time.time().
+        now_ts: Optional reference timestamp (UTC epoch nanoseconds) to use as
+            'now' for stale-detection calculations. Defaults to time.time_ns().
             Pass an explicit value in tests for deterministic results.
 
     Returns:
@@ -77,7 +84,7 @@ def audit_bridge_mappings(
     jira_key_to_tickets: dict[str, list[str]] = {}
 
     if now_ts is None:
-        now_ts = int(time.time())
+        now_ts = time.time_ns()
 
     if not tickets_tracker.is_dir():
         return {"orphaned": orphaned, "duplicates": duplicates, "stale": stale}
@@ -129,11 +136,18 @@ def audit_bridge_mappings(
         #   2. There are no BRIDGE_ALERT events after the latest SYNC.
         latest_sync_ts = latest_sync.get("timestamp", 0)
         if isinstance(latest_sync_ts, (int, float)) and latest_sync_ts > 0:
-            age_secs = now_ts - int(latest_sync_ts)
-            if age_secs > _STALE_THRESHOLD_SECS:
-                # Check for any BRIDGE_ALERT events after the latest SYNC
+            # Normalize seconds-scale legacy timestamps to nanoseconds for comparison
+            sync_ts_ns = int(latest_sync_ts)
+            if sync_ts_ns < _NS_THRESHOLD:
+                sync_ts_ns *= 1_000_000_000
+            age_ns = now_ts - sync_ts_ns
+            if age_ns > _STALE_THRESHOLD_NS:
+                # Check for any BRIDGE_ALERT events after the latest SYNC.
+                # Normalize alert timestamps to nanoseconds so mixed-precision
+                # comparisons (legacy seconds-scale SYNC vs. ns-scale BRIDGE_ALERT)
+                # are handled correctly.
                 has_post_sync_alert = any(
-                    alert.get("timestamp", 0) > latest_sync_ts
+                    _to_ns(alert.get("timestamp", 0)) > sync_ts_ns
                     for alert in bridge_alert_events
                 )
                 if not has_post_sync_alert:

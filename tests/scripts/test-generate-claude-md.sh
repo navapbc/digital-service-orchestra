@@ -16,7 +16,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-TEMPLATE_FILE="$PLUGIN_ROOT/templates/CLAUDE.md.template"
+TEMPLATE_FILE="$PLUGIN_ROOT/plugins/dso/templates/CLAUDE.md.template"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

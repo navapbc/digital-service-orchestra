@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# hook-boundary: enforcement
 # hooks/review-integrity-guard.sh
 # PreToolUse hook (Bash matcher): blocks direct writes to review-status files.
 #

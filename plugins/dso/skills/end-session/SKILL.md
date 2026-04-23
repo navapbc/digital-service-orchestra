@@ -261,6 +261,16 @@ If the shim is missing or the dispatch fails with "command not found" (b068-94b4
 .claude/scripts/dso merge-to-main.sh ${BUMP_ARG:-}
 ```
 
+After merge-to-main.sh completes successfully, write a WORKTREE_TRACKING:landed signal:
+```
+.claude/scripts/dso ticket comment $TICKET_ID "WORKTREE_TRACKING:landed branch=<session_branch> timestamp=<ts>"
+```
+(Only when TICKET_ID context is available. Skip silently if not set.)
+
+If the script output begins with `ESCALATE:` (retry budget exhausted — merge-to-main.sh has failed the maximum number of times):
+**STOP immediately. Do NOT diagnose, retry, or continue.** Present the ESCALATE message verbatim to the user and ask for guidance. Do NOT proceed to Step 4.75 or any subsequent step. Example:
+> Merge failed after repeated attempts. Script message: `<ESCALATE output>`. Please advise how to proceed.
+
 If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-ticket files):
 1. Before invoking resolution, capture the current working tree state: run `git status --short` and report to the user: "Merge conflict detected. Current working tree state captured — do not stop the session until Step 4.75 confirms is_clean."
 2. Invoke `/dso:resolve-conflicts` to attempt agent-assisted resolution.

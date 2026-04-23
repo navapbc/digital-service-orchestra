@@ -24,15 +24,15 @@ All stories in the ticket-system-v3 epic that read or write event files **must**
 
 | Component     | Format                                              |
 |---------------|-----------------------------------------------------|
-| `<timestamp>` | UTC epoch seconds (integer), unpadded (currently 10 digits; grows naturally) |
+| `<timestamp>` | UTC epoch nanoseconds (integer), unpadded (currently 19 digits) |
 | `<uuid>`      | Lowercase UUID4, hyphens preserved                  |
 | `<TYPE>`      | Uppercase event type: `CREATE`, `STATUS`, `COMMENT`, `LINK`, `UNLINK`, `SNAPSHOT`, or `SYNC` |
 
-**Example**: `1742605200-3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c-CREATE.json`
+**Example**: `1742605200123456789-3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c-CREATE.json`
 
 **Parsing rule**: To extract TYPE from a filename, split on the last `-` before `.json`. The timestamp is everything before the first `-`. The UUID is the portion between the first `-` and the last `-` before `.json`.
 
-All current UTC epoch timestamps are 10 digits (since 2001-09-09), ensuring lexicographic sort equals chronological sort. When timestamps grow to 11 digits (2286-11-20), lexicographic sort remains correct because all existing filenames share the same digit count within any realistic system lifetime.
+All current UTC epoch nanosecond timestamps are 19 digits, ensuring lexicographic sort equals chronological sort. The digit count is stable for the foreseeable future.
 
 ---
 
@@ -58,7 +58,7 @@ All event files are valid JSON objects containing the following base fields:
 
 | Field        | Type              | Description                                              |
 |--------------|-------------------|----------------------------------------------------------|
-| `timestamp`  | integer           | UTC epoch seconds at the time the event was written      |
+| `timestamp`  | integer           | UTC epoch nanoseconds at the time the event was written  |
 | `uuid`       | string (UUID4)    | Unique event identifier; lowercase, hyphens preserved    |
 | `event_type` | string (enum)     | One of: `CREATE`, `STATUS`, `COMMENT`, `LINK`, `UNLINK`, `SNAPSHOT`, `SYNC` |
 | `env_id`     | string (UUID4)    | Value of `.tickets-tracker/.env-id` at write time        |
@@ -161,7 +161,7 @@ All event files are valid JSON objects containing the following base fields:
 
 Events are sorted by **filename** (lexicographic sort) before reduction.
 
-Because filenames are prefixed with the UTC epoch timestamp (currently 10 digits), lexicographic sort is equivalent to chronological sort. For events written within the same second, the UUID component provides a stable, deterministic tie-break (lexicographic on the UUID string).
+Because filenames are prefixed with the UTC epoch nanosecond timestamp (19 digits), lexicographic sort is equivalent to chronological sort. The nanosecond precision means same-nanosecond collisions are extremely unlikely; UUID provides a tie-break when they occur.
 
 This ordering guarantee is:
 - **Deterministic**: the sort key is embedded in the filename.

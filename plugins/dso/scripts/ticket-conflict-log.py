@@ -56,7 +56,7 @@ def log_conflict_resolution(
         Always returns None; write failures are non-fatal (logged to stderr).
     """
     record: dict = {
-        "timestamp": int(time.time()),
+        "timestamp": time.time_ns(),
         "ticket_id": ticket_id,
         "env_ids": env_ids,
         "event_counts": event_counts,

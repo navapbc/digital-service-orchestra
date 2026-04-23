@@ -50,7 +50,7 @@ Each JSONL record is a JSON object. All fields are required.
 | `selected_tier` | string | Final tier selection after floor rules; one of: `light`, `standard`, `deep` |
 | `files` | array of strings | List of staged source file paths included in the classification (paths relative to repo root; test and generated files excluded) |
 | `diff_size_lines` | integer | Count of added lines in non-test, non-generated source files in the staged diff (see `classifier-size-output.md`) |
-| `size_action` | string | Threshold determination result; one of: `none`, `upgrade`, `reject` (see `classifier-size-output.md`) |
+| `size_action` | string | Threshold determination result; one of: `none`, `upgrade`, `warn` (see `classifier-size-output.md`) |
 | `is_merge_commit` | boolean | `true` when `MERGE_HEAD` is present and resolves to a valid commit object; `false` otherwise |
 
 ### Field Relationships

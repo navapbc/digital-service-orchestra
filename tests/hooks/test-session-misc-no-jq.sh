@@ -47,8 +47,9 @@ echo "--- test_session_safety_check_with_known_input ---"
 
 _test_dir=$(mktemp -d)
 _CLEANUP_DIRS+=("$_test_dir")
+mkdir -p "$_test_dir/.claude/logs"
 mkdir -p "$_test_dir/.claude"
-_test_log="$_test_dir/.claude/hook-error-log.jsonl"
+_test_log="$_test_dir/.claude/logs/dso-hook-errors.jsonl"
 # Create 12 recent error entries for the same hook (exceeds threshold of 10)
 _now_ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 for i in $(seq 1 12); do

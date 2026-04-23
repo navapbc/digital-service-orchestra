@@ -99,9 +99,9 @@ _UUID_SYNC_2 = "33333333-3333-4333-8333-333333333333"
 _UUID_SYNC_3 = "44444444-4444-4444-8444-444444444444"
 _UUID_ALERT = "55555555-5555-4555-8555-555555555555"
 
-# A "now" base timestamp in the past so stale tests can use >30 days ago
-_NOW_TS = 1742605200  # 2026-03-21T12:00:00Z (approx)
-_STALE_TS = _NOW_TS - (31 * 24 * 3600)  # 31 days ago — triggers stale detection
+# A "now" base timestamp in the past so stale tests can use >30 days ago (nanoseconds)
+_NOW_TS = 1742605200 * 1_000_000_000  # 2026-03-21T12:00:00Z in nanoseconds
+_STALE_TS = _NOW_TS - (31 * 24 * 3600 * 1_000_000_000)  # 31 days ago in nanoseconds
 
 
 # ---------------------------------------------------------------------------
@@ -503,4 +503,60 @@ def test_bridge_fsck_exit_code(tmp_path: Path, fsck: ModuleType) -> None:
     assert exit_code_clean == 0, (
         f"ticket bridge-fsck must exit 0 when no issues are found; "
         f"got exit code: {exit_code_clean}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 6: Mixed-precision BRIDGE_ALERT suppression
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_bridge_fsck_mixed_precision_alert_does_not_suppress_stale(
+    tmp_path: Path, fsck: ModuleType
+) -> None:
+    """A nanosecond-scale BRIDGE_ALERT after a seconds-scale SYNC must not
+    suppress stale detection when the alert actually occurred after the sync.
+
+    Migration scenario: legacy SYNC events have seconds-scale timestamps (~1.7e9);
+    newly written BRIDGE_ALERTs use nanoseconds (~1.7e18). The stale comparison
+    must normalize both before checking ordering, otherwise any ns-scale alert
+    would always satisfy alert_ts > legacy_sync_ts, hiding genuine stale tickets.
+    """
+    tracker = tmp_path / ".tickets-tracker"
+    ticket_dir = tracker / "w21-mixed"
+    ticket_dir.mkdir(parents=True)
+
+    # Legacy SYNC: seconds-scale timestamp, >30 days before _NOW_TS
+    legacy_stale_ts = 1742605200 - (31 * 24 * 3600)  # seconds-scale, stale
+    _write_create_event(
+        ticket_dir, timestamp=legacy_stale_ts - 3600, title="Mixed ticket"
+    )
+    _write_sync_event(
+        ticket_dir,
+        jira_key="DSO-MIXED",
+        local_id="w21-mixed",
+        timestamp=legacy_stale_ts,
+    )
+
+    # BRIDGE_ALERT written BEFORE the legacy sync (in real time, but ns-scale value is huge)
+    # The alert occurred at legacy_stale_ts - 1000s (i.e., before the sync).
+    # In nanoseconds: (legacy_stale_ts - 1000) * 1e9 — this is still BEFORE sync_ts_ns.
+    alert_before_sync_ns = (legacy_stale_ts - 1000) * 1_000_000_000
+    _write_bridge_alert_event(
+        ticket_dir,
+        timestamp=alert_before_sync_ns,
+        uuid="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab",
+        reason="alert before sync",
+    )
+
+    # now_ts: nanoseconds, far in the future relative to the stale sync
+    findings = fsck.audit_bridge_mappings(tracker, now_ts=_NOW_TS)
+    stale = findings.get("stale", [])
+
+    assert len(stale) >= 1, (
+        "audit_bridge_mappings() must detect a stale ticket even when a ns-scale "
+        "BRIDGE_ALERT exists that preceded the legacy seconds-scale SYNC. "
+        f"Got stale={stale}"
     )

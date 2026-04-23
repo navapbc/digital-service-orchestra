@@ -128,3 +128,56 @@ Use when a task has no testable implementation artifact (e.g., documentation, co
 
 - [ ] Task description contains test-exempt justification citing one of the defined criteria
   Verify: grep -q 'test-exempt:' {ticket_path}
+
+## Category: Security Boundary
+
+Use when a task touches user input, authentication/authorization, or data access. Aligns with the security overlay (red team / blue team reviewer agents).
+
+> **ARCH_ENFORCEMENT.md precedence**: This category provides project-agnostic baseline checks. If the host project's `ARCH_ENFORCEMENT.md` defines stricter security rules (e.g., mandatory parameterized queries, specific auth decorators, allowlist patterns), those project-specific rules take precedence over the criteria below.
+
+- [ ] User input is validated/sanitized before use (no direct interpolation into queries, shells, or templates)
+  Verify: grep -nE '(execute|eval|system|popen|render_template_string)\(.*\b(request|input|argv|params)\b' {changed_files} && echo "POTENTIAL UNSAFE INPUT" || echo "OK"
+- [ ] Authentication/authorization check present on protected entry points
+  Verify: grep -nE '(@login_required|@requires_auth|@permission|check_auth|verify_token)' {changed_files}
+- [ ] Data access uses parameterized queries / ORM bindings (no string-concatenated SQL)
+  Verify: grep -nE '(execute|executemany)\(.*[%+].*(request|input|user|args)' {changed_files} && echo "POTENTIAL SQLi" || echo "OK"
+- [ ] Output rendered to HTML/JSON contexts is escaped or uses safe templating (no XSS sinks)
+  Verify: grep -nE '(innerHTML|dangerouslySetInnerHTML|\|safe|Markup\(|mark_safe)' {changed_files}
+- [ ] State-changing endpoints enforce CSRF protection (token, SameSite cookie, or equivalent)
+  Verify: grep -nE '(csrf|CSRFProtect|SameSite|@csrf_exempt)' {changed_files}
+- [ ] Secrets/credentials are not embedded in source (read from env or secret store)
+  Verify: grep -nEi '(api[_-]?key|secret|password|token)\s*=\s*["\x27][A-Za-z0-9/_+=-]{12,}' {changed_files} && echo "POTENTIAL HARDCODED SECRET" || echo "OK"
+
+## Category: Architectural Integrity
+
+Use when a task modifies a public interface, schema, or shared model that other code consumes. Verifies downstream callers are accounted for and invariants are preserved.
+
+> **ARCH_ENFORCEMENT.md precedence**: This category provides project-agnostic baseline checks. If the host project's `ARCH_ENFORCEMENT.md` defines stricter architectural rules (e.g., layering boundaries, allowed cross-module imports, interface stability tiers), those project-specific rules take precedence.
+
+- [ ] Caller-list audit performed for every modified public symbol (signature, return type, or contract change)
+  Verify: for sym in {modified_symbols}; do echo "=== $sym ==="; grep -rn "\b$sym\b" --include='*.py' --include='*.sh' --include='*.js' --include='*.ts' "$(git rev-parse --show-toplevel)" | grep -v "$(git diff --name-only HEAD | tr '\n' '|' | sed 's/|$//')"; done
+- [ ] All downstream consumers of a changed interface are updated in the same commit (or migration path documented)
+  Verify: git diff --name-only HEAD | xargs -I{} grep -l "{old_symbol}\|{new_symbol}" {} ; echo "Confirm caller list above matches files in diff"
+- [ ] Schema migration is forward-compatible (additive change, default values, or explicit migration script)
+  Verify: ls "$(git rev-parse --show-toplevel)"/migrations/ 2>/dev/null && git diff HEAD -- '*.sql' '*/migrations/*' | grep -E '^\+.*(DROP|ALTER.*DROP|RENAME)' && echo "POTENTIAL BREAKING MIGRATION" || echo "OK"
+- [ ] Shared model invariants (required fields, value ranges, referential integrity) preserved or explicitly versioned
+  Verify: grep -nE '(NOT NULL|CHECK|FOREIGN KEY|UNIQUE|@validator|Field\(.*required)' {changed_model_files}
+- [ ] Public API/contract documentation updated alongside the change (if interface is documented)
+  Verify: git diff --name-only HEAD | grep -qE '(docs/|README|CHANGELOG|openapi|schema)' && echo "DOCS UPDATED" || echo "REVIEW: docs may need update"
+
+## Category: Internal Pattern Compliance
+
+Use when a task has low pattern familiarity (new contributor, unfamiliar subsystem, or LLM-generated code). Guards against hallucinated patterns and reinvented utilities.
+
+> **ARCH_ENFORCEMENT.md precedence**: This category provides project-agnostic baseline checks. If the host project's `ARCH_ENFORCEMENT.md` defines stricter pattern rules (e.g., mandatory use of specific helpers, banned stdlib modules, prescribed error types), those project-specific rules take precedence.
+
+- [ ] Prior-art search performed before introducing a new pattern, helper, or abstraction
+  Verify: grep -rnE '(class|def|function)\s+{new_symbol_pattern}' "$(git rev-parse --show-toplevel)" --include='*.py' --include='*.js' --include='*.ts' | head -20 ; echo "Confirm no existing equivalent"
+- [ ] New code uses internal utilities/helpers where they exist (not stdlib reinventions)
+  Verify: grep -nE '^(import|from) ' {changed_files} | grep -vE '(^(import|from) (src|app|lib|utils|common|internal)\.)' ; echo "Review imports above for missed internal equivalents"
+- [ ] References to internal pattern catalog or convention docs match repository reality
+  Verify: grep -oE '(docs/|\$REPO_ROOT/[^ )`]+|README[^ )`]*)' {changed_files} | while read p; do test -e "$(git rev-parse --show-toplevel)/${p#\$REPO_ROOT/}" 2>/dev/null || test -e "$(git rev-parse --show-toplevel)/$p" || echo "MISSING: $p"; done | grep -c MISSING | awk '{exit ($1 > 0)}'
+- [ ] No fabricated module/function names (every imported symbol resolves)
+  Verify: grep -nE '^(import|from) ' {changed_files} | awk '{print $2}' | sort -u ; echo "Spot-check each module exists in repo or installed deps"
+- [ ] Generated code does not introduce a new dependency without justification (see CLAUDE.md "Prefer stdlib/existing dependencies")
+  Verify: git diff HEAD -- pyproject.toml package.json requirements.txt Cargo.toml go.mod 2>/dev/null | grep -E '^\+' && echo "NEW DEPENDENCY — confirm justification" || echo "OK"

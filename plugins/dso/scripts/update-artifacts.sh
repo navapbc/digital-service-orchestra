@@ -93,13 +93,13 @@ fi
 # When --plugin-root is given (test mode), templates live inside it:
 #   $_EFFECTIVE_PLUGIN_ROOT/templates/host-project/dso
 #   $_EFFECTIVE_PLUGIN_ROOT/templates/host-project/dso-config.conf
-#   $_EFFECTIVE_PLUGIN_ROOT/examples/pre-commit-config.example.yaml
-#   $_EFFECTIVE_PLUGIN_ROOT/examples/ci.example.yml
+#   $_EFFECTIVE_PLUGIN_ROOT/docs/examples/pre-commit-config.example.yaml
+#   $_EFFECTIVE_PLUGIN_ROOT/docs/examples/ci.example.${stack}.yml
 #   $_EFFECTIVE_PLUGIN_ROOT/.claude-plugin/plugin.json
-# When running from the real plugin, templates live at the repo root:
-#   $REPO_ROOT/templates/host-project/dso
-#   $REPO_ROOT/examples/ci.example.yml
-#   $REPO_ROOT/examples/pre-commit-config.example.yaml
+# When running from the real plugin, templates live at the plugin root:
+#   $_EFFECTIVE_PLUGIN_ROOT/templates/host-project/dso
+#   $_EFFECTIVE_PLUGIN_ROOT/docs/examples/ci.example.${stack}.yml
+#   $_EFFECTIVE_PLUGIN_ROOT/docs/examples/pre-commit-config.example.yaml
 
 # ── Resolve template root ─────────────────────────────────────────────────────
 # Test mode (--plugin-root given): templates are inside the given plugin root.
@@ -284,6 +284,7 @@ _check_config_conflict_keys() {
         [[ -z "$_ckey" ]] && continue
 
         local _escaped_ckey
+        # shellcheck disable=SC2016  # single quotes intentional: & is a sed metachar, not a shell variable
         _escaped_ckey=$(printf '%s' "$_ckey" | sed 's/[.[\*^$()+?{|\\]/\\&/g')
 
         local host_val plugin_val
@@ -315,8 +316,29 @@ _CI_DEST="$_TARGET/.github/workflows/ci.yml"
 
 _SHIM_TEMPLATE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/templates/host-project/dso}"
 _CONFIG_TEMPLATE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/templates/host-project/dso-config.conf}"
-_PRECOMMIT_EXAMPLE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/examples/pre-commit-config.example.yaml}"
-_CI_EXAMPLE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/examples/ci.example.yml}"
+_PRECOMMIT_EXAMPLE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/docs/examples/pre-commit-config.example.yaml}"
+# Stack-aware CI example resolution: read `stack=` from target dso-config.conf
+# then pick `ci.example.${stack}.yml`; fall back to python-poetry for legacy installs.
+# Extracted as a function so the behavior can be tested directly against fixtures
+# without replicating the resolution logic inline in the test.
+#
+# _resolve_ci_example_for_update TEMPLATE_ROOT TARGET
+#   Prints the resolved CI example path (or empty string) on stdout.
+_resolve_ci_example_for_update() {
+    local template_root="$1"
+    local target="$2"
+    local ua_stack=""
+    [[ -z "$template_root" ]] && { printf ''; return 0; }
+    if [[ -f "$target/.claude/dso-config.conf" ]]; then
+        ua_stack=$(grep '^stack=' "$target/.claude/dso-config.conf" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '[:space:]')
+    fi
+    if [[ -n "$ua_stack" && -f "$template_root/docs/examples/ci.example.${ua_stack}.yml" ]]; then
+        printf '%s\n' "$template_root/docs/examples/ci.example.${ua_stack}.yml"
+    elif [[ -f "$template_root/docs/examples/ci.example.python-poetry.yml" ]]; then
+        printf '%s\n' "$template_root/docs/examples/ci.example.python-poetry.yml"
+    fi
+}
+_CI_EXAMPLE=$(_resolve_ci_example_for_update "$_TEMPLATE_ROOT" "$_TARGET")
 
 # ── 1. Shim: overwrite + stamp ────────────────────────────────────────────────
 if [[ -f "$_SHIM_TEMPLATE" ]]; then
@@ -409,6 +431,14 @@ if [[ -f "$_CI_EXAMPLE" && -f "$_CI_DEST" ]]; then
     fi
 elif [[ -f "$_CI_EXAMPLE" && ! -f "$_CI_DEST" ]]; then
     echo "[update-artifacts] No CI workflow at $_CI_DEST — skip" >&2
+fi
+
+# ── 5. Brainstorm tag migration ────────────────────────────────────────────────
+if [[ -z "$_DRYRUN" ]]; then
+    # best-effort — migration failure never fails artifact update
+    bash "$_SCRIPT_DIR/ticket-migrate-brainstorm-tags.sh" --target "$_TARGET" &>/dev/stderr || {
+        echo '[update-artifacts] Migration warning: brainstorm tag migration exited non-zero — see stderr for details' >&2
+    }
 fi
 
 # ── Emit conflict JSON and exit 2 if any conflicts occurred ───────────────────

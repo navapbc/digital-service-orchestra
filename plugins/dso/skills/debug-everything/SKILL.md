@@ -48,6 +48,17 @@ Two entry modes: (1) **Bug-Fix Mode** — when open bug tickets exist, skip diag
 
 ---
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
+---
+
 ## Step 0: GitHub Actions Pre-Scan (/dso:debug-everything)
 
 Scan configured GitHub Actions workflows for CI failures and create bug tickets for any untracked failures. This step runs **before** the open-bug-count pre-check so that any newly discovered CI failures are visible to the rest of the skill.
@@ -343,7 +354,7 @@ else
 fi
 ```
 
-**Subagent**: `subagent_type="error-debugging:error-detective"`, `model="opus"`  # Complex investigation: must correlate failures across validation categories, cluster related errors, and distinguish root causes from symptoms in complex output
+**Subagent**: `subagent_type="general-purpose"`, `model="opus"`  # Complex investigation: must correlate failures across validation categories, cluster related errors, and distinguish root causes from symptoms in complex output. (`error-debugging:error-detective` is NOT a valid subagent_type — the Agent tool only accepts built-in types. Use general-purpose with the prompt from the named agent file.)
 
 The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (category counts + top-3 clusters + open bug count). The full report is saved to `$(get_artifacts_dir)/debug-diag.md` on disk; do NOT receive the full report inline. Store the `DIAGNOSTIC_FILE` path for Phase 2.
 
@@ -361,6 +372,27 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
 - **Diagnostic scan skipped** (Phase 1 Steps 0.5, 1a, 1b, 1c, 2): No `validate.sh --ci`, no preflight checks, no diagnostic sub-agent, no clustering.
 - **Triage skipped** (Phase 2): No triage sub-agent dispatch, no new epic creation, no issue clustering.
+
+<COMPACTION_RESUME>
+**If resuming after an auto-compact event in Bug-Fix Mode**: First, re-establish OPEN_BUG_COUNT using the canonical bash approach — do NOT filter the output with Python-side type checking (`t.get('type') == 'bug'` always returns 0 because `ticket list --type=bug` strips the `type` field from returned objects):
+
+```bash
+_open_bugs=$(.claude/scripts/dso ticket list --type=bug --status=open 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+_inprog_bugs=$(.claude/scripts/dso ticket list --type=bug --status=in_progress 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+OPEN_BUG_COUNT=$((_open_bugs + _inprog_bugs))
+```
+
+Then re-read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline immediately — do NOT attempt to investigate from Step 0. Check the in-progress ticket's most recent CHECKPOINT comment to determine the last completed fix-bug step, then resume from the next step in fix-bug's pipeline:
+- CHECKPOINT at Step 2 (investigation dispatched) → resume at Step 3 (analyze results)
+- CHECKPOINT at Step 3 (hypothesis confirmed) → resume at Step 4 (fix approval) or Step 5 (RED test)
+- CHECKPOINT at Step 5 (RED test written) → resume at Step 6 (implement fix)
+- CHECKPOINT at Step 7 (fix verified) → resume at Step 8 (commit and close)
+- No CHECKPOINT found → re-dispatch the investigation sub-agent from Step 2 (do NOT read test files, grep for root causes, or run tests without a specific hypothesis — that is unstructured investigation, not the fix-bug protocol)
+
+**After the in-progress ticket completes**, do NOT stop — re-query remaining open and in_progress bugs and continue processing them in priority order (return to Bug-Fix Mode Execution step 1). The compaction event that triggered this resume does NOT signal Phase 9 shutdown. Phase 9 is only triggered by a compaction that occurs **during the current active session**. A compaction from a prior invocation that produced this resume context is historical state, not a live shutdown trigger.
+
+**Re-assert delegation constraint after compaction**: The HARD-GATE from Bug-Fix Mode Execution step 2 applies with full force from this point forward — including to the first post-resume ticket. Do NOT investigate bugs inline. Do NOT modify code at the orchestrator level. EVERY bug ticket MUST be processed by reading `fix-bug/SKILL.md` inline and executing its steps — NOT by direct orchestrator investigation or editing. Emit the HARD-GATE token before any Edit/Write call: `HARD-GATE: CLEARED for ticket <id> — classification: <type>, investigation: <agent-id>, hypothesis: <confirmed/disproved>`. Compaction does not waive this gate — it strengthens the requirement to re-read fix-bug/SKILL.md before proceeding.
+</COMPACTION_RESUME>
 
 ### Bug-Fix Mode Execution
 
@@ -390,12 +422,17 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
    Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute its steps directly — NOT via the Skill tool or Task tool. This orchestrator-level invocation (reads SKILL.md inline) preserves Agent tool access for fix-bug's investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED) which require the Agent tool themselves.
 
-   Pass the ticket ID as the bug context:
+   Pass the ticket ID as the bug context. When dispatching sub-agents in Bug-Fix Mode, always pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the sub-agent dispatch prompt so the sub-agent can locate host-project scripts and artifacts. When `DISPATCH_ISOLATION=true`, also add `isolation: "worktree"` to each fix-bug sub-agent dispatch.
 
    ```
    Bug ticket: <ticket-id>
    Title: <title from ticket show>
+   ORCHESTRATOR_ROOT: <value of $(git rev-parse --show-toplevel)>
    ```
+
+   **After the fix sub-agent returns** (per-ticket post-dispatch):
+   - When `DISPATCH_ISOLATION=true`: follow `skills/shared/prompts/single-agent-integrate.md` to integrate the sub-agent's worktree changes back into the session branch.
+   - When `DISPATCH_ISOLATION=false`: proceed with existing post-dispatch behavior unchanged.
 
 3. **Error handling**: If `/dso:fix-bug` fails for a ticket (unrecoverable error, repeated failure, or explicit escalation), write a CHECKPOINT note and continue to the next ticket:
 
@@ -592,9 +629,11 @@ If `SAFEGUARD_BUGS` is empty, skip to Phase 3.
 
 Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/safeguard-analysis.md` and use its contents as the sub-agent prompt. Pass the `SAFEGUARD_BUGS` list (IDs and titles) and `WORKTREE` name as context.
 
-**Subagent**: `subagent_type="error-debugging:error-detective"`, `model="opus"`
+**Subagent**: `subagent_type="general-purpose"`, `model="opus"`
 # Complex investigation: must read safeguarded files, understand bug context,
-# and propose precise line-level fixes — requires deep code comprehension and judgment
+# and propose precise line-level fixes — requires deep code comprehension and judgment.
+# (`error-debugging:error-detective` is NOT a valid subagent_type — use general-purpose
+# with the named agent file loaded verbatim as the prompt.)
 
 The sub-agent returns: path to proposals file + summary (count + per-bug one-liner).
 
@@ -889,6 +928,14 @@ Before verifying results, check whether any sub-agent Task call returned an **in
 
 Dispatch failure retries are sequential (error recovery, not planned work) and do not count toward batch size limits.
 
+### Step 0.5: Worktree Integration (/dso:debug-everything)
+
+When `DISPATCH_ISOLATION=true`, sub-agents in Phase 5 ran in isolated worktree branches — their changes are NOT on the session branch in the orchestrator's CWD. Before any subsequent step runs `git diff` (Step 1a file-overlap, Step 1b critic review, Step 5 semantic conflict check) or `git commit` (Step 6), each sub-agent's worktree changes MUST be integrated onto the session branch.
+
+**When `DISPATCH_ISOLATION=true`**: For each sub-agent that returned successfully (including any that succeeded on retry from Step 0), follow `skills/shared/prompts/single-agent-integrate.md` to integrate its worktree changes back into the session branch. This mirrors the Bug-Fix Mode per-result integration pattern (see Bug-Fix Mode Execution step 2 above) so downstream `git diff` / commit operations in Phase 6 observe the combined batch changes.
+
+**When `DISPATCH_ISOLATION=false`**: Skip this step — sub-agents wrote directly to the session branch and the changes are already visible via `git diff` in Step 1a and beyond.
+
 ### Step 1: Verify Results (/dso:debug-everything)
 
 For each sub-agent (including any that succeeded on retry), check the Task result:
@@ -933,7 +980,7 @@ git diff          # save as {full_diff}
 
 Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/critic-review.md` and use its contents as the sub-agent prompt. Replace the `{full_diff captured by orchestrator via \`git diff\`}` placeholder with the actual diff output.
 
-**Subagent**: `subagent_type="feature-dev:code-reviewer"`, `model="sonnet"`  # Tier 2: must evaluate root-cause-vs-symptom, regression risk, and convention violations from a raw diff — requires judgment across codebase context, not just output parsing
+**Subagent**: `subagent_type="general-purpose"`, `model="sonnet"`  # Tier 2: must evaluate root-cause-vs-symptom, regression risk, and convention violations from a raw diff — requires judgment across codebase context, not just output parsing. (`feature-dev:code-reviewer` is NOT a valid subagent_type — the Agent tool only accepts built-in types. Use general-purpose with the critic-review.md prompt loaded verbatim.)
 
 **Orchestrator action**:
 - `PASS` → proceed to Step 2
@@ -1304,7 +1351,8 @@ TDD routing: read `prompts/tdd-enforcement-table.md`.
 | AWS auth expired (Tier 6 fix) | Sub-agent cannot proceed with infra fix. Report to user, recommend `aws sso login`, move to next task |
 | DB not running | `make db-start` from app/. Wait for health check. |
 | All sub-agents fail in a batch | Do not retry same session. Graceful shutdown. |
-| Context compaction | Immediate graceful shutdown. Checkpoint everything. |
+| Context compaction (Diagnostic Mode — Phase 5/6) | Immediate graceful shutdown. Checkpoint everything. |
+| Context compaction (Bug-Fix Mode) | Re-read fix-bug/SKILL.md inline. Check ticket CHECKPOINT comment for last completed step. Resume fix-bug at the next step — do NOT restart investigation from Step 0. |
 | Git push fails (no upstream) | This is an ephemeral worktree branch — push is not required. Commit locally. |
 | Merge to main fails (conflict) | Invoke `/dso:resolve-conflicts`. |
 | CI fails on main after merge | Return to Phase 2. Maximum 2 retries, then report to user for manual intervention. |

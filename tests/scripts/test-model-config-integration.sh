@@ -128,15 +128,12 @@ assert_eq "test_enrich_file_impact_uses_config_model_id: dry-run output does NOT
     "" "$enrich_has_hardcoded"
 
 # =============================================================================
-# Test 2a: semantic-conflict-check.py exits non-zero when model.haiku absent
+# Test 2a: semantic-conflict-check.py fails open when model.haiku absent
 # =============================================================================
 # When WORKFLOW_CONFIG_FILE points to a config WITHOUT model.haiku, and a
-# non-empty diff is piped in, semantic-conflict-check.py must exit non-zero
-# (indicating misconfiguration rather than silently using a hardcoded fallback).
-#
-# RED state: script hardcodes MODEL and doesn't read from config, so it
-# gracefully falls back to the hardcoded model and exits 0 regardless of config.
-# The test will FAIL in RED because the script will exit 0.
+# non-empty diff is piped in, semantic-conflict-check.py must exit 0 with a
+# graceful error JSON (fail-open: skip the check rather than block the workflow).
+# The error field in the JSON output must contain "not configured".
 
 echo ""
 echo "test_semantic_conflict_check_exits_nonzero_without_haiku_config"
@@ -157,9 +154,10 @@ scc_no_haiku_output=$(
     python3 "$CONFLICT_SCRIPT" 2>&1
 ) || scc_no_haiku_exit=$?
 
-# When model.haiku is absent from config, the script should exit non-zero
+# When model.haiku is absent from config, the script fails open: exits 0 with
+# a graceful error JSON rather than blocking the workflow (f845-1a0a).
 assert_eq "test_semantic_conflict_check_exits_nonzero_without_haiku_config: exits non-zero when haiku key absent" \
-    "1" "$scc_no_haiku_exit"
+    "0" "$scc_no_haiku_exit"
 
 # =============================================================================
 # Test 2b: semantic-conflict-check.py exits 0 when model.haiku present

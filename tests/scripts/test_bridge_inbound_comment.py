@@ -433,3 +433,51 @@ def test_pull_comments_returns_empty_list_when_no_new_comments(
     assert len(comment_files) == 0, (
         "No COMMENT event files must be written when all comments are already deduped"
     )
+
+
+# ---------------------------------------------------------------------------
+# Bug 8190-121b: inbound comment writer must use nanosecond timestamps
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_pull_comments_writes_comment_event_with_nanosecond_timestamp(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """pull_comments writes a COMMENT event whose 'timestamp' field is at
+    nanosecond scale (> 1_000_000_000_000).
+
+    This test is RED: current code in _comments_inbound.py uses int(time.time())
+    which produces a seconds-scale integer (~1.7e9), well below the 1e12
+    threshold. After the fix uses time.time_ns() the value will be ~1.7e18.
+    """
+    ticket_dir = tmp_path / "w21-ns-comment"
+    ticket_dir.mkdir()
+    # Empty dedup map — no prior comments
+    _write_dedup_map(ticket_dir, _make_dedup_map())
+
+    jira_comments = [{"id": "j-ns-1", "body": "Nanosecond test comment"}]
+    acli_client = _make_acli_client(jira_comments)
+
+    result = bridge.pull_comments(
+        jira_key="DSO-9190",
+        ticket_id="w21-ns-comment",
+        ticket_dir=ticket_dir,
+        acli_client=acli_client,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert len(result) == 1, "Must write exactly one COMMENT event"
+
+    comment_files = list(ticket_dir.glob("*-COMMENT.json"))
+    assert len(comment_files) == 1, "Exactly one COMMENT event file must exist on disk"
+
+    event_data = json.loads(comment_files[0].read_text(encoding="utf-8"))
+    ts = event_data.get("timestamp")
+    assert isinstance(ts, int), f"timestamp must be an int, got {type(ts).__name__}"
+    assert ts > 1_000_000_000_000, (
+        f"timestamp must be nanosecond-scale (> 1_000_000_000_000); "
+        f"got {ts} — current code uses int(time.time()) which is seconds-scale (~1.7e9). "
+        f"Fix: use time.time_ns() in _comments_inbound.py."
+    )

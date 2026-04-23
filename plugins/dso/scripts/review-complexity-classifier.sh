@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
-_PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)/}"
+_PLUGIN_GIT_PATH="${_PLUGIN_ROOT#"$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)"/}"
 # review-complexity-classifier.sh
 # Deterministic complexity classifier for the DSO tiered review system.
 #
@@ -678,7 +678,8 @@ _compute_size_action() {
     fi
 
     if (( diff_size_lines >= 600 )); then
-        echo "reject"
+        echo "SIZE_WARNING: ${diff_size_lines}" >&2
+        echo "warn"
     elif (( diff_size_lines >= 300 )); then
         echo "upgrade"
     else

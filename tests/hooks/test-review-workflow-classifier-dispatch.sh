@@ -514,15 +514,15 @@ teardown_temp_dir
 assert_pass_if_clean "test_deep_tier_single_writer_invariant"
 
 # ============================================================
-# Step 3 Size Rejection and Model Override Tests (w21-nv42)
+# Step 3 Size Warning and Model Override Tests (w21-nv42)
 # ============================================================
 
 echo ""
-echo "--- Step 3 size rejection and model override ---"
+echo "--- Step 3 size warning and model override ---"
 
 # test_workflow_step3_checks_size_action_field
 # Verify that REVIEW-WORKFLOW.md Step 3 references the size_action field from
-# classifier output and acts on it (rejects the diff when size_action is "reject").
+# classifier output and acts on it (emits SIZE_WARNING and continues when size_action is "warn").
 # RED: REVIEW-WORKFLOW.md does not yet reference size_action from classifier output.
 _snapshot_fail
 setup_temp_dir
@@ -578,19 +578,21 @@ teardown_temp_dir
 assert_pass_if_clean "test_workflow_step3_rejection_only_on_initial_dispatch"
 
 # test_workflow_step3_rejection_message_references_guide
-# Verify that the rejection message template in REVIEW-WORKFLOW.md includes a reference
-# to the large-diff-splitting-guide (by path) so practitioners know where to get help.
-# RED: REVIEW-WORKFLOW.md does not yet include the splitting guide reference.
+# After reject→warn migration: REVIEW-WORKFLOW.md Step 3b should NOT contain a
+# rejection-style message referencing large-diff-splitting-guide in a reject context.
+# The guide reference (if present) should only appear in a warn/advisory context.
+# This test verifies the old reject-branch guide reference is absent.
 _snapshot_fail
 setup_temp_dir
 
-guide_in_rejection_message=false
+reject_branch_has_guide=false
 
-if grep -q 'large-diff-splitting-guide' "$REVIEW_WORKFLOW" 2>/dev/null; then
-    guide_in_rejection_message=true
+# Check for guide reference in a reject-specific context (should be absent post-migration)
+if grep -qE 'size_action.*reject.*large-diff-splitting-guide|large-diff-splitting-guide.*size_action.*reject' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    reject_branch_has_guide=true
 fi
 
-assert_eq "test_workflow_step3_rejection_message_references_guide: REVIEW-WORKFLOW.md rejection message should reference large-diff-splitting-guide" "true" "$guide_in_rejection_message"
+assert_eq "test_workflow_step3_rejection_message_references_guide: REVIEW-WORKFLOW.md should NOT have guide reference in reject-branch context (warn migration)" "false" "$reject_branch_has_guide"
 
 teardown_temp_dir
 assert_pass_if_clean "test_workflow_step3_rejection_message_references_guide"

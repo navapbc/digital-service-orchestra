@@ -54,8 +54,8 @@ _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pre-commit.sh" || true
 
 # --- Load merge utility helpers (state file, lock, recovery, push-idempotency) ---
-# shellcheck source=${_SCRIPT_DIR}/../hooks/lib/merge-helpers.sh
-_MERGE_HELPERS_LIB="${_SCRIPT_DIR}/../hooks/lib/merge-helpers.sh"
+# shellcheck source=${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-helpers.sh
+_MERGE_HELPERS_LIB="${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-helpers.sh"
 if [[ -f "$_MERGE_HELPERS_LIB" ]]; then
     source "$_MERGE_HELPERS_LIB"
 fi
@@ -281,8 +281,20 @@ _phase_sync() {
         echo "WARNING: git fetch origin main failed in main repo — continuing with local state."
     }
     if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
-        # origin/main is already in main's history — pull is a no-op, skip it.
-        echo "OK: origin/main is already an ancestor of main — skipping pull."
+        # origin/main is an ancestor of main. Distinguish two sub-cases:
+        # (a) equal (HEAD == origin/main): local is up-to-date, skip pull.
+        # (b) ahead (HEAD has commits not on origin): stale squash commits from a prior
+        #     worktree session create false plugin.json conflicts in _phase_merge.
+        #     Hard-reset to origin/main to restore a clean base (35eb-1824).
+        _AHEAD_COUNT=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "0")
+        if [ "$_AHEAD_COUNT" -gt 0 ]; then
+            echo "INFO: Local main is ${_AHEAD_COUNT} commit(s) ahead of origin/main (stale) — resetting to origin/main."
+            git reset --hard origin/main -q 2>&1 || {
+                echo "WARNING: Could not reset local main to origin/main — _phase_merge may encounter false conflicts."
+            }
+        else
+            echo "OK: origin/main is already an ancestor of main — skipping pull."
+        fi
     else
         # main and origin have diverged — try merge (more tolerant than rebase).
         # Stash any local changes so the merge can proceed cleanly.
@@ -357,6 +369,22 @@ _phase_merge() {
     # regardless of how the phase was reached. (Fixes 34cc-526c, 687d-b448.)
     cd "$MAIN_REPO"
 
+    # Detect and reset stale local main before merging (f6c6-362c).
+    # Mirrors _phase_sync's drift-reset block. Needed because --resume can skip
+    # _phase_sync and enter _phase_merge directly with local main still ahead of
+    # origin/main (e.g., after an interrupted version_bump), causing a
+    # plugin.json conflict on the merge retry.
+    git fetch origin main --quiet 2>/dev/null || true
+    if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+        _MERGE_PHASE_AHEAD=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "0")
+        if [ "$_MERGE_PHASE_AHEAD" -gt 0 ]; then
+            echo "INFO: _phase_merge: local main is ${_MERGE_PHASE_AHEAD} commit(s) ahead of origin/main (stale version bump?) — resetting to origin/main."
+            git reset --hard origin/main -q 2>/dev/null || {
+                echo "WARNING: _phase_merge: Could not reset to origin/main — merge may encounter false conflicts."
+            }
+        fi
+    fi
+
     # Find the last meaningful commit message from the worktree branch (skip chore/cleanup commits)
     if [ -n "$MSG_EXCLUSION_PATTERN" ]; then
         LAST_MSG=$(git log "$BRANCH" --format='%s' --no-merges -- \
@@ -374,6 +402,31 @@ _phase_merge() {
     # Capture pre-merge SHA so we can later detect whether the merge contained
     # non-ticket-data changes (used for the CI trigger check after push).
     PRE_MERGE_SHA=$(git rev-parse HEAD)
+
+    # Stash dirty tracked files on main before merging. Hook scripts that load
+    # library files from the main repo via CLAUDE_PLUGIN_ROOT can leave modified
+    # tracked files on main, causing "local changes would be overwritten" errors.
+    _MERGE_PHASE_STASHED=false
+    if ! git diff --quiet 2>/dev/null; then
+        local _dirty_count
+        _dirty_count=$(git diff --name-only 2>/dev/null | wc -l | tr -d ' ')
+        echo "INFO: Stashing ${_dirty_count} dirty file(s) on main before merge..."
+        if git stash push --quiet -m "merge-to-main: pre-merge stash" 2>/dev/null; then
+            _MERGE_PHASE_STASHED=true
+        else
+            echo "WARNING: Failed to stash dirty files before merge — proceeding without stash."
+        fi
+    fi
+
+    # Helper: restore stash after merge (pop on success, reset+drop on conflict).
+    _restore_pre_merge_stash() {
+        if ! $_MERGE_PHASE_STASHED; then return 0; fi
+        if ! git stash pop --quiet 2>/dev/null; then
+            echo "WARNING: Pre-merge stash pop conflicted — dropping stash (merged content takes precedence)."
+            git reset --merge 2>/dev/null || true
+            git stash drop --quiet 2>/dev/null || true
+        fi
+    }
 
     echo "Merging $BRANCH into main..."
     if ! git merge --no-ff "$BRANCH" -m "$MERGE_MSG" --quiet 2>&1; then
@@ -394,9 +447,11 @@ _phase_merge() {
             echo "INFO: Squash-rebase recovery succeeded. Retrying merge..."
             if git merge --no-ff "$BRANCH" -m "$MERGE_MSG" --quiet 2>&1; then
                 echo "OK: Merged $BRANCH into main (after squash-rebase recovery)."
+                _restore_pre_merge_stash
             else
                 # Retry also failed — increment retry count and exit with directive
                 git merge --abort 2>/dev/null || true
+                _restore_pre_merge_stash
                 _state_increment_retry
                 echo "ERROR: Merge retry failed after squash-rebase recovery."
                 echo "  Run: merge-to-main.sh --resume"
@@ -405,6 +460,7 @@ _phase_merge() {
         else
             # Recovery failed — return to main repo, increment retry, exit with directive
             cd "$_MERGE_SAVED_DIR"
+            _restore_pre_merge_stash
             _state_increment_retry
             echo "ERROR: Squash-rebase recovery failed. Cannot resolve automatically."
             echo "  Run: merge-to-main.sh --resume"
@@ -412,6 +468,7 @@ _phase_merge() {
         fi
     else
         echo "OK: Merged $BRANCH into main."
+        _restore_pre_merge_stash
     fi
 
     _state_record_merge_sha "$(git rev-parse HEAD)"
@@ -591,6 +648,15 @@ _phase_push() {
             git -C "$_TRACKER_DIR" add -A 2>/dev/null
             git -C "$_TRACKER_DIR" commit -q --no-verify -m "chore: commit uncommitted ticket state before sync" 2>/dev/null || true
         fi
+        # Remove stale SNAPSHOT files before pull to prevent "untracked files
+        # would be overwritten by merge" errors. SNAPSHOTs are regenerated on
+        # demand by the compact-all command and are safe to delete (3534-b90d).
+        while IFS= read -r _snap_rel; do
+            [[ -z "$_snap_rel" ]] && continue
+            rm -f "$_TRACKER_DIR/$_snap_rel" 2>/dev/null && \
+                echo "INFO: Removed stale SNAPSHOT before tickets sync: $_snap_rel" || true
+        done < <(git -C "$_TRACKER_DIR" ls-files --others 2>/dev/null | grep -E "SNAPSHOT\.json$" || true)
+
         # Pull inbound bridge changes (SYNC events, Jira-originated tickets)
         if git -C "$_TRACKER_DIR" pull --rebase origin tickets 2>&1; then
             # Capture remote SHA before push to detect no-op pushes (71fa-c068).
@@ -622,10 +688,34 @@ _phase_push() {
     fi
 }
 
-# --- 4.5) Archive phase (no-op — archive-closed-tickets.sh removed in v3 cleanup) ---
+# --- 4.5) Archive phase — read PRECONDITIONS context and log; no-op on failure ---
 _phase_archive() {
     _CURRENT_PHASE="archive"
     _state_write_phase "archive"
+
+    # Read PRECONDITIONS context for informational logging (fail-open).
+    # Tickets with no PRECONDITIONS events (legacy / pre-manifest) exit non-zero
+    # from _read_latest_preconditions; the || true guard prevents phase failure.
+    local _ticket_lib="$_SCRIPT_DIR/ticket-lib.sh"
+    if [[ -f "$_ticket_lib" ]]; then
+        # shellcheck source=/dev/null
+        source "$_ticket_lib" 2>/dev/null || true
+        if declare -f _read_latest_preconditions >/dev/null 2>&1; then
+            local _tkdir="$_CFG_TKDIR"
+            # If no tickets directory is configured, use the default
+            [[ -z "$_tkdir" ]] && _tkdir="${REPO_ROOT}/.tickets-tracker"
+            local _epic_id="${BRANCH_NAME:-unknown}"
+            local _ticket_dir="$_tkdir/$_epic_id"
+            local _preconditions_json=""
+            _preconditions_json=$(_read_latest_preconditions "$_ticket_dir" 2>/dev/null) || true
+            if [[ -n "$_preconditions_json" ]]; then
+                echo "[merge-to-main] archive: preconditions summary: $_preconditions_json" >&2
+            else
+                echo "[merge-to-main] archive: preconditions: pre-manifest (no events for $_epic_id)" >&2
+            fi
+        fi
+    fi
+
     _state_mark_complete "archive"
 }
 

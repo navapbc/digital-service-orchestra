@@ -39,6 +39,14 @@ Resolved commands used in this skill:
 - `LINT_CMD` — used in fix verification (Step 7)
 - `FORMAT_CHECK_CMD` — used in fix verification (Step 7)
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
 ## Empirical Validation Directive
 
 **Core principle: validate assumptions — never assume unobserved behavior.**
@@ -99,12 +107,16 @@ LLM-behavioral bugs follow a combined investigation+fix path (SC5 — HARD-GATE 
 <SUB-AGENT-GUARD>
 Agent tool availability check: if the Agent tool is unavailable, use the inline fallback below instead of dispatching a sub-agent.
 
-**If the Agent tool is available** (orchestrator context): dispatch `dso:bot-psychologist` sub-agent:
+**If the Agent tool is available** (orchestrator context): dispatch `dso:bot-psychologist` sub-agent. (`dso:bot-psychologist` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Read `agents/bot-psychologist.md` inline and use `subagent_type: "general-purpose"` with the `model:` from that file's frontmatter:
 
 ```
 Read: ${CLAUDE_PLUGIN_ROOT}/agents/bot-psychologist.md
-Dispatch: subagent_type: dso:bot-psychologist
-Input: bug description, affected skill/agent/prompt file path, ticket content, behavioral symptoms observed
+subagent_type: "general-purpose"
+model: {model from bot-psychologist.md frontmatter}
+prompt: |
+  {verbatim content of agents/bot-psychologist.md}
+
+  Input: bug description, affected skill/agent/prompt file path, ticket content, behavioral symptoms observed
 ```
 
 **If the Agent tool is unavailable** (sub-agent context — inline investigation fallback): Read `agents/bot-psychologist.md` as a REFERENCE only — use it for the llm-behavioral taxonomy definitions and probe definitions. Do NOT attempt to follow bot-psychologist's own investigation steps (bot-psychologist contains its own SUB-AGENT-GUARD that blocks all diagnosis steps in nested contexts). Instead, perform the investigation directly using fix-bug's own Step 2/3 investigation framework, applying the llm-behavioral taxonomy from bot-psychologist.md. Specifically: identify the behavioral gap type (prompt regression, guidance gap, behavioral drift, etc.) using the taxonomy, then run static analysis on the affected skill/agent/prompt file (grep for relevant patterns, read the file, identify the defect). Skip any steps requiring user-provided experimental results — record them as `INTERACTIVITY_DEFERRED` in the investigation RESULT and surface them for the calling orchestrator to escalate to the user. This fallback ensures LLM-behavioral investigation degrades gracefully when nested dispatch is prohibited, while clearly signaling which investigation steps could not complete.
@@ -194,6 +206,33 @@ Ensure a bug ticket exists and is set to in-progress before investigation begins
 
 Store the ticket ID as `BUG_TICKET_ID` for use throughout the workflow.
 
+Post WORKTREE_TRACKING:start on the bug ticket (fail silently if .tickets-tracker/ unavailable):
+```bash
+_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+.claude/scripts/dso ticket comment "$BUG_TICKET_ID" "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
+```
+
+#### Auto-Resume Detection
+
+After transitioning the bug ticket to in_progress, scan for abandoned worktrees from prior sessions:
+
+1. Read comments on the bug ticket (`.claude/scripts/dso ticket show "$BUG_TICKET_ID"`) and find `WORKTREE_TRACKING:start` entries with no corresponding `:complete`
+2. For each unmatched start, extract the branch:
+   - If branch no longer exists: skip without error
+   - If branch is ancestor of HEAD: write retroactive `:complete` with `outcome=already_merged`
+   - If mid-merge state (MERGE_HEAD exists): run `git merge --abort` first
+   - If branch has unique commits: attempt `git merge --no-edit <branch>`
+     - Success: log `'Merged abandoned branch <b>'`
+     - Conflict: run `git merge --abort`, log `'Conflict in <b> — discarded'`
+3. If multiple competing branches found (N>1 unmatched starts from distinct branch names), apply tiebreak cascade:
+   - Stage 1: task-list criterion count (verbatim `- [ ]`/`- [x]` matches in branch diff)
+   - Stage 2: test-gate-status artifact (`passed` > `failed` > absent)
+   - Stage 3: conflict count via dry-run merge
+   - Stage 4: most recent `WORKTREE_TRACKING:start` timestamp
+   - Merge the winner; discard (log, skip) the rest
+4. Proceed with normal fix-bug flow
+
 ### Step 1: Score and Classify (/dso:fix-bug)
 
 1. Read the bug description, error messages, and stack traces
@@ -253,16 +292,19 @@ INTENT_SEARCH_BUDGET=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.intent_search
 # Default: 20
 ```
 
-**Dispatch intent-search agent:**
+**Dispatch intent-search agent:** (`dso:intent-search` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Read `agents/intent-search.md` inline and use `subagent_type: "general-purpose"` with the `model:` from that file's frontmatter:
 
 ```
-subagent_type: dso:intent-search
-inputs:
+subagent_type: "general-purpose"
+model: {model from intent-search.md frontmatter}
+prompt: |
+  {verbatim content of agents/intent-search.md}
+
   ticket_id: <BUG_TICKET_ID>
   intent_search_budget: <INTENT_SEARCH_BUDGET>
 ```
 
-**Inline fallback**: If the Agent tool rejects the `dso:intent-search` subagent type (e.g., "Unknown agent type", "not supported", or any dispatch failure before the agent runs), read `agents/intent-search.md` inline and execute its instructions directly with the same `ticket_id` and `intent_search_budget` inputs. This fallback covers the case where plugin agent types are not available in the current Claude Code configuration.
+**Inline fallback**: If the `agents/intent-search.md` file is missing or the Agent tool is unavailable, read `agents/intent-search.md` inline and execute its instructions directly with the same `ticket_id` and `intent_search_budget` inputs. This fallback covers the case where plugin agent files are not available in the current Claude Code configuration.
 
 The agent returns a gate signal conforming to the shared contract defined in `docs/contracts/gate-signal-schema.md`.
 
@@ -619,8 +661,8 @@ Record the gate failure in the discovery file and as a ticket comment before esc
 
 Determine whether the fix can be auto-approved or requires user input:
 
-- **Auto-approve** if: there is exactly one proposed fix, AND the fix is high confidence + low risk + does not degrade functionality, AND the fix does not modify safeguard files, AND the fix does not reduce the enforcement scope of any safety gate (test gate, review gate, or validation gate) under any code path, AND the fix does not introduce capabilities, configuration options, or environment variables that were absent from the system before the bug was reported
-- **User approval required** if: the fix modifies safeguard files, OR the fix introduces new capabilities not described in the original bug report — i.e., adds code paths, CLI flags, environment variables, or configuration keys that did not exist before (feature creep — escalate to user; do NOT invoke `/dso:brainstorm` from sub-agent context), OR the fix reduces the enforcement scope of any safety gate under any code path (including conditional bypasses such as merge-commit or rebase exemptions), OR multiple competing fixes with comparable confidence/risk, OR all fixes degrade functionality, OR confidence is medium or below
+- **Auto-approve** if: there is exactly one proposed fix, AND the fix is high confidence + low risk + does not degrade functionality, AND the fix does not modify safeguard files **in any direction** (expansion, reduction, or refactoring of enforcement scope all require user approval), AND the fix does not introduce capabilities, configuration options, or environment variables that were absent from the system before the bug was reported
+- **User approval required** if: the fix modifies safeguard files **in any way** — ANY modification including expansions that add new enforcement, reductions that remove enforcement, and refactors that change when enforcement fires are all disqualified from auto-approve. Note: adding new enforcement rules, guard functions, blocked-command patterns, or early-exit conditions to safeguard files counts as a safeguard file modification requiring user approval even when the intent is to strengthen security. OR the fix introduces new capabilities not described in the original bug report — i.e., adds code paths, CLI flags, environment variables, or configuration keys that did not exist before (feature creep — escalate to user; do NOT invoke `/dso:brainstorm` from sub-agent context), OR multiple competing fixes with comparable confidence/risk, OR all fixes degrade functionality, OR confidence is medium or below
 
 When presenting fixes for user approval, display:
 - Each proposed fix with description, risk level, and whether it degrades functionality
@@ -798,9 +840,12 @@ Launch a sub-agent to implement the approved fix:
 - Change ONLY what is necessary — no refactoring, no scope creep
 - One logical change at a time
 
+When `worktree.isolation_enabled=true`: after the sub-agent returns, verify `WORKTREE_PATH != ORCHESTRATOR_ROOT` to confirm the fix was applied in its own isolated worktree (not the session root), then follow `skills/shared/prompts/single-agent-integrate.md` to harvest the worktree result, run post-dispatch gates (review, test-gate, commit), and merge back to the session branch.
+
 ### Step 7: Verify Fix (/dso:fix-bug)
 
-Verify that RED tests are now GREEN:
+When `worktree.isolation_enabled=true`: post-dispatch gates (review, test-gate, commit, harvest) are handled by `single-agent-integrate.md` (Step 6). Proceed directly to Step 8.
+When `isolation_enabled=false`: existing Step 7 behavior applies unchanged. Verify that RED tests are now GREEN:
 
 ```bash
 $TEST_CMD           # RED tests should now PASS
@@ -829,7 +874,7 @@ After Step 7 (Verify Fix) passes and before running Gates 2a–2d, check whether
 2. **Agent file existence check (hard-fail)**: Read `agents/scope-drift-reviewer.md` using the Read tool. If the file is not found, ABORT Step 7.1 with a clear error message — do NOT silently skip. The scope-drift-reviewer agent must be present for this step to run.
 
 3. **Dispatch pattern** (mirrors intent-search Step 1.5):
-   - If Agent tool available: dispatch `scope-drift-reviewer` (subagent_type: `dso:scope-drift-reviewer`) with inputs:
+   - If Agent tool available: dispatch `scope-drift-reviewer`. (`dso:scope-drift-reviewer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Read `agents/scope-drift-reviewer.md` inline and use `subagent_type: "general-purpose"` with the `model:` from that file's frontmatter. Pass inputs:
      - `ticket_text`: original bug ticket description
      - `root_cause_report`: investigation findings from Step 4
      - `git_diff`: output of `git diff` at the current working tree
@@ -1179,6 +1224,8 @@ After the fix is verified GREEN and before committing, check whether the source 
 **NEVER close a bug with reason `Escalated to user:` unless the user has explicitly authorized closure in this interactive session (i.e., the user said "close this ticket").** When no code fix is possible, add investigation findings as a ticket comment and leave the ticket OPEN — closing removes it from `ticket list` visibility. Surface unfixable bugs in the session summary instead.
 
 **When running as orchestrator (not a sub-agent)**:
+
+> **CRITICAL — Review invocation**: COMMIT-WORKFLOW.md Step 5 handles the DSO review gate internally. NEVER invoke `Skill("review")` or the bare `/review` command — these trigger the built-in Claude Code PR-review skill, NOT the DSO code reviewer (`/dso:review`). The only valid review invocation is to read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline (which calls REVIEW-WORKFLOW.md at Step 5). Do NOT call `Skill("review")`, `/review`, or `/dso:review` directly from fix-bug.
 
 1. Complete the commit workflow per `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
 2. Close the bug ticket only after a successful code fix:

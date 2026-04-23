@@ -22,14 +22,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT="$PLUGIN_R
 # The fallback resolves DIST_ROOT two levels up from PLUGIN_ROOT via dirname (i.e.,
 # $repo/${CLAUDE_PLUGIN_ROOT} → $repo), which is correct when the plugin lives at $repo/${CLAUDE_PLUGIN_ROOT}.
 # dirname is used instead of ../ navigation to satisfy the no-relative-paths lint rule.
-DIST_ROOT="$REPO_ROOT"
-# Compute two-level parent of PLUGIN_ROOT using dirname to avoid ../ patterns.
-PLUGIN_PARENT="$(dirname "$PLUGIN_ROOT")"
-PLUGIN_GRANDPARENT="$(dirname "$PLUGIN_PARENT")"
-if [ ! -f "$DIST_ROOT/templates/host-project/dso" ] && [ -f "$PLUGIN_GRANDPARENT/templates/host-project/dso" ]; then
-    DIST_ROOT="$PLUGIN_GRANDPARENT"
-fi
-TEMPLATE_SHIM="$DIST_ROOT/templates/host-project/dso"
+TEMPLATE_SHIM="$PLUGIN_ROOT/templates/host-project/dso"
 
 if [ ! -f "$TEMPLATE_SHIM" ]; then
     echo "Error: cannot locate template shim at $TEMPLATE_SHIM" >&2

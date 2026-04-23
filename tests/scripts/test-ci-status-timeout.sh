@@ -17,6 +17,7 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 VALIDATE_SH="$DSO_PLUGIN_DIR/scripts/validate.sh"
+VALIDATE_CHECK_RUNNERS_SH="$DSO_PLUGIN_DIR/hooks/lib/validate-check-runners.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -36,8 +37,11 @@ assert_eq "test_doc_comment_says_60" "1" "$comment_match"
 assert_pass_if_clean "test_doc_comment_says_60"
 
 # ── test_call_site_uses_timeout_ci_var ─────────────────────────────────
+# check_ci() in validate-check-runners.sh is the actual call site; validate.sh
+# defines TIMEOUT_CI and delegates to check_ci via sourcing the runners file.
 _snapshot_fail
-call_site_count=$(grep -c 'run_with_timeout.*\$TIMEOUT_CI.*ci-status' "$VALIDATE_SH" 2>/dev/null || echo "0")
+# shellcheck disable=SC2016  # single quotes intentional: grep for literal $TIMEOUT_CI in source file
+call_site_count=$(grep -c 'run_with_timeout.*\$TIMEOUT_CI.*ci-status' "$VALIDATE_CHECK_RUNNERS_SH" 2>/dev/null || echo "0")
 assert_eq "test_call_site_uses_timeout_ci_var" "1" "$call_site_count"
 assert_pass_if_clean "test_call_site_uses_timeout_ci_var"
 

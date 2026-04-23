@@ -28,10 +28,25 @@
 # harmless for non-ticket tests.
 export _TICKET_TEST_NO_SYNC=1
 
+# Unset PROJECT_ROOT exported by the .claude/scripts/dso shim (bb42-1291).
+# Tests that source this library create temp-repo fixtures and expect ticket
+# scripts/libraries to resolve REPO_ROOT from CWD (the fixture path). With
+# PROJECT_ROOT leaked from the shim, ticket-lib.sh / ticket-create.sh / etc.
+# resolve to the host repo instead, writing events to the wrong tracker and
+# causing cross-tracker state pollution and false-positive test failures.
+# Applies to every test that sources this file — no per-test opt-in needed.
+unset PROJECT_ROOT 2>/dev/null || true
+
 # Temp dir cleanup on exit (guarded for sourced usage — avoid clobbering caller state)
 if [[ -z "${_CLEANUP_DIRS+set}" ]]; then
     _CLEANUP_DIRS=()
-    _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+    # Tolerate per-dir rm failures (bug 3867-b4d4). The last `rm -rf` exit code
+    # would otherwise become the function's return value and leak into the
+    # script's exit code via the EXIT trap. macOS $TMPDIR contains restricted
+    # Apple system dirs (com.apple.*) and tests may set 000 permissions on
+    # fixture subdirs during assertions — both produce spurious nonzero exits
+    # even when every test assertion passed.
+    _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d" 2>/dev/null || true; done; return 0; }
     trap _cleanup EXIT
 fi
 
@@ -49,6 +64,8 @@ _ensure_git_fixture_template() {
     git -C "$_GIT_FIXTURE_TEMPLATE_DIR" config user.email "test@test.com"
     git -C "$_GIT_FIXTURE_TEMPLATE_DIR" config user.name "Test"
     git -C "$_GIT_FIXTURE_TEMPLATE_DIR" config commit.gpgsign false
+    git -C "$_GIT_FIXTURE_TEMPLATE_DIR" config tag.gpgsign false
+    git -C "$_GIT_FIXTURE_TEMPLATE_DIR" config gpg.format openpgp
     echo "initial" > "$_GIT_FIXTURE_TEMPLATE_DIR/README.md"
     git -C "$_GIT_FIXTURE_TEMPLATE_DIR" add -A
     git -C "$_GIT_FIXTURE_TEMPLATE_DIR" commit -q -m "init"

@@ -38,7 +38,8 @@ done
 
 # ── Resolve base path ───────────────────────────────────────────────────────
 if [ -z "$base_path" ]; then
-    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    # Respect PROJECT_ROOT exported by the .claude/scripts/dso shim (bb42-1291).
+    REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
     base_path="$REPO_ROOT/.tickets-tracker"
 fi
 
@@ -116,6 +117,7 @@ author=$(git config user.name 2>/dev/null || echo "system")
 
 # Parse JSON array and write ARCHIVED events
 archived_count=0
+archived_dirs=()
 while IFS= read -r ticket_id; do
     [ -z "$ticket_id" ] && continue
     ticket_dir="$base_path/$ticket_id"
@@ -135,6 +137,9 @@ import json, sys
 event = {'timestamp': int(sys.argv[1]), 'uuid': sys.argv[2], 'event_type': 'ARCHIVED', 'env_id': sys.argv[3], 'author': sys.argv[4], 'data': {}}
 with open(sys.argv[5], 'w') as f: json.dump(event, f)
 " "$ts" "$event_uuid" "$env_id" "$author" "$event_file"
+    # Collect dir for post-commit marker write (SC2: marker must only be written
+    # after the ARCHIVED event is durably committed to git)
+    archived_dirs+=("$ticket_dir")
     archived_count=$((archived_count + 1))
 done < <(python3 -c "
 import json, sys
@@ -168,6 +173,15 @@ if [ "$commit_exit" -ne 0 ]; then
     exit 1
 fi
 rm -f /tmp/lifecycle-commit-err.$$
+
+# Write .archived markers now that the ARCHIVED events are durably committed (SC2)
+# Error-tolerant — failure degrades to slow path on next read, does not block push.
+for _archived_dir in "${archived_dirs[@]+"${archived_dirs[@]}"}"; do
+    python3 -c "
+import sys, pathlib
+pathlib.Path(sys.argv[1]).touch()
+" "$_archived_dir/.archived" 2>/dev/null || true
+done
 
 # ── Step 5: Push with 3-retry ───────────────────────────────────────────────
 if [ "$_has_remote" != true ]; then

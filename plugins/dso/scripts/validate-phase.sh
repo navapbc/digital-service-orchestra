@@ -80,10 +80,15 @@ _cfg_required() {
 }
 
 # Cache all config values at init to avoid repeated YAML parsing overhead.
-CMD_FORMAT=$(_cfg_required "commands.format")
-CMD_FORMAT_CHECK=$(_cfg_required "commands.format_check")
-CMD_LINT=$(_cfg_required "commands.lint")
-CMD_LINT_FIX=$(_cfg "commands.lint_fix")  # optional: only used in phase_auto_fix
+# format/format_check/lint are optional — polyglot repos may not configure all three.
+# Missing keys emit [DSO WARN] and silently skip the relevant steps.
+CMD_FORMAT=$(_cfg "commands.format" "")
+CMD_FORMAT_CHECK=$(_cfg "commands.format_check" "")
+CMD_LINT=$(_cfg "commands.lint" "")
+[[ -z "$CMD_FORMAT" ]] && echo "[DSO WARN] commands.format not configured — format steps will be skipped." >&2
+[[ -z "$CMD_FORMAT_CHECK" ]] && echo "[DSO WARN] commands.format_check not configured — format check steps will be skipped." >&2
+[[ -z "$CMD_LINT" ]] && echo "[DSO WARN] commands.lint not configured — lint steps will be skipped." >&2
+CMD_LINT_FIX=$(_cfg "commands.lint_fix" "")  # optional: only used in phase_auto_fix
 CMD_TEST_UNIT=$(_cfg "commands.test_unit" "make test-unit-only")
 CMD_VALIDATE=$(_cfg_required "commands.validate")
 
@@ -278,7 +283,9 @@ phase_auto_fix() {
     touch /tmp/.validate-phase-ts
 
     # Tier 0: Format
-    collect_modified "FORMAT" "$CMD_FORMAT"
+    if [[ -n "$CMD_FORMAT" ]]; then
+        collect_modified "FORMAT" "$CMD_FORMAT"
+    fi
 
     # Tier 1: Lint auto-fix (optional — only runs if commands.lint_fix is configured)
     if [ -n "$CMD_LINT_FIX" ]; then
@@ -286,8 +293,12 @@ phase_auto_fix() {
     fi
 
     # Validate
-    run_check "FORMAT_CHECK" "$CMD_FORMAT_CHECK" || any_fail=1
-    run_check "LINT" "$CMD_LINT" || any_fail=1
+    if [[ -n "$CMD_FORMAT_CHECK" ]]; then
+        run_check "FORMAT_CHECK" "$CMD_FORMAT_CHECK" || any_fail=1
+    fi
+    if [[ -n "$CMD_LINT" ]]; then
+        run_check "LINT" "$CMD_LINT" || any_fail=1
+    fi
 
     run_test_batched any_fail
 
@@ -300,9 +311,15 @@ phase_post_batch() {
     local any_fail=0
 
     # Format first (fixing, not just checking)
-    (cd "$REPO_ROOT" && eval "$CMD_FORMAT" >/dev/null 2>&1) || true
-    run_check "FORMAT" "$CMD_FORMAT_CHECK" || any_fail=1
-    run_check "LINT" "$CMD_LINT" || any_fail=1
+    if [[ -n "$CMD_FORMAT" ]]; then
+        (cd "$REPO_ROOT" && eval "$CMD_FORMAT" >/dev/null 2>&1) || true
+    fi
+    if [[ -n "$CMD_FORMAT_CHECK" ]]; then
+        run_check "FORMAT" "$CMD_FORMAT_CHECK" || any_fail=1
+    fi
+    if [[ -n "$CMD_LINT" ]]; then
+        run_check "LINT" "$CMD_LINT" || any_fail=1
+    fi
 
     run_test_batched any_fail
 
@@ -313,8 +330,12 @@ phase_post_batch() {
 phase_tier_transition() {
     local any_fail=0
 
-    run_check "FORMAT" "$CMD_FORMAT_CHECK" || any_fail=1
-    run_check "LINT" "$CMD_LINT" || any_fail=1
+    if [[ -n "$CMD_FORMAT_CHECK" ]]; then
+        run_check "FORMAT" "$CMD_FORMAT_CHECK" || any_fail=1
+    fi
+    if [[ -n "$CMD_LINT" ]]; then
+        run_check "LINT" "$CMD_LINT" || any_fail=1
+    fi
 
     run_test_batched any_fail
 
