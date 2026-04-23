@@ -98,13 +98,22 @@ PYPROJECT
 git init -q "$REALENV"
 git -C "$REALENV" config user.email "test@test.com"
 git -C "$REALENV" config user.name "Test"
+# Disable GPG signing in the temp repo — prevents commit failures on CI machines
+# where commit.gpgsign=true is set globally but no signing key is available.
+git -C "$REALENV" config commit.gpgsign false
 
 echo "# test" > "$REALENV/README.md"
 git -C "$REALENV" add -A
 git -C "$REALENV" commit -q -m "init"
 
-# Reset repo to clean state (unstaged, no untracked files) between subtests
+# Reset repo to clean state (unstaged, no untracked files) between subtests.
+# Removes stale git index lock files before running git commands — a lock can
+# persist when FORMAT_FIX_SCRIPT's git-add is killed mid-operation by a test
+# timeout (TEST_TIMEOUT=45s in suite-engine), causing subsequent git reset to
+# fail with "Unable to create index.lock: File exists".
 reset_test_repo() {
+    # Clear stale git lock files from any interrupted git operation
+    rm -f "$REALENV/.git/index.lock" "$REALENV/.git/config.lock"
     git -C "$REALENV" reset --mixed HEAD -q
     git -C "$REALENV" clean -fd -q
     # Recreate app/src/ in case git clean removed it (it has no committed files)
@@ -114,6 +123,9 @@ reset_test_repo() {
 cleanup_shared_repo() {
     rm -rf "$TEST_REPO"
 }
+
+# Ensure cleanup on exit or signal (prevents temp dir leaks on timeout/kill)
+trap cleanup_shared_repo EXIT
 
 # =============================================================================
 # TEST A: Already-formatted file passes without modification
@@ -136,8 +148,7 @@ git -C "$REALENV" commit -q -m "add clean file"
 echo "" >> "$REALENV/app/src/clean.py"
 git -C "$REALENV" add "$REALENV/app/src/clean.py"
 
-OUTPUT_A=$(cd "$REALENV" && bash "$FORMAT_FIX_SCRIPT" 2>&1) || true
-EXIT_A=$?
+OUTPUT_A=$(cd "$REALENV" && bash "$FORMAT_FIX_SCRIPT" 2>&1); EXIT_A=$?
 
 assert_eq "test_clean_file_exits_zero" "0" "$EXIT_A"
 
@@ -158,8 +169,7 @@ PY
 git -C "$REALENV" add "$REALENV/app/src/messy.py"
 
 # Run the format fix hook
-OUTPUT_B=$(cd "$REALENV" && bash "$FORMAT_FIX_SCRIPT" 2>&1) || true
-EXIT_B=$?
+OUTPUT_B=$(cd "$REALENV" && bash "$FORMAT_FIX_SCRIPT" 2>&1); EXIT_B=$?
 
 assert_eq "test_unformatted_file_exits_zero" "0" "$EXIT_B"
 
@@ -197,8 +207,7 @@ PY
 git -C "$REALENV" add "$REALENV/app/src/messy2.py"
 
 # Run the format fix hook
-OUTPUT_C=$(cd "$REALENV" && bash "$FORMAT_FIX_SCRIPT" 2>&1) || true
-EXIT_C=$?
+OUTPUT_C=$(cd "$REALENV" && bash "$FORMAT_FIX_SCRIPT" 2>&1); EXIT_C=$?
 
 assert_eq "test_staging_preserved_exits_zero" "0" "$EXIT_C"
 
@@ -217,8 +226,7 @@ reset_test_repo
 echo "some text" > "$REALENV/app/src/readme.txt"
 git -C "$REALENV" add "$REALENV/app/src/readme.txt"
 
-OUTPUT_D=$(cd "$REALENV" && bash "$FORMAT_FIX_SCRIPT" 2>&1) || true
-EXIT_D=$?
+OUTPUT_D=$(cd "$REALENV" && bash "$FORMAT_FIX_SCRIPT" 2>&1); EXIT_D=$?
 
 assert_eq "test_non_python_exits_zero" "0" "$EXIT_D"
 

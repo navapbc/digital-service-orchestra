@@ -256,7 +256,7 @@ check_homebrew_deps() {
   if brew list bash >/dev/null 2>&1; then
     local bash_prefix
     bash_prefix="$(brew --prefix bash)"
-    export PATH="$bash_prefix/bin:$PATH"
+    [ -n "$bash_prefix" ] && export PATH="$bash_prefix/bin:$PATH"
   fi
 
   # Check git
@@ -331,6 +331,11 @@ check_homebrew_deps() {
       brew install colima || missing+=("colima")
     fi
     if command -v colima >/dev/null 2>&1; then
+      # Colima provides the Docker daemon but not the docker CLI — install it separately
+      if ! command -v docker >/dev/null 2>&1; then
+        echo "Installing docker CLI via Homebrew (required alongside Colima)..."
+        brew install docker || echo "WARNING: Could not install docker CLI — run 'brew install docker' manually." >&2
+      fi
       if ! colima status 2>/dev/null | grep -q "Running"; then
         echo "Starting Colima..."
         colima start --cpu 4 --memory 8 || \
@@ -572,6 +577,22 @@ main() {
     echo "Configuring project with DSO defaults..."
     bash "$_setup_script" "$project_dir" "$resolved_plugin_root" \
       || echo "WARNING: DSO project setup encountered issues — run '.claude/scripts/dso validate.sh' manually if needed." >&2
+  fi
+
+  # Step 5c.5: Shim fallback — if dso-setup.sh failed or was absent, install the
+  # shim directly so .claude/scripts/dso is always present after install.
+  # (Bug 14f9-060b: a failing dso-setup.sh left the shim missing even though
+  # create-dso-app.sh reported success and wrote the sentinel.)
+  if [[ ! -f "$project_dir/.claude/scripts/dso" ]]; then
+    local _shim_template="$resolved_plugin_root/templates/host-project/dso"
+    if [[ -f "$_shim_template" ]]; then
+      mkdir -p "$project_dir/.claude/scripts"
+      cp "$_shim_template" "$project_dir/.claude/scripts/dso"
+      chmod +x "$project_dir/.claude/scripts/dso"
+      echo "Installed DSO shim directly from plugin template."
+    else
+      echo "WARNING: DSO shim template not found at $resolved_plugin_root/templates/host-project/dso — .claude/scripts/dso not installed." >&2
+    fi
   fi
 
   # Clean up detection output after dso-setup consumed it

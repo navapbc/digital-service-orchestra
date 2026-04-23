@@ -82,7 +82,9 @@ EOF
     rm -rf "$repo"
 }
 
-test_does_not_stage_if_file_was_not_staged() {
+test_auto_stages_even_if_file_was_not_previously_staged() {
+    # bug e0be-5826: hook must always auto-stage after union so the commit
+    # proceeds in one step, even when .test-index was not already in the index.
     local repo; repo=$(_make_fixture_repo)
     cat > "$repo/.test-index" <<'EOF'
 src/a.py:tests/a1.sh
@@ -90,10 +92,10 @@ src/a.py:tests/a2.sh
 EOF
     ( cd "$repo" && bash "$GUARD" )
     assert_eq "unstaged duplicates: exit 0" "0" "$?"
-    # The file was not staged before; it should not be staged after, either.
+    # File should now be staged despite not being staged before.
     local staged
     staged=$(cd "$repo" && git diff --cached --name-only)
-    assert_eq "unstaged file left unstaged" "" "$staged"
+    assert_eq "auto-staged after union even when not previously staged" ".test-index" "$staged"
     rm -rf "$repo"
 }
 
@@ -138,7 +140,7 @@ echo "=== test-check-test-index-duplicates ==="
 test_no_op_on_clean_file
 test_auto_unions_duplicate_keys
 test_restages_if_file_was_staged
-test_does_not_stage_if_file_was_not_staged
+test_auto_stages_even_if_file_was_not_previously_staged
 test_comments_not_counted_as_keys
 test_absent_file_passes
 test_idempotent

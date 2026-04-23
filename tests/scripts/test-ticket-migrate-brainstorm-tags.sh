@@ -841,4 +841,158 @@ test_write_failure_containment() {
 test_write_failure_containment
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Test 15: scrutiny:pending tag removed during migration
+# ═══════════════════════════════════════════════════════════════════════════════
+# An epic with scrutiny:pending tag and a PIL heading should have scrutiny:pending
+# removed from its tags while brainstorm:complete is added. The EDIT event must
+# contain the new tag list without scrutiny:pending.
+echo "Test 15: scrutiny:pending tag removed during migration"
+test_scrutiny_pending_removed() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local epic_id="epic-scrutiny-pending-15"
+    local ticket_dir="$tracker_dir/$epic_id"
+    mkdir -p "$ticket_dir"
+
+    # Epic with scrutiny:pending and another tag; PIL heading in description.
+    # The migration must preserve the other tag, add brainstorm:complete, and drop scrutiny:pending.
+    local create_data
+    create_data='{"ticket_type": "epic", "title": "Epic with scrutiny:pending", "parent_id": null, "description": "## Background\n\n### Planning Intelligence Log\n\nPreviously brainstormed content.", "tags": ["scrutiny:pending", "some-other-tag"]}'
+    _write_event "$ticket_dir" "1742800100" "00000000-0000-4000-8000-scrut001cr01" "CREATE" "$create_data"
+
+    (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || true
+
+    # Must have brainstorm:complete tag
+    if _ticket_has_tag "$tracker_dir" "$epic_id" "brainstorm:complete"; then
+        assert_eq "scrutiny-pending epic: has brainstorm:complete" "tagged" "tagged"
+    else
+        assert_eq "scrutiny-pending epic: has brainstorm:complete" "tagged" "not-tagged"
+    fi
+
+    # Must NOT have scrutiny:pending tag in the EDIT event
+    # Inspect the EDIT event files directly for the tag list
+    local has_scrutiny_in_edit
+    has_scrutiny_in_edit=$(python3 - "$ticket_dir" <<PYEOF_INNER
+import json, os, sys
+
+ticket_dir = sys.argv[1]
+found = False
+for fname in sorted(os.listdir(ticket_dir)):
+    if not fname.endswith('-EDIT.json') or fname.startswith('.'):
+        continue
+    try:
+        with open(os.path.join(ticket_dir, fname)) as f:
+            event = json.load(f)
+        tags = event.get('data', {}).get('fields', {}).get('tags', None)
+        if tags is not None:
+            tag_list = tags if isinstance(tags, list) else tags.split(',')
+            if 'scrutiny:pending' in tag_list:
+                found = True
+    except (json.JSONDecodeError, OSError):
+        pass
+print("yes" if found else "no")
+PYEOF_INNER
+)
+
+    assert_eq "scrutiny-pending: removed from EDIT event tags" "no" "$has_scrutiny_in_edit"
+
+    # Must still have some-other-tag (scrutiny:pending removal is precise, not destructive)
+    if _ticket_has_tag "$tracker_dir" "$epic_id" "some-other-tag"; then
+        assert_eq "scrutiny-pending: other tags preserved" "preserved" "preserved"
+    else
+        assert_eq "scrutiny-pending: other tags preserved" "preserved" "lost"
+    fi
+
+    assert_pass_if_clean "test_scrutiny_pending_removed"
+}
+test_scrutiny_pending_removed
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 16: --dry-run gate makes no changes (read-only)
+# ═══════════════════════════════════════════════════════════════════════════════
+# With --dry-run: exits 0, prints DRY-RUN lines for eligible epics, writes no
+# EDIT event files, creates no git commits in the tracker, and does not write
+# the marker file. A subsequent normal run must still perform the migration.
+echo "Test 16: --dry-run gate makes no actual changes"
+test_dryrun_gate_no_changes() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local epic_id="epic-dryrun-test-16"
+    local ticket_dir="$tracker_dir/$epic_id"
+    mkdir -p "$ticket_dir"
+
+    # Epic with PIL heading and scrutiny:pending (both behaviors exercised)
+    local create_data
+    create_data='{"ticket_type": "epic", "title": "Epic for dry-run test", "parent_id": null, "description": "## Background\n\n### Planning Intelligence Log\n\nSome brainstorm content.", "tags": ["scrutiny:pending"]}'
+    _write_event "$ticket_dir" "1742900100" "00000000-0000-4000-8000-dryrun01cr01" "CREATE" "$create_data"
+
+    # Record state before dry-run: count EDIT event files and commits
+    local edit_count_before
+    edit_count_before=$(find "$ticket_dir" -name '*-EDIT.json' 2>/dev/null | wc -l | tr -d ' ')
+    local commit_count_before
+    commit_count_before=$(git -C "$tracker_dir" log --oneline 2>/dev/null | wc -l | tr -d ' ')
+
+    # Run with --dry-run
+    local exit_code=0
+    local output
+    output=$(cd "$repo" && bash "$MIGRATE_SCRIPT" --dry-run 2>/dev/null) || exit_code=$?
+
+    # Must exit 0
+    assert_eq "dry-run: exits 0" "0" "$exit_code"
+
+    # Must print a DRY-RUN line for the eligible epic
+    assert_contains "dry-run: prints DRY-RUN line for eligible epic" \
+        "DRY-RUN:" "$output"
+
+    # No EDIT event files must have been created
+    local edit_count_after
+    edit_count_after=$(find "$ticket_dir" -name '*-EDIT.json' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "dry-run: no EDIT event files created" "$edit_count_before" "$edit_count_after"
+
+    # No new git commits in the tracker branch
+    local commit_count_after
+    commit_count_after=$(git -C "$tracker_dir" log --oneline 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "dry-run: no new git commits in tracker" "$commit_count_before" "$commit_count_after"
+
+    # Marker file must NOT be written
+    if [ -f "$repo/.claude/.brainstorm-tag-migration-v2" ]; then
+        assert_eq "dry-run: marker file NOT written" "not-written" "written"
+    else
+        assert_eq "dry-run: marker file NOT written" "not-written" "not-written"
+    fi
+
+    # A subsequent normal run must still perform the migration (marker absent = not idempotent-blocked)
+    local exit2=0
+    (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || exit2=$?
+    assert_eq "dry-run: subsequent normal run succeeds" "0" "$exit2"
+
+    if _ticket_has_tag "$tracker_dir" "$epic_id" "brainstorm:complete"; then
+        assert_eq "dry-run: subsequent normal run actually migrates" "tagged" "tagged"
+    else
+        assert_eq "dry-run: subsequent normal run actually migrates" "tagged" "not-tagged"
+    fi
+
+    assert_pass_if_clean "test_dryrun_gate_no_changes"
+}
+test_dryrun_gate_no_changes
+
+# ═══════════════════════════════════════════════════════════════════════════════
 print_summary

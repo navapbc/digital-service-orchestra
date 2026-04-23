@@ -78,6 +78,12 @@ set -m  # Enable job control so background jobs get their own process group
 # when calculating their time budget relative to the Claude Code tool timeout.
 _SCRIPT_ENTRY_TIME=$(date +%s)
 
+# ── Active child PID tracking (for signal handler cleanup) ───────────────────
+# Set to the PID of the currently-running background child process so that
+# signal handlers can kill grandchild processes before killing the subshell,
+# preventing them from becoming orphans (PPID=1 after parent exits).
+_ACTIVE_CHILD_PID=""
+
 # ── Signal handling ────────────────────────────────────────────────────────────
 # Trap SIGTERM, SIGINT, and SIGURG (exit code 144 from Claude Code tool timeout)
 # to save state before exiting, enabling resume on the next invocation.
@@ -90,6 +96,21 @@ _SCRIPT_ENTRY_TIME=$(date +%s)
 
 _signal_handler() {
     local sig="${1:-TERM}"
+    # Kill active child processes before saving state to prevent orphans.
+    # For SIGTERM, SIGHUP, SIGINT (intentional exits — not SIGURG tool timeout):
+    # kill grandchildren FIRST (while subshell is still their parent) so pkill -P
+    # can reach them before they get re-parented to PPID=1.
+    if [ "$sig" != "URG" ]; then
+        trap '' SIGTERM SIGHUP SIGINT  # prevent re-entrancy
+        if [ -n "${_ACTIVE_CHILD_PID:-}" ]; then
+            pkill -TERM -P "$_ACTIVE_CHILD_PID" 2>/dev/null || true
+            kill -TERM "$_ACTIVE_CHILD_PID" 2>/dev/null || true
+            sleep 0.2
+            pkill -KILL -P "$_ACTIVE_CHILD_PID" 2>/dev/null || true
+            kill -KILL "$_ACTIVE_CHILD_PID" 2>/dev/null || true
+        fi
+        pkill -TERM -P "$$" 2>/dev/null || true
+    fi
     # Guard: only write state if STATE_FILE is defined and non-empty
     if [ -n "${STATE_FILE:-}" ]; then
         local completed_json results_json
@@ -165,6 +186,7 @@ except Exception:
 
 trap '_signal_handler TERM' SIGTERM
 trap '_signal_handler INT'  SIGINT
+trap '_signal_handler HUP'  SIGHUP
 trap '_signal_handler URG'  SIGURG
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -597,12 +619,14 @@ trap 'rm -f "$_exit_code_file"' EXIT
     echo $? > "$_exit_code_file"
 ) &
 CMD_PID=$!
+_ACTIVE_CHILD_PID=$CMD_PID
 
 # Wait for completion or timeout
 while kill -0 "$CMD_PID" 2>/dev/null; do
     if [ "$(_elapsed)" -ge "$TIMEOUT" ]; then
         # Kill the entire process group (negative PID) so child processes
         # spawned by bash -c don't survive as orphans.
+        _ACTIVE_CHILD_PID=""
         kill -- -"$CMD_PID" 2>/dev/null || kill "$CMD_PID" 2>/dev/null || true
         wait "$CMD_PID" 2>/dev/null || true
         rm -f "$_exit_code_file"
@@ -613,6 +637,7 @@ while kill -0 "$CMD_PID" 2>/dev/null; do
     sleep 0.1 2>/dev/null || sleep 1
 done
 
+_ACTIVE_CHILD_PID=""
 wait "$CMD_PID" 2>/dev/null; test_exit=$?
 # Read real exit code if written
 if [ -f "$_exit_code_file" ]; then

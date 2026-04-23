@@ -164,7 +164,11 @@ This is a presence-based check — only block when the tag IS present. Existing 
 
 Before proceeding, check if the story being planned is tagged `manual:awaiting_user`:
 
-1. Check the flag gate: `EXTERNAL_DEP_ENABLED=$(bash "$PLUGIN_SCRIPTS/read-config.sh" planning.external_dependency_block_enabled)`. If the flag is absent, empty, or `false`, skip this gate entirely and proceed normally — baseline behavior is preserved.
+1. Check the flag gate:
+   ```bash
+   EXTERNAL_DEP_ENABLED=$(bash "$PLUGIN_SCRIPTS/read-config.sh" planning.external_dependency_block_enabled)  # shim-exempt: prompt template — PLUGIN_SCRIPTS is CLAUDE_PLUGIN_ROOT-derived by the executing agent
+   ```
+   If the flag is absent, empty, or `false`, skip this gate entirely and proceed normally — baseline behavior is preserved.
 2. Run `.claude/scripts/dso ticket show <story-id>` and check the `tags` field for `manual:awaiting_user`.
 3. If `manual:awaiting_user` is NOT present: proceed normally (not a manual story).
 4. If `manual:awaiting_user` IS present: enter the branching logic below.
