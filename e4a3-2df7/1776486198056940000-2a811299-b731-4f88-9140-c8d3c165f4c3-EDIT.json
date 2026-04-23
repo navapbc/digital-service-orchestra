@@ -1,1 +1,0 @@
-{"timestamp": 1776486198056940000, "uuid": "2a811299-b731-4f88-9140-c8d3c165f4c3", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "worktree-lifecycle: sessions complete -> sub-agent worktrees accumulate without cleanup"}}}
