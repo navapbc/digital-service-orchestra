@@ -205,10 +205,10 @@ Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. When `REVIEW_AGENT_OV
 
 **You MUST launch a named `dso:code-reviewer-*` sub-agent.** There are no exceptions — not for documentation-only changes, not for "trivial" changes, not for config files. The sub-agent performs the review and assigns scores. Skipping this step and writing review JSON yourself is fabrication. Dispatching a generic agent with instructions to write `reviewer-findings.json` is also fabrication — the review MUST come from a named reviewer agent (`dso:code-reviewer-light`, `dso:code-reviewer-standard`, or `dso:code-reviewer-deep-*`), not a general-purpose agent with fabricated review instructions.
 
-**Inline dispatch is mandatory — `dso:*` labels are agent file identifiers, NOT `subagent_type` values.** The Agent tool only accepts built-in types (`general-purpose`, `Explore`, `Plan`, etc.). For every dispatch below:
-1. Read `agents/<agent-name>.md` inline (strip the `dso:` prefix to get the file name).
-2. Use `subagent_type: "general-purpose"` and the `model:` value from the agent file's frontmatter.
-3. Pass the agent file content verbatim as the prompt, appending only the per-review context items listed below.
+**Use the registered `subagent_type` directly — `dso:code-reviewer-*` are valid Agent tool subagent_type values in this environment.** Do NOT substitute `subagent_type: "general-purpose"` with a constructed prompt. For every dispatch below:
+1. Use `subagent_type: "dso:code-reviewer-<tier>"` (e.g., `dso:code-reviewer-standard`, `dso:code-reviewer-light`, `dso:code-reviewer-test-quality`) directly in the Agent tool call.
+2. Use the `model:` value from the agent file's frontmatter.
+3. Pass only the per-review context items listed below (DIFF_FILE, REPO_ROOT, STAT_FILE, WORKFLOW_PLUGIN_ARTIFACTS_DIR, SELECTED_TIER) — the agent's own instructions are already loaded by the runtime.
 
 **HARD GATE — VERBATIM IS NOT OPTIONAL**: This verbatim requirement applies to EVERY dispatch in this workflow — initial review, re-review, escalation. There are no exceptions. Constructing your own prompt instead of loading the agent file is fabrication, regardless of which step you are in or how "simple" the re-review context appears. Do NOT proceed with a dispatch until you have read the agent file and confirmed its content is the first thing in the prompt.
 
