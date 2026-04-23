@@ -306,6 +306,7 @@ ticket_create() {
         fi
 
         local ticket_type="$1"
+        # shellcheck disable=SC2030  # local to this subshell; intentional scope
         local title="$2"
         shift 2
 
@@ -628,3 +629,280 @@ with open(sys.argv[4], 'w', encoding='utf-8') as f:
         rm -f "$temp_event"
     )
 }
+
+# ── ticket_tag ────────────────────────────────────────────────────────────────
+# In-process replacement for ticket-tag.sh.
+ticket_tag() {
+    if [ "${DSO_TICKET_LEGACY:-0}" = "1" ]; then
+        bash "$_TICKETLIB_DIR/ticket-tag.sh" "$@"
+        return $?
+    fi
+
+    (
+        set -euo pipefail
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        # shellcheck source=/dev/null
+        source "$_TICKETLIB_DIR/ticket-lib.sh"
+
+        if [ $# -lt 2 ]; then
+            echo "Usage: ticket tag <ticket_id> <tag>" >&2
+            return 1
+        fi
+
+        local ticket_id="$1"
+        local tag="$2"
+
+        if [ -z "$ticket_id" ] || [ -z "$tag" ]; then
+            echo "Error: ticket_id and tag must be non-empty" >&2
+            return 1
+        fi
+
+        _tag_add_checked "$ticket_id" "$tag"
+    )
+}
+
+# ── ticket_untag ──────────────────────────────────────────────────────────────
+# In-process replacement for ticket-untag.sh.
+ticket_untag() {
+    if [ "${DSO_TICKET_LEGACY:-0}" = "1" ]; then
+        bash "$_TICKETLIB_DIR/ticket-untag.sh" "$@"
+        return $?
+    fi
+
+    (
+        set -euo pipefail
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        # shellcheck source=/dev/null
+        source "$_TICKETLIB_DIR/ticket-lib.sh"
+
+        if [ $# -lt 2 ]; then
+            echo "Usage: ticket untag <ticket_id> <tag>" >&2
+            return 1
+        fi
+
+        local ticket_id="$1"
+        local tag="$2"
+
+        if [ -z "$ticket_id" ] || [ -z "$tag" ]; then
+            echo "Error: ticket_id and tag must be non-empty" >&2
+            return 1
+        fi
+
+        _tag_remove "$ticket_id" "$tag"
+    )
+}
+
+# ── ticket_edit ───────────────────────────────────────────────────────────────
+# In-process replacement for ticket-edit.sh.
+ticket_edit() {
+    if [ "${DSO_TICKET_LEGACY:-0}" = "1" ]; then
+        bash "$_TICKETLIB_DIR/ticket-edit.sh" "$@"
+        return $?
+    fi
+
+    (
+        set -euo pipefail
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        # shellcheck source=/dev/null
+        source "$_TICKETLIB_DIR/ticket-lib.sh"
+
+        local TRACKER_DIR
+        if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+            TRACKER_DIR="$TICKETS_TRACKER_DIR"
+        else
+            local REPO_ROOT
+            REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
+            TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+        fi
+
+        if [ $# -lt 2 ]; then
+            echo "Usage: ticket edit <ticket_id> [--title=VALUE] [--priority=VALUE] [--assignee=VALUE] [--ticket_type=VALUE] [--description=VALUE] [--tags=VALUE]" >&2
+            return 1
+        fi
+
+        local ticket_id="$1"
+        shift
+
+        local ALLOWED_FIELDS="title priority assignee ticket_type description tags"
+
+        _is_allowed_field_edit() {
+            local field="$1"
+            local f
+            for f in $ALLOWED_FIELDS; do
+                if [ "$f" = "$field" ]; then
+                    return 0
+                fi
+            done
+            return 1
+        }
+
+        # Parse --field=value and --field value pairs
+        declare -A fields
+        while [ $# -gt 0 ]; do
+            local arg="$1"
+            case "$arg" in
+                --*=*)
+                    local field_name="${arg%%=*}"
+                    field_name="${field_name#--}"
+                    local field_value="${arg#*=}"
+                    if ! _is_allowed_field_edit "$field_name"; then
+                        echo "Error: unknown field '$field_name'. Allowed: $ALLOWED_FIELDS" >&2
+                        return 1
+                    fi
+                    fields["$field_name"]="$field_value"
+                    shift
+                    ;;
+                --*)
+                    local field_name="${arg#--}"
+                    if ! _is_allowed_field_edit "$field_name"; then
+                        echo "Error: unknown field '$field_name'. Allowed: $ALLOWED_FIELDS" >&2
+                        return 1
+                    fi
+                    if [ $# -lt 2 ]; then
+                        echo "Error: --$field_name requires a value" >&2
+                        return 1
+                    fi
+                    shift
+                    fields["$field_name"]="$1"
+                    shift
+                    ;;
+                *)
+                    echo "Error: unexpected argument '$arg'" >&2
+                    return 1
+                    ;;
+            esac
+        done
+
+        if [ ${#fields[@]} -eq 0 ]; then
+            echo "Error: at least one --field=value pair is required" >&2
+            return 1
+        fi
+
+        if [ ! -f "$TRACKER_DIR/.env-id" ]; then
+            echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
+            return 1
+        fi
+
+        if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
+            echo "Error: ticket '$ticket_id' does not exist" >&2
+            return 1
+        fi
+
+        if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 \( -name '*-CREATE.json' -o -name '*-SNAPSHOT.json' \) ! -name '.*' 2>/dev/null | grep -q .; then
+            echo "Error: ticket $ticket_id has no CREATE or SNAPSHOT event" >&2
+            return 1
+        fi
+
+        # Unicode arrow conversion for title field
+        # shellcheck disable=SC2031  # fields[title] here is unrelated to ticket_create's `title` var — different function, different subshell
+        if [[ -n "${fields[title]+x}" ]]; then
+            # shellcheck disable=SC2031
+            fields[title]=$(python3 -c "import sys; print(sys.argv[1].replace('\u2192', '->'))" "${fields[title]}")
+        fi
+
+        local env_id
+        env_id=$(cat "$TRACKER_DIR/.env-id")
+        local author
+        author=$(git config user.name 2>/dev/null || echo "Unknown")
+
+        local temp_event
+        temp_event=$(mktemp "$TRACKER_DIR/.tmp-edit-XXXXXX")
+        # shellcheck disable=SC2064
+        trap "rm -f '$temp_event'" EXIT
+
+        # Build the fields JSON string for python3
+        local fields_json="{"
+        local first=true
+        local key value
+        for key in "${!fields[@]}"; do
+            if [ "$first" = true ]; then
+                first=false
+            else
+                fields_json+=","
+            fi
+            value="${fields[$key]}"
+            # Only `priority` is numeric; other fields (title, assignee, description, ticket_type, tags) stay strings
+            # even when they contain digits (e.g., `--title=123` must emit `"title":"123"`, not `"title":123`).
+            if [ "$key" = "priority" ] && [[ "$value" =~ ^-?[0-9]+$ ]]; then
+                fields_json+="\"$key\":$value"
+            else
+                local escaped_value
+                escaped_value=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$value")
+                fields_json+="\"$key\":$escaped_value"
+            fi
+        done
+        fields_json+="}"
+
+        python3 -c "
+import json, sys, time, uuid
+
+fields = json.loads(sys.argv[3])
+
+event = {
+    'timestamp': time.time_ns(),
+    'uuid': str(uuid.uuid4()),
+    'event_type': 'EDIT',
+    'env_id': sys.argv[1],
+    'author': sys.argv[2],
+    'data': {
+        'fields': fields
+    }
+}
+
+with open(sys.argv[4], 'w', encoding='utf-8') as f:
+    json.dump(event, f, ensure_ascii=False)
+" "$env_id" "$author" "$fields_json" "$temp_event" || {
+            rm -f "$temp_event"
+            echo "Error: failed to build EDIT event JSON" >&2
+            return 1
+        }
+
+        write_commit_event "$ticket_id" "$temp_event" || {
+            rm -f "$temp_event"
+            echo "Error: failed to write and commit EDIT event" >&2
+            return 1
+        }
+
+        rm -f "$temp_event"
+    )
+}
+
+# ── ticket_link ───────────────────────────────────────────────────────────────
+# In-process replacement for the `ticket link` dispatcher case.
+# Thin wrapper — delegates to ticket-graph.py for cycle detection.
+ticket_link() {
+    if [ "${DSO_TICKET_LEGACY:-0}" = "1" ]; then
+        bash "$_TICKETLIB_DIR/ticket-link.sh" link "$@"
+        return $?
+    fi
+
+    (
+        set -euo pipefail
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        if [ $# -lt 3 ]; then
+            echo "Usage: ticket link <id1> <id2> <relation>" >&2
+            return 1
+        fi
+
+        # Relation validation is delegated to ticket-graph.py (single source of truth)
+        # to avoid drift if new relation types are added.
+        python3 "$_TICKETLIB_DIR/ticket-graph.py" --link "$@"
+    )
+}
+
+# ── ticket_transition ─────────────────────────────────────────────────────────
+# In-process replacement for ticket-transition.sh.
+# Thin wrapper: reads current status, validates, writes STATUS event via python3.
+# Does NOT replicate epic-close logic, unblock detection, or compact-on-close.
+ticket_transition() {
+    # Thin wrapper: delegate to ticket-transition.sh to preserve unblock logic,
+    # open-children guard, epic-close reminder, and flock-based concurrency.
+    # Tracked for future in-process optimization in 161e-b2b4.
+    bash "$_TICKETLIB_DIR/ticket-transition.sh" "$@"
+    return $?
+}
+

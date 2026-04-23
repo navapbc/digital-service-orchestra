@@ -191,7 +191,10 @@ case "$subcommand" in
         ;;
     transition)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-transition.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_transition "$@"
+        exit $?
         ;;
     list)
         _ensure_initialized
@@ -238,7 +241,10 @@ case "$subcommand" in
         # state and writes UNLINK events in the same format that ticket-graph.py reads.
         # Both scripts write LINK/UNLINK events to the same append-only event log, so
         # link and unlink remain consistent across the two implementations.
-        exec python3 "$SCRIPT_DIR/ticket-graph.py" --link "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_link "$@"
+        exit $?
         ;;
     unlink)
         _ensure_initialized
@@ -266,15 +272,24 @@ case "$subcommand" in
         ;;
     edit)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-edit.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_edit "$@"
+        exit $?
         ;;
     tag)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-tag.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_tag "$@"
+        exit $?
         ;;
     untag)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-untag.sh" "$@"
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_untag "$@"
+        exit $?
         ;;
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2
