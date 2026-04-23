@@ -2,7 +2,6 @@
 # Maps source files to test files that fuzzy match misses.
 # Format: source/path: test/path1[, test/path2...]
 
-README.md:tests/test-readme-structure.sh
 plugins/dso/.claude-plugin/plugin.json:tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-dir-structure.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
 plugins/dso/agents/bot-psychologist.md:tests/scripts/test-bot-psychologist-agent.sh
