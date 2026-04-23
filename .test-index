@@ -28,7 +28,7 @@ plugins/dso/docs/workflow-config-schema.json:tests/scripts/test-workflow-config-
 plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow-step-1-5.sh,tests/skills/test-preconditions-commit-validator.sh
 plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh,tests/docs/test-reviewer-base-repo-root-context.sh,tests/scripts/test-reviewer-agent-review-tier.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
-plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/skills/test_review_workflow_model_escalation.py,tests/workflows/test-review-workflow-classifier-failure-guards.sh
+plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/skills/test_review_workflow_model_escalation.py,tests/workflows/test-review-workflow-classifier-failure-guards.sh,tests/scripts/test-compute-diff-hash-shim-refs.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-light.md:tests/docs/test-reviewer-polyglot-compliance.sh,tests/docs/test-reviewer-blindspot-annotations.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-deep-hygiene.md:tests/docs/test-reviewer-blindspot-annotations.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-deep-correctness.md:tests/docs/test-reviewer-blindspot-annotations.sh
@@ -217,7 +217,7 @@ plugins/dso/scripts/ticket_graph/_links.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_loader.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_status.py:tests/scripts/test_ticket_graph.py
 INSTALL.md:tests/test-install-doc-contract.sh,tests/scripts/test-no-unguarded-plugin-refs.sh,tests/test-install-integration-setup.sh
-plugins/dso/skills/shared/prompts/single-agent-integrate.md:tests/hooks/test-single-agent-integrate-structure.sh
+plugins/dso/skills/shared/prompts/single-agent-integrate.md:tests/hooks/test-single-agent-integrate-structure.sh,tests/scripts/test-compute-diff-hash-shim-refs.sh
 plugins/dso/scripts/scan-config-keys.sh:tests/scripts/test-scan-config-keys.sh
 plugins/dso/docs/CONFIGURATION-REFERENCE.md:tests/scripts/test-config-keys-documented.sh
 plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh,tests/scripts/test-sprint-list-epics-without-tag.sh,tests/scripts/test-brainstorm-tag-flow.sh
