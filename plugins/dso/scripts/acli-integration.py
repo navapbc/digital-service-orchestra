@@ -628,6 +628,12 @@ class AcliClient:
             elif isinstance(parsed, dict) and "issues" in parsed:
                 all_issues = parsed["issues"]
             else:
+                logging.warning(
+                    "search_issues: unexpected ACLI JSON shape (type=%s); "
+                    "treating as empty result. Response prefix: %.200r",
+                    type(parsed).__name__,
+                    parsed,
+                )
                 all_issues = []
             self._search_cache[jql] = all_issues
 

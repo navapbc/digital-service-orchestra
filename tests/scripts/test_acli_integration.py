@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 import subprocess
 from pathlib import Path
 from types import ModuleType
@@ -900,3 +901,78 @@ def test_acli_client_create_issue_rejects_empty_title(acli: ModuleType) -> None:
             ValueError, match="(?i)summary.*empty|title.*empty|empty.*title"
         ):
             client.create_issue(ticket_data)
+
+
+# ---------------------------------------------------------------------------
+# Test 20 (RED): AcliClient.search_issues emits a WARNING when the JSON
+# response is neither a bare list nor a dict with an "issues" key.
+#
+# BUG 0e38-a5da: the else branch silently returns [] with no log entry,
+# causing 7+ days of zero syncs with no observable signal.
+# After the fix, a logging.warning() call will be added to the else branch.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_search_issues_warns_on_unrecognised_json_shape(acli: ModuleType) -> None:
+    """AcliClient.search_issues must emit a WARNING when the ACLI JSON response
+    is a dict that has no 'issues' key (e.g. {"total": 5, "maxResults": 50}).
+
+    Given: ACLI returns a JSON dict without an "issues" key
+    When:  search_issues is called with any JQL
+    Then:  a WARNING-level log entry is emitted (observable side-effect)
+
+    The current code hits `else: all_issues = []` with no warning, so
+    assertLogs raises AssertionError ("no logs") — the test is RED.
+    Adding `logging.warning(...)` to that branch makes the test GREEN.
+    """
+    import unittest
+
+    client = acli.AcliClient(
+        jira_url="https://test.atlassian.net",
+        user="test@example.com",
+        api_token="fake-token",
+        jira_project="DSO",
+    )
+
+    # A dict with no "issues" key — the unrecognised shape that triggers the else branch
+    unrecognised_response = json.dumps({"total": 5, "maxResults": 50})
+    mock_proc = MagicMock(returncode=0, stdout=unrecognised_response, stderr="")
+
+    tc = unittest.TestCase()
+    tc.maxDiff = None
+
+    with patch("subprocess.run", return_value=mock_proc):
+        # assertLogs raises AssertionError if no WARNING is emitted —
+        # this is the RED assertion: the current code emits nothing, so this FAILS.
+        # After the fix adds logging.warning(...) to the else branch, it PASSES.
+        with tc.assertLogs(level=logging.WARNING) as log_ctx:
+            result = client.search_issues(jql="project = DSO")
+
+    # The call must still return an empty list (existing contract preserved)
+    assert result == [], (
+        f"search_issues must return [] for unrecognised JSON shape, got: {result!r}"
+    )
+
+    # The warning must reference the unexpected shape in some way
+    assert any(
+        any(
+            keyword in record.lower()
+            for keyword in (
+                "issues",
+                "unexpected",
+                "unrecognised",
+                "unrecognized",
+                "shape",
+                "format",
+                "neither",
+                "unknown",
+                "parse",
+            )
+        )
+        for record in log_ctx.output
+    ), (
+        f"Expected a warning mentioning the unexpected JSON shape, "
+        f"but got: {log_ctx.output}"
+    )
