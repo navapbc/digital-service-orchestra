@@ -1,1 +1,0 @@
-{"author":"Worktree","data":{"body":"Anti-pattern scan: 1 confirmed candidate found — plugins/dso/scripts/ticket-edit.sh:50 uses same declare -A pattern (legacy script path). Filing follow-up bug ticket."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1776983112198186000,"uuid":"bb0c5882-5285-42c9-8367-6a14dfc5f3f9"}
