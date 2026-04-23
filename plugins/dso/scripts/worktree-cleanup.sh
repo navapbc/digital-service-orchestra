@@ -418,6 +418,19 @@ while IFS= read -r line; do
             continue
         fi
 
+        # Skip the .tickets-tracker worktree -- it holds the ticket system orphan
+        # branch ("tickets") and must never be removed by cleanup (cf6d-54fd).
+        _skip_tickets=false
+        [[ "$current_branch" == "tickets" ]] && _skip_tickets=true
+        case "$current_path" in
+            */.tickets-tracker) _skip_tickets=true ;;
+        esac
+        if [[ "$_skip_tickets" == "true" ]]; then
+            current_path=""
+            current_branch=""
+            continue
+        fi
+
         local_name=$(basename "$current_path")
         _wt_scan_index=$((_wt_scan_index + 1))
         printf '  [%d/%d] %s\n' "$_wt_scan_index" "$_wt_scan_total" "$local_name" >&2
@@ -484,6 +497,14 @@ for i in "${!WT_NAMES[@]}"; do
     removable=true
     reason=""
 
+    # Agent worktrees (.claude/worktrees/agent-*) are transient dispatch worktrees
+    # created by the Agent tool. Discarded worktrees (harvest exit 1/2/3) are NOT
+    # merged to main but should still be reclaimed (89fa-8baa, e4a3-2df7).
+    _is_agent_worktree=false
+    case "$path" in
+        */.claude/worktrees/agent-*) _is_agent_worktree=true ;;
+    esac
+
     # Safety: never remove the worktree we're currently in
     if [[ "$CURRENT_DIR" == "$path" || "$CURRENT_DIR" == "$path/"* ]]; then
         removable=false
@@ -491,16 +512,16 @@ for i in "${!WT_NAMES[@]}"; do
     elif [[ "${WT_ACTIVE[$i]}" == "yes" ]]; then
         removable=false
         reason="active session"
-    elif [[ "${WT_OLD_ENOUGH[$i]}" == "no" ]]; then
+    elif [[ "${WT_OLD_ENOUGH[$i]}" == "no" && "$_is_agent_worktree" == "false" ]]; then
         removable=false
         reason="too recent (<${AGE_HOURS}h)"
-    elif [[ "${WT_MERGED[$i]}" == "no" ]]; then
+    elif [[ "${WT_MERGED[$i]}" == "no" && "$_is_agent_worktree" == "false" ]]; then
         removable=false
         reason="not merged"
     elif [[ "${WT_CLEAN[$i]}" == "no" && "$FORCE_DIRTY" != "true" ]]; then
         removable=false
         reason="uncommitted changes"
-    elif [[ "${WT_UNPUSHED[$i]}" == "yes" ]]; then
+    elif [[ "${WT_UNPUSHED[$i]}" == "yes" && "$_is_agent_worktree" == "false" ]]; then
         removable=false
         reason="unpushed commits"
     elif [[ "${WT_STASHED[$i]}" == "yes" ]]; then

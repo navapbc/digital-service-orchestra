@@ -29,7 +29,7 @@ plugins/dso/docs/workflow-config-schema.json:tests/scripts/test-workflow-config-
 plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow-step-1-5.sh,tests/skills/test-preconditions-commit-validator.sh
 plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh,tests/docs/test-reviewer-base-repo-root-context.sh,tests/scripts/test-reviewer-agent-review-tier.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
-plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/skills/test_review_workflow_model_escalation.py,tests/workflows/test-review-workflow-classifier-failure-guards.sh
+plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/skills/test_review_workflow_model_escalation.py,tests/workflows/test-review-workflow-classifier-failure-guards.sh,tests/scripts/test-compute-diff-hash-shim-refs.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-light.md:tests/docs/test-reviewer-polyglot-compliance.sh,tests/docs/test-reviewer-blindspot-annotations.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-deep-hygiene.md:tests/docs/test-reviewer-blindspot-annotations.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-deep-correctness.md:tests/docs/test-reviewer-blindspot-annotations.sh
@@ -51,7 +51,7 @@ plugins/dso/hooks/dispatchers/pre-taskoutput.sh:tests/hooks/test-session-misc-di
 plugins/dso/hooks/dispatchers/pre-all.sh:tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-staging-invariance.sh,tests/hooks/test-behavioral-equivalence-allowlist.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh
-plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-part4.sh,tests/hooks/test-record-test-status-part1.sh,tests/hooks/test-record-test-status-accumulative.sh,tests/hooks/test-record-test-status-centrality.sh,tests/hooks/test-record-test-status-eagain.sh,tests/hooks/test-record-test-status-split-guard.sh,tests/hooks/test-record-test-status-part2.sh,tests/hooks/test-record-test-status-part3.sh,tests/hooks/test-record-test-status-attest.sh,tests/hooks/test-record-test-status-staged-test-no-source.sh
+plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-part4.sh,tests/hooks/test-record-test-status-part1.sh,tests/hooks/test-record-test-status-accumulative.sh,tests/hooks/test-record-test-status-centrality.sh,tests/hooks/test-record-test-status-eagain.sh,tests/hooks/test-record-test-status-split-guard.sh,tests/hooks/test-record-test-status-part2.sh,tests/hooks/test-record-test-status-part3.sh,tests/hooks/test-record-test-status-attest.sh,tests/hooks/test-record-test-status-staged-test-no-source.sh,tests/hooks/test-record-test-status-red-zone-merge.sh
 plugins/dso/hooks/record-review.sh:tests/hooks/test-record-review-attest.sh
 plugins/dso/hooks/run-hook.sh:tests/hooks/test-run-hook-relative-paths.sh,tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
@@ -219,7 +219,7 @@ plugins/dso/scripts/ticket_graph/_links.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_loader.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_status.py:tests/scripts/test_ticket_graph.py
 INSTALL.md:tests/test-install-doc-contract.sh,tests/scripts/test-no-unguarded-plugin-refs.sh,tests/test-install-integration-setup.sh
-plugins/dso/skills/shared/prompts/single-agent-integrate.md:tests/hooks/test-single-agent-integrate-structure.sh
+plugins/dso/skills/shared/prompts/single-agent-integrate.md:tests/hooks/test-single-agent-integrate-structure.sh,tests/scripts/test-compute-diff-hash-shim-refs.sh
 plugins/dso/scripts/scan-config-keys.sh:tests/scripts/test-scan-config-keys.sh
 plugins/dso/docs/CONFIGURATION-REFERENCE.md:tests/scripts/test-config-keys-documented.sh
 plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh,tests/scripts/test-sprint-list-epics-without-tag.sh,tests/scripts/test-brainstorm-tag-flow.sh
@@ -237,6 +237,7 @@ plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.
 plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
 plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-ticket-write-commit-event.sh,tests/scripts/test-ticket-lib.sh,tests/scripts/test-preconditions-lww.sh,tests/scripts/test-preconditions-compaction.sh,tests/integration/test-preconditions-fault-injection.sh,tests/integration/test-preconditions-mixed-corpus.sh,tests/integration/test-preconditions-compaction-ordering.sh
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-ticket-push-rebase-conflict.sh,tests/scripts/test-preconditions-lww.sh,tests/scripts/test-ticket-lib.sh,tests/scripts/test-preconditions-compaction.sh,tests/integration/test-preconditions-fault-injection.sh,tests/integration/test-preconditions-mixed-corpus.sh,tests/integration/test-preconditions-compaction-ordering.sh,tests/scripts/test-ticket-write-commit-event.sh
 plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
@@ -258,6 +259,8 @@ plugins/dso/scripts/dso-setup.sh:tests/scripts/test-dso-setup-stack-aware-ci.sh,
 plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test-index-duplicates.sh
 tests/fixtures/ticket-cli-baseline.json:tests/scripts/test-ticket-cli-baseline-fixture.sh
 tests/scripts/capture-baseline.sh:tests/scripts/test-ticket-cli-baseline-fixture.sh
+plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-review-gate-bypass-sentinel.sh
+plugins/dso/hooks/lib/session-process-cleanup-functions.sh:tests/hooks/test-session-misc-dispatchers.sh
 plugins/dso/scripts/preconditions-baseline-collect.sh:tests/scripts/test-preconditions-baseline.sh
 plugins/dso/scripts/preconditions-validator.sh:tests/scripts/test-preconditions-validator.sh,tests/skills/test-preplanning-preconditions-integration.sh
 plugins/dso/scripts/preconditions-depth-classifier.sh:tests/scripts/test-preconditions-depth-classifier.sh

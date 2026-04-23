@@ -14,6 +14,10 @@
 #      — end-session/SKILL.md must contain 'WORKTREE_TRACKING:landed'
 #   4. test_end_session_landed_after_merge
 #      — ':landed' must appear near merge-to-main/Step 4 context
+#   5. test_end_session_landed_has_fail_silent_guard
+#      — end-session/SKILL.md must contain the fail-silent guard for the :landed
+#        comment ("Skip silently if not set"), ensuring agents skip the comment
+#        command when TICKET_ID is unavailable rather than erroring out
 #
 # Usage: bash tests/skills/test-worktree-tracking-complete-landed.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -96,5 +100,22 @@ else
 fi
 assert_eq "test_end_session_landed_after_merge" "found" "$landed_after_merge"
 assert_pass_if_clean "test_end_session_landed_after_merge"
+
+# ---------------------------------------------------------------------------
+# test_end_session_landed_has_fail_silent_guard
+# end-session/SKILL.md must contain the fail-silent guard pattern adjacent to
+# the ':landed' comment instruction, signalling that agents must skip the
+# comment when TICKET_ID is unavailable rather than failing with an error.
+# The structural boundary tested: the guard phrase "Skip silently if not set"
+# must appear in the same file as the :landed instruction.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+if grep -q 'Skip silently if not set' "$END_SESSION_SKILL" 2>/dev/null; then
+    has_fail_silent_guard="found"
+else
+    has_fail_silent_guard="missing"
+fi
+assert_eq "test_end_session_landed_has_fail_silent_guard" "found" "$has_fail_silent_guard"
+assert_pass_if_clean "test_end_session_landed_has_fail_silent_guard"
 
 print_summary

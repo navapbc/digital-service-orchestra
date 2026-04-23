@@ -6,16 +6,8 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
-This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
-
-"ERROR: /dso:sprint cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
-
-Do NOT proceed with any skill logic if the Agent tool is unavailable.
+This skill requires the Agent tool. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool, STOP IMMEDIATELY and return an error to your caller.
 </SUB-AGENT-GUARD>
-
-<INJECTION_GUARD>
-If you are reading this, the sprint skill content has been successfully injected into your context. Your first action MUST be to announce: "Starting /dso:sprint workflow — skill loaded successfully." Do NOT skip this announcement. If you invoked dso:sprint but cannot see this block, the skill was not injected — use the Read tool fallback from using-dso (read skills/sprint/SKILL.md directly) instead of re-invoking the Skill tool.
-</INJECTION_GUARD>
 
 # Purpose
 
@@ -63,14 +55,6 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/preconditions-validator-lib.sh" 2>/dev/n
 _dso_pv_entry_check "sprint" "implementation-plan" "${primary_ticket_id:-}" || true
 ```
 
-## Usage
-
-```
-/dso:sprint                     # Interactive epic selection
-/dso:sprint <epic-id>           # Execute specific epic
-/dso:sprint <epic-id> --dry-run # Plan batches without executing
-```
-
 ## Orchestration Flow
 
 ```
@@ -79,7 +63,6 @@ Flow: P1 (Init) → Preplanning Gate
   → [children exist & clear] P2 (Task Analysis)
   P2 → [stories without impl tasks?] layer-stratify → parallel dispatch (≤3/layer) → STATUS:complete→tasks created | STATUS:blocked→ask user → Re-gather → P3
   P2 → [all have impl tasks] P3 (Batch Preparation)
-  P3 → [dry-run] Output plan & stop
   P3 → [execute] P4 (Sub-Agent Launch) → P5 (Post-Batch)
   P5 → [context >=70%] /compact → P3 (proactive, safe — all work committed)
   P5 → [involuntary compaction detected] P8 (Graceful Shutdown)
@@ -95,8 +78,7 @@ Flow: P1 (Init) → Preplanning Gate
 
 ### Parse Arguments
 
-- `<primary-ticket-id>`: The primary ticket to execute (any type: epic, story, task, or bug)
-- `--dry-run`: Output batch plan without executing any sub-agents
+- `<primary-ticket-id>`: The primary ticket to execute
 
 ### If No Primary Ticket ID Provided
 
@@ -113,101 +95,31 @@ Flow: P1 (Init) → Preplanning Gate
 
    Exit codes:
    - Exit code 1 → no open epics exist, report and exit
-   - Exit code 2 → all open epics are blocked; display the BLOCKED-prefixed lines from stdout as context, then exit
 
-   After running, also run the same command **without** `--has-tag=brainstorm:complete` to count how many epics were hidden:
+   **If no eligible epics remain** after applying `--has-tag=brainstorm:complete` (i.e., the filtered output is empty or exit code 1):
+   - Report: "No epics with the brainstorm:complete tag are ready to execute."
+   - Run the same command **without** `--has-tag=brainstorm:complete` to count how many epics were hidden:
    ```bash
    .claude/scripts/dso sprint-list-epics.sh --all
    ```
-   Calculate `hidden_count = total_unfiltered_count - filtered_count` (count only non-BLOCKED lines from each run).
-
-   **If no eligible epics remain** after applying `--has-tag=brainstorm:complete` (i.e., the filtered output is empty or exit code 1/2):
-   - Report: "No epics with the brainstorm:complete tag are ready to execute."
    - If there are epics without brainstorm:complete that were filtered out, show: "There are N epics without the brainstorm:complete tag. Run `/dso:brainstorm` on one to complete scrutiny review before executing."
    - Exit.
 
-2. Parse the output and print a numbered list. **CRITICAL: You MUST output the formatted list as visible text BEFORE invoking any tool call.** Do NOT pass epics as `options` to `AskUserQuestion` — the `options` field is limited to 4 items and cannot display blocked epics or the hidden-count note. Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**. Below the list, if `hidden_count > 0`, append a note:
-   ```
-   In-progress epics:
+2. Parse the output and print a numbered list. **CRITICAL: You MUST output the formatted list as visible text.**  Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**. 
 
-     1. [P*] <title> (<epic-id>) — 5 children ← resumable
-     2. **[P*] <title> (<epic-id>) — 3 children ← resumable, BLOCKING**
-
-   Unblocked epics (sorted by priority):
-
-     3. **[P0] <title> (<epic-id>) — 3 children**
-     4. [P1] <title> (<epic-id>) — 7 children
-     ...
-
-   Blocked epics (not selectable):
-     - [P2] <title> (<epic-id>) — 2 children — blocked by: <blocker-id-1>, <blocker-id-2>
-
-   (N epics without brainstorm:complete tag are hidden. Run `/dso:brainstorm` on one to complete scrutiny review before executing.)
-   ```
-   Omit the hidden-epics note when `hidden_count == 0`.
-3. Ask the user: "Enter the number or epic ID to execute:" and wait for their text input. Use `AskUserQuestion` with a free-text prompt only — do not pass epics as options.
+3. Display the text: "Enter the number or epic ID to execute:" and wait for the user's text input. 
 4. Map the user's response (number or epic ID) back to the corresponding epic and proceed
 
 ### Validate Primary Ticket
 
 Set `primary_ticket_id = <the resolved ticket ID>`.
 
-1. Run `.claude/scripts/dso ticket show <primary_ticket_id>` — confirm status is `open` or `in_progress` (any ticket type is accepted)
+1. Run `.claude/scripts/dso ticket show <primary_ticket_id>` — confirm status is `open` or `in_progress`
 
-#### Auto-Resume Detection
+2. If the ticket status is `in_progress`:
 
-If the ticket type is `epic` AND status is `in_progress`:
+Load skills/sprint/prompts/auto-resume.md and follow the instructions it contains.
 
-(a) Print: `"Epic <primary_ticket_id> is in_progress — resuming from checkpoint scan."`
-
-(b) Run `.claude/scripts/dso ticket deps <primary_ticket_id>` to check for children.
-
-(c) **If zero children**: Log `"No children found — falling through to Preplanning Gate."` and continue to Drift Detection → Preplanning Gate normally (scenario: abandoned mid-preplanning, skip checkpoint resume).
-
-(d) **If children exist**:
-   - Run drift detection with `--status=open` filter:
-     ```
-     DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <primary_ticket_id> --status=open)
-     ```
-   - Handle `DRIFT_DETECTED` / `NO_DRIFT` the same as the existing Drift Detection Check section below.
-   - Then apply checkpoint resume rules:
-     1. Run `.claude/scripts/dso ticket list` and filter for in-progress tasks under `<primary_ticket_id>` for interrupted tasks
-     2. For each in-progress task, run `.claude/scripts/dso ticket show <id>` and parse its notes for CHECKPOINT lines
-     3. Apply checkpoint resume rules:
-        - **CHECKPOINT 6/6 ✓** — task is fully done; fast-close: verify files exist, then `.claude/scripts/dso ticket transition <id> open closed --reason="Fixed: <summary>"`
-        - **CHECKPOINT 5/6 ✓** — near-complete; fast-close: spot-check files and close without re-execution
-        - **CHECKPOINT 3/6 ✓ or 4/6 ✓** — partial progress; re-dispatch with resume context: include the highest checkpoint note in the sub-agent prompt so it can continue from that substep
-        - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `.claude/scripts/dso ticket transition <id> open` for full re-execution
-        - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
-     4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
-     5. **Backward compatibility**: Sprint reads old positional-counter checkpoints (CHECKPOINT N/6) without error and resumes from the last completed phase — no migration of existing checkpoint notes is required. Semantic-named checkpoints (CHECKPOINT:batch-complete, CHECKPOINT:review-passed, CHECKPOINT:validation-passed) are equivalent in resume logic.
-   - After checkpoint processing, run the **WORKTREE_TRACKING Auto-Resume Detection** scan before proceeding to Phase 3:
-
-     **WORKTREE_TRACKING Auto-Resume Detection Scan** (runs after checkpoint processing):
-     1. Enumerate tickets to scan: the top-level epic ticket + all child story/task tickets
-        - Get children via: `.claude/scripts/dso ticket deps <primary_ticket_id>` (open + closed, use `--include-archived`)
-        - Also scan the top-level ticket itself
-     2. For each ticket, read comments (`.claude/scripts/dso ticket show <id>`) and find `WORKTREE_TRACKING:start` comments with no corresponding `:complete` (for task tickets) or `:landed` (for story/bug tickets)
-     3. If multiple unmatched starts exist, de-duplicate by branch name (keep most recent timestamp per branch), then apply tiebreak cascade:
-        - Stage 1: Count verbatim task-list criterion matches (`- [ ]`/`- [x]` items in ticket description that appear in the branch's git diff). Higher wins.
-        - Stage 2: Compare test-gate-status artifact in each branch (`passed` > `failed` > absent). Winner proceeds.
-        - Stage 3: Count merge conflicts via dry-run (`git merge --no-commit --no-ff <branch>`; count conflict markers; then `git merge --abort`). Lower wins.
-        - Stage 4: Most recent `WORKTREE_TRACKING:start` timestamp wins.
-        - Merge the winner; discard (log, skip) the rest.
-     4. For each unmatched start, extract the branch name:
-        - If branch no longer exists locally: skip without error, log `'Branch <b> not found — skipping'`
-        - If branch is ancestor of HEAD (already merged): write retroactive `:complete` with `outcome=already_merged`, skip re-merge
-        - If git is in mid-merge state (MERGE_HEAD exists): run `git merge --abort` first
-        - If branch has unique commits (not in HEAD): attempt `git merge --no-edit <branch>`
-          - On success: log `'Merged abandoned branch <b>'`
-          - On conflict: run `git merge --abort`, log `'Conflict in <b> — discarded'`
-     5. After scan: if repo is clean, proceed to Phase 3
-
-   - Proceed to Phase 3.
-
-(e) **Non-epic tickets** (story, task, bug) with `in_progress` status are NOT affected by auto-resume detection — they proceed through Non-Epic Routing as before. Auto-resume only applies to epic-type tickets.
-
-2. Run `.claude/scripts/dso ticket deps <primary_ticket_id>` — if 100% complete, skip to Phase 6 (validation)
 3. Mark ticket in-progress: `.claude/scripts/dso ticket transition <primary_ticket_id> in_progress`
 
 Post WORKTREE_TRACKING:start on the epic ticket (fail silently if .tickets-tracker/ unavailable):
@@ -217,55 +129,37 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
 .claude/scripts/dso ticket comment <primary_ticket_id> "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
 ```
 
-4. Mark the **Select and validate primary ticket** todo item `completed`.
-
 **Non-epic routing**: After validation, check the ticket type and route accordingly:
 
 | Ticket type | Route |
 |-------------|-------|
 | `epic` | Continue to Drift Detection → Preplanning Gate (standard flow) |
-| `bug` | Dispatch `/dso:fix-bug` as sub-skill (SC4) — see Bug Routing below |
-| `story` or `task` | Run complexity evaluation then optional `/dso:implementation-plan` (SC1) — see Non-Epic Routing below |
+| `bug` | Dispatch `/dso:fix-bug` as sub-skill — see Bug Routing below |
+| `story` or `task` | Run complexity evaluation then optional `/dso:implementation-plan` — see Non-Epic Routing below |
 
 #### Bug Routing (SC4)
 
-<!-- REVIEW-DEFENSE: Finding 3 — The absence of an explicit ORCHESTRATOR_RESUME fence here is intentional.
-     SC4 is a terminal routing path: the sprint orchestrator exits after fix-bug completes (step 4 proceeds directly
-     to Phase 8 Session Close). There is no sprint phase to resume into after fix-bug returns, so the ORCHESTRATOR_RESUME
-     pattern (which guards against fix-bug's own termination directives overriding the caller) is not applicable.
-     The fix-bug skill's SUB-AGENT-GUARD handles nested sub-agent context as designed per the epic's success criteria. -->
 When ticket type is `bug`:
 
 1. Log: `"Primary ticket <primary_ticket_id> is a bug — dispatching /dso:fix-bug."`
-2. Emit SKILL_INVOKE breadcrumb then invoke `/dso:fix-bug <primary_ticket_id>` via Skill tool.
-3. Emit SKILL_RESUMED breadcrumb after the skill returns.
-4. Exit Phase 1 and proceed to Phase 8 (Session Close). Do not continue to the Preplanning Gate or Phase 2.
+2. Invoke `/dso:fix-bug <primary_ticket_id>` via Skill tool.
+3. Exit Phase 1 and proceed to Phase 8 (Session Close). Do not continue to the Preplanning Gate or Phase 2.
 
-#### Non-Epic Routing (SC1)
+#### Non-Epic Routing
 
 When ticket type is `story` or `task`:
 
 1. Log: `"Primary ticket <primary_ticket_id> is a <type> — running complexity evaluation."`
-2. Dispatch `subagent_type: dso:complexity-evaluator` (model: haiku) with `tier_schema=TRIVIAL` to classify the ticket.
+2. Dispatch the `dso:complexity-evaluator` agent (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` value). Read `agents/complexity-evaluator.md` inline and use `subagent_type: "general-purpose"` with `model: "haiku"`. Pass `tier_schema=TRIVIAL` to classify the ticket.
 
-   **Fallback**: If the `dso:complexity-evaluator` named agent is unavailable, fall back to `subagent_type: general-purpose` and read `agents/complexity-evaluator.md` inline as the task prompt. Pass `tier_schema=TRIVIAL` in the task context.
+   **Fallback**: If the `agents/complexity-evaluator.md` file is missing, log a warning and fall back to inline complexity assessment using the story description and acceptance criteria.
 
 3. Route based on the complexity classification:
    - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Before proceeding, run a **file-count guard**: estimate the number of files the task will touch by running `enrich-file-impact.sh` or by counting file paths mentioned in the ticket description. If the estimated file count exceeds 30, split the task into parallel sub-tasks by directory or alphabetical range (each sub-task ≤ 30 files), create child task tickets for each subset, and proceed to Phase 3 with the split tasks. If ≤ 30 files, proceed directly to Phase 3 (Batch Preparation) with the ticket as the sole task.
    - **TRIVIAL (medium)** or **MODERATE/COMPLEX (any)**: Invoke `/dso:implementation-plan <primary_ticket_id>` via Skill tool.
-<!-- REVIEW-DEFENSE: Finding — "TRIVIAL (medium) treated as MODERATE but evaluator contract says medium→COMPLEX."
-     The TRIVIAL (medium) branch is a deliberate routing policy decision, not a contract violation. The
-     complexity-evaluator contract describes the evaluator's *output* classification space; it does not govern
-     sprint orchestrator routing policy. The evaluator may or may not promote TRIVIAL(medium) to COMPLEX
-     depending on version and context — what matters here is the routing outcome. Both TRIVIAL(medium) and
-     MODERATE/COMPLEX(any) are collapsed into a single branch that routes to /dso:implementation-plan, which
-     is correct in both cases. This mirrors the pre-existing epic routing table (Phase 1 Step 2b, same file),
-     which uses the same TRIVIAL(medium)→lightweight-preplanning pattern by design. If the evaluator contract
-     guarantees TRIVIAL(medium) is never emitted, this branch is harmlessly unreachable and causes no
-     incorrect behavior — the routing table remains correct for all reachable inputs. -->
+
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Non-Epic Routing (SC1). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your next action is step 4: continue to Phase 3.
-   Stopping here is a known bug (7d7a-b707). Do not stop.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Non-Epic Routing. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your next action is step 4: continue to Phase 3.
    </ORCHESTRATOR_RESUME>
 4. After routing, continue to Phase 3. Non-epics **skip** the Preplanning Gate and proceed directly to Phase 3.
 
@@ -282,10 +176,6 @@ max_replan_cycles = read_config("sprint.max_replan_cycles", default=2)
 
 **Run the drift check:**
 
-<!-- REVIEW-DEFENSE: Finding 1 — `<epic-id>` here is a SKILL.md instruction placeholder, not a literal string.
-     The orchestrator substitutes the actual primary ticket ID at runtime, consistent with the placeholder convention
-     used throughout this file (Phase 2, Phase 5, Phase 7, Phase 8, etc.). Renaming all occurrences from <epic-id>
-     to <primary_ticket_id> is tracked in task 6450-ce70 which handles the broader Phase naming migration. -->
 ```bash
 DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
 ```
@@ -299,11 +189,10 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Files drifted: <files>. Re-invoking implementation-plan for affected stories."
    ```
 4. Identify which stories' tasks reference any of the drifted files (inspect each child task's `## File Impact` or `## Files to Modify` section).
-5. For each affected story, emit a SKILL_INVOKE breadcrumb and re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as Phase 2 Step 2).
+5. For each affected story, re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as Phase 2 Step 2).
 
    <ORCHESTRATOR_RESUME>
    **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
-   Stopping here is a known bug (7d7a-b707). Do not stop.
    </ORCHESTRATOR_RESUME>
 
    - **On success (`STATUS:complete`)**: continue.
@@ -326,11 +215,10 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Relates_to epic <closed-epic-id> closed after implementation plan. <summary>. Re-invoking implementation-plan for affected stories."
    ```
 4. Identify which stories' tasks reference any of the drifted relates_to epics (inspect each child task's `## File Impact` or `## Files to Modify` section, or cross-reference the task's dependency/relates-to links).
-5. For each affected story, emit a SKILL_INVOKE breadcrumb and re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as DRIFT_DETECTED handling above).
+5. For each affected story, re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as DRIFT_DETECTED handling above).
 
    <ORCHESTRATOR_RESUME>
    **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection (RELATES_TO_DRIFT). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
-   Stopping here is a known bug (7d7a-b707). Do not stop.
    </ORCHESTRATOR_RESUME>
 
    - **On success (`STATUS:complete`)**: continue.
@@ -367,12 +255,14 @@ Parse the result:
 
 #### Layer 2: Scope Certainty Assessment
 
-Dispatch `dso:complexity-evaluator` (model: haiku) with the primary ticket context to evaluate `scope_certainty`:
+Dispatch the `dso:complexity-evaluator` agent (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types). Read `agents/complexity-evaluator.md` inline and use `subagent_type: "general-purpose"` with `model: "haiku"`. Pass the primary ticket context to evaluate `scope_certainty`:
 
 ```
-subagent_type: dso:complexity-evaluator
+subagent_type: "general-purpose"
 model: haiku
-input:
+prompt: |
+  {verbatim content of agents/complexity-evaluator.md}
+
   ticket_id: <primary_ticket_id>
   tier_schema: SIMPLE
 ```
@@ -448,22 +338,10 @@ Count the number of child tasks returned.
 
 If **more than half** of the children are ambiguous, trigger preplanning for the entire epic.
 
-
-> **CONTROL_LOSS detection note (applies to every SKILL_INVOKE/SKILL_RESUMED pair in this file):**
-> At each call site below, a `SKILL_INVOKE` breadcrumb is emitted immediately before the Skill tool call, and a `SKILL_RESUMED` breadcrumb is emitted immediately after. If the Skill tool call does not return control to the orchestrator (e.g., the skill terminates the session or control is otherwise lost), the `SKILL_RESUMED` breadcrumb will never execute. `CONTROL_LOSS` is **not** a breadcrumb type and is never emitted actively — it is a derived event detected passively by the analysis script (`skill-trace-analyze.py`) when it finds a `SKILL_INVOKE` record with no matching `SKILL_RESUMED` for the same `session_ordinal` + `skill_name`. No additional action is required by the orchestrator; the absence of `SKILL_RESUMED` is itself the signal.
-
 If any trigger condition is met:
 1. Log: `"Epic has ambiguous tasks — running /dso:preplanning to decompose before execution."`
-2. Emit SKILL_INVOKE breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-3. Invoke `/dso:preplanning <epic-id>` (full mode)
-4. Emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-5. After preplanning completes, continue to Phase 2
+2. Invoke `/dso:preplanning <epic-id>` (full mode)
+3. After preplanning completes, continue to Phase 2
 
 If no trigger condition is met, proceed to Step 2a1 (SC Coverage Haiku Gate).
 
@@ -659,43 +537,23 @@ for each child to retrieve the `ticket_type` field. This is required to determin
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: sc_coverage — Missing SCs: <comma-separated list of missing sc_ids and sc_text>. Routing to decomposition skill to add coverage."
    ```
 
-2. Based on the child ticket types (from the children already fetched above), emit SKILL_INVOKE, invoke, and emit SKILL_RESUMED:
+2. Based on the child ticket types (from the children already fetched above), invoke:
 
    **If at least one child has `ticket_type: story`** (route to `/dso:preplanning`):
-
-   Emit SKILL_INVOKE breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
 
    Invoke `/dso:preplanning <epic-id>` via Skill tool.
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The preplanning skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to emit SKILL_RESUMED breadcrumb and proceed to Phase 2. Stopping here is a known bug (7d7a-b707). Do not stop.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The preplanning skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Proceed to Phase 2. Do not stop.
    </ORCHESTRATOR_RESUME>
 
-   Emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-
    **If all children have `ticket_type: task`** (route to `/dso:implementation-plan`):
-
-   Emit SKILL_INVOKE breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
 
    Invoke `/dso:implementation-plan <epic-id>` via Skill tool.
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to emit SKILL_RESUMED breadcrumb and proceed to Phase 2. Stopping here is a known bug (7d7a-b707). Do not stop.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Proceed to Phase 2. Do not stop.
    </ORCHESTRATOR_RESUME>
-
-   Emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
 
    **Otherwise** (children are all epics or have unexpected ticket types): log a warning `"SC coverage REPLAN_TRIGGER: unexpected child types — no story or task children found; proceeding to Phase 2 without decomposition routing"` and proceed to Phase 2.
 
@@ -703,13 +561,13 @@ for each child to retrieve the `ticket_type` field. This is required to determin
 
 #### Step 2b: Epic Complexity Evaluation (/dso:sprint)
 
-When the epic has zero children, dispatch `subagent_type: dso:complexity-evaluator` (model: haiku) to classify the epic's complexity before deciding the decomposition path.
+When the epic has zero children, dispatch the `dso:complexity-evaluator` agent to classify the epic's complexity before deciding the decomposition path. (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.)
 
 **Dispatch the evaluator:**
 
-Dispatch via `subagent_type: dso:complexity-evaluator` with `model: haiku`. Pass the epic ID as the task argument. Pass `tier_schema=SIMPLE` as a field in the task context so the agent outputs SIMPLE/MODERATE/COMPLEX tier vocabulary.
+Read `agents/complexity-evaluator.md` inline and use `subagent_type: "general-purpose"` with `model: "haiku"`. Pass the epic ID as the task argument. Pass `tier_schema=SIMPLE` as a field in the task context so the agent outputs SIMPLE/MODERATE/COMPLEX tier vocabulary.
 
-**Fallback**: If the `dso:complexity-evaluator` named agent is unavailable, fall back to `subagent_type: general-purpose` and load the shared rubric prompt from `$PLUGIN_ROOT/skills/sprint/prompts/` (see `epic-complexity-evaluator` prompt file in that directory).
+**Fallback**: If `agents/complexity-evaluator.md` is missing, fall back to `subagent_type: "general-purpose"` and load the shared rubric prompt from `$PLUGIN_ROOT/skills/sprint/prompts/` (see `epic-complexity-evaluator` prompt file in that directory).
 
 **Route based on classification:**
 
@@ -726,97 +584,49 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 #### Step 3a: Direct Implementation Planning (SIMPLE epics) (/dso:sprint)
 
 1. Log: `"Epic <id> classified as SIMPLE — running /dso:implementation-plan directly on epic."`
-2. Emit SKILL_INVOKE breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-3. Invoke `/dso:implementation-plan` via Skill tool with the epic ID as the argument:
+2. Invoke `/dso:implementation-plan` via Skill tool with the epic ID as the argument:
    ```
    Skill("dso:implementation-plan", args="<epic-id>")
    ```
    The skill handles epic type detection and runs inline (no sub-agent dispatch needed).
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your immediate next actions are:
-   1. Emit the SKILL_RESUMED breadcrumb (step 4 below)
-   2. Parse the STATUS line (step 5 below)
-   3. Continue to Phase 2
-   Stopping here is a known bug (7d7a-b707). Do not stop.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary.
    </ORCHESTRATOR_RESUME>
 
-4. Emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-5. Parse the skill's output using the same STATUS protocol as Phase 2's Implementation Planning Gate
-6. Set `epic_routing = "SIMPLE"` — this flag tells Phase 2 to skip the Implementation Planning Gate
-7. Continue to Phase 2
+3. Parse the skill's output using the same STATUS protocol as Phase 2's Implementation Planning Gate
+4. Set `epic_routing = "SIMPLE"` — this flag tells Phase 2 to skip the Implementation Planning Gate
+5. Continue to Phase 2
 
 #### Step 3b: Lightweight Preplanning (MODERATE epics) (/dso:sprint)
 
 1. Log: `"Epic <id> classified as MODERATE — running /dso:preplanning --lightweight for scope clarification."`
-2. Emit SKILL_INVOKE breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-3. Invoke `/dso:preplanning <epic-id> --lightweight`
-4. Emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-5. Parse the result:
+2. Invoke `/dso:preplanning <epic-id> --lightweight`
+3. Parse the result:
 
 **On `ENRICHED`:**
 - Log: `"Lightweight preplanning complete — epic enriched with done definitions. Running /dso:implementation-plan on epic."`
-- Emit SKILL_INVOKE breadcrumb:
-  ```bash
-  echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-  ```
 - Invoke `/dso:implementation-plan` via Skill tool (same as Step 3a, step 2)
 
   <ORCHESTRATOR_RESUME>
-  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your immediate next actions are:
-  1. Emit the SKILL_RESUMED breadcrumb (below)
-  2. Parse the STATUS line from the skill's output
-  3. Set epic_routing = "MODERATE" and continue to Phase 2
-  Stopping here is a known bug (7d7a-b707). Do not stop.
+  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary.
   </ORCHESTRATOR_RESUME>
 
-- Emit SKILL_RESUMED breadcrumb:
-  ```bash
-  echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-  ```
 - Set `epic_routing = "MODERATE"`
 - Continue to Phase 2
 
 **On `ESCALATED`:**
 - Log: `"Lightweight preplanning escalated to full mode — reason: <reason>. Running full /dso:preplanning."`
-- Emit SKILL_INVOKE breadcrumb:
-  ```bash
-  echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-  ```
 - Invoke `/dso:preplanning <epic-id>` (full mode, no --lightweight flag)
-- Emit SKILL_RESUMED breadcrumb:
-  ```bash
-  echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-  ```
 - Set `epic_routing = "COMPLEX"`
 - Continue to Phase 2
 
 #### Step 3c: Full Preplanning (COMPLEX epics) (/dso:sprint)
 
 1. Log: `"Epic <id> classified as COMPLEX — running /dso:preplanning for full story decomposition."`
-2. Emit SKILL_INVOKE breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-3. Invoke `/dso:preplanning <epic-id>`
-4. Emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-5. After preplanning completes, set `epic_routing = "COMPLEX"`
-6. Continue to Phase 2
+2. Invoke `/dso:preplanning <epic-id>`
+3. After preplanning completes, set `epic_routing = "COMPLEX"`
+4. Continue to Phase 2
 
 ---
 
@@ -898,9 +708,9 @@ For each ready task from `.claude/scripts/dso ticket list` (filtered by parent):
 2. If it has children → **skip** (already planned)
 3. If it has zero children → run the complexity evaluator:
 
-**Dispatch a haiku complexity-evaluator sub-agent** to classify the story. Dispatch via `subagent_type: dso:complexity-evaluator` with `model: haiku`. Pass the story ID as the task argument. Pass `tier_schema=TRIVIAL` as a field in the task context so the agent outputs TRIVIAL/MODERATE/COMPLEX tier vocabulary.
+**Dispatch a haiku complexity-evaluator sub-agent** to classify the story. Read `agents/complexity-evaluator.md` inline and use `subagent_type: "general-purpose"` with `model: "haiku"`. (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass the story ID as the task argument. Pass `tier_schema=TRIVIAL` as a field in the task context so the agent outputs TRIVIAL/MODERATE/COMPLEX tier vocabulary.
 
-**Fallback**: If the `dso:complexity-evaluator` named agent is unavailable, fall back to `subagent_type: general-purpose` and load the shared rubric prompt from `$PLUGIN_ROOT/skills/sprint/prompts/` (see `complexity-evaluator` prompt file in that directory).
+**Fallback**: If `agents/complexity-evaluator.md` is missing, fall back to `subagent_type: "general-purpose"` and load the shared rubric prompt from `$PLUGIN_ROOT/skills/sprint/prompts/` (see `complexity-evaluator` prompt file in that directory).
 
 **Routing based on classification:**
 
@@ -990,31 +800,19 @@ This list collects out-of-scope files detected by `sprint-review-scope-check.sh`
 **For each layer (in order Layer 0, Layer 1, ...):**
 
 a. Filter to stories in this layer that need decomposition
-b. For each story in the layer, emit SKILL_INVOKE breadcrumb then invoke `/dso:implementation-plan` via Skill tool:
-   ```bash
-   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
+b. For each story in the layer, invoke `/dso:implementation-plan` via Skill tool:
    ```
    Skill("dso:implementation-plan", args="<story-id>")
    ```
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. You have more stories to process in this layer. Your immediate next actions are:
-   1. Emit the SKILL_RESUMED breadcrumb (step c below)
-   2. Parse the STATUS line from the skill's output (step d below)
-   3. Continue to the next story in the layer loop
-   Stopping here is a known bug (7d7a-b707). Do not stop.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. You have more stories to process in this layer.
    </ORCHESTRATOR_RESUME>
 
    **POST-RETURN CONTINUATION (executes after Skill tool result above):** The skill has returned. You are still the sprint orchestrator inside the layer loop. Execute step c immediately — do not stop.
 
-c. After the skill returns, emit SKILL_RESUMED breadcrumb:
-   ```bash
-   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-   ```
-   Wait for the skill invocation to return before processing the next story in the layer
-d. For each skill result, **parse STATUS:**
+c. For each skill result, **parse STATUS:**
    - On `STATUS:complete TASKS:<ids> STORY:<id>`:
      - Extract the comma-separated task IDs from the `TASKS` field
      - Extract the story ID from the `STORY` field
@@ -1029,25 +827,9 @@ d. For each skill result, **parse STATUS:**
    - **Fallback — if no STATUS line in skill output:**
      - Run `.claude/scripts/dso ticket deps <story-id>` to check whether tasks were created
      - If children exist → treat as success; log a warning: `"WARNING: skill returned no STATUS line for story <id>, but .claude/scripts/dso ticket deps shows tasks — continuing"`; proceed to post-dispatch validation
-     - If no children → emit SKILL_INVOKE breadcrumb and retry the skill invocation once (same parameters):
-       ```bash
-       echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-       ```
-       After retry returns, emit SKILL_RESUMED breadcrumb:
-       ```bash
-       echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
-       ```
+     - If no children → retry the skill invocation once (same parameters)
      - If retry also produces no children → revert story to open (`.claude/scripts/dso ticket transition <story-id> open`); log: `"ERROR: /dso:implementation-plan failed for story <id> after retry — story reverted to open"`; skip to next story
 
-**Skill unavailability terminal condition:** If the retry also produces no children and this is the second consecutive skill-load failure (i.e., the initial attempt AND the retry both produced no children), do NOT retry again. Emit a terminal error and stop:
-
-```
-SKILL_LOAD_ERROR: dso:sprint skill file could not be loaded after 2 attempts.
-Resolution: Verify that ${CLAUDE_PLUGIN_ROOT}/skills/sprint/SKILL.md exists and is readable. Run: ls -la ${CLAUDE_PLUGIN_ROOT}/skills/sprint/SKILL.md
-Do NOT continue looping — this sprint session has ended due to skill unavailability.
-```
-
-Exit the skill immediately. Do not invoke any further skill steps.
 d-collect. **Collect and present blocked-layer stories** — after the full layer batch completes, for each story with `STATUS:blocked`:
    - **Parsing STATUS:blocked**: When `/dso:implementation-plan` returns `STATUS:blocked QUESTIONS:[...]`, parse the JSON array and present each question in human-readable format:
      1. Separate questions by kind: "blocking" (must be answered before proceeding) vs "defaultable" (have a default, can be skipped)
@@ -1097,17 +879,15 @@ d-replan-collect. **Collect and handle all REPLAN_ESCALATE stories** — after t
      - **If cap is not yet exhausted:** Present the **cap-not-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current state and continue sprint with these stories as-is".
      - **If user selects (b) or (c):** act accordingly — proceed or abort. Do not enter cascade.
      - **If user selects (a):** Enter the cascade replan per `skills/sprint/docs/cascade-replan-protocol.md`: # shim-exempt: internal documentation reference
-       1. Emit SKILL_INVOKE breadcrumb for brainstorm, then invoke `/dso:brainstorm <epic-id>` via Skill tool
-       2. Emit SKILL_RESUMED breadcrumb after brainstorm returns
-       3. Emit SKILL_INVOKE breadcrumb for preplanning, then invoke `/dso:preplanning <epic-id>` via Skill tool
-       4. Emit SKILL_RESUMED breadcrumb after preplanning returns
-       5. Increment `replan_cycle_count += 1`
-       6. Re-run Step 2 (implementation planning) for all stories in the epic — re-enter the layer loop from the beginning
-       7. If implementation-plan returns no `REPLAN_ESCALATE` for any story: write the resolved signal, then cascade exits — proceed to step e normally (plan accepted):
+       1. Invoke `/dso:brainstorm <epic-id>` via Skill tool
+       2. Invoke `/dso:preplanning <epic-id>` via Skill tool
+       3. Increment `replan_cycle_count += 1`
+       4. Re-run Step 2 (implementation planning) for all stories in the epic — re-enter the layer loop from the beginning
+       5. If implementation-plan returns no `REPLAN_ESCALATE` for any story: write the resolved signal, then cascade exits — proceed to step e normally (plan accepted):
           ```bash
           .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: brainstorm — Stories re-planned after brainstorm cascade."
           ```
-       8. If implementation-plan still emits `REPLAN_ESCALATE`: repeat from d-replan-collect (check cap first, then present to user)
+       6. If implementation-plan still emits `REPLAN_ESCALATE`: repeat from d-replan-collect (check cap first, then present to user)
 e. **Post-layer-batch ticket validation**:
    ```bash
    .claude/scripts/dso validate-issues.sh --quick --terse
@@ -1506,6 +1286,8 @@ ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" 
 
 When `ISOLATION_ENABLED` equals `true`, add `isolation: "worktree"` to each Agent/Task dispatch call and pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each sub-agent's prompt so sub-agents can verify isolation. When `ISOLATION_ENABLED` is `false`, empty, or absent, omit the `isolation` parameter entirely.
 
+**Parallel dispatch and stale HEAD**: All worktrees in a batch branch from the session HEAD at the moment of dispatch. When sub-agents are dispatched in parallel and harvested serially, the second and later harvests will encounter merge conflicts because those worktrees were created before earlier harvests advanced the session HEAD. This is **expected and normal** — not a bug. The per-worktree-review-commit.md conflict queue protocol (Step 6 exit 1) handles this case: after the clean worktrees are harvested, conflicting worktrees are rebased onto the updated session HEAD and re-processed through the review → commit → harvest pipeline. No full task re-implementation is needed for conflicts that arise solely from this ordering effect.
+
 ### Design Context Population
 
 Before dispatch, source the figma tag constants and check whether the parent story has the `design:approved` tag:
@@ -1568,7 +1350,7 @@ When launching each Task tool call, set `subagent_type` and `model` from the TAS
 | parent_story_has_design_approved | parent_story_complex | task_model | task_class | action |
 |----------------------------------|---------------------|------------|------------|--------|
 | `true` (revision image present) | any | any | any | Override `model` to minimum `sonnet` (if current model is `haiku`, upgrade to `sonnet`; if already `sonnet` or `opus`, no change). Log: `"design:approved story — enforcing sonnet minimum for multimodal."` |
-| any | any | any | any (doc-story title match) | Override `subagent_type` to `dso:doc-writer`, `model` to `sonnet`. Pass `epic_context` and `git_diff` context fields (see Documentation Story Dispatch below). Log: `"Documentation story detected — dispatching to dso:doc-writer instead of generic agent."` |
+| any | any | any | any (doc-story title match) | Use `subagent_type: "general-purpose"` with `model: "sonnet"`. Read `agents/doc-writer.md` inline and pass its content verbatim as the prompt. (`dso:doc-writer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass `epic_context` and `git_diff` context fields (see Documentation Story Dispatch below). Log: `"Documentation story detected — dispatching to dso:doc-writer instead of generic agent."` |
 | any | `COMPLEX` | `sonnet` | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
 | any | `COMPLEX` | `sonnet` | any other | Override `model` to `opus`. Log: `"Story <parent-id> classified COMPLEX — upgrading task <task-id> model to opus."` |
 | any | `COMPLEX` | `opus` | any | No change (already opus). |
@@ -1616,6 +1398,8 @@ context:
 **Agent description**: 3-5 word summary from ticket title (e.g., Fix review gate hash).
 
 **Important**: Launch ALL sub-agents in the batch within a single message, each with `run_in_background: true`. The number of Task calls is governed by `max_agents` from Phase 3 Step 1 (unlimited = all candidates, N = cap at N, 0 = skip dispatch).
+
+**Stale HEAD warning (4ad5-25df)**: When `ISOLATION_ENABLED=true`, all agent worktrees are branched from the session HEAD at the moment of dispatch. Agents that complete later will be missing commits from agents that were harvested earlier in the same batch. This is expected and handled by the conflict queue protocol in `per-worktree-review-commit.md` Step 6: if `harvest-worktree.sh` returns exit 1 (merge conflict), the conflicting worktree is queued for post-batch resolution (rebase first, full re-implementation only as a last resort). Do NOT attempt to resolve conflicts during the serial harvest loop — finish all non-conflicting harvests first, then work through the conflict queue.
 
 **Worktree boundary**: If in a worktree, append to every sub-agent prompt: `"IMPORTANT: Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path."` When `ISOLATION_ENABLED=true`, also add `isolation: "worktree"` to the Task dispatch call (see Worktree Isolation Configuration above).
 

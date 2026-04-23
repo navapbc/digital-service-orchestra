@@ -65,7 +65,7 @@ and is fresh (< 60 seconds), skip to Step 4.
 From within the worktree context, capture the diff hash and write diff/stat files:
 
 ```bash
-cd "$WORKTREE_PATH" && DIFF_HASH=$("${CLAUDE_PLUGIN_ROOT}/hooks/compute-diff-hash.sh")
+cd "$WORKTREE_PATH" && DIFF_HASH=$("$ORCHESTRATOR_ROOT/.claude/scripts/dso" compute-diff-hash.sh)
 DIFF_HASH_SHORT="${DIFF_HASH:0:8}"
 DIFF_FILE="$WORKTREE_ARTIFACTS/review-diff-${DIFF_HASH_SHORT}.txt"
 STAT_FILE="$WORKTREE_ARTIFACTS/review-stat-${DIFF_HASH_SHORT}.txt"

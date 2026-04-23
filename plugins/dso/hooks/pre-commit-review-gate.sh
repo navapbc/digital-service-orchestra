@@ -100,6 +100,39 @@ _print_block_error() {
     echo "" >&2
 }
 
+# ── Helper: detect shellcheck-directive-only drift between review and staged state ─
+# Returns 0 (true) if the ONLY differences between HEAD and current staged state
+# are added/removed shellcheck directive comment lines (# shellcheck ...) in .sh files.
+# Returns 1 (false) if any non-directive change is detected, or if any non-.sh file
+# is in the non-allowlisted set.
+#
+# Algorithm: for each staged non-allowlisted .sh file:
+#   1. Get the staged content (git show :file — index content)
+#   2. Get the HEAD content (git show HEAD:file — committed version)
+#   3. Strip all shellcheck directive lines from both versions
+#   4. If stripped staged == stripped HEAD: file only changed in directives ✓
+#   5. Otherwise: real code change detected → return 1
+#
+# Non-.sh files: immediately return 1 since this self-heal only applies to shell scripts.
+_is_shellcheck_disable_only_drift() {
+    for _sh_staged_file in "${NON_ALLOWLISTED_FILES[@]}"; do
+        if [[ "$_sh_staged_file" != *.sh ]]; then
+            return 1
+        fi
+        local _sh_staged_content
+        _sh_staged_content=$(git show ":${_sh_staged_file}" 2>/dev/null) || { return 1; }
+        local _sh_base_content
+        _sh_base_content=$(git show "HEAD:${_sh_staged_file}" 2>/dev/null) || { return 1; }
+        local _sh_staged_stripped _sh_base_stripped
+        _sh_staged_stripped=$(echo "$_sh_staged_content" | grep -v '^\s*#\s*shellcheck\s' 2>/dev/null || echo "$_sh_staged_content")
+        _sh_base_stripped=$(echo "$_sh_base_content" | grep -v '^\s*#\s*shellcheck\s' 2>/dev/null || echo "$_sh_base_content")
+        if [[ "$_sh_staged_stripped" != "$_sh_base_stripped" ]]; then
+            return 1
+        fi
+    done
+    return 0
+}
+
 # ── Helper: detect formatting-only drift between review and current staged state ─
 # Returns 0 (true) if the ONLY differences between reviewed state and current
 # staged state are ruff-style formatting changes for .py files.
@@ -417,7 +450,7 @@ if [[ "$RECORDED_HASH" != "$CURRENT_HASH" ]]; then
     # content to what ruff format would produce from the HEAD/base version of
     # that file. If staged == ruff(base), it is a formatting-only change.
     # If ALL non-allowlisted files are formatting-only, drift is self-healed.
-    if _is_formatting_only_drift; then
+    if _is_formatting_only_drift || _is_shellcheck_disable_only_drift; then
         # Re-compute hash for current staged state and update review-status
         _REHASH=$(bash "$HOOK_DIR/compute-diff-hash.sh" 2>/dev/null || echo "")
         if [[ -n "$_REHASH" ]]; then
@@ -426,7 +459,7 @@ if [[ "$RECORDED_HASH" != "$CURRENT_HASH" ]]; then
             grep -v '^diff_hash=' "$REVIEW_STATE_FILE" > "$_TMP_STATUS" 2>/dev/null || true
             echo "diff_hash=${_REHASH}" >> "$_TMP_STATUS"
             mv "$_TMP_STATUS" "$REVIEW_STATE_FILE"
-            echo "pre-commit-review-gate: formatting-only drift self-healed (rehash=${_REHASH:0:12}...)" >&2
+            echo "pre-commit-review-gate: non-functional drift self-healed (rehash=${_REHASH:0:12}...)" >&2
             log_decision "pass"
             exit 0
         fi

@@ -274,11 +274,58 @@ test_explicit_unlock_before_remove_does_not_error() {
         "$wt_gone"
 }
 
-# ── Run all tests ─────────────────────────────────────────────────────────────
+# Test E: .tickets-tracker worktree excluded from cleanup (cf6d-54fd).
+test_tickets_branch_worktree_excluded_from_cleanup() {
+    local tmp; tmp=$(make_tmpdir)
+    local tickets_path="$tmp/repo/.tickets-tracker"
+    local tickets_branch="tickets"
+    setup_repo_with_worktree "$tmp" "$tickets_path" "$tickets_branch"
+    local output
+    output=$(cd "$MAIN_REPO" && bash "$CLEANUP_SCRIPT" --dry-run 2>/dev/null) || true
+    local no_remove_present="yes"
+    if [[ "$output" == *"would remove"* ]]; then no_remove_present="no"; fi
+    assert_eq "tickets worktree NOT scheduled for removal (cf6d-54fd)" "yes" "$no_remove_present"
+    local wt_present="yes"
+    [[ ! -d "$tickets_path" ]] && wt_present="no"
+    assert_eq "tickets worktree directory still exists after dry-run" "yes" "$wt_present"
+}
+
+# Test F: Discarded agent worktree eligible for removal (89fa-8baa, e4a3-2df7).
+test_agent_worktree_eligible_when_not_merged() {
+    local tmp; tmp=$(make_tmpdir)
+    git init "$tmp/repo" >/dev/null 2>&1; MAIN_REPO="$tmp/repo"
+    git -C "$MAIN_REPO" config user.email "test@test.com"
+    git -C "$MAIN_REPO" config user.name "Test"
+    echo "initial" > "$MAIN_REPO/file.txt"
+    git -C "$MAIN_REPO" add file.txt
+    git -C "$MAIN_REPO" commit -m "initial" >/dev/null 2>&1
+    local agent_path="$MAIN_REPO/.claude/worktrees/agent-discarded"
+    local agent_branch="worktree-agent-discarded"
+    git -C "$MAIN_REPO" branch "$agent_branch" HEAD
+    mkdir -p "$(dirname "$agent_path")"
+    git -C "$MAIN_REPO" worktree add "$agent_path" "$agent_branch" >/dev/null 2>&1
+    git -C "$agent_path" config user.email "test@test.com"
+    git -C "$agent_path" config user.name "Test"
+    echo "agent work" >> "$agent_path/file.txt"
+    git -C "$agent_path" add file.txt
+    git -C "$agent_path" commit -m "agent work (discarded)" >/dev/null 2>&1
+    local output
+    output=$(cd "$MAIN_REPO" && bash "$CLEANUP_SCRIPT" --dry-run 2>/dev/null) || true
+    assert_contains "discarded agent worktree eligible for removal (89fa-8baa, e4a3-2df7)" "would remove" "$output"
+    local not_merged_present="no"
+    if [[ "$output" == *"not merged"* ]]; then not_merged_present="yes"; fi
+    assert_eq "discarded agent worktree NOT blocked by merge gate" "no" "$not_merged_present"
+}
+
+# ── Run all tests ────────────────────────────────────────────
 
 test_agent_worktree_exempt_from_age_gate
 test_non_agent_worktree_respects_age_gate
 test_is_old_enough_returns_true_for_agent_path
 test_explicit_unlock_before_remove_does_not_error
+test_tickets_branch_worktree_excluded_from_cleanup
+test_agent_worktree_eligible_when_not_merged
 
 print_summary
+
+# TEST MARKER APPENDED

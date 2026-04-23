@@ -354,7 +354,7 @@ else
 fi
 ```
 
-**Subagent**: `subagent_type="error-debugging:error-detective"`, `model="opus"`  # Complex investigation: must correlate failures across validation categories, cluster related errors, and distinguish root causes from symptoms in complex output
+**Subagent**: `subagent_type="general-purpose"`, `model="opus"`  # Complex investigation: must correlate failures across validation categories, cluster related errors, and distinguish root causes from symptoms in complex output. (`error-debugging:error-detective` is NOT a valid subagent_type — the Agent tool only accepts built-in types. Use general-purpose with the prompt from the named agent file.)
 
 The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (category counts + top-3 clusters + open bug count). The full report is saved to `$(get_artifacts_dir)/debug-diag.md` on disk; do NOT receive the full report inline. Store the `DIAGNOSTIC_FILE` path for Phase 2.
 
@@ -629,9 +629,11 @@ If `SAFEGUARD_BUGS` is empty, skip to Phase 3.
 
 Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/safeguard-analysis.md` and use its contents as the sub-agent prompt. Pass the `SAFEGUARD_BUGS` list (IDs and titles) and `WORKTREE` name as context.
 
-**Subagent**: `subagent_type="error-debugging:error-detective"`, `model="opus"`
+**Subagent**: `subagent_type="general-purpose"`, `model="opus"`
 # Complex investigation: must read safeguarded files, understand bug context,
-# and propose precise line-level fixes — requires deep code comprehension and judgment
+# and propose precise line-level fixes — requires deep code comprehension and judgment.
+# (`error-debugging:error-detective` is NOT a valid subagent_type — use general-purpose
+# with the named agent file loaded verbatim as the prompt.)
 
 The sub-agent returns: path to proposals file + summary (count + per-bug one-liner).
 
@@ -978,7 +980,7 @@ git diff          # save as {full_diff}
 
 Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/critic-review.md` and use its contents as the sub-agent prompt. Replace the `{full_diff captured by orchestrator via \`git diff\`}` placeholder with the actual diff output.
 
-**Subagent**: `subagent_type="feature-dev:code-reviewer"`, `model="sonnet"`  # Tier 2: must evaluate root-cause-vs-symptom, regression risk, and convention violations from a raw diff — requires judgment across codebase context, not just output parsing
+**Subagent**: `subagent_type="general-purpose"`, `model="sonnet"`  # Tier 2: must evaluate root-cause-vs-symptom, regression risk, and convention violations from a raw diff — requires judgment across codebase context, not just output parsing. (`feature-dev:code-reviewer` is NOT a valid subagent_type — the Agent tool only accepts built-in types. Use general-purpose with the critic-review.md prompt loaded verbatim.)
 
 **Orchestrator action**:
 - `PASS` → proceed to Step 2

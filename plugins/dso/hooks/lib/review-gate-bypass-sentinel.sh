@@ -52,6 +52,30 @@ hook_review_bypass_sentinel() {
         return 0
     fi
 
+
+    # Strip quoted string arguments before pattern matching (bug 63a6-50e8).
+    # Quoted spans are user-supplied data (e.g. ticket descriptions). Matching patterns
+    # against them causes false positives when descriptions mention bypass techniques.
+    # parse_json_field returns raw JSON string content; quoted spans appear as
+    # backslash-escaped \"...\" (JSON form) or unescaped \"...\" (real form).
+    # Fail-safe: if python3 fails, fall back to original COMMAND (may over-block, never under-blocks).
+    local COMMAND_STRIPPED
+    COMMAND_STRIPPED=$(python3 - "$COMMAND" <<'_PY_EOF'
+import re, sys
+cmd = sys.argv[1]
+# Step 1: Remove backslash-quote delimited spans (JSON-encoded form in cmd).
+# Uses [^"\\]* to avoid consuming across multiple spans (non-greedy by exclusion).
+result = re.sub(r'\\"[^"\\]*\\"', ' ', cmd)
+# Step 2: Remove real double-quoted spans.
+result = re.sub(r'"[^"]*"', ' ', result)
+# Step 3: Remove single-quoted spans (no escapes inside single quotes in POSIX shell).
+result = re.sub(r"'[^']*'", ' ', result)
+# Step 4: Collapse repeated whitespace.
+result = re.sub(r' {2,}', ' ', result)
+print(result)
+_PY_EOF
+    ) || COMMAND_STRIPPED="$COMMAND"
+
     # --- Pattern j: DSO_MECHANICAL_AMEND on non-amend commits ---
     # DSO_MECHANICAL_AMEND=1 is an internal bypass for merge-to-main.sh's mechanical
     # git commit --amend --no-edit calls. Block it on raw (non-amend) git commits to
@@ -77,7 +101,7 @@ hook_review_bypass_sentinel() {
     fi
 
     # --- Pattern a: --no-verify ---
-    if [[ "$COMMAND" == *"--no-verify"* ]]; then
+    if [[ "$COMMAND_STRIPPED" == *"--no-verify"* ]]; then
         echo "BLOCKED [bypass-sentinel]: --no-verify flag detected. Use /dso:commit instead." >&2
         trap - ERR; return 2
     fi
@@ -86,28 +110,28 @@ hook_review_bypass_sentinel() {
     # Only block -n when it appears as a flag to git commit, not in other contexts
     # (e.g., git log -n 5, grep -n). We check if the command contains a git commit
     # and has -n as a standalone flag.
-    if [[ "$COMMAND" =~ git[[:space:]]+(commit|[^[:space:]]*[[:space:]]+commit) ]]; then
-        if [[ "$COMMAND" =~ (^|[[:space:]])-n([[:space:]]|$) ]]; then
+    if [[ "$COMMAND_STRIPPED" =~ git[[:space:]]+(commit|[^[:space:]]*[[:space:]]+commit) ]]; then
+        if [[ "$COMMAND_STRIPPED" =~ (^|[[:space:]])-n([[:space:]]|$) ]]; then
             echo "BLOCKED [bypass-sentinel]: -n flag (--no-verify shorthand) detected on git commit. Use /dso:commit instead." >&2
             trap - ERR; return 2
         fi
     fi
 
     # --- Pattern c: git -c core.hooksPath= ---
-    if [[ "$COMMAND" == *"core.hooksPath="* ]]; then
+    if [[ "$COMMAND_STRIPPED" == *"core.hooksPath="* ]]; then
         echo "BLOCKED [bypass-sentinel]: core.hooksPath override detected. Use /dso:commit instead." >&2
         trap - ERR; return 2
     fi
 
     # --- Pattern d: git commit-tree ---
-    if [[ "$COMMAND" =~ git[[:space:]]+commit-tree ]]; then
+    if [[ "$COMMAND_STRIPPED" =~ git[[:space:]]+commit-tree ]]; then
         echo "BLOCKED [bypass-sentinel]: git commit-tree (low-level plumbing) detected. Use /dso:commit instead." >&2
         trap - ERR; return 2
     fi
 
     # --- Pattern e: git update-ref (unless in merge-to-main.sh) ---
-    if [[ "$COMMAND" =~ git[[:space:]]+update-ref ]]; then
-        if [[ "$COMMAND" != *"merge-to-main.sh"* ]]; then
+    if [[ "$COMMAND_STRIPPED" =~ git[[:space:]]+update-ref ]]; then
+        if [[ "$COMMAND_STRIPPED" != *"merge-to-main.sh"* ]]; then
             echo "BLOCKED [bypass-sentinel]: git update-ref detected. Use /dso:commit instead." >&2
             trap - ERR; return 2
         fi
@@ -127,25 +151,34 @@ hook_review_bypass_sentinel() {
     fi
 
     # --- Pattern g: Direct writes to test-gate-status or test-status/ ---
-    # Block commands that write to test-gate-status (echo/cat/tee/printf with redirect, cp/mv)
-    # but allow read-only commands and the authorized writer (record-test-status.sh).
-    if [[ "$COMMAND" == *"test-gate-status"* ]] || [[ "$COMMAND" == *"test-status/"* ]]; then
-        # Exemption: record-test-status.sh is the authorized writer
+    # Two-path detection to avoid false positives from quoted descriptions (bug 63a6-50e8):
+    #   Path A: target appears OUTSIDE quotes (COMMAND_STRIPPED) - shell redirect writes.
+    #   Path B: interpreter (python3/etc) runs and target appears anywhere in COMMAND -
+    #           catches interpreter-based writes without shell redirects (bug 4600-02a3).
+    local _g_path_a=0 _g_path_b=0
+    if [[ "$COMMAND_STRIPPED" == *"test-gate-status"* ]] || [[ "$COMMAND_STRIPPED" == *"test-status/"* ]]; then
+        _g_path_a=1
+    fi
+    if [[ "$COMMAND" =~ (python3?|perl|ruby|node)[[:space:]] ]] && \
+       { [[ "$COMMAND" == *"test-gate-status"* ]] || [[ "$COMMAND" == *"test-status/"* ]]; }; then
+        _g_path_b=1
+    fi
+    if (( _g_path_a || _g_path_b )); then
+        # Exemption: the authorized writer
         if [[ "$COMMAND" == *"record-test-status.sh"* ]]; then
             return 0
         fi
-        # Check for write patterns: redirect operators, cp, mv, tee, echo/printf with redirect,
-        # or scripting interpreter invocations (python3, python, perl, ruby, node) that could
-        # open and write to the file without a shell redirect operator (bug 4600-02a3).
-        if [[ "$COMMAND" =~ \>[[:space:]]*[^[:space:]]*test-gate-status ]] || \
+        # For Path B: interpreter is the write vector; block immediately.
+        # For Path A: check for shell-level write patterns.
+        if (( _g_path_b )) || \
+           [[ "$COMMAND" =~ \>[[:space:]]*[^[:space:]]*test-gate-status ]] || \
            [[ "$COMMAND" =~ \>[[:space:]]*[^[:space:]]*test-status/ ]] || \
            [[ "$COMMAND" =~ (tee)[[:space:]]*[^[:space:]]*test-gate-status ]] || \
            [[ "$COMMAND" =~ (tee)[[:space:]]*[^[:space:]]*test-status/ ]] || \
            [[ "$COMMAND" =~ (cp|mv)[[:space:]].*test-gate-status ]] || \
            [[ "$COMMAND" =~ (cp|mv)[[:space:]].*test-status/ ]] || \
            [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>.*test-gate-status ]] || \
-           [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>.*test-status/ ]] || \
-           [[ "$COMMAND" =~ (python3?|perl|ruby|node)[[:space:]] ]]; then
+           [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>.*test-status/ ]]; then
             echo "BLOCKED [bypass-sentinel]: direct write to test-gate-status detected. Use record-test-status.sh to record test results." >&2
             trap - ERR; return 2
         fi

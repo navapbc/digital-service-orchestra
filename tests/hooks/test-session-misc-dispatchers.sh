@@ -36,6 +36,8 @@ PRE_ALL_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-all.sh"
 PRE_EXITPLANMODE_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-exitplanmode.sh"
 PRE_TASKOUTPUT_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-taskoutput.sh"
 SESSION_MISC_FUNCTIONS="$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh"
+_CLEANUP_FUNC_FILE="$DSO_PLUGIN_DIR/hooks/lib/session-process-cleanup-functions.sh"
+SESSION_PROCESS_CLEANUP_FUNCTIONS="$( [[ -f "$_CLEANUP_FUNC_FILE" ]] && echo "$_CLEANUP_FUNC_FILE" || echo "$SESSION_MISC_FUNCTIONS" )"
 
 # ============================================================
 # test_session_start_dispatcher_runs_all_4_hooks
@@ -312,25 +314,25 @@ echo "--- test_cleanup_orphaned_processes_uses_pgid_not_pid ---"
 
 # Verify the function source references pgid resolution (ps -o pgid=)
 _uses_pgid=0
-grep -q 'pgid' "$SESSION_MISC_FUNCTIONS" && _uses_pgid=1
+grep -q 'pgid' "$SESSION_PROCESS_CLEANUP_FUNCTIONS" && _uses_pgid=1
 assert_eq "test_cleanup_orphaned_processes_uses_pgid_not_pid: references pgid" "1" "$_uses_pgid"
 
 # Verify it uses ps -o pgid= to look up the actual PGID
 _uses_ps_pgid=0
-grep -q 'ps.*-o.*pgid' "$SESSION_MISC_FUNCTIONS" && _uses_ps_pgid=1
+grep -q 'ps.*-o.*pgid' "$SESSION_PROCESS_CLEANUP_FUNCTIONS" && _uses_ps_pgid=1
 assert_eq "test_cleanup_orphaned_processes_uses_pgid_not_pid: uses ps -o pgid=" "1" "$_uses_ps_pgid"
 
 # Verify the kill line uses a PGID variable, not $pid directly for group kill
 # The kill -- -<var> should use a variable named *pgid* or *PGID*, not $pid
 _kill_uses_pgid=0
 # shellcheck disable=SC2016  # single-quoted pattern is intentional: searching for literal $ in source code
-grep -qE 'kill.*-.*\$(.*pgid|.*PGID)' "$SESSION_MISC_FUNCTIONS" && _kill_uses_pgid=1
+grep -qE 'kill.*-.*\$(.*pgid|.*PGID)' "$SESSION_PROCESS_CLEANUP_FUNCTIONS" && _kill_uses_pgid=1
 assert_eq "test_cleanup_orphaned_processes_uses_pgid_not_pid: kill uses PGID var" "1" "$_kill_uses_pgid"
 
 # Verify the old buggy pattern (kill -- -"$pid") is NOT present
 _old_pattern_absent=1
 # shellcheck disable=SC2016  # single-quoted pattern is intentional: searching for literal $ in source code
-grep -q 'kill -- -"$pid"' "$SESSION_MISC_FUNCTIONS" && _old_pattern_absent=0
+grep -q 'kill -- -"$pid"' "$SESSION_PROCESS_CLEANUP_FUNCTIONS" && _old_pattern_absent=0
 assert_eq "test_cleanup_orphaned_processes_uses_pgid_not_pid: old kill -pid pattern removed" "1" "$_old_pattern_absent"
 
 # ============================================================

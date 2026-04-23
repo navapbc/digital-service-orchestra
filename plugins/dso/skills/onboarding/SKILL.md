@@ -450,7 +450,9 @@ Display to user: **(Phase 1 of Y)** where Y = number of phase entries remaining 
 
 ### Step 3: Present Detected Configuration for Confirmation
 
-Before asking any questions, present what was found and ask the user to confirm or correct:
+Before asking any questions, present what was found and ask the user to confirm or correct.
+
+**Stack-aware artifact reporting**: Only list Python-specific artifacts (`pyproject.toml`) if they actually exist on disk. Do NOT list `pyproject.toml` for non-Python projects. Use the `$PYPROJECT` variable set in Step 1 — it is only set when the file exists, so `${PYPROJECT:+present}` is safe to use as the guard.
 
 ```
 I've scanned the project and found:
@@ -460,7 +462,7 @@ I've scanned the project and found:
 - CI workflow filenames: [CI_WORKFLOWS or "none found"]
 - Pre-commit hooks: [.husky/ present / .pre-commit-config.yaml present / "none"]
 - package.json: [present / not found]
-- pyproject.toml: [present / not found]
+[Include this line ONLY if PYPROJECT is set (i.e., pyproject.toml exists): - pyproject.toml: present]
 
 Does this look right, or is anything missing?
 ```
@@ -735,7 +737,7 @@ At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`.
 
 ### Dialogue Rules
 
-**One question at a time** — never present multiple questions in a single message. Pick the most important unknown and ask about it. Do NOT combine questions in a single sentence or append follow-up questions with "and" or "or" (e.g., "Where does this run? And does it connect to external services?" is a violation — ask only the first question, then wait for the response before asking the next).
+**One question at a time** — never present multiple questions in a single message. Pick the most important unknown and ask about it. Do NOT combine questions in a single sentence or append follow-up questions with "and" or "or" (e.g., "Where does this run? And does it connect to external services?" is a violation — ask only the first question, then wait for the response before asking the next). This rule applies to ALL phases, including the extended design questions — ask one, send the message, wait for a response, then ask the next.
 
 **Confirmation over discovery** — when detection already answered an area, present the detected value and ask the user to confirm or correct it. Do not ask from scratch.
 
@@ -877,7 +879,7 @@ Does this project have a UI or frontend layer? If so, what framework are you usi
 
 **If the answer is "No" (CLI tool, library, infrastructure, or backend-only project):** skip the deep design questions below and record "backend-only / no UI" in the design area of the scratchpad. Do NOT ask vision, archetype, or visual language questions — they are irrelevant for non-UI projects.
 
-**If the answer is "Yes" (project has a UI/frontend component):** continue with the following focused design questions, one at a time:
+**If the answer is "Yes" (project has a UI/frontend component):** continue with the following focused design questions. Ask them **one at a time** — send each question as a separate message and wait for the user's response before sending the next. Do NOT list multiple questions in a single message.
 
 1. **Vision**: "In one sentence, what is the specific value this UI delivers to the user? (e.g., 'Reduces tax filing time by 50% for freelancers')"
 
@@ -891,7 +893,7 @@ Does this project have a UI or frontend layer? If so, what framework are you usi
 
 6. **Accessibility**: "What's your target accessibility standard — WCAG AA, WCAG AAA, or something else?"
 
-After completing these design questions, append findings to the scratchpad under a `## Design (Extended)` section.
+After completing these design questions (each answered in a separate turn), append findings to the scratchpad under a `## Design (Extended)` section.
 
 #### 7. enforcement
 
