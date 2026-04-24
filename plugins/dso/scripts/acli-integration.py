@@ -32,6 +32,7 @@ _DEFAULT_ACLI_CMD: list[str] = ["acli"]
 _MAX_ATTEMPTS: int = 3  # initial + 2 retries
 _AUTH_FAILURE_CODE: int = 401
 _ASSIGNEE_PERMISSION_ERROR: str = "cannot be assigned"
+_ASSIGNEE_NOT_FOUND_ERROR: str = "User not found for email:"
 
 # Local priority integer (0-4) → Jira priority name.
 # Mirrors the mapping in bridge-outbound.py.
@@ -95,8 +96,8 @@ def _run_acli(
 
     Retries up to 2 times (3 total attempts) on CalledProcessError,
     with backoff delays of 2s and 4s. Auth failures (exit code 401)
-    and deterministic permission errors ("cannot be assigned") abort
-    immediately without retrying.
+    and deterministic assignee errors ("cannot be assigned" or "User not
+    found for email:") abort immediately without retrying.
 
     Raises CalledProcessError if all attempts are exhausted.
     """
@@ -120,9 +121,12 @@ def _run_acli(
             # Fast-abort on auth failure
             if exc.returncode == _AUTH_FAILURE_CODE:
                 raise
-            # Fast-abort on deterministic permission errors — retrying is pointless.
+            # Fast-abort on deterministic assignee errors — retrying is pointless.
             # Callers print a contextual warning; no stderr print here to avoid duplication.
-            if exc.stderr and _ASSIGNEE_PERMISSION_ERROR in exc.stderr:
+            if exc.stderr and (
+                _ASSIGNEE_PERMISSION_ERROR in exc.stderr
+                or _ASSIGNEE_NOT_FOUND_ERROR in exc.stderr
+            ):
                 raise
             # If more retries remain, sleep with exponential backoff
             if attempt < _MAX_ATTEMPTS - 1:
@@ -223,9 +227,10 @@ def _create_issue_no_json(
 ) -> subprocess.CompletedProcess[str] | None:
     """Build and run the non-JSON ACLI create command, returning the result.
 
-    Returns ``None`` if ACLI fails with a "cannot be assigned" permission
-    error so the caller can retry without the assignee field — matching
-    the same None-on-permission-error contract as ``_create_from_json_payload``.
+    Returns ``None`` if ACLI fails with an assignee error ("cannot be
+    assigned" or "User not found for email:") so the caller can retry
+    without the assignee field — matching the same contract as
+    ``_create_from_json_payload``.
     """
     cmd = [
         "jira",
@@ -245,7 +250,10 @@ def _create_issue_no_json(
     try:
         return _run_acli(cmd, acli_cmd=acli_cmd)
     except subprocess.CalledProcessError as exc:
-        if exc.stderr and _ASSIGNEE_PERMISSION_ERROR in exc.stderr:
+        if exc.stderr and (
+            _ASSIGNEE_PERMISSION_ERROR in exc.stderr
+            or _ASSIGNEE_NOT_FOUND_ERROR in exc.stderr
+        ):
             return None
         raise
 
@@ -257,8 +265,9 @@ def _create_from_json_payload(
 ) -> subprocess.CompletedProcess[str] | None:
     """Write *payload* to a temp file, run ACLI ``--from-json``, and return the result.
 
-    Returns ``None`` if ACLI fails with a "cannot be assigned" permission
-    error so the caller can retry without the assignee field.
+    Returns ``None`` if ACLI fails with an assignee error ("cannot be
+    assigned" or "User not found for email:") so the caller can retry
+    without the assignee field.
     """
     fd, json_path = tempfile.mkstemp(suffix=".json", prefix="acli-create-")
     try:
@@ -284,7 +293,10 @@ def _create_from_json_payload(
         cmd = ["jira", "workitem", "create", "--from-json", json_path, "--json"]
         return _run_acli(cmd, acli_cmd=acli_cmd)
     except subprocess.CalledProcessError as exc:
-        if exc.stderr and _ASSIGNEE_PERMISSION_ERROR in exc.stderr:
+        if exc.stderr and (
+            _ASSIGNEE_PERMISSION_ERROR in exc.stderr
+            or _ASSIGNEE_NOT_FOUND_ERROR in exc.stderr
+        ):
             return None
         raise
     finally:
