@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2030,SC2031,SC2069
 # tests/hooks/test-pre-commit-ticket-gate.sh
 # Tests for hooks/pre-commit-ticket-gate.sh (TDD RED phase)
 #
@@ -6,7 +7,10 @@
 # when the commit message does not reference a valid v3 ticket ID (XXXX-XXXX
 # hex format, with a corresponding dir+CREATE event in the tracker).
 #
-# Test cases (10):
+# RED MARKER:
+# tests/hooks/test-pre-commit-ticket-gate.sh [test_snapshot_ticket_accepted]
+#
+# Test cases (11):
 #   1. test_blocks_missing_ticket_id          — commit msg with no ID exits non-zero for non-allowlisted files
 #   2. test_blocks_invalid_ticket_format      — commit msg 'fix: ABC-123 bug' (wrong format) exits non-zero
 #   3. test_allows_valid_v3_ticket_id         — valid XXXX-XXXX hex ID + matching dir+CREATE event exits 0
@@ -17,6 +21,7 @@
 #   8. test_error_message_format_hint         — blocked output contains 'XXXX-XXXX' and 'ticket create' pointer
 #   9. test_allows_multiple_ids_in_message    — multiple IDs in msg pass if at least one valid and exists
 #  10. test_non_allowlisted_staged_files_trigger_check — non-allowlisted staged file with no ticket ID is blocked
+#  11. test_snapshot_ticket_accepted           — ticket with only SNAPSHOT event (no CREATE) is accepted
 #
 # All tests use isolated temp git repos to avoid polluting the real repository.
 #
@@ -441,6 +446,43 @@ test_non_allowlisted_staged_files_trigger_check() {
     assert_eq "test_non_allowlisted_staged_files_trigger_check" "1" "$exit_code"
 }
 
+# ============================================================
+# TEST 11: test_snapshot_ticket_accepted  [RED MARKER]
+# A ticket directory that contains only a SNAPSHOT event file
+# (no CREATE event) must be accepted by the gate after dceb-2566
+# refactors the gate to use `ticket exists` (which checks both
+# CREATE and SNAPSHOT). Currently the gate only checks CREATE,
+# so this test is RED.
+# ============================================================
+test_snapshot_ticket_accepted() {
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_snapshot_ticket_accepted: hook present" "present" "absent"
+        return
+    fi
+
+    local _tracker_dir _repo _conf _msg_file
+    _tracker_dir=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_tracker_dir")
+
+    # Create a ticket directory with ONLY a SNAPSHOT event — no CREATE event.
+    mkdir -p "$_tracker_dir/abcd-1234"
+    cat > "$_tracker_dir/abcd-1234/001-SNAPSHOT.json" << 'EOF'
+{"event_type":"SNAPSHOT","ticket_id":"abcd-1234","timestamp":1700000000000000000,"data":{"title":"Test Snapshot Ticket","status":"open"}}
+EOF
+
+    _repo=$(make_test_repo)
+    _conf=$(make_empty_allowlist_conf)
+    _msg_file=$(make_commit_msg_file "feat(abcd-1234): implement snapshot-ticket feature")
+
+    stage_source_file "$_repo"
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_msg_file" "$_tracker_dir" "$_conf")
+    # Gate should accept the commit because the ticket exists (via SNAPSHOT).
+    # This assertion FAILS in RED phase (gate only checks CREATE, not SNAPSHOT).
+    assert_eq "test_snapshot_ticket_accepted" "0" "$exit_code"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_blocks_missing_ticket_id
 test_blocks_invalid_ticket_format
@@ -452,5 +494,6 @@ test_graceful_degradation_no_tracker
 test_error_message_format_hint
 test_allows_multiple_ids_in_message
 test_non_allowlisted_staged_files_trigger_check
+test_snapshot_ticket_accepted
 
 print_summary
