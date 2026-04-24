@@ -216,6 +216,8 @@ class TestOutboundStatus:
         """STATUS event should push compiled status to Jira for each status value."""
         from unittest.mock import patch
 
+        import bridge._outbound_handlers as _outbound_handlers_mod
+
         tracker = tmp_path / ".tickets-tracker"
         ticket_id = f"test-s-{status}"
         ticket_dir = tracker / ticket_id
@@ -243,7 +245,9 @@ class TestOutboundStatus:
         ]
 
         # Mock get_compiled_status to avoid dependency on real ticket-reducer.py
-        with patch.object(outbound, "get_compiled_status", return_value=status):
+        with patch.object(
+            _outbound_handlers_mod, "get_compiled_status", return_value=status
+        ):
             outbound.process_outbound(
                 events,
                 acli_client=mock_acli,
@@ -871,6 +875,8 @@ class TestOutboundStatusNullCompiledStatus:
         """STATUS event where get_compiled_status returns None should write a BRIDGE_ALERT (c22b-a25b)."""
         from unittest.mock import patch
 
+        import bridge._outbound_handlers as _outbound_handlers_mod
+
         tracker = tmp_path / ".tickets-tracker"
         ticket_id = "test-null-status"
         ticket_dir = tracker / ticket_id
@@ -894,7 +900,9 @@ class TestOutboundStatusNullCompiledStatus:
         ]
 
         # Mock get_compiled_status to return None (reducer failure scenario)
-        with patch.object(outbound, "get_compiled_status", return_value=None):
+        with patch.object(
+            _outbound_handlers_mod, "get_compiled_status", return_value=None
+        ):
             outbound.process_outbound(
                 events,
                 acli_client=mock_acli,

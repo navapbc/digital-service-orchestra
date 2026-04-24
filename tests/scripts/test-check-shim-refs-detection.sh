@@ -128,7 +128,7 @@ test_shim_exempt_annotation() {
     cat > "$_dir/exempt-script.sh" << 'EOF'
 #!/usr/bin/env bash
 # Bootstrap script that must call plugin directly
-bash plugins/dso/scripts/dso-setup.sh "$@"  # shim-exempt: bootstrap installer
+bash plugins/dso/scripts/onboarding/dso-setup.sh "$@"  # shim-exempt: bootstrap installer
 EOF
     local _exit=0
     bash "$SCRIPT" "$_dir/exempt-script.sh" 2>&1 || _exit=$?
@@ -146,7 +146,7 @@ test_shim_exempt_case_insensitive() {
     cat > "$_dir/exempt-upper-script.sh" << 'EOF'
 #!/usr/bin/env bash
 # Bootstrap script that must call plugin directly
-bash plugins/dso/scripts/dso-setup.sh "$@"  # SHIM-EXEMPT: bootstrap installer
+bash plugins/dso/scripts/onboarding/dso-setup.sh "$@"  # SHIM-EXEMPT: bootstrap installer
 EOF
     local _exit=0
     bash "$SCRIPT" "$_dir/exempt-upper-script.sh" 2>&1 || _exit=$?

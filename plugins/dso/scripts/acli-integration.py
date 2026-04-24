@@ -5,11 +5,12 @@ Provides create_issue, update_issue, and get_issue functions that invoke
 the Atlassian CLI (ACLI) via subprocess calls. Includes retry with
 exponential backoff on transient failures and fast-abort on auth errors.
 
-No external dependencies — stdlib only (subprocess, json, time, os).
+No external dependencies — stdlib only (subprocess, json, time, os, base64, urllib).
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -17,6 +18,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.request
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -496,7 +499,7 @@ class AcliClient:
     """Client wrapping ACLI Go binary for Jira operations.
 
     Provides the method interface expected by bridge-inbound.py:
-    search_issues, get_server_info, get_comments, set_relationship.
+    search_issues, get_myself, get_server_info, get_comments, set_relationship.
 
     Credentials are injected into the subprocess environment on each call
     so ACLI can authenticate without requiring prior ``acli auth`` setup.
@@ -628,6 +631,12 @@ class AcliClient:
             elif isinstance(parsed, dict) and "issues" in parsed:
                 all_issues = parsed["issues"]
             else:
+                logging.warning(
+                    "search_issues: unexpected ACLI JSON shape (type=%s); "
+                    "treating as empty result. Response prefix: %.200r",
+                    type(parsed).__name__,
+                    parsed,
+                )
                 all_issues = []
             self._search_cache[jql] = all_issues
 
@@ -644,6 +653,33 @@ class AcliClient:
         would add latency and a failure mode with no diagnostic value.
         """
         return {"timeZone": "UTC", "serverTitle": "Jira Cloud"}
+
+    def get_myself(self) -> dict[str, Any]:
+        """Return the authenticated user's Jira profile via GET /rest/api/2/myself.
+
+        Used to retrieve the service account's profile timezone, which Jira Cloud
+        uses when interpreting unqualified JQL datetime strings. Cached per instance.
+        """
+        if hasattr(self, "_myself_cache"):
+            return self._myself_cache  # type: ignore[return-value]
+        url = f"{self.jira_url.rstrip('/')}/rest/api/2/myself"
+        creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()
+        req = urllib.request.Request(
+            url,
+            headers={"Authorization": f"Basic {creds}", "Accept": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                self._myself_cache: dict[str, Any] = json.loads(
+                    resp.read().decode("utf-8")
+                )
+        except (urllib.error.URLError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            logging.warning("get_myself: failed to fetch /rest/api/2/myself: %s", exc)
+            # REVIEW-DEFENSE: Caching {} on error is intentional — callers handle
+            # missing keys gracefully (defaulting to UTC), and caching prevents a
+            # second network failure on the same run from the verify+fetch double-call.
+            self._myself_cache = {}
+        return self._myself_cache
 
     def get_comments(self, jira_key: str) -> list[dict[str, Any]]:
         """Get all comments on a Jira issue."""

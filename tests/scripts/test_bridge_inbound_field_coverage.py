@@ -365,7 +365,7 @@ class TestInboundEditEventPath:
         }
 
         mock_acli = MagicMock()
-        mock_acli.get_server_info.return_value = {"timeZone": "UTC"}
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
 
         config = {
             "bridge_env_id": BRIDGE_ENV_ID,
@@ -459,7 +459,7 @@ class TestInboundEditEventPath:
         }
 
         mock_acli = MagicMock()
-        mock_acli.get_server_info.return_value = {"timeZone": "UTC"}
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
 
         config = {
             "bridge_env_id": BRIDGE_ENV_ID,
@@ -610,7 +610,7 @@ class TestInboundEmptyDescriptionSafeguard:
 
         mock_acli = MagicMock()
         mock_acli.search_issues.return_value = []
-        mock_acli.get_server_info.return_value = {"timeZone": "UTC"}
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
 
         # Jira issue has empty description
         jira_issue = {

@@ -2,7 +2,7 @@
 # shellcheck source=tests/lib/assert.sh
 # source tests/lib/assert.sh — loaded dynamically below after PLUGIN_ROOT is resolved
 # tests/scripts/test-project-detect.sh
-# TDD red-phase tests for plugins/dso/scripts/project-detect.sh
+# TDD red-phase tests for plugins/dso/scripts/onboarding/project-detect.sh
 #
 # Usage: bash tests/scripts/test-project-detect.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -30,7 +30,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-SCRIPT="$DSO_PLUGIN_DIR/scripts/project-detect.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/onboarding/project-detect.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

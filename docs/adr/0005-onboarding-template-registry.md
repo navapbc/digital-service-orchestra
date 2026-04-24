@@ -65,3 +65,9 @@ The template gate (Phase 1.5) is silent about registry errors — if `parse-temp
 ### Risks
 
 - If a template repository moves or becomes unavailable, installation fails at runtime. No automated staleness check is in place; operators must monitor template repo health manually.
+## Revision — 2026-04-23
+
+Script path updated: `plugins/dso/scripts/parse-template-registry.sh` → `plugins/dso/scripts/onboarding/parse-template-registry.sh`.
+
+All references in `plugins/dso/skills/onboarding/SKILL.md` and test files have been updated. Shim invocation is now `.claude/scripts/dso onboarding/parse-template-registry.sh`. Behavior unchanged. The decision recorded above remains valid; only the filesystem location moved to consolidate onboarding-only scripts under `scripts/onboarding/`.
+

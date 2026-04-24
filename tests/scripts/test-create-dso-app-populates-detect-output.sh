@@ -74,24 +74,24 @@ test_dso_setup_receives_dso_detect_output() {
 
     # ── stub plugin root ──────────────────────────────────────────────────────
     plugin_root=$(_make_tmp_dir)
-    mkdir -p "$plugin_root/.claude-plugin" "$plugin_root/scripts"
+    mkdir -p "$plugin_root/.claude-plugin" "$plugin_root/scripts/onboarding"
     printf '{"name":"dso","version":"0.0.0-test"}\n' > "$plugin_root/.claude-plugin/plugin.json"
 
     # project-detect.sh stub: emits key=value detection lines to stdout.
     # Matches the real contract — the fix captures stdout into a file and exports
     # its path as DSO_DETECT_OUTPUT (consumed by dso-setup._run_ci_guard_analysis).
-    cat > "$plugin_root/scripts/project-detect.sh" <<'DETECT'
+    cat > "$plugin_root/scripts/onboarding/project-detect.sh" <<'DETECT'
 #!/usr/bin/env bash
 set -eu
 printf 'stack=nextjs\nstack_confidence=confirmed\nci_workflow_lint_guarded=true\n'
 DETECT
-    chmod +x "$plugin_root/scripts/project-detect.sh"
+    chmod +x "$plugin_root/scripts/onboarding/project-detect.sh"
 
     # dso-setup.sh stub: dump the full environment to env_capture, AND snapshot
     # the DSO_DETECT_OUTPUT file contents to a sentinel (so the assertion can
     # verify non-empty even after create-dso-app cleans up the tmp file).
     detect_snapshot=$(_make_tmp_dir)/detect-snapshot
-    cat > "$plugin_root/scripts/dso-setup.sh" <<SETUP
+    cat > "$plugin_root/scripts/onboarding/dso-setup.sh" <<SETUP
 #!/usr/bin/env bash
 env > "${env_capture}"
 if [ -n "\${DSO_DETECT_OUTPUT:-}" ] && [ -f "\${DSO_DETECT_OUTPUT}" ]; then
@@ -99,7 +99,7 @@ if [ -n "\${DSO_DETECT_OUTPUT:-}" ] && [ -f "\${DSO_DETECT_OUTPUT}" ]; then
 fi
 exit 0
 SETUP
-    chmod +x "$plugin_root/scripts/dso-setup.sh"
+    chmod +x "$plugin_root/scripts/onboarding/dso-setup.sh"
 
     # ── stub bin dir ──────────────────────────────────────────────────────────
     stub_bin=$(_make_tmp_dir)

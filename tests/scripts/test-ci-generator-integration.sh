@@ -19,8 +19,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-DETECT_SCRIPT="$DSO_PLUGIN_DIR/scripts/project-detect.sh"
-GENERATOR_SCRIPT="$DSO_PLUGIN_DIR/scripts/ci-generator.sh"
+DETECT_SCRIPT="$DSO_PLUGIN_DIR/scripts/onboarding/project-detect.sh"
+GENERATOR_SCRIPT="$DSO_PLUGIN_DIR/scripts/onboarding/ci-generator.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -216,7 +216,7 @@ assert_eq "test_full_workflow_validation_blocks_write: ci.yml not written on fai
     "no" "$(test -f "$VAL_GUARD_OUT/ci.yml" && echo yes || echo no)"
 
 # Output dir must be empty (no stray temp files)
-val_guard_stray_count="$(ls -1 "$VAL_GUARD_OUT" 2>/dev/null | wc -l | tr -d ' ')"
+val_guard_stray_count="$(find "$VAL_GUARD_OUT" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')"
 assert_eq "test_full_workflow_validation_blocks_write: no stray files in output dir" \
     "0" "$val_guard_stray_count"
 

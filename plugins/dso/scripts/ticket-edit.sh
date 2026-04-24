@@ -47,7 +47,8 @@ ticket_id="$1"
 shift
 
 # Parse --field=value and --field value pairs
-declare -A fields
+# Use indexed array (bash 3.2 compatible; avoid declare -A which requires bash 4+)
+_parsed_pairs=()
 while [ $# -gt 0 ]; do
     arg="$1"
     case "$arg" in
@@ -59,7 +60,7 @@ while [ $# -gt 0 ]; do
                 echo "Error: unknown field '$field_name'. Allowed: $ALLOWED_FIELDS" >&2
                 exit 1
             fi
-            fields["$field_name"]="$field_value"
+            _parsed_pairs+=("$field_name=$field_value")
             shift
             ;;
         --*)
@@ -73,7 +74,7 @@ while [ $# -gt 0 ]; do
                 exit 1
             fi
             shift
-            fields["$field_name"]="$1"
+            _parsed_pairs+=("$field_name=$1")
             shift
             ;;
         *)
@@ -84,7 +85,7 @@ while [ $# -gt 0 ]; do
 done
 
 # ── Step 2: Validate at least one field ──────────────────────────────────────
-if [ ${#fields[@]} -eq 0 ]; then
+if [ ${#_parsed_pairs[@]} -eq 0 ]; then
     echo "Error: at least one --field=value pair is required" >&2
     exit 1
 fi
@@ -106,57 +107,40 @@ if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 \( -name '*-CREATE.json' -o -nam
     exit 1
 fi
 
-# ── Unicode arrow conversion (U+2192 → ASCII ->) for title field ─────────────
-if [[ -n "${fields[title]+x}" ]]; then
-    fields[title]=$(python3 -c "import sys; print(sys.argv[1].replace('\u2192', '->'))" "${fields[title]}")
-fi
-
 # ── Step 4: Build EDIT event JSON via python3 ────────────────────────────────
 env_id=$(cat "$TRACKER_DIR/.env-id")
 author=$(git config user.name 2>/dev/null || echo "Unknown")
 
 temp_event=$(mktemp "$TRACKER_DIR/.tmp-edit-XXXXXX")
 
-# Build the fields JSON string for python3
-fields_json="{"
-first=true
-for key in "${!fields[@]}"; do
-    if [ "$first" = true ]; then
-        first=false
-    else
-        fields_json+=","
-    fi
-    value="${fields[$key]}"
-    # Store numeric values as integers
-    if [[ "$value" =~ ^-?[0-9]+$ ]]; then
-        fields_json+="\"$key\":$value"
-    else
-        # Escape for JSON via python3 inline
-        escaped_value=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$value")
-        fields_json+="\"$key\":$escaped_value"
-    fi
-done
-fields_json+="}"
-
+# Python3 handles field parsing, unicode conversion, JSON building, and event writing.
+# _parsed_pairs elements are "key=value"; partition('=') splits on the FIRST '=' only
+# so values that themselves contain '=' are preserved intact.
 python3 -c "
 import json, sys, time, uuid
-
-fields = json.loads(sys.argv[3])
-
+args     = sys.argv[1:]
+env_id   = args[0]
+author   = args[1]
+out_path = args[-1]
+fields = {}
+for pair in args[2:-1]:
+    key, _, val = pair.partition('=')
+    fields[key] = val
+if 'title' in fields:
+    fields['title'] = fields['title'].replace('\\u2192', '->')
+if 'priority' in fields and fields['priority'].lstrip('-').isdigit():
+    fields['priority'] = int(fields['priority'])
 event = {
     'timestamp': time.time_ns(),
     'uuid': str(uuid.uuid4()),
     'event_type': 'EDIT',
-    'env_id': sys.argv[1],
-    'author': sys.argv[2],
-    'data': {
-        'fields': fields
-    }
+    'env_id': env_id,
+    'author': author,
+    'data': {'fields': fields}
 }
-
-with open(sys.argv[4], 'w', encoding='utf-8') as f:
+with open(out_path, 'w', encoding='utf-8') as f:
     json.dump(event, f, ensure_ascii=False)
-" "$env_id" "$author" "$fields_json" "$temp_event" || {
+" "$env_id" "$author" "${_parsed_pairs[@]}" "$temp_event" || {
     rm -f "$temp_event"
     echo "Error: failed to build EDIT event JSON" >&2
     exit 1
