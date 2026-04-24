@@ -924,3 +924,9 @@ ticket_check_ac() {
     return $?
 }
 
+# ── ticket_quality_check ───────────────────────────────────────────────────────
+ticket_quality_check() {
+    bash "$_TICKETLIB_DIR/issue-quality-check.sh" "$@"
+    return $?
+}
+
