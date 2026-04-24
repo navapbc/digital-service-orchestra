@@ -65,7 +65,7 @@ Source `ticket-lib.sh` and call `_read_latest_preconditions` to retrieve the sum
 
 ```bash
 # Source ticket-lib.sh from the plugin root
-source "${CLAUDE_PLUGIN_ROOT}/scripts/ticket-lib.sh" 2>/dev/null || true
+source "${CLAUDE_PLUGIN_ROOT}/scripts/ticket-lib.sh" 2>/dev/null || true  # shim-exempt: sourced library, shim not applicable
 if declare -f _read_latest_preconditions >/dev/null 2>&1; then
     _ticket_dir="${TICKETS_DIR}/<ticket-id>"
     _preconditions_json=$(_read_latest_preconditions "$_ticket_dir" 2>/dev/null) || true
@@ -133,7 +133,7 @@ After evaluating all SC criteria but before running consumer smoke tests, run th
 Run the coverage harness to verify ≥100 preventions from the 818-bug corpus:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/preconditions-coverage-harness.sh" \
+bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" preconditions-coverage-harness \
   --corpus tests/fixtures/818-corpus/sample-bugs.json \
   --dry-run --output json
 ```
@@ -150,7 +150,7 @@ Parse the `COVERAGE_RESULT` JSON from stdout.
 Run the FP rate tracker to observe the current false-positive rate for the epic's primary ticket:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/fp-rate-tracker.sh" \
+bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" fp-rate-tracker \
   --ticket-id=<parent-epic-id> --threshold=0.10
 ```
 
@@ -164,7 +164,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/fp-rate-tracker.sh" \
 Run the SC13 analysis to compute and document the workflow-restart-rate drop:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/sc13-restart-analysis.sh" \
+bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" sc13-restart-analysis \
   --baseline-restart-rate=<baseline> --post-restart-rate=<post> \
   --sample-size=<N>
 ```

@@ -14,7 +14,8 @@ set -uo pipefail
 #   1 — usage error or plugin root missing
 
 # ── Resolve plugin root (no hardcoded plugin path) ───────────────────────────
-_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SCRIPT_DIR/../.." && pwd)}"
 
 FORMAT="json"
 while [[ $# -gt 0 ]]; do
