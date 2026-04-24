@@ -912,3 +912,9 @@ ticket_classify() {
     return $?
 }
 
+# ── ticket_clarity_check ───────────────────────────────────────────────────────
+ticket_clarity_check() {
+    bash "$_TICKETLIB_DIR/ticket-clarity-check.sh" "$@"
+    return $?
+}
+
