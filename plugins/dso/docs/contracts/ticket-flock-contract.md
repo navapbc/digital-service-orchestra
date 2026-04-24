@@ -45,11 +45,51 @@ The 60-second worst-case total is intentionally within the ~73-second Claude too
 
 ## Locking Mechanism
 
-The lock is implemented using **Python `fcntl.flock`** (not the `flock(1)` CLI). This choice provides portable serialization on both macOS and Linux.
+### Current: Bash-native flock(1)
 
-### Acquisition loop (per attempt)
+The lock is currently implemented using the **`flock(1)` CLI** (bash-native), introduced with the dispatcher shift from `python3` subprocesses to the sourced `ticket-lib-api.sh` library. This provides portable serialization on both macOS and Linux without Python startup overhead.
+
+#### Acquisition loop (per attempt)
+
+```bash
+# Canonicalize the lock path to avoid cross-symlink flock mismatches
+CANONICAL=$(cd "$(dirname "$lock_file")" && pwd -P)/$(basename "$lock_file")
+
+attempt=0
+while [ "$attempt" -lt "$max_retries" ]; do
+    attempt=$((attempt + 1))
+    if flock -x -w 30 "$CANONICAL" bash -c '_perform_write "$@"' _ "$@"; then
+        lock_acquired=true; break
+    fi
+    # exit non-zero on timeout → retry
+done
+```
+
+- `flock -x` — exclusive lock (`LOCK_EX`)
+- `flock -w 30` — 30-second blocking wait timeout
+- 2-retry loop on timeout (same budget as historical path: 60s worst-case)
+- **Cross-path canonicalization**: `CANONICAL=$(cd "$(dirname "$lock_file")" && pwd -P)/$(basename "$lock_file")` resolves symlinks before passing the path to `flock(1)`, ensuring that `.tickets-tracker/` symlinks (used in secondary worktrees) and their targets hold the same kernel lock.
+
+#### Operations performed while holding the lock
+
+1. Atomic rename of staging temp file to final event path (`mv -f staging_temp final_path` — same-filesystem mktemp guarantees atomicity)
+2. `git -C <tracker_dir> add <ticket_id>/<final_filename>`
+3. `git -C <tracker_dir> commit -q -m "ticket: <EVENT_TYPE> <ticket_id>"`
+
+#### Lock release
+
+The lock is released automatically when `flock`'s child process exits. No explicit `LOCK_UN` call is required — the OS releases the lock when the file descriptor held by the `flock(1)` wrapper exits.
+
+---
+
+### Historical (pre-bash-native): Python fcntl.flock
+
+> **Note**: The following describes the locking mechanism used before the bash-native dispatcher was introduced. It is preserved here for reference and for downstream stories that were designed against the Python path (w21-q0nn, w21-ay8w, w21-6k7v). The semantics (timeout budget, retry count, operations under lock) are identical; only the implementation language changed.
+
+The legacy lock used **Python `fcntl.flock`** (not the `flock(1)` CLI), invoked as a python3 subprocess per write operation.
 
 ```python
+# Historical: Python fcntl.flock acquisition loop (per attempt)
 fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
 deadline = time.monotonic() + timeout   # 30s
 acquired = False
@@ -62,29 +102,20 @@ while time.monotonic() < deadline:
         time.sleep(0.1)   # poll at 100ms intervals
 ```
 
-- Uses `LOCK_EX | LOCK_NB` (non-blocking exclusive) polled at 100 ms intervals
-- Deadline is wall-clock monotonic (not iteration count)
-
-### Operations performed while holding the lock
-
-1. Atomic rename: `os.rename(staging_temp, final_path)` — staging temp is pre-created on the same filesystem (`mktemp` inside `.tickets-tracker/`) so the rename is guaranteed atomic
-2. `git -C <tracker_dir> add <ticket_id>/<final_filename>`
-3. `git -C <tracker_dir> commit -q -m "ticket: <EVENT_TYPE> <ticket_id>"`
-
-### Lock release
-
-The lock is released by closing the file descriptor (`os.close(fd)`) at the end of the Python subprocess. No explicit `flock(LOCK_UN)` call is required — the OS releases the lock automatically when the file descriptor is closed.
+- Used `LOCK_EX | LOCK_NB` (non-blocking exclusive) polled at 100 ms intervals
+- Deadline was wall-clock monotonic (not iteration count)
+- Lock was released by closing the file descriptor (`os.close(fd)`) at subprocess exit — no explicit `flock(LOCK_UN)` required
 
 ---
 
 ## Retry Behavior
 
-The Bash wrapper retries the entire Python lock-acquire-and-commit block up to `max_retries` (2) times:
+The bash wrapper retries the entire lock-acquire-and-commit block up to `max_retries` (2) times:
 
 ```bash
 while [ "$attempt" -lt "$max_retries" ]; do
     attempt=$((attempt + 1))
-    python3 -c "..." ... || flock_exit=$?
+    flock -x -w 30 "$CANONICAL" bash -c '_perform_write "$@"' _ "$@" || flock_exit=$?
     if [ "$flock_exit" -eq 0 ]; then
         lock_acquired=true; break
     elif [ "$flock_exit" -eq 2 ]; then

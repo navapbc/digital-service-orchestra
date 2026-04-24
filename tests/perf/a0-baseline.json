@@ -1,0 +1,101 @@
+{
+  "captured_at": "2026-04-23T23:09:15Z",
+  "platform": "Darwin",
+  "ops": {
+    "show": {
+      "median_s": 0.22,
+      "median": 0.22,
+      "sc_target_s": 0.05
+    },
+    "list": {
+      "median_s": 0.24,
+      "median": 0.24,
+      "sc_target_s": 0.05
+    },
+    "comment": {
+      "median_s": 0.23,
+      "median": 0.23,
+      "sc_target_s": 0.05
+    },
+    "create": {
+      "median_s": 0.25,
+      "median": 0.25,
+      "sc_target_s": 0.05
+    },
+    "tag": {
+      "median_s": 0.22,
+      "median": 0.22,
+      "sc_target_s": 0.05
+    },
+    "untag": {
+      "median_s": 0.22,
+      "median": 0.22,
+      "sc_target_s": 0.05
+    },
+    "edit": {
+      "median_s": 0.23,
+      "median": 0.23,
+      "sc_target_s": 0.05
+    },
+    "transition": {
+      "median_s": 0.28,
+      "median": 0.28,
+      "sc_target_s": 0.05
+    }
+  },
+  "platform_budgets": {
+    "linux": {
+      "sc1_target_s": 0.05,
+      "slack_s": 0
+    },
+    "macos": {
+      "sc1_target_s": 0.05,
+      "slack_s": 0.02
+    },
+    "alpine": {
+      "sc1_target_s": 0.05,
+      "slack_s": 0.05
+    }
+  },
+  "show": {
+    "median_s": 0.22,
+    "median": 0.22,
+    "sc_target_s": 0.05
+  },
+  "list": {
+    "median_s": 0.24,
+    "median": 0.24,
+    "sc_target_s": 0.05
+  },
+  "comment": {
+    "median_s": 0.23,
+    "median": 0.23,
+    "sc_target_s": 0.05
+  },
+  "create": {
+    "median_s": 0.25,
+    "median": 0.25,
+    "sc_target_s": 0.05
+  },
+  "tag": {
+    "median_s": 0.22,
+    "median": 0.22,
+    "sc_target_s": 0.05
+  },
+  "untag": {
+    "median_s": 0.22,
+    "median": 0.22,
+    "sc_target_s": 0.05
+  },
+  "edit": {
+    "median_s": 0.23,
+    "median": 0.23,
+    "sc_target_s": 0.05
+  },
+  "transition": {
+    "median_s": 0.28,
+    "median": 0.28,
+    "sc_target_s": 0.05
+  },
+  "aggregate_sprint_turn_s": 2.9118
+}
