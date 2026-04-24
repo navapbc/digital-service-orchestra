@@ -918,3 +918,9 @@ ticket_clarity_check() {
     return $?
 }
 
+# ── ticket_check_ac ────────────────────────────────────────────────────────────
+ticket_check_ac() {
+    bash "$_TICKETLIB_DIR/check-acceptance-criteria.sh" "$@"
+    return $?
+}
+
