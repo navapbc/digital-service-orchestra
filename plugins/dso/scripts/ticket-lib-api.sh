@@ -900,3 +900,9 @@ ticket_transition() {
     return $?
 }
 
+# ── ticket_validate ────────────────────────────────────────────────────────────
+ticket_validate() {
+    bash "$_TICKETLIB_DIR/validate-issues.sh" "$@"
+    return $?
+}
+
