@@ -103,9 +103,9 @@ def _make_mock_acli(
     *,
     timezone: str = "UTC",
 ) -> MagicMock:
-    """Create a mock ACLI client with search_issues and get_server_info."""
+    """Create a mock ACLI client with search_issues and get_myself."""
     mock = MagicMock()
-    mock.get_server_info.return_value = {"timeZone": timezone}
+    mock.get_myself.return_value = {"timeZone": timezone}
 
     if issues is not None:
         mock.search_issues.return_value = issues
@@ -187,7 +187,7 @@ def test_process_inbound_creates_events_for_new_jira_issues(
 
     # ACLI should have been called
     mock_acli.search_issues.assert_called_once()
-    mock_acli.get_server_info.assert_called_once()
+    mock_acli.get_myself.assert_called()
 
 
 # ---------------------------------------------------------------------------
@@ -375,7 +375,7 @@ def test_process_inbound_does_not_update_checkpoint_on_auth_failure(
     checkpoint_file.write_text(json.dumps(original_checkpoint))
 
     mock_acli = MagicMock()
-    mock_acli.get_server_info.return_value = {"timeZone": "UTC"}
+    mock_acli.get_myself.return_value = {"timeZone": "UTC"}
     mock_acli.search_issues.side_effect = subprocess.CalledProcessError(
         returncode=401,
         cmd=["acli", "--action", "searchIssues"],
@@ -427,7 +427,7 @@ def test_process_inbound_paginates_100_plus_issues(
     page_1 = [_make_jira_issue(f"DSO-{i}") for i in range(101, 124)]
 
     mock_acli = MagicMock()
-    mock_acli.get_server_info.return_value = {"timeZone": "UTC"}
+    mock_acli.get_myself.return_value = {"timeZone": "UTC"}
 
     # search_issues returns paginated results:
     # page 0 (start_at=0): 100 issues
@@ -567,4 +567,44 @@ def test_inbound_round_trip_jira_relates_link_creates_local_relates_to(
     )
     assert link_data.get("data", {}).get("target_id") == "jira-proj-2", (
         f"Expected target_id='jira-proj-2', got {link_data.get('data', {}).get('target_id')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test: non-UTC service account timezone — process_inbound must not abort
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_process_inbound_proceeds_when_service_account_timezone_is_not_utc(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """process_inbound() must NOT raise when the service account timezone is non-UTC.
+
+    The fetch_jira_changes() TZ conversion handles non-UTC accounts automatically.
+    The old abort guard was removed; this test verifies the behavior change is stable.
+
+    Given: mock ACLI client returns timezone "America/Los_Angeles" (PDT, non-UTC)
+    When:  process_inbound() is called
+    Then:  no RuntimeError is raised and events are written for returned issues
+    """
+    issues = [_make_jira_issue("PROJ-1")]
+    mock_acli = _make_mock_acli(issues, timezone="America/Los_Angeles")
+
+    tracker = tmp_path / ".tickets-tracker"
+    config = _make_config(checkpoint_file=str(tmp_path / "checkpoint.json"))
+
+    # Must not raise RuntimeError or any other exception
+    bridge.process_inbound(
+        acli_client=mock_acli,
+        last_pull_ts=_LAST_PULL_TS,
+        config=config,
+        tickets_root=tracker,
+    )
+
+    create_files = list(tracker.rglob("*-CREATE.json"))
+    assert len(create_files) == 1, (
+        f"Expected 1 CREATE event for PROJ-1 with PDT service account; "
+        f"got {len(create_files)}. Abort guard may have been re-introduced."
     )

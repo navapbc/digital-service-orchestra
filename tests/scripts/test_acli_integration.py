@@ -976,3 +976,123 @@ def test_search_issues_warns_on_unrecognised_json_shape(acli: ModuleType) -> Non
         f"Expected a warning mentioning the unexpected JSON shape, "
         f"but got: {log_ctx.output}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 19: AcliClient.get_myself() — HTTP success, error fallback, caching
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_myself_returns_profile_on_success(acli: ModuleType) -> None:
+    """AcliClient.get_myself() must return parsed JSON from /rest/api/2/myself
+    and cache the result so a second call does not make a new HTTP request.
+
+    Given: urllib.request.urlopen returns {"timeZone": "America/Los_Angeles"}
+    When:  get_myself() is called twice
+    Then:  first call returns the profile dict; second call returns same dict
+           without a second HTTP call (cache hit).
+    """
+    import json as _json
+    import urllib.request
+    from unittest.mock import patch
+
+    profile = {"timeZone": "America/Los_Angeles", "accountId": "abc123"}
+    body = _json.dumps(profile).encode("utf-8")
+
+    class _FakeResponse:
+        def read(self) -> bytes:
+            return body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+    client = acli.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+        jira_project="PROJ",
+    )
+
+    with patch.object(
+        urllib.request, "urlopen", return_value=_FakeResponse()
+    ) as mock_urlopen:
+        result1 = client.get_myself()
+        result2 = client.get_myself()
+
+    assert result1 == profile, f"Expected {profile!r}, got {result1!r}"
+    assert result2 == profile, f"Second call must return cached result, got {result2!r}"
+    assert mock_urlopen.call_count == 1, (
+        f"urlopen must be called once (cache hit on second call); "
+        f"called {mock_urlopen.call_count} times"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_myself_returns_empty_dict_on_url_error(acli: ModuleType) -> None:
+    """AcliClient.get_myself() must return {{}} and log a warning when
+    urllib.request.urlopen raises URLError (network failure or auth error).
+
+    Given: urlopen raises urllib.error.URLError("connection refused")
+    When:  get_myself() is called
+    Then:  returns {{}} without raising, and emits a warning log.
+    """
+    import urllib.error
+    import urllib.request
+    from unittest.mock import patch
+
+    client = acli.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+        jira_project="PROJ",
+    )
+
+    with patch.object(
+        urllib.request,
+        "urlopen",
+        side_effect=urllib.error.URLError("connection refused"),
+    ):
+        result = client.get_myself()
+
+    assert result == {}, f"Expected {{}} on URLError, got {result!r}"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_myself_returns_empty_dict_on_json_decode_error(acli: ModuleType) -> None:
+    """AcliClient.get_myself() must return {{}} when the response body is not valid JSON.
+
+    Given: urlopen returns a response with malformed JSON body
+    When:  get_myself() is called
+    Then:  returns {{}} without raising and emits a warning log.
+    """
+    import urllib.request
+    from unittest.mock import patch
+
+    class _BadResponse:
+        def read(self) -> bytes:
+            return b"not-json-{{"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+    client = acli.AcliClient(
+        jira_url="https://example.atlassian.net",
+        user="user@example.com",
+        api_token="token",
+        jira_project="PROJ",
+    )
+
+    with patch.object(urllib.request, "urlopen", return_value=_BadResponse()):
+        result = client.get_myself()
+
+    assert result == {}, f"Expected {{}} on JSONDecodeError, got {result!r}"
