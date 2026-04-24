@@ -69,6 +69,16 @@ Apply these rules to assign severity:
 4. **Existence-only assertions** → **important** when the sole assertion; **minor** when combined with behavioral assertions
 5. **Test runtime waste** → **minor** (tests are behaviorally correct; the issue is efficiency, not correctness). Escalate to **important** when a single test wastes >10s due to the pattern.
 
+## Remediation Directive — Remove, Do Not Patch Change Detectors
+
+When you flag a **change-detector test**, **source-file-grepping test**, **tautological test**, or **existence-only assertion**, the required remediation is **DELETION**, not modification. Do NOT accept a diff that updates a change-detector test's assertion string, grep pattern, or expected prose to match new source content — that is the change-detector maintenance treadmill, and it perpetuates the anti-pattern.
+
+**Reject as a finding, severity `important` (or inherit the underlying pattern's severity — whichever is higher)**: any diff that modifies an assertion, grep regex, or expected-string constant inside a test that matches one of the patterns above. The description must state explicitly that the correct remediation is to **delete** the test (and replace it with a behavioral test only if the underlying behavior is not already covered by another test — verify via Rule 1 check).
+
+Applies to both new change-detector tests being added AND existing change-detector tests being re-pinned to new source content. A test whose sole purpose is to grep for a prose phrase, literal string, or structural marker in an instruction file must be removed when the instruction file is refactored — not re-pinned. Re-pinning is a category error: it confirms the test tests the wrong thing.
+
+Exception: a diff that **deletes** a change-detector test (no replacement) is correct remediation and must NOT be flagged. Distinguishing deletion from modification: check the diff hunks — if the test function is entirely removed (no `+` line for its body), it is a deletion.
+
 ## Hard Exclusion List
 
 Do NOT report:
