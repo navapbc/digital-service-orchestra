@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-ticket-next-batch-dispatcher.sh
-# RED integration tests for 'ticket next-batch' subcommand routing through the dispatcher.
+# Integration tests for 'ticket next-batch' subcommand routing through the dispatcher.
 #
 # Tests verify that the dispatcher correctly routes 'ticket next-batch' to
 # sprint-next-batch.sh and that output matches the expected text/JSON format.
@@ -8,12 +8,6 @@
 # Uses TICKETS_TRACKER_DIR injection — sprint-next-batch.sh respects this env var
 # directly, and the ticket CLI it calls (TICKET_CMD defaults to same-dir ticket)
 # also respects TICKETS_TRACKER_DIR.
-#
-# RED STATE: Tests 2-6 currently fail because the dispatcher does not have a
-# 'next-batch' case. They will pass (GREEN) after the dispatcher case is added.
-#
-# RED MARKER:
-# tests/scripts/test-ticket-next-batch-dispatcher.sh [test_next_batch_routes_through_dispatcher]
 #
 # Usage: bash tests/scripts/test-ticket-next-batch-dispatcher.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -237,9 +231,95 @@ test_next_batch_no_epic_exits_nonzero() {
     fi
 }
 
+# make_overlap_fixture — creates a .tickets-tracker/ with:
+#   nb-overlap-epic     (epic, open)
+#     nb-overlap-story  (story, open, no blockers)
+#       nb-overlap-a    (task, open, title references plugins/dso/scripts/sprint-next-batch.sh)
+#       nb-overlap-b    (task, open, title references plugins/dso/scripts/sprint-next-batch.sh)
+# Both tasks reference the same file in their title so one is deferred as SKIPPED_OVERLAP.
+make_overlap_fixture() {
+    local tracker_dir
+    tracker_dir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tracker_dir")
+
+    python3 - "$tracker_dir" <<'PYEOF'
+import json, sys, os
+base = sys.argv[1]
+ts = 1700001000000000000
+
+def write(tid, ts_offset, event_type, data):
+    d = os.path.join(base, tid)
+    os.makedirs(d, exist_ok=True)
+    idx = len(os.listdir(d)) + 1
+    evt = {
+        "event_type": event_type,
+        "ticket_id": tid,
+        "timestamp": ts + ts_offset,
+        "uuid": f"test-{tid}-{idx:04d}",
+        "env_id": "test",
+        "author": "test",
+        "data": data,
+    }
+    with open(os.path.join(d, f"{idx:03d}-{event_type}.json"), "w") as f:
+        json.dump(evt, f)
+
+write("nb-overlap-epic", 0, "CREATE", {
+    "ticket_id": "nb-overlap-epic", "title": "NB Overlap Epic", "ticket_type": "epic",
+    "status": "open", "priority": 1, "parent_id": None,
+    "tags": [], "description": "", "notes": "",
+})
+write("nb-overlap-story", 1, "CREATE", {
+    "ticket_id": "nb-overlap-story", "title": "NB Overlap Story", "ticket_type": "story",
+    "status": "open", "priority": 2, "parent_id": "nb-overlap-epic",
+    "tags": [], "description": "", "notes": "",
+})
+# Both tasks reference the same .sh file in their title. The prose-path regex
+# in extract_files() matches plugins/**/*.sh from the title text returned by
+# _load_ticket_body(), so both candidates end up with the same file in their
+# conflict set, causing the second to be deferred as SKIPPED_OVERLAP.
+shared_file = "plugins/dso/scripts/sprint-next-batch.sh"
+write("nb-overlap-a", 2, "CREATE", {
+    "ticket_id": "nb-overlap-a",
+    "title": f"NB Overlap Task A - modifies {shared_file}",
+    "ticket_type": "task",
+    "status": "open", "priority": 2, "parent_id": "nb-overlap-story",
+    "tags": [], "description": "", "notes": "",
+})
+write("nb-overlap-b", 3, "CREATE", {
+    "ticket_id": "nb-overlap-b",
+    "title": f"NB Overlap Task B - modifies {shared_file}",
+    "ticket_type": "task",
+    "status": "open", "priority": 2, "parent_id": "nb-overlap-story",
+    "tags": [], "description": "", "notes": "",
+})
+PYEOF
+
+    echo "$tracker_dir"
+}
+
+test_next_batch_skipped_overlap() {
+    local _tracker _output _exit
+
+    # Test 8: Two tasks sharing a file — one is deferred as SKIPPED_OVERLAP
+    echo "Test 8: Two tasks sharing a file produce SKIPPED_OVERLAP for the second task"
+    _tracker=$(make_overlap_fixture)
+    _exit=0
+    _output=$(TICKETS_TRACKER_DIR="$_tracker" "$DISPATCHER" next-batch nb-overlap-epic 2>&1) || _exit=$?
+
+    if [[ "$_output" =~ SKIPPED_OVERLAP ]]; then
+        echo "  PASS: SKIPPED_OVERLAP emitted for overlapping-file task"
+        (( PASS++ ))
+    else
+        echo "  FAIL: SKIPPED_OVERLAP not emitted for overlapping tasks" >&2
+        echo "  Output: $_output" >&2
+        (( FAIL++ ))
+    fi
+}
+
 # Run the RED zone tests
 test_next_batch_routes_through_dispatcher
 test_next_batch_no_epic_exits_nonzero
+test_next_batch_skipped_overlap
 
 # ── Results ───────────────────────────────────────────────────────────────────
 echo ""
