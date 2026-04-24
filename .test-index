@@ -247,7 +247,7 @@ plugins/dso/docs/contracts/worktree-tracking-comment.md:tests/skills/test-worktr
 plugins/dso/skills/sprint/prompts/task-execution.md:tests/skills/test-worktree-tracking-start-writes.sh [test_sprint_skill_worktree_tracking_start_present]
 plugins/dso/scripts/resolve-abandoned-worktrees.sh:tests/scripts/test-worktree-resume-integration.sh
 plugins/dso/hooks/lib/planning-config.sh:tests/hooks/test-planning-config.sh
-plugins/dso/scripts/classify-sc-shape.sh:tests/skills/test-brainstorm-shape-heuristic.sh
+plugins/dso/scripts/brainstorm/classify-sc-shape.sh:tests/skills/test-brainstorm-shape-heuristic.sh
 plugins/dso/scripts/sprint-next-batch.sh:tests/test-sprint-next-batch.sh
 plugins/dso/scripts/sprint-manual-drain.sh:tests/test-sprint-manual-drain.sh
 plugins/dso/scripts/sprint-pause-state.sh:tests/scripts/test-sprint-pause-state.sh

@@ -31,6 +31,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SKILL_FILE="$REPO_ROOT/plugins/dso/skills/brainstorm/SKILL.md"
 
+# skill-refactor: brainstorm phases extracted. Rebind SKILL_FILE to the aggregated
+# corpus so content moved to phases/*.md remains reachable by content-presence greps.
+# Tests that assert SKILL.md-specific structure should use "$_origSKILL_FILE" instead.
+_origSKILL_FILE="$SKILL_FILE"
+source "$(git rev-parse --show-toplevel)/tests/skills/lib/brainstorm-skill-aggregate.sh"
+SKILL_FILE=$(brainstorm_aggregate_path)
+trap brainstorm_aggregate_cleanup EXIT
+
+
 source "$REPO_ROOT/tests/lib/assert.sh"
 
 echo "=== test-brainstorm-research-findings-persistence.sh ==="

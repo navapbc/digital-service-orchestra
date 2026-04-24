@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2329
 # Structural validation for the Convert-to-Epic Path section in brainstorm SKILL.md.
 # Tests: dedicated section existence, close-after-create ordering, original ticket
 # traceability, edge case coverage (--reason flag, open children), and Type Detection
@@ -7,6 +8,12 @@ set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SKILL_MD="${REPO_ROOT}/plugins/dso/skills/brainstorm/SKILL.md"
+# After phase extraction, Convert-to-Epic Path content lives in phases/convert-to-epic.md.
+# Rebind SKILL_MD to the aggregated corpus; keep $_orig_SKILL_MD for SKILL.md-specific checks.
+_orig_SKILL_MD="$SKILL_MD"
+source "${REPO_ROOT}/tests/skills/lib/brainstorm-skill-aggregate.sh"
+SKILL_MD=$(brainstorm_aggregate_path)
+trap brainstorm_aggregate_cleanup EXIT
 
 PASS=0
 FAIL=0
@@ -61,9 +68,9 @@ with open(sys.argv[1], 'r') as f:
 
 # Look for a dedicated Convert-to-Epic Path section by heading
 patterns = [
-    r'(?m)(^#+\s+Convert.to.Epic\s+Path.*?)(?=^#|\Z)',
-    r'(?m)(^#+\s+Convert.*Epic.*Path.*?)(?=^#|\Z)',
-    r'(?m)(^#+\s+Convert-to-Epic.*?)(?=^#|\Z)',
+    r'(?m)(^#+\s+Convert.to.Epic\s+Path.*?)(?=^# [A-Z]|\Z)',
+    r'(?m)(^#+\s+Convert.*Epic.*Path.*?)(?=^# [A-Z]|\Z)',
+    r'(?m)(^#+\s+Convert-to-Epic.*?)(?=^# [A-Z]|\Z)',
 ]
 for pattern in patterns:
     match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
@@ -114,7 +121,7 @@ if section_start is None:
     sys.exit(0)
 
 # Extract text from the section start to the next heading of same or higher level
-section_match = re.search(r'(?m)^(#+)\s+Convert.{0,30}Epic.{0,30}Path.*?(?=^#|\Z)',
+section_match = re.search(r'(?m)^(#+)\s+Convert.{0,30}Epic.{0,30}Path.*?(?=^# [A-Z]|\Z)',
                            content[section_start:], re.DOTALL | re.IGNORECASE)
 if not section_match:
     print("section_not_found")

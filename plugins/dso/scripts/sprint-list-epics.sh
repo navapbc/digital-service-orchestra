@@ -5,8 +5,10 @@ set -euo pipefail
 # Reads ticket state from the v3 event-sourced tracker via ticket-reducer.py.
 #
 # Usage:
-#   sprint-list-epics.sh           # List unblocked open epics, sorted by priority
-#   sprint-list-epics.sh --all     # Include blocked epics (marked with BLOCKED)
+#   sprint-list-epics.sh              # List unblocked open epics, sorted by priority
+#   sprint-list-epics.sh --all        # Include blocked epics (marked with BLOCKED)
+#   sprint-list-epics.sh --brainstorm # Categorized selection list for /dso:brainstorm
+#                                     # (zero-child epics + scrutiny-gap epics + start-fresh)
 #
 # Output: One line per epic, tab-separated:
 #   <id>\tP*\t<title>\t<child_count>                              (in-progress epics, listed first — P* replaces priority)
@@ -23,12 +25,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 show_all=false
+brainstorm_mode=false
 # min_children and max_children are intentionally unset by default (use ${var+x} set-check)
 # has_tag is intentionally unset by default (use ${has_tag+x} set-check)
 # without_tag is intentionally unset by default (use ${without_tag+x} set-check)
 for _arg in "$@"; do
     case "$_arg" in
         --all) show_all=true ;;
+        --brainstorm) brainstorm_mode=true ;;
         --min-children=*) min_children="${_arg#--min-children=}" ;;
         --max-children=*) max_children="${_arg#--max-children=}" ;;
         --has-tag=*) has_tag="${_arg#--has-tag=}" ;;
@@ -36,6 +40,59 @@ for _arg in "$@"; do
     esac
 done
 unset _arg
+
+# ---------------------------------------------------------------------------
+# --brainstorm mode: emit a categorized numbered selection list combining
+# zero-child epics and scrutiny-gap epics, plus a trailing "start fresh"
+# option. Invoked by /dso:brainstorm when no ticket ID is supplied.
+#
+# Output shape:
+#   Zero-child epics (not yet decomposed):
+#     1. [P<N>] <title> (<epic-id>)
+#   Scrutiny-gap epics (decomposed, not yet brainstormed):
+#     N+1. [P<N>] <title> (<epic-id>)
+#   N+M. Start fresh — describe a new feature
+#
+# Exit code: always 0 (empty sections are labeled as "(none)" — skill body
+# falls through to fresh dialogue when both are empty).
+# ---------------------------------------------------------------------------
+if [ "$brainstorm_mode" = true ]; then
+    # Filter to tab-delimited epic lines; strip P0-bug banner and "BLOCKED" entries.
+    # Use awk (portable across BSD/GNU) to match lines whose first tab-separated
+    # field looks like a ticket ID.
+    _epic_filter() { awk -F'\t' 'NF>=3 && $1 ~ /^[a-z0-9]{4}-[a-z0-9]{4}$/ { print }'; }
+    _zero_children=$(bash "${BASH_SOURCE[0]}" --max-children=0 2>/dev/null | _epic_filter || true)
+    _scrutiny_gap=$(bash "${BASH_SOURCE[0]}" --min-children=1 --without-tag=brainstorm:complete 2>/dev/null | _epic_filter || true)
+
+    _n=0
+    echo "Zero-child epics (not yet decomposed):"
+    if [ -z "$_zero_children" ]; then
+        echo "  (none)"
+    else
+        while IFS=$'\t' read -r _id _pri _title _rest; do
+            [ -z "$_id" ] && continue
+            _n=$(( _n + 1 ))
+            echo "  ${_n}. [${_pri}] ${_title} (${_id})"
+        done <<< "$_zero_children"
+    fi
+
+    echo ""
+    echo "Scrutiny-gap epics (decomposed, not yet brainstormed):"
+    if [ -z "$_scrutiny_gap" ]; then
+        echo "  (none)"
+    else
+        while IFS=$'\t' read -r _id _pri _title _rest; do
+            [ -z "$_id" ] && continue
+            _n=$(( _n + 1 ))
+            echo "  ${_n}. [${_pri}] ${_title} (${_id})"
+        done <<< "$_scrutiny_gap"
+    fi
+
+    _n=$(( _n + 1 ))
+    echo ""
+    echo "  ${_n}. Start fresh — describe a new feature"
+    exit 0
+fi
 
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 REDUCER="$SCRIPT_DIR/ticket-reducer.py"
