@@ -1052,7 +1052,7 @@ When `--lightweight` is passed:
 
 ### Epic Deps Must Not Contain Children (Critical)
 
-**Never run `.claude/scripts/dso ticket link <epic-id> <story-id> depends_on`** — this adds the story as a dependency of the epic, causing the epic to self-block in `sprint-list-epics.sh` (bug w21-3w8y).
+**Never run `.claude/scripts/dso ticket link <epic-id> <story-id> depends_on`** — this adds the story as a dependency of the epic, causing the epic to self-block in `ticket list-epics` (bug w21-3w8y).
 
 - `.claude/scripts/dso ticket link <story-id> <blocking-story-id> depends_on` — correct: story depends on another story
 - `.claude/scripts/dso ticket link <epic-id> <child-story-id> depends_on` — **WRONG**: child added as epic blocker
