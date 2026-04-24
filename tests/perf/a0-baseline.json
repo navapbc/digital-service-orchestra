@@ -96,5 +96,6 @@
     "median_s": 0.28,
     "median": 0.28,
     "sc_target_s": 0.05
-  }
+  },
+  "aggregate_sprint_turn_s": 2.9118
 }
