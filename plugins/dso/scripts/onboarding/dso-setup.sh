@@ -99,8 +99,8 @@ done
 set -- "${_args_filtered[@]+"${_args_filtered[@]}"}"
 
 TARGET_REPO="${1:-$(git rev-parse --show-toplevel)}"
-PLUGIN_ROOT="${2:-$(cd "$(dirname "$0")/../.." && pwd)}"
-_SCRIPT_PLUGIN_DIR="$(cd "${0%/*}/../.." 2>/dev/null && pwd)" || _SCRIPT_PLUGIN_DIR="$PLUGIN_ROOT"
+PLUGIN_ROOT="${2:-${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}}"
+_SCRIPT_PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "${0%/*}/../.." 2>/dev/null && pwd)}" || _SCRIPT_PLUGIN_DIR="$PLUGIN_ROOT"
 
 # ── Source shared merge library ───────────────────────────────────────────────
 # shellcheck source=artifact-merge-lib.sh
@@ -509,7 +509,7 @@ fi
 _DSO_SCRIPT_PATH="${BASH_SOURCE[0]}"
 _DSO_SCRIPT_DIR="${_DSO_SCRIPT_PATH%/*}"
 [[ "$_DSO_SCRIPT_DIR" == "$_DSO_SCRIPT_PATH" ]] && _DSO_SCRIPT_DIR="."
-_DSO_PLUGIN_DIR="$(cd "$_DSO_SCRIPT_DIR/../.." && pwd)"
+_DSO_PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "$_DSO_SCRIPT_DIR/../.." && pwd)}"
 _HOOKS_LIB_DIR="$_DSO_PLUGIN_DIR/hooks/lib"
 _MERGE_STATE_LIB="$_HOOKS_LIB_DIR/merge-state.sh"
 if [[ -z "$DRYRUN" ]]; then
