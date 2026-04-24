@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 import uuid
@@ -10,6 +11,11 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # Python < 3.9
+    from backports.zoneinfo import ZoneInfo  # type: ignore[no-redef]
 
 from bridge._atomic import atomic_write_json
 from bridge._inbound_utils import parse_jira_timestamp
@@ -39,7 +45,33 @@ def fetch_jira_changes(
     """Fetch Jira issues updated since last_pull_ts minus overlap_buffer_minutes."""
     dt = datetime.fromisoformat(last_pull_ts.replace("Z", "+00:00"))
     buffered_dt = dt - timedelta(minutes=overlap_buffer_minutes)
-    buffered_ts_str = buffered_dt.strftime("%Y-%m-%d %H:%M")
+
+    # Jira Cloud interprets unqualified JQL datetime strings in the service account's
+    # profile timezone — NOT UTC. Fetch the account TZ and convert before formatting
+    # so Jira receives local-time strings that round-trip correctly back to UTC.
+    sa_tz_name = "UTC"
+    try:
+        myself = acli_client.get_myself()
+        raw_tz = myself.get("timeZone")
+        if isinstance(raw_tz, str) and raw_tz:
+            sa_tz_name = raw_tz
+    except Exception as exc:
+        logging.warning(
+            "fetch_jira_changes: could not determine service account timezone (%s); "
+            "defaulting to UTC. Set the Jira service account profile TZ to UTC "
+            "to suppress this warning.",
+            exc,
+        )
+    try:
+        sa_tz = ZoneInfo(sa_tz_name)
+    except (KeyError, ValueError):
+        logging.warning(
+            "fetch_jira_changes: unrecognised timezone '%s'; defaulting to UTC",
+            sa_tz_name,
+        )
+        sa_tz = ZoneInfo("UTC")
+    buffered_local = buffered_dt.astimezone(sa_tz)
+    buffered_ts_str = buffered_local.strftime("%Y-%m-%d %H:%M")
 
     jql = f'updatedDate >= "{buffered_ts_str}"'
     if project:
@@ -333,13 +365,29 @@ def write_bridge_alert(
 
 
 def verify_jira_timezone_utc(acli_client: Any) -> bool:
-    """Check that the Jira server's service account timezone is UTC."""
-    import logging
+    """Check that the service account's Jira profile timezone is UTC.
 
-    server_info = acli_client.get_server_info()
-    tz = server_info.get("timeZone", "")
+    Jira Cloud interprets unqualified JQL datetime strings in the service account's
+    profile timezone. This function checks that timezone via GET /rest/api/2/myself
+    so mismatches are caught before fetching issues.
+    """
+    try:
+        myself = acli_client.get_myself()
+    except Exception as exc:
+        logging.warning(
+            "verify_jira_timezone_utc: could not fetch service account profile (%s); "
+            "skipping timezone check.",
+            exc,
+        )
+        return True
+    tz = myself.get("timeZone", "")
     if tz == "UTC":
         return True
 
-    logging.warning("Jira service account timezone is '%s', expected 'UTC'", tz)
+    logging.warning(
+        "Jira service account timezone is '%s', expected 'UTC'. "
+        "JQL datetime conversion will be applied automatically, but changing "
+        "the Jira profile timezone to UTC is recommended.",
+        tz,
+    )
     return False

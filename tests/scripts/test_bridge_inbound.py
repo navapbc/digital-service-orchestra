@@ -128,6 +128,7 @@ def test_fetch_jira_changes_builds_correct_jql(bridge: ModuleType) -> None:
     → JQL contains: updatedDate >= "2026-03-21T11:55:00Z"
     """
     mock_client = MagicMock()
+    mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
     mock_client.search_issues = MagicMock(return_value=[])
 
     last_pull_ts = "2026-03-21T12:00:00Z"
@@ -171,6 +172,7 @@ def test_fetch_jira_changes_returns_issues_list(bridge: ModuleType) -> None:
     # Case 1: non-empty results
     sample_issues = [_make_jira_issue("DSO-1"), _make_jira_issue("DSO-2")]
     mock_client = MagicMock()
+    mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
     mock_client.search_issues = MagicMock(return_value=sample_issues)
 
     result = bridge.fetch_jira_changes(
@@ -564,6 +566,7 @@ class TestPagination:
                 return []
 
         mock_client = MagicMock()
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
         mock_client.search_issues = _search_issues
 
         result = bridge.fetch_jira_changes(
@@ -592,17 +595,17 @@ class TestUTCHealthCheck:
     @pytest.mark.unit
     @pytest.mark.scripts
     def test_verify_jira_timezone_utc_passes_when_utc(self, bridge: ModuleType) -> None:
-        """verify_jira_timezone_utc(acli_client) returns True when
-        acli_client.get_server_info() returns {'timeZone': 'UTC'}.
+        """verify_jira_timezone_utc(acli_client) returns True when the service
+        account profile timezone is 'UTC' (checked via get_myself(), not get_server_info()).
         """
         mock_client = MagicMock()
-        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
 
         result = bridge.verify_jira_timezone_utc(mock_client)
 
         assert result is True, (
-            f"verify_jira_timezone_utc must return True when server timeZone is 'UTC'; "
-            f"got {result!r}"
+            f"verify_jira_timezone_utc must return True when service account timeZone "
+            f"is 'UTC'; got {result!r}"
         )
 
     @pytest.mark.unit
@@ -610,19 +613,41 @@ class TestUTCHealthCheck:
     def test_verify_jira_timezone_utc_fails_when_non_utc(
         self, bridge: ModuleType
     ) -> None:
-        """verify_jira_timezone_utc(acli_client) returns False when
-        timeZone is 'America/New_York' (and logs a warning).
+        """verify_jira_timezone_utc(acli_client) returns False when the service
+        account profile timezone is non-UTC (checked via get_myself()).
         """
         mock_client = MagicMock()
-        mock_client.get_server_info = MagicMock(
+        mock_client.get_myself = MagicMock(
             return_value={"timeZone": "America/New_York"}
         )
 
         result = bridge.verify_jira_timezone_utc(mock_client)
 
         assert result is False, (
-            f"verify_jira_timezone_utc must return False for non-UTC timeZone "
-            f"'America/New_York'; got {result!r}"
+            f"verify_jira_timezone_utc must return False for non-UTC service account "
+            f"timeZone 'America/New_York'; got {result!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_verify_jira_timezone_utc_returns_true_when_get_myself_raises(
+        self, bridge: ModuleType
+    ) -> None:
+        """verify_jira_timezone_utc must return True (fail-open) and not propagate
+        when acli_client.get_myself() raises an exception.
+
+        Given: get_myself() raises RuntimeError
+        When:  verify_jira_timezone_utc(acli_client) is called
+        Then:  returns True without raising, so the caller (process_inbound) proceeds.
+        """
+        mock_client = MagicMock()
+        mock_client.get_myself = MagicMock(side_effect=RuntimeError("network error"))
+
+        result = bridge.verify_jira_timezone_utc(mock_client)
+
+        assert result is True, (
+            f"verify_jira_timezone_utc must return True (fail-open) when get_myself() "
+            f"raises; got {result!r}"
         )
 
 
@@ -655,7 +680,7 @@ class TestProcessInbound:
         sample_issues = [_make_jira_issue("DSO-1"), _make_jira_issue("DSO-2")]
         mock_client = MagicMock()
         mock_client.search_issues = MagicMock(return_value=sample_issues)
-        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
 
         config = {
             "bridge_env_id": _BRIDGE_ENV_ID,
@@ -711,7 +736,7 @@ class TestProcessInbound:
         mock_client.search_issues = MagicMock(
             side_effect=subprocess.CalledProcessError(401, "acli")
         )
-        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
 
         config = {
             "bridge_env_id": _BRIDGE_ENV_ID,
@@ -963,7 +988,7 @@ class TestDestructiveChangeGuards:
 
         mock_client = MagicMock()
         mock_client.search_issues = MagicMock(return_value=[inbound_issue])
-        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
 
         config = {
             "bridge_env_id": _BRIDGE_ENV_ID,
@@ -1165,7 +1190,7 @@ class TestInboundStatusEvents:
 
         mock_client = MagicMock()
         mock_client.search_issues = MagicMock(return_value=[jira_issue])
-        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
 
         config = {
             "bridge_env_id": _BRIDGE_ENV_ID,
@@ -1379,7 +1404,7 @@ class TestRelationshipRejection:
 
         mock_client = MagicMock()
         mock_client.search_issues = MagicMock(return_value=jira_issues)
-        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
         # set_relationship raises for DSO-92's epic-blocks-epic link
         mock_client.set_relationship = MagicMock(
             side_effect=RuntimeError("epic-blocks-epic relationship not allowed")
@@ -1462,7 +1487,7 @@ class TestPerBatchCheckpoint:
         sample_issues = [_make_jira_issue("DSO-200")]
         mock_client = MagicMock()
         mock_client.search_issues = MagicMock(return_value=sample_issues)
-        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
 
         config = {
             "bridge_env_id": _BRIDGE_ENV_ID,
@@ -1527,7 +1552,7 @@ class TestPerBatchCheckpoint:
 
         mock_client = MagicMock()
         mock_client.search_issues = _search_issues_with_failure
-        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
 
         config = {
             "bridge_env_id": _BRIDGE_ENV_ID,
@@ -1598,7 +1623,7 @@ class TestPerBatchCheckpoint:
 
         mock_client = MagicMock()
         mock_client.search_issues = _search_issues_tracking
-        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
 
         config = {
             "bridge_env_id": _BRIDGE_ENV_ID,
@@ -1687,7 +1712,7 @@ class TestPerBatchCheckpoint:
 
         mock_client = MagicMock()
         mock_client.search_issues = _search_issues_spy
-        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
 
         config = {
             "bridge_env_id": _BRIDGE_ENV_ID,
@@ -1742,7 +1767,7 @@ class TestPerBatchCheckpoint:
 
         mock_client = MagicMock()
         mock_client.search_issues = _search_issues_tracking_start
-        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
 
         config = {
             "bridge_env_id": _BRIDGE_ENV_ID,
@@ -1849,4 +1874,203 @@ def test_write_status_event_timestamp_is_nanosecond_scale(
         f"timestamp must be nanosecond-scale (> 1_000_000_000_000); "
         f"got {ts} — current code uses int(time.time()) which is seconds-scale (~1.7e9). "
         f"Fix: use time.time_ns() instead."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tests for bug 275d-dfd5: fetch_jira_changes must convert UTC datetime to
+# service account timezone before building JQL, so Jira interprets the
+# timestamp correctly regardless of the service account's profile timezone.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_fetch_jira_changes_converts_utc_to_service_account_timezone(
+    bridge: ModuleType,
+) -> None:
+    """fetch_jira_changes must convert the buffered UTC datetime to the service
+    account's timezone (from acli_client.get_myself()) before formatting the JQL
+    string.
+
+    Given: acli_client.get_myself() returns {"timeZone": "America/Los_Angeles"} (PDT,
+           UTC-7 on 2026-03-21 which is after DST spring-forward on 2026-03-08)
+    When:  fetch_jira_changes called with last_pull_ts="2026-03-21T12:00:00Z", buffer=5
+    Then:  JQL contains "04:55" (11:55 UTC converted to PDT = 04:55), NOT "11:55"
+
+    Current code does strftime("%Y-%m-%d %H:%M") without TZ conversion so the JQL
+    contains the raw UTC time "11:55". Jira interprets that as PDT 11:55 = UTC 18:55,
+    causing all issues updated before 18:55 UTC to be missed.
+
+    After the fix, get_myself() is called to learn the service account TZ and the
+    datetime is converted before formatting, so this test becomes GREEN.
+    """
+    mock_client = MagicMock()
+    mock_client.get_myself = MagicMock(return_value={"timeZone": "America/Los_Angeles"})
+    mock_client.search_issues = MagicMock(return_value=[])
+
+    bridge.fetch_jira_changes(
+        mock_client,
+        last_pull_ts="2026-03-21T12:00:00Z",
+        overlap_buffer_minutes=5,
+    )
+
+    assert mock_client.get_myself.called, (
+        "fetch_jira_changes must call acli_client.get_myself() to determine service "
+        "account timezone"
+    )
+
+    call_args = mock_client.search_issues.call_args
+    jql = call_args.args[0] if call_args.args else call_args.kwargs.get("jql", "")
+
+    # UTC 11:55 → America/Los_Angeles (PDT, UTC-7 on 2026-03-21) = 04:55
+    assert "04:55" in jql, (
+        f"JQL must use timezone-converted timestamp '04:55' (PDT equiv of 11:55 UTC); "
+        f"got: {jql!r}"
+    )
+    assert "11:55" not in jql, (
+        f"JQL must NOT contain raw UTC time '11:55' — Jira interprets it as PDT 11:55 "
+        f"= UTC 18:55, causing 7-hour future shift; got: {jql!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_fetch_jira_changes_no_conversion_when_service_account_is_utc(
+    bridge: ModuleType,
+) -> None:
+    """When service account timezone is UTC, fetch_jira_changes must NOT shift
+    the datetime — the JQL timestamp must equal the raw buffered UTC time.
+
+    Given: acli_client.get_myself() returns {"timeZone": "UTC"}
+    When:  fetch_jira_changes with last_pull_ts="2026-03-21T12:00:00Z", buffer=5
+    Then:  JQL contains "11:55" (no conversion needed when SA TZ == UTC)
+    """
+    mock_client = MagicMock()
+    mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
+    mock_client.search_issues = MagicMock(return_value=[])
+
+    bridge.fetch_jira_changes(
+        mock_client,
+        last_pull_ts="2026-03-21T12:00:00Z",
+        overlap_buffer_minutes=5,
+    )
+
+    call_args = mock_client.search_issues.call_args
+    jql = call_args.args[0] if call_args.args else call_args.kwargs.get("jql", "")
+
+    assert "11:55" in jql, (
+        f"JQL must use '11:55' when service account TZ is UTC (no conversion); "
+        f"got: {jql!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_verify_jira_timezone_utc_uses_get_myself_not_server_info(
+    bridge: ModuleType,
+) -> None:
+    """verify_jira_timezone_utc must check the SERVICE ACCOUNT timezone via
+    acli_client.get_myself(), NOT the server timezone via get_server_info().
+
+    The Jira server timezone is always UTC on Jira Cloud, so checking server
+    timezone provides false confidence. The service account timezone (PDT in
+    production) is the actual timezone used for JQL datetime interpretation.
+
+    Given: get_myself() returns {"timeZone": "America/Los_Angeles"} (PDT)
+           get_server_info() would return {"timeZone": "UTC"} (server, always UTC)
+    When:  verify_jira_timezone_utc(acli_client) is called
+    Then:  returns False (service account is not UTC) and calls get_myself, NOT
+           get_server_info
+
+    Current code calls get_server_info() which is hardcoded to return UTC, so
+    verify_jira_timezone_utc always returns True regardless of SA timezone.
+    """
+    mock_client = MagicMock()
+    mock_client.get_myself = MagicMock(return_value={"timeZone": "America/Los_Angeles"})
+    mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+
+    result = bridge.verify_jira_timezone_utc(mock_client)
+
+    assert mock_client.get_myself.called, (
+        "verify_jira_timezone_utc must call acli_client.get_myself() to check the "
+        "service account timezone, not get_server_info()"
+    )
+    assert result is False, (
+        f"verify_jira_timezone_utc must return False when service account TZ is "
+        f"'America/Los_Angeles' (PDT, not UTC); got {result!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_fetch_jira_changes_defaults_to_utc_when_get_myself_raises(
+    bridge: ModuleType,
+) -> None:
+    """fetch_jira_changes must fall back to UTC and continue (not raise) when
+    acli_client.get_myself() raises an exception.
+
+    Given: acli_client.get_myself() raises RuntimeError
+    When:  fetch_jira_changes is called
+    Then:  search_issues is still called with a JQL containing the UTC time (11:55),
+           no exception is raised, and a warning is emitted.
+    """
+    mock_client = MagicMock()
+    mock_client.get_myself = MagicMock(side_effect=RuntimeError("network error"))
+    mock_client.search_issues = MagicMock(return_value=[])
+
+    result = bridge.fetch_jira_changes(
+        mock_client,
+        last_pull_ts="2026-03-21T12:00:00Z",
+        overlap_buffer_minutes=5,
+        project=None,
+    )
+
+    assert mock_client.search_issues.called, (
+        "fetch_jira_changes must still call search_issues even when get_myself() raises"
+    )
+    jql = mock_client.search_issues.call_args.args[0]
+    assert "11:55" in jql, (
+        f"fetch_jira_changes must fall back to UTC (11:55) when get_myself() raises; "
+        f"got JQL: {jql!r}"
+    )
+    assert result == [], (
+        "fetch_jira_changes must return empty list when no issues found"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_fetch_jira_changes_defaults_to_utc_when_timezone_unrecognised(
+    bridge: ModuleType,
+) -> None:
+    """fetch_jira_changes must fall back to UTC when get_myself() returns an
+    unrecognised timezone name that ZoneInfo cannot parse.
+
+    Given: acli_client.get_myself() returns {"timeZone": "Not/ATimezone"}
+    When:  fetch_jira_changes is called
+    Then:  search_issues is still called with a JQL containing the UTC time (11:55),
+           no exception is raised.
+    """
+    mock_client = MagicMock()
+    mock_client.get_myself = MagicMock(return_value={"timeZone": "Not/ATimezone"})
+    mock_client.search_issues = MagicMock(return_value=[])
+
+    result = bridge.fetch_jira_changes(
+        mock_client,
+        last_pull_ts="2026-03-21T12:00:00Z",
+        overlap_buffer_minutes=5,
+        project=None,
+    )
+
+    assert mock_client.search_issues.called, (
+        "fetch_jira_changes must still call search_issues even when timezone name is invalid"
+    )
+    jql = mock_client.search_issues.call_args.args[0]
+    assert "11:55" in jql, (
+        f"fetch_jira_changes must fall back to UTC (11:55) for unrecognised TZ; "
+        f"got JQL: {jql!r}"
+    )
+    assert result == [], (
+        "fetch_jira_changes must return empty list when no issues found"
     )
