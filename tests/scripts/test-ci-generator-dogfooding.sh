@@ -22,8 +22,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-DETECT_SCRIPT="$REPO_ROOT/plugins/dso/scripts/project-detect.sh"
-GENERATOR_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ci-generator.sh"
+DETECT_SCRIPT="$REPO_ROOT/plugins/dso/scripts/onboarding/project-detect.sh"
+GENERATOR_SCRIPT="$REPO_ROOT/plugins/dso/scripts/onboarding/ci-generator.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 

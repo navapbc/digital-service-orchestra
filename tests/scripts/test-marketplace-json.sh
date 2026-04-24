@@ -149,7 +149,7 @@ assert_pass_if_clean "test_marketplace_json_plugin_name_matches_plugin_json"
 #   (c) text artifacts (shim, config) use `# dso-version: <ver>`
 #   (d) YAML artifacts (pre-commit, ci) use `x-dso-version: <ver>`
 #   (e) the stamped version matches plugin.json
-SETUP_SCRIPT="$DSO_PLUGIN_DIR/scripts/dso-setup.sh"
+SETUP_SCRIPT="$DSO_PLUGIN_DIR/scripts/onboarding/dso-setup.sh"
 _STAMP_TMPDIR=$(mktemp -d)
 trap 'rm -rf "$_STAMP_TMPDIR"' EXIT
 

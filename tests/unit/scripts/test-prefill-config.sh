@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/unit/scripts/test-prefill-config.sh
-# TDD RED tests for plugins/dso/scripts/prefill-config.sh
+# TDD RED tests for plugins/dso/scripts/onboarding/prefill-config.sh
 #
 # Tests verify the prefill-config script:
 #   1. Writes correct defaults for a Node/JS stack
@@ -20,7 +20,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-PREFILL_SCRIPT="$REPO_ROOT/plugins/dso/scripts/prefill-config.sh"
+PREFILL_SCRIPT="$REPO_ROOT/plugins/dso/scripts/onboarding/prefill-config.sh"
 DETECT_STACK="$REPO_ROOT/plugins/dso/scripts/detect-stack.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"

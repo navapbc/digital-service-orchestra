@@ -61,3 +61,15 @@ Restructure `INSTALL.md` (at repo root) into Required (universal) and Optional-b
 
 **Neutral**:
 - `commands.test_runner` is a net-new config key (distinct from `commands.test`). It is used by `suite-engine.sh` for per-file test invocation, while `commands.test` runs the full suite. Teams already relying on the full suite via `commands.test` are unaffected — `commands.test_runner` is only consumed by the test-batching infrastructure.
+
+## Revision — 2026-04-23
+
+Two updates to the architecture described above:
+
+1. **Script relocation**: `plugins/dso/scripts/prefill-config.sh` moved to `plugins/dso/scripts/onboarding/prefill-config.sh`. Invocation is now `.claude/scripts/dso onboarding/prefill-config.sh`. All skill references, test paths, and internal `_PLUGIN_ROOT` resolution updated. Behavior unchanged.
+
+2. **Skill phase renaming**: `/dso:architect-foundation` was restructured. The prefill-config invocation that was described as "Step 0.75" now lives at **Phase 3 Step 1** in the rewritten SKILL.md. The scaffolding flow is now: P0 (read understanding + artifact detect) → P1 (Socratic gap-fill) → P2 (per-recommendation synthesis) → P3 (write scaffolding — includes prefill-config at Step 1, test-index bootstrap at Step 2, fitness functions at Step 3, batched write gate at Step 4) → P4 (wire + ADRs + review).
+
+The CI skeleton content referenced in this ADR has been extracted from `SKILL.md` to `plugins/dso/skills/shared/prompts/ci-skeleton-templates.md` and is loaded on demand. Anti-pattern codes AP-1..AP-5 are now defined in `plugins/dso/skills/shared/prompts/anti-patterns.md`.
+
+The decision recorded above — stack-aware config pre-fill plus per-stack CI skeleton blocks — remains valid; only the implementation structure was refactored.

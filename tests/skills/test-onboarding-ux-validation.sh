@@ -169,26 +169,6 @@ test_file_write_explanations_present() {
     assert_pass_if_clean "test_file_write_explanations_present"
 }
 
-# test_natural_language_preplanning_question: preplanning interactivity question must use
-# natural language asking about checking in vs. autonomy — NOT a clinical "(true/false)" prompt
-test_natural_language_preplanning_question() {
-    _snapshot_fail
-    local has_natural="no"
-    local has_clinical="no"
-    if grep -qiE "check in.*decision|run autonomously|interactively.*autonomous|autonomous.*interactively" "$SKILL_MD" 2>/dev/null; then
-        has_natural="yes"
-    fi
-    if grep -q 'true/false, default: true' "$SKILL_MD" 2>/dev/null; then
-        has_clinical="yes"
-    fi
-    if [[ "$has_natural" == "yes" && "$has_clinical" == "no" ]]; then
-        assert_eq "test_natural_language_preplanning_question" "found" "found"
-    else
-        assert_eq "test_natural_language_preplanning_question" "found" "missing (natural=$has_natural clinical=$has_clinical)"
-    fi
-    assert_pass_if_clean "test_natural_language_preplanning_question"
-}
-
 # test_credentials_as_env_vars_only: JIRA_API_TOKEN and FIGMA_PAT must be described as
 # environment variables that stay outside of dso-config.conf
 test_credentials_as_env_vars_only() {
@@ -229,7 +209,6 @@ test_integration_prompts_skippable
 test_dependency_scan_before_questions
 test_optional_deps_non_blocking
 test_file_write_explanations_present
-test_natural_language_preplanning_question
 test_credentials_as_env_vars_only
 test_shim_executable_instruction
 

@@ -54,7 +54,7 @@ _host_dir="$(_new_tmpdir)"
 # Step 1: Run dso-setup.sh to create a host project with current-version stamps
 # dso-setup.sh usage: dso-setup.sh [TARGET_REPO [PLUGIN_ROOT]]
 _setup_rc=0
-bash "$PLUGIN_ROOT/plugins/dso/scripts/dso-setup.sh" \
+bash "$PLUGIN_ROOT/plugins/dso/scripts/onboarding/dso-setup.sh" \
     "$_host_dir" "$PLUGIN_ROOT/plugins/dso" \
     >/dev/null 2>&1 || _setup_rc=$?
 
