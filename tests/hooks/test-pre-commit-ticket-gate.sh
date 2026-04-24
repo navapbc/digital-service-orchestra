@@ -140,6 +140,7 @@ run_gate_hook() {
         [[ -n "$tracker_dir" ]] && export TICKET_TRACKER_OVERRIDE="$tracker_dir"
         [[ -n "$conf_file" ]]   && export CONF_OVERRIDE="$conf_file"
         export COMMIT_MSG_FILE_OVERRIDE="$commit_msg_file"
+        export TICKET_SHIM_OVERRIDE="$PLUGIN_ROOT/.claude/scripts/dso"
         bash "$GATE_HOOK" 2>/dev/null
     ) || exit_code=$?
     echo "$exit_code"
@@ -156,6 +157,7 @@ run_gate_hook_stderr() {
         [[ -n "$tracker_dir" ]] && export TICKET_TRACKER_OVERRIDE="$tracker_dir"
         [[ -n "$conf_file" ]]   && export CONF_OVERRIDE="$conf_file"
         export COMMIT_MSG_FILE_OVERRIDE="$commit_msg_file"
+        export TICKET_SHIM_OVERRIDE="$PLUGIN_ROOT/.claude/scripts/dso"
         bash "$GATE_HOOK" 2>&1 >/dev/null
     ) || true
 }
