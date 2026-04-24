@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-ci-generator.sh
-# RED-phase TDD tests for plugins/dso/scripts/ci-generator.sh
+# RED-phase TDD tests for plugins/dso/scripts/onboarding/ci-generator.sh
 #
 # The generator script does not yet exist — all tests should FAIL (RED).
 #
@@ -21,7 +21,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-SCRIPT="$DSO_PLUGIN_DIR/scripts/ci-generator.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/onboarding/ci-generator.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -392,7 +392,7 @@ PATH="$TTM_FAKE_BIN:$PATH" CI_NONINTERACTIVE=1 bash "$SCRIPT" \
     --output-dir "$TTM_FAIL_DIR" \
     2>/dev/null || true
 ttm_fail_dir_empty="yes"
-ttm_fail_stray_count="$(ls -1 "$TTM_FAIL_DIR" 2>/dev/null | wc -l | tr -d ' ')"
+ttm_fail_stray_count="$(find "$TTM_FAIL_DIR" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')"
 if [[ "$ttm_fail_stray_count" -gt 0 ]]; then
     ttm_fail_dir_empty="no"
 fi

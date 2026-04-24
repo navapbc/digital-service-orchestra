@@ -317,6 +317,68 @@ For multi-environment conflict resolution strategy (`MostStatusEventsWinsStrateg
 
 ---
 
+## Bash-Native Dispatch Architecture
+
+### Overview
+
+Starting with the bash-native dispatcher, all ticket CLI subcommand calls are routed through a sourced bash library (`ticket-lib-api.sh`) rather than spawning a Python subprocess per operation. This section documents the key components of that architecture.
+
+### ticket-lib-api.sh
+
+`ticket-lib-api.sh` is the sourceable bash library that implements all ticket operations (create, transition, comment, tag, link, etc.). It is **sourced** (not exec'd) into the current bash process via:
+
+```bash
+source "${_PLUGIN_ROOT}/scripts/ticket-lib-api.sh"
+```
+
+A source-time guard at the top of the file (`declare -f _ticketlib_dispatch` check) prevents double-sourcing if the library is pulled in from multiple callers in the same shell process — re-sourcing returns immediately if `_ticketlib_dispatch` is already defined. Because the library runs in-process, there is no subprocess overhead per ticket operation.
+
+### _ticketlib_dispatch
+
+`_ticketlib_dispatch` is a subshell wrapper that provides caller-environment isolation:
+
+```bash
+( source ticket-lib-api.sh && _ticketlib_dispatch <op> <args...> )
+```
+
+The subshell captures all library state (functions, variables set during source) inside a forked child process. When the subshell exits, none of the library's internal variables or function definitions leak back into the caller's shell environment. This isolation keeps the ticket CLI composable in complex shell pipelines without side effects.
+
+### _ticketlib_has_flock
+
+`_ticketlib_has_flock` is a boolean flag set at source time (not at call time):
+
+```bash
+if command -v flock >/dev/null 2>&1; then
+    _ticketlib_has_flock=1
+else
+    _ticketlib_has_flock=0
+fi
+```
+
+The library uses this flag at every write operation to select the locking path:
+
+- **`_ticketlib_has_flock=1`**: uses `flock(1)` for exclusive write serialization (see Flock Contract Summary above)
+- **`_ticketlib_has_flock=0`**: falls back to a best-effort advisory lock (acceptable for single-session use; multi-agent concurrency requires `flock(1)`)
+
+`flock(1)` is present on all supported platforms (Linux via `util-linux`; macOS via `brew install util-linux`). The fallback path exists for edge cases (minimal CI containers, custom Docker images).
+
+### Dispatcher Shift: exec → source
+
+The ticket CLI dispatcher was changed from **exec** (spawning a `python3` subprocess per op) to **source** (bash-native library call). The full dispatch path is now:
+
+```
+.claude/scripts/dso ticket <op>  →  ticket-lib-api.sh  →  bash function
+```
+
+Benefits of the shift:
+- No `python3` startup cost per operation (meaningful in batch sessions with hundreds of ticket ops)
+- Lock state is shared within the same process (no inter-process flock hand-off)
+- Simpler error propagation (bash `set -e` / `return` instead of subprocess exit codes piped through wrappers)
+
+**Rollback**: `DSO_TICKET_LEGACY=1` restores the old exec path (legacy per-op `.sh` subprocess scripts) for debugging or rollback. See `CLAUDE.md` for the sunset schedule.
+
+---
+
 ## Tag Policy
 
 ### Guarded Tags

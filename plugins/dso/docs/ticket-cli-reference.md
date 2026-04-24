@@ -845,7 +845,7 @@ $ .claude/scripts/dso ticket bridge-fsck --tickets-tracker=/path/to/tracker
 | `DSO_UNBLOCK_SCRIPT` | `.claude/scripts/dso ticket transition` | Override the path to `ticket-unblock.py` |
 | `JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN` | `.claude/scripts/dso ticket sync` | Jira credentials for sync |
 | `JIRA_SYNC_TIMEOUT_SECONDS` | `.claude/scripts/dso ticket sync` | Override the sync lock timeout |
-| `DSO_TICKET_LEGACY` | `.claude/scripts/dso ticket` dispatcher | Set to `1` to route `_ensure_initialized` to the pre-refactor Python-backed path. See [Troubleshooting](#troubleshooting) below. |
+| `DSO_TICKET_LEGACY` | `.claude/scripts/dso ticket` dispatcher | Set to `1` to route all ticket ops to legacy per-op `.sh` subprocess scripts instead of `ticket-lib-api.sh`. See [Sourceable Library API](#sourceable-library-api) and [Troubleshooting](#troubleshooting). |
 
 ---
 
@@ -906,6 +906,58 @@ id=$(.claude/scripts/dso ticket create bug "Login fails on mobile Safari")
 .claude/scripts/dso ticket bridge-status
 .claude/scripts/dso ticket bridge-fsck
 ```
+
+---
+
+## Sourceable Library API
+
+The ticket dispatcher routes all subcommand calls through `ticket-lib-api.sh`, a bash-native sourced library. Scripts that need to call ticket operations in-process (without spawning a subprocess) can source this library directly.
+
+### `_ticketlib_dispatch <op> <args...>`
+
+Subshell wrapper for calling library functions. Each call runs `op` in a subshell so that per-call `set -e`, traps, and variable mutations cannot leak back into the caller's shell state.
+
+```bash
+# Source the library (idempotent — re-sourcing is a no-op)
+source "$_PLUGIN_ROOT/scripts/ticket-lib-api.sh"
+
+# Call a ticket operation in-process
+_ticketlib_dispatch ticket_show --format=llm "$ticket_id"
+```
+
+### `_ticketlib_has_flock`
+
+Detection variable set at source time (`0` or `1`). Indicates whether `flock(1)` is available on the current platform. Callers and internal functions branch on this to avoid repeated `command -v flock` calls.
+
+```bash
+source "$_PLUGIN_ROOT/scripts/ticket-lib-api.sh"
+if [ "$_ticketlib_has_flock" = "1" ]; then
+    echo "flock available — full concurrency protection enabled"
+fi
+```
+
+### `DSO_TICKET_LEGACY=1` — Rollback to subprocess mode
+
+Setting `DSO_TICKET_LEGACY=1` routes all ticket operations back to the legacy per-op `.sh` subprocess scripts instead of the in-process library functions. Use this flag when debugging a suspected regression in the bash-native path or when rolling back temporarily.
+
+```bash
+DSO_TICKET_LEGACY=1 .claude/scripts/dso ticket show "$ticket_id"
+```
+
+See [Troubleshooting](#troubleshooting) below for full details.
+
+### Sourceability contract
+
+Scripts that source `ticket-lib-api.sh` can rely on the following guarantees:
+
+| Contract | Details |
+|---|---|
+| No `exit` at library scope | Library never calls `exit` at file scope — sourcing it cannot kill the caller |
+| No `set -euo pipefail` at library scope | Strict mode is not enabled at file scope — it does not leak into the caller |
+| No `trap` at file scope | Caller traps are not clobbered |
+| No `GIT_*` mutation at source time | `GIT_DIR`, `GIT_INDEX_FILE`, `GIT_WORK_TREE`, and `GIT_COMMON_DIR` are not mutated at file scope |
+| Functions use `return`, not `exit` | All library functions signal failure via `return <n>`, not `exit` |
+| Idempotent source guard | Re-sourcing is a no-op (guarded by `declare -f _ticketlib_dispatch`) |
 
 ---
 

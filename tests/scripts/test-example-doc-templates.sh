@@ -37,7 +37,7 @@ fi
 
 # --- dso-setup.sh references new template path ---
 
-setup_script="$PLUGIN_ROOT/plugins/dso/scripts/dso-setup.sh"
+setup_script="$PLUGIN_ROOT/plugins/dso/scripts/onboarding/dso-setup.sh"
 
 if grep -q 'docs/templates/KNOWN-ISSUES.md' "$setup_script" 2>/dev/null; then
     assert_eq "dso_setup_references_new_template" "found" "found"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-parse-template-registry.sh
-# TDD red-phase tests for plugins/dso/scripts/parse-template-registry.sh
+# TDD red-phase tests for plugins/dso/scripts/onboarding/parse-template-registry.sh
 #
 # Usage: bash tests/scripts/test-parse-template-registry.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -11,7 +11,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/parse-template-registry.sh"
+SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/onboarding/parse-template-registry.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

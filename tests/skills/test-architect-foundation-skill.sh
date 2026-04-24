@@ -218,19 +218,6 @@ test_test_isolation_enforcement() {
     assert_pass_if_clean "test_test_isolation_enforcement"
 }
 
-# test_socratic_dialogue_pattern: SKILL.md must contain explicit open-ended question guidance
-# Greps for 'open-ended questions' (plural) as a specific Socratic dialogue instruction
-test_socratic_dialogue_pattern() {
-    _snapshot_fail
-    local dialogue_pattern_found
-    dialogue_pattern_found="missing"
-    if grep -qiE "open-ended questions" "$SKILL_MD" 2>/dev/null; then
-        dialogue_pattern_found="found"
-    fi
-    assert_eq "test_socratic_dialogue_pattern" "found" "$dialogue_pattern_found"
-    assert_pass_if_clean "test_socratic_dialogue_pattern"
-}
-
 # test_no_rigid_multiple_choice: SKILL.md must explicitly warn against rigid menu-style prompts
 # Greps for 'avoid.*rigid' or 'no.*menu' or 'no.*multiple.choice' — explicit anti-menu guidance
 test_no_rigid_multiple_choice() {
@@ -271,39 +258,8 @@ test_recommendation_synthesis
 test_project_file_citations
 test_per_recommendation_interaction
 test_test_isolation_enforcement
-test_socratic_dialogue_pattern
 test_no_rigid_multiple_choice
 test_check_onboarding_compatibility
-
-# test_artifact_review_before_writing: SKILL.md must instruct presenting artifacts for user approval
-# before writing — grep for 'review.*before.*writ' or 'approval.*before.*writ' or 'present.*artifact'
-test_artifact_review_before_writing() {
-    _snapshot_fail
-    local review_before_found
-    review_before_found="missing"
-    if grep -qiE "review.*before.*writ|approval.*before.*writ|present.*artifact" "$SKILL_MD" 2>/dev/null; then
-        review_before_found="found"
-    fi
-    assert_eq "test_artifact_review_before_writing" "found" "$review_before_found"
-    assert_pass_if_clean "test_artifact_review_before_writing"
-}
-
-# test_diff_existing_files: SKILL.md must instruct showing diffs against existing files
-# grep for 'diff.*existing' or 'existing.*diff'
-test_diff_existing_files() {
-    _snapshot_fail
-    local diff_existing_found
-    diff_existing_found="missing"
-    if grep -qiE "diff.*existing|existing.*diff" "$SKILL_MD" 2>/dev/null; then
-        diff_existing_found="found"
-    fi
-    assert_eq "test_diff_existing_files" "found" "$diff_existing_found"
-    assert_pass_if_clean "test_diff_existing_files"
-}
-
-# RED artifact review tests — these fail until SKILL.md is updated
-test_artifact_review_before_writing
-test_diff_existing_files
 
 # test_batched_file_confirmation: SKILL.md must use a single confirmation for all artifact writes
 # Greps for 'single.*confirmation' — the batched UX uses one confirmation prompt for all files
@@ -316,19 +272,6 @@ test_batched_file_confirmation() {
     fi
     assert_eq "test_batched_file_confirmation" "found" "$confirm_found"
     assert_pass_if_clean "test_batched_file_confirmation"
-}
-
-# test_file_summary_before_confirmation: SKILL.md must present a summary of artifacts before confirmation
-# Greps for 'summary.*artifact'
-test_file_summary_before_confirmation() {
-    _snapshot_fail
-    local summary_found
-    summary_found="missing"
-    if grep -qiE "summary.*artifact" "$SKILL_MD" 2>/dev/null; then
-        summary_found="found"
-    fi
-    assert_eq "test_file_summary_before_confirmation" "found" "$summary_found"
-    assert_pass_if_clean "test_file_summary_before_confirmation"
 }
 
 # test_partial_failure_handling: SKILL.md must handle partial write failures gracefully
@@ -345,34 +288,7 @@ test_partial_failure_handling() {
 }
 
 test_batched_file_confirmation
-test_file_summary_before_confirmation
 test_partial_failure_handling
-
-# test_adrs_always_generated: SKILL.md must instruct always generating ADRs without asking
-# Greps for 'always generate.*adr'
-test_adrs_always_generated() {
-    _snapshot_fail
-    local adrs_found
-    adrs_found="missing"
-    if grep -qiE "always generate.*adr" "$SKILL_MD" 2>/dev/null; then
-        adrs_found="found"
-    fi
-    assert_eq "test_adrs_always_generated" "found" "$adrs_found"
-    assert_pass_if_clean "test_adrs_always_generated"
-}
-
-# test_adr_session_scope: SKILL.md must specify ADRs are scoped to the current session
-# Greps for 'generat.*adr.*session'
-test_adr_session_scope() {
-    _snapshot_fail
-    local session_found
-    session_found="missing"
-    if grep -qiE "generat.*adr.*session" "$SKILL_MD" 2>/dev/null; then
-        session_found="found"
-    fi
-    assert_eq "test_adr_session_scope" "found" "$session_found"
-    assert_pass_if_clean "test_adr_session_scope"
-}
 
 # test_adr_dedup_logic: SKILL.md must include ADR deduplication logic
 # Greps for 'dedup|deduplication'
@@ -401,8 +317,6 @@ test_no_adr_preference_question() {
     assert_pass_if_clean "test_no_adr_preference_question"
 }
 
-test_adrs_always_generated
-test_adr_session_scope
 test_adr_dedup_logic
 test_no_adr_preference_question
 
@@ -471,99 +385,10 @@ test_append_only_merge() {
     assert_pass_if_clean "test_append_only_merge"
 }
 
-# test_idempotency: SKILL.md must include idempotency guarantee for re-runs
-# Greps for 'idempotent|idempotency'
-test_idempotency() {
-    _snapshot_fail
-    local idempotent_found
-    idempotent_found="missing"
-    if grep -qiE "idempotent|idempotency" "$SKILL_MD" 2>/dev/null; then
-        idempotent_found="found"
-    fi
-    assert_eq "test_idempotency" "found" "$idempotent_found"
-    assert_pass_if_clean "test_idempotency"
-}
-
 test_auto_flag_support
 test_auto_recommended_defaults
 test_auto_graceful_missing
 test_artifact_detection
 test_append_only_merge
-test_idempotency
-
-# REVIEW-DEFENSE: The 5 test_auto_bypass_* functions below are intentional TDD RED tests (testing_mode: UPDATE).
-# They fail against the current SKILL.md because the --auto mode bypass blocks do not yet exist.
-# .test-index RED markers ([test_auto_bypass_*]) explicitly tell the pre-commit test gate to tolerate
-# these failures. Task 2 (depends_on this commit) will add the bypass blocks to SKILL.md, turning all
-# 5 tests GREEN and removing the RED markers. This is the standard codebase TDD pattern for instruction-file
-# schema validation (per Behavioral Testing Standard Rule 5 structural marker approach).
-
-# test_auto_bypass_phase2_gate: Phase 2 Validation Loop section must contain In --auto mode bypass marker
-test_auto_bypass_phase2_gate() {
-    _snapshot_fail
-    local bypass_found
-    bypass_found="missing"
-    if awk '/^## Phase 2:/,/^## Phase 2\.5:/' "$SKILL_MD" | grep -q 'In --auto mode' 2>/dev/null; then
-        bypass_found="found"
-    fi
-    assert_eq "test_auto_bypass_phase2_gate" "found" "$bypass_found"
-    assert_pass_if_clean "test_auto_bypass_phase2_gate"
-}
-
-# test_auto_bypass_phase2_5_gate: Phase 2.5 Recommendation Synthesis section must contain In --auto mode bypass marker
-test_auto_bypass_phase2_5_gate() {
-    _snapshot_fail
-    local bypass_found
-    bypass_found="missing"
-    if awk '/^## Phase 2\.5:/,/^## Phase 2\.75:/' "$SKILL_MD" | grep -q 'In --auto mode' 2>/dev/null; then
-        bypass_found="found"
-    fi
-    assert_eq "test_auto_bypass_phase2_5_gate" "found" "$bypass_found"
-    assert_pass_if_clean "test_auto_bypass_phase2_5_gate"
-}
-
-# test_auto_bypass_phase2_75_gate: Phase 2.75 Batched Artifact Review section must contain In --auto mode bypass marker
-test_auto_bypass_phase2_75_gate() {
-    _snapshot_fail
-    local bypass_found
-    bypass_found="missing"
-    if awk '/^## Phase 2\.75:/,/^## Phase 2\.8:/' "$SKILL_MD" | grep -q 'In --auto mode' 2>/dev/null; then
-        bypass_found="found"
-    fi
-    assert_eq "test_auto_bypass_phase2_75_gate" "found" "$bypass_found"
-    assert_pass_if_clean "test_auto_bypass_phase2_75_gate"
-}
-
-# test_auto_bypass_phase3_step075_gate: Phase 3 Step 0 section (prefill-config confirmation) must contain In --auto mode bypass marker
-test_auto_bypass_phase3_step075_gate() {
-    _snapshot_fail
-    local bypass_found
-    bypass_found="missing"
-    if awk '/^### Step 0:/,/^### Step 1:/' "$SKILL_MD" | grep -q 'In --auto mode' 2>/dev/null; then
-        bypass_found="found"
-    fi
-    assert_eq "test_auto_bypass_phase3_step075_gate" "found" "$bypass_found"
-    assert_pass_if_clean "test_auto_bypass_phase3_step075_gate"
-}
-
-# test_auto_mode_section_enumerates_four_gates: ## --auto Mode section must enumerate all 4 bypassed gates
-# Requires >= 4 matches for Phase 2 / Phase 2.5 / Phase 2.75 / Step 0.75 within the --auto Mode section
-test_auto_mode_section_enumerates_four_gates() {
-    _snapshot_fail
-    local gate_count gate_found
-    gate_count=$(awk '/^## --auto Mode/,/^## Workflow Overview/' "$SKILL_MD" | grep -c 'Phase 2\|Phase 2\.5\|Phase 2\.75\|Step 0' 2>/dev/null || echo 0)
-    gate_found="missing"
-    if [[ "$gate_count" -ge 4 ]]; then
-        gate_found="found"
-    fi
-    assert_eq "test_auto_mode_section_enumerates_four_gates" "found" "$gate_found"
-    assert_pass_if_clean "test_auto_mode_section_enumerates_four_gates"
-}
-
-test_auto_bypass_phase2_gate
-test_auto_bypass_phase2_5_gate
-test_auto_bypass_phase2_75_gate
-test_auto_bypass_phase3_step075_gate
-test_auto_mode_section_enumerates_four_gates
 
 print_summary

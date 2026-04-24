@@ -335,7 +335,8 @@ fi
 
 # Resolve the directory containing this script so we can locate siblings.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DETECT_STACK="$SCRIPT_DIR/detect-stack.sh"
+# detect-stack.sh lives in scripts/ (one level up from scripts/onboarding/).
+DETECT_STACK="$SCRIPT_DIR/../detect-stack.sh"
 
 # ── Category 2: Stack detection (delegates to detect-stack.sh) ────────────────
 if [[ -x "$DETECT_STACK" ]]; then

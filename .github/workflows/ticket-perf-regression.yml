@@ -1,0 +1,39 @@
+name: ticket-perf-regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'plugins/dso/scripts/ticket-lib-api.sh'
+      - 'tests/perf/**'
+      - 'tests/scripts/test-ticket-perf-regression.sh'
+      - 'tests/scripts/benchmark-sprint-workflow.sh'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'plugins/dso/scripts/ticket-lib-api.sh'
+      - 'tests/perf/**'
+      - 'tests/scripts/test-ticket-perf-regression.sh'
+      - 'tests/scripts/benchmark-sprint-workflow.sh'
+
+jobs:
+  perf-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install hyperfine
+        run: |
+          curl -LO https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
+          sudo dpkg -i hyperfine_1.18.0_amd64.deb
+
+      - name: Run per-op regression suite
+        run: bash tests/scripts/test-ticket-perf-regression.sh
+
+      - name: Run aggregate workflow benchmark
+        run: |
+          if [ -f tests/scripts/benchmark-sprint-workflow.sh ]; then
+            bash tests/scripts/benchmark-sprint-workflow.sh
+          else
+            echo "benchmark-sprint-workflow.sh not yet present — skipping"
+          fi

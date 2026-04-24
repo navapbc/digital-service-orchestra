@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../..}"
 # parse-template-registry.sh
 # Parse the template registry YAML file and output tab-separated rows.
 #

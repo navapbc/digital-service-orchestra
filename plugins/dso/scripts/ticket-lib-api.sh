@@ -19,6 +19,11 @@ fi
 # Resolve library directory (used to find sibling scripts + python package).
 _TICKETLIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# ── Platform capability detection ────────────────────────────────────────────
+# Detect flock(1) availability at source-time so callers and internal functions
+# can branch without repeated command -v calls.
+command -v flock >/dev/null 2>&1 && _ticketlib_has_flock=1 || _ticketlib_has_flock=0
+
 # ── Dispatch helper ──────────────────────────────────────────────────────────
 # Wraps each call in a subshell so per-call set -e / traps / var mutations
 # cannot leak back into the caller's shell state.

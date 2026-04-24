@@ -71,7 +71,7 @@ Run the setup script from the plugin directory to install the DSO shim and write
 `dso.plugin_root` to `.claude/dso-config.conf`:
 
 ```bash
-bash /path/to/digital-service-orchestra/${CLAUDE_PLUGIN_ROOT}/scripts/dso-setup.sh [TARGET_REPO] # shim-exempt: bootstrap installer, run before shim exists
+bash /path/to/digital-service-orchestra/${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/dso-setup.sh [TARGET_REPO] # shim-exempt: bootstrap installer, run before shim exists
 ```
 
 `TARGET_REPO` defaults to your current git repo root when omitted. The script:
@@ -224,4 +224,4 @@ If you need to revert to the embedded workflow:
 | Hook fires but cannot find `deps.sh` | Wrong `dso.plugin_root` path in `.claude/dso-config.conf` | Verify path: `grep dso.plugin_root .claude/dso-config.conf` and confirm the directory exists |
 | `/dso:init` says stack not detected | Missing `.claude/dso-config.conf` or no marker files | Run from project root; ensure `pyproject.toml` or `package.json` exists |
 | Tests fail after migration | Unrelated pre-existing failures | Check `git diff HEAD~1` to confirm no app code was changed |
-| `run-hook.sh: No such file` | DSO shim not installed or `dso.plugin_root` not set | Re-run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/dso-setup.sh` to install the shim and write `dso.plugin_root` | # shim-exempt: bootstrap installer invocation in troubleshooting table
+| `run-hook.sh: No such file` | DSO shim not installed or `dso.plugin_root` not set | Re-run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/dso-setup.sh` to install the shim and write `dso.plugin_root` | # shim-exempt: bootstrap installer invocation in troubleshooting table

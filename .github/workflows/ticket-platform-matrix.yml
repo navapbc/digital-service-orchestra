@@ -1,0 +1,68 @@
+# Digital Service Orchestra — Ticket Platform Matrix
+# Runs ticket-lib-api tests across Linux, macOS, and Alpine/BusyBox environments.
+
+name: ticket-platform-matrix
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'plugins/dso/scripts/ticket-lib-api.sh'
+      - 'tests/scripts/test-ticket-*.sh'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'plugins/dso/scripts/ticket-lib-api.sh'
+      - 'tests/scripts/test-ticket-*.sh'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ticket-platform-tests:
+    name: Ticket tests (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-bash4
+            os: ubuntu-latest
+            shell: bash
+            container: null
+          - name: macos-bash3
+            os: macos-latest
+            shell: bash
+            container: null
+          - name: alpine-busybox
+            os: ubuntu-latest
+            shell: sh
+            container: alpine:3.19
+
+    container: ${{ matrix.container || '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install dependencies (Alpine only)
+        if: matrix.name == 'alpine-busybox'
+        run: apk add --no-cache bash python3 git
+
+      - name: Run platform compat tests
+        run: bash tests/scripts/test-ticket-platform-compat.sh
+
+      - name: Run ticket-lib-api tests
+        run: bash tests/scripts/test-ticket-lib-api.sh
+
+      - name: Job timing report
+        if: always()
+        run: echo "${{ matrix.name }} tests completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"

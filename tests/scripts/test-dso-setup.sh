@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # tests/scripts/test-dso-setup.sh
-# TDD red-phase tests for scripts/dso-setup.sh
+# TDD red-phase tests for scripts/onboarding/dso-setup.sh
 #
 # Verifies that dso-setup.sh installs the dso shim into a host project's
 # .claude/scripts/ directory and writes dso.plugin_root to dso-config.conf.
 #
-# RED PHASE: All tests are expected to FAIL until scripts/dso-setup.sh is created.
+# RED PHASE: All tests are expected to FAIL until scripts/onboarding/dso-setup.sh is created.
 #
 # Usage:
 #   bash tests/scripts/test-dso-setup.sh
@@ -16,7 +16,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-SETUP_SCRIPT="$DSO_PLUGIN_DIR/scripts/dso-setup.sh"
+SETUP_SCRIPT="$DSO_PLUGIN_DIR/scripts/onboarding/dso-setup.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

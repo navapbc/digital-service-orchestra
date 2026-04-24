@@ -28,22 +28,18 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-SKILL_MD="$DSO_PLUGIN_DIR/skills/architect-foundation/SKILL.md"
+# CI skeleton content lives in the shared prompt file loaded on demand by
+# architect-foundation Phase 3 Step 3, not inline in SKILL.md.
+SKILL_MD="$DSO_PLUGIN_DIR/skills/shared/prompts/ci-skeleton-templates.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-architect-foundation-ci-skeleton.sh ==="
 
-# _extract_ci_skeleton_section: extract content from the CI skeleton section of SKILL.md.
-# Uses awk to find a heading matching "CI [Ss]keleton" and collect lines until the
-# next top-level "## " heading. Prints the extracted block (may be empty if the
-# section does not exist).
+# _extract_ci_skeleton_section: read the whole ci-skeleton-templates.md file.
+# The file is a dedicated reference doc — no enclosing section extraction is needed.
 _extract_ci_skeleton_section() {
-    awk '
-        /^## .*[Cc][Ii][ _][Ss]keleton/ { in_section=1; next }
-        in_section && /^## / { in_section=0 }
-        in_section { print }
-    ' "$SKILL_MD" 2>/dev/null
+    cat "$SKILL_MD" 2>/dev/null
 }
 
 # test_python_hashfiles_conditional

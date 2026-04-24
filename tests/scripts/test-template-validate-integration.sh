@@ -20,7 +20,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DETECT_SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/detect-stack.sh"
-PARSE_SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/parse-template-registry.sh"
+PARSE_SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/onboarding/parse-template-registry.sh"
 REAL_REGISTRY="$PLUGIN_ROOT/plugins/dso/config/template-registry.yaml"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
