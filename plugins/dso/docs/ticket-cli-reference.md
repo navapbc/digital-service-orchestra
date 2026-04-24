@@ -710,6 +710,156 @@ Wrote 0 markers, skipped 0 (already present)
 
 ---
 
+### `check-ac`
+
+Check whether a ticket contains a structured Acceptance Criteria block.
+
+```
+.claude/scripts/dso ticket check-ac <ticket_id>
+```
+
+**Output:** `AC_CHECK: pass (<N> criteria lines)` or `AC_CHECK: fail - no ACCEPTANCE CRITERIA section in <id> (...)`
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | AC block found with ≥ 1 checklist items |
+| `1` | AC block missing or empty |
+
+---
+
+### `clarity-check`
+
+Score ticket clarity on a 0–10 scale and return a pass/fail verdict.
+
+```
+.claude/scripts/dso ticket clarity-check <ticket_id>
+.claude/scripts/dso ticket clarity-check --stdin  # Read ticket JSON from stdin
+```
+
+**Output:** Single-line JSON: `{"score": <N>, "verdict": "pass"|"fail", "threshold": <N>}`
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | Verdict is `pass` (score ≥ threshold) |
+| `1` | Verdict is `fail` (score < threshold) |
+
+---
+
+### `classify`
+
+Classify one or more tickets for routing (model, subagent, complexity, priority).
+
+```
+.claude/scripts/dso ticket classify <ticket_id> [<ticket_id> ...]
+```
+
+**Output:** JSON array — one object per ticket with fields: `id`, `model`, `subagent`, `class`, `complexity`, `priority`.
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | Classification succeeded |
+| Non-zero | One or more tickets could not be classified |
+
+---
+
+### `purge-bridge`
+
+Remove inbound bridge tickets whose project key does not match the specified project key.
+
+```
+.claude/scripts/dso ticket purge-bridge --keep=<PROJECT_KEY> [--dry-run]
+```
+
+**Arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `--keep=<PROJECT_KEY>` | Yes | Jira project key to retain (e.g., `DSO`). All other `jira-*` tickets are deleted. |
+| `--dry-run` | No | Show which tickets would be deleted without deleting |
+
+**Safety:** Only deletes `jira-*` prefixed ticket directories. Never touches `dso-*`, `w20-*`, or other non-jira tickets.
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | Purge completed (or dry-run output shown) |
+| `1` | Missing `--keep` argument or tracker directory not found |
+
+---
+
+### `quality-check`
+
+Check whether a ticket has sufficient detail for issue-as-prompt agent dispatch.
+
+```
+.claude/scripts/dso ticket quality-check <ticket_id>
+```
+
+**Output:** `QUALITY: pass (<line_count> lines, <keyword_count> criteria, <ac_items> AC items, <file_impact> file impact)` or `QUALITY: fail - description too sparse (...)`
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | Quality sufficient for issue-as-prompt dispatch |
+| `1` | Too sparse; use inline prompt instead |
+
+---
+
+### `summary`
+
+Produce a one-line summary per ticket including status and blocking information.
+
+```
+.claude/scripts/dso ticket summary <ticket_id> [<ticket_id> ...]
+```
+
+**Output:** One line per ticket: `<id> [<status>] <title> (blocked by: <ids>|ready)`
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | Summary produced |
+| `1` | No ticket IDs provided |
+
+---
+
+### `validate`
+
+Validate ticket quality and completeness for sprint readiness.
+
+```
+.claude/scripts/dso ticket validate [<ticket_id> ...] [--json] [--terse]
+```
+
+**Arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `<ticket_id>` | No | One or more ticket IDs to validate. If omitted, validates all open tickets. |
+| `--json` | No | Output results as JSON array |
+| `--terse` | No | Short one-line output per ticket |
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | All validated tickets score 5 (ready) |
+| `1` | One or more tickets score 4 (minor issues) |
+| `2` | One or more tickets score 3 (moderate issues) |
+| `3` | One or more tickets score 2 (significant issues) |
+| `4` | One or more tickets score 1 (incomplete) |
+
+---
+
 ### `bridge-status`
 
 Show the status of the last bridge (Jira sync) run.
