@@ -1059,6 +1059,214 @@ id=$(.claude/scripts/dso ticket create bug "Login fails on mobile Safari")
 
 ---
 
+### `exists`
+
+O(1) presence check for a ticket in the tracker.
+
+```
+.claude/scripts/dso ticket exists <ticket_id>
+```
+
+**Arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `ticket_id` | Yes | The ticket ID to check |
+
+**Behavior:**
+
+- Checks for a `*-CREATE.json` OR `*-SNAPSHOT.json` event file in the ticket directory. SNAPSHOT files are produced by `ticket compact` — so compacted tickets are correctly detected as present.
+- Does not invoke the reducer — this is a filesystem-level check only.
+- Respects `TICKETS_TRACKER_DIR` for tracker directory override (no git subprocess when set).
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | Ticket exists (CREATE or SNAPSHOT event found) |
+| `1` | Ticket does not exist, or no ticket ID provided |
+
+**Example:**
+
+```
+$ .claude/scripts/dso ticket exists abc1-def2
+$ echo $?
+0
+```
+
+---
+
+### `list-epics`
+
+List open epics, optionally including blocked ones.
+
+```
+.claude/scripts/dso ticket list-epics [--all] [--min-children=N] [--max-children=N] [--has-tag=TAG] [--without-tag=TAG]
+```
+
+Thin delegate to `sprint-list-epics.sh`. Output and flags are identical.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `--all` | No | Include BLOCKED epics in output (prefixed with `BLOCKED\t`) |
+| `--min-children=N` | No | Only show epics with at least N children |
+| `--max-children=N` | No | Only show epics with at most N children |
+| `--has-tag=TAG` | No | Only show epics with the specified tag |
+| `--without-tag=TAG` | No | Exclude epics with the specified tag |
+
+**Output:** Tab-separated lines, one per eligible epic:
+
+```
+<id>\tP*\t<title>\t<child_count>[\tBLOCKING]       # in-progress epics
+<id>\tP<priority>\t<title>\t<child_count>[\tBLOCKING]  # unblocked open epics
+BLOCKED\t<id>\tP<priority>\t<title>\t<child_count>\t<blocker_ids>  # blocked (only with --all)
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | One or more eligible epics printed |
+| `1` | No open epics exist |
+| `2` | All open epics are blocked (regardless of `--all`; `--all` controls whether blocked epics are printed, not the exit code) |
+
+---
+
+### `list-descendants`
+
+BFS walk from a root ticket, bucketed by ticket type.
+
+```
+.claude/scripts/dso ticket list-descendants <ticket_id>
+```
+
+**Arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `ticket_id` | Yes | The root ticket ID to walk from |
+
+**Output:** JSON object with descendant IDs grouped by type:
+
+```json
+{
+  "epics":               ["id", ...],
+  "stories":             ["id", ...],
+  "tasks":               ["id", ...],
+  "bugs":                ["id", ...],
+  "parents_with_children": ["id", ...]
+}
+```
+
+| Field | Description |
+|---|---|
+| `epics` / `stories` / `tasks` / `bugs` | Descendant IDs of each type (root excluded) |
+| `parents_with_children` | IDs of tickets in the traversal that themselves have children (includes root when it has children) |
+
+**Behavior:**
+
+- All arrays are empty when the root has no descendants or when the root does not exist in the tracker.
+- Uses `reduce_all_tickets` for bulk state loading; error and fsck_needed tickets are excluded.
+- Cycle-safe: visited-set prevents infinite loops.
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | JSON printed to stdout (arrays may be empty) |
+| `1` | No ticket ID provided (usage error) |
+
+---
+
+### `next-batch`
+
+Select the next parallel agent batch for an epic.
+
+```
+.claude/scripts/dso ticket next-batch <epic_id> [--limit=N|unlimited] [--json]
+```
+
+Thin delegate to `sprint-next-batch.sh`. Output and flags are identical.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `epic_id` | Yes | The epic to compute a batch for |
+| `--limit=N` | No | Cap batch size at N tasks (default: unlimited) |
+| `--limit=0` | No | Produce an empty batch (BATCH_SIZE: 0) |
+| `--json` | No | Machine-readable JSON output (see below) |
+
+**Text output lines:**
+
+```
+EPIC: <id>  <title>
+AVAILABLE_POOL: <n>
+BATCH_SIZE: <n>
+TASK: <id>  P<priority>  <type>  <model>  <subagent>  <class>  <title>  [story:<id>]
+SKIPPED_OVERLAP: <id>  deferred (overlaps with <other-id> on <file>)
+SKIPPED_BLOCKED_STORY: <id>  deferred (parent story <story-id> is blocked)
+SKIPPED_OPUS_CAP: <id>  deferred (opus cap reached)
+SKIPPED_IN_PROGRESS: <id>  already in_progress
+SKIPPED_NEEDS_PLANNING: <id>  needs implementation planning
+```
+
+**JSON output keys** (with `--json`):
+
+| Key | Description |
+|---|---|
+| `epic_id` / `epic_title` | Epic identifier and title |
+| `batch_size` / `available_pool` / `opus_cap` | Batch metrics |
+| `batch` | Array of selected task objects |
+| `skipped_overlap` / `skipped_blocked_story` / `skipped_opus_cap` | Arrays of deferred task objects |
+| `skipped_in_progress` / `skipped_needs_planning` | Arrays of deferred task objects |
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | Batch generated (BATCH_SIZE may be 0) |
+| `1` | Epic not found or ticket CLI error |
+| `2` | Usage error (no epic ID provided) |
+
+---
+
+### `ready`
+
+List tickets that are ready to work (all blockers closed).
+
+```
+.claude/scripts/dso ticket ready [--epic=<id>] [--format=ids|llm]
+```
+
+**Arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `--epic=<id>` | No | Limit results to direct children of this epic |
+| `--format=ids` | No | One ticket ID per line (default) |
+| `--format=llm` | No | One minified JSON object per line (JSONL, LLM-optimised) |
+
+**Output:** By default (`--format=ids`), one ticket ID per line for all tickets where `ready_to_work=true`. With `--format=llm`, one minified JSON object per line (same compact schema as `ticket show --format=llm`).
+
+**Behavior:**
+
+- Scans all tickets via `reduce_all_tickets`; O(N) where N is total ticket count.
+- A ticket is ready when: status is `open` or `in_progress`, AND all tickets it `depends_on` are `closed`.
+- Handles asymmetric blocking: `depends_on` (X depends on Y → Y blocks X) and `blocks` (X blocks Y → X is blocker for Y).
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | Output printed (may be empty — including when tracker directory is absent) |
+| `1` | Not inside a git repo and `TICKETS_TRACKER_DIR` is unset |
+| `2` | Invalid argument (argparse error) |
+
+---
+
 ## Sourceable Library API
 
 The ticket dispatcher routes all subcommand calls through `ticket-lib-api.sh`, a bash-native sourced library. Scripts that need to call ticket operations in-process (without spawning a subprocess) can source this library directly.

@@ -49,6 +49,11 @@ _usage() {
     echo "  summary       One-line ticket summary with blocking status for one or more IDs"
     echo "  bridge-status Show last bridge run status [--format=json]"
     echo "  bridge-fsck   Audit bridge mappings (orphans, duplicates, stale SYNCs)"
+    echo "  exists        O(1) presence check (exit 0=exists, 1=not found)"
+    echo "  list-epics    List open epics [--all] [--has-tag=TAG] [--min-children=N]"
+    echo "  list-descendants  BFS walk from a root ticket, bucketed by type (JSON)"
+    echo "  next-batch    Select next parallel agent batch for an epic [--json]"
+    echo "  ready         List tickets ready to work (all blockers closed)"
     exit 1
 }
 
