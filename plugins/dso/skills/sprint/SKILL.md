@@ -6,7 +6,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
-This skill requires the Agent tool. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool, STOP IMMEDIATELY and return an error to your caller.
+Requires Agent tool. If running as a sub-agent (Agent tool unavailable), STOP and return: "ERROR: /dso:sprint requires Agent tool; invoke from orchestrator."
 </SUB-AGENT-GUARD>
 
 # Purpose
@@ -291,7 +291,7 @@ Wait for user response and route accordingly:
 
 ### Context Efficiency Rules
 
-**Status checks**: Use `.claude/scripts/dso issue-summary.sh <id>` or `.claude/scripts/dso ticket list` for orchestrator status checks (is it done? what's blocking?). Reserve full `.claude/scripts/dso ticket show <id>` only when sub-agents need to read their complete task context.
+**Status checks**: Use `.claude/scripts/dso issue-summary.sh <id>` or `.claude/scripts/dso ticket list --parent=<epic-id>` (scope to the epic under sprint) for orchestrator status checks (is it done? what's blocking?). Reserve full `.claude/scripts/dso ticket show <id>` only when sub-agents need to read their complete task context.
 
 **Ticket-as-prompt**: Before dispatch, run the quality gate:
 ```bash
@@ -635,7 +635,7 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 ### Gather Tasks
 
 1. `.claude/scripts/dso ticket deps <epic-id>` — get all child tasks
-2. `.claude/scripts/dso ticket list` (filtered by parent) — get unblocked tasks ready to work
+2. `.claude/scripts/dso ticket ready --epic=<epic-id>` — get unblocked tasks ready to work
 3. `.claude/scripts/dso ticket show <id>` for each ready task to read full descriptions
 
 ### Implementation Planning Gate
@@ -670,7 +670,7 @@ awaiting_design_stories = []   # List of {id, title, tag_applied_date}
 awaiting_manual_stories = []   # List of {id, title} for manual:awaiting_user stories
 ```
 
-**For each story from `.claude/scripts/dso ticket list` (filtered by parent):**
+**For each story from `.claude/scripts/dso ticket list-descendants <epic-id>` (`.stories` array):**
 1. Run `.claude/scripts/dso ticket show <story-id>` and check the `tags` field
 2. If `design:awaiting_import` (i.e., `$TAG_AWAITING_IMPORT`) is present:
    - Log: `"Story <id> tagged design:awaiting_import — skipping implementation planning."`
@@ -703,7 +703,7 @@ After populating `awaiting_manual_stories`, sort them so manual stories appear b
 
 #### Step 1: Identify Stories Needing Implementation Planning (/dso:sprint)
 
-For each ready task from `.claude/scripts/dso ticket list` (filtered by parent):
+For each ready task from `.claude/scripts/dso ticket ready --epic=<epic-id>`:
 1. Run `.claude/scripts/dso ticket deps <task-id>` to check if the story already has child implementation tasks
 2. If it has children → **skip** (already planned)
 3. If it has zero children → run the complexity evaluator:
@@ -893,7 +893,7 @@ e. **Post-layer-batch ticket validation**:
    .claude/scripts/dso validate-issues.sh --quick --terse
    ```
    Log any warnings but do not block on non-critical results
-f. Re-run `.claude/scripts/dso ticket list` (filtered by parent) to pick up newly created implementation tasks before processing the next layer
+f. Re-run `.claude/scripts/dso ticket ready --epic=<parent-id>` to pick up newly created implementation tasks before processing the next layer
 
 #### Step 3: Continue to Classification (/dso:sprint)
 
@@ -913,9 +913,10 @@ Output a textual dependency graph showing:
 ### Exit Condition
 
 If no ready tasks exist:
-1. Run `.claude/scripts/dso ticket list` to identify blocking chain
-2. Report which tasks are blocked and by what
-3. Exit with recommendation
+1. Parse the `skipped_blocked_story` / `skipped_overlap` / `skipped_in_progress` / `skipped_needs_planning` arrays from the most recent `.claude/scripts/dso ticket next-batch <epic-id> --json` output (already computed in Phase 3). These arrays identify the epic-scoped tasks that were eligible but deferred and the reason for each.
+2. For transitive chains (A blocks B blocks C), run `.claude/scripts/dso ticket deps <id>` on each surfaced blocked ticket to walk blockers one hop at a time. Do NOT re-read the full ticket list.
+3. Report which tasks are blocked and by what
+4. Exit with recommendation
 
 ---
 
@@ -1057,8 +1058,10 @@ Use `--json` for machine-readable output with full detail including file lists.
 
 #### Exit condition
 
-If `BATCH_SIZE: 0`, run `.claude/scripts/dso ticket list` to surface the blocking
-chain, report to the user, and exit.
+If `BATCH_SIZE: 0`, parse the `skipped_*` arrays from the `sprint-next-batch.sh --json`
+output (already produced above) to surface the blocking chain. Walk transitive blockers
+via `.claude/scripts/dso ticket deps <id>` on each surfaced blocked ticket. Report to
+the user and exit.
 
 #### Dependency-Aware Overlap Analysis (optional, when sg is available)
 
@@ -2022,7 +2025,7 @@ Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
 **Voluntary vs involuntary compaction**: If `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>` exists, delete it and continue to Phase 3. If no intent file exists, the compaction was involuntary — go to Phase 8.
 
 - If **involuntary** context compaction has occurred (no intent file) → Phase 8 (graceful shutdown)
-- If more ready tasks exist (`.claude/scripts/dso ticket list` filtered by parent) → return to Phase 3
+- If more ready tasks exist (`.claude/scripts/dso ticket ready --epic=<epic-id>`) → return to Phase 3
 - If no more ready tasks and some tasks are still blocked → report blocking chain, Phase 8
 - If all tasks are closed → **Phase 6 is MANDATORY** — proceed to Phase 6 (validation). Phase 6 has a HARD-GATE requiring completion-verifier dispatch (Step 0.75) before any other Phase 6 step executes. Do NOT skip the Phase 6 HARD-GATE.
 

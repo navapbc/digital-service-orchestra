@@ -6,11 +6,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
-This skill requires direct user interaction (prompts, confirmations, interactive choices). If you are running as a sub-agent dispatched via the Task tool, STOP IMMEDIATELY and return this error to your caller:
-
-"ERROR: /dso:onboarding cannot run in sub-agent context — it requires direct user interaction. Invoke this skill directly from the main session instead."
-
-Do NOT proceed with any skill logic if you are running as a sub-agent.
+Requires interactive user session. If running as a sub-agent (dispatched via Task), STOP and return: "ERROR: /dso:onboarding requires main session; invoke directly."
 </SUB-AGENT-GUARD>
 
 # Onboarding: Socratic Project Understanding

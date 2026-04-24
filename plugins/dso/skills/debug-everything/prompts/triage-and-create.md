@@ -17,11 +17,11 @@ This file contains the full FAILURE INVENTORY, CLUSTERS, STANDALONE ERRORS, and 
 **Note**: If no validation failure clusters exist (all-pass case), skip cluster cross-referencing below. Only enumerate open bugs and assign them to Tier 7 with their existing priority.
 
 For EACH cluster and standalone error:
-1. Search tickets: `.claude/scripts/dso ticket list` and grep for relevant keywords to find matches
+1. Search tickets: `.claude/scripts/dso ticket list --status=open,in_progress` and grep for relevant keywords to find matches
 2. If an existing issue covers this cluster/error: record its ID (do NOT create a duplicate)
 3. If no existing issue: proceed to Step 2
 
-For EACH open ticket bug (`.claude/scripts/dso ticket list`):
+For EACH open ticket bug (`.claude/scripts/dso ticket list --type=bug --status=open`):
 1. `.claude/scripts/dso ticket show <id>` — if it overlaps with a validation failure cluster, merge it
 2. If independent: add to the fix queue with its existing priority, assign to Tier 7
 
@@ -57,7 +57,7 @@ When a bug's root cause requires editing a safeguarded file (matching patterns f
 | E2E test failures | P1 | User-facing breakage |
 | Migration head conflicts | P1 | Blocks DB migrations |
 | Ruff lint violations | P2 | Code quality |
-| Beads health issues | P2 | Workflow reliability |
+| Ticket health issues | P2 | Workflow reliability |
 | AWS infra warnings | P2 | Production stability |
 | Format errors | P3 | Auto-fixable |
 
@@ -114,6 +114,6 @@ SUMMARY:
 See `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules.
 - Do NOT fix any code
 - Do NOT `git commit`, `git push`, `.claude/scripts/dso ticket transition`
-- You CAN run `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket comment`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket list`
+- You CAN run `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket comment`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket list [--type=<type>] [--status=<status>] [--parent=<id>] [--format=llm]` (always pass the narrowest filter that answers your question — avoid bare `ticket list`)
 - Create exactly ONE issue per cluster, ONE issue per standalone error
 - Never create duplicate issues — always search first

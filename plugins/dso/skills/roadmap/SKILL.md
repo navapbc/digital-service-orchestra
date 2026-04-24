@@ -6,11 +6,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
-This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
-
-"ERROR: /dso:roadmap cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
-
-Do NOT proceed with any skill logic if the Agent tool is unavailable.
+Requires Agent tool. If running as a sub-agent (Agent tool unavailable), STOP and return: "ERROR: /dso:roadmap requires Agent tool; invoke from orchestrator."
 </SUB-AGENT-GUARD>
 
 # Roadmap Architect
@@ -78,8 +74,8 @@ Before anything else, run the onboarding artifact check:
 
 2. **Review Existing State**: Check what's already in the ticket system to establish current state:
    ```bash
-   .claude/scripts/dso ticket list
-   .claude/scripts/dso ticket list
+   .claude/scripts/dso ticket list --type=epic
+   .claude/scripts/dso ticket list --status=open,in_progress
    ```
 
 3. **Exploratory Dialogue**: Initiate a brainstorming session with the user.

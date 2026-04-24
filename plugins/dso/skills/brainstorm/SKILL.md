@@ -6,7 +6,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
-This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool, STOP IMMEDIATELY and return an error to your caller.
+Requires Agent tool. If running as a sub-agent (Agent tool unavailable), STOP and return: "ERROR: /dso:brainstorm requires Agent tool; invoke from orchestrator."
 </SUB-AGENT-GUARD>
 
 # Brainstorm: Feature to Epic
@@ -123,7 +123,7 @@ Before asking any questions, silently scan for context:
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cat "$REPO_ROOT/PRD.md" 2>/dev/null || cat "$REPO_ROOT/docs/PRD.md" 2>/dev/null
 cat "$REPO_ROOT/.claude/design-notes.md" 2>/dev/null
-.claude/scripts/dso ticket list  # filter to epics via: .claude/scripts/dso ticket list --type=epic
+.claude/scripts/dso ticket list --type=epic
 # Resolve session context silently — never ask the user about CWD, repo identity, or ticket-store location
 git remote get-url origin 2>/dev/null
 git rev-parse --show-toplevel 2>/dev/null

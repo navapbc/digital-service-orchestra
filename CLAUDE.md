@@ -27,7 +27,7 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Full validation suite | `.claude/scripts/dso validate.sh [--ci]` |
 | Merge worktree to main | `.claude/scripts/dso merge-to-main.sh [--resume]` |
 | Harvest worktree to session | `.claude/scripts/dso harvest-worktree <branch> <artifacts-dir>` |
-| List all tickets (JSON) | `.claude/scripts/dso ticket list` |
+| List tickets (JSON; filter with `--type=`, `--status=`, `--parent=`) | `.claude/scripts/dso ticket list [--type=<type>] [--status=<status>] [--parent=<id>] [--format=llm]` |
 | Check if ticket exists | `.claude/scripts/dso ticket exists <id>` |
 | List open epics | `.claude/scripts/dso ticket list-epics [--all] [--has-tag=TAG]` |
 | List ticket descendants (BFS) | `.claude/scripts/dso ticket list-descendants <id>` |
@@ -190,7 +190,7 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 
 **Sub-agent boundaries**: See `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md` for all sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format, model selection, recovery).
 
-Orchestrator-level models: `haiku` (structured I/O), `sonnet` (code gen, review), `opus` (architecture, high-blast-radius); escalate on failure. Recovery: `.claude/scripts/dso ticket list` + `.claude/scripts/dso ticket show <id>` to read CHECKPOINT notes → `git log --oneline -5 && git status --short` for git state.
+Orchestrator-level models: `haiku` (structured I/O), `sonnet` (code gen, review), `opus` (architecture, high-blast-radius); escalate on failure. Recovery: `.claude/scripts/dso ticket list --status=in_progress` + `.claude/scripts/dso ticket show <id>` to read CHECKPOINT notes → `git log --oneline -5 && git status --short` for git state.
 
 ## Context Efficiency
 
