@@ -211,6 +211,20 @@ case "$subcommand" in
         _ticketlib_dispatch ticket_list "$@"
         exit $?
         ;;
+    list-epics)
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then _ensure_initialized; fi
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_list_epics "$@"
+        exit $?
+        ;;
+    list-descendants)
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then _ensure_initialized; fi
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_list_descendants "$@"
+        exit $?
+        ;;
     comment)
         _ensure_initialized
         # shellcheck source=/dev/null
@@ -283,6 +297,13 @@ case "$subcommand" in
         # shellcheck source=/dev/null
         source "$SCRIPT_DIR/ticket-lib-api.sh"
         _ticketlib_dispatch ticket_edit "$@"
+        exit $?
+        ;;
+    exists)
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then _ensure_initialized; fi
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_exists "$@"
         exit $?
         ;;
     tag)
@@ -367,6 +388,13 @@ case "$subcommand" in
             _ensure_initialized
         fi
         exec bash "$SCRIPT_DIR/purge-non-project-tickets.sh" "$@"
+        ;;
+    ready)
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then _ensure_initialized; fi
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_ready "$@"
+        exit $?
         ;;
     summary)
         # REVIEW-DEFENSE: _ensure_initialized is intentionally omitted here.

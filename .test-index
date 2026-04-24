@@ -136,8 +136,14 @@ plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/ticket-compact-all.sh:tests/scripts/test-ticket-compact-all.sh
-plugins/dso/scripts/ticket:tests/scripts/test-ticket-compact-all.sh,tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-tag-cli-refactor.sh,tests/scripts/test-ticket-init-bash-native.sh [test_ensure_initialized_no_python3],tests/scripts/test-ticket-validate.sh,tests/scripts/test-ticket-classify.sh,tests/scripts/test-ticket-clarity-check-dispatcher.sh,tests/scripts/test-ticket-check-ac-dispatcher.sh,tests/scripts/test-ticket-quality-check-dispatcher.sh,tests/scripts/test-ticket-purge-bridge-dispatcher.sh,tests/scripts/test-ticket-summary-dispatcher.sh
-plugins/dso/scripts/ticket-lib-api.sh:tests/scripts/test-ticket-lib-api.sh,tests/scripts/test-ticket-lib-sourceability.sh,tests/scripts/test-ticket-platform-compat.sh,tests/scripts/test-ticket-perf-regression.sh,tests/scripts/test-ticket-validate.sh,tests/scripts/test-ticket-classify.sh,tests/scripts/test-ticket-clarity-check-dispatcher.sh,tests/scripts/test-ticket-check-ac-dispatcher.sh,tests/scripts/test-ticket-quality-check-dispatcher.sh,tests/scripts/test-ticket-summary-dispatcher.sh,tests/skills/test-no-chained-ticket-close.sh [test_bug_close_uses_reason_flag_in_sprint],tests/scripts/test-ticket-subprocess-count.sh
+plugins/dso/scripts/ticket:tests/scripts/test-ticket-compact-all.sh,tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-tag-cli-refactor.sh,tests/scripts/test-ticket-init-bash-native.sh [test_ensure_initialized_no_python3],tests/scripts/test-ticket-validate.sh,tests/scripts/test-ticket-classify.sh,tests/scripts/test-ticket-clarity-check-dispatcher.sh,tests/scripts/test-ticket-check-ac-dispatcher.sh,tests/scripts/test-ticket-quality-check-dispatcher.sh,tests/scripts/test-ticket-purge-bridge-dispatcher.sh,tests/scripts/test-ticket-summary-dispatcher.sh,tests/scripts/test-ticket-exists-dispatcher.sh,tests/scripts/test-ticket-ready-dispatcher.sh,tests/scripts/test-ticket-list-epics-dispatcher.sh,tests/scripts/test-ticket-list-descendants-dispatcher.sh
+plugins/dso/scripts/ticket-lib-api.sh:tests/scripts/test-ticket-lib-api.sh,tests/scripts/test-ticket-lib-sourceability.sh,tests/scripts/test-ticket-platform-compat.sh,tests/scripts/test-ticket-perf-regression.sh,tests/scripts/test-ticket-validate.sh,tests/scripts/test-ticket-classify.sh,tests/scripts/test-ticket-clarity-check-dispatcher.sh,tests/scripts/test-ticket-check-ac-dispatcher.sh,tests/scripts/test-ticket-quality-check-dispatcher.sh,tests/scripts/test-ticket-summary-dispatcher.sh,tests/skills/test-no-chained-ticket-close.sh [test_bug_close_uses_reason_flag_in_sprint],tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-exists-dispatcher.sh,tests/scripts/test-ticket-ready-dispatcher.sh,tests/scripts/test-ticket-list-epics-dispatcher.sh,tests/scripts/test-ticket-list-descendants-dispatcher.sh
+plugins/dso/scripts/ticket-exists.sh:tests/scripts/test-ticket-exists-dispatcher.sh
+plugins/dso/scripts/ticket-ready.py:tests/scripts/test-ticket-ready-dispatcher.sh
+plugins/dso/scripts/ticket-ready.sh:tests/scripts/test-ticket-ready-dispatcher.sh
+plugins/dso/scripts/ticket-list-epics.sh:tests/scripts/test-ticket-list-epics-dispatcher.sh
+plugins/dso/scripts/ticket-list-descendants.py:tests/scripts/test-ticket-list-descendants-dispatcher.sh
+plugins/dso/scripts/ticket-list-descendants.sh:tests/scripts/test-ticket-list-descendants-dispatcher.sh
 plugins/dso/agents/scope-drift-reviewer.md:tests/scripts/test-scope-drift-reviewer.sh
 plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh
@@ -271,7 +277,3 @@ tests/fixtures/818-corpus/generate-corpus-fixture.sh:tests/fixtures/818-corpus/t
 plugins/dso/scripts/preconditions-coverage-harness.sh:tests/scripts/test-818-coverage-harness.sh
 plugins/dso/docs/contracts/fp-auto-fallback-scope.md:tests/scripts/test-fp-rate-tracker.sh
 docs/designs/stage-boundary-preconditions/:tests/docs/test-stage-boundary-preconditions-doc-structure.sh
-tests/scripts/test-ticket-exists-dispatcher.sh [test_exists_routes_through_dispatcher]
-tests/scripts/test-ticket-list-epics-dispatcher.sh [test_list_epics_routes_through_dispatcher]
-tests/scripts/test-ticket-list-descendants-dispatcher.sh [test_list_descendants_routes_through_dispatcher]
-tests/scripts/test-ticket-ready-dispatcher.sh [test_ready_routes_through_dispatcher]

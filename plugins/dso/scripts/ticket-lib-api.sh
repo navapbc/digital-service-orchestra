@@ -900,6 +900,13 @@ ticket_transition() {
     return $?
 }
 
+# ── ticket_exists ─────────────────────────────────────────────────────────────
+ticket_exists() {
+    # No DSO_TICKET_LEGACY path: ticket-exists.sh is the canonical implementation (no prior script).
+    bash "$_TICKETLIB_DIR/ticket-exists.sh" "$@"
+    return $?
+}
+
 # ── ticket_validate ────────────────────────────────────────────────────────────
 ticket_validate() {
     bash "$_TICKETLIB_DIR/validate-issues.sh" "$@"
@@ -936,3 +943,23 @@ ticket_summary() {
     return $?
 }
 
+# ── ticket_ready ───────────────────────────────────────────────────────────────
+ticket_ready() {
+    # No DSO_TICKET_LEGACY path: ticket-ready.sh is the canonical implementation (no prior script).
+    bash "$_TICKETLIB_DIR/ticket-ready.sh" "$@"
+    return $?
+}
+
+# ── ticket_list_epics ──────────────────────────────────────────────────────────
+ticket_list_epics() {
+    # No DSO_TICKET_LEGACY path: delegates to sprint-list-epics.sh (canonical; no prior script).
+    bash "$_TICKETLIB_DIR/ticket-list-epics.sh" "$@"
+    return $?
+}
+
+# ── ticket_list_descendants ────────────────────────────────────────────────────
+ticket_list_descendants() {
+    # No DSO_TICKET_LEGACY path: ticket-list-descendants.sh is the canonical implementation (no prior script).
+    bash "$_TICKETLIB_DIR/ticket-list-descendants.sh" "$@"
+    return $?
+}
