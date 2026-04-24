@@ -17,7 +17,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SCRIPT="$(git rev-parse --show-toplevel)/plugins/dso/scripts/classify-sc-shape.sh"
+SCRIPT="$(git rev-parse --show-toplevel)/plugins/dso/scripts/brainstorm/classify-sc-shape.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

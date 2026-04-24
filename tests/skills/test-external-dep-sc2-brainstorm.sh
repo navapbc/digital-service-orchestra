@@ -10,6 +10,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && git rev-parse --show-toplevel)"
 SKILL_MD="${REPO_ROOT}/plugins/dso/skills/brainstorm/SKILL.md"
 
+# skill-refactor: brainstorm phases extracted. Rebind SKILL_MD to aggregated corpus
+# (SKILL.md + phases/*.md + verifiable-sc-check.md).
+_orig_SKILL_MD="$SKILL_MD"
+source "$(git rev-parse --show-toplevel)/tests/skills/lib/brainstorm-skill-aggregate.sh"
+SKILL_MD=$(brainstorm_aggregate_path)
+trap brainstorm_aggregate_cleanup EXIT
+
+
 PASS=0
 FAIL=0
 

@@ -1096,3 +1096,112 @@ def test_get_myself_returns_empty_dict_on_json_decode_error(acli: ModuleType) ->
         result = client.get_myself()
 
     assert result == {}, f"Expected {{}} on JSONDecodeError, got {result!r}"
+
+
+# ---------------------------------------------------------------------------
+# Test 22 (RED): _create_issue_no_json returns None on "User not found for email:"
+#
+# BUG 0cd6-57d6: ACLI emits "User not found for email: <value>" for invalid
+# assignee lookups. This string is NOT caught at any of the three catch sites
+# (lines 125, 248, 287) — only "cannot be assigned" is checked. As a result,
+# the CalledProcessError propagates unhandled, crashing the outbound CREATE
+# flow when assignee is a non-Jira value like "Worktree".
+#
+# After the fix (_ASSIGNEE_NOT_FOUND_ERROR added and all three catch sites
+# updated), _create_issue_no_json must return None for this error so the caller
+# can retry without the assignee field.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_create_issue_no_json_returns_none_on_user_not_found_for_email(
+    acli: ModuleType,
+) -> None:
+    """_create_issue_no_json must return None when ACLI reports
+    'User not found for email: <value>' rather than propagating the exception.
+
+    Given: subprocess.run raises CalledProcessError with
+           stderr='User not found for email: Worktree'
+    When:  _create_issue_no_json is called with any assignee
+    Then:  the function returns None (graceful skip, not a raised exception)
+
+    RED: current code only checks 'cannot be assigned' — the CalledProcessError
+    propagates and pytest.raises fires instead of seeing None.
+    GREEN: after adding 'User not found for email:' to the catch condition,
+    the function returns None and the assertion passes.
+    """
+    user_not_found_error = subprocess.CalledProcessError(
+        returncode=1,
+        cmd=["acli", "jira", "workitem", "create"],
+        output="",
+        stderr="User not found for email: Worktree",
+    )
+
+    with (
+        patch("subprocess.run", side_effect=user_not_found_error),
+        patch("time.sleep"),  # suppress backoff delays
+    ):
+        result = acli._create_issue_no_json(
+            "PROJ",
+            "Task",
+            "Sync ticket",
+            assignee="Worktree",
+        )
+
+    assert result is None, (
+        f"_create_issue_no_json must return None when ACLI reports "
+        f"'User not found for email: Worktree', but got: {result!r}. "
+        f"Fix: add 'User not found for email:' to the assignee-error catch "
+        f"condition in _create_issue_no_json (and the other two catch sites)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 23: _create_from_json_payload returns None on "User not found for email:"
+#
+# Companion test to Test 22 — covers the _create_from_json_payload path
+# (invoked by _create_issue_from_json when a priority argument is present).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_create_from_json_payload_returns_none_on_user_not_found_for_email(
+    acli: ModuleType,
+) -> None:
+    """_create_from_json_payload must return None when ACLI reports
+    'User not found for email: <value>' rather than propagating the exception.
+
+    Given: subprocess.run raises CalledProcessError with
+           stderr='User not found for email: Worktree'
+    When:  _create_from_json_payload is called with a payload containing an assignee
+    Then:  the function returns None (graceful skip, not a raised exception)
+    """
+    user_not_found_error = subprocess.CalledProcessError(
+        returncode=1,
+        cmd=[
+            "acli",
+            "jira",
+            "workitem",
+            "create",
+            "--from-json",
+            "/tmp/x.json",
+            "--json",
+        ],
+        output="",
+        stderr="User not found for email: Worktree",
+    )
+
+    with (
+        patch("subprocess.run", side_effect=user_not_found_error),
+        patch("time.sleep"),
+    ):
+        result = acli._create_from_json_payload(
+            {"summary": "Sync ticket", "assignee": {"name": "Worktree"}}
+        )
+
+    assert result is None, (
+        f"_create_from_json_payload must return None when ACLI reports "
+        f"'User not found for email: Worktree', but got: {result!r}."
+    )

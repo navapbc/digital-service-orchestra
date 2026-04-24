@@ -27,14 +27,27 @@ set -uo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SKILL_MD="${REPO_ROOT}/plugins/dso/skills/brainstorm/SKILL.md"
 
+# skill-refactor: brainstorm phases extracted. Rebind SKILL_MD to aggregated corpus
+# (SKILL.md + phases/*.md + verifiable-sc-check.md).
+_orig_SKILL_MD="$SKILL_MD"
+source "$(git rev-parse --show-toplevel)/tests/skills/lib/brainstorm-skill-aggregate.sh"
+SKILL_MD=$(brainstorm_aggregate_path)
+trap brainstorm_aggregate_cleanup EXIT
+
+
 source "${REPO_ROOT}/tests/lib/assert.sh"
 
 # Extract the scrutiny pipeline region: from the Epic Scrutiny Pipeline heading
-# through (but not including) the Step 4 Approval Gate heading.
-# This is the precise insertion zone for the new SC gap check step.
+# through (but not including) the Step 4 Approval Gate heading. The scrutiny
+# pipeline's post-return handlers (SC gap check, FEASIBILITY_GAP, etc.) live in
+# phases/post-scrutiny-handlers.md after the skill-refactor extraction, so
+# include that phase file in the region.
 _scrutiny_region() {
     awk '/^### Steps 2\.5, 2\.6, 2\.75, and Step 3: Epic Scrutiny Pipeline/,/^### Step 4: Approval Gate/' \
-        "$SKILL_MD" 2>/dev/null
+        "$_orig_SKILL_MD" 2>/dev/null
+    local phases_file
+    phases_file="$(dirname "$_orig_SKILL_MD")/phases/post-scrutiny-handlers.md"
+    [ -f "$phases_file" ] && cat "$phases_file"
 }
 
 # ── test_brainstorm_has_sc_revision_after_scenario ──────────────────────────

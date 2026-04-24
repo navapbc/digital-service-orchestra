@@ -24,6 +24,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SKILL_FILE="$REPO_ROOT/plugins/dso/skills/brainstorm/SKILL.md"
 
+# skill-refactor: brainstorm phases extracted. Rebind SKILL_FILE to aggregated corpus
+# (SKILL.md + phases/*.md + verifiable-sc-check.md).
+_orig_SKILL_FILE="$SKILL_FILE"
+source "$(git rev-parse --show-toplevel)/tests/skills/lib/brainstorm-skill-aggregate.sh"
+SKILL_FILE=$(brainstorm_aggregate_path)
+trap brainstorm_aggregate_cleanup EXIT
+
+
 source "$REPO_ROOT/tests/lib/assert.sh"
 
 if [[ ! -f "$SKILL_FILE" ]]; then

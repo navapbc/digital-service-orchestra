@@ -36,6 +36,14 @@ BLUE_TEAM_MD="${REPO_ROOT}/plugins/dso/agents/blue-team-filter.md"
 PREPLANNING_MD="${REPO_ROOT}/plugins/dso/skills/preplanning/SKILL.md"
 BRAINSTORM_MD="${REPO_ROOT}/plugins/dso/skills/brainstorm/SKILL.md"
 
+# skill-refactor: brainstorm phases extracted. Rebind BRAINSTORM_MD to aggregated corpus
+# (SKILL.md + phases/*.md + verifiable-sc-check.md).
+_orig_BRAINSTORM_MD="$BRAINSTORM_MD"
+source "$(git rev-parse --show-toplevel)/tests/skills/lib/brainstorm-skill-aggregate.sh"
+BRAINSTORM_MD=$(brainstorm_aggregate_path)
+trap brainstorm_aggregate_cleanup EXIT
+
+
 # ---------------------------------------------------------------------------
 # test_part_b_residual_state_probe_present
 #
