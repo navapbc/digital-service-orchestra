@@ -58,12 +58,12 @@ import sys, re
 with open(sys.argv[1], 'r') as f:
     content = f.read()
 
-# Look for a type detection gate section by several possible headings/labels
+# Look for a type detection gate SECTION by heading (anchored to `##+` prefix)
+# — the layout table references the phrase too, which we must not match.
 patterns = [
-    r'(?m)(type.detection.gate.*?)(?=^##|\Z)',
-    r'(?m)(ticket.type.*?gate.*?)(?=^##|\Z)',
-    r'(?m)(type.check.*?gate.*?)(?=^##|\Z)',
-    r'(?m)(TYPE.DETECTION.GATE.*?)(?=^##|\Z)',
+    r'(?m)(^##+\s+Type\s+Detection\s+Gate.*?)(?=^## [A-Z]|\Z)',
+    r'(?m)(^##+\s+Ticket\s+Type.*?gate.*?)(?=^## [A-Z]|\Z)',
+    r'(?m)(^##+\s+Type\s+Check.*?gate.*?)(?=^## [A-Z]|\Z)',
 ]
 for pattern in patterns:
     match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)

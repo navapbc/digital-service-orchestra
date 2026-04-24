@@ -8,6 +8,15 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SKILL_MD="${REPO_ROOT}/plugins/dso/skills/brainstorm/SKILL.md"
 
+# skill-refactor: brainstorm phases extracted. Rebind SKILL_MD to the aggregated
+# corpus so content moved to phases/*.md remains reachable by content-presence greps.
+# Tests that assert SKILL.md-specific structure should use "$_origSKILL_MD" instead.
+_origSKILL_MD="$SKILL_MD"
+source "$(git rev-parse --show-toplevel)/tests/skills/lib/brainstorm-skill-aggregate.sh"
+SKILL_MD=$(brainstorm_aggregate_path)
+trap brainstorm_aggregate_cleanup EXIT
+
+
 PASS=0
 FAIL=0
 SECTION="unknown"
@@ -125,10 +134,18 @@ import sys, re
 with open(sys.argv[1], 'r') as f:
     content = f.read()
 
-# Find the approval gate section (Step 4)
-match = re.search(r'(?m)(### Step 4: Approval Gate.*?)(?=^###\s|\Z)', content, re.DOTALL)
-if match:
-    print(match.group(1))
+# Find the approval gate section. Matches the SKILL.md pointer heading
+# (### Step 4: Approval Gate) or the phase file's top-level heading
+# (# Phase 2 Step 4 — Approval Gate).
+patterns = [
+    r'(?m)(# Phase 2 Step 4.*?[Aa]pproval [Gg]ate.*?)(?=^# [A-Z]|\Z)',
+    r'(?m)(### Step 4: Approval Gate.*?)(?=^###\s|\Z)',
+]
+for pat in patterns:
+    m = re.search(pat, content, re.DOTALL)
+    if m:
+        print(m.group(1))
+        sys.exit(0)
 EOF
 ) || true
 
