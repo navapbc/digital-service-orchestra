@@ -253,6 +253,38 @@ ls .tickets-tracker/  # tickets-boundary-ok"
     assert_eq "test_suppression_annotation_exempts: exits 0" "0" "$exit_code"
 }
 
+# ============================================================
+# TEST 7-12: test_named_allowlist_member_passes_<script>
+# Each of the 6 named exclusion-pattern scripts must pass exit 0
+# even when the staged content references .tickets-tracker/.
+# These scripts classify tracker paths rather than access them.
+# ============================================================
+_named_member_passes() {
+    local _test_name="$1" _member_path="$2"
+    if [[ ! -f "$HOOK" ]]; then
+        echo "  FAIL: check-tickets-boundary.sh not found (RED — not yet implemented)" >&2
+        (( FAIL++ ))
+        return
+    fi
+    local _repo
+    _repo=$(make_test_repo)
+    mkdir -p "$_repo/$(dirname "$_member_path")"
+    # tickets-boundary-fixture (intentional — testing that this allowlisted path passes)
+    # shellcheck disable=SC2016  # single quotes intentional: $1 is literal in the generated script
+    printf '#!/usr/bin/env bash\ngrep ".tickets-tracker/" "$1"\n' > "$_repo/$_member_path"
+    git -C "$_repo" add "$_member_path"
+    local _exit
+    _exit=$(run_hook "$_repo")
+    assert_eq "$_test_name: allowlisted member exits 0" "0" "$_exit"
+}
+
+test_compute_diff_hash_passes()    { _named_member_passes "test_compute_diff_hash_passes"    "plugins/dso/scripts/compute-diff-hash.sh"; }
+test_emit_review_event_passes()    { _named_member_passes "test_emit_review_event_passes"    "plugins/dso/scripts/emit-review-event.sh"; }
+test_suggestion_record_passes()    { _named_member_passes "test_suggestion_record_passes"    "plugins/dso/scripts/suggestion-record.sh"; }
+test_retro_gather_passes()         { _named_member_passes "test_retro_gather_passes"         "plugins/dso/scripts/retro-gather.sh"; }
+test_capture_review_diff_passes()  { _named_member_passes "test_capture_review_diff_passes"  "plugins/dso/scripts/capture-review-diff.sh"; }
+test_skip_review_check_passes()    { _named_member_passes "test_skip_review_check_passes"    "plugins/dso/scripts/skip-review-check.sh"; }
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_direct_tracker_ref_rejected
 test_absorbed_script_ref_rejected
@@ -260,5 +292,11 @@ test_allowlisted_file_passes
 test_docs_path_excluded
 test_clean_file_passes
 test_suppression_annotation_exempts
+test_compute_diff_hash_passes
+test_emit_review_event_passes
+test_suggestion_record_passes
+test_retro_gather_passes
+test_capture_review_diff_passes
+test_skip_review_check_passes
 
 print_summary
