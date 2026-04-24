@@ -550,7 +550,7 @@ class TestEnrichFileImpactScript:
             'echo "$@" >> "$CALL_LOG"\n'
             'subcmd="${1:-}"\n'
             'if [ "$subcmd" = "show" ]; then\n'
-            "    # Return a minimal tk show-like output (no file impact section)\n"
+            "    # Return a minimal ticket-show-like output (no file impact section)\n"
             "    cat <<'EOF'\n"
             "---\n"
             "id: test-v3-enrich\n"

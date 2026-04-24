@@ -48,7 +48,6 @@ scripts_hits=$(
     grep -rn 'workflow-config\.yaml\|workflow-config\.yml' \
         "$DSO_PLUGIN_DIR/scripts/" \
         "$DSO_PLUGIN_DIR/hooks/" \
-    | grep -v '/scripts/tk:' \
     | grep -v '/scripts/read-config\.sh:' \
     | grep -v '/scripts/claude-safe:' \
     || true

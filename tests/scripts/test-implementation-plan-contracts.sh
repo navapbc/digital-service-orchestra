@@ -10,7 +10,7 @@
 #  2. test_contract_emit_parse_pattern         — grep for emit.*signal and parse.*signal within
 #                                                the Contract Detection Pass section only
 #  3. test_contract_orchestrator_subagent_pattern — grep for orchestrator/sub-agent report schema
-#  4. test_contract_deduplication             — grep for 'tk dep tree' AND deduplication guard
+#  4. test_contract_deduplication             — grep for 'ticket deps' AND deduplication guard
 #  5. test_contract_task_template             — grep for contract task template with artifact path
 #
 # Usage: bash tests/scripts/test-implementation-plan-contracts.sh
@@ -76,23 +76,21 @@ test_contract_orchestrator_subagent_pattern() {
 }
 
 # ── test_contract_deduplication ───────────────────────────────────────────────
-# Verify SKILL.md contract detection section contains deduplication guard using
-# 'tk dep tree' AND references to 'existing contract' or 'Contract:' to avoid
-# creating duplicate contract tasks.
-# Uses awk to scope the search to the Contract Detection Pass section only —
-# preventing false positives from pre-existing 'tk dep tree' occurrences elsewhere.
-# RED: FAIL because the contract detection section does not yet exist.
+# Verify SKILL.md contract detection section contains a 'ticket deps' dedup
+# guard AND references to 'existing contract' or 'Contract:' to avoid creating
+# duplicate contract tasks.
+# Uses awk to scope the search to the Contract Detection Pass section only.
 test_contract_deduplication() {
   _snapshot_fail
   # Extract only the Contract Detection Pass section (from heading to next ###-level heading)
   local _section
   _section=$(awk '/^### Contract Detection Pass/{found=1} found && /^### / && !/^### Contract Detection Pass/{exit} found{print}' "$IMPL_PLAN_SKILL")
-  local _has_tk_dep=0 _has_contract_ref=0
-  _tmp="$_section"; { [[ "$_tmp" == *"tk dep tree"* ]] || [[ "$_tmp" == *"ticket deps"* ]]; } && _has_tk_dep=1
+  local _has_deps_cmd=0 _has_contract_ref=0
+  _tmp="$_section"; [[ "$_tmp" == *"ticket deps"* ]] && _has_deps_cmd=1
   _tmp="$_section"; { [[ "$_tmp" == *"existing contract"* ]] || [[ "$_tmp" == *"Contract:"* ]]; } \
     && _has_contract_ref=1
-  assert_eq "test_contract_deduplication: 'tk dep tree' or 'ticket deps' within Contract Detection Pass section" \
-    "1" "$_has_tk_dep"
+  assert_eq "test_contract_deduplication: 'ticket deps' within Contract Detection Pass section" \
+    "1" "$_has_deps_cmd"
   assert_eq "test_contract_deduplication: 'existing contract' or 'Contract:' within Contract Detection Pass section" \
     "1" "$_has_contract_ref"
   assert_pass_if_clean "test_contract_deduplication"

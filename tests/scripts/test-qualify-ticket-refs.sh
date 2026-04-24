@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 # tests/scripts/test-qualify-ticket-refs.sh
-# Tests for qualify-ticket-refs.sh — rewrites bare ticket/tk command refs to use shim.
+# Tests for qualify-ticket-refs.sh — rewrites bare ticket command refs to use shim.
 #
 # Tests:
 #  (a) test_rewrites_backtick_ticket_ref    — `ticket list` → `.claude/scripts/dso ticket list`
 #  (b) test_rewrites_bare_ticket_ref        — ticket list → .claude/scripts/dso ticket list
 #  (c) test_skips_already_shimmed           — .claude/scripts/dso ticket list → unchanged
 #  (d) test_skips_full_path                 — plugins/dso/scripts/ticket → unchanged
-#  (e) test_rewrites_tk_show               — tk show → .claude/scripts/dso ticket show
-#  (f) test_rewrites_tk_ready_to_list      — tk ready → .claude/scripts/dso ticket list
-#  (g) test_rewrites_tk_sync              — tk sync → .claude/scripts/dso ticket sync
 #  (h) test_idempotent                     — running twice yields same result
 #  (i) test_no_double_rewrite             — backtick + bare on same line doesn't double-apply
 #
@@ -35,19 +32,9 @@ _apply_rewriter() {
     printf '%s' "$_line" | perl -e '
         my $SHIM = ".claude/scripts/dso";
         my $subcmds = "list|show|create|transition|comment|link|unlink|deps|edit|init|sync|revert|compact|fsck|bridge-status|bridge-fsck";
-        my $tk_direct = "show|deps";
-        my $tk_query = "ready|blocked|closed";
         while (<STDIN>) {
             s/(?<!dso )(?<![\/\.])(?<=`)ticket\s+($subcmds)\b/$SHIM ticket $1/g;
             s/(?<!dso )(?<![\/\.`\w])ticket\s+($subcmds)\b/$SHIM ticket $1/g;
-            s/(?<=`)tk\s+($tk_direct)\b/$SHIM ticket $1/g;
-            s/(?<![\/\.`\w])tk\s+($tk_direct)\b/$SHIM ticket $1/g;
-            s/(?<=`)tk\s+($tk_query)\b/$SHIM ticket list/g;
-            s/(?<![\/\.`\w])tk\s+($tk_query)\b/$SHIM ticket list/g;
-            s/(?<=`)tk\s+sync-events\b/$SHIM ticket sync/g;
-            s/(?<=`)tk\s+sync\b/$SHIM ticket sync/g;
-            s/(?<![\/\.`\w])tk\s+sync-events\b/$SHIM ticket sync/g;
-            s/(?<![\/\.`\w])tk\s+sync\b/$SHIM ticket sync/g;
             print;
         }
     '
@@ -56,6 +43,7 @@ _apply_rewriter() {
 # ── (a) test_rewrites_backtick_ticket_ref ────────────────────────────────────
 test_rewrites_backtick_ticket_ref() {
     _snapshot_fail
+    # shellcheck disable=SC2016  # literal test input with backticks
     local _input='Run `ticket list` to see tickets.'
     local _result
     _result=$(_apply_rewriter "$_input")
@@ -93,39 +81,10 @@ test_skips_full_path() {
     assert_pass_if_clean "test_skips_full_path"
 }
 
-# ── (e) test_rewrites_tk_show ───────────────────────────────────────────────
-test_rewrites_tk_show() {
-    _snapshot_fail
-    local _input='`tk show <id>`'
-    local _result
-    _result=$(_apply_rewriter "$_input")
-    assert_contains "tk show → ticket show" ".claude/scripts/dso ticket show" "$_result"
-    assert_pass_if_clean "test_rewrites_tk_show"
-}
-
-# ── (f) test_rewrites_tk_ready_to_list ──────────────────────────────────────
-test_rewrites_tk_ready_to_list() {
-    _snapshot_fail
-    local _input='`tk ready`'
-    local _result
-    _result=$(_apply_rewriter "$_input")
-    assert_contains "tk ready → ticket list" ".claude/scripts/dso ticket list" "$_result"
-    assert_pass_if_clean "test_rewrites_tk_ready_to_list"
-}
-
-# ── (g) test_rewrites_tk_sync ───────────────────────────────────────────────
-test_rewrites_tk_sync() {
-    _snapshot_fail
-    local _input='`tk sync`'
-    local _result
-    _result=$(_apply_rewriter "$_input")
-    assert_contains "tk sync → ticket sync" ".claude/scripts/dso ticket sync" "$_result"
-    assert_pass_if_clean "test_rewrites_tk_sync"
-}
-
 # ── (h) test_idempotent ────────────────────────────────────────────────────
 test_idempotent() {
     _snapshot_fail
+    # shellcheck disable=SC2016  # literal test input with backticks
     local _input='`ticket list` and ticket show <id>'
     local _pass1 _pass2
     _pass1=$(_apply_rewriter "$_input")
@@ -137,6 +96,7 @@ test_idempotent() {
 # ── (i) test_no_double_rewrite ──────────────────────────────────────────────
 test_no_double_rewrite() {
     _snapshot_fail
+    # shellcheck disable=SC2016  # literal test input with backticks
     local _input='Use `ticket show <id>` to view'
     local _result
     _result=$(_apply_rewriter "$_input")
@@ -151,9 +111,6 @@ test_rewrites_backtick_ticket_ref
 test_rewrites_bare_ticket_ref
 test_skips_already_shimmed
 test_skips_full_path
-test_rewrites_tk_show
-test_rewrites_tk_ready_to_list
-test_rewrites_tk_sync
 test_idempotent
 test_no_double_rewrite
 

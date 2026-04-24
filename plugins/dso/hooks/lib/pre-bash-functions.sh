@@ -739,7 +739,6 @@ print(json.dumps(entry))
 # REVIEW-DEFENSE: This function is intentionally not wired into dispatchers yet.
 # Task dso-280g ("Wire tickets-tracker guards into dispatchers") handles dispatcher
 # integration as a separate task, dependent on this implementation (dso-hzwm).
-# See: tk show dso-280g
 hook_tickets_tracker_bash_guard() {
     local INPUT="$1"
     local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # scripts/issue-quality-check.sh
-# Check whether a tk issue has enough detail for issue-as-prompt dispatch.
-# Sub-agents using issue-as-prompt read their own context via `tk show`.
-# This script validates the issue is detailed enough for that pattern.
+# Check whether a ticket has enough detail for issue-as-prompt dispatch.
+# Sub-agents using issue-as-prompt read their own context via `ticket show`.
+# This script validates the ticket is detailed enough for that pattern.
 #
 # Usage:
 #   issue-quality-check.sh <id>
