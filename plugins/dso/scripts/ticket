@@ -19,6 +19,7 @@
 #   ticket bridge-fsck [--tickets-tracker=<path>] — audit bridge mappings (orphans, duplicates, stale SYNCs)
 #   ticket tag <ticket_id> <tag>                  — add a tag to a ticket
 #   ticket untag <ticket_id> <tag>                — remove a tag from a ticket
+#   ticket summary <id> [<id> ...]                — one-line ticket summary with blocking status
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -45,6 +46,7 @@ _usage() {
     echo "  check-ac      Check ticket has Acceptance Criteria block (exit 0=pass, 1=fail; AC_CHECK: pass|fail)"
     echo "  quality-check Check ticket dispatch readiness (exit 0=pass, 1=fail; QUALITY: pass|fail)"
     echo "  purge-bridge  Remove non-project inbound bridge tickets (--keep=<KEY> [--dry-run])"
+    echo "  summary       One-line ticket summary with blocking status for one or more IDs"
     echo "  bridge-status Show last bridge run status [--format=json]"
     echo "  bridge-fsck   Audit bridge mappings (orphans, duplicates, stale SYNCs)"
     exit 1
@@ -365,6 +367,18 @@ case "$subcommand" in
             _ensure_initialized
         fi
         exec bash "$SCRIPT_DIR/purge-non-project-tickets.sh" "$@"
+        ;;
+    summary)
+        # REVIEW-DEFENSE: _ensure_initialized is intentionally omitted here.
+        # issue-summary.sh reads tickets via TICKET_CMD env var (injectable for tests).
+        # In production TICKET_CMD defaults to the ticket script itself, which calls
+        # _ensure_initialized when it runs ticket show — initialization is transitive.
+        # Calling _ensure_initialized here would break test isolation where TICKET_CMD
+        # is mocked and no real ticket store exists.
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_summary "$@"
+        exit $?
         ;;
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2

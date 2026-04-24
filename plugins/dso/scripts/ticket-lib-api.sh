@@ -930,3 +930,9 @@ ticket_quality_check() {
     return $?
 }
 
+# ── ticket_summary ─────────────────────────────────────────────────────────────
+ticket_summary() {
+    bash "$_TICKETLIB_DIR/issue-summary.sh" "$@"
+    return $?
+}
+
