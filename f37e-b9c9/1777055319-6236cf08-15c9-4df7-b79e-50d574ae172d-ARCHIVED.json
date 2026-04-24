@@ -1,0 +1,1 @@
+{"timestamp": 1777055319, "uuid": "6236cf08-15c9-4df7-b79e-50d574ae172d", "event_type": "ARCHIVED", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Worktree", "data": {"reason": "test-fixture leakage from jira-bridge sync"}}
