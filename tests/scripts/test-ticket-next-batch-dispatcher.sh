@@ -195,10 +195,11 @@ test_next_batch_routes_through_dispatcher() {
     fi
 
     # Test 6: --json flag produces valid JSON with expected keys
+    # Note: sprint-next-batch.sh prints a conflict matrix to stderr; capture stdout only.
     echo "Test 6: --json flag produces valid JSON with expected keys"
     _tracker=$(make_next_batch_fixture)
     _exit=0
-    _output=$(TICKETS_TRACKER_DIR="$_tracker" "$DISPATCHER" next-batch nb-epic --json 2>&1) || _exit=$?
+    _output=$(TICKETS_TRACKER_DIR="$_tracker" "$DISPATCHER" next-batch nb-epic --json 2>/dev/null) || _exit=$?
 
     if echo "$_output" | python3 -c "
 import json, sys

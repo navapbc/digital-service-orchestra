@@ -144,7 +144,7 @@ plugins/dso/scripts/ticket-ready.sh:tests/scripts/test-ticket-ready-dispatcher.s
 plugins/dso/scripts/ticket-list-epics.sh:tests/scripts/test-ticket-list-epics-dispatcher.sh
 plugins/dso/scripts/ticket-list-descendants.py:tests/scripts/test-ticket-list-descendants-dispatcher.sh
 plugins/dso/scripts/ticket-list-descendants.sh:tests/scripts/test-ticket-list-descendants-dispatcher.sh
-tests/scripts/test-ticket-next-batch-dispatcher.sh [test_next_batch_routes_through_dispatcher]
+plugins/dso/scripts/ticket-next-batch.sh:tests/scripts/test-ticket-next-batch-dispatcher.sh
 plugins/dso/agents/scope-drift-reviewer.md:tests/scripts/test-scope-drift-reviewer.sh
 plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh

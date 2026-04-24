@@ -963,3 +963,10 @@ ticket_list_descendants() {
     bash "$_TICKETLIB_DIR/ticket-list-descendants.sh" "$@"
     return $?
 }
+
+# ── ticket_next_batch ─────────────────────────────────────────────────────────
+ticket_next_batch() {
+    # No DSO_TICKET_LEGACY path: ticket-next-batch.sh is the canonical implementation (no prior script).
+    bash "$_TICKETLIB_DIR/ticket-next-batch.sh" "$@"
+    return $?
+}

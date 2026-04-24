@@ -225,6 +225,13 @@ case "$subcommand" in
         _ticketlib_dispatch ticket_list_descendants "$@"
         exit $?
         ;;
+    next-batch)
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then _ensure_initialized; fi
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_next_batch "$@"
+        exit $?
+        ;;
     comment)
         _ensure_initialized
         # shellcheck source=/dev/null
