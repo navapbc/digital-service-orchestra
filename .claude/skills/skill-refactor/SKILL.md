@@ -1,0 +1,247 @@
+---
+name: skill-refactor
+description: Use when the user wants to critically review and refactor an existing DSO skill for clarity, token efficiency, and reliability — includes script relocation, reference updates, change-detector test removal, and ticket reconciliation. Invoke when the user says "review the <skill> skill", "optimize <skill>", "clean up <skill>", or similar language about auditing or improving a specific skill file.
+user-invocable: true
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent
+---
+
+# Skill Refactor
+
+End-to-end process for auditing and improving a DSO skill: review → approved plan → code/doc/test changes → ticket reconciliation → committed result.
+
+This skill codifies a workflow executed successfully on `/dso:architect-foundation` and the onboarding-adjacent scripts. Apply it to any skill where the user wants a token-efficiency and reliability pass.
+
+## When to use
+
+User signals: "review the X skill", "audit X", "can we optimize X?", "clean up X", "X is bloated", "X isn't reliable", or any request that implies critiquing a specific skill file and improving it.
+
+## Inputs
+
+- Skill name (bare, no `dso:` prefix) — e.g., `architect-foundation`, `brainstorm`.
+- The skill's SKILL.md at `plugins/dso/skills/<name>/SKILL.md`.
+- Any co-located phase files under `plugins/dso/skills/<name>/phases/` or equivalent.
+
+## Workflow
+
+The workflow is **seven sequential phases**. Do not skip. Phases 1 and 2 are synchronous with the user; Phases 3–7 execute autonomously once the plan is approved.
+
+```
+P1 Critical review            → present findings
+P2 Remediation plan           → await explicit approval
+P3 Script relocation          → move skill-scoped scripts to shared sub-dir
+P4 Reference updates          → skill body, tests, docs
+P5 Change-detector test sweep → remove prose-grepping tests
+P6 Ticket reconciliation      → comment on open tickets affected
+P7 Commit                     → via COMMIT-WORKFLOW.md; surface review findings
+```
+
+---
+
+## Phase 1 — Critical review
+
+Read the target SKILL.md in full. Identify, concretely:
+
+1. **Reliability problems**: undefined terms/codes referenced repeatedly, ambiguous phases, missing wiring instructions, scattered `--auto`/mode branches that should be consolidated, duplication that creates drift risk.
+2. **Token cost**: sections that are load-on-demand candidates (CI templates, anti-pattern catalogs, per-stack tables already codified in sibling scripts), prose over-elaboration of simple rules, examples that could live in a reference doc.
+3. **Deterministic-command extraction candidates**: agent-executed bash blocks that are mechanical enough to live in a dedicated script (emit JSON, detect artifacts, slug and write files).
+4. **Structural issues**: multiple approval gates for the same decision at different granularity, phases that exist solely to invoke `/dso:review` or similar one-liners, sub-agent guards repeated inline instead of shared.
+
+**Output to the user**: a critical-review report with four sections — *What's working*, *Problems that hurt reliability*, *Token-cost / extractability*, *Structural fixes*. Give concrete file references and estimated line reduction.
+
+Do not propose changes yet — this phase is diagnostic only.
+
+## Phase 2 — Remediation plan (blocking approval gate)
+
+Convert the review into a concrete plan:
+
+- **Files to create** (new reference docs, new helper scripts) with one-line rationale each.
+- **Files to modify** (SKILL.md rewrite, inline shim-call updates).
+- **Scripts to relocate** (see Phase 3) with destination path.
+- **Change-detector tests to remove** (see Phase 5) — names only; evidence comes in P5.
+- **Expected token reduction** (estimated line delta for SKILL.md).
+
+Present the plan and wait for explicit approval. The user must say yes before execution proceeds. If the user redirects or says "not yet", stay in Phase 1 or 2; do not proceed to Phase 3.
+
+**Under `/dso:dryrun`**: Still ask for approval, but note that dry-run mode will skip the write steps.
+
+## Phase 3 — Script relocation (skill-scoped scripts only)
+
+Determine which scripts are used only by this skill (or a tightly-coupled pair — e.g., onboarding + architect-foundation both consume the same scripts).
+
+```bash
+# Enumerate every script the skill references.
+grep -oE '[a-z0-9_-]+\.sh' plugins/dso/skills/<name>/SKILL.md plugins/dso/skills/<name>/phases/*.md 2>/dev/null | sort -u
+
+# For each candidate script, find all referrers across the plugin + host project.
+for s in <candidates>; do
+  echo "=== $s ==="
+  grep -rln "${s}" plugins/dso/ .claude/ tests/ docs/ 2>/dev/null | grep -v "^plugins/dso/scripts/${s%.sh}\.sh$"
+done
+```
+
+A script is **skill-scoped** when all referrers fall into: (a) the skill's own SKILL.md and phase files, (b) the script itself, (c) test files, (d) sibling scripts it directly sources, (e) documentation. Cross-cutting dependencies (referenced by multiple unrelated skills or by non-skill hooks) **stay where they are**.
+
+For each skill-scoped script:
+
+1. `mkdir -p plugins/dso/scripts/<skill-name>/` (or the shared sub-dir — e.g., `onboarding/` for skills that share scripts).
+2. `git mv` each script into the sub-dir.
+3. **Fix internal `_PLUGIN_ROOT` resolution**: scripts relocated one level deeper need `$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)` instead of `/..`. Every `_PLUGIN_ROOT`, `_SCRIPT_PLUGIN_DIR`, `_DSO_PLUGIN_DIR`, and `_SCRIPT_DIR/../…` pattern needs audit.
+4. If a moved script references a sibling that **stays**, add `/../` to the relative path (e.g., `$SCRIPT_DIR/../detect-stack.sh`).
+
+Verify: run the relocated script with `--help` or a safe read-only invocation; confirm it resolves the plugin root correctly.
+
+## Phase 4 — Reference updates
+
+Update every caller of the moved scripts to use the new shim path. The DSO shim dispatches through sub-paths automatically — calls become `.claude/scripts/dso <sub-dir>/<script>.sh`. No shim changes required.
+
+Order of operations:
+
+1. **Skill body** (SKILL.md, phase files): every `bash "$PLUGIN_SCRIPTS/<script>.sh"` and `.claude/scripts/dso <script>.sh` → add the sub-dir prefix.
+2. **Sibling scripts**: comments referencing moved scripts — update prose to current path (optional but prevents future confusion).
+3. **Project docs**: `plugins/dso/docs/**`, `docs/**` — find and update executable command references. ADRs should get a revision note appended rather than in-place edits (use `.claude/scripts/dso onboarding/adr-upsert.sh` when available).
+4. **Test files**: bulk sed, one file at a time (macOS BSD sed cannot take multiple files via `<<<`):
+
+```bash
+FILES=$(for s in <moved-scripts>; do grep -rln "${s}\.sh" tests/ 2>/dev/null; done | sort -u)
+while IFS= read -r f; do
+  [[ -z "$f" ]] && continue
+  sed -i '' -E \
+    -e "s#/scripts/(<A>|<B>|…)\.sh#/scripts/<sub-dir>/\\1.sh#g" \
+    -e "s#(^|[^/])scripts/(<A>|<B>|…)\.sh#\\1scripts/<sub-dir>/\\2.sh#g" \
+    "$f"
+done <<< "$FILES"
+```
+
+5. **`.test-index`**: the source-path column also needs rewriting for moved scripts:
+
+```bash
+sed -i '' -E 's#^plugins/dso/scripts/(<A>|<B>|…)\.sh:#plugins/dso/scripts/<sub-dir>/\1.sh:#g' .test-index
+```
+
+6. **Verification**: `grep -r "scripts/<script>\.sh" plugins/ tests/ docs/ | grep -v "<sub-dir>/"` must return zero relevant hits.
+
+## Phase 5 — Change-detector test sweep
+
+Find tests whose only job is asserting prose phrases appear in instruction-file text — violating the project's behavioral-testing-standard Rule 5 ("test the structural boundary, not the content").
+
+### Classifier
+
+```bash
+python3 << 'PY'
+import re, os, glob, sys
+ROOT = sys.argv[1]
+SKILL_VAR = re.compile(r'grep\s+-q[iE]*\s+[^|<>]*"\$[A-Z_]*(SKILL|AGENT|PROMPT|PHASE|MD|FILE|PATH)[A-Z_]*"', re.I)
+SCRIPT_EXEC = re.compile(r'(?:^|\s)(bash|python3|sh|\./|\$SCRIPT|\$.*_SCRIPT|\.claude/scripts/dso|plugins/dso/scripts|run_under|jq\s+-r)\b')
+
+def test_funcs(text):
+    for m in re.finditer(r'^(test_[A-Za-z0-9_]+)\(\)\s*\{\s*$', text, re.M):
+        name, start, depth, i = m.group(1), m.end(), 1, m.end()
+        while i < len(text) and depth > 0:
+            if text[i] == '{': depth += 1
+            elif text[i] == '}':
+                depth -= 1
+                if depth == 0: break
+            i += 1
+        yield name, text[start:i]
+
+for f in sorted(glob.glob(f"{ROOT}/tests/skills/test-*.sh")):
+    text = open(f).read()
+    for name, body in test_funcs(text):
+        if not SKILL_VAR.search(body): continue
+        if SCRIPT_EXEC.search(re.sub(r'#.*', '', body)): continue
+        loc = len([l for l in body.splitlines() if l.strip()])
+        if loc > 25: continue
+        gm = re.search(r'grep\s+-q[iE]*\s+[^|<>]*"([^"]+)"', body)
+        print(f"{os.path.basename(f)}:{name}  grep: {(gm.group(1) if gm else '?')[:60]}")
+PY
+```
+
+### Triage
+
+A flagged test is a **change detector** if:
+- It greps for a prose phrase that could be reworded while preserving meaning: e.g., `"always generate.*adr"`, `"single.*confirmation"`, `"append-only"`, `"open-ended questions"`, `"check in.*decision|run autonomously"`.
+
+A flagged test is **NOT a change detector** (keep) if it greps for any of:
+- YAML frontmatter keys, `SUB-AGENT-GUARD`, file-path contract references to shared prompts (`shared/prompts/*.md`).
+- Tag constants (`scrutiny:pending`), signal labels (`FEASIBILITY_GAP`, `REPLAN_ESCALATE`), config key names (`version.file_path`).
+- Literal script/command names (`dso-setup.sh`, `/dso:brainstorm`), helper function names (`_dso_pv_entry_check`).
+- Structural markers (`^## Phase`, `^### Step`).
+- NEGATIVE tests asserting absence of a forbidden pattern.
+
+When in doubt, **keep**.
+
+### Removal
+
+For each confirmed change detector, remove:
+1. The `# test_X: ...` comment block and `test_X() { ... }` definition.
+2. The `test_X` invocation line in the runner section.
+3. Any `REVIEW-DEFENSE:` or `.test-index` RED-marker that referenced it.
+
+If the entire test file is change detectors, `git rm` the file.
+
+### Report back to the user
+
+Summarize: N tests removed across M files, list the kept-but-flagged cases with one-line rationale for each.
+
+## Phase 6 — Ticket reconciliation
+
+Find open tickets that reference the skill or moved scripts by **path** or **structural name** (phase numbers, step names, section titles that have been renamed). Conceptual references are fine; pathed references are stale.
+
+```bash
+for st in open in_progress in_review; do
+  .claude/scripts/dso ticket list --format=llm --status=$st 2>/dev/null | python3 -c "
+import json, sys
+kws = [<moved-script-names>, '<skill-name>', <old-phase-names>, <removed-section-titles>]
+for line in sys.stdin:
+    line = line.strip()
+    if not line: continue
+    try: t = json.loads(line)
+    except: continue
+    blob = (t.get('ttl','') + ' ' + (t.get('desc') or '') + ' ' + ' '.join(t.get('tags') or [])).lower()
+    if any(k.lower() in blob for k in kws):
+        print(f\"{t['id']} [{t['t']}] {t['ttl'][:90]}\")
+"
+done
+```
+
+For each hit:
+- **Stale path** (script name): add a ticket comment noting the new path. Do NOT rewrite the description — preserve history.
+- **Stale structural reference** (e.g., "Phase 3 Enforcer Setup" after rewrite): add a comment mapping old section to new section.
+- **Conceptual reference** (skill name, feature concept): no action.
+
+```bash
+.claude/scripts/dso ticket comment <id> "NOTE (path update YYYY-MM-DD): <old> moved to <new>. <brief impact>."
+```
+
+## Phase 7 — Commit
+
+Execute `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md` inline. Do not invoke `/dso:commit` via the Skill tool — that nests workflows and breaks sub-agent boundaries (CLAUDE.md Rule 10).
+
+Expect the review workflow to trigger in Step 5. This refactor diff will likely:
+
+- **Cross the huge-diff threshold** (≥20 files). Pattern extraction will produce heterogeneous descriptions → `ROUTING=FALLBACK` → standard deep-tier review dispatches (3 sonnet specialists + opus arch synthesis).
+- **Surface correctness findings** for edge cases the refactor missed: orphaned callers in non-obvious locations (installer scripts, ADRs, test fixtures), stale `.test-index` entries, missing `mkdir -p <sub-dir>` in test setup that now writes to the sub-dir path.
+- **Surface hygiene findings** for incomplete template sets (e.g., missing AP-code template), stranded tests pointing at moved content.
+
+Apply autonomous resolution (up to `review.max_resolution_attempts`, default 5). Defend findings with evidence when they're out of scope (missing test coverage for new helper scripts → file a follow-up ticket rather than block the commit).
+
+## Artifacts produced
+
+- Refactored SKILL.md (typically 30–60% token reduction).
+- New shared reference docs under `plugins/dso/skills/shared/prompts/` or a skill-local reference doc.
+- Relocated scripts under `plugins/dso/scripts/<skill-name>/` (or shared sub-dir).
+- Updated references across skills, tests, docs, `.test-index`.
+- Ticket comments on all affected open tickets.
+- One commit with a rich body describing all three axes (skill, scripts, tests).
+
+## Non-goals
+
+- **Not** for fixing a reported bug in a skill — use `/dso:fix-bug`.
+- **Not** for adding new features to a skill — use `/dso:brainstorm` first, then `/dso:implementation-plan`.
+- **Not** for a full rewrite of skill *semantics* — this is a structural/hygiene pass. If the skill's goals themselves need revisiting, that's a `/dso:brainstorm` job.
+
+## Known failure modes
+
+- **Over-aggressive change-detector removal**: if in doubt, keep. The asymmetric cost favors false negatives.
+- **Under-scoped relocation**: moving a "skill-scoped" script that turns out to have a non-obvious caller (an installer, a bootstrap doc, a test fixture). Phase 7 review will typically catch these; be prepared to update one or two additional files in the resolution loop.
+- **Missed `.test-index` updates**: both the source-path column (LHS of `:`) and the test-list column (RHS) may need updating for moved scripts and deleted tests. Re-grep `.test-index` after Phase 4 and Phase 5.
