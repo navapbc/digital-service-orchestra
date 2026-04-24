@@ -2,7 +2,7 @@
 # Maps source files to test files that fuzzy match misses.
 # Format: source/path: test/path1[, test/path2...]
 
-plugins/dso/scripts/acli-integration.py: tests/scripts/test_acli_integration.py
+plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py
 .github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh
 plugins/dso/.claude-plugin/plugin.json:tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-dir-structure.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
@@ -251,11 +251,11 @@ plugins/dso/docs/ticket-system-v3-architecture.md:tests/scripts/test-tag-policy-
 plugins/dso/docs/contracts/scrutiny-pending-tag.md:tests/scripts/test-tag-policy-docs.sh
 plugins/dso/skills/sprint/prompts/per-worktree-review-commit.md:tests/skills/test-worktree-tracking-complete-landed.sh
 plugins/dso/docs/contracts/worktree-tracking-comment.md:tests/skills/test-worktree-tracking-start-writes.sh
-plugins/dso/skills/sprint/prompts/task-execution.md:tests/skills/test-worktree-tracking-start-writes.sh [test_sprint_skill_worktree_tracking_start_present]
+plugins/dso/skills/sprint/prompts/task-execution.md:tests/skills/test-worktree-tracking-start-writes.sh
 plugins/dso/scripts/resolve-abandoned-worktrees.sh:tests/scripts/test-worktree-resume-integration.sh
 plugins/dso/hooks/lib/planning-config.sh:tests/hooks/test-planning-config.sh
 plugins/dso/scripts/brainstorm/classify-sc-shape.sh:tests/skills/test-brainstorm-shape-heuristic.sh
-plugins/dso/scripts/sprint-next-batch.sh:tests/test-sprint-next-batch.sh
+plugins/dso/scripts/sprint-next-batch.sh:tests/test-sprint-next-batch.sh,tests/scripts/test_sprint_next_batch_extensionless.py
 plugins/dso/scripts/sprint-manual-drain.sh:tests/test-sprint-manual-drain.sh
 plugins/dso/scripts/sprint-pause-state.sh:tests/scripts/test-sprint-pause-state.sh
 plugins/dso/scripts/format-and-lint.sh:tests/scripts/test-residual-callers-polyglot.sh
@@ -279,3 +279,6 @@ tests/fixtures/818-corpus/generate-corpus-fixture.sh:tests/fixtures/818-corpus/t
 plugins/dso/scripts/preconditions-coverage-harness.sh:tests/scripts/test-818-coverage-harness.sh
 plugins/dso/docs/contracts/fp-auto-fallback-scope.md:tests/scripts/test-fp-rate-tracker.sh
 docs/designs/stage-boundary-preconditions/:tests/docs/test-stage-boundary-preconditions-doc-structure.sh
+plugins/dso/scripts/onboarding/plugin-inventory.sh:tests/unit/scripts/test-plugin-inventory.sh
+plugins/dso/scripts/onboarding/detect-enforcement-artifacts.sh:tests/unit/scripts/test-detect-enforcement-artifacts.sh
+plugins/dso/scripts/onboarding/adr-upsert.sh:tests/unit/scripts/test-adr-upsert.sh

@@ -157,6 +157,7 @@ Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encou
 | Users | Who needs this — which user type, role, or persona? |
 | Value | What business outcome or user improvement does this enable? |
 | Scope | What's clearly in scope? What are you explicitly NOT building? |
+| Access Path | If this feature creates a new page or UI surface: how will users reach it? (global nav link, in-flow step, modal trigger, deep link, or not applicable?) |
 | Constraints | Any technical constraints, deadlines, or dependencies on other epics? |
 | Success | How will you know this worked? What would "done" look like? |
 
@@ -174,6 +175,7 @@ Before we move to approaches, here's my understanding:
 - **Problem**: [what specific problem this solves]
 - **Users**: [who is affected — user type, role, or persona]
 - **Scope**: [what's in scope; what's explicitly out of scope]
+- **Access Path**: [if this feature creates a new page or UI surface: how will users reach it? (global nav link, in-flow step, modal trigger, deep link, or not applicable)] *(omit if feature does not introduce a new page or UI surface)*
 - **Success**: [how the user will know this worked — observable outcome]
 
 Does this capture your intent? If anything is off, tell me what to adjust.

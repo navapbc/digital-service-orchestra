@@ -32,7 +32,9 @@ _DEFAULT_ACLI_CMD: list[str] = ["acli"]
 _MAX_ATTEMPTS: int = 3  # initial + 2 retries
 _AUTH_FAILURE_CODE: int = 401
 _ASSIGNEE_PERMISSION_ERROR: str = "cannot be assigned"
-_ASSIGNEE_NOT_FOUND_ERROR: str = "User not found for email:"
+_ASSIGNEE_NOT_FOUND_ERROR: str = (
+    "User not found for email:"  # prefix match — email value varies per call
+)
 
 # Local priority integer (0-4) → Jira priority name.
 # Mirrors the mapping in bridge-outbound.py.

@@ -54,6 +54,7 @@ if [ -z "$REPO_ROOT" ]; then
     echo "ERROR: Not in a git repository" >&2
     exit 2
 fi
+_PLUGIN_GIT_PATH="${CLAUDE_PLUGIN_ROOT#"$REPO_ROOT"/}"
 
 TICKET_CMD="${TICKET_CMD:-${SCRIPT_DIR}/ticket}"
 
@@ -313,6 +314,7 @@ SPRINT_CFG_SRC_DIR="$CFG_SRC_DIR" \
 SPRINT_CFG_TEST_DIR="$CFG_TEST_DIR" \
 SPRINT_CFG_TEST_UNIT_DIR="$CFG_TEST_UNIT_DIR" \
 SPRINT_CFG_EXTRA_DIR_ROOTS="$CFG_EXTRA_DIR_ROOTS" \
+SPRINT_KNOWN_EXTENSIONLESS_FILES="${_PLUGIN_GIT_PATH}/scripts/ticket" \
 SPRINT_TRACKER_DIR="$TRACKER_DIR" \
 SPRINT_REDUCER="$REDUCER" \
 SPRINT_PLANNING_FLAG_ENABLED="$_PLANNING_FLAG_ENABLED" \
@@ -335,6 +337,7 @@ cfg_src_dir     = os.environ.get("SPRINT_CFG_SRC_DIR", "src")
 cfg_test_dir    = os.environ.get("SPRINT_CFG_TEST_DIR", "tests")
 cfg_test_unit_dir = os.environ.get("SPRINT_CFG_TEST_UNIT_DIR", "tests/unit")
 cfg_extra_dir_roots = os.environ.get("SPRINT_CFG_EXTRA_DIR_ROOTS", "")
+cfg_known_extensionless = os.environ.get("SPRINT_KNOWN_EXTENSIONLESS_FILES", "")
 tracker_dir     = os.environ.get("SPRINT_TRACKER_DIR", "")
 reducer_path    = os.environ.get("SPRINT_REDUCER", "")
 
@@ -440,6 +443,13 @@ def extract_files(text):
     # Python module notation
     for m in re.finditer(r"\b((?:" + re.escape(cfg_src_dir) + r"|app)(?:\.\w+)+)\b", text):
         files.add(m.group(1).replace(".", "/") + ".py")
+
+    # Known extension-less dispatcher files passed in from bash (colon-separated).
+    # Regexes above require a file extension; these are matched by substring so they
+    # participate in overlap detection. Add new entries via SPRINT_KNOWN_EXTENSIONLESS_FILES.
+    for path in (p for p in cfg_known_extensionless.split(":") if p):
+        if path in text:
+            files.add(path)
 
     # Implied test files for src_dir files
     src_prefix = cfg_src_dir + "/"

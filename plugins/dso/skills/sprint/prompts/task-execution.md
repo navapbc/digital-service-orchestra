@@ -16,6 +16,13 @@ echo "Git root verified: $SUB_AGENT_ROOT (differs from orchestrator root: $ORCHE
 
 If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and continue.
 
+**CWD lock (isolation:worktree mode)**: When `ORCHESTRATOR_ROOT` is set, your current working directory at startup IS your isolated worktree root. Treat it as authoritative for all operations in this session:
+- Do NOT `cd` to `ORCHESTRATOR_ROOT` or any path derived from it.
+- Do NOT use `ORCHESTRATOR_ROOT` as a base path for any git command, file read, or file write.
+- All `git` commands (status, add, diff, log) operate on your isolation branch — not the session branch. This is correct and expected.
+- When computing `REPO_ROOT` for script paths (e.g., `.claude/scripts/dso`), always use `git rev-parse --show-toplevel` from your current directory — never substitute `ORCHESTRATOR_ROOT`.
+- The branch name you record in WORKTREE_TRACKING is your isolation branch (output of `git rev-parse --abbrev-ref HEAD` from your CWD), not the orchestrator's session branch.
+
 ### Instructions
 
 **Retry Budget contract**: If the task description contains a `## Retry Budget` block (see implementation-plan SKILL.md Step 3 → Retry Budget), respect the `MAX_ATTEMPTS` cap declared in that block. On terminal failure (you cannot complete the task within budget), emit a final report containing the full failure context — failing test output, files modified, error messages, and a brief diagnosis — so the orchestrator can pass that context to the opus escalation tier.
