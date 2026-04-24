@@ -7,7 +7,7 @@
 # Validates (SKILL.md — 10 tests):
 #   1. Has "## When No Skill Matches" heading (clarification section)
 #   2. Has confidence test pattern ("one sentence what.*why")
-#   3. Has silent investigation tools (Read, Grep, tk show)
+#   3. Has silent investigation tools (Read, Grep, ticket show)
 #   4. Has Intent as labeled probing area
 #   5. Has Scope as labeled probing area
 #   6. Has Risks as labeled probing area
@@ -66,18 +66,18 @@ assert_eq "test_skill_md_has_confidence_test" "found" "$confidence_found"
 assert_pass_if_clean "test_skill_md_has_confidence_test"
 
 # test_skill_md_has_silent_investigation
-# SKILL.md must list silent investigation tools (Read, Grep, tk show)
+# SKILL.md must list silent investigation tools (Read, Grep, ticket show)
 _snapshot_fail
 has_read=0
 has_grep=0
-has_tk_show=0
+has_ticket_show=0
 grep -q "Read" "$SKILL_MD" 2>/dev/null && has_read=1
 grep -q "Grep" "$SKILL_MD" 2>/dev/null && has_grep=1
-grep -qE "tk show" "$SKILL_MD" 2>/dev/null && has_tk_show=1
-investigation_score=$(( has_read + has_grep + has_tk_show ))
+grep -qE "ticket show" "$SKILL_MD" 2>/dev/null && has_ticket_show=1
+investigation_score=$(( has_read + has_grep + has_ticket_show ))
 # Need all three investigation tools mentioned in the clarification context
 # (they may already appear elsewhere; what matters is they appear in the clarification loop)
-if grep -qE "(Read|Grep|tk show).*investigation|investigation.*(Read|Grep|tk show)|silent.*(Read|Grep)|clarif.*(Read|Grep|tk)" "$SKILL_MD" 2>/dev/null; then
+if grep -qE "(Read|Grep|ticket show).*investigation|investigation.*(Read|Grep|ticket show)|silent.*(Read|Grep)|clarif.*(Read|Grep|ticket)" "$SKILL_MD" 2>/dev/null; then
     investigation_found="found"
 else
     investigation_found="missing"

@@ -1,12 +1,9 @@
 """Tests for windowed pull JQL timestamp timezone handling.
 
-The windowed pull in plugins/dso/scripts/tk reads last_pull_timestamp (stored
-as UTC ISO 8601) and formats it for Jira JQL. Jira interprets bare datetime
-strings in the user's profile timezone — not UTC. The formatted timestamp must
-use local time so the JQL window aligns correctly.
-
-Bug: dso-lli8 — tk sync windowed pull uses UTC but Jira reads JQL datetimes as
-user-local timezone.
+The windowed pull reads last_pull_timestamp (stored as UTC ISO 8601) and
+formats it for Jira JQL. Jira interprets bare datetime strings in the user's
+profile timezone — not UTC. The formatted timestamp must use local time so the
+JQL window aligns correctly.
 """
 
 import os
@@ -17,7 +14,6 @@ from pathlib import Path
 REPO_ROOT = Path(
     subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
 )
-TK_SCRIPT = REPO_ROOT / "plugins" / "dso" / "scripts" / "tk"
 
 
 def _run_bash(snippet: str, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -50,10 +46,8 @@ class TestWindowedTimestampTimezone:
           - local (PDT): 16:29
           - Jira reads JQL as local → wrong window if UTC "23:29" is sent.
 
-        This test runs the actual bash line from tk to confirm it is broken
-        (RED), so that after the fix it confirms GREEN.
         """
-        # Run the actual bash one-liner from tk with a controlled UTC timestamp
+        # Run the bash one-liner with a controlled UTC timestamp
         # and a non-UTC timezone. We use TZ env var to force PDT offset.
         bash_snippet = textwrap.dedent("""\
             export LAST_PULL_TS="2026-03-19T23:44:00Z"
@@ -72,9 +66,9 @@ print((t - timedelta(minutes=15)).astimezone().strftime('%Y-%m-%d %H:%M'))" 2>/d
         # The fix uses .astimezone() to convert UTC → local before formatting.
         # We assert the output is NOT the raw UTC value to detect the bug.
         assert output != "2026-03-19 23:29", (
-            f"tk windowed-pull snippet produced UTC time {output!r} for a non-UTC "
+            f"Windowed-pull snippet produced UTC time {output!r} for a non-UTC "
             "system timezone. Jira will interpret this as local time, causing the "
-            "JQL window to be off by the timezone offset (dso-lli8)."
+            "JQL window to be off by the timezone offset."
         )
 
     def test_utc_timestamp_produces_correct_local_time_value(self):
@@ -101,7 +95,7 @@ print((t - timedelta(minutes=15)).astimezone().strftime('%Y-%m-%d %H:%M'))" 2>/d
         # PDT = UTC-7 (March 2026 is after DST spring-forward on March 8, 2026)
         assert output == "2026-03-19 16:29", (
             f"Expected local PDT time '2026-03-19 16:29', got {output!r}. "
-            "The snippet must convert UTC → local time before formatting (dso-lli8)."
+            "The snippet must convert UTC → local time before formatting."
         )
 
     def test_utc_timezone_produces_unchanged_output(self):
