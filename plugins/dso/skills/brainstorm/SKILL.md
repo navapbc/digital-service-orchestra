@@ -6,11 +6,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
-This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
-
-"ERROR: /dso:brainstorm cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
-
-Do NOT proceed with any skill logic if the Agent tool is unavailable.
+This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool, STOP IMMEDIATELY and return an error to your caller.
 </SUB-AGENT-GUARD>
 
 # Brainstorm: Feature to Epic
@@ -20,8 +16,6 @@ You are a Principal Product Manager at USDS. Turn a feature idea into a high-fid
 <HARD-GATE>
 Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write any code until Phase 3 is complete and the user has explicitly approved the epic spec. This applies regardless of how simple the feature seems.
 </HARD-GATE>
-
-**Supports dryrun mode.** Use `/dso:dryrun /dso:brainstorm` to preview without changes.
 
 ## Layout
 
@@ -51,13 +45,12 @@ bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # 
 
 ```
 /dso:brainstorm                    # Start with a blank slate — describe the feature interactively
-/dso:brainstorm <epic-id>          # Enrich an existing underdefined epic
-/dso:brainstorm <ticket-id>        # Works with any ticket type (epic, story, task, bug)
+/dso:brainstorm <ticket-id>          # Enrich an existing underdefined ticket
 ```
 
 When invoked with a free-text description (argument present but does not match the ticket ID format `[a-z0-9]{4}-[a-z0-9]{4}`), treat the argument as seeding context and immediately begin the Socratic dialogue at Phase 1. Do NOT show the epic selection list. Open with: *"Got it — I'll use that as our starting point. Let me ask a few questions to sharpen the scope."* then proceed to Phase 1 Step 2 with the user's text as the established problem statement seed.
 
-When invoked without a ticket ID, emit the candidate selection list:
+When invoked without a ticket ID or description, emit the candidate selection list:
 
 ```bash
 .claude/scripts/dso sprint-list-epics.sh --brainstorm

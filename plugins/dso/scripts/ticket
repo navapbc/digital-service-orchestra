@@ -19,6 +19,7 @@
 #   ticket bridge-fsck [--tickets-tracker=<path>] — audit bridge mappings (orphans, duplicates, stale SYNCs)
 #   ticket tag <ticket_id> <tag>                  — add a tag to a ticket
 #   ticket untag <ticket_id> <tag>                — remove a tag from a ticket
+#   ticket summary <id> [<id> ...]                — one-line ticket summary with blocking status
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,8 +40,20 @@ _usage() {
     echo "  edit          Edit ticket fields (--title, --priority, --assignee, --ticket_type)"
     echo "  tag           Add a tag to a ticket"
     echo "  untag         Remove a tag from a ticket"
+    echo "  validate      Validate ticket quality (exit 0-4 by score; --json, --terse)"
+    echo "  classify      Classify task for routing (JSON output with model/subagent/class/complexity/priority)"
+    echo "  clarity-check Score ticket clarity (exit 0=pass, 1=fail; JSON: score/verdict/threshold)"
+    echo "  check-ac      Check ticket has Acceptance Criteria block (exit 0=pass, 1=fail; AC_CHECK: pass|fail)"
+    echo "  quality-check Check ticket dispatch readiness (exit 0=pass, 1=fail; QUALITY: pass|fail)"
+    echo "  purge-bridge  Remove non-project inbound bridge tickets (--keep=<KEY> [--dry-run])"
+    echo "  summary       One-line ticket summary with blocking status for one or more IDs"
     echo "  bridge-status Show last bridge run status [--format=json]"
     echo "  bridge-fsck   Audit bridge mappings (orphans, duplicates, stale SYNCs)"
+    echo "  exists        O(1) presence check (exit 0=exists, 1=not found)"
+    echo "  list-epics    List open epics [--all] [--has-tag=TAG] [--min-children=N]"
+    echo "  list-descendants  BFS walk from a root ticket, bucketed by type (JSON)"
+    echo "  next-batch    Select next parallel agent batch for an epic [--json]"
+    echo "  ready         List tickets ready to work (all blockers closed)"
     exit 1
 }
 
@@ -203,6 +216,27 @@ case "$subcommand" in
         _ticketlib_dispatch ticket_list "$@"
         exit $?
         ;;
+    list-epics)
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then _ensure_initialized; fi
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_list_epics "$@"
+        exit $?
+        ;;
+    list-descendants)
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then _ensure_initialized; fi
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_list_descendants "$@"
+        exit $?
+        ;;
+    next-batch)
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then _ensure_initialized; fi
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_next_batch "$@"
+        exit $?
+        ;;
     comment)
         _ensure_initialized
         # shellcheck source=/dev/null
@@ -277,6 +311,13 @@ case "$subcommand" in
         _ticketlib_dispatch ticket_edit "$@"
         exit $?
         ;;
+    exists)
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then _ensure_initialized; fi
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_exists "$@"
+        exit $?
+        ;;
     tag)
         _ensure_initialized
         # shellcheck source=/dev/null
@@ -289,6 +330,94 @@ case "$subcommand" in
         # shellcheck source=/dev/null
         source "$SCRIPT_DIR/ticket-lib-api.sh"
         _ticketlib_dispatch ticket_untag "$@"
+        exit $?
+        ;;
+    validate)
+        # REVIEW-DEFENSE: _ensure_initialized is intentionally omitted here.
+        # validate-issues.sh reads tickets via TICKET_CMD env var (injectable for tests).
+        # In production TICKET_CMD defaults to the ticket script itself, which calls
+        # _ensure_initialized when it runs ticket list — initialization is transitive.
+        # Calling _ensure_initialized here would break test isolation where TICKET_CMD
+        # is mocked and no real ticket store exists.
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_validate "$@"
+        exit $?
+        ;;
+    classify)
+        # REVIEW-DEFENSE: _ensure_initialized is intentionally omitted here.
+        # classify-task.sh reads tickets via TICKET_CMD env var (injectable for tests).
+        # In production TICKET_CMD defaults to the ticket script itself, which calls
+        # _ensure_initialized when it runs ticket show — initialization is transitive.
+        # Calling _ensure_initialized here would break test isolation where TICKET_CMD
+        # is mocked and no real ticket store exists.
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_classify "$@"
+        exit $?
+        ;;
+    clarity-check)
+        # REVIEW-DEFENSE: _ensure_initialized is intentionally omitted here.
+        # ticket-clarity-check.sh reads tickets via DSO_CLI (not TICKET_CMD), so test
+        # isolation uses --stdin mode (pipe fixture JSON directly) rather than env injection.
+        # In production DSO_CLI calls ticket show, which calls _ensure_initialized —
+        # initialization is transitive. Calling _ensure_initialized here would break
+        # test isolation where no real ticket store exists.
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_clarity_check "$@"
+        exit $?
+        ;;
+    check-ac)
+        # REVIEW-DEFENSE: _ensure_initialized is intentionally omitted here.
+        # check-acceptance-criteria.sh reads tickets via TICKET_CMD env var (injectable for tests).
+        # In production TICKET_CMD defaults to the ticket script itself, which calls
+        # _ensure_initialized when it runs ticket show — initialization is transitive.
+        # Calling _ensure_initialized here would break test isolation where TICKET_CMD
+        # is mocked and no real ticket store exists.
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_check_ac "$@"
+        exit $?
+        ;;
+    quality-check)
+        # REVIEW-DEFENSE: _ensure_initialized is intentionally omitted here.
+        # issue-quality-check.sh reads tickets via TICKET_CMD env var (injectable for tests).
+        # In production TICKET_CMD defaults to the ticket script itself, which calls
+        # _ensure_initialized when it runs ticket show — initialization is transitive.
+        # Calling _ensure_initialized here would break test isolation where TICKET_CMD
+        # is mocked and no real ticket store exists.
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_quality_check "$@"
+        exit $?
+        ;;
+    purge-bridge)
+        # Skip _ensure_initialized when TICKETS_TRACKER_DIR is set (test environments
+        # provide their own tracker dir and should not trigger ticket-init.sh).
+        # purge-non-project-tickets.sh handles tracker initialization internally.
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then
+            _ensure_initialized
+        fi
+        exec bash "$SCRIPT_DIR/purge-non-project-tickets.sh" "$@"
+        ;;
+    ready)
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then _ensure_initialized; fi
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_ready "$@"
+        exit $?
+        ;;
+    summary)
+        # REVIEW-DEFENSE: _ensure_initialized is intentionally omitted here.
+        # issue-summary.sh reads tickets via TICKET_CMD env var (injectable for tests).
+        # In production TICKET_CMD defaults to the ticket script itself, which calls
+        # _ensure_initialized when it runs ticket show — initialization is transitive.
+        # Calling _ensure_initialized here would break test isolation where TICKET_CMD
+        # is mocked and no real ticket store exists.
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_summary "$@"
         exit $?
         ;;
     *)
