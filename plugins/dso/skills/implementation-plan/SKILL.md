@@ -1001,11 +1001,19 @@ Each task must include:
 
 **Required command form** — always include acceptance criteria via `-d`:
 
+Before creating each task, partition the story's done definitions across all tasks in the plan so that every DD appears in exactly one task's Story DD Coverage section. Every story DD must be owned by at least one task. Leave no DD unassigned.
+
 ```bash
 # Create the task with acceptance criteria included in description
 TASK_ID=$(.claude/scripts/dso ticket create task "{title}" --parent=<story-id> --priority=2 -d "$(cat <<'DESCRIPTION'
 ## Testing Mode
 <RED|GREEN|UPDATE>
+
+## Story DD Coverage
+This task is responsible for satisfying the following story done definitions:
+- DD{N}: {exact done definition text from story}
+- DD{M}: {exact done definition text from story}
+(List only the DDs this task owns. Omit DDs owned by other tasks in the plan.)
 
 ## Acceptance Criteria
 - [ ] `make test-unit-only` passes (exit 0)

@@ -13,7 +13,7 @@
 #   show       × 8   (reads)
 #   list       × 2   (reads)
 #   comment    × 4   (writes)
-#   transition × 2   (writes: open → in_progress)
+#   transition × 2   (writes: open → in_progress, then in_progress → open to reset state)
 #   tag        × 2   (writes)
 #   create     × 2   (writes)
 

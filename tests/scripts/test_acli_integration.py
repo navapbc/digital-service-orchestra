@@ -1194,8 +1194,8 @@ def test_create_from_json_payload_returns_none_on_user_not_found_for_email(
     )
 
     with (
-        patch("subprocess.run", side_effect=user_not_found_error),
-        patch("time.sleep"),
+        patch("subprocess.run", side_effect=user_not_found_error) as mock_run,
+        patch("time.sleep") as mock_sleep,
     ):
         result = acli._create_from_json_payload(
             {"summary": "Sync ticket", "assignee": {"name": "Worktree"}}
@@ -1204,4 +1204,12 @@ def test_create_from_json_payload_returns_none_on_user_not_found_for_email(
     assert result is None, (
         f"_create_from_json_payload must return None when ACLI reports "
         f"'User not found for email: Worktree', but got: {result!r}."
+    )
+    assert mock_run.call_count == 1, (
+        f"'User not found for email:' errors must fast-abort without retry; "
+        f"expected 1 subprocess.run call, got {mock_run.call_count}"
+    )
+    assert mock_sleep.call_count == 0, (
+        f"'User not found for email:' errors must not trigger backoff sleep; "
+        f"got {mock_sleep.call_count} sleep call(s)"
     )
