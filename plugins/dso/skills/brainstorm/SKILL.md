@@ -288,6 +288,7 @@ Using the chosen approach and the Phase 1 dialogue, draft the epic spec:
 - Apply the **verifiable-SC check** at `shared/prompts/verifiable-sc-check.md` to every drafted SC (post-deployment measurement SCs are prohibited from the verifiable SC list; remediation options: rewrite as verifiable proxy, or tag as `DEFERRED_MEASUREMENT`)
 - Describe outcomes, not implementation ("Users can download results as CSV" not "Implement CSV export endpoint")
 - At least one criterion should hint at a validation signal — how you'll know the capability is actually being used
+- **Superseding or closing another epic is NEVER an SC.** Ticket bookkeeping (closing superseded epics, re-parenting children, updating links) is executed as post-creation work in Phase 3 after `ticket create` returns the new epic ID. Including it as an SC conflates the epic's delivered outcome with the workflow step that records the outcome — the `ticket transition` call is a side-effect of scope consolidation, not a criterion a reviewer can pass or fail the epic against. When a supersede is part of the scope, record it in the Phase 3 bookkeeping plan; do not list it under `## Success Criteria`.
 
 **Context narrative rules:**
 - Name the specific user or stakeholder affected
