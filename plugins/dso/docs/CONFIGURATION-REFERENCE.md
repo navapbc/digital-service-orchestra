@@ -72,7 +72,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Source code directory, relative to `paths.app_dir`. Used for file impact analysis and auto-format scope. |
 | **Accepted values** | Relative directory path (e.g., `src`, `lib`) |
 | **Default** | `src` |
-| **Used by** | `hooks/lib/config-paths.sh`, `scripts/sprint-next-batch.sh` | # shim-exempt: internal implementation references in config documentation
+| **Used by** | `hooks/lib/config-paths.sh`, `scripts/ticket-next-batch.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -83,7 +83,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Test directory, relative to `paths.app_dir`. Used for test file discovery, snapshot paths, and file impact analysis. |
 | **Accepted values** | Relative directory path (e.g., `tests`, `test`) |
 | **Default** | `tests` |
-| **Used by** | `hooks/lib/config-paths.sh`, `scripts/sprint-next-batch.sh` | # shim-exempt: internal implementation references in config documentation
+| **Used by** | `hooks/lib/config-paths.sh`, `scripts/ticket-next-batch.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -94,7 +94,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Unit test directory, relative to `paths.app_dir`. Used for targeted test discovery when distinguishing unit from integration tests. |
 | **Accepted values** | Relative directory path (e.g., `tests/unit`) |
 | **Default** | Absent — falls back to `paths.test_dir` |
-| **Used by** | `scripts/sprint-next-batch.sh` | # shim-exempt: internal implementation reference in config documentation
+| **Used by** | `scripts/ticket-next-batch.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -105,7 +105,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Path to the Python virtual environment interpreter, relative to the repo root. Used to locate the correct Python binary for running scripts and tests. |
 | **Accepted values** | Relative file path (e.g., `app/.venv/bin/python3`, `.venv/bin/python3`) |
 | **Default** | `app/.venv/bin/python3` |
-| **Used by** | `hooks/lib/config-paths.sh`, `scripts/sprint-next-batch.sh` | # shim-exempt: internal implementation references in config documentation
+| **Used by** | `hooks/lib/config-paths.sh`, `scripts/ticket-next-batch.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
