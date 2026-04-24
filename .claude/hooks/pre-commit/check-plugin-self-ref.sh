@@ -56,9 +56,16 @@ if [[ $_violations -gt 0 ]]; then
         echo "$_detail" >&2
     done
     echo "" >&2
-    echo "Fix: replace hardcoded plugins/dso paths with _PLUGIN_ROOT (scripts)" >&2
-    echo "     or \${CLAUDE_PLUGIN_ROOT}/ (markdown). Remove or rewrite the reference." >&2
-    echo "     Example (markdown): plugins/dso/path -> \${CLAUDE_PLUGIN_ROOT}/path" >&2
+    echo "Fix: remove every literal 'plugins/dso' from the source. Two patterns:" >&2
+    echo "" >&2
+    echo "  Bash scripts — derive a git-relative path variable, then pass it to" >&2
+    echo "  sub-processes via env var (no literal 'plugins/dso' in the script):" >&2
+    echo "      _PLUGIN_GIT_PATH=\"\${CLAUDE_PLUGIN_ROOT#\"\$REPO_ROOT\"/}\"" >&2
+    echo "      SOME_PATH=\"\${_PLUGIN_GIT_PATH}/scripts/foo\" some-subprocess" >&2
+    echo "  (For direct filesystem access, use \$CLAUDE_PLUGIN_ROOT / _PLUGIN_ROOT.)" >&2
+    echo "" >&2
+    echo "  Markdown / agent files — use \${CLAUDE_PLUGIN_ROOT}/ substitution:" >&2
+    echo "      plugins/dso/path -> \${CLAUDE_PLUGIN_ROOT}/path" >&2
     echo "" >&2
     echo "check-plugin-self-ref: $_violations violation(s) found. Commit blocked." >&2
     exit 1
