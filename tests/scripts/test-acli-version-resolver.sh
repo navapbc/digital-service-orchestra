@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-acli-version-resolver.sh
-# Behavioral tests for plugins/dso/scripts/acli-version-resolver.sh
+# Behavioral tests for plugins/dso/scripts/onboarding/acli-version-resolver.sh
 #
 # Integration tests against live acli.atlassian.com out of scope for CI.
 # PoC script serves as manual integration validation.
@@ -16,7 +16,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-SCRIPT="$DSO_PLUGIN_DIR/scripts/acli-version-resolver.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/onboarding/acli-version-resolver.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

@@ -2,7 +2,7 @@
 #
 # EXAMPLE: Copy to your project root as CLAUDE.md and customize.
 # This template is for projects that have installed the DSO plugin via
-# `bash .claude/scripts/dso dso-setup.sh .` (shim form).
+# `bash .claude/scripts/dso onboarding/dso-setup.sh .` (shim form).
 #
 # All DSO scripts are invoked through the shim: `.claude/scripts/dso <script-name>`
 # The shim resolves DSO_ROOT from CLAUDE_PLUGIN_ROOT env var or workflow-config.conf.

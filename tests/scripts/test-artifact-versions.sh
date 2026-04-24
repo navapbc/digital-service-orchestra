@@ -304,7 +304,7 @@ _snapshot_fail
 
 _dir_gitignore="$(new_tmpdir)"
 # Use dso-setup.sh (not make_host_repo) — dso-setup.sh is what appends the cache path to .gitignore
-bash "$PLUGIN_ROOT/plugins/dso/scripts/dso-setup.sh" "$_dir_gitignore" "$PLUGIN_ROOT/plugins/dso" >/dev/null 2>&1 || true
+bash "$PLUGIN_ROOT/plugins/dso/scripts/onboarding/dso-setup.sh" "$_dir_gitignore" "$PLUGIN_ROOT/plugins/dso" >/dev/null 2>&1 || true
 
 if grep -qF '.claude/dso-artifact-check-cache' "$_dir_gitignore/.gitignore" 2>/dev/null; then
     _gi_result="found"

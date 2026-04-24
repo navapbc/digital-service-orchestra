@@ -564,7 +564,7 @@ main() {
   # Uses a path under project_dir rather than mktemp so it works under restricted
   # PATH environments (e.g., test stubs) that may not have /usr/bin/mktemp.
   local _detect_output=""
-  local _detect_script="$resolved_plugin_root/scripts/project-detect.sh"
+  local _detect_script="$resolved_plugin_root/scripts/onboarding/project-detect.sh"
   if [[ -x "$_detect_script" ]] && [[ -d "$project_dir" ]]; then
     _detect_output="$project_dir/.dso-detect-output.tmp"
     "$_detect_script" "$project_dir" > "$_detect_output" 2>/dev/null || : > "$_detect_output"
@@ -572,7 +572,7 @@ main() {
   fi
 
   # Step 5c: Configure project with DSO defaults (shim, CLAUDE.md, hooks)
-  local _setup_script="$resolved_plugin_root/scripts/dso-setup.sh"
+  local _setup_script="$resolved_plugin_root/scripts/onboarding/dso-setup.sh"
   if [[ -f "$_setup_script" ]]; then
     echo "Configuring project with DSO defaults..."
     bash "$_setup_script" "$project_dir" "$resolved_plugin_root" \

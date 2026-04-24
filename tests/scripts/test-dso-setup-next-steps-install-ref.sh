@@ -18,7 +18,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SETUP_SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/dso-setup.sh"
+SETUP_SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/onboarding/dso-setup.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

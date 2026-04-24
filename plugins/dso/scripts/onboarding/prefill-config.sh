@@ -21,7 +21,7 @@ set -uo pipefail
 #   1 — usage error
 
 # ── Resolve plugin root (no hardcoded plugin path) ───────────────────────────
-_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PLUGIN_SCRIPTS="$_PLUGIN_ROOT/scripts"
 
 # ── Argument parsing ──────────────────────────────────────────────────────────

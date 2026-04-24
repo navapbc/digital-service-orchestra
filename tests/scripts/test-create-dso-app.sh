@@ -1197,9 +1197,9 @@ test_installer_configures_dso_shim_after_deps() {
     fake_plugin_root="$T/fake-plugin"
 
     # Fake plugin root: plugin.json sentinel + stub dso-setup.sh that creates the shim
-    mkdir -p "$fake_plugin_root/.claude-plugin" "$fake_plugin_root/scripts"
+    mkdir -p "$fake_plugin_root/.claude-plugin" "$fake_plugin_root/scripts/onboarding"
     echo '{"name":"dso","version":"1.0.0"}' > "$fake_plugin_root/.claude-plugin/plugin.json"
-    cat > "$fake_plugin_root/scripts/dso-setup.sh" <<'SETUPEOF'
+    cat > "$fake_plugin_root/scripts/onboarding/dso-setup.sh" <<'SETUPEOF'
 #!/bin/sh
 target="${1:-}"
 if [ -n "$target" ]; then
@@ -1209,7 +1209,7 @@ if [ -n "$target" ]; then
 fi
 exit 0
 SETUPEOF
-    chmod +x "$fake_plugin_root/scripts/dso-setup.sh"
+    chmod +x "$fake_plugin_root/scripts/onboarding/dso-setup.sh"
 
     stub_bin=$(_installer_stub_bin)
     # Override bash stub: handle --version (returns >=4 for version check) but
@@ -1251,15 +1251,15 @@ test_installer_shim_installed_even_when_dso_setup_fails() {
     fake_plugin_root="$T/fake-plugin"
 
     # Fake plugin root: plugin.json sentinel + FAILING dso-setup.sh + shim template
-    mkdir -p "$fake_plugin_root/.claude-plugin" "$fake_plugin_root/scripts" \
+    mkdir -p "$fake_plugin_root/.claude-plugin" "$fake_plugin_root/scripts/onboarding" \
              "$fake_plugin_root/templates/host-project"
     echo '{"name":"dso","version":"1.0.0"}' > "$fake_plugin_root/.claude-plugin/plugin.json"
     # dso-setup.sh that exits 1 (simulates detect_prerequisites failure)
-    cat > "$fake_plugin_root/scripts/dso-setup.sh" <<'SETUPEOF'
+    cat > "$fake_plugin_root/scripts/onboarding/dso-setup.sh" <<'SETUPEOF'
 #!/bin/sh
 exit 1
 SETUPEOF
-    chmod +x "$fake_plugin_root/scripts/dso-setup.sh"
+    chmod +x "$fake_plugin_root/scripts/onboarding/dso-setup.sh"
     # Shim template that the fallback should copy
     printf '#!/bin/sh\n# DSO shim\nexec dso "$@"\n' \
         > "$fake_plugin_root/templates/host-project/dso"

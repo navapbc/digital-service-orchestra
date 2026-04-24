@@ -102,7 +102,7 @@ Run detection scripts **silently** (before showing output to the user):
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-DETECT_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso project-detect.sh" "$REPO_ROOT" 2>/dev/null || echo "")
+DETECT_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso onboarding/project-detect.sh" "$REPO_ROOT" 2>/dev/null || echo "")
 STACK_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso detect-stack.sh" "$REPO_ROOT" 2>/dev/null || echo "unknown")
 ```
 
@@ -497,7 +497,7 @@ Run `parse-template-registry.sh` to fetch available templates:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-REGISTRY_OUTPUT=$(bash "$PLUGIN_SCRIPTS/parse-template-registry.sh" 2>/tmp/template-registry-warn.txt)  # shim-exempt: internal orchestration script
+REGISTRY_OUTPUT=$(bash "$PLUGIN_SCRIPTS/onboarding/parse-template-registry.sh" 2>/tmp/template-registry-warn.txt)  # shim-exempt: internal orchestration script
 ```
 
 **Fallback behavior**: If `$REGISTRY_OUTPUT` is empty (regardless of exit code), the template registry is missing or malformed. In that case:
@@ -645,7 +645,7 @@ Do NOT surface this warning to the user as an error — continue to Step 3 regar
 Re-run `project-detect.sh` to pick up the `package.json`, `pyproject.toml`, CI workflows, and test directories introduced by the template:
 
 ```bash
-POST_INSTALL_DETECT=$(bash "$REPO_ROOT/.claude/scripts/dso project-detect.sh" "$REPO_ROOT" 2>/dev/null || echo "")
+POST_INSTALL_DETECT=$(bash "$REPO_ROOT/.claude/scripts/dso onboarding/project-detect.sh" "$REPO_ROOT" 2>/dev/null || echo "")
 
 # Refresh file-level detection now that template files are present
 [ -f "$REPO_ROOT/package.json" ] && POST_INSTALL_PKG=$(cat "$REPO_ROOT/package.json" 2>/dev/null) || POST_INSTALL_PKG=""
@@ -1362,7 +1362,7 @@ If the user accepts, invoke `ci-generator.sh` via the detected test suite list f
 When the project uses Claude Code (Claude CLI / `acli`), suggest the current version and checksum automatically by running:
 
 ```bash
-bash "$REPO_ROOT/.claude/scripts/dso" acli-version-resolver.sh 2>/dev/null
+bash "$REPO_ROOT/.claude/scripts/dso" onboarding/acli-version-resolver.sh 2>/dev/null
 ```
 
 If the script is unavailable or returns non-zero, fall back to a WebFetch of the latest release from the acli releases endpoint. Present the suggestion as a pre-filled config value:
@@ -1400,7 +1400,7 @@ if [[ ! -f "$REPO_ROOT/templates/host-project/dso" ]]; then
     echo "Cannot install DSO shim — check that the DSO plugin is correctly installed."
     exit 1
 fi
-bash "$PLUGIN_SCRIPTS/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"  # shim-exempt: bootstrap install — shim does not yet exist
+bash "$PLUGIN_SCRIPTS/onboarding/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"  # shim-exempt: bootstrap install — shim does not yet exist
 ```
 
 This is idempotent — safe to re-run on projects that already have the shim installed.
