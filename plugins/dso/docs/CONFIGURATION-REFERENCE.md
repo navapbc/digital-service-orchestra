@@ -1496,6 +1496,18 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 ---
 
+### `DSO_TICKET_LEGACY`
+
+| | |
+|---|---|
+| **Description** | Routes ticket CLI operations to legacy per-op `.sh` subprocess scripts instead of the bash-native `ticket-lib-api.sh` sourced library. Set to `1` to enable legacy mode. When unset (the default), the dispatcher uses `ticket-lib-api.sh` for all subcommand calls. Use this flag when debugging a suspected regression in the bash-native path or when rolling back temporarily. Do not use as a permanent workaround — file a bug ticket instead. |
+| **Default** | Unset (uses `ticket-lib-api.sh` library path) |
+| **Value** | `=1` to enable legacy subprocess mode |
+| **Required** | Optional — debugging/rollback only |
+| **Usage context** | `.claude/scripts/dso ticket` dispatcher, `ticket-lib-api.sh` (checked inside each library function) |
+
+---
+
 ### `TK_SYNC_SKIP_WORKTREE_PUSH`
 
 | | |
