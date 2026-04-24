@@ -27,7 +27,12 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Full validation suite | `.claude/scripts/dso validate.sh [--ci]` |
 | Merge worktree to main | `.claude/scripts/dso merge-to-main.sh [--resume]` |
 | Harvest worktree to session | `.claude/scripts/dso harvest-worktree <branch> <artifacts-dir>` |
-| List ready tickets | `.claude/scripts/dso ticket list` |
+| List all tickets (JSON) | `.claude/scripts/dso ticket list` |
+| Check if ticket exists | `.claude/scripts/dso ticket exists <id>` |
+| List open epics | `.claude/scripts/dso ticket list-epics [--all] [--has-tag=TAG]` |
+| List ticket descendants (BFS) | `.claude/scripts/dso ticket list-descendants <id>` |
+| Next agent batch for epic | `.claude/scripts/dso ticket next-batch <epic-id> [--json]` |
+| List tickets ready to work | `.claude/scripts/dso ticket ready [--epic=<id>]` |
 | Show ticket details | `.claude/scripts/dso ticket show <id>` |
 | Create a ticket | `.claude/scripts/dso ticket create <type> <title> [--description <text>] [--tags <tag>] [--parent <parent>] [--priority <priority>]` |
 | Close a ticket | `.claude/scripts/dso ticket transition <id> <current-status> closed` (bug tickets require `--reason="Fixed: <summary>"`) |
