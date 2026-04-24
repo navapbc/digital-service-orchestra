@@ -44,6 +44,7 @@ _usage() {
     echo "  clarity-check Score ticket clarity (exit 0=pass, 1=fail; JSON: score/verdict/threshold)"
     echo "  check-ac      Check ticket has Acceptance Criteria block (exit 0=pass, 1=fail; AC_CHECK: pass|fail)"
     echo "  quality-check Check ticket dispatch readiness (exit 0=pass, 1=fail; QUALITY: pass|fail)"
+    echo "  purge-bridge  Remove non-project inbound bridge tickets (--keep=<KEY> [--dry-run])"
     echo "  bridge-status Show last bridge run status [--format=json]"
     echo "  bridge-fsck   Audit bridge mappings (orphans, duplicates, stale SYNCs)"
     exit 1
@@ -355,6 +356,15 @@ case "$subcommand" in
         source "$SCRIPT_DIR/ticket-lib-api.sh"
         _ticketlib_dispatch ticket_quality_check "$@"
         exit $?
+        ;;
+    purge-bridge)
+        # Skip _ensure_initialized when TICKETS_TRACKER_DIR is set (test environments
+        # provide their own tracker dir and should not trigger ticket-init.sh).
+        # purge-non-project-tickets.sh handles tracker initialization internally.
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then
+            _ensure_initialized
+        fi
+        exec bash "$SCRIPT_DIR/purge-non-project-tickets.sh" "$@"
         ;;
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2
