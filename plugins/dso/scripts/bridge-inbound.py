@@ -279,11 +279,9 @@ def process_inbound(
     """
     import logging
 
-    # UTC health check — halt if not UTC
-    if not verify_jira_timezone_utc(acli_client):
-        msg = "Jira service account timezone is not UTC — aborting inbound sync"
-        logging.error(msg)
-        raise RuntimeError(msg)
+    # UTC health check — warn but continue; fetch_jira_changes converts the
+    # buffered datetime to the service account's local TZ before formatting JQL.
+    verify_jira_timezone_utc(acli_client)
 
     bridge_env_id = config.get("bridge_env_id", "")
     status_mapping = config.get("status_mapping", {})
