@@ -282,3 +282,4 @@ docs/designs/stage-boundary-preconditions/:tests/docs/test-stage-boundary-precon
 plugins/dso/scripts/onboarding/plugin-inventory.sh:tests/unit/scripts/test-plugin-inventory.sh
 plugins/dso/scripts/onboarding/detect-enforcement-artifacts.sh:tests/unit/scripts/test-detect-enforcement-artifacts.sh
 plugins/dso/scripts/onboarding/adr-upsert.sh:tests/unit/scripts/test-adr-upsert.sh
+plugins/dso/hooks/check-tickets-boundary.sh:tests/hooks/test-check-tickets-boundary.sh [test_direct_tracker_ref_rejected]
