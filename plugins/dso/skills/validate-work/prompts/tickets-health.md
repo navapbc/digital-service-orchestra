@@ -30,8 +30,8 @@ Note: `ticket` and the ticket CLI are CLI commands available in PATH — no conf
    ```
 
 Also run these supplementary checks:
-4. `.claude/scripts/dso ticket list`            (report open/in-progress issues with all deps resolved)
-5. `.claude/scripts/dso ticket list`          (report blocked issues)
+4. `.claude/scripts/dso ticket ready`                (report open/in-progress issues with all deps resolved)
+5. `.claude/scripts/dso ticket list --status=open,in_progress` (grep for blocked issues by inverse of ready set)
 6. `.claude/scripts/dso ticket list --status closed` (report recently closed issues)
 
 ## Return

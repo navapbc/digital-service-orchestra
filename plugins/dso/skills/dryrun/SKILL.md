@@ -30,7 +30,7 @@ When dryrun mode is active, follow the target skill's full workflow but apply th
 
 ### DO execute
 
-- Read-only commands (`.claude/scripts/dso ticket list`, `.claude/scripts/dso ticket show`, `git status`, `git log`)
+- Read-only commands (`.claude/scripts/dso ticket list [--type=<type>] [--status=<status>] [--parent=<id>] [--format=llm]`, `.claude/scripts/dso ticket show`, `git status`, `git log`)
 - File reads (`Read`, `Glob`, `Grep`)
 - Check scripts (`check-onboarding.sh`, `validate-issues.sh`)
 - `AskUserQuestion` — the interview/dialogue portions run normally

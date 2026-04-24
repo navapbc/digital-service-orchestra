@@ -59,7 +59,7 @@ make test-unit-only args="-v --tb=short" 2>&1
 make test-e2e args="-v --tb=short" 2>&1
 ```
 
-### Step 3: Collect Beads & Git State (/dso:debug-everything)
+### Step 3: Collect Ticket & Git State (/dso:debug-everything)
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -110,7 +110,7 @@ Unit test failures |   N   | P1       | <test names>
 E2E test failures  |   N   | P1       | <test names>
 Migration heads    |   N   | P1       | <head count, should be 1>
 Open bugs          |   N   | varies   | <issue IDs and titles>
-Beads health       | P/F   | P2       | <issue summary>
+Ticket health      | P/F   | P2       | <issue summary>
 
 CLUSTERS
 ========
@@ -128,7 +128,7 @@ STANDALONE ERRORS
 =================
   - {error summary — not part of any cluster}
 
-BEADS STATE
+TICKET STATE
 ===========
 Open issues: {count} ({ids})
 In-progress issues: {count} ({ids})

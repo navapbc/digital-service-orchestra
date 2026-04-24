@@ -56,7 +56,7 @@ Task has prefix (MC-, V-, A-, I-, L-, RR-) but no parent epic.
 
 ```bash
 # Find the appropriate epic
-.claude/scripts/dso ticket list
+.claude/scripts/dso ticket list --type=epic
 
 # Assign parent (use add-note to record the epic association)
 .claude/scripts/dso ticket comment <task-id> "Parent epic: <epic-id>"

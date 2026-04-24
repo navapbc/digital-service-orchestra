@@ -231,7 +231,7 @@ $ .claude/scripts/dso ticket show --format=llm w21-a3f7
 List all tickets.
 
 ```
-.claude/scripts/dso ticket list [--type=<type>] [--status=<status>] [--format=llm] [--include-archived]
+.claude/scripts/dso ticket list [--type=<type>] [--status=<status>] [--parent=<id>] [--format=llm] [--include-archived]
 ```
 
 **Arguments:**
@@ -239,7 +239,8 @@ List all tickets.
 | Argument | Required | Description |
 |---|---|---|
 | `--type=<type>` | No | Filter by ticket type: `epic`, `story`, `task`, `bug` |
-| `--status=<status>` | No | Filter by status: `open`, `in_progress`, `closed`, `blocked` |
+| `--status=<status>` | No | Filter by status: `open`, `in_progress`, `closed`, `blocked` (comma-separated for multi) |
+| `--parent=<id>` | No | Filter to direct children of `<id>` (matches the `parent_id` field) |
 | `--format=llm` | No | JSONL output — one minified ticket per line (see Output Formats section) |
 | `--include-archived` | No | Include archived tickets in output (default: archived tickets are excluded) |
 

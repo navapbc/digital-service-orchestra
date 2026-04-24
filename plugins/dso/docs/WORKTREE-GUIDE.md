@@ -507,10 +507,15 @@ cd /Users/joeoakhart/lockpick-doc-to-logic-worktrees/feature-auth  # portability
 claude
 ```
 
-Work normally -- write code, run tests, commit. Ticket commands work as usual:
+Work normally -- write code, run tests, commit. Ticket commands work as usual. Prefer scoped filters (`--parent=`, `--status=`, `--type=`) or `ticket ready --epic=<id>` over bare `ticket list`, which dumps the entire tracker into context:
 
 ```bash
-.claude/scripts/dso ticket list
+# Narrow to unblocked work under the epic you're sprinting on
+.claude/scripts/dso ticket ready --epic=<epic-id>
+
+# Or scope directly to direct children of the ticket in focus
+.claude/scripts/dso ticket list --parent=<epic-id> --status=open,in_progress
+
 .claude/scripts/dso ticket transition <id> in_progress
 # ... do the work ...
 make lint && make test
