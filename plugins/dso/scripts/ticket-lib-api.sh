@@ -906,3 +906,9 @@ ticket_validate() {
     return $?
 }
 
+# ── ticket_classify ────────────────────────────────────────────────────────────
+ticket_classify() {
+    bash "$_TICKETLIB_DIR/classify-task.sh" "$@"
+    return $?
+}
+

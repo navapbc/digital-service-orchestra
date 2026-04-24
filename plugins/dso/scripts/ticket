@@ -40,6 +40,7 @@ _usage() {
     echo "  tag           Add a tag to a ticket"
     echo "  untag         Remove a tag from a ticket"
     echo "  validate      Validate ticket quality (exit 0-4 by score; --json, --terse)"
+    echo "  classify      Classify task for routing (JSON output with model/subagent/class/complexity/priority)"
     echo "  bridge-status Show last bridge run status [--format=json]"
     echo "  bridge-fsck   Audit bridge mappings (orphans, duplicates, stale SYNCs)"
     exit 1
@@ -302,6 +303,18 @@ case "$subcommand" in
         # shellcheck source=/dev/null
         source "$SCRIPT_DIR/ticket-lib-api.sh"
         _ticketlib_dispatch ticket_validate "$@"
+        exit $?
+        ;;
+    classify)
+        # REVIEW-DEFENSE: _ensure_initialized is intentionally omitted here.
+        # classify-task.sh reads tickets via TICKET_CMD env var (injectable for tests).
+        # In production TICKET_CMD defaults to the ticket script itself, which calls
+        # _ensure_initialized when it runs ticket show — initialization is transitive.
+        # Calling _ensure_initialized here would break test isolation where TICKET_CMD
+        # is mocked and no real ticket store exists.
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_classify "$@"
         exit $?
         ;;
     *)
