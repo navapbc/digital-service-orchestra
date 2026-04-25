@@ -224,7 +224,7 @@ For each affected consumer, run a targeted verification command. Examples:
 |---------------|---------------------|
 | Ticket CLI | `.claude/scripts/dso ticket list 2>&1 | head -5` — should not error |
 | Hook script | `bash ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-bash.sh '{"tool_name":"Bash","tool_input":{"command":"echo test"}}' 2>&1` |
-| Sprint tooling | `.claude/scripts/dso sprint-list-epics.sh --help 2>&1` |
+| Sprint tooling | `.claude/scripts/dso ticket list-epics --help 2>&1` |
 | Merge workflow | `.claude/scripts/dso merge-to-main.sh --help 2>&1` |
 
 Define verification commands based on what the consumer actually does — prefer lightweight invocations (help flags, dry runs, or smoke inputs) that confirm the consumer can initialize and invoke the changed code path without running a full end-to-end flow.
@@ -238,7 +238,7 @@ For each failed criterion or failed consumer smoke test, include a remediation r
 - `description`: what was missing or broken, with evidence
 - `criterion`: which SC or DD was not met
 
-**The orchestrator creates the actual tickets** — this agent does not write to the ticket system directly. The orchestrator reads the `remediation_tasks_created` array and creates bug tasks that integrate with the `sprint-next-batch.sh` pickup flow.
+**The orchestrator creates the actual tickets** — this agent does not write to the ticket system directly. The orchestrator reads the `remediation_tasks_created` array and creates bug tasks that integrate with the `ticket next-batch` pickup flow.
 
 ### Step 6: Output Verdict
 

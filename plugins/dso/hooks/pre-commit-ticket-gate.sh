@@ -140,16 +140,13 @@ while IFS= read -r _matched_id; do
 done < <(echo "$COMMIT_MSG" | grep -oE '[a-z0-9]{4}-[a-z0-9]{4}' 2>/dev/null || true)
 
 # ── Validate each extracted ticket ID ────────────────────────────────────────
+TICKET_SHIM="${TICKET_SHIM_OVERRIDE:-${REPO_ROOT}/.claude/scripts/dso}"
+# Performance note: shim call (~44ms per ticket) vs direct FS check (<1ms).
+# Bounded by early-exit: returns as soon as any valid ticket ID is found.
+# Correctness gain: ticket-exists.sh checks both CREATE and SNAPSHOT events.
 for _id in "${TICKET_IDS[@]+"${TICKET_IDS[@]}"}"; do
-    _ticket_dir="${TRACKER_DIR}/${_id}"
-    if [[ -d "$_ticket_dir" ]]; then
-        # Check for a CREATE event file in the ticket directory
-        # shellcheck disable=SC2012  # Pre-existing: ls used for glob expansion with head — intentional pattern
-        _create_file=$(ls "$_ticket_dir/"*-CREATE.json 2>/dev/null | head -1 || echo "")
-        if [[ -n "$_create_file" ]]; then
-            # Found a valid ticket — allow commit
-            exit 0
-        fi
+    if TICKETS_TRACKER_DIR="$TRACKER_DIR" "$TICKET_SHIM" ticket exists "$_id" 2>/dev/null; then
+        exit 0
     fi
 done
 

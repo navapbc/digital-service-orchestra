@@ -26,17 +26,19 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-config-callers-updated.sh ==="
 
 # ── test_sprint_next_batch_uses_conf ─────────────────────────────────────────
-# sprint-next-batch.sh should pass .conf paths (not .yaml) to read-config.sh
+# ticket-next-batch.sh (canonical implementation) should pass .conf paths (not
+# .yaml) to read-config.sh. sprint-next-batch.sh is now a thin exec wrapper —
+# the config references live in ticket-next-batch.sh.
 _snapshot_fail
-SPRINT_SCRIPT="$DSO_PLUGIN_DIR/scripts/sprint-next-batch.sh"
+SPRINT_SCRIPT="$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh"
 
 # Check that .claude/dso-config.conf is referenced in active (non-comment) lines
 conf_refs=$(grep -v '^\s*#' "$SPRINT_SCRIPT" | grep -c '\.claude/dso-config\.conf' || true)
-assert_ne "sprint-next-batch.sh references .claude/dso-config.conf" "0" "$conf_refs"
+assert_ne "ticket-next-batch.sh references .claude/dso-config.conf" "0" "$conf_refs"
 
 # Check that no active (non-comment) lines reference .yaml config paths
 yaml_active=$(grep -v '^\s*#' "$SPRINT_SCRIPT" | grep -c 'workflow-config\.yaml' || true)
-assert_eq "sprint-next-batch.sh has no active .yaml refs" "0" "$yaml_active"
+assert_eq "ticket-next-batch.sh has no active .yaml refs" "0" "$yaml_active"
 
 assert_pass_if_clean "test_sprint_next_batch_uses_conf"
 
@@ -88,7 +90,7 @@ dot_claude_refs=$(grep -v '^\s*#' "$VALIDATE_SCRIPT" | grep -c '\.claude/dso-con
 assert_ne "validate.sh references .claude/dso-config.conf" "0" "$dot_claude_refs"
 
 # Check that no active (non-comment) lines construct the old dso-config.conf path
-old_path_active=$(grep -v '^\s*#' "$VALIDATE_SCRIPT" | grep -c '\$REPO_ROOT/workflow-config\.conf' || true)
+old_path_active=$(grep -v '^\s*#' "$VALIDATE_SCRIPT" | grep -c "\$REPO_ROOT/workflow-config\\.conf" || true)
 assert_eq "validate.sh has no active \$REPO_ROOT/dso-config.conf refs" "0" "$old_path_active"
 
 assert_pass_if_clean "test_validate_sh_uses_dot_claude_config"
@@ -102,22 +104,24 @@ VALIDATE_PHASE_SCRIPT="$DSO_PLUGIN_DIR/scripts/validate-phase.sh"
 dot_claude_refs=$(grep -v '^\s*#' "$VALIDATE_PHASE_SCRIPT" | grep -c '\.claude/dso-config\.conf' || true)
 assert_ne "validate-phase.sh references .claude/dso-config.conf" "0" "$dot_claude_refs"
 
-old_path_active=$(grep -v '^\s*#' "$VALIDATE_PHASE_SCRIPT" | grep -c '\$REPO_ROOT/workflow-config\.conf' || true)
+old_path_active=$(grep -v '^\s*#' "$VALIDATE_PHASE_SCRIPT" | grep -c "\$REPO_ROOT/workflow-config\\.conf" || true)
 assert_eq "validate-phase.sh has no active \$REPO_ROOT/dso-config.conf refs" "0" "$old_path_active"
 
 assert_pass_if_clean "test_validate_phase_sh_uses_dot_claude_config"
 
 # ── test_sprint_next_batch_uses_dot_claude_config ────────────────────────────
-# sprint-next-batch.sh should pass $REPO_ROOT/.claude/dso-config.conf to
-# read-config.sh, not $REPO_ROOT/dso-config.conf. RED until dso-2vwl.
+# ticket-next-batch.sh (canonical implementation) should pass
+# $REPO_ROOT/.claude/dso-config.conf to read-config.sh, not
+# $REPO_ROOT/dso-config.conf. sprint-next-batch.sh is now a thin exec wrapper —
+# the config references live in ticket-next-batch.sh.
 _snapshot_fail
-SPRINT_SCRIPT2="$DSO_PLUGIN_DIR/scripts/sprint-next-batch.sh"
+SPRINT_SCRIPT2="$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh"
 
 dot_claude_refs=$(grep -v '^\s*#' "$SPRINT_SCRIPT2" | grep -c '\.claude/dso-config\.conf' || true)
-assert_ne "sprint-next-batch.sh references .claude/dso-config.conf" "0" "$dot_claude_refs"
+assert_ne "ticket-next-batch.sh references .claude/dso-config.conf" "0" "$dot_claude_refs"
 
-old_path_active=$(grep -v '^\s*#' "$SPRINT_SCRIPT2" | grep -c '\$REPO_ROOT/workflow-config\.conf' || true)
-assert_eq "sprint-next-batch.sh has no active \$REPO_ROOT/dso-config.conf refs" "0" "$old_path_active"
+old_path_active=$(grep -v '^\s*#' "$SPRINT_SCRIPT2" | grep -c "\$REPO_ROOT/workflow-config\\.conf" || true)
+assert_eq "ticket-next-batch.sh has no active \$REPO_ROOT/dso-config.conf refs" "0" "$old_path_active"
 
 assert_pass_if_clean "test_sprint_next_batch_uses_dot_claude_config"
 
@@ -132,7 +136,7 @@ _snapshot_fail
 SCRIPTS_DIR2="$DSO_PLUGIN_DIR/scripts"
 
 raw_matches=$(
-    grep -rn '\$REPO_ROOT/workflow-config\.conf\|\${REPO_ROOT}/workflow-config\.conf' \
+    grep -rn "\$REPO_ROOT/workflow-config\\.conf\\|\${REPO_ROOT}/workflow-config\\.conf" \
         "$SCRIPTS_DIR2" --include='*.sh' \
     | grep -v 'read-config\.sh:' \
     | grep -v 'validate-config\.sh:' \

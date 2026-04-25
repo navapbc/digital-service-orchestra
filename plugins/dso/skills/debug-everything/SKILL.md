@@ -791,7 +791,7 @@ Exit 0 means all checks pass. Exit 1 means at least one check requires action (d
 
 Before dispatching sub-agents, create the blackboard file and build per-agent file ownership context from the NxN conflict matrix computed in Phase 3:
 
-1. **Write the blackboard**: Build a JSON object with a top-level `batch` array (matching `sprint-next-batch.sh --json` output format) from Phase 3's file impact analysis, then pipe it to `write-blackboard.sh`:
+1. **Write the blackboard**: Build a JSON object with a top-level `batch` array (matching `ticket next-batch --json` output format) from Phase 3's file impact analysis, then pipe it to `write-blackboard.sh`:
    ```json
    {
      "batch": [

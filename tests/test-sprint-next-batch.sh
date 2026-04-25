@@ -21,6 +21,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 PLUGIN_SCRIPT="$REPO_ROOT/plugins/dso/scripts/sprint-next-batch.sh"
+TICKET_NEXT_BATCH_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-next-batch.sh"
 
 : "${PASS:=0}"
 : "${FAIL:=0}"
@@ -78,6 +79,8 @@ CFGEOF
 
     cp "$PLUGIN_SCRIPT" "$repo_dir/scripts/sprint-next-batch.sh"
     chmod +x "$repo_dir/scripts/sprint-next-batch.sh"
+    cp "$TICKET_NEXT_BATCH_SCRIPT" "$repo_dir/scripts/ticket-next-batch.sh"
+    chmod +x "$repo_dir/scripts/ticket-next-batch.sh"
 }
 
 # ── Test 1: manual:awaiting_user story causes task to be SKIPPED (flag=true) ──

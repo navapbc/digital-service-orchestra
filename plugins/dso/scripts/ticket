@@ -399,7 +399,7 @@ case "$subcommand" in
         if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then
             _ensure_initialized
         fi
-        exec bash "$SCRIPT_DIR/purge-non-project-tickets.sh" "$@"
+        exec bash "$SCRIPT_DIR/ticket-purge-bridge.sh" "$@"
         ;;
     ready)
         if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then _ensure_initialized; fi

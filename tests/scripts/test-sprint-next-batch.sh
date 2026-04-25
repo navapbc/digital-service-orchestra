@@ -13,6 +13,8 @@ DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 SCRIPT="$DSO_PLUGIN_DIR/scripts/sprint-next-batch.sh"
 PLUGIN_SCRIPT="$DSO_PLUGIN_DIR/scripts/sprint-next-batch.sh"
+# Canonical implementation (sprint-next-batch.sh is now a thin exec wrapper)
+CANONICAL_SCRIPT="$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 
@@ -89,6 +91,7 @@ chmod +x "$_t3_fake_repo/scripts/read-config.sh"
 printf '' > "$_t3_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t3_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t3_fake_repo/scripts/sprint-next-batch.sh"
+cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_t3_fake_repo/scripts/ticket-next-batch.sh"
 
 exit_code=0
 output=$(cd "$_t3_fake_repo" && TICKET_CMD="$_t3_fake_repo/scripts/ticket" bash "$_t3_fake_repo/scripts/sprint-next-batch.sh" "t3-epic" 2>&1) || exit_code=$?
@@ -146,6 +149,7 @@ chmod +x "$_t4_fake_repo/scripts/read-config.sh"
 printf '' > "$_t4_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t4_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t4_fake_repo/scripts/sprint-next-batch.sh"
+cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_t4_fake_repo/scripts/ticket-next-batch.sh"
 
 json_exit=0
 json_output=$(cd "$_t4_fake_repo" && TICKET_CMD="$_t4_fake_repo/scripts/ticket" bash "$_t4_fake_repo/scripts/sprint-next-batch.sh" "t4-epic" --json 2>&1) || json_exit=$?
@@ -203,6 +207,7 @@ chmod +x "$_t5_fake_repo/scripts/read-config.sh"
 printf '' > "$_t5_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t5_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t5_fake_repo/scripts/sprint-next-batch.sh"
+cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_t5_fake_repo/scripts/ticket-next-batch.sh"
 
 limit_exit=0
 cd "$_t5_fake_repo" && TICKET_CMD="$_t5_fake_repo/scripts/ticket" bash "$_t5_fake_repo/scripts/sprint-next-batch.sh" "t5-epic" --limit=3 >/dev/null 2>&1 || limit_exit=$?
@@ -240,7 +245,7 @@ fi
 
 # ── Test 8: Plugin copy documents TASK: output format ────────────────────────
 echo "Test 8: Plugin copy documents TASK: output format"
-if grep -q "TASK:" "$PLUGIN_SCRIPT" && grep -q "BATCH_SIZE:" "$PLUGIN_SCRIPT"; then
+if grep -q "TASK:" "$CANONICAL_SCRIPT" && grep -q "BATCH_SIZE:" "$CANONICAL_SCRIPT"; then
     echo "  PASS: plugin copy documents TASK: and BATCH_SIZE: output format"
     (( PASS++ ))
 else
@@ -270,7 +275,7 @@ fi
 
 # ── Test 12: Plugin copy resolves TICKET_CMD via SCRIPT_DIR ───────────────────
 echo "Test 12: Plugin TICKET_CMD path resolves via SCRIPT_DIR"
-if grep -qE 'TICKET_CMD=' "$PLUGIN_SCRIPT" 2>/dev/null; then
+if grep -qE 'TICKET_CMD=' "$CANONICAL_SCRIPT" 2>/dev/null; then
     echo "  PASS: TICKET_CMD resolves via SCRIPT_DIR"
     (( PASS++ ))
 else
@@ -334,6 +339,7 @@ chmod +x "$_t13_fake_repo/scripts/read-config.sh"
 printf '' > "$_t13_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t13_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t13_fake_repo/scripts/sprint-next-batch.sh"
+cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_t13_fake_repo/scripts/ticket-next-batch.sh"
 
 t13_exit=0
 t13_output=$(cd "$_t13_fake_repo" && TICKET_CMD="$_t13_fake_repo/scripts/ticket" bash "$_t13_fake_repo/scripts/sprint-next-batch.sh" "t13-epic" --json 2>/dev/null) || t13_exit=$?
@@ -454,6 +460,7 @@ chmod +x "$_t14_fake_repo/scripts/read-config.sh"
 printf '' > "$_t14_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t14_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t14_fake_repo/scripts/sprint-next-batch.sh"
+cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_t14_fake_repo/scripts/ticket-next-batch.sh"
 # Copy the reducer so _load_ticket_body() v3 path can use it
 cp "$DSO_PLUGIN_DIR/scripts/ticket-reducer.py" "$_t14_fake_repo/scripts/ticket-reducer.py"
 
@@ -537,6 +544,7 @@ chmod +x "$_t15_fake_repo/scripts/read-config.sh"
 printf '' > "$_t15_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t15_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t15_fake_repo/scripts/sprint-next-batch.sh"
+cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_t15_fake_repo/scripts/ticket-next-batch.sh"
 
 t15_exit=0
 t15_output=$(cd "$_t15_fake_repo" && TICKET_CMD="$_t15_fake_repo/scripts/ticket" bash "$_t15_fake_repo/scripts/sprint-next-batch.sh" "t15-epic" --json 2>/dev/null) || t15_exit=$?
@@ -609,6 +617,7 @@ chmod +x "$_t16_fake_repo/scripts/read-config.sh"
 printf '' > "$_t16_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t16_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t16_fake_repo/scripts/sprint-next-batch.sh"
+cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_t16_fake_repo/scripts/ticket-next-batch.sh"
 
 t16_exit=0
 t16_output=$(cd "$_t16_fake_repo" && TICKET_CMD="$_t16_fake_repo/scripts/ticket" bash "$_t16_fake_repo/scripts/sprint-next-batch.sh" "t16-epic" --json 2>/dev/null) || t16_exit=$?
@@ -681,6 +690,7 @@ chmod +x "$_t16b_fake_repo/scripts/read-config.sh"
 printf '' > "$_t16b_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t16b_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t16b_fake_repo/scripts/sprint-next-batch.sh"
+cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_t16b_fake_repo/scripts/ticket-next-batch.sh"
 
 t16b_exit=0
 t16b_output=$(cd "$_t16b_fake_repo" && TICKET_CMD="$_t16b_fake_repo/scripts/ticket" bash "$_t16b_fake_repo/scripts/sprint-next-batch.sh" "t16b-epic" --json 2>/dev/null) || t16b_exit=$?
@@ -753,7 +763,7 @@ test_sprint_next_batch_no_v2_ticket_body_fallback
 # creates false positive serialization between unrelated tasks.
 test_test_index_overlap_safe() {
     echo "Test: .test-index is in overlap-safe exclusion list"
-    if grep -q 'test-index' "$PLUGIN_SCRIPT" && grep -qE 'OVERLAP_SAFE|overlap_safe' "$PLUGIN_SCRIPT"; then
+    if grep -q 'test-index' "$CANONICAL_SCRIPT" && grep -qE 'OVERLAP_SAFE|overlap_safe' "$CANONICAL_SCRIPT"; then
         echo "  PASS: .test-index appears in an overlap-safe exclusion list"
         (( PASS++ ))
     else
@@ -782,6 +792,7 @@ test_init_on_missing_tracker() {
     # Copy the real script into the temp dir
     cp "$PLUGIN_SCRIPT" "$TDIR_INIT/sprint-next-batch.sh"
     chmod +x "$TDIR_INIT/sprint-next-batch.sh"
+    cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$TDIR_INIT/ticket-next-batch.sh"
 
     # Create a stub ticket-init.sh that records invocation
     cat > "$TDIR_INIT/ticket-init.sh" << 'STUBEOF'
@@ -837,6 +848,7 @@ test_init_skipped_for_override() {
 
     cp "$PLUGIN_SCRIPT" "$TDIR_SKIP/sprint-next-batch.sh"
     chmod +x "$TDIR_SKIP/sprint-next-batch.sh"
+    cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$TDIR_SKIP/ticket-next-batch.sh"
 
     cat > "$TDIR_SKIP/ticket-init.sh" << 'STUBEOF'
 #!/usr/bin/env bash
@@ -962,6 +974,7 @@ test_init_failure_emits_stderr() {
 
     cp "$PLUGIN_SCRIPT" "$TDIR_STDERR/sprint-next-batch.sh"
     chmod +x "$TDIR_STDERR/sprint-next-batch.sh"
+    cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$TDIR_STDERR/ticket-next-batch.sh"
 
     # Stub ticket-init.sh: emits a diagnostic on stderr and exits non-zero
     cat > "$TDIR_STDERR/ticket-init.sh" << 'STUBEOF'
@@ -1105,6 +1118,7 @@ TP_CFG
     printf '' > "$_tp_fake_repo/dso-config.conf"
     cp "$PLUGIN_SCRIPT" "$_tp_fake_repo/scripts/sprint-next-batch.sh"
     chmod +x "$_tp_fake_repo/scripts/sprint-next-batch.sh"
+    cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_tp_fake_repo/scripts/ticket-next-batch.sh"
     cp "$DSO_PLUGIN_DIR/scripts/ticket-reducer.py" "$_tp_fake_repo/scripts/ticket-reducer.py"
 
     local tp_exit=0
@@ -1187,6 +1201,7 @@ chmod +x "$_t28_fake_repo/scripts/read-config.sh"
 printf '' > "$_t28_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t28_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t28_fake_repo/scripts/sprint-next-batch.sh"
+cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_t28_fake_repo/scripts/ticket-next-batch.sh"
 
 t28_exit=0
 t28_output=$(
@@ -1273,6 +1288,7 @@ chmod +x "$_t29_fake_repo/scripts/read-config.sh"
 printf '' > "$_t29_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t29_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t29_fake_repo/scripts/sprint-next-batch.sh"
+cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_t29_fake_repo/scripts/ticket-next-batch.sh"
 
 t29_exit=0
 t29_output=$(cd "$_t29_fake_repo" && TICKET_CMD="$_t29_fake_repo/scripts/ticket" bash "$_t29_fake_repo/scripts/sprint-next-batch.sh" "t29-epic" --json 2>/dev/null) || t29_exit=$?
