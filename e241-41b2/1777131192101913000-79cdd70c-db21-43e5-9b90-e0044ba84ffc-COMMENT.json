@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Classification: compound behavioral (same root cause, multiple files). Fix: systematic replacement of echo|$var|grep-q with <<< heredoc or direct file grep."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777131192101913000,"uuid":"79cdd70c-db21-43e5-9b90-e0044ba84ffc"}
