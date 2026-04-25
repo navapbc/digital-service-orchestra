@@ -71,10 +71,17 @@ GREP_PAT = re.compile(r"""grep\s+['"]\^([A-Za-z0-9][A-Za-z0-9._-]*\.[A-Za-z0-9._
 # (4) KEY=VALUE lines in dso-config.conf and example
 KV_PAT = re.compile(r'^([A-Za-z0-9][A-Za-z0-9._-]*\.[A-Za-z0-9._-]+)=')
 
+WORKTREES_SKIP = os.path.join(os.path.abspath(claude_dir), 'worktrees') + os.sep
+
 def scan_tree(root, patterns):
     if not os.path.isdir(root):
         return
-    for dp, _, files in os.walk(root):
+    for dp, dirs, files in os.walk(root):
+        # Exclude .claude/worktrees/ — ephemeral test fixtures, not real plugin code
+        abs_dp = os.path.abspath(dp) + os.sep
+        if abs_dp.startswith(WORKTREES_SKIP):
+            dirs[:] = []
+            continue
         for fn in files:
             fp = os.path.join(dp, fn)
             try:

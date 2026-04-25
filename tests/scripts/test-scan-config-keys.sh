@@ -120,4 +120,57 @@ test_scan_config_keys_gap_list() {
 
 test_scan_config_keys_gap_list
 
+# ── test_scan_config_keys_excludes_worktrees ────────────────────────────────────
+# Given: fixture repo with a .claude/worktrees/ subdir containing files that
+#        reference config keys (simulating a stale test worktree left by a prior run)
+# When: scan-config-keys.sh is invoked
+# Then: keys from .claude/worktrees/ are NOT included in the gap list
+test_scan_config_keys_excludes_worktrees() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    _TEST_TMPDIRS+=("$tmpdir")
+
+    mkdir -p "$tmpdir/plugins/dso/scripts"
+    mkdir -p "$tmpdir/plugins/dso/docs"
+    mkdir -p "$tmpdir/.claude"
+    mkdir -p "$tmpdir/.claude/worktrees/test-99999/tests/scripts"
+
+    # No real plugin code — only documented.key is used in the plugin tree
+    cat > "$tmpdir/plugins/dso/scripts/real-caller.sh" <<'EOF'
+#!/usr/bin/env bash
+val=$(_read_config_key "documented.key")
+EOF
+
+    # Stale worktree contains a test file that uses an undocumented key
+    cat > "$tmpdir/.claude/worktrees/test-99999/tests/scripts/fixture.sh" <<'EOF'
+#!/usr/bin/env bash
+val=$(grep '^stale.worktree.key=' .claude/dso-config.conf | cut -d= -f2)
+EOF
+
+    cat > "$tmpdir/plugins/dso/docs/CONFIGURATION-REFERENCE.md" <<'EOF'
+# Configuration Reference
+
+### documented.key
+
+Description.
+EOF
+
+    local exit_code=0
+    local output=""
+    output=$(_PLUGIN_GIT_PATH=plugins/dso bash "$SCRIPT" "$tmpdir" 2>&1) || exit_code=$?
+
+    assert_eq "test_scan_config_keys_excludes_worktrees: exits 0" "0" "$exit_code"
+
+    if [[ "$output" == *"stale.worktree.key"* ]]; then
+        (( ++FAIL ))
+        printf "FAIL: %s\n  stale.worktree.key from .claude/worktrees/ must NOT appear in gap list\n  actual output: %s\n" \
+            "test_scan_config_keys_excludes_worktrees: worktree keys excluded" "$output" >&2
+    else
+        (( ++PASS ))
+        printf "test_scan_config_keys_excludes_worktrees: worktree keys excluded ... PASS\n"
+    fi
+}
+
+test_scan_config_keys_excludes_worktrees
+
 print_summary
