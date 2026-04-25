@@ -1,7 +1,7 @@
 > **DEPRECATED**: This prompt template is no longer used by debug-everything. Bug resolution is now delegated to `/dso:fix-bug`. See `skills/fix-bug/SKILL.md` for the current workflow.
 
 ## Fix: {issue title}
-Beads ID: {id}
+Ticket ID: {id}
 Category: {tier name — e.g., "Runtime error", "Logic bug", "Data corruption"}
 
 ### Error Details

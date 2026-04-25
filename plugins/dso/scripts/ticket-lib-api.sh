@@ -169,6 +169,7 @@ ticket_list() {
         local include_archived=""
         local filter_type=""
         local filter_status=""
+        local filter_parent=""
         local arg
         for arg in "$@"; do
             case "$arg" in
@@ -189,10 +190,10 @@ ticket_list() {
                     filter_status="${arg#--status=}"
                     ;;
                 --parent=*)
-                    # --parent filter: not implemented in ticket-list.sh, silently ignore
+                    filter_parent="${arg#--parent=}"
                     ;;
                 --help|-h)
-                    echo "Usage: ticket list [--format=llm] [--include-archived] [--type=<type>] [--status=<status>]" >&2
+                    echo "Usage: ticket list [--format=llm] [--include-archived] [--type=<type>] [--status=<status>] [--parent=<id>]" >&2
                     return 0
                     ;;
                 -*)
@@ -210,6 +211,7 @@ ticket_list() {
         if [ "$format" = "llm" ]; then
             _TRACKER_DIR="$TRACKER_DIR" _INCLUDE_ARCHIVED="$include_archived" \
             _TYPE_FILTER="$filter_type" _STATUS_FILTER="$filter_status" \
+            _PARENT_FILTER="$filter_parent" \
             _SCRIPT_DIR="$_TICKETLIB_DIR" python3 -c "
 import sys, os, json
 sys.path.insert(0, os.environ['_SCRIPT_DIR'])
@@ -220,6 +222,7 @@ tracker_dir = os.environ['_TRACKER_DIR']
 include_archived = os.environ.get('_INCLUDE_ARCHIVED', '') == 'true'
 type_filter = os.environ.get('_TYPE_FILTER', '')
 status_filter = os.environ.get('_STATUS_FILTER', '')
+parent_filter = os.environ.get('_PARENT_FILTER', '')
 
 results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived)
 if status_filter not in ('error', 'fsck_needed'):
@@ -229,12 +232,15 @@ if type_filter:
 if status_filter:
     status_values = {s.strip() for s in status_filter.split(',')}
     results = [t for t in results if t.get('status') in status_values]
+if parent_filter:
+    results = [t for t in results if t.get('parent_id') == parent_filter]
 for t in results:
     print(json.dumps(to_llm(t), ensure_ascii=False, separators=(',', ':')))
 "
         else
             _TRACKER_DIR="$TRACKER_DIR" _INCLUDE_ARCHIVED="$include_archived" \
             _TYPE_FILTER="$filter_type" _STATUS_FILTER="$filter_status" \
+            _PARENT_FILTER="$filter_parent" \
             _SCRIPT_DIR="$_TICKETLIB_DIR" python3 -c "
 import sys, os, json
 sys.path.insert(0, os.environ['_SCRIPT_DIR'])
@@ -244,6 +250,7 @@ tracker_dir = os.environ['_TRACKER_DIR']
 include_archived = os.environ.get('_INCLUDE_ARCHIVED', '') == 'true'
 type_filter = os.environ.get('_TYPE_FILTER', '')
 status_filter = os.environ.get('_STATUS_FILTER', '')
+parent_filter = os.environ.get('_PARENT_FILTER', '')
 
 results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived)
 if status_filter not in ('error', 'fsck_needed'):
@@ -253,6 +260,8 @@ if type_filter:
 if status_filter:
     status_values = {s.strip() for s in status_filter.split(',')}
     results = [t for t in results if t.get('status') in status_values]
+if parent_filter:
+    results = [t for t in results if t.get('parent_id') == parent_filter]
 print(json.dumps(results, ensure_ascii=False))
 
 alerted_count = sum(

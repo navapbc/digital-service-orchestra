@@ -6,11 +6,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
-This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
-
-"ERROR: /dso:preplanning cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
-
-Do NOT proceed with any skill logic if the Agent tool is unavailable.
+Requires Agent tool. If running as a sub-agent (Agent tool unavailable), STOP and return: "ERROR: /dso:preplanning requires Agent tool; invoke from orchestrator."
 </SUB-AGENT-GUARD>
 
 ## SKILL_ENTER Breadcrumb
@@ -130,7 +126,7 @@ If `<epic-id>` was not provided:
 - Log: `INTERACTIVITY_DEFERRED: preplanning.interactive=false — no epic-id provided. Invoke with /dso:preplanning <epic-id> to run non-interactively.`
 - Exit with error (do not proceed).
 
-1. Run `.claude/scripts/dso ticket list` then filter results to epics only (filter JSON output where `ticket_type == 'epic'`)
+1. Run `.claude/scripts/dso ticket list --type=epic`
 2. If no open epics exist, report and exit
 3. Present epics to the user (if more than 5, show first 5 with option to see more)
 4. Get user selection

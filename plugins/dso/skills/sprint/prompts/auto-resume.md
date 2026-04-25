@@ -13,7 +13,7 @@
      ```
    - Handle `DRIFT_DETECTED` / `NO_DRIFT` the same as the existing Drift Detection Check section below.
    - Then apply checkpoint resume rules:
-     1. Run `.claude/scripts/dso ticket list` and filter for in-progress tickets that are descendants of `<primary_ticket_id>` for interrupted tasks
+     1. Run `.claude/scripts/dso ticket list --status=in_progress` and filter for descendants of `<primary_ticket_id>` for interrupted tasks
      2. For each in-progress descendant, run `.claude/scripts/dso ticket show <id>` and parse its notes for CHECKPOINT lines
      3. Apply checkpoint resume rules:
         - **CHECKPOINT 6/6 ✓** — ticket is fully done; fast-close: verify files exist for task tickets or run completion verifier for story tickets, then `.claude/scripts/dso ticket transition <id> in-progress closed`

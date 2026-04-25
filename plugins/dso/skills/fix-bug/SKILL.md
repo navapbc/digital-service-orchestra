@@ -173,7 +173,7 @@ Ensure a bug ticket exists and is set to in-progress before investigation begins
 1. **If a ticket ID was provided** (via argument or orchestrator context): use it.
 2. **If no ticket ID was provided**: search for an existing open bug ticket matching the error description to avoid duplicates:
    ```bash
-   ticket list | python3 -c "import json,sys; tickets=json.load(sys.stdin); bugs=[t for t in tickets if t.get('ticket_type')=='bug' and t.get('status')=='open']; [print(t['ticket_id'],t['title']) for t in bugs]"
+   ticket list --type=bug --status=open | python3 -c "import json,sys; [print(t['ticket_id'],t['title']) for t in json.load(sys.stdin)]"
    ```
    - If a matching bug is found (same error, same file, or same root symptom): use that ticket ID.
    - If no match: create a new bug ticket. Read `skills/create-bug/SKILL.md` for the required title and description format. At minimum supply `-d` with Section 2 (Incident Overview):

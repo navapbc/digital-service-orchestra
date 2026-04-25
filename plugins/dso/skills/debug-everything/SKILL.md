@@ -6,11 +6,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
-This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
-
-"ERROR: /dso:debug-everything cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
-
-Do NOT proceed with any skill logic if the Agent tool is unavailable.
+Requires Agent tool. If running as a sub-agent (Agent tool unavailable), STOP and return: "ERROR: /dso:debug-everything requires Agent tool; invoke from orchestrator."
 </SUB-AGENT-GUARD>
 
 # Debug Everything: Full Project Health Restoration
@@ -190,9 +186,9 @@ AskUserQuestion: "Is this an interactive session? (yes/no — press Enter for ye
 
 **Resume check** — find and reuse previous work:
 
-1. `.claude/scripts/dso ticket list` and grep for "Project Health Restoration"
+1. `.claude/scripts/dso ticket list --type=epic` and grep for "Project Health Restoration"
 2. If found: use that epic as the tracker (skip creating a new one in Phase 2)
-3. Check in-progress issues: `.claude/scripts/dso ticket list` and grep for `in_progress`
+3. Check in-progress issues: `.claude/scripts/dso ticket list --status=in_progress`
 4. For each in-progress issue: read notes via `.claude/scripts/dso ticket show <id>`, parse CHECKPOINT lines, and apply these rules:
    - **CHECKPOINT 6/6 ✓** — fast-close: verify files exist, close with `.claude/scripts/dso ticket transition <id> open closed`
    - **CHECKPOINT 5/6 ✓** — near-complete; fast-close without re-execution
@@ -1261,7 +1257,7 @@ Read `$PLUGIN_ROOT/skills/debug-everything/prompts/bug-accountability-guide.md` 
 
 Run:
 ```bash
-.claude/scripts/dso ticket list
+.claude/scripts/dso ticket list --type=bug --status=open
 ```
 
 For every open bug, apply the three-outcome classification (Fixed / Escalated / Deferred) per the guide. Close fixed bugs with `.claude/scripts/dso ticket transition <id> open closed`.

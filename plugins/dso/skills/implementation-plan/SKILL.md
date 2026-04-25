@@ -6,11 +6,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
-This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
-
-"ERROR: /dso:implementation-plan cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
-
-Do NOT proceed with any skill logic if the Agent tool is unavailable.
+Requires Agent tool. If running as a sub-agent (Agent tool unavailable), STOP and return: "ERROR: /dso:implementation-plan requires Agent tool; invoke from orchestrator."
 </SUB-AGENT-GUARD>
 
 <!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
@@ -198,8 +194,8 @@ This is a presence-based check — only activate when `manual:awaiting_user` IS 
 ### Select Story
 
 If `<story-id>` was not provided:
-1. Run `.claude/scripts/dso ticket list` to show open, unblocked stories
-2. If none, fall back to `.claude/scripts/dso ticket list` to understand state
+1. Run `.claude/scripts/dso ticket list --type=story --status=open` to show open stories
+2. If none, fall back to `.claude/scripts/dso ticket list --type=story` to understand state (all statuses, stories only)
 3. If no open stories exist, report and exit
 4. Present stories to the user and get selection
 
@@ -1059,7 +1055,7 @@ If validation fails, fix dependency issues before presenting the summary.
 
 ### Present Summary
 
-Run `.claude/scripts/dso ticket list` (filtered by story) to confirm which tasks are immediately workable.
+Run `.claude/scripts/dso ticket ready --epic=<story-id>` to confirm which tasks are immediately workable.
 
 Output the parent epic/story ID prominently at the top of the summary so it can be referenced in follow-up commands:
 
@@ -1089,7 +1085,7 @@ Report:
 - Total tasks created
 - File impact summary (above)
 - Dependency graph (`.claude/scripts/dso ticket deps <story-id>`)
-- Ready tasks (`.claude/scripts/dso ticket list` filtered by story)
+- Ready tasks (`.claude/scripts/dso ticket ready --epic=<story-id>`)
 - Whether documentation/E2E tasks were included and why
 
 **When invoked interactively (user-initiated)**: Stop and wait for user instructions — do not begin implementing any tasks.
@@ -1163,7 +1159,7 @@ After processing findings (or skipping/failing), update the summary output to in
 | 2 | Architectural Review | `REVIEW-PROTOCOL-WORKFLOW.md` inline (>= 4, max 3 iterations); forced if cross-cutting detected |
 | 3 | Atomic Task Drafting | TDD-first, sequential order, E2E + docs coverage |
 | 4 | Plan Review | `REVIEW-PROTOCOL-WORKFLOW.md` inline (all dims = 5, max 3 iterations) |
-| 5 | Task Creation | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `validate-issues.sh`, `.claude/scripts/dso ticket list` |
+| 5 | Task Creation | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `validate-issues.sh`, `.claude/scripts/dso ticket list --parent=<story-id>` |
 | 6 | Gap Analysis | TRIVIAL skip gate, opus sub-agent via `prompts/gap-analysis.md`, parse findings |
 
 ## Common Mistakes

@@ -6,11 +6,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
-This skill requires direct user interaction (prompts, confirmations, interactive choices). If you are running as a sub-agent dispatched via the Task tool, STOP IMMEDIATELY and return this error to your caller:
-
-"ERROR: /dso:end-session cannot run in sub-agent context — it requires direct user interaction. Invoke this skill directly from the main session instead."
-
-Do NOT proceed with any skill logic if you are running as a sub-agent.
+Requires interactive user session. If running as a sub-agent (dispatched via Task), STOP and return: "ERROR: /dso:end-session requires main session; invoke directly."
 </SUB-AGENT-GUARD>
 
 # End Session: Worktree Cleanup and Task Summary
@@ -34,7 +30,7 @@ Parse arguments at skill activation. If `--bump <type>` is present, store `BUMP_
 Run `test -f .git`. If `.git` is a directory (not a file), abort: "This command is only for ephemeral worktree sessions."
 
 ### 2. Close Completed Issues
-1. Run `.claude/scripts/dso ticket list` (lists open/in_progress tasks with resolved deps) and `git log main..HEAD --oneline`
+1. Run `.claude/scripts/dso ticket list --status=open,in_progress` and `git log main..HEAD --oneline`
 2. Cross-reference: which issues were completed based on commits?
 3. Ask user which to close. Close confirmed: `.claude/scripts/dso ticket transition <id> open closed` for each. **Bug tickets require** `--reason="Fixed: <summary>"` — omitting it causes a silent failure.
 4. **Skip if no in-progress issues** — this is common when called after `/dso:debug-everything` or `/dso:sprint`, which close their own issues. Report: "No in-progress issues to close (already handled)."
@@ -51,11 +47,9 @@ When `/dso:sprint` is interrupted by context compaction or a control-flow issue,
 
 2. For each in-progress epic, check whether all children are closed (3a6a-b291: enumerate children via parent_id, NOT `ticket deps` which shows dependency relations):
    ```bash
-   .claude/scripts/dso ticket list 2>/dev/null | python3 -c "
+   .claude/scripts/dso ticket list --parent=<epic-id> 2>/dev/null | python3 -c "
    import json, sys
-   tickets = json.loads(sys.stdin.read())
-   epic_id = '<epic-id>'  # Replace with actual epic ID from step 1
-   children = [t for t in tickets if t.get('parent_id') == epic_id]
+   children = json.loads(sys.stdin.read())
    open_children = [t for t in children if t.get('status') != 'closed']
    if not children:
        print('NO_CHILDREN')

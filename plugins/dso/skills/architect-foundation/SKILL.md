@@ -6,9 +6,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <SUB-AGENT-GUARD>
-This skill requires the Agent tool. If you are running as a sub-agent (dispatched via Task), STOP and return:
-
-"ERROR: /dso:architect-foundation cannot run in sub-agent context — invoke directly from the orchestrator."
+Requires Agent tool. If running as a sub-agent (Agent tool unavailable), STOP and return: "ERROR: /dso:architect-foundation requires Agent tool; invoke from orchestrator."
 </SUB-AGENT-GUARD>
 
 # Architect Foundation
