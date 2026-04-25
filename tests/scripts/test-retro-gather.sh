@@ -129,7 +129,6 @@ chmod +x "$_mock_plugin_root/scripts/validate.sh"
 # Do NOT copy real scripts — they may be slow or spawn subprocesses.
 printf '#!/usr/bin/env bash\nexit 0\n' > "$_mock_plugin_root/scripts/validate-issues.sh"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$_mock_plugin_root/scripts/cleanup-claude-session.sh"
-printf '#!/usr/bin/env bash\necho "[]"\n' > "$_mock_plugin_root/scripts/tk"
 chmod +x "$_mock_plugin_root/scripts/"* 2>/dev/null || true
 _skip_val_outfile=$(mktemp)
 _CLEANUP_DIRS+=("$_skip_val_outfile")

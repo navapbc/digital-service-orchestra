@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # scripts/issue-summary.sh
-# Wrapper that produces a one-line summary from `tk show <id>`.
-# Use for orchestrator status checks instead of full `tk show` output.
+# Wrapper that produces a one-line summary from `ticket show <id>`.
+# Use for orchestrator status checks instead of full `ticket show` output.
 #
 # Usage:
 #   issue-summary.sh <id>           # Single issue
@@ -10,10 +10,6 @@ set -euo pipefail
 #
 # Output (one line per issue):
 #   <id> [<status>] <title> (blocked by: <ids>|ready)
-
-# REVIEW-DEFENSE: Covered by scripts/tests/test-issue-summary.sh — 13 tests using a mock tk
-# binary (PATH injection pattern). Tests validate: no-args usage exit, single-ID ready output,
-# blocked output with dep IDs, unknown-ID fallback, multi-ID invocation, and tk invocation.
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

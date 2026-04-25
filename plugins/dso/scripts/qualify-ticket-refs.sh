@@ -2,17 +2,11 @@
 set -uo pipefail
 # scripts/qualify-ticket-refs.sh
 # Rewrite bare `ticket <subcommand>` references in documentation to use the
-# ${_PLUGIN_ROOT}/scripts/shim, and replace bare `tk <subcommand>` references
-# with their `ticket` equivalents via the shim.
+# ${_PLUGIN_ROOT}/scripts/shim.
 #
 # Transforms:
 #   ticket list       → ${_PLUGIN_ROOT}/scripts/ticket list
 #   ticket show <id>  → ${_PLUGIN_ROOT}/scripts/ticket show <id>
-#   tk show <id>      → ${_PLUGIN_ROOT}/scripts/ticket show <id>
-#   tk ready          → ${_PLUGIN_ROOT}/scripts/ticket list
-#   tk blocked        → ${_PLUGIN_ROOT}/scripts/ticket list
-#   tk sync           → ${_PLUGIN_ROOT}/scripts/ticket sync
-#   tk sync-events    → ${_PLUGIN_ROOT}/scripts/ticket sync
 #
 # In-scope files (same as qualify-skill-refs.sh):
 #   skills/, docs/, hooks/, commands/, agents/ (recursively) + CLAUDE.md
@@ -103,11 +97,6 @@ my $SHIM = ".claude/scripts/dso";
 # Known ticket subcommands
 my $subcmds = "list|show|create|transition|comment|link|unlink|deps|edit|init|sync|revert|compact|fsck|bridge-status|bridge-fsck";
 
-# tk → ticket replacements (direct 1:1)
-my $tk_direct = "show|deps";
-# tk query commands → ticket list
-my $tk_query = "ready|blocked|closed";
-
 my $changed_lines = 0;
 my @new_lines;
 my @diffs;
@@ -125,28 +114,6 @@ for my $i (0 .. $#lines) {
     # Negative lookbehind prevents double-rewriting: not preceded by "dso " or "/" or "."
     $line =~ s/(?<!dso )(?<![\/\.])(?<=`)ticket\s+($subcmds)\b/$SHIM ticket $1/g;
     $line =~ s/(?<!dso )(?<![\/\.`\w])ticket\s+($subcmds)\b/$SHIM ticket $1/g;
-
-    # ── 2. tk show/deps → ${_PLUGIN_ROOT}/scripts/ticket show/deps
-    $line =~ s/(?<=`)tk\s+($tk_direct)\b/$SHIM ticket $1/g;
-    $line =~ s/(?<![\/\.`\w])tk\s+($tk_direct)\b/$SHIM ticket $1/g;
-
-    # ── 3. tk ready/blocked/closed → ${_PLUGIN_ROOT}/scripts/ticket list
-    # REVIEW-DEFENSE: tk ready/blocked/closed were convenience filters over ticket list
-    # that were never implemented (${_PLUGIN_ROOT}/scripts/tk does not exist). Collapsing
-    # to ticket list is intentional — the semantic filtering was aspirational, not real.
-    $line =~ s/(?<=`)tk\s+($tk_query)\b/$SHIM ticket list/g;
-    $line =~ s/(?<![\/\.`\w])tk\s+($tk_query)\b/$SHIM ticket list/g;
-
-    # ── 4. tk sync / tk sync-events → replace with ticket sync via shim
-    # REVIEW-DEFENSE: tk sync-events was a planned split-phase protocol that was
-    # never implemented (${_PLUGIN_ROOT}/scripts/tk does not exist). Mapping to ticket
-    # sync is intentional — it points to the canonical command path.
-    # Inline backtick-wrapped: `tk sync` → `${_PLUGIN_ROOT}/scripts/ticket sync`
-    $line =~ s/(?<=`)tk\s+sync-events\b/$SHIM ticket sync/g;
-    $line =~ s/(?<=`)tk\s+sync\b/$SHIM ticket sync/g;
-    # Bare: tk sync → ${_PLUGIN_ROOT}/scripts/ticket sync
-    $line =~ s/(?<![\/\.`\w])tk\s+sync-events\b/$SHIM ticket sync/g;
-    $line =~ s/(?<![\/\.`\w])tk\s+sync\b/$SHIM ticket sync/g;
 
     if ($line ne $orig) {
         $changed_lines++;

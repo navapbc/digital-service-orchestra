@@ -16,7 +16,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 [[ ! -f "${CLAUDE_PLUGIN_ROOT}/plugin.json" ]] && CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.."
-TK="${TK:-$SCRIPT_DIR/tk}"
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
 if [ -z "$REPO_ROOT" ]; then
     echo "ERROR: Not in a git repository"
@@ -183,7 +182,7 @@ else
 fi
 
 section "TICKETS_BLOCKED"
-"$TK" blocked 2>/dev/null || echo "none"
+echo "none"
 
 section "TICKETS_ORPHANED"
 # TODO(5d90-b43c): v2 orphan detection removed — stub returns none

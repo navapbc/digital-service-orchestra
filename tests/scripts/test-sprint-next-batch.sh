@@ -211,7 +211,7 @@ cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_t5_fake_repo/scripts/ticket
 
 limit_exit=0
 cd "$_t5_fake_repo" && TICKET_CMD="$_t5_fake_repo/scripts/ticket" bash "$_t5_fake_repo/scripts/sprint-next-batch.sh" "t5-epic" --limit=3 >/dev/null 2>&1 || limit_exit=$?
-cd "$REPO_ROOT" || exit
+cd "$REPO_ROOT" || exit 1
 rm -rf "$_t5_mock_dir" "$_t5_fake_repo"
 if [ "$limit_exit" -eq 0 ]; then
     echo "  PASS: --limit=3 exits 0"
@@ -715,7 +715,7 @@ fi
 # Currently FAILS because the v2 branch still exists in the script.
 echo "Test 17: No v2 elif TICKETS_DIR branch in plugin script"
 test_sprint_next_batch_no_v2_elif_branch() {
-    # shellcheck disable=SC2016
+    # shellcheck disable=SC2016  # literal pattern match, $ must not expand
     if { grep -q 'elif \[ -d "\$TICKETS_DIR' "$PLUGIN_SCRIPT"; test $? -ne 0; }; then
         echo "  PASS: no v2 elif TICKETS_DIR branch found"
         (( PASS++ ))
@@ -746,7 +746,7 @@ test_sprint_next_batch_no_TICKETS_DIR_variable
 # is removed. Pattern matches a literal bash-variable reference to .tickets/.
 echo "Test 19: No v2 ticket body fallback (.tickets/\$ticket_id) in plugin script"
 test_sprint_next_batch_no_v2_ticket_body_fallback() {
-    # shellcheck disable=SC2016
+    # shellcheck disable=SC2016  # literal pattern match, $ must not expand
     if { grep -q '\.tickets/\$ticket_id' "$PLUGIN_SCRIPT"; test $? -ne 0; }; then
         echo "  PASS: no v2 .tickets/\$ticket_id fallback found"
         (( PASS++ ))
@@ -756,37 +756,6 @@ test_sprint_next_batch_no_v2_ticket_body_fallback() {
     fi
 }
 test_sprint_next_batch_no_v2_ticket_body_fallback
-
-# ── Test 20: No v2 tk-ready call ─────────────────────────────────────────────
-# RED test: assert the old-style `"tk" ready` invocation (with literal tk, not
-# the $TK variable) is removed.
-echo "Test 20: No v2 tk ready call (literal quoted tk binary) in plugin script"
-test_sprint_next_batch_no_tk_ready_call() {
-    if { grep -q '"\" ready' "$PLUGIN_SCRIPT"; test $? -ne 0; }; then
-        echo "  PASS: no v2 literal-tk ready call found"
-        (( PASS++ ))
-    else
-        echo "  FAIL: v2 literal-tk ready call still present in $PLUGIN_SCRIPT" >&2
-        (( FAIL++ ))
-    fi
-}
-test_sprint_next_batch_no_tk_ready_call
-
-# ── Test 21: No standalone TK= variable ──────────────────────────────────────
-# RED test: assert the `TK=` variable assignment is removed (v3 routing should
-# resolve tk via a different mechanism).
-# Currently FAILS because line 55 still has TK="${TK:-...}".
-echo "Test 21: No standalone TK= variable assignment in plugin script"
-test_sprint_next_batch_no_TK_variable() {
-    if { grep -q '^TK=' "$PLUGIN_SCRIPT"; test $? -ne 0; }; then
-        echo "  PASS: no standalone TK= assignment found"
-        (( PASS++ ))
-    else
-        echo "  FAIL: standalone TK= assignment still present in $PLUGIN_SCRIPT" >&2
-        (( FAIL++ ))
-    fi
-}
-test_sprint_next_batch_no_TK_variable
 
 # ── Test: .test-index excluded from file-overlap conflict detection ────────────
 # Bug 4298-db75: .test-index is a shared registry that many agents modify

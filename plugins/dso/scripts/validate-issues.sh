@@ -23,7 +23,6 @@ set -euo pipefail
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-TK="${TK:-$SCRIPT_DIR/tk}"
 TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
 
 # Colors for output
@@ -326,28 +325,6 @@ print(f'COUNT|{len(orphans)}')
     echo "$orphaned_count"
 }
 
-# Check for circular dependencies using tk dep cycle
-check_circular_dependencies() {
-    log_verbose "Checking for circular dependencies..."
-
-    local cycles
-    cycles=$("$TK" dep cycle 2>&1 || true)
-    local cycle_count=0
-
-    # "No dependency cycles detected" means no cycles - check for actual cycle reports
-    if echo "$cycles" | grep -qv "No dependency cycles" && echo "$cycles" | grep -q "Cycle"; then
-        cycle_count=$(echo "$cycles" | grep -c "Cycle" || echo "0")
-        log_critical "Found $cycle_count circular dependency chain(s)"
-        if $VERBOSE; then
-            echo "$cycles" >&2
-        fi
-    else
-        log_verbose "No circular dependencies found"
-    fi
-
-    echo "$cycle_count"
-}
-
 # Check for epics with 0 children
 check_empty_epics() {
     log_verbose "Checking for epics with 0 children..."
@@ -442,41 +419,6 @@ print(len(issues))
     fi
 
     echo "$total_count"
-}
-
-# Check for tasks that are dependencies but should be children
-check_mislinked_dependencies() {
-    log_verbose "Checking for mislinked dependencies..."
-
-    local mislinked_count=0
-    # Use tk ready to list open tasks, then check their epic assignments
-    # This is a lightweight check for mislinked dependencies
-    local open_tasks
-    open_tasks=$("$TK" ready 2>/dev/null || true)
-
-    if [[ -n "$open_tasks" ]]; then
-        log_verbose "Reviewed ready tasks for mislinked dependencies"
-    fi
-
-    echo $mislinked_count
-}
-
-# Check for blocked issues with all blockers closed
-# shellcheck disable=SC2329
-check_stale_blockers() {
-    log_verbose "Checking for issues with stale blockers..."
-
-    local stale_count=0
-    local blocked
-    blocked=$("$TK" blocked 2>/dev/null || true)
-
-    # Check if any blocked issues mention closed blockers
-    if echo "$blocked" | grep -qi "closed"; then
-        log_warning "Some blocked issues may have closed blockers - run '${TK} blocked' to review"
-        stale_count=1
-    fi
-
-    echo "$stale_count"
 }
 
 # Check for child->parent dependencies (anti-pattern)
@@ -738,48 +680,13 @@ for issue in issues:
         case "$level" in
             MISSING)
                 log_warning "Interface task may need documentation: $task_id - $task_title"
-                log_suggestion "Add notes with: ${TK} add-note $task_id 'Interface in src/.../base.py. Key methods: ...'"
+                log_suggestion "Add notes with: ${TICKET_CMD} comment $task_id 'Interface in src/.../base.py. Key methods: ...'"
                 ((missing_docs_count++)) || true
                 ;;
         esac
     done < "$tmpfile"
 
     echo $missing_docs_count
-}
-
-# Check for parallelization opportunities
-check_parallelization_opportunities() {
-    log_verbose "Checking for parallelization opportunities..."
-
-    local opportunity_count=0
-
-    # Use tk blocked to find blocked tasks and check for common blockers
-    local blocked_tasks
-    blocked_tasks=$("$TK" blocked 2>/dev/null || true)
-
-    # Look for patterns where multiple tasks are blocked by the same task
-    local blockers
-    blockers=$(echo "$blocked_tasks" | grep -oE '[a-z]+-[a-z0-9]+' | sort | uniq -c | sort -rn || true)
-
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        local count
-        count=$(echo "$line" | awk '{print $1}')
-        local blocker_id
-        blocker_id=$(echo "$line" | awk '{print $2}')
-
-        # If 3+ tasks are blocked by one task, it might benefit from interface extraction
-        if [[ "$count" -ge 3 ]]; then
-            log_suggestion "High-impact blocker ($count dependents): $blocker_id - Consider extracting interface to enable parallel work"
-            ((opportunity_count++)) || true
-        fi
-    done <<< "$blockers"
-
-    if [[ $opportunity_count -eq 0 ]]; then
-        log_verbose "No obvious parallelization opportunities found"
-    fi
-
-    echo $opportunity_count
 }
 
 # Check for in-progress tasks without notes
@@ -913,7 +820,6 @@ main() {
 
     if $QUICK_MODE; then
         # Quick mode: run only the fast, high-value checks.
-        check_circular_dependencies > /dev/null
         check_orphaned_tasks > /dev/null
         check_empty_epics > /dev/null
         check_ticket_count > /dev/null
@@ -922,17 +828,14 @@ main() {
         check_duplicate_titles > /dev/null
     else
         # Full mode (default): run all checks.
-        check_circular_dependencies > /dev/null
         check_orphaned_tasks > /dev/null
         check_empty_epics > /dev/null
         check_ticket_count > /dev/null
-        check_mislinked_dependencies > /dev/null
         check_child_parent_deps > /dev/null
         check_cross_epic_child_deps > /dev/null
         check_duplicate_titles > /dev/null
         check_missing_descriptions > /dev/null
         check_interface_contracts > /dev/null
-        check_parallelization_opportunities > /dev/null
         check_in_progress_without_notes > /dev/null
     fi
 

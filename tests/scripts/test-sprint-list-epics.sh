@@ -85,16 +85,6 @@ else
     (( FAIL++ ))
 fi
 
-# ── Test 3: No tk ready / tk blocked / tk show calls in the script ────────────
-echo "Test 3: No tk ready / tk blocked / tk show calls"
-if { grep -q 'tk ready\|tk blocked\|tk show' "$SCRIPT"; test $? -ne 0; }; then
-    echo "  PASS: no tk ready/blocked/show calls"
-    (( PASS++ ))
-else
-    echo "  FAIL: found tk ready/blocked/show call in script" >&2
-    (( FAIL++ ))
-fi
-
 # ── Setup: create fixture v3 tracker for remaining tests ─────────────────────
 TDIR=$(mktemp -d)
 trap 'rm -rf "$TDIR"' EXIT
