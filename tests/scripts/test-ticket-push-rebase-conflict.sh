@@ -52,8 +52,8 @@ test_merge_fallback_on_rebase_conflict() {
 test_merge_fallback_on_rebase_conflict
 echo "Test 2: ticket-lib.sh _push_tickets_branch contains merge fallback"
 test_merge_fallback_exists_in_lib() {
-    local lib_content; lib_content=$(< "$TICKET_LIB")
-    if echo "$lib_content" | grep -qE 'git.*merge.*origin/tickets|merge.*fallback'; then
+    # grep the file directly to avoid echo|grep-q SIGPIPE false-negative under set -uo pipefail
+    if grep -qE 'git.*merge.*origin/tickets|merge.*fallback' "$TICKET_LIB"; then
         (( ++PASS )); echo "PASS: merge fallback present in _push_tickets_branch"
     else
         (( ++FAIL )); echo "FAIL: merge fallback NOT found in _push_tickets_branch" >&2
