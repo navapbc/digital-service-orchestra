@@ -51,7 +51,7 @@ _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pre-flight: ensure pre-commit is on PATH before any git commands that trigger hooks.
 # git merge (in _phase_merge) triggers pre-commit hooks; if venv is not in PATH,
 # the hooks fail with "pre-commit: command not found".
-source "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pre-commit.sh" || true
+source "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pre-commit.sh" || true  # shim-exempt: plugin-internal sibling-script source from scripts/
 
 # --- Load merge utility helpers (state file, lock, recovery, push-idempotency) ---
 # shellcheck source=${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-helpers.sh
@@ -198,6 +198,48 @@ fi
 PRE_MERGE_SHA=$(git -C "$MAIN_REPO" rev-parse HEAD 2>/dev/null || echo "")
 
 # =============================================================================
+# Helpers
+# =============================================================================
+
+# Detect and auto-reset a stale orphan version-bump on local main.
+# Pattern: a prior merge-to-main run completed the local merge + version bump
+# but failed to push (e.g., CI failure). The next run sees local `main`
+# divergent from `origin/main`: same merged content plus an extra version-bump
+# commit. The diverged-branch merge then produces a false plugin.json conflict.
+#
+# This helper is conservative: it ONLY resets when the diff between HEAD and
+# origin/main is a SINGLE file equal to VERSION_FILE_PATH. Any other divergent
+# file (real work) causes a no-op so user resolution is preserved. The version
+# bump that gets discarded is reapplied later by _phase_version_bump.
+#
+# Returns 0 if reset performed, 1 otherwise (no divergence, unset config, or
+# other files differ).
+_try_reset_stale_version_bump() {
+    local _vf="${VERSION_FILE_PATH:-}"
+    [ -z "$_vf" ] && return 1
+
+    git fetch origin main --quiet 2>/dev/null || true
+
+    # No divergence → nothing to do
+    if [ "$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 0)" = "0" ]; then
+        return 1
+    fi
+
+    local _diff_files
+    _diff_files=$(git diff --name-only origin/main..HEAD 2>/dev/null || true)
+    # Single-file diff and that file matches the configured version file path
+    if [ "$_diff_files" = "$_vf" ]; then
+        echo "INFO: Local main diverges from origin/main only by a stale version bump in ${_vf} — resetting to origin/main (version_bump phase will reapply correctly)."
+        if ! git reset --hard origin/main -q 2>/dev/null; then
+            echo "WARNING: Could not reset local main to origin/main."
+            return 1
+        fi
+        return 0
+    fi
+    return 1
+}
+
+# =============================================================================
 # Phase functions — each wraps a sequential phase with state recording
 # =============================================================================
 
@@ -232,7 +274,7 @@ _phase_sync() {
         BASELINE_DIFF=$(git diff --name-only "$MERGE_BASE_ORIGIN" HEAD -- "$VISUAL_BASELINE_PATH" 2>/dev/null | grep '\.png$' || true)
         if [ -n "$BASELINE_DIFF" ]; then
             BASELINE_CHECK_EXIT=0
-            "${CLAUDE_PLUGIN_ROOT}/scripts/verify-baseline-intent.sh" || BASELINE_CHECK_EXIT=$?
+            "${CLAUDE_PLUGIN_ROOT}/scripts/verify-baseline-intent.sh" || BASELINE_CHECK_EXIT=$?  # shim-exempt: plugin-internal sibling-script call from scripts/
             if [ "$BASELINE_CHECK_EXIT" -eq 2 ]; then
                 echo "ERROR: Visual baseline changes need review. See .claude/docs/VISUAL-BASELINES.md"
                 exit 1
@@ -296,7 +338,15 @@ _phase_sync() {
             echo "OK: origin/main is already an ancestor of main — skipping pull."
         fi
     else
-        # main and origin have diverged — try merge (more tolerant than rebase).
+        # main and origin have diverged. First check if the divergence is just
+        # a stale orphan version bump from a prior failed merge-to-main run —
+        # in that case, hard reset to origin/main and skip the merge.
+        if _try_reset_stale_version_bump; then
+            echo "OK: Stale-version-bump auto-reset complete (pull skipped)."
+            _state_mark_complete "sync"
+            return 0
+        fi
+        # Otherwise try merge (more tolerant than rebase).
         # Stash any local changes so the merge can proceed cleanly.
         STASHED=false
         if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
@@ -383,6 +433,13 @@ _phase_merge() {
                 echo "WARNING: _phase_merge: Could not reset to origin/main — merge may encounter false conflicts."
             }
         fi
+    else
+        # Diverged case: detect the same stale-version-bump pattern as in
+        # _phase_sync. Mirrors the diverged-branch handling so --resume
+        # entering _phase_merge directly after an interrupted sync also
+        # auto-resolves the conflict. The helper's INFO log is preserved
+        # so the reset is visible in the merge-phase output.
+        _try_reset_stale_version_bump || true
     fi
 
     # Find the last meaningful commit message from the worktree branch (skip chore/cleanup commits)

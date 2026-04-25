@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2154  # _repo_dir set indirectly via eval inside _build_ten_task_repo
 # tests/scripts/test-max-agents-unlimited-dispatch.sh
 # GREEN test: 10-agent concurrent dispatch with MAX_AGENTS unlimited.
 #
@@ -110,6 +111,7 @@ CFG_STUB
 
     cp "$PLUGIN_SCRIPT" "$_dir/scripts/sprint-next-batch.sh"
     chmod +x "$_dir/scripts/sprint-next-batch.sh"
+    cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_dir/scripts/ticket-next-batch.sh"
 
     eval "${_var}=\"$_dir\""
 }
