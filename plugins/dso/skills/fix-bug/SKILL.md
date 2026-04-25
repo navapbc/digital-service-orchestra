@@ -1356,7 +1356,7 @@ When `/dso:fix-bug` is invoked inside a larger workflow (e.g., from `/dso:sprint
 
 ### Re-entry from COMPLEX_ESCALATION
 
-When the invocation prompt contains a `### COMPLEX_ESCALATION Context` block (emitted by `/dso:debug-everything` Phase 6 Step 3a during orchestrator-level re-dispatch), skip Steps 1-3 and proceed directly to Step 4 (Fix Approval):
+When the invocation prompt contains a `### COMPLEX_ESCALATION Context` block (emitted by `/dso:debug-everything` Phase H Step 8 during orchestrator-level re-dispatch), skip Steps 1-3 and proceed directly to Step 4 (Fix Approval):
 
 1. Parse the `investigation_findings` from the `COMPLEX_ESCALATION Context` block
 2. Write the findings to the discovery file (`/tmp/fix-bug-discovery-<bug-id>.json`) with the parsed root cause, confidence, and proposed fixes
@@ -1392,7 +1392,7 @@ investigation_findings: <summary of root cause candidates, confidence, evidence,
 escalation_reason: <why escalation is needed and cannot proceed autonomously>
 ```
 
-The calling orchestrator detects `COMPLEX_ESCALATION: true` and parses the same fields regardless of whether the escalation originated from complexity evaluation (Step 4.5) or tier unavailability (this section). See `/dso:debug-everything` Phase 6 Step 3a for the orchestrator's handling of this signal.
+The calling orchestrator detects `COMPLEX_ESCALATION: true` and parses the same fields regardless of whether the escalation originated from complexity evaluation (Step 4.5) or tier unavailability (this section). See `/dso:debug-everything` Phase H Step 8 for the orchestrator's handling of this signal.
 
 ## Escalation Triggers
 

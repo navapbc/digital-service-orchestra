@@ -690,6 +690,44 @@ else
     fi
 fi
 
+# --- Overlay enforcement: every overlay flagged true in classifier telemetry
+# (for the CURRENT diff hash) must have a corresponding reviewer-findings-<dim>.json
+# file alongside the canonical findings. This guards against the orchestrator
+# skipping Step 4 overlay dispatch — without this gate, a tier review records
+# successfully even when an overlay (test_quality, security, performance) was
+# flagged but never dispatched, silently allowing unreviewed code through.
+#
+# Telemetry filtering: classifier-telemetry.jsonl is append-only across runs in
+# the same artifacts dir, so reading `tail -1` would consume stale records from
+# prior reviews. read-overlay-flags.sh filters JSONL by --diff-hash before
+# extracting flags, ensuring we only enforce against the current diff's record.
+# The same script is used by REVIEW-WORKFLOW.md Step 4 (in classifier mode) so
+# the dispatch decision and the post-commit gate cannot disagree on overlay state.
+if [[ -f "$TELEMETRY_FILE" ]]; then
+    # HOOK_DIR is set at script init (line 43). Plugin root is its parent.
+    _READ_OVERLAY_SCRIPT="$(dirname "$HOOK_DIR")/scripts/read-overlay-flags.sh"
+    if [[ ! -x "$_READ_OVERLAY_SCRIPT" ]]; then
+        # Fail-closed: if telemetry exists but the helper does not, the gate
+        # cannot enforce. Allowing the commit through would silently disable
+        # overlay coverage — the exact failure mode this gate was added to
+        # prevent. Surface the misconfiguration to the user instead.
+        echo "OVERLAY_GATE_UNAVAILABLE: read-overlay-flags.sh not found at $_READ_OVERLAY_SCRIPT — overlay enforcement cannot run. Sync the plugin (the helper is shipped under \${CLAUDE_PLUGIN_ROOT}/scripts/) and re-run the commit workflow." >&2
+        exit 1
+    fi
+    _OVERLAY_FLAGS=$(bash "$_READ_OVERLAY_SCRIPT" --mode telemetry --diff-hash "$DIFF_HASH" < "$TELEMETRY_FILE" 2>/dev/null || true)
+    _OVERLAY_MISSING=()
+    while IFS= read -r _dim; do
+        [[ -z "$_dim" ]] && continue
+        if [[ ! -f "$ARTIFACTS_DIR/reviewer-findings-${_dim}.json" ]]; then
+            _OVERLAY_MISSING+=("$_dim")
+        fi
+    done <<< "$_OVERLAY_FLAGS"
+    if (( ${#_OVERLAY_MISSING[@]} > 0 )); then
+        echo "OVERLAY_MISSING: classifier flagged overlay(s) [${_OVERLAY_MISSING[*]}] for diff_hash $DIFF_HASH but no reviewer-findings-<dim>.json file recorded for them. Overlay dispatch was skipped. Re-run /dso:review and ensure every flagged overlay agent is dispatched in parallel with the tier reviewer (REVIEW-WORKFLOW.md Step 4)." >&2
+        exit 1
+    fi
+fi
+
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Determine pass/fail: pass requires min score >= 4 AND no critical findings.

@@ -6,6 +6,8 @@ in `/dso:sprint` (post-batch) and `COMMIT-WORKFLOW.md` (commit-time) contexts.
 Parent epic: `lockpick-doc-to-logic-vs5gl` — Add automated test-failure debugging
 sub-agents to /dso:sprint, /dso:commit, and /dso:debug-everything.
 
+> **SUPERSEDED (2026-04-24)** — `fix-task-tdd.md` and `fix-task-mechanical.md` were removed when `/dso:debug-everything` consolidated all bug-resolution dispatch to `/dso:fix-bug` (which encapsulates the TDD-vs-mechanical routing decision internally). The shared structured RESULT format and anti-patterns now live inside fix-bug. The shared test-failure prompt was relocated to `plugins/dso/skills/shared/prompts/test-failure-fix.md`. References to `skills/debug-everything/prompts/fix-task-*.md` below are historical.
+
 ---
 
 ## Section 1: Existing Pattern Catalog

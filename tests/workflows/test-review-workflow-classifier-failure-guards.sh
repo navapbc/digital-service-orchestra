@@ -44,6 +44,9 @@ test_classifier_invocation_not_double_quoted() {
     # GOOD: CLASSIFIER_OUTPUT=$("$REPO_ROOT/.../dso" review-complexity-classifier.sh ...)
     #       — the shim is quoted separately; the script name is a distinct arg.
     local found=0
+    # shellcheck disable=SC2016
+    # Intentional literal pattern — the test searches for the actual `\$("..."` shell-substitution
+    # syntax in REVIEW-WORKFLOW.md prose, which would be lost if the single quotes were doubled.
     grep -q 'CLASSIFIER_OUTPUT=\$(".*dso review-complexity-classifier\.sh"' "$REVIEW_WORKFLOW" 2>/dev/null && found=1 || true
     assert_eq "classifier invocation: script not embedded in quoted shim (6dbe-667d)" "0" "$found"
 }
@@ -63,55 +66,54 @@ test_capture_review_diff_not_double_quoted() {
 }
 
 # ============================================================
-# test_overlay_security_has_guard (2762-e00e)
+# test_overlay_flags_read_has_guard (2762-e00e, refactored to shared helper)
 #
-# SECURITY_OVERLAY parsing must have a fallback guard so that an empty or
-# invalid CLASSIFIER_OUTPUT (classifier failed) does not propagate a
-# JSONDecodeError that exits the workflow with code 1.
+# Overlay-flag reading must have a fallback guard so that an empty or invalid
+# CLASSIFIER_OUTPUT (classifier failed) does not propagate a JSONDecodeError
+# that exits the workflow with code 1.
 #
-# GOOD pattern: ... 2>/dev/null || echo "false"
+# Cycle-3 refactor: the three per-flag SECURITY_OVERLAY=... / PERFORMANCE_OVERLAY=...
+# / TEST_QUALITY_OVERLAY=... python invocations were consolidated into a single
+# call to read-overlay-flags.sh (single source-of-truth shared with record-review.sh).
+# The fallback guard now lives on the helper invocation: `... || true` and the
+# helper's own python try/except. Test asserts the helper invocation in
+# REVIEW-WORKFLOW.md Step 4 retains a stderr-suppression + ||-fallback guard
+# so a malformed classifier output cannot abort the orchestrator.
 # ============================================================
-test_overlay_security_has_guard() {
+test_overlay_flags_read_has_guard() {
     local line
-    line=$(grep 'SECURITY_OVERLAY=.*security_overlay' "$REVIEW_WORKFLOW" 2>/dev/null || true)
+    # Find the OVERLAY_DIMS=... line that calls read-overlay-flags.sh
+    line=$(grep 'OVERLAY_DIMS=.*read-overlay-flags\.sh' "$REVIEW_WORKFLOW" 2>/dev/null | head -1 || true)
     local has_guard=0
-    if echo "$line" | grep -q '|| echo'; then
+    # Accept either pattern: `2>/dev/null || true` or `2>/dev/null || echo`
+    if echo "$line" | grep -qE '2>/dev/null \|\| (true|echo)'; then
         has_guard=1
     fi
-    assert_eq "SECURITY_OVERLAY parsing has || fallback guard (2762-e00e)" "1" "$has_guard"
+    assert_eq "OVERLAY_DIMS read via read-overlay-flags.sh has stderr-suppression + ||-fallback guard (2762-e00e cycle-3 refactor)" "1" "$has_guard"
 }
 
 # ============================================================
-# test_overlay_performance_has_guard (2762-e00e)
+# test_overlay_helper_used_in_step_4 (cycle-3)
+#
+# The cycle-3 refactor introduces read-overlay-flags.sh as the single source-of-truth
+# for overlay-flag schema. REVIEW-WORKFLOW.md Step 4 must call it (not duplicate
+# the schema inline). This locks in that choice: a regression that re-introduces
+# inline `'security_overlay'` / `'performance_overlay'` / `'test_quality_overlay'`
+# python invocations in REVIEW-WORKFLOW.md (re-creating drift risk vs.
+# record-review.sh) is caught here.
 # ============================================================
-test_overlay_performance_has_guard() {
-    local line
-    line=$(grep 'PERFORMANCE_OVERLAY=.*performance_overlay' "$REVIEW_WORKFLOW" 2>/dev/null || true)
-    local has_guard=0
-    if echo "$line" | grep -q '|| echo'; then
-        has_guard=1
+test_overlay_helper_used_in_step_4() {
+    local found=0
+    if grep -q 'read-overlay-flags\.sh.*--mode classifier' "$REVIEW_WORKFLOW" 2>/dev/null; then
+        found=1
     fi
-    assert_eq "PERFORMANCE_OVERLAY parsing has || fallback guard (2762-e00e)" "1" "$has_guard"
-}
-
-# ============================================================
-# test_overlay_test_quality_has_guard (2762-e00e)
-# ============================================================
-test_overlay_test_quality_has_guard() {
-    local line
-    line=$(grep 'TEST_QUALITY_OVERLAY=.*test_quality_overlay' "$REVIEW_WORKFLOW" 2>/dev/null || true)
-    local has_guard=0
-    if echo "$line" | grep -q '|| echo'; then
-        has_guard=1
-    fi
-    assert_eq "TEST_QUALITY_OVERLAY parsing has || fallback guard (2762-e00e)" "1" "$has_guard"
+    assert_eq "REVIEW-WORKFLOW.md Step 4 uses read-overlay-flags.sh in classifier mode" "1" "$found"
 }
 
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_classifier_invocation_not_double_quoted
 test_capture_review_diff_not_double_quoted
-test_overlay_security_has_guard
-test_overlay_performance_has_guard
-test_overlay_test_quality_has_guard
+test_overlay_flags_read_has_guard
+test_overlay_helper_used_in_step_4
 
 print_summary

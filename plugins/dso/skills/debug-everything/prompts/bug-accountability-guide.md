@@ -1,6 +1,6 @@
 ## Bug Accountability Guide
 
-Reference for the orchestrator during Phase 3 (Fix Planning) and Phase 10 (final report).
+Reference for the orchestrator during Phase E (Fix Planning) and Phase L (final report).
 
 ---
 

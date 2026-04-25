@@ -228,7 +228,7 @@ BRANCH=$(git branch --show-current)
 git log main..$BRANCH --oneline
 ```
 
-**If no unmerged commits** (output is empty): the branch was already merged to main by a prior phase (e.g., `/dso:debug-everything` Phase 10). Skip the merge script. Report: "Branch already merged to main — skipping merge." **Still push the tickets branch** — ticket-only sessions (brainstorming, bug creation, description enrichment) make no code changes but do modify the tickets orphan branch. Without an explicit push here, those changes are lost when the ephemeral session environment is destroyed:
+**If no unmerged commits** (output is empty): the branch was already merged to main by a prior phase (e.g., `/dso:debug-everything` Phase L). Skip the merge script. Report: "Branch already merged to main — skipping merge." **Still push the tickets branch** — ticket-only sessions (brainstorming, bug creation, description enrichment) make no code changes but do modify the tickets orphan branch. Without an explicit push here, those changes are lost when the ephemeral session environment is destroyed:
 
 ```bash
 TRACKER_DIR="$REPO_ROOT/.tickets-tracker"

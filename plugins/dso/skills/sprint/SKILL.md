@@ -1641,7 +1641,7 @@ Check for actual file conflicts before committing:
    ```
    The script outputs `CONFLICTS: <N>` followed by one `CONFLICT:` line per overlap.
    Exit 0 = no conflicts, exit 1 = conflicts detected.
-3. If conflicts are detected, resolution (same protocol as `/dso:debug-everything` Phase 6 Step 1a):
+3. If conflicts are detected, resolution (same protocol as `/dso:debug-everything` Phase H Step 4):
    a. Identify the primary agent for each conflicting file (highest priority)
    b. Revert ALL secondary agents' changes to conflicting files
    c. Re-run secondary agents one at a time in priority order (not parallel),

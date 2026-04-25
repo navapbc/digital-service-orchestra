@@ -1031,4 +1031,50 @@ assert_eq "test_harvest_preconditions_zero_events_no_regression: harvest guards 
 assert_pass_if_clean "test_harvest_preconditions_zero_events_no_regression"
 
 # =============================================================================
+# Test: harvest-worktree.sh copies reviewer-findings*.json from worktree to session
+# =============================================================================
+# When deep-tier review runs inside a sub-agent worktree, the per-specialist findings
+# files (reviewer-findings-{a,b,c}.json) and the canonical reviewer-findings.json sit
+# in the worktree's artifacts dir. Harvest must bring them back to session artifacts
+# alongside the attested review-status, so the orchestrator can read individual
+# specialist findings for remediation and the chain of evidence is preserved.
+echo "--- test_harvest_copies_reviewer_findings_files ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+setup_test_repo "$tmpdir" "passed" "passed"
+
+# Pre-populate the worktree artifacts dir with reviewer-findings files
+echo '{"scores":{"correctness":4},"findings":[],"summary":"slot a","review_tier":"deep"}' \
+    > "$ARTIFACTS_DIR/reviewer-findings-a.json"
+echo '{"scores":{"verification":4},"findings":[],"summary":"slot b","review_tier":"deep"}' \
+    > "$ARTIFACTS_DIR/reviewer-findings-b.json"
+echo '{"scores":{"hygiene":4},"findings":[],"summary":"slot c","review_tier":"deep"}' \
+    > "$ARTIFACTS_DIR/reviewer-findings-c.json"
+echo '{"scores":{"correctness":4,"verification":4,"hygiene":4},"findings":[],"summary":"arch","review_tier":"deep"}' \
+    > "$ARTIFACTS_DIR/reviewer-findings.json"
+
+SESSION_ARTIFACTS_DIR="$tmpdir/session-artifacts"
+mkdir -p "$SESSION_ARTIFACTS_DIR"
+
+cd "$SESSION_REPO" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH" \
+    "$ARTIFACTS_DIR" \
+    --session-artifacts "$SESSION_ARTIFACTS_DIR" \
+    >/dev/null 2>&1 || true
+
+# All four files (3 slots + canonical) must be present in session artifacts after harvest.
+_slot_a_present=$(test -f "$SESSION_ARTIFACTS_DIR/reviewer-findings-a.json" && echo found || echo missing)
+_slot_b_present=$(test -f "$SESSION_ARTIFACTS_DIR/reviewer-findings-b.json" && echo found || echo missing)
+_slot_c_present=$(test -f "$SESSION_ARTIFACTS_DIR/reviewer-findings-c.json" && echo found || echo missing)
+_canonical_present=$(test -f "$SESSION_ARTIFACTS_DIR/reviewer-findings.json" && echo found || echo missing)
+
+assert_eq "test_harvest_copies_reviewer_findings_files: slot a copied" "found" "$_slot_a_present"
+assert_eq "test_harvest_copies_reviewer_findings_files: slot b copied" "found" "$_slot_b_present"
+assert_eq "test_harvest_copies_reviewer_findings_files: slot c copied" "found" "$_slot_c_present"
+assert_eq "test_harvest_copies_reviewer_findings_files: canonical copied" "found" "$_canonical_present"
+
+assert_pass_if_clean "test_harvest_copies_reviewer_findings_files"
+
+# =============================================================================
 print_summary

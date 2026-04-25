@@ -136,7 +136,7 @@ HUGE_EXIT=$?
 
 ```bash
 # Run complexity classifier to determine review tier
-CLASSIFIER_OUTPUT=$("$REPO_ROOT/.claude/scripts/dso" review-complexity-classifier.sh < "$DIFF_FILE" 2>/dev/null) || CLASSIFIER_EXIT=$?
+CLASSIFIER_OUTPUT=$("$REPO_ROOT/.claude/scripts/dso" review-complexity-classifier.sh --diff-hash "$DIFF_HASH" < "$DIFF_FILE" 2>/dev/null) || CLASSIFIER_EXIT=$?
 if [[ "${CLASSIFIER_EXIT:-0}" -ne 0 ]] || ! echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
     # Classifier failed — default to standard tier per contract (classifier-tier-output.md)
     REVIEW_TIER="standard"
@@ -202,6 +202,25 @@ Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. When `REVIEW_AGENT_OV
 **Deep tier + upgrade — no rationalization exemptions**: When `REVIEW_TIER=deep` and `SIZE_ACTION=upgrade`, you MUST dispatch the full deep tier (3 parallel sonnet agents + opus arch synthesis) with the opus model override. Do not substitute a lighter tier, a standard-tier agent, or a general-purpose agent due to perceived overhead, time constraints, or commit urgency. The deep tier exists precisely for high-blast-radius changes — "overhead" objections do not override the classifier.
 
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
+
+**Single parallel batch: tier reviewer + every overlay flagged true in Step 3.** Before writing the dispatch prompt(s), read overlay flags from the classifier output captured in Step 3 and add the corresponding overlay agents to this Step 4 dispatch — they MUST launch in the same parallel Agent tool batch as the tier reviewer, never as a follow-up step. The `record-review.sh` gate enforces this: when the classifier flagged an overlay true, a corresponding `reviewer-findings-<dim>.json` MUST exist or the gate fails with `OVERLAY_MISSING`.
+
+```bash
+# Read overlay flags BEFORE building the dispatch list. Any flag set true must
+# add a parallel agent to this Step 4 batch. Do NOT defer overlays to Step 4b.
+# read-overlay-flags.sh is the single source-of-truth shared with record-review.sh
+# so dispatch decision and post-commit gate cannot disagree.
+OVERLAY_DIMS=$(echo "$CLASSIFIER_OUTPUT" | "$REPO_ROOT/.claude/scripts/dso" read-overlay-flags.sh --mode classifier 2>/dev/null || true)
+# OVERLAY_DIMS is one dim per line: test-quality, security, performance.
+```
+
+The dispatch list for this Step 4 parallel batch is therefore:
+- 1 tier agent (or 3 specialists for deep tier — see Deep Tier below).
+- `dso:code-reviewer-security-red-team` if `OVERLAY_DIMS` contains `security` (then sequential blue-team triage after — see Step 4b for details).
+- `dso:code-reviewer-performance` if `OVERLAY_DIMS` contains `performance`.
+- `dso:code-reviewer-test-quality` if `OVERLAY_DIMS` contains `test-quality`.
+
+Each overlay agent receives `FINDINGS_OUTPUT=$ARTIFACTS_DIR/reviewer-findings-<dim>.json` (e.g., `reviewer-findings-test-quality.json`) so its output does not collide with the tier reviewer's `reviewer-findings.json`. Step 4b retains its serial-path role for the case where overlay flags are False but the tier reviewer's return signals `<dim>_overlay_warranted: yes` after the fact.
 
 **You MUST launch a named `dso:code-reviewer-*` sub-agent.** There are no exceptions — not for documentation-only changes, not for "trivial" changes, not for config files. The sub-agent performs the review and assigns scores. Skipping this step and writing review JSON yourself is fabrication. Dispatching a generic agent with instructions to write `reviewer-findings.json` is also fabrication — the review MUST come from a named reviewer agent (`dso:code-reviewer-light`, `dso:code-reviewer-standard`, or `dso:code-reviewer-deep-*`), not a general-purpose agent with fabricated review instructions.
 
@@ -302,6 +321,8 @@ When `REVIEW_TIER` is `deep`, dispatch 3 parallel sonnet sub-agents in a single 
 | a | `dso:code-reviewer-deep-correctness` | `$ARTIFACTS_DIR/reviewer-findings-a.json` |
 | b | `dso:code-reviewer-deep-verification` | `$ARTIFACTS_DIR/reviewer-findings-b.json` |
 | c | `dso:code-reviewer-deep-hygiene` | `$ARTIFACTS_DIR/reviewer-findings-c.json` |
+
+**`FINDINGS_OUTPUT` IS MANDATORY PER SLOT.** Every specialist dispatch prompt below MUST include the slot-specific `FINDINGS_OUTPUT` line. Omitting it causes all three specialists to write to the canonical `reviewer-findings.json`, where each parallel write clobbers the previous one — only the last writer survives and the arch reviewer synthesizes against silently-missing inputs. The slot value in `FINDINGS_OUTPUT` is the only mechanism preventing this clobber.
 
 **SERIAL DISPATCH PROHIBITED**: All 3 sonnet agents MUST be launched in a single response as 3 parallel Agent tool calls. Dispatching them one at a time (serial) triples review time and is a critical workflow violation. A single response must contain all three Agent tool invocations with no waiting between them.
 
@@ -673,20 +694,19 @@ After Step 4 returns, check whether security, performance, or test quality overl
 
 ### 1. Read Overlay Flags
 
-Read `security_overlay`, `performance_overlay`, and `test_quality_overlay` from the classifier output captured in Step 3:
+Read flagged overlay dimensions from the classifier output captured in Step 3 via the shared helper (single source-of-truth — same script record-review.sh uses for the post-commit gate):
 
 ```bash
 # $CLASSIFIER_OUTPUT is the shell variable captured in Step 3 (classifier stdout)
-SECURITY_OVERLAY=$(echo "$CLASSIFIER_OUTPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('security_overlay', False))" 2>/dev/null || echo "false")
-PERFORMANCE_OVERLAY=$(echo "$CLASSIFIER_OUTPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('performance_overlay', False))" 2>/dev/null || echo "false")
-TEST_QUALITY_OVERLAY=$(echo "$CLASSIFIER_OUTPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('test_quality_overlay', False))" 2>/dev/null || echo "false")
+OVERLAY_DIMS=$(echo "$CLASSIFIER_OUTPUT" | "$REPO_ROOT/.claude/scripts/dso" read-overlay-flags.sh --mode classifier 2>/dev/null || true)
+# OVERLAY_DIMS is one dim per line: test-quality, security, performance.
 ```
 
-If all are `False` and no tier reviewer signal is present (see Serial Path below), skip to Step 5.
+If `OVERLAY_DIMS` is empty and no tier reviewer signal is present (see Serial Path below), skip to Step 5.
 
 ### 2. Parallel Path (deterministic classifier signal)
 
-If any of `SECURITY_OVERLAY`, `PERFORMANCE_OVERLAY`, or `TEST_QUALITY_OVERLAY` is `True`, the classifier flagged the overlay at classification time. Source `scripts/overlay-dispatch.sh` and call `overlay_dispatch_mode` to determine whether the overlay agents were already launched in parallel alongside the tier reviewer: # shim-exempt: internal library source, not a user-invocable command
+If `OVERLAY_DIMS` contains any of `test-quality`, `security`, or `performance`, the classifier flagged the overlay at classification time. Source `scripts/overlay-dispatch.sh` and call `overlay_dispatch_mode` to determine whether the overlay agents were already launched in parallel alongside the tier reviewer: # shim-exempt: internal library source, not a user-invocable command
 
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts" # shim-exempt: internal source path for overlay-dispatch.sh library
@@ -814,9 +834,9 @@ This step is non-blocking: ticket creation failures do not prevent the calling w
   --resolution-defenses=0 \
   --tier-original="$REVIEW_TIER" \
   --tier-final="$REVIEW_TIER" \
-  --overlay-security="${OVERLAY_SECURITY:-false}" \
-  --overlay-performance="${OVERLAY_PERFORMANCE:-false}" \
-  --overlay-test-quality="${TEST_QUALITY_OVERLAY:-false}"
+  --overlay-security="$(echo "$OVERLAY_DIMS" | grep -qx security && echo true || echo false)" \
+  --overlay-performance="$(echo "$OVERLAY_DIMS" | grep -qx performance && echo true || echo false)" \
+  --overlay-test-quality="$(echo "$OVERLAY_DIMS" | grep -qx test-quality && echo true || echo false)"
 ```
 
 ### If ANY score is below 4, OR any critical finding exists:
@@ -1014,8 +1034,8 @@ Task tool:
      --resolution-defenses="$RESOLUTION_DEFENSES" \
      --tier-original="$REVIEW_TIER" \
      --tier-final="$([ "$RE_REVIEW_DEEP_FULL" = true ] && echo deep || echo "$REVIEW_TIER")" \
-     --overlay-security="${OVERLAY_SECURITY:-false}" \
-     --overlay-performance="${OVERLAY_PERFORMANCE:-false}"
+     --overlay-security="$(echo "$OVERLAY_DIMS" | grep -qx security && echo true || echo false)" \
+     --overlay-performance="$(echo "$OVERLAY_DIMS" | grep -qx performance && echo true || echo false)"
    ```
 
    Then proceed to commit.

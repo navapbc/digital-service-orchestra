@@ -843,7 +843,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | Maximum number of fix→validate cycles the `/dso:debug-everything` validation loop runs before stopping and reporting remaining open bugs. One cycle = Bug-Fix Mode pass over all open tickets followed by a Validation Mode diagnostic scan. When set to `0`, the validation loop is skipped entirely and execution proceeds directly to Phase 8 after Bug-Fix Mode. Values `> 10` are capped at `10` with a warning. Non-numeric values default to `3` with a warning. |
+| **Description** | Maximum number of fix→validate cycles the `/dso:debug-everything` validation loop runs before stopping and reporting remaining open bugs. One cycle = Bug-Fix Mode pass over all open tickets followed by a Validation Mode diagnostic scan. When set to `0`, the validation loop is skipped entirely and execution proceeds directly to Phase J after Bug-Fix Mode. Values `> 10` are capped at `10` with a warning. Non-numeric values default to `3` with a warning. |
 | **Accepted values** | Non-negative integer (0–10; values above 10 are capped) |
 | **Default** | `3` |
 | **Used by** | `/dso:debug-everything` (Validation Mode inner loop) |

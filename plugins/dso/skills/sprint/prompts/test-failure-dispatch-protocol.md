@@ -25,7 +25,7 @@ Per TEST-FAILURE-DISPATCH.md Model Selection Table and Sub-Agent Type Selection 
 
 ## Prompt Template
 
-Read from `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` and fill all placeholders with the input payload fields.
+Read from `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/test-failure-fix.md` and fill all placeholders with the input payload fields.
 
 ## Nesting Prohibition
 

@@ -104,12 +104,12 @@ The orchestrator extracts the `RESULT` line to decide the next action:
 
 | Failure Signal | Template Path | Path Within Template |
 |---------------|---------------|---------------------|
-| Assertion failure (`AssertionError`, wrong value) | `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` | TDD path (RED -> GREEN) |
-| Runtime error (`KeyError`, `TypeError`, `AttributeError`) | `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` | TDD path (RED -> GREEN) |
-| Import error (`ModuleNotFoundError`, `ImportError`) | `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` | Mechanical path |
-| Type annotation error (mypy) | `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` | Mechanical path |
-| Lint violation (ruff) | `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` | Mechanical path |
-| Config/env issue | `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` | Mechanical path |
+| Assertion failure (`AssertionError`, wrong value) | `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/test-failure-fix.md` | TDD path (RED -> GREEN) |
+| Runtime error (`KeyError`, `TypeError`, `AttributeError`) | `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/test-failure-fix.md` | TDD path (RED -> GREEN) |
+| Import error (`ModuleNotFoundError`, `ImportError`) | `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/test-failure-fix.md` | Mechanical path |
+| Type annotation error (mypy) | `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/test-failure-fix.md` | Mechanical path |
+| Lint violation (ruff) | `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/test-failure-fix.md` | Mechanical path |
+| Config/env issue | `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/test-failure-fix.md` | Mechanical path |
 
 ---
 

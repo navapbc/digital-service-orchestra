@@ -239,7 +239,7 @@ When a Task tool call returns an infrastructure-level dispatch failure (no `STAT
 
 This is distinct from task-level failures (where the agent ran but produced incorrect work). Task-level failures follow normal Step 9 handling (revert to open, record failure reason).
 
-Dispatch failure retries are sequential and do not count toward batch size limits. Both `/dso:sprint` (Phase 5 Step 0) and `/dso:debug-everything` (Phase 6 Step 0) implement this protocol.
+Dispatch failure retries are sequential and do not count toward batch size limits. Both `/dso:sprint` (Phase 5 Step 0) and `/dso:debug-everything` (Phase H Step 1) implement this protocol.
 
 ## Checkpoint Protocol
 
