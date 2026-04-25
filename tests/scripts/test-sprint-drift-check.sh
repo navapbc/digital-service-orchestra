@@ -352,10 +352,10 @@ assert_contains "status-mixed-drift: open child drifted → DRIFT_DETECTED" "DRI
 assert_contains "status-mixed-drift: open file listed" "src/open_file.py" "$_t9_output"
 # in_progress and closed files must NOT appear in drift output (filtered out)
 _t9_inprog_absent=0
-echo "$_t9_output" | grep -q "src/inprog_file.py" && _t9_inprog_absent=1 || true
+grep -q "src/inprog_file.py" <<< "$_t9_output" && _t9_inprog_absent=1 || true
 assert_eq "status-mixed-drift: in_progress file absent from drift output" "0" "$_t9_inprog_absent"
 _t9_closed_absent=0
-echo "$_t9_output" | grep -q "src/closed_file.py" && _t9_closed_absent=1 || true
+grep -q "src/closed_file.py" <<< "$_t9_output" && _t9_closed_absent=1 || true
 assert_eq "status-mixed-drift: closed file absent from drift output" "0" "$_t9_closed_absent"
 
 
@@ -525,7 +525,7 @@ _rt2_output=$(TICKET_CMD="$_rt2_ticket_dir/ticket" bash "$SCRIPT" "rt2-epic" --r
 assert_eq "closed_before: exits 0" "0" "$_rt2_exit"
 # Pre-existing closure must NOT trigger RELATES_TO_DRIFT
 _rt2_drift_present=0
-echo "$_rt2_output" | grep -q "RELATES_TO_DRIFT" && _rt2_drift_present=1 || true
+grep -q "RELATES_TO_DRIFT" <<< "$_rt2_output" && _rt2_drift_present=1 || true
 assert_eq "closed_before: no RELATES_TO_DRIFT emitted" "0" "$_rt2_drift_present"
 
 # ── Test: test_empty_relates_to_set ──────────────────────────────────────────
@@ -556,7 +556,7 @@ _rt3_output=$(TICKET_CMD="$_rt3_ticket_dir/ticket" bash "$SCRIPT" "rt3-epic" --r
 assert_eq "empty-relates-to: exits 0" "0" "$_rt3_exit"
 # No RELATES_TO_DRIFT when there are no relates_to links
 _rt3_drift_present=0
-echo "$_rt3_output" | grep -q "RELATES_TO_DRIFT" && _rt3_drift_present=1 || true
+grep -q "RELATES_TO_DRIFT" <<< "$_rt3_output" && _rt3_drift_present=1 || true
 assert_eq "empty-relates-to: no RELATES_TO_DRIFT emitted" "0" "$_rt3_drift_present"
 
 # ── Test: test_ticket_cli_failure_on_neighbor_warns_continues ────────────────
@@ -673,7 +673,7 @@ _rt6_output=$(TICKET_CMD="$_rt6_ticket_dir/ticket" bash "$SCRIPT" "rt6-epic" --r
 assert_eq "fallback-children-ts: exits 0" "0" "$_rt6_exit"
 # Neighbor closed BEFORE earliest child → no RELATES_TO_DRIFT when using children fallback ts
 _rt6_drift_present=0
-echo "$_rt6_output" | grep -q "RELATES_TO_DRIFT" && _rt6_drift_present=1 || true
+grep -q "RELATES_TO_DRIFT" <<< "$_rt6_output" && _rt6_drift_present=1 || true
 assert_eq "fallback-children-ts: no RELATES_TO_DRIFT (neighbor closed before children ts)" "0" "$_rt6_drift_present"
 
 echo ""

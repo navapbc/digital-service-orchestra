@@ -59,7 +59,7 @@ _RESUME_BLOCK=$(awk '
 # ============================================================
 test_resume_block_has_origin_main_ahead_check() {
     local found=0
-    echo "$_RESUME_BLOCK" | grep -q 'origin/main\.\.HEAD' 2>/dev/null && found=1 || true
+    grep -q 'origin/main\.\.HEAD' <<< "$_RESUME_BLOCK" 2>/dev/null && found=1 || true
     assert_eq "resume block checks origin/main..HEAD before iterating phases (f9e7-2c50)" "1" "$found"
 }
 
@@ -73,7 +73,7 @@ test_resume_block_has_origin_main_ahead_check() {
 test_resume_block_pre_marks_phases_on_push_detected() {
     local found=0
     # The fix must mark "push" as complete when origin/main already has HEAD
-    echo "$_RESUME_BLOCK" | grep -q '_state_mark_complete.*push' 2>/dev/null && found=1 || true
+    grep -q '_state_mark_complete.*push' <<< "$_RESUME_BLOCK" 2>/dev/null && found=1 || true
     assert_eq "resume block marks push as complete when push already done (f9e7-2c50)" "1" "$found"
 }
 

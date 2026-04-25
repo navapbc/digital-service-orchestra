@@ -79,7 +79,7 @@ test_tickets_branch_reachable() {
     local refs
     refs=$(git ls-remote "$TEMPLATE_URL" tickets 2>/dev/null || true)
     local has_ticket_ref="no"
-    if echo "$refs" | grep -q 'refs/heads/tickets'; then
+    if grep -q 'refs/heads/tickets' <<< "$refs"; then
         has_ticket_ref="yes"
     fi
     assert_eq "tickets orphan branch: reachable via git ls-remote" "yes" "$has_ticket_ref"

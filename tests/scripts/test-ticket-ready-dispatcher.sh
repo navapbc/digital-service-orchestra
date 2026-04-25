@@ -253,9 +253,9 @@ test_ready_routes_through_dispatcher() {
 
     local _has_a _has_c _has_b
     _has_a=0; _has_c=0; _has_b=0
-    echo "$_output" | grep -q "task-a" && _has_a=1 || true
-    echo "$_output" | grep -q "task-c" && _has_c=1 || true
-    echo "$_output" | grep -q "task-b" && _has_b=1 || true
+    grep -q "task-a" <<< "$_output" && _has_a=1 || true
+    grep -q "task-c" <<< "$_output" && _has_c=1 || true
+    grep -q "task-b" <<< "$_output" && _has_b=1 || true
 
     if [[ $_has_a -eq 1 ]] && [[ $_has_c -eq 1 ]] && [[ $_has_b -eq 0 ]]; then
         echo "  PASS: task-a and task-c present; task-b absent (exit $_exit)"
@@ -272,7 +272,7 @@ test_ready_routes_through_dispatcher() {
     _exit=0
     _output=$(TICKETS_TRACKER_DIR="$_tracker" "$DISPATCHER" ready 2>&1) || _exit=$?
 
-    if echo "$_output" | grep -q "task-e"; then
+    if grep -q "task-e" <<< "$_output"; then
         echo "  FAIL: closed ticket task-e appears in ready output (RED — expected before GREEN)" >&2
         echo "  Output: $_output" >&2
         (( FAIL++ ))
@@ -319,9 +319,9 @@ test_ready_routes_through_dispatcher() {
 
     local _scope_a _scope_c _scope_b
     _scope_a=0; _scope_c=0; _scope_b=0
-    echo "$_output" | grep -q "task-a" && _scope_a=1 || true
-    echo "$_output" | grep -q "task-c" && _scope_c=1 || true
-    echo "$_output" | grep -q "task-b" && _scope_b=1 || true
+    grep -q "task-a" <<< "$_output" && _scope_a=1 || true
+    grep -q "task-c" <<< "$_output" && _scope_c=1 || true
+    grep -q "task-b" <<< "$_output" && _scope_b=1 || true
 
     if [[ $_scope_a -eq 1 ]] && [[ $_scope_c -eq 1 ]] && [[ $_scope_b -eq 0 ]]; then
         echo "  PASS: --epic scope returns task-a and task-c; excludes task-b (exit $_exit)"

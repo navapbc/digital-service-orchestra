@@ -98,7 +98,7 @@ da3_exit=0
 da3_output=$(cd "$_da3_repo" && TICKET_CMD="$_da3_repo/scripts/ticket" bash "$_da3_repo/scripts/sprint-next-batch.sh" "da3-epic" 2>/dev/null) || da3_exit=$?
 
 # The task should appear in the batch (TASK: line), not be skipped
-if [ "$da3_exit" -eq 0 ] && echo "$da3_output" | grep -q "^TASK:" && ! echo "$da3_output" | grep -q "SKIPPED_DESIGN_AWAITING"; then
+if [ "$da3_exit" -eq 0 ] && grep -q "^TASK:" <<< "$da3_output" && ! grep -q "SKIPPED_DESIGN_AWAITING" <<< "$da3_output"; then
     echo "  PASS: task under normal story appears in batch, not skipped"
     (( PASS++ ))
 else
@@ -140,7 +140,7 @@ da4_exit=0
 da4_output=$(cd "$_da4_repo" && TICKET_CMD="$_da4_repo/scripts/ticket" bash "$_da4_repo/scripts/sprint-next-batch.sh" "da4-epic" 2>/dev/null) || da4_exit=$?
 
 # The task should appear in the batch (TASK: line), not be skipped
-if [ "$da4_exit" -eq 0 ] && echo "$da4_output" | grep -q "^TASK:" && ! echo "$da4_output" | grep -q "SKIPPED_DESIGN_AWAITING"; then
+if [ "$da4_exit" -eq 0 ] && grep -q "^TASK:" <<< "$da4_output" && ! grep -q "SKIPPED_DESIGN_AWAITING" <<< "$da4_output"; then
     echo "  PASS: task under design:approved story appears in batch, not skipped"
     (( PASS++ ))
 else
@@ -187,7 +187,7 @@ DA1_TICKET
     _output=$(cd "$_repo" && TICKET_CMD="$_repo/scripts/ticket" bash "$_repo/scripts/sprint-next-batch.sh" "da1-epic" 2>/dev/null) || _exit=$?
 
     # RED assertion: SKIPPED_DESIGN_AWAITING must appear in text output.
-    [ "$_exit" -eq 0 ] && echo "$_output" | grep -q "SKIPPED_DESIGN_AWAITING"
+    [ "$_exit" -eq 0 ] && grep -q "SKIPPED_DESIGN_AWAITING" <<< "$_output"
 }
 echo "Test DA-1: Task under design:awaiting_import story appears as SKIPPED_DESIGN_AWAITING"
 if test_da1_design_awaiting_skipped_text; then
@@ -284,7 +284,7 @@ DA5_TICKET
     _output=$(cd "$_repo" && TICKET_CMD="$_repo/scripts/ticket" bash "$_repo/scripts/sprint-next-batch.sh" "da5-epic" 2>/dev/null) || _exit=$?
 
     # Expected line format: "SKIPPED_DESIGN_AWAITING: <id>\t<reason>"
-    [ "$_exit" -eq 0 ] && echo "$_output" | grep -qE "^SKIPPED_DESIGN_AWAITING: da5-task"
+    [ "$_exit" -eq 0 ] && grep -qE "^SKIPPED_DESIGN_AWAITING: da5-task" <<< "$_output"
 }
 echo "Test DA-5: SKIPPED_DESIGN_AWAITING output line contains task id"
 if test_da5_design_awaiting_line_format; then

@@ -133,7 +133,7 @@ test_flock_boundary_not_widened() {
     # Assert: the flock section does NOT reference llm_format or to_llm
     # GREEN on current code (not there at all), GREEN after S2 (added outside the lock),
     # RED if S2 accidentally puts the formatting call inside the lock.
-    if echo "$flock_section" | grep -qE 'llm_format|to_llm' 2>/dev/null; then
+    if grep -qE 'llm_format|to_llm' <<< "$flock_section" 2>/dev/null; then
         # Found inside lock — boundary was widened (regression)
         local offending_lines
         offending_lines=$(echo "$flock_section" | grep -E 'llm_format|to_llm' | head -5 | tr '\n' '|')
@@ -173,7 +173,7 @@ test_flock_no_importlib_inside_lock() {
     }
 
     # Assert: the flock section does NOT reference the old importlib-based llm_format path
-    if echo "$flock_section" | grep -qE 'importlib|ticket.llm.format' 2>/dev/null; then
+    if grep -qE 'importlib|ticket.llm.format' <<< "$flock_section" 2>/dev/null; then
         local offending_lines
         offending_lines=$(echo "$flock_section" | grep -E 'importlib|ticket.llm.format' | head -5 | tr '\n' '|')
         assert_eq "flock-importlib: no importlib/ticket-llm-format inside flock section" \

@@ -153,8 +153,8 @@ test_migration_unmatched_lines() {
     local unmatched_count
     unmatched_count=$(echo "$out" | grep -c "^UNMATCHED:" 2>/dev/null || true)
     [ "$unmatched_count" -ge 2 ] || return 1
-    echo "$out" | grep -q "UNMATCHED:.*ccc3-0003" || return 1
-    echo "$out" | grep -q "UNMATCHED:.*ddd4-0004" || return 1
+    grep -q "UNMATCHED:.*ccc3-0003" <<< "$out" || return 1
+    grep -q "UNMATCHED:.*ddd4-0004" <<< "$out" || return 1
 }
 if test_migration_unmatched_lines; then
     echo "  PASS: migration stdout has UNMATCHED for ccc3-0003 and ddd4-0004"

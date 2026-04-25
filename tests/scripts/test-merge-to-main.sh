@@ -737,7 +737,7 @@ echo "--- test_snapshot_cleanup_before_tickets_pull ---"
 _snapshot_fail
 _push_body_snap=$(sed -n '/_phase_push()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
 _has_snapshot_cleanup=0
-if echo "$_push_body_snap" | grep -qE "SNAPSHOT\.json|Remove.*stale.*SNAPSHOT|stale SNAPSHOT"; then
+if grep -qE "SNAPSHOT\.json|Remove.*stale.*SNAPSHOT|stale SNAPSHOT" <<< "$_push_body_snap"; then
     _has_snapshot_cleanup=1
 fi
 assert_eq "test_snapshot_cleanup_before_tickets_pull: _phase_push must remove stale SNAPSHOT.json files before tickets pull (3534-b90d)" \
@@ -748,7 +748,7 @@ assert_pass_if_clean "test_snapshot_cleanup_before_tickets_pull"
 echo "--- test_sync_phase_resets_stale_ahead_local_main ---"
 _sync_body_ahead=$(sed -n '/_phase_sync()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
 _has_ahead_reset=0
-if echo "$_sync_body_ahead" | grep -qE "rev-list.*count.*origin/main.*HEAD|reset.*hard.*origin/main"; then
+if grep -qE "rev-list.*count.*origin/main.*HEAD|reset.*hard.*origin/main" <<< "$_sync_body_ahead"; then
     _has_ahead_reset=1
 fi
 assert_eq "test_sync_phase_resets_stale_ahead_local_main: _phase_sync must detect stale-ahead local main and hard-reset to origin/main (35eb-1824)" \
@@ -765,7 +765,7 @@ echo "--- test_merge_phase_resets_stale_ahead_local_main ---"
 # After fix:  _phase_merge contains reset --hard origin/main → test PASSES.
 _merge_body_drift=$(sed -n '/_phase_merge()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
 _has_merge_drift_reset=0
-if echo "$_merge_body_drift" | grep -qE "reset[[:space:]]+--hard[[:space:]]+origin/main"; then
+if grep -qE "reset[[:space:]]+--hard[[:space:]]+origin/main" <<< "$_merge_body_drift"; then
     _has_merge_drift_reset=1
 fi
 assert_eq "test_merge_phase_resets_stale_ahead_local_main: _phase_merge must reset stale-ahead local main to origin/main (f6c6-362c)" \
@@ -779,7 +779,7 @@ echo "--- test_merge_archive_includes_preconditions_summary ---"
 # RED: _phase_archive is a no-op stub — no preconditions read.
 _archive_body=$(sed -n '/_phase_archive()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
 _archive_has_preconditions=0
-if echo "$_archive_body" | grep -qE "_read_latest_preconditions|preconditions"; then
+if grep -qE "_read_latest_preconditions|preconditions" <<< "$_archive_body"; then
     _archive_has_preconditions=1
 fi
 assert_eq "test_merge_archive_includes_preconditions_summary: _phase_archive reads preconditions" \
@@ -793,7 +793,7 @@ echo "--- test_merge_archive_legacy_ticket_pre_manifest ---"
 # and _phase_archive must guard with || true.
 # RED: _phase_archive is a no-op stub with no guard.
 _archive_has_fallback=0
-if echo "$_archive_body" | grep -qE "\|\| true|\|\| :"; then
+if grep -qE "\|\| true|\|\| :" <<< "$_archive_body"; then
     _archive_has_fallback=1
 fi
 assert_eq "test_merge_archive_legacy_ticket_pre_manifest: _phase_archive guards _read_latest_preconditions with || true" \
