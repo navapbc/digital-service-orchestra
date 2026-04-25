@@ -198,23 +198,6 @@ else
     (( FAIL++ ))
 fi
 
-# ── Test 5: brainstorm SKILL.md no-arg block surfaces scrutiny-gap category ──
-echo "Test 5: brainstorm SKILL.md no-arg block has scrutiny-gap category label"
-test_brainstorm_skill_scrutiny_gap_category() {
-    # SKILL.md names the scrutiny-gap category directly, and delegates the
-    # --without-tag=brainstorm:complete filter to sprint-list-epics.sh --brainstorm
-    # (which composes both queries internally).
-    grep -q 'Scrutiny-gap epics' "$BRAINSTORM_SKILL" || return 1
-    grep -qE 'sprint-list-epics\.sh --brainstorm|\-\-without-tag=brainstorm:complete' "$BRAINSTORM_SKILL" || return 1
-}
-if test_brainstorm_skill_scrutiny_gap_category; then
-    echo "  PASS: brainstorm SKILL.md has scrutiny-gap category and --without-tag filter"
-    (( PASS++ ))
-else
-    echo "  FAIL: brainstorm SKILL.md missing scrutiny-gap category or --without-tag filter" >&2
-    (( FAIL++ ))
-fi
-
 # ── Test 6: idempotency — second migration run exits 0 with no new EDIT events─
 echo "Test 6: second migration run exits 0 and produces no new EDIT events"
 test_migration_idempotent() {

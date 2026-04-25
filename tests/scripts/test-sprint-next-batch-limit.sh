@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2154  # _t{u,z,p,o}_dir set indirectly via eval inside _build_fake_repo
 # tests/scripts/test-sprint-next-batch-limit.sh
 # RED tests for sprint-next-batch.sh --limit parameter edge cases:
 #   - --limit=unlimited  → full pool returned (no cap applied)
@@ -98,6 +99,7 @@ CFG_STUB
 
     cp "$PLUGIN_SCRIPT" "$_dir/scripts/sprint-next-batch.sh"
     chmod +x "$_dir/scripts/sprint-next-batch.sh"
+    cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$_dir/scripts/ticket-next-batch.sh"
 
     # Return the dir path via the named variable
     eval "${_var}=\"$_dir\""

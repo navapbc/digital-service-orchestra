@@ -20,6 +20,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
+# shellcheck disable=SC2329  # invoked via trap, not directly
 _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
 trap _cleanup EXIT
 
@@ -60,6 +61,7 @@ CFG
 
     cp "$PLUGIN_SCRIPT" "$repo_dir/scripts/sprint-next-batch.sh"
     chmod +x "$repo_dir/scripts/sprint-next-batch.sh"
+    cp "$DSO_PLUGIN_DIR/scripts/ticket-next-batch.sh" "$repo_dir/scripts/ticket-next-batch.sh"
 }
 
 # ── Test DA-3: Task under non-tagged story is NOT skipped ────────────────────
