@@ -303,6 +303,8 @@ When `REVIEW_TIER` is `deep`, dispatch 3 parallel sonnet sub-agents in a single 
 | b | `dso:code-reviewer-deep-verification` | `$ARTIFACTS_DIR/reviewer-findings-b.json` |
 | c | `dso:code-reviewer-deep-hygiene` | `$ARTIFACTS_DIR/reviewer-findings-c.json` |
 
+**`FINDINGS_OUTPUT` IS MANDATORY PER SLOT.** Every specialist dispatch prompt below MUST include the slot-specific `FINDINGS_OUTPUT` line. Omitting it causes all three specialists to write to the same canonical `reviewer-findings.json`, where each parallel write clobbers the previous one — only the last writer survives, and the arch reviewer synthesizes against silently-missing inputs. The slot value in `FINDINGS_OUTPUT` is the only mechanism preventing this clobber.
+
 **SERIAL DISPATCH PROHIBITED**: All 3 sonnet agents MUST be launched in a single response as 3 parallel Agent tool calls. Dispatching them one at a time (serial) triples review time and is a critical workflow violation. A single response must contain all three Agent tool invocations with no waiting between them.
 
 **VERBATIM REQUIRED** — read all three agent files inline before dispatching. Do NOT construct your own review instructions in any of the three prompt fields. Each prompt MUST begin with the verbatim agent file content.
