@@ -49,8 +49,8 @@ Haiku is ~10x cheaper than Sonnet. Use it aggressively for structured I/O tasks.
 | `/dso:oscillation-check` | Structural diff analysis between fix attempts | Must identify semantic patterns in code changes, not just textual diffs |
 | `/dso:plan-review` | Implementation plan review (sequencing, dependencies) | Must reason about task ordering and identify gaps |
 | `/dso:debug-everything` | Routine bug fixes (single-file, clear root cause) | Must read error context and produce a targeted fix |
-| `/dso:debug-everything` | Diagnostic sub-agent (Phase 1 failure inventory) | Must correlate failures across validation categories and cluster related errors |
-| `/dso:debug-everything` | Triage sub-agent (Phase 2 issue creation) | Must cross-reference failure clusters with existing ticket issues and make severity judgments |
+| `/dso:debug-everything` | Diagnostic sub-agent (Phase B failure inventory) | Must correlate failures across validation categories and cluster related errors |
+| `/dso:debug-everything` | Triage sub-agent (Phase C issue creation) | Must cross-reference failure clusters with existing ticket issues and make severity judgments |
 | `/dso:validate-work` | Staging deployment check with nested JSON responses | Must navigate nested structures and correlate fields |
 
 ### Cost/Quality Tradeoff
@@ -70,7 +70,7 @@ Sonnet is ~10x cheaper than Opus. It handles the vast majority of code generatio
 | Skill / Context | Task | Why Opus Is Needed |
 |-----------------|------|---------------------|
 | `/dso:plan-review` | Design review (API contracts, data model changes) | Must evaluate architectural coherence across system boundaries |
-| `/dso:debug-everything` Phase 5 | Complex multi-file bugs spanning multiple modules | Must hold full system context to trace subtle interaction bugs |
+| `/dso:debug-everything` Phase G | Complex multi-file bugs spanning multiple modules | Must hold full system context to trace subtle interaction bugs |
 | `/dso:sprint` | Code review of high-blast-radius files (see list below) | Subtle errors in these files cascade across the entire project |
 | General | Reviewing changes to pipeline stage ordering or dependencies | Must reason about 9-stage pipeline interactions |
 | General | Evaluating tradeoffs between competing design approaches | Must weigh multiple non-obvious factors simultaneously |

@@ -5,7 +5,7 @@ Run the complete validation suite and report a compact summary.
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
 # --skip-ci: CI runs on main, not the worktree branch. CI status is
-# checked in Phase 10 after merging to main — checking it here would
+# checked in Phase L after merging to main — checking it here would
 # always show the pre-fix state and produce a false failure.
 $PLUGIN_SCRIPTS/validate-phase.sh full --skip-ci  # shim-exempt: internal orchestration script
 ```

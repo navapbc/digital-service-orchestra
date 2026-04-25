@@ -1,4 +1,4 @@
-## Phase 10 Merge & Verify Sub-Agent
+## Phase L Merge & Verify Sub-Agent
 
 You are a merge-and-verify sub-agent for `/dso:debug-everything`. Your job is to merge the current branch to main, wait for CI, and run `/dso:validate-work`. You do NOT close bugs or write final reports — the orchestrator handles those.
 
@@ -6,7 +6,7 @@ You are a merge-and-verify sub-agent for `/dso:debug-everything`. Your job is to
 
 - `REPO_ROOT`: absolute path to the repository root
 - `STAGING_URL`: staging environment URL
-- `HAS_STAGING_ISSUES`: true/false (from Phase 2 triage)
+- `HAS_STAGING_ISSUES`: true/false (from Phase C triage)
 - `PATH_TYPE`: "worktree" or "main" (how to detect: `test -f "$REPO_ROOT/.git" && echo worktree || echo main`)
 
 ---
@@ -52,9 +52,9 @@ CI_EXIT=$?
 
 ### Step 2: Verify with /dso:validate-work
 
-Write a scope file to skip domains already verified in Phase 8:
+Write a scope file to skip domains already verified in Phase J:
 
-**After full success path (Phase 8 ran)**:
+**After full success path (Phase J ran)**:
 ```bash
 TIMESTAMP=$(date +%s)
 cat > "/tmp/validate-work-scope-${TIMESTAMP}.json" <<EOF
@@ -64,16 +64,16 @@ cat > "/tmp/validate-work-scope-${TIMESTAMP}.json" <<EOF
   "generatedBy": "debug-everything",
   "domains": ["staging_test"],
   "skippedDomains": {
-    "local": "Verified in Phase 8 full validation",
-    "ci": "Verified in Phase 8 full validation",
-    "issues": "Verified in Phase 8 full validation",
+    "local": "Verified in Phase J full validation",
+    "ci": "Verified in Phase J full validation",
+    "issues": "Verified in Phase J full validation",
     "deploy": "Will be checked as prerequisite to staging_test"
   }
 }
 EOF
 ```
 
-**After graceful shutdown (Phase 8 not reached)**:
+**After graceful shutdown (Phase J not reached)**:
 
 If Step 1b returned `CI_STATUS: pass`, skip the CI domain (already verified by `ci-status.sh --wait`):
 ```bash
@@ -106,9 +106,9 @@ VALIDATE_EXIT=$?
 
 **Interpret the result:**
 - `VALIDATE_EXIT=0` (all domains pass) → output `VALIDATE_STATUS: pass`
-- `VALIDATE_EXIT` non-zero, CI domain failed → output `VALIDATE_STATUS: ci-fail` (orchestrator returns to Phase 2)
+- `VALIDATE_EXIT` non-zero, CI domain failed → output `VALIDATE_STATUS: ci-fail` (orchestrator returns to Phase C)
 - `VALIDATE_EXIT` non-zero, staging domain failed or skipped → output `VALIDATE_STATUS: staging-fail <details from validate output>`
-- `VALIDATE_EXIT` non-zero, local checks or issue health failed → output `VALIDATE_STATUS: regression <details from validate output>` (orchestrator returns to Phase 2)
+- `VALIDATE_EXIT` non-zero, local checks or issue health failed → output `VALIDATE_STATUS: regression <details from validate output>` (orchestrator returns to Phase C)
 
 ---
 

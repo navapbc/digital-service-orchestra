@@ -17,7 +17,7 @@ Analyzes git merge or rebase conflicts, classifies them by complexity, auto-reso
 
 **Automatic** (called by other skills):
 - `/dso:end-session` Step 4: when `merge-to-main.sh` exits with `CONFLICT_DATA:` output
-- `/dso:debug-everything` Phase 10 Step 1: same trigger
+- `/dso:debug-everything` Phase L Step 1: same trigger
 
 **Manual** (user-invoked):
 - `/dso:resolve-conflicts` — resolve conflicts in the current merge/rebase state

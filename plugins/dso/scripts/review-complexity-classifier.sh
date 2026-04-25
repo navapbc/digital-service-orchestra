@@ -18,10 +18,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Reject unknown flags
-for _arg in "$@"; do
-    case "$_arg" in
-        -*) echo "ERROR: unknown flag: $_arg" >&2; exit 1 ;;
+# Parse flags
+_DIFF_HASH=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --diff-hash)
+            _DIFF_HASH="${2:?--diff-hash requires a value}"
+            shift 2
+            ;;
+        -*) echo "ERROR: unknown flag: $1" >&2; exit 1 ;;
+        *) shift ;;
     esac
 done
 
@@ -786,8 +792,15 @@ if [[ -n "$_artifacts_dir" ]]; then
     done
     _files_json="${_files_json}]"
 
-    printf '{"blast_radius":%d,"critical_path":%d,"anti_shortcut":%d,"staleness":%d,"cross_cutting":%d,"diff_lines":%d,"change_volume":%d,"computed_total":%d,"selected_tier":"%s","diff_size_lines":%d,"size_action":"%s","is_merge_commit":%s,"security_overlay":%s,"performance_overlay":%s,"test_quality_overlay":%s,"files":%s}\n' \
-        "$BLAST_RADIUS" "$CRITICAL_PATH" "$ANTI_SHORTCUT" "$STALENESS" "$CROSS_CUTTING" "$DIFF_LINES" "$CHANGE_VOLUME" "$COMPUTED_TOTAL" "$SELECTED_TIER" "$DIFF_SIZE_LINES" "$SIZE_ACTION" "$IS_MERGE" "$SECURITY_OVERLAY" "$PERFORMANCE_OVERLAY" "$TEST_QUALITY_OVERLAY" "$_files_json" \
+    # Embed diff_hash so downstream consumers (record-review.sh overlay gate)
+    # can filter telemetry records by current diff and ignore stale entries
+    # from prior reviews in the same artifacts dir.
+    _diff_hash_field=""
+    if [[ -n "$_DIFF_HASH" ]]; then
+        _diff_hash_field="\"diff_hash\":\"$_DIFF_HASH\","
+    fi
+    printf '{%s"blast_radius":%d,"critical_path":%d,"anti_shortcut":%d,"staleness":%d,"cross_cutting":%d,"diff_lines":%d,"change_volume":%d,"computed_total":%d,"selected_tier":"%s","diff_size_lines":%d,"size_action":"%s","is_merge_commit":%s,"security_overlay":%s,"performance_overlay":%s,"test_quality_overlay":%s,"files":%s}\n' \
+        "$_diff_hash_field" "$BLAST_RADIUS" "$CRITICAL_PATH" "$ANTI_SHORTCUT" "$STALENESS" "$CROSS_CUTTING" "$DIFF_LINES" "$CHANGE_VOLUME" "$COMPUTED_TOTAL" "$SELECTED_TIER" "$DIFF_SIZE_LINES" "$SIZE_ACTION" "$IS_MERGE" "$SECURITY_OVERLAY" "$PERFORMANCE_OVERLAY" "$TEST_QUALITY_OVERLAY" "$_files_json" \
         >> "$_artifacts_dir/classifier-telemetry.jsonl" 2>/dev/null || true
 fi
 

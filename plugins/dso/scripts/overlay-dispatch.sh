@@ -38,31 +38,18 @@ overlay_dispatch_mode() {
         return 1
     fi
 
-    # Extract overlay flags from classifier JSON using python3 (jq-free per project convention)
-    local security_overlay performance_overlay test_quality_overlay
-    security_overlay="$(python3 -c "
-import json, sys
-with open(sys.argv[1]) as f:
-    data = json.load(f)
-print(str(data.get('security_overlay', False)).lower())
-" "$classifier_json")"
-
-    performance_overlay="$(python3 -c "
-import json, sys
-with open(sys.argv[1]) as f:
-    data = json.load(f)
-print(str(data.get('performance_overlay', False)).lower())
-" "$classifier_json")"
-
-    test_quality_overlay="$(python3 -c "
-import json, sys
-with open(sys.argv[1]) as f:
-    data = json.load(f)
-print(str(data.get('test_quality_overlay', False)).lower())
-" "$classifier_json")"
+    # Extract overlay dimensions from classifier JSON via the shared helper
+    # (single source-of-truth — same script REVIEW-WORKFLOW.md Step 4 and
+    # record-review.sh use). Empty output means no flags are true.
+    local _helper
+    _helper="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-overlay-flags.sh"
+    local overlay_dims=""
+    if [[ -x "$_helper" ]]; then
+        overlay_dims="$(bash "$_helper" --mode classifier < "$classifier_json" 2>/dev/null || true)"
+    fi
 
     # Branch 1: deterministic signal from classifier -> parallel dispatch
-    if [[ "$security_overlay" == "true" || "$performance_overlay" == "true" || "$test_quality_overlay" == "true" ]]; then
+    if [[ -n "$overlay_dims" ]]; then
         echo "parallel"
         return 0
     fi

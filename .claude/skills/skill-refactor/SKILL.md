@@ -23,7 +23,7 @@ User signals: "review the X skill", "audit X", "can we optimize X?", "clean up X
 
 ## Workflow
 
-The workflow is **seven sequential phases**. Do not skip. Phases 1 and 2 are synchronous with the user; Phases 3–7 execute autonomously once the plan is approved.
+The workflow is **eight sequential phases**. Do not skip. Phases 1 and 2 are synchronous with the user; Phases 3–8 execute autonomously once the plan is approved.
 
 ```
 P1 Critical review            → present findings
@@ -32,7 +32,8 @@ P3 Script relocation          → move skill-scoped scripts to shared sub-dir
 P4 Reference updates          → skill body, tests, docs
 P5 Change-detector test sweep → remove prose-grepping tests
 P6 Ticket reconciliation      → comment on open tickets affected
-P7 Commit                     → via COMMIT-WORKFLOW.md; surface review findings
+P7 Renumbering                → renumber phases (A,B,C…) and steps (1,2,3…); update cross-skill refs
+P8 Commit                     → via COMMIT-WORKFLOW.md; surface review findings
 ```
 
 ---
@@ -213,7 +214,79 @@ For each hit:
 .claude/scripts/dso ticket comment <id> "NOTE (path update YYYY-MM-DD): <old> moved to <new>. <brief impact>."
 ```
 
-## Phase 7 — Commit
+## Phase 7 — Renumbering
+
+After all structural edits are complete and before commit, renumber the skill's phases and steps so the surface form matches the post-refactor structure (gaps, deletions, and reorderings produce numbering like "Phase 2.6 / Step 1a / Step 0.5" that confuses readers and tests). This phase is mechanical: do not change behavior, only labels.
+
+### Renumbering rules
+
+- **Phases use sequential capital letters starting with `A`**: the first top-level work unit becomes `Phase A`, the second `Phase B`, and so on. Setup-only sections (Mindset, Usage, Migration Check, Step 0 housekeeping) stay un-numbered.
+- **Steps within a phase use sequential whole numbers starting with `1`**: `Step 1, Step 2, Step 3` — never `Step 0.5`, `Step 1a`, `Step 1.5`. Sub-steps that are genuinely conditional get a clear conditional name (e.g., `Step 4: Resolve Conflicts (only when Step 3 reports conflicts)`), not a fractional number.
+- **Mode/branch sections** (entry-mode dispatchers like Bug-Fix Mode, Validation Mode) stay named, not lettered. They sit between Phases and refer into them.
+- **Section headers**: rename the phase heading from `## Phase N: Title` to `## Phase X: Title` (where X is the new letter); rename step headings from `### Step N.M: Title` to `### Step K: Title` (where K is the new sequential whole number within that phase).
+
+### Procedure
+
+> **Method**: scripts and `Edit` calls are both acceptable. The discipline that matters is **(1) build the explicit mapping table first**, **(2) one substitution pass, no double-mapping**, **(3) hand-audit cross-skill refs**, **(4) post-grep verify**. Skipping any of these — regardless of method — produces silent breakages: missed refs, off-by-one mappings, doubled substitutions where target labels collide with source labels, and mis-mapped cross-skill references (`fix-bug Step 1.5` rewritten as if it were a local step). The bug is not in the tool; the bug is in iteration discipline.
+
+1. **Inventory current numbering** (replace `<name>` with the actual skill directory name, e.g., `debug-everything`, before running):
+   ```bash
+   grep -nE '^## (Phase|Step|Step [0-9])|^### Step ' plugins/dso/skills/<name>/SKILL.md
+   ```
+   List every phase header and every step header with its current label. Build an explicit mapping table in your reply: `Phase 1 → Phase A`, `Phase 2.6 → Phase D`, `Step 1.5 → Step 2`, etc. Walk in document order. Step numbers reset to `1` at the start of each phase — Phase A may have Steps 1–3, Phase B Steps 1–7, Phase C no steps at all (named subsections only). **The mapping table is the contract** — every later step refers to it. Show it to the user before applying.
+
+2. **Plan the structural collapses around the renumbering, not into it**. If Phase 7 (Commit) is also restructuring blocks (e.g., collapsing "Step 1a + Step 1b" into a single "File Overlap Check + Critic Review" reference), write the collapsed content using the **original** step labels (`Step 1a`, `Step 1b`). Do NOT pre-name them with the target labels — if you write "Step 4" in a collapse and then run a renumbering pass that maps old `Step 4 → Step 9`, the collapse content gets remapped a second time and breaks. Renumbering owns the labels; collapses use the originals.
+
+3. **Apply the substitutions in one pass** using whichever tool fits the volume:
+   - **Script (Python/sed) for bulk** — fine for 50+ refs in one file. Required disciplines:
+     - Process longest old-strings first (`Step 1.5` before `Step 1`, `Phase 2.6` before `Phase 2`, `Phase 11` before `Phase 1`) so prefix matches don't fire wrong.
+     - Use unique-token placeholders (`__STEP_B_3__`, etc.) during the pass — substitute placeholders first, then convert placeholders to final labels at the end. This prevents the mid-pass output from being remapped a second time.
+     - Run the script **once**. If you re-run the same map on already-renumbered text, target labels look like source labels and get remapped again.
+   - **`Edit` calls for surgical or low-volume** — fine for under ~20 refs, or for cross-skill refs where the orchestrator must judge each match.
+   - **Hybrid is the realistic case** — script the mechanical bulk, then `Edit` the few cases where context matters (sentence-ending dots, cross-skill refs, ambiguous cross-phase refs).
+
+4. **Hand-audit cross-skill references regardless of method**. Run:
+   ```bash
+   grep -nE '(fix-bug|sprint|brainstorm|preplanning|<other-skill>) (Phase|Step) [0-9]' plugins/dso/skills/<name>/SKILL.md plugins/dso/skills/<name>/prompts/*.md
+   ```
+   Every match is a foreign reference — `fix-bug Step 1.5` means fix-bug's own Step 1.5, NOT the renumbered skill's. These must NOT be remapped. List every match before substituting; decide each one. A bulk regex pass that doesn't know about cross-skill prefixes will silently break these.
+
+5. **Update cross-skill references that point INTO the renumbered skill**. Search every other skill, prompt file, doc, and script:
+   ```bash
+   grep -rEn "(/dso:<name>|<name> SKILL\.md|<name>/SKILL\.md|<name>/prompts/).*(Phase|Step) [0-9]" \
+     plugins/ .claude/ docs/ tests/ 2>/dev/null
+   ```
+   For each candidate referrer, decide whether the reference is structural (must update to the new label, looking up via the mapping table from step 1) or conceptual (no change). Pre-existing references in `docs/designs/` and ADRs that pre-date this refactor get a **dated note appended**, not in-place edits — design docs are immutable history.
+
+6. **Update tests**: search `tests/` for any test that asserts a specific phase/step label as a structural marker:
+
+   ```bash
+   grep -rEn "(Phase|Step) [0-9]" tests/skills/ tests/scripts/ 2>/dev/null
+   ```
+
+   Update structural assertions only (e.g., a test asserting `Phase 6` exists in SKILL.md). Tests that are change detectors should already be removed in Phase 5.
+
+7. **Post-grep verify (mandatory)**:
+   ```bash
+   grep -nE '^## (Phase|Step) [0-9]|^### Step [0-9]' plugins/dso/skills/<name>/SKILL.md  # Should be empty — no numeric phase/step headers remain
+   grep -nE '(Phase|Step) [0-9]' plugins/dso/skills/<name>/SKILL.md  # Audit every hit
+   grep -rEn "/dso:<name>.*(Phase|Step) [0-9]\." plugins/ .claude/ docs/ tests/ 2>/dev/null  # Any hit is a stale referrer
+   ```
+   The first grep must return zero hits — if any numeric header survives, the mapping pass missed it. The second grep returns inline refs; every hit is either an external reference (cross-skill, OK), an unrelated number (e.g., "Step 0 (always first)" in a quoted earlier version's prose, OK if intentional), or a stale ref (must fix). The third grep finds external referrers that point at the renumbered skill with stale numbers. Walk all three lists before declaring renumbering done.
+
+### Reporting back to the user
+
+Present the mapping table (`old label → new label`) and the count of cross-skill references updated. Surface any structural references you decided NOT to update with a one-line rationale.
+
+### Non-goals
+
+- **Do not** renumber sub-steps that have meaningful conditional semantics — convert them to named conditional steps instead (e.g., `Step 4: Resolve Conflicts (only fired when Step 3 reports overlaps)`).
+- **Do not** renumber inside extracted prompt files unless the prompt itself uses Phase/Step labels (most do not — they describe self-contained procedures).
+- **Do not** introduce new abstraction boundaries; renumbering is surface-only.
+
+---
+
+## Phase 8 — Commit
 
 Execute `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md` inline. Do not invoke `/dso:commit` via the Skill tool — that nests workflows and breaks sub-agent boundaries (CLAUDE.md Rule 10).
 

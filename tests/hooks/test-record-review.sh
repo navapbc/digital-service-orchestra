@@ -276,6 +276,37 @@ fi
 assert_eq "test_tier_missing_review_tier_fail_open: tier_verified=false in review-status" "yes" "$TIER_VERIFIED_PRESENT"
 
 # ---------------------------------------------------------------------------
+# test_tier_telemetry_filtered_by_diff_hash
+# Regression: when classifier-telemetry.jsonl contains a stale record from a
+# prior /dso:review run on a different diff (older diff_hash, higher tier) AND
+# a current record matching the present diff_hash (lower tier), record-review.sh
+# MUST select the current diff_hash's record — not bare `tail -1`. Without this
+# filter, the stale tail record would falsely trigger TIER IMMUTABILITY VIOLATION.
+# ---------------------------------------------------------------------------
+HASH=$(_write_findings "standard")
+CURRENT_DIFF_HASH=$(bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null)
+cat > "$ARTIFACTS_DIR/classifier-telemetry.jsonl" <<EOFT
+{"diff_hash":"deadbeef00000000000000000000000000000000000000000000000000000000","selected_tier":"standard","blast_radius":2,"critical_path":0,"anti_shortcut":0,"staleness":1,"cross_cutting":1,"diff_lines":1,"change_volume":0,"computed_total":5,"diff_size_lines":87,"size_action":"none","is_merge_commit":false}
+{"diff_hash":"${CURRENT_DIFF_HASH}","selected_tier":"standard","blast_radius":2,"critical_path":0,"anti_shortcut":0,"staleness":1,"cross_cutting":1,"diff_lines":1,"change_volume":0,"computed_total":5,"diff_size_lines":87,"size_action":"none","is_merge_commit":false}
+{"diff_hash":"cafebabe00000000000000000000000000000000000000000000000000000000","selected_tier":"deep","blast_radius":2,"critical_path":0,"anti_shortcut":0,"staleness":1,"cross_cutting":1,"diff_lines":1,"change_volume":0,"computed_total":5,"diff_size_lines":87,"size_action":"none","is_merge_commit":false}
+EOFT
+EXIT_CODE=0
+bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || EXIT_CODE=$?
+assert_eq "test_tier_telemetry_filtered_by_diff_hash: exits 0 when current record matches review_tier" "0" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
+# test_tier_telemetry_legacy_records_fall_back_to_tail
+# Backward compat: when no record carries diff_hash (legacy telemetry from
+# before review-complexity-classifier.sh embedded the field), the implementation
+# falls back to last-record selection.
+# ---------------------------------------------------------------------------
+HASH=$(_write_findings "standard")
+_write_telemetry "standard"  # writes a single legacy record without diff_hash
+EXIT_CODE=0
+bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || EXIT_CODE=$?
+assert_eq "test_tier_telemetry_legacy_records_fall_back_to_tail: exits 0 on legacy record" "0" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
 # Tier verification via findings.selected_tier (bug 21d7-b84a)
 #
 # record-review.sh should prefer selected_tier embedded in reviewer-findings.json
@@ -567,5 +598,288 @@ _FALLBACK_EXIT=0
     bash "$HOOK" --reviewer-hash "$_FALLBACK_HASH" 2>/dev/null
 ) || _FALLBACK_EXIT=$?
 assert_eq "test_fallback_artifacts_dir_found: exits 0 when reviewer-findings.json in .claude/artifacts/" "0" "$_FALLBACK_EXIT"
+
+# ---------------------------------------------------------------------------
+# Test: overlay gate — record-review.sh must verify that every overlay flag
+#       set true in classifier-telemetry.jsonl has a corresponding
+#       reviewer-findings-<dim>.json file. Missing overlay = gate failure.
+#
+# Failure mode this guards against: orchestrator skips Step 4b (Overlay Dispatch)
+# in REVIEW-WORKFLOW.md. Tier reviewer findings record successfully, but the
+# overlay reviewer (e.g., test-quality) was never dispatched — so coverage of
+# the corresponding dimension is silently absent. The gate must catch this.
+#
+# Use a controlled tmp git repo so we control the working-tree diff hash.
+#
+# RED: Current record-review.sh does not read overlay flags from
+#      classifier-telemetry.jsonl and does not enforce per-overlay findings files.
+# GREEN: After enhancement, record-review.sh exits non-zero when classifier
+#        flagged an overlay true but no matching reviewer-findings-<dim>.json exists.
+# ---------------------------------------------------------------------------
+_OVERLAY_REPO=$(mktemp -d "${TMPDIR:-/tmp}/test-rr-overlay-repo-XXXXXX")
+_OVERLAY_TMP=$(mktemp -d "${TMPDIR:-/tmp}/test-rr-overlay-art-XXXXXX")
+trap 'rm -rf "$_OVERLAY_REPO" "$_OVERLAY_TMP"' EXIT
+
+# Set up a clean repo with a known unstaged change (so `git diff` is non-empty
+# and reproducible). record-review.sh will compute diff hash from this state.
+git -C "$_OVERLAY_REPO" init --quiet 2>/dev/null
+git -C "$_OVERLAY_REPO" config user.email "test@test.com"
+git -C "$_OVERLAY_REPO" config user.name "Test"
+echo "initial" > "$_OVERLAY_REPO/file.txt"
+git -C "$_OVERLAY_REPO" add file.txt
+git -C "$_OVERLAY_REPO" commit -m "initial" --quiet >/dev/null 2>&1
+echo "modified" >> "$_OVERLAY_REPO/file.txt"
+# Compute diff hash using the same method as compute-diff-hash.sh:
+# `git diff HEAD` then sha256.
+_OVERLAY_DIFF_HASH=$(cd "$_OVERLAY_REPO" && git diff HEAD | shasum -a 256 | awk '{print $1}')
+
+# Set up reviewer-findings.json (tier reviewer's output — passes baseline gates)
+cat > "$_OVERLAY_TMP/reviewer-findings.json" <<'EOFJ'
+{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. Tier reviewer ran but overlays were skipped.","review_tier":"standard","selected_tier":"standard"}
+EOFJ
+_OVERLAY_HASH=$(shasum -a 256 "$_OVERLAY_TMP/reviewer-findings.json" | awk '{print $1}')
+
+# Write classifier telemetry that flags test_quality_overlay: true for this diff hash
+cat > "$_OVERLAY_TMP/classifier-telemetry.jsonl" <<EOFJ
+{"diff_hash":"$_OVERLAY_DIFF_HASH","selected_tier":"standard","test_quality_overlay":true,"security_overlay":false,"performance_overlay":false}
+EOFJ
+
+# NO reviewer-findings-test-quality.json exists — overlay was skipped.
+echo "--- test_overlay_gate_blocks_missing_test_quality_findings ---"
+_OVERLAY_EXIT=0
+(
+    cd "$_OVERLAY_REPO"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_OVERLAY_TMP" \
+    RECORD_REVIEW_CHANGED_FILES="file.txt" \
+    bash "$HOOK" --reviewer-hash "$_OVERLAY_HASH" 2>/dev/null
+) || _OVERLAY_EXIT=$?
+
+# RED: currently passes (record-review.sh does not check overlays).
+# GREEN: must fail (overlay flagged but no findings file recorded).
+assert_ne "test_overlay_gate_blocks_missing_test_quality_findings: exits non-zero when classifier flagged overlay but no findings file exists" "0" "$_OVERLAY_EXIT"
+
+# Companion test: when overlay findings file IS present, gate passes.
+echo "--- test_overlay_gate_passes_when_findings_present ---"
+cat > "$_OVERLAY_TMP/reviewer-findings-test-quality.json" <<'EOFJ'
+{"scores":{"verification":5},"findings":[],"summary":"Test quality overlay: clean.","review_tier":"deep"}
+EOFJ
+_OVERLAY_PASS_EXIT=0
+(
+    cd "$_OVERLAY_REPO"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_OVERLAY_TMP" \
+    RECORD_REVIEW_CHANGED_FILES="file.txt" \
+    bash "$HOOK" --reviewer-hash "$_OVERLAY_HASH" 2>/dev/null
+) || _OVERLAY_PASS_EXIT=$?
+assert_eq "test_overlay_gate_passes_when_findings_present: exits 0 when overlay findings file exists alongside canonical" "0" "$_OVERLAY_PASS_EXIT"
+
+# ---------------------------------------------------------------------------
+# Test: overlay gate must filter telemetry by current diff_hash, not just tail -1.
+#
+# Stale telemetry from a prior review of a different diff sits at the tail of
+# the append-only classifier-telemetry.jsonl. A correct gate skips records
+# whose diff_hash != current diff and reads the current record instead.
+#
+# RED: tail -1 alone consumes the stale record; a stale "test_quality_overlay:true"
+#      followed by a current "test_quality_overlay:false" causes false-positive
+#      OVERLAY_MISSING for an overlay the current run did not flag.
+# GREEN: gate filters telemetry to records matching current diff_hash before
+#        extracting flags.
+# ---------------------------------------------------------------------------
+echo "--- test_overlay_gate_filters_telemetry_by_diff_hash ---"
+_DIFFHASH_REPO=$(mktemp -d "${TMPDIR:-/tmp}/test-rr-diffhash-repo-XXXXXX")
+_DIFFHASH_TMP=$(mktemp -d "${TMPDIR:-/tmp}/test-rr-diffhash-art-XXXXXX")
+trap 'rm -rf "$_OVERLAY_REPO" "$_OVERLAY_TMP" "$_DIFFHASH_REPO" "$_DIFFHASH_TMP"' EXIT
+
+git -C "$_DIFFHASH_REPO" init --quiet 2>/dev/null
+git -C "$_DIFFHASH_REPO" config user.email "test@test.com"
+git -C "$_DIFFHASH_REPO" config user.name "Test"
+echo "initial" > "$_DIFFHASH_REPO/file.txt"
+git -C "$_DIFFHASH_REPO" add file.txt
+git -C "$_DIFFHASH_REPO" commit -m "initial" --quiet >/dev/null 2>&1
+echo "modified-diffhash" >> "$_DIFFHASH_REPO/file.txt"
+_CURRENT_HASH=$(cd "$_DIFFHASH_REPO" && git diff HEAD | shasum -a 256 | awk '{print $1}')
+_STALE_HASH="0000000000000000000000000000000000000000000000000000000000000000"
+
+cat > "$_DIFFHASH_TMP/reviewer-findings.json" <<'EOFJ'
+{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed.","review_tier":"standard","selected_tier":"standard"}
+EOFJ
+_DH_HASH=$(shasum -a 256 "$_DIFFHASH_TMP/reviewer-findings.json" | awk '{print $1}')
+
+# Stale record (different diff hash) flags overlay; current record does NOT.
+# Order: current FIRST, stale LAST — so tail -1 (without filter) reads the stale
+# record and triggers a false-positive OVERLAY_MISSING. With diff_hash filter,
+# gate ignores the stale record and reads the current one (no overlay flagged).
+cat > "$_DIFFHASH_TMP/classifier-telemetry.jsonl" <<EOFJ
+{"diff_hash":"$_CURRENT_HASH","selected_tier":"standard","test_quality_overlay":false,"security_overlay":false,"performance_overlay":false}
+{"diff_hash":"$_STALE_HASH","selected_tier":"standard","test_quality_overlay":true,"security_overlay":false,"performance_overlay":false}
+EOFJ
+
+_DH_EXIT=0
+(
+    cd "$_DIFFHASH_REPO"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_DIFFHASH_TMP" \
+    RECORD_REVIEW_CHANGED_FILES="file.txt" \
+    bash "$HOOK" --reviewer-hash "$_DH_HASH" 2>/dev/null
+) || _DH_EXIT=$?
+assert_eq "test_overlay_gate_filters_telemetry_by_diff_hash: exits 0 when current record flags no overlay (stale record at tail must be ignored)" "0" "$_DH_EXIT"
+
+# ---------------------------------------------------------------------------
+# Test: overlay gate covers security_overlay flag.
+# RED: implementation iterates all three flags but only test_quality is tested.
+# GREEN: same enforcement path triggers OVERLAY_MISSING for security_overlay.
+# ---------------------------------------------------------------------------
+echo "--- test_overlay_gate_security_flag_blocks_missing_findings ---"
+_SEC_REPO=$(mktemp -d "${TMPDIR:-/tmp}/test-rr-sec-repo-XXXXXX")
+_SEC_TMP=$(mktemp -d "${TMPDIR:-/tmp}/test-rr-sec-art-XXXXXX")
+trap 'rm -rf "$_OVERLAY_REPO" "$_OVERLAY_TMP" "$_DIFFHASH_REPO" "$_DIFFHASH_TMP" "$_SEC_REPO" "$_SEC_TMP"' EXIT
+
+git -C "$_SEC_REPO" init --quiet 2>/dev/null
+git -C "$_SEC_REPO" config user.email "test@test.com"
+git -C "$_SEC_REPO" config user.name "Test"
+echo "initial" > "$_SEC_REPO/file.txt"
+git -C "$_SEC_REPO" add file.txt
+git -C "$_SEC_REPO" commit -m "initial" --quiet >/dev/null 2>&1
+echo "modified-security" >> "$_SEC_REPO/file.txt"
+_SEC_DIFF_HASH=$(cd "$_SEC_REPO" && git diff HEAD | shasum -a 256 | awk '{print $1}')
+
+cat > "$_SEC_TMP/reviewer-findings.json" <<'EOFJ'
+{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed.","review_tier":"standard","selected_tier":"standard"}
+EOFJ
+_SEC_HASH=$(shasum -a 256 "$_SEC_TMP/reviewer-findings.json" | awk '{print $1}')
+
+cat > "$_SEC_TMP/classifier-telemetry.jsonl" <<EOFJ
+{"diff_hash":"$_SEC_DIFF_HASH","selected_tier":"standard","test_quality_overlay":false,"security_overlay":true,"performance_overlay":false}
+EOFJ
+
+_SEC_EXIT=0
+(
+    cd "$_SEC_REPO"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_SEC_TMP" \
+    RECORD_REVIEW_CHANGED_FILES="file.txt" \
+    bash "$HOOK" --reviewer-hash "$_SEC_HASH" 2>/dev/null
+) || _SEC_EXIT=$?
+assert_ne "test_overlay_gate_security_flag_blocks_missing_findings: exits non-zero when security_overlay flagged but reviewer-findings-security.json missing" "0" "$_SEC_EXIT"
+
+# ---------------------------------------------------------------------------
+# Test: overlay gate covers performance_overlay flag.
+# ---------------------------------------------------------------------------
+echo "--- test_overlay_gate_performance_flag_blocks_missing_findings ---"
+cat > "$_SEC_TMP/classifier-telemetry.jsonl" <<EOFJ
+{"diff_hash":"$_SEC_DIFF_HASH","selected_tier":"standard","test_quality_overlay":false,"security_overlay":false,"performance_overlay":true}
+EOFJ
+
+_PERF_EXIT=0
+(
+    cd "$_SEC_REPO"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_SEC_TMP" \
+    RECORD_REVIEW_CHANGED_FILES="file.txt" \
+    bash "$HOOK" --reviewer-hash "$_SEC_HASH" 2>/dev/null
+) || _PERF_EXIT=$?
+assert_ne "test_overlay_gate_performance_flag_blocks_missing_findings: exits non-zero when performance_overlay flagged but reviewer-findings-performance.json missing" "0" "$_PERF_EXIT"
+
+# ---------------------------------------------------------------------------
+# Test: classifier-telemetry.jsonl records MUST include diff_hash field.
+#
+# The cycle-3 overlay gate filters telemetry by diff_hash to avoid consuming
+# stale records. If the classifier write block omits diff_hash, every record
+# fails the filter and the gate silently disables itself — the exact failure
+# mode we're guarding against. This is a contract test on the classifier's
+# telemetry output schema.
+#
+# RED: review-complexity-classifier.sh telemetry write block does not currently
+#      emit a diff_hash field. The gate's filter compares against a missing
+#      field and the matched dict stays None.
+# GREEN: classifier emits diff_hash in every telemetry record (passed via
+#        --diff-hash flag from the caller).
+# ---------------------------------------------------------------------------
+echo "--- test_classifier_telemetry_includes_diff_hash ---"
+_CLASSIFIER_REPO=$(mktemp -d "${TMPDIR:-/tmp}/test-classifier-diffhash-XXXXXX")
+trap 'rm -rf "$_OVERLAY_REPO" "$_OVERLAY_TMP" "$_DIFFHASH_REPO" "$_DIFFHASH_TMP" "$_SEC_REPO" "$_SEC_TMP" "$_CLASSIFIER_REPO"' EXIT
+
+git -C "$_CLASSIFIER_REPO" init --quiet 2>/dev/null
+git -C "$_CLASSIFIER_REPO" config user.email "test@test.com"
+git -C "$_CLASSIFIER_REPO" config user.name "Test"
+mkdir -p "$_CLASSIFIER_REPO/src"
+echo "x = 1" > "$_CLASSIFIER_REPO/src/foo.py"
+git -C "$_CLASSIFIER_REPO" add src/foo.py
+git -C "$_CLASSIFIER_REPO" commit -m "initial" --quiet >/dev/null 2>&1
+echo "x = 2" > "$_CLASSIFIER_REPO/src/foo.py"
+_C_DIFF=$(cd "$_CLASSIFIER_REPO" && git diff HEAD)
+_C_HASH=$(echo -n "$_C_DIFF" | shasum -a 256 | awk '{print $1}')
+
+# Classifier output and telemetry write — pass diff hash via --diff-hash flag
+_CLASSIFIER="$DSO_PLUGIN_DIR/scripts/review-complexity-classifier.sh"
+_C_TMP=$(mktemp -d "${TMPDIR:-/tmp}/test-classifier-art-XXXXXX")
+(
+    cd "$_CLASSIFIER_REPO"
+    REPO_ROOT="$_CLASSIFIER_REPO" ARTIFACTS_DIR="$_C_TMP" \
+    bash "$_CLASSIFIER" --diff-hash "$_C_HASH" <<< "$_C_DIFF" >/dev/null 2>&1
+) || true
+
+# The telemetry record MUST include the diff_hash field for the overlay gate to filter correctly.
+_TELEMETRY="$_C_TMP/classifier-telemetry.jsonl"
+_HAS_DIFF_HASH="missing"
+if [[ -f "$_TELEMETRY" ]]; then
+    if grep -q "\"diff_hash\":\"$_C_HASH\"" "$_TELEMETRY"; then
+        _HAS_DIFF_HASH="found"
+    fi
+fi
+assert_eq "test_classifier_telemetry_includes_diff_hash: classifier-telemetry.jsonl record contains diff_hash matching the input diff" "found" "$_HAS_DIFF_HASH"
+rm -rf "$_C_TMP"
+
+# ---------------------------------------------------------------------------
+# Test: fail-closed branch when read-overlay-flags.sh is missing.
+#
+# When telemetry exists but the helper script is not executable, record-review.sh
+# must exit non-zero with OVERLAY_GATE_UNAVAILABLE rather than silently passing.
+# Regression to fail-open here would defeat the gate's purpose.
+# ---------------------------------------------------------------------------
+echo "--- test_overlay_gate_fails_closed_when_helper_missing ---"
+_FC_REPO=$(mktemp -d "${TMPDIR:-/tmp}/test-rr-failclosed-XXXXXX")
+_FC_TMP=$(mktemp -d "${TMPDIR:-/tmp}/test-rr-failclosed-art-XXXXXX")
+_FC_FAKE_PLUGIN=$(mktemp -d "${TMPDIR:-/tmp}/test-rr-fakeplugin-XXXXXX")
+trap 'rm -rf "$_OVERLAY_REPO" "$_OVERLAY_TMP" "$_DIFFHASH_REPO" "$_DIFFHASH_TMP" "$_SEC_REPO" "$_SEC_TMP" "$_CLASSIFIER_REPO" "$_FC_REPO" "$_FC_TMP" "$_FC_FAKE_PLUGIN"' EXIT
+
+# Set up minimal git repo with a diff
+git -C "$_FC_REPO" init --quiet 2>/dev/null
+git -C "$_FC_REPO" config user.email "test@test.com"
+git -C "$_FC_REPO" config user.name "Test"
+echo "initial" > "$_FC_REPO/file.txt"
+git -C "$_FC_REPO" add file.txt
+git -C "$_FC_REPO" commit -m "initial" --quiet >/dev/null 2>&1
+echo "modified-failclosed" >> "$_FC_REPO/file.txt"
+_FC_DIFF_HASH=$(cd "$_FC_REPO" && git diff HEAD | shasum -a 256 | awk '{print $1}')
+
+# Set up reviewer-findings.json
+cat > "$_FC_TMP/reviewer-findings.json" <<'EOFJ'
+{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed in the fail-closed branch test scenario.","review_tier":"standard","selected_tier":"standard"}
+EOFJ
+_FC_HASH=$(shasum -a 256 "$_FC_TMP/reviewer-findings.json" | awk '{print $1}')
+
+# Telemetry exists (with current diff_hash) — fail-closed branch should fire when helper is missing.
+cat > "$_FC_TMP/classifier-telemetry.jsonl" <<EOFJ
+{"diff_hash":"$_FC_DIFF_HASH","selected_tier":"standard","test_quality_overlay":false,"security_overlay":false,"performance_overlay":false}
+EOFJ
+
+# Construct a fake plugin layout where read-overlay-flags.sh does NOT exist.
+# Mirror the entire hooks/ tree (record-review.sh + compute-diff-hash.sh + lib/)
+# so dependencies resolve. Create scripts/ but DO NOT copy read-overlay-flags.sh.
+mkdir -p "$_FC_FAKE_PLUGIN/hooks" "$_FC_FAKE_PLUGIN/scripts"
+cp -R "$DSO_PLUGIN_DIR/hooks/." "$_FC_FAKE_PLUGIN/hooks/"
+# Note: $_FC_FAKE_PLUGIN/scripts/read-overlay-flags.sh is intentionally absent.
+
+_FC_EXIT=0
+_FC_STDERR=$(
+    cd "$_FC_REPO"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_FC_TMP" \
+    RECORD_REVIEW_CHANGED_FILES="file.txt" \
+    bash "$_FC_FAKE_PLUGIN/hooks/record-review.sh" --reviewer-hash "$_FC_HASH" 2>&1 1>/dev/null
+) || _FC_EXIT=$?
+
+assert_ne "test_overlay_gate_fails_closed_when_helper_missing: exits non-zero when telemetry exists but read-overlay-flags.sh helper is missing" "0" "$_FC_EXIT"
+# Stderr should mention OVERLAY_GATE_UNAVAILABLE (the named contract signal)
+_FC_HAS_SIGNAL=missing
+echo "$_FC_STDERR" | grep -q "OVERLAY_GATE_UNAVAILABLE" && _FC_HAS_SIGNAL=found
+assert_eq "test_overlay_gate_fails_closed_when_helper_missing: stderr emits OVERLAY_GATE_UNAVAILABLE signal" "found" "$_FC_HAS_SIGNAL"
 
 print_summary
