@@ -208,13 +208,17 @@ test_compaction_resume_continues_after_ticket() {
         continue_found="found"
     fi
 
-    # Must clarify that the past compaction does NOT trigger Phase 9 shutdown
-    if grep -qiE "compaction.{0,60}(NOT|not).{0,60}(signal|trigger).{0,60}Phase 9|Phase 9.{0,60}(NOT|not).{0,60}(triggered|fired).{0,60}compaction|prior.{0,60}compaction.{0,60}NOT|not.{0,60}Phase 9.{0,60}shutdown" <<< "$skill_content"; then
+    # Must clarify that the past compaction does NOT trigger graceful shutdown.
+    # After the Phase A–M renumbering, the canonical phrase is "Phase K shutdown trigger"
+    # (Phase K = Issue Closure & Graceful Shutdown, was Phase 9 pre-renumbering).
+    # Anchor specifically on the COMPACTION_RESUME continuation clause to avoid
+    # accidental matches against unrelated prose (e.g., "priority" prefix-matching "prior").
+    if echo "$skill_content" | grep -qiE "compaction.{0,80}historical state.{0,40}not a Phase K shutdown trigger|not a Phase K shutdown trigger"; then
         no_phase9_found="found"
     fi
 
     assert_eq "test_compaction_resume_continues_after_ticket: COMPACTION_RESUME must instruct agent to continue remaining bugs" "found" "$continue_found"
-    assert_eq "test_compaction_resume_no_phase9_shutdown: COMPACTION_RESUME must clarify past compaction does NOT trigger Phase 9" "found" "$no_phase9_found"
+    assert_eq "test_compaction_resume_no_phase9_shutdown: COMPACTION_RESUME must clarify past compaction does NOT trigger graceful shutdown" "found" "$no_phase9_found"
 }
 
 # Run all tests

@@ -7,7 +7,7 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SKILL_MD="${REPO_ROOT}/plugins/dso/skills/validate-work/SKILL.md"
 STAGING_PROMPT="${REPO_ROOT}/plugins/dso/skills/validate-work/prompts/staging-environment-test.md"
-PLAYWRIGHT_VERIFICATION="${REPO_ROOT}/plugins/dso/skills/debug-everything/prompts/playwright-verification.md"
+PLAYWRIGHT_VERIFICATION="${REPO_ROOT}/plugins/dso/skills/validate-work/prompts/playwright-verification.md"
 
 PASS=0
 FAIL=0
@@ -108,7 +108,7 @@ test_staging_prompt_uses_cli() {
 # ──────────────────────────────────────────────────────────────────────────────
 test_playwright_verification_uses_cli() {
     SECTION="test_playwright_verification_uses_cli"
-    # debug-everything/prompts/playwright-verification.md must use @playwright/cli, not MCP tools.
+    # validate-work/prompts/playwright-verification.md must use @playwright/cli, not MCP tools.
 
     # Check for MCP tool usage — must be absent after migration
     _mcp_in_verification=$(grep -oE 'browser_[a-z_]+' "$PLAYWRIGHT_VERIFICATION" | sort -u || true)

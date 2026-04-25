@@ -163,7 +163,7 @@ _app_dir() {
 # ─── pre-check ───────────────────────────────────────────────────────────────
 #
 # Runs ALL pre-batch safety checks. Outputs structured report.
-# Used by: debug-everything Phase 5, /dso:sprint Phase 4
+# Used by: debug-everything Phase G, /dso:sprint Phase 4
 #
 # Options:
 #   --db    Also check database status (for DB-dependent batches)
@@ -266,7 +266,7 @@ cmd_pre_check() {
 # ─── file-overlap ────────────────────────────────────────────────────────────
 #
 # Detects file-level conflicts between multiple agents' modifications.
-# Used by: debug-everything Phase 6 Step 1a, /dso:sprint Phase 6 Step 1a
+# Used by: debug-everything Phase H Step 4, /dso:sprint Phase 6 Step 1a
 #
 # Usage:
 #   agent-batch-lifecycle.sh file-overlap agent1.files agent2.files [agent3.files ...]
@@ -366,7 +366,7 @@ cmd_file_overlap() {
 
 # ─── lock-acquire ────────────────────────────────────────────────────────────
 #
-# Acquires a ticket-CLI-based session lock. Used by debug-everything Phase 1 ONLY.
+# Acquires a ticket-CLI-based session lock. Used by debug-everything Phase B ONLY.
 #
 # Usage:
 #   agent-batch-lifecycle.sh lock-acquire "debug-everything"
@@ -387,6 +387,9 @@ cmd_lock_acquire() {
     # in_progress — two sessions could otherwise both see no in_progress lock and both
     # create duplicates.
     local lock_id=""
+    # shellcheck disable=SC2030,SC2031
+    # LOCK_LABEL is intentionally exported within the subshell so the python heredoc can read it.
+    # The export does not need to persist outside the subshell.
     lock_id=$(export LOCK_LABEL="$label"; "$TICKET_CMD" list 2>/dev/null | python3 -c "
 import json, sys, os
 label = os.environ.get('LOCK_LABEL', '')
@@ -453,7 +456,7 @@ for c in t.get('comments', []):
 
 # ─── lock-release ────────────────────────────────────────────────────────────
 #
-# Releases a tk-based session lock. Used by debug-everything Phase 9 ONLY.
+# Releases a tk-based session lock. Used by debug-everything Phase K ONLY.
 #
 # Usage:
 #   agent-batch-lifecycle.sh lock-release <lock-ticket-id> [reason]
@@ -546,6 +549,9 @@ cmd_lock_status() {
 
     # Query ticket CLI (v3) for in_progress lock tasks matching the label
     local lock_id=""
+    # shellcheck disable=SC2030,SC2031
+    # LOCK_LABEL is intentionally exported within the subshell so the python heredoc can read it.
+    # The export does not need to persist outside the subshell.
     lock_id=$(export LOCK_LABEL="$label"; "$TICKET_CMD" list 2>/dev/null | python3 -c "
 import json, sys, os
 label = os.environ.get('LOCK_LABEL', '')

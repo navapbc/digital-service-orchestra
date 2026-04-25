@@ -229,9 +229,18 @@ for entry in "${COMMITS[@]}"; do
     # Run classifier
     classifier_out=$(printf '%s' "$diff_content" | REPO_ROOT="${REPO_ROOT}" "$CLASSIFIER" 2>/dev/null || echo '{}')
 
-    # Extract fields using python3 (jq-free as per hook architecture conventions)
-    security_overlay=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('security_overlay','false'))" <<< "$classifier_out" 2>/dev/null || echo "false")
-    performance_overlay=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('performance_overlay','false'))" <<< "$classifier_out" 2>/dev/null || echo "false")
+    # Extract overlay dimensions via shared helper (single source-of-truth for
+    # overlay schema — same script REVIEW-WORKFLOW.md Step 4 and record-review.sh
+    # use). Then map dim membership to per-flag boolean strings the retrospective
+    # tabulation expects.
+    _retro_helper="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-overlay-flags.sh"
+    overlay_dims=""
+    if [[ -x "$_retro_helper" ]]; then
+        overlay_dims=$(printf '%s' "$classifier_out" | bash "$_retro_helper" --mode classifier 2>/dev/null || true)
+    fi
+    security_overlay=$(echo "$overlay_dims" | grep -qx security && echo true || echo false)
+    performance_overlay=$(echo "$overlay_dims" | grep -qx performance && echo true || echo false)
+    # selected_tier is not part of the overlay schema; retrospective still reads it directly.
     selected_tier=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('selected_tier','unknown'))" <<< "$classifier_out" 2>/dev/null || echo "unknown")
 
     # Extract changed files from diff

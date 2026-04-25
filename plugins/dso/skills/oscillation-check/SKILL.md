@@ -15,7 +15,7 @@ iteration -- preventing infinite fix-revert-fix loops.
 Invoke as a sub-agent from:
 - **CLAUDE.md review loop**: Before implementing `/dso:review` feedback on iteration 2+
 - **`/dso:sprint` Phase 8**: Before creating remediation tasks from re-validation
-- **`/dso:debug-everything` Phase 6.1b**: Before retrying a fix after critic CONCERN
+- **`/dso:debug-everything` Phase H Step 5**: Before retrying a fix after critic CONCERN
 
 ## Input
 

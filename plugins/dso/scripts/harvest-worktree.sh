@@ -273,6 +273,17 @@ if [[ -n "$SESSION_ARTIFACTS_DIR" ]]; then
     # Attest review status with post-merge diff hash.
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$SESSION_ARTIFACTS_DIR" \
         bash "$HOOK_DIR/record-review.sh" --attest "$WORKTREE_ARTIFACTS_DIR"
+
+    # Copy reviewer-findings*.json (canonical + per-specialist slots a/b/c) from
+    # worktree artifacts dir to session artifacts dir. Deep-tier review running
+    # inside a worktree leaves these files behind; harvest brings them back so the
+    # orchestrator can read individual specialist findings for remediation and the
+    # full evidence chain (specialist hashes + arch synthesis) is preserved alongside
+    # the attested review-status.
+    for _findings_file in "$WORKTREE_ARTIFACTS_DIR"/reviewer-findings*.json; do
+        [[ -f "$_findings_file" ]] || continue
+        cp "$_findings_file" "$SESSION_ARTIFACTS_DIR/$(basename "$_findings_file")"
+    done
 fi
 
 # ── Commit ───────────────────────────────────────────────────────────────────
