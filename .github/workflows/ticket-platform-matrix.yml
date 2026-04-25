@@ -57,6 +57,10 @@ jobs:
         if: matrix.name == 'alpine-busybox'
         run: apk add --no-cache bash python3 git
 
+      - name: Trust workspace for git (Alpine only)
+        if: matrix.name == 'alpine-busybox'
+        run: git config --global --add safe.directory '*'
+
       - name: Run platform compat tests
         run: bash tests/scripts/test-ticket-platform-compat.sh
 
