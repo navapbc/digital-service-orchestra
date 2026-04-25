@@ -100,7 +100,7 @@ set -- "${_args_filtered[@]+"${_args_filtered[@]}"}"
 
 TARGET_REPO="${1:-$(git rev-parse --show-toplevel)}"
 PLUGIN_ROOT="${2:-${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}}"
-_SCRIPT_PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "${0%/*}/../.." 2>/dev/null && pwd)}" || _SCRIPT_PLUGIN_DIR="$PLUGIN_ROOT"
+_SCRIPT_PLUGIN_DIR="$PLUGIN_ROOT"
 
 # ── Source shared merge library ───────────────────────────────────────────────
 # shellcheck source=artifact-merge-lib.sh

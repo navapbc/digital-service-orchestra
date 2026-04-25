@@ -261,7 +261,7 @@ plugins/dso/scripts/sprint-pause-state.sh:tests/scripts/test-sprint-pause-state.
 plugins/dso/scripts/format-and-lint.sh:tests/scripts/test-residual-callers-polyglot.sh
 plugins/dso/scripts/gate-2b-blast-radius.sh:tests/scripts/test-gate-format-check.sh
 plugins/dso/scripts/gate-2d-dependency-check.sh:tests/scripts/test-gate-format-check.sh
-plugins/dso/scripts/onboarding/dso-setup.sh:tests/scripts/test-dso-setup-stack-aware-ci.sh,tests/scripts/test-dso-setup-next-steps-install-ref.sh
+plugins/dso/scripts/onboarding/dso-setup.sh:tests/scripts/test-dso-setup-stack-aware-ci.sh,tests/scripts/test-dso-setup-next-steps-install-ref.sh,tests/scripts/test-artifact-update-integration.sh
 plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test-index-duplicates.sh
 tests/fixtures/ticket-cli-baseline.json:tests/scripts/test-ticket-cli-baseline-fixture.sh
 tests/scripts/capture-baseline.sh:tests/scripts/test-ticket-cli-baseline-fixture.sh
