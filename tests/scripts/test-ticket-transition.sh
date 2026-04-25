@@ -1077,7 +1077,7 @@ test_epic_close_emits_end_session_reminder() {
     local task_out
     task_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$task_id" open closed 2>/dev/null) || true
     local reminder_absent=1
-    echo "$task_out" | grep -q "REMINDER:" && reminder_absent=0
+    grep -q "REMINDER:" <<< "$task_out" && reminder_absent=0
     assert_eq "task-close: no REMINDER line" "1" "$reminder_absent"
 
     assert_pass_if_clean "test_epic_close_emits_end_session_reminder"

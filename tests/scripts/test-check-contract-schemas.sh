@@ -305,7 +305,7 @@ test_contract_schema_check_uses_pass_filenames_true() {
         in_block { print }
     ' "$config_file")
     local has_pass_filenames_true=false
-    if echo "$block" | grep -q "pass_filenames: true"; then
+    if grep -q "pass_filenames: true" <<< "$block"; then
         has_pass_filenames_true=true
     fi
     assert_eq \

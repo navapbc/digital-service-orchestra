@@ -169,7 +169,7 @@ if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
 
     for phase_num in 1 2 3 4 6; do
-        if grep -qE "Phase $phase_num[^0-9]|Phase ${phase_num}:" "$AGENT_FILE"; then
+        if grep -qE "Phase ${phase_num}[^0-9]|Phase ${phase_num}:" "$AGENT_FILE"; then
             actual_phase="present"
         else
             actual_phase="missing"
@@ -275,13 +275,13 @@ if [[ -f "$AGENT_FILE" ]]; then
             continue
         fi
         # Check for direct plugin path reference outside code blocks
-        if echo "$line" | grep -q "plugins/dso/scripts/"; then
+        if grep -q "plugins/dso/scripts/" <<< "$line"; then
             # Allow if line has shim-exempt annotation
-            if echo "$line" | grep -q "shim-exempt"; then
+            if grep -q "shim-exempt" <<< "$line"; then
                 continue
             fi
             # Allow if it's a comment line (# ...)
-            if echo "$line" | grep -qE "^[[:space:]]*#"; then
+            if grep -qE "^[[:space:]]*#" <<< "$line"; then
                 continue
             fi
             (( non_exempt_count++ )) || true
@@ -307,25 +307,25 @@ _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     file_content=$(cat "$AGENT_FILE")
     # Must have design_uuid in payload
-    if echo "$file_content" | grep -q '"design_uuid"'; then
+    if grep -q '"design_uuid"' "$AGENT_FILE"; then
         actual_design_uuid="present"
     else
         actual_design_uuid="missing"
     fi
     # Must have wireframe_svg in payload (not just wireframe)
-    if echo "$file_content" | grep -q '"wireframe_svg"'; then
+    if grep -q '"wireframe_svg"' "$AGENT_FILE"; then
         actual_wireframe_svg="present"
     else
         actual_wireframe_svg="missing"
     fi
     # Must have token_overlay in payload (not just tokens)
-    if echo "$file_content" | grep -q '"token_overlay"'; then
+    if grep -q '"token_overlay"' "$AGENT_FILE"; then
         actual_token_overlay="present"
     else
         actual_token_overlay="missing"
     fi
     # Must NOT have bare "wireframe" payload key (would be schema mismatch)
-    if echo "$file_content" | grep -qE '"wireframe":[[:space:]]*"designs/'; then
+    if grep -qE '"wireframe":[[:space:]]*"designs/' "$AGENT_FILE"; then
         actual_no_bare_wireframe="bare-wireframe-found"
     else
         actual_no_bare_wireframe="ok"

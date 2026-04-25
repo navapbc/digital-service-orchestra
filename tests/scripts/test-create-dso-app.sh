@@ -119,7 +119,7 @@ test_homebrew_not_installed_exits_1() {
     assert_ne "homebrew absent exits non-zero" "0" "$exit_code"
 
     local msg_found="no"
-    if echo "$output" | grep -qi "homebrew"; then
+    if grep -qi "homebrew" <<< "$output"; then
         msg_found="yes"
     fi
     assert_eq "homebrew absent prints hint" "yes" "$msg_found"
@@ -138,7 +138,7 @@ test_all_deps_present_exits_0() {
     assert_eq "all deps present: exit 0" "0" "$exit_code"
 
     local satisfied="no"
-    if echo "$output" | grep -q "All dependencies satisfied"; then
+    if grep -q "All dependencies satisfied" <<< "$output"; then
         satisfied="yes"
     fi
     assert_eq "all deps present: satisfied message" "yes" "$satisfied"
@@ -190,7 +190,7 @@ BREWEOF
     assert_ne "missing git (brew install fails): exits non-zero" "0" "$exit_code"
 
     local git_listed="no"
-    if echo "$output" | grep -qi "git"; then
+    if grep -qi "git" <<< "$output"; then
         git_listed="yes"
     fi
     assert_eq "missing git (brew install fails): listed in output" "yes" "$git_listed"
@@ -424,7 +424,7 @@ test_project_name_substitution() {
     local handled="no"
     if [[ "$exit_code" -ne 0 ]]; then
         # Rejected with error — check message is actionable
-        echo "$output" | grep -qiE 'sanitize|invalid|character|name' && handled="yes"
+        grep -qiE 'sanitize|invalid|character|name' <<< "$output" && handled="yes"
     else
         # Sanitized — the project dir should NOT exist at the unsanitized path
         [[ ! -d "$T/my project \$var *glob" ]] && handled="yes"
@@ -476,7 +476,7 @@ test_exit_1_on_stdin_eof() {
     assert_ne "stdin EOF: exits non-zero" "0" "$exit_code"
 
     local cancelled="no"
-    echo "$output" | grep -q "Installation cancelled" && cancelled="yes"
+    grep -q "Installation cancelled" <<< "$output" && cancelled="yes"
     assert_eq "stdin EOF: 'Installation cancelled' message" "yes" "$cancelled"
 }
 
@@ -497,7 +497,7 @@ test_idempotency_already_initialized() {
     assert_eq "idempotency: exit 0" "0" "$exit_code"
 
     local msg_ok="no"
-    echo "$output" | grep -qiE 'already|initialized|complete|exists' && msg_ok="yes"
+    grep -qiE 'already|initialized|complete|exists' <<< "$output" && msg_ok="yes"
     assert_eq "idempotency: informative message" "yes" "$msg_ok"
 }
 
@@ -629,7 +629,7 @@ BREWEOF
 
     # Assert: no "Run: brew install" manual instruction in output
     local manual_hint="no"
-    echo "$output" | grep -qi "Run: brew install git" && manual_hint="yes"
+    grep -qi "Run: brew install git" <<< "$output" && manual_hint="yes"
     assert_eq "missing git: no manual install hint in output" "no" "$manual_hint"
 
     rm -f "$install_marker"
@@ -691,12 +691,12 @@ BREWEOF
 
     # Assert: output contains "All dependencies satisfied" (not a missing-dep error)
     local satisfied="no"
-    echo "$output" | grep -q "All dependencies satisfied" && satisfied="yes"
+    grep -q "All dependencies satisfied" <<< "$output" && satisfied="yes"
     assert_eq "shellenv injection: all deps satisfied message" "yes" "$satisfied"
 
     # Assert: no "coreutils" listed as missing in error output
     local coreutils_missing="no"
-    echo "$output" | grep -qi "coreutils" && coreutils_missing="yes"
+    grep -qi "coreutils" <<< "$output" && coreutils_missing="yes"
     assert_eq "shellenv injection: coreutils NOT listed as missing" "no" "$coreutils_missing"
 }
 
@@ -757,7 +757,7 @@ BREWEOF
     assert_ne "missing python3 (brew install fails): exits non-zero" "0" "$exit_code"
 
     local python3_listed="no"
-    if echo "$output" | grep -qi "python3"; then
+    if grep -qi "python3" <<< "$output"; then
         python3_listed="yes"
     fi
     assert_eq "missing python3 (brew install fails): listed in output" "yes" "$python3_listed"
@@ -824,7 +824,7 @@ BREWEOF
     assert_ne "missing docker+colima (brew install fails): exits non-zero" "0" "$exit_code"
 
     local colima_listed="no"
-    if echo "$output" | grep -qi "colima"; then
+    if grep -qi "colima" <<< "$output"; then
         colima_listed="yes"
     fi
     assert_eq "missing docker+colima (brew install fails): colima listed in output" "yes" "$colima_listed"
@@ -888,7 +888,7 @@ BREWEOF
     assert_eq "colima start failure: script exits 0 (start is non-fatal)" "0" "$exit_code"
 
     local warning_present="no"
-    if echo "$output" | grep -qi "WARNING"; then
+    if grep -qi "WARNING" <<< "$output"; then
         warning_present="yes"
     fi
     assert_eq "colima start failure: WARNING emitted in output" "yes" "$warning_present"
@@ -956,7 +956,7 @@ BREWEOF
     assert_ne "missing uv (brew install fails): exits non-zero" "0" "$exit_code"
 
     local uv_listed="no"
-    if echo "$output" | grep -qi "uv"; then
+    if grep -qi "uv" <<< "$output"; then
         uv_listed="yes"
     fi
     assert_eq "missing uv (brew install fails): listed in output" "yes" "$uv_listed"
@@ -1023,7 +1023,7 @@ BREWEOF
     assert_ne "missing ast-grep/sg (brew install fails): exits non-zero" "0" "$exit_code"
 
     local astgrep_listed="no"
-    if echo "$output" | grep -qi "ast-grep"; then
+    if grep -qi "ast-grep" <<< "$output"; then
         astgrep_listed="yes"
     fi
     assert_eq "missing ast-grep/sg (brew install fails): listed in output" "yes" "$astgrep_listed"
@@ -1089,7 +1089,7 @@ BREWEOF
     assert_ne "missing semgrep (brew install fails): exits non-zero" "0" "$exit_code"
 
     local semgrep_listed="no"
-    if echo "$output" | grep -qi "semgrep"; then
+    if grep -qi "semgrep" <<< "$output"; then
         semgrep_listed="yes"
     fi
     assert_eq "missing semgrep (brew install fails): listed in output" "yes" "$semgrep_listed"
@@ -1309,13 +1309,13 @@ test_no_project_name_no_tty_prints_usage_hint() {
 
     # Backward-compat: still prints deps-satisfied message
     local satisfied="no"
-    echo "$output" | grep -q "All dependencies satisfied" && satisfied="yes"
+    grep -q "All dependencies satisfied" <<< "$output" && satisfied="yes"
     assert_eq "no-arg no-tty: deps-satisfied message preserved" "yes" "$satisfied"
 
     # RED assertion: output must mention "project-name" so the user knows how
     # to re-invoke. Currently fails — script emits no usage hint.
     local has_hint="no"
-    echo "$output" | grep -qi "project-name" && has_hint="yes"
+    grep -qi "project-name" <<< "$output" && has_hint="yes"
     assert_eq "no-arg no-tty: usage hint mentions project-name" "yes" "$has_hint"
 }
 
@@ -1450,7 +1450,7 @@ detect_dso_plugin_root ''
 HEREDOC
     ); exit_code=$?
 
-    echo "$output" | grep -q "LEAKED:/dev" && plugin_root_leaked="yes"
+    grep -q "LEAKED:/dev" <<< "$output" && plugin_root_leaked="yes"
     assert_eq "_PLUGIN_ROOT not set to /dev* when sourced via heredoc/pipe" "no" "$plugin_root_leaked"
 
     local returned_path_ok="no"

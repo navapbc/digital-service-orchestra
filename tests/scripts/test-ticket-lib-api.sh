@@ -138,7 +138,7 @@ test_ticketlib_api_sourceability_strict_mode() {
     ' 2>&1) || true
 
     # Must see CLEAN_EXIT and must NOT see TRAP_FIRED (which fires on abort).
-    if echo "$out" | grep -q "CLEAN_EXIT" && ! echo "$out" | grep -q "TRAP_FIRED"; then
+    if grep -q "CLEAN_EXIT" <<< "$out" && ! grep -q "TRAP_FIRED" <<< "$out"; then
         assert_eq "ticket-lib-api.sh sources cleanly under strict mode" "ok" "ok"
     else
         assert_eq "ticket-lib-api.sh sources cleanly under strict mode" "ok" "failed: $out"
@@ -371,7 +371,7 @@ test_ticket_link_via_library() {
     local deps_output
     deps_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" deps "$t1" 2>/dev/null) || true
 
-    if echo "$deps_output" | grep -q "$t2"; then
+    if grep -q "$t2" <<< "$deps_output"; then
         assert_eq "T1 depends on T2" "yes" "yes"
     else
         assert_eq "T1 depends on T2" "yes" "no"

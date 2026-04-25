@@ -204,12 +204,12 @@ test_compaction_resume_continues_after_ticket() {
     # Must instruct the agent to continue to the next bug after the resumed ticket completes.
     # Require a pattern unique to the COMPACTION_RESUME continuation clause — not the
     # CONTEXT ANCHOR "Do NOT stop or wait" lines that predate this fix.
-    if echo "$skill_content" | grep -qiE "do NOT stop.*re-query|After.*in.progress ticket.*complet.*do NOT stop|re-query remaining open.*continu"; then
+    if grep -qiE "do NOT stop.*re-query|After.*in.progress ticket.*complet.*do NOT stop|re-query remaining open.*continu" <<< "$skill_content"; then
         continue_found="found"
     fi
 
     # Must clarify that the past compaction does NOT trigger Phase 9 shutdown
-    if echo "$skill_content" | grep -qiE "compaction.{0,60}(NOT|not).{0,60}(signal|trigger).{0,60}Phase 9|Phase 9.{0,60}(NOT|not).{0,60}(triggered|fired).{0,60}compaction|prior.{0,60}compaction.{0,60}NOT|not.{0,60}Phase 9.{0,60}shutdown"; then
+    if grep -qiE "compaction.{0,60}(NOT|not).{0,60}(signal|trigger).{0,60}Phase 9|Phase 9.{0,60}(NOT|not).{0,60}(triggered|fired).{0,60}compaction|prior.{0,60}compaction.{0,60}NOT|not.{0,60}Phase 9.{0,60}shutdown" <<< "$skill_content"; then
         no_phase9_found="found"
     fi
 

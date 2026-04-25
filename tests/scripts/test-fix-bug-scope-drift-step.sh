@@ -43,7 +43,7 @@ test_hard_fail_missing_agent() {
     # Accept any of: abort, hard-fail, ABORT near scope-drift-reviewer
     local context
     context=$(grep -i 'scope-drift-reviewer' "$SKILL_FILE" || true)
-    if echo "$context" | grep -qiE 'abort|hard-fail|ABORT'; then
+    if grep -qiE 'abort|hard-fail|ABORT' <<< "$context"; then
         pass "test_hard_fail_missing_agent"
     else
         fail "test_hard_fail_missing_agent — no abort/hard-fail/ABORT found near 'scope-drift-reviewer' in fix-bug/SKILL.md"

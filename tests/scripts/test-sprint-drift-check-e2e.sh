@@ -177,17 +177,17 @@ else
 
         # Assert: relates_to keyword present in Part C
         _e2e2_has_relates_to=0
-        echo "$_part_c_content" | grep -qiE "relates_to|relates-to" && _e2e2_has_relates_to=1 || true
+        grep -qiE "relates_to|relates-to" <<< "$_part_c_content" && _e2e2_has_relates_to=1 || true
         assert_eq "e2e2: Part C contains relates_to link suggestion section" "1" "$_e2e2_has_relates_to"
 
         # Assert: user approval gate present before link creation (Rule 5 structural contract)
         _e2e2_has_approval_gate=0
-        echo "$_part_c_content" | grep -qiE "(AskUser|user.*approv|user.*confirm|confirm.*user|approv.*link|before.*creat)" && _e2e2_has_approval_gate=1 || true
+        grep -qiE "(AskUser|user.*approv|user.*confirm|confirm.*user|approv.*link|before.*creat)" <<< "$_part_c_content" && _e2e2_has_approval_gate=1 || true
         assert_eq "e2e2: Part C contains user approval gate before relates_to link creation" "1" "$_e2e2_has_approval_gate"
 
         # Assert: ticket link CLI command referenced in Part C for relates_to relation
         _e2e2_has_ticket_link=0
-        echo "$_part_c_content" | grep -qiE "(ticket link|dso ticket link)" && _e2e2_has_ticket_link=1 || true
+        grep -qiE "(ticket link|dso ticket link)" <<< "$_part_c_content" && _e2e2_has_ticket_link=1 || true
         assert_eq "e2e2: Part C references ticket link CLI for relates_to relation" "1" "$_e2e2_has_ticket_link"
     fi
 fi
@@ -220,7 +220,7 @@ else
     # blank-line-terminated section boundary or the next bold heading).
     _e2e3_section=$(awk '/\*\*If `RELATES_TO_DRIFT`/{found=1} found && /^\*\*If `(NO_DRIFT|DRIFT_DETECTED)`/{exit} found{print}' "$_sprint_skill_md")
     _e2e3_has_replan_trigger=0
-    echo "$_e2e3_section" | grep -qF "REPLAN_TRIGGER" && _e2e3_has_replan_trigger=1 || true
+    grep -qF "REPLAN_TRIGGER" <<< "$_e2e3_section" && _e2e3_has_replan_trigger=1 || true
     assert_eq "e2e3: RELATES_TO_DRIFT section references REPLAN_TRIGGER" "1" "$_e2e3_has_replan_trigger"
 fi
 

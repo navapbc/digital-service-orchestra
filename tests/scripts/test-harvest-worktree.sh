@@ -482,7 +482,7 @@ stderr_output=$(cd "$SESSION_REPO" && bash "$HARVEST_SCRIPT" \
 assert_eq "conflict exits 1" "1" "$exit_code"
 
 # Verify that the conflicted filename appears in the diagnostic output
-if echo "$stderr_output" | grep -q "file.txt"; then
+if grep -q "file.txt" <<< "$stderr_output"; then
     (( ++PASS ))
     echo "PASS: conflict diagnostic includes conflicted filename"
 else
@@ -517,7 +517,7 @@ stderr_output=$(cd "$SESSION_REPO" && bash "$HARVEST_SCRIPT" \
 
 assert_eq "nonexistent branch exits 1" "1" "$exit_code"
 
-if echo "$stderr_output" | grep -q "git merge failed"; then
+if grep -q "git merge failed" <<< "$stderr_output"; then
     (( ++PASS ))
     echo "PASS: nonexistent branch produces git merge failed message"
 else
@@ -854,7 +854,7 @@ assert_ne "harvest exits non-zero when called from inside the worktree (d888-632
 
 # Assert: error message must NOT say "already merged" (that would be the false-negative)
 already_merged_in_output="no"
-if echo "$output" | grep -qi "already merged"; then
+if grep -qi "already merged" <<< "$output"; then
     already_merged_in_output="yes"
 fi
 assert_eq "harvest must NOT report false 'already merged' when called from inside worktree (d888-632b)" \
@@ -947,7 +947,7 @@ output22=$(cd "$SESSION_REPO22" && bash "$HARVEST_SCRIPT" \
 assert_eq "empty branch with --expected-base exits 3 (1eda-6a0c)" "3" "$exit_code22"
 
 empty_branch_in_output22="no"
-if echo "$output22" | grep -q "EMPTY_BRANCH"; then
+if grep -q "EMPTY_BRANCH" <<< "$output22"; then
     empty_branch_in_output22="yes"
 fi
 assert_eq "EMPTY_BRANCH in stderr when tip == base (1eda-6a0c)" "yes" "$empty_branch_in_output22"
@@ -996,7 +996,7 @@ output23=$(cd "$SESSION_REPO23" && bash "$HARVEST_SCRIPT" \
 assert_eq "empty branch via base-commit file exits 3 (1eda-6a0c)" "3" "$exit_code23"
 
 empty_branch_in_output23="no"
-if echo "$output23" | grep -q "EMPTY_BRANCH"; then
+if grep -q "EMPTY_BRANCH" <<< "$output23"; then
     empty_branch_in_output23="yes"
 fi
 assert_eq "EMPTY_BRANCH in stderr via artifacts/base-commit (1eda-6a0c)" "yes" "$empty_branch_in_output23"
