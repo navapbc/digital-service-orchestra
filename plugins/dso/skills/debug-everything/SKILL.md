@@ -331,6 +331,11 @@ On each re-entry (looping from Bug-Fix Mode): `VALIDATION_ITERATION=$((VALIDATIO
 
 On resume (Step 1 resume check), parse existing `VALIDATION_LOOP_ITERATION:` comments to restore `VALIDATION_ITERATION` and `MAX_FIX_VALIDATE_CYCLES`.
 
+**Edge-case normalization** (apply once, before Step 1 iteration logic):
+- Value `<= 0` (zero or negative): set `MAX_FIX_VALIDATE_CYCLES=0`; skip validation loop entirely and proceed directly to Phase J.
+- Value `> 10`: set `MAX_FIX_VALIDATE_CYCLES=10` (capping at 10); log `"WARNING: max_fix_validate_cycles exceeds cap of 10 — capped to 10"`.
+- Non-numeric value: default to 3; log `"WARNING: max_fix_validate_cycles not numeric — defaulting to 3"`.
+
 **If `MAX_FIX_VALIDATE_CYCLES <= 0`**: Skip validation loop entirely. Proceed directly to Phase J.
 
 ### Step 2: Run Diagnostic Scan After Bug-Fix
@@ -468,7 +473,7 @@ The sub-agent returns: path to proposals file + summary (count + per-bug one-lin
 
 ### Step 3: Present Proposals to User (/dso:debug-everything)
 
-Non-interactive: apply Non-Interactive Deferral Protocol (see Phase B Step 1) using gate_name=`safeguard_approval`. Auto-defer ALL safeguard bugs; skip to Phase E with `SAFEGUARD_BUGS` removed from the fix queue (they remain open).
+Non-interactive: apply Non-Interactive Deferral Protocol (see Phase B Step 1) using gate_name=`safeguard_approval`. Auto-defer ALL safeguard bugs; skip to Phase E with `SAFEGUARD_BUGS` removed from the fix queue (they remain open). Add a ticket comment to each deferred bug: `.claude/scripts/dso ticket comment <id> "INTERACTIVITY_DEFERRED: gate=safeguard_approval — requires user approval of safeguard file edits; deferred in non-interactive session."`
 
 **Interactive mode**: Read the proposals file from disk. Present each proposal to the user:
 
@@ -594,6 +599,23 @@ For remaining failures (Tiers 2–7), launch sub-agent batches by executing `pro
 
 Resolve `subagent_type` via the table in `prompts/agent-routing-table.md`.
 
+**Complete assembled Task prompt** (individual bug — orchestrator MUST include all three sections):
+
+```
+/dso:fix-bug <bug-id>
+
+### Triage Classification Context (pre-loaded — do not re-score)
+Bug ID: <bug-id>
+Triage tier: <tier-number>
+Severity (from triage priority): <P0=critical/2pts | P1=high/2pts | P2=medium/1pt | P3=low/0pts>
+Environment: <CI failure | staging | local — from triage report>
+
+### File Ownership Context
+{file_ownership_context}
+```
+
+The `file_ownership_context` value follows the format: `You own: file1.py, file2.py. Other agents own: <task-id-X> owns file3.py.` (empty string when the blackboard is unavailable).
+
 ---
 
 ## Phase H: Post-Batch Checkpoint (/dso:debug-everything)
@@ -638,6 +660,8 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh file-overlap \
 
 Zero conflicts → proceed to Step 10. One or more `CONFLICT:` lines → execute `prompts/file-overlap-resolution.md` (capture secondary agent diffs, revert, re-run secondaries one-at-a-time in priority order with conflict-resolution context). The same prompt covers the oscillation guard fired by repeat CONCERN outcomes.
 
+**Non-interactive**: when `INTERACTIVE_SESSION=false` and a file-overlap conflict requires user escalation (e.g., unresolvable write-write conflict after re-run), defer the escalation — add an `INTERACTIVITY_DEFERRED: gate=file_overlap` ticket comment on the conflicting tasks and proceed to Step 10 with the lower-priority task reverted.
+
 ### Step 5: Critic Review (Complex Fixes Only) (/dso:debug-everything)
 
 Launch a critic sub-agent before committing when ANY trigger applies: `model="opus"` was used (complex multi-file bug), Tier 5–6, ≥3 files modified, or TDD was required (behavioral code change — not imports, annotations, or config).
@@ -652,6 +676,8 @@ Sub-agent prompt: read `$PLUGIN_ROOT/skills/debug-everything/prompts/critic-revi
 
 - `PASS` → Step 11.
 - `CONCERN` → if valid: revert (`git checkout -- <files>`), reopen with concern noted for next fix attempt. If false positive: Step 11. On 2nd CONCERN for the same issue, the oscillation guard in `file-overlap-resolution.md` fires.
+
+**Non-interactive**: when `INTERACTIVE_SESSION=false` and the oscillation guard fires (requiring user to choose between two diverging fix approaches), defer escalation to user — add an `INTERACTIVITY_DEFERRED: gate=oscillation_guard` ticket comment, revert the most recent attempt, and leave the ticket open for the next session.
 
 ### Step 6: Validate via Sub-Agent (/dso:debug-everything)
 
