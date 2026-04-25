@@ -12,7 +12,7 @@ The ticket system CLI entry point:
 
 Source of truth for each subcommand is in `scripts/ticket-*.sh` and `scripts/ticket-*.py`. # shim-exempt: internal implementation paths The dispatcher at `scripts/ticket` routes all subcommands to those implementation scripts. # shim-exempt: internal implementation path reference
 
-The ticket tracker is stored as an orphan git branch (`tickets`) mounted as a worktree at `.tickets-tracker/`. Each ticket is a directory containing append-only JSON event files. The compiled state is produced on-demand by the reducer (`ticket-reducer.py`).
+The ticket tracker is stored as an orphan git branch (`tickets`) mounted as a worktree at `.tickets-tracker/`. Each ticket is a directory containing append-only JSON event files. The compiled state is produced on-demand by the reducer (`ticket-reducer.py`). # tickets-boundary-ok
 
 ---
 
@@ -99,11 +99,11 @@ Initialize the ticket system.
 
 **Behavior:**
 
-- Creates an orphan `tickets` branch and mounts it as a worktree at `.tickets-tracker/`
+- Creates an orphan `tickets` branch and mounts it as a worktree at `.tickets-tracker/` # tickets-boundary-ok
 - Idempotent: exits 0 if the system is already initialized
-- In a git worktree session, creates a symlink to the main repo's `.tickets-tracker/` instead of creating a new worktree
+- In a git worktree session, creates a symlink to the main repo's `.tickets-tracker/` instead of creating a new worktree # tickets-boundary-ok
 - Writes `.gitignore` to the tickets branch (excludes `.env-id` and `.state-cache`)
-- Generates a UUID4 env-id at `.tickets-tracker/.env-id`
+- Generates a UUID4 env-id at `.tickets-tracker/.env-id` # tickets-boundary-ok
 - Sets `gc.auto=0` on the tickets worktree
 - Acquires an exclusive lock (30s timeout) during branch creation to prevent concurrent init races
 
@@ -149,7 +149,7 @@ Create a new ticket.
 
 - Generates a collision-resistant 8-character ID (format: `xxxx-xxxx`) derived from a UUID4
 - Validates that `--parent` ticket exists and has a CREATE event before writing
-- Writes a `CREATE` event JSON file to `.tickets-tracker/<ticket_id>/`
+- Writes a `CREATE` event JSON file to `.tickets-tracker/<ticket_id>/` # tickets-boundary-ok
 - Commits the event atomically to the tickets branch
 - The new ticket has status `open` by default
 - Tags are stored as a list on the ticket; use --tags to set them atomically at creation time.
@@ -248,7 +248,7 @@ List all tickets.
 
 **Behavior:**
 
-- Runs the reducer on every ticket directory in `.tickets-tracker/`
+- Runs the reducer on every ticket directory in `.tickets-tracker/` # tickets-boundary-ok
 - Hidden directories (names starting with `.`) are skipped
 - Archived tickets are excluded by default; pass `--include-archived` to include them
 - Tickets that fail to reduce produce an error-state entry: `{"ticket_id": "...", "status": "error", "error": "reducer_failed"}`; these are included in the output array rather than causing an early exit
@@ -500,7 +500,7 @@ Show the dependency graph for a ticket.
 | Argument | Required | Description |
 |---|---|---|
 | `ticket_id` | Yes | The ticket whose dependency graph to show |
-| `--tickets-dir=<path>` | No | Override the tracker directory (defaults to `.tickets-tracker/`) |
+| `--tickets-dir=<path>` | No | Override the tracker directory (defaults to `.tickets-tracker/`) | # tickets-boundary-ok
 | `--include-archived` | No | Include archived tickets in the dep graph (default: archived tickets are excluded) |
 
 **Output:** JSON object with the following fields:
@@ -875,7 +875,7 @@ Show the status of the last bridge (Jira sync) run.
 |---|---|---|
 | `--format=json` | No | Output raw JSON from the status file plus computed `unresolved_alerts_count` |
 
-**Status file:** `.tickets-tracker/.bridge-status.json`
+**Status file:** `.tickets-tracker/.bridge-status.json` # tickets-boundary-ok
 
 **Default output fields:**
 
@@ -1105,7 +1105,7 @@ List open epics, optionally including blocked ones.
 .claude/scripts/dso ticket list-epics [--all] [--min-children=N] [--max-children=N] [--has-tag=TAG] [--without-tag=TAG]
 ```
 
-Thin delegate to `sprint-list-epics.sh`. Output and flags are identical.
+Canonical implementation. `sprint-list-epics.sh` is the thin delegate. # tickets-boundary-ok
 
 **Arguments:**
 
@@ -1189,7 +1189,7 @@ Select the next parallel agent batch for an epic.
 .claude/scripts/dso ticket next-batch <epic_id> [--limit=N|unlimited] [--json]
 ```
 
-Thin delegate to `sprint-next-batch.sh`. Output and flags are identical.
+Canonical implementation. `sprint-next-batch.sh` is the thin delegate. # tickets-boundary-ok
 
 **Arguments:**
 

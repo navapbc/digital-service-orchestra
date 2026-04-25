@@ -276,6 +276,37 @@ fi
 assert_eq "test_tier_missing_review_tier_fail_open: tier_verified=false in review-status" "yes" "$TIER_VERIFIED_PRESENT"
 
 # ---------------------------------------------------------------------------
+# test_tier_telemetry_filtered_by_diff_hash
+# Regression: when classifier-telemetry.jsonl contains a stale record from a
+# prior /dso:review run on a different diff (older diff_hash, higher tier) AND
+# a current record matching the present diff_hash (lower tier), record-review.sh
+# MUST select the current diff_hash's record — not bare `tail -1`. Without this
+# filter, the stale tail record would falsely trigger TIER IMMUTABILITY VIOLATION.
+# ---------------------------------------------------------------------------
+HASH=$(_write_findings "standard")
+CURRENT_DIFF_HASH=$(bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null)
+cat > "$ARTIFACTS_DIR/classifier-telemetry.jsonl" <<EOFT
+{"diff_hash":"deadbeef00000000000000000000000000000000000000000000000000000000","selected_tier":"standard","blast_radius":2,"critical_path":0,"anti_shortcut":0,"staleness":1,"cross_cutting":1,"diff_lines":1,"change_volume":0,"computed_total":5,"diff_size_lines":87,"size_action":"none","is_merge_commit":false}
+{"diff_hash":"${CURRENT_DIFF_HASH}","selected_tier":"standard","blast_radius":2,"critical_path":0,"anti_shortcut":0,"staleness":1,"cross_cutting":1,"diff_lines":1,"change_volume":0,"computed_total":5,"diff_size_lines":87,"size_action":"none","is_merge_commit":false}
+{"diff_hash":"cafebabe00000000000000000000000000000000000000000000000000000000","selected_tier":"deep","blast_radius":2,"critical_path":0,"anti_shortcut":0,"staleness":1,"cross_cutting":1,"diff_lines":1,"change_volume":0,"computed_total":5,"diff_size_lines":87,"size_action":"none","is_merge_commit":false}
+EOFT
+EXIT_CODE=0
+bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || EXIT_CODE=$?
+assert_eq "test_tier_telemetry_filtered_by_diff_hash: exits 0 when current record matches review_tier" "0" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
+# test_tier_telemetry_legacy_records_fall_back_to_tail
+# Backward compat: when no record carries diff_hash (legacy telemetry from
+# before review-complexity-classifier.sh embedded the field), the implementation
+# falls back to last-record selection.
+# ---------------------------------------------------------------------------
+HASH=$(_write_findings "standard")
+_write_telemetry "standard"  # writes a single legacy record without diff_hash
+EXIT_CODE=0
+bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || EXIT_CODE=$?
+assert_eq "test_tier_telemetry_legacy_records_fall_back_to_tail: exits 0 on legacy record" "0" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
 # Tier verification via findings.selected_tier (bug 21d7-b84a)
 #
 # record-review.sh should prefer selected_tier embedded in reviewer-findings.json

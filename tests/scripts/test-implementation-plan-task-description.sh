@@ -78,7 +78,7 @@ test_operative_template_includes_description_flag() {
   _step5_section=$(awk '/^## Step 5/{found=1} found && /^## / && !/^## Step 5/{exit} found{print}' "$SKILL_FILE")
 
   local _found_with_d=0
-  echo "$_step5_section" | grep "ticket create task" | grep -q "\-d " && _found_with_d=1
+  grep "ticket create task" <<< "$_step5_section" | grep -q "\-d " && _found_with_d=1
 
   assert_eq \
     "test_operative_template_includes_description_flag: at least one ticket create task with -d in Step 5" \
@@ -105,7 +105,8 @@ test_integration_test_rule_has_primary_path_constraint() {
   local _found_primary_path="missing"
 
   # Must contain the primary-path constraint at the integration test rule site
-  if echo "$_skill_content" | grep -qiE "Primary path constraint|privileged bypass.*not satisfy|administrative.*bypass.*does not satisfy"; then
+  # grep directly on file to avoid echo|grep-q SIGPIPE false-negative under set -uo pipefail
+  if grep -qiE "Primary path constraint|privileged bypass.*not satisfy|administrative.*bypass.*does not satisfy" "$SKILL_FILE"; then
     _found_primary_path="found"
   fi
 

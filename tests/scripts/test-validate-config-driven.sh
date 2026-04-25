@@ -194,7 +194,7 @@ _vlt_warn_out=$(CONFIG_FILE="$_VLW_CFG" VALIDATE_CMD_TEST=true \
 rm -rf "$_VLW_DIR"
 
 _vlt_has_warn=0
-if echo "$_vlt_warn_out" | grep -q '\[DSO WARN\]'; then
+if grep -q '\[DSO WARN\]' <<< "$_vlt_warn_out"; then
     _vlt_has_warn=1
 fi
 assert_eq "validate.sh emits [DSO WARN] when commands.lint absent" "1" "$_vlt_has_warn"
@@ -222,7 +222,7 @@ _vnw_out=$(CONFIG_FILE="$_VNW_CFG" VALIDATE_CMD_TEST=true \
 rm -rf "$_VNW_DIR"
 
 _vnw_has_warn=0
-if echo "$_vnw_out" | grep -q '\[DSO WARN\].*commands.lint'; then
+if grep -q '\[DSO WARN\].*commands.lint' <<< "$_vnw_out"; then
     _vnw_has_warn=1
 fi
 assert_eq "validate.sh suppresses [DSO WARN] when legacy lint keys configured" "0" "$_vnw_has_warn"

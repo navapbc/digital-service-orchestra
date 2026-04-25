@@ -306,7 +306,7 @@ if [ -f "$SCRIPT" ]; then
         FOUND_PID=$(pgrep -u "$(id -u)" -f "$PGREP_PATTERN" 2>/dev/null || true)
         kill "$MOCK_PID" 2>/dev/null; wait "$MOCK_PID" 2>/dev/null || true
 
-        if echo "$FOUND_PID" | grep -q "$MOCK_PID"; then
+        if grep -q "$MOCK_PID" <<< "$FOUND_PID"; then
             echo "  PASS: pgrep pattern correctly matches mock Playwright-launched Chrome process at runtime"
             (( PASS++ ))
         else

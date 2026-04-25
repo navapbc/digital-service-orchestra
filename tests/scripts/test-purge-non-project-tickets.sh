@@ -11,6 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 SCRIPT="$DSO_PLUGIN_DIR/scripts/purge-non-project-tickets.sh"
+# Canonical implementation (tested for behavioral correctness)
+CANONICAL="$DSO_PLUGIN_DIR/scripts/ticket-purge-bridge.sh"
 
 source "$SCRIPT_DIR/../lib/run_test.sh"
 
@@ -43,16 +45,18 @@ run_test "missing --keep exits non-zero" 1 "Error.*--keep" bash "$SCRIPT"
 # ── Test 4: Script initializes tracker when dir doesn't exist (worktree startup) ─
 echo "Test 4: test_init_on_missing_tracker — calls ticket-init.sh when tracker missing"
 test_init_on_missing_tracker() {
-    # Behavioral test: verifies that purge-non-project-tickets.sh invokes ticket-init.sh
-    # when the tracker dir doesn't exist and TICKETS_TRACKER_DIR is not set.
+    # Behavioral test: verifies that ticket-purge-bridge.sh (canonical) invokes
+    # ticket-init.sh when the tracker dir doesn't exist and TICKETS_TRACKER_DIR is not set.
+    # Tests the canonical implementation directly — purge-non-project-tickets.sh is now
+    # a thin wrapper that execs ticket-purge-bridge.sh.
     # Same anti-pattern as sprint-list-epics (3b71-e877).
     local TDIR4 STUB_CALLED
     TDIR4=$(mktemp -d)
     STUB_CALLED="$TDIR4/init-was-called"
 
-    # Copy the real script into the temp dir
-    cp "$SCRIPT" "$TDIR4/purge-non-project-tickets.sh"
-    chmod +x "$TDIR4/purge-non-project-tickets.sh"
+    # Copy the canonical implementation into the temp dir
+    cp "$CANONICAL" "$TDIR4/ticket-purge-bridge.sh"
+    chmod +x "$TDIR4/ticket-purge-bridge.sh"
 
     # Create a stub ticket-init.sh that records invocation and creates
     # an empty tracker dir (so the script proceeds past the check)
@@ -70,7 +74,7 @@ STUBEOF
     mkdir -p "$fake_root"
 
     STUB_CALLED_FILE="$STUB_CALLED" PROJECT_ROOT="$fake_root" \
-        bash "$TDIR4/purge-non-project-tickets.sh" --keep=TEST >/dev/null 2>&1 || true
+        bash "$TDIR4/ticket-purge-bridge.sh" --keep=TEST >/dev/null 2>&1 || true
 
     local was_called=false
     [ -f "$STUB_CALLED" ] && was_called=true
@@ -94,8 +98,9 @@ test_init_skipped_for_override() {
     TDIR5=$(mktemp -d)
     STUB_CALLED="$TDIR5/init-was-called"
 
-    cp "$SCRIPT" "$TDIR5/purge-non-project-tickets.sh"
-    chmod +x "$TDIR5/purge-non-project-tickets.sh"
+    # Test canonical implementation (ticket-purge-bridge.sh) — same behavior
+    cp "$CANONICAL" "$TDIR5/ticket-purge-bridge.sh"
+    chmod +x "$TDIR5/ticket-purge-bridge.sh"
 
     cat > "$TDIR5/ticket-init.sh" << 'STUBEOF'
 #!/usr/bin/env bash
@@ -107,7 +112,7 @@ STUBEOF
     local nonexistent_tracker="$TDIR5/no-such-tracker"
 
     STUB_CALLED_FILE="$STUB_CALLED" TICKETS_TRACKER_DIR="$nonexistent_tracker" \
-        bash "$TDIR5/purge-non-project-tickets.sh" --keep=TEST >/dev/null 2>&1 || true
+        bash "$TDIR5/ticket-purge-bridge.sh" --keep=TEST >/dev/null 2>&1 || true
 
     local was_called=false
     [ -f "$STUB_CALLED" ] && was_called=true
@@ -130,8 +135,9 @@ test_init_failure_emits_stderr() {
     local TDIR6
     TDIR6=$(mktemp -d)
 
-    cp "$SCRIPT" "$TDIR6/purge-non-project-tickets.sh"
-    chmod +x "$TDIR6/purge-non-project-tickets.sh"
+    # Test canonical implementation (ticket-purge-bridge.sh) — same behavior
+    cp "$CANONICAL" "$TDIR6/ticket-purge-bridge.sh"
+    chmod +x "$TDIR6/ticket-purge-bridge.sh"
 
     # Stub ticket-init.sh: emits a diagnostic on stderr and exits non-zero
     cat > "$TDIR6/ticket-init.sh" << 'STUBEOF'
@@ -145,8 +151,8 @@ STUBEOF
     mkdir -p "$fake_root"
 
     local captured_stderr
-    captured_stderr=$(TICKETS_TRACKER_DIR= PROJECT_ROOT="$fake_root" \
-        bash "$TDIR6/purge-non-project-tickets.sh" --keep=TEST 2>&1 >/dev/null) || true
+    captured_stderr=$(TICKETS_TRACKER_DIR='' PROJECT_ROOT="$fake_root" \
+        bash "$TDIR6/ticket-purge-bridge.sh" --keep=TEST 2>&1 >/dev/null) || true
 
     rm -rf "$TDIR6"
 

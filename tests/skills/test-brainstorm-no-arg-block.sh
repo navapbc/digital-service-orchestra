@@ -4,7 +4,7 @@
 # must contain — specific flag combinations are structural identifiers, not prose.
 #
 # Asserts:
-#   1. SKILL.md invokes sprint-list-epics.sh --brainstorm (the combined categorized call)
+#   1. SKILL.md invokes ticket list-epics --brainstorm (the combined categorized call)
 #   2. SKILL.md names both categories (zero-child and scrutiny-gap) so the user can distinguish them
 set -euo pipefail
 
@@ -24,10 +24,10 @@ fail() { echo "FAIL: ${SECTION}"; echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 echo "=== test_brainstorm_flag_call ==="
 SECTION="test_brainstorm_flag_call"
 
-if grep -qF 'sprint-list-epics.sh --brainstorm' "$SKILL_MD"; then
-  pass "SKILL.md contains sprint-list-epics.sh --brainstorm"
+if grep -qF 'ticket list-epics --brainstorm' "$SKILL_MD"; then
+  pass "SKILL.md contains ticket list-epics --brainstorm"
 else
-  fail "SKILL.md is missing 'sprint-list-epics.sh --brainstorm' — the combined epic-selection call"
+  fail "SKILL.md is missing 'ticket list-epics --brainstorm' — the combined epic-selection call"
 fi
 
 # ---------------------------------------------------------------------------

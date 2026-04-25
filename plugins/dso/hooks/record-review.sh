@@ -650,7 +650,22 @@ TIER_VERIFIED="true"
 TELEMETRY_FILE="$ARTIFACTS_DIR/classifier-telemetry.jsonl"
 TELEMETRY_SELECTED_TIER=""
 if [[ -f "$TELEMETRY_FILE" ]]; then
-    TELEMETRY_SELECTED_TIER=$(tail -1 "$TELEMETRY_FILE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('selected_tier',''))" 2>/dev/null || echo "")
+    # Filter telemetry by current $DIFF_HASH before extracting selected_tier.
+    # classifier-telemetry.jsonl is append-only across runs in the same artifacts
+    # dir; reading bare `tail -1` would return a stale record from a prior review
+    # on a different diff and could spuriously trigger TIER IMMUTABILITY VIOLATION
+    # at lines 685-690 when the prior record's tier outranks the current run's.
+    # Falls back to bare tail -1 only when the diff_hash field is absent (legacy
+    # records emitted before review-complexity-classifier.sh embedded diff_hash).
+    TELEMETRY_SELECTED_TIER=$(python3 -c "
+import sys, json
+records = [json.loads(l) for l in sys.stdin if l.strip()]
+matches = [r for r in records if r.get('diff_hash') == '$DIFF_HASH']
+if matches:
+    print(matches[-1].get('selected_tier', ''))
+elif records and not any('diff_hash' in r for r in records):
+    print(records[-1].get('selected_tier', ''))
+" < "$TELEMETRY_FILE" 2>/dev/null || echo "")
 fi
 
 SELECTED_TIER=""

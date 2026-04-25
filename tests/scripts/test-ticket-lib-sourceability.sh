@@ -98,7 +98,7 @@ test_no_bare_exit() {
             # We look for `exit` as a statement — preceded by whitespace/semicolon/newline
             # and followed by a space, digit, or newline. This avoids false-positives
             # from compound words or comments referencing "exit".
-            if echo "$fn_body" | grep -qE '(^|[[:space:]|;])exit([[:space:]]|$)'; then
+            if grep -qE '(^|[[:space:]|;])exit([[:space:]]|$)' <<< "$fn_body"; then
                 bad_fns+=("$fn_name")
             fi
         done < <(declare -F)

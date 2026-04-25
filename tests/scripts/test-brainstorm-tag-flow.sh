@@ -153,8 +153,8 @@ test_migration_unmatched_lines() {
     local unmatched_count
     unmatched_count=$(echo "$out" | grep -c "^UNMATCHED:" 2>/dev/null || true)
     [ "$unmatched_count" -ge 2 ] || return 1
-    echo "$out" | grep -q "UNMATCHED:.*ccc3-0003" || return 1
-    echo "$out" | grep -q "UNMATCHED:.*ddd4-0004" || return 1
+    grep -q "UNMATCHED:.*ccc3-0003" <<< "$out" || return 1
+    grep -q "UNMATCHED:.*ddd4-0004" <<< "$out" || return 1
 }
 if test_migration_unmatched_lines; then
     echo "  PASS: migration stdout has UNMATCHED for ccc3-0003 and ddd4-0004"
@@ -195,23 +195,6 @@ if test_sprint_skill_hidden_epics_note; then
     (( PASS++ ))
 else
     echo "  FAIL: sprint SKILL.md missing /dso:brainstorm or brainstorm:complete reference" >&2
-    (( FAIL++ ))
-fi
-
-# ── Test 5: brainstorm SKILL.md no-arg block surfaces scrutiny-gap category ──
-echo "Test 5: brainstorm SKILL.md no-arg block has scrutiny-gap category label"
-test_brainstorm_skill_scrutiny_gap_category() {
-    # SKILL.md names the scrutiny-gap category directly, and delegates the
-    # --without-tag=brainstorm:complete filter to sprint-list-epics.sh --brainstorm
-    # (which composes both queries internally).
-    grep -q 'Scrutiny-gap epics' "$BRAINSTORM_SKILL" || return 1
-    grep -qE 'sprint-list-epics\.sh --brainstorm|\-\-without-tag=brainstorm:complete' "$BRAINSTORM_SKILL" || return 1
-}
-if test_brainstorm_skill_scrutiny_gap_category; then
-    echo "  PASS: brainstorm SKILL.md has scrutiny-gap category and --without-tag filter"
-    (( PASS++ ))
-else
-    echo "  FAIL: brainstorm SKILL.md missing scrutiny-gap category or --without-tag filter" >&2
     (( FAIL++ ))
 fi
 

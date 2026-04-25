@@ -389,7 +389,7 @@ _SYNC_BODY=$(_extract_fn7 "_phase_sync" 2>/dev/null || echo "")
 
 # Check that 'git reset HEAD' appears in _phase_sync
 _SYNC_HAS_RESET="no"
-if echo "$_SYNC_BODY" | grep -qE 'git reset HEAD'; then
+if grep -qE 'git reset HEAD' <<< "$_SYNC_BODY"; then
     _SYNC_HAS_RESET="yes"
 fi
 
@@ -449,7 +449,7 @@ MERGE_OUTPUT8=$(cd "$WT8" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
 
 # Merge should succeed
 MERGE8_SUCCESS="false"
-if echo "$MERGE_OUTPUT8" | grep -qiE "OK: Merged|DONE"; then
+if grep -qiE "OK: Merged|DONE" <<< "$MERGE_OUTPUT8"; then
     MERGE8_SUCCESS="true"
 fi
 assert_eq "test_merge_succeeds_with_dirty_main" "true" "$MERGE8_SUCCESS"

@@ -82,10 +82,10 @@ else
 fi
 
 # ── test_cross_stack_multi_marker_python_priority ────────────────────────────
-# detect-stack.sh on tests/evals/fixtures/multi-marker-project
+# detect-stack.sh on tests/fixtures/multi-marker-project
 # (has both pyproject.toml and package.json) must output 'python-poetry'
 # because Python takes priority over Node.
-MULTI_FIXTURE="$PLUGIN_ROOT/tests/evals/fixtures/multi-marker-project"
+MULTI_FIXTURE="$PLUGIN_ROOT/tests/fixtures/multi-marker-project"
 if [[ ! -d "$MULTI_FIXTURE" ]]; then
     assert_eq "test_cross_stack_multi_marker_python_priority: fixture dir exists" "exists" "missing"
 else

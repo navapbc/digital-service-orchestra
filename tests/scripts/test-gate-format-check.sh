@@ -63,7 +63,7 @@ _gfc2b_out=$(WORKFLOW_CONFIG_FILE="$_GFC2B_WARN_CFG" bash "$GATE2B" "$_GFC_FILE"
     --repo-root "$REPO_ROOT" 2>&1 || true)
 
 _gfc2b_has_warn=0
-echo "$_gfc2b_out" | grep -q '\[DSO WARN\]' && _gfc2b_has_warn=1
+grep -q '\[DSO WARN\]' <<< "$_gfc2b_out" && _gfc2b_has_warn=1
 assert_eq "gate-2b emits [DSO WARN] when commands.format_check absent" "1" "$_gfc2b_has_warn"
 assert_pass_if_clean "test_gate2b_warn_when_format_check_absent"
 
@@ -100,7 +100,7 @@ _gfc2d_out=$(WORKFLOW_CONFIG_FILE="$_GFC2D_WARN_CFG" bash "$GATE2D" "$_GFC_FILE"
     --repo-root "$REPO_ROOT" 2>&1 || true)
 
 _gfc2d_has_warn=0
-echo "$_gfc2d_out" | grep -q '\[DSO WARN\]' && _gfc2d_has_warn=1
+grep -q '\[DSO WARN\]' <<< "$_gfc2d_out" && _gfc2d_has_warn=1
 assert_eq "gate-2d emits [DSO WARN] when commands.format_check absent" "1" "$_gfc2d_has_warn"
 assert_pass_if_clean "test_gate2d_warn_when_format_check_absent"
 

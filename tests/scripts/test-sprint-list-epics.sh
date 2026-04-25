@@ -580,6 +580,9 @@ test_init_on_missing_tracker() {
     # Copy the real script into the temp dir
     cp "$SCRIPT" "$TDIR28/sprint-list-epics.sh"
     chmod +x "$TDIR28/sprint-list-epics.sh"
+    # Also copy ticket-list-epics.sh — sprint-list-epics.sh is now a thin wrapper that execs it
+    cp "$DSO_PLUGIN_DIR/scripts/ticket-list-epics.sh" "$TDIR28/ticket-list-epics.sh"
+    chmod +x "$TDIR28/ticket-list-epics.sh"
 
     # Create a stub ticket-init.sh that records invocation
     cat > "$TDIR28/ticket-init.sh" << 'STUBEOF'
@@ -628,6 +631,9 @@ test_init_skipped_for_override() {
     # Copy the real script into the temp dir
     cp "$SCRIPT" "$TDIR29/sprint-list-epics.sh"
     chmod +x "$TDIR29/sprint-list-epics.sh"
+    # Also copy ticket-list-epics.sh — sprint-list-epics.sh is now a thin wrapper that execs it
+    cp "$DSO_PLUGIN_DIR/scripts/ticket-list-epics.sh" "$TDIR29/ticket-list-epics.sh"
+    chmod +x "$TDIR29/ticket-list-epics.sh"
 
     # Stub ticket-init.sh records if called
     cat > "$TDIR29/ticket-init.sh" << 'STUBEOF'
@@ -674,6 +680,9 @@ test_init_failure_emits_stderr() {
     # Copy the real script into the temp dir so SCRIPT_DIR resolves to the stub's location
     cp "$SCRIPT" "$TDIR30/sprint-list-epics.sh"
     chmod +x "$TDIR30/sprint-list-epics.sh"
+    # Also copy ticket-list-epics.sh — sprint-list-epics.sh is now a thin wrapper that execs it
+    cp "$DSO_PLUGIN_DIR/scripts/ticket-list-epics.sh" "$TDIR30/ticket-list-epics.sh"
+    chmod +x "$TDIR30/ticket-list-epics.sh"
 
     # Stub ticket-init.sh: emits a diagnostic on stderr and exits non-zero
     cat > "$TDIR30/ticket-init.sh" << 'STUBEOF'

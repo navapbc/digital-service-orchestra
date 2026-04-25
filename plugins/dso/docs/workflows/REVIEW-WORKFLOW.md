@@ -322,7 +322,7 @@ When `REVIEW_TIER` is `deep`, dispatch 3 parallel sonnet sub-agents in a single 
 | b | `dso:code-reviewer-deep-verification` | `$ARTIFACTS_DIR/reviewer-findings-b.json` |
 | c | `dso:code-reviewer-deep-hygiene` | `$ARTIFACTS_DIR/reviewer-findings-c.json` |
 
-**`FINDINGS_OUTPUT` IS MANDATORY PER SLOT.** Every specialist dispatch prompt below MUST include the slot-specific `FINDINGS_OUTPUT` line. Omitting it causes all three specialists to write to the canonical `reviewer-findings.json`, where each parallel write clobbers the previous one — only the last writer survives and the arch reviewer synthesizes against silently-missing inputs. The slot value in `FINDINGS_OUTPUT` is the only mechanism preventing this clobber.
+**`FINDINGS_OUTPUT` IS MANDATORY PER SLOT.** Every specialist dispatch prompt below MUST include the slot-specific `FINDINGS_OUTPUT` line. Omitting it causes all three specialists to write to the same canonical `reviewer-findings.json`, where each parallel write clobbers the previous one — only the last writer survives, and the arch reviewer synthesizes against silently-missing inputs. The slot value in `FINDINGS_OUTPUT` is the only mechanism preventing this clobber.
 
 **SERIAL DISPATCH PROHIBITED**: All 3 sonnet agents MUST be launched in a single response as 3 parallel Agent tool calls. Dispatching them one at a time (serial) triples review time and is a critical workflow violation. A single response must contain all three Agent tool invocations with no waiting between them.
 
@@ -799,7 +799,8 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 **File-overlap rejection recovery**: If `record-review.sh` exits with `ERROR: reviewer findings files do not overlap with any changed files in the diff`, the reviewer's `file` fields in its findings reference files not in the diff (e.g., test files from verification recommendations instead of the source files being reviewed). Do NOT escalate to the user immediately. Instead: (1) re-dispatch the review with a higher-tier reviewer (e.g., light → standard) which is more reliable at correctly reporting diff files in the `file` field; (2) if the re-dispatched reviewer also produces non-overlapping files, THEN escalate to the user.
 
-**IMPORTANT — always use `compute-diff-hash.sh`**: Never compute the diff hash via raw `git diff | shasum` — the canonical script applies pathspec exclusions (`.tickets-tracker/`, snapshots, images) and checkpoint-aware diff base detection. Untracked files are excluded (new files must be staged before review). A raw pipeline produces a completely different hash and will cause `--expected-hash` mismatch errors.
+**IMPORTANT — always use `compute-diff-hash.sh`**: Never compute the diff hash via raw `git diff | shasum` — the canonical script applies pathspec exclusions (`.tickets-tracker/`, snapshots, images) and checkpoint-aware diff base detection. Untracked files are excluded (new files must be staged before review). A raw pipeline produces a completely different hash and will cause `--expected-hash` mismatch errors. <!-- # tickets-boundary-ok: documentation describing exclusion patterns, not code accessing the tracker directly -->
+
 
 ## After Review
 

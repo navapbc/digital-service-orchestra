@@ -745,7 +745,7 @@ if not found:
     fi
 
     # The ticket ID must appear in the list output.
-    if ! echo "$list_output" | grep -q "$ticket_id" 2>/dev/null; then
+    if ! grep -q "$ticket_id" <<< "$list_output" 2>/dev/null; then
         echo "  ticket $ticket_id not found in ticket list output"
         return 1
     fi

@@ -88,7 +88,7 @@ echo "--- test_phase_merge_begins_with_cd_main_repo ---"
 
 _MERGE_BODY=$(_extract_fn "_phase_merge" 2>/dev/null || echo "")
 _HAS_CD_MAIN_REPO="no"
-if echo "$_MERGE_BODY" | grep -qE 'cd[[:space:]]+"?\$MAIN_REPO"?'; then
+if grep -qE 'cd[[:space:]]+"?\$MAIN_REPO"?' <<< "$_MERGE_BODY"; then
     _HAS_CD_MAIN_REPO="yes"
 fi
 assert_eq "test_phase_merge_begins_with_cd_main_repo" "yes" "$_HAS_CD_MAIN_REPO"
@@ -134,7 +134,7 @@ _snapshot_fail
 _BUMP_BODY=$(_extract_fn "_phase_version_bump" 2>/dev/null || echo "")
 # Check for standalone 'cd "$MAIN_REPO"' lines (not inside subshells like (cd ...))
 _BUMP_HAS_STANDALONE_CD="no"
-if echo "$_BUMP_BODY" | grep -qE '^[[:space:]]*cd[[:space:]]+"?\$MAIN_REPO"?' 2>/dev/null; then
+if grep -qE '^[[:space:]]*cd[[:space:]]+"?\$MAIN_REPO"?' <<< "$_BUMP_BODY" 2>/dev/null; then
     _BUMP_HAS_STANDALONE_CD="yes"
 fi
 assert_eq "test_phase_version_bump_has_standalone_cd_main_repo" "yes" "$_BUMP_HAS_STANDALONE_CD"
@@ -236,7 +236,7 @@ echo "--- test_phase_validate_has_standalone_cd_main_repo ---"
 
 _VALIDATE_BODY=$(_extract_fn "_phase_validate" 2>/dev/null || echo "")
 _VALIDATE_HAS_STANDALONE_CD="no"
-if echo "$_VALIDATE_BODY" | grep -qE '^[[:space:]]*cd[[:space:]]+"?\$MAIN_REPO"?' 2>/dev/null; then
+if grep -qE '^[[:space:]]*cd[[:space:]]+"?\$MAIN_REPO"?' <<< "$_VALIDATE_BODY" 2>/dev/null; then
     _VALIDATE_HAS_STANDALONE_CD="yes"
 fi
 assert_eq "test_phase_validate_has_standalone_cd_main_repo" "yes" "$_VALIDATE_HAS_STANDALONE_CD"
@@ -254,7 +254,7 @@ echo "--- test_phase_push_has_standalone_cd_main_repo ---"
 
 _PUSH_BODY=$(_extract_fn "_phase_push" 2>/dev/null || echo "")
 _PUSH_HAS_STANDALONE_CD="no"
-if echo "$_PUSH_BODY" | grep -qE '^[[:space:]]*cd[[:space:]]+"?\$MAIN_REPO"?' 2>/dev/null; then
+if grep -qE '^[[:space:]]*cd[[:space:]]+"?\$MAIN_REPO"?' <<< "$_PUSH_BODY" 2>/dev/null; then
     _PUSH_HAS_STANDALONE_CD="yes"
 fi
 assert_eq "test_phase_push_has_standalone_cd_main_repo" "yes" "$_PUSH_HAS_STANDALONE_CD"

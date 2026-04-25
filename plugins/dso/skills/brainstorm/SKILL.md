@@ -53,7 +53,7 @@ When invoked with a free-text description (argument present but does not match t
 When invoked without a ticket ID or description, emit the candidate selection list:
 
 ```bash
-.claude/scripts/dso sprint-list-epics.sh --brainstorm
+.claude/scripts/dso ticket list-epics --brainstorm
 ```
 
 The script emits a numbered list with two labeled categories — **Zero-child epics** (not yet decomposed) and **Scrutiny-gap epics** (decomposed, not yet brainstormed; i.e., children ≥ 1 without the `brainstorm:complete` tag) — plus a trailing "start fresh" option. Wait for the user to choose:

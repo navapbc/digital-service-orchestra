@@ -19,7 +19,7 @@ import subprocess
 REPO_ROOT = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-SCRIPT = os.path.join(REPO_ROOT, "plugins/dso/scripts/sprint-next-batch.sh")
+SCRIPT = os.path.join(REPO_ROOT, "plugins/dso/scripts/ticket-next-batch.sh")
 
 
 def _extract_function_source(script_path: str, fn_name: str) -> str:

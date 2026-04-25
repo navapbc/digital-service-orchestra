@@ -59,7 +59,7 @@ plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-co
 plugins/dso/hooks/lib/pre-all-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/scripts/blast-radius-score.py:tests/scripts/test-blast-radius-score.sh
-plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-resume-cwd.sh,tests/scripts/test-merge-to-main-resume-push-idempotent.sh,tests/scripts/test-merge-to-main-cleanliness.sh,tests/scripts/test-merge-to-main-locking.sh,tests/scripts/test-merge-to-main-version-bump.sh,tests/scripts/test-merge-to-main-version-bump-integration.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-config-driven.sh,tests/scripts/test-merge-to-main-ci-workflow-name.sh,tests/scripts/test-merge-to-main-ucq2.sh,tests/hooks/test-merge-to-main-portability.sh
+plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-resume-cwd.sh,tests/scripts/test-merge-to-main-resume-push-idempotent.sh,tests/scripts/test-merge-to-main-cleanliness.sh,tests/scripts/test-merge-to-main-locking.sh,tests/scripts/test-merge-to-main-version-bump.sh,tests/scripts/test-merge-to-main-version-bump-integration.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-config-driven.sh,tests/scripts/test-merge-to-main-ci-workflow-name.sh,tests/scripts/test-merge-to-main-ucq2.sh,tests/scripts/test-merge-to-main-stale-version-bump-reset.sh,tests/hooks/test-merge-to-main-portability.sh
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-generic.sh
 plugins/dso/scripts/check-script-writes.py:tests/scripts/test-check-script-writes.sh
 plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh
@@ -281,3 +281,12 @@ docs/designs/stage-boundary-preconditions/:tests/docs/test-stage-boundary-precon
 plugins/dso/scripts/onboarding/plugin-inventory.sh:tests/unit/scripts/test-plugin-inventory.sh
 plugins/dso/scripts/onboarding/detect-enforcement-artifacts.sh:tests/unit/scripts/test-detect-enforcement-artifacts.sh
 plugins/dso/scripts/onboarding/adr-upsert.sh:tests/unit/scripts/test-adr-upsert.sh
+plugins/dso/hooks/pre-commit-ticket-gate.sh:tests/hooks/test-pre-commit-ticket-gate.sh
+plugins/dso/hooks/check-tickets-boundary.sh:tests/hooks/test-check-tickets-boundary.sh
+plugins/dso/skills/debug-everything/prompts/session-init.md:tests/scripts/test-debug-everything-prompt-contracts.sh
+plugins/dso/skills/debug-everything/prompts/dispatch-fix-batch.md:tests/scripts/test-debug-everything-prompt-contracts.sh
+plugins/dso/skills/debug-everything/prompts/agent-routing-table.md:tests/scripts/test-debug-everything-prompt-contracts.sh
+plugins/dso/skills/debug-everything/prompts/complex-escalation-handler.md:tests/scripts/test-debug-everything-prompt-contracts.sh
+plugins/dso/skills/debug-everything/prompts/file-overlap-resolution.md:tests/scripts/test-debug-everything-prompt-contracts.sh
+plugins/dso/skills/debug-everything/prompts/gha-dispatch.md:tests/scripts/test-debug-everything-prompt-contracts.sh
+plugins/dso/skills/shared/prompts/test-failure-fix.md:tests/scripts/test-debug-everything-prompt-contracts.sh

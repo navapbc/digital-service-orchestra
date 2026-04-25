@@ -49,7 +49,7 @@ echo "--- test_intent_conflict_outcome_exists ---"
 test_intent_conflict_outcome_exists() {
     local step15_content
     step15_content=$(_extract_step15 "$SKILL_FILE")
-    if echo "$step15_content" | grep -q 'intent-conflict'; then
+    if grep -q 'intent-conflict' <<< "$step15_content"; then
         echo "PASS: test_intent_conflict_outcome_exists"
         (( PASS++ ))
     else
@@ -72,7 +72,7 @@ test_three_resolution_options() {
     step15_content=$(_extract_step15 "$SKILL_FILE")
     local missing=0
     for option in "confirm ticket correct" "confirm current behavior" "revise ticket description"; do
-        if ! echo "$step15_content" | grep -qi "$option"; then
+        if ! grep -qi "$option" <<< "$step15_content"; then
             echo "FAIL: test_three_resolution_options — missing option: '$option'" >&2
             (( FAIL++ ))
             missing=1
@@ -96,7 +96,7 @@ echo "--- test_gate_1a_result_intent_conflict ---"
 test_gate_1a_result_intent_conflict() {
     local step15_content
     step15_content=$(_extract_step15 "$SKILL_FILE")
-    if echo "$step15_content" | grep -qE 'GATE_1A_RESULT.*intent-conflict|intent-conflict.*GATE_1A_RESULT'; then
+    if grep -qE 'GATE_1A_RESULT.*intent-conflict|intent-conflict.*GATE_1A_RESULT' <<< "$step15_content"; then
         echo "PASS: test_gate_1a_result_intent_conflict"
         (( PASS++ ))
     else
@@ -117,7 +117,7 @@ echo "--- test_step_1_7_skips_intent_conflict ---"
 test_step_1_7_skips_intent_conflict() {
     local step17_content
     step17_content=$(_extract_step17 "$SKILL_FILE")
-    if echo "$step17_content" | grep -q 'intent-conflict'; then
+    if grep -q 'intent-conflict' <<< "$step17_content"; then
         echo "PASS: test_step_1_7_skips_intent_conflict"
         (( PASS++ ))
     else

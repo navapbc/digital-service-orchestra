@@ -8,3 +8,6 @@ plugin-boundary-check
 
 # ShellCheck is project-local — not distributed with the DSO plugin
 shellcheck
+
+# Tickets boundary enforcement is project-internal (DSO plugin repo only)
+check-tickets-boundary

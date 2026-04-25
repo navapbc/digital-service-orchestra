@@ -84,7 +84,7 @@ Flow: P1 (Init) → Preplanning Gate
 
 1. Run the epic discovery script:
    ```bash
-   .claude/scripts/dso sprint-list-epics.sh --all --has-tag=brainstorm:complete
+   .claude/scripts/dso ticket list-epics --all --has-tag=brainstorm:complete
    ```
    This outputs tab-separated lines in three categories:
    - `<id>\tP*\t<title>\t<child_count>[\tBLOCKING]` for in-progress epics (4 or 5 fields; `P*` replaces priority)
@@ -100,7 +100,7 @@ Flow: P1 (Init) → Preplanning Gate
    - Report: "No epics with the brainstorm:complete tag are ready to execute."
    - Run the same command **without** `--has-tag=brainstorm:complete` to count how many epics were hidden:
    ```bash
-   .claude/scripts/dso sprint-list-epics.sh --all
+   .claude/scripts/dso ticket list-epics --all
    ```
    - If there are epics without brainstorm:complete that were filtered out, show: "There are N epics without the brainstorm:complete tag. Run `/dso:brainstorm` on one to complete scrutiny review before executing."
    - Exit.
@@ -122,7 +122,7 @@ Load skills/sprint/prompts/auto-resume.md and follow the instructions it contain
 
 3. Mark ticket in-progress: `.claude/scripts/dso ticket transition <primary_ticket_id> in_progress`
 
-Post WORKTREE_TRACKING:start on the epic ticket (fail silently if .tickets-tracker/ unavailable):
+Post WORKTREE_TRACKING:start on the epic ticket (fail silently if .tickets-tracker/ unavailable): # tickets-boundary-ok
 ```bash
 _BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
@@ -901,7 +901,7 @@ Proceed to task classification with the updated task list.
 
 ### Classify Tasks
 
-Classification is performed automatically by `sprint-next-batch.sh` in Phase 3 (Batch Preparation). Each `TASK:` line in its output already includes `model`, `subagent`, and `class` fields — no separate classification step is needed here. Proceed directly to building the dependency graph below.
+Classification is performed automatically by `ticket next-batch` in Phase 3 (Batch Preparation). Each `TASK:` line in its output already includes `model`, `subagent`, and `class` fields — no separate classification step is needed here. Proceed directly to building the dependency graph below.
 
 ### Build Dependency Graph
 
@@ -950,8 +950,8 @@ Output: `DISCOVERIES_CLEANED: <N>`. Exit 0 always (best-effort).
 
 | `max_agents` value | Behavior |
 |---------------------|----------|
-| `unlimited` | Dispatch all ready tasks in a single batch with no artificial cap. Pass `--limit=unlimited` (or omit `--limit`) to `sprint-next-batch.sh`. |
-| `N` (positive integer) | Cap the batch at N sub-agents. Pass `--limit=N` to `sprint-next-batch.sh`. Log: `"Session usage elevated, limiting to N sub-agent(s)."` |
+| `unlimited` | Dispatch all ready tasks in a single batch with no artificial cap. Pass `--limit=unlimited` (or omit `--limit`) to `ticket next-batch`. |
+| `N` (positive integer) | Cap the batch at N sub-agents. Pass `--limit=N` to `ticket next-batch`. Log: `"Session usage elevated, limiting to N sub-agent(s)."` |
 | `0` | Skip sub-agent dispatch entirely. Write a ticket comment with utilization percentages and estimated reset time, then proceed to Phase 5 Step 13 (Continuation Decision). Log: `"MAX_AGENTS=0 — session at critical utilization, skipping dispatch."` Comment format: `.claude/scripts/dso ticket comment <epic-id> "BATCH_SKIPPED: MAX_AGENTS=0. Session utilization: <SESSION_USAGE>. Estimated reset: next session."` |
 
 All Task tool calls use `run_in_background: true`.
@@ -994,16 +994,16 @@ Run the deterministic batch selector:
 
 ```bash
 # When max_agents is "unlimited", omit --limit (or pass --limit=unlimited):
-.claude/scripts/dso sprint-next-batch.sh <epic-id>
+.claude/scripts/dso ticket next-batch <epic-id>
 # When max_agents is a positive integer N:
-.claude/scripts/dso sprint-next-batch.sh <epic-id> --limit=N
-# When max_agents is 0: do NOT call sprint-next-batch.sh — skip dispatch (see Phase 3 Step 1 protocol)
+.claude/scripts/dso ticket next-batch <epic-id> --limit=N
+# When max_agents is 0: do NOT call ticket next-batch — skip dispatch (see Phase 3 Step 1 protocol)
 ```
 
 - **`max_agents`**: Determined by Step 1's pre-batch check (3-tier: `unlimited`, `N`, or `0`).
 - **`unlimited`**: Returns the full non-conflicting pool — dispatch all candidates.
 - **`N`** (positive integer): Caps batch at N tasks.
-- **`0`**: Skip dispatch entirely — do not call `sprint-next-batch.sh`. Write the utilization comment per Phase 3 Step 1 protocol and proceed to Phase 5 Step 13.
+- **`0`**: Skip dispatch entirely — do not call `ticket next-batch`. Write the utilization comment per Phase 3 Step 1 protocol and proceed to Phase 5 Step 13.
 
 #### Output format
 
@@ -1026,7 +1026,7 @@ TASK: <id>  P<priority>  <issue-type>  <model>  <subagent-type>  <class>  <title
 | `SKIPPED_DESIGN_AWAITING: <id> <title>` | Deferred — story tagged `design:awaiting_import` (Figma designs not yet finalized) |
 | `SKIPPED_MANUAL_AWAITING: <id> <title>` | Deferred — story tagged `manual:awaiting_user` (manual user input required; only emitted when `planning.external_dependency_block_enabled=true`) |
 
-**Parsing `SKIPPED_DESIGN_AWAITING` lines:** After running `sprint-next-batch.sh`, parse any `SKIPPED_DESIGN_AWAITING` lines from the output. For each such line, extract the story ID and title and add them to the `awaiting_design_stories` list (if not already present from Phase 2 filtering). These stories are surfaced in the Phase 5 Batch Completion Summary "Awaiting designer input" section.
+**Parsing `SKIPPED_DESIGN_AWAITING` lines:** After running `ticket next-batch`, parse any `SKIPPED_DESIGN_AWAITING` lines from the output. For each such line, extract the story ID and title and add them to the `awaiting_design_stories` list (if not already present from Phase 2 filtering). These stories are surfaced in the Phase 5 Batch Completion Summary "Awaiting designer input" section.
 
 **`manual:awaiting_user` filter** (when `planning.external_dependency_block_enabled=true`): Stories tagged `manual:awaiting_user` are excluded from the autonomous batch and surfaced as `SKIPPED_MANUAL_AWAITING` lines. After autonomous stories drain, sprint enters Phase 3.5 (Manual-Pause Handshake), which presents a blocking handshake listing per-story instructions and an optional `verification_command`. Accepts: `done`, `done <story-id>`, `skip`. Handles `verification_command` execution (timeout: `planning.verification_command_timeout_seconds`, default 30s) and confirmation-token audit logging. Topological sort surfaces manual stories before their transitive autonomous dependents. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
 
@@ -1034,7 +1034,7 @@ TASK: <id>  P<priority>  <issue-type>  <model>  <subagent-type>  <class>  <title
 
 Before dispatching any task from the batch, filter out tasks whose parent epic is tagged `interaction:deferred`.
 
-**For each `TASK:` line returned by `sprint-next-batch.sh`**:
+**For each `TASK:` line returned by `ticket next-batch`**:
 
 1. Identify the parent epic of the task (via `story:<id>` field if present, or the `<epic-id>` directly for top-level tasks).
 2. Run `.claude/scripts/dso ticket show <epic-id>` and check the `tags` field.
@@ -1065,7 +1065,7 @@ the user and exit.
 
 #### Dependency-Aware Overlap Analysis (optional, when sg is available)
 
-After running `sprint-next-batch.sh`, use ast-grep (`sg`) for structural dependency
+After running `ticket next-batch`, use ast-grep (`sg`) for structural dependency
 analysis on batch candidates to surface cross-file import relationships that string
 search would miss. This supplements — but does not replace — the script's built-in
 file-overlap detection.
@@ -1118,7 +1118,7 @@ After composing the batch, check each task's parent story against the `story_unc
 ### Dry-Run Mode
 
 If `--dry-run` was specified:
-1. Run `sprint-next-batch.sh <epic-id>` (no `--limit`) to get the full pool
+1. Run `ticket next-batch <epic-id>` (no `--limit`) to get the full pool
 2. For each story that needs implementation planning (Phase 2 gate), output one line per story:
    ```
    Dispatching impl-plan sub-agent for story <story-id>: <story-title>
@@ -1194,7 +1194,7 @@ Stories tagged `manual:awaiting_user` are collected into `awaiting_manual_storie
    - **1**: skip propagation applied — log skipped stories and proceed; skipped stories have a sentinel written with `handshake_outcome=skip`
    - **2**: re-prompt required (this should not occur — `sprint-manual-drain.sh` handles re-prompting internally; if it surfaces here, log as an error and escalate to user)
 
-4. After handshake completes: run `.claude/scripts/dso sprint-next-batch.sh <epic-id>` again to pick up any autonomous stories that were unblocked by the manual step completion.
+4. After handshake completes: run `.claude/scripts/dso ticket next-batch <epic-id>` again to pick up any autonomous stories that were unblocked by the manual step completion.
 
 5. Clean up: `rm -f "$MANUAL_JSON_FILE"` and `sprint-pause-state.sh cleanup <epic-id>`
 
@@ -1253,13 +1253,13 @@ Print a numbered list of all tasks in the batch. Each line must show the task ID
 3. [dso-ghi3] Refactor session management
 ```
 
-Titles are parsed from the `TASK:` tab-separated lines produced by `sprint-next-batch.sh` — the last field in each `TASK:` line is the title. No additional `.claude/scripts/dso ticket show` calls are needed.
+Titles are parsed from the `TASK:` tab-separated lines produced by `ticket next-batch` — the last field in each `TASK:` line is the title. No additional `.claude/scripts/dso ticket show` calls are needed.
 
 ### Blackboard Write and File Ownership Context
 
 Before dispatching sub-agents, create the blackboard file and build per-agent file ownership context:
 
-1. **Write the blackboard**: Pipe the batch JSON (from `sprint-next-batch.sh --json` in Phase 3 Step 4) to `write-blackboard.sh`:
+1. **Write the blackboard**: Pipe the batch JSON (from `ticket next-batch --json` in Phase 3 Step 4) to `write-blackboard.sh`:
    ```bash
    echo "$BATCH_JSON" | .claude/scripts/dso write-blackboard.sh
    ```
@@ -1346,7 +1346,7 @@ For each task, launch a Task with the appropriate `subagent_type`.
 ### Subagent Type and Model Selection
 
 Use the `model` and `subagent` fields from the `TASK:` lines produced by
-`sprint-next-batch.sh` in Phase 3 Step 4 — **no additional classify-task.sh call needed**.
+`ticket next-batch` in Phase 3 Step 4 — **no additional classify-task.sh call needed**.
 
 When launching each Task tool call, set `subagent_type` and `model` from the TASK line, then apply the decision table below in order (first matching row wins):
 

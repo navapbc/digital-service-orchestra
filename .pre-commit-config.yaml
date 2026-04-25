@@ -106,6 +106,17 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/
 
+      # Tickets boundary check (timeout: 10s)
+      # Blocks commits where non-allowlisted files reference .tickets-tracker/ directly
+      # or mention absorbed script names (sprint-next-batch.sh, sprint-list-epics.sh,
+      # purge-non-project-tickets.sh). Suppression: '# tickets-boundary-ok' on line.
+      - id: check-tickets-boundary
+        name: Check tickets boundary
+        entry: plugins/dso/hooks/check-tickets-boundary.sh
+        language: script
+        pass_filenames: false
+        stages: [pre-commit]
+
       # Test quality gate (timeout: 15s)
       # Scans staged test files for anti-patterns (e.g., source-file grep/cat
       # instead of behavioral assertions) and blocks commits when detected.
