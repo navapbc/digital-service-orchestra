@@ -258,7 +258,7 @@ _bash_runner_run() {
         local completed_json results_json
         completed_json=$(_completed_to_json)
         results_json="$RESULTS_JSON"
-        _state_write "$STATE_FILE" "bash:${TEST_DIR}" "$completed_json" "$results_json" "" "$SESSION_CREATED_AT" 2>/dev/null || {
+        _state_write "$STATE_FILE" "bash:${TEST_DIR}" "$completed_json" "$results_json" "${CMD_HASH:-}" "$SESSION_CREATED_AT" 2>/dev/null || {
             echo "WARNING: Could not write state file: $STATE_FILE" >&2
         }
         local done_count=${#COMPLETED_LIST[@]}
