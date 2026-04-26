@@ -125,9 +125,104 @@ fi
 # _bash_runner_run
 # Executes the bash runner path. Called by test-batched.sh when USE_BASH_RUNNER=1.
 # Uses all shared state variables from the caller.
+#
+# RED zone tolerance: when SUITE_TEST_INDEX env var points to a .test-index file,
+# failures whose failing test functions are at/after a function-level RED marker
+# are reclassified as 'pass' (with `_red_zone_tolerated_count` reported). This
+# mirrors the behavior of tests/lib/suite-engine.sh so validate.sh's test runner
+# matches the CI harness's tolerance semantics.
 _bash_runner_run() {
     local TOTAL=${#BASH_FILES[@]}
     local START_TIME
+
+    # ── RED zone tolerance setup (mirrors tests/lib/suite-engine.sh) ─────────
+    local _RED_ZONE_ENABLED=false
+    declare -A _RED_MARKER_MAP=()
+    local _red_zone_tolerated_count=0
+    if [[ -n "${SUITE_TEST_INDEX:-}" ]] && [[ -f "${SUITE_TEST_INDEX}" ]]; then
+        # Locate red-zone.sh — sibling to test-batched.sh's hooks/lib (this
+        # script lives at $_PLUGIN_ROOT/scripts/runners/, so ../../../hooks/lib).
+        local _br_dir _red_zone_sh="" _br_plugin_root
+        _br_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        _br_plugin_root="$(cd "$_br_dir/../.." && pwd)"
+        if [[ -f "$_br_plugin_root/hooks/lib/red-zone.sh" ]]; then
+            _red_zone_sh="$_br_plugin_root/hooks/lib/red-zone.sh"
+        fi
+        if [[ -n "$_red_zone_sh" ]]; then
+            # shellcheck source=../../hooks/lib/red-zone.sh
+            source "$_red_zone_sh"
+            _RED_ZONE_ENABLED=true
+            # Build marker map from .test-index. Format:
+            #   source/path: test/path1[, test/path2 [marker]]
+            local _line _right _part _ppath _pmarker
+            while IFS= read -r _line || [[ -n "$_line" ]]; do
+                [[ -z "$_line" ]] && continue
+                [[ "$_line" =~ ^[[:space:]]*# ]] && continue
+                _right="${_line#*:}"
+                local _IFS_save="$IFS"
+                IFS=','
+                # shellcheck disable=SC2206
+                local _parts=( $_right )
+                IFS="$_IFS_save"
+                for _part in "${_parts[@]}"; do
+                    _part="${_part#"${_part%%[![:space:]]*}"}"
+                    _part="${_part%"${_part##*[![:space:]]}"}"
+                    [[ -z "$_part" ]] && continue
+                    _ppath="" _pmarker=""
+                    if [[ "$_part" =~ ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$ ]]; then
+                        _ppath="${BASH_REMATCH[1]}"
+                        _pmarker="${BASH_REMATCH[2]}"
+                        _ppath="${_ppath%"${_ppath##*[![:space:]]}"}"
+                    else
+                        _ppath="$_part"
+                        _pmarker=""
+                    fi
+                    if [[ -n "$_pmarker" ]] || [[ -z "${_RED_MARKER_MAP[$_ppath]:-}" ]]; then
+                        _RED_MARKER_MAP["$_ppath"]="$_pmarker"
+                    fi
+                done
+            done < "${SUITE_TEST_INDEX}"
+        fi
+    fi
+
+    # _check_red_zone_tolerance <test_id> <out_file>
+    # Returns 0 (tolerated) when SUITE_TEST_INDEX is enabled, the test has a
+    # marker, and ALL failing test functions parsed from $out_file appear at or
+    # after the marker line in the test file. Otherwise returns 1.
+    _check_red_zone_tolerance() {
+        local _t_id="$1" _t_out="$2"
+        [[ "$_RED_ZONE_ENABLED" != true ]] && return 1
+        local _marker=""
+        if [[ -n "${_RED_MARKER_MAP[$_t_id]:-}" ]]; then
+            _marker="${_RED_MARKER_MAP[$_t_id]}"
+        else
+            local _mk
+            for _mk in "${!_RED_MARKER_MAP[@]}"; do
+                if [[ -n "${_RED_MARKER_MAP[$_mk]}" ]] && [[ "$_t_id" == *"$_mk" ]]; then
+                    _marker="${_RED_MARKER_MAP[$_mk]}"
+                    break
+                fi
+            done
+        fi
+        [[ -z "$_marker" ]] && return 1
+        local _t_path="$_t_id"
+        [[ -f "$_repo_root/$_t_id" ]] && _t_path="$_repo_root/$_t_id"
+        [[ ! -f "$_t_path" ]] && return 1
+        local _marker_line
+        _marker_line=$(REPO_ROOT="$_repo_root" get_red_zone_line_number "$_t_id" "$_marker" 2>/dev/null || echo -1)
+        [[ "$_marker_line" -le 0 ]] && return 1
+        local _failing
+        _failing=$(parse_failing_tests_from_output "$_t_out" 2>/dev/null || true)
+        [[ -z "$_failing" ]] && return 1
+        local _ft _ft_line
+        while IFS= read -r _ft; do
+            [[ -z "$_ft" ]] && continue
+            _ft_line=$(REPO_ROOT="$_repo_root" get_test_line_number "$_t_id" "$_ft" 2>/dev/null || echo -1)
+            [[ "$_ft_line" -le 0 || "$_ft_line" -lt "$_marker_line" ]] && return 1
+        done <<< "$_failing"
+        return 0
+    }
+
     # Use the global script entry time if available so the time budget accounts
     # for startup overhead (state parsing, test discovery, path canonicalization).
     # This prevents the runner's "50s" timeout from actually consuming 50s + overhead,
@@ -203,13 +298,20 @@ _bash_runner_run() {
 
         echo "Running: bash $bash_file"
 
+        # Capture stdout+stderr to a file for RED-zone tolerance lookup
+        # (parses failing test names from the output). Avoid `| tee` here —
+        # piping makes _test_bg_pid the tee PID, breaking `wait` exit-code
+        # capture (race-free wait is essential per the comment below).
+        local _test_out_file
+        _test_out_file="$_bash_tmpdir/$(basename "$bash_file").out"
+
         # Launch the test script as a direct background child.  Exit-code capture
         # uses `wait <pid>` — which is synchronous and race-free — instead of the
         # previous approach of writing "$?" to a file from inside a subshell and then
         # reading it from the parent (which could race with file-system buffering on
         # busy or network-mounted filesystems).
         local bash_exit=0
-        bash "$bash_file" &
+        bash "$bash_file" > "$_test_out_file" 2>&1 &
         local _test_bg_pid=$!
         _ACTIVE_CHILD_PID=$_test_bg_pid
         local _test_start_time
@@ -245,9 +347,17 @@ _bash_runner_run() {
         _ACTIVE_CHILD_PID=""
         wait "$_test_bg_pid" 2>/dev/null; bash_exit=$?
 
+        # Surface the test's captured output to stdout for visibility.
+        [ -f "$_test_out_file" ] && cat "$_test_out_file"
+
         local bash_outcome
         if [ "$bash_exit" -eq 0 ]; then
             bash_outcome="pass"
+        elif _check_red_zone_tolerance "$test_id" "$_test_out_file"; then
+            # RED-zone tolerated: failing test functions are at/after the marker.
+            bash_outcome="pass"
+            _red_zone_tolerated_count=$(( _red_zone_tolerated_count + 1 ))
+            echo "TOLERATED (red-zone): $test_id"
         else
             bash_outcome="fail"
         fi
