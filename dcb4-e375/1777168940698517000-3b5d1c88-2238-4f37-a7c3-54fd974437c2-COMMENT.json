@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Gate 1a: intent-aligned — test was written to guard the S2 consolidation (e768-2bae) which was not fully implemented for ticket-transition.sh. The test failure is legitimate."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777168940698517000,"uuid":"3b5d1c88-2238-4f37-a7c3-54fd974437c2"}
