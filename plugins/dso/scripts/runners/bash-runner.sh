@@ -144,7 +144,7 @@ _bash_runner_run() {
     if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
         local _br_self_dir _br_resolved_root
         _br_self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        _br_resolved_root="$(cd "$_br_self_dir/../.." && pwd)"
+        _br_resolved_root="$(cd "$_br_self_dir/../.." && pwd)"  # CLAUDE_PLUGIN_ROOT fallback
         export CLAUDE_PLUGIN_ROOT="$_br_resolved_root"
     fi
 
@@ -157,7 +157,7 @@ _bash_runner_run() {
         # script lives at $_PLUGIN_ROOT/scripts/runners/, so ../../../hooks/lib).
         local _br_dir _red_zone_sh="" _br_plugin_root
         _br_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        _br_plugin_root="$(cd "$_br_dir/../.." && pwd)"
+        _br_plugin_root="$(cd "$_br_dir/../.." && pwd)"  # CLAUDE_PLUGIN_ROOT-style fallback
         if [[ -f "$_br_plugin_root/hooks/lib/red-zone.sh" ]]; then
             _red_zone_sh="$_br_plugin_root/hooks/lib/red-zone.sh"
         fi
