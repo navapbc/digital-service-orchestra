@@ -135,6 +135,19 @@ _bash_runner_run() {
     local TOTAL=${#BASH_FILES[@]}
     local START_TIME
 
+    # Ensure CLAUDE_PLUGIN_ROOT is exported so child test processes that cd into
+    # temp git repos can resolve the dso shim. Without this, tests that invoke
+    # `.claude/scripts/dso ...` from inside a freshly-init'd temp repo fail
+    # silently (shim emits "DSO plugin root not configured" to stderr, hooks
+    # suppress stderr → tests misread the failure as "ticket not found").
+    # Mirrors tests/hooks/run-hook-tests.sh:31 semantics. Only set if unset.
+    if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+        local _br_self_dir _br_resolved_root
+        _br_self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        _br_resolved_root="$(cd "$_br_self_dir/../.." && pwd)"
+        export CLAUDE_PLUGIN_ROOT="$_br_resolved_root"
+    fi
+
     # ── RED zone tolerance setup (mirrors tests/lib/suite-engine.sh) ─────────
     local _RED_ZONE_ENABLED=false
     declare -A _RED_MARKER_MAP=()
