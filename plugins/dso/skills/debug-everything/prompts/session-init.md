@@ -21,7 +21,7 @@ Set `DISPATCH_ISOLATION=true` when `ISOLATION_ENABLED` equals `true`; otherwise 
 ## 3. Validation-loop config bound
 
 ```bash
-_raw_max_cycles=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.max_fix_validate_cycles 2>/dev/null || echo "")
+_raw_max_cycles=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.max_fix_validate_cycles 2>/dev/null || echo "")  # shim-exempt: internal orchestration script
 ```
 
 Bind `MAX_FIX_VALIDATE_CYCLES` per these rules:
@@ -34,7 +34,7 @@ Bind `MAX_FIX_VALIDATE_CYCLES` per these rules:
 ## 4. Session lock
 
 ```bash
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-acquire "debug-everything"  # shim-exempt
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-acquire "debug-everything"  # shim-exempt: internal orchestration script
 ```
 
 Outputs `LOCK_ID: <id>` (success), `LOCK_BLOCKED: <id>` + `LOCK_WORKTREE: <path>` (another session holds it), or `LOCK_STALE: <id>` (stale lock auto-reclaimed; new lock acquired on next `LOCK_ID:` line).
@@ -50,7 +50,7 @@ Outputs `LOCK_ID: <id>` (success), `LOCK_BLOCKED: <id>` + `LOCK_WORKTREE: <path>
 ## 5. Discovery cleanup
 
 ```bash
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries  # shim-exempt
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries  # shim-exempt: internal orchestration script
 ```
 
 Cleanup failure is non-fatal; log warning, continue.

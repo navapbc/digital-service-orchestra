@@ -9,7 +9,7 @@ From Task results or `git diff --name-only` after worktree integration.
 ## 2. Run overlap detection
 
 ```bash
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh file-overlap \
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh file-overlap \  # shim-exempt: internal orchestration script
   --agent=<task-id-1>:<file1>,<file2> \
   --agent=<task-id-2>:<file3>,<file4>
 ```

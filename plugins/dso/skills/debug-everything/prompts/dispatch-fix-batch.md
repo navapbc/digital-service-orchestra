@@ -5,8 +5,8 @@ Loaded by `/dso:debug-everything` Phase G only — skipped entirely in Bug-Fix M
 ## 1. Pre-batch checks
 
 ```bash
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check --db   # tiers 4-5
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check        # tiers 0-3, 6-7
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check --db   # tiers 4-5  # shim-exempt: internal orchestration script
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check        # tiers 0-3, 6-7  # shim-exempt: internal orchestration script
 ```
 
 Outputs `MAX_AGENTS`, `SESSION_USAGE`, `GIT_CLEAN`, `DB_STATUS`. Exit 1 ⇒ at least one check requires action.
@@ -28,7 +28,7 @@ Outputs `MAX_AGENTS`, `SESSION_USAGE`, `GIT_CLEAN`, `DB_STATUS`. Exit 1 ⇒ at l
 
 ## 3. Blackboard write
 
-Build a JSON object matching `sprint-next-batch.sh --json` format from Phase E's file-impact analysis:
+Build a JSON object matching `sprint-next-batch.sh --json` format from Phase E's file-impact analysis:  # tickets-boundary-ok: documentation reference to internal orchestration helper, not a tracker access
 ```json
 {
   "batch": [

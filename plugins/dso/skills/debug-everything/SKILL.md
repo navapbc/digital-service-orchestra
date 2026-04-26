@@ -653,7 +653,7 @@ For each sub-agent (including any that succeeded on retry), check the Task resul
 Sub-agents may modify files beyond what their task description predicts. Run overlap detection on collected modified files (from Task results or `git diff --name-only`):
 
 ```bash
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh file-overlap \
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh file-overlap \  # shim-exempt: internal orchestration script
   --agent=<task-id-1>:<file1>,<file2> \
   --agent=<task-id-2>:<file3>,<file4>
 ```
