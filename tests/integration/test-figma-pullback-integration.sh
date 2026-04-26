@@ -528,7 +528,7 @@ test_fp_map_7_invalid_json() {
 test_fp_merge_1_new_component_tagged() {
     if [[ ! -f "$FIGMA_MERGE" ]]; then
         (( ++FAIL ))
-        printf "FAIL: FP-MERGE-1 — figma-merge.sh not found at %s\n" "$FIGMA_MERGE" >&2
+        printf "test_fp_merge_1_new_component_tagged: FAIL — figma-merge.sh not found at %s\n" "$FIGMA_MERGE" >&2
         return
     fi
 
@@ -604,7 +604,7 @@ PYEOF
 test_fp_merge_2_complete_spec_removal_warns() {
     if [[ ! -f "$FIGMA_MERGE" ]]; then
         (( ++FAIL ))
-        printf "FAIL: FP-MERGE-2 — figma-merge.sh not found at %s\n" "$FIGMA_MERGE" >&2
+        printf "test_fp_merge_2_complete_spec_removal_warns: FAIL — figma-merge.sh not found at %s\n" "$FIGMA_MERGE" >&2
         return
     fi
 
@@ -680,7 +680,7 @@ PYEOF
 test_fp_merge_3_spatial_update_preserves_spec() {
     if [[ ! -f "$FIGMA_MERGE" ]]; then
         (( ++FAIL ))
-        printf "FAIL: FP-MERGE-3 — figma-merge.sh not found at %s\n" "$FIGMA_MERGE" >&2
+        printf "test_fp_merge_3_spatial_update_preserves_spec: FAIL — figma-merge.sh not found at %s\n" "$FIGMA_MERGE" >&2
         return
     fi
 
@@ -760,7 +760,7 @@ PYEOF
 test_fp_merge_4_text_content_update_preserves_spec() {
     if [[ ! -f "$FIGMA_MERGE" ]]; then
         (( ++FAIL ))
-        printf "FAIL: FP-MERGE-4 — figma-merge.sh not found at %s\n" "$FIGMA_MERGE" >&2
+        printf "test_fp_merge_4_text_content_update_preserves_spec: FAIL — figma-merge.sh not found at %s\n" "$FIGMA_MERGE" >&2
         return
     fi
 
@@ -844,7 +844,7 @@ PYEOF
 test_fp_link_1_all_ids_present() {
     if [[ ! -f "$FIGMA_ID_VALIDATE" ]]; then
         (( ++FAIL ))
-        printf "FAIL: FP-LINK-1 — figma-id-validate.sh not found at %s\n" "$FIGMA_ID_VALIDATE" >&2
+        printf "test_fp_link_1_all_ids_present: FAIL — figma-id-validate.sh not found at %s\n" "$FIGMA_ID_VALIDATE" >&2
         return
     fi
 
@@ -903,7 +903,7 @@ MD
 test_fp_link_2_orphaned_id_reported() {
     if [[ ! -f "$FIGMA_ID_VALIDATE" ]]; then
         (( ++FAIL ))
-        printf "FAIL: FP-LINK-2 — figma-id-validate.sh not found at %s\n" "$FIGMA_ID_VALIDATE" >&2
+        printf "test_fp_link_2_orphaned_id_reported: FAIL — figma-id-validate.sh not found at %s\n" "$FIGMA_ID_VALIDATE" >&2
         return
     fi
 
