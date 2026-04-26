@@ -220,6 +220,17 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ---
 
+### `commands.test_dirs`
+
+| | |
+|---|---|
+| **Description** | Colon-separated list of test directories. When set, `validate.sh` invokes `test-batched.sh` with `--runner=bash --test-dir=<dirs>` so each `test-*.sh` file runs as an individual resumable item. This enables incremental progress across `validate.sh` re-invocations for large test suites that exceed the 45s budget. When absent, `test-batched.sh` treats the entire suite as one atomic command (no sub-test resume). |
+| **Accepted values** | Colon-separated directory paths relative to repo root (e.g., `tests/hooks:tests/scripts:tests/skills:tests/integration`) |
+| **Default** | Empty (generic single-command runner) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` (`run_test_check`) |
+
+---
+
 ### `commands.test_runner`
 
 | | |

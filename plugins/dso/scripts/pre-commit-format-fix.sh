@@ -31,8 +31,13 @@ set -uo pipefail
 # ── Resolve paths ─────────────────────────────────────────────────────────────
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
+# Resolve _PLUGIN_ROOT from BASH_SOURCE so the script works without a pre-set
+# CLAUDE_PLUGIN_ROOT (which is exported by .claude/scripts/dso, but absent
+# under direct invocation — e.g., test isolation under `set -u`).
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+
 # Source config-driven paths (CFG_APP_DIR defaults to "app")
-_CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
+_CONFIG_PATHS="${_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 if [[ -f "$_CONFIG_PATHS" ]]; then
     # shellcheck source=../../hooks/lib/config-paths.sh
     source "$_CONFIG_PATHS"
