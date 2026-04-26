@@ -22,8 +22,8 @@
         "path": "plugins/dso",
         "ref": "main"
       },
-      "description": "Workflow infrastructure plugin for Claude Code projects (dev channel — updates on every merge to main)"
+      "description": "Workflow infrastructure plugin for Claude Code projects (dev channel \u2014 updates on every merge to main)"
     }
   ],
-  "version": "1.13.0"
+  "version": "1.16.0"
 }
