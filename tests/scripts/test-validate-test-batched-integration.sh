@@ -351,4 +351,136 @@ assert_eq "test_validate_rejects_state_file_missing_command_hash: rejects missin
 
 assert_pass_if_clean "test_validate_rejects_state_file_missing_command_hash"
 
+# ============================================================================
+# test_validate_check_runners_cmd_test_dirs_routing
+# Behavioral: when commands.test_dirs is set in config, validate.sh must invoke
+# test-batched.sh with --runner=bash and --test-dir=<value>. A stub test-batched.sh
+# records the arguments it receives; we assert the recorded args contain --runner=bash.
+# Introduced to fix the infinite PENDING loop (bug bf39-4494).
+# ============================================================================
+echo ""
+echo "=== test_validate_check_runners_cmd_test_dirs_routing ==="
+_snapshot_fail
+
+_cmd_test_dirs_tmpdir="$TMPDIR_TEST/cmd-test-dirs-test"
+mkdir -p "$_cmd_test_dirs_tmpdir/stubs" "$_cmd_test_dirs_tmpdir/testdir"
+
+# Stub test-batched.sh: records args to a file and exits 0 (clean pass)
+_args_record="$_cmd_test_dirs_tmpdir/recorded-args.txt"
+cat > "$_cmd_test_dirs_tmpdir/stubs/test-batched.sh" << STUB
+#!/usr/bin/env bash
+echo "\$@" > "$_args_record"
+echo "All tests done. 0/0 tests completed. 0 passed, 0 failed, 0 interrupted."
+exit 0
+STUB
+chmod +x "$_cmd_test_dirs_tmpdir/stubs/test-batched.sh"
+
+_cmd_state_file="$_cmd_test_dirs_tmpdir/state.json"
+_cmd_config="$_cmd_test_dirs_tmpdir/stub-config.conf"
+cat > "$_cmd_config" << CONF
+commands.syntax_check=true
+commands.format_check=true
+commands.lint_ruff=true
+commands.lint_mypy=true
+commands.test_unit=bash tests/run-all.sh
+commands.test_dirs=$_cmd_test_dirs_tmpdir/testdir
+CONF
+
+VALIDATE_TEST_STATE_FILE="$_cmd_state_file" \
+VALIDATE_TEST_BATCHED_SCRIPT="$_cmd_test_dirs_tmpdir/stubs/test-batched.sh" \
+VALIDATE_SKIP_PLUGIN_CHECKS=1 \
+CONFIG_FILE="$_cmd_config" \
+bash "$VALIDATE_SCRIPT" >/dev/null 2>&1 || true
+
+_recorded_args=""
+[ -f "$_args_record" ] && _recorded_args=$(cat "$_args_record")
+
+# The stub must have been called with --runner=bash
+if echo "$_recorded_args" | grep -q "\-\-runner=bash"; then
+    _runner_bash_present="yes"
+else
+    _runner_bash_present="no"
+fi
+
+# The stub must have been called with --test-dir pointing to the configured dir
+if echo "$_recorded_args" | grep -q "\-\-test-dir="; then
+    _test_dir_present="yes"
+else
+    _test_dir_present="no"
+fi
+
+assert_eq "validate routes to --runner=bash when CMD_TEST_DIRS is set" "yes" "$_runner_bash_present"
+assert_eq "validate passes --test-dir= when CMD_TEST_DIRS is set" "yes" "$_test_dir_present"
+
+assert_pass_if_clean "test_validate_check_runners_cmd_test_dirs_routing"
+
+# ============================================================================
+# test_validate_state_already_passed_rejects_timeout_exceeded
+# Behavioral: _test_state_already_passed must NOT treat a state file containing
+# 'interrupted-timeout-exceeded' as a passing run. Without this check, validate.sh
+# would skip re-running tests even when a test was killed by PER_TEST_TIMEOUT,
+# silently hiding the timeout (bug bf39-4494 follow-on).
+# ============================================================================
+echo ""
+echo "=== test_validate_state_already_passed_rejects_timeout_exceeded ==="
+_snapshot_fail
+
+_timeout_exceeded_tmpdir="$TMPDIR_TEST/timeout-exceeded-test"
+mkdir -p "$_timeout_exceeded_tmpdir/stubs"
+
+# State file that has one pass and one interrupted-timeout-exceeded result
+_timeout_state_cmd="bash tests/run-all.sh"
+_timeout_state_cmd_hash=$(python3 -c "import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest())" "${_timeout_state_cmd}:$(pwd)")
+_timeout_state_file="$_timeout_exceeded_tmpdir/state.json"
+python3 - "$_timeout_state_cmd_hash" "$_timeout_state_file" << 'PYEOF'
+import json, sys, time
+cmd_hash, state_file = sys.argv[1], sys.argv[2]
+state = {
+    "runner": "bash",
+    "completed": ["tests/fast.sh", "tests/slow.sh"],
+    "results": {"tests/fast.sh": "pass", "tests/slow.sh": "interrupted-timeout-exceeded"},
+    "command_hash": cmd_hash,
+    "created_at": int(time.time())
+}
+with open(state_file, "w") as f:
+    json.dump(state, f)
+PYEOF
+
+# Stub test-batched.sh: records whether it was called (non-call = false cache hit)
+_timeout_was_called="$_timeout_exceeded_tmpdir/was-called.txt"
+cat > "$_timeout_exceeded_tmpdir/stubs/test-batched.sh" << STUB
+#!/usr/bin/env bash
+echo "called" > "$_timeout_was_called"
+echo "All tests done. 2/2 tests completed. 1 passed, 0 failed, 0 interrupted, 1 timed-out."
+exit 1
+STUB
+chmod +x "$_timeout_exceeded_tmpdir/stubs/test-batched.sh"
+
+_timeout_config="$_timeout_exceeded_tmpdir/stub-config.conf"
+cat > "$_timeout_config" << CONF
+commands.syntax_check=true
+commands.format_check=true
+commands.lint_ruff=true
+commands.lint_mypy=true
+commands.test_unit=$_timeout_state_cmd
+CONF
+
+VALIDATE_TEST_STATE_FILE="$_timeout_state_file" \
+VALIDATE_TEST_BATCHED_SCRIPT="$_timeout_exceeded_tmpdir/stubs/test-batched.sh" \
+VALIDATE_SKIP_PLUGIN_CHECKS=1 \
+CONFIG_FILE="$_timeout_config" \
+bash "$VALIDATE_SCRIPT" >/dev/null 2>&1 || true
+
+# The stub must have been called — if not, validate.sh falsely treated the
+# interrupted-timeout-exceeded state as a cached pass
+if [ -f "$_timeout_was_called" ]; then
+    _rerun_happened="yes"
+else
+    _rerun_happened="no"
+fi
+
+assert_eq "validate re-runs tests when state has interrupted-timeout-exceeded" "yes" "$_rerun_happened"
+
+assert_pass_if_clean "test_validate_state_already_passed_rejects_timeout_exceeded"
+
 print_summary

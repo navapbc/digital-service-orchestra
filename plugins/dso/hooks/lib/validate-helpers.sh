@@ -183,8 +183,8 @@ try:
     completed = state.get("completed", [])
     # Check if any result is "pass" (generic runner uses single test item)
     has_pass = any(v == "pass" for v in results.values())
-    has_fail_or_interrupted = any(v in ("fail", "interrupted") for v in results.values())
-    # Pass only if we have at least one pass and no failures/interruptions
+    has_fail_or_interrupted = any(v in ("fail", "interrupted", "interrupted-timeout-exceeded") for v in results.values())
+    # Pass only if we have at least one pass and no failures/interruptions/timeouts
     sys.exit(0 if (has_pass and not has_fail_or_interrupted and len(completed) > 0) else 1)
 except Exception:
     sys.exit(1)

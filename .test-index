@@ -52,6 +52,8 @@ plugins/dso/hooks/dispatchers/pre-taskoutput.sh:tests/hooks/test-session-misc-di
 plugins/dso/hooks/dispatchers/pre-all.sh:tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-staging-invariance.sh,tests/hooks/test-behavioral-equivalence-allowlist.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh
+plugins/dso/hooks/lib/validate-check-runners.sh:tests/scripts/test-validate-test-batched-integration.sh
+plugins/dso/hooks/lib/validate-helpers.sh:tests/scripts/test-validate-test-batched-integration.sh
 plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-part4.sh,tests/hooks/test-record-test-status-part1.sh,tests/hooks/test-record-test-status-accumulative.sh,tests/hooks/test-record-test-status-centrality.sh,tests/hooks/test-record-test-status-eagain.sh,tests/hooks/test-record-test-status-split-guard.sh,tests/hooks/test-record-test-status-part2.sh,tests/hooks/test-record-test-status-part3.sh,tests/hooks/test-record-test-status-attest.sh,tests/hooks/test-record-test-status-staged-test-no-source.sh,tests/hooks/test-record-test-status-red-zone-merge.sh
 plugins/dso/hooks/record-review.sh:tests/hooks/test-record-review-attest.sh
 plugins/dso/hooks/run-hook.sh:tests/hooks/test-run-hook-relative-paths.sh,tests/hooks/test-hook-inline-trap-consolidation.sh
@@ -290,3 +292,4 @@ plugins/dso/skills/debug-everything/prompts/complex-escalation-handler.md:tests/
 plugins/dso/skills/debug-everything/prompts/file-overlap-resolution.md:tests/scripts/test-debug-everything-prompt-contracts.sh
 plugins/dso/skills/debug-everything/prompts/gha-dispatch.md:tests/scripts/test-debug-everything-prompt-contracts.sh
 plugins/dso/skills/shared/prompts/test-failure-fix.md:tests/scripts/test-debug-everything-prompt-contracts.sh
+plugins/dso/scripts/test-batched.sh:tests/scripts/test-test-batched.sh

@@ -40,6 +40,23 @@ _bash_discover_files() {
     [ "$found" -eq 1 ]
 }
 
+# _bash_discover_all_dirs <colon-separated-dirs>
+# Discovers test-*.sh files from all directories in a colon-separated list.
+# Calls _bash_discover_files for each segment.
+_bash_discover_all_dirs() {
+    local dirs="${1:-}"
+    local _saved_IFS="$IFS"
+    IFS=:
+    # shellcheck disable=SC2086
+    set -- $dirs
+    IFS="$_saved_IFS"
+    local _found_any=1
+    for _d in "$@"; do
+        [ -n "$_d" ] && _bash_discover_files "$_d" && _found_any=0
+    done
+    return "$_found_any"
+}
+
 # _bash_apply_filter <pattern>
 # Filters BASH_FILES in-place, keeping only files whose basename matches
 # the given glob pattern. When no files match, prints a warning to stderr.
@@ -73,7 +90,7 @@ if [ "$RUNNER" = "bash" ]; then
     else
         while IFS= read -r f; do
             BASH_FILES+=("$f")
-        done < <(_bash_discover_files "$TEST_DIR" 2>/dev/null || true)
+        done < <(_bash_discover_all_dirs "$TEST_DIR" 2>/dev/null || true)
 
         # Apply filename filter if set
         _bash_apply_filter "${FILTER_PATTERN:-}"
@@ -94,7 +111,7 @@ elif [ -z "$RUNNER" ] && [ -n "$TEST_DIR" ]; then
     # Only auto-detect if node and pytest didn't already claim the runner
     while IFS= read -r f; do
         BASH_FILES+=("$f")
-    done < <(_bash_discover_files "$TEST_DIR" 2>/dev/null || true)
+    done < <(_bash_discover_all_dirs "$TEST_DIR" 2>/dev/null || true)
 
     # Apply filename filter if set
     _bash_apply_filter "${FILTER_PATTERN:-}"
@@ -156,22 +173,22 @@ _bash_runner_run() {
         exit 0
     }
 
-    # Resolve TEST_DIR to an absolute path ONCE outside the loop.
-    # Previously this was recomputed on every iteration via `cd "$TEST_DIR" && pwd`
-    # (a subshell per file), causing O(N) fork overhead — ~6s extra for 260 files.
-    local _abs_test_dir_base
-    _abs_test_dir_base="$(cd "$TEST_DIR" && pwd)"
+    # Resolve repo root once for stable, collision-free test IDs across multiple dirs.
+    # With colon-separated --test-dir, files from different directories must have
+    # distinct IDs — using repo-relative paths guarantees uniqueness.
+    local _repo_root
+    _repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
     for bash_file in "${BASH_FILES[@]}"; do
-        # Use a path-relative test ID (relative to TEST_DIR) to avoid collisions
-        # when two files share the same basename (even though -maxdepth 1 currently
-        # prevents this, using a stable relative path makes the invariant explicit).
-        # Portable: strip the TEST_DIR prefix from the absolute path.
+        # Use repo-relative path as test ID — unique across multi-dir runs and
+        # stable across re-invocations regardless of the working directory.
         local test_id
         local _abs_bash_file
         _abs_bash_file="$(cd "$(dirname "$bash_file")" && pwd)/$(basename "$bash_file")"
-        test_id="${_abs_bash_file#"${_abs_test_dir_base}/"}"
-        # Fallback to basename if prefix stripping produced an empty or unchanged result
+        test_id="${_abs_bash_file#"${_repo_root}/"}"
+        # Fallback to basename when outside the repo (e.g. tmpdir paths) to preserve
+        # backward-compatible state file format. Multi-dir uniqueness is guaranteed for
+        # in-repo files (distinct repo-relative paths); temp dirs in tests use unique names.
         [ -z "$test_id" ] || [ "$test_id" = "$_abs_bash_file" ] && test_id="$(basename "$bash_file")"
 
         if _is_completed "$test_id"; then

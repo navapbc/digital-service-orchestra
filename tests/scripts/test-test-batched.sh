@@ -1367,5 +1367,130 @@ assert_eq "test_filter_resume_command_includes_filter: RUN: line contains --filt
 rm -rf "$TMPDIR_FILTER_RESUME"
 assert_pass_if_clean "test_filter_resume_command_includes_filter"
 
+# ── test_generic_per_test_timeout_exceeded_not_retried_on_resume ─────────────
+# When --per-test-timeout=N is given and the command ALWAYS exceeds that budget,
+# the generic runner must record "interrupted-timeout-exceeded" (not "interrupted")
+# so that on resume the test is treated as already-completed and NOT re-run.
+# Before the fix the generic runner never checks PER_TEST_TIMEOUT, records plain
+# "interrupted", and resume re-runs the command forever (infinite retry loop).
+echo ""
+echo "--- test_generic_per_test_timeout_exceeded_not_retried_on_resume ---"
+_snapshot_fail
+TMPDIR_PTO="$(mktemp -d)"
+PTO_STATE="$TMPDIR_PTO/state.json"
+
+# First run: per-test-timeout=1, command always takes 2s → must exceed budget.
+# Global timeout=4 so the global watchdog does not fire first.
+pto_first_out=""
+TEST_BATCHED_STATE_FILE="$PTO_STATE" \
+    bash "$SCRIPT" --timeout=4 --per-test-timeout=1 "sleep 2" \
+    > "$TMPDIR_PTO/first_output.txt" 2>&1 || true
+pto_first_out=$(cat "$TMPDIR_PTO/first_output.txt")
+
+# First run must emit the ACTION REQUIRED block (per-test-timeout was exceeded)
+assert_contains \
+    "test_generic_per_test_timeout_exceeded_not_retried_on_resume: first run emits ACTION REQUIRED" \
+    "ACTION REQUIRED" "$pto_first_out"
+
+# State file must record "interrupted-timeout-exceeded", NOT plain "interrupted"
+pto_has_pto=0
+pto_has_plain_interrupted=0
+if [ -f "$PTO_STATE" ]; then
+    python3 -c "
+import json, sys
+d = json.load(open(sys.argv[1]))
+vals = list(d.get('results', {}).values())
+print('pto' if 'interrupted-timeout-exceeded' in vals else 'no-pto')
+print('plain' if 'interrupted' in vals else 'no-plain')
+" "$PTO_STATE" > "$TMPDIR_PTO/state_check.txt" 2>/dev/null || true
+    grep -q "^pto$" "$TMPDIR_PTO/state_check.txt" && pto_has_pto=1 || true
+    grep -q "^plain$" "$TMPDIR_PTO/state_check.txt" && pto_has_plain_interrupted=1 || true
+fi
+assert_eq \
+    "test_generic_per_test_timeout_exceeded_not_retried_on_resume: state records interrupted-timeout-exceeded" \
+    "1" "$pto_has_pto"
+assert_eq \
+    "test_generic_per_test_timeout_exceeded_not_retried_on_resume: state does NOT record plain interrupted" \
+    "0" "$pto_has_plain_interrupted"
+
+# Second run: resume from state file with a generous timeout.
+# The command must NOT be re-run — "Running: sleep" must be absent from output.
+# The run must exit non-zero (test was never successful).
+pto_resume_out=""
+pto_resume_exit=0
+pto_resume_out=$(TEST_BATCHED_STATE_FILE="$PTO_STATE" \
+    bash "$SCRIPT" --timeout=10 --per-test-timeout=5 "sleep 2" 2>&1) \
+    || pto_resume_exit=$?
+
+pto_reran=0
+[[ "$pto_resume_out" == *"Running: sleep 2"* ]] && pto_reran=1 || true
+assert_eq \
+    "test_generic_per_test_timeout_exceeded_not_retried_on_resume: second run does NOT re-run the command" \
+    "0" "$pto_reran"
+assert_ne \
+    "test_generic_per_test_timeout_exceeded_not_retried_on_resume: second run exits non-zero" \
+    "0" "$pto_resume_exit"
+
+rm -rf "$TMPDIR_PTO"
+assert_pass_if_clean "test_generic_per_test_timeout_exceeded_not_retried_on_resume"
+
+# ── test_bash_runner_multi_dir_discovery ──────────────────────────────────────
+# When --runner=bash --test-dir=dir1:dir2 (colon-separated) is passed,
+# test-batched.sh must discover test-*.sh files from BOTH directories.
+# Before this fix, bash-runner.sh passed TEST_DIR directly to _bash_discover_files
+# which did not split on ':' — so only the first path would be treated as the dir,
+# causing find to silently fail (path "dir1:dir2" does not exist).
+echo ""
+echo "--- test_bash_runner_multi_dir_discovery ---"
+_snapshot_fail
+TMPDIR_MULTIDIR="$(mktemp -d)"
+MULTIDIR_A="$TMPDIR_MULTIDIR/suite_a"
+MULTIDIR_B="$TMPDIR_MULTIDIR/suite_b"
+mkdir -p "$MULTIDIR_A" "$MULTIDIR_B"
+cat > "$MULTIDIR_A/test-alpha.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$MULTIDIR_A/test-alpha.sh"
+cat > "$MULTIDIR_B/test-beta.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$MULTIDIR_B/test-beta.sh"
+
+MULTIDIR_STATE="$TMPDIR_MULTIDIR/state.json"
+multidir_out=""
+multidir_exit=0
+multidir_out=$(TEST_BATCHED_STATE_FILE="$MULTIDIR_STATE" \
+    bash "$SCRIPT" --runner=bash --test-dir="${MULTIDIR_A}:${MULTIDIR_B}" --timeout=30 2>&1) \
+    || multidir_exit=$?
+
+# Both test files must appear in output
+multidir_ran_alpha=0
+multidir_ran_beta=0
+[[ "$multidir_out" == *"test-alpha.sh"* ]] && multidir_ran_alpha=1 || true
+[[ "$multidir_out" == *"test-beta.sh"* ]] && multidir_ran_beta=1 || true
+assert_eq \
+    "test_bash_runner_multi_dir_discovery: test-alpha.sh from suite_a is run" \
+    "1" "$multidir_ran_alpha"
+assert_eq \
+    "test_bash_runner_multi_dir_discovery: test-beta.sh from suite_b is run" \
+    "1" "$multidir_ran_beta"
+
+# Total count must be 2
+multidir_total_match=0
+[[ "$multidir_out" == *"2/2 tests completed"* ]] && multidir_total_match=1 || true
+assert_eq \
+    "test_bash_runner_multi_dir_discovery: total count is 2 across both dirs" \
+    "1" "$multidir_total_match"
+
+# Exit must be 0 (all tests passed)
+assert_eq \
+    "test_bash_runner_multi_dir_discovery: exits 0 when all tests pass" \
+    "0" "$multidir_exit"
+
+rm -rf "$TMPDIR_MULTIDIR"
+assert_pass_if_clean "test_bash_runner_multi_dir_discovery"
+
 print_summary
 

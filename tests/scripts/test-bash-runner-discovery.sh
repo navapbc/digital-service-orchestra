@@ -146,6 +146,47 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 5: Multi-dir discovery (colon-separated --test-dir) ─────────────────
+echo "Test 5: test_multi_dir_discovery — colon-separated --test-dir discovers files from all dirs"
+test_multi_dir_discovery() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
+    local suite_a="$tmpdir/suite_a" suite_b="$tmpdir/suite_b"
+    mkdir -p "$suite_a" "$suite_b"
+
+    cat > "$suite_a/test-alpha.sh" << 'EOF'
+#!/usr/bin/env bash
+echo "alpha pass"
+exit 0
+EOF
+    chmod +x "$suite_a/test-alpha.sh"
+
+    cat > "$suite_b/test-beta.sh" << 'EOF'
+#!/usr/bin/env bash
+echo "beta pass"
+exit 0
+EOF
+    chmod +x "$suite_b/test-beta.sh"
+
+    local output exit_code=0
+    output=$(TEST_BATCHED_STATE_FILE="$tmpdir/state.json" \
+        bash "$TEST_BATCHED" --timeout=30 --runner=bash \
+        --test-dir="${suite_a}:${suite_b}" 2>&1) || exit_code=$?
+
+    [ "$exit_code" -eq 0 ] || return 1
+    [[ "$output" == *"test-alpha.sh"* ]] || return 1
+    [[ "$output" == *"test-beta.sh"* ]] || return 1
+    [[ "$output" == *"2/2 tests completed"* ]] || return 1
+}
+if test_multi_dir_discovery; then
+    echo "  PASS: colon-separated --test-dir discovers files from all directories"
+    (( PASS++ ))
+else
+    echo "  FAIL: multi-dir discovery did not find files from all directories" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
