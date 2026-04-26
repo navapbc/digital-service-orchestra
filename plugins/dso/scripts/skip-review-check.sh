@@ -15,9 +15,13 @@ set -uo pipefail
 
 set -uo pipefail
 
-# Source config-paths.sh for portable path resolution
+# Source config-paths.sh for portable path resolution.
+# Resolve _PLUGIN_ROOT from BASH_SOURCE so the script works without a pre-set
+# CLAUDE_PLUGIN_ROOT (which is exported by .claude/scripts/dso, but absent
+# under direct invocation — e.g., test isolation under `set -u`).
 _SKIP_REVIEW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SKIP_REVIEW_DIR/.." && pwd)}"
+_CONFIG_PATHS="${_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 if [ -f "$_CONFIG_PATHS" ]; then
     # shellcheck source=../hooks/lib/config-paths.sh
     source "$_CONFIG_PATHS"
@@ -33,7 +37,9 @@ _E2E_SNAP_PREFIX="${_CFG_APP}/${_CFG_TEST}/e2e/snapshots/"
 _UNIT_SNAP_PREFIX="${_CFG_APP}/${_CFG_TEST}/unit/templates/snapshots/"
 
 # ── Load non-reviewable patterns from shared allowlist ──────────────────────
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+# _PLUGIN_ROOT is already resolved above (with BASH_SOURCE fallback when
+# CLAUDE_PLUGIN_ROOT is unset). Reuse it instead of dereferencing
+# ${CLAUDE_PLUGIN_ROOT} again under `set -u`.
 _ALLOWLIST_FILE="${ALLOWLIST_OVERRIDE:-$_PLUGIN_ROOT/hooks/lib/review-gate-allowlist.conf}"
 _ALLOWLIST_PATTERNS=()
 _ALLOWLIST_LOADED=false
