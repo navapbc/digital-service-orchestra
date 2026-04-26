@@ -895,7 +895,7 @@ _snapshot_fail
 default_path_out=""
 # Redirect to file to avoid FD-leak blocking (see test_stops_after_timeout comment)
 _dp_tmp="$(mktemp -d)"
-bash "$SCRIPT" --timeout=1 "sleep 2" > "$_dp_tmp/output.txt" 2>/dev/null || true
+env -u TEST_BATCHED_STATE_FILE bash "$SCRIPT" --timeout=1 "sleep 2" > "$_dp_tmp/output.txt" 2>/dev/null || true
 default_path_out=$(cat "$_dp_tmp/output.txt")
 rm -rf "$_dp_tmp"
 default_path_has_fixed=0
