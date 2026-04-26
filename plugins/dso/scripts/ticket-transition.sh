@@ -288,6 +288,10 @@ author_val = sys.argv[7]
 reducer_path = sys.argv[8]
 close_reason = sys.argv[9] if len(sys.argv) > 9 else ''
 
+# Import reduce_ticket directly (single-process: eliminates subprocess for state read)
+sys.path.insert(0, os.path.dirname(os.path.abspath(reducer_path)))
+from ticket_reducer import reduce_ticket
+
 timeout = 30
 
 # Acquire flock
@@ -306,18 +310,14 @@ if not acquired:
     print('Error: could not acquire lock', file=sys.stderr)
     sys.exit(1)
 
-# Lock acquired — read current state via reducer
+# Lock acquired — read current state via direct reduce_ticket import (no subprocess)
 try:
-    result = subprocess.run(
-        ['python3', reducer_path, os.path.join(tracker_dir, ticket_id)],
-        capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        print(f'Error: reducer failed: {result.stderr.strip()}', file=sys.stderr)
+    state = reduce_ticket(os.path.join(tracker_dir, ticket_id))
+    if state is None:
+        print('Error: reducer returned no state (ticket may be corrupt or missing events)', file=sys.stderr)
         os.close(fd)
         sys.exit(1)
 
-    state = json.loads(result.stdout)
     actual_status = state.get('status', '')
 
     # Optimistic concurrency check

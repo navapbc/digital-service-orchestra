@@ -4,20 +4,21 @@
 # ticket-transition.sh is not widened by the S2 consolidation (e768-2bae).
 #
 # The flock section must contain ONLY:
-#   - status read (reducer call)
+#   - status read (reduce_ticket direct call — no subprocess)
 #   - optimistic concurrency verify
 #   - status event write (temp file + rename)
 #   - git add + commit
 #
 # LLM formatting (to_llm / llm_format) must happen OUTSIDE the lock.
+# The reduce_ticket import must appear in the flock-held Python block.
 #
-# Test 1 (RED until S2): assert ticket-transition.sh references llm_format/to_llm
-#   (fails on pre-S2 code where the import has not been added yet)
+# Test 1 (GREEN after S2): assert ticket-transition.sh references reduce_ticket/ticket_reducer
+#   (confirms S2 migration: direct import inside flock block, no subprocess for state read)
 # Test 2 (guard): assert to_llm/llm_format does NOT appear inside the flock section
 #   (protects against accidentally widening the lock to include formatting work)
 #
 # Usage: bash tests/scripts/test-ticket-transition-flock.sh
-# Returns: exit non-zero (RED) until S2 consolidation adds llm_format to transition.
+# Returns: exit 0 after S2 consolidation uses reduce_ticket directly inside flock block.
 
 # NOTE: -e is intentionally omitted — test functions return non-zero by design.
 set -uo pipefail
@@ -75,11 +76,13 @@ for line in lines[acquire_idx + 1:release_idx]:
 PYEOF
 }
 
-# ── Test 1 (RED until S2): llm_format referenced in ticket-transition.sh ──────
-# After the S2 consolidation, ticket-transition.sh will import to_llm from
-# ticket_reducer.llm_format as part of the single-process pipeline.
-# Until S2 is done, the reference is absent and this test fails RED.
-echo "Test 1 (RED until S2): ticket-transition.sh references llm_format or to_llm"
+# ── Test 1 (GREEN after S2): reduce_ticket call used inside flock section ─────
+# After the S2 consolidation, ticket-transition.sh calls reduce_ticket() inside
+# the flock critical section (between lock acquire and final lock release),
+# eliminating the subprocess spawn for state reads.
+# This test verifies the behavioral contract: reduce_ticket() is invoked after
+# the lock is acquired and subprocess.run for reducer is no longer used.
+echo "Test 1 (GREEN after S2): reduce_ticket() called in flock-held section, no subprocess reducer"
 test_flock_llm_format_referenced() {
     _snapshot_fail
 
@@ -89,16 +92,70 @@ test_flock_llm_format_referenced() {
         return
     fi
 
-    # grep returns 0 if found, 1 if not found
-    local grep_exit=0
-    grep -qE 'llm_format|to_llm' "$TRANSITION_SCRIPT" 2>/dev/null || grep_exit=$?
+    # Extract the full body between flock acquire and final lock release.
+    # The extractor finds fcntl.LOCK_EX acquire and the LAST os.close(fd) in the
+    # Python block (the final lock release), then checks the critical section body.
+    local flock_body
+    flock_body=$(python3 - "$TRANSITION_SCRIPT" <<'PYEOF'
+import sys
 
-    # Assert: at least one reference to llm_format or to_llm exists in the file
-    # RED: before S2, neither import is present → grep returns 1 → assertion fails
-    if [ "$grep_exit" -eq 0 ]; then
-        assert_eq "flock-ref: llm_format/to_llm referenced in ticket-transition.sh" "found" "found"
+with open(sys.argv[1], encoding='utf-8') as f:
+    lines = f.readlines()
+
+# Find the flock acquire line
+acquire_idx = None
+for i, line in enumerate(lines):
+    if 'fcntl.LOCK_EX' in line and 'fcntl.flock' in line:
+        acquire_idx = i
+        break
+
+if acquire_idx is None:
+    print("FLOCK_ACQUIRE_NOT_FOUND", file=sys.stderr)
+    sys.exit(1)
+
+# Find the LAST os.close(fd) in the file after the acquire (final lock release)
+# The first os.close(fd) after LOCK_EX is the failure-to-acquire path; the last
+# is the actual lock release after the critical section completes.
+release_idx = None
+for i in range(acquire_idx + 1, len(lines)):
+    if 'os.close(fd)' in lines[i]:
+        release_idx = i  # keep updating to get the last one
+
+if release_idx is None:
+    print("FLOCK_RELEASE_NOT_FOUND", file=sys.stderr)
+    sys.exit(1)
+
+# Print the full content between acquire and last release
+for line in lines[acquire_idx + 1:release_idx]:
+    sys.stdout.write(line)
+PYEOF
+    ) || {
+        local extract_err
+        extract_err=$(python3 - "$TRANSITION_SCRIPT" <<'PYEOF2' 2>&1 >/dev/null
+import sys
+with open(sys.argv[1]) as f:
+    content = f.read()
+if 'fcntl.LOCK_EX' not in content:
+    print("FLOCK_ACQUIRE_NOT_FOUND")
+PYEOF2
+        ) || true
+        assert_eq "flock-ref: flock body extractable" "extracted" "error: $extract_err"
+        assert_pass_if_clean "test_flock_llm_format_referenced"
+        return
+    }
+
+    # Assert 1: the flock body contains a reduce_ticket() call (S2 migration complete)
+    if grep -qE 'reduce_ticket\(' <<< "$flock_body" 2>/dev/null; then
+        assert_eq "flock-ref: reduce_ticket() called in flock body" "found" "found"
     else
-        assert_eq "flock-ref: llm_format/to_llm referenced in ticket-transition.sh" "found" "not-found (S2 not yet applied)"
+        assert_eq "flock-ref: reduce_ticket() called in flock body" "found" "not-found (S2 not yet applied)"
+    fi
+
+    # Assert 2: the flock body does NOT spawn subprocess for reducer (old pattern absent)
+    if grep -qE "subprocess\.run.*reducer_path|python3.*reducer_path" <<< "$flock_body" 2>/dev/null; then
+        assert_eq "flock-ref: no subprocess reducer in flock body" "absent" "found (subprocess reducer still present)"
+    else
+        assert_eq "flock-ref: no subprocess reducer in flock body" "absent" "absent"
     fi
 
     assert_pass_if_clean "test_flock_llm_format_referenced"
