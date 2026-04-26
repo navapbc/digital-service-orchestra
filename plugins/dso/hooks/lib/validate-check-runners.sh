@@ -9,8 +9,13 @@
 # Callers must have the following variables set before calling these functions
 # (they are set by validate.sh in the main script body):
 #   CHECK_DIR, VERBOSE, VERBOSE_LOCK_FILE, APP_DIR, REPO_ROOT, WORKTREE_MODE,
-#   TIMEOUT_TESTS, TIMEOUT_CI, CMD_TEST_UNIT, VALIDATE_TEST_STATE_FILE,
-#   VALIDATE_TEST_BATCHED_SCRIPT
+#   TIMEOUT_TESTS, TIMEOUT_CI, CMD_TEST_UNIT, CMD_TEST_DIRS,
+#   VALIDATE_TEST_STATE_FILE, VALIDATE_TEST_BATCHED_SCRIPT
+#
+# CMD_TEST_DIRS (optional): colon-separated list of directories containing test-*.sh files.
+# When set, run_test_check uses --runner=bash --test-dir=$CMD_TEST_DIRS so each
+# test-*.sh file runs as an individual resumable item (incremental progress).
+# When unset or empty, falls back to CMD_TEST_UNIT via the generic runner.
 #
 # Also requires run_with_timeout, verbose_print, _test_state_already_passed
 # (from validate-helpers.sh) to be available.
@@ -43,13 +48,24 @@ run_test_check() {
 
     if [ -x "$batched_script" ]; then
         local rc=0
+        # When CMD_TEST_DIRS is configured (colon-separated dirs), use the bash runner
+        # so each test-*.sh file runs as an individual resumable item. This enables
+        # incremental progress across validate.sh re-invocations for large test suites
+        # that exceed the 45s budget. Without this, the generic runner treats the entire
+        # suite as one atomic command and records it as "interrupted" on timeout, causing
+        # an infinite PENDING loop (bug 07f1-f8b6 / bf39-4494).
+        local batched_runner_args=""
+        if [ -n "${CMD_TEST_DIRS:-}" ]; then
+            batched_runner_args="--runner=bash --test-dir=${CMD_TEST_DIRS}"
+        fi
         # Run test-batched.sh with the session state file; capture both stdout+stderr.
         # test-batched.sh manages its own internal timeout budget (--timeout=45).
         # The outer run_with_timeout uses the full TIMEOUT_TESTS as a safety
         # backstop for truly hung processes that exceed the internal budget.
+        # shellcheck disable=SC2086
         TEST_BATCHED_STATE_FILE="$VALIDATE_TEST_STATE_FILE" \
             run_with_timeout "$timeout" "$name" \
-            bash "$batched_script" --timeout="$batched_timeout" "$test_cmd" \
+            bash "$batched_script" --timeout="$batched_timeout" --per-test-timeout="$batched_timeout" $batched_runner_args "$test_cmd" \
             > "$CHECK_DIR/${name}.log" 2>&1 || rc=$?
         echo "$rc" > "$CHECK_DIR/${name}.rc"
 

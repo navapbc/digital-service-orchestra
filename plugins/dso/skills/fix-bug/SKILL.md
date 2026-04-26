@@ -206,7 +206,7 @@ Ensure a bug ticket exists and is set to in-progress before investigation begins
 
 Store the ticket ID as `BUG_TICKET_ID` for use throughout the workflow.
 
-Post WORKTREE_TRACKING:start on the bug ticket (fail silently if .tickets-tracker/ unavailable):
+Post WORKTREE_TRACKING:start on the bug ticket (fail silently if .tickets-tracker/ unavailable): # tickets-boundary-ok
 ```bash
 _BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
@@ -436,7 +436,7 @@ Gate 1b failure must never block a legitimate bug investigation.
 
 ### Step 2: Investigation Sub-Agent Dispatch (/dso:fix-bug)
 
-**You MUST dispatch the investigation sub-agent described below.** Do NOT investigate inline — reading source code, grepping for patterns, running hypothesis commands, or analyzing the bug yourself does not satisfy this step. The sub-agent follows a rigorous investigation template (five whys, hypothesis generation, empirical validation) that prevents confirmation bias. Dispatch the sub-agent, await its RESULT report, then proceed to Step 3.
+**You MUST dispatch the investigation sub-agent described below.** Do NOT investigate inline — reading source code, grepping for patterns, running hypothesis commands, or analyzing the bug yourself does not satisfy this step. The sub-agent follows a rigorous investigation template (five whys, hypothesis generation, empirical validation) that prevents confirmation bias. Dispatch the sub-agent, await its RESULT report, then proceed to Step 3. Do not skip this step even if you have already conducted your own investigation.
 
 **Worktree Isolation**: Read and apply `skills/shared/prompts/worktree-dispatch.md` for worktree isolation configuration before dispatching any investigation sub-agent. When `worktree.isolation_enabled=true`, add `isolation: "worktree"` to each Agent dispatch call. When the config is `false`, absent, or empty, omit the isolation parameter (shared-directory fallback). Pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each dispatch prompt so the sub-agent can verify its isolation.
 

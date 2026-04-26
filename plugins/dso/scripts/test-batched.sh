@@ -584,9 +584,10 @@ if _is_completed "$TEST_ID"; then
     pass_count=$(_results_count "$RESULTS_JSON" "pass")
     fail_count=$(_results_count "$RESULTS_JSON" "fail")
     interrupted_count=$(_results_count "$RESULTS_JSON" "interrupted")
+    timed_out_count=$(_results_count "$RESULTS_JSON" "interrupted-timeout-exceeded")
     total_done=${#COMPLETED_LIST[@]}
     echo ""
-    echo "$total_done/$TOTAL tests completed. $pass_count passed, $fail_count failed, $interrupted_count interrupted."
+    echo "$total_done/$TOTAL tests completed. $pass_count passed, $fail_count failed, $interrupted_count interrupted, $timed_out_count timed-out."
     if [ "$fail_count" -gt 0 ]; then
         echo ""
         echo "Failures:"
@@ -595,8 +596,8 @@ if _is_completed "$TEST_ID"; then
         done
     fi
     rm -f "$STATE_FILE"
-    # Interrupted tests are non-passing — exit non-zero if any tests failed or were interrupted
-    [ "$fail_count" -gt 0 ] || [ "$interrupted_count" -gt 0 ] && exit 1 || exit 0
+    # Interrupted and timed-out tests are non-passing — exit non-zero
+    [ "$fail_count" -gt 0 ] || [ "$interrupted_count" -gt 0 ] || [ "$timed_out_count" -gt 0 ] && exit 1 || exit 0
 fi
 
 # ── Check timeout before running ─────────────────────────────────────────────
@@ -620,9 +621,22 @@ trap 'rm -f "$_exit_code_file"' EXIT
 ) &
 CMD_PID=$!
 _ACTIVE_CHILD_PID=$CMD_PID
+_generic_test_start_time=$(date +%s)
 
 # Wait for completion or timeout
 while kill -0 "$CMD_PID" 2>/dev/null; do
+    # Per-test timeout: if PER_TEST_TIMEOUT is set and this individual command has run
+    # longer than PER_TEST_TIMEOUT seconds, mark it as terminal (not retried on resume).
+    # Mirrors the same mechanism in bash-runner.sh (fix for bug 07f1-f8b6).
+    if [ -n "${PER_TEST_TIMEOUT:-}" ] && [ $(( $(date +%s) - _generic_test_start_time )) -ge "$PER_TEST_TIMEOUT" ]; then
+        _ACTIVE_CHILD_PID=""
+        kill -- -"$CMD_PID" 2>/dev/null || kill "$CMD_PID" 2>/dev/null || true
+        wait "$CMD_PID" 2>/dev/null || true
+        rm -f "$_exit_code_file"
+        COMPLETED_LIST+=("$TEST_ID")
+        RESULTS_JSON=$(_results_add "$RESULTS_JSON" "$TEST_ID" "interrupted-timeout-exceeded")
+        _save_state_and_resume
+    fi
     if [ "$(_elapsed)" -ge "$TIMEOUT" ]; then
         # Kill the entire process group (negative PID) so child processes
         # spawned by bash -c don't survive as orphans.

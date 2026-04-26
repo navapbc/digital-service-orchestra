@@ -126,6 +126,11 @@ CMD_LINT_RUFF=$(_cfg "commands.lint_ruff" "make lint-ruff")
 CMD_LINT_MYPY=$(_cfg "commands.lint_mypy" "make lint-mypy")
 # Allow VALIDATE_CMD_TEST env override (for testing/stubs)
 CMD_TEST_UNIT="${VALIDATE_CMD_TEST:-$(_cfg "commands.test_unit" "make test-unit-only")}"
+# Colon-separated test directories for the bash runner (multi-dir incremental mode).
+# When set, run_test_check uses --runner=bash --test-dir=$CMD_TEST_DIRS so that
+# individual test-*.sh files run incrementally (enabling per-file resume) instead of
+# the generic runner treating the entire suite as one atomic command.
+CMD_TEST_DIRS=$(_cfg "commands.test_dirs" "")
 SCRIPT_WRITE_SCAN_DIR=$(_cfg "checks.script_write_scan_dir" "")
 PLUGIN_SCRIPTS="$SCRIPT_DIR"
 CMD_TEST_E2E=$(_cfg "commands.test_e2e" "make test-e2e")
