@@ -78,14 +78,14 @@ After aggregating all reviewer outputs into the combined JSON (`subject`, `revie
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
-REVIEW_OUT="$(get_artifacts_dir)/design-wireframe-review-output.json"
+REVIEW_OUT="$(get_artifacts_dir)/ui-designer-review-output.json"
 cat > "$REVIEW_OUT" <<'EOF'
 <assembled review JSON>
 EOF
-.claude/scripts/dso validate-review-output.sh review-protocol "$REVIEW_OUT" --caller design-wireframe
+.claude/scripts/dso validate-review-output.sh review-protocol "$REVIEW_OUT" --caller ui-designer
 ```
 
-**Caller schema hash**: `bd60a68f8060f939` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.
+**Caller schema hash**: `2c3ece1bc2820109` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.
 
 If `SCHEMA_VALID: no` is printed:
 1. Read the listed errors — they identify exactly which perspective, dimension, or finding field is missing or wrong.

@@ -45,37 +45,6 @@ else
     pass "implementation-plan contains no Skill() invocations"
 fi
 
-# --- design-wireframe tests ---
-
-DESIGN_WF="$REPO_ROOT/plugins/dso/skills/design-wireframe/SKILL.md"
-
-echo ""
-echo "-- design-wireframe review-protocol invocation --"
-
-# Test 4: design-wireframe must NOT say "Invoke /dso:review-protocol"
-# (redirect stub no longer dispatches sub-agents or reviews)
-if grep -q 'Invoke.*/dso:review-protocol' "$DESIGN_WF"; then
-    fail "design-wireframe invokes /dso:review-protocol via Skill tool (creates 3+ level nesting)"
-else
-    pass "design-wireframe does not invoke /dso:review-protocol via Skill tool"
-fi
-
-# Test 5: design-wireframe must be a redirect stub (no longer contains full skill logic)
-# The skill was replaced with a redirect stub pointing to dso:ui-designer via preplanning.
-if grep -q 'dso:ui-designer' "$DESIGN_WF" && grep -q 'preplanning' "$DESIGN_WF"; then
-    pass "design-wireframe is a redirect stub pointing to dso:ui-designer via preplanning"
-else
-    fail "design-wireframe is not a redirect stub (must reference dso:ui-designer and preplanning)"
-fi
-
-# Test 6: design-wireframe redirect stub must NOT have a sub-agent guard
-# (redirect stubs do not dispatch sub-agents, so the guard is not needed)
-if grep -q 'SUB-AGENT-GUARD' "$DESIGN_WF"; then
-    fail "design-wireframe redirect stub has SUB-AGENT-GUARD (should be removed from redirect stubs)"
-else
-    pass "design-wireframe redirect stub has no sub-agent guard (correct for redirect stubs)"
-fi
-
 # --- preplanning Step 6 agent dispatch tests ---
 
 PREPLANNING="$REPO_ROOT/plugins/dso/skills/preplanning/SKILL.md"
@@ -83,7 +52,7 @@ PREPLANNING="$REPO_ROOT/plugins/dso/skills/preplanning/SKILL.md"
 echo ""
 echo "-- preplanning Step 6 agent dispatch --"
 
-# Test 7: preplanning Step 6 must dispatch dso:ui-designer via Agent tool
+# Test 4: preplanning Step 6 must dispatch dso:ui-designer via Agent tool
 # (not /dso:design-wireframe via Skill tool)
 if grep -qF '/dso:design-wireframe' "$PREPLANNING"; then
     fail "preplanning Step 6 still references /dso:design-wireframe via Skill tool (3-level nesting risk)"
@@ -91,14 +60,14 @@ else
     pass "preplanning Step 6 does not invoke /dso:design-wireframe via Skill tool"
 fi
 
-# Test 8: preplanning must reference dso:ui-designer Agent tool dispatch
+# Test 5: preplanning must reference dso:ui-designer Agent tool dispatch
 if grep -q 'dso:ui-designer' "$PREPLANNING" && grep -q 'Agent tool' "$PREPLANNING"; then
     pass "preplanning Step 6 dispatches dso:ui-designer via Agent tool"
 else
     fail "preplanning Step 6 does not dispatch dso:ui-designer via Agent tool"
 fi
 
-# Test 9: preplanning must reference the dispatch protocol (external protocol file)
+# Test 6: preplanning must reference the dispatch protocol (external protocol file)
 if grep -q 'ui-designer-dispatch-protocol.md' "$PREPLANNING"; then
     pass "preplanning Step 6 references ui-designer-dispatch-protocol.md"
 else

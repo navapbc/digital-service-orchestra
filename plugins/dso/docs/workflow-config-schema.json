@@ -279,7 +279,7 @@
     },
     "design": {
       "type": "object",
-      "description": "Design system configuration. Parameterizes design-related skills (design-onboarding, design-review, design-wireframe) so they reference the project's design system from config rather than hardcoded values.",
+      "description": "Design system configuration. Parameterizes design-related skills (design-onboarding, design-review, ui-designer) so they reference the project's design system from config rather than hardcoded values.",
       "additionalProperties": false,
       "properties": {
         "system_name": {
@@ -290,13 +290,13 @@
         },
         "component_library": {
           "type": "string",
-          "description": "Component library identifier used for adapter selection in design-wireframe and component lookup (e.g. 'uswds', 'material', 'bootstrap').",
+          "description": "Component library identifier used for adapter selection in ui-designer and component lookup (e.g. 'uswds', 'material', 'bootstrap').",
           "minLength": 1,
           "examples": ["uswds", "material", "bootstrap", "chakra", "custom"]
         },
         "template_engine": {
           "type": "string",
-          "description": "Template engine used for rendering UI components. Used by design-wireframe for adapter selection (e.g. 'jinja2', 'react', 'vue').",
+          "description": "Template engine used for rendering UI components. Used by ui-designer for adapter selection (e.g. 'jinja2', 'react', 'vue').",
           "minLength": 1,
           "examples": ["jinja2", "react", "vue", "svelte", "handlebars"]
         },

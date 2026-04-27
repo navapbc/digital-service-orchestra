@@ -381,7 +381,7 @@ Transitions:
 
 The receiving implementation agent consumes the three artifacts in this order:
 
-### Step 1: Structure (JSON → Component Tree) (/dso:design-wireframe)
+### Step 1: Structure (JSON → Component Tree) (dso:ui-designer)
 
 Open `spatial-layout.json`. Build the component tree top-down:
 - Each `component` node becomes a React/Vue/Svelte component instance
@@ -391,7 +391,7 @@ Open `spatial-layout.json`. Build the component tree top-down:
 - Pass `props` as component properties
 - Apply `aria` attributes directly to the DOM element
 
-### Step 2: Layout (SVG → CSS) (/dso:design-wireframe)
+### Step 2: Layout (SVG → CSS) (dso:ui-designer)
 
 **Priority rule**: When the JSON `spatial_hint` conflicts with SVG coordinates,
 **`spatial_hint` takes precedence**. The SVG communicates approximate proportions
@@ -409,7 +409,7 @@ Open `wireframe.svg` as XML. For each element ID:
 - Cross-reference with `spatial_hint` in the JSON for authoritative layout
   values (e.g., "Max-width 600px, centered" overrides an SVG `width="580"`)
 
-### Step 3: Behavior (Tokens → Interaction Logic) (/dso:design-wireframe)
+### Step 3: Behavior (Tokens → Interaction Logic) (dso:ui-designer)
 
 Open `tokens.md`:
 - Implement each interaction behavior using the specified tokens
@@ -418,7 +418,7 @@ Open `tokens.md`:
 - Build state management for each defined state
 - Map design token names to the project's actual token values
 
-### Step 4: Verify (Cross-Reference) (/dso:design-wireframe)
+### Step 4: Verify (Cross-Reference) (dso:ui-designer)
 
 For every element ID that appears in ANY artifact, verify it appears in ALL
 three. A missing ID means something was specified but not fully defined.
