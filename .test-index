@@ -76,7 +76,7 @@ plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test_issue_quality_chec
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh,tests/scripts/test-residual-callers-polyglot.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts/test-ts-morph-normalize-imports.sh
-plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-bash-runner-discovery.sh, tests/scripts/test-bash-runner-red-zone.sh, tests/scripts/test-bash-runner-plugin-root.sh
+plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-bash-runner-discovery.sh,tests/scripts/test-bash-runner-red-zone.sh,tests/scripts/test-bash-runner-plugin-root.sh
 plugins/dso/scripts/skill-trace-analyze.py:tests/scripts/test-skill-trace-analyze.sh
 plugins/dso/scripts/validate-phase.sh:tests/scripts/test-validate-phase-missing-test-unit.sh,tests/test-validate-phase-portability.sh,tests/scripts/test-residual-callers-polyglot.sh
 plugins/dso/scripts/validate.sh:tests/scripts/test-validate-config-driven.sh
@@ -222,7 +222,7 @@ plugins/dso/scripts/ticket_graph/_blockers.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_cache.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_graph.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_hierarchy.py:tests/scripts/test_ticket_graph.py
-plugins/dso/scripts/ticket_graph/_links.py:tests/scripts/test_ticket_graph.py
+plugins/dso/scripts/ticket_graph/_links.py:tests/scripts/test_ticket_graph.py,tests/scripts/test-ticket-link-python-push.sh
 plugins/dso/scripts/ticket_graph/_loader.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket_graph/_status.py:tests/scripts/test_ticket_graph.py
 INSTALL.md:tests/test-install-doc-contract.sh,tests/scripts/test-no-unguarded-plugin-refs.sh,tests/test-install-integration-setup.sh
