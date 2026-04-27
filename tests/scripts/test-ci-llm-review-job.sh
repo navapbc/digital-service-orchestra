@@ -209,6 +209,184 @@ assert_eq "test_llm_review_tier_selection_maps_model: exit 0" "0" "$tier_sel_exi
 assert_eq "test_llm_review_tier_selection_maps_model: light tier maps to correct model in GITHUB_ENV" "OK" "$tier_sel_output"
 assert_pass_if_clean "test_llm_review_tier_selection_maps_model"
 
+# ── test_llm_review_tier_selection_standard ───────────────────────────────────
+# The tier-selection step must map DSO_LLM_TIER=standard to DSO_LLM_STANDARD_MODEL.
+_snapshot_fail
+tier_std_exit=0
+tier_std_output=""
+tier_std_output=$(python3 - <<'PYEOF' 2>&1
+import yaml, sys, subprocess, os, tempfile
+
+template = os.environ.get('TEMPLATE', '')
+with open(template) as f:
+    doc = yaml.safe_load(f)
+jobs = doc.get('jobs', {})
+llm_job = jobs.get('llm-review', {})
+steps = llm_job.get('steps', [])
+
+tier_step = None
+for step in steps:
+    run_body = step.get('run', '')
+    if run_body and 'GITHUB_ENV' in run_body and 'DSO_LLM_TIER' in run_body:
+        tier_step = step
+        break
+
+if tier_step is None:
+    print('MISSING_STEP: tier selection step not found in llm-review job')
+    sys.exit(1)
+
+run_body = tier_step['run']
+
+with tempfile.NamedTemporaryFile(mode='w', prefix='github_env_', suffix='.tmp', delete=False) as tmp:
+    github_env_path = tmp.name
+
+try:
+    env = {
+        **os.environ,
+        'GITHUB_ENV': github_env_path,
+        'DSO_LLM_TIER': 'standard',
+        'DSO_LLM_LIGHT_MODEL': 'claude-haiku',
+        'DSO_LLM_STANDARD_MODEL': 'claude-sonnet',
+        'DSO_LLM_FRONTIER_MODEL': 'claude-opus',
+    }
+    result = subprocess.run(['bash', '-c', run_body], env=env, capture_output=True)
+    if result.returncode != 0:
+        stderr = result.stderr.decode().strip()
+        print(f'FAIL_EXEC: tier-selection step exited {result.returncode}: {stderr}')
+        sys.exit(1)
+
+    with open(github_env_path) as f:
+        github_env_contents = f.read()
+
+    if 'ANTHROPIC_MODEL=claude-sonnet' not in github_env_contents:
+        print(f'FAIL_OUTPUT: expected ANTHROPIC_MODEL=claude-sonnet in GITHUB_ENV, got: {github_env_contents!r}')
+        sys.exit(1)
+finally:
+    os.unlink(github_env_path)
+
+print('OK')
+PYEOF
+) || tier_std_exit=$?
+assert_eq "test_llm_review_tier_selection_standard: exit 0" "0" "$tier_std_exit"
+assert_eq "test_llm_review_tier_selection_standard: standard tier maps to correct model in GITHUB_ENV" "OK" "$tier_std_output"
+assert_pass_if_clean "test_llm_review_tier_selection_standard"
+
+# ── test_llm_review_tier_selection_frontier ───────────────────────────────────
+# The tier-selection step must map DSO_LLM_TIER=frontier to DSO_LLM_FRONTIER_MODEL.
+_snapshot_fail
+tier_frontier_exit=0
+tier_frontier_output=""
+tier_frontier_output=$(python3 - <<'PYEOF' 2>&1
+import yaml, sys, subprocess, os, tempfile
+
+template = os.environ.get('TEMPLATE', '')
+with open(template) as f:
+    doc = yaml.safe_load(f)
+jobs = doc.get('jobs', {})
+llm_job = jobs.get('llm-review', {})
+steps = llm_job.get('steps', [])
+
+tier_step = None
+for step in steps:
+    run_body = step.get('run', '')
+    if run_body and 'GITHUB_ENV' in run_body and 'DSO_LLM_TIER' in run_body:
+        tier_step = step
+        break
+
+if tier_step is None:
+    print('MISSING_STEP: tier selection step not found in llm-review job')
+    sys.exit(1)
+
+run_body = tier_step['run']
+
+with tempfile.NamedTemporaryFile(mode='w', prefix='github_env_', suffix='.tmp', delete=False) as tmp:
+    github_env_path = tmp.name
+
+try:
+    env = {
+        **os.environ,
+        'GITHUB_ENV': github_env_path,
+        'DSO_LLM_TIER': 'frontier',
+        'DSO_LLM_LIGHT_MODEL': 'claude-haiku',
+        'DSO_LLM_STANDARD_MODEL': 'claude-sonnet',
+        'DSO_LLM_FRONTIER_MODEL': 'claude-opus',
+    }
+    result = subprocess.run(['bash', '-c', run_body], env=env, capture_output=True)
+    if result.returncode != 0:
+        stderr = result.stderr.decode().strip()
+        print(f'FAIL_EXEC: tier-selection step exited {result.returncode}: {stderr}')
+        sys.exit(1)
+
+    with open(github_env_path) as f:
+        github_env_contents = f.read()
+
+    if 'ANTHROPIC_MODEL=claude-opus' not in github_env_contents:
+        print(f'FAIL_OUTPUT: expected ANTHROPIC_MODEL=claude-opus in GITHUB_ENV, got: {github_env_contents!r}')
+        sys.exit(1)
+finally:
+    os.unlink(github_env_path)
+
+print('OK')
+PYEOF
+) || tier_frontier_exit=$?
+assert_eq "test_llm_review_tier_selection_frontier: exit 0" "0" "$tier_frontier_exit"
+assert_eq "test_llm_review_tier_selection_frontier: frontier tier maps to correct model in GITHUB_ENV" "OK" "$tier_frontier_output"
+assert_pass_if_clean "test_llm_review_tier_selection_frontier"
+
+# ── test_llm_review_tier_selection_invalid_tier ───────────────────────────────
+# The tier-selection step must exit non-zero when DSO_LLM_TIER is unrecognized.
+_snapshot_fail
+tier_invalid_exit=0
+tier_invalid_output=""
+tier_invalid_output=$(python3 - <<'PYEOF' 2>&1
+import yaml, sys, subprocess, os, tempfile
+
+template = os.environ.get('TEMPLATE', '')
+with open(template) as f:
+    doc = yaml.safe_load(f)
+jobs = doc.get('jobs', {})
+llm_job = jobs.get('llm-review', {})
+steps = llm_job.get('steps', [])
+
+tier_step = None
+for step in steps:
+    run_body = step.get('run', '')
+    if run_body and 'GITHUB_ENV' in run_body and 'DSO_LLM_TIER' in run_body:
+        tier_step = step
+        break
+
+if tier_step is None:
+    print('MISSING_STEP: tier selection step not found in llm-review job')
+    sys.exit(1)
+
+run_body = tier_step['run']
+
+with tempfile.NamedTemporaryFile(mode='w', prefix='github_env_', suffix='.tmp', delete=False) as tmp:
+    github_env_path = tmp.name
+
+try:
+    env = {
+        **os.environ,
+        'GITHUB_ENV': github_env_path,
+        'DSO_LLM_TIER': 'invalid-tier-xyz',
+        'DSO_LLM_LIGHT_MODEL': 'claude-haiku',
+        'DSO_LLM_STANDARD_MODEL': 'claude-sonnet',
+        'DSO_LLM_FRONTIER_MODEL': 'claude-opus',
+    }
+    result = subprocess.run(['bash', '-c', run_body], env=env, capture_output=True)
+    if result.returncode == 0:
+        print('FAIL_INVALID_TIER: expected non-zero exit for unrecognized DSO_LLM_TIER, got exit 0')
+        sys.exit(1)
+finally:
+    os.unlink(github_env_path)
+
+print('OK')
+PYEOF
+) || tier_invalid_exit=$?
+assert_eq "test_llm_review_tier_selection_invalid_tier: exit 0" "0" "$tier_invalid_exit"
+assert_eq "test_llm_review_tier_selection_invalid_tier: invalid tier exits non-zero" "OK" "$tier_invalid_output"
+assert_pass_if_clean "test_llm_review_tier_selection_invalid_tier"
+
 # ── test_llm_review_action_uses_api_key_from_secrets ─────────────────────────
 # The claude-code-action step must reference secrets.ANTHROPIC_API_KEY in its
 # env: or with: block.

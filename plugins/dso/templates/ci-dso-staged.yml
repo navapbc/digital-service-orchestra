@@ -4,6 +4,10 @@
 #   DSO_FORMAT_CHECK_CMD — command to check formatting (e.g., "make format-check")
 #   DSO_TEST_CMD        — command to run tests (e.g., "make test")
 #   DSO_VALIDATE_CMD    — command to run DSO validation (e.g., your project's validate.sh --ci invocation)
+#   DSO_LLM_LIGHT_MODEL    — model ID for light tier (e.g., claude-haiku-4-5-20251001)
+#   DSO_LLM_STANDARD_MODEL — model ID for standard tier (e.g., claude-sonnet-4-6)
+#   DSO_LLM_FRONTIER_MODEL — model ID for frontier tier (e.g., claude-opus-4-7)
+#   DSO_LLM_TIER           — active tier: light | standard | frontier
 #
 # REVIEW-DEFENSE: Structural tests for this template are in
 # tests/scripts/test-ci-dso-staged-template.sh with a .test-index entry
@@ -95,12 +99,57 @@ jobs:
   llm-review:
     needs: [tests]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: LLM review placeholder
-        run: echo "LLM review step — configure this job for your project's review tooling"
+      - name: Validate required LLM review variables
+        run: |
+          missing=""
+          [ -z "$DSO_LLM_LIGHT_MODEL" ]    && missing="$missing DSO_LLM_LIGHT_MODEL"
+          [ -z "$DSO_LLM_STANDARD_MODEL" ] && missing="$missing DSO_LLM_STANDARD_MODEL"
+          [ -z "$DSO_LLM_FRONTIER_MODEL" ] && missing="$missing DSO_LLM_FRONTIER_MODEL"
+          [ -z "$DSO_LLM_TIER" ]            && missing="$missing DSO_LLM_TIER"
+          if [ -n "$missing" ]; then
+            echo "ERROR: Required GitHub Actions Variables not set:$missing" >&2
+            echo "Configure them in Settings > Variables > Actions." >&2
+            echo "Valid values for DSO_LLM_TIER: light, standard, frontier" >&2
+            exit 1
+          fi
+        env:
+          DSO_LLM_LIGHT_MODEL:    ${{ vars.DSO_LLM_LIGHT_MODEL }}
+          DSO_LLM_STANDARD_MODEL: ${{ vars.DSO_LLM_STANDARD_MODEL }}
+          DSO_LLM_FRONTIER_MODEL: ${{ vars.DSO_LLM_FRONTIER_MODEL }}
+          DSO_LLM_TIER:           ${{ vars.DSO_LLM_TIER }}
+
+      - name: Select model by tier
+        run: |
+          case "$DSO_LLM_TIER" in
+            light)    echo "ANTHROPIC_MODEL=$DSO_LLM_LIGHT_MODEL"    >> "$GITHUB_ENV" ;;
+            standard) echo "ANTHROPIC_MODEL=$DSO_LLM_STANDARD_MODEL" >> "$GITHUB_ENV" ;;
+            frontier) echo "ANTHROPIC_MODEL=$DSO_LLM_FRONTIER_MODEL" >> "$GITHUB_ENV" ;;
+            *)
+              echo "ERROR: DSO_LLM_TIER='$DSO_LLM_TIER' is not a valid tier." >&2
+              echo "Valid values: light, standard, frontier" >&2
+              exit 1
+              ;;
+          esac
+        env:
+          DSO_LLM_TIER:           ${{ vars.DSO_LLM_TIER }}
+          DSO_LLM_LIGHT_MODEL:    ${{ vars.DSO_LLM_LIGHT_MODEL }}
+          DSO_LLM_STANDARD_MODEL: ${{ vars.DSO_LLM_STANDARD_MODEL }}
+          DSO_LLM_FRONTIER_MODEL: ${{ vars.DSO_LLM_FRONTIER_MODEL }}
+
+      - name: Run LLM code review
+        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434 # pinned; verify at github.com/anthropics/claude-code-action/releases
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: ${{ env.ANTHROPIC_MODEL }}
+          direct_prompt: |
+            Review this pull request for correctness, security issues, and design problems.
 
   validate-ci:
     needs: [tests]
