@@ -1,0 +1,103 @@
+# DSO Staged CI Workflow Template
+# Copy to .github/workflows/ci.yml and configure GitHub Actions Variables:
+#   DSO_LINT_CMD        — command to run linting (e.g., "make lint")
+#   DSO_FORMAT_CHECK_CMD — command to check formatting (e.g., "make format-check")
+#   DSO_TEST_CMD        — command to run tests (e.g., "make test")
+#   DSO_VALIDATE_CMD    — command to run DSO validation (e.g., your project's validate.sh --ci invocation)
+#
+# REVIEW-DEFENSE: Structural tests for this template are in
+# tests/scripts/test-ci-dso-staged-template.sh with a .test-index entry
+# (added in the task that created the test file, ea9d-ed23, committed prior
+# to this template being added).
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required variables are configured
+        run: |
+          missing=""
+          [ -z "$DSO_LINT_CMD" ] && missing="$missing DSO_LINT_CMD"
+          [ -z "$DSO_FORMAT_CHECK_CMD" ] && missing="$missing DSO_FORMAT_CHECK_CMD"
+          if [ -n "$missing" ]; then
+            echo "ERROR: Required GitHub Actions Variables not set:$missing" >&2
+            echo "Configure them in your repository or organization settings." >&2
+            exit 1
+          fi
+        env:
+          DSO_LINT_CMD: ${{ vars.DSO_LINT_CMD }}
+          DSO_FORMAT_CHECK_CMD: ${{ vars.DSO_FORMAT_CHECK_CMD }}
+
+      - name: Run lint
+        run: ${{ vars.DSO_LINT_CMD }}
+
+      - name: Run format check
+        run: ${{ vars.DSO_FORMAT_CHECK_CMD }}
+
+  tests:
+    needs: [lint-format]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUITE_TEST_INDEX: ${{ github.workspace }}/.test-index
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required variables are configured
+        run: |
+          if [ -z "$DSO_TEST_CMD" ]; then
+            echo "ERROR: Required GitHub Actions Variable DSO_TEST_CMD is not set." >&2
+            echo "Configure it in your repository or organization settings." >&2
+            exit 1
+          fi
+        env:
+          DSO_TEST_CMD: ${{ vars.DSO_TEST_CMD }}
+
+      - name: Run tests
+        run: ${{ vars.DSO_TEST_CMD }}
+
+  llm-review:
+    needs: [tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: LLM review placeholder
+        run: echo "LLM review step — configure this job for your project's review tooling"
+
+  validate-ci:
+    needs: [tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required variables are configured
+        run: |
+          if [ -z "$DSO_VALIDATE_CMD" ]; then
+            echo "ERROR: Required GitHub Actions Variable DSO_VALIDATE_CMD is not set." >&2
+            echo "Configure it in your repository or organization settings." >&2
+            exit 1
+          fi
+        env:
+          DSO_VALIDATE_CMD: ${{ vars.DSO_VALIDATE_CMD }}
+
+      - name: Run DSO validation
+        run: ${{ vars.DSO_VALIDATE_CMD }}

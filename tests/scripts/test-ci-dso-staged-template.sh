@@ -17,7 +17,7 @@
 #   7. test_lint_format_has_no_needs       — jobs.lint-format has no needs field
 #   8. test_no_dso_plugin_refs             — no read-config.sh or CLAUDE_PLUGIN_ROOT refs
 #   9. test_lint_format_uses_github_variables — lint-format run: references ${{ vars. pattern
-#  10. test_validate_ci_runs_validate_sh   — validate-ci step run: contains validate.sh
+#  10. test_validate_ci_runs_validate_sh   — validate-ci step run: uses ${{ vars. pattern
 #
 # Usage: bash tests/scripts/test-ci-dso-staged-template.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -214,7 +214,8 @@ assert_eq "test_lint_format_uses_github_variables: \${{ vars. pattern present" "
 assert_pass_if_clean "test_lint_format_uses_github_variables"
 
 # ── test_validate_ci_runs_validate_sh ────────────────────────────────────────
-# The validate-ci job's steps run: commands must contain validate.sh.
+# The validate-ci job's steps run: commands must use the GitHub Actions Variable
+# pattern (${{ vars. syntax) so consumer projects configure their own command.
 _snapshot_fail
 valci_sh_exit=0
 valci_sh_output=""
@@ -227,13 +228,13 @@ valci_job = jobs.get('validate-ci', {})
 steps = valci_job.get('steps', [])
 run_commands = [s.get('run', '') for s in steps if s.get('run')]
 combined = ' '.join(run_commands)
-if 'validate.sh' not in combined:
-    print('MISSING: validate.sh not found in validate-ci steps run commands')
+if '\${{ vars.' not in combined:
+    print('MISSING_VARS: no \${{ vars. pattern found in validate-ci steps run commands')
     sys.exit(1)
 print('OK')
 " 2>&1) || valci_sh_exit=$?
 assert_eq "test_validate_ci_runs_validate_sh: exit 0" "0" "$valci_sh_exit"
-assert_eq "test_validate_ci_runs_validate_sh: validate.sh in validate-ci steps" "OK" "$valci_sh_output"
+assert_eq "test_validate_ci_runs_validate_sh: \${{ vars. pattern in validate-ci steps" "OK" "$valci_sh_output"
 assert_pass_if_clean "test_validate_ci_runs_validate_sh"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
