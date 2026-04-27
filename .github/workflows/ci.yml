@@ -112,3 +112,16 @@ jobs:
         if: always()
         run: echo "test-scripts completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
+  validate-required-checks:
+    name: Validate required-checks.txt
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python dependencies
+        run: pip install pyyaml
+
+      - name: Validate check-context names
+        run: bash plugins/dso/scripts/onboarding/validate-required-checks.sh
+
