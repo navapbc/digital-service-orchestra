@@ -7,8 +7,8 @@ Do NOT present this gate unless ALL of the following ran as dispatched sub-agent
 - Step 2.75: Red Team + Blue Team sub-agents dispatched (or ≤2 success criteria — count them now)
 - SC Gap Check: scenario-to-SC coverage verified; SCs revised if gaps found, or skip documented
 - Step 3: Fidelity review (all three core reviewers completed or escalated to user)
-- Structural-change re-review: re-run Step 3 if the spec changed after fidelity review (epic split, SC count change >2, scope migration). Prior scores are invalidated by structural changes.
-- FEASIBILITY_GAP: if present, surface it explicitly at the approval gate. User must acknowledge it when selecting option (a).
+- Structural-change re-review: re-run the full Step 3 fidelity review pipeline on the revised spec if the spec changed after fidelity review (epic split, SC count change >2, scope migration). Prior scores are invalidated by structural changes.
+- FEASIBILITY_GAP: if a `## FEASIBILITY_GAP` section is present in the spec, do NOT silently omit it — surface it explicitly as an unresolved prerequisite at the approval gate. User must acknowledge it when selecting option (a).
 
 If any item is not complete, execute it before presenting this gate. Option (b)/(c) re-runs are for second-pass cycles only.
 </HARD-GATE>
