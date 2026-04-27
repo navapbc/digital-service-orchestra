@@ -1171,7 +1171,7 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 | **Valid values** | `true` (enabled) or absent/any non-true value (disabled) |
 | **Behavior when `true`** | `hook_track_tool_errors()` tracks errors to `~/.claude/tool-error-counter.json` and `sweep_tool_errors()` creates tickets when a category reaches 50 occurrences |
 | **Behavior when absent/false** | Both functions return 0 immediately with no side effects |
-| **Used by** | `hooks/lib/session-misc-functions.sh` (`hook_track_tool_errors`), `hooks/track-tool-errors.sh`, `skills/end-session/error-sweep.sh` (`sweep_tool_errors`) |
+| **Used by** | `hooks/lib/session-misc-functions.sh` (`hook_track_tool_errors`), `hooks/track-tool-errors.sh`, `scripts/end-session/error-sweep.sh` (`sweep_tool_errors`) |
 
 ---
 

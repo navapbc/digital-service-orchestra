@@ -95,9 +95,39 @@ Convert the review into a concrete plan:
 - **Gate/prose classification table** for every duplicate or restated section flagged in Phase 1, marking each as **gate** (compress, retain identifier) or **prose** (remove). Apply the criteria from the "Hard gates" section above. The user audits this table — gate misclassifications get caught here, not after the commit.
 - **Expected token reduction** (estimated line delta for SKILL.md).
 
-Present the plan and wait for explicit approval. The user must say yes before execution proceeds. If the user redirects or says "not yet", stay in Phase 1 or 2; do not proceed to Phase 3.
+Present the plan and offer the user three explicit options:
 
-**Under `/dso:dryrun`**: Still ask for approval, but note that dry-run mode will skip the write steps.
+1. **Approve** — proceed to Phase 3.
+2. **Red-team review first** — dispatch an opus sub-agent to adversarially scrutinize the plan; revise based on findings; re-present.
+3. **Revise** — user pushes back on specific items; rework Phase 1 / Phase 2 and re-present.
+
+Do not assume option 1 is the default. State the three options. Wait for the user's choice.
+
+**Under `/dso:dryrun`**: Same three options apply; note that dry-run mode will skip the write steps if option 1 is chosen.
+
+### Phase 2.5 — Red-team review (only when user picks option 2)
+
+Launch an opus sub-agent to red-team the proposed plan. Direct the agent to:
+
+- Carefully step through scenarios the target skill may encounter and ensure that the proposed changes will improve reliability without causing regression.
+- Provide general feedback on the proposed plan.
+
+Brief the sub-agent with: full file paths to the target SKILL.md and any extracted helpers, the complete plan (every change, every classification table entry), and a starter list of scenarios to walk (happy path, every error branch the skill currently handles, every gate the plan compresses or removes, every contract the plan extracts). Ask the sub-agent to add scenarios beyond the seed list.
+
+Output format the sub-agent should use:
+
+- **Scenarios walked** — each scenario, expected behavior under the new plan, verdict (OK / RISK / BUG).
+- **Specific concerns (numbered)** — claim, evidence (file:line or scenario), severity (blocker / important / nit), suggested fix.
+- **Gate misclassifications (if any)** — item, current class, proposed class, reason.
+- **General feedback** — bulleted observations.
+
+When the sub-agent returns, **critically evaluate each finding for validity before acting on it**. Do not blindly accept; do not blindly reject. For each finding, write one of:
+
+- **Accept** — revise the plan accordingly.
+- **Partially accept** — revise with a narrower fix.
+- **Reject** — explain why the concern doesn't hold.
+
+Present the revised plan with explicit "accepted / partially accepted / rejected" status per finding, then return to the three-option gate at the top of Phase 2. The user may red-team again if substantial changes were made, approve, or revise further.
 
 ## Phase 3 — Script relocation (skill-scoped scripts only)
 
@@ -193,15 +223,23 @@ PY
 
 ### Triage
 
-A flagged test is a **change detector** if:
-- It greps for a prose phrase that could be reworded while preserving meaning: e.g., `"always generate.*adr"`, `"single.*confirmation"`, `"append-only"`, `"open-ended questions"`, `"check in.*decision|run autonomously"`.
+**Callers test (decisive)**: a string is a gate ONLY if something else binds to its exact spelling — a `source` block calls the function, a parser regex matches a signal, a config reader matches a key, Step N writes a variable that Step M reads, a hook scans for the path. No binding caller → not a gate, regardless of how name-shaped the string looks.
 
-A flagged test is **NOT a change detector** (keep) if it greps for any of:
-- YAML frontmatter keys, `SUB-AGENT-GUARD`, file-path contract references to shared prompts (`shared/prompts/*.md`).
-- Tag constants (`scrutiny:pending`), signal labels (`FEASIBILITY_GAP`, `REPLAN_ESCALATE`), config key names (`version.file_path`).
-- Literal script/command names (`dso-setup.sh`, `/dso:brainstorm`), helper function names (`_dso_pv_entry_check`).
-- Structural markers (`^## Phase`, `^### Step`).
-- NEGATIVE tests asserting absence of a forbidden pattern.
+**Keep** if the grep target has a binding caller:
+- Function names sourced/invoked elsewhere, signal labels (`FEASIBILITY_GAP`), tag constants (`scrutiny:pending`), config keys (`version.file_path`), cross-step variables, file paths consumers read, frontmatter keys, `SUB-AGENT-GUARD`, structural markers (`^## Phase`, `^### Step`), NEGATIVE assertions.
+
+**Remove** if the grep target has no binding caller:
+- Prose phrases that could be reworded preserving meaning (`"always generate.*adr"`, `"open-ended questions"`).
+- **CLI command literals in instruction prose** (`git stash`, `ticket create ...`, `git log main..HEAD`) — the agent calls the *concept*, not the literal string; the same behavior has many valid implementations.
+
+**Structural anchors don't sanctify the inner assertion.** Narrowing the search region (`awk '/A/,/B/'`, `^### .* Title`) only changes *where* the test looks; classification depends on *what* it asserts inside.
+
+| Inner assertion | Binding caller? | Verdict |
+|---|---|---|
+| `RATIONALIZED_FAILURES_FROM_STEP_5` | Step N reads what Step M wrote | gate |
+| `sweep_tool_errors` | `source ...; sweep_tool_errors` | gate |
+| `git stash` | none — baseline check has many forms | change detector |
+| `ticket create` | none — one invocation among alternatives | change detector |
 
 When in doubt, **keep**.
 

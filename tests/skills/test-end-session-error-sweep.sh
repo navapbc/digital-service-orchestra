@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2030,SC2031,SC2154  # TICKET_CMD intentionally subshell-local per test; _fail_snapshot set by assert.sh _snapshot_fail
 # tests/skills/test-end-session-error-sweep.sh
-# Tests for skills/end-session/error-sweep.sh sweep_tool_errors()
+# Tests for scripts/end-session/error-sweep.sh sweep_tool_errors()
 #
 # Each test:
 #   - Creates an isolated TEST_HOME=$(mktemp -d)
@@ -17,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-ERROR_SWEEP="$DSO_PLUGIN_DIR/skills/end-session/error-sweep.sh"
+ERROR_SWEEP="$DSO_PLUGIN_DIR/scripts/end-session/error-sweep.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -588,55 +589,28 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_skill_sweep_before_commit
-# SKILL.md must have Step 2.9 containing both sweep function calls
-# (sweep_tool_errors and sweep_validation_failures) before Step 3 (Commit).
-# This verifies the sweep was relocated from Step 5.75 to Step 2.9.
+# Both sweep function invocations (sweep_tool_errors, sweep_validation_failures)
+# must appear in SKILL.md before the Commit Local Changes step. This is a
+# structural ordering gate — if the sweep is moved post-commit, any tickets
+# created by it would not be captured in the same merge.
 # ---------------------------------------------------------------------------
 _snapshot_fail
-SKILL_MD="${CLAUDE_PLUGIN_ROOT}/skills/end-session/SKILL.md"
-# Step 2.9 must exist
-if grep -q '2\.9\.' "$SKILL_MD" 2>/dev/null; then
-    has_step_29="found"
-else
-    has_step_29="missing"
-fi
-assert_eq "test_skill_sweep_step_2_9_exists" "found" "$has_step_29"
-# Both sweep functions must appear under Step 2.9 (before Step 3)
-step_29_to_step3=$(awk '/2\.9\./,/^### 3\./' "$SKILL_MD" 2>/dev/null || true)
-if grep -q 'sweep_tool_errors' <<< "$step_29_to_step3"; then
+SKILL_MD="$DSO_PLUGIN_DIR/skills/end-session/SKILL.md"
+# The sweep section must appear before the Commit Local Changes step.
+sweep_pre_commit=$(awk '/Sweep Error Counters/,/^### .* Commit Local Changes/' "$SKILL_MD" 2>/dev/null || true)
+if grep -q 'sweep_tool_errors' <<< "$sweep_pre_commit"; then
     has_tool_errors="found"
 else
     has_tool_errors="missing"
 fi
 assert_eq "test_skill_sweep_before_commit_tool_errors" "found" "$has_tool_errors"
-if grep -q 'sweep_validation_failures' <<< "$step_29_to_step3"; then
+if grep -q 'sweep_validation_failures' <<< "$sweep_pre_commit"; then
     has_validation_failures="found"
 else
     has_validation_failures="missing"
 fi
 assert_eq "test_skill_sweep_before_commit_validation_failures" "found" "$has_validation_failures"
-# Step 5.75 must NOT remain in SKILL.md
-if grep -q '5\.75\.' "$SKILL_MD" 2>/dev/null; then
-    still_has_5_75="yes"
-else
-    still_has_5_75="no"
-fi
-assert_eq "test_skill_no_step_5_75" "no" "$still_has_5_75"
 assert_pass_if_clean "test_skill_sweep_before_commit"
-
-# ---------------------------------------------------------------------------
-# test_error_sweep_header_references_step_2_9
-# error-sweep.sh header comment must reference Step 2.9 (not Step 5.75).
-# ---------------------------------------------------------------------------
-_snapshot_fail
-ERROR_SWEEP_HEADER_FILE="${CLAUDE_PLUGIN_ROOT}/skills/end-session/error-sweep.sh"
-if grep -q '2\.9' "$ERROR_SWEEP_HEADER_FILE" 2>/dev/null; then
-    has_step_29_ref="found"
-else
-    has_step_29_ref="missing"
-fi
-assert_eq "test_error_sweep_header_references_step_2_9" "found" "$has_step_29_ref"
-assert_pass_if_clean "test_error_sweep_header_references_step_2_9"
 
 # ---------------------------------------------------------------------------
 # test_validation_sweep_ticket_create_failure_graceful

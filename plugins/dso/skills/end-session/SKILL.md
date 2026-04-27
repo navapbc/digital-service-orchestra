@@ -19,9 +19,9 @@ All steps run from the worktree directory — no `cd` needed.
 
 | Argument | Description |
 |----------|-------------|
-| `--bump <type>` | Forward version bump type (`minor`, `patch`, `major`) to `merge-to-main.sh --bump <type>`. When provided by the caller (e.g., `/dso:sprint` passes `--bump minor`), forward it to the merge script in Step 4. |
+| `--bump <type>` | Forward version bump type (`minor`, `patch`, `major`) to `merge-to-main.sh --bump <type>`. When provided by the caller (e.g., `/dso:sprint` passes `--bump minor`), forward it to the merge script in Step 11. |
 
-Parse arguments at skill activation. If `--bump <type>` is present, store `BUMP_ARG="--bump <type>"` for use in Step 4. If absent, `BUMP_ARG=""`.
+Parse arguments at skill activation. If `--bump <type>` is present, store `BUMP_ARG="--bump <type>"` for use in Step 11. If absent, `BUMP_ARG=""`.
 
 ## Steps
 
@@ -35,65 +35,26 @@ Run `test -f .git`. If `.git` is a directory (not a file), abort: "This command 
 3. Ask user which to close. Close confirmed: `.claude/scripts/dso ticket transition <id> open closed` for each. **Bug tickets require** `--reason="Fixed: <summary>"` — omitting it causes a silent failure.
 4. **Skip if no in-progress issues** — this is common when called after `/dso:debug-everything` or `/dso:sprint`, which close their own issues. Report: "No in-progress issues to close (already handled)."
 
-### 2.5. Close Orphaned Epics (safety net)
+### 3. Close Orphaned Epics (safety net)
 
-When `/dso:sprint` is interrupted by context compaction or a control-flow issue, the epic may remain `in_progress` even though all children are closed. This step catches that case.
+Catches epics left `in_progress` after `/dso:sprint` is interrupted (context compaction or control-flow issue) even though all children are closed. Enumeration + session-relatedness lives in `check-orphan-epics.sh`; closure decisions stay here.
 
-1. List in-progress epics:
-   ```bash
-   .claude/scripts/dso ticket list --type epic --status in_progress
-   ```
-   If none, skip this step.
+```bash
+.claude/scripts/dso end-session/check-orphan-epics.sh
+```
 
-2. For each in-progress epic, check whether all children are closed (3a6a-b291: enumerate children via parent_id, NOT `ticket deps` which shows dependency relations):
-   ```bash
-   .claude/scripts/dso ticket list --parent=<epic-id> 2>/dev/null | python3 -c "
-   import json, sys
-   children = json.loads(sys.stdin.read())
-   open_children = [t for t in children if t.get('status') != 'closed']
-   if not children:
-       print('NO_CHILDREN')
-   elif open_children:
-       print(f'OPEN_CHILDREN:{len(open_children)}')
-       for c in open_children:
-           print(f'  {c[\"ticket_id\"]} [{c.get(\"status\")}] {c.get(\"title\",\"\")[:60]}')
-   else:
-       print('ALL_CLOSED')
-   "
-   ```
-   - `ALL_CLOSED` (and at least one child): the epic is a candidate.
-   - `OPEN_CHILDREN`: the epic is NOT a candidate — do NOT close it.
-   - `NO_CHILDREN`: skip (no children to verify).
+Output is a JSON array `[{epic_id, title, child_status, session_related, match_reason}]`. For each entry:
 
-3. For each candidate, verify the work is related to this session by checking whether any commit on this worktree branch references the epic or its children:
-   ```bash
-   REPO_ROOT=$(git rev-parse --show-toplevel)
-   # Collect child IDs from the dep tree output (all lines except the first/root)
-   # Check worktree commits (unmerged) first, then recent main commits from this worktree
-   COMMITS=$(git log main..HEAD --oneline 2>/dev/null)
-   [ -z "$COMMITS" ] && COMMITS=$(git log --oneline -30 main)
-   ```
-   An epic is **session-related** if any of these match:
-   - A commit message contains the epic ID or any child task ID
-   - A commit message contains keywords from the epic title (match 2+ non-trivial words)
-   - The sprint context passed to `/dso:end-session` names this epic
+- `child_status: "no_children"` — skip silently.
+- `child_status: "open_children"` — do NOT close. Report it as still in progress.
+- `child_status: "all_closed"` AND `session_related: true` — closeable candidate. Confirm with the user that completion criteria are met and the completion verifier was run this session. Close ONLY if the user confirms OR the sprint context passed to end-session includes `overall_verdict: PASS` from a prior completion-verifier dispatch:
+  ```bash
+  .claude/scripts/dso ticket transition <epic-id> in_progress closed --reason="Epic complete: all children closed (safety-net close by /dso:end-session, verifier confirmed by user)"
+  ```
+  If the user cannot confirm and no verifier result is available, do NOT close — ask them to run `/dso:sprint` Phase 6 to complete verification first.
+- `child_status: "all_closed"` AND `session_related: false` — report informationally, do not close: `"Note: Epic <epic-id> (<title>) has all children closed but was not worked on in this session. Consider closing it manually."`
 
-   If no commits match, the epic is **not** related to this session — skip it.
-
-4. For each session-related candidate, verify before closing (a36a-3daa gate): Confirm with the user that the epic's completion criteria have been met and that the completion verifier was run during this sprint session. If the user confirms OR if the sprint context passed to end-session includes `overall_verdict: PASS` from a prior completion-verifier dispatch, close it:
-   ```bash
-   .claude/scripts/dso ticket transition <epic-id> in_progress closed --reason="Epic complete: all children closed (safety-net close by /dso:end-session, verifier confirmed by user)"
-   ```
-   If the user cannot confirm and no verifier result is available, do NOT close the epic — report it as open and ask the user to run `/dso:sprint` Phase 6 to complete verification before closing.
-   
-   Report: `"Closed orphaned epic <epic-id>: <title> (all children were already closed, closure confirmed by user)."`
-
-5. If any candidate has all children closed but is **not** session-related, report it as informational without closing:
-   ```
-   Note: Epic <epic-id> (<title>) has all children closed but was not worked on in this session. Consider closing it manually.
-   ```
-
-### 2.75. Release debug-everything Session Lock (if held by this worktree)
+### 4. Release debug-everything Session Lock (if held by this worktree)
 
 ```bash
 .claude/scripts/dso release-debug-lock.sh "Session complete"
@@ -102,13 +63,13 @@ When `/dso:sprint` is interrupted by context compaction or a control-flow issue,
 **If released**: note it in the session summary.
 **If not found or belongs to another worktree**: skip silently (one-line report is fine).
 
-### 2.77. Rationalized Failures Accountability (pre-commit)
+### 5. Rationalized Failures Accountability (pre-commit)
 
-Silently scan the conversation context for failures that were observed but not fixed during this session. Store results as `RATIONALIZED_FAILURES_FROM_2_77` for display in Step 6.
+Silently scan the conversation context for failures that were observed but not fixed during this session. Store results as `RATIONALIZED_FAILURES_FROM_STEP_5` for display in Step 14.
 
 **Conversation Context Scan**: Review the full conversation for any error output, test failures noted but not fixed, validation issues acknowledged, or rationalization phrases such as "pre-existing", "infrastructure issue", "known issue", "not related to this session". Collect each distinct failure into a numbered list.
 
-**If no failures found**: skip display entirely — store an empty list in `RATIONALIZED_FAILURES_FROM_2_77` and proceed silently to Step 2.8.
+**If no failures found**: skip display entirely — store an empty list in `RATIONALIZED_FAILURES_FROM_STEP_5` and proceed silently to Step 6.
 
 For each failure found, ask the following accountability questions:
 
@@ -147,13 +108,13 @@ Where `<priority>` is assigned based on actual severity:
 - Session-introduced failures: use priority 1 for blocking failures (tests fail, CI would fail, functionality broken), priority 2 for degraded-but-functional issues
 - Pre-existing failures: use priority 2 as default; lower to priority 3 for clearly minor issues (cosmetic, flaky tests, non-blocking warnings)
 
-**Store results**: Collect all rationalized failures (with their accountability answers and ticket IDs) into `RATIONALIZED_FAILURES_FROM_2_77` for Step 6. If no failures were found, store an empty list.
+**Store results**: Collect all rationalized failures (with their accountability answers and ticket IDs) into `RATIONALIZED_FAILURES_FROM_STEP_5` for Step 14. If no failures were found, store an empty list.
 
-**This step runs silently** — do not print findings here. Step 6 will display them.
+**This step runs silently** — do not print findings here. Step 14 will display them.
 
-### 2.8. Extract Technical Learnings (pre-commit)
+### 6. Extract Technical Learnings (pre-commit)
 
-Silently scan the git diff and conversation context to extract technical learnings before committing. Store the results for display in Step 6.
+Silently scan the git diff and conversation context to extract technical learnings before committing. Store the results for display in Step 14.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -166,15 +127,15 @@ Review the diff output and conversation history for signal. Identify:
 - **Design decisions**: Choices made and why (e.g., "Used sentinel value max_tokens=0 instead of None to distinguish 'unset' from 'default'")
 - **Gotchas**: Edge cases, footguns, or surprising behavior that future sessions should know (e.g., "SQLAlchemy flushes on query, so tests must commit before asserting DB state")
 
-**Store the results in a named section** called `LEARNINGS_FROM_2_8` for use in Step 6. If nothing substantive is found, store an empty list.
+**Store the results in a named section** called `LEARNINGS_FROM_STEP_6` for use in Step 14. If nothing substantive is found, store an empty list.
 
 Focus on reusable knowledge. Exclude: workflow phases run, git operations performed, tool usage counts, issue IDs closed.
 
-**This step runs silently** — do not print the learnings here. Step 6 will display them.
+**This step runs silently** — do not print the learnings here. Step 14 will display them.
 
-### 2.85. Create Bug Tickets from Learnings (pre-commit)
+### 7. Create Bug Tickets from Learnings (pre-commit)
 
-Review the `LEARNINGS_FROM_2_8` list stored in Step 2.8. For each learning, ask: "Should this be a bug ticket?" Follow `skills/create-bug/SKILL.md` for the required format:
+Review the `LEARNINGS_FROM_STEP_6` list stored in Step 6. For each learning, ask: "Should this be a bug ticket?" Follow `skills/create-bug/SKILL.md` for the required format:
 
 ```bash
 # Title format: [Component]: [Condition] -> [Observed Result]
@@ -190,15 +151,15 @@ Create a bug ticket for any learning that describes:
 
 Do NOT create tickets for neutral observations, design decisions, or already-fixed issues.
 
-If no learnings qualify, skip silently. Any tickets created here will be committed and merged as part of the normal `/dso:end` flow in Steps 3–4.
+If no learnings qualify, skip silently. Any tickets created here will be committed and merged as part of the normal `/dso:end-session` flow in Steps 9–11.
 
-### 2.9. Sweep Error Counters and Validation Failures (pre-commit)
+### 8. Sweep Error Counters and Validation Failures (pre-commit)
 
 Run both error sweeps before committing so that any tickets created are included in the same commit.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "${CLAUDE_PLUGIN_ROOT}/skills/end-session/error-sweep.sh"
+source "${CLAUDE_PLUGIN_ROOT}/scripts/end-session/error-sweep.sh"  # shim-exempt: source-as-library; shim dispatches subprocesses, not in-shell sources
 sweep_tool_errors
 sweep_validation_failures
 ```
@@ -207,18 +168,18 @@ sweep_validation_failures
 
 `sweep_validation_failures` reads `$ARTIFACTS_DIR/untracked-validation-failures.log`, extracts unique failure categories, deduplicates against existing open bug tickets, and creates a bug ticket for each untracked category. If the log file is absent or empty the step exits 0 silently.
 
-### 3. Commit Local Changes
+### 9. Commit Local Changes
 1. Run `git status`. If changes exist: read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline (do NOT invoke `/dso:commit` via Skill tool — orchestrators execute the workflow directly).
 2. **If clean: skip.** Report: "Working tree clean — nothing to commit."
 
-### 3.5. Visual Baseline Comparison
+### 10. Visual Baseline Comparison
 
 1. Read baseline dir from config: `BASELINE_DIR=$(".claude/scripts/dso read-config.sh" visual.baseline_directory 2>/dev/null || true)` — if empty, skip this step (no visual config). Otherwise run `git diff main -- "$BASELINE_DIR" --stat` — if empty, skip this step.
 2. Run `.claude/scripts/dso verify-baseline-intent.sh`
 3. **Exit 0** → proceed, report the intended baseline changes in the session summary.
 4. **Exit 2** → baseline changes with no design manifests. Debug using `/dso:playwright-debug` (Playwright MCP authorized). If regression confirmed: `.claude/scripts/dso ticket create bug "Visual regression: <details>" --priority 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/dso:preplanning` on the story (which dispatches `dso:ui-designer` to generate design artifacts) or create the manifest retroactively.
 
-### 4. Sync Tickets and Merge to Main
+### 11. Sync Tickets and Merge to Main
 
 First, check if the branch has already been merged:
 
@@ -231,7 +192,7 @@ git log main..$BRANCH --oneline
 **If no unmerged commits** (output is empty): the branch was already merged to main by a prior phase (e.g., `/dso:debug-everything` Phase L). Skip the merge script. Report: "Branch already merged to main — skipping merge." **Still push the tickets branch** — ticket-only sessions (brainstorming, bug creation, description enrichment) make no code changes but do modify the tickets orphan branch. Without an explicit push here, those changes are lost when the ephemeral session environment is destroyed:
 
 ```bash
-TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+TRACKER_DIR="$REPO_ROOT/.tickets-tracker"  # tickets-boundary-ok: load-bearing — push tickets branch when merge script is skipped
 if [ -d "$TRACKER_DIR" ] && git -C "$TRACKER_DIR" rev-parse --verify origin/tickets &>/dev/null; then
     git -C "$TRACKER_DIR" push origin tickets --quiet 2>&1 || echo "WARNING: tickets branch push failed — ticket changes may be lost"
 fi
@@ -244,12 +205,7 @@ fi
 ls .claude/scripts/dso 2>/dev/null && .claude/scripts/dso merge-to-main.sh --help 2>&1 | head -2 || true
 ```
 If the shim is missing or the dispatch fails with "command not found" (b068-94b4): do NOT perform a manual merge. Stop and report: "Error: .claude/scripts/dso shim not found or merge-to-main.sh not available. Run: bash scripts/update-shim.sh to update the shim, then retry." Never manually merge as a fallback — the DSO merge workflow ensures proper state management (ticket sync, version bump, CI trigger). # shim-exempt: update-shim.sh must be called directly when the shim itself is missing
-<!-- REVIEW-DEFENSE: The # shim-exempt: annotation above is verified to suppress both enforcement hooks:
-  (1) check-shim-refs.sh uses perl -ne '/# shim-exempt:/ and next' — this line is skipped.
-  (2) test-skill-script-paths.sh EXCLUDE_PATTERNS now includes "shim-exempt:" — matches are filtered.
-  Both hooks were confirmed passing (exit 0) after this annotation was added. The prose context
-  (error message telling users to run the script manually) is exactly the case shim-exempt exists for:
-  when the shim itself is unavailable, direct plugin script invocation is the recovery action. -->
+<!-- REVIEW-DEFENSE: # shim-exempt: above is load-bearing — suppresses check-shim-refs.sh and test-skill-script-paths.sh; required because the shim itself is the missing dependency. -->
 
 ```bash
 .claude/scripts/dso merge-to-main.sh ${BUMP_ARG:-}
@@ -262,14 +218,14 @@ After merge-to-main.sh completes successfully, write a WORKTREE_TRACKING:landed 
 (Only when TICKET_ID context is available. Skip silently if not set.)
 
 If the script output begins with `ESCALATE:` (retry budget exhausted — merge-to-main.sh has failed the maximum number of times):
-**STOP immediately. Do NOT diagnose, retry, or continue.** Present the ESCALATE message verbatim to the user and ask for guidance. Do NOT proceed to Step 4.75 or any subsequent step. Example:
+**STOP immediately. Do NOT diagnose, retry, or continue.** Present the ESCALATE message verbatim to the user and ask for guidance. Do NOT proceed to Step 12 or any subsequent step. Example:
 > Merge failed after repeated attempts. Script message: `<ESCALATE output>`. Please advise how to proceed.
 
 If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-ticket files):
-1. Before invoking resolution, capture the current working tree state: run `git status --short` and report to the user: "Merge conflict detected. Current working tree state captured — do not stop the session until Step 4.75 confirms is_clean."
+1. Before invoking resolution, capture the current working tree state: run `git status --short` and report to the user: "Merge conflict detected. Current working tree state captured — do not stop the session until Step 12 confirms is_clean."
 2. Invoke `/dso:resolve-conflicts` to attempt agent-assisted resolution.
-3. If resolution succeeds: continue to Step 5.
-4. If resolution is abandoned (merge aborted): run `git status --short` immediately and report ALL dirty files to the user before proceeding. Do NOT continue to Step 4.75 silently — the user must confirm their work is intact.
+3. If resolution succeeds: continue to Step 12.
+4. If resolution is abandoned (merge aborted): run `git status --short` immediately and report ALL dirty files to the user before proceeding. Do NOT continue to Step 12 silently — the user must confirm their work is intact.
 
 If the script reports a non-conflict ERROR:
 1. **Before giving up, diagnose the main repo state.** Run:
@@ -277,29 +233,19 @@ If the script reports a non-conflict ERROR:
    MAIN_REPO=$(dirname "$(git rev-parse --git-common-dir)")
    git -C "$MAIN_REPO" status --short
    ```
-2. If the output shows staged or modified files (lines beginning with `M`, `A`, `D`, `R`, `C`, or `??` for non-`.tickets-tracker/` paths):
+2. If the output shows staged or modified files (lines beginning with `M`, `A`, `D`, `R`, `C`, or `??` for non-`.tickets-tracker/` paths):  <!-- # tickets-boundary-ok: prose path-pattern reference, not direct access -->
    - Run `git -C "$MAIN_REPO" reset HEAD` to unstage all staged files.
    - Run `git -C "$MAIN_REPO" checkout .` to discard tracked modifications.
    - Run `git -C "$MAIN_REPO" clean -fd` to remove untracked files.
    - Report to the user: "Cleared stale main repo git state (staged/dirty index). Retrying merge."
    - Retry: `.claude/scripts/dso merge-to-main.sh ${BUMP_ARG:-}`
-   - If the retry succeeds: continue to Step 5.
+   - If the retry succeeds: continue to Step 12.
    - If the retry fails: relay the new error message to the user and stop.
 3. If the main repo is clean and the error persists: relay the original error message to the user and stop.
 
-> **CRITICAL**: When resolving merge conflicts that involve `.tickets-tracker/` event files, do NOT use `git merge -X ours` — this would silently discard incoming ticket events from main and corrupt the event log. Instead, resolve `.tickets-tracker/` conflicts per-file using `git checkout --ours` on each conflicted JSON event file individually (they are append-only and safe to accept ours per-file). `/dso:resolve-conflicts` handles this automatically.
+> **CRITICAL**: When resolving merge conflicts that involve `.tickets-tracker/` event files, do NOT use `git merge -X ours` — this would silently discard incoming ticket events from main and corrupt the event log. Instead, resolve `.tickets-tracker/` conflicts per-file using `git checkout --ours` on each conflicted JSON event file individually (they are append-only and safe to accept ours per-file). `/dso:resolve-conflicts` handles this automatically.  <!-- # tickets-boundary-ok: data-integrity warning prose, not direct access -->
 
-### 4.5. Sync Tickets to Jira
-
-<!-- Jira sync temporarily disabled — run `.claude/scripts/dso ticket sync` manually when ticket system is stabilized. -->
-
-> **Jira sync temporarily disabled.** Automatic `.claude/scripts/dso ticket sync` invocation has been removed from
-> this step to prevent exit-144 timeouts caused by the growing ticket ledger. To sync
-> tickets to Jira, run `.claude/scripts/dso ticket sync` manually after the session ends.
-
-Skip this step entirely.
-
-### 4.75. Final Worktree Verification (is_merged + is_clean)
+### 12. Final Worktree Verification (is_merged + is_clean)
 
 <!-- Mirrors the exact can_remove logic in claude-safe's _offer_worktree_cleanup function.
      Keep these two in sync when either is changed. -->
@@ -340,94 +286,28 @@ Report: "Worktree verified clean and merged — claude-safe can auto-remove."
   - **If `is_merged` passed** (branch already merged to main): the dirty files are either already in main or are debug artifacts. Offer to discard them: show the diff summary, then ask the user to confirm discard. If confirmed, run `git checkout .` to restore tracked files and `git clean -fd` to remove untracked files. Do NOT discard without user confirmation.
   - **If `is_merged` failed**: attempt to commit forgotten files if the fix is obvious; otherwise ask the user.
 
-Re-run both checks after any resolution attempt. Do not proceed to Step 5 until both pass.
+Re-run both checks after any resolution attempt. Do not proceed to Step 13 until both pass.
 
-### 5. Verify Clean Worktree State
+### 13. Clean Up Artifacts Directory
 
-**Note**: The is_merged and is_clean checks in Step 4.75 subsume the core safety requirements of this step. Step 5's four-condition check provides additional granularity (distinguishing staged vs. unstaged vs. untracked changes) but is secondary to the Step 4.75 gate.
-
-**This step is mandatory — do not skip it.**
-
-After the merge script completes, verify the **worktree** has no leftover changes (do NOT check main — main may have pre-existing unrelated dirty files):
+Removes the `.playwright-cli/` state directory, kills orphaned `@playwright/cli`-spawned browser processes, and deletes hash-suffixed `config-cache-*` files from the artifacts directory. The primary `config-cache` file (no suffix) is preserved.
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-cd "$REPO_ROOT"
-git status --porcelain
+.claude/scripts/dso end-session/end-session-cleanup.sh
 ```
 
-**All four conditions must be true** before proceeding:
-- No unstaged changes (`git diff --quiet`)
-- No uncommitted staged changes (`git diff --cached --quiet`)
-- No unmerged paths (`git diff --name-only --diff-filter=U` is empty)
-- No untracked files (`git ls-files --others --exclude-standard` is empty)
+### 14. Report: Task Summary and Completion
 
-If any condition fails:
-1. Report the dirty files and which condition(s) failed.
-2. Attempt to resolve if the fix is obvious (e.g., stage and commit forgotten files, complete a trivial merge, delete generated artifacts like `.png` or `.log` files).
-3. If you cannot determine how to resolve the situation, **ask the user** what they would like to do before proceeding.
-4. **Do not report completion** until all four conditions pass. Re-run the checks after any resolution attempt.
+Display a session summary using the stored lists from Steps 5 and 6 — do NOT re-scan the diff or conversation.
 
-### 5.5. Clean Up Artifacts Directory
+**Rationalized Failures** (omit if `RATIONALIZED_FAILURES_FROM_STEP_5` is empty): per failure, show the description, pre-existing vs session-introduced, and the bug ticket ID created or referenced.
 
-Remove stale config-cache files from the workflow artifacts directory. These accumulate over sessions (one per unique config path hash) and cause I/O overhead in hooks that scan the directory.
+**Technical Learnings** (omit if `LEARNINGS_FROM_STEP_6` is empty): show **Discoveries** (non-obvious system behavior), **Design decisions** (choices and why), **Gotchas** (edge cases / footguns).
 
-Also remove the `.playwright-cli/` state directory and kill any orphaned Chrome/Chromium browser processes spawned by `@playwright/cli` during this session:
+**Task Summary**:
+- Epic ID and title (if `/dso:sprint` or `/dso:debug-everything` was running).
+- Tasks completed this session: `git log main..HEAD --oneline`; if empty (already merged), inspect `git log --oneline -20 main` and identify commits from this worktree by their merge commit messages.
+- Tasks remaining (IDs, titles, blocked status if known).
+- Resume command if work remains: `/dso:sprint <epic-id>` or "Run `/dso:debug-everything` again".
 
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-
-# Clean up Playwright CLI state directory
-if [ -d "$REPO_ROOT/.playwright-cli" ]; then
-    rm -rf "$REPO_ROOT/.playwright-cli"
-    echo "Removed .playwright-cli/ state directory"
-fi
-
-# Kill orphaned Playwright-launched Chrome/Chromium processes
-# Uses ERE alternation (bare |, not \|) — macOS pgrep requires ERE syntax
-ORPHAN_CHROME=$(pgrep -u "$(id -u)" -f "playwright.*cli.*chromium|chromium.*playwright.*cli|\.playwright-cli.*chrome|ms-playwright.*chromium|chrom.*remote-debugging-pipe|remote-debugging-pipe.*chrom" 2>/dev/null || true)
-if [ -n "$ORPHAN_CHROME" ]; then
-    CHROME_COUNT=$(echo "$ORPHAN_CHROME" | wc -l | tr -d ' ')
-    echo "$ORPHAN_CHROME" | xargs kill 2>/dev/null || true
-    echo "Killed $CHROME_COUNT orphaned Playwright browser process(es)"
-fi
-
-source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
-ARTIFACTS_DIR=$(get_artifacts_dir)
-CACHE_COUNT=$(find "$ARTIFACTS_DIR" -name 'config-cache-*' -type f 2>/dev/null | wc -l | tr -d ' ')
-if [ "$CACHE_COUNT" -gt 0 ]; then
-    find "$ARTIFACTS_DIR" -name 'config-cache-*' -type f -delete
-    echo "Cleaned up $CACHE_COUNT stale config-cache files from $ARTIFACTS_DIR"
-fi
-```
-
-Keep the primary `config-cache` file (no suffix) — only delete the hash-suffixed variants.
-
-### 6. Report: Task Summary and Completion
-
-Display a comprehensive session summary using stored learnings from Step 2.8.
-
-**Rationalized Failures** — display the stored failures from `RATIONALIZED_FAILURES_FROM_2_77` (omit if empty). For each failure, show: the failure description, whether it was pre-existing or session-introduced, and the bug ticket ID created or referenced. If `RATIONALIZED_FAILURES_FROM_2_77` is empty, omit this section entirely.
-
-**Technical Learnings** — display the stored learnings generated in Step 2.8 (omit if empty). Do not re-scan the git diff or conversation — show what was captured before the commit.
-
-Display each category from `LEARNINGS_FROM_2_8`:
-- **Discoveries**: Non-obvious findings about how the system behaves
-- **Design decisions**: Choices made and why
-- **Gotchas**: Edge cases, footguns, or surprising behavior future sessions should know
-
-**Task Summary** (gathered from git log and tickets):
-- Epic ID and title (if a `/dso:sprint` or `/dso:debug-everything` was running)
-- Tasks completed this session. Check both:
-  - `git log main..HEAD --oneline` (unmerged commits on this branch)
-  - If empty (already merged): `git log --oneline -20 main` and identify commits from this worktree branch by their merge commit messages
-- Tasks remaining (if context is available: IDs, titles, blocked status)
-- Resume command (if work remains): `/dso:sprint <epic-id>` or "Run `/dso:debug-everything` again"
-
-**Session Summary**:
-- Issues closed (count, with IDs)
-- Commits made (count and final SHA on main)
-- Branch merged/pushed (or "already merged by prior phase")
-- Worktree cleanup status
-
-### 7. Session Complete
+**Session Summary**: issues closed (count + IDs), commits made (count + final SHA on main), branch merged/pushed (or "already merged by prior phase"), worktree cleanup status.
