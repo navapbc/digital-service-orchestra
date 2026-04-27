@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Escalated: SC nesting violation in worktree-cleanup.sh requires extensive function extraction (too large for autonomous fix). Needs a dedicated refactor sprint."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777306724411735000,"uuid":"0e48de04-dd23-4ae4-99c1-fa5bc35cc70e"}
