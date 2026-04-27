@@ -299,3 +299,5 @@ tests/scripts/test-sigpipe-canary.sh:tests/scripts/test-sigpipe-canary.sh
 plugins/dso/scripts/onboarding/provision-ruleset.sh:tests/scripts/test-provision-ruleset.sh
 plugins/dso/scripts/onboarding/validate-required-checks.sh:tests/scripts/test-validate-required-checks.sh
 plugins/dso/scripts/onboarding/github-bootstrap.sh:tests/scripts/test-github-bootstrap.sh
+tests/scripts/test-ci-enforcement-e2e.sh [test_opt_in_gate_exits_zero_skip]:tests/scripts/test-ci-enforcement-e2e-behavioral.sh
+tests/scripts/test-ci-enforcement-e2e.sh:tests/scripts/test-ci-enforcement-e2e-behavioral.sh
