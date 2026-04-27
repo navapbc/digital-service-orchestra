@@ -84,7 +84,7 @@ Run these checks in order. They mirror the pre-commit hook suite so the diff has
    - This keeps the staged diff in sync with the formatted state.
 2. **Lint check**: `cd app && $commands.lint 2>&1 | tail -3` (on success, only summary needed; re-run with full output on failure)
 3. **Type check**: `cd app && $commands.type_check 2>&1 | tail -5` (on success, only summary needed; re-run with full output on failure)
-4. **Unit tests**: `cd app && make test-unit-only 2>&1 | tail -5` (on success, only summary needed; re-run with full output on failure)
+4. **Unit tests**: `DSO_COMMIT_WORKFLOW=1 .claude/scripts/dso record-test-status` — runs ONLY the tests mapped to staged files via `.test-index` (typically <30 tests), records `passed` + diff_hash to `test-gate-status`, and arms the pre-commit gate's fast-path. **Prerequisite: changed files must be staged (`git add -u`) before this step** — `record-test-status` hashes the staged index, so an unstaged or partially staged tree produces a `diff_hash` mismatch at the pre-commit gate. Items 1–3 above already re-stage when format modifies files; if entering REVIEW-WORKFLOW.md independently of COMMIT-WORKFLOW.md, run `git add -u` first. Do NOT run the full suite (`make test-unit-only` is prohibited per CLAUDE.md rule 19 — it exceeds the ~73s tool timeout ceiling and produces spurious failures). On a non-zero exit, re-run with full output to see which mapped test failed; fix and restart from Step 0. Falls back to the full validate command (`.claude/scripts/dso validate.sh --ci`) only if `record-test-status` is unavailable.
 
 If Docker is not available, use `python3 -m py_compile` on changed Python files as a lint fallback.
 
