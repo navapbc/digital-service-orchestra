@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# skills/end-session/error-sweep.sh
-# Library providing sweep_tool_errors() and sweep_validation_failures() for the /dso:end skill (Step 2.9).
+# scripts/end-session/error-sweep.sh
+# Library providing sweep_tool_errors() and sweep_validation_failures() for the /dso:end-session skill (Step 8 — Sweep Error Counters).
 #
 # Reads ~/.claude/tool-error-counter.json, iterates categories in .index where
 # count >= 50, and creates a deduplicated bug ticket via `ticket create` for each.
@@ -11,7 +11,7 @@
 # Counter JSON structure: {"index": {"category_name": count, ...}, "errors": [...]}
 #
 # Usage:
-#   source "${CLAUDE_PLUGIN_ROOT}/skills/end-session/error-sweep.sh"
+#   source "${CLAUDE_PLUGIN_ROOT}/scripts/end-session/error-sweep.sh"
 #   sweep_tool_errors
 
 THRESHOLD=50
@@ -19,7 +19,7 @@ THRESHOLD=50
 # Resolve ticket CLI path (v3 event-sourced system).
 # Override via TICKET_CMD env var for testing.
 _ERROR_SWEEP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TICKET_CMD="${TICKET_CMD:-$_ERROR_SWEEP_SCRIPT_DIR/../../scripts/ticket}"
+TICKET_CMD="${TICKET_CMD:-$_ERROR_SWEEP_SCRIPT_DIR/../ticket}"
 
 # Categories that are normal operational noise — counts are tracked but no ticket is created.
 # Source of truth: hooks/track-tool-errors.sh (NOISE_CATEGORIES variable).
@@ -122,7 +122,7 @@ PYEOF
 # Exits 0 in all cases (missing/malformed counter file is not an error).
 sweep_tool_errors() {
     local _SWEEP_DIR; _SWEEP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local _MONITORING; _MONITORING=$(bash "$_SWEEP_DIR/../../scripts/read-config.sh" monitoring.tool_errors 2>/dev/null || echo "false")
+    local _MONITORING; _MONITORING=$(bash "$_SWEEP_DIR/../read-config.sh" monitoring.tool_errors 2>/dev/null || echo "false")
     [[ "$_MONITORING" != "true" ]] && return 0
     local counter_file="$HOME/.claude/tool-error-counter.json"
 
