@@ -243,7 +243,7 @@ review_feedback = null
 ```
 Log: `"Design artifacts approved for story <story-id> after <review_cycle_count + 1> review cycle(s)."`
 
-**Important**: The `REVIEW_DECISION` signal referenced in earlier design-wireframe
+**Important**: The `REVIEW_DECISION` signal referenced in earlier ui-designer
 documentation does NOT apply here. The ui-designer agent does not emit
 `REVIEW_DECISION`. Any mention of `REVIEW_DECISION` in legacy prompts refers to
 the old Phase 5 that was removed from the agent.

@@ -15,7 +15,7 @@ Callers configure the review by providing:
 | `pass_threshold` | No | Minimum dimension score to pass. Default: 4 |
 | `start_stage` | No | `1` (default), `2`, or `3`. Use `2` to skip mental pre-review when caller already self-validated |
 | `max_revision_cycles` | No | Default: 3 |
-| `caller_id` | No | If the caller has a registered schema (see `scripts/validate-review-output.sh --list-callers`), pass the caller ID here to enable per-caller validation of perspectives, dimensions, and reviewer-specific finding fields. Known IDs: `roadmap`, `design-wireframe`, `implementation-plan`, `retro`, `design-review`, `architect-foundation`, `preplanning`. |
+| `caller_id` | No | If the caller has a registered schema (see `scripts/validate-review-output.sh --list-callers`), pass the caller ID here to enable per-caller validation of perspectives, dimensions, and reviewer-specific finding fields. Known IDs: `roadmap`, `ui-designer`, `implementation-plan`, `retro`, `design-review`, `architect-foundation`, `preplanning`. |
 
 ### Perspective Definition
 
@@ -36,13 +36,13 @@ Each perspective in the `perspectives` array:
 - `dimensions`: Map of dimension names to descriptions of what "passing" looks like
 - `context`: Optional extra context the reviewer should consider
 
-For complex reviewers with separate prompt files (e.g., `/dso:design-wireframe`'s reviewer prompts), the caller reads the file and passes its content as `context`.
+For complex reviewers with separate prompt files (e.g., `dso:ui-designer`'s reviewer prompts), the caller reads the file and passes its content as `context`.
 
 ---
 
 ## Stage 1: Mental Pre-Review
 
-**Skip when**: `start_stage >= 2`. Use this when the calling skill has already performed its own self-validation (e.g., `/dso:design-wireframe` Phase 4 artifact consistency check).
+**Skip when**: `start_stage >= 2`. Use this when the calling skill has already performed its own self-validation (e.g., `dso:ui-designer` Phase 4 artifact consistency check).
 
 The calling agent reviews the artifact against each perspective's dimensions. For each dimension, ask: "Would this score below {pass_threshold}?"
 

@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # tests/skills/test-design-skills-cross-stack.sh
-# Tests that abstracted design skills (design-wireframe, ui-discover) work
-# correctly with non-Flask/Jinja2 stack configurations.
+# Tests that the ui-discover skill works correctly with non-Flask/Jinja2 stack configurations.
 #
 # Validates:
-#   AC1: node-npm + react config doesn't crash either skill's adapter resolution
-#   AC2: Both skills produce meaningful output with an unrecognized adapter (graceful fallback)
-#   AC3: Both skills produce full output with Flask/Jinja2 adapter
-#   AC4: No hardcoded Flask/Jinja2 references remain in either skill's SKILL.md
+#   AC1: node-npm + react config doesn't crash adapter resolution
+#   AC2: ui-discover produces meaningful output with an unrecognized adapter (graceful fallback)
+#   AC3: ui-discover produces full output with Flask/Jinja2 adapter
+#   AC4: No hardcoded Flask/Jinja2 references remain in ui-discover SKILL.md
 #
 # Usage: bash tests/skills/test-design-skills-cross-stack.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -25,7 +24,6 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 TMPFILES=()
 trap 'rm -rf "${TMPFILES[@]}"' EXIT
 
-DESIGN_WIREFRAME_SKILL="$DSO_PLUGIN_DIR/skills/design-wireframe/SKILL.md"
 UI_DISCOVER_SKILL="$DSO_PLUGIN_DIR/skills/ui-discover/SKILL.md"
 ADAPTER_DIR="$PLUGIN_ROOT/config/stack-adapters"
 READ_CONFIG="$DSO_PLUGIN_DIR/scripts/read-config.sh"
@@ -160,18 +158,6 @@ assert_pass_if_clean "test_empty_template_engine_no_crash"
 echo ""
 echo "--- AC2: Skills handle unrecognized adapter gracefully ---"
 
-# test_design_wireframe_is_redirect_stub: design-wireframe SKILL.md is now a redirect stub
-# pointing to dso:ui-designer dispatched by preplanning (not a full skill).
-_snapshot_fail
-if grep -q 'dso:ui-designer' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null && \
-   grep -q 'preplanning' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
-    is_redirect="is_redirect_stub"
-else
-    is_redirect="not_redirect_stub"
-fi
-assert_eq "test_design_wireframe_is_redirect_stub" "is_redirect_stub" "$is_redirect"
-assert_pass_if_clean "test_design_wireframe_is_redirect_stub"
-
 # test_ui_discover_has_fallback_warning: SKILL.md documents the fallback warning
 _snapshot_fail
 if grep -q 'WARNING: No stack adapter found' "$UI_DISCOVER_SKILL" 2>/dev/null; then
@@ -182,17 +168,6 @@ fi
 assert_eq "test_ui_discover_has_fallback_warning" "has_fallback" "$has_fallback"
 assert_pass_if_clean "test_ui_discover_has_fallback_warning"
 
-# test_design_wireframe_no_sub_agent_guard: redirect stub must not have SUB-AGENT-GUARD
-# (redirect stubs do not dispatch sub-agents)
-_snapshot_fail
-if grep -q 'SUB-AGENT-GUARD' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
-    has_guard="has_guard"
-else
-    has_guard="no_guard"
-fi
-assert_eq "test_design_wireframe_no_sub_agent_guard" "no_guard" "$has_guard"
-assert_pass_if_clean "test_design_wireframe_no_sub_agent_guard"
-
 # test_ui_discover_has_generic_glob_fallback: SKILL.md has generic globs for no-adapter case
 _snapshot_fail
 if grep -q '\*\*/\*.html' "$UI_DISCOVER_SKILL" 2>/dev/null; then
@@ -202,16 +177,6 @@ else
 fi
 assert_eq "test_ui_discover_has_generic_glob_fallback" "has_generic_globs" "$has_generic"
 assert_pass_if_clean "test_ui_discover_has_generic_glob_fallback"
-
-# test_design_wireframe_redirect_explains_nesting: redirect stub explains why the skill was replaced
-_snapshot_fail
-if grep -q 'nesting\|nested\|Skill-tool' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
-    has_explanation="has_nesting_explanation"
-else
-    has_explanation="missing_nesting_explanation"
-fi
-assert_eq "test_design_wireframe_redirect_explains_nesting" "has_nesting_explanation" "$has_explanation"
-assert_pass_if_clean "test_design_wireframe_redirect_explains_nesting"
 
 # test_ui_discover_has_heuristic_fallback: mentions heuristic pattern matching
 _snapshot_fail
@@ -319,16 +284,6 @@ fi
 assert_eq "test_flask_jinja2_adapter_has_framework_detection" "has_framework_detection" "$has_fd"
 assert_pass_if_clean "test_flask_jinja2_adapter_has_framework_detection"
 
-# test_design_wireframe_redirect_has_new_workflow_steps: redirect stub shows how to use new workflow
-_snapshot_fail
-if grep -q 'dso:ui-designer.*agent\|Agent tool\|ui-designer-dispatch-protocol' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
-    has_workflow="has_new_workflow"
-else
-    has_workflow="missing_new_workflow"
-fi
-assert_eq "test_design_wireframe_redirect_has_new_workflow_steps" "has_new_workflow" "$has_workflow"
-assert_pass_if_clean "test_design_wireframe_redirect_has_new_workflow_steps"
-
 # test_ui_discover_references_adapter_loaded: SKILL.md documents adapter-loaded path
 _snapshot_fail
 if grep -q 'If.*ADAPTER_FILE.*is set' "$UI_DISCOVER_SKILL" 2>/dev/null; then
@@ -340,43 +295,11 @@ assert_eq "test_ui_discover_references_adapter_loaded" "has_loaded_path" "$has_l
 assert_pass_if_clean "test_ui_discover_references_adapter_loaded"
 
 # ==========================================================================
-# AC4: No hardcoded Flask/Jinja2 references remain in either skill's SKILL.md
+# AC4: No hardcoded Flask/Jinja2 references remain in ui-discover SKILL.md
 # (Only adapter-resolution examples and generic fallback docs are allowed)
 # ==========================================================================
 echo ""
-echo "--- AC4: No hardcoded Flask/Jinja2 references in SKILL.md ---"
-
-# test_design_wireframe_no_hardcoded_flask: no Flask references outside adapter resolution
-# Allowed references: "flask-jinja2.yaml" (adapter filename example)
-# Disallowed: hardcoded "Flask" as assumed framework
-_snapshot_fail
-# Count lines with Flask/flask that are NOT in adapter examples or comments
-hardcoded_flask_count=$(grep -c -i 'flask' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; true); hardcoded_flask_count=${hardcoded_flask_count:-0}
-# The only allowed reference is the adapter filename example "flask-jinja2.yaml"
-# Check that all Flask references are in that context
-allowed_flask=$(grep -i 'flask' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null | grep -c 'flask-jinja2' 2>/dev/null; true); allowed_flask=${allowed_flask:-0}
-non_adapter_flask=$((hardcoded_flask_count - allowed_flask))
-if [[ "$non_adapter_flask" -le 0 ]]; then
-    no_hardcoded="no_hardcoded_flask"
-else
-    no_hardcoded="has_hardcoded_flask($non_adapter_flask)"
-fi
-assert_eq "test_design_wireframe_no_hardcoded_flask" "no_hardcoded_flask" "$no_hardcoded"
-assert_pass_if_clean "test_design_wireframe_no_hardcoded_flask"
-
-# test_design_wireframe_no_hardcoded_jinja2: no Jinja2 references
-_snapshot_fail
-hardcoded_jinja_count=$(grep -c -i 'jinja2\|jinja' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; true); hardcoded_jinja_count=${hardcoded_jinja_count:-0}
-# Allow references that are in the adapter filename example or generic fallback examples
-allowed_jinja=$(grep -i 'jinja2\|jinja' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null | grep -c 'flask-jinja2\|Jinja2 adapter' 2>/dev/null; true); allowed_jinja=${allowed_jinja:-0}
-non_adapter_jinja=$((hardcoded_jinja_count - allowed_jinja))
-if [[ "$non_adapter_jinja" -le 0 ]]; then
-    no_hardcoded="no_hardcoded_jinja2"
-else
-    no_hardcoded="has_hardcoded_jinja2($non_adapter_jinja)"
-fi
-assert_eq "test_design_wireframe_no_hardcoded_jinja2" "no_hardcoded_jinja2" "$no_hardcoded"
-assert_pass_if_clean "test_design_wireframe_no_hardcoded_jinja2"
+echo "--- AC4: No hardcoded Flask/Jinja2 references in ui-discover SKILL.md ---"
 
 # test_ui_discover_no_hardcoded_flask: no Flask references outside adapter examples
 _snapshot_fail
@@ -405,18 +328,6 @@ else
 fi
 assert_eq "test_ui_discover_no_hardcoded_jinja2" "no_hardcoded_jinja2" "$no_hardcoded"
 assert_pass_if_clean "test_ui_discover_no_hardcoded_jinja2"
-
-# test_design_wireframe_redirect_points_to_preplanning: redirect stub directs users to preplanning
-# (design-wireframe is now a redirect stub; the config-driven adapter is in dso:ui-designer)
-_snapshot_fail
-if grep -q '/dso:preplanning' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null || \
-   grep -q 'preplanning' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; then
-    redirect_ok="redirect_ok"
-else
-    redirect_ok="redirect_missing"
-fi
-assert_eq "test_design_wireframe_redirect_points_to_preplanning" "redirect_ok" "$redirect_ok"
-assert_pass_if_clean "test_design_wireframe_redirect_points_to_preplanning"
 
 # test_ui_discover_uses_config_driven_adapter: SKILL.md mentions config-driven
 _snapshot_fail

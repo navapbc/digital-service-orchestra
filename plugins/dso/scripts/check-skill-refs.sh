@@ -29,7 +29,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # ── Canonical skill list ───────────────────────────────────────────────────────
 # Single source of truth. qualify-skill-refs.sh (dso-0isl) sources this file
 # and reads DSO_SKILLS to avoid drift.
-DSO_SKILLS="sprint commit review end implementation-plan preplanning debug-everything brainstorm plan-review interface-contracts resolve-conflicts retro roadmap oscillation-check design-review ui-discover validate-work tickets-health playwright-debug dryrun quick-ref fix-cascade-recovery onboarding architect-foundation fix-bug design-wireframe verification-before-completion"
+DSO_SKILLS="sprint commit review end implementation-plan preplanning debug-everything brainstorm plan-review interface-contracts resolve-conflicts retro roadmap oscillation-check design-review ui-discover validate-work tickets-health playwright-debug dryrun quick-ref fix-cascade-recovery onboarding architect-foundation fix-bug verification-before-completion"
 
 # ── Build alternation pattern ─────────────────────────────────────────────────
 _skill_alternation=""

@@ -324,7 +324,7 @@ def _validate_ticket_preconditions(
     if not figma_file_key:
         print(
             f"ERROR: No Figma file key found in ticket {ticket_id} comments. "
-            "Run the design-wireframe workflow to store the file key.",
+            "Run /dso:preplanning on the parent epic to trigger the ui-designer agent and store the file key.",
             file=sys.stderr,
         )
         return None, None
