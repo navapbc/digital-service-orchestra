@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DISPATCHER="$REPO_ROOT/plugins/dso/scripts/ticket"
 
-source "$SCRIPT_DIR/../lib/run_test.sh"
+source "$SCRIPT_DIR/../lib/assert.sh"
 source "$SCRIPT_DIR/../lib/git-fixtures.sh"
 
 echo "=== test-ticket-archive-subcommand.sh ==="
@@ -53,7 +53,12 @@ _set_in_progress() {
     (cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$DISPATCHER" transition "$ticket_id" open in_progress 2>/dev/null) || true
 }
 
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+declare -a _CLEANUP_DIRS=()
+trap 'rm -rf "${_CLEANUP_DIRS[@]:-}"' EXIT
+
 # ── Test 1: archive an open ticket ───────────────────────────────────────────
+echo "Test 1: 'ticket archive <open-id>' archives the ticket"
 test_archive_open_ticket() {
     local repo ticket_id list_output list_archived_output exit_code
 
@@ -61,47 +66,28 @@ test_archive_open_ticket() {
     ticket_id=$(_create_ticket "$repo" task "Open ticket to archive")
 
     if [ -z "$ticket_id" ]; then
-        echo "  FAIL: could not create test ticket" >&2
-        (( FAIL++ ))
+        assert_ne "ticket created (non-empty id)" "" "$ticket_id"
         return
     fi
 
-    # Archive the open ticket
-    echo "Test 1a: 'ticket archive <open-id>' exits 0"
     exit_code=0
     (cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$DISPATCHER" archive "$ticket_id" 2>/dev/null) || exit_code=$?
-    if [ "$exit_code" -eq 0 ]; then
-        echo "  PASS: archive of open ticket exited 0"
-        (( PASS++ ))
-    else
-        echo "  FAIL: archive of open ticket exited $exit_code (expected 0)" >&2
-        (( FAIL++ ))
-    fi
+    assert_eq "archive of open ticket exits 0" "0" "$exit_code"
 
-    # Ticket must NOT appear in default list
-    echo "Test 1b: archived ticket excluded from default 'ticket list'"
     list_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$DISPATCHER" list 2>/dev/null) || true
-    if echo "$list_output" | grep -q "\"$ticket_id\""; then
-        echo "  FAIL: ticket '$ticket_id' still appears in default list after archive" >&2
-        (( FAIL++ ))
-    else
-        echo "  PASS: archived ticket absent from default list"
-        (( PASS++ ))
-    fi
+    local in_list="no"
+    echo "$list_output" | grep -q "\"$ticket_id\"" && in_list="yes"
+    assert_eq "archived ticket absent from default list" "no" "$in_list"
 
-    # Ticket MUST appear in --include-archived list
-    echo "Test 1c: archived ticket visible with 'ticket list --include-archived'"
     list_archived_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$DISPATCHER" list --include-archived 2>/dev/null) || true
-    if echo "$list_archived_output" | grep -q "\"$ticket_id\""; then
-        echo "  PASS: archived ticket visible with --include-archived"
-        (( PASS++ ))
-    else
-        echo "  FAIL: ticket '$ticket_id' not found in --include-archived output" >&2
-        (( FAIL++ ))
-    fi
+    local in_archived="no"
+    echo "$list_archived_output" | grep -q "\"$ticket_id\"" && in_archived="yes"
+    assert_eq "archived ticket visible with --include-archived" "yes" "$in_archived"
 }
+test_archive_open_ticket
 
 # ── Test 2: reject non-open statuses ─────────────────────────────────────────
+echo "Test 2: 'ticket archive <in_progress-id>' exits non-zero with status message"
 test_archive_rejects_in_progress() {
     local repo ticket_id exit_code err_output
 
@@ -109,31 +95,24 @@ test_archive_rejects_in_progress() {
     ticket_id=$(_create_ticket "$repo" task "In-progress ticket")
 
     if [ -z "$ticket_id" ]; then
-        echo "  FAIL: could not create test ticket" >&2
-        (( FAIL++ ))
+        assert_ne "ticket created (non-empty id)" "" "$ticket_id"
         return
     fi
 
     _set_in_progress "$repo" "$ticket_id"
 
-    echo "Test 2: 'ticket archive <in_progress-id>' exits 1 with error message"
     exit_code=0
     err_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$DISPATCHER" archive "$ticket_id" 2>&1) || exit_code=$?
 
-    if [ "$exit_code" -ne 0 ] && echo "$err_output" | grep -qi "in_progress\|not open\|only.*open\|status"; then
-        echo "  PASS: archive rejected in_progress ticket with exit $exit_code and error message"
-        (( PASS++ ))
-    elif [ "$exit_code" -ne 0 ]; then
-        echo "  FAIL: archive exited $exit_code but error message missing status context" >&2
-        echo "  Output: $err_output" >&2
-        (( FAIL++ ))
-    else
-        echo "  FAIL: archive of in_progress ticket should have exited non-zero (got 0)" >&2
-        (( FAIL++ ))
-    fi
+    assert_ne "archive rejects in_progress ticket (non-zero exit)" "0" "$exit_code"
+    local has_msg="no"
+    echo "$err_output" | grep -qi "in_progress\|not open\|only.*open\|status" && has_msg="yes"
+    assert_eq "archive rejection includes status context in message" "yes" "$has_msg"
 }
+test_archive_rejects_in_progress
 
 # ── Test 3: idempotent — second archive exits 0 silently ─────────────────────
+echo "Test 3: archiving an already-archived ticket is idempotent (exits 0)"
 test_archive_idempotent() {
     local repo ticket_id exit_code1 exit_code2
 
@@ -141,35 +120,22 @@ test_archive_idempotent() {
     ticket_id=$(_create_ticket "$repo" task "Ticket for idempotent test")
 
     if [ -z "$ticket_id" ]; then
-        echo "  FAIL: could not create test ticket" >&2
-        (( FAIL++ ))
+        assert_ne "ticket created (non-empty id)" "" "$ticket_id"
         return
     fi
 
-    echo "Test 3a: first archive exits 0"
     exit_code1=0
     (cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$DISPATCHER" archive "$ticket_id" 2>/dev/null) || exit_code1=$?
-    if [ "$exit_code1" -eq 0 ]; then
-        echo "  PASS: first archive exited 0"
-        (( PASS++ ))
-    else
-        echo "  FAIL: first archive exited $exit_code1 (expected 0)" >&2
-        (( FAIL++ ))
-    fi
+    assert_eq "first archive exits 0" "0" "$exit_code1"
 
-    echo "Test 3b: second archive (already archived) exits 0 (idempotent)"
     exit_code2=0
     (cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$DISPATCHER" archive "$ticket_id" 2>/dev/null) || exit_code2=$?
-    if [ "$exit_code2" -eq 0 ]; then
-        echo "  PASS: second archive exited 0 (idempotent)"
-        (( PASS++ ))
-    else
-        echo "  FAIL: second archive exited $exit_code2 (expected 0 — idempotent)" >&2
-        (( FAIL++ ))
-    fi
+    assert_eq "second archive exits 0 (idempotent)" "0" "$exit_code2"
 }
+test_archive_idempotent
 
 # ── Test 4: ticket show reflects archived: true ───────────────────────────────
+echo "Test 4: 'ticket show <id>' after archive reports archived=true"
 test_archive_show_reflects_archived() {
     local repo ticket_id show_output archived_val exit_code
 
@@ -177,41 +143,22 @@ test_archive_show_reflects_archived() {
     ticket_id=$(_create_ticket "$repo" task "Ticket to check show after archive")
 
     if [ -z "$ticket_id" ]; then
-        echo "  FAIL: could not create test ticket" >&2
-        (( FAIL++ ))
+        assert_ne "ticket created (non-empty id)" "" "$ticket_id"
         return
     fi
 
-    echo "Test 4: 'ticket show <id>' after archive has \"archived\": true"
     exit_code=0
     (cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$DISPATCHER" archive "$ticket_id" 2>/dev/null) || exit_code=$?
+    assert_eq "archive exits 0 before show check" "0" "$exit_code"
 
     if [ "$exit_code" -ne 0 ]; then
-        echo "  FAIL: archive of open ticket exited $exit_code (expected 0)" >&2
-        (( FAIL++ ))
         return
     fi
 
     show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$DISPATCHER" show "$ticket_id" 2>/dev/null) || true
-    archived_val=$(echo "$show_output" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('archived','MISSING'))" 2>/dev/null) || archived_val="ERROR"
-
-    if [ "$archived_val" = "True" ] || [ "$archived_val" = "true" ]; then
-        echo "  PASS: ticket show reports archived=true after archive"
-        (( PASS++ ))
-    else
-        echo "  FAIL: ticket show 'archived' field is '$archived_val' (expected true)" >&2
-        echo "  Full show output: $show_output" >&2
-        (( FAIL++ ))
-    fi
+    archived_val=$(echo "$show_output" | python3 -c "import json,sys; d=json.load(sys.stdin); print(str(d.get('archived','MISSING')).lower())" 2>/dev/null) || archived_val="error"
+    assert_eq "ticket show reports archived=true after archive" "true" "$archived_val"
 }
-
-# ── Run all tests ─────────────────────────────────────────────────────────────
-test_archive_open_ticket
-test_archive_rejects_in_progress
-test_archive_idempotent
 test_archive_show_reflects_archived
 
-# ── Results ───────────────────────────────────────────────────────────────────
-echo ""
-echo "PASSED: $PASS  FAILED: $FAIL"
-[ "$FAIL" -eq 0 ]
+print_summary
