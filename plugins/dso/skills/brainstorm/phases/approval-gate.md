@@ -1,16 +1,16 @@
 # Phase 2 Step 4 — Approval Gate
 
 <HARD-GATE>
-Do NOT present this gate unless ALL of the following have completed or gracefully degraded with a logged rationale:
+Do NOT present this gate unless ALL of the following ran as dispatched sub-agent calls. Inline orchestrator reasoning does not satisfy any item. "Logging a rationale for skipping" is not the same as running the step.
 - Step 2.5: Gap analysis (self-review)
-- Step 2.6: Web research phase (run OR skipped with a logged rationale per Step 2.6 graceful degradation rules)
-- Step 2.75: Scenario analysis (run OR skipped because ≤2 success criteria)
-- SC Gap Check: scenario-to-SC coverage verified; SCs revised if gaps found, or skip logged
+- Step 2.6: Web research sub-agent (or no bright-line triggers fired per epic-scrutiny-pipeline.md Step 2)
+- Step 2.75: Red Team + Blue Team sub-agents dispatched (or ≤2 success criteria — count them now)
+- SC Gap Check: scenario-to-SC coverage verified; SCs revised if gaps found, or skip documented
 - Step 3: Fidelity review (all three core reviewers completed or escalated to user)
-- Structural-change re-review: if the spec was structurally changed AFTER the fidelity review completed — including an epic split, a SC count change of more than 2, or scope migration between epics — the full fidelity review pipeline (Step 3) MUST be re-run on the revised spec before this gate is presented. Prior review scores are invalidated by structural changes and do not satisfy this checklist item.
-- FEASIBILITY_GAP: if a `## FEASIBILITY_GAP` section is present in the spec at this point, it MUST be surfaced explicitly in the approval gate presentation as an unresolved prerequisite — do NOT silently omit it. The user must explicitly acknowledge the gap when selecting option (a).
+- Structural-change re-review: re-run Step 3 if the spec changed after fidelity review (epic split, SC count change >2, scope migration). Prior scores are invalidated by structural changes.
+- FEASIBILITY_GAP: if present, surface it explicitly at the approval gate. User must acknowledge it when selecting option (a).
 
-If any of the above has NOT completed, stop and execute it before presenting this gate. The user's ability to request a re-run via option (b) or (c) is for second-pass cycles only — it does not substitute for a mandatory first pass.
+If any item is not complete, execute it before presenting this gate. Option (b)/(c) re-runs are for second-pass cycles only.
 </HARD-GATE>
 
 <HARD-GATE>

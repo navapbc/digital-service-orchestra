@@ -352,6 +352,10 @@ After the pipeline returns, read `phases/post-scrutiny-handlers.md` and execute 
 
 ### Step 4: Approval Gate
 
+<HARD-GATE>
+Before reading approval-gate.md: Red Team, Blue Team, and all three fidelity reviewers must have run as dispatched sub-agent calls. Valid exemptions: ≤2 SCs (scenario skipped), no integration signals (feasibility skipped). Inline reasoning does not count as dispatch. Dispatch any missing agents now.
+</HARD-GATE>
+
 Read and execute `phases/approval-gate.md`. On approval, proceed to Phase 3.
 
 ---
