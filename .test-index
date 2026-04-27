@@ -293,3 +293,4 @@ plugins/dso/skills/debug-everything/prompts/gha-dispatch.md:tests/scripts/test-d
 plugins/dso/skills/shared/prompts/test-failure-fix.md:tests/scripts/test-debug-everything-prompt-contracts.sh
 plugins/dso/scripts/test-batched.sh:tests/scripts/test-test-batched.sh
 tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh [test_fp_merge_1_new_component_tagged]
+tests/scripts/test-sigpipe-canary.sh:tests/scripts/test-sigpipe-canary.sh
