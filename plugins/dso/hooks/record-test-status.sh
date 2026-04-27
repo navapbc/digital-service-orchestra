@@ -1329,6 +1329,14 @@ if [[ -n "$SOURCE_FILE" ]] && [[ -f "$STATUS_FILE" ]]; then
             FAILED_TESTS_LIST="$_filtered_existing_failed"
         fi
         # (if _filtered_existing_failed empty, FAILED_TESTS_LIST stays as-is from new run)
+
+        # Warn when merged result inherits failures from tests not re-run in this invocation.
+        if [[ -n "$_filtered_existing_failed" ]]; then
+            echo "WARNING: --source-file merge preserved inherited failures from tests not re-run in this invocation:" >&2
+            echo "  Inherited (not re-run): ${_filtered_existing_failed}" >&2
+            echo "  Newly run in this invocation: ${_new_run_tested:-<none>}" >&2
+            echo "  If those tests now pass after your fix, use --restart to clear stale state and re-run." >&2
+        fi
     fi
     # Enforce severity hierarchy: timeout > failed > resource_exhaustion; passed from suite-engine is authoritative over resource_exhaustion
     # Compare both existing and current, keep the more severe.
