@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Classification: mechanical — comparison of incompatible hash lengths (64-char filename hash vs 8-char truncated current hash). Fix: truncate file_hash to 8 chars before comparison."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777322145375134000,"uuid":"3304172d-978a-4da5-99fa-9b2e3997f09d"}
