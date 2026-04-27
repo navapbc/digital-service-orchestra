@@ -30,33 +30,34 @@ validate.sh already confirmed they pass.
 **Otherwise**: Run all commands below.
 
 **Skip map** (orchestrator label → command to skip):
-- `format` → `make format-check`
-- `ruff` → `make lint-ruff`
-- `mypy` → `make lint-mypy`
-- `tests` → `make test-unit-only`
-- `e2e` → `make test-e2e`
+- `format` → `commands.format_check`
+- `ruff` → `commands.lint` — skip `commands.lint` only if BOTH `ruff` AND `mypy` passed (a single command covers both)
+- `mypy` → `commands.lint` — same as above; run lint if either `ruff` or `mypy` failed
+- `tests` → `commands.test_unit`
+- `e2e` → `commands.test_e2e`
 - `migrate` → migration heads check (always run — no separate skip command)
 - `docker` → not applicable (early-exit path only, never in normal `failed_checks`)
 - `ci` → not a local command (checked via `gh` in Step 3, not here)
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-cd $REPO_ROOT/app
+FORMAT_CHECK=$(.claude/scripts/dso read-config commands.format_check 2>/dev/null || true)
+LINT=$(.claude/scripts/dso read-config commands.lint 2>/dev/null || true)
+TEST_UNIT=$(.claude/scripts/dso read-config commands.test_unit 2>/dev/null || true)
+TEST_E2E=$(.claude/scripts/dso read-config commands.test_e2e 2>/dev/null || true)
+cd "$REPO_ROOT"
 
 # Format errors — which files need formatting (skip if "format" passed)
-make format-check 2>&1
+[ -n "$FORMAT_CHECK" ] && $FORMAT_CHECK 2>&1
 
-# Ruff lint — specific rule violations with file:line (skip if "ruff" passed)
-make lint-ruff 2>&1
-
-# MyPy — specific type errors with file:line (skip if "mypy" passed)
-make lint-mypy 2>&1
+# Lint (ruff + mypy) — skip if BOTH "ruff" and "mypy" passed
+[ -n "$LINT" ] && $LINT 2>&1
 
 # Unit test failures — test names and tracebacks (skip if "tests" passed)
-make test-unit-only args="-v --tb=short" 2>&1
+[ -n "$TEST_UNIT" ] && $TEST_UNIT 2>&1
 
 # E2E test failures (skip if "e2e" passed)
-make test-e2e args="-v --tb=short" 2>&1
+[ -n "$TEST_E2E" ] && $TEST_E2E 2>&1
 ```
 
 ### Step 3: Collect Ticket & Git State (/dso:debug-everything)

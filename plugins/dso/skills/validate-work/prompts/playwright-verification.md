@@ -62,7 +62,8 @@ Before any browser interaction, run visual regression tests to establish baselin
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-cd $REPO_ROOT/app && make test-visual 2>&1
+TEST_E2E=$(.claude/scripts/dso read-config commands.test_e2e 2>/dev/null || true)
+cd "$REPO_ROOT" && [ -n "$TEST_E2E" ] && $TEST_E2E 2>&1
 ```
 
 If visual regression tests pass for pages affected by the bugs, this provides deterministic evidence that the fix is visually correct — no CLI screenshot needed for those pages.
