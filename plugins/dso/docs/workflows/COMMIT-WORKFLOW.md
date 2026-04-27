@@ -10,7 +10,6 @@ Execute ALL steps in this workflow in order. Do NOT skip, abbreviate, or "run th
 
 Replace commands below with values from your `.claude/dso-config.conf`:
 
-- `commands.test_unit` (default: `make test-unit-only`)
 - `commands.lint` (default: `make lint-ruff`)
 - `commands.type_check` (default: `make lint-mypy`)
 - `commands.format` (default: `make format-modified`)
@@ -95,9 +94,9 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 git diff HEAD --name-only | bash ".claude/scripts/dso skip-review-check.sh" && SKIP_REVIEW=true || SKIP_REVIEW=false
 ```
 
-**If `SKIP_REVIEW` is true**: Skip Steps 1-3a entirely. Go directly to Step 4 (Stage).
+**If `SKIP_REVIEW` is true**: Skip Steps 1.5-3a entirely. Go directly to Step 4 (Stage).
 
-**Otherwise**: Continue to Step 1.
+**Otherwise**: Continue to Step 1.5.
 
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0.5-skip-review-check" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
@@ -114,7 +113,7 @@ Emit a durable start event **before** any timeout-prone steps (test, lint, revie
 > ".claude/scripts/dso" emit-commit-workflow-event.sh --phase=end --success=false --failure-reason="<step and reason>"
 > ```
 >
-> Replace `<step and reason>` with a concise description (e.g., `"Step 1: unit tests failed after 5 attempts"`, `"Step 5: review escalated to user"`). This pairs with the start event to close the observability window.
+> Replace `<step and reason>` with a concise description (e.g., `"Step 1.5: integration tests failed after 5 attempts"`, `"Step 5: review escalated to user"`). This pairs with the start event to close the observability window.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -124,120 +123,6 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0.9-emit-start-event" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
-
-## Step 1: Test
-
-Run unit tests to catch breakage before investing in review.
-
-> **Timeout rule**: Always set `timeout: 600000` on ALL Bash tool calls in this workflow — including fast commands like `ruff check`. Claude Code's hard ceiling is ~73s without the explicit timeout parameter (drops to ~48s), and even short commands can receive SIGURG (exit 144) during internal event processing. See CLAUDE.md rule 11 (Always Do These).
-
-Resolve the test command from config, then run it using `test-batched.sh` for per-test resume on timeout. **Prefer `--runner=bash --test-dir=<dir>` for bash test suites** — this discovers `test-*.sh` files and runs each as a separate item, so completed tests are skipped on resume:
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-.claude/scripts/dso test-batched.sh --timeout=50 --runner=bash --test-dir="$REPO_ROOT/tests/scripts"
-```
-
-If no runner driver applies (the test command is not a directory of scripts), resolve the test command from config and fall back to the generic runner which wraps the entire command as a single item (no sub-test resume):
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-TEST_CMD="$(".claude/scripts/dso read-config.sh" commands.test_unit 2>/dev/null || echo "make test-unit-only")"
-.claude/scripts/dso test-batched.sh --timeout=50 "$TEST_CMD"
-```
-
-When `test-batched.sh` runs out of time, it emits a **Structured Action-Required Block**:
-
-```
-════════════════════════════════════════════════════════════
-  ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠
-════════════════════════════════════════════════════════════
-RUN: TEST_BATCHED_STATE_FILE=... bash .../test-batched.sh ...
-DO NOT PROCEED until the command above prints a final summary.
-════════════════════════════════════════════════════════════
-```
-
-Run the command shown on the `RUN:` line in subsequent Bash tool calls (each with `timeout: 600000`) until the summary appears.
-
-On success, only the summary is needed. If the exit code is non-zero, re-run with full output to see failures.
-
-If tests fail, fix the code and restart from Step 1. Do NOT proceed with a failing test suite.
-
-```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-1-test" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
-```
-
-### Test Failure Delegation (Step 1)
-
-When unit tests fail, apply this decision gate before attempting a fix:
-
-**Fix inline** (preserve existing behavior):
-- Single obvious failure (typo, missing import, one-line fix) — fix it and restart from Step 1.
-
-**Delegate to sub-agent** (via [TEST-FAILURE-DISPATCH.md](TEST-FAILURE-DISPATCH.md)):
-- More than 1 test fails, OR
-- 1 test fails and an inline fix attempt did not resolve it.
-
-Do NOT spend orchestrator context on multi-test debugging — delegate immediately.
-
-#### Dispatch Procedure
-
-1. **Build the input payload**:
-
-```bash
-TEST_COMMAND="$TEST_CMD"  # The config-resolved command used in Step 1 above.
-# EXIT_CODE and STDERR_TAIL come from the ALREADY-FAILED test run above.
-# The orchestrator should have captured stdout/stderr and exit code when
-# running the test command. Do NOT re-run the tests here.
-# EXIT_CODE=<exit code from the failed test run>
-# STDERR_TAIL=<last 50 lines of output from the failed test run>
-CHANGED_FILES=$(git diff --name-only)
-```
-
-> **Note**: `EXIT_CODE` and `STDERR_TAIL` must come from the test run that already
-> failed (the one that triggered this delegation gate). Do NOT re-run tests to
-> capture them — that would execute tests twice and may yield different results.
-
-2. **Select model** (by attempt number):
-   - Attempt 1: `sonnet`
-   - Attempt 2+: `opus`
-   - Attempt exceeds `review.max_resolution_attempts` (default: 5): **Escalate to user** — do not retry further.
-
-3. **Select sub-agent type** (from TEST-FAILURE-DISPATCH.md):
-   - Unit test failure (assertion, runtime error): Resolve via `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`)
-   - Type error (mypy): Resolve via `discover-agents.sh` routing category `mechanical_fix` (see `agent-routing.conf`)
-   - Lint violation (ruff): Resolve via `discover-agents.sh` routing category `code_simplify` (see `agent-routing.conf`)
-   - Multi-file / complex (cross-module): `error-debugging:error-detective`
-
-4. **Select prompt template**: `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/test-failure-fix.md`
-   - Behavioral failure (assertion, runtime error): TDD path
-   - Mechanical failure (import, type, lint): Mechanical path
-
-5. **Dispatch via Task tool**:
-
-```
-Task(
-  subagent_type=<selected_type>,
-  model=<selected_model>,
-  prompt=<filled template from test-failure-fix.md>,
-  input={
-    test_command: <TEST_COMMAND>,
-    exit_code: <EXIT_CODE>,
-    stderr_tail: <STDERR_TAIL>,
-    changed_files: <CHANGED_FILES>,
-    task_id: <current_task_id>,
-    context: "commit-time",
-    attempt: <attempt_number>
-  }
-)
-```
-
-6. **Parse the result**:
-   - `RESULT: PASS` — continue to Step 1.5 (re-run validation first to confirm the fix is clean).
-   - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt exceeds `review.max_resolution_attempts` (default: 5), escalate to user.
-   - `RESULT: PARTIAL` — log concerns via `.claude/scripts/dso ticket comment`, continue to Step 1.5 with caveats.
-
-7. **Fallback**: If the sub-agent times out (>5 min) or returns malformed output (missing RESULT line), fall back to an inline fix attempt by the orchestrator and restart from Step 1.
 
 ## Step 1.5: Changed Integration/E2E Tests
 
@@ -264,7 +149,7 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-1.5-changed-tests" >> "$ARTIFACTS_DIR/
 
 ### Test Failure Delegation (Step 1.5)
 
-If integration or E2E tests fail after environment checks (DB/app running), apply the same delegation decision gate as Step 1:
+If integration or E2E tests fail after environment checks (DB/app running), apply this decision gate:
 
 **Fix inline**: Single obvious failure (typo, missing import, one-line fix) — fix it and re-run.
 
@@ -272,7 +157,7 @@ If integration or E2E tests fail after environment checks (DB/app running), appl
 - More than 1 test fails, OR
 - 1 test fails and an inline fix attempt did not resolve it.
 
-Follow the same dispatch procedure as Step 1, with these differences:
+Dispatch procedure:
 
 1. **Build the input payload** using the integration/E2E test command that failed:
 
@@ -290,14 +175,14 @@ CHANGED_FILES=$(git diff --name-only)
    - Integration test failure: `context="sprint-ci-failure"`
    - E2E test failure: `context="commit-time"`
 
-3. **Model selection, sub-agent type, prompt template, Task dispatch, and result parsing**: Same as Step 1 delegation procedure (steps 2-7).
+3. **Model selection, sub-agent type, prompt template, Task dispatch, and result parsing**: See [TEST-FAILURE-DISPATCH.md](TEST-FAILURE-DISPATCH.md) for the full dispatch procedure.
 
 4. **Parse the result**:
    - `RESULT: PASS` — re-run the config-driven test command (`$REPO_ROOT/$TEST_CHANGED_CMD`) to confirm the fix, then continue to Step 2.
    - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt exceeds `review.max_resolution_attempts` (default: 5), escalate to user.
    - `RESULT: PARTIAL` — log concerns via `.claude/scripts/dso ticket comment`, continue to Step 2 with caveats.
 
-5. **Fallback**: Sub-agent timeout (>5 min) or malformed output — fall back to inline fix attempt and restart from Step 1.
+5. **Fallback**: Sub-agent timeout (>5 min) or malformed output — fall back to inline fix attempt and restart from Step 1.5.
 
 ## Step 2: Format
 
@@ -325,7 +210,7 @@ cd app && make lint-mypy 2>&1 | tail -5
 
 On success, only the summary lines are needed. If either exit code is non-zero, re-run with full output to see errors.
 
-If either check fails, fix the issue and **restart from Step 1**.
+If either check fails, fix the issue and **restart from Step 1.5**.
 
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3-lint-typecheck" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
@@ -333,7 +218,7 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3-lint-typecheck" >> "$ARTIFACTS_DIR/c
 
 ## Step 3a: Write Validation State File
 
-After Steps 1-3 all pass, write a validation state file so the review workflow can skip redundant re-validation:
+After Steps 1.5-3 all pass, write a validation state file so the review workflow can skip redundant re-validation:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -397,7 +282,7 @@ DSO_COMMIT_WORKFLOW=1 bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
   ════════════════════════════════════════════════════════════
   ```
   Run the command shown on the `RUN:` line in subsequent calls until the summary appears, then re-run Step 4.5.
-- **exit non-zero (other)**: tests failed; fix the failures and **restart from Step 1**.
+- **exit non-zero (other)**: tests failed; fix the failures and **restart from Step 1.5**.
 
 > **NEVER add RED markers to `.test-index` to bypass a test gate failure.** RED markers (`[test_name]` entries in `.test-index`) are exclusively for TDD — they mark tests that are expected to fail because the feature under test is not yet implemented. If the test gate blocks due to pre-existing failures unrelated to your change, create a bug ticket (`.claude/scripts/dso ticket create bug "<test failure description>"`) and fix the test. Do NOT add a marker to mask the failure.
 
@@ -410,10 +295,10 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4.5-record-test-status" >> "$ARTIFACTS
 Decide whether a review is needed:
 
 - **Review ran earlier this session and no files changed since**: Skip to Step 6.
-- **No recent review, or files changed since the last review**: Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context. Note: Steps 1-3a above already ran format/lint/type-check and wrote the validation-status file, so REVIEW-WORKFLOW.md Step 1 (auto-fix pass) will skip via the fresh validation-status check. This ensures the diff hash captured in REVIEW-WORKFLOW.md Step 2 reflects the post-auto-fix state and will not be invalidated by pre-commit hooks.
+- **No recent review, or files changed since the last review**: Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context. Note: Steps 1.5-3a above already ran format/lint/type-check and wrote the validation-status file, so REVIEW-WORKFLOW.md Step 1 (auto-fix pass) will skip via the fresh validation-status check. This ensures the diff hash captured in REVIEW-WORKFLOW.md Step 2 reflects the post-auto-fix state and will not be invalidated by pre-commit hooks.
 - **The commit in Step 6 is blocked** with "Review is stale" or "No code review recorded": Run REVIEW-WORKFLOW.md, then retry Step 6. Do NOT inspect, copy, or modify review state files — the commit gate enforces correctness and any workaround will be caught at the merge step.
 
-If review fails, the review workflow's Autonomous Resolution Loop handles fix/defend attempts automatically (up to `review.max_resolution_attempts`, default: 5). If it escalates to you (the orchestrator), fix the issues and **restart from Step 1** (not Step 5).
+If review fails, the review workflow's Autonomous Resolution Loop handles fix/defend attempts automatically (up to `review.max_resolution_attempts`, default: 5). If it escalates to you (the orchestrator), fix the issues and **restart from Step 1.5** (not Step 5).
 
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-5-review-gate" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
