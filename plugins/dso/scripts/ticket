@@ -37,7 +37,7 @@ _usage() {
     echo "  link        Link two tickets (blocks|depends_on|relates_to)"
     echo "  unlink      Remove a link between two tickets"
     echo "  deps        Show dependency graph for a ticket (<ticket_id>)"
-    echo "  edit          Edit ticket fields (--title, --priority, --assignee, --ticket_type)"
+    echo "  edit          Edit ticket fields (--title, --priority, --assignee, --ticket_type, --description, --tags)"
     echo "  tag           Add a tag to a ticket"
     echo "  untag         Remove a tag from a ticket"
     echo "  validate      Validate ticket quality (exit 0-4 by score; --json, --terse)"
