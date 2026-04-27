@@ -46,9 +46,9 @@ if [ -z "$file_hash" ]; then
     exit 1
 fi
 
-# Compute current working tree hash
+# Compute current working tree hash from REPO_ROOT so CWD differences don't affect the hash
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
-current_hash=$("${CLAUDE_PLUGIN_ROOT}/hooks/compute-diff-hash.sh")
+current_hash=$(cd "$REPO_ROOT" && "${CLAUDE_PLUGIN_ROOT}/hooks/compute-diff-hash.sh")
 current_hash_short="${current_hash:0:8}"
 
 # Compare using 8-char prefix of both hashes (filename may contain full 64-char hash)
