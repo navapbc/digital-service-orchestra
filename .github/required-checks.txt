@@ -9,13 +9,13 @@
 #
 # Scope: THIS REPO ONLY. Only checks that this repo's own CI workflows emit
 # are listed here. Consuming-project checks from ci-dso-staged.yml (lint-format,
-# tests, tests-pipefail-strict, llm-review, validate-ci) are NOT included —
-# those check contexts never run in this repo and would cause PRs to block
-# indefinitely if required. Consuming-project checks belong in a separate
-# template file (future task).
+# tests, tests-pipefail-strict, validate-ci) are NOT included — those check
+# contexts never run in this repo. This repo's ci.yml includes an llm-review
+# job that dogfoods the same LLM review gate used in the consuming-project template.
 #
 # Ownership:
-#   ci.yml                     — ShellCheck, Lint Python (ruff), Hook Tests, Script Tests
+#   ci.yml                     — ShellCheck, Lint Python (ruff), Hook Tests, Script Tests,
+#                                LLM Review
 #   ticket-platform-matrix.yml — Ticket tests (linux-bash4), Ticket tests (macos-bash3),
 #                                Ticket tests (alpine-busybox)
 
@@ -24,6 +24,7 @@ ShellCheck
 Lint Python (ruff)
 Hook Tests
 Script Tests
+LLM Review
 
 # ── ticket-platform-matrix.yml checks ────────────────────────────────────────
 Ticket tests (linux-bash4)
