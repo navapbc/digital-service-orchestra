@@ -18,6 +18,12 @@
 #   8. test_no_dso_plugin_refs             — no read-config.sh or CLAUDE_PLUGIN_ROOT refs
 #   9. test_lint_format_uses_github_variables — lint-format run: references ${{ vars. pattern
 #  10. test_validate_ci_runs_validate_sh   — validate-ci step run: uses ${{ vars. pattern
+#  11. test_pipefail_strict_job_exists     — jobs['tests-pipefail-strict'] present → RED until added
+#  12. test_pipefail_strict_runs_on_linux  — tests-pipefail-strict runs-on ubuntu-latest
+#  13. test_pipefail_strict_exports_bash_opts — tests-pipefail-strict env.BASH_OPTS contains -eo pipefail
+#  14. test_pipefail_strict_needs_lint_format — tests-pipefail-strict needs contains lint-format
+#  15. test_pipefail_strict_uses_github_variable — at least one run: step uses ${{ vars. pattern
+#  16. test_pipefail_strict_no_continue_on_error — tests-pipefail-strict must NOT have continue-on-error: true
 #
 # Usage: bash tests/scripts/test-ci-dso-staged-template.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -236,6 +242,134 @@ print('OK')
 assert_eq "test_validate_ci_runs_validate_sh: exit 0" "0" "$valci_sh_exit"
 assert_eq "test_validate_ci_runs_validate_sh: \${{ vars. pattern in validate-ci steps" "OK" "$valci_sh_output"
 assert_pass_if_clean "test_validate_ci_runs_validate_sh"
+
+# ── test_pipefail_strict_job_exists ──────────────────────────────────────────
+# jobs['tests-pipefail-strict'] must exist. RED until the job is added to the template.
+_snapshot_fail
+pfs_exists_exit=0
+pfs_exists_output=""
+pfs_exists_output=$(python3 -c "
+import yaml, sys
+with open('$TEMPLATE') as f:
+    doc = yaml.safe_load(f)
+jobs = doc.get('jobs', {})
+if 'tests-pipefail-strict' not in jobs:
+    print('MISSING_JOB: tests-pipefail-strict not in jobs: ' + ', '.join(jobs.keys()))
+    sys.exit(1)
+print('OK')
+" 2>&1) || pfs_exists_exit=$?
+assert_eq "test_pipefail_strict_job_exists: exit 0" "0" "$pfs_exists_exit"
+assert_eq "test_pipefail_strict_job_exists: job present" "OK" "$pfs_exists_output"
+assert_pass_if_clean "test_pipefail_strict_job_exists"
+
+# ── test_pipefail_strict_runs_on_linux ────────────────────────────────────────
+# jobs['tests-pipefail-strict']['runs-on'] must equal ubuntu-latest.
+_snapshot_fail
+pfs_runs_on_exit=0
+pfs_runs_on_output=""
+pfs_runs_on_output=$(python3 -c "
+import yaml, sys
+with open('$TEMPLATE') as f:
+    doc = yaml.safe_load(f)
+jobs = doc.get('jobs', {})
+job = jobs.get('tests-pipefail-strict', {})
+runs_on = job.get('runs-on', '')
+if runs_on != 'ubuntu-latest':
+    print('WRONG_RUNS_ON: expected ubuntu-latest, got: ' + str(runs_on))
+    sys.exit(1)
+print('OK')
+" 2>&1) || pfs_runs_on_exit=$?
+assert_eq "test_pipefail_strict_runs_on_linux: exit 0" "0" "$pfs_runs_on_exit"
+assert_eq "test_pipefail_strict_runs_on_linux: runs-on is ubuntu-latest" "OK" "$pfs_runs_on_output"
+assert_pass_if_clean "test_pipefail_strict_runs_on_linux"
+
+# ── test_pipefail_strict_exports_bash_opts ────────────────────────────────────
+# jobs['tests-pipefail-strict']['env']['BASH_OPTS'] must contain -eo pipefail.
+_snapshot_fail
+pfs_bash_opts_exit=0
+pfs_bash_opts_output=""
+pfs_bash_opts_output=$(python3 -c "
+import yaml, sys
+with open('$TEMPLATE') as f:
+    doc = yaml.safe_load(f)
+jobs = doc.get('jobs', {})
+job = jobs.get('tests-pipefail-strict', {})
+env = job.get('env', {})
+bash_opts = env.get('BASH_OPTS', '')
+if '-eo pipefail' not in str(bash_opts):
+    print('MISSING_BASH_OPTS: BASH_OPTS does not contain -eo pipefail, got: ' + str(bash_opts))
+    sys.exit(1)
+print('OK')
+" 2>&1) || pfs_bash_opts_exit=$?
+assert_eq "test_pipefail_strict_exports_bash_opts: exit 0" "0" "$pfs_bash_opts_exit"
+assert_eq "test_pipefail_strict_exports_bash_opts: BASH_OPTS contains -eo pipefail" "OK" "$pfs_bash_opts_output"
+assert_pass_if_clean "test_pipefail_strict_exports_bash_opts"
+
+# ── test_pipefail_strict_needs_lint_format ────────────────────────────────────
+# jobs['tests-pipefail-strict']['needs'] must contain "lint-format".
+_snapshot_fail
+pfs_needs_exit=0
+pfs_needs_output=""
+pfs_needs_output=$(python3 -c "
+import yaml, sys
+with open('$TEMPLATE') as f:
+    doc = yaml.safe_load(f)
+jobs = doc.get('jobs', {})
+job = jobs.get('tests-pipefail-strict', {})
+needs = job.get('needs', [])
+if isinstance(needs, str):
+    needs = [needs]
+if 'lint-format' not in needs:
+    print('MISSING_NEED: lint-format not in tests-pipefail-strict.needs: ' + str(needs))
+    sys.exit(1)
+print('OK')
+" 2>&1) || pfs_needs_exit=$?
+assert_eq "test_pipefail_strict_needs_lint_format: exit 0" "0" "$pfs_needs_exit"
+assert_eq "test_pipefail_strict_needs_lint_format: lint-format in needs" "OK" "$pfs_needs_output"
+assert_pass_if_clean "test_pipefail_strict_needs_lint_format"
+
+# ── test_pipefail_strict_uses_github_variable ─────────────────────────────────
+# At least one run: step in jobs['tests-pipefail-strict'] must contain ${{ vars.
+_snapshot_fail
+pfs_vars_exit=0
+pfs_vars_output=""
+pfs_vars_output=$(python3 -c "
+import yaml, sys
+with open('$TEMPLATE') as f:
+    doc = yaml.safe_load(f)
+jobs = doc.get('jobs', {})
+job = jobs.get('tests-pipefail-strict', {})
+steps = job.get('steps', [])
+run_commands = [s.get('run', '') for s in steps if s.get('run')]
+combined = ' '.join(str(r) for r in run_commands)
+if '\${{ vars.' not in combined:
+    print('MISSING_VARS: no \${{ vars. pattern found in tests-pipefail-strict steps run commands')
+    sys.exit(1)
+print('OK')
+" 2>&1) || pfs_vars_exit=$?
+assert_eq "test_pipefail_strict_uses_github_variable: exit 0" "0" "$pfs_vars_exit"
+assert_eq "test_pipefail_strict_uses_github_variable: \${{ vars. pattern present" "OK" "$pfs_vars_output"
+assert_pass_if_clean "test_pipefail_strict_uses_github_variable"
+
+# ── test_pipefail_strict_no_continue_on_error ─────────────────────────────────
+# jobs['tests-pipefail-strict'] must NOT have continue-on-error: true.
+_snapshot_fail
+pfs_no_coe_exit=0
+pfs_no_coe_output=""
+pfs_no_coe_output=$(python3 -c "
+import yaml, sys
+with open('$TEMPLATE') as f:
+    doc = yaml.safe_load(f)
+jobs = doc.get('jobs', {})
+job = jobs.get('tests-pipefail-strict', {})
+if job.get('continue-on-error') is True:
+    print('HAS_CONTINUE_ON_ERROR: tests-pipefail-strict has continue-on-error: true')
+    sys.exit(1)
+print('OK')
+" 2>&1) || pfs_no_coe_exit=$?
+assert_eq "test_pipefail_strict_no_continue_on_error: exit 0" "0" "$pfs_no_coe_exit"
+assert_eq "test_pipefail_strict_no_continue_on_error: no continue-on-error: true" "OK" "$pfs_no_coe_output"
+assert_pass_if_clean "test_pipefail_strict_no_continue_on_error"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
