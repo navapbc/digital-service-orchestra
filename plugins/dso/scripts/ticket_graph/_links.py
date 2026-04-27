@@ -135,6 +135,27 @@ def _write_link_event(
                 _fcntl.flock(_lock_fd, _fcntl.LOCK_UN)
     except _sp.CalledProcessError as e:
         print(f"Warning: git commit failed for LINK event: {e.stderr}", file=sys.stderr)
+        return
+
+    # Best-effort push — mirrors bash _push_tickets_branch behavior.
+    # Skipped in test environments (_TICKET_TEST_NO_SYNC=1) and when no remote exists.
+    # REVIEW-DEFENSE: For relates_to, add_dependency calls _write_link_event twice (once
+    # per direction). Each call pushes independently. Double best-effort pushes are harmless:
+    # the second push is a no-op if no new commits exist between the two calls, and both are
+    # non-fatal. This matches how bash write_commit_event works (one push per commit).
+    if os.environ.get("_TICKET_TEST_NO_SYNC", "") == "1":
+        return
+    _remote_check = _sp.run(
+        ["git", "-C", tracker_dir, "remote"],
+        capture_output=True,
+        text=True,
+    )
+    if _remote_check.stdout.strip():
+        _sp.run(
+            ["git", "-C", tracker_dir, "push", "origin", "tickets"],
+            capture_output=True,
+            text=True,
+        )  # best-effort: no check=True, failure is non-fatal
 
 
 def add_dependency(

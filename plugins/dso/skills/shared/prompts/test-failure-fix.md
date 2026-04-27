@@ -73,7 +73,10 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
    source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
    _RESULT="$(get_artifacts_dir)/agent-result-{task_id}.md"
    mkdir -p "$(dirname "$_RESULT")"
-   { cd "$_REPO/app" && make format-check && make lint && make test-unit-only; } > "$_RESULT" 2>&1
+   _FORMAT_CHECK=$(.claude/scripts/dso read-config commands.format_check 2>/dev/null || true)
+   _LINT=$(.claude/scripts/dso read-config commands.lint 2>/dev/null || true)
+   _TEST=$(.claude/scripts/dso read-config commands.test_unit 2>/dev/null || true)
+   { cd "$_REPO" && ${_FORMAT_CHECK:-true} && ${_LINT:-true} && ${_TEST:-true}; } > "$_RESULT" 2>&1
    TEST_EXIT=$?
    # Show only the tail -- full output is in $_RESULT
    tail -5 "$_RESULT"

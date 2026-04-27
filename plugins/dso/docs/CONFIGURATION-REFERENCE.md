@@ -872,6 +872,28 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `debug.gha_scan_enabled`
+
+| | |
+|---|---|
+| **Description** | Controls whether Phase A (GitHub Actions pre-scan) runs in `/dso:debug-everything`. When `false`, the GHA scan is skipped entirely — no sub-agent is dispatched and no ticket operations are performed. When absent or `true`, the scan proceeds (subject to `debug.gha_workflows` being non-empty). |
+| **Accepted values** | `true`, `false` |
+| **Default** | `true` |
+| **Used by** | `/dso:debug-everything` (Phase A — GHA pre-scan) |
+
+---
+
+### `debug.gha_workflows`
+
+| | |
+|---|---|
+| **Description** | Comma-separated list of GitHub Actions workflow file names to scan for CI failures in Phase A of `/dso:debug-everything`. Each value must match the file name exactly (e.g., `ci.yml`). When absent or empty, the GHA scan is skipped with the message `"GHA scan skipped: no workflows configured"`. |
+| **Accepted values** | Comma-separated list of workflow file names |
+| **Default** | (empty — scan skipped when absent) |
+| **Used by** | `/dso:debug-everything` (Phase A — GHA pre-scan) |
+
+---
+
 ### `scope_drift.enabled`
 
 | | |

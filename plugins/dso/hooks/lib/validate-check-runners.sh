@@ -40,10 +40,13 @@ run_test_check() {
     fi
 
     # ── Run tests via test-batched.sh ─────────────────────────────────────────
-    # Use a 45s budget (well within the ~73s Claude tool timeout ceiling).
+    # Use a 65s budget — within the ~73s Claude tool timeout ceiling.
+    # 45s was too small: the 176 hooks tests run first (~17-20s), leaving only ~25s for
+    # slow tests like test-create-dso-app.sh (42s), causing them to be always interrupted
+    # and retried indefinitely rather than converging (bug 52ae-0649).
     # test-batched.sh saves state and emits the Structured Action-Required Block when the budget is exhausted,
     # allowing validate.sh to be re-invoked to continue where tests left off.
-    local batched_timeout=45
+    local batched_timeout=65
     local batched_script="$VALIDATE_TEST_BATCHED_SCRIPT"
 
     if [ -x "$batched_script" ]; then
@@ -51,7 +54,7 @@ run_test_check() {
         # When CMD_TEST_DIRS is configured (colon-separated dirs), use the bash runner
         # so each test-*.sh file runs as an individual resumable item. This enables
         # incremental progress across validate.sh re-invocations for large test suites
-        # that exceed the 45s budget. Without this, the generic runner treats the entire
+        # that exceed the 65s budget. Without this, the generic runner treats the entire
         # suite as one atomic command and records it as "interrupted" on timeout, causing
         # an infinite PENDING loop (bug 07f1-f8b6 / bf39-4494).
         local batched_runner_args=""
@@ -59,7 +62,7 @@ run_test_check() {
             batched_runner_args="--runner=bash --test-dir=${CMD_TEST_DIRS}"
         fi
         # Run test-batched.sh with the session state file; capture both stdout+stderr.
-        # test-batched.sh manages its own internal timeout budget (--timeout=45).
+        # test-batched.sh manages its own internal timeout budget (--timeout=65).
         # The outer run_with_timeout uses the full TIMEOUT_TESTS as a safety
         # backstop for truly hung processes that exceed the internal budget.
         # shellcheck disable=SC2086

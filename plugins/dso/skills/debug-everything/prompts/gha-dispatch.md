@@ -9,8 +9,10 @@ Caller passes `EPIC_COMMENT_LABEL` to disambiguate.
 ## Read config
 
 ```bash
-GHA_SCAN_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config debug.gha_scan_enabled 2>/dev/null || echo "true")
-GHA_WORKFLOWS=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config debug.gha_workflows 2>/dev/null || echo "")
+GHA_SCAN_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config debug.gha_scan_enabled 2>/dev/null)
+GHA_SCAN_ENABLED=${GHA_SCAN_ENABLED:-true}
+GHA_WORKFLOWS=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config debug.gha_workflows 2>/dev/null)
+GHA_WORKFLOWS=${GHA_WORKFLOWS:-}
 ```
 
 ## Gate checks (in order)
@@ -22,7 +24,8 @@ GHA_WORKFLOWS=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read
 
 ```bash
 _GHA_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
-_GHA_ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null || echo "false")
+_GHA_ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null)
+_GHA_ISOLATION_ENABLED=${_GHA_ISOLATION_ENABLED:-false}
 ```
 
 - Subagent: `subagent_type="general-purpose"`, `model="haiku"`.

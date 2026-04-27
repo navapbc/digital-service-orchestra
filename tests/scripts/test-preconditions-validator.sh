@@ -157,4 +157,100 @@ with open(sys.argv[1], 'w', encoding='utf-8') as f:
 }
 test_validator_tolerates_unknown_fields
 
+# ── Test 4: auto-locator finds PRECONDITIONS event in tracker dir (no --event-file) ──
+echo "Test 4: validator auto-locates PRECONDITIONS event when --event-file is omitted"
+test_validator_auto_locates_event() {
+    if [ ! -f "$VALIDATOR_SCRIPT" ]; then
+        assert_eq "preconditions-validator.sh exists for auto-locate test" "exists" "missing"
+        return
+    fi
+
+    local tmp
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+
+    local tracker_dir="$tmp/.tickets-tracker"
+    local ticket_dir="$tracker_dir/epic-test01"
+    mkdir -p "$ticket_dir"
+
+    # Write a PRECONDITIONS event file with a timestamp-prefixed name (as the real tracker does)
+    local fixture="$ticket_dir/1714000000000-abc123-PRECONDITIONS.json"
+    _make_valid_fixture "$fixture"
+
+    local exit_code=0
+    TICKETS_TRACKER_DIR="$tracker_dir" bash "$VALIDATOR_SCRIPT" "epic-test01" "brainstorm_complete" \
+        >/dev/null 2>&1 || exit_code=$?
+
+    assert_eq "auto-locator exits 0 when PRECONDITIONS event exists" "0" "$exit_code"
+}
+test_validator_auto_locates_event
+
+# ── Test 4b: auto-locator selects most recent when multiple files for same gate ──
+echo "Test 4b: auto-locator selects most recent PRECONDITIONS event when multiple exist"
+test_validator_auto_locate_latest() {
+    if [ ! -f "$VALIDATOR_SCRIPT" ]; then
+        assert_eq "preconditions-validator.sh exists for multi-file test" "exists" "missing"
+        return
+    fi
+
+    local tmp
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+
+    local tracker_dir="$tmp/.tickets-tracker"
+    local ticket_dir="$tracker_dir/epic-multi01"
+    mkdir -p "$ticket_dir"
+
+    # Write an OLDER file with a wrong gate_name to ensure it's filtered out
+    local old_fixture="$ticket_dir/1714000000001-aaaa-PRECONDITIONS.json"
+    python3 -c "
+import json, sys
+payload = {
+    'event_type': 'PRECONDITIONS',
+    'gate_name': 'other_gate',
+    'session_id': 'sess-old',
+    'worktree_id': 'worktree-test',
+    'tier': 'minimal',
+    'timestamp': 1714000000001,
+    'data': {},
+}
+with open(sys.argv[1], 'w', encoding='utf-8') as f:
+    json.dump(payload, f)
+" "$old_fixture"
+
+    # Write a NEWER file with the correct gate_name
+    local new_fixture="$ticket_dir/1714000000002-bbbb-PRECONDITIONS.json"
+    _make_valid_fixture "$new_fixture"
+
+    local exit_code=0
+    TICKETS_TRACKER_DIR="$tracker_dir" bash "$VALIDATOR_SCRIPT" "epic-multi01" "brainstorm_complete" \
+        >/dev/null 2>&1 || exit_code=$?
+
+    assert_eq "auto-locator exits 0 when newest matching event is valid" "0" "$exit_code"
+}
+test_validator_auto_locate_latest
+
+# ── Test 5: auto-locator exits 2 when no matching event exists ───────────────
+echo "Test 5: validator exits 2 when auto-locator finds no matching PRECONDITIONS event"
+test_validator_auto_locate_missing() {
+    if [ ! -f "$VALIDATOR_SCRIPT" ]; then
+        assert_eq "preconditions-validator.sh exists for auto-locate-missing test" "exists" "missing"
+        return
+    fi
+
+    local tmp
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+
+    local tracker_dir="$tmp/.tickets-tracker"
+    mkdir -p "$tracker_dir/epic-empty01"  # directory exists but has no PRECONDITIONS files
+
+    local exit_code=0
+    TICKETS_TRACKER_DIR="$tracker_dir" bash "$VALIDATOR_SCRIPT" "epic-empty01" "brainstorm_complete" \
+        >/dev/null 2>&1 || exit_code=$?
+
+    assert_eq "auto-locator exits 2 when no PRECONDITIONS event exists" "2" "$exit_code"
+}
+test_validator_auto_locate_missing
+
 print_summary

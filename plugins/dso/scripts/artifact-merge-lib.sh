@@ -151,6 +151,7 @@ merge_config_file() {
         # Check if key already exists (active or commented) in target
         # Escape regex metacharacters in key before using in grep pattern
         local escaped_key
+        # shellcheck disable=SC2016  # & is sed's "matched text" metachar, not a shell variable
         escaped_key=$(printf '%s' "$key" | sed 's/[.[\*^$()+?{|\\]/\\&/g')
         if grep -qE "^[[:space:]]*#?[[:space:]]*${escaped_key}[[:space:]]*=" "$target_file" 2>/dev/null; then
             # Key present (active or commented) — skip
@@ -265,6 +266,37 @@ PYEOF
     # ── Fallback: awk/sed block insertion ─────────────────────────────────────
     # Extract plugin job names and their blocks, then append to host CI's jobs section.
     _merge_ci_workflow_awk_fallback "$target_file" "$plugin_ci" "$dryrun"
+}
+
+# _extract_job_block_bash PLUGIN_CI JOB_NAME
+# Extracts a single job block by name from a GitHub Actions YAML file using
+# bash builtins. Prints the job block lines (without trailing newline) to stdout.
+# Prints nothing if the job is not found.
+_extract_job_block_bash() {
+    local plugin_ci="$1" job_name="$2"
+    local _in_jobs=0 _in_job=0 _job_lines=""
+    while IFS= read -r _line || [[ -n "$_line" ]]; do
+        if [[ "$_line" == "jobs:" ]]; then _in_jobs=1; continue; fi
+        [[ "$_in_jobs" -eq 0 ]] && continue
+        if [[ -n "$_line" && "${_line:0:1}" != " " ]]; then
+            _in_jobs=0
+            [[ "$_in_job" -eq 1 ]] && break
+            continue
+        fi
+        if [[ "$_line" == "  ${job_name}:" ]]; then
+            _in_job=1; _job_lines+="${_line}"$'\n'; continue
+        fi
+        [[ "$_in_job" -eq 0 ]] && continue
+        if [[ "$_line" == "  "[a-zA-Z]* ]]; then
+            local _check="${_line#  }" _jname
+            _jname="${_check%%:*}"
+            if [[ "$_check" == "${_jname}:"* && "$_jname" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]]; then
+                break
+            fi
+        fi
+        _job_lines+="${_line}"$'\n'
+    done < "$plugin_ci"
+    printf '%s' "${_job_lines%$'\n'}"
 }
 
 # _merge_ci_workflow_awk_fallback TARGET_CI PLUGIN_CI DRYRUN
@@ -391,38 +423,7 @@ PYEOF
 
         # ── Bash-builtin job block extraction fallback ────────────────────────
         if [[ -z "$job_block" ]]; then
-            local _in_jobs2=0 _in_job=0
-            local _job_lines=""
-            while IFS= read -r _line2 || [[ -n "$_line2" ]]; do
-                if [[ "$_line2" == "jobs:" ]]; then
-                    _in_jobs2=1
-                    continue
-                fi
-                if [[ "$_in_jobs2" -eq 1 ]]; then
-                    if [[ -n "$_line2" && "${_line2:0:1}" != " " ]]; then
-                        _in_jobs2=0
-                        [[ "$_in_job" -eq 1 ]] && break
-                        continue
-                    fi
-                    if [[ "$_line2" == "  ${job_name}:" ]]; then
-                        _in_job=1
-                        _job_lines+="${_line2}"$'\n'
-                        continue
-                    fi
-                    if [[ "$_in_job" -eq 1 ]]; then
-                        # Another job at same level ends current job block
-                        if [[ "$_line2" == "  "[a-zA-Z]* && "$_line2" != "  ${job_name}:" ]]; then
-                            local _check="${_line2#  }"
-                            local _jname="${_check%%:*}"
-                            if [[ "$_check" == "${_jname}:"* && "$_jname" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]]; then
-                                break
-                            fi
-                        fi
-                        _job_lines+="${_line2}"$'\n'
-                    fi
-                fi
-            done < "$plugin_ci"
-            job_block="${_job_lines%$'\n'}"
+            job_block=$(_extract_job_block_bash "$plugin_ci" "$job_name")
         fi
 
         if [[ -n "$job_block" ]]; then
