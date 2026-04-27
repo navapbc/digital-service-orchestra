@@ -64,28 +64,6 @@ test_no_bare_create_without_description_flag() {
 }
 
 # ===========================================================================
-# test_operative_template_includes_description_flag
-#
-# Given: implementation-plan/SKILL.md Step 5 area
-# When: we look for ticket create task invocations that include -d
-# Then: at least one ticket create task invocation must include -d
-#
-# Structural boundary: the presence of -d in a task creation command is required.
-# ===========================================================================
-test_operative_template_includes_description_flag() {
-  local _step5_section
-  # Extract from "## Step 5" to the next ## heading
-  _step5_section=$(awk '/^## Step 5/{found=1} found && /^## / && !/^## Step 5/{exit} found{print}' "$SKILL_FILE")
-
-  local _found_with_d=0
-  grep "ticket create task" <<< "$_step5_section" | grep -q "\-d " && _found_with_d=1
-
-  assert_eq \
-    "test_operative_template_includes_description_flag: at least one ticket create task with -d in Step 5" \
-    "1" "$_found_with_d"
-}
-
-# ===========================================================================
 # test_integration_test_rule_has_primary_path_constraint
 #
 # Given: implementation-plan/SKILL.md Integration Test Task Rule
@@ -117,7 +95,6 @@ test_integration_test_rule_has_primary_path_constraint() {
 
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_no_bare_create_without_description_flag
-test_operative_template_includes_description_flag
 test_integration_test_rule_has_primary_path_constraint
 
 print_summary

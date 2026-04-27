@@ -26,7 +26,8 @@ set -uo pipefail
 # _PLUGIN_ROOT / _PLUGIN_GIT_PATH: always BASH_SOURCE-based (correct for exclusion prefix).
 # _REAL_REPO_ROOT: prefer BASH_SOURCE-based (avoids CWD confusion in test repos), then
 #   fall back to CWD-based git rev-parse (reliable in git hook / worktree contexts).
-_HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_HOOK_SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+_HOOK_DIR="$(cd "$(dirname "$_HOOK_SELF")" && pwd)"
 _PLUGIN_ROOT="$(cd "$_HOOK_DIR/.." && pwd)"
 # shellcheck disable=SC2295  # inner $(…) in pattern expansion — safe here
 _PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)/}"

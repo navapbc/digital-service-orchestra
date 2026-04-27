@@ -213,7 +213,9 @@ test_write_op_python3_count_zero() {
         rm -rf "$_tmp"
         return
     }
-    git -C "$_tmp/.tickets-tracker" config gc.auto 0
+    # Guard: ticket init exits 0 but on macOS temp volumes gc.auto can fail if
+    # .tickets-tracker isn't present yet; skip non-essential gc config safely.
+    [[ -d "$_tmp/.tickets-tracker" ]] && git -C "$_tmp/.tickets-tracker" config gc.auto 0 || true
 
     # Create a ticket to use as a target for event writes.
     local _ticket_id
