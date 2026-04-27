@@ -72,6 +72,26 @@ jobs:
       - name: Run tests
         run: ${{ vars.DSO_TEST_CMD }}
 
+  tests-pipefail-strict:
+    needs: [lint-format]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BASH_OPTS: "-eo pipefail"
+      SUITE_TEST_INDEX: ${{ github.workspace }}/.test-index
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check DSO_TEST_CMD is set
+        run: |
+          if [ -z "${{ vars.DSO_TEST_CMD }}" ]; then
+            echo "Error: DSO_TEST_CMD is not set. Set it in GitHub Actions Variables." >&2
+            exit 1
+          fi
+
+      - name: Run tests under strict pipefail
+        run: ${{ vars.DSO_TEST_CMD }}
+
   llm-review:
     needs: [tests]
     runs-on: ubuntu-latest
