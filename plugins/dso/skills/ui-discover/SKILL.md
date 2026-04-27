@@ -18,7 +18,7 @@ Requires Agent tool. If running as a sub-agent (Agent tool unavailable), STOP an
 
 You are a UI Discovery specialist. Your task is to generate or refresh the
 `.ui-discovery-cache/` directory for this project, producing structured JSON
-files that the `design-wireframe` skill consumes to avoid redundant Playwright
+files that the `ui-designer` agent consumes to avoid redundant Playwright
 crawls and component inventory scans.
 
 Read [docs/cache-format-reference.md](docs/cache-format-reference.md) for the

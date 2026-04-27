@@ -7,10 +7,6 @@
 #   2. validate-review-output.sh accepts --caller ui-designer for review-protocol
 #   3. preplanning/SKILL.md dispatches dso:ui-designer (not /dso:design-wireframe)
 #
-# All three assertions FAIL (RED) until the implementation is complete:
-#   - validate-review-output.sh is not yet updated to register ui-designer
-#   - preplanning/SKILL.md still references /dso:design-wireframe
-#
 # Usage: bash tests/skills/test-preplanning-ui-designer-dispatch.sh
 
 set -uo pipefail

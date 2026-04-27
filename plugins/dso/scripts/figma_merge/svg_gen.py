@@ -5,7 +5,7 @@ Converts a spatial-layout.json dict into an SVG XML string.
 Public interface:
     generate_svg(spatial_layout: dict) -> str
 
-SVG structure follows the design-wireframe output-format-reference spec:
+SVG structure follows the ui-designer output-format-reference spec:
   - Root: <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 900'>
   - <defs><style>...</style></defs> with CSS classes
   - One <g id='{component.id}'> per component, nested to match JSON hierarchy

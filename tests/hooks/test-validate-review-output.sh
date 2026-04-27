@@ -97,8 +97,8 @@ assert_contains \
     "$CALLERS_OUTPUT"
 
 assert_contains \
-    "test_list_callers_shows_design_wireframe: --list-callers includes design-wireframe" \
-    "design-wireframe" \
+    "test_list_callers_shows_ui_designer: --list-callers includes ui-designer" \
+    "ui-designer" \
     "$CALLERS_OUTPUT"
 
 assert_contains \

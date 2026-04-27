@@ -38,12 +38,45 @@ P8 Commit                     → via COMMIT-WORKFLOW.md; surface review finding
 
 ---
 
+## Hard gates: compress, do not remove
+
+A **hard gate** is anything in a skill that enforces a contract or triggers a downstream check. Hard gates may be **compressed** (verbose prose collapsed to a one-liner) but must NOT be **removed** during refactor — even when they appear duplicated, restated, or "owned elsewhere." Removing a hard gate silently loosens the skill's safety surface; compressing it preserves the gate while reducing token cost.
+
+**Identifying hard gates** — treat any of the following as a gate, regardless of how prose-heavy it looks:
+
+- **Schema/hash assertions** that match a value in a script or config (e.g., `Caller schema hash: <hash>` lines mirroring `validate-review-output.sh` constants — these are cross-skill conventions and removal asymmetrically breaks one skill).
+- **Validation invocations** the orchestrator is expected to run (`validate-*.sh`, `check-*.sh`, `--ci` calls) — even when a workflow doc *also* runs them, the in-skill copy may be the only path under certain entry modes.
+- **Pass/fail thresholds** (`pass_threshold: 4`, `min score`, `all dimensions ≥ N`).
+- **Caller IDs, signal labels, contract names** (`caller_id: "design-review"`, `FEASIBILITY_GAP`, `REPLAN_ESCALATE`) — these are wire-format identifiers consumed by validators, agents, or hooks.
+- **Approval gates** (`await explicit approval`, `STOP and wait for user`) and **SUB-AGENT-GUARD** blocks.
+- **Severity overrides, escalation rules, max attempt counts** that mirror config keys.
+- **Test markers, RED-zone boundaries, `.test-index` entries** that the test gate consumes.
+
+**Compression patterns that ARE allowed**:
+
+- A 7-line "Score Aggregation Rules" section restating `/dso:review-protocol` mechanics → one line: *"Aggregation, conflicts, and revision are owned by `/dso:review-protocol`."* The mechanics are owned elsewhere (no gate is removed); only the prose copy is collapsed.
+- A 10-line bash invocation block duplicating a workflow-owned validation call → removed *only* when the workflow definitively owns invocation under every entry mode the skill supports. Verify by reading the workflow doc end-to-end before removing.
+- A duplicated reviewer/perspective table appearing in both `SKILL.md` and `docs/review-criteria.md` → keep one copy as the single source of truth; replace the other with a one-line link.
+
+**Removal patterns that are NOT allowed**:
+
+- Deleting a schema hash, caller_id, signal label, or pass threshold because it "appears in the script too." Cross-references are the gate; both ends must remain visible.
+- Deleting a validation invocation because a workflow doc *also* runs it, without first confirming the workflow runs it under every entry mode (interactive, dryrun, sub-agent dispatch, resume).
+- Deleting an approval gate because the protocol the skill calls *also* has one. The skill-level gate may be load-bearing for entry modes that bypass the protocol.
+- Deleting a SUB-AGENT-GUARD or its test reference.
+
+**Procedure**: when Phase 1 diagnosis flags content as duplicated/restated/extractable, classify each item as **gate** or **prose**. Gates get compressed (one-line pointer + retain the identifier); prose gets removed. Surface the classification in the Phase 2 plan so the user can audit it.
+
+**When in doubt, compress, do not remove.** Asymmetric cost: a removed gate may not surface as a failure for many sessions, and the loss is silent.
+
+---
+
 ## Phase 1 — Critical review
 
 Read the target SKILL.md in full. Identify, concretely:
 
 1. **Reliability problems**: undefined terms/codes referenced repeatedly, ambiguous phases, missing wiring instructions, scattered `--auto`/mode branches that should be consolidated, duplication that creates drift risk.
-2. **Token cost**: sections that are load-on-demand candidates (CI templates, anti-pattern catalogs, per-stack tables already codified in sibling scripts), prose over-elaboration of simple rules, examples that could live in a reference doc.
+2. **Token cost**: sections that are load-on-demand candidates (CI templates, anti-pattern catalogs, per-stack tables already codified in sibling scripts), prose over-elaboration of simple rules, examples that could live in a reference doc. For each candidate, classify as **gate** or **prose** per the "Hard gates" section above — gates get compressed, prose gets removed.
 3. **Deterministic-command extraction candidates**: agent-executed bash blocks that are mechanical enough to live in a dedicated script (emit JSON, detect artifacts, slug and write files).
 4. **Structural issues**: multiple approval gates for the same decision at different granularity, phases that exist solely to invoke `/dso:review` or similar one-liners, sub-agent guards repeated inline instead of shared.
 
@@ -59,6 +92,7 @@ Convert the review into a concrete plan:
 - **Files to modify** (SKILL.md rewrite, inline shim-call updates).
 - **Scripts to relocate** (see Phase 3) with destination path.
 - **Change-detector tests to remove** (see Phase 5) — names only; evidence comes in P5.
+- **Gate/prose classification table** for every duplicate or restated section flagged in Phase 1, marking each as **gate** (compress, retain identifier) or **prose** (remove). Apply the criteria from the "Hard gates" section above. The user audits this table — gate misclassifications get caught here, not after the commit.
 - **Expected token reduction** (estimated line delta for SKILL.md).
 
 Present the plan and wait for explicit approval. The user must say yes before execution proceeds. If the user redirects or says "not yet", stay in Phase 1 or 2; do not proceed to Phase 3.
