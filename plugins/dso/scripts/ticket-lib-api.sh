@@ -1320,8 +1320,7 @@ ticket_archive() {
         if find "$TICKET_DIR" -maxdepth 1 -name '*-ARCHIVED.json' 2>/dev/null | grep -q .; then
             # Write the marker if it was missing, then exit 0
             python3 -c "
-import sys, os
-sys.path.insert(0, os.path.dirname(os.path.abspath('$_TICKETLIB_DIR/ticket_reducer/marker.py')))
+import sys
 sys.path.insert(0, '$_TICKETLIB_DIR')
 from ticket_reducer.marker import write_marker
 write_marker(sys.argv[1])

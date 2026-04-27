@@ -30,13 +30,12 @@ fi
 **Review sub-agent dispatch** (REVIEW-WORKFLOW.md Step 4): Do NOT set `isolation: "worktree"` on the Agent tool (per REVIEW-WORKFLOW.md — isolation creates a separate branch, hiding findings from the orchestrator). Pass the sub-agent:
 - `DIFF_FILE`: absolute path (already in `$WORKTREE_ARTIFACTS`, no CWD dependency)
 - `STAT_FILE` content: inline in the prompt
-- `WORKFLOW_PLUGIN_ARTIFACTS_DIR` instruction: tell the sub-agent to run `export WORKFLOW_PLUGIN_ARTIFACTS_DIR="<WORKTREE_ARTIFACTS value>"` as a Bash command before calling `write-reviewer-findings.sh`. This env var is checked by `get_artifacts_dir()` in `deps.sh` (line 267) and overrides the CWD-based hash computation, ensuring findings are written to the worktree's artifacts dir regardless of the sub-agent's CWD:
+- `WORKFLOW_PLUGIN_ARTIFACTS_DIR`: pass `$WORKTREE_ARTIFACTS` value in the prompt
+- `FINDINGS_OUTPUT`: pass `$WORKTREE_ARTIFACTS/reviewer-findings.json` explicitly in the prompt (bug 464a-18df: the sub-agent's environment may already have `WORKFLOW_PLUGIN_ARTIFACTS_DIR` set to the orchestrator's dir; `FINDINGS_OUTPUT` maps directly to `--output` in write-reviewer-findings.sh, bypassing `get_artifacts_dir()` entirely)
 
 ```
-Before running write-reviewer-findings.sh, run this command:
-export WORKFLOW_PLUGIN_ARTIFACTS_DIR="<WORKTREE_ARTIFACTS value>"
-
-This ensures findings are written to the worktree's artifacts directory.
+WORKFLOW_PLUGIN_ARTIFACTS_DIR: <WORKTREE_ARTIFACTS value>
+FINDINGS_OUTPUT: <WORKTREE_ARTIFACTS value>/reviewer-findings.json
 ```
 
 **Post-review orchestrator steps** (each with `cd $WORKTREE_PATH &&`):
