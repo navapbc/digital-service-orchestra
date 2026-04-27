@@ -40,8 +40,8 @@ Before reviewing, you MUST have:
 
 ## The Review
 
-Read [docs/review-criteria.md](docs/review-criteria.md) for the full reviewer
-roster, launch instructions, score aggregation rules, and conflict detection patterns.
+Read [docs/review-criteria.md](docs/review-criteria.md) for the reviewer roster,
+launch instructions, and design-review-specific conflict patterns.
 
 Invoke `/dso:review-protocol` with:
 
@@ -51,15 +51,6 @@ Invoke `/dso:review-protocol` with:
 - **start_stage**: 1 (include mental pre-review)
 - **perspectives**: (defined in reviewer files — see `docs/review-criteria.md`)
 - **caller_id**: `"design-review"` (enables per-caller validation: perspectives, dimensions, and reviewer-specific finding fields)
-
-| Perspective | Reviewer File | Source |
-|-------------|---------------|--------|
-| North Star Alignment | [docs/reviewers/north-star-alignment.md](docs/reviewers/north-star-alignment.md) | .claude/design-notes.md |
-| Usability (HCD) | [docs/reviewers/usability-hcd.md](docs/reviewers/usability-hcd.md) | Nielsen's Heuristics + WCAG + HCD QA Criteria |
-| Visual Design | [docs/reviewers/visual-design.md](docs/reviewers/visual-design.md) | HCD QA Criteria |
-| Component Reuse | [docs/reviewers/component-reuse.md](docs/reviewers/component-reuse.md) | HCD QA Criteria |
-| Form & Input Design | [docs/reviewers/form-input-design.md](docs/reviewers/form-input-design.md) | HCD QA Criteria |
-| Tech Compliance | [docs/reviewers/tech-compliance.md](docs/reviewers/tech-compliance.md) | .claude/design-notes.md |
 
 ---
 

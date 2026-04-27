@@ -1,6 +1,6 @@
 {
   "name": "dso",
-  "version": "1.16.0",
+  "version": "1.16.1",
   "description": "Workflow infrastructure plugin for Claude Code projects",
   "commands": "./commands/",
   "skills": "./skills/",
