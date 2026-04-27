@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Escalated: 1302-line file SC violation requires extracting helpers into hooks/lib/ sub-modules (too large for autonomous fix). Needs a dedicated refactor sprint."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777306726558713000,"uuid":"43300c56-0c6d-48e8-a69b-662dc22f1d45"}
