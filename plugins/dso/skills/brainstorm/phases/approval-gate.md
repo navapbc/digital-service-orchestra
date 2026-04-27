@@ -13,6 +13,18 @@ Do NOT present this gate unless ALL of the following have completed or gracefull
 If any of the above has NOT completed, stop and execute it before presenting this gate. The user's ability to request a re-run via option (b) or (c) is for second-pass cycles only — it does not substitute for a mandatory first pass.
 </HARD-GATE>
 
+<HARD-GATE>
+Before rendering the approval prompt, emit one line:
+
+SCRUTINY: cross_epic=<subagent_id|SKIPPED:<reason>>; pipeline=<subagent_id|SKIPPED:<reason>>
+
+If either side is SKIPPED, request user authorization ("skip authorized?") and wait — do not render the approval prompt in the same response.
+
+Inline triage by the orchestrator (scanning ticket lists, pattern-matching against open-epics output) is NOT a sub-agent dispatch and MUST be recorded as SKIPPED.
+
+Reasons that DO NOT justify SKIPPED (treat as a signal to dispatch, not skip): "pre-thought" / "well-defined" / "user is moving fast" / "save sub-agent budget" / "I'll be transparent about skipping" / "interactions are obvious from list" / "epic has existing description".
+</HARD-GATE>
+
 ## External Dependencies Contradiction Gate
 
 When `planning.external_dependency_block_enabled` is on (source: `planning-config.sh`):
