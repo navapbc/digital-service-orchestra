@@ -1,7 +1,7 @@
 # UI Discovery Cache — Format Reference
 
 This document defines the JSON schemas for every file in the `.ui-discovery-cache/`
-directory. Both the `ui-discover` skill (writes) and the `design-wireframe` skill
+directory. Both the `ui-discover` skill (writes) and the `ui-designer` agent
 (reads) depend on these contracts.
 
 ---

@@ -674,7 +674,7 @@ awaiting_manual_stories = []   # List of {id, title} for manual:awaiting_user st
 1. Run `.claude/scripts/dso ticket show <story-id>` and check the `tags` field
 2. If `design:awaiting_import` (i.e., `$TAG_AWAITING_IMPORT`) is present:
    - Log: `"Story <id> tagged design:awaiting_import — skipping implementation planning."`
-   - Estimate the tag age from the ticket's comment timestamps: find the comment whose body contains `"Import designs/"` (written by design-wireframe when the tag was applied) and read its `timestamp` field from the JSON output. Compute days elapsed: `$(( ($(date +%s) - comment_timestamp_epoch) / 86400 ))`. If no such comment exists, treat tag age as unknown (no staleness warning).
+   - Estimate the tag age from the ticket's comment timestamps: find the comment whose body contains `"Import designs/"` (written by ui-designer when the tag was applied) and read its `timestamp` field from the JSON output. Compute days elapsed: `$(( ($(date +%s) - comment_timestamp_epoch) / 86400 ))`. If no such comment exists, treat tag age as unknown (no staleness warning).
    - Add the story to the `awaiting_design_stories` list: `{id: "<story-id>", title: "<story-title>", tag_applied_date: "<date or unknown>"}`
    - **Do not add this story to the needs-planning list**. Skip all further processing for this story (no complexity eval, no implementation-plan dispatch, no batch dispatch in Phase 4).
 3. Only stories **without** the `design:awaiting_import` tag proceed to the `manual:awaiting_user` check below.

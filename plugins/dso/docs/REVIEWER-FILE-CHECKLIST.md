@@ -1,7 +1,7 @@
 # Reviewer File Quality Checklist
 
 Standard for all `/dso:review-protocol` reviewer prompt files, derived from auditing
-the reference implementation in `${CLAUDE_PLUGIN_ROOT}/skills/design-wireframe/docs/reviewers/`.
+the reference implementation in `${CLAUDE_PLUGIN_ROOT}/agents/ui-designer.md` and `${CLAUDE_PLUGIN_ROOT}/skills/ui-designer/docs/reviewers/`.
 
 ## File Structure
 
