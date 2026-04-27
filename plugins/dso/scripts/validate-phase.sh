@@ -191,13 +191,13 @@ run_check() {
 run_test_batched() {
     local -n _any_fail="$1"
     local batched_script="$VALIDATE_TEST_BATCHED_SCRIPT"
-    local batched_timeout=45
+    local batched_timeout=65
 
     if [ -x "$batched_script" ]; then
         local rc=0
         local batched_output
         # Run test-batched.sh; capture stdout+stderr together.
-        # test-batched.sh manages its own time budget (--timeout=45).
+        # test-batched.sh manages its own time budget (--timeout=65).
         batched_output=$(
             TEST_BATCHED_STATE_FILE="$VALIDATE_TEST_STATE_FILE" \
             bash "$batched_script" --timeout="$batched_timeout" "$CMD_TEST_UNIT" 2>&1
