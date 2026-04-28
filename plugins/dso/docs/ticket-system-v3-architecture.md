@@ -41,7 +41,7 @@ Each ticket lives in its own subdirectory named by its local ID (e.g., `dso-9aq2
 |---------------|-----------------------------------------------------------------|
 | `<timestamp>` | UTC epoch seconds (integer), unpadded (10 digits since 2001-09-09) |
 | `<uuid>`      | Lowercase UUID4, hyphens preserved                              |
-| `<TYPE>`      | Uppercase event type: `CREATE`, `STATUS`, `COMMENT`, `LINK`, `UNLINK`, `SNAPSHOT`, or `SYNC` |
+| `<TYPE>`      | Uppercase event type: `CREATE`, `STATUS`, `COMMENT`, `LINK`, `UNLINK`, `SNAPSHOT`, `SYNC`, or `FILE_IMPACT` |
 
 Example: `1742605200-3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c-CREATE.json`
 
@@ -135,6 +135,7 @@ Error-state dicts always have exactly three keys: `{status, error, ticket_id}`.
 | `bridge_alerts`| list     | List of bridge alert dicts (Epic 3 feature)      |
 | `reverts`      | list     | List of revert record dicts                      |
 | `conflicts`    | list     | Optimistic concurrency conflicts (if any)        |
+| `file_impact`  | list     | Structured list of `{path, reason}` objects from the latest FILE_IMPACT event; `[]` if none written |
 
 #### State Cache
 
