@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Escalated: fix requires adding a test for _is_astgrep_sg discriminator in a safeguard-adjacent component (CLAUDE.md rule 22). Requires explicit user approval: 'yes, edit the test gate hook'."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777306728835130000,"uuid":"096c782a-683c-49ab-a970-16f407f0ad09"}
