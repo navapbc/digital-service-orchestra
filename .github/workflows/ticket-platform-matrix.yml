@@ -57,7 +57,7 @@ jobs:
 
       - name: Install dependencies (Alpine only)
         if: matrix.name == 'alpine-busybox'
-        run: apk add --no-cache bash python3 git
+        run: apk add --no-cache bash python3 git jq
 
       - name: Trust workspace for git (Alpine only)
         if: matrix.name == 'alpine-busybox'

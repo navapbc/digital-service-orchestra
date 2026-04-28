@@ -156,7 +156,11 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      id-token: write
+      # REVIEW-DEFENSE: id-token: write is intentionally absent. Adding it would trigger
+      # the claude-code-action OIDC app-token exchange, which validates the workflow file
+      # is identical to the main branch as a security check. Any PR that modifies ci.yml
+      # (including this one) fails that check with 401 Unauthorized. The action authenticates
+      # via ANTHROPIC_API_KEY (direct API key auth) and does not need OIDC.
     steps:
       - uses: actions/checkout@v4
 
