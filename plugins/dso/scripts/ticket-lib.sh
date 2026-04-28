@@ -72,9 +72,9 @@ print(data['uuid'])
     # ── Normalize event_type to uppercase and validate against allowed enum ──
     event_type=$(echo "$event_type" | tr '[:lower:]' '[:upper:]')
     case "$event_type" in
-        CREATE|STATUS|COMMENT|LINK|UNLINK|SNAPSHOT|SYNC|REVERT|EDIT|ARCHIVED) ;;
+        CREATE|STATUS|COMMENT|LINK|UNLINK|SNAPSHOT|SYNC|REVERT|EDIT|ARCHIVED|FILE_IMPACT) ;;
         *)
-            echo "Error: invalid event_type '$event_type'. Must be one of: CREATE, STATUS, COMMENT, LINK, UNLINK, SNAPSHOT, SYNC, REVERT, EDIT, ARCHIVED" >&2
+            echo "Error: invalid event_type '$event_type'. Must be one of: CREATE, STATUS, COMMENT, LINK, UNLINK, SNAPSHOT, SYNC, REVERT, EDIT, ARCHIVED, FILE_IMPACT" >&2
             return 1
             ;;
     esac
@@ -414,9 +414,9 @@ write_commit_event() {
     # ── Normalize event_type to uppercase and validate against allowed enum ──
     event_type=$(echo "$event_type" | tr '[:lower:]' '[:upper:]')
     case "$event_type" in
-        CREATE|STATUS|COMMENT|LINK|UNLINK|SNAPSHOT|SYNC|REVERT|EDIT|ARCHIVED) ;;
+        CREATE|STATUS|COMMENT|LINK|UNLINK|SNAPSHOT|SYNC|REVERT|EDIT|ARCHIVED|FILE_IMPACT) ;;
         *)
-            echo "Error: invalid event_type '$event_type'. Must be one of: CREATE, STATUS, COMMENT, LINK, UNLINK, SNAPSHOT, SYNC, REVERT, EDIT, ARCHIVED" >&2
+            echo "Error: invalid event_type '$event_type'. Must be one of: CREATE, STATUS, COMMENT, LINK, UNLINK, SNAPSHOT, SYNC, REVERT, EDIT, ARCHIVED, FILE_IMPACT" >&2
             return 1
             ;;
     esac
