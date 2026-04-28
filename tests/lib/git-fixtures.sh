@@ -127,7 +127,13 @@ clone_ticket_repo() {
     cp -r "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/repo" "$dest"
 
     # Rewrite worktree cross-references (absolute paths baked into template)
+    # Detect actual worktree metadata dir name: git sanitizes leading '.' to '-'
+    # but behaviour differs across git versions. Use glob so shellcheck is happy.
     local wt_name="-tickets-tracker"
+    local _wt_dir
+    for _wt_dir in "$dest/.git/worktrees"/*/; do
+        [ -d "$_wt_dir" ] && wt_name=$(basename "$_wt_dir") && break
+    done
     local wt_gitdir="$dest/.git/worktrees/$wt_name/gitdir"
     local tracker_gitfile="$dest/.tickets-tracker/.git"  # tickets-boundary-ok
 
