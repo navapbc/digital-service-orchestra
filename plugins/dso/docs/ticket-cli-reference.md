@@ -382,16 +382,18 @@ Link two tickets with a directional relationship.
 |---|---|---|
 | `source_id` | Yes | The ticket the link originates from |
 | `target_id` | Yes | The ticket the link points to |
-| `relation` | Yes | One of: `blocks`, `depends_on`, `relates_to` |
+| `relation` | Yes | One of: `blocks`, `depends_on`, `relates_to`, `duplicates`, `supersedes` |
 | `--dry-run` | No | Preview the link operation without writing any event; prints what would happen (promotion, rejection, or creation) and exits 0 |
 
 **Behavior:**
 
 - Routes to `ticket-graph.py --link` (not `ticket-link.sh`) to perform cycle detection in the same atomic operation as the link write
 - Validates that both tickets exist before writing
-- Cycle detection: adding a link that would create a cycle in `blocks`/`depends_on` relations is rejected with an error; `relates_to` never creates cycles
+- Cycle detection: adding a link that would create a cycle in `blocks`/`depends_on` relations is rejected with an error; `relates_to`, `duplicates`, and `supersedes` never create cycles
 - Idempotent: if a net-active LINK with the same `(target_id, relation)` already exists in `source_id`'s directory, the call is a no-op (exits 0)
 - `relates_to`: writes reciprocal LINK events in both `source_id` and `target_id` directories
+- `duplicates`: directional (not bidirectional); source is the duplicate ticket, target is the canonical ticket; no blocking semantics
+- `supersedes`: directional (not bidirectional); source replaces/supersedes the target ticket; no blocking semantics
 - Writes a `LINK` event JSON file and commits it to the tickets branch
 
 #### Hierarchy Enforcement
@@ -444,6 +446,12 @@ $ .claude/scripts/dso ticket link task-sprint-001 task-sprint-002 depends_on --d
 $ .claude/scripts/dso ticket link w21-a3f7 w21-b9c2 blocks
 $ .claude/scripts/dso ticket link w21-b9c2 w21-c0d1 depends_on
 $ .claude/scripts/dso ticket link w21-a3f7 w21-e5f6 relates_to
+
+# Mark w21-c0d1 as a duplicate of the canonical ticket w21-a3f7:
+$ .claude/scripts/dso ticket link w21-c0d1 w21-a3f7 duplicates
+
+# Mark w21-d2e3 as superseded by the newer ticket w21-f4g5:
+$ .claude/scripts/dso ticket link w21-f4g5 w21-d2e3 supersedes
 ```
 
 ---
