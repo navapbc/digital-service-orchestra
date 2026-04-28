@@ -1539,6 +1539,21 @@ else
 fi
 ```
 
+#### GitHub Repository Configuration
+
+After the ticket system is initialized, configure the GitHub repository with CI enforcement. This step pushes the CI workflow file to the main branch first (chicken-and-egg ordering: the workflow must be on main before the Ruleset can require its status checks), then provisions the Ruleset.
+
+Display to user: "Configuring GitHub repository with CI workflow and Ruleset enforcement..."
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/onboarding/github-bootstrap.sh"  # shim-exempt: bootstrap install — shim may not yet exist
+```
+
+**Fail-open guarantee**: `github-bootstrap.sh` exits 0 in all pre-flight failure cases (missing `gh` CLI, insufficient permissions, missing `.github/required-checks.txt`, network errors). It emits a warning with manual instructions when it cannot complete the setup automatically. Onboarding **must continue** regardless of the outcome of this step.
+
+**Skip condition**: This step is a no-op if no GitHub remote is configured or if the Ruleset already exists — `github-bootstrap.sh` detects both conditions and exits 0 silently.
+
 #### Generate Test Index
 
 If test directories were detected during Phase 1 auto-detection, run `generate-test-index.sh` to build the initial `.test-index` file mapping source files to test files:

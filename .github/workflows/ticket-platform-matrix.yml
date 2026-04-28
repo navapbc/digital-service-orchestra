@@ -11,11 +11,13 @@ on:
       - 'plugins/dso/scripts/ticket-lib-api.sh'
       - 'tests/scripts/test-ticket-*.sh'
   pull_request:
+    # REVIEW-DEFENSE: No paths: filter here is intentional and tested.
+    # test_pull_request_trigger_has_no_paths_filter in tests/scripts/test-ticket-platform-matrix-trigger.sh
+    # asserts the ABSENCE of paths: under pull_request (the test exits 1 if paths: IS present).
+    # Task 705d-66d4 removed the paths filter so all PRs trigger this workflow — the test now passes GREEN.
+    # The RED marker in .test-index was correctly removed because the assertion now succeeds.
     branches:
       - main
-    paths:
-      - 'plugins/dso/scripts/ticket-lib-api.sh'
-      - 'tests/scripts/test-ticket-*.sh'
   workflow_dispatch:
 
 concurrency:
