@@ -258,3 +258,65 @@ def test_file_impact_emits_bridge_alert_on_put_failure(
     assert alert["data"]["reason"] == "FILE_IMPACT_SYNC_FAILED", (
         f"Expected reason FILE_IMPACT_SYNC_FAILED, got {alert['data']['reason']!r}"
     )
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_file_impact_put_failure_still_attempts_comment_add(
+    bridge: ModuleType, tmp_path: Path
+) -> None:
+    """When set_issue_property raises, add_comment is still called (no early return).
+
+    RED: current code does `return []` after BRIDGE_ALERT on PUT failure,
+    which short-circuits the comment add entirely.
+    """
+    tracker_dir, ticket_dir = _setup_ticket(tmp_path)
+    _write_file_impact(ticket_dir)
+    mock_acli = _make_mock_acli()
+    mock_acli.set_issue_property.side_effect = Exception("Jira PUT failed: 503")
+
+    bridge.process_events(
+        tickets_dir=str(tracker_dir),
+        acli_client=mock_acli,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert mock_acli.add_comment.called, (
+        "Expected add_comment to be called even when set_issue_property raises, "
+        "but it was never called (early return after PUT failure)"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_file_impact_comment_add_failure_emits_bridge_alert_comment_sync_failed(
+    bridge: ModuleType, tmp_path: Path
+) -> None:
+    """When add_comment raises, BRIDGE_ALERT is written with reason FILE_IMPACT_COMMENT_SYNC_FAILED.
+
+    RED: current code does not catch add_comment failures at all — the exception is
+    silently swallowed and no BRIDGE_ALERT is emitted.
+    """
+    tracker_dir, ticket_dir = _setup_ticket(tmp_path)
+    _write_file_impact(ticket_dir)
+    mock_acli = _make_mock_acli()
+    mock_acli.add_comment.side_effect = Exception("Jira comment failed: 503")
+
+    bridge.process_events(
+        tickets_dir=str(tracker_dir),
+        acli_client=mock_acli,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    alert_files = [
+        f for f in ticket_dir.iterdir() if f.name.endswith("-BRIDGE_ALERT.json")
+    ]
+    assert alert_files, (
+        "Expected a BRIDGE_ALERT event file in ticket dir after comment add failure, found none"
+    )
+    reasons = [
+        json.loads(f.read_text(encoding="utf-8"))["data"]["reason"] for f in alert_files
+    ]
+    assert "FILE_IMPACT_COMMENT_SYNC_FAILED" in reasons, (
+        f"Expected reason FILE_IMPACT_COMMENT_SYNC_FAILED in BRIDGE_ALERT files, got reasons: {reasons!r}"
+    )

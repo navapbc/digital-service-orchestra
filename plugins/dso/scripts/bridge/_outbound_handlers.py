@@ -634,16 +634,11 @@ def handle_file_impact_event(
     if event_uuid in uuid_to_jira:
         return []
 
+    put_failed = False
     try:
         acli_client.set_issue_property(jira_key, "dso.file_impact", file_impact)
     except Exception:
-        write_bridge_alert(
-            ticket_dir,
-            ticket_id=ticket_id,
-            reason="FILE_IMPACT_SYNC_FAILED",
-            bridge_env_id=bridge_env_id,
-        )
-        return []
+        put_failed = True
 
     paths = [
         entry.get("path", str(entry)) if isinstance(entry, dict) else str(entry)
@@ -653,17 +648,35 @@ def handle_file_impact_event(
     file_word = "file" if n == 1 else "files"
     comment_body = f"File Impact ({n} {file_word}): {', '.join(paths)}"
     body_with_marker = embed_uuid_marker(comment_body, event_uuid)
-    result = acli_client.add_comment(jira_key, body_with_marker)
-    jira_comment_id = (result.get("id", "") if isinstance(result, dict) else "") or str(
-        event_uuid
-    )
+    comment_failed = False
+    try:
+        result = acli_client.add_comment(jira_key, body_with_marker)
+        jira_comment_id = (result.get("id", "") if isinstance(result, dict) else "") or str(
+            event_uuid
+        )
+        jira_id_to_uuid = dedup_map.get("jira_id_to_uuid", {})
+        uuid_to_jira[event_uuid] = jira_comment_id
+        jira_id_to_uuid[jira_comment_id] = event_uuid
+        dedup_map["uuid_to_jira_id"] = uuid_to_jira
+        dedup_map["jira_id_to_uuid"] = jira_id_to_uuid
+        _write_dedup_map(ticket_dir, dedup_map)
+    except Exception:
+        comment_failed = True
 
-    jira_id_to_uuid = dedup_map.get("jira_id_to_uuid", {})
-    uuid_to_jira[event_uuid] = jira_comment_id
-    jira_id_to_uuid[jira_comment_id] = event_uuid
-    dedup_map["uuid_to_jira_id"] = uuid_to_jira
-    dedup_map["jira_id_to_uuid"] = jira_id_to_uuid
-    _write_dedup_map(ticket_dir, dedup_map)
+    if put_failed:
+        write_bridge_alert(
+            ticket_dir,
+            ticket_id=ticket_id,
+            reason="FILE_IMPACT_SYNC_FAILED",
+            bridge_env_id=bridge_env_id,
+        )
+    if comment_failed:
+        write_bridge_alert(
+            ticket_dir,
+            ticket_id=ticket_id,
+            reason="FILE_IMPACT_COMMENT_SYNC_FAILED",
+            bridge_env_id=bridge_env_id,
+        )
 
     return []
 
