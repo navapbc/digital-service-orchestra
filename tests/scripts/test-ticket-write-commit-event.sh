@@ -753,6 +753,71 @@ if not found:
     return 0
 }
 
+# ── Test 11 (RED): write_commit_event accepts FILE_IMPACT event type ──────────
+# RED: ticket-lib.sh does not yet list FILE_IMPACT in the allowed event_type enum.
+# The test will FAIL (exit non-zero) until write_commit_event adds FILE_IMPACT to
+# the case statement at the enum-validation step.
+test_write_commit_event_accepts_file_impact() {
+    local repo ticket_id
+    repo=$(_make_test_repo)
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "FILE_IMPACT test" 2>/dev/null | tr -d '[:space:]')
+    if [ -z "$ticket_id" ]; then
+        echo "  setup failed: ticket create returned empty ID"
+        return 1
+    fi
+
+    # Build a FILE_IMPACT event JSON file (same structure as _make_event_json but
+    # with event_type=FILE_IMPACT and a file_impact list in data).
+    local event_json
+    event_json=$(mktemp)
+    _CLEANUP_FILES+=("$event_json") 2>/dev/null || true
+    python3 - "$event_json" "$ticket_id" <<'PYEOF'
+import json, sys, uuid, datetime
+out_path = sys.argv[1]
+ticket_id = sys.argv[2]
+event = {
+    "event_type": "FILE_IMPACT",
+    "timestamp": datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%S%f") + "Z",
+    "uuid": str(uuid.uuid4()).replace("-", "")[:12],
+    "data": {
+        "file_impact": [{"path": "src/foo.py", "reason": "modified"}],
+    },
+}
+with open(out_path, "w", encoding="utf-8") as f:
+    json.dump(event, f, ensure_ascii=False)
+PYEOF
+
+    # Call write_commit_event with the FILE_IMPACT event JSON file.
+    # RED: this exits non-zero because FILE_IMPACT is not in the allowed enum yet.
+    local exit_code=0
+    (
+        cd "$repo"
+        _TICKET_TEST_NO_SYNC=1 bash -c "
+            source '$TICKET_LIB'
+            write_commit_event '$ticket_id' '$event_json'
+        " 2>/dev/null
+    ) || exit_code=$?
+
+    assert_eq "write_commit_event must exit 0 for FILE_IMPACT event" "0" "$exit_code"
+
+    # Assert: event file with -FILE_IMPACT.json suffix is written to the ticket dir.
+    local tracker_dir="$repo/.tickets-tracker"
+    local event_file
+    event_file=$(find "$tracker_dir/$ticket_id" -name '*-FILE_IMPACT.json' 2>/dev/null | head -1)
+    assert_ne "FILE_IMPACT event file must exist in ticket dir" "" "$event_file"
+
+    # Only inspect file content when write_commit_event succeeded (GREEN state).
+    if [ -n "$event_file" ] && [ -f "$event_file" ]; then
+        local stored_type
+        stored_type=$(python3 -c "import json; d=json.load(open('$event_file')); print(d.get('event_type',''))")
+        assert_eq "stored event_type should be FILE_IMPACT" "FILE_IMPACT" "$stored_type"
+
+        local has_fi
+        has_fi=$(python3 -c "import json; d=json.load(open('$event_file')); print('yes' if 'file_impact' in d.get('data',{}) else 'no')")
+        assert_eq "data must contain file_impact key" "yes" "$has_fi"
+    fi
+}
+
 # ── Runner (tests 1-7) ─────────────────────────────────────────────────────────
 pass=0
 fail=0
@@ -977,6 +1042,10 @@ EOF
     assert_eq "event file created without DSO_TICKET_LEGACY" "1" "$event_files"
 }
 test_write_commit_event_no_legacy_flag_flock_path
+
+# ── Test 11 (RED): FILE_IMPACT event type written by write_commit_event ───────
+echo "Test 11 (RED): write_commit_event writes FILE_IMPACT event file"
+test_write_commit_event_accepts_file_impact
 
 # ── Final summary (assert.sh counters for tests 8-10) ─────────────────────────
 print_summary
