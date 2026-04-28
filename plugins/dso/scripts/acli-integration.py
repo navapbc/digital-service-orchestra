@@ -695,6 +695,37 @@ class AcliClient:
             self._myself_cache = {}
         return self._myself_cache
 
+    def _direct_rest_put(self, path: str, data: Any) -> None:
+        """PUT JSON data to a Jira REST path using stored credentials.
+
+        Follows the same urllib pattern as get_myself().
+        Spike confirmed ACLI has no issue properties subcommand.
+        Raises urllib.error.HTTPError on non-2xx response.
+        """
+        url = f"{self.jira_url.rstrip('/')}{path}"
+        creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()
+        body = json.dumps({"value": data}, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=body,
+            method="PUT",
+            headers={
+                "Authorization": f"Basic {creds}",
+                "Content-Type": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            resp.read()
+
+    def set_issue_property(self, jira_key: str, property_key: str, value: Any) -> None:
+        """Set a Jira issue property via REST PUT.
+
+        Calls /rest/api/3/issue/{jira_key}/properties/{property_key} with value
+        wrapped in {"value": ...} per the Jira issue properties API contract.
+        """
+        path = f"/rest/api/3/issue/{jira_key}/properties/{property_key}"
+        self._direct_rest_put(path, value)
+
     def get_comments(self, jira_key: str) -> list[dict[str, Any]]:
         """Get all comments on a Jira issue."""
         cmd = [
