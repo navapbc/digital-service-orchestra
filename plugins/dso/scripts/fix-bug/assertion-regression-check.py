@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Gate 2c: Test Regression Check.
+"""Assertion-Regression Gate: Test Regression Check.
 
 Reads a unified diff from stdin and detects assertion weakening in test files.
 Emits a JSON gate signal conforming to gate-signal-schema.md.
 
 Usage:
-    gate-2c-test-regression-check.py [--intent-aligned] [--test-dir <path>]
+    assertion-regression-check.py [--intent-aligned] [--test-dir <path>]
 
 Flags:
     --intent-aligned   Suppresses all signals per epic SC3. Always emits
@@ -15,7 +15,7 @@ Flags:
                        considered. Files outside this directory are ignored.
 
 Output: single JSON object on stdout conforming to gate-signal-schema.md
-    gate_id     = "2c"
+    gate_id     = "assertion_regression"
     signal_type = "primary"
     triggered   = true | false
     evidence    = human-readable explanation
@@ -36,7 +36,7 @@ from pathlib import PurePosixPath
 # Constants
 # ---------------------------------------------------------------------------
 
-GATE_ID = "2c"
+GATE_ID = "assertion_regression"
 SIGNAL_TYPE = "primary"
 
 # Assertion methods recognized for detection
@@ -394,7 +394,7 @@ def main() -> None:
         _emit(
             False,
             "Test regression check suppressed: --intent-aligned flag passed "
-            "(Gate 1a reported intent-aligned; test changes are expected and intentional)",
+            "(Intent Gate reported intent-aligned; test changes are expected and intentional)",
             "high",
         )
         return  # unreachable after _emit exits, but keeps linter happy

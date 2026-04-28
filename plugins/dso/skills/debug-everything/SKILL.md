@@ -712,7 +712,7 @@ Invalid (prohibited — do NOT do this):
 
 Scan each fix-bug sub-agent result for `COMPLEX_ESCALATION: true`. If absent in all results, proceed to Step 9.
 
-If present in any result, execute `prompts/complex-escalation-handler.md`. That prompt parses the escalation report fields, applies the Non-Interactive Deferral Protocol when `INTERACTIVE_SESSION=false`, and otherwise re-dispatches `/dso:fix-bug` at orchestrator level with `### COMPLEX_ESCALATION Context` pre-loaded so fix-bug skips to its own Step 4 (Fix Approval). All complex-escalated bugs are tracked in the `COMPLEX_BUGS` list for the session summary.
+If present in any result, execute `prompts/complex-escalation-handler.md`. That prompt parses the escalation report fields, applies the Non-Interactive Deferral Protocol when `INTERACTIVE_SESSION=false`, and otherwise re-dispatches `/dso:fix-bug` at orchestrator level with `### COMPLEX_ESCALATION Context` pre-loaded so fix-bug skips to its own Phase D Step 1 (Fix Approval). All complex-escalated bugs are tracked in the `COMPLEX_BUGS` list for the session summary.
 
 ### Step 9: Decision Log (/dso:debug-everything)
 

@@ -1,12 +1,12 @@
 # COMPLEX_ESCALATION Handler (Phase H Step 8)
 
-Loaded only when one or more Phase G sub-agent results contain a `COMPLEX_ESCALATION: true` signal (rare — emitted by fix-bug Step 4.5 post-investigation when classification finds the bug too complex for solo fix). Skipped otherwise.
+Loaded only when one or more Phase G sub-agent results contain a `COMPLEX_ESCALATION: true` signal (rare — emitted by fix-bug Phase D Step 2 post-investigation when classification finds the bug too complex for solo fix). Skipped otherwise.
 
 ## Detection
 
 Scan each sub-agent result for `COMPLEX_ESCALATION: true`.
 
-## Parse fields (per fix-bug Step 4.5 schema)
+## Parse fields (per fix-bug Phase D Step 2 schema)
 
 - `escalation_type`: `COMPLEX` (fix scope too large for single bug fix track).
 - `bug_id`: ticket ID being escalated.

@@ -96,9 +96,9 @@ if [[ -f "$SKILL_FILE" ]]; then
 fi
 
 # test_fix_bug_skill_complexity_evaluation
-# Skill must include a Step 4.5 heading AND reference the complexity-evaluator.
+# Skill must include a Phase D Step 2 (Fix Complexity Evaluation) heading AND reference the complexity-evaluator.
 if [[ -f "$SKILL_FILE" ]]; then
-    if grep -q "Step 4.5" "$SKILL_FILE" && grep -q "complexity-evaluator" "$SKILL_FILE"; then
+    if grep -qE "Phase D Step 2|Fix Complexity Evaluation" "$SKILL_FILE" && grep -q "complexity-evaluator" "$SKILL_FILE"; then
         actual="present"
     else
         actual="missing"
@@ -165,11 +165,11 @@ if [[ -f "$SKILL_FILE" ]]; then
 fi
 
 # test_fix_bug_skill_step2_mandatory_dispatch_directive
-# Step 2 must contain a mandatory dispatch directive ("MUST dispatch" or
+# Investigation Sub-Agent Dispatch step (Phase C Step 1) must contain a mandatory dispatch directive ("MUST dispatch" or
 # "YOU MUST dispatch") that explicitly requires sub-agent dispatch rather
 # than leaving it as an option the orchestrator can rationalize around.
 if [[ -f "$SKILL_FILE" ]]; then
-    _tmp=$(grep -A30 "Step 2:" "$SKILL_FILE"); if grep -qE "MUST dispatch|YOU MUST dispatch" <<< "$_tmp"; then
+    _tmp=$(grep -A30 -E "Step [0-9]+: Investigation Sub-Agent Dispatch" "$SKILL_FILE"); if grep -qE "MUST dispatch|YOU MUST dispatch" <<< "$_tmp"; then
         actual="present"
     else
         actual="missing"

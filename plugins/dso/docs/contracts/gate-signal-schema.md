@@ -23,12 +23,12 @@ This contract must be agreed upon before any gate is implemented to prevent impl
 
 Each gate script conforming to this contract:
 
-- `scripts/gate-1a.sh` (or inline in `skills/fix-bug/SKILL.md`) — Gate 1a (Story 6775-b635) # shim-exempt: internal implementation path reference
-- `scripts/gate-1b.sh` (or inline) — Gate 1b (Story 5260-e9ba) # shim-exempt: internal implementation path reference
-- `scripts/gate-2a.sh` (or inline) — Gate 2a (Story e965-7cb7) # shim-exempt: internal implementation path reference
-- `scripts/gate-2b.sh` (or inline) — Gate 2b (Story 2c25-5751) # shim-exempt: internal implementation path reference
-- `scripts/gate-2c.sh` (or inline) — Gate 2c (Story e7a0-b991) # shim-exempt: internal implementation path reference
-- `scripts/gate-2d.sh` (or inline) — Gate 2d (Story e965-7cb7) # shim-exempt: internal implementation path reference
+- intent-search agent — Intent Gate (Story 6775-b635) # shim-exempt: internal implementation path reference
+- `scripts/fix-bug/feature-request-check.py` — Feature-Request Gate (Story 5260-e9ba) # shim-exempt: internal implementation path reference
+- `scripts/fix-bug/reversal-check.sh` — Reversal Gate (Story e965-7cb7) # shim-exempt: internal implementation path reference
+- `scripts/fix-bug/blast-radius.sh` — Blast-Radius Gate (Story 2c25-5751) # shim-exempt: internal implementation path reference
+- `scripts/fix-bug/assertion-regression-check.py` — Assertion-Regression Gate (Story e7a0-b991) # shim-exempt: internal implementation path reference
+- `scripts/fix-bug/dependency-check.sh` — Dependency Gate (Story e965-7cb7) # shim-exempt: internal implementation path reference
 
 Each emitter evaluates its gate condition, then prints a single JSON object to stdout and exits 0 on success or non-zero on failure.
 
@@ -48,7 +48,7 @@ The emitter outputs a single JSON object on stdout. All fields are required.
 
 | Field | Type | Description |
 |---|---|---|
-| `gate_id` | string | Gate identifier, e.g. `"1a"`, `"1b"`, `"2a"`, `"2b"`, `"2c"`, `"2d"`. Gate ID may be numeric-prefixed ("1a", "2b") for fix-bug classification gates or semantic-named ("scope_drift") for named reviewer agents. |
+| `gate_id` | string | Gate identifier, e.g. `"intent"`, `"feature_request"`, `"reversal"`, `"blast_radius"`, `"assertion_regression"`, `"dependency"`. fix-bug classification gates use semantic identifiers ("intent", "feature_request", "reversal", "blast_radius", "assertion_regression", "dependency"); named reviewer agents emit their own semantic identifiers (e.g., "scope_drift"). |
 | `triggered` | boolean | `true` if the gate condition fired and this gate's signal should influence routing; `false` otherwise |
 | `signal_type` | string (enum) | Role of this gate in the classification pipeline. One of: `"primary"` (drives top-level routing decision), `"modifier"` (adjusts or refines a primary signal) |
 | `evidence` | string | Human-readable summary of the evidence that caused `triggered` to be `true`, or an explanation of why the gate did not fire when `triggered` is `false`. Must not be empty. |
@@ -88,7 +88,7 @@ Some gate emitters may include additional fields beyond the required schema. Par
 
 ```json
 {
-  "gate_id": "1a",
+  "gate_id": "intent",
   "triggered": true,
   "signal_type": "primary",
   "evidence": "Stack trace present in bug description with 3 distinct frame references; import error pattern matched at line 42",
@@ -100,7 +100,7 @@ Some gate emitters may include additional fields beyond the required schema. Par
 
 ```json
 {
-  "gate_id": "2b",
+  "gate_id": "blast_radius",
   "triggered": false,
   "signal_type": "modifier",
   "evidence": "No regression indicators found; changed files show no overlap with previously fixed paths in git history",

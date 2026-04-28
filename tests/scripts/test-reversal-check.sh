@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# tests/scripts/test-gate-2a-reversal-check.sh
-# RED-phase behavioral tests for plugins/dso/scripts/gate-2a-reversal-check.sh
+# tests/scripts/test-reversal-check.sh
+# RED-phase behavioral tests for plugins/dso/scripts/fix-bug/reversal-check.sh
 #
 # Each test creates an isolated temp git repo with controlled commit history,
-# then calls gate-2a-reversal-check.sh and asserts on the JSON output.
+# then calls reversal-check.sh and asserts on the JSON output.
 #
-# RED STATE: All tests currently fail because gate-2a-reversal-check.sh does
+# RED STATE: All tests currently fail because reversal-check.sh does
 # not yet exist. They will pass (GREEN) after the script is implemented.
 #
-# Usage: bash tests/scripts/test-gate-2a-reversal-check.sh
+# Usage: bash tests/scripts/test-reversal-check.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-GATE_SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/gate-2a-reversal-check.sh"
+GATE_SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/fix-bug/reversal-check.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -28,7 +28,7 @@ _cleanup_all() {
 }
 trap _cleanup_all EXIT
 
-echo "=== test-gate-2a-reversal-check.sh ==="
+echo "=== test-reversal-check.sh ==="
 echo ""
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
@@ -204,7 +204,7 @@ test_intent_aligned_suppression() {
 # ── test_emits_gate_signal_json ────────────────────────────────────────────────
 # Scenario: run gate on any file with git history.
 # Expected: output is valid JSON conforming to gate-signal-schema.md —
-#           gate_id="2a", signal_type="primary", non-empty evidence,
+#           gate_id="reversal", signal_type="primary", non-empty evidence,
 #           confidence in {high,medium,low}
 test_emits_gate_signal_json() {
     _snapshot_fail
@@ -226,10 +226,10 @@ test_emits_gate_signal_json() {
 
     assert_eq "test_emits_gate_signal_json: gate exits 0" "0" "$exit_code"
 
-    # gate_id must be "2a"
+    # gate_id must be "reversal"
     local gate_id
     gate_id="$(_json_field "$output" "gate_id")"
-    assert_eq "test_emits_gate_signal_json: gate_id is 2a" "2a" "$gate_id"
+    assert_eq "test_emits_gate_signal_json: gate_id is reversal" "reversal" "$gate_id"
 
     # signal_type must be "primary"
     local signal_type

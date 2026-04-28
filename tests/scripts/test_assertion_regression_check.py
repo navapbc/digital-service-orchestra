@@ -1,12 +1,12 @@
-"""RED tests for plugins/dso/scripts/gate-2c-test-regression-check.py.
+"""RED tests for plugins/dso/scripts/fix-bug/assertion-regression-check.py.
 
-These tests are RED — gate-2c-test-regression-check.py does not yet exist.
+These tests are RED — assertion-regression-check.py does not yet exist.
 All tests must FAIL until the script is implemented.
 
 The script accepts a unified diff via stdin and an optional --test-dir flag.
 It analyzes test file changes in the diff and emits a JSON gate signal:
 
-  gate_id     — "2c"
+  gate_id     — "assertion_regression"
   triggered   — bool: True if assertion regression detected
   signal_type — "primary"
   evidence    — string describing what was detected
@@ -26,8 +26,8 @@ NOT triggered for:
   - Diffs that touch only non-test source files
   - --intent-aligned flag passed (suppresses all signals)
 
-Test: python3 -m pytest tests/scripts/test_gate_2c_test_regression_check.py
-All tests must fail before gate-2c-test-regression-check.py is implemented.
+Test: python3 -m pytest tests/scripts/test_assertion_regression_check.py
+All tests must fail before assertion-regression-check.py is implemented.
 """
 
 from __future__ import annotations
@@ -45,7 +45,12 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = (
-    REPO_ROOT / "plugins" / "dso" / "scripts" / "gate-2c-test-regression-check.py"
+    REPO_ROOT
+    / "plugins"
+    / "dso"
+    / "scripts"
+    / "fix-bug"
+    / "assertion-regression-check.py"
 )
 
 
@@ -74,7 +79,7 @@ def _unified_diff(
 def _run(
     diff_text: str, extra_args: list[str] | None = None
 ) -> subprocess.CompletedProcess[str]:
-    """Pipe a unified diff to gate-2c-test-regression-check.py and return result."""
+    """Pipe a unified diff to assertion-regression-check.py and return result."""
     cmd = [sys.executable, str(SCRIPT_PATH)] + (extra_args or [])
     return subprocess.run(
         cmd,
@@ -99,10 +104,10 @@ def _parse_output(result: subprocess.CompletedProcess[str]) -> dict:
 
 @pytest.fixture(scope="session", autouse=True)
 def script_must_exist() -> None:
-    """Fail all tests immediately if gate-2c-test-regression-check.py is absent."""
+    """Fail all tests immediately if assertion-regression-check.py is absent."""
     if not SCRIPT_PATH.exists():
         pytest.fail(
-            f"gate-2c-test-regression-check.py not found at {SCRIPT_PATH} — "
+            f"assertion-regression-check.py not found at {SCRIPT_PATH} — "
             "this is expected RED state; implement the script to make tests pass."
         )
 
@@ -378,7 +383,7 @@ class TestGate2cTestRegressionCheck:
     # ── Test 12: gate signal schema fields ────────────────────────────────
 
     def test_emits_gate_signal_json(self, tmp_path: Path) -> None:
-        """Script always emits gate_id='2c' and signal_type='primary' in output."""
+        """Script always emits gate_id='assertion_regression' and signal_type='primary' in output."""
         before = [
             "def test_x():",
             "    assertEqual(x, 1)",
@@ -393,8 +398,8 @@ class TestGate2cTestRegressionCheck:
             f"Expected exit 0; got {result.returncode}.\nstderr: {result.stderr!r}"
         )
         data = _parse_output(result)
-        assert data.get("gate_id") == "2c", (
-            f"Expected gate_id='2c'; got: {data.get('gate_id')!r}"
+        assert data.get("gate_id") == "assertion_regression", (
+            f"Expected gate_id='assertion_regression'; got: {data.get('gate_id')!r}"
         )
         assert data.get("signal_type") == "primary", (
             f"Expected signal_type='primary'; got: {data.get('signal_type')!r}"

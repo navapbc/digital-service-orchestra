@@ -1,7 +1,7 @@
 ---
 name: intent-search
 model: sonnet
-description: Pre-investigation gate agent (Gate 1a) for /dso:fix-bug. Searches closed/archived tickets, git history, ADRs, design docs, and code comments to determine whether a bug aligns with or contradicts the system's documented intent.
+description: Pre-investigation gate agent (Intent Gate) for /dso:fix-bug. Searches closed/archived tickets, git history, ADRs, design docs, and code comments to determine whether a bug aligns with or contradicts the system's documented intent.
 color: yellow
 ---
 
@@ -141,7 +141,7 @@ Based on gathered evidence, classify into one of three terminal outcomes:
 4. No evidence found after exhausting budget → **ambiguous**
 5. Mixed signals (some justify, some don't) → **ambiguous**
 6. Clear absence of justification with behavior matching a broken invariant → **intent-aligned**
-7. No implementation found for the reported capability (feature was never built) → **ambiguous** — absence of implementation is not evidence of deliberate design; do NOT classify as `intent-contradicting`. The feature-request check (Gate 1b) handles this case via user escalation.
+7. No implementation found for the reported capability (feature was never built) → **ambiguous** — absence of implementation is not evidence of deliberate design; do NOT classify as `intent-contradicting`. The feature-request check (Feature-Request Gate) handles this case via user escalation.
 
 ### Step 7b: Caller Traversal (Behavioral Claim Validation)
 
@@ -179,11 +179,11 @@ After traversal:
 
 ## Output Schema
 
-Emit a single JSON object conforming to the `gate-signal-schema.md` contract. Gate 1a is a `"primary"` signal.
+Emit a single JSON object conforming to the `gate-signal-schema.md` contract. Intent Gate is a `"primary"` signal.
 
 ```json
 {
-  "gate_id": "1a",
+  "gate_id": "intent",
   "triggered": false,
   "signal_type": "primary",
   "evidence": "Human-readable summary of findings. Must include: what was searched, what was found (or not found), and why this outcome was chosen. Must not be empty.",
@@ -203,7 +203,7 @@ When Step 7b determines `intent-conflict`, the gate signal includes additional f
 
 ### Field Rules
 
-- `gate_id` MUST be `"1a"`
+- `gate_id` MUST be `"intent"`
 - `signal_type` MUST be `"primary"`
 - `triggered` MUST be `true` for intent-contradicting, `false` for intent-aligned and ambiguous
 - `confidence` MUST be `"low"` when outcome is ambiguous; `"high"` or `"medium"` otherwise
@@ -215,7 +215,7 @@ When Step 7b determines `intent-conflict`, the gate signal includes additional f
 
 ```json
 {
-  "gate_id": "1a",
+  "gate_id": "intent",
   "triggered": false,
   "signal_type": "primary",
   "evidence": "Searched 47 closed tickets, git history on src/adapters/cache.py (12 commits), and .claude/docs/. No evidence that the current cache key collision behavior was intentional. The original commit adding key hashing (commit a3f2b1) includes a TODO: 'handle collision case'. No ADR or design doc addresses this. Outcome: intent-aligned — the behavior is a genuine defect.",
@@ -227,7 +227,7 @@ When Step 7b determines `intent-conflict`, the gate signal includes additional f
 
 ```json
 {
-  "gate_id": "1a",
+  "gate_id": "intent",
   "triggered": true,
   "signal_type": "primary",
   "evidence": "Found ADR-007 in docs/designs/ which explicitly states that rate limiting returns 429 without a Retry-After header due to upstream provider constraints. Commit b7c3d9 (2026-01-15) references ADR-007 and adds a code comment at line 88 of src/middleware/rate_limit.py. This behavior is intentional by design. Outcome: intent-contradicting — the reported behavior was a deliberate tradeoff.",
@@ -239,7 +239,7 @@ When Step 7b determines `intent-conflict`, the gate signal includes additional f
 
 ```json
 {
-  "gate_id": "1a",
+  "gate_id": "intent",
   "triggered": false,
   "signal_type": "primary",
   "evidence": "Searched 23 closed tickets and git history on src/services/extraction.py (8 commits). Mixed signals: ticket dso-3a1b (closed 2025-11) treated similar behavior as a bug and fixed it, but commit f9e2a4 (2026-02-03) reverted part of that fix with message 'revert: causes regression in batch mode'. Intent unclear — prior fix was partially reverted without documentation of the tradeoff. Outcome: ambiguous — contradictory partial evidence, failing toward dialog.",

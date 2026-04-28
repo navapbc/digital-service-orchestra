@@ -179,7 +179,7 @@ Emit a single JSON object conforming to the `gate-signal-schema.md` contract. Th
 
 ## Consumers
 
-`dso:scope-drift-reviewer` is dispatched by `/dso:fix-bug` at **Step 7.1** (post-fix scope validation), after the fix has been implemented and before the commit gate. The fix-bug orchestrator reads `triggered` to decide whether to flag the fix for human review or proceed to commit.
+`dso:scope-drift-reviewer` is dispatched by `/dso:fix-bug` at **Phase F Step 1** (post-fix scope validation), after the fix has been implemented and before the commit gate. The fix-bug orchestrator reads `triggered` to decide whether to flag the fix for human review or proceed to commit.
 
 ---
 

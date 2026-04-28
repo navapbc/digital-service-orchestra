@@ -1,4 +1,4 @@
-"""Behavioral tests for fix-bug Gate 1a config integration.
+"""Behavioral tests for fix-bug Intent Gate config integration.
 
 Replaces the change-detection tests in the original test_fix_bug_gate_1a.py
 (deleted in Epic 902a-393b). Only the behavioral test (subprocess call to

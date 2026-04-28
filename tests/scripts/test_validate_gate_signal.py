@@ -37,7 +37,7 @@ SCRIPT_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "validate-gate-signal.
 
 # A fully valid signal payload conforming to the gate-signal-schema contract.
 VALID_SIGNAL = {
-    "gate_id": "1a",
+    "gate_id": "intent",
     "triggered": True,
     "signal_type": "primary",
     "evidence": "Stack trace found with 3 distinct frame references",
@@ -159,6 +159,6 @@ class TestValidateGateSignal:
         # The output should contain the gate_id so the caller can confirm
         # which signal was validated — this is the minimal structured signal
         # that demonstrates the script processed the input, not just silently exited.
-        assert "1a" in result.stdout, (
-            f"Expected gate_id '1a' to appear in stdout, got: {result.stdout!r}"
+        assert "intent" in result.stdout, (
+            f"Expected gate_id 'intent' to appear in stdout, got: {result.stdout!r}"
         )

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# gate-2d-dependency-check.sh
+# dependency-check.sh
 #
-# Gate 2d: Dependency Check
+# Dependency Gate: Dependency Check
 # Scans proposed fix files for import/require statements and determines whether
 # any new (previously unknown) dependencies are being introduced.
 #
 # Usage:
-#   gate-2d-dependency-check.sh <file1> [file2 ...] --repo-root <path>
+#   dependency-check.sh <file1> [file2 ...] --repo-root <path>
 #
 # Output: JSON conforming to gate-signal-schema.md
-#   gate_id:     "2d"
+#   gate_id:     "dependency"
 #   triggered:   true if new dependency/import detected
 #   signal_type: "primary"
 #   evidence:    human-readable explanation
@@ -61,8 +61,8 @@ if [[ -n "${WORKFLOW_CONFIG_FILE:-}" && -f "${WORKFLOW_CONFIG_FILE}" ]]; then
 elif [[ -f "$REPO_ROOT/.claude/dso-config.conf" ]]; then
     _fc_config="$REPO_ROOT/.claude/dso-config.conf"
 fi
-if [[ -n "$_fc_config" && -f "$SCRIPT_DIR/read-config.sh" ]]; then
-    CMD_FORMAT_CHECK=$("$SCRIPT_DIR/read-config.sh" "commands.format_check" "$_fc_config" 2>/dev/null || true)
+if [[ -n "$_fc_config" && -f "$SCRIPT_DIR/../read-config.sh" ]]; then
+    CMD_FORMAT_CHECK=$("$SCRIPT_DIR/../read-config.sh" "commands.format_check" "$_fc_config" 2>/dev/null || true)
 fi
 if [[ -z "$CMD_FORMAT_CHECK" ]]; then
     echo "[DSO WARN] commands.format_check not configured — skipping format check in gate-2d." >&2
@@ -92,7 +92,7 @@ evidence = sys.argv[1]
 confidence = sys.argv[2]
 triggered = $py_bool
 print(json.dumps({
-    'gate_id': '2d',
+    'gate_id': 'dependency',
     'triggered': triggered,
     'signal_type': 'primary',
     'evidence': evidence,

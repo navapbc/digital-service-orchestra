@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# gate-2a-reversal-check.sh
-# Gate 2a: Reversal Check
+# reversal-check.sh
+# Reversal Gate: Reversal Check
 #
 # Detects whether proposed working-tree changes (git diff) undo or reverse a
 # recent committed change. Used by the /dso:fix-bug escalation router (Story
 # a2f0-9641) as a post-investigation signal.
 #
 # Usage:
-#   gate-2a-reversal-check.sh [--intent-aligned] <file> [<file> ...]
+#   reversal-check.sh [--intent-aligned] <file> [<file> ...]
 #
 # Flags:
-#   --intent-aligned   Suppresses reversal detection. When Gate 1a reported
+#   --intent-aligned   Suppresses reversal detection. When Intent Gate reported
 #                      intent-aligned, a reversal is expected and intentional.
 #                      Always emits triggered:false when present.
 #
 # Output: single JSON object on stdout conforming to gate-signal-schema.md
-#   gate_id      = "2a"
+#   gate_id      = "reversal"
 #   signal_type  = "primary"
 #   triggered    = true | false
 #   evidence     = human-readable explanation
@@ -54,7 +54,7 @@ import sys, json
 triggered_str, evidence, confidence = sys.argv[1], sys.argv[2], sys.argv[3]
 triggered = triggered_str.lower() == "true"
 obj = {
-    "gate_id": "2a",
+    "gate_id": "reversal",
     "triggered": triggered,
     "signal_type": "primary",
     "evidence": evidence,
@@ -82,7 +82,7 @@ done
 
 if [[ "$INTENT_ALIGNED" == "true" ]]; then
     _emit_signal "false" \
-        "Reversal check suppressed: --intent-aligned flag passed (Gate 1a reported intent-aligned; reversal is expected and intentional)" \
+        "Reversal check suppressed: --intent-aligned flag passed (Intent Gate reported intent-aligned; reversal is expected and intentional)" \
         "high"
 fi
 
