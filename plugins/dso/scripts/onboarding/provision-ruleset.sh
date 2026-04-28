@@ -162,7 +162,7 @@ PAYLOAD_JSON=$(cat <<EOF
     {"type": "non_fast_forward"},
     {"type": "deletion"},
     {
-      "type": "required_pull_request",
+      "type": "pull_request",
       "parameters": {
         "required_approving_review_count": 1,
         "dismiss_stale_reviews_on_push": false,
