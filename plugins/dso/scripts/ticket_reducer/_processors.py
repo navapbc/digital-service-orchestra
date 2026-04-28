@@ -186,6 +186,14 @@ def process_edit(state: dict, data: dict) -> None:
             state[field_name] = new_value
 
 
+def process_file_impact(state: dict, event: dict, data: dict) -> None:
+    """Apply a FILE_IMPACT event: replace state.file_impact (last-writer-wins).
+
+    Uses `or []` to handle both missing key and JSON null values.
+    """
+    state["file_impact"] = data.get("file_impact") or []
+
+
 def process_archived(state: dict) -> None:
     """Apply an ARCHIVED event: set state.archived = True."""
     state["archived"] = True
@@ -282,6 +290,8 @@ def replay_events(
             process_revert(state, event, data, event_uuid)
         elif event_type == "EDIT":
             process_edit(state, data)
+        elif event_type == "FILE_IMPACT":
+            process_file_impact(state, event, data)
         elif event_type == "ARCHIVED":
             process_archived(state)
         elif event_type == "SNAPSHOT":

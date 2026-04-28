@@ -814,6 +814,50 @@ Check whether a ticket has sufficient detail for issue-as-prompt agent dispatch.
 
 ---
 
+### `set-file-impact`
+
+Store a structured file impact list on a ticket as a FILE_IMPACT event.
+
+```
+.claude/scripts/dso ticket set-file-impact <ticket_id> <json-array>
+```
+
+`<json-array>` must be a JSON array of objects with `path` (required) and `reason` (optional) fields:
+
+```json
+[{"path": "src/foo.py", "reason": "modified"}, {"path": "tests/test_foo.py", "reason": "updated"}]
+```
+
+The event uses last-write-wins semantics — each call replaces the prior file impact. The compiled state field is `file_impact`.
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | FILE_IMPACT event written |
+| `1` | Invalid JSON, not an array, or missing ticket |
+
+---
+
+### `get-file-impact`
+
+Retrieve the current file impact list for a ticket.
+
+```
+.claude/scripts/dso ticket get-file-impact <ticket_id>
+```
+
+**Output:** JSON array of `{path, reason}` objects, or `[]` if no FILE_IMPACT event has been written.
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | Output written (may be `[]`) |
+| `1` | Ticket not found |
+
+---
+
 ### `summary`
 
 Produce a one-line summary per ticket including status and blocking information.
@@ -1014,6 +1058,7 @@ The ticket system is append-only. All mutations write a new event JSON file. The
 | `SNAPSHOT` | `.claude/scripts/dso ticket compact` | Compacts event history; replaces prior events with compiled state |
 | `SYNC` | bridge scripts | Records a Jira synchronization mapping (`jira_key`) |
 | `BRIDGE_ALERT` | bridge scripts | Records a bridge anomaly; may include a resolution event |
+| `FILE_IMPACT` | `.claude/scripts/dso ticket set-file-impact` | Stores a structured list of files likely to be modified; last-write-wins; compiled into `file_impact` field |
 
 ---
 

@@ -34,22 +34,22 @@ extract_section() {
 
 # ── test_fix_bug_references_prior_art ─────────────────────────────────────────
 # MUST be the first test function — RED marker anchors here.
-# Extract Step 6 section from fix-bug/SKILL.md (between 'Step 6' and 'Step 7'
-# headers), verify 'prior-art-search' appears within it. Proximity check —
-# not whole file.
+# Extract the Fix Implementation section from fix-bug/SKILL.md and verify
+# 'prior-art-search' appears within it. Proximity check — not whole file.
+# (Old SKILL.md called this "Step 6"; refactored to "Phase E Step 3: Fix Implementation".)
 test_fix_bug_references_prior_art() {
     _snapshot_fail
     local section actual
     section=""
     if [ -f "$FIX_BUG_SKILL" ]; then
-        section=$(extract_section "$FIX_BUG_SKILL" "Step 6")
+        section=$(extract_section "$FIX_BUG_SKILL" "Step 3: Fix Implementation")
     fi
     if [[ "$section" == *prior-art-search* ]]; then
         actual="found"
     else
         actual="missing"
     fi
-    assert_eq "test_fix_bug_references_prior_art: 'prior-art-search' in Step 6 section of fix-bug/SKILL.md" "found" "$actual"
+    assert_eq "test_fix_bug_references_prior_art: 'prior-art-search' in Step 3: Fix Implementation section of fix-bug/SKILL.md" "found" "$actual"
     assert_pass_if_clean "test_fix_bug_references_prior_art"
 }
 

@@ -175,7 +175,13 @@ CHANGED_FILES=$(git diff --name-only)
    - Integration test failure: `context="sprint-ci-failure"`
    - E2E test failure: `context="commit-time"`
 
-3. **Model selection, sub-agent type, prompt template, Task dispatch, and result parsing**: See [TEST-FAILURE-DISPATCH.md](TEST-FAILURE-DISPATCH.md) for the full dispatch procedure.
+3. **Sub-agent type by failure category** (see [TEST-FAILURE-DISPATCH.md](TEST-FAILURE-DISPATCH.md) for full dispatch procedure):
+
+   | Failure Category | Sub-Agent Type |
+   |-----------------|----------------|
+   | Unit test failure | `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`) |
+   | Type / lint error | `discover-agents.sh` routing category `mechanical_fix` |
+   | Multi-file / complex (CI-only) | `error-debugging:error-detective` |
 
 4. **Parse the result**:
    - `RESULT: PASS` — re-run the config-driven test command (`$REPO_ROOT/$TEST_CHANGED_CMD`) to confirm the fix, then continue to Step 2.

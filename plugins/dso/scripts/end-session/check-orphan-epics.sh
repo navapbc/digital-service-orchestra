@@ -59,7 +59,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TICKET_CMD="${TICKET_CMD:-$_SCRIPT_DIR/../ticket}"
+TICKET_CMD="${TICKET_CMD:-${_SCRIPT_DIR%/*}/ticket}"
 
 if [[ ! -x "$TICKET_CMD" ]]; then
     echo "Error: ticket CLI not found or not executable at $TICKET_CMD" >&2

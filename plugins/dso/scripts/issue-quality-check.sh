@@ -90,6 +90,14 @@ file_impact_items=$(echo "$description" | awk '
 ')
 file_impact_items="${file_impact_items:-0}"
 
+# Supplement: check structured FILE_IMPACT events via ticket get-file-impact
+if [ "$file_impact_items" -eq 0 ]; then
+    _fi_count=$(${TICKET_CMD:-ticket} get-file-impact "$ID" 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d))' 2>/dev/null || echo 0)
+    if [ "${_fi_count:-0}" -gt 0 ]; then
+        file_impact_items=$_fi_count
+    fi
+fi
+
 # Quality gate: branch on ticket type.
 # Stories use prose done-definitions by design — no AC block required.
 if [ "$ticket_type" = "story" ]; then

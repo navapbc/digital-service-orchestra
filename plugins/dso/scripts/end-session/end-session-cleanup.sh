@@ -42,7 +42,7 @@ if [[ "${SKIP_PROCESS_KILL:-0}" != "1" ]]; then
 fi
 
 # --- Hash-suffixed config-cache files ---
-_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && cd .. && cd .. && pwd)}"
 # shellcheck disable=SC1091
 source "$_PLUGIN_ROOT/hooks/lib/deps.sh" 2>/dev/null || true
 if [[ -z "${ARTIFACTS_DIR:-}" ]] && type get_artifacts_dir >/dev/null 2>&1; then
