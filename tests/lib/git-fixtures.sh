@@ -167,5 +167,8 @@ clone_ticket_repo() {
     # the redundant per-operation check (~10ms saved per ticket operation).
     if [ -d "$dest/.tickets-tracker" ]; then
         git -C "$dest/.tickets-tracker" config gc.auto 0
+        # Signal to _flock_stage_commit that gc.auto is already 0 — avoids a
+        # git subprocess on every write op (~10ms × N ops per test suite run).
+        export _DSO_GC_AUTO_ZERO=1
     fi
 }
