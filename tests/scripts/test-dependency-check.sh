@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# tests/scripts/test-gate-2d-dependency-check.sh
-# RED tests for plugins/dso/scripts/gate-2d-dependency-check.sh
+# tests/scripts/test-dependency-check.sh
+# RED tests for plugins/dso/scripts/fix-bug/dependency-check.sh
 #
 # Each test creates an isolated temp project directory with controlled dependency
 # files and invokes the gate script, asserting on JSON stdout fields.
 #
-# RED STATE: All tests currently fail because gate-2d-dependency-check.sh does
+# RED STATE: All tests currently fail because dependency-check.sh does
 # not yet exist. They will pass (GREEN) after the script is implemented.
 #
 # Script interface:
-#   gate-2d-dependency-check.sh <file1> [file2 ...] --repo-root <path>
+#   dependency-check.sh <file1> [file2 ...] --repo-root <path>
 #
 # Output schema (gate-signal-schema.md):
-#   gate_id      string   — must be "2d"
+#   gate_id      string   — must be "dependency"
 #   triggered    boolean  — true if new dependency/import detected
 #   signal_type  string   — "primary"
 #   evidence     string   — non-empty human-readable explanation
@@ -22,7 +22,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-GATE_SCRIPT="$REPO_ROOT/plugins/dso/scripts/gate-2d-dependency-check.sh"
+GATE_SCRIPT="$REPO_ROOT/plugins/dso/scripts/fix-bug/dependency-check.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
@@ -48,7 +48,7 @@ except Exception:
 " <<< "$json" 2>/dev/null || echo ""
 }
 
-echo "=== test-gate-2d-dependency-check.sh ==="
+echo "=== test-dependency-check.sh ==="
 
 # ── test_detects_new_dependency ───────────────────────────────────────────────
 # A Python file that imports a package not listed in pyproject.toml must cause
@@ -196,7 +196,7 @@ EOF
 }
 
 # ── test_emits_gate_signal_json ───────────────────────────────────────────────
-# The script must emit a JSON object with gate_id="2d" and signal_type="primary"
+# The script must emit a JSON object with gate_id="dependency" and signal_type="primary"
 # conforming to the gate-signal-schema contract.
 test_emits_gate_signal_json() {
     _snapshot_fail
@@ -225,7 +225,7 @@ EOF
     # Validate gate_id field
     local gate_id
     gate_id=$(_json_field "$output" "gate_id")
-    assert_eq "test_emits_gate_signal_json: gate_id is '2d'" "2d" "$gate_id"
+    assert_eq "test_emits_gate_signal_json: gate_id is 'dependency'" "dependency" "$gate_id"
 
     # Validate signal_type field
     local signal_type
@@ -272,7 +272,7 @@ EOF
     # Output must be parseable JSON with required fields
     local gate_id
     gate_id=$(_json_field "$output" "gate_id")
-    assert_eq "test_no_manifest_graceful: gate_id present in fallback output" "2d" "$gate_id"
+    assert_eq "test_no_manifest_graceful: gate_id present in fallback output" "dependency" "$gate_id"
 
     local triggered
     triggered=$(_json_field "$output" "triggered")
@@ -317,7 +317,7 @@ EOF
     gate_id=$(_json_field "$output" "gate_id")
     triggered=$(_json_field "$output" "triggered")
 
-    assert_eq "test_pyproject_only: gate_id is '2d'" "2d" "$gate_id"
+    assert_eq "test_pyproject_only: gate_id is 'dependency'" "dependency" "$gate_id"
     assert_eq "test_pyproject_only: triggered=true for new Python dep not in pyproject.toml" "true" "$triggered"
 
     assert_pass_if_clean "test_pyproject_only"
@@ -361,7 +361,7 @@ EOF
     gate_id=$(_json_field "$output" "gate_id")
     triggered=$(_json_field "$output" "triggered")
 
-    assert_eq "test_package_json_only: gate_id is '2d'" "2d" "$gate_id"
+    assert_eq "test_package_json_only: gate_id is 'dependency'" "dependency" "$gate_id"
     assert_eq "test_package_json_only: triggered=true for new Node dep not in package.json" "true" "$triggered"
 
     assert_pass_if_clean "test_package_json_only"

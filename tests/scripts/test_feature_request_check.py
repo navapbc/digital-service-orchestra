@@ -1,6 +1,6 @@
-"""RED tests for plugins/dso/scripts/gate-1b-feature-request-check.py.
+"""RED tests for plugins/dso/scripts/fix-bug/feature-request-check.py.
 
-These tests are RED — gate-1b-feature-request-check.py does not yet exist.
+These tests are RED — feature-request-check.py does not yet exist.
 All tests must FAIL until the script is implemented.
 
 The script reads a JSON payload from stdin with fields:
@@ -8,14 +8,14 @@ The script reads a JSON payload from stdin with fields:
   description — string (bug ticket description)
 
 It outputs a single JSON gate signal object to stdout and exits 0:
-  gate_id     — "1b"
+  gate_id     — "feature_request"
   triggered   — boolean (true = likely feature request, not a bug)
   signal_type — "primary"
   evidence    — non-empty string explaining the classification
   confidence  — one of "high", "medium", "low"
 
-Test: python3 -m pytest tests/scripts/test_gate_1b_feature_request_check.py
-All tests must fail before gate-1b-feature-request-check.py is implemented.
+Test: python3 -m pytest tests/scripts/test_feature_request_check.py
+All tests must fail before feature-request-check.py is implemented.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = (
-    REPO_ROOT / "plugins" / "dso" / "scripts" / "gate-1b-feature-request-check.py"
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "fix-bug" / "feature-request-check.py"
 )
 
 
@@ -72,10 +72,10 @@ def _field(result: subprocess.CompletedProcess[str], field: str) -> str:
 
 @pytest.fixture(scope="session", autouse=True)
 def script_must_exist() -> None:
-    """Fail all tests immediately if gate-1b-feature-request-check.py is absent."""
+    """Fail all tests immediately if feature-request-check.py is absent."""
     if not SCRIPT_PATH.exists():
         pytest.fail(
-            f"gate-1b-feature-request-check.py not found at {SCRIPT_PATH} — "
+            f"feature-request-check.py not found at {SCRIPT_PATH} — "
             "this is expected RED state; implement the script to make tests pass."
         )
 
@@ -355,15 +355,15 @@ class TestGate1bFeatureRequestCheck:
     # ── Gate signal schema compliance ──────────────────────────────────────
 
     def test_emits_gate_signal_json(self) -> None:
-        """Output conforms to gate-signal-schema: gate_id='1b', signal_type='primary'."""
+        """Output conforms to gate-signal-schema: gate_id='feature_request', signal_type='primary'."""
         result = _run("App crashes when clicking save")
         assert result.returncode == 0, (
             f"Expected exit 0, got {result.returncode}.\nstderr: {result.stderr!r}"
         )
 
         gate_id = _field(result, "gate_id")
-        assert gate_id == "1b", (
-            f"Expected gate_id='1b', got {gate_id!r}.\nstdout: {result.stdout!r}"
+        assert gate_id == "feature_request", (
+            f"Expected gate_id='feature_request', got {gate_id!r}.\nstdout: {result.stdout!r}"
         )
 
         signal_type = _field(result, "signal_type")

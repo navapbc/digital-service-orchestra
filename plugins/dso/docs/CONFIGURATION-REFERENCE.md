@@ -271,7 +271,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Formatting check command — fails if files need reformatting, does not modify files. |
 | **Accepted values** | Any shell command string (e.g., `make format-check`, `cargo fmt --check`) |
 | **Default** | Stack-derived (see per-stack defaults table below) |
-| **Used by** | `.claude/scripts/dso validate.sh`, pre-commit hooks; `gate-2b-blast-radius.sh` (as of story 5b0c-7928); `gate-2d-dependency-check.sh` (as of story 5b0c-7928); `validate-phase.sh` (when present) |
+| **Used by** | `.claude/scripts/dso validate.sh`, pre-commit hooks; `blast-radius.sh` (as of story 5b0c-7928); `dependency-check.sh` (as of story 5b0c-7928); `validate-phase.sh` (when present) |
 
 ---
 
@@ -865,10 +865,10 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | Maximum number of tool calls the intent search sub-agent (Gate 1a) may use when scanning for bug intent signals in open tickets and recent commit history. Controls the bounded search budget for Gate 1a before it must emit a result. Non-numeric values default to `20` with a warning. |
+| **Description** | Maximum number of tool calls the intent search sub-agent (Intent Gate) may use when scanning for bug intent signals in open tickets and recent commit history. Controls the bounded search budget for Intent Gate before it must emit a result. Non-numeric values default to `20` with a warning. |
 | **Accepted values** | Positive integer |
 | **Default** | `20` |
-| **Used by** | `/dso:debug-everything` (Gate 1a intent search sub-agent) |
+| **Used by** | `/dso:debug-everything` (Intent Gate intent search sub-agent) |
 
 ---
 
@@ -898,10 +898,10 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | When true, `/dso:fix-bug` runs the scope-drift reviewer (`dso:scope-drift-reviewer`) at Step 7.1 after fix verification. When false, Step 7.1 is skipped. |
+| **Description** | When true, `/dso:fix-bug` runs the scope-drift reviewer (`dso:scope-drift-reviewer`) at Phase F Step 1 after fix verification. When false, Phase F Step 1 is skipped. |
 | **Accepted values** | `true`, `false` |
 | **Default** | `true` |
-| **Used by** | `/dso:fix-bug` (Step 7.1 scope-drift review) |
+| **Used by** | `/dso:fix-bug` (Phase F Step 1 scope-drift review) |
 
 ---
 

@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# tests/scripts/test-gate-2b-blast-radius.sh
-# Behavioral RED tests for plugins/dso/scripts/gate-2b-blast-radius.sh
+# tests/scripts/test-blast-radius.sh
+# Behavioral RED tests for plugins/dso/scripts/fix-bug/blast-radius.sh
 #
 # Each test creates an isolated temp project directory with controlled file
 # structures and import relationships, then executes the gate script and
 # asserts on observable outputs (stdout JSON, exit code).
 #
-# RED STATE: All tests currently fail because gate-2b-blast-radius.sh does not
+# RED STATE: All tests currently fail because blast-radius.sh does not
 # yet exist. They will pass (GREEN) after the script is implemented.
 #
-# Usage: bash tests/scripts/test-gate-2b-blast-radius.sh
+# Usage: bash tests/scripts/test-blast-radius.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-GATE_SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/gate-2b-blast-radius.sh"
+GATE_SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/fix-bug/blast-radius.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -25,7 +25,7 @@ _TEST_TMPDIRS=()
 _cleanup() { for d in "${_TEST_TMPDIRS[@]:-}"; do rm -rf "$d"; done; }
 trap _cleanup EXIT
 
-echo "=== test-gate-2b-blast-radius.sh ==="
+echo "=== test-blast-radius.sh ==="
 
 # ── Helper: create a temp project dir ────────────────────────────────────────
 _make_project() {
@@ -146,7 +146,7 @@ test_fan_in_grep_fallback() {
     # Temporarily shadow ast-grep with a non-existent path so the script
     # takes the grep fallback path
     local output exit_code=0
-    output=$(GATE_2B_SKIP_AST_GREP=1 bash "$GATE_SCRIPT" "$proj/src/helper_utils.py" "$proj" 2>/dev/null) || exit_code=$?
+    output=$(BLAST_RADIUS_GATE_SKIP_AST_GREP=1 bash "$GATE_SCRIPT" "$proj/src/helper_utils.py" "$proj" 2>/dev/null) || exit_code=$?
 
     assert_eq "test_fan_in_grep_fallback: exits 0" "0" "$exit_code"
 
@@ -261,7 +261,7 @@ test_modifier_signal_type() {
 }
 
 # ── test_emits_gate_signal_json ───────────────────────────────────────────────
-# gate_id must be "2b"; output must be valid JSON with all required schema fields
+# gate_id must be "blast_radius"; output must be valid JSON with all required schema fields
 test_emits_gate_signal_json() {
     _snapshot_fail
 
@@ -293,7 +293,7 @@ except Exception as e:
 
     local gate_id
     gate_id="$(_json_field "$output" gate_id)"
-    assert_eq "test_emits_gate_signal_json: gate_id is '2b'" "2b" "$gate_id"
+    assert_eq "test_emits_gate_signal_json: gate_id is 'blast_radius'" "blast_radius" "$gate_id"
 
     local confidence
     confidence="$(_json_field "$output" confidence)"

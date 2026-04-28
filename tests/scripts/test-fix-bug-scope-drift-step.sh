@@ -18,7 +18,7 @@ fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
 # Section 1: Step 7.1 exists
 # ---------------------------------------------------------------------------
 test_step_7_1_exists() {
-    if grep -q 'Step 7\.1' "$SKILL_FILE"; then
+    if grep -qE 'Step [0-9]+: Scope-Drift Review' "$SKILL_FILE"; then
         pass "test_step_7_1_exists"
     else
         fail "test_step_7_1_exists — 'Step 7.1' not found in fix-bug/SKILL.md"

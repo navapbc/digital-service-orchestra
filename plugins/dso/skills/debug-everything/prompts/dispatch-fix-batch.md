@@ -94,7 +94,7 @@ Bug IDs: <id1>, <id2>
 
 **Triage-to-scoring mapping**:
 - Tier 0–1 (mechanical): fix-bug bypasses scoring rubric.
-- Tier 2+ (behavioral): provide severity + environment from triage. fix-bug performs its own post-investigation complexity evaluation (Step 4.5) by reading the `complexity-evaluator` named agent definition inline — it does NOT dispatch a sub-agent (avoids nested dispatch within sub-agent context). Fix-bug returns `COMPLEX_ESCALATION` if multi-agent planning is needed.
+- Tier 2+ (behavioral): provide severity + environment from triage. fix-bug performs its own post-investigation complexity evaluation (Phase D Step 2) by reading the `complexity-evaluator` named agent definition inline — it does NOT dispatch a sub-agent (avoids nested dispatch within sub-agent context). Fix-bug returns `COMPLEX_ESCALATION` if multi-agent planning is needed.
 
 ## 6. Subagent type selection
 

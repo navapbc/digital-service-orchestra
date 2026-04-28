@@ -11,7 +11,7 @@ plugins/dso/agents/doc-writer.md:tests/scripts/test-doc-writer-agent.sh
 plugins/dso/agents/plan-review.md:tests/hooks/test-plan-review-gate.sh,tests/skills/test-preplanning-design-review-loop.sh
 plugins/dso/agents/ui-designer.md:tests/scripts/test-ui-designer-agent.sh
 plugins/dso/commands/commit.md:tests/hooks/test-pre-commit-review-gate.sh
-plugins/dso/commands/end.md:tests/hooks/test-mechanical-amend-bypass.sh,tests/scripts/test-claude-safe-post-merge-amend.sh,tests/scripts/test-error-sweep-config-gate.sh,tests/scripts/test-gate-2d-dependency-check.sh,tests/scripts/test-ticket-dependency-e2e.sh,tests/skills/test-project-setup-dependencies.sh,tests/skills/test-scrutiny-pending-gate.sh,tests/skills/test-end-session-error-sweep.sh,tests/skills/test-end-session-rationalized-failures.sh
+plugins/dso/commands/end.md:tests/hooks/test-mechanical-amend-bypass.sh,tests/scripts/test-claude-safe-post-merge-amend.sh,tests/scripts/test-error-sweep-config-gate.sh,tests/scripts/test-ticket-dependency-e2e.sh,tests/skills/test-project-setup-dependencies.sh,tests/skills/test-scrutiny-pending-gate.sh,tests/skills/test-end-session-error-sweep.sh,tests/skills/test-end-session-rationalized-failures.sh
 plugins/dso/scripts/end-session/error-sweep.sh:tests/skills/test-end-session-error-sweep.sh,tests/scripts/test-error-sweep-config-gate.sh
 plugins/dso/scripts/end-session/check-orphan-epics.sh:tests/scripts/test-check-orphan-epics.sh
 plugins/dso/scripts/end-session/end-session-cleanup.sh:tests/scripts/test-end-session-cleanup.sh
@@ -275,8 +275,8 @@ plugins/dso/scripts/sprint-next-batch.sh:tests/test-sprint-next-batch.sh,tests/s
 plugins/dso/scripts/sprint-manual-drain.sh:tests/test-sprint-manual-drain.sh
 plugins/dso/scripts/sprint-pause-state.sh:tests/scripts/test-sprint-pause-state.sh
 plugins/dso/scripts/format-and-lint.sh:tests/scripts/test-residual-callers-polyglot.sh
-plugins/dso/scripts/gate-2b-blast-radius.sh:tests/scripts/test-gate-format-check.sh
-plugins/dso/scripts/gate-2d-dependency-check.sh:tests/scripts/test-gate-format-check.sh
+plugins/dso/scripts/fix-bug/blast-radius.sh:tests/scripts/test-gate-format-check.sh
+plugins/dso/scripts/fix-bug/dependency-check.sh:tests/scripts/test-gate-format-check.sh
 plugins/dso/scripts/onboarding/dso-setup.sh:tests/scripts/test-dso-setup-stack-aware-ci.sh,tests/scripts/test-dso-setup-next-steps-install-ref.sh,tests/scripts/test-artifact-update-integration.sh
 plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test-index-duplicates.sh
 tests/fixtures/ticket-cli-baseline.json:tests/scripts/test-ticket-cli-baseline-fixture.sh

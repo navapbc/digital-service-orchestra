@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# gate-2b-blast-radius.sh
+# blast-radius.sh
 #
-# Gate 2b: Blast Radius Annotation
+# Blast-Radius Gate: Blast Radius Annotation
 # Evaluates a file's blast radius by checking convention heuristics and fan-in
 # (how many other modules import it). This is a modifier gate — it annotates
 # the routing decision made by primary gates, never drives it.
 #
 # Usage:
-#   gate-2b-blast-radius.sh <file_path> [repo_root]
-#   gate-2b-blast-radius.sh <file_path> [--repo-root <path>]
+#   blast-radius.sh <file_path> [repo_root]
+#   blast-radius.sh <file_path> [--repo-root <path>]
 #
 # Arguments:
 #   file_path   — Absolute path to the file being analyzed
@@ -16,7 +16,7 @@
 #                 or --repo-root flag. Defaults to git rev-parse --show-toplevel.
 #
 # Output: JSON conforming to gate-signal-schema.md
-#   gate_id:     "2b"
+#   gate_id:     "blast_radius"
 #   triggered:   true if file matches a convention OR has fan-in > 0
 #   signal_type: "modifier" (ALWAYS)
 #   evidence:    human-readable annotation starting with "Note:"
@@ -73,8 +73,8 @@ if [[ -n "${WORKFLOW_CONFIG_FILE:-}" && -f "${WORKFLOW_CONFIG_FILE}" ]]; then
 elif [[ -f "$REPO_ROOT/.claude/dso-config.conf" ]]; then
     _fc_config="$REPO_ROOT/.claude/dso-config.conf"
 fi
-if [[ -n "$_fc_config" && -f "$SCRIPT_DIR/read-config.sh" ]]; then
-    CMD_FORMAT_CHECK=$("$SCRIPT_DIR/read-config.sh" "commands.format_check" "$_fc_config" 2>/dev/null || true)
+if [[ -n "$_fc_config" && -f "$SCRIPT_DIR/../read-config.sh" ]]; then
+    CMD_FORMAT_CHECK=$("$SCRIPT_DIR/../read-config.sh" "commands.format_check" "$_fc_config" 2>/dev/null || true)
 fi
 if [[ -z "$CMD_FORMAT_CHECK" ]]; then
     echo "[DSO WARN] commands.format_check not configured — skipping format check in gate-2b." >&2
@@ -104,7 +104,7 @@ evidence = sys.argv[1]
 confidence = sys.argv[2]
 triggered = $py_bool
 print(json.dumps({
-    'gate_id': '2b',
+    'gate_id': 'blast_radius',
     'triggered': triggered,
     'signal_type': 'modifier',
     'evidence': evidence,
@@ -182,7 +182,7 @@ count_fan_in() {
     # Strip common extensions to get the module name
     local module_name="${basename%.*}"
 
-    if [[ -z "${GATE_2B_SKIP_AST_GREP:-}" ]] && command -v ast-grep >/dev/null 2>&1; then
+    if [[ -z "${BLAST_RADIUS_GATE_SKIP_AST_GREP:-}" ]] && command -v ast-grep >/dev/null 2>&1; then
         _count_fan_in_ast_grep "$filepath" "$repo_root" "$module_name"
     else
         _count_fan_in_grep "$filepath" "$repo_root" "$module_name"

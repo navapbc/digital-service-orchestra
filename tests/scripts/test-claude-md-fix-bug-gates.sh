@@ -6,7 +6,7 @@
 #   1. Step 7.5 Anti-Pattern Scan as a mandatory post-fix step
 #   2. root_cause_report enforcement (agent separation gate in Step 6)
 #
-# Also verifies CLAUDE.md CLI_user documentation for Gate 1a bypass.
+# Also verifies CLAUDE.md CLI_user documentation for Intent Gate bypass.
 #
 # Usage: bash tests/scripts/test-claude-md-fix-bug-gates.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -33,8 +33,8 @@ claude_md_content="$(cat "$CLAUDE_MD")"
 skill_md_content="$(cat "$FIX_BUG_SKILL_MD")"
 
 assert_contains \
-    "test_anti_pattern_scan_mandatory: SKILL.md contains Step 7.5 Anti-Pattern Scan" \
-    "Step 7.5" \
+    "test_anti_pattern_scan_mandatory: SKILL.md contains Anti-Pattern Scan step" \
+    "Anti-Pattern Scan" \
     "$skill_md_content"
 echo ""
 
@@ -52,7 +52,7 @@ echo ""
 # CLAUDE.md architecture table must explicitly document that CLI_user-tagged
 # tickets skip intent-search dispatch. The dso:intent-search routing row must
 # mention CLI_user within 5 lines (grep -A5 -B5 context window) so future
-# agents know to bypass Gate 1a for user-reported bugs.
+# agents know to bypass Intent Gate for user-reported bugs.
 _snapshot_fail
 _intent_context=$(echo "$claude_md_content" | grep -A5 -B5 "intent-search")
 _tmp="$_intent_context"
@@ -68,20 +68,20 @@ fi
 echo ""
 
 # ── test_claude_md_gate1a_cli_user_skip_phrase ────────────────────────────────
-# CLAUDE.md must contain a phrase near CLI_user that confirms Gate 1a is
+# CLAUDE.md must contain a phrase near CLI_user that confirms Intent Gate is
 # skipped for CLI_user-tagged tickets. Acceptable phrases: "skips", "skip",
-# "intent-aligned" (the GATE_1A_RESULT value when bypassed), or "Gate 1a".
+# "intent-aligned" (the INTENT_GATE_RESULT value when bypassed), or "Intent Gate".
 _snapshot_fail
 _cli_context=$(echo "$claude_md_content" | grep -A3 -B3 "CLI_user")
 _tmp="$_cli_context"; shopt -s nocasematch
-if [[ "$_tmp" =~ skips?|intent-aligned|"Gate 1a" ]]; then
+if [[ "$_tmp" =~ skips?|intent-aligned|"Intent Gate" ]]; then
     shopt -u nocasematch
     echo "PASS: test_claude_md_gate1a_cli_user_skip_phrase"
     (( ++PASS ))
 else
     shopt -u nocasematch
-    echo "FAIL: test_claude_md_gate1a_cli_user_skip_phrase: CLAUDE.md has no skip/intent-aligned/Gate 1a phrase near CLI_user" >&2
-    printf "  expected: skip/intent-aligned/Gate 1a within 3 lines of CLI_user\n" >&2
+    echo "FAIL: test_claude_md_gate1a_cli_user_skip_phrase: CLAUDE.md has no skip/intent-aligned/Intent Gate phrase near CLI_user" >&2
+    printf "  expected: skip/intent-aligned/Intent Gate within 3 lines of CLI_user\n" >&2
     printf "  actual:   no qualifying phrase found\n" >&2
     (( ++FAIL ))
 fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gate 1b: Feature-Request Language Check.
+"""Feature-Request Gate: Feature-Request Language Check.
 
 Reads a JSON payload from stdin:
   {
@@ -9,7 +9,7 @@ Reads a JSON payload from stdin:
 
 Emits a single JSON gate signal to stdout conforming to gate-signal-schema.md:
   {
-    "gate_id":     "1b",
+    "gate_id":     "feature_request",
     "signal_type": "primary",
     "triggered":   <bool>,
     "evidence":    "<string>",
@@ -223,7 +223,7 @@ def main() -> None:
 
 def _emit(*, triggered: bool, evidence: str, confidence: str) -> None:
     signal = {
-        "gate_id": "1b",
+        "gate_id": "feature_request",
         "signal_type": "primary",
         "triggered": triggered,
         "evidence": evidence,

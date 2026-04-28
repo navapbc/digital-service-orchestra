@@ -1,4 +1,4 @@
-"""RED tests for plugins/dso/scripts/gate-escalation-router.py.
+"""RED tests for plugins/dso/scripts/fix-bug/gate-escalation-router.py.
 
 These tests are RED — gate-escalation-router.py does not yet exist.
 All tests must FAIL until the script is implemented.
@@ -6,8 +6,8 @@ All tests must FAIL until the script is implemented.
 The script reads a JSON array of gate signal objects from stdin:
 
   [
-    {"gate_id": "1b", "triggered": true, "signal_type": "primary", ...},
-    {"gate_id": "2b", "triggered": true, "signal_type": "modifier", ...},
+    {"gate_id": "feature_request", "triggered": true, "signal_type": "primary", ...},
+    {"gate_id": "blast_radius", "triggered": true, "signal_type": "modifier", ...},
     ...
   ]
 
@@ -54,7 +54,9 @@ import pytest
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "gate-escalation-router.py"
+SCRIPT_PATH = (
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "fix-bug" / "gate-escalation-router.py"
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
