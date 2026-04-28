@@ -207,7 +207,7 @@ _is_eagain_failure() {
 
 # ── Centrality scoring ───────────────────────────────────────────────────────
 # REVIEW-DEFENSE: grep is used here for file-level fan-in counting, consistent with
-# the project pattern in gate-2b-blast-radius.sh count_fan_in() (line 226). The
+# the project pattern in blast-radius.sh count_fan_in() (line 226). The
 # CLAUDE.md directive to prefer built-in tools over Bash grep applies to *Claude Code
 # tool calls*, not to shell script logic. grep -rlE is the standard tool for recursive
 # file content matching in bash — no Python subprocess is warranted for a simple count.

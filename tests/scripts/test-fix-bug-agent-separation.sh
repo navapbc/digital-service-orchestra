@@ -30,7 +30,7 @@ echo "=== test-fix-bug-agent-separation.sh ==="
 # "### Gate " heading.
 _extract_step6() {
     local file="$1"
-    awk '/^### Step 6:/{found=1} found && /^### (Step [0-9]|Gate )/ && !/^### Step 6:/{exit} found{print}' "$file"
+    awk '/^### Step [0-9]+: Fix Implementation/{found=1} found && /^### (Step [0-9]|Gate )/ && !/^### Step [0-9]+: Fix Implementation/{exit} found{print}' "$file"
 }
 
 # ============================================================

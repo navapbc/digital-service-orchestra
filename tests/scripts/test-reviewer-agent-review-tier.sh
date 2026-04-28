@@ -32,6 +32,7 @@ assert_eq() {
     fi
 }
 
+# shellcheck disable=SC2329  # helper retained for future assertions
 assert_contains() {
     local label="$1" needle="$2" haystack="$3"
     if [[ "$haystack" == *"$needle"* ]]; then
@@ -85,16 +86,37 @@ fi
 assert_eq "reviewer-base.md references review tier" "1" "$_base_has_tier"
 
 # ── test_build_review_agents_injects_tier ───────────────────────────────────
-# build-review-agents.sh must inject the canonical tier into generated agents.
+# Behavioral test: run the build pipeline against a minimal fixture and assert
+# that the canonical-tier value is materialized in the generated agent file.
+# This checks the observable output of the pipeline rather than the source
+# tokens that produce it — surviving refactors that move the substitution logic
+# between scripts as long as the pipeline still injects the tier.
 echo ""
 echo "--- test_build_review_agents_injects_tier ---"
 
 BUILD_SCRIPT="$DSO_PLUGIN_DIR/scripts/build-review-agents.sh"
+_build_tier_test_dir=$(mktemp -d)
+trap 'rm -rf "$_build_tier_test_dir"' EXIT
+_fixture_base="$_build_tier_test_dir/reviewer-base.md"
+_fixture_delta="$_build_tier_test_dir/reviewer-delta-light.md"
+# Base contains the {{CANONICAL_TIER}} placeholder; the pipeline must substitute it.
+cat > "$_fixture_base" <<'BASE'
+# Reviewer base (test fixture)
+review_tier: {{CANONICAL_TIER}}
+BASE
+cat > "$_fixture_delta" <<'DELTA'
+# Light delta (test fixture)
+DELTA
+# Run the pipeline and inspect the generated light agent.
+bash "$BUILD_SCRIPT" --base "$_fixture_base" --deltas "$_build_tier_test_dir" --output "$_build_tier_test_dir" >/dev/null 2>&1
+_generated="$_build_tier_test_dir/code-reviewer-light.md"
 _build_has_tier=0
-if grep -q "review-tier\|CANONICAL_TIER\|canonical_tier" "$BUILD_SCRIPT" 2>/dev/null; then
+# Pipeline must (a) produce the file and (b) substitute {{CANONICAL_TIER}} with "light".
+if [[ -f "$_generated" ]] && grep -q "review_tier: light" "$_generated" 2>/dev/null; then
     _build_has_tier=1
 fi
-assert_eq "build-review-agents.sh handles tier injection" "1" "$_build_has_tier"
+rm -rf "$_build_tier_test_dir"
+assert_eq "reviewer pipeline injects canonical tier into generated agents" "1" "$_build_has_tier"
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""

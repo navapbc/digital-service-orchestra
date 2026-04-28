@@ -1,0 +1,175 @@
+# DSO Staged CI Workflow Template
+# Copy to .github/workflows/ci.yml and configure GitHub Actions Variables:
+#   DSO_LINT_CMD        — command to run linting (e.g., "make lint")
+#   DSO_FORMAT_CHECK_CMD — command to check formatting (e.g., "make format-check")
+#   DSO_TEST_CMD        — command to run tests (e.g., "make test")
+#   DSO_VALIDATE_CMD    — command to run DSO validation (e.g., your project's validate.sh --ci invocation)
+#   DSO_LLM_LIGHT_MODEL    — model ID for light tier (e.g., claude-haiku-4-5-20251001)
+#   DSO_LLM_STANDARD_MODEL — model ID for standard tier (e.g., claude-sonnet-4-6)
+#   DSO_LLM_FRONTIER_MODEL — model ID for frontier tier (e.g., claude-opus-4-7)
+#   DSO_LLM_TIER           — active tier: light | standard | frontier
+#
+# REVIEW-DEFENSE: Structural tests for this template are in
+# tests/scripts/test-ci-dso-staged-template.sh with a .test-index entry
+# (added in the task that created the test file, ea9d-ed23, committed prior
+# to this template being added).
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required variables are configured
+        run: |
+          missing=""
+          [ -z "$DSO_LINT_CMD" ] && missing="$missing DSO_LINT_CMD"
+          [ -z "$DSO_FORMAT_CHECK_CMD" ] && missing="$missing DSO_FORMAT_CHECK_CMD"
+          if [ -n "$missing" ]; then
+            echo "ERROR: Required GitHub Actions Variables not set:$missing" >&2
+            echo "Configure them in your repository or organization settings." >&2
+            exit 1
+          fi
+        env:
+          DSO_LINT_CMD: ${{ vars.DSO_LINT_CMD }}
+          DSO_FORMAT_CHECK_CMD: ${{ vars.DSO_FORMAT_CHECK_CMD }}
+
+      - name: Run lint
+        run: ${{ vars.DSO_LINT_CMD }}
+
+      - name: Run format check
+        run: ${{ vars.DSO_FORMAT_CHECK_CMD }}
+
+  tests:
+    needs: [lint-format]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUITE_TEST_INDEX: ${{ github.workspace }}/.test-index
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required variables are configured
+        run: |
+          if [ -z "$DSO_TEST_CMD" ]; then
+            echo "ERROR: Required GitHub Actions Variable DSO_TEST_CMD is not set." >&2
+            echo "Configure it in your repository or organization settings." >&2
+            exit 1
+          fi
+        env:
+          DSO_TEST_CMD: ${{ vars.DSO_TEST_CMD }}
+
+      - name: Run tests
+        run: ${{ vars.DSO_TEST_CMD }}
+
+  tests-pipefail-strict:
+    needs: [lint-format]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUITE_TEST_INDEX: ${{ github.workspace }}/.test-index
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check DSO_TEST_CMD is set
+        run: |
+          if [ -z "${{ vars.DSO_TEST_CMD }}" ]; then
+            echo "Error: DSO_TEST_CMD is not set. Set it in GitHub Actions Variables." >&2
+            exit 1
+          fi
+
+      - name: Run tests under strict pipefail
+        # Use shell: to enforce strict mode at the runner level rather than
+        # relying on a BASH_OPTS env var (GitHub Actions does not auto-apply env
+        # vars as bash flags; the shell: key is the correct mechanism).
+        shell: bash -eo pipefail {0}
+        run: ${{ vars.DSO_TEST_CMD }}
+
+  llm-review:
+    needs: [tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required LLM review variables
+        run: |
+          missing=""
+          [ -z "$DSO_LLM_LIGHT_MODEL" ]    && missing="$missing DSO_LLM_LIGHT_MODEL"
+          [ -z "$DSO_LLM_STANDARD_MODEL" ] && missing="$missing DSO_LLM_STANDARD_MODEL"
+          [ -z "$DSO_LLM_FRONTIER_MODEL" ] && missing="$missing DSO_LLM_FRONTIER_MODEL"
+          [ -z "$DSO_LLM_TIER" ]            && missing="$missing DSO_LLM_TIER"
+          if [ -n "$missing" ]; then
+            echo "ERROR: Required GitHub Actions Variables not set:$missing" >&2
+            echo "Configure them in Settings > Variables > Actions." >&2
+            echo "Valid values for DSO_LLM_TIER: light, standard, frontier" >&2
+            exit 1
+          fi
+        env:
+          DSO_LLM_LIGHT_MODEL:    ${{ vars.DSO_LLM_LIGHT_MODEL }}
+          DSO_LLM_STANDARD_MODEL: ${{ vars.DSO_LLM_STANDARD_MODEL }}
+          DSO_LLM_FRONTIER_MODEL: ${{ vars.DSO_LLM_FRONTIER_MODEL }}
+          DSO_LLM_TIER:           ${{ vars.DSO_LLM_TIER }}
+
+      - name: Select model by tier
+        run: |
+          case "$DSO_LLM_TIER" in
+            light)    echo "ANTHROPIC_MODEL=$DSO_LLM_LIGHT_MODEL"    >> "$GITHUB_ENV" ;;
+            standard) echo "ANTHROPIC_MODEL=$DSO_LLM_STANDARD_MODEL" >> "$GITHUB_ENV" ;;
+            frontier) echo "ANTHROPIC_MODEL=$DSO_LLM_FRONTIER_MODEL" >> "$GITHUB_ENV" ;;
+            *)
+              echo "ERROR: DSO_LLM_TIER='$DSO_LLM_TIER' is not a valid tier." >&2
+              echo "Valid values: light, standard, frontier" >&2
+              exit 1
+              ;;
+          esac
+        env:
+          DSO_LLM_TIER:           ${{ vars.DSO_LLM_TIER }}
+          DSO_LLM_LIGHT_MODEL:    ${{ vars.DSO_LLM_LIGHT_MODEL }}
+          DSO_LLM_STANDARD_MODEL: ${{ vars.DSO_LLM_STANDARD_MODEL }}
+          DSO_LLM_FRONTIER_MODEL: ${{ vars.DSO_LLM_FRONTIER_MODEL }}
+
+      - name: Run LLM code review
+        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434 # pinned; verify at github.com/anthropics/claude-code-action/releases
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: ${{ env.ANTHROPIC_MODEL }}
+          direct_prompt: |
+            Review this pull request for correctness, security issues, and design problems.
+
+  validate-ci:
+    needs: [tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required variables are configured
+        run: |
+          if [ -z "$DSO_VALIDATE_CMD" ]; then
+            echo "ERROR: Required GitHub Actions Variable DSO_VALIDATE_CMD is not set." >&2
+            echo "Configure it in your repository or organization settings." >&2
+            exit 1
+          fi
+        env:
+          DSO_VALIDATE_CMD: ${{ vars.DSO_VALIDATE_CMD }}
+
+      - name: Run DSO validation
+        run: ${{ vars.DSO_VALIDATE_CMD }}

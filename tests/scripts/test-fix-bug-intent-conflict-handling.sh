@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # tests/scripts/test-fix-bug-intent-conflict-handling.sh
 # Structural assertions: fix-bug/SKILL.md must contain INTENT_CONFLICT handling
-# in Step 1.5 (Gate 1a) and Step 1.7 (Gate 1b skip condition).
+# in Step 1.5 (Intent Gate) and Step 1.7 (Feature-Request Gate skip condition).
 #
 # RED PHASE: All tests are expected to FAIL until plugins/dso/skills/fix-bug/SKILL.md
-# is updated to include INTENT_CONFLICT as a 4th terminal outcome in Step 1.5,
-# add it to the Gate 1b skip condition in Step 1.7, and add INTERACTIVITY_DEFERRED
+# is updated to include INTENT_CONFLICT as a 4th terminal outcome in the Intent Gate step,
+# add it to the Feature-Request Gate skip condition in Step 1.7, and add INTERACTIVITY_DEFERRED
 # handling for non-interactive mode.
 #
 # Usage: bash tests/scripts/test-fix-bug-intent-conflict-handling.sh
@@ -24,11 +24,11 @@ echo "=== test-fix-bug-intent-conflict-handling.sh ==="
 echo ""
 
 # _extract_step15 <skill_file>
-# Extracts the content of the "Step 1.5" section from SKILL.md — from the
-# "### Step 1.5:" heading up to (but not including) the next "### Step " heading.
+# Extracts the content of the "Intent Gate" section from SKILL.md — from the
+# "### Step 1: Intent Gate" heading up to (but not including) the next "### Step " heading.
 _extract_step15() {
     local file="$1"
-    awk '/^### Step 1\.5:/{found=1} found && /^### Step [0-9]/ && !/^### Step 1\.5:/{exit} found{print}' "$file"
+    awk '/^### Step [0-9]+: Intent Gate/{found=1} found && /^### Step [0-9]/ && !/^### Step [0-9]+: Intent Gate/{exit} found{print}' "$file"
 }
 
 # _extract_step17 <skill_file>
@@ -36,12 +36,12 @@ _extract_step15() {
 # "### Step 1.7:" heading up to (but not including) the next "### Step " heading.
 _extract_step17() {
     local file="$1"
-    awk '/^### Step 1\.7:/{found=1} found && /^### Step [0-9]/ && !/^### Step 1\.7:/{exit} found{print}' "$file"
+    awk '/^### Step [0-9]+: Feature-Request Gate/{found=1} found && /^### Step [0-9]/ && !/^### Step [0-9]+: Feature-Request Gate/{exit} found{print}' "$file"
 }
 
 # ============================================================
 # test_intent_conflict_outcome_exists
-# Step 1.5 must mention 'intent-conflict' as a Gate 1a outcome.
+# The Intent Gate step must mention 'intent-conflict' as an Intent Gate outcome.
 # This is the primary RED marker — until SKILL.md is updated,
 # this test FAILS to confirm the implementation is missing.
 # ============================================================
@@ -53,7 +53,7 @@ test_intent_conflict_outcome_exists() {
         echo "PASS: test_intent_conflict_outcome_exists"
         (( PASS++ ))
     else
-        echo "FAIL: test_intent_conflict_outcome_exists — Step 1.5 does not mention 'intent-conflict'" >&2
+        echo "FAIL: test_intent_conflict_outcome_exists — Intent Gate step does not mention 'intent-conflict'" >&2
         (( FAIL++ ))
     fi
 }
@@ -87,7 +87,7 @@ test_three_resolution_options
 
 # ============================================================
 # test_gate_1a_result_intent_conflict
-# Step 1.5 must set GATE_1A_RESULT to 'intent-conflict' when
+# Step 1.5 must set INTENT_GATE_RESULT to 'intent-conflict' when
 # the outcome is triggered. The pattern checks for the assignment
 # in either direction.
 # ============================================================
@@ -96,11 +96,11 @@ echo "--- test_gate_1a_result_intent_conflict ---"
 test_gate_1a_result_intent_conflict() {
     local step15_content
     step15_content=$(_extract_step15 "$SKILL_FILE")
-    if grep -qE 'GATE_1A_RESULT.*intent-conflict|intent-conflict.*GATE_1A_RESULT' <<< "$step15_content"; then
+    if grep -qE 'INTENT_GATE_RESULT.*intent-conflict|intent-conflict.*INTENT_GATE_RESULT' <<< "$step15_content"; then
         echo "PASS: test_gate_1a_result_intent_conflict"
         (( PASS++ ))
     else
-        echo "FAIL: test_gate_1a_result_intent_conflict — GATE_1A_RESULT='intent-conflict' assignment not found in Step 1.5" >&2
+        echo "FAIL: test_gate_1a_result_intent_conflict — INTENT_GATE_RESULT='intent-conflict' assignment not found in Intent Gate step" >&2
         (( FAIL++ ))
     fi
 }
@@ -109,7 +109,7 @@ test_gate_1a_result_intent_conflict
 # ============================================================
 # test_step_1_7_skips_intent_conflict
 # Step 1.7 must include 'intent-conflict' in its skip condition
-# so Gate 1b is bypassed when the outcome is intent-conflict
+# so Feature-Request Gate is bypassed when the outcome is intent-conflict
 # (just like intent-aligned and intent-contradicting).
 # ============================================================
 echo ""
@@ -136,7 +136,7 @@ echo ""
 echo "--- test_non_interactive_deferred ---"
 test_non_interactive_deferred() {
     # Both 'intent-conflict' and 'INTERACTIVITY_DEFERRED' must appear
-    # in the Step 1.5 section — grep directly against the file to avoid
+    # in the Intent Gate step — grep directly against the file to avoid
     # bash variable piping limitations with large files.
     local step15_content
     step15_content=$(_extract_step15 "$SKILL_FILE")

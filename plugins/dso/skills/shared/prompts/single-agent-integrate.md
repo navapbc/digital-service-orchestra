@@ -22,7 +22,7 @@ if [ "$WORKTREE_PATH" = "$ORCHESTRATOR_ROOT" ]; then
     echo "  WORKTREE_PATH=$WORKTREE_PATH"
     echo "  ORCHESTRATOR_ROOT=$ORCHESTRATOR_ROOT"
     echo "  This means worktree isolation did not apply. Treat this as a non-isolated flow:"
-    echo "  follow the existing post-dispatch gates in the calling skill (fix-bug Step 7 or"
+    echo "  follow the existing post-dispatch gates in the calling skill (fix-bug Phase E Step 4 or"
     echo "  debug-everything Bug-Fix Mode) without harvesting."
     exit 0  # Not an error — fall back to existing non-isolation path
 fi

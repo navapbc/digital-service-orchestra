@@ -16,8 +16,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-GATE2B="$REPO_ROOT/plugins/dso/scripts/gate-2b-blast-radius.sh"
-GATE2D="$REPO_ROOT/plugins/dso/scripts/gate-2d-dependency-check.sh"
+GATE2B="$REPO_ROOT/plugins/dso/scripts/fix-bug/blast-radius.sh"
+GATE2D="$REPO_ROOT/plugins/dso/scripts/fix-bug/dependency-check.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 

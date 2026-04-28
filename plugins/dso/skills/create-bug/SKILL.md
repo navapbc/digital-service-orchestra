@@ -76,4 +76,4 @@ This is guidance, not a behavioral workflow. Agents:
 3. Use `.claude/scripts/dso ticket create bug` (the shim) — never call plugin scripts directly.
 4. Follow the Zero Inference Rule — report observations, not theories.
 
-Common callers: `/dso:fix-bug` (Step 7.5 anti-pattern scan), `/dso:debug-everything` (diagnostic discoveries), `/dso:sprint` (Phase 5 task failures), `/dso:end-session` (learnings triage), and any agent encountering unexpected behavior.
+Common callers: `/dso:fix-bug` (Phase G Step 1 anti-pattern scan), `/dso:debug-everything` (diagnostic discoveries), `/dso:sprint` (Phase 5 task failures), `/dso:end-session` (learnings triage), and any agent encountering unexpected behavior.

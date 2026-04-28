@@ -612,7 +612,7 @@ I now have everything I need. Let me compile the full assessment.
 **Evidence:**
 - This project already implements the exact pattern in `plugins/dso/hooks/lib/pre-edit-write-functions.sh`:
   - `FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path')` — confirmed field extraction
-  - Path-match checks against `.tickets-tracker/`, agent file patterns — same string-matching approach
+  - Path-match checks against `.tickets-tracker/`, agent file patterns — same string-matching approach  <!-- tickets-boundary-ok: pre-existing reference, documents tracker layout, not direct access --><!-- # tickets-boundary-ok -->
   - `return 2` to block — confirmed hook contract
 - External documentation confirms: exit code 2 blocks PreToolUse; `tool_input.file_path` is the correct field name for Edit/Write tools
 - The jq-free `parse_json_field` pattern is already mandated by this project's hook architecture
@@ -868,7 +868,7 @@ Line 109 (type=user, len=28342): <task-notification>
 <output-file>/tmp/claude-0/-home-user-digital-service-orchestra/1f5c38d2-a2c9-43f2-bd56-b0512d2f12b2/tasks/a26687eed1c7acddb.output</output-file>
 <status>completed</status>
 <summary>Agent "Red team scenario analysis for kudos system epic" completed</summary>
-<result>The kudos system does not yet exist in the codebase — this is an epic spec analysis for a proposed feature. I have enough context about the existing infrastructure (review events JSONL, `.tickets-tracker/`, artifacts dir, PreToolUse hooks, commit workflow, worktree isolation, dedup by `diff_hash`, JSONL ledger writes via `_flock_stage_commit`) to produce a rigorous red-team analysis. Let me now compile the scenarios.
+<result>The kudos system does not yet exist in the codebase — this is an epic spec analysis for a proposed feature. I have enough context about the existing infrastructure (review events JSONL, `.tickets-tracker/`, artifacts dir, PreToolUse hooks, commit workflow, worktree isolation, dedup by `diff_hash`, JSONL ledger writes via `_flock_stage_commit`) to produce a rigorous red-team analysis. Let me now compile the scenarios.  <!-- tickets-boundary-ok: pre-existing reference, documents tracker layout, not direct access --><!-- # tickets-boundary-ok -->
 
 ```json
 [
@@ -1743,7 +1743,7 @@ Len: 28342
 <output-file>/tmp/claude-0/-home-user-digital-service-orchestra/1f5c38d2-a2c9-43f2-bd56-b0512d2f12b2/tasks/a26687eed1c7acddb.output</output-file>
 <status>completed</status>
 <summary>Agent "Red team scenario analysis for kudos system epic" completed</summary>
-<result>The kudos system does not yet exist in the codebase — this is an epic spec analysis for a proposed feature. I have enough context about the existing infrastructure (review events JSONL, `.tickets-tracker/`, artifacts dir, PreToolUse hooks, commit workflow, worktree isolation, dedup by `diff_hash`, JSONL ledger writes via `_flock_stage_commit`) to produce a rigorous red-team analysis. Let me now compile the scenarios.
+<result>The kudos system does not yet exist in the codebase — this is an epic spec analysis for a proposed feature. I have enough context about the existing infrastructure (review events JSONL, `.tickets-tracker/`, artifacts dir, PreToolUse hooks, commit workflow, worktree isolation, dedup by `diff_hash`, JSONL ledger writes via `_flock_stage_commit`) to produce a rigorous red-team analysis. Let me now compile the scenarios.  <!-- tickets-boundary-ok: pre-existing reference, documents tracker layout, not direct access --><!-- # tickets-boundary-ok -->
 
 ```json
 [
@@ -1751,7 +1751,7 @@ Len: 28342
     "id": "RT-001",
     "category": "runtime",
     "title": "Concurrent kudos writes from parallel worktree agents produce duplicate ledger entries",
-    "description": "When `/dso:sprint` dispatches multiple sub-agents under `worktree.isolation_enabled=true`, each agent runs `commit-validate.sh` against its own per-agent worktree. The deduplication key is `(trigger_id, diff_hash)`. Because each agent operates on a distinct diff (distinct branch, distinct staged files), the same behavioral pattern (e.g., writing a RED test) can satisfy a trigger independently in each worktree. All agents invoke `emit-review-event.sh` → `_flock_stage_commit` against the shared `.tickets-tracker/` repo. If two agents acquire the flock lock within the same timestamp window, the resulting JSONL filenames (based on `date -u +%Y-%m-%dT%H:%M:%SZ` + 8-char random suffix) can collide on sub-second commits, causing one write to silently overwrite the other, or both succeed and the session ceiling accumulator reads duplicate lines. The session ceiling is then under-counted (overwrite case) or over-counted (duplicate case), allowing awards above the configured cap or denying valid awards.",
+    "description": "When `/dso:sprint` dispatches multiple sub-agents under `worktree.isolation_enabled=true`, each agent runs `commit-validate.sh` against its own per-agent worktree. The deduplication key is `(trigger_id, diff_hash)`. Because each agent operates on a distinct diff (distinct branch, distinct staged files), the same behavioral pattern (e.g., writing a RED test) can satisfy a trigger independently in each worktree. All agents invoke `emit-review-event.sh` → `_flock_stage_commit` against the shared `.tickets-tracker/` repo. If two agents acquire the flock lock within the same timestamp window, the resulting JSONL filenames (based on `date -u +%Y-%m-%dT%H:%M:%SZ` + 8-char random suffix) can collide on sub-second commits, causing one write to silently overwrite the other, or both succeed and the session ceiling accumulator reads duplicate lines. The session ceiling is then under-counted (overwrite case) or over-counted (duplicate case), allowing awards above the configured cap or denying valid awards.",  <!-- tickets-boundary-ok: pre-existing reference, documents tracker layout, not direct access --><!-- # tickets-boundary-ok -->
     "what_breaks": "Session ceiling enforcement is incorrect; kudos totals are unreliable during parallel batch sprints.",
     "when_it_breaks": "Any sprint with 2+ parallel sub-agents firing the same trigger class within the same second.",
     "observed": "Points exceed `kudos.session_ceiling` without any guard blocking, or valid awards are silently discarded.",
@@ -1844,7 +1844,7 @@ Len: 28342
 
 - **`plugins/dso/agents/red-test-evaluator.md`**: Evaluates REJECTION PAYLOADS from red-test-writer (REVISE/REJECT/CONFIRM verdicts), not test quality directly. Proposed framing was based on misunderstanding of purpose — DROPPED.
 
-- **`plugins/dso/agents/intent-search.md`**: Gate 1a for fix-bug only. Already has "fail toward dialog" explicitly. Proposed framing dropped.
+- **`plugins/dso/agents/intent-search.md`**: Intent Gate for fix-bug only. Already has "fail toward dialog" explicitly. Proposed framing dropped.
 
 - **`plugins/dso/agents/conflict-analyzer.md`**: Conservative classification bias ("when in doubt, use SEMANTIC/AMBIGUOUS") is better than cost-framing that might encourage under-classification. Proposed framing dropped.
 
@@ -3163,7 +3163,7 @@ The final specs above are complete and accurate. Awaiting your approval to proce
 **Evidence:**
 - This project already implements the exact pattern in `plugins/dso/hooks/lib/pre-edit-write-functions.sh`:
   - `FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path')` — confirmed field extraction
-  - Path-match checks against `.tickets-tracker/`, agent file patterns — same string-matching approach
+  - Path-match checks against `.tickets-tracker/`, agent file patterns — same string-matching approach  <!-- tickets-boundary-ok: pre-existing reference, documents tracker layout, not direct access --><!-- # tickets-boundary-ok -->
   - `return 2` to block — confirmed hook contract
 - External documentation confirms: exit code 2 blocks PreToolUse; `tool_input.file_path` is the correct field name for Edit/Write tools
 - The jq-free `parse_json_field` pattern is already mandated by this project's hook architecture

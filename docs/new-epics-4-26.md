@@ -142,12 +142,12 @@ Pattern 3 (identical-root-cause regressions, ~10%) is the dominant repeat-bug cl
 
 ### Mitigations included
 - **G6-M1** — `/dso:fix-bug` mandatory post-fix step: extract the antipattern as a regex or `sg` AST query; run tree-wide; for matches outside the fixed file, either include in scope, file follow-up tickets, or annotate with `# antipattern-ok:`. Commit message records the query and match count.
-- **G9-M3** — `/dso:fix-bug` Step 5 requires the RED test be reproducible in `env -i bash -c 'unset CLAUDE_PLUGIN_ROOT; <test command>'`. Non-hermetic RED tests are reframed as environmental noise.
+- **G9-M3** — `/dso:fix-bug` Phase E Step 1 requires the RED test be reproducible in `env -i bash -c 'unset CLAUDE_PLUGIN_ROOT; <test command>'`. Non-hermetic RED tests are reframed as environmental noise.
 
 ### Proposed success criteria
-1. `/dso:fix-bug` SKILL.md adds a post-fix Step 7.5 (after fix verification, before commit) that documents the antipattern scan procedure with exact `sg` and `grep` invocations.
+1. `/dso:fix-bug` SKILL.md adds a post-fix Phase G Step 1 (after fix verification, before commit) that documents the antipattern scan procedure with exact `sg` and `grep` invocations.
 2. Commit messages from `/dso:fix-bug` include an `Antipattern-Scan: <query> matches=<n>` trailer; `/dso:commit` workflow reads the trailer and refuses to commit a fix-bug change without it (or with `matches > 0` and no follow-up plan).
-3. `/dso:fix-bug` Step 5 enforces hermetic-repro check; non-hermetic RED tests block progression to Step 6.
+3. `/dso:fix-bug` Phase E Step 1 enforces hermetic-repro check; non-hermetic RED tests block progression to Phase E Step 3.
 4. The known-antipatterns registry (delivered by **New Epic A**) is the receiving home for queries surfaced by Step 7.5; this epic adds a one-line "promote to registry" sub-step.
 5. Coverage: re-running the procedure against the cited Pattern 3 chain (`09d8-11f0` → `fe45-0b58` → ...) would have collapsed the chain into a single fix; documented as a regression scenario.
 

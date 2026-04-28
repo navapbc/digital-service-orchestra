@@ -25,10 +25,10 @@ skill_content="$(cat "$SKILL_MD")"
 
 # ── test_step_7_5_exists ──────────────────────────────────────────────────────
 # SKILL.md must document Step 7.5 — the anti-pattern scan step that follows
-# fix verification (Step 7) and precedes commit (Step 8).
+# fix verification (Phase E Step 4) and precedes commit (Phase H Step 1).
 _snapshot_fail
 step_7_5_match=0
-grep -qE "Step 7\.5" "$SKILL_MD" 2>/dev/null && step_7_5_match=1
+grep -qE "Step [0-9]+: Anti-Pattern Scan" "$SKILL_MD" 2>/dev/null && step_7_5_match=1
 assert_eq \
     "test_step_7_5_exists: SKILL.md documents Step 7.5" \
     "1" "$step_7_5_match"

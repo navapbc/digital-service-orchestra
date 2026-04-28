@@ -78,3 +78,36 @@ All gate scripts emit a JSON object conforming to `plugins/dso/docs/contracts/ga
 
 - The gate-signal-schema contract requires all future gate implementors to conform to the 5-field JSON schema. Breaking changes require atomic updates to all emitters.
 - The `--intent-aligned` suppression flag creates a dependency from Gate 2a/2c on Gate 1a's outcome. The `GATE_1A_RESULT` variable must be set correctly for suppression to work; mechanical fix path bugs that bypass Step 1.5 receive a guard default (`GATE_1A_RESULT=${GATE_1A_RESULT:-}`).
+
+---
+
+### Revision 2026-04-27 — script paths and names updated
+
+The gate scripts referenced throughout this ADR have been relocated under `plugins/dso/scripts/fix-bug/` and renamed to drop step-number prefixes (which were brittle against future renumbering). The decisions, rationale, and JSON wire-format `gate_id` values are unchanged. Only file paths/names changed:
+
+- `plugins/dso/scripts/gate-1b-feature-request-check.py` → `plugins/dso/scripts/fix-bug/feature-request-check.py`
+- `plugins/dso/scripts/gate-2a-reversal-check.sh` → `plugins/dso/scripts/fix-bug/reversal-check.sh`
+- `plugins/dso/scripts/gate-2b-blast-radius.sh` → `plugins/dso/scripts/fix-bug/blast-radius.sh`
+- `plugins/dso/scripts/gate-2c-test-regression-check.py` → `plugins/dso/scripts/fix-bug/assertion-regression-check.py`
+- `plugins/dso/scripts/gate-2d-dependency-check.sh` → `plugins/dso/scripts/fix-bug/dependency-check.sh`
+- `plugins/dso/scripts/gate-escalation-router.py` → `plugins/dso/scripts/fix-bug/gate-escalation-router.py`
+
+Wire-format `gate_id` JSON values (`"1b"`, `"2a"`, `"2b"`, `"2c"`, `"2d"`) remain unchanged — these are opaque identifiers consumed by the escalation router and remain stable across the rename.
+
+### Revision 2026-04-27 — gate rename (display + wire format)
+
+Display names and JSON wire-format `gate_id` values renamed from arbitrary numeric labels (`Gate 1a`, `Gate 1b`, `Gate 2a–d`) to descriptive names. The decisions, rationale, ordering, and behavior in this ADR are unchanged.
+
+Display name and `gate_id` mapping:
+
+- Gate 1a → **Intent Gate** (`gate_id: "intent"`)
+- Gate 1b → **Feature-Request Gate** (`gate_id: "feature_request"`)
+- Gate 2a → **Reversal Gate** (`gate_id: "reversal"`)
+- Gate 2b → **Blast-Radius Gate** (`gate_id: "blast_radius"`)
+- Gate 2c → **Assertion-Regression Gate** (`gate_id: "assertion_regression"`)
+- Gate 2d → **Dependency Gate** (`gate_id: "dependency"`)
+- "Gate 2 family" → "Post-Fix Gate Family"
+
+Bash env-var prefixes followed the same pattern: `GATE_1A_RESULT` → `INTENT_GATE_RESULT`, `GATE_1B_OUTPUT` → `FEATURE_REQUEST_GATE_OUTPUT`, `GATE_2A_*` → `REVERSAL_GATE_*`, etc.
+
+Driver: after Phase 7 renumbering of fix-bug SKILL.md (Step 1.5 → Phase B Step 1, etc.), the gate IDs were the only remaining label tied to old step numbering. Renaming completes the brittleness fix and makes the wire format self-describing.

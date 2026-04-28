@@ -16,7 +16,11 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+# GIT_DISCOVERY_ACROSS_FILESYSTEM=1 lets git cross Docker volume mount points
+# (needed in GitHub Actions Alpine containers where the workspace is a mounted
+# filesystem and git otherwise stops at the mount boundary).
+REPO_ROOT="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
+REPO_ROOT="${REPO_ROOT:-${GITHUB_WORKSPACE:-$(cd "$SCRIPT_DIR/../.." && pwd)}}"
 
 TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
 TICKET_LIB_API="$REPO_ROOT/plugins/dso/scripts/ticket-lib-api.sh"

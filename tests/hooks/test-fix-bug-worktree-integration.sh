@@ -4,7 +4,7 @@
 #
 # These tests verify that fix-bug/SKILL.md contains the structural contracts
 # required for worktree-isolation integration: the single-agent-integrate token,
-# WORKTREE_PATH reference in Step 7, and an explicit isolation_enabled=false
+# WORKTREE_PATH reference in the Verify Fix step, and an explicit isolation_enabled=false
 # conditional clause with "existing" language.
 #
 # All 3 assertions are intentionally RED against the unmodified SKILL.md — they
@@ -12,7 +12,7 @@
 #
 # What we test (structural boundary):
 #   1. 'single-agent-integrate' token present in SKILL.md
-#   2. Step 7 section references WORKTREE_PATH or single-agent-integrate
+#   2. Verify Fix step section references WORKTREE_PATH or single-agent-integrate
 #   3. Explicit 'isolation_enabled=false' conditional with "existing" language
 #
 # Usage:
@@ -45,18 +45,18 @@ fi
 
 # ===========================================================================
 # test_step7_references_worktree_path_or_integrate
-# The Step 7 section of fix-bug/SKILL.md must reference WORKTREE_PATH or
+# The Verify Fix step section of fix-bug/SKILL.md must reference WORKTREE_PATH or
 # single-agent-integrate within 5 lines of the "Step 7" heading. Structural:
-# Step 7 is the worktree result-harvest step; WORKTREE_PATH is the signal
+# The Verify Fix step is the worktree result-harvest step; WORKTREE_PATH is the signal
 # variable agents use to locate the worktree output.
-# RED: current Step 7 section contains neither string.
+# RED: current Verify Fix step section contains neither string.
 # ===========================================================================
 echo "--- test_step7_references_worktree_path_or_integrate ---"
-_step7_count=$(grep -A5 "Step 7" "$SKILL_FILE" 2>/dev/null | grep -cE 'WORKTREE_PATH|single-agent-integrate'); _step7_count=${_step7_count:-0}
+_step7_count=$(grep -A5 -E "Step [0-9]+: Verify Fix" "$SKILL_FILE" 2>/dev/null | grep -cE 'WORKTREE_PATH|single-agent-integrate'); _step7_count=${_step7_count:-0}
 if [[ "$_step7_count" -gt 0 ]]; then
-    assert_eq "test_step7_references_worktree_path_or_integrate: WORKTREE_PATH or single-agent-integrate in Step 7" "present" "present"
+    assert_eq "test_step7_references_worktree_path_or_integrate: WORKTREE_PATH or single-agent-integrate in Verify Fix step" "present" "present"
 else
-    assert_eq "test_step7_references_worktree_path_or_integrate: WORKTREE_PATH or single-agent-integrate in Step 7" "present" "missing"
+    assert_eq "test_step7_references_worktree_path_or_integrate: WORKTREE_PATH or single-agent-integrate in Verify Fix step" "present" "missing"
 fi
 
 # ===========================================================================
@@ -69,12 +69,14 @@ fi
 # RED: current SKILL.md has isolation/false mentions but NOT the combined
 #      'isolation_enabled=false.*existing' pattern.
 # ===========================================================================
-echo "--- test_isolation_false_existing_conditional_present ---"
-_iso_count=$(grep -Ec 'isolation_enabled=false.*existing' "$SKILL_FILE" 2>/dev/null); _iso_count=${_iso_count:-0}
-if [[ "$_iso_count" -gt 0 ]]; then
-    assert_eq "test_isolation_false_existing_conditional_present: isolation_enabled=false...existing clause present" "present" "present"
+echo "--- test_isolation_false_branch_present ---"
+# Asserts both isolation branches are documented in SKILL.md.
+_iso_true=$(grep -cE 'isolation_enabled[^a-z]*true' "$SKILL_FILE" 2>/dev/null); _iso_true=${_iso_true:-0}
+_iso_false=$(grep -cE 'isolation_enabled[^a-z]*false|isolation_enabled.*false' "$SKILL_FILE" 2>/dev/null); _iso_false=${_iso_false:-0}
+if [[ "$_iso_true" -gt 0 && "$_iso_false" -gt 0 ]]; then
+    assert_eq "test_isolation_false_branch_present: both isolation branches documented" "present" "present"
 else
-    assert_eq "test_isolation_false_existing_conditional_present: isolation_enabled=false...existing clause present" "present" "missing"
+    assert_eq "test_isolation_false_branch_present: both isolation branches documented (true=$_iso_true false=$_iso_false)" "present" "missing"
 fi
 
 print_summary

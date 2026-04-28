@@ -1,0 +1,33 @@
+# .github/required-checks.txt
+# Canonical list of required GitHub check-context names for branch protection rulesets.
+# Used by plugins/dso/scripts/onboarding/provision-ruleset.sh to configure
+# the main branch required status checks via the GitHub API.
+#
+# Format: one check-context name per non-comment line.
+# Check-context names must match EXACTLY the "name:" field in the workflow job
+# (GitHub uses job name, not job id, as the check context).
+#
+# Scope: THIS REPO ONLY. Only checks that this repo's own CI workflows emit
+# are listed here. Consuming-project checks from ci-dso-staged.yml (lint-format,
+# tests, tests-pipefail-strict, validate-ci) are NOT included — those check
+# contexts never run in this repo. This repo's ci.yml includes an llm-review
+# job that dogfoods the same LLM review gate used in the consuming-project template.
+#
+# Ownership:
+#   ci.yml                     — Actionlint, ShellCheck, Lint Python (ruff), Hook Tests,
+#                                Script Tests, LLM Review
+#   ticket-platform-matrix.yml — Ticket tests (linux-bash4), Ticket tests (macos-bash3),
+#                                Ticket tests (alpine-busybox)
+
+# ── ci.yml checks ────────────────────────────────────────────────────────────
+Actionlint
+ShellCheck
+Lint Python (ruff)
+Hook Tests
+Script Tests
+LLM Review
+
+# ── ticket-platform-matrix.yml checks ────────────────────────────────────────
+Ticket tests (linux-bash4)
+Ticket tests (macos-bash3)
+Ticket tests (alpine-busybox)

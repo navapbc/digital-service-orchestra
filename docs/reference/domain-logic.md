@@ -15,47 +15,47 @@ The `/dso:fix-bug` workflow applies a multi-layer classification gate before and
 | Gate | Phase | Type | Script | Condition that fires |
 |------|-------|------|--------|----------------------|
 | 1a — Intent Search | Pre-investigation | primary | `dso:intent-search` agent | Bug contradicts documented system intent |
-| 1b — Feature Request Check | Pre-investigation | primary | `gate-1b-feature-request-check.py` | Ticket language matches feature-request patterns |
-| 2a — Reversal Check | Post-investigation | primary | `gate-2a-reversal-check.sh` | Fix inverts >50% of a recent committed change |
-| 2b — Blast Radius | Post-investigation | modifier | `gate-2b-blast-radius.sh` | File has high fan-in or matches a high-impact convention |
-| 2c — Test Regression | Post-investigation | primary | `gate-2c-test-regression-check.py` | Fix removes, weakens, or loosens existing test assertions |
-| 2d — Dependency Check | Post-investigation | primary | `gate-2d-dependency-check.sh` | Fix introduces a new dependency not in the project manifest |
+| 1b — Feature Request Check | Pre-investigation | primary | `feature-request-check.py` | Ticket language matches feature-request patterns |
+| 2a — Reversal Check | Post-investigation | primary | `reversal-check.sh` | Fix inverts >50% of a recent committed change |
+| 2b — Blast Radius | Post-investigation | modifier | `blast-radius.sh` | File has high fan-in or matches a high-impact convention |
+| 2c — Test Regression | Post-investigation | primary | `assertion-regression-check.py` | Fix removes, weakens, or loosens existing test assertions |
+| 2d — Dependency Check | Post-investigation | primary | `dependency-check.sh` | Fix introduces a new dependency not in the project manifest |
 
 All gates output a JSON signal conforming to `plugins/dso/docs/contracts/gate-signal-schema.md`.
 
-### Gate 1a: Intent Search
+### Intent Gate: Intent Search
 
 Dispatches the `dso:intent-search` sub-agent before investigation begins. The agent searches closed/archived tickets, git history, ADRs, design documents, and code comments. Budget is controlled by the `debug.intent_search_budget` config key (default: 20 tool calls).
 
 Three terminal outcomes:
 
-- `intent-aligned` — proceed to investigation without dialog; set `GATE_1A_RESULT="intent-aligned"`
-- `intent-contradicting` — auto-close ticket with evidence citation and stop; set `GATE_1A_RESULT="intent-contradicting"`
-- `ambiguous` — fall through to Gate 1b; set `GATE_1A_RESULT="ambiguous"`
+- `intent-aligned` — proceed to investigation without dialog; set `INTENT_GATE_RESULT="intent-aligned"`
+- `intent-contradicting` — auto-close ticket with evidence citation and stop; set `INTENT_GATE_RESULT="intent-contradicting"`
+- `ambiguous` — fall through to Feature-Request Gate; set `INTENT_GATE_RESULT="ambiguous"`
 
-Gate 1a is bypassed for bugs on the Mechanical Fix Path. `GATE_1A_RESULT` defaults to empty (`""`) when unset.
+Intent Gate is bypassed for bugs on the Mechanical Fix Path. `INTENT_GATE_RESULT` defaults to empty (`""`) when unset.
 
-### Gate 1b: Feature Request Check
+### Feature-Request Gate: Feature Request Check
 
-Runs only when `GATE_1A_RESULT="ambiguous"`. Skipped for `intent-aligned` and `intent-contradicting`.
+Runs only when `INTENT_GATE_RESULT="ambiguous"`. Skipped for `intent-aligned` and `intent-contradicting`.
 
-Passes ticket title and description as JSON via stdin to `gate-1b-feature-request-check.py`. Detects language patterns such as "doesn't support X", "missing X capability", "add support for". When triggered, prompts the user to confirm whether to close as a feature request or continue to investigation.
+Passes ticket title and description as JSON via stdin to `feature-request-check.py`. Detects language patterns such as "doesn't support X", "missing X capability", "add support for". When triggered, prompts the user to confirm whether to close as a feature request or continue to investigation.
 
-### Gate 2a: Reversal Check
+### Reversal Gate: Reversal Check
 
-Runs after verification (Step 7) before commit (Step 8). `gate-2a-reversal-check.sh` compares working-tree diff against recent commit history. Fires when >50% of a recent commit's changed lines are inverted by the proposed fix.
+Runs after verification (Step 7) before commit (Step 8). `reversal-check.sh` compares working-tree diff against recent commit history. Fires when >50% of a recent commit's changed lines are inverted by the proposed fix.
 
-Suppression: pass `--intent-aligned` flag when `GATE_1A_RESULT="intent-aligned"` — the reversal is expected and intentional.
+Suppression: pass `--intent-aligned` flag when `INTENT_GATE_RESULT="intent-aligned"` — the reversal is expected and intentional.
 
 Recognizes revert-of-revert patterns: when the reversed commit is itself a revert (message matches `^Revert`), the gate does not fire.
 
-### Gate 2b: Blast Radius (modifier)
+### Blast-Radius Gate: Blast Radius (modifier)
 
-Runs after verification. `gate-2b-blast-radius.sh` uses ast-grep when available (falls back to grep) to count fan-in and check file-location conventions. The result is a `"modifier"` signal — it appends a plain-language annotation to escalation dialog but never drives a routing decision on its own. Gate 2b cannot block the workflow.
+Runs after verification. `blast-radius.sh` uses ast-grep when available (falls back to grep) to count fan-in and check file-location conventions. The result is a `"modifier"` signal — it appends a plain-language annotation to escalation dialog but never drives a routing decision on its own. Blast-Radius Gate cannot block the workflow.
 
-### Gate 2c: Test Regression Analysis
+### Assertion-Regression Gate: Test Regression Analysis
 
-Runs after verification. Reads the working-tree diff of test files via stdin. `gate-2c-test-regression-check.py` fires on:
+Runs after verification. Reads the working-tree diff of test files via stdin. `assertion-regression-check.py` fires on:
 
 - Assertion removal
 - Specificity reduction (e.g., `assertEqual` to `assertIsNotNone`)
@@ -65,11 +65,11 @@ Runs after verification. Reads the working-tree diff of test files via stdin. `g
 
 Does NOT fire on specific-to-specific value swaps (e.g., `assertEqual(x, 42)` to `assertEqual(x, 57)`).
 
-Suppression: pass `--intent-aligned` flag when `GATE_1A_RESULT="intent-aligned"` — the test change corrects an assertion against documented intent.
+Suppression: pass `--intent-aligned` flag when `INTENT_GATE_RESULT="intent-aligned"` — the test change corrects an assertion against documented intent.
 
-### Gate 2d: Dependency Check
+### Dependency Gate: Dependency Check
 
-Runs after verification. `gate-2d-dependency-check.sh` fires when the proposed fix introduces an import or require not already in the project manifest and not used elsewhere in the codebase. Reusing an existing codebase pattern does not trigger this gate.
+Runs after verification. `dependency-check.sh` fires when the proposed fix introduces an import or require not already in the project manifest and not used elsewhere in the codebase. Reusing an existing codebase pattern does not trigger this gate.
 
 ### Escalation Router
 
@@ -78,7 +78,7 @@ After all gates run, `gate-escalation-router.py` counts primary signals and rout
 | Route | Condition | Action |
 |-------|-----------|--------|
 | `auto-fix` | 0 primary signals fired, not COMPLEX | Proceed to commit |
-| `dialog` | Exactly 1 primary signal | Present 1-2 inline questions; include Gate 2b blast-radius annotation if available |
+| `dialog` | Exactly 1 primary signal | Present 1-2 inline questions; include Blast-Radius Gate blast-radius annotation if available |
 | `escalate` | 2+ primary signals, or COMPLEX complexity evaluator result | Escalate to `/dso:brainstorm` |
 
 The `--complex` flag forces `route: "escalate"` regardless of signal count.
@@ -95,7 +95,7 @@ All gate scripts emit a 5-field JSON object. Contract: `plugins/dso/docs/contrac
 
 | Field | Type | Values |
 |-------|------|--------|
-| `gate_id` | string | `"1a"`, `"1b"`, `"2a"`, `"2b"`, `"2c"`, `"2d"` |
+| `gate_id` | string | `"intent"`, `"feature_request"`, `"reversal"`, `"blast_radius"`, `"assertion_regression"`, `"dependency"` |
 | `triggered` | boolean | `true` fires the gate; `false` does not |
 | `signal_type` | string | `"primary"` drives routing; `"modifier"` annotates only |
 | `evidence` | string | Non-empty human-readable explanation |
@@ -103,7 +103,7 @@ All gate scripts emit a 5-field JSON object. Contract: `plugins/dso/docs/contrac
 
 ### Config Key
 
-`debug.intent_search_budget` — maximum tool calls for Gate 1a's intent-search agent (default: `20`). Configurable in `.claude/dso-config.conf`.
+`debug.intent_search_budget` — maximum tool calls for Intent Gate's intent-search agent (default: `20`). Configurable in `.claude/dso-config.conf`.
 
 ## Brainstorm Planning Pipeline
 
@@ -170,7 +170,7 @@ Three fields are appended to the planning-intelligence log for observability:
 
 ### Scope-Drift Gate (Step 7.1)
 
-After fix verification (Step 7), the `/dso:fix-bug` workflow dispatches the `dso:scope-drift-reviewer` sub-agent at Step 7.1 to classify whether the fix drifted beyond the original bug scope.
+After fix verification (Phase E Step 4), the `/dso:fix-bug` workflow dispatches the `dso:scope-drift-reviewer` sub-agent at Phase F Step 1 to classify whether the fix drifted beyond the original bug scope.
 
 Classification outcomes:
 
@@ -186,7 +186,7 @@ Config key: `scope_drift.enabled` (default: `true`). When `false`, Step 7.1 is s
 
 ### INTENT_CONFLICT
 
-Emitted by the `dso:intent-search` sub-agent (Gate 1a) when callers depend on the current behavior that the bug report wants to change.
+Emitted by the `dso:intent-search` sub-agent (Intent Gate) when callers depend on the current behavior that the bug report wants to change.
 
 | Field | Type | Description |
 |-------|------|-------------|
