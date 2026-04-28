@@ -452,10 +452,99 @@ real_rr_exit=0
 ) || real_rr_exit=$?
 
 assert_eq "test_runner_integration_real_record_review_writes_status: runner exits without error" "0" "$real_rr_exit"
-[[ -f "$ARTIFACTS10/review-status" ]]
-status_file_exists=$?
+if [[ -f "$ARTIFACTS10/review-status" ]]; then status_file_exists=0; else status_file_exists=1; fi
 assert_eq "test_runner_integration_real_record_review_writes_status: review-status file written" "0" "$status_file_exists"
 assert_pass_if_clean "test_runner_integration_real_record_review_writes_status"
+
+# ── Test 11: overlay flags written to overlay-flags.env ──────────────────────
+MOCK11=$(mktemp -d) && ARTIFACTS11=$(mktemp -d)
+
+# Classifier that returns security_overlay=true, others false
+cat > "$MOCK11/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":true,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK11/review-complexity-classifier.sh"
+
+cat > "$MOCK11/curl" <<'MOCKEOF'
+#!/usr/bin/env bash
+printf '{"content":[{"type":"text","text":"{\"review_tier\":\"light\",\"selected_tier\":\"light\",\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"No findings. All checks passed.\",\"findings\":[]}"}]}'
+MOCKEOF
+chmod +x "$MOCK11/curl"
+
+cat > "$MOCK11/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+_F='{"review_tier":"light","selected_tier":"light","scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"No findings. All checks passed.","findings":[]}'
+printf '%s\n' "\$_F" > "$ARTIFACTS11/reviewer-findings.json"
+sha256sum "$ARTIFACTS11/reviewer-findings.json" 2>/dev/null | cut -d' ' -f1 \
+  || shasum -a 256 "$ARTIFACTS11/reviewer-findings.json" | cut -d' ' -f1
+MOCKEOF
+chmod +x "$MOCK11/write-reviewer-findings.sh"
+
+overlay_exit=0
+(
+  cd "$REPO_ROOT"
+  export PATH="$MOCK11:$PATH"
+  export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS11"
+  printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || overlay_exit=$?
+
+assert_eq "test_runner_writes_overlay_flags_env: runner exits 0" "0" "$overlay_exit"
+_overlay_file="$ARTIFACTS11/overlay-flags.env"
+if [[ -f "$_overlay_file" ]]; then _overlay_exists=0; else _overlay_exists=1; fi
+assert_eq "test_runner_writes_overlay_flags_env: overlay-flags.env exists" "0" "$_overlay_exists"
+_sec=$(grep "^security_overlay=" "$_overlay_file" | cut -d= -f2)
+_perf=$(grep "^performance_overlay=" "$_overlay_file" | cut -d= -f2)
+_tq=$(grep "^test_quality_overlay=" "$_overlay_file" | cut -d= -f2)
+assert_eq "test_runner_writes_overlay_flags_env: security_overlay=true from classifier" "true" "$_sec"
+assert_eq "test_runner_writes_overlay_flags_env: performance_overlay=false" "false" "$_perf"
+assert_eq "test_runner_writes_overlay_flags_env: test_quality_overlay=false" "false" "$_tq"
+assert_pass_if_clean "test_runner_writes_overlay_flags_env"
+
+# Cleanup test 11 temps
+rm -rf "$MOCK11" "$ARTIFACTS11"
+
+# ── Test 12: --overlay-security CLI flag overrides classifier false ───────────
+MOCK12=$(mktemp -d) && ARTIFACTS12=$(mktemp -d)
+
+cat > "$MOCK12/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK12/review-complexity-classifier.sh"
+
+cat > "$MOCK12/curl" <<'MOCKEOF'
+#!/usr/bin/env bash
+printf '{"content":[{"type":"text","text":"{\"review_tier\":\"light\",\"selected_tier\":\"light\",\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"No findings. All checks passed.\",\"findings\":[]}"}]}'
+MOCKEOF
+chmod +x "$MOCK12/curl"
+
+cat > "$MOCK12/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+_F='{"review_tier":"light","selected_tier":"light","scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"No findings. All checks passed.","findings":[]}'
+printf '%s\n' "\$_F" > "$ARTIFACTS12/reviewer-findings.json"
+sha256sum "$ARTIFACTS12/reviewer-findings.json" 2>/dev/null | cut -d' ' -f1 \
+  || shasum -a 256 "$ARTIFACTS12/reviewer-findings.json" | cut -d' ' -f1
+MOCKEOF
+chmod +x "$MOCK12/write-reviewer-findings.sh"
+
+cli_override_exit=0
+(
+  cd "$REPO_ROOT"
+  export PATH="$MOCK12:$PATH"
+  export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS12"
+  printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER" --overlay-security
+) || cli_override_exit=$?
+
+assert_eq "test_runner_cli_overlay_overrides_classifier: runner exits 0" "0" "$cli_override_exit"
+_sec2=$(grep "^security_overlay=" "$ARTIFACTS12/overlay-flags.env" | cut -d= -f2)
+assert_eq "test_runner_cli_overlay_overrides_classifier: security_overlay=true from CLI" "true" "$_sec2"
+assert_pass_if_clean "test_runner_cli_overlay_overrides_classifier"
+
+# Cleanup test 12 temps
+rm -rf "$MOCK12" "$ARTIFACTS12"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

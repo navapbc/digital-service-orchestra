@@ -37,6 +37,22 @@ fi
 CLASSIFIER_JSON=$(printf '%s\n' "$DIFF_CONTENT" | bash "$(command -v review-complexity-classifier.sh)")
 SELECTED_TIER=$(printf '%s\n' "$CLASSIFIER_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['selected_tier'])")
 
+# Extract overlay flags from classifier output; CLI --overlay-* flags act as OR override.
+read -r _SEC _PERF _TQ < <(printf '%s\n' "$CLASSIFIER_JSON" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(str(d.get('security_overlay',False)).lower(),
+      str(d.get('performance_overlay',False)).lower(),
+      str(d.get('test_quality_overlay',False)).lower())")
+[[ "$OVERLAY_SECURITY" == "true" ]]     && _SEC=true
+[[ "$OVERLAY_PERFORMANCE" == "true" ]]  && _PERF=true
+[[ "$OVERLAY_TEST_QUALITY" == "true" ]] && _TQ=true
+
+# Write overlay flags to artifacts dir for downstream overlay dispatch (Story 3 contract).
+# Format: KEY=value, one per line, sourced as bash or read line-by-line.
+printf 'security_overlay=%s\nperformance_overlay=%s\ntest_quality_overlay=%s\n' \
+  "$_SEC" "$_PERF" "$_TQ" > "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/overlay-flags.env"
+
 REVIEW_TIER="$SELECTED_TIER"
 case "$SELECTED_TIER" in
   light)    AGENT_FILE="$_PLUGIN_ROOT/agents/code-reviewer-light.md" ;;
