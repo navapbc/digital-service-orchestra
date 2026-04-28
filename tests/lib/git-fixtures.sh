@@ -144,6 +144,25 @@ clone_ticket_repo() {
         echo "gitdir: $dest/.git/worktrees/$wt_name" > "$tracker_gitfile"
     fi
 
+    # Verify the path rewrite succeeded. On some git versions (e.g. alpine/busybox
+    # git 2.43.x) the sanitised worktree dir name or cross-reference format may
+    # differ, leaving the worktree broken after a plain cp. When verification
+    # fails, tear out the stale state and re-add the worktree from scratch so git
+    # bakes in the correct absolute paths for this destination.
+    if ! GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git -C "$dest/.tickets-tracker" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        # Preserve .env-id (gitignored — not part of branch content)
+        local _env_id=""
+        [ -f "$dest/.tickets-tracker/.env-id" ] && _env_id=$(cat "$dest/.tickets-tracker/.env-id")  # tickets-boundary-ok
+        rm -rf "$dest/.tickets-tracker"
+        rm -rf "$dest/.git/worktrees"
+        GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git -C "$dest" worktree add "$dest/.tickets-tracker" tickets >/dev/null 2>&1 || true
+        if [ -d "$dest/.tickets-tracker" ]; then
+            [ -n "$_env_id" ] && echo "$_env_id" > "$dest/.tickets-tracker/.env-id"  # tickets-boundary-ok
+            git -C "$dest/.tickets-tracker" config commit.gpgsign false 2>/dev/null || true
+            git -C "$dest/.tickets-tracker" config tag.gpgsign false 2>/dev/null || true
+        fi
+    fi
+
     # Pre-set gc.auto=0 in the tickets worktree so write_commit_event skips
     # the redundant per-operation check (~10ms saved per ticket operation).
     if [ -d "$dest/.tickets-tracker" ]; then
