@@ -129,11 +129,16 @@ ticket_show() {
                 ts="${base%%-*}"
                 stem="${base%.json}"
                 etype="${stem##*-}"
-                case "$etype" in
-                    LINK)   order=0 ;;
-                    UNLINK) order=1 ;;
-                    *)      order=99 ;;
-                esac
+                # bash 3.2: case patterns inside <(...) process substitutions
+                # cause parse errors (`)` is mistaken for closing paren).
+                # Use if/elif instead.
+                if [ "$etype" = "LINK" ]; then
+                    order=0
+                elif [ "$etype" = "UNLINK" ]; then
+                    order=1
+                else
+                    order=99
+                fi
                 printf '%s\t%02d\t%s\t%s\n' "$ts" "$order" "$base" "$fp"
             done | sort -t$'\t' -k1,1 -k2,2n -k3,3 | cut -f4
         )
