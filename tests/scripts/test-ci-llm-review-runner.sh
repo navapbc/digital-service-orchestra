@@ -420,14 +420,18 @@ _TEST_TMPDIRS+=("$ARTIFACTS10")
 
 _create_mock_curl "$MOCK10"
 
-# Mock write-reviewer-findings.sh: write full valid findings JSON, echo 64-char hex
+# Mock write-reviewer-findings.sh: write valid findings JSON and echo its real sha256
+# so record-review.sh can verify the hash without failure.
 cat > "$MOCK10/write-reviewer-findings.sh" <<MOCKEOF
 #!/usr/bin/env bash
 cat > /dev/null  # consume stdin
-# Write a valid reviewer-findings.json so record-review.sh can verify the hash
+# Write a valid reviewer-findings.json with a summary long enough to pass schema validation
 mkdir -p "$ARTIFACTS10"
-printf '{"scores":{"hygiene":4,"design":4,"maintainability":4,"correctness":4,"verification":4},"summary":"OK","findings":[]}\n' > "$ARTIFACTS10/reviewer-findings.json"
-printf '%064x\n' 0
+_FINDINGS='{"scores":{"hygiene":4,"design":4,"maintainability":4,"correctness":4,"verification":4},"summary":"Review completed with no findings.","findings":[]}'
+printf '%s\n' "\$_FINDINGS" > "$ARTIFACTS10/reviewer-findings.json"
+# Echo the real sha256 of the written file so record-review.sh hash check passes
+sha256sum "$ARTIFACTS10/reviewer-findings.json" 2>/dev/null | cut -d' ' -f1 \
+  || shasum -a 256 "$ARTIFACTS10/reviewer-findings.json" | cut -d' ' -f1
 MOCKEOF
 chmod +x "$MOCK10/write-reviewer-findings.sh"
 
