@@ -68,6 +68,7 @@ jobs:
 
   test-hooks:
     name: Hook Tests
+    needs: [shellcheck, lint-python]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -84,6 +85,7 @@ jobs:
 
   test-scripts:
     name: Script Tests
+    needs: [shellcheck, lint-python]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -111,4 +113,75 @@ jobs:
       - name: Job timing report
         if: always()
         run: echo "test-scripts completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  validate-required-checks:
+    name: Validate required-checks.txt
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python dependencies
+        run: pip install pyyaml
+
+      - name: Validate check-context names
+        run: bash plugins/dso/scripts/onboarding/validate-required-checks.sh
+
+  # ── LLM code review ─────────────────────────────────────────
+
+  llm-review:
+    name: LLM Review
+    needs: [test-hooks, test-scripts]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required LLM review variables
+        run: |
+          missing=""
+          [ -z "$DSO_LLM_LIGHT_MODEL" ]    && missing="$missing DSO_LLM_LIGHT_MODEL"
+          [ -z "$DSO_LLM_STANDARD_MODEL" ] && missing="$missing DSO_LLM_STANDARD_MODEL"
+          [ -z "$DSO_LLM_FRONTIER_MODEL" ] && missing="$missing DSO_LLM_FRONTIER_MODEL"
+          [ -z "$DSO_LLM_TIER" ]            && missing="$missing DSO_LLM_TIER"
+          if [ -n "$missing" ]; then
+            echo "ERROR: Required GitHub Actions Variables not set:$missing" >&2
+            echo "Configure them in Settings > Variables > Actions." >&2
+            echo "Valid values for DSO_LLM_TIER: light, standard, frontier" >&2
+            exit 1
+          fi
+        env:
+          DSO_LLM_LIGHT_MODEL:    ${{ vars.DSO_LLM_LIGHT_MODEL }}
+          DSO_LLM_STANDARD_MODEL: ${{ vars.DSO_LLM_STANDARD_MODEL }}
+          DSO_LLM_FRONTIER_MODEL: ${{ vars.DSO_LLM_FRONTIER_MODEL }}
+          DSO_LLM_TIER:           ${{ vars.DSO_LLM_TIER }}
+
+      - name: Select model by tier
+        run: |
+          case "$DSO_LLM_TIER" in
+            light)    echo "ANTHROPIC_MODEL=$DSO_LLM_LIGHT_MODEL"    >> "$GITHUB_ENV" ;;
+            standard) echo "ANTHROPIC_MODEL=$DSO_LLM_STANDARD_MODEL" >> "$GITHUB_ENV" ;;
+            frontier) echo "ANTHROPIC_MODEL=$DSO_LLM_FRONTIER_MODEL" >> "$GITHUB_ENV" ;;
+            *)
+              echo "ERROR: DSO_LLM_TIER='$DSO_LLM_TIER' is not a valid tier." >&2
+              echo "Valid values: light, standard, frontier" >&2
+              exit 1
+              ;;
+          esac
+        env:
+          DSO_LLM_TIER:           ${{ vars.DSO_LLM_TIER }}
+          DSO_LLM_LIGHT_MODEL:    ${{ vars.DSO_LLM_LIGHT_MODEL }}
+          DSO_LLM_STANDARD_MODEL: ${{ vars.DSO_LLM_STANDARD_MODEL }}
+          DSO_LLM_FRONTIER_MODEL: ${{ vars.DSO_LLM_FRONTIER_MODEL }}
+
+      - name: Run LLM code review
+        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434 # pinned; verify at github.com/anthropics/claude-code-action/releases
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: ${{ env.ANTHROPIC_MODEL }}
+          direct_prompt: |
+            Review this pull request for correctness, security issues, and design problems.
 

@@ -149,6 +149,7 @@ plugins/dso/scripts/ticket-list-epics.sh:tests/scripts/test-ticket-list-epics-di
 plugins/dso/scripts/ticket-list-descendants.py:tests/scripts/test-ticket-list-descendants-dispatcher.sh
 plugins/dso/scripts/ticket-list-descendants.sh:tests/scripts/test-ticket-list-descendants-dispatcher.sh
 plugins/dso/scripts/ticket-next-batch.sh:tests/scripts/test-ticket-next-batch-dispatcher.sh
+.github/workflows/ticket-platform-matrix.yml:tests/scripts/test-ticket-platform-matrix-trigger.sh
 plugins/dso/agents/scope-drift-reviewer.md:tests/scripts/test-scope-drift-reviewer.sh
 plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh
@@ -296,3 +297,10 @@ plugins/dso/skills/debug-everything/prompts/gha-dispatch.md:tests/scripts/test-d
 plugins/dso/skills/shared/prompts/test-failure-fix.md:tests/scripts/test-debug-everything-prompt-contracts.sh
 plugins/dso/scripts/test-batched.sh:tests/scripts/test-test-batched.sh
 tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh [test_fp_merge_1_new_component_tagged]
+plugins/dso/templates/ci-dso-staged.yml:tests/scripts/test-ci-dso-staged-template.sh,tests/scripts/test-ci-llm-review-job.sh
+tests/scripts/test-sigpipe-canary.sh:tests/scripts/test-sigpipe-canary.sh
+plugins/dso/scripts/onboarding/provision-ruleset.sh:tests/scripts/test-provision-ruleset.sh
+plugins/dso/scripts/onboarding/validate-required-checks.sh:tests/scripts/test-validate-required-checks.sh
+plugins/dso/scripts/onboarding/github-bootstrap.sh:tests/scripts/test-github-bootstrap.sh
+tests/scripts/test-ci-enforcement-e2e.sh [test_opt_in_gate_exits_zero_skip]:tests/scripts/test-ci-enforcement-e2e-behavioral.sh
+tests/scripts/test-ci-enforcement-e2e.sh:tests/scripts/test-ci-enforcement-e2e-behavioral.sh
