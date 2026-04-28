@@ -13,10 +13,15 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-# Pattern: .tickets-tracker/<ticket-id>/<timestamp>-<uuid>-<EVENT_TYPE>.json
+# Pattern: .tickets-tracker/<ticket-id>/<timestamp>-<uuid>-<EVENT_TYPE>.json (relative)  # tickets-boundary-ok: bridge reads event files directly
+# EVENT_TYPE may include underscores (e.g. FILE_IMPACT, BRIDGE_ALERT)
 _EVENT_FILE_RE = re.compile(
-    r"^\.tickets-tracker/([^/]+)/(\d+)-([0-9a-f-]+)-([A-Z]+)\.json$"
+    r"^\.tickets-tracker/([^/]+)/(\d+)-([0-9a-f-]+)-([A-Z][A-Z_]*)\.json$"  # tickets-boundary-ok
 )
+
+# Pattern for absolute paths: any prefix followed by /<ticket-id>/<ts>-<uuid>-<EVENT>.json
+# Used when process_events fallback emits absolute paths (e.g. from rglob).
+_EVENT_FILE_ABS_RE = re.compile(r"^.+/([^/]+)/(\d+)-([0-9a-f-]+)-([A-Z][A-Z_]*)\.json$")
 
 
 def load_module_from_path(name: str, path: Path) -> ModuleType:
@@ -34,6 +39,7 @@ def parse_git_diff_events(diff_text: str) -> list[dict[str, Any]]:
     """Parse new event files from git diff --name-only output.
 
     Returns a list of dicts with keys: ticket_id, event_type, file_path.
+    Accepts both relative paths (.tickets-tracker/...) and absolute paths.  # tickets-boundary-ok
     Non-event files (e.g. README.md) are silently ignored.
     """
     events: list[dict[str, Any]] = []
@@ -42,6 +48,8 @@ def parse_git_diff_events(diff_text: str) -> list[dict[str, Any]]:
         if not line:
             continue
         match = _EVENT_FILE_RE.match(line)
+        if not match and line.startswith("/"):
+            match = _EVENT_FILE_ABS_RE.match(line)
         if match:
             ticket_id = match.group(1)
             event_type = match.group(4)

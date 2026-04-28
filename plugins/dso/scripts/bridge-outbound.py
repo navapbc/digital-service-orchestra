@@ -43,6 +43,7 @@ from bridge._outbound_handlers import (  # noqa: E402
     handle_comment_event,
     handle_create_event,
     handle_edit_event,
+    handle_file_impact_event,
     handle_link_event,
     handle_revert_event,
     handle_status_event,
@@ -134,6 +135,9 @@ def process_outbound(
         elif event_type == "EDIT":
             handle_edit_event(event, **ctx)
 
+        elif event_type == "FILE_IMPACT":
+            handle_file_impact_event(event, **ctx)
+
     return syncs
 
 
@@ -162,15 +166,16 @@ def process_events(
         if result.returncode != 0:
             tracker_dir = tickets_path
             if tracker_dir.is_dir():
+                # Use absolute paths so read_event_file can resolve them
+                # regardless of the caller's CWD.
                 git_diff_output = "\n".join(
-                    f".tickets-tracker/{p.relative_to(tracker_dir)}"
-                    for p in tracker_dir.rglob("*.json")
+                    str(p.resolve()) for p in tracker_dir.rglob("*.json")
                 )
             else:
                 git_diff_output = ""
         else:
             git_diff_output = "\n".join(
-                f".tickets-tracker/{line}"
+                f".tickets-tracker/{line}"  # tickets-boundary-ok: bridge constructs paths to events
                 for line in result.stdout.strip().split("\n")
                 if line.strip()
             )
@@ -214,7 +219,7 @@ if __name__ == "__main__":
         jira_project=jira_project,
     )
 
-    tickets_dir = ".tickets-tracker"
+    tickets_dir = ".tickets-tracker"  # tickets-boundary-ok: bridge root dir
     syncs = process_events(
         tickets_dir=tickets_dir,
         acli_client=acli_client,
