@@ -205,6 +205,7 @@ jobs:
         uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434 # pinned; verify at github.com/anthropics/claude-code-action/releases
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_args: --model ${{ env.ANTHROPIC_MODEL }}
           use_commit_signing: false
           prompt: |
