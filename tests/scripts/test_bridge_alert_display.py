@@ -303,8 +303,12 @@ def test_ticket_show_outputs_health_warning_when_unresolved_alerts(
         cwd=str(tmp_path),
         env={
             **_subprocess_env(),
-            # Override REPO_ROOT so the script finds our tmp tracker dir
-            "GIT_DIR": str(tmp_path / ".git"),
+            # ticket-show.sh uses TICKETS_TRACKER_DIR to bypass git rev-parse;
+            # GIT_DIR alone is insufficient because ticket-show.sh only has the
+            # TICKETS_TRACKER_DIR branch (not the GIT_DIR dirname fallback that
+            # ticket-list.sh has). Using TICKETS_TRACKER_DIR avoids needing a
+            # real git repo in tmp_path.
+            "TICKETS_TRACKER_DIR": str(tracker_dir),
         },
     )
 
