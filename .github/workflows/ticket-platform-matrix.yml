@@ -32,7 +32,6 @@ jobs:
 
     strategy:
       fail-fast: false
-      continue-on-error: true
       matrix:
         include:
           - name: linux-bash4

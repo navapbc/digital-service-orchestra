@@ -27,6 +27,25 @@ concurrency:
 jobs:
   # ── Fast gates ──────────────────────────────────────────────
 
+  actionlint:
+    name: Actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          echo "$PWD" >> "$GITHUB_PATH"
+
+      - name: Run actionlint
+        run: actionlint -color
+
+      - name: Job timing report
+        if: always()
+        run: echo "actionlint completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
   shellcheck:
     name: ShellCheck
     runs-on: ubuntu-latest
