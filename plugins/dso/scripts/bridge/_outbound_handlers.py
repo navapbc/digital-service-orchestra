@@ -602,6 +602,72 @@ def handle_unlink_event(
         return []
 
 
+def handle_file_impact_event(
+    event: dict[str, Any],
+    *,
+    acli_client: Any,
+    tickets_root: Path,
+    bridge_env_id: str,
+    run_id: str = "",  # accepted for uniform ctx unpacking; not used
+) -> list[dict[str, Any]]:
+    """Handle a FILE_IMPACT event: record file impact as Jira property and post comment."""
+    ticket_id = event.get("ticket_id", "")
+    ticket_dir = tickets_root / ticket_id
+
+    event_data = _read_event_file(event.get("file_path", ""))
+    if not event_data:
+        return []
+
+    event_uuid = event_data.get("uuid", "")
+    file_impact = event_data.get("data", {}).get("file_impact", [])
+    event_env_id = event_data.get("env_id", "")
+
+    if event_env_id == bridge_env_id:
+        return []
+
+    jira_key = _resolve_jira_key(ticket_dir)
+    if not jira_key:
+        return []
+
+    dedup_map = _read_dedup_map(ticket_dir)
+    uuid_to_jira = dedup_map.get("uuid_to_jira_id", {})
+    if event_uuid in uuid_to_jira:
+        return []
+
+    try:
+        acli_client.set_issue_property(jira_key, "dso.file_impact", file_impact)
+    except Exception:
+        write_bridge_alert(
+            ticket_dir,
+            ticket_id=ticket_id,
+            reason="FILE_IMPACT_SYNC_FAILED",
+            bridge_env_id=bridge_env_id,
+        )
+        return []
+
+    paths = [
+        entry.get("path", str(entry)) if isinstance(entry, dict) else str(entry)
+        for entry in file_impact
+    ]
+    n = len(paths)
+    file_word = "file" if n == 1 else "files"
+    comment_body = f"File Impact ({n} {file_word}): {', '.join(paths)}"
+    body_with_marker = embed_uuid_marker(comment_body, event_uuid)
+    result = acli_client.add_comment(jira_key, body_with_marker)
+    jira_comment_id = (result.get("id", "") if isinstance(result, dict) else "") or str(
+        event_uuid
+    )
+
+    jira_id_to_uuid = dedup_map.get("jira_id_to_uuid", {})
+    uuid_to_jira[event_uuid] = jira_comment_id
+    jira_id_to_uuid[jira_comment_id] = event_uuid
+    dedup_map["uuid_to_jira_id"] = uuid_to_jira
+    dedup_map["jira_id_to_uuid"] = jira_id_to_uuid
+    _write_dedup_map(ticket_dir, dedup_map)
+
+    return []
+
+
 def handle_edit_event(
     event: dict[str, Any],
     *,

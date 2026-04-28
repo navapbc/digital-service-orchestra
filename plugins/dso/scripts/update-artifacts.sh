@@ -441,6 +441,13 @@ if [[ -z "$_DRYRUN" ]]; then
     }
 fi
 
+# ── 6. File impact migration (file-impact-v1) ─────────────────────────────────
+if [[ -z "$_DRYRUN" ]]; then
+    bash "$_SCRIPT_DIR/ticket-migrate-file-impact-v1.sh" --target "$_TARGET" &>/dev/stderr || {
+        echo '[update-artifacts] Migration warning: file-impact-v1 migration exited non-zero -- see stderr for details' >&2
+    }
+fi
+
 # ── Emit conflict JSON and exit 2 if any conflicts occurred ───────────────────
 if [[ "$_OVERALL_EXIT" -eq 2 ]]; then
     printf '%s\n' "$_CONFLICT_JSON"
