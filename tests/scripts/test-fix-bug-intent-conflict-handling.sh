@@ -41,7 +41,7 @@ _extract_step17() {
 
 # ============================================================
 # test_intent_conflict_outcome_exists
-# The Gate 1a step must mention 'intent-conflict' as a Intent Gate outcome.
+# The Intent Gate step must mention 'intent-conflict' as an Intent Gate outcome.
 # This is the primary RED marker — until SKILL.md is updated,
 # this test FAILS to confirm the implementation is missing.
 # ============================================================
@@ -53,7 +53,7 @@ test_intent_conflict_outcome_exists() {
         echo "PASS: test_intent_conflict_outcome_exists"
         (( PASS++ ))
     else
-        echo "FAIL: test_intent_conflict_outcome_exists — Gate 1a step does not mention 'intent-conflict'" >&2
+        echo "FAIL: test_intent_conflict_outcome_exists — Intent Gate step does not mention 'intent-conflict'" >&2
         (( FAIL++ ))
     fi
 }
@@ -100,7 +100,7 @@ test_gate_1a_result_intent_conflict() {
         echo "PASS: test_gate_1a_result_intent_conflict"
         (( PASS++ ))
     else
-        echo "FAIL: test_gate_1a_result_intent_conflict — INTENT_GATE_RESULT='intent-conflict' assignment not found in Gate 1a step" >&2
+        echo "FAIL: test_gate_1a_result_intent_conflict — INTENT_GATE_RESULT='intent-conflict' assignment not found in Intent Gate step" >&2
         (( FAIL++ ))
     fi
 }
@@ -136,7 +136,7 @@ echo ""
 echo "--- test_non_interactive_deferred ---"
 test_non_interactive_deferred() {
     # Both 'intent-conflict' and 'INTERACTIVITY_DEFERRED' must appear
-    # in the Gate 1a step — grep directly against the file to avoid
+    # in the Intent Gate step — grep directly against the file to avoid
     # bash variable piping limitations with large files.
     local step15_content
     step15_content=$(_extract_step15 "$SKILL_FILE")
