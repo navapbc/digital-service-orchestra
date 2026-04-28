@@ -159,7 +159,8 @@ Run both error sweeps before committing so that any tickets created are included
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "${CLAUDE_PLUGIN_ROOT}/scripts/end-session/error-sweep.sh"  # shim-exempt: source-as-library; shim dispatches subprocesses, not in-shell sources
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+source "$PLUGIN_SCRIPTS/end-session/error-sweep.sh"  # shim-exempt: source-as-library; shim dispatches subprocesses, not in-shell sources
 sweep_tool_errors
 sweep_validation_failures
 ```

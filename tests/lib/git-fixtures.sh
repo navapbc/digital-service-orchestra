@@ -85,8 +85,11 @@ clone_test_repo() {
 # per test (~0.21s each × N tests). On clone, the worktree's absolute-path
 # cross-references are rewritten to point at the new destination.
 
-# Resolve REPO_ROOT for ticket init (tests may source this before cd'ing)
-_GIT_FIXTURE_REPO_ROOT="${_GIT_FIXTURE_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
+# Resolve REPO_ROOT for ticket init (tests may source this before cd'ing).
+# GIT_DISCOVERY_ACROSS_FILESYSTEM=1 handles Docker volume mount boundaries.
+# GITHUB_WORKSPACE fallback handles alpine CI tarball checkouts (no .git present).
+_GIT_FIXTURE_REPO_ROOT="${_GIT_FIXTURE_REPO_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
+_GIT_FIXTURE_REPO_ROOT="${_GIT_FIXTURE_REPO_ROOT:-${GITHUB_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}}"
 
 _GIT_FIXTURE_TICKET_TEMPLATE_DIR=""
 
@@ -121,10 +124,10 @@ clone_ticket_repo() {
     # Rewrite worktree cross-references (absolute paths baked into template)
     local wt_name="-tickets-tracker"
     local wt_gitdir="$dest/.git/worktrees/$wt_name/gitdir"
-    local tracker_gitfile="$dest/.tickets-tracker/.git"
+    local tracker_gitfile="$dest/.tickets-tracker/.git"  # tickets-boundary-ok
 
     if [ -f "$wt_gitdir" ]; then
-        echo "$dest/.tickets-tracker/.git" > "$wt_gitdir"
+        echo "$dest/.tickets-tracker/.git" > "$wt_gitdir"  # tickets-boundary-ok
     fi
     if [ -f "$tracker_gitfile" ]; then
         echo "gitdir: $dest/.git/worktrees/$wt_name" > "$tracker_gitfile"
