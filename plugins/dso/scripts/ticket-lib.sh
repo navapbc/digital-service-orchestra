@@ -41,7 +41,7 @@ _python_write_commit_event() {
         echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
         return 1
     fi
-    if ! git -C "$tracker_dir" rev-parse --is-inside-work-tree &>/dev/null; then
+    if ! GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git -C "$tracker_dir" rev-parse --is-inside-work-tree &>/dev/null; then
         echo "Error: .tickets-tracker is not a valid git worktree." >&2
         return 1
     fi
@@ -247,11 +247,20 @@ _flock_stage_commit() {
         git -C "$tracker_dir" config gc.auto 0
     fi
 
-    # ── Locate bash-native flock binary (util-linux; not available in PATH on macOS) ──
+    # ── Locate util-linux flock binary (not in PATH on macOS; BusyBox flock on
+    # Alpine does not reliably support the FD-based form used below) ──
+    # Only accept flock when it is util-linux flock; BusyBox flock (Alpine/embedded)
+    # exits non-zero for `flock -x -w N FD` in the subshell-redirect context used
+    # here.  If the binary in PATH is not util-linux, fall through to the mkdir
+    # fallback unconditionally.
     local _flock_bin=""
     if command -v flock >/dev/null 2>&1; then
-        _flock_bin="$(command -v flock)"
-    else
+        if flock --version 2>&1 | grep -qi 'util-linux'; then
+            _flock_bin="$(command -v flock)"
+        fi
+        # Non-util-linux flock (e.g. BusyBox): leave _flock_bin empty → mkdir fallback
+    fi
+    if [ -z "$_flock_bin" ]; then
         # Homebrew util-linux installs flock outside PATH on macOS
         local _ul_flock
         _ul_flock=$(find /opt/homebrew/Cellar/util-linux -name flock -path "*/bin/flock" 2>/dev/null | sort -V | tail -1)
@@ -388,7 +397,7 @@ write_commit_event() {
         echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
         return 1
     fi
-    if ! git -C "$tracker_dir" rev-parse --is-inside-work-tree &>/dev/null; then
+    if ! GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git -C "$tracker_dir" rev-parse --is-inside-work-tree &>/dev/null; then
         echo "Error: .tickets-tracker is not a valid git worktree." >&2
         return 1
     fi

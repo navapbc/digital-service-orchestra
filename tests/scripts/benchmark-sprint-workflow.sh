@@ -131,7 +131,7 @@ platform      = sys.argv[3] if len(sys.argv) > 3 else "unknown"
 # pre-refactor Python subprocess overhead is higher: ~3.5s vs macOS 2.9118s).
 LINUX_KEY   = "aggregate_sprint_turn_linux_s"
 GENERIC_KEY = "aggregate_sprint_turn_s"
-KEY = LINUX_KEY if (platform == "Linux" and True) else GENERIC_KEY
+KEY = LINUX_KEY if platform == "Linux" else GENERIC_KEY
 
 # ── Load baseline (or start fresh) ──────────────────────────────────────────
 if baseline_path.exists():
