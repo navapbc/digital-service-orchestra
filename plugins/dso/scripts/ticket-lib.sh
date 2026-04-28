@@ -27,8 +27,10 @@ _python_write_commit_event() {
     local ticket_id="$1"
     local temp_event_json_path="$2"
 
-    local repo_root
-    repo_root="$(git rev-parse --show-toplevel)"
+    local repo_root=""
+    if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
+        repo_root="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel)"
+    fi
     local tracker_dir_raw="${TICKETS_TRACKER_DIR:-$repo_root/.tickets-tracker}"
     local tracker_dir
     tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$tracker_dir_raw")
@@ -39,7 +41,7 @@ _python_write_commit_event() {
         echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
         return 1
     fi
-    if ! git -C "$tracker_dir" rev-parse --is-inside-work-tree &>/dev/null; then
+    if ! GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git -C "$tracker_dir" rev-parse --is-inside-work-tree &>/dev/null; then
         echo "Error: .tickets-tracker is not a valid git worktree." >&2
         return 1
     fi
@@ -238,15 +240,27 @@ _flock_stage_commit() {
     local relative_path="${final_path#"$tracker_dir/"}"
 
     # ── Ensure gc.auto=0 in tickets worktree (skip if already set) ───────────
-    if [ "$(git -C "$tracker_dir" config --get gc.auto 2>/dev/null)" != "0" ]; then
+    # _DSO_GC_AUTO_ZERO=1: caller guarantees gc.auto is already 0 (set by ticket
+    # init and clone_ticket_repo) — skips the git subprocess check (~10ms/op).
+    if [ "${_DSO_GC_AUTO_ZERO:-0}" != "1" ] && \
+       [ "$(git -C "$tracker_dir" config --get gc.auto 2>/dev/null)" != "0" ]; then
         git -C "$tracker_dir" config gc.auto 0
     fi
 
-    # ── Locate bash-native flock binary (util-linux; not available in PATH on macOS) ──
+    # ── Locate util-linux flock binary (not in PATH on macOS; BusyBox flock on
+    # Alpine does not reliably support the FD-based form used below) ──
+    # Only accept flock when it is util-linux flock; BusyBox flock (Alpine/embedded)
+    # exits non-zero for `flock -x -w N FD` in the subshell-redirect context used
+    # here.  If the binary in PATH is not util-linux, fall through to the mkdir
+    # fallback unconditionally.
     local _flock_bin=""
     if command -v flock >/dev/null 2>&1; then
-        _flock_bin="$(command -v flock)"
-    else
+        if flock --version 2>&1 | grep -qi 'util-linux'; then
+            _flock_bin="$(command -v flock)"
+        fi
+        # Non-util-linux flock (e.g. BusyBox): leave _flock_bin empty → mkdir fallback
+    fi
+    if [ -z "$_flock_bin" ]; then
         # Homebrew util-linux installs flock outside PATH on macOS
         local _ul_flock
         _ul_flock=$(find /opt/homebrew/Cellar/util-linux -name flock -path "*/bin/flock" 2>/dev/null | sort -V | tail -1)
@@ -360,8 +374,10 @@ write_commit_event() {
         return $?
     fi
 
-    local repo_root
-    repo_root="$(git rev-parse --show-toplevel)"
+    local repo_root=""
+    if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
+        repo_root="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel)"
+    fi
     local tracker_dir_raw="${TICKETS_TRACKER_DIR:-$repo_root/.tickets-tracker}"
     # Resolve to canonical path so that callers using a symlink and callers using
     # the real path always contend on the same lock file (cross-path serialization).
@@ -381,7 +397,7 @@ write_commit_event() {
         echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
         return 1
     fi
-    if ! git -C "$tracker_dir" rev-parse --is-inside-work-tree &>/dev/null; then
+    if ! GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git -C "$tracker_dir" rev-parse --is-inside-work-tree &>/dev/null; then
         echo "Error: .tickets-tracker is not a valid git worktree." >&2
         return 1
     fi
@@ -562,13 +578,22 @@ _tag_add() {
     local _ticket_cmd="${TICKET_CMD:-$_lib_dir/ticket}"
 
     # Resolve tracker dir
-    local _repo_root
-    _repo_root="$(git rev-parse --show-toplevel)"
+    local _repo_root=""
+    if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
+        _repo_root="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel)"
+    fi
     local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root/.tickets-tracker}"
 
-    # Read current tags via authoritative Python reducer
+    # Read current tags — use in-process ticket_show when available to avoid
+    # spawning a bash subprocess (~30ms overhead) for each tag operation.
+    local _show_output
+    if declare -f ticket_show >/dev/null 2>&1; then
+        _show_output=$(TICKETS_TRACKER_DIR="$_tracker_dir" ticket_show "$ticket_id" 2>/dev/null) || true
+    else
+        _show_output=$(TICKETS_TRACKER_DIR="$_tracker_dir" bash "$_ticket_cmd" show "$ticket_id" 2>/dev/null) || true
+    fi
     local _current_tags
-    _current_tags=$(TICKETS_TRACKER_DIR="$_tracker_dir" bash "$_ticket_cmd" show "$ticket_id" 2>/dev/null \
+    _current_tags=$(echo "$_show_output" \
         | python3 -c "import json,sys; tags=json.load(sys.stdin).get('tags',[]); print(','.join(tags) if tags else '')" 2>/dev/null || echo "")
 
     # Idempotency: skip if tag already present
@@ -652,13 +677,22 @@ _tag_remove() {
     local _ticket_cmd="${TICKET_CMD:-$_lib_dir/ticket}"
 
     # Resolve tracker dir
-    local _repo_root
-    _repo_root="$(git rev-parse --show-toplevel)"
+    local _repo_root=""
+    if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
+        _repo_root="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel)"
+    fi
     local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root/.tickets-tracker}"
 
-    # Read current tags via authoritative Python reducer
+    # Read current tags — use in-process ticket_show when available to avoid
+    # spawning a bash subprocess (~30ms overhead) for each tag operation.
+    local _show_output
+    if declare -f ticket_show >/dev/null 2>&1; then
+        _show_output=$(TICKETS_TRACKER_DIR="$_tracker_dir" ticket_show "$ticket_id" 2>/dev/null) || true
+    else
+        _show_output=$(TICKETS_TRACKER_DIR="$_tracker_dir" bash "$_ticket_cmd" show "$ticket_id" 2>/dev/null) || true
+    fi
     local _current_tags
-    _current_tags=$(TICKETS_TRACKER_DIR="$_tracker_dir" bash "$_ticket_cmd" show "$ticket_id" 2>/dev/null \
+    _current_tags=$(echo "$_show_output" \
         | python3 -c "import json,sys; tags=json.load(sys.stdin).get('tags',[]); print(','.join(tags) if tags else '')" 2>/dev/null || echo "")
 
     # Idempotency: skip if tag is absent
@@ -740,7 +774,7 @@ _ticket_has_pil() {
 
     local _repo_root=""
     if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
-        _repo_root="$(git rev-parse --show-toplevel)"
+        _repo_root="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel)"
     fi
     local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root/.tickets-tracker}"
 
@@ -970,8 +1004,10 @@ _write_preconditions() {
         data_json="{}"
     fi
 
-    local repo_root
-    repo_root="$(git rev-parse --show-toplevel)"
+    local repo_root=""
+    if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
+        repo_root="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel)"
+    fi
     local tracker_dir_raw="${TICKETS_TRACKER_DIR:-$repo_root/.tickets-tracker}"
     local tracker_dir
     tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$tracker_dir_raw")
@@ -1079,8 +1115,10 @@ _read_latest_preconditions() {
         # 1-arg form: full absolute path passed directly (used by compaction tests)
         ticket_dir="$ticket_id"
     else
-        local repo_root
-        repo_root="$(git rev-parse --show-toplevel)"
+        local repo_root=""
+        if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
+            repo_root="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel)"
+        fi
         local tracker_dir_raw="${TICKETS_TRACKER_DIR:-$repo_root/.tickets-tracker}"
         local tracker_dir
         tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$tracker_dir_raw")

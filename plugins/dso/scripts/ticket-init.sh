@@ -23,7 +23,7 @@ for _arg in "$@"; do
     fi
 done
 
-REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
+REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel)}"
 TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 
 # ── Ensure .env-id exists ────────────────────────────────────────────────────
@@ -230,6 +230,8 @@ else
     _user_name="$(git -C "$REPO_ROOT" config user.name 2>/dev/null || echo "Ticket System")"
     git -C "$TRACKER_DIR" config user.email "$_user_email"
     git -C "$TRACKER_DIR" config user.name "$_user_name"
+    git -C "$TRACKER_DIR" config commit.gpgsign false
+    git -C "$TRACKER_DIR" config tag.gpgsign false
 
     git -C "$TRACKER_DIR" commit --allow-empty -q --no-verify -m "chore: initialize ticket tracker"
 fi

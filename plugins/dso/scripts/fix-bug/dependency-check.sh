@@ -61,8 +61,8 @@ if [[ -n "${WORKFLOW_CONFIG_FILE:-}" && -f "${WORKFLOW_CONFIG_FILE}" ]]; then
 elif [[ -f "$REPO_ROOT/.claude/dso-config.conf" ]]; then
     _fc_config="$REPO_ROOT/.claude/dso-config.conf"
 fi
-if [[ -n "$_fc_config" && -f "$SCRIPT_DIR/../read-config.sh" ]]; then
-    CMD_FORMAT_CHECK=$("$SCRIPT_DIR/../read-config.sh" "commands.format_check" "$_fc_config" 2>/dev/null || true)
+if [[ -n "$_fc_config" && -f "${SCRIPT_DIR%/*}/read-config.sh" ]]; then
+    CMD_FORMAT_CHECK=$("${SCRIPT_DIR%/*}/read-config.sh" "commands.format_check" "$_fc_config" 2>/dev/null || true)
 fi
 if [[ -z "$CMD_FORMAT_CHECK" ]]; then
     echo "[DSO WARN] commands.format_check not configured — skipping format check in gate-2d." >&2

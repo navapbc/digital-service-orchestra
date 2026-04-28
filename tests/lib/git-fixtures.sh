@@ -85,13 +85,16 @@ clone_test_repo() {
 # per test (~0.21s each × N tests). On clone, the worktree's absolute-path
 # cross-references are rewritten to point at the new destination.
 
-# Resolve REPO_ROOT for ticket init (tests may source this before cd'ing)
-_GIT_FIXTURE_REPO_ROOT="${_GIT_FIXTURE_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
+# Resolve REPO_ROOT for ticket init (tests may source this before cd'ing).
+# GIT_DISCOVERY_ACROSS_FILESYSTEM=1 handles Docker volume mount boundaries.
+# GITHUB_WORKSPACE fallback handles alpine CI tarball checkouts (no .git present).
+_GIT_FIXTURE_REPO_ROOT="${_GIT_FIXTURE_REPO_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
+_GIT_FIXTURE_REPO_ROOT="${_GIT_FIXTURE_REPO_ROOT:-${GITHUB_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}}"
 
 _GIT_FIXTURE_TICKET_TEMPLATE_DIR=""
 
 _ensure_ticket_fixture_template() {
-    if [ -n "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR" ] && [ -d "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/.git" ]; then
+    if [ -n "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR" ] && [ -d "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/repo/.git" ]; then
         return
     fi
     # Start from the base git template
@@ -105,8 +108,13 @@ _ensure_ticket_fixture_template() {
     # Template size is kept small to avoid cp -r overhead dominating savings.
     local _ticket_script="${_GIT_FIXTURE_REPO_ROOT}/plugins/dso/scripts/ticket"
     if [ -f "$_ticket_script" ]; then
-        (cd "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/repo" && \
-            _TICKET_TEST_NO_SYNC=1 bash "$_ticket_script" init >/dev/null 2>&1) || true
+        _ticket_init_err=$(mktemp)
+        if ! (cd "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/repo" && \
+            _TICKET_TEST_NO_SYNC=1 bash "$_ticket_script" init >/dev/null 2>"$_ticket_init_err"); then
+            echo "WARNING: ticket init failed in fixture setup:" >&2
+            cat "$_ticket_init_err" >&2
+        fi
+        rm -f "$_ticket_init_err"
     fi
 }
 
@@ -119,20 +127,48 @@ clone_ticket_repo() {
     cp -r "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/repo" "$dest"
 
     # Rewrite worktree cross-references (absolute paths baked into template)
+    # Detect actual worktree metadata dir name: git sanitizes leading '.' to '-'
+    # but behaviour differs across git versions. Use glob so shellcheck is happy.
     local wt_name="-tickets-tracker"
+    local _wt_dir
+    for _wt_dir in "$dest/.git/worktrees"/*/; do
+        [ -d "$_wt_dir" ] && wt_name=$(basename "$_wt_dir") && break
+    done
     local wt_gitdir="$dest/.git/worktrees/$wt_name/gitdir"
-    local tracker_gitfile="$dest/.tickets-tracker/.git"
+    local tracker_gitfile="$dest/.tickets-tracker/.git"  # tickets-boundary-ok
 
     if [ -f "$wt_gitdir" ]; then
-        echo "$dest/.tickets-tracker/.git" > "$wt_gitdir"
+        echo "$dest/.tickets-tracker/.git" > "$wt_gitdir"  # tickets-boundary-ok
     fi
     if [ -f "$tracker_gitfile" ]; then
         echo "gitdir: $dest/.git/worktrees/$wt_name" > "$tracker_gitfile"
+    fi
+
+    # Verify the path rewrite succeeded. On some git versions (e.g. alpine/busybox
+    # git 2.43.x) the sanitised worktree dir name or cross-reference format may
+    # differ, leaving the worktree broken after a plain cp. When verification
+    # fails, tear out the stale state and re-add the worktree from scratch so git
+    # bakes in the correct absolute paths for this destination.
+    if ! GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git -C "$dest/.tickets-tracker" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        # Preserve .env-id (gitignored — not part of branch content)
+        local _env_id=""
+        [ -f "$dest/.tickets-tracker/.env-id" ] && _env_id=$(cat "$dest/.tickets-tracker/.env-id")  # tickets-boundary-ok
+        rm -rf "$dest/.tickets-tracker"
+        rm -rf "$dest/.git/worktrees"
+        GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git -C "$dest" worktree add "$dest/.tickets-tracker" tickets >/dev/null 2>&1 || true
+        if [ -d "$dest/.tickets-tracker" ]; then
+            [ -n "$_env_id" ] && echo "$_env_id" > "$dest/.tickets-tracker/.env-id"  # tickets-boundary-ok
+            git -C "$dest/.tickets-tracker" config commit.gpgsign false 2>/dev/null || true
+            git -C "$dest/.tickets-tracker" config tag.gpgsign false 2>/dev/null || true
+        fi
     fi
 
     # Pre-set gc.auto=0 in the tickets worktree so write_commit_event skips
     # the redundant per-operation check (~10ms saved per ticket operation).
     if [ -d "$dest/.tickets-tracker" ]; then
         git -C "$dest/.tickets-tracker" config gc.auto 0
+        # Signal to _flock_stage_commit that gc.auto is already 0 — avoids a
+        # git subprocess on every write op (~10ms × N ops per test suite run).
+        export _DSO_GC_AUTO_ZERO=1
     fi
 }

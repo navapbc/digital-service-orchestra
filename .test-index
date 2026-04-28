@@ -2,7 +2,7 @@
 # Maps source files to test files that fuzzy match misses.
 # Format: source/path: test/path1[, test/path2...]
 
-plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_set_issue_property.py
+plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_set_issue_property.py,tests/scripts/test_acli_integration_set_issue_property.py [test_set_issue_property_calls_put_on_correct_path]
 .github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh
 plugins/dso/.claude-plugin/plugin.json:tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-dir-structure.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
@@ -263,7 +263,7 @@ plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
 plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-ticket-write-commit-event.sh,tests/scripts/test-ticket-lib.sh,tests/scripts/test-preconditions-lww.sh,tests/scripts/test-preconditions-compaction.sh,tests/integration/test-preconditions-fault-injection.sh,tests/integration/test-preconditions-mixed-corpus.sh,tests/integration/test-preconditions-compaction-ordering.sh,tests/scripts/test-ticket-push-rebase-conflict.sh,tests/scripts/test-ticket-set-get-file-impact.sh
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-ticket-write-commit-event.sh,tests/scripts/test-ticket-lib.sh,tests/scripts/test-preconditions-lww.sh,tests/scripts/test-preconditions-compaction.sh,tests/integration/test-preconditions-fault-injection.sh,tests/integration/test-preconditions-mixed-corpus.sh,tests/integration/test-preconditions-compaction-ordering.sh,tests/scripts/test-ticket-push-rebase-conflict.sh,tests/scripts/test-ticket-set-get-file-impact.sh,tests/scripts/test-flock-busybox-compat.sh
 plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
