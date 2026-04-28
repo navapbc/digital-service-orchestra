@@ -284,7 +284,8 @@ assert_eq "test_pipefail_strict_runs_on_linux: runs-on is ubuntu-latest" "OK" "$
 assert_pass_if_clean "test_pipefail_strict_runs_on_linux"
 
 # ── test_pipefail_strict_exports_bash_opts ────────────────────────────────────
-# jobs['tests-pipefail-strict']['env']['BASH_OPTS'] must contain -eo pipefail.
+# The "Run tests under strict pipefail" step must enforce strict mode via the
+# shell: key (GitHub Actions does not auto-apply BASH_OPTS env vars as flags).
 _snapshot_fail
 pfs_bash_opts_exit=0
 pfs_bash_opts_output=""
@@ -294,10 +295,14 @@ with open('$TEMPLATE') as f:
     doc = yaml.safe_load(f)
 jobs = doc.get('jobs', {})
 job = jobs.get('tests-pipefail-strict', {})
-env = job.get('env', {})
-bash_opts = env.get('BASH_OPTS', '')
-if '-eo pipefail' not in str(bash_opts):
-    print('MISSING_BASH_OPTS: BASH_OPTS does not contain -eo pipefail, got: ' + str(bash_opts))
+steps = job.get('steps', [])
+strict_step = next((s for s in steps if s.get('name') == 'Run tests under strict pipefail'), None)
+if strict_step is None:
+    print('MISSING_STEP: Run tests under strict pipefail step not found')
+    sys.exit(1)
+shell = strict_step.get('shell', '')
+if 'pipefail' not in str(shell):
+    print('MISSING_PIPEFAIL: shell does not enforce pipefail, got: ' + str(shell))
     sys.exit(1)
 print('OK')
 " 2>&1) || pfs_bash_opts_exit=$?

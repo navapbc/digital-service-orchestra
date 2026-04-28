@@ -81,7 +81,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      BASH_OPTS: "-eo pipefail"
       SUITE_TEST_INDEX: ${{ github.workspace }}/.test-index
     steps:
       - uses: actions/checkout@v4
@@ -94,6 +93,10 @@ jobs:
           fi
 
       - name: Run tests under strict pipefail
+        # Use shell: to enforce strict mode at the runner level rather than
+        # relying on a BASH_OPTS env var (GitHub Actions does not auto-apply env
+        # vars as bash flags; the shell: key is the correct mechanism).
+        shell: bash -eo pipefail {0}
         run: ${{ vars.DSO_TEST_CMD }}
 
   llm-review:
