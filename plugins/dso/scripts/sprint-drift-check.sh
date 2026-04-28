@@ -374,7 +374,7 @@ drifted_files=()
 _tmpdir=$(mktemp -d)
 trap 'rm -rf "$_tmpdir"' EXIT
 
-# Extract (index, created_at) pairs and write description files.
+# Extract (index, created_at, ticket_id) pairs and write description files.
 python3 - "$children_json" "$_tmpdir" << 'PYEOF'
 import json, sys, os
 
@@ -389,9 +389,14 @@ except Exception:
 for i, child in enumerate(children):
     created_at = child.get('created_at', 0)
     description = child.get('description', '')
+    ticket_id = child.get('ticket_id', '')
     desc_file = os.path.join(tmpdir, 'desc_{}.txt'.format(i))
     with open(desc_file, 'w') as f:
         f.write(description)
+    # Write ticket_id to a separate file for the bash loop
+    tid_file = os.path.join(tmpdir, 'tid_{}.txt'.format(i))
+    with open(tid_file, 'w') as f:
+        f.write(ticket_id)
     # Print index TAB created_at for bash loop to read
     print('{}\t{}'.format(i, created_at))
 PYEOF
@@ -412,8 +417,37 @@ while IFS=$'\t' read -r _idx _created_at; do
         continue
     fi
 
-    # Extract file paths from the description
-    _impact_files=$(_extract_impact_files "$_description")
+    # Read ticket_id for this child (written by the python3 extraction block above)
+    _tid_file="$_tmpdir/tid_${_idx}.txt"
+    _task_id=""
+    [[ -f "$_tid_file" ]] && _task_id=$(cat "$_tid_file")
+
+    # Primary: try ticket get-file-impact for structured file paths
+    _impact_files=""
+    if [[ -n "$_task_id" ]]; then
+        _fi_json=$(${TICKET_CMD:-ticket} get-file-impact "$_task_id" 2>/dev/null || echo "[]")
+        if [ -n "$_fi_json" ] && [ "$_fi_json" != "[]" ]; then
+            _fi_paths=$(echo "$_fi_json" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    for e in d:
+        p = e.get("path") or e.get("file") or ""
+        if p:
+            print(p)
+except Exception:
+    pass
+' 2>/dev/null || true)
+            if [ -n "$_fi_paths" ]; then
+                _impact_files="$_fi_paths"
+            fi
+        fi
+    fi
+
+    # Fallback: extract file paths from the markdown description
+    if [[ -z "$_impact_files" ]]; then
+        _impact_files=$(_extract_impact_files "$_description")
+    fi
 
     # Skip tasks with no file impact
     [[ -z "$_impact_files" ]] && continue

@@ -171,6 +171,7 @@ def initial_state($tid):
     deps: [],
     bridge_alerts: [],
     reverts: [],
+    file_impact: [],
     preconditions_summary: {status: "pre-manifest"}
   };
 
@@ -257,6 +258,8 @@ def apply_event(ev):
     reduce ((ev.data.compiled_state? // {}) | to_entries[]) as $field (.;
       .[$field.key] = $field.value
     )
+  elif ev.event_type == "FILE_IMPACT" then
+    .file_impact = (ev.data.file_impact // [])
   else .
   end;
 
@@ -928,6 +931,311 @@ with open(sys.argv[4], 'w', encoding='utf-8') as f:
         }
 
         rm -f "$temp_event"
+    )
+}
+
+# ── ticket_set_file_impact ────────────────────────────────────────────────────
+# Write a FILE_IMPACT event recording which files are affected by a ticket.
+ticket_set_file_impact() {
+    if [ "${DSO_TICKET_LEGACY:-0}" = "1" ]; then
+        echo "Error: ticket set-file-impact not available in legacy mode" >&2
+        return 1
+    fi
+
+    (
+        set -euo pipefail
+
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        # shellcheck source=/dev/null
+        source "$_TICKETLIB_DIR/ticket-lib.sh"
+
+        local TRACKER_DIR
+        if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+            TRACKER_DIR="$TICKETS_TRACKER_DIR"
+        else
+            local REPO_ROOT
+            REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
+            TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+        fi
+
+        if [ $# -lt 2 ]; then
+            echo "Usage: ticket set-file-impact <ticket_id> <json_array>" >&2
+            return 1
+        fi
+
+        local ticket_id="$1"
+        local json_array="$2"
+
+        if [ -z "$ticket_id" ]; then
+            echo "Error: ticket_id must be non-empty" >&2
+            return 1
+        fi
+
+        # REVIEW-DEFENSE: jq is used here for input validation only — same approved
+        # exception as ticket_show (epic 78fc-3858, story 564c-e391). python3 would
+        # require a subshell + subprocess; jq is already the project-standard JSON
+        # processor on the bash-native path and is available wherever ticket-lib-api.sh runs.
+        # Validate: must be valid JSON
+        if ! printf '%s' "$json_array" | jq -e . >/dev/null 2>&1; then
+            echo "Error: file_impact argument is not valid JSON" >&2
+            return 1
+        fi
+
+        # Validate: must be a JSON array (not object, not scalar)
+        local json_type
+        json_type=$(printf '%s' "$json_array" | jq -r 'type' 2>/dev/null) || json_type="unknown"
+        if [ "$json_type" != "array" ]; then
+            echo "Error: file_impact argument must be a JSON array, got '$json_type'" >&2
+            return 1
+        fi
+
+        # Ghost check: ticket directory must exist with CREATE or SNAPSHOT event.
+        if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
+            echo "Error: ticket '$ticket_id' does not exist" >&2
+            return 1
+        fi
+
+        if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 \( -name '*-CREATE.json' -o -name '*-SNAPSHOT.json' \) ! -name '.*' 2>/dev/null | grep -q .; then
+            echo "Error: ticket $ticket_id has no CREATE or SNAPSHOT event" >&2
+            return 1
+        fi
+
+        local env_id
+        env_id=$(cat "$TRACKER_DIR/.env-id")
+        local author
+        author=$(git config user.name 2>/dev/null || echo "Unknown")
+
+        local temp_event array_file
+        temp_event=$(mktemp "$TRACKER_DIR/.tmp-file-impact-XXXXXX")
+        array_file=$(mktemp "$TRACKER_DIR/.tmp-fi-array-XXXXXX")
+        # shellcheck disable=SC2064
+        trap "rm -f '$temp_event' '$array_file'" EXIT
+        printf '%s' "$json_array" > "$array_file"
+
+        python3 -c "
+import json, sys, time, uuid
+
+with open(sys.argv[3], 'r', encoding='utf-8') as af:
+    file_impact = json.load(af)
+
+event = {
+    'timestamp': time.time_ns(),
+    'uuid': str(uuid.uuid4()),
+    'event_type': 'FILE_IMPACT',
+    'env_id': sys.argv[1],
+    'author': sys.argv[2],
+    'data': {
+        'file_impact': file_impact
+    }
+}
+
+with open(sys.argv[4], 'w', encoding='utf-8') as f:
+    json.dump(event, f, ensure_ascii=False)
+" "$env_id" "$author" "$array_file" "$temp_event" || {
+            rm -f "$temp_event" "$array_file"
+            echo "Error: failed to build FILE_IMPACT event JSON" >&2
+            return 1
+        }
+        rm -f "$array_file"
+
+        write_commit_event "$ticket_id" "$temp_event" || {
+            rm -f "$temp_event"
+            echo "Error: failed to write and commit FILE_IMPACT event" >&2
+            return 1
+        }
+
+        rm -f "$temp_event"
+    )
+}
+
+# ── ticket_get_file_impact ────────────────────────────────────────────────────
+# Read the compiled file_impact array for a ticket.
+ticket_get_file_impact() {
+    if [ "${DSO_TICKET_LEGACY:-0}" = "1" ]; then
+        echo "Error: ticket get-file-impact not available in legacy mode" >&2
+        return 1
+    fi
+
+    (
+        set -euo pipefail
+
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        local TRACKER_DIR
+        if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+            TRACKER_DIR="$TICKETS_TRACKER_DIR"
+        else
+            local REPO_ROOT
+            REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
+            TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+        fi
+
+        if [ $# -lt 1 ]; then
+            echo "Usage: ticket get-file-impact <ticket_id>" >&2
+            return 1
+        fi
+
+        local ticket_id="$1"
+
+        if [ -z "$ticket_id" ]; then
+            echo "Error: ticket_id must be non-empty" >&2
+            return 1
+        fi
+
+        if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
+            echo "[]"
+            return 0
+        fi
+
+        # Collect and sort event files (same pattern as ticket_show)
+        local sorted_files=()
+        while IFS= read -r -d '' f; do
+            sorted_files+=("$f")
+        done < <(find "$TRACKER_DIR/$ticket_id" -maxdepth 1 -name '*.json' ! -name '.*' \
+            -print0 2>/dev/null | sort -z)
+
+        if [ "${#sorted_files[@]}" -eq 0 ]; then
+            echo "[]"
+            return 0
+        fi
+
+        # REVIEW-DEFENSE: SC2016 suppressed — single quotes are intentional; $-refs are jq variables.
+        # shellcheck disable=SC2016
+        local _JQ_REDUCE='
+def initial_state($tid):
+  {
+    ticket_id: $tid,
+    ticket_type: null,
+    title: null,
+    status: "open",
+    author: null,
+    created_at: null,
+    env_id: null,
+    parent_id: null,
+    priority: null,
+    assignee: null,
+    description: "",
+    tags: [],
+    comments: [],
+    deps: [],
+    bridge_alerts: [],
+    reverts: [],
+    file_impact: [],
+    preconditions_summary: {status: "pre-manifest"}
+  };
+
+def apply_event(ev):
+  if ev.event_type == "CREATE" then
+    . + {
+      ticket_type: ev.data.ticket_type,
+      title: ev.data.title,
+      author: ev.author,
+      created_at: ev.timestamp,
+      env_id: ev.env_id,
+      parent_id: (if (ev.data.parent_id? // "") == "" then null
+                  else ev.data.parent_id end),
+      priority:    (ev.data.priority?  // null),
+      assignee:    (ev.data.assignee?  // null),
+      description: (ev.data.description? // ""),
+      tags:        (ev.data.tags? // [])
+    }
+  elif ev.event_type == "STATUS" then
+    .status = ev.data.status
+  elif ev.event_type == "COMMENT" then
+    .comments += [{
+      body: (if ev.data.body == null then ""
+             elif (ev.data.body | type) == "string" then ev.data.body
+             else (ev.data.body | tostring)
+             end),
+      author:    ev.author,
+      timestamp: ev.timestamp
+    }]
+  elif ev.event_type == "LINK" then
+    .deps += [{
+      target_id: ((ev.data.target_id? // ev.data.target?) // ""),
+      relation:  (ev.data.relation? // ""),
+      link_uuid:  ev.uuid
+    }]
+  elif ev.event_type == "UNLINK" then
+    .deps = [.deps[] | select(.link_uuid != ev.data.link_uuid)]
+  elif ev.event_type == "EDIT" then
+    reduce ((ev.data.fields? // {}) | to_entries[]) as $field (.;
+      if $field.key == "tags" then
+        if   ($field.value | type) == "array"  then .tags = $field.value
+        elif ($field.value | type) == "string" then
+          .tags = [($field.value | split(","))[] |
+                   gsub("^\\s+|\\s+$"; "") | select(length > 0)]
+        else .tags = []
+        end
+      elif ([["ticket_id","ticket_type","title","status","author","created_at","env_id","parent_id","priority","assignee","description","tags","comments","deps","bridge_alerts","reverts"][] == $field.key] | any) then
+        .[$field.key] = $field.value
+      else .
+      end
+    )
+  elif ev.event_type == "ARCHIVED" then
+    .archived = true
+  elif ev.event_type == "BRIDGE_ALERT" then
+    ((ev.data.alert_type? // ev.data.reason? // ev.data.detail?) // "") as $reason |
+    if ev.data.resolved? // false then
+      ((ev.data.resolves_uuid? // ev.data.alert_uuid?) // "") as $target |
+      if ([.bridge_alerts[] | select(.uuid == $target)] | length) > 0 then
+        .bridge_alerts = [.bridge_alerts[] |
+          if .uuid == $target then .resolved = true else . end]
+      else
+        .bridge_alerts += [{uuid: ev.uuid, reason: $reason,
+                            timestamp: ev.timestamp, resolved: true}]
+      end
+    else
+      .bridge_alerts += [{uuid: ev.uuid, reason: $reason,
+                          timestamp: ev.timestamp, resolved: false}]
+    end
+  elif ev.event_type == "REVERT" then
+    .reverts += [{
+      uuid:              ev.uuid,
+      target_event_uuid: (ev.data.target_event_uuid? // null),
+      target_event_type: (ev.data.target_event_type? // null),
+      reason:            (ev.data.reason? // ""),
+      timestamp:          ev.timestamp,
+      author:             ev.author
+    }]
+  elif ev.event_type == "SNAPSHOT" then
+    reduce ((ev.data.compiled_state? // {}) | to_entries[]) as $field (.;
+      .[$field.key] = $field.value
+    )
+  elif ev.event_type == "FILE_IMPACT" then
+    .file_impact = (ev.data.file_impact // [])
+  else .
+  end;
+
+reduce $_events[] as $ev (initial_state($TID); apply_event($ev))
+'
+
+        # REVIEW-DEFENSE: jq is used here for event reduction — same approved exception
+        # as ticket_show (epic 78fc-3858, story 564c-e391). ticket_get_file_impact reuses
+        # the shared $_JQ_REDUCE program (defined in ticket_show's scope and available via
+        # the _ticketlib_dispatch subshell) to avoid duplicating reducer logic.
+        local _valid_tmp
+        _valid_tmp=$(mktemp)
+        # shellcheck disable=SC2064
+        trap "rm -f '$_valid_tmp'" EXIT
+        local f
+        for f in "${sorted_files[@]}"; do
+            jq -c '.' "$f" 2>/dev/null >> "$_valid_tmp" || true
+        done
+
+        if [ ! -s "$_valid_tmp" ]; then
+            echo "[]"
+            rm -f "$_valid_tmp"
+            return 0
+        fi
+
+        local fi_out
+        fi_out=$(jq -c -n --arg TID "$ticket_id" --slurpfile _events "$_valid_tmp" \
+            "$_JQ_REDUCE | .file_impact // []" 2>/dev/null) || fi_out="[]"
+        rm -f "$_valid_tmp"
+
+        echo "$fi_out"
     )
 }
 
