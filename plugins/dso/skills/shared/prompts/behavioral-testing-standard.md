@@ -7,7 +7,7 @@
 
 # Shared Behavioral Testing Standard
 
-Standalone prompt fragment for test-writing agents. Applies to all test creation and review tasks across any skill that writes or evaluates tests. This is a 5-rule standard grounded in four research references:
+Standalone prompt fragment for test-writing agents. Applies to all test creation and review tasks across any skill that writes or evaluates tests. This is a 5-rule standard (with a Rule 5 addendum covering remote-runtime declarative configuration artifacts) grounded in four research references:
 
 - **Google's "unchanging test" principle** — a test should only change when the behavior it describes changes.
 - **Khorikov's "resistance to refactoring" pillar** — tests must survive implementation-preserving refactoring without modification.
@@ -142,6 +142,20 @@ test -f ".claude/scripts/dso"  # shim-exempt: illustrative example in documentat
 ```
 
 **Rationale:** Behavioral correctness for LLM instruction content cannot be deterministically tested — the LLM's response to an instruction depends on context, model version, and sampling parameters. Tests that assert on instruction wording produce false positives on safe edits and erode trust in the test suite. The structural boundary (schema, integrity, compliance, syntax) is deterministic and provides real regression protection.
+
+### Rule 5 Addendum — Declarative Configuration Artifacts
+
+Declarative configs that execute in remote runtimes (GitHub Actions workflows, Ruleset JSON, Kubernetes manifests, Terraform, cron schedules, OpenAPI specs) cannot be deterministically executed locally. Apply Rule 5's structural-boundary discipline, with one expansion: when the format has an authoritative validator, running the validator IS an acceptable behavioral test.
+
+| Artifact | Validator-based test |
+|---|---|
+| `.github/workflows/*.yml` | `actionlint <file>` |
+| GitHub Ruleset JSON | `gh api ... --method GET --silent` round-trip, or JSON-schema validation |
+| Kubernetes manifests | `kubectl apply --dry-run=client -f <file>` |
+| Terraform | `terraform validate` |
+| OpenAPI specs | `openapi-spec-validator <file>` |
+
+A passing validator certifies parseability and schema validity — not runtime behavior. Pair it with the brainstorm executable-artifact SC for end-to-end verification.
 
 ---
 
