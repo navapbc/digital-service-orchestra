@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
 # tests/scripts/test-ticket-platform-matrix-trigger.sh
-# RED-phase structural tests for .github/workflows/ticket-platform-matrix.yml
-#
-# These tests FAIL (RED) against the current repo state because:
-#   - ticket-platform-matrix.yml has a narrow paths: filter on pull_request
-#   - ticket-platform-matrix.yml lacks strategy.continue-on-error: true
-#   - .github/required-checks.txt does not yet exist
+# Structural tests for .github/workflows/ticket-platform-matrix.yml
 #
 # Tests covered:
-#   1. test_pull_request_trigger_has_no_paths_filter   — paths: present → RED
-#   2. test_strategy_has_continue_on_error             — key absent → RED
-#   3. test_three_leg_names_in_workflow                — all three matrix leg names present
-#   4. test_required_checks_txt_exists_and_contains_leg_names — file missing → RED
+#   1. test_pull_request_trigger_has_no_paths_filter         — pull_request must fire on every PR
+#   2. test_strategy_does_not_have_continue_on_error         — key is invalid under strategy: in GH
+#      Actions schema; placement caused workflow startup_failure (bug 9cb3-6ef0)
+#   3. test_three_leg_names_in_workflow                       — all three matrix leg names present
+#   4. test_required_checks_txt_exists_and_contains_leg_names — required-checks.txt lists all legs
 #
 # Usage: bash tests/scripts/test-ticket-platform-matrix-trigger.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -52,9 +48,10 @@ assert_eq "test_pull_request_trigger_has_no_paths_filter: exit 0" "0" "$no_paths
 assert_eq "test_pull_request_trigger_has_no_paths_filter: no paths: key under pull_request" "OK" "$no_paths_output"
 assert_pass_if_clean "test_pull_request_trigger_has_no_paths_filter"
 
-# ── test_strategy_has_continue_on_error ──────────────────────────────────────
-# jobs['ticket-platform-tests']['strategy']['continue-on-error'] must be True.
-# RED: key is absent in the current workflow.
+# ── test_strategy_does_not_have_continue_on_error ────────────────────────────
+# jobs['ticket-platform-tests']['strategy']['continue-on-error'] must NOT exist.
+# Per the GitHub Actions schema, valid strategy keys are fail-fast, matrix, max-parallel.
+# Placing continue-on-error under strategy: causes workflow startup_failure (bug 9cb3-6ef0).
 _snapshot_fail
 coe_exit=0
 coe_output=""
@@ -65,15 +62,14 @@ with open('$WORKFLOW_FILE') as f:
 jobs = doc.get('jobs', {})
 job = jobs.get('ticket-platform-tests', {})
 strategy = job.get('strategy', {})
-coe = strategy.get('continue-on-error', None)
-if coe is not True:
-    print('MISSING_OR_FALSE: strategy.continue-on-error is not True, got: ' + str(coe))
+if 'continue-on-error' in strategy:
+    print('INVALID_KEY: strategy.continue-on-error is present (invalid GH Actions schema; causes startup_failure)')
     sys.exit(1)
 print('OK')
 " 2>&1) || coe_exit=$?
-assert_eq "test_strategy_has_continue_on_error: exit 0" "0" "$coe_exit"
-assert_eq "test_strategy_has_continue_on_error: strategy.continue-on-error is true" "OK" "$coe_output"
-assert_pass_if_clean "test_strategy_has_continue_on_error"
+assert_eq "test_strategy_does_not_have_continue_on_error: exit 0" "0" "$coe_exit"
+assert_eq "test_strategy_does_not_have_continue_on_error: strategy.continue-on-error absent" "OK" "$coe_output"
+assert_pass_if_clean "test_strategy_does_not_have_continue_on_error"
 
 # ── test_three_leg_names_in_workflow ─────────────────────────────────────────
 # All three matrix leg names must exist in strategy.matrix.include.

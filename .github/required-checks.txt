@@ -14,12 +14,13 @@
 # job that dogfoods the same LLM review gate used in the consuming-project template.
 #
 # Ownership:
-#   ci.yml                     — ShellCheck, Lint Python (ruff), Hook Tests, Script Tests,
-#                                LLM Review
+#   ci.yml                     — Actionlint, ShellCheck, Lint Python (ruff), Hook Tests,
+#                                Script Tests, LLM Review
 #   ticket-platform-matrix.yml — Ticket tests (linux-bash4), Ticket tests (macos-bash3),
 #                                Ticket tests (alpine-busybox)
 
 # ── ci.yml checks ────────────────────────────────────────────────────────────
+Actionlint
 ShellCheck
 Lint Python (ruff)
 Hook Tests
