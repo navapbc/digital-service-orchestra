@@ -48,8 +48,22 @@ if [ -z "$ticket_output" ]; then
     exit 0
 fi
 
-# Extract description from JSON and parse ## File Impact section
-impact_files=$(echo "$ticket_output" | python3 -c "
+# Primary: try ticket get-file-impact for structured file paths
+impact_files=$(${TICKET_CMD:-ticket} get-file-impact "$TASK_ID" 2>/dev/null | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    for e in d:
+        p = e.get("path") or e.get("file") or ""
+        if p:
+            print(p)
+except Exception:
+    pass
+' 2>/dev/null || true) || impact_files=""
+
+# Fallback: extract description from JSON and parse ## File Impact section
+if [ -z "$impact_files" ]; then
+    impact_files=$(echo "$ticket_output" | python3 -c "
 import json, sys, re
 
 ticket = json.load(sys.stdin)
@@ -76,6 +90,7 @@ for line in section.strip().split('\n'):
 for f in files:
     print(f)
 " 2>/dev/null) || impact_files=""
+fi
 
 # ── Edge case: no File Impact section → IN_SCOPE ─────────────────────────────
 if [ -z "$impact_files" ]; then

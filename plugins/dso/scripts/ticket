@@ -55,6 +55,8 @@ _usage() {
     echo "  next-batch    Select next parallel agent batch for an epic [--json]"
     echo "  ready         List tickets ready to work (all blockers closed)"
     echo "  archive       Archive an open ticket (excludes from default list; idempotent)"
+    echo "  set-file-impact  Record file impact for a ticket (JSON array of {path,reason} objects)"
+    echo "  get-file-impact  Get the current file impact array for a ticket (JSON)"
     exit 1
 }
 
@@ -426,6 +428,20 @@ case "$subcommand" in
         # shellcheck source=/dev/null
         source "$SCRIPT_DIR/ticket-lib-api.sh"
         _ticketlib_dispatch ticket_archive "$@"
+        exit $?
+        ;;
+    set-file-impact)
+        _ensure_initialized
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_set_file_impact "$@"
+        exit $?
+        ;;
+    get-file-impact)
+        _ensure_initialized
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_get_file_impact "$@"
         exit $?
         ;;
     *)

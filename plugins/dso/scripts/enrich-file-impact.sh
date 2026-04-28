@@ -56,7 +56,15 @@ if [ -z "$output" ]; then
     exit 1
 fi
 
-# Check if file impact section already exists
+# Check if file impact already exists via structured storage API (primary idempotency check)
+existing=$("$TICKET_CMD" get-file-impact "$ID" 2>/dev/null || echo "[]")
+if [ -n "$existing" ] && [ "$existing" != "[]" ]; then
+    echo "File impact already set for $ID (get-file-impact returned non-empty)" >&2
+    exit 0
+fi
+
+# Fallback idempotency check: look for markdown ## File Impact section in ticket output
+# (backward compat — tickets enriched before FILE_IMPACT events were introduced)
 has_file_impact=$(echo "$output" | awk '
   tolower($0) ~ /^## file impact/ || tolower($0) ~ /^### files to modify/ { found=1 }
   END { print found+0 }
@@ -185,8 +193,33 @@ if [ ! -x "$TICKET_CMD" ]; then
     echo "ERROR: ticket CLI not found at $TICKET_CMD" >&2
     exit 1
 fi
-"$TICKET_CMD" comment "$ID" "$file_impact" || {
-    echo "ERROR: Failed to record file impact comment on ticket $ID" >&2
+
+# Convert markdown file impact response to JSON array for structured storage.
+# shellcheck disable=SC2016  # single quotes intentional: python3 script, no shell expansion needed
+file_impact_json=$(echo "$file_impact" | python3 -c '
+import sys, re, json
+
+text = sys.stdin.read()
+entries = []
+for line in text.split("\n"):
+    line = line.strip()
+    m = re.match(r"^[-*]\s+\`?([^\`]+)\`?\s*[-—]?\s*(.*)", line)
+    if m:
+        path = m.group(1).strip()
+        reason = m.group(2).strip() if m.group(2).strip() else "modified"
+        if path and ("/" in path or "." in path):
+            entries.append({"path": path, "reason": reason})
+print(json.dumps(entries))
+' 2>/dev/null || echo "[]")
+
+# Store via structured API (primary storage path)
+"$TICKET_CMD" set-file-impact "$ID" "$file_impact_json" || {
+    echo "ERROR: Failed to set file impact on ticket $ID" >&2
     exit 1
 }
-echo "File impact section added to $ID (v3 comment event)"
+
+# Also store as comment for backward compatibility (markdown readable form)
+"$TICKET_CMD" comment "$ID" "$file_impact" || {
+    echo "WARNING: Failed to record file impact comment on ticket $ID (set-file-impact succeeded)" >&2
+}
+echo "File impact section added to $ID (v3 set-file-impact + comment event)"
