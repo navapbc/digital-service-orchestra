@@ -156,6 +156,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -200,7 +201,8 @@ jobs:
         uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434 # pinned; verify at github.com/anthropics/claude-code-action/releases
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: ${{ env.ANTHROPIC_MODEL }}
-          direct_prompt: |
+          claude_args: --model ${{ env.ANTHROPIC_MODEL }}
+          use_commit_signing: false
+          prompt: |
             Review this pull request for correctness, security issues, and design problems.
 

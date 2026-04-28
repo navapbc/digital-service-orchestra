@@ -94,7 +94,7 @@ _GIT_FIXTURE_REPO_ROOT="${_GIT_FIXTURE_REPO_ROOT:-${GITHUB_WORKSPACE:-$(cd "$(di
 _GIT_FIXTURE_TICKET_TEMPLATE_DIR=""
 
 _ensure_ticket_fixture_template() {
-    if [ -n "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR" ] && [ -d "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/.git" ]; then
+    if [ -n "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR" ] && [ -d "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/repo/.git" ]; then
         return
     fi
     # Start from the base git template
@@ -108,8 +108,13 @@ _ensure_ticket_fixture_template() {
     # Template size is kept small to avoid cp -r overhead dominating savings.
     local _ticket_script="${_GIT_FIXTURE_REPO_ROOT}/plugins/dso/scripts/ticket"
     if [ -f "$_ticket_script" ]; then
-        (cd "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/repo" && \
-            _TICKET_TEST_NO_SYNC=1 bash "$_ticket_script" init >/dev/null 2>&1) || true
+        _ticket_init_err=$(mktemp)
+        if ! (cd "$_GIT_FIXTURE_TICKET_TEMPLATE_DIR/repo" && \
+            _TICKET_TEST_NO_SYNC=1 bash "$_ticket_script" init >/dev/null 2>"$_ticket_init_err"); then
+            echo "WARNING: ticket init failed in fixture setup:" >&2
+            cat "$_ticket_init_err" >&2
+        fi
+        rm -f "$_ticket_init_err"
     fi
 }
 
