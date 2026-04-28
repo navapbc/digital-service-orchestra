@@ -2007,3 +2007,98 @@ def test_dep_graph_correctness_after_cross_story_link(
     assert not any(d["target_id"] == "task-b" for d in task_a_deps), (
         "Expected NO task-a → task-b dep (should have been promoted to story level)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests for _write_link_event push retry logic (bug 79de-85d4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_write_link_event_retries_on_non_fast_forward(tmp_path: Path) -> None:
+    """_write_link_event retries push on non-fast-forward and succeeds on second attempt.
+
+    Mock ordering note: subprocess.run is called for git add, git commit, git remote
+    BEFORE the push retry loop, so side_effects must account for all 7 calls:
+      add_ok, commit_ok, remote_ok, push_fail, fetch_ok, rebase_ok, push_ok
+    MagicMock does NOT simulate check=True raising CalledProcessError — returncode is
+    returned but no exception is raised for add/commit mocks.
+    """
+    import sys
+    from unittest.mock import MagicMock, patch
+
+    _scripts_dir = str(REPO_ROOT / "plugins" / "dso" / "scripts")
+    if _scripts_dir not in sys.path:
+        sys.path.insert(0, _scripts_dir)
+
+    from ticket_graph._links import _write_link_event as _real_write_link_event
+
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    (tracker_dir / "tkt-src3").mkdir()
+
+    ok = MagicMock(returncode=0, stdout="", stderr="")
+    remote_ok = MagicMock(returncode=0, stdout="origin\n", stderr="")
+    push_fail = MagicMock(
+        returncode=1, stdout="", stderr="error: non-fast-forward updates were rejected"
+    )
+    push_ok = MagicMock(returncode=0, stdout="", stderr="")
+
+    # Call order: git add, git commit, git remote, git push (fail),
+    #             git fetch, git rebase, git push (success)
+    side_effects = [ok, ok, remote_ok, push_fail, ok, ok, push_ok]
+
+    with (
+        patch("subprocess.run", side_effect=side_effects) as mock_run,
+        patch.dict("os.environ", {"_TICKET_TEST_NO_SYNC": ""}, clear=False),
+    ):
+        _real_write_link_event("tkt-src3", "tkt-tgt3", str(tracker_dir), "depends_on")
+
+    all_cmds = [c.args[0] for c in mock_run.call_args_list if c.args]
+    push_calls = [cmd for cmd in all_cmds if "push" in cmd]
+    assert len(push_calls) == 2, (
+        f"Expected 2 push attempts (1 non-fast-forward + 1 retry success), got {len(push_calls)}. "
+        f"All commands: {all_cmds}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_write_link_event_push_gives_up_on_merge_conflict(tmp_path: Path) -> None:
+    """_write_link_event is best-effort: if rebase AND merge both fail, it gives up silently."""
+    import sys
+    from unittest.mock import MagicMock, patch
+
+    _scripts_dir = str(REPO_ROOT / "plugins" / "dso" / "scripts")
+    if _scripts_dir not in sys.path:
+        sys.path.insert(0, _scripts_dir)
+
+    from ticket_graph._links import _write_link_event as _real_write_link_event
+
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    (tracker_dir / "tkt-src4").mkdir()
+
+    ok = MagicMock(returncode=0, stdout="", stderr="")
+    remote_ok = MagicMock(returncode=0, stdout="origin\n", stderr="")
+    push_fail = MagicMock(
+        returncode=1, stdout="", stderr="error: non-fast-forward updates were rejected"
+    )
+    rebase_fail = MagicMock(
+        returncode=1, stdout="", stderr="CONFLICT (content): Merge conflict"
+    )
+    merge_fail = MagicMock(
+        returncode=1, stdout="", stderr="CONFLICT (content): Merge conflict"
+    )
+
+    # git add, git commit, git remote, git push (fail), git fetch,
+    # git rebase (fail), git rebase --abort, git merge (fail), git merge --abort
+    side_effects = [ok, ok, remote_ok, push_fail, ok, rebase_fail, ok, merge_fail, ok]
+
+    with (
+        patch("subprocess.run", side_effect=side_effects),
+        patch.dict("os.environ", {"_TICKET_TEST_NO_SYNC": ""}, clear=False),
+    ):
+        # Must not raise — best-effort means failure is silently swallowed
+        _real_write_link_event("tkt-src4", "tkt-tgt4", str(tracker_dir), "depends_on")

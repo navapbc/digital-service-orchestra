@@ -297,6 +297,14 @@ After all structural edits are complete and before commit, renumber the skill's 
 - **Mode/branch sections** (entry-mode dispatchers like Bug-Fix Mode, Validation Mode) stay named, not lettered. They sit between Phases and refer into them.
 - **Section headers**: rename the phase heading from `## Phase N: Title` to `## Phase X: Title` (where X is the new letter); rename step headings from `### Step N.M: Title` to `### Step K: Title` (where K is the new sequential whole number within that phase).
 
+### Gate renames before renumbering (mandatory ordering)
+
+If the refactor plan includes **gate renames** (e.g., "Gate 1a" → "Intent Gate", "Gate 2b" → "Verification Gate"), apply those renames **before** building the renumbering mapping table — not after. Reason: the mapping table will contain patterns like `Step 1.5 (Gate 1a` that co-locate a step label with a gate name. If the gate rename runs after the table is built, the gate name in the table entry no longer matches the post-rename text (the gate name has already changed to "Intent Gate"), so the substitution silently fails and stale fractional-step refs survive both passes.
+
+**Order**: (1) apply all gate renames to the skill's SKILL.md and every cross-skill referrer, (2) verify no stale gate names remain, (3) THEN build the renumbering mapping table (entries will use post-rename gate names: `Step 1.5 (Intent Gate` → `Phase B Step 1 (Intent Gate`).
+
+This also applies to section title renames, signal label renames, and any other textual change that co-occurs on the same lines as step/phase numbers.
+
 ### Procedure
 
 > **Method**: scripts and `Edit` calls are both acceptable. The discipline that matters is **(1) build the explicit mapping table first**, **(2) one substitution pass, no double-mapping**, **(3) hand-audit cross-skill refs**, **(4) post-grep verify**. Skipping any of these — regardless of method — produces silent breakages: missed refs, off-by-one mappings, doubled substitutions where target labels collide with source labels, and mis-mapped cross-skill references (`fix-bug Step 1.5` rewritten as if it were a local step). The bug is not in the tool; the bug is in iteration discipline.

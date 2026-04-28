@@ -151,11 +151,58 @@ def _write_link_event(
         text=True,
     )
     if _remote_check.stdout.strip():
-        _sp.run(
-            ["git", "-C", tracker_dir, "push", "origin", "tickets"],
-            capture_output=True,
-            text=True,
-        )  # best-effort: no check=True, failure is non-fatal
+        _max_retries = 3
+        _attempt = 0
+        while _attempt < _max_retries:
+            _push = _sp.run(
+                ["git", "-C", tracker_dir, "push", "origin", "tickets"],
+                capture_output=True,
+                text=True,
+            )
+            if _push.returncode == 0:
+                break
+            _stderr = _push.stderr or ""
+            import re as _re
+
+            if _re.search(r"non-fast-forward|rejected|fetch first", _stderr):
+                _sp.run(
+                    ["git", "-C", tracker_dir, "fetch", "origin", "tickets"],
+                    capture_output=True,
+                    text=True,
+                )
+                _rebase = _sp.run(
+                    ["git", "-C", tracker_dir, "rebase", "origin/tickets"],
+                    capture_output=True,
+                    text=True,
+                )
+                if _rebase.returncode != 0:
+                    _sp.run(
+                        ["git", "-C", tracker_dir, "rebase", "--abort"],
+                        capture_output=True,
+                        text=True,
+                    )
+                    _merge = _sp.run(
+                        [
+                            "git",
+                            "-C",
+                            tracker_dir,
+                            "merge",
+                            "origin/tickets",
+                            "--no-edit",
+                        ],
+                        capture_output=True,
+                        text=True,
+                    )
+                    if _merge.returncode != 0:
+                        _sp.run(
+                            ["git", "-C", tracker_dir, "merge", "--abort"],
+                            capture_output=True,
+                            text=True,
+                        )
+                        break  # best-effort: give up on unresolvable conflict
+            else:
+                break  # non-retryable error
+            _attempt += 1
 
 
 def add_dependency(

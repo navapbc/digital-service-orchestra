@@ -160,8 +160,8 @@ def test_git_diff_parses_new_create_events(bridge: ModuleType) -> None:
     """
     # Simulate git diff --name-only output with a new CREATE event file
     diff_output = (
-        ".tickets-tracker/w21-abc1/1742605200-3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c-CREATE.json\n"
-        ".tickets-tracker/w21-abc1/1742605300-aabbccdd-1122-3344-5566-778899aabbcc-STATUS.json\n"
+        ".tickets-tracker/w21-abc1/1742605200-3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c-CREATE.json\n"  # tickets-boundary-ok
+        ".tickets-tracker/w21-abc1/1742605300-aabbccdd-1122-3344-5566-778899aabbcc-STATUS.json\n"  # tickets-boundary-ok
         "README.md\n"  # non-event file — must be ignored
     )
 
@@ -1267,6 +1267,12 @@ def test_write_sync_event_timestamp_is_nanosecond_scale(
     # tests use module fixtures that do expose the tested functions. See bridge-outbound.py
     # line 34-40 (only filter_bridge_events, get_compiled_status, has_existing_sync, etc. are
     # re-exported; write_sync_event is internal to _outbound_api).
+    # sys.path must include plugins/dso/scripts/ so the `bridge` package is importable.
+    import sys
+
+    _scripts_dir = str(REPO_ROOT / "plugins" / "dso" / "scripts")
+    if _scripts_dir not in sys.path:
+        sys.path.insert(0, _scripts_dir)
     from bridge._outbound_api import write_sync_event
 
     ticket_dir = tmp_path / "w21-ns-sync"
