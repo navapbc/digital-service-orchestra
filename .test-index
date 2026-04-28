@@ -223,9 +223,9 @@ plugins/dso/scripts/bridge/_outbound_handlers.py:tests/scripts/test_bridge_outbo
 plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py,tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-list.sh
 plugins/dso/scripts/ticket_reducer/_api.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_strategy.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-list.sh
 plugins/dso/scripts/ticket_reducer/_cache.py:tests/scripts/test_ticket_reducer.py
-plugins/dso/scripts/ticket_reducer/_processors.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py [test_file_impact_event_compiles_to_state]
+plugins/dso/scripts/ticket_reducer/_processors.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py
 plugins/dso/scripts/ticket_reducer/_sort.py:tests/scripts/test_ticket_reducer.py
-plugins/dso/scripts/ticket_reducer/_state.py:tests/scripts/test_ticket_reducer.py [test_file_impact_event_compiles_to_state]
+plugins/dso/scripts/ticket_reducer/_state.py:tests/scripts/test_ticket_reducer.py
 plugins/dso/scripts/ticket_reducer/marker.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_marker.py
 plugins/dso/scripts/ticket_reducer/llm_format.py:tests/scripts/test_ticket_llm_format.py,tests/scripts/test_ticket_reducer_llm_format.py
 plugins/dso/scripts/analyze-tool-use.py:tests/scripts/test-skill-trace-analyze.sh,tests/scripts/test-skill-trace-analyze-shim.sh
@@ -260,7 +260,7 @@ plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
 plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-ticket-write-commit-event.sh [test_write_commit_event_accepts_file_impact],tests/scripts/test-ticket-lib.sh,tests/scripts/test-preconditions-lww.sh,tests/scripts/test-preconditions-compaction.sh,tests/integration/test-preconditions-fault-injection.sh,tests/integration/test-preconditions-mixed-corpus.sh,tests/integration/test-preconditions-compaction-ordering.sh,tests/scripts/test-ticket-push-rebase-conflict.sh
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-ticket-write-commit-event.sh,tests/scripts/test-ticket-lib.sh,tests/scripts/test-preconditions-lww.sh,tests/scripts/test-preconditions-compaction.sh,tests/integration/test-preconditions-fault-injection.sh,tests/integration/test-preconditions-mixed-corpus.sh,tests/integration/test-preconditions-compaction-ordering.sh,tests/scripts/test-ticket-push-rebase-conflict.sh
 plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
