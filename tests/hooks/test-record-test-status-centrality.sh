@@ -1505,4 +1505,98 @@ assert_eq \
 
 assert_pass_if_clean "test_centrality_cache_cleanup_on_hash_change"
 
+# ============================================================
+# test_shadow_sg_rejected_by_discriminator
+#
+# When shadow-utils' sg (switch-group, not ast-grep) is in PATH,
+# _is_astgrep_sg must reject it and the hook must fall back to
+# grep-based centrality with a warning — same behavior as when
+# sg is absent entirely. Bug 8282-6e7a.
+#
+# Observable: stderr warns centrality scoring is disabled (contains
+# "sg" and "centrality"), and the status file is written (graceful
+# degradation).
+# ============================================================
+echo ""
+echo "=== test_shadow_sg_rejected_by_discriminator ==="
+_snapshot_fail
+
+REPO_SHADOW=$(create_test_repo)
+ARTIFACTS_SHADOW=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-centrality-artifacts-XXXXXX")
+_TEST_TMPDIRS+=("$ARTIFACTS_SHADOW")
+
+# Create a fake sg binary that mimics shadow-utils' sg (switch-group):
+# - Exists in PATH so `command -v sg` returns 0
+# - Does NOT produce a version line matching "^(sg|ast-grep) [0-9]"
+#   (shadow-utils sg exits non-zero with no version output, causing
+#   _is_astgrep_sg's grep to fail and the function to return 1)
+SHADOW_SG_DIR=$(mktemp -d "${TMPDIR:-/tmp}/shadow-sg-XXXXXX")
+_TEST_TMPDIRS+=("$SHADOW_SG_DIR")
+cat > "$SHADOW_SG_DIR/sg" << 'SHEOF'
+#!/usr/bin/env bash
+# Simulates shadow-utils sg (switch-group) — not ast-grep.
+# Produces no stdout output matching "^(sg|ast-grep) [0-9]".
+echo "Usage: sg [-] [group [-c] command]" >&2
+exit 1
+SHEOF
+chmod +x "$SHADOW_SG_DIR/sg"
+
+mkdir -p "$REPO_SHADOW/src" "$REPO_SHADOW/tests"
+cat > "$REPO_SHADOW/src/shadow_mod.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "shadow mod"
+SHEOF
+chmod +x "$REPO_SHADOW/src/shadow_mod.sh"
+cat > "$REPO_SHADOW/tests/test-shadow-mod.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "passed"
+exit 0
+SHEOF
+chmod +x "$REPO_SHADOW/tests/test-shadow-mod.sh"
+
+mkdir -p "$REPO_SHADOW/.claude"
+printf 'test_gate.test_dirs=tests/\n' > "$REPO_SHADOW/.claude/dso-config.conf"
+
+git -C "$REPO_SHADOW" add -A
+git -C "$REPO_SHADOW" commit -m "add shadow_mod" --quiet 2>/dev/null
+echo "# changed" >> "$REPO_SHADOW/src/shadow_mod.sh"
+git -C "$REPO_SHADOW" add -A
+
+MOCK_PASS_SHADOW=$(create_mock_pass_runner)
+
+# Prepend the shadow-utils sg dir so it wins `command -v sg` over real ast-grep sg.
+STDERR_SHADOW=$(
+    cd "$REPO_SHADOW" || exit
+    PATH="$SHADOW_SG_DIR:$PATH" \
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_SHADOW" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_SHADOW" \
+    "$_BASH_PATH" "$HOOK" 2>&1 1>/dev/null || true
+)
+
+STATUS_FILE_SHADOW="$ARTIFACTS_SHADOW/test-gate-status"
+
+# _is_astgrep_sg must have rejected the shadow-utils sg: same warning as absent sg.
+assert_contains \
+    "test_shadow_sg_rejected_by_discriminator: stderr warns sg not available for centrality" \
+    "sg" \
+    "$STDERR_SHADOW"
+
+assert_contains \
+    "test_shadow_sg_rejected_by_discriminator: stderr mentions centrality scoring disabled" \
+    "centrality" \
+    "$STDERR_SHADOW"
+
+# Graceful degradation: status file must still be written.
+STATUS_FIRST_LINE_SHADOW=""
+if [[ -f "$STATUS_FILE_SHADOW" ]]; then
+    STATUS_FIRST_LINE_SHADOW=$(head -1 "$STATUS_FILE_SHADOW")
+fi
+assert_eq \
+    "test_shadow_sg_rejected_by_discriminator: status file written with passed status" \
+    "passed" \
+    "$STATUS_FIRST_LINE_SHADOW"
+
+assert_pass_if_clean "test_shadow_sg_rejected_by_discriminator"
+
 print_summary

@@ -81,14 +81,19 @@ def test_add_comment_calls_acli_addComment_action(acli: ModuleType) -> None:
 
     assert mock_run.called, "subprocess.run must be called by add_comment"
     cmd = mock_run.call_args[0][0]
-    assert any("addComment" in str(arg) for arg in cmd), (
-        f"Expected '--action addComment' in ACLI command arguments, got: {cmd}"
+    # ACLI v2 uses subcommand syntax: acli jira workitem comment create
+    # (v1 used --action addComment; tests updated to match current CLI shape)
+    assert any("comment" in str(arg) for arg in cmd), (
+        f"Expected 'comment' subcommand in ACLI command arguments, got: {cmd}"
+    )
+    assert any("create" in str(arg) for arg in cmd), (
+        f"Expected 'create' subcommand in ACLI command arguments, got: {cmd}"
     )
     assert any("PROJ-42" in str(arg) for arg in cmd), (
-        f"Expected '--issue PROJ-42' in ACLI command arguments, got: {cmd}"
+        f"Expected 'PROJ-42' (jira key) in ACLI command arguments, got: {cmd}"
     )
     assert any("This is a comment" in str(arg) for arg in cmd), (
-        f"Expected '--comment <body>' in ACLI command arguments, got: {cmd}"
+        f"Expected body text in ACLI command arguments, got: {cmd}"
     )
     assert isinstance(result, dict), (
         f"add_comment must return a dict, got {type(result)}"
@@ -218,8 +223,13 @@ def test_get_comments_calls_acli_getComments_action(acli: ModuleType) -> None:
 
     assert mock_run.called, "subprocess.run must be called by get_comments"
     cmd = mock_run.call_args[0][0]
-    assert any("getComments" in str(arg) for arg in cmd), (
-        f"Expected '--action getComments' in ACLI command arguments, got: {cmd}"
+    # ACLI v2 uses subcommand syntax: acli jira workitem comment list
+    # (v1 used --action getComments; tests updated to match current CLI shape)
+    assert any("comment" in str(arg) for arg in cmd), (
+        f"Expected 'comment' subcommand in ACLI command arguments, got: {cmd}"
+    )
+    assert any("list" in str(arg) for arg in cmd), (
+        f"Expected 'list' subcommand in ACLI command arguments, got: {cmd}"
     )
     assert any("PROJ-55" in str(arg) for arg in cmd), (
         f"Expected '--issue PROJ-55' in ACLI command arguments, got: {cmd}"
