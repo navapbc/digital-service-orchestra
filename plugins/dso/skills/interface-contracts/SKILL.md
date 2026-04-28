@@ -158,7 +158,7 @@ Before marking an interface contract task complete:
 - [ ] Complete type hints on all methods
 - [ ] Docstrings document behavior + exceptions + thread safety
 - [ ] Test file with contract verification tests
-- [ ] `make lint-mypy` passes
+- [ ] Lint (type-check) passes: `LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && $LINT_CMD`
 - [ ] Ticket notes include file path and constraints
 
 ## Common Pitfalls
@@ -168,7 +168,7 @@ Before marking an interface contract task complete:
 | Forgetting `@abstractmethod` | Subclasses can skip implementation | Always decorate abstract methods |
 | Missing return type hints | MyPy can't verify implementations match | Use `-> ReturnType` on all methods |
 | No docstring on abstract method | Contract is unclear to implementers | Document expected behavior fully |
-| Not running mypy after changes | Type errors slip through to CI | Run `make lint-mypy` after changes |
+| Not running mypy after changes | Type errors slip through to CI | Run `LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && $LINT_CMD` after changes |
 
 ## Workflow Summary
 
@@ -178,7 +178,7 @@ Before marking an interface contract task complete:
 # 3. Create concrete implementation(s)
 # 4. Write tests for base class and implementations
 # 5. Run type checking - REQUIRED
-make lint-mypy  # Must pass
+LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && $LINT_CMD  # Must pass
 
 # 6. Run validation
 .claude/scripts/dso validate.sh --ci

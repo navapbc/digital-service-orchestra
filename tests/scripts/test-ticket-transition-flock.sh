@@ -83,12 +83,12 @@ PYEOF
 # This test verifies the behavioral contract: reduce_ticket() is invoked after
 # the lock is acquired and subprocess.run for reducer is no longer used.
 echo "Test 1 (GREEN after S2): reduce_ticket() called in flock-held section, no subprocess reducer"
-test_flock_llm_format_referenced() {
+test_flock_reduce_ticket_in_critical_section() {
     _snapshot_fail
 
     if [ ! -f "$TRANSITION_SCRIPT" ]; then
         assert_eq "flock-ref: ticket-transition.sh exists" "exists" "missing"
-        assert_pass_if_clean "test_flock_llm_format_referenced"
+        assert_pass_if_clean "test_flock_reduce_ticket_in_critical_section"
         return
     fi
 
@@ -140,7 +140,7 @@ if 'fcntl.LOCK_EX' not in content:
 PYEOF2
         ) || true
         assert_eq "flock-ref: flock body extractable" "extracted" "error: $extract_err"
-        assert_pass_if_clean "test_flock_llm_format_referenced"
+        assert_pass_if_clean "test_flock_reduce_ticket_in_critical_section"
         return
     }
 
@@ -158,9 +158,9 @@ PYEOF2
         assert_eq "flock-ref: no subprocess reducer in flock body" "absent" "absent"
     fi
 
-    assert_pass_if_clean "test_flock_llm_format_referenced"
+    assert_pass_if_clean "test_flock_reduce_ticket_in_critical_section"
 }
-test_flock_llm_format_referenced
+test_flock_reduce_ticket_in_critical_section
 
 # ── Test 2 (guard): llm_format/to_llm NOT inside flock critical section ───────
 # This guard asserts the S2 implementation kept formatting work outside the lock.

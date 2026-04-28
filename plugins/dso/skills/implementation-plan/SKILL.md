@@ -1012,12 +1012,12 @@ This task is responsible for satisfying the following story done definitions:
 (List only the DDs this task owns. Omit DDs owned by other tasks in the plan.)
 
 ## Acceptance Criteria
-- [ ] `make test-unit-only` passes (exit 0)
-  Verify: cd $(git rev-parse --show-toplevel)/app && make test-unit-only
-- [ ] `make lint` passes (exit 0)
-  Verify: cd $(git rev-parse --show-toplevel)/app && make lint
-- [ ] `make format-check` passes (exit 0)
-  Verify: cd $(git rev-parse --show-toplevel)/app && make format-check
+- [ ] Unit tests pass (exit 0)
+  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n "$TEST_CMD" ] && $TEST_CMD
+- [ ] Lint passes (exit 0)
+  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n "$LINT_CMD" ] && $LINT_CMD
+- [ ] Format check passes (exit 0)
+  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n "$FORMAT_CHECK_CMD" ] && $FORMAT_CHECK_CMD
 - [ ] {task-specific criterion 1}
   Verify: {command that returns exit 0 on pass}
 - [ ] {task-specific criterion 2}

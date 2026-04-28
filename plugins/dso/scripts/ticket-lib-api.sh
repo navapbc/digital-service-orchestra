@@ -1261,3 +1261,136 @@ ticket_next_batch() {
     bash "$_TICKETLIB_DIR/ticket-next-batch.sh" "$@"
     return $?
 }
+
+# ── ticket_archive ────────────────────────────────────────────────────────────
+# Archive an open ticket by writing an ARCHIVED event and the .archived marker.
+#
+# Contract:
+#   - Only works on tickets with status=open (rejects in_progress, closed, blocked)
+#   - Idempotent: second call on an already-archived ticket exits 0 silently
+#   - Does NOT require closing the ticket first
+#   - After success, ticket is excluded from 'ticket list' (default)
+#   - 'ticket list --include-archived' and 'ticket show' still surface the ticket
+ticket_archive() {
+    (
+        set -euo pipefail
+
+        # Unset git hook env vars so git commands target the correct repo.
+        # Scoped to this subshell — does not leak to caller.
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        # Source ticket-lib.sh for write_commit_event.
+        # shellcheck source=/dev/null
+        source "$_TICKETLIB_DIR/ticket-lib.sh"
+
+        local TRACKER_DIR
+        if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+            TRACKER_DIR="$TICKETS_TRACKER_DIR"
+        else
+            local REPO_ROOT
+            REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
+            TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+        fi
+
+        if [ $# -ne 1 ]; then
+            echo "Usage: ticket archive <ticket_id>" >&2
+            return 1
+        fi
+
+        local ticket_id="$1"
+
+        if [ -z "$ticket_id" ]; then
+            echo "Error: ticket_id must be non-empty" >&2
+            return 1
+        fi
+
+        # Ticket directory must exist.
+        if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
+            echo "Error: ticket '$ticket_id' does not exist" >&2
+            return 1
+        fi
+
+        local TICKET_DIR="$TRACKER_DIR/$ticket_id"
+
+        # ── Idempotency check: exit 0 silently if already archived ────────────
+        if [ -f "$TICKET_DIR/.archived" ]; then
+            return 0
+        fi
+        # Also check for ARCHIVED event file (marker may be missing after clone)
+        if find "$TICKET_DIR" -maxdepth 1 -name '*-ARCHIVED.json' 2>/dev/null | grep -q .; then
+            # Write the marker if it was missing, then exit 0
+            python3 -c "
+import sys
+sys.path.insert(0, '$_TICKETLIB_DIR')
+from ticket_reducer.marker import write_marker
+write_marker(sys.argv[1])
+" "$TICKET_DIR" 2>/dev/null || true
+            return 0
+        fi
+
+        # ── Status gate: only open tickets may be archived ────────────────────
+        local current_status
+        current_status=$(
+            TICKETS_TRACKER_DIR="$TRACKER_DIR" bash "$_TICKETLIB_DIR/ticket" show "$ticket_id" 2>/dev/null \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null
+        ) || current_status=""
+
+        if [ -z "$current_status" ]; then
+            echo "Error: could not read status for ticket '$ticket_id'" >&2
+            return 1
+        fi
+
+        if [ "$current_status" != "open" ]; then
+            echo "Error: ticket '$ticket_id' has status '$current_status'; archive only works on open tickets" >&2
+            return 1
+        fi
+
+        # ── Write ARCHIVED event ──────────────────────────────────────────────
+        local env_id author
+        env_id=$(cat "$TRACKER_DIR/.env-id" 2>/dev/null || echo "unknown")
+        author=$(git config user.name 2>/dev/null || echo "Unknown")
+
+        local temp_event
+        temp_event=$(mktemp "$TRACKER_DIR/.tmp-archive-XXXXXX")
+        # shellcheck disable=SC2064
+        trap "rm -f '$temp_event'" EXIT
+
+        python3 -c "
+import json, sys, time, uuid
+
+event = {
+    'timestamp': time.time_ns(),
+    'uuid': str(uuid.uuid4()),
+    'event_type': 'ARCHIVED',
+    'env_id': sys.argv[1],
+    'author': sys.argv[2],
+    'data': {}
+}
+
+with open(sys.argv[3], 'w', encoding='utf-8') as f:
+    json.dump(event, f, ensure_ascii=False)
+" "$env_id" "$author" "$temp_event" || {
+            rm -f "$temp_event"
+            echo "Error: failed to build ARCHIVED event JSON" >&2
+            return 1
+        }
+
+        write_commit_event "$ticket_id" "$temp_event" || {
+            rm -f "$temp_event"
+            echo "Error: failed to write and commit ARCHIVED event" >&2
+            return 1
+        }
+
+        rm -f "$temp_event"
+
+        # ── Write .archived marker (after event is durably committed) ─────────
+        python3 -c "
+import sys, os
+sys.path.insert(0, '$_TICKETLIB_DIR')
+from ticket_reducer.marker import write_marker
+write_marker(sys.argv[1])
+" "$TICKET_DIR" 2>/dev/null || true
+
+        echo "Archived ticket '$ticket_id'"
+    )
+}

@@ -141,6 +141,9 @@ run_gate_hook() {
         [[ -n "$conf_file" ]]   && export CONF_OVERRIDE="$conf_file"
         export COMMIT_MSG_FILE_OVERRIDE="$commit_msg_file"
         export TICKET_SHIM_OVERRIDE="$PLUGIN_ROOT/.claude/scripts/dso"
+        # Ensure the shim can locate the DSO plugin root even when the working
+        # directory is a fake isolated test repo (which has no dso-config.conf).
+        export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
         bash "$GATE_HOOK" 2>/dev/null
     ) || exit_code=$?
     echo "$exit_code"
@@ -158,6 +161,7 @@ run_gate_hook_stderr() {
         [[ -n "$conf_file" ]]   && export CONF_OVERRIDE="$conf_file"
         export COMMIT_MSG_FILE_OVERRIDE="$commit_msg_file"
         export TICKET_SHIM_OVERRIDE="$PLUGIN_ROOT/.claude/scripts/dso"
+        export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
         bash "$GATE_HOOK" 2>&1 >/dev/null
     ) || true
 }

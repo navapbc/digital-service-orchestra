@@ -15,13 +15,14 @@
 # RED MARKER:
 # tests/hooks/test-check-tickets-boundary.sh [test_direct_tracker_ref_rejected]
 #
-# Test cases (6):
+# Test cases (7 + 6 named-member):
 #   1. test_direct_tracker_ref_rejected        — staged file with .tickets-tracker/ ref exits non-zero
 #   2. test_absorbed_script_ref_rejected       — staged file with sprint-next-batch.sh ref exits non-zero
 #   3. test_allowlisted_file_passes            — ticket-*.sh staged file with .tickets-tracker/ exits 0
 #   4. test_docs_path_excluded                 — docs/ staged file with absorbed script name exits 0
 #   5. test_clean_file_passes                  — staged file with no violations exits 0
 #   6. test_suppression_annotation_exempts     — line with # tickets-boundary-ok is exempt, exits 0
+#   7. test_docs_excluded_via_symlink          — docs/ file exits 0 when hook invoked via /tmp symlink
 #
 # All tests use isolated temp git repos to avoid polluting the real repository.
 
@@ -285,6 +286,37 @@ test_retro_gather_passes()         { _named_member_passes "test_retro_gather_pas
 test_capture_review_diff_passes()  { _named_member_passes "test_capture_review_diff_passes"  "plugins/dso/scripts/capture-review-diff.sh"; }
 test_skip_review_check_passes()    { _named_member_passes "test_skip_review_check_passes"    "plugins/dso/scripts/skip-review-check.sh"; }
 
+# ============================================================
+# TEST 13: test_docs_excluded_via_symlink
+# When the hook is invoked via a /tmp symlink (simulating
+# pre-commit language:script mode on macOS where /tmp -> /private/tmp),
+# a staged file under plugins/dso/docs/ must still be excluded
+# and the hook exits 0.
+# ============================================================
+test_docs_excluded_via_symlink() {
+    if [[ ! -f "$HOOK" ]]; then
+        echo "  FAIL: check-tickets-boundary.sh not found (RED — not yet implemented)" >&2
+        (( FAIL++ ))
+        return
+    fi
+
+    local _repo _tmplink
+    _repo=$(make_test_repo)
+    _tmplink=$(mktemp /tmp/check-tickets-boundary-XXXXXX.sh)
+    rm -f "$_tmplink"
+    ln -s "$HOOK" "$_tmplink"
+    _TEST_TMPDIRS+=("$_tmplink")
+
+    mkdir -p "$_repo/plugins/dso/docs"
+    # tickets-boundary-fixture (intentional — testing docs/ exclusion via symlink)
+    printf 'sprint-next-batch.sh\n' > "$_repo/plugins/dso/docs/ticket-cli-reference.md"
+    git -C "$_repo" add "plugins/dso/docs/ticket-cli-reference.md"
+
+    local _exit=0
+    ( cd "$_repo" && bash "$_tmplink" 2>/dev/null ) || _exit=$?
+    assert_eq "test_docs_excluded_via_symlink: docs/ file exits 0 via symlink invocation" "0" "$_exit"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_direct_tracker_ref_rejected
 test_absorbed_script_ref_rejected
@@ -298,5 +330,6 @@ test_suggestion_record_passes
 test_retro_gather_passes
 test_capture_review_diff_passes
 test_skip_review_check_passes
+test_docs_excluded_via_symlink
 
 print_summary

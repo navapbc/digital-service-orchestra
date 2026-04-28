@@ -120,6 +120,28 @@ assert_ne "unset-CLAUDE_PLUGIN_ROOT: no unbound-variable error" \
     "$({ _tmp="$output_f"; [[ "$_tmp" =~ unbound\ variable|CLAUDE_PLUGIN_ROOT ]] && echo true || echo false; })"
 
 # ---------------------------------------------------------------------------
+# Test G: Full 64-char hash in filename matches current working tree
+# Bug ee54-1eeb: file_hash was compared directly to current_hash_short (8 chars),
+# so full 64-char hash filenames always produced DIFF_VALID: no.
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- Test G: full 64-char hash filename matches current working tree ---"
+
+# Get the real current hash so the comparison can succeed
+CURRENT_HASH=$(CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null || true)
+if [ -n "$CURRENT_HASH" ] && [ ${#CURRENT_HASH} -ge 8 ]; then
+    FULL_HASH_FILE="$TMPDIR_C/review-diff-${CURRENT_HASH}.txt"
+    # Write a non-empty file (content doesn't matter — only the filename hash is checked)
+    echo "placeholder diff content" > "$FULL_HASH_FILE"
+    exit_g=0
+    output_g=$(CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$VERIFY_SCRIPT" "$FULL_HASH_FILE" 2>&1) || exit_g=$?
+    assert_eq "full-hash filename: exits 0" "0" "$exit_g"
+    assert_contains "full-hash filename: reports DIFF_VALID yes" "DIFF_VALID: yes" "$output_g"
+else
+    echo "SKIP: could not compute current hash (not in a git repo)"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 print_summary

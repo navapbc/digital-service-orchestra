@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
-# tests/scripts/test-end-session-error-sweep.sh
-# Tests for sweep_tool_errors() monitoring.tool_errors guard in plugins/dso/skills/end-session/error-sweep.sh
+# tests/scripts/test-error-sweep-config-gate.sh
+# Tests for sweep_tool_errors() monitoring.tool_errors guard in plugins/dso/scripts/end-session/error-sweep.sh
 #
 # Validates:
 #   - sweep_tool_errors returns 0 and creates no tickets when monitoring.tool_errors is absent
 #   - sweep_tool_errors returns 0 and creates no tickets when monitoring.tool_errors=false
 #   - sweep_tool_errors triggers ticket creation when monitoring.tool_errors=true and threshold is reached
 #
-# Usage: bash tests/scripts/test-end-session-error-sweep.sh
+# Usage: bash tests/scripts/test-error-sweep-config-gate.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SWEEP_SCRIPT="$PLUGIN_ROOT/plugins/dso/skills/end-session/error-sweep.sh"
+SWEEP_SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/end-session/error-sweep.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-echo "=== test-end-session-error-sweep.sh ==="
+echo "=== test-error-sweep-config-gate.sh ==="
 
 # ── test_sweep_disabled_when_flag_absent ─────────────────────────────────────
 # When monitoring.tool_errors is absent from config, sweep_tool_errors should

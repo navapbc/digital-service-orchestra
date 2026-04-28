@@ -54,6 +54,7 @@ _usage() {
     echo "  list-descendants  BFS walk from a root ticket, bucketed by type (JSON)"
     echo "  next-batch    Select next parallel agent batch for an epic [--json]"
     echo "  ready         List tickets ready to work (all blockers closed)"
+    echo "  archive       Archive an open ticket (excludes from default list; idempotent)"
     exit 1
 }
 
@@ -418,6 +419,13 @@ case "$subcommand" in
         # shellcheck source=/dev/null
         source "$SCRIPT_DIR/ticket-lib-api.sh"
         _ticketlib_dispatch ticket_summary "$@"
+        exit $?
+        ;;
+    archive)
+        _ensure_initialized
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_archive "$@"
         exit $?
         ;;
     *)

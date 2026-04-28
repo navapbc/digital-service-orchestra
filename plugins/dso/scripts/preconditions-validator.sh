@@ -10,7 +10,9 @@
 #   ticket_id    Ticket the preconditions event belongs to (e.g., "epic-abc1")
 #   stage        Stage name to filter by (e.g., "brainstorm_complete")
 #   --event-file Optional: path to a pre-captured JSON event file.
-#                If omitted: exit 2 (not found).
+#                If omitted: auto-locates the most recent *-PRECONDITIONS.json
+#                in $TICKETS_TRACKER_DIR/<ticket_id>/ (or repo-root tickets-tracker dir) # tickets-boundary-ok
+#                whose gate_name matches <stage>. Exit 2 if none found.
 #
 # Exit codes:
 #   0  — event is valid (all required fields present)
@@ -63,9 +65,28 @@ if [ -n "$event_file_arg" ]; then
     fi
     target_file="$event_file_arg"
 else
-    # No --event-file provided and no live lookup: exit 2 (not found)
-    echo "Error: no --event-file provided; no PRECONDITIONS event found for ticket=${ticket_id_arg} stage=${stage_arg}" >&2
-    exit 2
+    # Auto-locate: scan ticket's tracker directory for matching PRECONDITIONS event
+    _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+    _TRACKER_DIR="${TICKETS_TRACKER_DIR:-${_REPO_ROOT:+$_REPO_ROOT/.tickets-tracker}}" # tickets-boundary-ok
+    _TICKET_DIR="${_TRACKER_DIR}/${ticket_id_arg}"
+    if [ -n "$_TRACKER_DIR" ] && [ -d "$_TICKET_DIR" ]; then
+        # Find most recent PRECONDITIONS file matching the stage (highest timestamp prefix = most recent)
+        target_file=$(
+            find "$_TICKET_DIR" -maxdepth 1 -name '*-PRECONDITIONS.json' 2>/dev/null \
+            | sort -r \
+            | while IFS= read -r f; do
+                gate=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('gate_name',''))" "$f" 2>/dev/null) || continue
+                if [ "$gate" = "$stage_arg" ]; then
+                    echo "$f"
+                    break
+                fi
+            done
+        )
+    fi
+    if [ -z "$target_file" ]; then
+        echo "Error: no PRECONDITIONS event found for ticket=${ticket_id_arg} stage=${stage_arg}" >&2
+        exit 2
+    fi
 fi
 
 # ── Core validation (python3 inline) ─────────────────────────────────────────

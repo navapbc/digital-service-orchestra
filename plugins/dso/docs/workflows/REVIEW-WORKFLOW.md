@@ -731,7 +731,17 @@ If all classifier overlay flags are `False`, check the tier reviewer's summary o
 - `performance_overlay_warranted: yes`
 - `test_quality_overlay_warranted: yes`
 
-If any signal is present, dispatch the corresponding overlay agent(s) serially (after the tier review has completed). Parse outputs using the same logic as the Parallel Path above.
+If any signal is present, dispatch the corresponding overlay agent(s) serially (after the tier review has completed). For each overlay dispatched, pass `FINDINGS_OUTPUT` explicitly in the sub-agent prompt so the agent writes to the overlay-specific path instead of the tier file:
+
+| Overlay | `FINDINGS_OUTPUT` value |
+|---------|------------------------|
+| `test-quality` | `$ARTIFACTS_DIR/reviewer-findings-test-quality.json` |
+| `security` (red team) | `$ARTIFACTS_DIR/reviewer-findings-security.json` |
+| `performance` | `$ARTIFACTS_DIR/reviewer-findings-performance.json` |
+
+Without `FINDINGS_OUTPUT`, `dso:code-reviewer-test-quality` defaults to writing `reviewer-findings.json` (overwriting the tier reviewer's findings), and `record-review.sh` fails with `OVERLAY_MISSING` because the expected slot file is absent (bug bad0-6e78).
+
+Parse outputs using the same logic as the Parallel Path above.
 
 ### 4. Merge Findings
 
