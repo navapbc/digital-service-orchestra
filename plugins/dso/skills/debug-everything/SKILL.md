@@ -271,7 +271,7 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
    Each ticket is an independent fix-bug invocation; **fix-bug enforces its own HARD-GATE** ("Do NOT investigate inline", "Do NOT modify code until Steps 1–5 are complete") and its own investigation-dispatch requirement per ticket. Do not duplicate those gates here, and do not pre-write fixes or reuse prior-ticket findings in the orchestrator prompt.
 
-   Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute its steps directly — NOT via the Skill tool or Task tool. This orchestrator-level invocation preserves Agent tool access for fix-bug's investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED), which require the Agent tool themselves. CLI_user-tagged bugs are handled inside fix-bug Step 1.5 — no debug-everything-side check.
+   Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute its steps directly — NOT via the Skill tool or Task tool. This orchestrator-level invocation preserves Agent tool access for fix-bug's investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED), which require the Agent tool themselves. CLI_user-tagged bugs are handled inside fix-bug Phase B Step 1 — no debug-everything-side check.
 
    Pass the ticket as bug context. Always include `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the dispatch prompt. When `DISPATCH_ISOLATION=true`, also add `isolation: "worktree"` to each fix-bug sub-agent dispatch.
 
