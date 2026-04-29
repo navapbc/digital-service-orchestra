@@ -320,4 +320,5 @@ plugins/dso/scripts/onboarding/validate-required-checks.sh:tests/scripts/test-va
 plugins/dso/scripts/onboarding/github-bootstrap.sh:tests/scripts/test-github-bootstrap.sh
 tests/scripts/test-ci-enforcement-e2e.sh [test_opt_in_gate_exits_zero_skip]:tests/scripts/test-ci-enforcement-e2e-behavioral.sh
 tests/scripts/test-ci-enforcement-e2e.sh:tests/scripts/test-ci-enforcement-e2e-behavioral.sh
-plugins/dso/scripts/ci-llm-review-runner.sh:tests/scripts/test-ci-llm-review-runner.sh
+plugins/dso/scripts/ci-llm-review-runner.sh:tests/scripts/test-ci-llm-review-runner.sh [test_deep_tier_dispatches_three_specialist_calls]
+plugins/dso/scripts/resolve-dso-version.sh:tests/scripts/test-resolve-dso-version.sh [test_resolve_tier1_placeholder]
