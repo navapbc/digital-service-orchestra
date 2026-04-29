@@ -45,7 +45,7 @@ fi
 # ── Plugin-source-repo guard ─────────────────────────────────────────────────
 # Skip if _TARGET is the repo that contains this plugin (i.e., the plugin source repo).
 # Derived from _PLUGIN_ROOT to avoid hardcoding a literal install path.
-_PLUGIN_PARENT_REPO="$(cd "$_PLUGIN_ROOT/../.." && pwd)"
+_PLUGIN_PARENT_REPO="$(git -C "$_PLUGIN_ROOT" rev-parse --show-toplevel)"
 if [ "$_TARGET" = "$_PLUGIN_PARENT_REPO" ] && [ -f "$_PLUGIN_ROOT/.claude-plugin/plugin.json" ]; then
     echo "NOTICE: target '$_TARGET' is the plugin source repo — skipping migration" >&2
     exit 0
