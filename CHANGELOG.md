@@ -7,6 +7,18 @@ Versioning follows [Semantic Versioning](https://semver.org/) — see `docs/VERS
 
 ---
 
+## [Unreleased] — 2026-04-29
+
+### Added: Ticket System — ID Widening and Concurrency Hardening
+
+- **16-hex canonical ID format**: New tickets receive a `xxxx-xxxx-xxxx-xxxx` ID (128-bit collision space); the short 8-hex alias is stored in `data.alias` on the CREATE event and surfaced in display output via `display.id_format` config.
+- **Backward-compatible resolver**: The multi-form resolver in `ticket-lib-api.sh` (`_ticketlib_resolve`) accepts 16-hex canonical IDs, 8-hex aliases, and unique prefixes — existing ticket references continue to resolve without migration.
+- **STATUS event concurrency chain**: Each STATUS event now carries `data.parent_status_uuid` (null for the first event; UUID of the preceding STATUS event for subsequent transitions), enabling detection of concurrent-write collisions at the event level.
+- **`_ticketlib_resolve` library function**: Exposed as a stable API in `ticket-lib-api.sh` for scripts that need to canonicalize ticket references in-process without spawning a subprocess.
+- **Display config**: `display.id_format` config key (`short` | `full`; default `short`) controls whether `ticket show` and `ticket list` render the 8-hex alias or the full 16-hex ID.
+
+---
+
 ## [Unreleased] — 2026-03-28
 
 ### Changed: /dso:sprint — Phase Consolidation and Prose Reduction

@@ -143,11 +143,12 @@ Create a new ticket.
 | `-d`, `--description` | No | Optional long-form description text for the ticket |
 | `--tags` | No | Comma-separated list of tags to attach to the ticket at creation time (e.g., `CLI_user`) |
 
-**Output:** Prints the generated ticket ID to stdout (e.g., `ab12-cd34`). No other output on success.
+**Output:** Prints the generated ticket ID to stdout (e.g., `ab12-cd34-ef56-gh78`). No other output on success.
 
 **Behavior:**
 
-- Generates a collision-resistant 8-character ID (format: `xxxx-xxxx`) derived from a UUID4
+- Generates a collision-resistant 16-character ID (canonical format: `xxxx-xxxx-xxxx-xxxx`) derived from a UUID4; the `data.alias` field in the CREATE event stores the short 8-character legacy form (`xxxx-xxxx`) for display and backward-compatible resolution
+- **Backward compatibility**: existing 8-hex IDs (`xxxx-xxxx`) continue to resolve via the multi-form resolver in `ticket-lib-api.sh`; callers may pass either form to any subcommand
 - Validates that `--parent` ticket exists and has a CREATE event before writing
 - Writes a `CREATE` event JSON file to `.tickets-tracker/<ticket_id>/` # tickets-boundary-ok
 - Commits the event atomically to the tickets branch
@@ -1089,8 +1090,8 @@ The ticket system is append-only. All mutations write a new event JSON file. The
 
 | Event type | Written by | Description |
 |---|---|---|
-| `CREATE` | `.claude/scripts/dso ticket create` | Creates the ticket with type, title, and optional parent |
-| `STATUS` | `.claude/scripts/dso ticket transition` | Changes ticket status (open, in_progress, closed, blocked) |
+| `CREATE` | `.claude/scripts/dso ticket create` | Creates the ticket with type, title, and optional parent; `data.alias` stores the short 8-hex display form (`xxxx-xxxx`) of the canonical 16-hex ID |
+| `STATUS` | `.claude/scripts/dso ticket transition` | Changes ticket status (open, in_progress, closed, blocked); `data.parent_status_uuid` is `null` for the first STATUS event on a ticket and a UUID string referencing the preceding STATUS event for all subsequent transitions (enables concurrency detection) |
 | `COMMENT` | `.claude/scripts/dso ticket comment` | Appends a comment |
 | `LINK` | `.claude/scripts/dso ticket link` | Creates a directional relationship to another ticket |
 | `UNLINK` | `.claude/scripts/dso ticket unlink` | Cancels a prior LINK event (references the original LINK UUID) |
@@ -1367,6 +1368,19 @@ source "$_PLUGIN_ROOT/scripts/ticket-lib-api.sh"
 # Call a ticket operation in-process
 _ticketlib_dispatch ticket_show --format=llm "$ticket_id"
 ```
+
+### `_ticketlib_resolve <id-or-alias>`
+
+Resolves any ticket reference (16-hex canonical ID, 8-hex alias, or prefix) to its canonical 16-hex ID. Returns the canonical ID on stdout; exits non-zero when no match is found or the reference is ambiguous.
+
+```bash
+source "$_PLUGIN_ROOT/scripts/ticket-lib-api.sh"
+
+canonical=$(_ticketlib_resolve "ab12-cd34")          # 8-hex alias → canonical
+canonical=$(_ticketlib_resolve "ab12-cd34-ef56-gh78") # already canonical → returned as-is
+```
+
+The resolver checks (in order): exact directory match, `data.alias` field in CREATE events, and unique prefix match. All ticket subcommands accept either form — `_ticketlib_resolve` is the shared resolution path used internally by `_ticketlib_dispatch`.
 
 ### `_ticketlib_has_flock`
 
