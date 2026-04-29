@@ -205,7 +205,7 @@ plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh
 docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh
 plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh
 plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
-scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh,tests/scripts/test-create-dso-app-populates-detect-output.sh,tests/scripts/test-create-dso-app-homebrew-auto-install.sh
+scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh,tests/scripts/test-create-dso-app-populates-detect-output.sh,tests/scripts/test-create-dso-app-homebrew-auto-install.sh,tests/scripts/test-create-dso-app-broken-plugin-cache.sh
 plugins/dso/skills/brainstorm/prompts/cross-epic-scan.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-policy-docs.sh,tests/scripts/test-tag-cli-refactor.sh

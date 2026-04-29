@@ -260,8 +260,10 @@ test_installer_writes_plugin_root_to_config() {
 
     # Create mock marketplace sentinel at the real Claude Code layout:
     # <base>/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json
-    mkdir -p "$mock_marketplace/digital-service-orchestra/plugins/dso/.claude-plugin"
+    mkdir -p "$mock_marketplace/digital-service-orchestra/plugins/dso/.claude-plugin" \
+             "$mock_marketplace/digital-service-orchestra/plugins/dso/templates/host-project"
     echo '{"name":"dso"}' > "$mock_marketplace/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json"
+    : > "$mock_marketplace/digital-service-orchestra/plugins/dso/templates/host-project/dso"
 
     # Create project with default dso.plugin_root
     mkdir -p "$project_dir/.claude"
@@ -1198,8 +1200,10 @@ test_installer_configures_dso_shim_after_deps() {
     fake_plugin_root="$T/fake-plugin"
 
     # Fake plugin root: plugin.json sentinel + stub dso-setup.sh that creates the shim
-    mkdir -p "$fake_plugin_root/.claude-plugin" "$fake_plugin_root/scripts/onboarding"
+    mkdir -p "$fake_plugin_root/.claude-plugin" "$fake_plugin_root/scripts/onboarding" \
+             "$fake_plugin_root/templates/host-project"
     echo '{"name":"dso","version":"1.0.0"}' > "$fake_plugin_root/.claude-plugin/plugin.json"
+    : > "$fake_plugin_root/templates/host-project/dso"
     cat > "$fake_plugin_root/scripts/onboarding/dso-setup.sh" <<'SETUPEOF'
 #!/bin/sh
 target="${1:-}"
@@ -1338,9 +1342,11 @@ test_detect_dso_plugin_root_marketplace_internal_layout() {
     mock_base="$T/marketplaces"
 
     # Correct layout: <base>/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json
-    mkdir -p "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin"
+    mkdir -p "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin" \
+             "$mock_base/digital-service-orchestra/plugins/dso/templates/host-project"
     echo '{"name":"dso","version":"1.0.0"}' \
         > "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json"
+    : > "$mock_base/digital-service-orchestra/plugins/dso/templates/host-project/dso"
 
     detected=$(
         MARKETPLACE_BASE="$mock_base" \
@@ -1378,8 +1384,10 @@ test_detect_dso_plugin_root_auto_installs_when_missing() {
 case "\$*" in
   "plugin marketplace add"*) exit 0 ;;
   "plugin install dso"*)
-    mkdir -p "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin"
+    mkdir -p "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin" \
+             "$mock_base/digital-service-orchestra/plugins/dso/templates/host-project"
     echo '{"name":"dso","version":"1.0.0"}' > "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json"
+    : > "$mock_base/digital-service-orchestra/plugins/dso/templates/host-project/dso"
     exit 0 ;;
   *) exit 0 ;;
 esac
@@ -1424,9 +1432,11 @@ test_detect_dso_plugin_root_bash_source_guard() {
     mock_base="$T/marketplaces"
 
     # Provide plugin via marketplace so re-detection after bad _PLUGIN_ROOT succeeds
-    mkdir -p "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin"
+    mkdir -p "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin" \
+             "$mock_base/digital-service-orchestra/plugins/dso/templates/host-project"
     echo '{"name":"dso","version":"1.0.0"}' \
         > "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json"
+    : > "$mock_base/digital-service-orchestra/plugins/dso/templates/host-project/dso"
 
     # Simulate a stdin/pipe BASH_SOURCE path (e.g. bash -s or bash <(curl ...)):
     # source the script via a heredoc so BASH_SOURCE[0] is not a real file path.
@@ -1491,9 +1501,11 @@ test_detect_dso_plugin_root_registers_plugin_even_when_probe_matches() {
     # This is the "stale files from prior install" scenario — probe 2 matches,
     # so the real code short-circuits probe 4 and never calls claude plugin install.
     mock_base="$T/marketplaces"
-    mkdir -p "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin"
+    mkdir -p "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin" \
+             "$mock_base/digital-service-orchestra/plugins/dso/templates/host-project"
     printf '{"name":"dso","version":"1.0.0-stale"}\n' \
         > "$mock_base/digital-service-orchestra/plugins/dso/.claude-plugin/plugin.json"
+    : > "$mock_base/digital-service-orchestra/plugins/dso/templates/host-project/dso"
 
     # ── fixture project dir with dso-config.conf (required for config write) ─
     project_dir="$T/myproject"

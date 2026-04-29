@@ -90,14 +90,16 @@ detect_dso_plugin_root() {
 
   # 2. Marketplace path — Claude Code lays out installed plugins under:
   #    <base>/digital-service-orchestra/plugins/<name>/.claude-plugin/plugin.json
+  # Reject candidates missing templates/host-project/dso — those caches are
+  # incomplete and cannot install the host-project shim downstream (d997-f7bf).
   if [ -z "$plugin_root" ]; then
     local _marketplace_base="${_effective_marketplace_base:-$HOME/.claude/plugins/marketplaces}"
     local _mp_dir="$_marketplace_base/digital-service-orchestra/plugins"
-    # Iterate every plugin sub-directory and accept the first with plugin.json
     if [ -d "$_mp_dir" ]; then
       local _candidate
       for _candidate in "$_mp_dir"/*/; do
-        if [ -f "$_candidate.claude-plugin/plugin.json" ]; then
+        if [ -f "$_candidate.claude-plugin/plugin.json" ] && \
+           [ -f "$_candidate/templates/host-project/dso" ]; then
           plugin_root="${_candidate%/}"
           break
         fi
@@ -109,6 +111,7 @@ detect_dso_plugin_root() {
   #    ~/.claude/plugins/cache/digital-service-orchestra/<channel>/<version>/
   #    Prefer the stable `dso` channel; within each channel accept the first version
   #    returned by glob (lexicographic — works for zero-padded semver directories).
+  # Same templates/host-project/dso completeness check as probe 2 (d997-f7bf).
   if [ -z "$plugin_root" ]; then
     local _cache_base="$HOME/.claude/plugins/cache/digital-service-orchestra"
     local _best="" _best_channel_rank=99
@@ -120,7 +123,7 @@ detect_dso_plugin_root() {
       [ "$_channel" = "dso" ] && _rank=0  # prefer stable
       for _ver_dir in "$_channel_dir"*/; do
         [ -f "$_ver_dir.claude-plugin/plugin.json" ] || continue
-        # Accept this candidate if it's a better channel or first found
+        [ -f "$_ver_dir/templates/host-project/dso" ] || continue
         if [ -z "$_best" ] || [ "$_rank" -lt "$_best_channel_rank" ]; then
           _best="${_ver_dir%/}"
           _best_channel_rank="$_rank"
@@ -158,7 +161,8 @@ detect_dso_plugin_root() {
       _mp_dir2="$_mp_base2/${_mp_name}/plugins"
       if [ -d "$_mp_dir2" ]; then
         for _candidate in "$_mp_dir2"/*/; do
-          if [ -f "$_candidate.claude-plugin/plugin.json" ]; then
+          if [ -f "$_candidate.claude-plugin/plugin.json" ] && \
+             [ -f "$_candidate/templates/host-project/dso" ]; then
             plugin_root="${_candidate%/}"
             break
           fi
@@ -173,6 +177,7 @@ detect_dso_plugin_root() {
           local _r=1; [ "$(basename "$_ch")" = "dso" ] && _r=0
           for _v in "$_ch"*/; do
             [ -f "$_v.claude-plugin/plugin.json" ] || continue
+            [ -f "$_v/templates/host-project/dso" ] || continue
             if [ -z "$_best2" ] || [ "$_r" -lt "$_best_rank2" ]; then
               _best2="${_v%/}"; _best_rank2="$_r"
             fi
@@ -616,7 +621,11 @@ main() {
       chmod +x "$project_dir/.claude/scripts/dso"
       echo "Installed DSO shim directly from plugin template."
     else
-      echo "WARNING: DSO shim template not found at $resolved_plugin_root/templates/host-project/dso — .claude/scripts/dso not installed." >&2
+      echo "ERROR: DSO shim template not found at $resolved_plugin_root/templates/host-project/dso." >&2
+      echo "The plugin install at $resolved_plugin_root appears incomplete." >&2
+      echo "Reinstall the plugin and re-run this installer:" >&2
+      echo "  claude plugin install dso@digital-service-orchestra --scope user" >&2
+      exit 1
     fi
   fi
 
@@ -633,6 +642,15 @@ main() {
 
   echo ""
   echo "DSO NextJS Starter installer — project '$sanitized_name' created successfully."
+
+  # Pre-launch invariant: the host-project shim must exist before claude launches.
+  # Catches any code path that left the shim missing (d997-f7bf).
+  if [[ ! -x "$project_dir/.claude/scripts/dso" ]]; then
+    echo "ERROR: pre-launch check failed — $project_dir/.claude/scripts/dso is missing or not executable." >&2
+    echo "DSO slash commands cannot run without the shim. Reinstall the plugin and re-run this installer." >&2
+    exit 1
+  fi
+
   echo "Launching Claude Code in $project_dir..."
   cd "$project_dir"
   exec claude
