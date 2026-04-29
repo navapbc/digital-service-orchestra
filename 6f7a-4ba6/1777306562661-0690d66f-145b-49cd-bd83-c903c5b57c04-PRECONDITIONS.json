@@ -1,1 +1,0 @@
-{"event_type": "PRECONDITIONS", "schema_version": 1, "manifest_depth": "minimal", "gate_name": "brainstorm_complete", "session_id": "backfill-20260427", "worktree_id": "worktree-20260427-084038", "tier": "minimal", "timestamp": 1777306562661, "gate_verdicts": [], "evidence_ref": {}, "affects_fields": [], "data": {}}
