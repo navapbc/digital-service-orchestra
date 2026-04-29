@@ -4,6 +4,20 @@ set -euo pipefail
 # Do not set CLAUDE_PLUGIN_ROOT in CI env — _PLUGIN_ROOT is self-resolved from BASH_SOURCE
 _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
+_resolve_plugin_root() {
+  local _marker_path
+  _marker_path="$(dirname "${BASH_SOURCE[0]}")/../.dso-source-of-truth"
+  if [[ -f "$_marker_path" ]]; then
+    return 0
+  fi
+  if [[ -z "${DSO_ASSETS_DIR:-}" ]]; then
+    echo "ERROR: DSO_ASSETS_DIR must be set for host-project CI (marker file not found)" >&2
+    return 1
+  fi
+  _PLUGIN_ROOT="$DSO_ASSETS_DIR"
+}
+_resolve_plugin_root || exit 1
+
 # Append plugin script dirs to PATH so PATH-based mocks in tests take precedence,
 # and production scripts are found via the appended dirs when no mock is present.
 export PATH="$PATH:$_PLUGIN_ROOT/scripts:$_PLUGIN_ROOT/hooks"

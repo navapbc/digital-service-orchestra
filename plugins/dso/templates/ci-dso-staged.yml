@@ -104,7 +104,7 @@ jobs:
 
   llm-review:
     needs: [tests]
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

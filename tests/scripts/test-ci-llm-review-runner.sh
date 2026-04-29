@@ -1830,27 +1830,32 @@ assert_eq "test_deep_tier_overlay_merge: output" "OK" "$_deep_ovl_check_out"
 assert_pass_if_clean "test_deep_tier_overlay_merge"
 
 # ── test_runner_exits_nonzero_when_no_dso_marker_and_no_assets_dir ────────────
-# When ci-llm-review-runner.sh is invoked from a git repo that has no
-# plugins/dso/.dso-source-of-truth marker file AND DSO_ASSETS_DIR is unset
-# AND CLAUDE_PLUGIN_ROOT is unset, the runner must:
+# When ci-llm-review-runner.sh is deployed to a host-project CI context
+# (script copied to a dir with no .dso-source-of-truth sibling marker)
+# AND DSO_ASSETS_DIR is unset AND CLAUDE_PLUGIN_ROOT is unset, the runner must:
 #   - exit with a non-zero (specifically 1) exit code
 #   - emit a message containing "DSO_ASSETS_DIR" on stderr
 #
-# RED until _resolve_plugin_root() is implemented (Task 4471-00a2).
-# Current runner silently uses BASH_SOURCE and exits 0.
-_snapshot_fail
+# Simulation: copy the script to a temp scripts dir that has no marker
+# (mirrors real host-project deployment where script is at $DSO_ASSETS_DIR/scripts/).
 runner_mode_exit=0
 runner_mode_stderr=""
 
 FAKE_REPO_MODE=$(mktemp -d)
-_TEST_TMPDIRS+=("$FAKE_REPO_MODE")
+FAKE_SCRIPTS_MODE=$(mktemp -d)
+_TEST_TMPDIRS+=("$FAKE_REPO_MODE" "$FAKE_SCRIPTS_MODE")
 
 git -C "$FAKE_REPO_MODE" init -q 2>/dev/null
 git -C "$FAKE_REPO_MODE" -c user.email=t@t -c user.name=t \
     commit -q --allow-empty -m "fake host project" 2>/dev/null
 
-if [[ -f "$FAKE_REPO_MODE/plugins/dso/.dso-source-of-truth" ]]; then
-    echo "SETUP ERROR: fake repo unexpectedly contains the DSO marker" >&2
+# Copy script to a temp dir — no .dso-source-of-truth marker at
+# "$FAKE_SCRIPTS_MODE/../.dso-source-of-truth", simulating host-project CI
+cp "$RUNNER" "$FAKE_SCRIPTS_MODE/ci-llm-review-runner.sh"
+RUNNER_NO_MARKER="$FAKE_SCRIPTS_MODE/ci-llm-review-runner.sh"
+
+if [[ -f "$FAKE_SCRIPTS_MODE/../.dso-source-of-truth" ]]; then
+    echo "SETUP ERROR: fake scripts dir unexpectedly contains the DSO marker" >&2
     exit 2
 fi
 
@@ -1858,7 +1863,7 @@ runner_mode_stderr=$(
     cd "$FAKE_REPO_MODE" && \
     unset DSO_ASSETS_DIR 2>/dev/null || true && \
     unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true && \
-    ANTHROPIC_API_KEY='x' bash "$RUNNER" < /dev/null 2>&1 >/dev/null
+    ANTHROPIC_API_KEY='x' bash "$RUNNER_NO_MARKER" < /dev/null 2>&1 >/dev/null
 ) || runner_mode_exit=$?
 
 assert_eq \
@@ -1870,6 +1875,56 @@ assert_contains \
     "DSO_ASSETS_DIR" "$runner_mode_stderr"
 
 assert_pass_if_clean "test_runner_exits_nonzero_when_no_dso_marker_and_no_assets_dir"
+
+# ── test_runner_uses_dso_assets_dir_when_marker_absent ────────────────────────
+# When no marker file and DSO_ASSETS_DIR is set, the runner must use scripts
+# from DSO_ASSETS_DIR (host-project CI mode) and exit 0.
+_snapshot_fail
+assets_dir_exit=0
+assets_dir_stderr=""
+
+FAKE_ASSETS=$(mktemp -d)
+FAKE_ASSETS_SCRIPTS="$FAKE_ASSETS/scripts"
+FAKE_ASSETS_ARTIFACTS=$(mktemp -d)
+_TEST_TMPDIRS+=("$FAKE_ASSETS" "$FAKE_ASSETS_ARTIFACTS")
+
+mkdir -p "$FAKE_ASSETS_SCRIPTS"
+
+# Light-tier classifier mock
+cat > "$FAKE_ASSETS_SCRIPTS/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+cat > "$FAKE_ASSETS_SCRIPTS/write-reviewer-findings.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+cat > "$FAKE_ASSETS_SCRIPTS/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$FAKE_ASSETS_ARTIFACTS"
+printf 'passed\n' > "$FAKE_ASSETS_ARTIFACTS/review-status"
+MOCKEOF
+chmod +x "$FAKE_ASSETS_SCRIPTS/review-complexity-classifier.sh" \
+         "$FAKE_ASSETS_SCRIPTS/write-reviewer-findings.sh" \
+         "$FAKE_ASSETS_SCRIPTS/record-review.sh"
+
+# Run from a git repo without the marker, with DSO_ASSETS_DIR set
+assets_dir_stderr=$(
+    cd "$FAKE_REPO_MODE" && \
+    unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true && \
+    DSO_ASSETS_DIR="$FAKE_ASSETS" \
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$FAKE_ASSETS_ARTIFACTS" \
+    ANTHROPIC_API_KEY='x' \
+    bash "$RUNNER_NO_MARKER" < /dev/null 2>&1 >/dev/null
+) || assets_dir_exit=$?
+
+assert_eq \
+    "test_runner_uses_dso_assets_dir_when_marker_absent: exits 0" \
+    "0" "$assets_dir_exit"
+
+assert_pass_if_clean "test_runner_uses_dso_assets_dir_when_marker_absent"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
