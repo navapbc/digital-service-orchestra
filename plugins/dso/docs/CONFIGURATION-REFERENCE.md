@@ -209,6 +209,42 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ---
 
+### CI LLM Review — Classifier-Driven Tier Selection
+
+The CI LLM review job selects the reviewer tier **automatically per-PR** based on the complexity classifier score. There is no manual tier override environment variable — tier selection is fully automatic. Score ranges:
+
+| Classifier score | Tier dispatched |
+|-----------------|-----------------|
+| 0–2 | light (haiku — fast feedback) |
+| 3–6 | standard (sonnet — comprehensive) |
+| 7+ | deep (3 × sonnet + opus synthesis) |
+
+Security, performance, and test-quality overlays are dispatched automatically when the classifier flags them. The 3-tier version resolution chain below controls which plugin version runs the classifier and reviewers.
+
+---
+
+### `ci.dso_plugin_version`
+
+| | |
+|---|---|
+| **Description** | Overrides the DSO plugin version used in CI LLM review. This is Tier 2 of the 3-tier version resolution chain: Tier 1 is the pinned `DSO_PLUGIN_VERSION` env var in the workflow file; Tier 2 is this config key (project-level override without editing the workflow); Tier 3 is `dso-dev` (latest HEAD, fallback). When absent, the workflow-pinned version is used. |
+| **Accepted values** | Any published plugin channel or version tag (e.g., `dso`, `dso-dev`, `v1.13.0`) |
+| **Default** | Absent — workflow-pinned version used |
+| **Used by** | `.github/workflows/ci.yml` (llm-review job, DSO_PLUGIN_VERSION resolution) |
+
+---
+
+### `DSO_ASSETS_DIR` (CI environment variable)
+
+| | |
+|---|---|
+| **Description** | Required in host-project CI when running `ci-llm-review-runner.sh` outside the DSO source checkout. When the runner detects that the marker file `${CLAUDE_PLUGIN_ROOT}/.dso-source-of-truth` is absent (indicating it is NOT running from the DSO local source), it falls back to `DSO_ASSETS_DIR` as the plugin root. If the marker is absent AND `DSO_ASSETS_DIR` is unset, the runner exits 1 with an error to stderr. In local DSO development, this variable is not required — the marker file is present and the runner uses a BASH_SOURCE-relative plugin root. |
+| **Accepted values** | Absolute path to the fetched DSO plugin assets directory |
+| **Default** | Absent — only required in host-project CI |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ci-llm-review-runner.sh` (auto-detect runner mode) |
+
+---
+
 ### `commands.test`
 
 | | |
@@ -1326,6 +1362,10 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 | **Accepted values** | `bash-grep`, `semgrep`, `disabled` |
 | **Default** | `bash-grep` |
 | **Used by** | `hooks/pre-commit-test-quality-gate.sh` |
+
+### CI runner exemption — `check-usage.sh`
+
+`ci-llm-review-runner.sh` does not invoke `check-usage.sh`. The usage throttle requires an active Claude Code OAuth session and is not available in headless CI environments. Rate-limit backoff for CI deep-tier parallel curl calls is handled via `curl --retry` / `--retry-delay` flags on each request instead.
 
 ---
 
