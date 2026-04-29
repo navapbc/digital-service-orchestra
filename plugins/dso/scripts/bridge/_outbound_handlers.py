@@ -631,6 +631,24 @@ def handle_file_impact_event(
 
     dedup_map = _read_dedup_map(ticket_dir)
     uuid_to_jira = dedup_map.get("uuid_to_jira_id", {})
+    put_retry_uuids: set[str] = set(dedup_map.get("put_retry_uuids", []))
+
+    # If comment already posted but PUT failed on a prior run, retry only the PUT.
+    if event_uuid in uuid_to_jira and event_uuid in put_retry_uuids:
+        try:
+            acli_client.set_issue_property(jira_key, "dso.file_impact", file_impact)
+            put_retry_uuids.discard(event_uuid)
+            dedup_map["put_retry_uuids"] = list(put_retry_uuids)
+            _write_dedup_map(ticket_dir, dedup_map)
+        except Exception:
+            write_bridge_alert(
+                ticket_dir,
+                ticket_id=ticket_id,
+                reason="FILE_IMPACT_SYNC_FAILED",
+                bridge_env_id=bridge_env_id,
+            )
+        return []
+
     if event_uuid in uuid_to_jira:
         return []
 
@@ -659,6 +677,11 @@ def handle_file_impact_event(
         jira_id_to_uuid[jira_comment_id] = event_uuid
         dedup_map["uuid_to_jira_id"] = uuid_to_jira
         dedup_map["jira_id_to_uuid"] = jira_id_to_uuid
+        if put_failed:
+            # Dedup-mark the comment to prevent duplicate on retry, but flag the
+            # PUT channel so the next invocation retries only the property write.
+            put_retry_uuids.add(event_uuid)
+            dedup_map["put_retry_uuids"] = list(put_retry_uuids)
         _write_dedup_map(ticket_dir, dedup_map)
     except Exception:
         comment_failed = True

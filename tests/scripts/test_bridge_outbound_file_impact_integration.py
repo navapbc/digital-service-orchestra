@@ -320,3 +320,139 @@ def test_file_impact_comment_add_failure_emits_bridge_alert_comment_sync_failed(
     assert "FILE_IMPACT_COMMENT_SYNC_FAILED" in reasons, (
         f"Expected reason FILE_IMPACT_COMMENT_SYNC_FAILED in BRIDGE_ALERT files, got reasons: {reasons!r}"
     )
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_file_impact_put_failure_comment_success_retries_only_put_on_next_run(
+    bridge: ModuleType, tmp_path: Path
+) -> None:
+    """Partial failure: PUT fails, comment succeeds → second run retries PUT, not comment.
+
+    The dedup map must record the comment as posted (preventing duplicate) while also
+    flagging the event for a PUT-only retry via put_retry_uuids. On the second invocation:
+      - add_comment must NOT be called again (comment already posted)
+      - set_issue_property MUST be called again (PUT was never confirmed)
+    """
+    tracker_dir, ticket_dir = _setup_ticket(tmp_path)
+    _write_file_impact(ticket_dir)
+    mock_acli = _make_mock_acli()
+    mock_acli.set_issue_property.side_effect = Exception("Jira PUT failed: 503")
+
+    # First run: PUT fails, comment succeeds
+    bridge.process_events(
+        tickets_dir=str(tracker_dir),
+        acli_client=mock_acli,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert mock_acli.add_comment.call_count == 1, (
+        "Expected add_comment called once on first run (PUT failed, comment succeeded)"
+    )
+    assert mock_acli.set_issue_property.call_count == 1, (
+        "Expected set_issue_property called once on first run"
+    )
+
+    # Second run: PUT should now succeed; comment must NOT be re-posted
+    mock_acli.set_issue_property.side_effect = None  # PUT succeeds on retry
+    mock_acli.set_issue_property.reset_mock()
+    mock_acli.add_comment.reset_mock()
+
+    bridge.process_events(
+        tickets_dir=str(tracker_dir),
+        acli_client=mock_acli,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert mock_acli.set_issue_property.call_count == 1, (
+        "Expected set_issue_property called on second run (PUT retry)"
+    )
+    assert mock_acli.add_comment.call_count == 0, (
+        f"Expected add_comment NOT called on second run (already posted), "
+        f"got call_count={mock_acli.add_comment.call_count}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_file_impact_put_retry_failure_emits_alert_and_persists_retry_flag(
+    bridge: ModuleType, tmp_path: Path
+) -> None:
+    """PUT retry fails on second run → BRIDGE_ALERT emitted, UUID stays in put_retry_uuids.
+
+    After PUT fails and comment succeeds on run 1, if the PUT also fails on run 2,
+    the event UUID must remain in put_retry_uuids so run 3 can still retry the PUT.
+    The retry flag must not be silently consumed on a failed retry.
+    """
+    tracker_dir, ticket_dir = _setup_ticket(tmp_path)
+    _write_file_impact(ticket_dir)
+    mock_acli = _make_mock_acli()
+    mock_acli.set_issue_property.side_effect = Exception("Jira PUT failed: 503")
+
+    # Run 1: PUT fails, comment succeeds → put_retry_uuids entry created
+    bridge.process_events(
+        tickets_dir=str(tracker_dir),
+        acli_client=mock_acli,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+    assert mock_acli.add_comment.call_count == 1, "Expected comment posted on first run"
+
+    # Run 2: PUT still fails → BRIDGE_ALERT emitted, UUID stays in put_retry_uuids
+    mock_acli.set_issue_property.reset_mock()
+    mock_acli.add_comment.reset_mock()
+
+    bridge.process_events(
+        tickets_dir=str(tracker_dir),
+        acli_client=mock_acli,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert mock_acli.set_issue_property.call_count == 1, (
+        "Expected set_issue_property called on second run (PUT retry)"
+    )
+    assert mock_acli.add_comment.call_count == 0, (
+        "Expected add_comment NOT called on second run (comment already posted)"
+    )
+    alert_files_run2 = [
+        f for f in ticket_dir.iterdir() if f.name.endswith("-BRIDGE_ALERT.json")
+    ]
+    assert any(
+        "FILE_IMPACT_SYNC_FAILED"
+        in json.loads(f.read_text(encoding="utf-8"))["data"]["reason"]
+        for f in alert_files_run2
+    ), "Expected BRIDGE_ALERT with FILE_IMPACT_SYNC_FAILED after second PUT failure"
+
+    # Run 3: PUT succeeds → uuid removed from put_retry_uuids
+    mock_acli.set_issue_property.side_effect = None
+    mock_acli.set_issue_property.reset_mock()
+    mock_acli.add_comment.reset_mock()
+
+    bridge.process_events(
+        tickets_dir=str(tracker_dir),
+        acli_client=mock_acli,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert mock_acli.set_issue_property.call_count == 1, (
+        "Expected set_issue_property called on third run (final PUT retry)"
+    )
+    assert mock_acli.add_comment.call_count == 0, (
+        "Expected add_comment NOT called on third run"
+    )
+
+    # Run 4: idempotency — event is fully synced; neither PUT nor comment re-attempted
+    mock_acli.set_issue_property.reset_mock()
+    mock_acli.add_comment.reset_mock()
+
+    bridge.process_events(
+        tickets_dir=str(tracker_dir),
+        acli_client=mock_acli,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert mock_acli.set_issue_property.call_count == 0, (
+        "Expected set_issue_property NOT called on fourth run (fully synced)"
+    )
+    assert mock_acli.add_comment.call_count == 0, (
+        "Expected add_comment NOT called on fourth run (fully synced)"
+    )

@@ -487,6 +487,51 @@ def test_graph_tombstone_tombstone_json_respected(
     )
 
 
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_ready_to_work_when_blocker_has_deleted_tombstone(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """A blocker with .tombstone.json {'status': 'deleted'} is treated as terminal (satisfied).
+
+    Setup:
+        - ticket-a: has CREATE event (so reduce_all_tickets includes it) AND
+          .tombstone.json {"status": "deleted"}; blocks ticket-b
+        - ticket-b: open
+
+    Expected: ready_to_work=True because a "deleted" tombstone status is terminal.
+
+    Currently RED: _graph.py line ~100 checks `if status != "closed"` —
+    _get_ticket_status returns "deleted" for this ticket (reads .tombstone.json),
+    and "deleted" != "closed" → blocker treated as non-terminal → ready_to_work=False.
+    The fix is to treat "deleted" as an additional terminal status alongside "closed".
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "ticket-b", status="open")
+
+    # Write ticket-a with a CREATE event so it appears in reduce_all_tickets results,
+    # then add .tombstone.json with status="deleted" to simulate a deleted ticket.
+    # _get_ticket_status reads .tombstone.json first and returns "deleted",
+    # but the current check `status != "closed"` fails to recognise "deleted" as terminal.
+    _write_ticket(tracker_dir, "ticket-a", status="open")
+    ticket_a_dir = tracker_dir / "ticket-a"
+    tombstone = {"status": "deleted", "deleted_at": 1700000000}
+    with open(ticket_a_dir / ".tombstone.json", "w") as f:
+        json.dump(tombstone, f)
+
+    _write_blocks_link(tracker_dir, "ticket-a", "ticket-b", timestamp=1500)
+
+    result = graph.build_dep_graph("ticket-b", str(tracker_dir))
+
+    assert result["ready_to_work"] is True, (
+        f"Expected ready_to_work=True (blocker ticket-a has deleted tombstone), "
+        f"got {result!r}. A 'deleted' tombstone status must be treated as terminal, "
+        f"not as an open blocker."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Performance
 # ---------------------------------------------------------------------------
