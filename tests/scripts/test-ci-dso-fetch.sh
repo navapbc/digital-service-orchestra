@@ -79,15 +79,21 @@ case "$subcommand" in
         exit 0
         ;;
     -C)
-        # git -C <dir> rev-parse HEAD
-        shift  # skip <dir>
-        shift  # skip <dir value>
-        subcommand="${1:-}"
-        if [[ "$subcommand" == "rev-parse" ]]; then
-            echo "LS_REMOTE_SHA_PLACEHOLDER"
-            exit 0
+        # git -C <dir> <subcmd> [args...]
+        # Intercept only 'rev-parse HEAD'; forward 'rev-parse --show-toplevel' to real git.
+        _c_dir="${2:-}"
+        shift 2  # consume -C and <dir>
+        _c_sub="${1:-}"
+        if [[ "$_c_sub" == "rev-parse" ]]; then
+            _c_arg="${2:-}"
+            if [[ "$_c_arg" == "HEAD" ]]; then
+                echo "LS_REMOTE_SHA_PLACEHOLDER"
+                exit 0
+            fi
+            # --show-toplevel or other rev-parse flags: delegate to real git
+            exec /usr/bin/git -C "$_c_dir" "$@"
         fi
-        exit 0
+        exec /usr/bin/git -C "$_c_dir" "$@"
         ;;
     *)
         # Forward any unrecognised subcommand to real git
@@ -310,12 +316,14 @@ case "$subcommand" in
         exit 0
         ;;
     -C)
-        shift; shift
-        if [[ "${1:-}" == "rev-parse" ]]; then
+        _c_dir="${2:-}"
+        shift 2
+        _c_sub="${1:-}"
+        if [[ "$_c_sub" == "rev-parse" && "${2:-}" == "HEAD" ]]; then
             echo "sha7sha7"
             exit 0
         fi
-        exit 0
+        exec /usr/bin/git -C "$_c_dir" "$@"
         ;;
     *)
         exec /usr/bin/git "$@"
