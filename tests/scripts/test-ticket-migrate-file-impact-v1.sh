@@ -87,7 +87,7 @@ _write_create_event() {
     local filename="${timestamp}-${uuid}-CREATE.json"
 
     python3 -c "
-import json
+import json, sys
 payload = {
     'event_type': 'CREATE',
     'timestamp': $timestamp,

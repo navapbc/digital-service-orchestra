@@ -256,20 +256,20 @@ with open(sys.argv[4], 'w') as f:
     # Tombstone ticket B with status=deleted
     _write_tombstone "$tracker_dir" "$ticket_b" "deleted"
 
-    # Now close ticket C (NOT B) and ask unblock to detect newly unblocked tickets.
-    # B is in newly_closed_set only if we close B. Since we close C, B is NOT in
-    # newly_closed_set. unblock must detect B as terminal from its tombstone status.
+    # Simulate ticket delete B: call unblock with B as the newly-closed ticket.
+    # Production flow: ticket-lib-api.sh ticket_delete tombstones B, then calls
+    # detect_newly_unblocked([B], ...). B is in newly_closed_set; its full reducer
+    # state (including LINK deps) must be loaded so blocked_by[A]={B} is built.
     local unblock_output unblock_exit
     unblock_exit=0
-    unblock_output=$(python3 "$TICKET_UNBLOCK_SCRIPT" "$tracker_dir" "$ticket_c" 2>&1) || unblock_exit=$?
+    unblock_output=$(python3 "$TICKET_UNBLOCK_SCRIPT" "$tracker_dir" "$ticket_b" 2>&1) || unblock_exit=$?
 
     # Assert: exits 0
-    assert_eq "ticket-unblock.py exits 0 when run for ticket C" "0" "$unblock_exit"
+    assert_eq "ticket-unblock.py exits 0 when run for ticket B" "0" "$unblock_exit"
 
     # Assert: ticket A appears in the UNBLOCKED output
-    # A is blocked by B; B is tombstoned as deleted (terminal).
-    # When C is closed, unblock should detect A is newly unblocked because B is deleted.
-    # Fails RED: _is_closed('open') = False → A not detected as newly unblocked.
+    # A is blocked by B; B is tombstoned as deleted and included in the closed batch.
+    # The reducer must load B's full state (for deps/blocked_by map) and override status.
     assert_contains "ticket A appears as UNBLOCKED after B is tombstoned-deleted" \
         "UNBLOCKED $ticket_a" "$unblock_output"
 
