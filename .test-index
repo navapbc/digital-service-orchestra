@@ -284,6 +284,7 @@ plugins/dso/scripts/ticket-graph.py:tests/scripts/test_ticket_graph.py,tests/uni
 plugins/dso/skills/verification-before-completion/SKILL.md:tests/plugin/test-audit-skill-resolution.sh,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-fix-bug-skill-directive.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-sprint-skill-doc-writer-dispatch.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-v2-skills-cleanup.sh,tests/scripts/test-skill-script-paths.sh,tests/scripts/test-skill-trace-analyze.sh,tests/scripts/test-create-bug-skill-smoke.sh,tests/scripts/test-skill-trace-analyze-shim.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test-architect-foundation-skill.sh,tests/skills/test-onboarding-skill.sh,tests/skills/test-quick-ref-skill.sh,tests/skills/test-sprint-skill-step10-no-merge-to-main.sh,tests/skills/test-skill-nesting-depth.sh,tests/skills/test-design-skills-cross-stack.sh
 plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh,tests/scripts/test-ticket-link-duplicates-supersedes.sh
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh [test_16hex_stdout_last_line]
+plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh,tests/scripts/test-ticket-hardening-integration.sh [test_integration_16hex_and_alias]
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/ticket-migrate-file-impact-v1.sh:tests/scripts/test-ticket-migrate-file-impact-v1.sh
 plugins/dso/scripts/ticket-compact-all.sh:tests/scripts/test-ticket-compact-all.sh
@@ -309,6 +310,7 @@ plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scrip
 plugins/dso/scripts/ticket-show.sh:tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-perf.sh
 plugins/dso/scripts/preconditions-record.sh:tests/scripts/test-preconditions-record.sh
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-transition-flock.sh,tests/scripts/test-ticket-transition-deleted.sh,tests/scripts/test-ticket-transition.sh [test_parent_uuid_first_event_is_null]
+plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-transition-flock.sh,tests/scripts/test-ticket-transition-deleted.sh,tests/scripts/test-ticket-hardening-integration.sh [test_integration_16hex_and_alias]
 plugins/dso/scripts/ticket-unblock.py:tests/scripts/test-ticket-transition-deleted.sh
 plugins/dso/scripts/ticket-next-batch.sh:tests/scripts/test-ticket-next-batch-dispatcher.sh,tests/scripts/test-ticket-transition-deleted.sh
 plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-reference.sh
@@ -373,6 +375,7 @@ plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py,tests
 plugins/dso/scripts/ticket_reducer/_api.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_strategy.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-list.sh
 plugins/dso/scripts/ticket_reducer/_cache.py:tests/scripts/test_ticket_reducer.py
 plugins/dso/scripts/ticket_reducer/_processors.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py,tests/unit/test_reducer_duplicates_supersedes.py,tests/unit/test_processors.py [test_fork_tiebreak_lower_wins]
+plugins/dso/scripts/ticket_reducer/_processors.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py,tests/unit/test_reducer_duplicates_supersedes.py,tests/scripts/test-ticket-hardening-integration.sh [test_integration_16hex_and_alias]
 plugins/dso/scripts/ticket_reducer/_sort.py:tests/scripts/test_ticket_reducer.py
 plugins/dso/scripts/ticket_reducer/_state.py:tests/scripts/test_ticket_reducer.py
 plugins/dso/scripts/ticket_reducer/marker.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_marker.py
