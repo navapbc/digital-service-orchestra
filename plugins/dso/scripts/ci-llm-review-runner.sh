@@ -324,7 +324,7 @@ if m:
     sys.exit(0)
 print('ERROR: Cannot extract text from API response', file=sys.stderr)
 sys.exit(1)
-")
+") || LLM_TEXT=""
 
 # Extract structured reviewer-findings JSON from potential markdown code fence wrapping.
 # LLM_TEXT is passed via env var to avoid pipe+heredoc conflict (pipe would override heredoc stdin).
@@ -339,14 +339,20 @@ except Exception:
     pass
 m = re.search(r'```(?:json)?\s*([\s\S]+?)```', text)
 if m:
-    extracted = m.group(1).strip()
-    json.loads(extracted)
-    print(extracted)
-    sys.exit(0)
+    try:
+        extracted = m.group(1).strip()
+        json.loads(extracted)
+        print(extracted)
+        sys.exit(0)
+    except Exception:
+        pass
 print('ERROR: LLM response is not valid reviewer-findings JSON', file=sys.stderr)
 sys.exit(1)
 PYEOF
-)
+) || {
+  echo "WARNING: LLM response parsing failed (likely truncated due to diff size). Writing inconclusive review." >&2
+  FINDINGS_JSON='{"scores":{"hygiene":"N/A","design":"N/A","maintainability":"N/A","correctness":"N/A","verification":"N/A"},"findings":[],"summary":"Review inconclusive: LLM response could not be parsed as reviewer-findings JSON. The diff may be too large for the model to process in a single pass. Manual review recommended."}'
+}
 fi  # end standard/light-only API call block
 
 # ── Overlay dispatch ────────────────────────────────────────────────────────────

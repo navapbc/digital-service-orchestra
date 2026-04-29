@@ -1991,5 +1991,57 @@ assert_eq "test_runner_uses_diff_file_not_env_var: DSO_ARCH_MSG env var not used
 assert_eq "test_runner_uses_diff_file_not_env_var: --data-raw not used (use --data @file)" "0" "$data_raw_matches"
 assert_pass_if_clean "test_runner_uses_diff_file_not_env_var"
 
+# ── test_runner_exits_zero_on_unparseable_llm_response ───────────────────────
+# Given: API returns a valid HTTP response but the LLM text is not valid
+#        reviewer-findings JSON (e.g., truncated output for a large diff)
+# When:  runner processes the response
+# Then:  exits 0 (fail-open) instead of propagating the JSONDecodeError
+_snapshot_fail
+unparseable_exit=0
+MOCK_UP=$(mktemp -d)
+ARTIFACTS_UP=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_UP" "$ARTIFACTS_UP")
+
+# Mock curl: API returns text that is NOT valid reviewer-findings JSON
+cat > "$MOCK_UP/curl" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"content":[{"text":"I reviewed the diff. Here are my thoughts:\n\n```json\n{\"scores\":{\"hygiene\":"}],"stop_reason":"length"}'
+MOCKEOF
+chmod +x "$MOCK_UP/curl"
+
+# Mock write-reviewer-findings.sh: accept stdin, return a hash
+cat > "$MOCK_UP/write-reviewer-findings.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_UP/write-reviewer-findings.sh"
+
+# Mock record-review.sh: write "passed" to review-status
+cat > "$MOCK_UP/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$ARTIFACTS_UP"
+printf 'passed\n' > "$ARTIFACTS_UP/review-status"
+MOCKEOF
+chmod +x "$MOCK_UP/record-review.sh"
+
+# Mock classifier: return light tier
+cat > "$MOCK_UP/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_UP/review-complexity-classifier.sh"
+
+(
+    export PATH="$MOCK_UP:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_UP"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || unparseable_exit=$?
+
+assert_eq "test_runner_exits_zero_on_unparseable_llm_response: exits 0 (fail-open)" "0" "$unparseable_exit"
+assert_pass_if_clean "test_runner_exits_zero_on_unparseable_llm_response"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
