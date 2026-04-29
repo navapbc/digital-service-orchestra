@@ -518,7 +518,7 @@ for i in "${!WT_NAMES[@]}"; do
     elif [[ "${WT_MERGED[$i]}" == "no" && "$_is_agent_worktree" == "false" ]]; then
         removable=false
         reason="not merged"
-    elif [[ "${WT_CLEAN[$i]}" == "no" && "$FORCE_DIRTY" != "true" ]]; then
+    elif [[ "${WT_CLEAN[$i]}" == "no" && "$FORCE_DIRTY" != "true" && "$_is_agent_worktree" == "false" ]]; then
         removable=false
         reason="uncommitted changes"
     elif [[ "${WT_UNPUSHED[$i]}" == "yes" && "$_is_agent_worktree" == "false" ]]; then

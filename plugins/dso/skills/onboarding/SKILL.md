@@ -404,11 +404,13 @@ cat > "$SCRATCHPAD" <<EOF
 Stack: $STACK_OUT
 Detection output: $DETECT_OUT
 package.json: ${PACKAGE_JSON:+present}
-pyproject.toml: ${PYPROJECT:+present}
 .husky/ pre-commit hook: ${HUSKY_HOOK:+present}
 CI workflow filenames: ${CI_WORKFLOWS:-none found}
 Test directories: ${TEST_DIRS:-none found}
 EOF
+# Only write pyproject.toml line when the file actually exists — omitting the key entirely
+# prevents the LLM from listing it in "what I found" output for non-Python projects
+[[ -n "${PYPROJECT:-}" ]] && echo "pyproject.toml: present" >> "$SCRATCHPAD"
 ```
 
 After each user answer, append to the scratchpad:
