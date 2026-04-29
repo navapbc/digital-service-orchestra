@@ -179,6 +179,35 @@ ab12-cd34
 
 ---
 
+### `delete`
+
+Delete a ticket permanently (marks status as `deleted`, excludes from `ticket list`, writes tombstone).
+
+**Syntax**: `ticket delete <id> [--user-approved]`
+
+**Behavior**:
+- Marks the ticket with `status=deleted` and `archived=True`
+- Ticket is excluded from `ticket list` by default (visible only with `--include-archived`)
+- Writes a tombstone event so downstream systems (e.g. Jira bridge) can detect the deletion
+- All blocker dependencies where the deleted ticket was the blocker are automatically removed (unlinked)
+
+**Restrictions**:
+- All non-deleted children must be deleted first; attempting deletion with open children exits non-zero and lists the blocking child IDs
+- The `--user-approved` flag is required to prevent accidental deletion
+- Running without `--user-approved` exits 1 with an instructional message explaining how to proceed
+- `--user-approved` is intentionally NOT listed in `--help` output; it is discovered by running the command without it
+
+**Note**: `deleted` is a terminal status. A ticket cannot be transitioned out of `deleted` status.
+
+**Examples**:
+
+```
+$ .claude/scripts/dso ticket delete w21-a3f7 --user-approved
+$ .claude/scripts/dso ticket delete w21-a3f7  # exits 1 with hint about --user-approved
+```
+
+---
+
 ### `show`
 
 Show compiled state for a ticket.
@@ -453,6 +482,8 @@ $ .claude/scripts/dso ticket link w21-c0d1 w21-a3f7 duplicates
 # Mark w21-d2e3 as superseded by the newer ticket w21-f4g5:
 $ .claude/scripts/dso ticket link w21-f4g5 w21-d2e3 supersedes
 ```
+
+> **Note**: Jira bridge sync for `duplicates` and `supersedes` relations is deferred (tracked in Epic 83e2-04ae). These relations are local-only until that epic is completed.
 
 ---
 
