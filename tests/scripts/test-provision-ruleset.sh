@@ -66,10 +66,30 @@ assert_pass_if_clean "test_required_checks_file_exists"
 # for the right reason (gh-missing path), not due to an unrelated early failure
 # (e.g., missing git or jq) that happens to also exit non-zero.
 # This test fails RED until the script exists.
+#
+# PATH construction: we cannot use a fixed PATH like /usr/bin:/bin because on
+# Ubuntu CI, gh is installed at /usr/bin/gh — the same directory as git. Instead:
+# 1. Detect the directory containing gh (if present)
+# 2. Create a temp dir with git (and other needed tools) symlinked but NOT gh
+# 3. Build a PATH that includes the temp dir instead of gh's directory
 _snapshot_fail
 preflight_exit=0
 preflight_output=""
-preflight_output=$(env PATH=/usr/bin:/bin bash "$PROVISION_SCRIPT" 2>/dev/null) || preflight_exit=$?
+_gh_bin=$(command -v gh 2>/dev/null || true)
+_no_gh_tmpdir=$(mktemp -d)
+if [ -n "$_gh_bin" ]; then
+    _gh_dir=$(dirname "$_gh_bin")
+    # Symlink git into isolated dir (needed for repo root detection in the script)
+    _git_bin=$(command -v git 2>/dev/null || true)
+    [ -n "$_git_bin" ] && ln -sf "$_git_bin" "$_no_gh_tmpdir/git" 2>/dev/null || true
+    # Build PATH: our isolated dir (has git, no gh) + original PATH minus gh's dir
+    _no_gh_path="$_no_gh_tmpdir:$(printf '%s' "$PATH" | tr ':' '\n' | grep -v "^${_gh_dir}$" | tr '\n' ':' | sed 's/:$//')"
+else
+    # gh not found in current env — just use an empty tmp dir prefix
+    _no_gh_path="$_no_gh_tmpdir:$PATH"
+fi
+preflight_output=$(env PATH="$_no_gh_path" bash "$PROVISION_SCRIPT" 2>/dev/null) || preflight_exit=$?
+rm -rf "$_no_gh_tmpdir"
 # We expect a non-zero exit when gh is missing
 if [[ $preflight_exit -ne 0 ]]; then
     actual_preflight="nonzero"
