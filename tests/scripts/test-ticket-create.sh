@@ -939,4 +939,178 @@ test_ticket_create_short_p_flag_sets_priority() {
 }
 test_ticket_create_short_p_flag_sets_priority
 
+# ── Test 19 (RED): ticket create stdout last line matches 16-hex canonical format ─
+echo "Test 19 (RED): ticket create stdout last line matches ^[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}$"
+test_16hex_stdout_last_line() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local stdout_out
+    stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "16-hex stdout test" 2>/dev/null) || true
+
+    if [ -z "$stdout_out" ]; then
+        assert_eq "ticket ID is non-empty (16-hex stdout test)" "non-empty" "empty"
+        return
+    fi
+
+    # Get the last line of stdout (the ticket ID)
+    local last_line
+    last_line=$(echo "$stdout_out" | tail -1)
+
+    # Assert: last line matches 16-hex canonical format ^[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}$
+    # RED: current implementation produces 8-hex (xxxx-xxxx), so this FAILS until implementation
+    if [[ "$last_line" =~ ^[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}$ ]]; then
+        assert_eq "stdout last line matches 16-hex canonical format" "match" "match"
+    else
+        assert_eq "stdout last line matches 16-hex canonical format" "match" "no-match: $last_line"
+    fi
+}
+test_16hex_stdout_last_line
+
+# ── Test 20 (RED): ticket create event filename (ticket dir) is 16-hex canonical ─
+echo "Test 20 (RED): ticket create event directory name is 16-hex canonical ID"
+test_16hex_event_filename() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "16-hex event filename test" 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for 16-hex event filename test" "non-empty" "empty"
+        return
+    fi
+
+    # The ticket directory name IS the ticket ID — assert it matches 16-hex canonical format.
+    # RED: current implementation produces 8-hex (xxxx-xxxx), so this FAILS until implementation.
+    if [[ "$ticket_id" =~ ^[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}$ ]]; then
+        assert_eq "ticket directory name matches 16-hex canonical UUID pattern" "match" "match"
+    else
+        assert_eq "ticket directory name matches 16-hex canonical UUID pattern" "match" "no-match: $ticket_id"
+    fi
+
+    # Also assert the ticket directory actually exists under .tickets-tracker/ # tickets-boundary-ok
+    local tracker_dir="$repo/.tickets-tracker" # tickets-boundary-ok: test fixture — isolated test repo, not production store
+    if [ -d "$tracker_dir/$ticket_id" ]; then
+        assert_eq "ticket dir exists under .tickets-tracker/<16-hex-id>/" "exists" "exists" # tickets-boundary-ok
+    else
+        assert_eq "ticket dir exists under .tickets-tracker/<16-hex-id>/" "exists" "missing" # tickets-boundary-ok
+    fi
+}
+test_16hex_event_filename
+
+# ── Test 21 (RED): CREATE event data.id field matches 16-hex canonical format ────
+echo "Test 21 (RED): CREATE event JSON data.id field matches 16-hex canonical format"
+test_16hex_event_data_id() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "16-hex event data id test" 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for 16-hex event data.id test" "non-empty" "empty"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker" # tickets-boundary-ok: test fixture — isolated test repo, not production store
+    local event_file
+    event_file=$(_find_create_event "$tracker_dir" "$ticket_id")
+
+    if [ -z "$event_file" ]; then
+        assert_eq "CREATE event file found for data.id test" "found" "not-found"
+        return
+    fi
+
+    # Check if data.id field exists in the event and matches 16-hex format.
+    # RED: current implementation does not write data.id, so this FAILS until implementation.
+    local id_check
+    id_check=$(python3 - "$event_file" <<'PYEOF'
+import json, sys, re
+
+CANONICAL_16HEX = re.compile(r'^[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}$')
+
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+data = ev.get('data', {})
+# Try both 'id' and 'ticket_id' field names per the task spec
+ticket_id_val = data.get('id') or data.get('ticket_id') or 'MISSING'
+
+if ticket_id_val == 'MISSING':
+    print("MISSING: no id or ticket_id field in data")
+elif CANONICAL_16HEX.match(str(ticket_id_val)):
+    print("OK")
+else:
+    print(f"NO_MATCH: {ticket_id_val!r} does not match 16-hex pattern")
+PYEOF
+) || true
+
+    if [ "$id_check" = "OK" ]; then
+        assert_eq "CREATE event data.id matches 16-hex canonical format" "OK" "OK"
+    else
+        assert_eq "CREATE event data.id matches 16-hex canonical format" "OK" "$id_check"
+    fi
+}
+test_16hex_event_data_id
+
+# ── Test 22 (RED): 8-hex format xxxx-xxxx is rejected as invalid canonical ID ────
+echo "Test 22 (RED): 8-hex format xxxx-xxxx is rejected — NOT a valid 16-hex canonical ID"
+test_16hex_rejects_8hex_format() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "16-hex reject 8-hex test" 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for 8-hex rejection test" "non-empty" "empty"
+        return
+    fi
+
+    # Assert: the created ticket ID does NOT match the old 8-hex format ^[0-9a-f]{4}-[0-9a-f]{4}$
+    # (9 characters: xxxx-xxxx).
+    # RED: current implementation produces the 8-hex format, so this FAILS until implementation.
+    if [[ "$ticket_id" =~ ^[0-9a-f]{4}-[0-9a-f]{4}$ ]]; then
+        assert_eq "ticket ID does NOT use old 8-hex format xxxx-xxxx" "not-8hex" "is-8hex: $ticket_id"
+    else
+        assert_eq "ticket ID does NOT use old 8-hex format xxxx-xxxx" "not-8hex" "not-8hex"
+    fi
+
+    # Assert: the ticket ID IS the 16-hex canonical format (belt-and-suspenders)
+    if [[ "$ticket_id" =~ ^[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}$ ]]; then
+        assert_eq "ticket ID uses 16-hex canonical format (not 8-hex)" "16hex" "16hex"
+    else
+        assert_eq "ticket ID uses 16-hex canonical format (not 8-hex)" "16hex" "not-16hex: $ticket_id"
+    fi
+}
+test_16hex_rejects_8hex_format
+
 print_summary
