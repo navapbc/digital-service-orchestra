@@ -105,28 +105,40 @@ test_ticket_create_without_flock() {
     repo=$(_make_test_repo)
 
     # Run with a PATH that has no flock binary at all.
-    # Strategy: detect the actual flock binary path (it may live in /usr/bin or
-    # any other directory whose name does not contain "flock" or "util-linux"),
-    # then exclude that specific directory from PATH.  Fall back to the
-    # name-pattern filter as a secondary pass for belt-and-suspenders coverage.
-    local flock_dir=""
-    local flock_bin
+    # Strategy: resolve flock's real path (following symlinks) to detect all
+    # PATH directories that provide it — on Ubuntu 22.04+, /bin is a symlink to
+    # /usr/bin, so excluding only /usr/bin would still leave flock accessible via
+    # /bin. We exclude all directories that resolve to the same real location.
+    # A temp shim dir is prepended and populated with git (and other tools) that
+    # may have lived in flock's directory, so the ticket script still runs.
+    local flock_bin flock_real no_flock_tmpdir no_flock_path
     flock_bin=$(command -v flock 2>/dev/null || true)
-    if [ -n "$flock_bin" ]; then
-        flock_dir=$(dirname "$flock_bin")
-    fi
+    flock_real=$([ -n "$flock_bin" ] && (realpath "$flock_bin" 2>/dev/null || readlink -f "$flock_bin" 2>/dev/null || echo "$flock_bin") || true)
+    no_flock_tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$no_flock_tmpdir")
 
-    local no_flock_path
-    if [ -n "$flock_dir" ]; then
-        # Exclude the directory that actually contains flock, then also strip
-        # any residual path components whose name contains 'util-linux' or 'flock'.
-        no_flock_path=$(echo "$PATH" | tr ':' '\n' \
-            | grep -v "^${flock_dir}\$" \
-            | grep -v 'util-linux\|flock' \
-            | tr '\n' ':' | sed 's/:$//')
+    if [ -n "$flock_real" ]; then
+        local flock_real_dir
+        flock_real_dir=$(dirname "$flock_real")
+        # Symlink tools the ticket script may need from flock's directory
+        for _t in git python3 python; do
+            local _tb
+            _tb=$(command -v "$_t" 2>/dev/null || true)
+            [ -n "$_tb" ] && ln -sf "$_tb" "$no_flock_tmpdir/$_t" 2>/dev/null || true
+        done
+        # Build PATH: exclude every entry that resolves to flock's real directory
+        no_flock_path="$no_flock_tmpdir"
+        while IFS= read -r _p; do
+            [ -z "$_p" ] && continue
+            local _p_real
+            _p_real=$(realpath "$_p" 2>/dev/null || readlink -f "$_p" 2>/dev/null || echo "$_p")
+            if [ "$_p_real" != "$flock_real_dir" ]; then
+                no_flock_path="${no_flock_path}:${_p}"
+            fi
+        done < <(printf '%s' "$PATH" | tr ':' '\n')
     else
-        # flock is not in PATH on this host; just remove name-pattern matches.
-        no_flock_path=$(echo "$PATH" | tr ':' '\n' | grep -v 'util-linux\|flock' | tr '\n' ':' | sed 's/:$//')
+        # flock is not in PATH on this host — PATH is already flock-free.
+        no_flock_path="$PATH"
     fi
 
     local ticket_id
