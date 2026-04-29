@@ -491,7 +491,9 @@ for slot_path in sys.argv[1:]:
     for dim, val in overlay.get('scores', {}).items():
         if isinstance(val, (int, float)) and isinstance(merged_scores.get(dim), (int, float)):
             merged_scores[dim] = min(merged_scores[dim], val)
-        elif isinstance(val, (int, float)) and dim not in merged_scores:
+        elif isinstance(val, (int, float)) and not isinstance(merged_scores.get(dim), (int, float)):
+            # Replace N/A (or absent) with overlay's numeric score so a critical
+            # overlay finding propagates even when the main tier was inconclusive.
             merged_scores[dim] = val
 
 result = dict(tier)
