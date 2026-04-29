@@ -5,8 +5,10 @@ set -euo pipefail
 _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 _resolve_plugin_root() {
-  local _marker_path
-  _marker_path="$(dirname "${BASH_SOURCE[0]}")/../.dso-source-of-truth"
+  local _scripts_dir _plugin_dir _marker_path
+  _scripts_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  _plugin_dir="${_scripts_dir%/scripts}"
+  _marker_path="$_plugin_dir/.dso-source-of-truth"
   if [[ -f "$_marker_path" ]]; then
     return 0
   fi
