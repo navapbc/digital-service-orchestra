@@ -5,7 +5,7 @@
 #
 # Format: one check-context name per non-comment line.
 # Check-context names must match EXACTLY the "name:" field in the workflow job
-# (GitHub uses job name, not job id, as the check context).
+# (GitHub uses the job's "name:" field when present; falls back to the job id when absent).
 #
 # Scope: THIS REPO ONLY. Only checks that this repo's own CI workflows emit
 # are listed here. Consuming-project checks from ci-dso-staged.yml (lint-format,

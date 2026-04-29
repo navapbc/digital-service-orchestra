@@ -55,6 +55,7 @@ Use the sections below. **Required** sections must always be populated. **Option
 * **Plugin/Tool Versions:** [e.g., dso plugin v1.2]
 * **Active Configs:** [Key environment variables, flags, or configs affecting execution]
 * **Context Scope:** [Working directory, repo branch, or specific file path]
+* **code_version:** [Full 40-character SHA from `git rev-parse HEAD` at time of filing — used by fix-bug to verify the bug's code is present in the target worktree before investigation begins; full SHA preferred over abbreviated forms to avoid ambiguity in large repos]
 
 ### 2. Incident Overview (Required)
 

@@ -85,8 +85,8 @@ That prompt also runs the Resume Check (parse `CHECKPOINT N/6` lines on in-progr
 **Check for open and in_progress bug tickets before launching the diagnostic scan.** This is the Bug-Fix Mode entry gate:
 
 ```bash
-_open_bugs=$(.claude/scripts/dso ticket list --type=bug --status=open 2>/dev/null | grep -c '"ticket_id"' || echo 0)
-_inprog_bugs=$(.claude/scripts/dso ticket list --type=bug --status=in_progress 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+_open_bugs=$((.claude/scripts/dso ticket list --type=bug --status=open 2>/dev/null | grep -o '"ticket_id"' || true) | wc -l)
+_inprog_bugs=$((.claude/scripts/dso ticket list --type=bug --status=in_progress 2>/dev/null | grep -o '"ticket_id"' || true) | wc -l)
 OPEN_BUG_COUNT=$((_open_bugs + _inprog_bugs))
 ```
 

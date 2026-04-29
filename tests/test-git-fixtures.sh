@@ -153,11 +153,35 @@ test_clone_test_repo_has_user_config() {
     assert_pass_if_clean "test_clone_test_repo_has_user_config"
 }
 
+# --- Test 6: clone_ticket_repo does not export _DSO_GC_AUTO_ZERO to child processes ---
+# RED test for bug 9d55-e6c3: export of _DSO_GC_AUTO_ZERO leaks to parallel/nested tests.
+# The optimization signal must be visible only within the current process (sourced libs),
+# not exported to child processes where it can contaminate unrelated ticket operations.
+test_clone_ticket_repo_does_not_export_gc_auto_zero() {
+    _snapshot_fail
+    unset _GIT_FIXTURE_TEMPLATE_DIR
+    unset _GIT_FIXTURE_TICKET_TEMPLATE_DIR
+    unset _DSO_GC_AUTO_ZERO
+    source "$SCRIPT_DIR/lib/git-fixtures.sh"
+
+    local dest="$WORK_DIR/ticket-gc-leak"
+    clone_ticket_repo "$dest"
+
+    # _DSO_GC_AUTO_ZERO must NOT be exported -- child processes must not inherit it.
+    # bash -c 'echo ${VAR+set}' returns "set" only if VAR is exported to the env.
+    local child_sees
+    child_sees=$(bash -c 'echo ${_DSO_GC_AUTO_ZERO+set}')
+    assert_eq "gc_auto_zero: not exported to child processes" "" "$child_sees"
+
+    assert_pass_if_clean "test_clone_ticket_repo_does_not_export_gc_auto_zero"
+}
+
 # --- Run all tests ---
 test_clone_test_repo_creates_valid_git_repo
 test_clone_test_repo_produces_isolated_repos
 test_template_reused_across_calls
 test_clone_test_repo_has_initial_commit
 test_clone_test_repo_has_user_config
+test_clone_ticket_repo_does_not_export_gc_auto_zero
 
 print_summary

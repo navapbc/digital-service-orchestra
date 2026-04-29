@@ -60,19 +60,54 @@ assert_eq "test_required_checks_file_exists: file exists with entries" "has_entr
 assert_pass_if_clean "test_required_checks_file_exists"
 
 # ── test_preflight_exits_nonzero_on_missing_gh ───────────────────────────────
-# When gh is not in PATH, provision-ruleset.sh must exit non-zero (pre-flight check).
+# When gh is not in PATH, provision-ruleset.sh must exit non-zero (pre-flight check)
+# AND emit output indicating gh was not found.
+# Verifying both the exit code AND the diagnostic message ensures the test passes
+# for the right reason (gh-missing path), not due to an unrelated early failure
+# (e.g., missing git or jq) that happens to also exit non-zero.
 # This test fails RED until the script exists.
+#
+# PATH construction: we cannot use a fixed PATH like /usr/bin:/bin because on
+# Ubuntu CI, gh is installed at /usr/bin/gh — the same directory as git. Instead:
+# 1. Detect the directory containing gh (if present)
+# 2. Create a temp dir with git (and other needed tools) symlinked but NOT gh
+# 3. Build a PATH that includes the temp dir instead of gh's directory
 _snapshot_fail
 preflight_exit=0
-env PATH=/usr/bin:/bin bash "$PROVISION_SCRIPT" 2>/dev/null
-preflight_exit=$?
+preflight_output=""
+# Use env -i to create a fully isolated environment where gh cannot be found.
+# Path-filtering approaches (grep -v "^/usr/bin$") fail on Ubuntu where /bin is
+# a symlink to /usr/bin — excluding /usr/bin still leaves gh accessible via /bin.
+# env -i strips ALL environment variables; we provide only what provision-ruleset.sh
+# needs before the gh pre-flight check (just git for REPO_ROOT detection).
+_no_gh_tmpdir=$(mktemp -d)
+# Symlink (never copy) the tools provision-ruleset.sh needs before the gh check:
+# dirname (line 19 SCRIPT_DIR) and git (line 28 REPO_ROOT). cat is needed for the
+# heredoc output if gh is missing. Symlinks preserve shared library paths on macOS.
+for _tool in dirname git cat; do
+    _tool_bin=$(command -v "$_tool" 2>/dev/null || true)
+    [ -n "$_tool_bin" ] && ln -sf "$_tool_bin" "$_no_gh_tmpdir/$_tool" 2>/dev/null || true
+done
+# Use the absolute path to bash (env PATH won't help find bash itself)
+_bash_bin=$(command -v bash 2>/dev/null || echo "/bin/bash")
+preflight_output=$(env PATH="$_no_gh_tmpdir" \
+    "$_bash_bin" "$PROVISION_SCRIPT" 2>/dev/null) || preflight_exit=$?
+rm -rf "$_no_gh_tmpdir"
 # We expect a non-zero exit when gh is missing
 if [[ $preflight_exit -ne 0 ]]; then
     actual_preflight="nonzero"
 else
     actual_preflight="zero"
 fi
+# We also expect the output to contain the gh-specific diagnostic message,
+# confirming the exit is due to gh missing — not some other earlier failure.
+if echo "$preflight_output" | grep -q "gh.*CLI.*not found\|gh CLI was not found"; then
+    actual_preflight_reason="gh_missing_message"
+else
+    actual_preflight_reason="no_gh_missing_message"
+fi
 assert_eq "test_preflight_exits_nonzero_on_missing_gh: exits non-zero" "nonzero" "$actual_preflight"
+assert_eq "test_preflight_exits_nonzero_on_missing_gh: output indicates gh missing" "gh_missing_message" "$actual_preflight_reason"
 assert_pass_if_clean "test_preflight_exits_nonzero_on_missing_gh"
 
 # ── test_dry_run_outputs_payload ──────────────────────────────────────────────

@@ -212,6 +212,9 @@ plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brains
 plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-policy-docs.sh,tests/scripts/test-tag-cli-refactor.sh
 plugins/dso/scripts/bridge-inbound.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py,tests/scripts/test_bridge_inbound_comment.py,tests/scripts/test_bridge_delete_issue.py
 plugins/dso/scripts/bridge-outbound.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py,tests/scripts/test_bridge_outbound_file_impact_integration.py
+plugins/dso/scripts/bridge-inbound.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py,tests/scripts/test_bridge_inbound_comment.py
+plugins/dso/scripts/bridge-outbound.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py,tests/scripts/test_bridge_outbound_file_impact_integration.py,tests/scripts/test_bridge_outbound_compact.py
+plugins/dso/scripts/ticket-compact.sh:tests/scripts/test-ticket-compact.sh
 plugins/dso/scripts/bridge/_atomic.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_outbound.py
 plugins/dso/scripts/bridge/_comments_inbound.py:tests/scripts/test_bridge_inbound_comment.py
 plugins/dso/scripts/bridge/_flap.py:tests/scripts/test_bridge_status.py,tests/scripts/test_bridge_inbound.py

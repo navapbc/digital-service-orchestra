@@ -158,7 +158,16 @@ def process_events(
     if git_diff_output is None:
         tracker_str = str(tickets_path)
         result = subprocess.run(
-            ["git", "-C", tracker_str, "diff", "HEAD~1", "HEAD", "--name-only"],
+            [
+                "git",
+                "-C",
+                tracker_str,
+                "diff",
+                "HEAD~1",
+                "HEAD",
+                "--diff-filter=A",
+                "--name-only",
+            ],
             capture_output=True,
             text=True,
             check=False,
