@@ -359,18 +359,20 @@ def test_reducer_compiles_status_event_to_correct_status(
 
 @pytest.mark.unit
 @pytest.mark.scripts
-def test_reducer_applies_multiple_status_events_current_status_mismatch_flags_conflict(
+def test_reducer_applies_multiple_status_events_current_status_mismatch_resolves_fork(
     tmp_path: Path, reducer: ModuleType
 ) -> None:
-    """STATUS event where current_status doesn't match compiled status must flag a conflict.
+    """STATUS event where current_status doesn't match compiled status triggers fork detection.
 
-    Per the contract: 'The reducer must apply this event only if the ticket's
-    current compiled status matches current_status; otherwise it should flag
-    a conflict.'
+    The new behavior (DD SC7): when current_status in the event doesn't match the
+    compiled state's status, a fork is detected and resolved via lexical UUID tie-break
+    on parent_status_uuid rather than accumulating into state['conflicts'].
 
-    The reducer must indicate a conflict — either by including a 'conflicts'
-    key in the returned state, or by returning a state with status='conflict',
-    rather than silently applying the bad transition.
+    Both chains have no parent_status_uuid (empty string tie — incoming wins by <= rule),
+    so the incoming event's target_status ("closed") is applied.
+
+    Expected: state is not None, status is resolved (no 'conflicts' key), and
+    'conflicts' is not in state.
     """
     ticket_dir = tmp_path / "tkt-conflict"
     ticket_dir.mkdir()
@@ -388,6 +390,7 @@ def test_reducer_applies_multiple_status_events_current_status_mismatch_flags_co
     )
 
     # STATUS event with wrong current_status — ticket is "open" but event says "in_progress"
+    # Fork is detected and resolved by tie-break; incoming wins (empty == empty, <= wins).
     _write_event(
         ticket_dir,
         timestamp=1742605300,
@@ -398,12 +401,16 @@ def test_reducer_applies_multiple_status_events_current_status_mismatch_flags_co
 
     state = reducer.reduce_ticket(ticket_dir)
 
-    assert state is not None, "reduce_ticket must return a dict, not None, on conflict"
-    # Reducer must flag the conflict — either via a 'conflicts' list or status='conflict'
-    has_conflict = state.get("conflicts") or state.get("status") == "conflict"
-    assert has_conflict, (
-        "STATUS event with mismatched current_status must be flagged as a conflict; "
-        f"got state={state!r}"
+    assert state is not None, "reduce_ticket must return a dict, not None, on fork"
+    # New behavior: fork is resolved via tie-break, never accumulates into 'conflicts'.
+    assert "conflicts" not in state, (
+        "Fork resolution must not produce a 'conflicts' key; "
+        f"got state keys: {list(state.keys())!r}"
+    )
+    # Incoming event won the tie-break (both parent_status_uuids are empty — incoming <= existing).
+    assert state.get("status") == "closed", (
+        "Fork tie-break winner's target_status must be applied; "
+        f"got state['status']={state.get('status')!r}"
     )
 
 
