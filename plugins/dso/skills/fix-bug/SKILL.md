@@ -212,6 +212,38 @@ After transitioning the bug ticket to in_progress, scan for abandoned worktrees 
    - Merge the winner; discard (log, skip) the rest
 4. Proceed with normal fix-bug flow
 
+### Step 2.5: Worktree Ancestry Gate (/dso:fix-bug)
+
+Before investigating, verify that the bug's `code_version` (the git SHA recorded when the bug was filed) is an ancestor of `HEAD`. If it is not, the bug was filed against code that does not exist in this worktree — investigating it here will produce incorrect or conflicting results.
+
+```bash
+BUG_DESC=$(.claude/scripts/dso ticket show "$BUG_TICKET_ID" | python3 -c "import json,sys; print(json.load(sys.stdin).get('description',''))" 2>/dev/null || echo "")
+CODE_VERSION=$(echo "$BUG_DESC" | python3 -c "
+import re, sys
+m = re.search(r'\*\*code_version:\*\*\s+([0-9a-f]{7,40})', sys.stdin.read())
+print(m.group(1) if m else '')
+" 2>/dev/null || true)
+```
+
+**If `CODE_VERSION` is empty or absent**: the bug was filed without a `code_version` field (pre-dates this gate). Skip the ancestry check and continue to Step 3.
+
+**If `CODE_VERSION` is present**, check ancestry:
+
+```bash
+if ! git merge-base --is-ancestor "$CODE_VERSION" HEAD 2>/dev/null; then
+    .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
+      "Worktree ancestry check: FAILED — code_version ${CODE_VERSION} is not an ancestor of HEAD on $(git rev-parse --abbrev-ref HEAD). Investigation skipped; re-queue when the source branch lands."
+    # Transition ticket back to open so it is visible for re-queuing
+    .claude/scripts/dso ticket transition "$BUG_TICKET_ID" in_progress open 2>/dev/null || true
+    # END the skill
+    exit 0
+fi
+```
+
+**If the ancestry check passes** (code_version is an ancestor of HEAD): proceed to Step 3.
+
+This gate is a hard stop. Do not proceed with investigation when the ancestry check fails — the bug may already be fixed on the source branch, or the affected code may not exist here, making any fix attempt incorrect.
+
 ### Step 3: Score and Classify (/dso:fix-bug)
 
 1. Read the bug description, error messages, and stack traces
