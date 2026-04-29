@@ -94,16 +94,22 @@ case "$SELECTED_TIER" in
     # Helper: build API request JSON for a specialist agent
     _build_specialist_request() {
       local _agent_file="$1"
-      local _sys
+      local _sys _diff_tmp
       _sys="$(cat "$_agent_file")"
-      DSO_SYSTEM="$_sys" DSO_DIFF="$DIFF_CONTENT" DSO_MODEL="$MODEL" \
+      _diff_tmp=$(mktemp /tmp/dso-diff.XXXXXX)
+      # shellcheck disable=SC2064
+      trap "rm -f '$_diff_tmp'" RETURN
+      printf '%s' "$DIFF_CONTENT" > "$_diff_tmp"
+      DSO_SYSTEM="$_sys" DSO_DIFF_FILE="$_diff_tmp" DSO_MODEL="$MODEL" \
         python3 - <<'PYEOF'
 import json, os
+with open(os.environ['DSO_DIFF_FILE']) as f:
+    diff = f.read()
 print(json.dumps({
   'model': os.environ['DSO_MODEL'],
   'max_tokens': 8192,
   'system': os.environ['DSO_SYSTEM'],
-  'messages': [{'role': 'user', 'content': 'Review this diff:\n\n' + os.environ['DSO_DIFF']}]
+  'messages': [{'role': 'user', 'content': 'Review this diff:\n\n' + diff}]
 }))
 PYEOF
     }
@@ -172,15 +178,21 @@ ${_SLOT_H_JSON}
 Diff under review:
 ${DIFF_CONTENT}"
 
+    _arch_msg_tmp=$(mktemp /tmp/dso-diff.XXXXXX)
+    # shellcheck disable=SC2064
+    trap "rm -f '$_arch_msg_tmp'" EXIT
+    printf '%s' "$_ARCH_USER_MSG" > "$_arch_msg_tmp"
     _ARCH_SYS="$(cat "$_PLUGIN_ROOT/agents/code-reviewer-deep-arch.md")"
-    _ARCH_REQ=$(DSO_SYSTEM="$_ARCH_SYS" DSO_MODEL="$MODEL" DSO_ARCH_MSG="$_ARCH_USER_MSG" \
+    _ARCH_REQ=$(DSO_SYSTEM="$_ARCH_SYS" DSO_MODEL="$MODEL" DSO_ARCH_MSG_FILE="$_arch_msg_tmp" \
       python3 - <<'PYEOF'
 import json, os
+with open(os.environ['DSO_ARCH_MSG_FILE']) as f:
+    arch_msg = f.read()
 print(json.dumps({
   'model': os.environ['DSO_MODEL'],
   'max_tokens': 8192,
   'system': os.environ['DSO_SYSTEM'],
-  'messages': [{'role': 'user', 'content': os.environ['DSO_ARCH_MSG']}]
+  'messages': [{'role': 'user', 'content': arch_msg}]
 }))
 PYEOF
 )
@@ -240,19 +252,26 @@ SYSTEM_PROMPT="$(cat "$AGENT_FILE")"
 
 MODEL="${DSO_LLM_MODEL:-claude-sonnet-4-6}"
 
-# Use env vars to avoid quoting hazards for arbitrary agent/diff content.
+# Write diff to a temp file to avoid ARG_MAX limits on large PRs (Linux ~2MB env limit).
 # Note: no pipe before python3 - <<HEREDOC so the heredoc IS the script input.
-REQUEST_JSON=$(DSO_SYSTEM="$SYSTEM_PROMPT" DSO_DIFF="$DIFF_CONTENT" DSO_MODEL="$MODEL" \
+_DIFF_TMP=$(mktemp /tmp/dso-diff.XXXXXX)
+# shellcheck disable=SC2064
+trap "rm -f '$_DIFF_TMP'" EXIT
+printf '%s' "$DIFF_CONTENT" > "$_DIFF_TMP"
+REQUEST_JSON=$(DSO_SYSTEM="$SYSTEM_PROMPT" DSO_DIFF_FILE="$_DIFF_TMP" DSO_MODEL="$MODEL" \
   python3 - <<'PYEOF'
 import json, os
+with open(os.environ['DSO_DIFF_FILE']) as f:
+    diff = f.read()
 print(json.dumps({
   'model': os.environ['DSO_MODEL'],
   'max_tokens': 8192,
   'system': os.environ['DSO_SYSTEM'],
-  'messages': [{'role': 'user', 'content': 'Review this diff:\n\n' + os.environ['DSO_DIFF']}]
+  'messages': [{'role': 'user', 'content': 'Review this diff:\n\n' + diff}]
 }))
 PYEOF
 )
+rm -f "$_DIFF_TMP"
 
 API_RESPONSE=$(curl -sf -m 30 --connect-timeout 10 \
   -H "x-api-key: $ANTHROPIC_API_KEY" \
@@ -312,16 +331,22 @@ fi  # end standard/light-only API call block
 # Applies to all tiers (deep FINDINGS_JSON carries through from arch synthesis).
 _run_overlay_curl() {
   local _agent_file="$1" _slot_file="$2"
-  local _sys _req _resp
+  local _sys _req _resp _overlay_diff_tmp
   _sys="$(cat "$_agent_file")"
-  _req=$(DSO_SYSTEM="$_sys" DSO_DIFF="$DIFF_CONTENT" DSO_MODEL="$MODEL" \
+  _overlay_diff_tmp=$(mktemp /tmp/dso-diff.XXXXXX)
+  # shellcheck disable=SC2064
+  trap "rm -f '$_overlay_diff_tmp'" RETURN
+  printf '%s' "$DIFF_CONTENT" > "$_overlay_diff_tmp"
+  _req=$(DSO_SYSTEM="$_sys" DSO_DIFF_FILE="$_overlay_diff_tmp" DSO_MODEL="$MODEL" \
     python3 - <<'PYEOF'
 import json, os
+with open(os.environ['DSO_DIFF_FILE']) as f:
+    diff = f.read()
 print(json.dumps({
   'model': os.environ['DSO_MODEL'],
   'max_tokens': 8192,
   'system': os.environ['DSO_SYSTEM'],
-  'messages': [{'role': 'user', 'content': 'Review this diff:\n\n' + os.environ['DSO_DIFF']}]
+  'messages': [{'role': 'user', 'content': 'Review this diff:\n\n' + diff}]
 }))
 PYEOF
   )

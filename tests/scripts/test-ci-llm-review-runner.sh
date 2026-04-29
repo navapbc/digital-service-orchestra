@@ -1940,5 +1940,20 @@ assert_eq "test_dso_llm_tier_absent_from_docs: DSO_LLM_TIER absent from CONFIGUR
 assert_eq "test_dso_llm_tier_absent_from_docs: DSO_LLM_TIER absent from onboarding/SKILL.md" "0" "$onboarding_matches"
 assert_pass_if_clean "test_dso_llm_tier_absent_from_docs"
 
+# ── test_runner_uses_diff_file_not_env_var ────────────────────────────────────
+# Structural: diff content must be passed via a temp file (DSO_DIFF_FILE / DSO_ARCH_MSG_FILE),
+# not as a raw DSO_DIFF or DSO_ARCH_MSG env var. Passing large diffs as env vars hits the
+# Linux ARG_MAX (~2MB) limit for PRs with many commits (fix: story ab65-49f6).
+# Given: ci-llm-review-runner.sh exists
+# When:  the script is grepped for DSO_DIFF= and DSO_ARCH_MSG= env-var assignments on python3
+# Then:  zero matches (all three paths use file-based approach)
+_snapshot_fail
+_runner_file="$REPO_ROOT/plugins/dso/scripts/ci-llm-review-runner.sh"
+dso_diff_env_matches=$(grep -cE 'DSO_DIFF=[^_F]' "$_runner_file" 2>/dev/null || true)
+dso_arch_msg_env_matches=$(grep -cE 'DSO_ARCH_MSG=[^_F]' "$_runner_file" 2>/dev/null || true)
+assert_eq "test_runner_uses_diff_file_not_env_var: DSO_DIFF env var not used" "0" "$dso_diff_env_matches"
+assert_eq "test_runner_uses_diff_file_not_env_var: DSO_ARCH_MSG env var not used" "0" "$dso_arch_msg_env_matches"
+assert_pass_if_clean "test_runner_uses_diff_file_not_env_var"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
