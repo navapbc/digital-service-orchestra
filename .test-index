@@ -2,7 +2,7 @@
 # Maps source files to test files that fuzzy match misses.
 # Format: source/path: test/path1[, test/path2...]
 
-plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_set_issue_property.py [test_set_issue_property_calls_put_on_correct_path],tests/scripts/test_acli_integration_set_issue_property.py
+plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_set_issue_property.py,tests/scripts/test_acli_integration_set_issue_property.py [test_set_issue_property_calls_put_on_correct_path]
 .github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh
 plugins/dso/.claude-plugin/plugin.json:tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-dir-structure.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
@@ -313,10 +313,13 @@ plugins/dso/skills/debug-everything/prompts/gha-dispatch.md:tests/scripts/test-d
 plugins/dso/skills/shared/prompts/test-failure-fix.md:tests/scripts/test-debug-everything-prompt-contracts.sh
 plugins/dso/scripts/test-batched.sh:tests/scripts/test-test-batched.sh
 tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh [test_fp_merge_1_new_component_tagged]
-plugins/dso/templates/ci-dso-staged.yml:tests/scripts/test-ci-dso-staged-template.sh,tests/scripts/test-ci-llm-review-job.sh
+plugins/dso/templates/ci-dso-staged.yml:tests/scripts/test-ci-dso-staged-template.sh,tests/scripts/test-ci-llm-review-job.sh,tests/scripts/test-ci-dso-fetch.sh
 tests/scripts/test-sigpipe-canary.sh:tests/scripts/test-sigpipe-canary.sh
 plugins/dso/scripts/onboarding/provision-ruleset.sh:tests/scripts/test-provision-ruleset.sh
 plugins/dso/scripts/onboarding/validate-required-checks.sh:tests/scripts/test-validate-required-checks.sh
 plugins/dso/scripts/onboarding/github-bootstrap.sh:tests/scripts/test-github-bootstrap.sh
 tests/scripts/test-ci-enforcement-e2e.sh [test_opt_in_gate_exits_zero_skip]:tests/scripts/test-ci-enforcement-e2e-behavioral.sh
 tests/scripts/test-ci-enforcement-e2e.sh:tests/scripts/test-ci-enforcement-e2e-behavioral.sh
+plugins/dso/scripts/ci-llm-review-runner.sh:tests/scripts/test-ci-llm-review-runner.sh
+plugins/dso/scripts/resolve-dso-version.sh:tests/scripts/test-resolve-dso-version.sh
+plugins/dso/scripts/ci-dso-fetch.sh:tests/scripts/test-ci-dso-fetch.sh

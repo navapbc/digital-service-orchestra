@@ -4,15 +4,18 @@
 #   DSO_FORMAT_CHECK_CMD — command to check formatting (e.g., "make format-check")
 #   DSO_TEST_CMD        — command to run tests (e.g., "make test")
 #   DSO_VALIDATE_CMD    — command to run DSO validation (e.g., your project's validate.sh --ci invocation)
-#   DSO_LLM_LIGHT_MODEL    — model ID for light tier (e.g., claude-haiku-4-5-20251001)
-#   DSO_LLM_STANDARD_MODEL — model ID for standard tier (e.g., claude-sonnet-4-6)
-#   DSO_LLM_FRONTIER_MODEL — model ID for frontier tier (e.g., claude-opus-4-7)
-#   DSO_LLM_TIER           — active tier: light | standard | frontier
+#   DSO_PLUGIN_PATH    — path to the DSO plugin root in your repo (set during onboarding)
+#   ANTHROPIC_API_KEY  — (secret) Anthropic API key for LLM review runner
 #
 # REVIEW-DEFENSE: Structural tests for this template are in
 # tests/scripts/test-ci-dso-staged-template.sh with a .test-index entry
 # (added in the task that created the test file, ea9d-ed23, committed prior
 # to this template being added).
+#
+# The 'resolve-dso-version' step in the validate-ci job uses the companion
+# helper script ci-dso-fetch.sh (in the DSO plugin's scripts/ directory) to
+# resolve the active DSO plugin version and populate a cached clone at
+# CLONE_DIR. Tests for the fetch script are in tests/scripts/test-ci-dso-fetch.sh.
 
 name: CI
 
@@ -101,6 +104,7 @@ jobs:
 
   llm-review:
     needs: [tests]
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -109,50 +113,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate required LLM review variables
-        run: |
-          missing=""
-          [ -z "$DSO_LLM_LIGHT_MODEL" ]    && missing="$missing DSO_LLM_LIGHT_MODEL"
-          [ -z "$DSO_LLM_STANDARD_MODEL" ] && missing="$missing DSO_LLM_STANDARD_MODEL"
-          [ -z "$DSO_LLM_FRONTIER_MODEL" ] && missing="$missing DSO_LLM_FRONTIER_MODEL"
-          [ -z "$DSO_LLM_TIER" ]            && missing="$missing DSO_LLM_TIER"
-          if [ -n "$missing" ]; then
-            echo "ERROR: Required GitHub Actions Variables not set:$missing" >&2
-            echo "Configure them in Settings > Variables > Actions." >&2
-            echo "Valid values for DSO_LLM_TIER: light, standard, frontier" >&2
-            exit 1
-          fi
+      - name: Run LLM review
         env:
-          DSO_LLM_LIGHT_MODEL:    ${{ vars.DSO_LLM_LIGHT_MODEL }}
-          DSO_LLM_STANDARD_MODEL: ${{ vars.DSO_LLM_STANDARD_MODEL }}
-          DSO_LLM_FRONTIER_MODEL: ${{ vars.DSO_LLM_FRONTIER_MODEL }}
-          DSO_LLM_TIER:           ${{ vars.DSO_LLM_TIER }}
-
-      - name: Select model by tier
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash -eo pipefail {0}
         run: |
-          case "$DSO_LLM_TIER" in
-            light)    echo "ANTHROPIC_MODEL=$DSO_LLM_LIGHT_MODEL"    >> "$GITHUB_ENV" ;;
-            standard) echo "ANTHROPIC_MODEL=$DSO_LLM_STANDARD_MODEL" >> "$GITHUB_ENV" ;;
-            frontier) echo "ANTHROPIC_MODEL=$DSO_LLM_FRONTIER_MODEL" >> "$GITHUB_ENV" ;;
-            *)
-              echo "ERROR: DSO_LLM_TIER='$DSO_LLM_TIER' is not a valid tier." >&2
-              echo "Valid values: light, standard, frontier" >&2
-              exit 1
-              ;;
-          esac
-        env:
-          DSO_LLM_TIER:           ${{ vars.DSO_LLM_TIER }}
-          DSO_LLM_LIGHT_MODEL:    ${{ vars.DSO_LLM_LIGHT_MODEL }}
-          DSO_LLM_STANDARD_MODEL: ${{ vars.DSO_LLM_STANDARD_MODEL }}
-          DSO_LLM_FRONTIER_MODEL: ${{ vars.DSO_LLM_FRONTIER_MODEL }}
-
-      - name: Run LLM code review
-        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434 # pinned; verify at github.com/anthropics/claude-code-action/releases
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: ${{ env.ANTHROPIC_MODEL }}
-          direct_prompt: |
-            Review this pull request for correctness, security issues, and design problems.
+          gh pr diff | bash "${{ vars.DSO_PLUGIN_PATH }}/scripts/ci-llm-review-runner.sh"
 
   validate-ci:
     needs: [tests]
@@ -170,6 +137,22 @@ jobs:
           fi
         env:
           DSO_VALIDATE_CMD: ${{ vars.DSO_VALIDATE_CMD }}
+
+      - name: Resolve DSO version and fetch plugin
+        # Calls ci-dso-fetch.sh (DSO plugin scripts/) which:
+        #   1. Resolves the active DSO version via resolve-dso-version.sh (3-tier chain).
+        #   2. Derives CLONE_DIR=${RUNNER_TEMP}/dso/<version>/.
+        #   3. Checks dso-sentinel.json for a valid cached clone (schema: version + commit_sha).
+        #   4. Verifies the cached commit SHA against git ls-remote before reuse.
+        #   5. On cache miss or SHA mismatch: clones atomically (tmpdir → rename).
+        #   6. Writes dso-sentinel.json after a successful clone.
+        #   7. Validates CLONE_DIR/<plugin-path>/marketplace.json exists.
+        # CLONE_DIR is exported to subsequent steps via $GITHUB_ENV.
+        run: |
+          bash "${{ vars.DSO_PLUGIN_PATH }}/scripts/ci-dso-fetch.sh"
+          echo "CLONE_DIR=$CLONE_DIR" >> "$GITHUB_ENV"
+        env:
+          DSO_REPO_URL: ${{ vars.DSO_REPO_URL }}
 
       - name: Run DSO validation
         run: ${{ vars.DSO_VALIDATE_CMD }}
