@@ -1260,7 +1260,7 @@ Enter the numbers or type filenames directly.
 
 Use the user's response to populate `ci.integration_workflow` and the CI job keys. If the user cannot answer immediately, omit the key with an explanatory comment per the fallback behavior below.
 
-> **Optional CI config keys**: `ci.dso_plugin_version` lets projects override the DSO plugin version used in CI LLM review without editing the workflow file (Tier 2 of the 3-tier version resolution chain). `DSO_ASSETS_DIR` is a CI environment variable required in host-project CI when running `ci-llm-review-runner.sh` outside the DSO source checkout. See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIGURATION-REFERENCE.md` for full details on both.
+> **CI LLM review — classifier-driven tier selection**: The CI review job selects the reviewer tier automatically per-PR based on the complexity classifier score (0–2 → light/haiku, 3–6 → standard/sonnet, 7+ → deep/opus). Tier selection is fully automatic — there is no manual override environment variable. `ci.dso_plugin_version` lets projects override the DSO plugin version used in CI LLM review without editing the workflow file (Tier 2 of the 3-tier version resolution chain). `DSO_ASSETS_DIR` is a CI environment variable required in host-project CI when running `ci-llm-review-runner.sh` outside the DSO source checkout. See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIGURATION-REFERENCE.md` for full details.
 
 **Additional categories to populate**:
 

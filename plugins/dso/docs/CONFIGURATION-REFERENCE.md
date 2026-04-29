@@ -209,6 +209,20 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ---
 
+### CI LLM Review — Classifier-Driven Tier Selection
+
+The CI LLM review job selects the reviewer tier **automatically per-PR** based on the complexity classifier score. There is no manual tier override environment variable — tier selection is fully automatic. Score ranges:
+
+| Classifier score | Tier dispatched |
+|-----------------|-----------------|
+| 0–2 | light (haiku — fast feedback) |
+| 3–6 | standard (sonnet — comprehensive) |
+| 7+ | deep (3 × sonnet + opus synthesis) |
+
+Security, performance, and test-quality overlays are dispatched automatically when the classifier flags them. The 3-tier version resolution chain below controls which plugin version runs the classifier and reviewers.
+
+---
+
 ### `ci.dso_plugin_version`
 
 | | |
