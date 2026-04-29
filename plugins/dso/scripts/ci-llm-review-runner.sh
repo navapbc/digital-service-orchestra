@@ -92,17 +92,19 @@ print(json.dumps({
 PYEOF
     }
 
-    # Step 1: dispatch 3 specialist curl calls sequentially.
+    # Step 1: dispatch 3 specialist curl calls in parallel (& + wait).
     # Each call fires the API request; the specialist agent (or mock) is responsible for
     # writing its slot file. In production this would be a full agent sub-process; in CI
     # tests the mock curl writes the slot file as a side-effect.
+    _SPECIALIST_PIDS=()
     _REQ_C=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-correctness.md")
     curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
       --data-raw "$_REQ_C" \
-      "https://api.anthropic.com/v1/messages" > /dev/null
+      "https://api.anthropic.com/v1/messages" > /dev/null &
+    _SPECIALIST_PIDS+=($!)
 
     _REQ_V=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-verification.md")
     curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
@@ -110,7 +112,8 @@ PYEOF
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
       --data-raw "$_REQ_V" \
-      "https://api.anthropic.com/v1/messages" > /dev/null
+      "https://api.anthropic.com/v1/messages" > /dev/null &
+    _SPECIALIST_PIDS+=($!)
 
     _REQ_H=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-hygiene.md")
     curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
@@ -118,7 +121,10 @@ PYEOF
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
       --data-raw "$_REQ_H" \
-      "https://api.anthropic.com/v1/messages" > /dev/null
+      "https://api.anthropic.com/v1/messages" > /dev/null &
+    _SPECIALIST_PIDS+=($!)
+
+    for _pid in "${_SPECIALIST_PIDS[@]}"; do wait "$_pid"; done
 
     # Step 2: validate all slot files exist and contain valid JSON (fail-closed)
     for _slot in "$_SLOT_CORRECTNESS" "$_SLOT_VERIFICATION" "$_SLOT_HYGIENE"; do
