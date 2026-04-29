@@ -420,10 +420,13 @@ except Exception:
     pass
 m = re.search(r'```(?:json)?\s*([\s\S]+?)```', text)
 if m:
-    extracted = m.group(1).strip()
-    json.loads(extracted)
-    print(extracted)
-    sys.exit(0)
+    try:
+        extracted = m.group(1).strip()
+        json.loads(extracted)
+        print(extracted)
+        sys.exit(0)
+    except Exception:
+        pass
 print('ERROR: Overlay LLM response is not valid reviewer-findings JSON', file=sys.stderr)
 sys.exit(1)
 PYEOF
@@ -446,11 +449,11 @@ _OVERLAY_PIDS=()
   _OVERLAY_PIDS+=($!)
 }
 if [[ ${#_OVERLAY_PIDS[@]} -gt 0 ]]; then
-  for _pid in "${_OVERLAY_PIDS[@]}"; do wait "$_pid"; done
+  for _pid in "${_OVERLAY_PIDS[@]}"; do wait "$_pid" || true; done
 fi
-[[ "$_SEC" == "true" ]] && _run_overlay_curl \
+[[ "$_SEC" == "true" ]] && { _run_overlay_curl \
   "$_PLUGIN_ROOT/agents/code-reviewer-security-blue-team.md" \
-  "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json"
+  "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json" || true; }
 
 # ── Overlay merge ───────────────────────────────────────────────────────────────
 # Collect non-empty overlay slot files and merge their findings arrays + scores
