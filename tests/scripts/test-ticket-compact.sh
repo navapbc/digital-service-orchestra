@@ -75,7 +75,7 @@ _create_ticket_with_events() {
     local repo="$1"
     local ticket_id="$2"
     local event_count="$3"
-    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"  # tickets-boundary-ok: test helper creates tracker dir directly
     mkdir -p "$ticket_dir"
 
     # Write CREATE event
@@ -290,7 +290,7 @@ test_compact_flock_prevents_concurrent_modification() {
     wait "$pid2" || exit2=$?
 
     # Assert: only one SNAPSHOT file was written (not two)
-    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"  # tickets-boundary-ok: test asserts filesystem state after compact
     local snapshot_count
     snapshot_count=$(find "$ticket_dir" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | wc -l | tr -d ' ')
     assert_eq "only 1 SNAPSHOT from concurrent runs" "1" "$snapshot_count"
@@ -317,7 +317,7 @@ test_compact_produces_valid_snapshot_event_json() {
     # Run compaction
     (cd "$repo" && bash "$COMPACT_SCRIPT" "$ticket_id") 2>/dev/null || true
 
-    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"  # tickets-boundary-ok: test inspects filesystem after compact
     local snapshot_file
     snapshot_file=$(find "$ticket_dir" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | head -1)
     if [ -z "$snapshot_file" ]; then
@@ -465,5 +465,61 @@ test_compact_threshold_zero_with_skip_sync() {
     assert_pass_if_clean "test_compact_threshold_zero_with_skip_sync"
 }
 test_compact_threshold_zero_with_skip_sync
+
+# ── Test 10: compact preserves SYNC file (da40-8e3e) ─────────────────────────
+echo "Test 10: compact preserves SYNC file (bridge Jira key mapping survives)"
+test_compact_preserves_sync_file() {
+    _snapshot_fail
+
+    if [ ! -f "$COMPACT_SCRIPT" ]; then
+        assert_eq "ticket-compact.sh exists for sync-preservation test" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id="tkt-syncpres"
+    local ticket_dir
+    # Use helper to create a valid ticket (CREATE + 11 STATUS = 12 events, above threshold)
+    ticket_dir=$(_create_ticket_with_events "$repo" "$ticket_id" 12)
+
+    # Write a SYNC file (bridge Jira key mapping)
+    local sync_uuid
+    sync_uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    python3 -c "
+import json, sys
+payload = {
+    'event_type': 'SYNC',
+    'timestamp': 2000000000000,
+    'uuid': '$sync_uuid',
+    'env_id': 'bbbbbbbb-0000-4000-8000-000000000002',
+    'jira_key': 'DSO-999',
+    'local_id': '$ticket_id'
+}
+json.dump(payload, sys.stdout)
+" > "$ticket_dir/2000000000000-${sync_uuid}-SYNC.json"
+
+    # Run compact with --skip-sync (no live sync required in test)
+    local exit_code=0
+    (cd "$repo" && bash "$COMPACT_SCRIPT" "$ticket_id" --skip-sync) 2>/dev/null || exit_code=$?
+    assert_eq "compact exits 0 with SYNC present" "0" "$exit_code"
+
+    # Assert: SYNC file survived compaction (fix C)
+    local sync_count
+    sync_count=$(find "$ticket_dir" -maxdepth 1 -name '*-SYNC.json' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "SYNC file survives compact (fix C)" "1" "$sync_count"
+
+    # Assert: Jira key still readable from the surviving SYNC file
+    local surviving_sync
+    surviving_sync=$(find "$ticket_dir" -maxdepth 1 -name '*-SYNC.json' 2>/dev/null | head -1)
+    if [ -n "$surviving_sync" ]; then
+        local jira_key
+        jira_key=$(python3 -c "import json; d=json.load(open('$surviving_sync')); print(d.get('jira_key',''))" 2>/dev/null)
+        assert_eq "Jira key preserved in SYNC after compact" "DSO-999" "$jira_key"
+    fi
+
+    assert_pass_if_clean "test_compact_preserves_sync_file"
+}
+test_compact_preserves_sync_file
 
 print_summary

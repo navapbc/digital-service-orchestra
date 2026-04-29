@@ -326,6 +326,41 @@ test_explicit_unlock_before_remove_does_not_error
 test_tickets_branch_worktree_excluded_from_cleanup
 test_agent_worktree_eligible_when_not_merged
 
+# ── Test G: Agent worktree with uncommitted changes is still removable (3170-8d8a) ──
+# Agent worktrees are transient dispatch worktrees — they may have uncommitted residue
+# from failed or abandoned agents. They should be removed regardless of dirty state.
+test_agent_worktree_exempt_from_dirty_check() {
+    local tmp; tmp=$(make_tmpdir)
+    local MAIN_REPO="$tmp/repo"
+    git init "$MAIN_REPO" >/dev/null 2>&1
+    git -C "$MAIN_REPO" config user.email "test@test.com"
+    git -C "$MAIN_REPO" config user.name "Test"
+    echo "initial" > "$MAIN_REPO/file.txt"
+    git -C "$MAIN_REPO" add file.txt
+    git -C "$MAIN_REPO" commit -m "initial" >/dev/null 2>&1
+    local agent_path="$MAIN_REPO/.claude/worktrees/agent-dirty"
+    local agent_branch="worktree-agent-dirty"
+    git -C "$MAIN_REPO" branch "$agent_branch" HEAD
+    mkdir -p "$(dirname "$agent_path")"
+    git -C "$MAIN_REPO" worktree add "$agent_path" "$agent_branch" >/dev/null 2>&1
+    git -C "$agent_path" config user.email "test@test.com"
+    git -C "$agent_path" config user.name "Test"
+    # Commit on the agent branch, then merge into main
+    echo "agent work" >> "$agent_path/file.txt"
+    git -C "$agent_path" add file.txt
+    git -C "$agent_path" commit -m "agent work" >/dev/null 2>&1
+    git -C "$MAIN_REPO" merge --no-ff "$agent_branch" -m "merge agent" >/dev/null 2>&1
+    # Leave an uncommitted change in the agent worktree (residual dirty state)
+    echo "uncommitted residue" >> "$agent_path/file.txt"
+    local output
+    output=$(cd "$MAIN_REPO" && bash "$CLEANUP_SCRIPT" --dry-run 2>/dev/null) || true
+    assert_contains "agent worktree with uncommitted changes shows 'remove'" "would remove" "$output"
+    local dirty_present="no"
+    if [[ "$output" == *"uncommitted changes"* ]]; then dirty_present="yes"; fi
+    assert_eq "agent worktree NOT blocked by uncommitted-changes check" "no" "$dirty_present"
+}
+test_agent_worktree_exempt_from_dirty_check
+
 print_summary
 
 # TEST MARKER APPENDED

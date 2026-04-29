@@ -169,6 +169,13 @@ clone_ticket_repo() {
         git -C "$dest/.tickets-tracker" config gc.auto 0
         # Signal to _flock_stage_commit that gc.auto is already 0 — avoids a
         # git subprocess on every write op (~10ms × N ops per test suite run).
-        export _DSO_GC_AUTO_ZERO=1
+        # NOTE: intentionally NOT exported — must not bleed into parallel test
+        # processes or sibling tests that run ticket ops against a different repo
+        # where gc.auto was not pre-set (bug 9d55-e6c3). Sourced libs (ticket-lib.sh)
+        # inherit this variable from the current process env without export.
+        # Subprocess ticket calls (bash scripts/ticket ...) do not inherit it and
+        # will perform the gc.auto check on first write — the ~10ms cost is
+        # acceptable in exchange for correct test isolation.
+        _DSO_GC_AUTO_ZERO=1
     fi
 }

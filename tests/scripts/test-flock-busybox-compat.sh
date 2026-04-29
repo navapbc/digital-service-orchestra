@@ -104,9 +104,19 @@ test_ticket_create_without_flock() {
     local repo
     repo=$(_make_test_repo)
 
-    # Run with a PATH that has no flock binary at all
-    local no_flock_path
-    no_flock_path=$(echo "$PATH" | tr ':' '\n' | grep -v 'util-linux\|flock' | tr '\n' ':' | sed 's/:$//')
+    # Shadow flock with a non-util-linux stub so ticket-lib.sh treats flock as
+    # unavailable and falls through to its mkdir-based lock fallback.
+    # Prepend the stub dir to the FULL original PATH to keep all other tools
+    # (sed, date, mktemp, etc.) accessible — filtering entire PATH directories
+    # (e.g. /usr/bin) breaks those tools on Ubuntu where flock and sed share
+    # the same directory.
+    local no_flock_tmpdir no_flock_path
+    no_flock_tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$no_flock_tmpdir")
+    printf '#!/bin/sh\n# stub flock: exits non-zero, no util-linux output\nexit 127\n' \
+        > "$no_flock_tmpdir/flock"
+    chmod +x "$no_flock_tmpdir/flock"
+    no_flock_path="$no_flock_tmpdir:$PATH"
 
     local ticket_id
     ticket_id=$(

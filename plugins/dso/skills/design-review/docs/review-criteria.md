@@ -57,6 +57,20 @@ passed (REVIEW-PROTOCOL-WORKFLOW.md invokes
 `validate-review-output.sh review-protocol <out> --caller design-review`).
 Do not run validation a second time from this skill.
 
+**Skill-level fallback — missing caller_id**: If this skill is invoked without a
+`caller_id` in the invocation context (i.e., the value is absent, null, or empty),
+emit the following warning before proceeding and do not silently continue:
+
+> WARNING: caller_id not provided — cannot verify invocation source. Validation
+> via review-protocol will not be triggered automatically. Proceeding without
+> source validation. Ensure the caller passes `caller_id: "design-review"` to
+> enable schema-validated output.
+
+This fallback exists because the protocol-level validation gate is keyed on
+`caller_id: "design-review"` — if the caller omits it, the gate silently skips
+and no validation occurs. The warning surfaces this gap to the calling agent
+rather than allowing it to go undetected.
+
 **Caller schema hash**: `1a50fe899037ef49` — identifies the exact set of
 perspectives, dimensions, and reviewer-specific fields expected from this caller.
 The validator is the source of truth; this hash mirrors
