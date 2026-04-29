@@ -7,106 +7,65 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 # Fix Cascade Recovery Protocol
 
-The root cause is rarely where errors appear. Read widely, edit narrowly — the fix is usually 1-5 lines once you understand the actual problem.
+Emergency brake fired by the cascade circuit-breaker after 5 cascading failures (CLAUDE.md rule 6). The root cause is rarely where errors appear — read widely, edit narrowly. The fix is usually 1–5 lines once the actual problem is understood.
 
-## Config Resolution (reads project workflow-config.yaml)
+## Prerequisites
 
-At activation, load project commands via read-config.sh before executing any steps:
+Resolve a ticket ID for cascade context, in this order:
+1. The single open `in_progress` ticket: `.claude/scripts/dso ticket list --status=in_progress --format=llm` (most cascades fire mid-task with one in-progress ticket).
+2. None — proceed without ticket comments. The hand-off to `/dso:fix-bug` still works; recovery is not blocked on ticket presence.
 
-```bash
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)  # shim-exempt: internal orchestration script
-```
+Set `TICKET_ID` for the steps below; if unset or ambiguous (multiple in-progress tickets), skip the `ticket comment` lines.
 
-Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
+## Phase A — Recover
 
-Resolved commands used in this skill:
-- `TEST_CMD` — used in Step 1 (damage assessment) to see current test failures
+### Step 1: Assess Damage
 
-## Protocol
-
-### Step 0: Read Checkpoint Context (/dso:fix-cascade-recovery)
-
-If a ticket issue ID is available for the task that triggered the cascade, read its checkpoint notes before doing git archaeology:
+Do NOT touch source files. Establish current state:
 
 ```bash
-.claude/scripts/dso ticket show <id> 2>/dev/null
+git diff --stat                                       # blast radius
+git diff --name-only                                  # exact files
+git log --oneline -10                                 # last known good
+[[ -n "${TICKET_ID:-}" ]] && .claude/scripts/dso ticket show "$TICKET_ID" 2>/dev/null  # checkpoint notes
 ```
 
-This is best-effort (non-mandatory). The CHECKPOINT notes reveal which substep the cascade started from and which files were already modified before things went wrong. Use this context to focus Step 1's damage assessment.
+Do NOT re-run the project test suite here — it is known-broken (that's why the breaker fired) and exceeds the 73s tool timeout (CLAUDE.md rule 19, INC-016). The file count from `git diff --stat` is the load-bearing signal.
 
-### Step 1: STOP — Assess the Damage (/dso:fix-cascade-recovery)
-
-Do NOT touch any source files. First, understand the current state.
+If `TICKET_ID` is set, record file count and original task:
 
 ```bash
-# What files were modified during the failed fix attempts?
-git diff --name-only
-
-# What do the current errors actually say?
-cd $(git rev-parse --show-toplevel) && $TEST_CMD 2>&1 | tail -50
-
-# What was the original state before the fix attempts began?
-git log --oneline -10
+.claude/scripts/dso ticket comment "$TICKET_ID" "Cascade assessment: <N> files changed, original task: <description>"
 ```
 
-Write down (in a ticket note via `.claude/scripts/dso ticket comment <id> "..."`) :
-- How many files were changed
-- How many distinct errors exist now
-- What the original task/bug was
+### Step 2: Decide Revert
 
-### Step 2: REVERT — Return to Known Good State (/dso:fix-cascade-recovery)
+Decision framework:
+- **>5 files changed during the cascade** → full revert: `git stash` (preserves for reference; drop after Step 3 confirms a fresh fix is on the way).
+- **Original error was a 1–2 line fix** → full revert: `git stash` and start fresh.
+- **Some changes correct, others not** → selective revert: `git checkout HEAD -- <bad-file>` per bad file. Do NOT stash — keep the correct changes in the working tree for the hand-off.
+- **Changes are small and likely all correct** → no revert. Do NOT stash. Proceed to Step 3 with the working tree intact.
 
-Seriously consider whether a revert is the fastest path:
+`git stash` is conditional on the revert decision — only stash when reverting. Stashing on the keep-changes path strands the in-progress fix and the hand-off to `/dso:fix-bug` will see a clean working tree.
+
+When in doubt, revert. Untangling a cascade is almost always slower than re-fixing from clean state.
+
+### Step 3: Hand-off + Reset
+
+If `TICKET_ID` is set, attach cascade context (this triggers the `+2 modifier` in `/dso:fix-bug`'s scoring rubric — cross-skill contract):
 
 ```bash
-# See what a revert would look like
-git diff HEAD
-
-# If changes are extensive and tangled, revert is often faster
-# than trying to untangle a cascade
-git stash  # Preserve changes in case you need to reference them
+.claude/scripts/dso ticket comment "$TICKET_ID" "Cascading failure: <N> failed fix attempts caused new failures. Files changed during cascade: <list>. Original error before cascade: <description>"
 ```
 
-**Decision framework:**
-- If > 5 files changed during the cascade → strongly consider reverting
-- If the original error was a 1-2 line fix → definitely revert and start fresh
-- If some changes are correct but others aren't → use selective revert (`git checkout HEAD -- <file>`)
+Invoke `/dso:fix-bug` via the **Skill tool** (not bash) with `TICKET_ID` as argument. If no ticket ID is available, invoke without arguments and pass cascade context inline.
 
-### Step 3: HAND-OFF — Invoke dso:fix-bug (/dso:fix-cascade-recovery)
-
-After reverting (or deciding not to revert), hand off to `/dso:fix-bug` with cascade context. This is a cascading failure — the bug must be scored with the +2 modifier in `/dso:fix-bug`'s scoring rubric for cascading failures.
-
-Before invoking, add a cascade context note to the ticket:
+Then reset the circuit breaker. The counter path `/tmp/claude-cascade-<worktree-hash>/counter` is the gate consumed by `cascade-circuit-breaker.sh` and `track-cascade-failures.sh`:
 
 ```bash
-.claude/scripts/dso ticket comment <id> "Cascading failure: <N> failed fix attempts caused new failures. Files changed during cascade: <list>. Original error before cascade: <description>"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/fix-cascade-recovery/reset-cascade-counter.sh"  # shim-exempt: internal recovery script
 ```
 
-Then invoke:
+The reset fires immediately after hand-off, not after the planned fix completes. Rationale: the counter exists to stop *blind* fix attempts; once analysis has produced a new mental model via `/dso:fix-bug`, the next fix attempt is informed, not blind.
 
-```
-/dso:fix-bug <ticket-id>
-```
-
-`/dso:fix-bug` will pick up the cascading failure note and apply the +2 modifier in its scoring rubric to account for the complexity of cascading failures when prioritising and investigating.
-
-### Step 4: RESET — Clear the Circuit Breaker (/dso:fix-cascade-recovery)
-
-Reset the counter after tests pass, **or** after completing the hand-off to `/dso:fix-bug` if your research revealed a fundamentally different understanding of the problem. The counter's purpose is to prevent blind fix attempts — once you've done real analysis and have a new mental model, resetting before applying the planned fix is appropriate.
-
-```bash
-# Get worktree hash for state directory
-WORKTREE_ROOT=$(git rev-parse --show-toplevel)
-if command -v md5 &>/dev/null; then
-    WT_HASH=$(echo -n "$WORKTREE_ROOT" | md5)
-elif command -v md5sum &>/dev/null; then
-    WT_HASH=$(echo -n "$WORKTREE_ROOT" | md5sum | cut -d' ' -f1)
-fi
-echo 0 > "/tmp/claude-cascade-${WT_HASH}/counter"
-```
-
-If tests do NOT pass after your planned fix, do not reset the counter. Instead:
-1. Update the ticket with what you learned
-2. Consider whether the diagnosis from `/dso:fix-bug` was correct
-3. If you've made 2 more attempts without success, escalate to the user
+**Negative rule (gate)**: If the planned fix fails, do NOT reset again. After 2 more attempts without success, escalate to the user. Repeated resets defeat the breaker's purpose.
