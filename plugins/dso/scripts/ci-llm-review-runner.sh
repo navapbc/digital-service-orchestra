@@ -123,7 +123,7 @@ PYEOF
     _REQ_C=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-correctness.md")
     _REQ_C_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_C" > "$_REQ_C_TMP"
     _SPECIALIST_REQ_TMPS+=("$_REQ_C_TMP")
-    curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+    curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
@@ -134,7 +134,7 @@ PYEOF
     _REQ_V=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-verification.md")
     _REQ_V_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_V" > "$_REQ_V_TMP"
     _SPECIALIST_REQ_TMPS+=("$_REQ_V_TMP")
-    curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+    curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
@@ -145,7 +145,7 @@ PYEOF
     _REQ_H=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-hygiene.md")
     _REQ_H_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_H" > "$_REQ_H_TMP"
     _SPECIALIST_REQ_TMPS+=("$_REQ_H_TMP")
-    curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+    curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
@@ -208,7 +208,7 @@ PYEOF
     # shellcheck disable=SC2064
     trap "rm -f '$_arch_msg_tmp' '$_arch_req_tmp'" EXIT
     printf '%s' "$_ARCH_REQ" > "$_arch_req_tmp"
-    _ARCH_RESP=$(curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+    _ARCH_RESP=$(curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
@@ -290,7 +290,7 @@ _REQ_TMP=$(mktemp /tmp/dso-req.XXXXXX)
 # shellcheck disable=SC2064
 trap "rm -f '$_DIFF_TMP' '$_REQ_TMP'" EXIT
 printf '%s' "$REQUEST_JSON" > "$_REQ_TMP"
-API_RESPONSE=$(curl -sf -m 30 --connect-timeout 10 \
+API_RESPONSE=$(curl -sf -m 300 --connect-timeout 10 \
   -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
@@ -372,7 +372,7 @@ PYEOF
   # shellcheck disable=SC2064
   trap "rm -f '$_overlay_diff_tmp' '$_req_tmp'" RETURN
   printf '%s' "$_req" > "$_req_tmp"
-  _resp=$(curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+  _resp=$(curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
     -H "x-api-key: $ANTHROPIC_API_KEY" \
     -H "anthropic-version: 2023-06-01" \
     -H "content-type: application/json" \
