@@ -6,9 +6,11 @@
 # Usage: ticket-migrate-file-impact-v1.sh [--target <host-project-root>] [--dry-run]
 # Exit codes: 0 = success (including idempotent re-run), 1 = fatal error
 
-set -uo pipefail
+set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Plugin root is one level above scripts/; repo root is two levels above that.
+_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 _TARGET=""
@@ -39,9 +41,16 @@ done
 if [ -z "$_TARGET" ]; then
     _TARGET="$(git rev-parse --show-toplevel)"
 fi
+# Normalize _TARGET to a canonical absolute path so symlinks/relative paths
+# don't cause the plugin-source-repo equality check to miss.
+_TARGET="$(cd "$_TARGET" && pwd)"
 
 # ── Plugin-source-repo guard ─────────────────────────────────────────────────
-if [ -f "$_TARGET/plugin.json" ]; then
+# Skip if _TARGET is the repo that contains this plugin (i.e., the plugin source repo).
+# Derived from _PLUGIN_ROOT to avoid hardcoding a literal install path.
+# Fail-open: if the plugin dir is not a git checkout (installed copy), skip the guard.
+_PLUGIN_PARENT_REPO="$(git -C "$_PLUGIN_ROOT" rev-parse --show-toplevel 2>/dev/null)" || _PLUGIN_PARENT_REPO=""
+if [ "$_TARGET" = "$_PLUGIN_PARENT_REPO" ] && [ -f "$_PLUGIN_ROOT/.claude-plugin/plugin.json" ]; then
     echo "NOTICE: target '$_TARGET' is the plugin source repo — skipping migration" >&2
     exit 0
 fi
@@ -144,7 +153,7 @@ for ticket_dir in sorted(tracker_dir.iterdir()):
         continue  # No file impact section found — nothing to migrate
 
     # Emit FILE_IMPACT event
-    event_uuid = str(uuid.uuid4()).replace("-", "")[:12]
+    event_uuid = str(uuid.uuid4())
     event = {
         "event_type": "FILE_IMPACT",
         "timestamp": ticket_ts,
@@ -163,6 +172,7 @@ PYEOF
 # ── Process output from Python ────────────────────────────────────────────────
 tickets_processed=0
 tickets_skipped=0
+_write_count=0
 while IFS=$'\t' read -r action field1 field2 field3; do
     case "$action" in
         WRITE)
@@ -174,6 +184,7 @@ while IFS=$'\t' read -r action field1 field2 field3; do
             else
                 printf '%s' "$event_json" > "$_TRACKER_DIR/$ticket_id/$filename"
                 echo "[migrate-file-impact-v1] Wrote FILE_IMPACT event for $ticket_id" >&2
+                _write_count=$(( _write_count + 1 ))
             fi
             ;;
         SKIPPED)
@@ -187,6 +198,19 @@ while IFS=$'\t' read -r action field1 field2 field3; do
             ;;
     esac
 done <<< "$_migrate_output"
+
+# ── Commit written events to the tickets git branch ──────────────────────────
+# Events written above are untracked until committed; uncommitted events are
+# invisible to all ticket system consumers and will be lost on git clean.
+if [ "$_DRYRUN" = "0" ] && [ "$_write_count" -gt 0 ]; then
+    git -C "$_TRACKER_DIR" add -A
+    git -C "$_TRACKER_DIR" commit -m "migrate: add FILE_IMPACT events for $_write_count tickets (file-impact-v1)" 2>&1 || {
+        echo "[migrate-file-impact-v1] ERROR: git commit failed — removing written event files to allow clean retry" >&2
+        git -C "$_TRACKER_DIR" reset 2>/dev/null || true
+        git -C "$_TRACKER_DIR" clean -f 2>/dev/null || true
+        exit 1
+    }
+fi
 
 # ── Write stamp file (skipped in dry-run) ────────────────────────────────────
 if [ "$_DRYRUN" = "0" ]; then

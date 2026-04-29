@@ -792,6 +792,49 @@ class AcliClient:
             return parsed.get("issuelinks", [])
         return []
 
+    def delete_issue(
+        self,
+        jira_key: str,
+    ) -> dict[str, Any]:
+        """Delete a Jira issue via ACLI.
+
+        Uses ``jira workitem delete --key KEY`` to permanently remove the issue.
+
+        - 404 response (issue already gone) is treated as idempotent success.
+        - 403 response (permission denied) raises ``PermissionError`` so callers
+          can write a BRIDGE_ALERT and skip deletion without crashing.
+
+        Raises:
+            PermissionError: When ACLI exits with a 403 permission error.
+            subprocess.CalledProcessError: On other ACLI failures (single attempt — no retry).
+        """
+        base = self._acli_cmd if self._acli_cmd is not None else _DEFAULT_ACLI_CMD
+        full_cmd = base + [
+            "jira",
+            "workitem",
+            "delete",
+            "--key",
+            jira_key,
+        ]
+        try:
+            subprocess.run(
+                full_cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+                env=_build_env(),
+            )
+        except subprocess.CalledProcessError as exc:
+            err_text = (exc.stderr or "") + (exc.stdout or "")
+            if "404" in err_text or "not found" in err_text.lower():
+                # Already deleted — idempotent success
+                return {"status": "not_found", "key": jira_key}
+            if "403" in err_text or "forbidden" in err_text.lower():
+                msg = f"Permission denied deleting {jira_key}: {err_text.strip()}"
+                raise PermissionError(msg) from exc
+            raise
+        return {"status": "deleted", "key": jira_key}
+
     def delete_issue_link(self, link_id: str) -> dict[str, Any]:
         """Delete a Jira issue link by its ID via ACLI.
 

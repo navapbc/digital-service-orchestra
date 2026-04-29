@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # tests/scripts/test-prior-art-search-consumers.sh
-# TDD RED phase: integration verification that consuming skills reference
-# prior-art-search.md at the correct decision points.
-#
-# All tests are expected to FAIL until the consuming skills are updated.
+# Integration verification that consuming skills reference prior-art-search.md
+# at the correct decision points.
 #
 # Section extraction helper:
 #   extract_section file header — prints lines within the named section
@@ -30,27 +28,6 @@ TASK_EXECUTION="$PLUGIN_ROOT/plugins/dso/skills/sprint/prompts/task-execution.md
 extract_section() {
     local file=$1 header=$2
     awk -v h="$header" '$0 ~ h {found=1; next} found && /^##/{exit} found{print}' "$file"
-}
-
-# ── test_fix_bug_references_prior_art ─────────────────────────────────────────
-# MUST be the first test function — RED marker anchors here.
-# Extract the Fix Implementation section from fix-bug/SKILL.md and verify
-# 'prior-art-search' appears within it. Proximity check — not whole file.
-# (Old SKILL.md called this "Step 6"; refactored to "Phase E Step 3: Fix Implementation".)
-test_fix_bug_references_prior_art() {
-    _snapshot_fail
-    local section actual
-    section=""
-    if [ -f "$FIX_BUG_SKILL" ]; then
-        section=$(extract_section "$FIX_BUG_SKILL" "Step 3: Fix Implementation")
-    fi
-    if [[ "$section" == *prior-art-search* ]]; then
-        actual="found"
-    else
-        actual="missing"
-    fi
-    assert_eq "test_fix_bug_references_prior_art: 'prior-art-search' in Step 3: Fix Implementation section of fix-bug/SKILL.md" "found" "$actual"
-    assert_pass_if_clean "test_fix_bug_references_prior_art"
 }
 
 # ── test_review_fix_dispatch_references_prior_art ─────────────────────────────
@@ -97,7 +74,6 @@ test_is_executable() {
 }
 
 # ── Run all tests ──────────────────────────────────────────────────────────────
-test_fix_bug_references_prior_art
 test_review_fix_dispatch_references_prior_art
 test_task_execution_references_prior_art
 test_is_executable

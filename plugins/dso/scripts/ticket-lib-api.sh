@@ -1747,3 +1747,327 @@ write_marker(sys.argv[1])
         echo "Archived ticket '$ticket_id'"
     )
 }
+
+# ── ticket_delete ─────────────────────────────────────────────────────────────
+# Hard-delete a ticket: write UNLINK events, write ARCHIVED event, drop
+# .tombstone.json + .archived marker.
+#
+# Contract:
+#   - Requires --user-approved flag (explicit intent gate)
+#   - Accepts tickets in any non-deleted status (open, in_progress, closed)
+#   - Blocked if any child ticket lacks both .tombstone.json and .archived marker
+#   - Writes UNLINK events for all net-active LINK events referencing the ticket
+#   - Idempotent: re-invocation against an already-tombstoned ticket completes
+#     any missing UNLINKs and exits 0
+ticket_delete() {
+    (
+        set -euo pipefail
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        # shellcheck source=/dev/null
+        source "$_TICKETLIB_DIR/ticket-lib.sh"
+
+        local TRACKER_DIR
+        if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+            TRACKER_DIR="$TICKETS_TRACKER_DIR"
+        else
+            local REPO_ROOT
+            REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
+            TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+        fi
+
+        local user_approved=0
+        local ticket_id=""
+        local remaining_args=()
+        for arg in "$@"; do
+            if [ "$arg" = "--user-approved" ]; then
+                user_approved=1
+            else
+                remaining_args+=("$arg")
+            fi
+        done
+        set -- "${remaining_args[@]+"${remaining_args[@]}"}"
+
+        if [ $# -ne 1 ]; then
+            echo "Usage: ticket delete <ticket_id> --user-approved" >&2
+            return 1
+        fi
+
+        ticket_id="$1"
+
+        if [ -z "$ticket_id" ]; then
+            echo "Error: ticket_id must be non-empty" >&2
+            return 1
+        fi
+
+        if [ "$user_approved" -ne 1 ]; then
+            echo "Error: ticket delete requires --user-approved flag (this is a destructive operation)" >&2
+            echo "Usage: ticket delete <ticket_id> --user-approved" >&2
+            return 1
+        fi
+
+        if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
+            echo "Error: ticket '$ticket_id' does not exist" >&2
+            return 1
+        fi
+
+        local TICKET_DIR="$TRACKER_DIR/$ticket_id"
+
+        local already_tombstoned=0
+        if [ -f "$TICKET_DIR/.tombstone.json" ]; then
+            already_tombstoned=1
+        fi
+
+        if [ "$already_tombstoned" -eq 0 ]; then
+            # ── Children guard ────────────────────────────────────────────────
+            local child_ids
+            child_ids=$(python3 - "$TRACKER_DIR" "$ticket_id" <<'PYEOF'
+import json, os, sys
+from pathlib import Path
+
+tracker_dir = sys.argv[1]
+parent_id   = sys.argv[2]
+
+children = []
+for entry in sorted(Path(tracker_dir).iterdir()):
+    if not entry.is_dir():
+        continue
+    tid = entry.name
+    if tid.startswith('.') or tid == parent_id:
+        continue
+    tombstone = entry / '.tombstone.json'
+    archived  = entry / '.archived'
+    if tombstone.is_file() or archived.is_file():
+        continue
+    # Scan event files for a CREATE event that has this parent_id
+    for ef in sorted(entry.glob('*-CREATE.json')):
+        try:
+            with open(ef, encoding='utf-8') as fh:
+                ev = json.load(fh)
+            if ev.get('data', {}).get('parent_id') == parent_id:
+                children.append(tid)
+                break
+        except (OSError, json.JSONDecodeError):
+            continue
+print(' '.join(children))
+PYEOF
+)
+            # set -euo pipefail (active in this subshell) aborts on non-zero python exit.
+            if [ -n "$child_ids" ]; then
+                echo "Cannot delete ticket '$ticket_id': has non-deleted children: $child_ids" >&2
+                return 1
+            fi
+        fi
+
+        local env_id author
+        env_id=$(cat "$TRACKER_DIR/.env-id" 2>/dev/null || echo "unknown")
+        author=$(git config user.name 2>/dev/null || echo "Unknown")
+
+        # ── UNLINK scan: write event files, print paths to stdout (no commit) ──
+        # All staging is deferred to the single atomic commit below.
+        local unlink_files_raw
+        unlink_files_raw=$(python3 - "$TRACKER_DIR" "$ticket_id" "$env_id" "$author" <<'PYEOF'
+import json, os, sys, time, uuid
+from pathlib import Path
+
+tracker_dir = sys.argv[1]
+deleted_id  = sys.argv[2]
+env_id      = sys.argv[3]
+author      = sys.argv[4]
+
+
+def _get_active_links(ticket_dir: Path):
+    """Return list of (link_uuid, target_id, relation) for net-active LINKs."""
+    all_events = []
+    for f in sorted(ticket_dir.glob('*-LINK.json')):
+        all_events.append(('LINK', f))
+    for f in sorted(ticket_dir.glob('*-UNLINK.json')):
+        all_events.append(('UNLINK', f))
+
+    _order = {'LINK': 0, 'UNLINK': 1}
+    all_events.sort(key=lambda x: (int(x[1].name.split('-')[0]), _order.get(x[0], 99), x[1].name))
+
+    active = {}
+    for etype, f in all_events:
+        try:
+            with open(f, encoding='utf-8') as fh:
+                ev = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            continue
+        data = ev.get('data', {})
+        u = ev.get('uuid', '')
+        if etype == 'LINK' and u:
+            active[u] = (data.get('target_id', data.get('target', '')), data.get('relation', ''))
+        elif etype == 'UNLINK':
+            lu = data.get('link_uuid', '')
+            if lu:
+                active.pop(lu, None)
+    return [(u, tid, rel) for u, (tid, rel) in active.items()]
+
+
+def _write_unlink(source_id, target_id, link_uuid_val):
+    """Write an UNLINK event file into source_id's directory; return dest path."""
+    source_dir = Path(tracker_dir) / source_id
+    if not source_dir.is_dir():
+        return None
+    ts_prefix = str(time.time_ns())
+    ev_uuid = str(uuid.uuid4())
+    event = {
+        'event_type': 'UNLINK',
+        'timestamp': int(ts_prefix),
+        'uuid': ev_uuid,
+        'env_id': env_id,
+        'author': author,
+        'data': {
+            'link_uuid': link_uuid_val,
+            'target_id': target_id,
+        },
+    }
+    dest = source_dir / f'{ts_prefix}-{ev_uuid}-UNLINK.json'
+    dest.write_text(json.dumps(event, ensure_ascii=False), encoding='utf-8')
+    return str(dest)
+
+
+tracker_path = Path(tracker_dir)
+
+# Scan all ticket dirs for inbound LINKs pointing at deleted_id
+for entry in sorted(tracker_path.iterdir()):
+    if not entry.is_dir() or entry.name.startswith('.'):
+        continue
+    source_id = entry.name
+    active = _get_active_links(entry)
+    for link_uuid_val, target_id, relation in active:
+        if target_id == deleted_id:
+            f = _write_unlink(source_id, deleted_id, link_uuid_val)
+            if f:
+                print(f)
+
+# Also scan deleted ticket's own dir for outbound LINKs
+deleted_dir = tracker_path / deleted_id
+if deleted_dir.is_dir():
+    active = _get_active_links(deleted_dir)
+    for link_uuid_val, target_id, relation in active:
+        f = _write_unlink(deleted_id, target_id, link_uuid_val)
+        if f:
+            print(f)
+PYEOF
+)
+        # set -euo pipefail (active in this subshell) aborts on non-zero python exit.
+
+        if [ "$already_tombstoned" -eq 1 ]; then
+            # Re-invocation: commit any remaining UNLINK cleanup, then return.
+            local _uf _unlink_staged=()
+            while IFS= read -r _uf; do
+                # Strip TRACKER_DIR prefix: git -C "$TRACKER_DIR" add expects relative paths.
+                [ -n "$_uf" ] && _unlink_staged+=("${_uf#"$TRACKER_DIR/"}")
+            done <<< "$unlink_files_raw"
+            if [ "${#_unlink_staged[@]}" -gt 0 ]; then
+                git -C "$TRACKER_DIR" add "${_unlink_staged[@]}"
+                git -C "$TRACKER_DIR" commit -q --no-verify \
+                    -m "ticket: UNLINK cleanup for already-deleted $ticket_id"
+            fi
+            return 0
+        fi
+
+        # ── Write STATUS(deleted) event ───────────────────────────────────────
+        local status_event_path
+        status_event_path=$(python3 -c "
+import json, sys, time, uuid as _uuid
+ts = time.time_ns()
+ev = str(_uuid.uuid4())
+event = {
+    'timestamp': ts,
+    'uuid': ev,
+    'event_type': 'STATUS',
+    'env_id': sys.argv[1],
+    'author': sys.argv[2],
+    'data': {'status': 'deleted'},
+}
+path = sys.argv[3] + '/' + str(ts) + '-' + ev + '-STATUS.json'
+with open(path, 'w', encoding='utf-8') as f:
+    json.dump(event, f, ensure_ascii=False)
+print(path)
+" "$env_id" "$author" "$TICKET_DIR") || {
+            echo "Error: failed to write STATUS(deleted) event" >&2
+            return 1
+        }
+
+        # ── Write ARCHIVED event ──────────────────────────────────────────────
+        local archived_event_path
+        archived_event_path=$(python3 -c "
+import json, sys, time, uuid as _uuid
+ts = time.time_ns()
+ev = str(_uuid.uuid4())
+event = {
+    'timestamp': ts,
+    'uuid': ev,
+    'event_type': 'ARCHIVED',
+    'env_id': sys.argv[1],
+    'author': sys.argv[2],
+    'data': {},
+}
+path = sys.argv[3] + '/' + str(ts) + '-' + ev + '-ARCHIVED.json'
+with open(path, 'w', encoding='utf-8') as f:
+    json.dump(event, f, ensure_ascii=False)
+print(path)
+" "$env_id" "$author" "$TICKET_DIR") || {
+            echo "Error: failed to write ARCHIVED event" >&2
+            return 1
+        }
+
+        # ── Write .tombstone.json ─────────────────────────────────────────────
+        python3 -c "
+import json, sys
+with open(sys.argv[1], 'w', encoding='utf-8') as f:
+    json.dump({'status': 'deleted'}, f, ensure_ascii=False)
+" "$TICKET_DIR/.tombstone.json" || {
+            echo "Error: failed to write .tombstone.json" >&2
+            return 1
+        }
+
+        # ── Atomic commit: UNLINK + STATUS + ARCHIVED + .tombstone.json ───────
+        # git -C "$TRACKER_DIR" add requires paths relative to TRACKER_DIR.
+        local _sf _all_stage=()
+        while IFS= read -r _sf; do
+            [ -n "$_sf" ] && _all_stage+=("${_sf#"$TRACKER_DIR/"}")
+        done <<< "$unlink_files_raw"
+        _all_stage+=(
+            "${status_event_path#"$TRACKER_DIR/"}"
+            "${archived_event_path#"$TRACKER_DIR/"}"
+            "${TICKET_DIR#"$TRACKER_DIR/"}/.tombstone.json"
+        )
+        git -C "$TRACKER_DIR" add "${_all_stage[@]}"
+        git -C "$TRACKER_DIR" commit -q --no-verify -m "ticket: DELETE $ticket_id"
+
+        # ── Write .archived marker (filesystem only, no commit needed) ────────
+        python3 -c "
+import sys
+sys.path.insert(0, '$_TICKETLIB_DIR')
+from ticket_reducer.marker import write_marker
+write_marker(sys.argv[1])
+" "$TICKET_DIR" 2>/dev/null || true
+
+        echo "Deleted ticket '$ticket_id'"
+
+        # ── Emit UNBLOCKED signals ──────────────────────────────────────────────
+        # Mirror ticket-transition.sh: detect tickets newly unblocked by this deletion.
+        local _batch_close_json
+        _batch_close_json=$(python3 "$_TICKETLIB_DIR/ticket-unblock.py" --batch-close "$TRACKER_DIR" "$ticket_id" 2>/dev/null) || true
+        if [ -n "$_batch_close_json" ]; then
+            local _unblocked_ids
+            _unblocked_ids=$(printf '%s' "$_batch_close_json" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+ids = d.get('newly_unblocked', [])
+print(','.join(ids)) if ids else None
+" 2>/dev/null) || _unblocked_ids=""
+            if [ -n "$_unblocked_ids" ]; then
+                echo "UNBLOCKED: $_unblocked_ids"
+            else
+                echo "UNBLOCKED: none"
+            fi
+        else
+            echo "UNBLOCKED: none"
+        fi
+    )
+}
