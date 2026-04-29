@@ -176,6 +176,58 @@ def _write_success_checkpoint(
     _atomic_write_json(Path(checkpoint_file), checkpoint_data)
 
 
+def _is_locally_deleted_or_archived(
+    ticket_dir: Path,
+    ticket_reducer: Any,
+) -> bool:
+    """Return True if the ticket's compiled local state is deleted or archived.
+
+    Detection:
+    1. Read STATUS event files directly for latest status == 'deleted'.
+       The reducer does not recognize 'deleted' as a valid status enum value.
+    2. Use ticket_reducer.reduce_ticket() to check archived == True.
+
+    Returns False when the ticket dir does not exist.
+    """
+    import json as _json
+    import logging as _logging
+
+    if not ticket_dir.is_dir():
+        return False
+
+    # Check STATUS events directly for 'deleted'
+    status_files = sorted(ticket_dir.glob("*-STATUS.json"))
+    if status_files:
+        best_ts: int | float = -1
+        latest_status = ""
+        for sf in status_files:
+            try:
+                data = _json.loads(sf.read_text(encoding="utf-8"))
+                sf_ts = data.get("timestamp", 0)
+                if isinstance(sf_ts, (int, float)) and sf_ts > best_ts:
+                    best_ts = sf_ts
+                    latest_status = data.get("data", {}).get("status", "")
+            except (OSError, _json.JSONDecodeError):
+                pass
+        if latest_status == "deleted":
+            return True
+
+    # Check archived flag via reducer
+    if ticket_reducer is not None:
+        try:
+            state = ticket_reducer.reduce_ticket(str(ticket_dir))
+            if state is not None and state.get("archived"):
+                return True
+        except Exception as exc:
+            _logging.debug(
+                "_is_locally_deleted_or_archived: reduce_ticket(%s) failed: %s",
+                ticket_dir,
+                exc,
+            )
+
+    return False
+
+
 def _process_single_issue(
     issue: dict[str, Any],
     *,
@@ -205,6 +257,19 @@ def _process_single_issue(
         acli_client: ACLI client object.
         unmapped_type_keys: Mutable set accumulating unmapped Jira keys.
     """
+    import logging as _logging
+
+    jira_key = issue.get("key", "")
+    local_id = f"jira-{jira_key.lower()}" if jira_key else ""
+    if local_id:
+        ticket_dir = tickets_root / local_id
+        if _is_locally_deleted_or_archived(ticket_dir, ticket_reducer):
+            _logging.debug(
+                "inbound guard: skipping events for %s — local state is deleted/archived",
+                local_id,
+            )
+            return
+
     if check_destructive_guard(
         issue,
         tickets_root=tickets_root,
@@ -333,6 +398,29 @@ def process_inbound(
         if unmapped_type_keys
         else issues
     )
+
+    # Inbound guard: exclude tickets whose local compiled state is deleted or archived.
+    # This prevents re-creating Jira-originated tickets that were deliberately deleted
+    # or archived locally (spec: story bbe3-bd36 Done Definition 5).
+    import logging as _log
+
+    def _should_create(issue: dict[str, Any]) -> bool:
+        jira_key = issue.get("key", "")
+        if not jira_key:
+            return True
+        local_id = f"jira-{jira_key.lower()}"
+        ticket_dir = tickets_root / local_id
+        if _is_locally_deleted_or_archived(ticket_dir, ticket_reducer):
+            _log.debug(
+                "inbound guard (create): skipping CREATE for %s — local state is "
+                "deleted/archived",
+                local_id,
+            )
+            return False
+        return True
+
+    creatable_issues = [i for i in creatable_issues if _should_create(i)]
+
     write_create_events(
         creatable_issues,
         tickets_tracker=tickets_root,

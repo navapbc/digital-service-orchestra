@@ -139,6 +139,44 @@ def handle_status_event(
 
     compiled_status = get_compiled_status(ticket_dir, reducer_path=reducer_path)
     if compiled_status:
+        # Intercept 'deleted' BEFORE any generic update_issue call.
+        # A deleted ticket must be removed from Jira, not transitioned.
+        if compiled_status == "deleted":
+            sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
+            if not sync_files:
+                # Ticket was never synced to Jira — skip silently
+                logger.debug(
+                    "STATUS 'deleted' for %s: no SYNC file found — ticket was never "
+                    "synced to Jira; skipping deletion",
+                    ticket_id,
+                )
+                return []
+            sync_data = _read_event_file(sync_files[-1])
+            if sync_data:
+                jira_key = sync_data.get("jira_key", "")
+                if jira_key:
+                    try:
+                        acli_client.delete_issue(jira_key)
+                        status_updated.add(ticket_id)
+                    except PermissionError as exc:
+                        logger.warning(
+                            "delete_issue(%s) denied (403) — writing BRIDGE_ALERT: %s",
+                            jira_key,
+                            exc,
+                        )
+                        write_bridge_alert(
+                            ticket_dir,
+                            ticket_id=ticket_id,
+                            reason=f"403 delete denied for {jira_key}: {exc}",
+                            bridge_env_id=bridge_env_id,
+                        )
+                else:
+                    logger.debug(
+                        "STATUS 'deleted' for %s: SYNC file has no jira_key — skipping",
+                        ticket_id,
+                    )
+            return []
+
         sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
         if sync_files:
             sync_data = _read_event_file(sync_files[-1])
@@ -669,9 +707,9 @@ def handle_file_impact_event(
     comment_failed = False
     try:
         result = acli_client.add_comment(jira_key, body_with_marker)
-        jira_comment_id = (result.get("id", "") if isinstance(result, dict) else "") or str(
-            event_uuid
-        )
+        jira_comment_id = (
+            result.get("id", "") if isinstance(result, dict) else ""
+        ) or str(event_uuid)
         jira_id_to_uuid = dedup_map.get("jira_id_to_uuid", {})
         uuid_to_jira[event_uuid] = jira_comment_id
         jira_id_to_uuid[jira_comment_id] = event_uuid

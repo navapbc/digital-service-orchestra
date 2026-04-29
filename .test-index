@@ -2,7 +2,7 @@
 # Maps source files to test files that fuzzy match misses.
 # Format: source/path: test/path1[, test/path2...]
 
-plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_set_issue_property.py [test_set_issue_property_calls_put_on_correct_path],tests/scripts/test_acli_integration_set_issue_property.py
+plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_set_issue_property.py,tests/scripts/test_bridge_delete_issue.py
 .github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh
 plugins/dso/.claude-plugin/plugin.json:tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-dir-structure.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
@@ -210,7 +210,7 @@ scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh,tests/scripts/tes
 plugins/dso/skills/brainstorm/prompts/cross-epic-scan.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-policy-docs.sh,tests/scripts/test-tag-cli-refactor.sh
-plugins/dso/scripts/bridge-inbound.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py,tests/scripts/test_bridge_inbound_comment.py
+plugins/dso/scripts/bridge-inbound.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py,tests/scripts/test_bridge_inbound_comment.py,tests/scripts/test_bridge_delete_issue.py
 plugins/dso/scripts/bridge-outbound.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py,tests/scripts/test_bridge_outbound_file_impact_integration.py
 plugins/dso/scripts/bridge/_atomic.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_outbound.py
 plugins/dso/scripts/bridge/_comments_inbound.py:tests/scripts/test_bridge_inbound_comment.py
@@ -223,7 +223,7 @@ plugins/dso/scripts/bridge/_handle_type.py:tests/scripts/test_bridge_inbound.py,
 plugins/dso/scripts/bridge/_inbound_api.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py
 plugins/dso/scripts/bridge/_inbound_utils.py:tests/scripts/test_bridge_inbound.py
 plugins/dso/scripts/bridge/_outbound_api.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py
-plugins/dso/scripts/bridge/_outbound_handlers.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py,tests/scripts/test_bridge_outbound_file_impact_integration.py
+plugins/dso/scripts/bridge/_outbound_handlers.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py,tests/scripts/test_bridge_outbound_file_impact_integration.py,tests/scripts/test_bridge_delete_issue.py
 plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py,tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-list.sh
 plugins/dso/scripts/ticket_reducer/_api.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_strategy.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-list.sh
 plugins/dso/scripts/ticket_reducer/_cache.py:tests/scripts/test_ticket_reducer.py

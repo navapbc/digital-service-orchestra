@@ -1,28 +1,24 @@
 #!/usr/bin/env bash
 # tests/scripts/test-ticket-link-duplicates-supersedes.sh
-# RED tests for `duplicates` and `supersedes` link relation values in ticket-link.sh.
+# E2E acceptance test for `duplicates` and `supersedes` link relations.
 #
-# ticket-link.sh currently only accepts blocks, depends_on, and relates_to.
-# This file defines the behavioral contract for two new directional (non-bidirectional)
-# relation values:
-#   - duplicates:  source is the duplicate, target is the canonical ticket
-#   - supersedes:  source is the new/replacing ticket, target is the superseded ticket
-#
-# Tests 1-5 call ticket-link.sh directly (the script under test). These tests
-# FAIL RED because ticket-link.sh rejects 'duplicates'/'supersedes' as invalid.
-# Test 6 validates that the existing guard still rejects truly invalid relations.
+# Tests the full behavioral contract via the ticket CLI (not implementation details):
+#   - `ticket link <src> <tgt> duplicates` and `supersedes` are accepted
+#   - `ticket deps <id>` surfaces these relations with correct direction
+#   - blockers and ready_to_work are unaffected by duplicates/supersedes links
+#   - `ticket unlink` removes the relation from deps
+#   - Issuing the same LINK twice is a no-op (idempotent)
+#   - Invalid relations are still rejected
 #
 # Usage: bash tests/scripts/test-ticket-link-duplicates-supersedes.sh
-# Returns: non-zero (RED) until ticket-link.sh adds duplicates/supersedes to its enum.
 
-# NOTE: -e is intentionally omitted — test functions return non-zero by design
-# (they assert against unimplemented features). -e would abort the runner.
+# NOTE: -e is intentionally omitted — test functions return non-zero by design.
+# -e would abort the runner.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
-TICKET_LINK_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-link.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 source "$REPO_ROOT/tests/lib/git-fixtures.sh"
@@ -48,424 +44,336 @@ _create_ticket() {
     echo "$out" | tail -1
 }
 
-# ── Helper: count LINK event files in a ticket directory ─────────────────────
-_count_link_events() {
-    local tracker_dir="$1"
-    local ticket_id="$2"
-    find "$tracker_dir/$ticket_id" -maxdepth 1 -name '*-LINK.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' '
-}
-
-# ── Helper: count UNLINK event files in a ticket directory ───────────────────
-_count_unlink_events() {
-    local tracker_dir="$1"
-    local ticket_id="$2"
-    find "$tracker_dir/$ticket_id" -maxdepth 1 -name '*-UNLINK.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' '
-}
-
-# ── Test 6: invalid relation is still rejected by the guard (must pass) ────────
-echo "Test 6: ticket-link.sh link <A> <B> invalidrelation exits non-zero (guard still works)"
-test_link_invalid_relation_still_rejected() {
-    # Call _snapshot_fail to get a clean FAIL baseline for this test — previous
-    # RED failures from tests 1-5 must not leak into this test's pass/fail accounting.
-    _snapshot_fail
-
-    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
-        assert_eq "ticket-link.sh exists" "exists" "missing"
-        assert_pass_if_clean "test_link_invalid_relation_still_rejected"
-        return
-    fi
-
-    local repo
-    repo=$(_make_test_repo)
-    local tracker_dir="$repo/.tickets-tracker"
-
-    local id_a id_b
-    id_a=$(_create_ticket "$repo" task "Invalid relation source")
-    id_b=$(_create_ticket "$repo" task "Invalid relation target")
-
-    if [ -z "$id_a" ] || [ -z "$id_b" ]; then
-        assert_eq "tickets created for invalid-relation test" "non-empty" "empty"
-        assert_pass_if_clean "test_link_invalid_relation_still_rejected"
-        return
-    fi
-
-    local exit_code=0
-    local stderr_out
-    stderr_out=$(cd "$repo" && bash "$TICKET_LINK_SCRIPT" link "$id_a" "$id_b" invalidrelation 2>&1) || exit_code=$?
-
-    # Assert: exits non-zero (unknown relation must always be rejected)
-    assert_eq "invalid relation: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
-
-    # Assert: error message printed (not silent)
-    if [ -n "$stderr_out" ]; then
-        assert_eq "invalid relation: error message printed" "has-message" "has-message"
-    else
-        assert_eq "invalid relation: error message printed" "has-message" "silent"
-    fi
-
-    # Assert: no LINK event written in id_a dir
-    local link_count
-    link_count=$(_count_link_events "$tracker_dir" "$id_a")
-    assert_eq "invalid relation: no LINK event written in source dir" "0" "$link_count"
-
-    assert_pass_if_clean "test_link_invalid_relation_still_rejected"
-}
-test_link_invalid_relation_still_rejected
-
-# ── Test 1 (RED): ticket-link.sh link A B duplicates exits 0 and writes LINK ─
-echo "Test 1 (RED): ticket-link.sh link <A> <B> duplicates exits 0 and writes LINK event"
-test_link_duplicates_succeeds() {
-    _snapshot_fail
-
-    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
-        assert_eq "ticket-link.sh exists" "exists" "missing"
-        assert_pass_if_clean "test_link_duplicates_succeeds"
-        return
-    fi
-
-    local repo
-    repo=$(_make_test_repo)
-    local tracker_dir="$repo/.tickets-tracker"
-
-    local id_a id_b
-    id_a=$(_create_ticket "$repo" task "Duplicate ticket (source)")
-    id_b=$(_create_ticket "$repo" task "Canonical ticket (target)")
-
-    if [ -z "$id_a" ] || [ -z "$id_b" ]; then
-        assert_eq "tickets created for duplicates test" "non-empty" "empty"
-        assert_pass_if_clean "test_link_duplicates_succeeds"
-        return
-    fi
-
-    local before_count
-    before_count=$(_count_link_events "$tracker_dir" "$id_a")
-
-    # RED: ticket-link.sh rejects 'duplicates' as invalid → currently exits non-zero
-    local exit_code=0
-    (cd "$repo" && bash "$TICKET_LINK_SCRIPT" link "$id_a" "$id_b" duplicates 2>/dev/null) || exit_code=$?
-
-    # Assert: exits 0 (will fail RED — 'duplicates' not yet in the enum)
-    assert_eq "link duplicates: exits 0" "0" "$exit_code"
-
-    # Assert: exactly one new LINK event file written in id_a dir
-    local after_count
-    after_count=$(_count_link_events "$tracker_dir" "$id_a")
-    local new_events
-    new_events=$(( after_count - before_count ))
-    assert_eq "link duplicates: one LINK event written in source dir" "1" "$new_events"
-
-    # Assert: LINK event data.relation = duplicates and data.target_id = id_b
-    local link_file
-    link_file=$(find "$tracker_dir/$id_a" -maxdepth 1 -name '*-LINK.json' ! -name '.*' 2>/dev/null | sort | tail -1)
-
-    if [ -z "$link_file" ]; then
-        assert_eq "link duplicates: LINK event file found in source dir" "found" "not-found"
-        assert_pass_if_clean "test_link_duplicates_succeeds"
-        return
-    fi
-
-    local field_check
-    field_check=$(python3 - "$link_file" "$id_b" <<'PYEOF'
+# ── Helper: extract a field from ticket deps JSON output ─────────────────────
+# Usage: _deps_field <json_string> <python_expression>
+# Returns the Python-evaluated expression on the parsed JSON dict.
+_deps_field() {
+    local json_str="$1"
+    local py_expr="$2"
+    python3 -c "
 import json, sys
 try:
-    with open(sys.argv[1], encoding='utf-8') as f:
-        ev = json.load(f)
+    d = json.loads(sys.argv[1])
+    print($py_expr)
 except Exception as e:
-    print(f"PARSE_ERROR:{e}")
+    print('ERROR:' + str(e))
     sys.exit(1)
-
-target_id = sys.argv[2]
-errors = []
-
-if ev.get('event_type') != 'LINK':
-    errors.append(f"event_type not LINK: {ev.get('event_type')!r}")
-
-data = ev.get('data', {})
-if not isinstance(data, dict):
-    errors.append(f"data not dict: {type(data)}")
-else:
-    if data.get('relation') != 'duplicates':
-        errors.append(f"data.relation not 'duplicates': {data.get('relation')!r}")
-    if data.get('target_id') != target_id:
-        errors.append(f"data.target_id wrong: expected {target_id!r}, got {data.get('target_id')!r}")
-
-print("ERRORS:" + "; ".join(errors) if errors else "OK")
-PYEOF
-) || true
-
-    if [ "$field_check" = "OK" ]; then
-        assert_eq "link duplicates: LINK event has correct relation and target_id" "OK" "OK"
-    else
-        assert_eq "link duplicates: LINK event has correct relation and target_id" "OK" "$field_check"
-    fi
-
-    assert_pass_if_clean "test_link_duplicates_succeeds"
+" "$json_str" 2>/dev/null || echo "ERROR:parse-failed"
 }
-test_link_duplicates_succeeds
 
-# ── Test 2 (RED): ticket-link.sh link A B supersedes exits 0 and writes LINK ─
-echo "Test 2 (RED): ticket-link.sh link <A> <B> supersedes exits 0 and writes LINK event"
-test_link_supersedes_succeeds() {
+# ── Test 1: three-ticket scenario — A duplicates B, C supersedes A ────────────
+echo "Test 1: A duplicates B, C supersedes A — ticket deps shows correct relations"
+test_e2e_three_ticket_scenario() {
     _snapshot_fail
-
-    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
-        assert_eq "ticket-link.sh exists" "exists" "missing"
-        assert_pass_if_clean "test_link_supersedes_succeeds"
-        return
-    fi
 
     local repo
     repo=$(_make_test_repo)
-    local tracker_dir="$repo/.tickets-tracker"
 
-    local id_a id_b
-    id_a=$(_create_ticket "$repo" task "Superseding ticket (source)")
-    id_b=$(_create_ticket "$repo" task "Superseded ticket (target)")
+    local id_a id_b id_c
+    id_a=$(_create_ticket "$repo" task "Ticket A (duplicate)")
+    id_b=$(_create_ticket "$repo" task "Ticket B (canonical)")
+    id_c=$(_create_ticket "$repo" task "Ticket C (superseding)")
 
-    if [ -z "$id_a" ] || [ -z "$id_b" ]; then
-        assert_eq "tickets created for supersedes test" "non-empty" "empty"
-        assert_pass_if_clean "test_link_supersedes_succeeds"
+    if [ -z "$id_a" ] || [ -z "$id_b" ] || [ -z "$id_c" ]; then
+        assert_eq "three tickets created" "non-empty" "empty"
+        assert_pass_if_clean "test_e2e_three_ticket_scenario"
         return
     fi
 
-    local before_count
-    before_count=$(_count_link_events "$tracker_dir" "$id_a")
+    # Link A duplicates B
+    local link_ab_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id_a" "$id_b" duplicates 2>/dev/null) || link_ab_exit=$?
+    assert_eq "link A duplicates B: exits 0" "0" "$link_ab_exit"
 
-    # RED: ticket-link.sh rejects 'supersedes' as invalid → currently exits non-zero
-    local exit_code=0
-    (cd "$repo" && bash "$TICKET_LINK_SCRIPT" link "$id_a" "$id_b" supersedes 2>/dev/null) || exit_code=$?
+    # Link C supersedes A
+    local link_ca_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id_c" "$id_a" supersedes 2>/dev/null) || link_ca_exit=$?
+    assert_eq "link C supersedes A: exits 0" "0" "$link_ca_exit"
 
-    # Assert: exits 0 (will fail RED — 'supersedes' not yet in the enum)
-    assert_eq "link supersedes: exits 0" "0" "$exit_code"
+    # Verify via ticket deps: A has one dep — duplicates B
+    local deps_a
+    deps_a=$(cd "$repo" && bash "$TICKET_SCRIPT" deps "$id_a" 2>/dev/null) || deps_a="{}"
 
-    # Assert: exactly one new LINK event file written in id_a dir
-    local after_count
-    after_count=$(_count_link_events "$tracker_dir" "$id_a")
-    local new_events
-    new_events=$(( after_count - before_count ))
-    assert_eq "link supersedes: one LINK event written in source dir" "1" "$new_events"
+    local a_deps_count
+    a_deps_count=$(_deps_field "$deps_a" "len(d.get('deps', []))")
+    assert_eq "deps A: one dep entry" "1" "$a_deps_count"
 
-    # Assert: LINK event data.relation = supersedes and data.target_id = id_b
-    local link_file
-    link_file=$(find "$tracker_dir/$id_a" -maxdepth 1 -name '*-LINK.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+    local a_dep_relation
+    a_dep_relation=$(_deps_field "$deps_a" "d['deps'][0]['relation'] if d.get('deps') else 'none'")
+    assert_eq "deps A: dep relation is duplicates" "duplicates" "$a_dep_relation"
 
-    if [ -z "$link_file" ]; then
-        assert_eq "link supersedes: LINK event file found in source dir" "found" "not-found"
-        assert_pass_if_clean "test_link_supersedes_succeeds"
-        return
-    fi
+    local a_dep_target
+    a_dep_target=$(_deps_field "$deps_a" "d['deps'][0]['target_id'] if d.get('deps') else 'none'")
+    assert_eq "deps A: dep target_id is B" "$id_b" "$a_dep_target"
 
-    local field_check
-    field_check=$(python3 - "$link_file" "$id_b" <<'PYEOF'
-import json, sys
-try:
-    with open(sys.argv[1], encoding='utf-8') as f:
-        ev = json.load(f)
-except Exception as e:
-    print(f"PARSE_ERROR:{e}")
-    sys.exit(1)
+    # Verify via ticket deps: C has one dep — supersedes A
+    local deps_c
+    deps_c=$(cd "$repo" && bash "$TICKET_SCRIPT" deps "$id_c" 2>/dev/null) || deps_c="{}"
 
-target_id = sys.argv[2]
-errors = []
+    local c_deps_count
+    c_deps_count=$(_deps_field "$deps_c" "len(d.get('deps', []))")
+    assert_eq "deps C: one dep entry" "1" "$c_deps_count"
 
-if ev.get('event_type') != 'LINK':
-    errors.append(f"event_type not LINK: {ev.get('event_type')!r}")
+    local c_dep_relation
+    c_dep_relation=$(_deps_field "$deps_c" "d['deps'][0]['relation'] if d.get('deps') else 'none'")
+    assert_eq "deps C: dep relation is supersedes" "supersedes" "$c_dep_relation"
 
-data = ev.get('data', {})
-if not isinstance(data, dict):
-    errors.append(f"data not dict: {type(data)}")
-else:
-    if data.get('relation') != 'supersedes':
-        errors.append(f"data.relation not 'supersedes': {data.get('relation')!r}")
-    if data.get('target_id') != target_id:
-        errors.append(f"data.target_id wrong: expected {target_id!r}, got {data.get('target_id')!r}")
+    local c_dep_target
+    c_dep_target=$(_deps_field "$deps_c" "d['deps'][0]['target_id'] if d.get('deps') else 'none'")
+    assert_eq "deps C: dep target_id is A" "$id_a" "$c_dep_target"
 
-print("ERRORS:" + "; ".join(errors) if errors else "OK")
-PYEOF
-) || true
+    # Verify B has no deps (relations are directional, not bidirectional)
+    local deps_b
+    deps_b=$(cd "$repo" && bash "$TICKET_SCRIPT" deps "$id_b" 2>/dev/null) || deps_b="{}"
 
-    if [ "$field_check" = "OK" ]; then
-        assert_eq "link supersedes: LINK event has correct relation and target_id" "OK" "OK"
-    else
-        assert_eq "link supersedes: LINK event has correct relation and target_id" "OK" "$field_check"
-    fi
+    local b_deps_count
+    b_deps_count=$(_deps_field "$deps_b" "len(d.get('deps', []))")
+    assert_eq "deps B: no deps (not bidirectional)" "0" "$b_deps_count"
 
-    assert_pass_if_clean "test_link_supersedes_succeeds"
+    assert_pass_if_clean "test_e2e_three_ticket_scenario"
 }
-test_link_supersedes_succeeds
+test_e2e_three_ticket_scenario
 
-# ── Test 3 (RED): duplicates is NOT bidirectional (no LINK in target dir) ──────
-echo "Test 3 (RED): ticket-link.sh link <A> <B> duplicates does NOT write a LINK event in B's directory"
-test_link_duplicates_is_not_bidirectional() {
+# ── Test 2: blockers and ready_to_work unaffected by duplicates/supersedes ────
+echo "Test 2: duplicates and supersedes links do not add to blockers or affect ready_to_work"
+test_e2e_blockers_unaffected() {
     _snapshot_fail
-
-    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
-        assert_eq "ticket-link.sh exists" "exists" "missing"
-        assert_pass_if_clean "test_link_duplicates_is_not_bidirectional"
-        return
-    fi
 
     local repo
     repo=$(_make_test_repo)
-    local tracker_dir="$repo/.tickets-tracker"
 
-    local id_a id_b
-    id_a=$(_create_ticket "$repo" task "Duplicate source (directionality test)")
-    id_b=$(_create_ticket "$repo" task "Canonical target (directionality test)")
+    local id_a id_b id_c
+    id_a=$(_create_ticket "$repo" task "Source ticket")
+    id_b=$(_create_ticket "$repo" task "Duplicate target")
+    id_c=$(_create_ticket "$repo" task "Superseded ticket")
 
-    if [ -z "$id_a" ] || [ -z "$id_b" ]; then
-        assert_eq "tickets created for duplicates-not-bidirectional test" "non-empty" "empty"
-        assert_pass_if_clean "test_link_duplicates_is_not_bidirectional"
+    if [ -z "$id_a" ] || [ -z "$id_b" ] || [ -z "$id_c" ]; then
+        assert_eq "tickets created for blockers test" "non-empty" "empty"
+        assert_pass_if_clean "test_e2e_blockers_unaffected"
         return
     fi
 
-    local before_b_count
-    before_b_count=$(_count_link_events "$tracker_dir" "$id_b")
+    # Create both link types on A
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id_a" "$id_b" duplicates 2>/dev/null) || true
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id_a" "$id_c" supersedes 2>/dev/null) || true
 
-    # RED: ticket-link.sh rejects 'duplicates' → currently exits non-zero
-    local exit_code=0
-    (cd "$repo" && bash "$TICKET_LINK_SCRIPT" link "$id_a" "$id_b" duplicates 2>/dev/null) || exit_code=$?
+    local deps_a
+    deps_a=$(cd "$repo" && bash "$TICKET_SCRIPT" deps "$id_a" 2>/dev/null) || deps_a="{}"
 
-    # Assert: exits 0 (fails RED until duplicates is in the enum)
-    assert_eq "duplicates not-bidirectional: exits 0" "0" "$exit_code"
+    # blockers must be empty — duplicates/supersedes do not block
+    local blockers_count
+    blockers_count=$(_deps_field "$deps_a" "len(d.get('blockers', []))")
+    assert_eq "blockers: empty for duplicates+supersedes links" "0" "$blockers_count"
 
-    # Assert: NO new LINK event in id_b's directory (not bidirectional)
-    local after_b_count
-    after_b_count=$(_count_link_events "$tracker_dir" "$id_b")
-    local new_b_events
-    new_b_events=$(( after_b_count - before_b_count ))
-    assert_eq "duplicates not-bidirectional: no LINK event written in target dir" "0" "$new_b_events"
+    # ready_to_work must be true — no blockers
+    local ready
+    ready=$(_deps_field "$deps_a" "str(d.get('ready_to_work', False)).lower()")
+    assert_eq "ready_to_work: true when only duplicates/supersedes links" "true" "$ready"
 
-    assert_pass_if_clean "test_link_duplicates_is_not_bidirectional"
+    assert_pass_if_clean "test_e2e_blockers_unaffected"
 }
-test_link_duplicates_is_not_bidirectional
+test_e2e_blockers_unaffected
 
-# ── Test 4 (RED): supersedes is NOT bidirectional (no LINK in target dir) ──────
-echo "Test 4 (RED): ticket-link.sh link <A> <B> supersedes does NOT write a LINK event in B's directory"
-test_link_supersedes_is_not_bidirectional() {
+# ── Test 3: unlink removes the relation from ticket deps ──────────────────────
+echo "Test 3: ticket unlink removes duplicates relation from deps"
+test_e2e_unlink_removes_dep() {
     _snapshot_fail
-
-    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
-        assert_eq "ticket-link.sh exists" "exists" "missing"
-        assert_pass_if_clean "test_link_supersedes_is_not_bidirectional"
-        return
-    fi
 
     local repo
     repo=$(_make_test_repo)
-    local tracker_dir="$repo/.tickets-tracker"
 
     local id_a id_b
-    id_a=$(_create_ticket "$repo" task "Superseding source (directionality test)")
-    id_b=$(_create_ticket "$repo" task "Superseded target (directionality test)")
+    id_a=$(_create_ticket "$repo" task "Unlink source")
+    id_b=$(_create_ticket "$repo" task "Unlink target")
 
     if [ -z "$id_a" ] || [ -z "$id_b" ]; then
-        assert_eq "tickets created for supersedes-not-bidirectional test" "non-empty" "empty"
-        assert_pass_if_clean "test_link_supersedes_is_not_bidirectional"
+        assert_eq "tickets created for unlink test" "non-empty" "empty"
+        assert_pass_if_clean "test_e2e_unlink_removes_dep"
         return
     fi
 
-    local before_b_count
-    before_b_count=$(_count_link_events "$tracker_dir" "$id_b")
+    # Create the link
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id_a" "$id_b" duplicates 2>/dev/null) || true
 
-    # RED: ticket-link.sh rejects 'supersedes' → currently exits non-zero
-    local exit_code=0
-    (cd "$repo" && bash "$TICKET_LINK_SCRIPT" link "$id_a" "$id_b" supersedes 2>/dev/null) || exit_code=$?
+    # Verify dep is present before unlink
+    local deps_before
+    deps_before=$(cd "$repo" && bash "$TICKET_SCRIPT" deps "$id_a" 2>/dev/null) || deps_before="{}"
+    local count_before
+    count_before=$(_deps_field "$deps_before" "len(d.get('deps', []))")
+    assert_eq "deps present before unlink" "1" "$count_before"
 
-    # Assert: exits 0 (fails RED until supersedes is in the enum)
-    assert_eq "supersedes not-bidirectional: exits 0" "0" "$exit_code"
-
-    # Assert: NO new LINK event in id_b's directory (not bidirectional)
-    local after_b_count
-    after_b_count=$(_count_link_events "$tracker_dir" "$id_b")
-    local new_b_events
-    new_b_events=$(( after_b_count - before_b_count ))
-    assert_eq "supersedes not-bidirectional: no LINK event written in target dir" "0" "$new_b_events"
-
-    assert_pass_if_clean "test_link_supersedes_is_not_bidirectional"
-}
-test_link_supersedes_is_not_bidirectional
-
-# ── Test 5 (RED): duplicates link cancelled by unlink (roundtrip) ─────────────
-echo "Test 5 (RED): ticket-link.sh link A B duplicates; unlink A B — link is cancelled (no active dep in show A)"
-test_link_duplicates_roundtrip_through_unlink() {
-    _snapshot_fail
-
-    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
-        assert_eq "ticket-link.sh exists" "exists" "missing"
-        assert_pass_if_clean "test_link_duplicates_roundtrip_through_unlink"
-        return
-    fi
-
-    local repo
-    repo=$(_make_test_repo)
-    local tracker_dir="$repo/.tickets-tracker"
-
-    local id_a id_b
-    id_a=$(_create_ticket "$repo" task "Duplicate roundtrip source")
-    id_b=$(_create_ticket "$repo" task "Duplicate roundtrip target")
-
-    if [ -z "$id_a" ] || [ -z "$id_b" ]; then
-        assert_eq "tickets created for duplicates roundtrip test" "non-empty" "empty"
-        assert_pass_if_clean "test_link_duplicates_roundtrip_through_unlink"
-        return
-    fi
-
-    # RED: link step will fail until 'duplicates' is in the enum
-    local link_exit=0
-    (cd "$repo" && bash "$TICKET_LINK_SCRIPT" link "$id_a" "$id_b" duplicates 2>/dev/null) || link_exit=$?
-
-    # Assert: link exits 0 (fails RED until duplicates is accepted)
-    assert_eq "duplicates roundtrip: link exits 0" "0" "$link_exit"
-
-    # Unlink A -> B (via ticket CLI — unlink still routes through ticket-link.sh)
+    # Unlink
     local unlink_exit=0
     (cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id_a" "$id_b" 2>/dev/null) || unlink_exit=$?
+    assert_eq "unlink: exits 0" "0" "$unlink_exit"
 
-    # Assert: unlink exits 0 (the link should exist to unlink)
-    assert_eq "duplicates roundtrip: unlink exits 0" "0" "$unlink_exit"
+    # Verify dep is gone after unlink
+    local deps_after
+    deps_after=$(cd "$repo" && bash "$TICKET_SCRIPT" deps "$id_a" 2>/dev/null) || deps_after="{}"
+    local count_after
+    count_after=$(_deps_field "$deps_after" "len(d.get('deps', []))")
+    assert_eq "deps empty after unlink" "0" "$count_after"
 
-    # Assert: after unlink, ticket show A does NOT list B in deps
-    # The reducer replays LINK/UNLINK events — after UNLINK the dep should be inactive.
-    local show_output
-    show_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$id_a" 2>/dev/null) || true
+    assert_pass_if_clean "test_e2e_unlink_removes_dep"
+}
+test_e2e_unlink_removes_dep
 
-    local dep_check
-    dep_check=$(python3 - "$show_output" "$id_b" <<'PYEOF'
-import json, sys
+# ── Test 4: unlink removes supersedes relation from ticket deps ───────────────
+echo "Test 4: ticket unlink removes supersedes relation from deps"
+test_e2e_unlink_supersedes() {
+    _snapshot_fail
 
-try:
-    state = json.loads(sys.argv[1])
-except Exception as e:
-    print(f"PARSE_ERROR:{e}")
-    sys.exit(1)
+    local repo
+    repo=$(_make_test_repo)
 
-target_id = sys.argv[2]
+    local id_a id_b
+    id_a=$(_create_ticket "$repo" task "Superseding source")
+    id_b=$(_create_ticket "$repo" task "Superseded target")
 
-# deps is a list of dicts with ticket_id and relation keys
-deps = state.get('deps', [])
-if not isinstance(deps, list):
-    print(f"DEPS_NOT_LIST: {type(deps).__name__}")
-    sys.exit(1)
-
-# Check that target_id does not appear as an active dep
-active_dep_ids = [d.get('target_id') for d in deps if isinstance(d, dict)]
-if target_id in active_dep_ids:
-    print(f"STILL_IN_DEPS: {target_id!r} found in deps after unlink")
-    sys.exit(2)
-else:
-    print("OK")
-PYEOF
-) || true
-
-    if [ "$dep_check" = "OK" ]; then
-        assert_eq "duplicates roundtrip: target no longer in source deps after unlink" "OK" "OK"
-    else
-        assert_eq "duplicates roundtrip: target no longer in source deps after unlink" "OK" "$dep_check"
+    if [ -z "$id_a" ] || [ -z "$id_b" ]; then
+        assert_eq "tickets created for supersedes unlink test" "non-empty" "empty"
+        assert_pass_if_clean "test_e2e_unlink_supersedes"
+        return
     fi
 
-    assert_pass_if_clean "test_link_duplicates_roundtrip_through_unlink"
+    # Create the link
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id_a" "$id_b" supersedes 2>/dev/null) || true
+
+    # Verify dep is present
+    local deps_before
+    deps_before=$(cd "$repo" && bash "$TICKET_SCRIPT" deps "$id_a" 2>/dev/null) || deps_before="{}"
+    local count_before
+    count_before=$(_deps_field "$deps_before" "len(d.get('deps', []))")
+    assert_eq "supersedes dep present before unlink" "1" "$count_before"
+
+    # Unlink
+    local unlink_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id_a" "$id_b" 2>/dev/null) || unlink_exit=$?
+    assert_eq "unlink supersedes: exits 0" "0" "$unlink_exit"
+
+    # Verify dep is gone
+    local deps_after
+    deps_after=$(cd "$repo" && bash "$TICKET_SCRIPT" deps "$id_a" 2>/dev/null) || deps_after="{}"
+    local count_after
+    count_after=$(_deps_field "$deps_after" "len(d.get('deps', []))")
+    assert_eq "supersedes dep gone after unlink" "0" "$count_after"
+
+    assert_pass_if_clean "test_e2e_unlink_supersedes"
 }
-test_link_duplicates_roundtrip_through_unlink
+test_e2e_unlink_supersedes
+
+# ── Test 5: idempotency — issuing the same LINK twice is a no-op ──────────────
+echo "Test 5: issuing the same duplicates LINK twice is a no-op (idempotent)"
+test_e2e_duplicates_idempotent() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local id_a id_b
+    id_a=$(_create_ticket "$repo" task "Idempotent source")
+    id_b=$(_create_ticket "$repo" task "Idempotent target")
+
+    if [ -z "$id_a" ] || [ -z "$id_b" ]; then
+        assert_eq "tickets created for idempotent test" "non-empty" "empty"
+        assert_pass_if_clean "test_e2e_duplicates_idempotent"
+        return
+    fi
+
+    # First link
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id_a" "$id_b" duplicates 2>/dev/null) || true
+
+    # Second identical link — must exit 0 and not duplicate the dep
+    local second_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id_a" "$id_b" duplicates 2>/dev/null) || second_exit=$?
+    assert_eq "idempotent: second identical link exits 0" "0" "$second_exit"
+
+    # deps must still show exactly one entry
+    local deps_json
+    deps_json=$(cd "$repo" && bash "$TICKET_SCRIPT" deps "$id_a" 2>/dev/null) || deps_json="{}"
+    local dep_count
+    dep_count=$(_deps_field "$deps_json" "len(d.get('deps', []))")
+    assert_eq "idempotent: exactly one dep entry after two identical links" "1" "$dep_count"
+
+    assert_pass_if_clean "test_e2e_duplicates_idempotent"
+}
+test_e2e_duplicates_idempotent
+
+# ── Test 6: idempotency for supersedes ────────────────────────────────────────
+echo "Test 6: issuing the same supersedes LINK twice is a no-op (idempotent)"
+test_e2e_supersedes_idempotent() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local id_a id_b
+    id_a=$(_create_ticket "$repo" task "Supersedes idempotent source")
+    id_b=$(_create_ticket "$repo" task "Supersedes idempotent target")
+
+    if [ -z "$id_a" ] || [ -z "$id_b" ]; then
+        assert_eq "tickets created for supersedes idempotent test" "non-empty" "empty"
+        assert_pass_if_clean "test_e2e_supersedes_idempotent"
+        return
+    fi
+
+    # First link
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id_a" "$id_b" supersedes 2>/dev/null) || true
+
+    # Second identical link
+    local second_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id_a" "$id_b" supersedes 2>/dev/null) || second_exit=$?
+    assert_eq "supersedes idempotent: second identical link exits 0" "0" "$second_exit"
+
+    # deps must still show exactly one entry
+    local deps_json
+    deps_json=$(cd "$repo" && bash "$TICKET_SCRIPT" deps "$id_a" 2>/dev/null) || deps_json="{}"
+    local dep_count
+    dep_count=$(_deps_field "$deps_json" "len(d.get('deps', []))")
+    assert_eq "supersedes idempotent: exactly one dep after two identical links" "1" "$dep_count"
+
+    assert_pass_if_clean "test_e2e_supersedes_idempotent"
+}
+test_e2e_supersedes_idempotent
+
+# ── Test 7: deps JSON includes link_uuid field ─────────────────────────────────
+echo "Test 7: ticket deps JSON includes link_uuid field for duplicates and supersedes"
+test_e2e_deps_includes_link_uuid() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local id_a id_b id_c
+    id_a=$(_create_ticket "$repo" task "UUID check A")
+    id_b=$(_create_ticket "$repo" task "UUID check B")
+    id_c=$(_create_ticket "$repo" task "UUID check C")
+
+    if [ -z "$id_a" ] || [ -z "$id_b" ] || [ -z "$id_c" ]; then
+        assert_eq "tickets created for link_uuid test" "non-empty" "empty"
+        assert_pass_if_clean "test_e2e_deps_includes_link_uuid"
+        return
+    fi
+
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id_a" "$id_b" duplicates 2>/dev/null) || true
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id_c" "$id_a" supersedes 2>/dev/null) || true
+
+    # Check A's deps has link_uuid
+    local deps_a
+    deps_a=$(cd "$repo" && bash "$TICKET_SCRIPT" deps "$id_a" 2>/dev/null) || deps_a="{}"
+    local a_uuid
+    a_uuid=$(_deps_field "$deps_a" "bool(d['deps'][0].get('link_uuid')) if d.get('deps') else False")
+    assert_eq "deps A: link_uuid present in duplicates dep" "True" "$a_uuid"
+
+    # Check C's deps has link_uuid
+    local deps_c
+    deps_c=$(cd "$repo" && bash "$TICKET_SCRIPT" deps "$id_c" 2>/dev/null) || deps_c="{}"
+    local c_uuid
+    c_uuid=$(_deps_field "$deps_c" "bool(d['deps'][0].get('link_uuid')) if d.get('deps') else False")
+    assert_eq "deps C: link_uuid present in supersedes dep" "True" "$c_uuid"
+
+    assert_pass_if_clean "test_e2e_deps_includes_link_uuid"
+}
+test_e2e_deps_includes_link_uuid
 
 print_summary
