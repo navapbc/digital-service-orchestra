@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Classification: behavioral, Score: 2 (BASIC). Single-script focus on shim install fallback + cd/exec sequence. Gate 1a: CLI_user → intent-aligned."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777481491440565000,"uuid":"44e1fc95-3b16-444d-9fda-328337ba47b5"}
