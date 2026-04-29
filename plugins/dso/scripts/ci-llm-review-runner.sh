@@ -206,17 +206,14 @@ sys.exit(1)
 PYEOF
 )
 
-    REVIEWER_HASH=$(echo "$FINDINGS_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER")
-    bash "$(command -v record-review.sh)" --reviewer-hash "$REVIEWER_HASH"
-    REVIEW_STATUS=$(head -1 "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/review-status" 2>/dev/null || echo "")
-    if [[ "$REVIEW_STATUS" == "failed" ]]; then
-      echo "Review FAILED" >&2
-      exit 1
-    fi
-    echo "Review passed"
-    exit 0 ;;
+    # FINDINGS_JSON now set; fall through to shared overlay+write+record path.
+    ;;
   *) echo "ERROR: Unknown tier: $SELECTED_TIER" >&2; exit 1 ;;
 esac
+
+# ── Standard / light tier: API call → FINDINGS_JSON ───────────────────────────
+# Skipped for deep tier (FINDINGS_JSON already set above by arch synthesis).
+if [[ "$SELECTED_TIER" != "deep" ]]; then
 SYSTEM_PROMPT="$(cat "$AGENT_FILE")"
 
 MODEL="${DSO_LLM_MODEL:-claude-sonnet-4-6}"
@@ -284,13 +281,13 @@ print('ERROR: LLM response is not valid reviewer-findings JSON', file=sys.stderr
 sys.exit(1)
 PYEOF
 )
-
-REVIEWER_HASH=$(echo "$FINDINGS_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER")
+fi  # end standard/light-only API call block
 
 # ── Overlay dispatch ────────────────────────────────────────────────────────────
 # Dispatch parallel overlay curl calls for each active overlay flag; write each
 # reviewer's LLM text to a slot file in WORKFLOW_PLUGIN_ARTIFACTS_DIR.  Serial
 # blue-team runs after red-team when security overlay is active.
+# Applies to all tiers (deep FINDINGS_JSON carries through from arch synthesis).
 _run_overlay_curl() {
   local _agent_file="$1" _slot_file="$2"
   local _sys _req _resp
@@ -312,22 +309,42 @@ PYEOF
     -H "content-type: application/json" \
     --data-raw "$_req" \
     "https://api.anthropic.com/v1/messages")
-  printf '%s\n' "$_resp" | python3 -c "
-import json, sys, re
-data = sys.stdin.read()
+  # Extract text from API response, then strip markdown fences to get bare JSON.
+  # Overlay agents may wrap their JSON output in ```json...``` fences.
+  DSO_OVERLAY_RESP="$_resp" python3 - <<'PYEOF' > "$_slot_file"
+import json, sys, re, os
+data = os.environ['DSO_OVERLAY_RESP']
+# Extract text content from Anthropic API response envelope
+text = None
 try:
     d = json.loads(data)
-    print(d['content'][0]['text'])
+    text = d['content'][0]['text']
+except Exception:
+    pass
+if text is None:
+    m = re.search(r'"text"\s*:\s*"([\s\S]+?)"(?=\s*\}\s*\])', data)
+    if m:
+        text = m.group(1)
+if text is None:
+    print('ERROR: Cannot extract overlay text from API response', file=sys.stderr)
+    sys.exit(1)
+# Strip markdown fences; overlay agents may return ```json...```
+text = text.strip()
+try:
+    json.loads(text)
+    print(text)
     sys.exit(0)
 except Exception:
     pass
-m = re.search(r'\"text\"\s*:\s*\"([\s\S]+?)\"(?=\s*\}\s*\])', data)
+m = re.search(r'```(?:json)?\s*([\s\S]+?)```', text)
 if m:
-    print(m.group(1))
+    extracted = m.group(1).strip()
+    json.loads(extracted)
+    print(extracted)
     sys.exit(0)
-print('ERROR: Cannot extract overlay text from API response', file=sys.stderr)
+print('ERROR: Overlay LLM response is not valid reviewer-findings JSON', file=sys.stderr)
 sys.exit(1)
-" > "$_slot_file"
+PYEOF
 }
 
 _OVERLAY_PIDS=()
@@ -352,6 +369,55 @@ fi
 [[ "$_SEC" == "true" ]] && _run_overlay_curl \
   "$_PLUGIN_ROOT/agents/code-reviewer-security-blue-team.md" \
   "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json"
+
+# ── Overlay merge ───────────────────────────────────────────────────────────────
+# Collect non-empty overlay slot files and merge their findings arrays + scores
+# (min per dimension, conservative) into FINDINGS_JSON before writing canonical
+# reviewer-findings.json.  Overlay findings are additive; scores only decrease.
+_OVERLAY_SLOTS=()
+[[ "$_SEC"  == "true" ]] && {
+  [[ -s "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-red.json" ]] && \
+    _OVERLAY_SLOTS+=("${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-red.json")
+  [[ -s "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json" ]] && \
+    _OVERLAY_SLOTS+=("${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json")
+}
+[[ "$_PERF" == "true" ]] && \
+  [[ -s "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-performance.json" ]] && \
+    _OVERLAY_SLOTS+=("${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-performance.json")
+[[ "$_TQ"   == "true" ]] && \
+  [[ -s "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-test-quality.json" ]] && \
+    _OVERLAY_SLOTS+=("${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-test-quality.json")
+
+if [[ ${#_OVERLAY_SLOTS[@]} -gt 0 ]]; then
+  FINDINGS_JSON=$(DSO_TIER_JSON="$FINDINGS_JSON" python3 - "${_OVERLAY_SLOTS[@]}" <<'PYEOF'
+import json, sys, os
+
+tier = json.loads(os.environ['DSO_TIER_JSON'])
+merged_findings = list(tier.get('findings', []))
+merged_scores   = dict(tier.get('scores', {}))
+
+for slot_path in sys.argv[1:]:
+    try:
+        with open(slot_path) as fh:
+            overlay = json.load(fh)
+    except Exception:
+        continue  # skip unreadable/invalid slot files (fail-open)
+    merged_findings.extend(overlay.get('findings', []))
+    for dim, val in overlay.get('scores', {}).items():
+        if isinstance(val, (int, float)) and isinstance(merged_scores.get(dim), (int, float)):
+            merged_scores[dim] = min(merged_scores[dim], val)
+        elif isinstance(val, (int, float)) and dim not in merged_scores:
+            merged_scores[dim] = val
+
+result = dict(tier)
+result['findings'] = merged_findings
+result['scores']   = merged_scores
+print(json.dumps(result))
+PYEOF
+  )
+fi
+
+REVIEWER_HASH=$(echo "$FINDINGS_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER")
 
 bash "$(command -v record-review.sh)" --reviewer-hash "$REVIEWER_HASH"
 REVIEW_STATUS=$(head -1 "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/review-status" 2>/dev/null || echo "")

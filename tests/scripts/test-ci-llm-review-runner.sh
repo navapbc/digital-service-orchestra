@@ -1222,5 +1222,612 @@ assert_eq "test_security_blue_team_dispatched_after_red_team: red-team dispatche
 
 assert_pass_if_clean "test_security_blue_team_dispatched_after_red_team"
 
+# ── test_overlay_merge_security_findings_into_canonical ──────────────────────
+# Given: security overlay ran (slot files for red-team and blue-team exist)
+# When:  runner builds FINDINGS_JSON to pass to write-reviewer-findings.sh
+# Then:  write-reviewer-findings.sh receives a JSON with findings from both
+#        tier, security-red, and security-blue merged into the findings array;
+#        per-dimension scores are the minimum of tier and overlay scores.
+_snapshot_fail
+MOCK_MERGE_SEC=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_MERGE_SEC")
+ARTIFACTS_MERGE_SEC=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_MERGE_SEC")
+FINDINGS_RECEIVED_SEC="$MOCK_MERGE_SEC/findings-received.json"
+
+cat > "$MOCK_MERGE_SEC/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_MERGE_SEC/review-complexity-classifier.sh"
+
+# Mock curl: detects which reviewer is called and returns the appropriate
+# Anthropic API response. Uses python3 to properly JSON-encode the text field
+# so nested quotes don't break the outer JSON structure.
+cat > "$MOCK_MERGE_SEC/curl" <<'MOCKEOF'
+#!/usr/bin/env bash
+_body=""
+_prev=""
+for _arg in "$@"; do
+    if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
+        _body="$_arg"
+    fi
+    _prev="$_arg"
+done
+if printf '%s' "$_body" | grep -q "code-reviewer-security-red-team"; then
+    python3 -c "import json; t={\"scores\":{\"correctness\":3,\"verification\":3,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"summary\":\"Red team review\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"correctness\",\"description\":\"SQL injection risk\",\"location\":\"api.sh:10\",\"recommendation\":\"Sanitize input\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+elif printf '%s' "$_body" | grep -q "code-reviewer-security-blue-team"; then
+    python3 -c "import json; t={\"scores\":{\"correctness\":3,\"verification\":3,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"summary\":\"Blue team triage\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"verification\",\"description\":\"Missing auth check\",\"location\":\"api.sh:20\",\"recommendation\":\"Add auth\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+else
+    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier review OK\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"hygiene\",\"description\":\"Tier finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+fi
+MOCKEOF
+chmod +x "$MOCK_MERGE_SEC/curl"
+
+# Mock write-reviewer-findings.sh: capture stdin (FINDINGS_JSON) to verify merge
+cat > "$MOCK_MERGE_SEC/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+tee "${FINDINGS_RECEIVED_SEC}" > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_MERGE_SEC/write-reviewer-findings.sh"
+
+cat > "$MOCK_MERGE_SEC/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "${ARTIFACTS_MERGE_SEC}"
+printf 'passed\n' > "${ARTIFACTS_MERGE_SEC}/review-status"
+MOCKEOF
+chmod +x "$MOCK_MERGE_SEC/record-review.sh"
+
+# Pre-populate overlay-flags.env so the runner reads security_overlay=true
+mkdir -p "$ARTIFACTS_MERGE_SEC"
+printf 'security_overlay=true\nperformance_overlay=false\ntest_quality_overlay=false\n' \
+    > "$ARTIFACTS_MERGE_SEC/overlay-flags.env"
+
+merge_sec_exit=0
+(
+    export PATH="$MOCK_MERGE_SEC:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_MERGE_SEC"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || merge_sec_exit=$?
+
+assert_eq "test_overlay_merge_security_findings_into_canonical: runner exits 0" "0" "$merge_sec_exit"
+
+# Verify write-reviewer-findings.sh received merged findings
+_sec_merge_check_exit=0
+_sec_merge_check_out=""
+if [[ -f "$FINDINGS_RECEIVED_SEC" ]]; then
+    _sec_merge_check_out=$(python3 - <<PYEOF 2>&1 || _sec_merge_check_exit=$?
+import json, sys
+with open('${FINDINGS_RECEIVED_SEC}') as f:
+    d = json.load(f)
+findings = d.get('findings', [])
+descs = [x.get('description','') for x in findings]
+# Must contain tier finding AND at least one overlay finding
+has_tier = any('Tier finding' in desc for desc in descs)
+has_red = any('SQL injection' in desc for desc in descs)
+has_blue = any('Missing auth' in desc for desc in descs)
+if not has_tier:
+    print('MISSING tier finding; findings=' + str(descs))
+    sys.exit(1)
+if not has_red:
+    print('MISSING security-red finding; findings=' + str(descs))
+    sys.exit(1)
+if not has_blue:
+    print('MISSING security-blue finding; findings=' + str(descs))
+    sys.exit(1)
+# Score for correctness: min(5, 3) = 3 from overlay
+scores = d.get('scores', {})
+if scores.get('correctness', 999) > 3:
+    print('SCORE not lowered: correctness=' + str(scores.get('correctness')) + ' (expected <=3)')
+    sys.exit(1)
+print('OK')
+PYEOF
+    )
+else
+    _sec_merge_check_out="FINDINGS_RECEIVED file not written by write-reviewer-findings.sh mock"
+    _sec_merge_check_exit=1
+fi
+assert_eq "test_overlay_merge_security_findings_into_canonical: merged findings passed to write-reviewer-findings" "0" "$_sec_merge_check_exit"
+assert_eq "test_overlay_merge_security_findings_into_canonical: merge output" "OK" "$_sec_merge_check_out"
+
+assert_pass_if_clean "test_overlay_merge_security_findings_into_canonical"
+
+# ── test_overlay_merge_performance_findings_into_canonical ───────────────────
+# Given: performance overlay ran (slot file exists)
+# When:  runner builds FINDINGS_JSON to pass to write-reviewer-findings.sh
+# Then:  write-reviewer-findings.sh receives JSON with tier + performance findings merged
+_snapshot_fail
+MOCK_MERGE_PERF=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_MERGE_PERF")
+ARTIFACTS_MERGE_PERF=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_MERGE_PERF")
+FINDINGS_RECEIVED_PERF="$MOCK_MERGE_PERF/findings-received.json"
+
+cat > "$MOCK_MERGE_PERF/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_MERGE_PERF/review-complexity-classifier.sh"
+
+cat > "$MOCK_MERGE_PERF/curl" <<'MOCKEOF'
+#!/usr/bin/env bash
+_body=""
+_prev=""
+for _arg in "$@"; do
+    if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
+        _body="$_arg"
+    fi
+    _prev="$_arg"
+done
+if printf '%s' "$_body" | grep -q "code-reviewer-performance"; then
+    python3 -c "import json; t={\"scores\":{\"correctness\":4,\"verification\":2,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"summary\":\"Perf overlay\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"verification\",\"description\":\"N+1 query detected\",\"location\":\"db.sh:5\",\"recommendation\":\"Batch queries\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+else
+    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier review OK\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"hygiene\",\"description\":\"Tier perf finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+fi
+MOCKEOF
+chmod +x "$MOCK_MERGE_PERF/curl"
+
+cat > "$MOCK_MERGE_PERF/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+tee "${FINDINGS_RECEIVED_PERF}" > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_MERGE_PERF/write-reviewer-findings.sh"
+
+cat > "$MOCK_MERGE_PERF/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "${ARTIFACTS_MERGE_PERF}"
+printf 'passed\n' > "${ARTIFACTS_MERGE_PERF}/review-status"
+MOCKEOF
+chmod +x "$MOCK_MERGE_PERF/record-review.sh"
+
+mkdir -p "$ARTIFACTS_MERGE_PERF"
+printf 'security_overlay=false\nperformance_overlay=true\ntest_quality_overlay=false\n' \
+    > "$ARTIFACTS_MERGE_PERF/overlay-flags.env"
+
+merge_perf_exit=0
+(
+    export PATH="$MOCK_MERGE_PERF:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_MERGE_PERF"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || merge_perf_exit=$?
+
+assert_eq "test_overlay_merge_performance_findings_into_canonical: runner exits 0" "0" "$merge_perf_exit"
+
+_perf_merge_check_exit=0
+_perf_merge_check_out=""
+if [[ -f "$FINDINGS_RECEIVED_PERF" ]]; then
+    _perf_merge_check_out=$(python3 - <<PYEOF 2>&1 || _perf_merge_check_exit=$?
+import json, sys
+with open('${FINDINGS_RECEIVED_PERF}') as f:
+    d = json.load(f)
+findings = d.get('findings', [])
+descs = [x.get('description','') for x in findings]
+has_tier = any('Tier perf finding' in desc for desc in descs)
+has_perf = any('N+1 query' in desc for desc in descs)
+if not has_tier:
+    print('MISSING tier finding; findings=' + str(descs))
+    sys.exit(1)
+if not has_perf:
+    print('MISSING performance finding; findings=' + str(descs))
+    sys.exit(1)
+# Score for verification: min(5, 2) = 2 from overlay
+scores = d.get('scores', {})
+if scores.get('verification', 999) > 2:
+    print('SCORE not lowered: verification=' + str(scores.get('verification')) + ' (expected <=2)')
+    sys.exit(1)
+print('OK')
+PYEOF
+    )
+else
+    _perf_merge_check_out="FINDINGS_RECEIVED file not written"
+    _perf_merge_check_exit=1
+fi
+assert_eq "test_overlay_merge_performance_findings_into_canonical: merged findings passed to write-reviewer-findings" "0" "$_perf_merge_check_exit"
+assert_eq "test_overlay_merge_performance_findings_into_canonical: merge output" "OK" "$_perf_merge_check_out"
+
+assert_pass_if_clean "test_overlay_merge_performance_findings_into_canonical"
+
+# ── test_overlay_merge_test_quality_findings_into_canonical ──────────────────
+# Given: test-quality overlay ran (slot file exists)
+# When:  runner builds FINDINGS_JSON to pass to write-reviewer-findings.sh
+# Then:  write-reviewer-findings.sh receives JSON with tier + test-quality findings merged
+_snapshot_fail
+MOCK_MERGE_TQ=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_MERGE_TQ")
+ARTIFACTS_MERGE_TQ=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_MERGE_TQ")
+FINDINGS_RECEIVED_TQ="$MOCK_MERGE_TQ/findings-received.json"
+
+cat > "$MOCK_MERGE_TQ/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_MERGE_TQ/review-complexity-classifier.sh"
+
+cat > "$MOCK_MERGE_TQ/curl" <<'MOCKEOF'
+#!/usr/bin/env bash
+_body=""
+_prev=""
+for _arg in "$@"; do
+    if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
+        _body="$_arg"
+    fi
+    _prev="$_arg"
+done
+if printf '%s' "$_body" | grep -q "code-reviewer-test-quality"; then
+    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":4,\"hygiene\":2,\"design\":5,\"maintainability\":5},\"summary\":\"Test quality overlay\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"hygiene\",\"description\":\"Change detector test found\",\"location\":\"tests/test_foo.sh:30\",\"recommendation\":\"Test behavior not implementation\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+else
+    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier review OK\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"design\",\"description\":\"Tier TQ finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+fi
+MOCKEOF
+chmod +x "$MOCK_MERGE_TQ/curl"
+
+cat > "$MOCK_MERGE_TQ/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+tee "${FINDINGS_RECEIVED_TQ}" > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_MERGE_TQ/write-reviewer-findings.sh"
+
+cat > "$MOCK_MERGE_TQ/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "${ARTIFACTS_MERGE_TQ}"
+printf 'passed\n' > "${ARTIFACTS_MERGE_TQ}/review-status"
+MOCKEOF
+chmod +x "$MOCK_MERGE_TQ/record-review.sh"
+
+mkdir -p "$ARTIFACTS_MERGE_TQ"
+printf 'security_overlay=false\nperformance_overlay=false\ntest_quality_overlay=true\n' \
+    > "$ARTIFACTS_MERGE_TQ/overlay-flags.env"
+
+merge_tq_exit=0
+(
+    export PATH="$MOCK_MERGE_TQ:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_MERGE_TQ"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || merge_tq_exit=$?
+
+assert_eq "test_overlay_merge_test_quality_findings_into_canonical: runner exits 0" "0" "$merge_tq_exit"
+
+_tq_merge_check_exit=0
+_tq_merge_check_out=""
+if [[ -f "$FINDINGS_RECEIVED_TQ" ]]; then
+    _tq_merge_check_out=$(python3 - <<PYEOF 2>&1 || _tq_merge_check_exit=$?
+import json, sys
+with open('${FINDINGS_RECEIVED_TQ}') as f:
+    d = json.load(f)
+findings = d.get('findings', [])
+descs = [x.get('description','') for x in findings]
+has_tier = any('Tier TQ finding' in desc for desc in descs)
+has_tq = any('Change detector' in desc for desc in descs)
+if not has_tier:
+    print('MISSING tier finding; findings=' + str(descs))
+    sys.exit(1)
+if not has_tq:
+    print('MISSING test-quality finding; findings=' + str(descs))
+    sys.exit(1)
+# Score for hygiene: min(5, 2) = 2 from overlay
+scores = d.get('scores', {})
+if scores.get('hygiene', 999) > 2:
+    print('SCORE not lowered: hygiene=' + str(scores.get('hygiene')) + ' (expected <=2)')
+    sys.exit(1)
+print('OK')
+PYEOF
+    )
+else
+    _tq_merge_check_out="FINDINGS_RECEIVED file not written"
+    _tq_merge_check_exit=1
+fi
+assert_eq "test_overlay_merge_test_quality_findings_into_canonical: merged findings passed to write-reviewer-findings" "0" "$_tq_merge_check_exit"
+assert_eq "test_overlay_merge_test_quality_findings_into_canonical: merge output" "OK" "$_tq_merge_check_out"
+
+assert_pass_if_clean "test_overlay_merge_test_quality_findings_into_canonical"
+
+# ── test_no_overlay_merge_no_regression ──────────────────────────────────────
+# Given: no overlays ran (all flags false, no slot files present)
+# When:  runner builds FINDINGS_JSON to pass to write-reviewer-findings.sh
+# Then:  write-reviewer-findings.sh receives only tier findings (no overlay contamination);
+#        findings array and scores are unchanged from the tier reviewer output.
+_snapshot_fail
+MOCK_MERGE_NONE=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_MERGE_NONE")
+ARTIFACTS_MERGE_NONE=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_MERGE_NONE")
+FINDINGS_RECEIVED_NONE="$MOCK_MERGE_NONE/findings-received.json"
+
+cat > "$MOCK_MERGE_NONE/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_MERGE_NONE/review-complexity-classifier.sh"
+
+cat > "$MOCK_MERGE_NONE/curl" <<'MOCKEOF'
+#!/usr/bin/env bash
+python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier only\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"hygiene\",\"description\":\"Tier only finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+MOCKEOF
+chmod +x "$MOCK_MERGE_NONE/curl"
+
+cat > "$MOCK_MERGE_NONE/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+tee "${FINDINGS_RECEIVED_NONE}" > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_MERGE_NONE/write-reviewer-findings.sh"
+
+cat > "$MOCK_MERGE_NONE/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "${ARTIFACTS_MERGE_NONE}"
+printf 'passed\n' > "${ARTIFACTS_MERGE_NONE}/review-status"
+MOCKEOF
+chmod +x "$MOCK_MERGE_NONE/record-review.sh"
+
+# No overlay-flags.env pre-populated; classifier outputs all-false
+merge_none_exit=0
+(
+    export PATH="$MOCK_MERGE_NONE:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_MERGE_NONE"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || merge_none_exit=$?
+
+assert_eq "test_no_overlay_merge_no_regression: runner exits 0" "0" "$merge_none_exit"
+
+_none_merge_check_exit=0
+_none_merge_check_out=""
+if [[ -f "$FINDINGS_RECEIVED_NONE" ]]; then
+    _none_merge_check_out=$(python3 - <<PYEOF 2>&1 || _none_merge_check_exit=$?
+import json, sys
+with open('${FINDINGS_RECEIVED_NONE}') as f:
+    d = json.load(f)
+findings = d.get('findings', [])
+descs = [x.get('description','') for x in findings]
+# Only tier findings; no overlay findings
+if len(findings) != 1:
+    print('WRONG finding count: expected 1 (tier only), got ' + str(len(findings)) + '; ' + str(descs))
+    sys.exit(1)
+if 'Tier only finding' not in descs[0]:
+    print('WRONG finding: expected tier-only finding, got ' + str(descs))
+    sys.exit(1)
+# Scores must be unchanged (5 everywhere)
+scores = d.get('scores', {})
+for dim in ['correctness','verification','hygiene','design','maintainability']:
+    if scores.get(dim, 0) != 5:
+        print('SCORE changed for ' + dim + ': ' + str(scores.get(dim)) + ' (expected 5)')
+        sys.exit(1)
+print('OK')
+PYEOF
+    )
+else
+    _none_merge_check_out="FINDINGS_RECEIVED file not written"
+    _none_merge_check_exit=1
+fi
+assert_eq "test_no_overlay_merge_no_regression: only tier findings passed to write-reviewer-findings" "0" "$_none_merge_check_exit"
+assert_eq "test_no_overlay_merge_no_regression: no-regression output" "OK" "$_none_merge_check_out"
+
+assert_pass_if_clean "test_no_overlay_merge_no_regression"
+
+# ── test_overlay_curl_json_extraction_with_markdown_fence ────────────────────
+# Given: overlay curl response wraps JSON in ```json...``` markdown fence
+# When:  runner dispatches overlay curl and processes the response
+# Then:  slot file contains bare JSON (not the fenced version); merge succeeds
+_snapshot_fail
+MOCK_FENCE=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_FENCE")
+ARTIFACTS_FENCE=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_FENCE")
+FINDINGS_RECEIVED_FENCE="$MOCK_FENCE/findings-received.json"
+
+cat > "$MOCK_FENCE/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":true}'
+MOCKEOF
+chmod +x "$MOCK_FENCE/review-complexity-classifier.sh"
+
+cat > "$MOCK_FENCE/curl" <<'MOCKEOF'
+#!/usr/bin/env bash
+_body=""
+_prev=""
+for _arg in "$@"; do
+    if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
+        _body="$_arg"
+    fi
+    _prev="$_arg"
+done
+# Overlay curl: respond with markdown-fenced JSON to test fence extraction
+if printf '%s' "$_body" | grep -q "code-reviewer-test-quality"; then
+    _inner='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"TQ overlay fence test","findings":[{"severity":"minor","dimension":"verification","description":"Fence-wrapped overlay finding","location":"foo.sh:1","recommendation":"None"}]}'
+    # Return the inner JSON wrapped in a markdown fence inside the API text field
+    python3 -c "
+import json, sys
+inner = sys.argv[1]
+fenced = '\`\`\`json\n' + inner + '\n\`\`\`'
+print(json.dumps({'content': [{'text': fenced}], 'stop_reason': 'end_turn'}))
+" "$_inner"
+else
+    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier OK\",\"findings\":[{\"severity\":\"minor\",\"dimension\":\"hygiene\",\"description\":\"Tier fence test finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"OK\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+fi
+MOCKEOF
+chmod +x "$MOCK_FENCE/curl"
+
+cat > "$MOCK_FENCE/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+tee "${FINDINGS_RECEIVED_FENCE}" > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_FENCE/write-reviewer-findings.sh"
+
+cat > "$MOCK_FENCE/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "${ARTIFACTS_FENCE}"
+printf 'passed\n' > "${ARTIFACTS_FENCE}/review-status"
+MOCKEOF
+chmod +x "$MOCK_FENCE/record-review.sh"
+
+mkdir -p "$ARTIFACTS_FENCE"
+
+fence_overlay_exit=0
+(
+    export PATH="$MOCK_FENCE:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_FENCE"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || fence_overlay_exit=$?
+
+assert_eq "test_overlay_curl_json_extraction_with_markdown_fence: runner exits 0" "0" "$fence_overlay_exit"
+
+_fence_check_exit=0
+_fence_check_out=""
+if [[ -f "$FINDINGS_RECEIVED_FENCE" ]]; then
+    _fence_check_out=$(python3 - <<PYEOF 2>&1 || _fence_check_exit=$?
+import json, sys
+with open('${FINDINGS_RECEIVED_FENCE}') as f:
+    d = json.load(f)
+findings = d.get('findings', [])
+descs = [x.get('description','') for x in findings]
+has_overlay = any('Fence-wrapped overlay finding' in desc for desc in descs)
+if not has_overlay:
+    print('MISSING fence-wrapped overlay finding; findings=' + str(descs))
+    sys.exit(1)
+print('OK')
+PYEOF
+    )
+else
+    _fence_check_out="FINDINGS_RECEIVED file not written"
+    _fence_check_exit=1
+fi
+assert_eq "test_overlay_curl_json_extraction_with_markdown_fence: fence-wrapped overlay finding merged" "0" "$_fence_check_exit"
+assert_eq "test_overlay_curl_json_extraction_with_markdown_fence: output" "OK" "$_fence_check_out"
+
+assert_pass_if_clean "test_overlay_curl_json_extraction_with_markdown_fence"
+
+# ── test_deep_tier_overlay_merge ─────────────────────────────────────────────
+# Given: deep tier is selected AND test_quality_overlay=true
+# When:  runner completes deep-tier arch synthesis and enters shared overlay path
+# Then:  overlay curl is dispatched; overlay findings are merged with deep-tier
+#        findings before write-reviewer-findings.sh is called; runner exits 0
+_snapshot_fail
+MOCK_DEEP_OVL=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_DEEP_OVL")
+ARTIFACTS_DEEP_OVL=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_DEEP_OVL")
+FINDINGS_RECEIVED_DEEP_OVL="$MOCK_DEEP_OVL/findings-received.json"
+
+cat > "$MOCK_DEEP_OVL/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"deep","blast_radius":3,"critical_path":2,"anti_shortcut":1,"staleness":1,"cross_cutting":1,"diff_lines":350,"change_volume":2,"computed_total":10,"diff_size_lines":350,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":true}'
+MOCKEOF
+chmod +x "$MOCK_DEEP_OVL/review-complexity-classifier.sh"
+
+_CURL_CALL_NUM_DEEP_OVL=0
+cat > "$MOCK_DEEP_OVL/curl" <<MOCKEOF
+#!/usr/bin/env bash
+_body=""
+_prev=""
+for _arg in "\$@"; do
+    if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
+        _body="\$_arg"
+    fi
+    _prev="\$_arg"
+done
+# Write deep-tier specialist slot files as a curl side-effect (mirrors production mock pattern)
+if printf '%s' "\$_body" | grep -q "code-reviewer-deep-correctness"; then
+    _slot_c='{"scores":{"correctness":4,"verification":5,"hygiene":5,"design":5,"maintainability":5},"findings":[{"severity":"minor","category":"correctness","description":"Deep correctness finding","file":"foo.sh"}],"summary":"C"}'
+    printf '%s\n' "\$_slot_c" > "${ARTIFACTS_DEEP_OVL}/reviewer-findings-correctness.json"
+    printf '{"content":[{"text":"{}"}],"stop_reason":"end_turn"}'
+elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-verification"; then
+    _slot_v='{"scores":{"correctness":5,"verification":4,"hygiene":5,"design":5,"maintainability":5},"findings":[{"severity":"minor","category":"verification","description":"Deep verification finding","file":"foo.sh"}],"summary":"V"}'
+    printf '%s\n' "\$_slot_v" > "${ARTIFACTS_DEEP_OVL}/reviewer-findings-verification.json"
+    printf '{"content":[{"text":"{}"}],"stop_reason":"end_turn"}'
+elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
+    _slot_h='{"scores":{"correctness":5,"verification":5,"hygiene":4,"design":5,"maintainability":5},"findings":[{"severity":"minor","category":"hygiene","description":"Deep hygiene finding","file":"foo.sh"}],"summary":"H"}'
+    printf '%s\n' "\$_slot_h" > "${ARTIFACTS_DEEP_OVL}/reviewer-findings-hygiene.json"
+    printf '{"content":[{"text":"{}"}],"stop_reason":"end_turn"}'
+elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-arch"; then
+    python3 -c "
+import json
+t = {
+    'scores': {'correctness': 4, 'verification': 4, 'hygiene': 4, 'design': 5, 'maintainability': 5},
+    'findings': [{'severity': 'minor', 'category': 'correctness', 'description': 'Deep arch synthesized finding', 'file': 'foo.sh'}],
+    'summary': 'Arch synthesis'
+}
+print(json.dumps({'content': [{'text': json.dumps(t)}], 'stop_reason': 'end_turn'}))
+"
+elif printf '%s' "\$_body" | grep -q "code-reviewer-test-quality"; then
+    python3 -c "
+import json
+t = {
+    'scores': {'correctness': 4, 'verification': 4, 'hygiene': 4, 'design': 5, 'maintainability': 5},
+    'findings': [{'severity': 'minor', 'category': 'verification', 'description': 'Deep-tier TQ overlay finding', 'file': 'tests/foo.sh'}],
+    'summary': 'TQ overlay for deep tier'
+}
+print(json.dumps({'content': [{'text': json.dumps(t)}], 'stop_reason': 'end_turn'}))
+"
+else
+    python3 -c "import json; print(json.dumps({'content': [{'text': '{}'}], 'stop_reason': 'end_turn'}))"
+fi
+MOCKEOF
+chmod +x "$MOCK_DEEP_OVL/curl"
+
+# Override write-reviewer-findings.sh to capture received FINDINGS_JSON
+cat > "$MOCK_DEEP_OVL/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+tee "${FINDINGS_RECEIVED_DEEP_OVL}" > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_DEEP_OVL/write-reviewer-findings.sh"
+
+cat > "$MOCK_DEEP_OVL/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "${ARTIFACTS_DEEP_OVL}"
+printf 'passed\n' > "${ARTIFACTS_DEEP_OVL}/review-status"
+MOCKEOF
+chmod +x "$MOCK_DEEP_OVL/record-review.sh"
+
+mkdir -p "$ARTIFACTS_DEEP_OVL"
+
+deep_ovl_exit=0
+(
+    export PATH="$MOCK_DEEP_OVL:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_DEEP_OVL"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || deep_ovl_exit=$?
+
+assert_eq "test_deep_tier_overlay_merge: runner exits 0" "0" "$deep_ovl_exit"
+
+_deep_ovl_check_exit=0
+_deep_ovl_check_out=""
+if [[ -f "$FINDINGS_RECEIVED_DEEP_OVL" ]]; then
+    _deep_ovl_check_out=$(python3 - <<PYEOF 2>&1 || _deep_ovl_check_exit=$?
+import json, sys
+with open('${FINDINGS_RECEIVED_DEEP_OVL}') as f:
+    d = json.load(f)
+findings = d.get('findings', [])
+descs = [x.get('description','') for x in findings]
+has_deep = any('Deep arch synthesized finding' in desc for desc in descs)
+has_overlay = any('Deep-tier TQ overlay finding' in desc for desc in descs)
+if not has_deep:
+    print('MISSING deep arch finding; findings=' + str(descs))
+    sys.exit(1)
+if not has_overlay:
+    print('MISSING deep-tier TQ overlay finding; findings=' + str(descs))
+    sys.exit(1)
+print('OK')
+PYEOF
+    )
+else
+    _deep_ovl_check_out="FINDINGS_RECEIVED file not written"
+    _deep_ovl_check_exit=1
+fi
+assert_eq "test_deep_tier_overlay_merge: deep-tier arch + overlay findings both in canonical" "0" "$_deep_ovl_check_exit"
+assert_eq "test_deep_tier_overlay_merge: output" "OK" "$_deep_ovl_check_out"
+
+assert_pass_if_clean "test_deep_tier_overlay_merge"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
