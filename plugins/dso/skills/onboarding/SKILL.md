@@ -1260,6 +1260,8 @@ Enter the numbers or type filenames directly.
 
 Use the user's response to populate `ci.integration_workflow` and the CI job keys. If the user cannot answer immediately, omit the key with an explanatory comment per the fallback behavior below.
 
+> **Optional CI config keys**: `ci.dso_plugin_version` lets projects override the DSO plugin version used in CI LLM review without editing the workflow file (Tier 2 of the 3-tier version resolution chain). `DSO_ASSETS_DIR` is a CI environment variable required in host-project CI when running `ci-llm-review-runner.sh` outside the DSO source checkout. See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIGURATION-REFERENCE.md` for full details on both.
+
 **Additional categories to populate**:
 
 | Category | Keys to set | Source |

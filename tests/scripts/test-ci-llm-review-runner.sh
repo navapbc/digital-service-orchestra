@@ -1926,5 +1926,19 @@ assert_eq \
 
 assert_pass_if_clean "test_runner_uses_dso_assets_dir_when_marker_absent"
 
+# ── test_dso_llm_tier_absent_from_docs ────────────────────────────────────────
+# Structural: DSO_LLM_TIER must NOT appear in documentation files.
+# It is an internal runtime variable — exposing it in docs would mislead
+# integrators into treating it as a supported config key.
+# Given: CONFIGURATION-REFERENCE.md and onboarding/SKILL.md exist
+# When:  both files are grepped for "DSO_LLM_TIER"
+# Then:  zero matches in each file
+_snapshot_fail
+config_ref_matches=$(grep -c "DSO_LLM_TIER" "$REPO_ROOT/plugins/dso/docs/CONFIGURATION-REFERENCE.md" 2>/dev/null || true)
+onboarding_matches=$(grep -c "DSO_LLM_TIER" "$REPO_ROOT/plugins/dso/skills/onboarding/SKILL.md" 2>/dev/null || true)
+assert_eq "test_dso_llm_tier_absent_from_docs: DSO_LLM_TIER absent from CONFIGURATION-REFERENCE.md" "0" "$config_ref_matches"
+assert_eq "test_dso_llm_tier_absent_from_docs: DSO_LLM_TIER absent from onboarding/SKILL.md" "0" "$onboarding_matches"
+assert_pass_if_clean "test_dso_llm_tier_absent_from_docs"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
