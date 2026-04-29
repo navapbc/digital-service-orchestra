@@ -995,4 +995,289 @@ with open(sys.argv[1], 'w') as f:
 }
 test_forward_compat_warning_deduplication
 
+# ── Resolver tests (RED — resolve_ticket_id does not exist yet) ───────────────
+#
+# These tests exercise the multi-form ID resolver:
+#   - 16-hex canonical passthrough
+#   - 8-hex backward-compat passthrough
+#   - unique prefix expansion
+#   - ambiguous prefix error
+#   - alias lookup
+#   - alias collision error
+
+# ── Helper: build a minimal CREATE event JSON with optional alias ─────────────
+# Usage: _make_create_event_json <dest_path> <ticket_id> [alias]
+_make_create_event_json() {
+    local dest="$1"
+    local ticket_id="$2"
+    local alias="${3:-}"
+    local ts
+    ts=$(python3 -c "import time; print(int(time.time()))")
+    local uuid
+    uuid=$(python3 -c "import uuid; print(uuid.uuid4())")
+    if [ -n "$alias" ]; then
+        python3 -c "
+import json, sys
+data = {
+    'timestamp': $ts,
+    'uuid': '$uuid',
+    'event_type': 'CREATE',
+    'env_id': '$uuid',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'Test ticket',
+        'parent_id': None,
+        'alias': '$alias'
+    }
+}
+json.dump(data, sys.stdout)
+" > "$dest"
+    else
+        python3 -c "
+import json, sys
+data = {
+    'timestamp': $ts,
+    'uuid': '$uuid',
+    'event_type': 'CREATE',
+    'env_id': '$uuid',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'Test ticket',
+        'parent_id': None
+    }
+}
+json.dump(data, sys.stdout)
+" > "$dest"
+    fi
+}
+
+# ── Helper: plant a ticket in a test repo's tracker directory ─────────────────
+# Usage: _plant_ticket <tracker_dir> <ticket_id> [alias]
+# Creates the ticket directory and a CREATE event file. Does NOT git commit.
+_plant_ticket() {
+    local tracker_dir="$1"
+    local ticket_id="$2"
+    local alias="${3:-}"
+    local ticket_dir="$tracker_dir/$ticket_id"
+    mkdir -p "$ticket_dir"
+    local uuid
+    uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    local event_file="$ticket_dir/CREATE-${uuid}.json"
+    _make_create_event_json "$event_file" "$ticket_id" "$alias"
+}
+
+# ── Test Resolver 1: 16-hex canonical passthrough ────────────────────────────
+echo "Test resolver_16hex_passthrough: resolve_ticket_id returns 16-hex ID unchanged"
+test_resolver_16hex_passthrough() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for resolver test" "exists" "missing"
+        return
+    fi
+
+    # Check that resolve_ticket_id is defined — RED: it must NOT exist yet
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (16hex test)" "defined" "undefined"
+        return
+    fi
+
+    local ticket_id="abcd1234efgh5678"
+    _plant_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && resolve_ticket_id "$ticket_id" 2>/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: 16-hex exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: 16-hex returns ID unchanged" "$ticket_id" "$result"
+}
+test_resolver_16hex_passthrough
+
+# ── Test Resolver 2: 8-hex backward-compat passthrough ───────────────────────
+echo "Test resolver_8hex_backward_compat: resolve_ticket_id returns 8-hex ID (xxxx-xxxx) unchanged"
+test_resolver_8hex_backward_compat() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for 8hex resolver test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (8hex test)" "defined" "undefined"
+        return
+    fi
+
+    local ticket_id="ab12-cd34"
+    _plant_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && resolve_ticket_id "$ticket_id" 2>/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: 8-hex exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: 8-hex returns ID unchanged" "$ticket_id" "$result"
+}
+test_resolver_8hex_backward_compat
+
+# ── Test Resolver 3: unique prefix expansion ─────────────────────────────────
+echo "Test resolver_unique_prefix: resolve_ticket_id expands a unique prefix to full canonical ID"
+test_resolver_unique_prefix() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for unique-prefix resolver test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (unique-prefix test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket with a unique prefix "zzzz"
+    local ticket_id="zzzz1234-5678-abcd"
+    _plant_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "zzzz" 2>/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: unique prefix exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: unique prefix expands to full ID" "$ticket_id" "$result"
+}
+test_resolver_unique_prefix
+
+# ── Test Resolver 4: ambiguous prefix error ───────────────────────────────────
+echo "Test resolver_ambiguous_prefix_error: resolve_ticket_id exits non-zero and prints 'Ambiguous' on stderr"
+test_resolver_ambiguous_prefix_error() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for ambiguous-prefix test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (ambiguous test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant two tickets that share the 4-char prefix "aaaa"
+    local id1="aaaa1111-bbbb-cccc"
+    local id2="aaaa2222-dddd-eeee"
+    _plant_ticket "$repo/.tickets-tracker" "$id1"
+    _plant_ticket "$repo/.tickets-tracker" "$id2"
+
+    local stderr_out exit_code=0
+    stderr_out=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "aaaa" 2>&1 >/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: ambiguous prefix exits non-zero" "1" \
+        "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+    local has_ambiguous
+    has_ambiguous=$(echo "$stderr_out" | grep -ic "Ambiguous" || true)
+    assert_eq "resolve_ticket_id: ambiguous prefix stderr contains 'Ambiguous'" "1" \
+        "$([ "${has_ambiguous:-0}" -gt 0 ] && echo 1 || echo 0)"
+}
+test_resolver_ambiguous_prefix_error
+
+# ── Test Resolver 5: alias lookup ─────────────────────────────────────────────
+echo "Test resolver_alias_lookup: resolve_ticket_id looks up alias from CREATE event and returns canonical ID"
+test_resolver_alias_lookup() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for alias-lookup test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (alias-lookup test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket with alias "fast-river-oak"
+    local ticket_id="qqqqrrrr-ssss-tttt"
+    _plant_ticket "$repo/.tickets-tracker" "$ticket_id" "fast-river-oak"
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "fast-river-oak" 2>/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: alias lookup exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: alias returns canonical ID" "$ticket_id" "$result"
+}
+test_resolver_alias_lookup
+
+# ── Test Resolver 6: alias collision error ────────────────────────────────────
+echo "Test resolver_alias_collision_error: resolve_ticket_id exits non-zero and lists both IDs when alias is ambiguous"
+test_resolver_alias_collision_error() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for alias-collision test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (alias-collision test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant two tickets both using alias "fast-river-oak"
+    local id1="uuuu1111-vvvv-2222"
+    local id2="wwww3333-xxxx-4444"
+    _plant_ticket "$repo/.tickets-tracker" "$id1" "fast-river-oak"
+    _plant_ticket "$repo/.tickets-tracker" "$id2" "fast-river-oak"
+
+    local stderr_out exit_code=0
+    stderr_out=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "fast-river-oak" 2>&1 >/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: alias collision exits non-zero" "1" \
+        "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Both canonical IDs must appear in stderr output
+    local has_id1 has_id2
+    has_id1=$(echo "$stderr_out" | grep -c "$id1" || true)
+    has_id2=$(echo "$stderr_out" | grep -c "$id2" || true)
+    assert_eq "resolve_ticket_id: alias collision lists id1 in stderr" "1" \
+        "$([ "${has_id1:-0}" -gt 0 ] && echo 1 || echo 0)"
+    assert_eq "resolve_ticket_id: alias collision lists id2 in stderr" "1" \
+        "$([ "${has_id2:-0}" -gt 0 ] && echo 1 || echo 0)"
+}
+test_resolver_alias_collision_error
+
 print_summary
