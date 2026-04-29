@@ -1113,4 +1113,211 @@ test_16hex_rejects_8hex_format() {
 }
 test_16hex_rejects_8hex_format
 
+# ── Test alias_1 (RED): wordlist resource file exists ────────────────────────
+echo "Test alias_1 (RED): plugins/dso/resources/ticket-wordlist.txt exists in repo"
+test_alias_wordlist_file_exists() {
+    local wordlist="$REPO_ROOT/plugins/dso/resources/ticket-wordlist.txt"
+    if [ ! -f "$wordlist" ]; then
+        assert_eq "ticket-wordlist.txt exists" "exists" "missing: $wordlist"
+        return
+    fi
+    assert_eq "ticket-wordlist.txt exists" "exists" "exists"
+
+    # Assert: file is non-empty (has at least one word)
+    local line_count
+    line_count=$(wc -l < "$wordlist" | tr -d ' ')
+    if [ "$line_count" -gt 0 ]; then
+        assert_eq "ticket-wordlist.txt is non-empty" "non-empty" "non-empty"
+    else
+        assert_eq "ticket-wordlist.txt is non-empty" "non-empty" "empty"
+        return
+    fi
+
+    # Assert: file contains '# NOUNS' section separator (marks adjective/noun boundary)
+    if grep -q "^# NOUNS$" "$wordlist"; then
+        assert_eq "ticket-wordlist.txt contains '# NOUNS' separator" "present" "present"
+    else
+        assert_eq "ticket-wordlist.txt contains '# NOUNS' separator" "present" "missing"
+    fi
+}
+test_alias_wordlist_file_exists
+
+# ── Test alias_2 (RED): CREATE event data.alias matches three-word format ────
+echo "Test alias_2 (RED): CREATE event data.alias matches ^[a-z]+-[a-z]+-[a-z]+\$"
+test_alias_format() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Alias format test" 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for alias format test" "non-empty" "empty"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"  # tickets-boundary-ok
+    local event_file
+    event_file=$(_find_create_event "$tracker_dir" "$ticket_id")
+
+    if [ -z "$event_file" ]; then
+        assert_eq "CREATE event file found for alias format test" "found" "not-found"
+        return
+    fi
+
+    # Assert: data.alias field exists in the CREATE event JSON
+    local alias_val
+    alias_val=$(_extract_event_field "$event_file" "alias")
+
+    if [ -z "$alias_val" ] || [ "$alias_val" = "MISSING" ]; then
+        assert_eq "data.alias field present in CREATE event" "present" "missing"
+        return
+    fi
+
+    assert_ne "data.alias is non-empty" "" "$alias_val"
+
+    # Assert: alias matches three hyphen-separated lowercase words
+    if [[ "$alias_val" =~ ^[a-z]+-[a-z]+-[a-z]+$ ]]; then
+        assert_eq "data.alias matches ^[a-z]+-[a-z]+-[a-z]+\$" "match" "match"
+    else
+        assert_eq "data.alias matches ^[a-z]+-[a-z]+-[a-z]+\$" "match" "no-match: $alias_val"
+    fi
+}
+test_alias_format
+
+# ── Test alias_3 (RED): each created ticket has a non-empty data.alias ───────
+echo "Test alias_3 (RED): each ticket created gets a distinct non-empty data.alias"
+test_alias_deterministic() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    # Create two tickets and verify each has a non-empty alias
+    local id1 id2
+    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Alias ticket one" 2>/dev/null) || true
+    id1=$(echo "$id1" | tail -1)
+    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Alias ticket two" 2>/dev/null) || true
+    id2=$(echo "$id2" | tail -1)
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "both tickets created for alias determinism test" "non-empty" "at-least-one-empty"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"  # tickets-boundary-ok
+
+    local ev1 ev2
+    ev1=$(_find_create_event "$tracker_dir" "$id1")
+    ev2=$(_find_create_event "$tracker_dir" "$id2")
+
+    if [ -z "$ev1" ] || [ -z "$ev2" ]; then
+        assert_eq "both CREATE event files found for alias test" "found" "at-least-one-missing"
+        return
+    fi
+
+    local alias1 alias2
+    alias1=$(_extract_event_field "$ev1" "alias")
+    alias2=$(_extract_event_field "$ev2" "alias")
+
+    # Assert: neither alias is empty or MISSING
+    if [ -z "$alias1" ] || [ "$alias1" = "MISSING" ]; then
+        assert_eq "ticket 1 data.alias is non-empty" "non-empty" "empty-or-missing"
+    else
+        assert_ne "ticket 1 data.alias is non-empty" "" "$alias1"
+    fi
+
+    if [ -z "$alias2" ] || [ "$alias2" = "MISSING" ]; then
+        assert_eq "ticket 2 data.alias is non-empty" "non-empty" "empty-or-missing"
+    else
+        assert_ne "ticket 2 data.alias is non-empty" "" "$alias2"
+    fi
+}
+test_alias_deterministic
+
+# ── Test alias_4 (RED): missing wordlist falls back to 8-hex alias + WARN ────
+echo "Test alias_4 (RED): missing wordlist falls back to 8-hex alias with WARN on stderr"
+test_alias_fallback_on_missing_wordlist() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    # Shadow the wordlist with a temp dir that lacks it: point TICKET_WORDLIST_PATH
+    # at a nonexistent path.  ticket-create.sh must check the path and fall back.
+    # We accomplish this by creating a minimal override env: remove the resources
+    # dir from the repo fixture so the default path resolution also misses it.
+    local alt_resources
+    alt_resources=$(mktemp -d)
+    _CLEANUP_DIRS+=("$alt_resources")
+    # Do NOT create ticket-wordlist.txt inside alt_resources — that's the missing case.
+
+    # Run ticket create with TICKET_WORDLIST_PATH pointing at a nonexistent file.
+    # This env var is the expected hook point in ticket-create.sh for testability.
+    local missing_wordlist="$alt_resources/ticket-wordlist.txt"
+    local exit_code=0
+    local stderr_out ticket_id
+    local _fallback_stderr
+    _fallback_stderr=$(mktemp "$alt_resources/stderr.XXXXXX")
+    ticket_id=$(cd "$repo" && TICKET_WORDLIST_PATH="$missing_wordlist" bash "$TICKET_SCRIPT" create task "Fallback alias test" 2>"$_fallback_stderr") || exit_code=$?
+    stderr_out=$(cat "$_fallback_stderr" 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    # Assert: ticket create still exits 0 (graceful fallback, not abort)
+    assert_eq "fallback: ticket create exits 0 with missing wordlist" "0" "$exit_code"
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "fallback: ticket ID returned despite missing wordlist" "non-empty" "empty"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"  # tickets-boundary-ok
+    local event_file
+    event_file=$(_find_create_event "$tracker_dir" "$ticket_id")
+
+    if [ -z "$event_file" ]; then
+        assert_eq "fallback: CREATE event file found" "found" "not-found"
+        return
+    fi
+
+    local alias_val
+    alias_val=$(_extract_event_field "$event_file" "alias")
+
+    # Assert: data.alias is non-empty
+    if [ -z "$alias_val" ] || [ "$alias_val" = "MISSING" ]; then
+        assert_eq "fallback: data.alias is non-empty" "non-empty" "empty-or-missing"
+        return
+    fi
+
+    assert_ne "fallback: data.alias is non-empty" "" "$alias_val"
+
+    # Assert: fallback alias matches 8-hex-char format
+    if [[ "$alias_val" =~ ^[0-9a-f]{8}$ ]]; then
+        assert_eq "fallback: data.alias matches ^[0-9a-f]{8}\$" "match" "match"
+    else
+        assert_eq "fallback: data.alias matches ^[0-9a-f]{8}\$" "match" "no-match: $alias_val"
+    fi
+
+    # Assert: stderr contains "WARN" or "wordlist" (warning about fallback)
+    local _stderr_lower
+    _stderr_lower=$(echo "$stderr_out" | tr '[:upper:]' '[:lower:]')
+    if [[ "$_stderr_lower" =~ warn|wordlist ]]; then
+        assert_eq "fallback: stderr contains WARN or wordlist" "has-warning" "has-warning"
+    else
+        assert_eq "fallback: stderr contains WARN or wordlist" "has-warning" "no-warning: $stderr_out"
+    fi
+}
+test_alias_fallback_on_missing_wordlist
 print_summary

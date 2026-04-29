@@ -470,3 +470,4 @@ tests/scripts/test_ticket_graph.py:tests/scripts/test_ticket_graph.py
 tests/scripts/test-ticket-transition-deleted.sh:tests/scripts/test-ticket-transition-deleted.sh
 tests/scripts/test-ticket-delete.sh:tests/scripts/test-ticket-delete.sh
 tests/scripts/test-ticket-link-duplicates-supersedes.sh:tests/scripts/test-ticket-link-duplicates-supersedes.sh
+plugins/dso/resources/ticket-wordlist.txt:tests/scripts/test-ticket-create.sh [test_alias_wordlist_file_exists]
