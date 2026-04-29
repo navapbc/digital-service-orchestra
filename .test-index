@@ -372,7 +372,7 @@ plugins/dso/scripts/bridge/_outbound_handlers.py:tests/scripts/test_bridge_outbo
 plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py,tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-list.sh
 plugins/dso/scripts/ticket_reducer/_api.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_strategy.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-list.sh
 plugins/dso/scripts/ticket_reducer/_cache.py:tests/scripts/test_ticket_reducer.py
-plugins/dso/scripts/ticket_reducer/_processors.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py,tests/unit/test_reducer_duplicates_supersedes.py
+plugins/dso/scripts/ticket_reducer/_processors.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py,tests/unit/test_reducer_duplicates_supersedes.py,tests/unit/test_processors.py [test_fork_tiebreak_lower_wins]
 plugins/dso/scripts/ticket_reducer/_sort.py:tests/scripts/test_ticket_reducer.py
 plugins/dso/scripts/ticket_reducer/_state.py:tests/scripts/test_ticket_reducer.py
 plugins/dso/scripts/ticket_reducer/marker.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_marker.py
