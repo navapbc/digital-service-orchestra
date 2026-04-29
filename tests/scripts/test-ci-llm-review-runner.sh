@@ -2043,5 +2043,127 @@ chmod +x "$MOCK_UP/review-complexity-classifier.sh"
 assert_eq "test_runner_exits_zero_on_unparseable_llm_response: exits 0 (fail-open)" "0" "$unparseable_exit"
 assert_pass_if_clean "test_runner_exits_zero_on_unparseable_llm_response"
 
+# ── test_overlay_critical_finding_overrides_inconclusive_tier ─────────────────
+# Given: main tier API returns unparseable response (inconclusive — N/A scores)
+#        AND security overlay returns critical finding with score=1
+# When:  runner merges overlay into the inconclusive placeholder
+# Then:  N/A scores are replaced by overlay numeric scores; record-review.sh
+#        sees score=1 (critical) → writes "failed" → runner exits 1
+#
+# This verifies the fix to the overlay merge logic: the elif condition
+# `not isinstance(merged_scores.get(dim), (int, float))` replaces N/A with
+# overlay numeric values so critical overlay findings can still block merges
+# even when the main tier was rate-limited/inconclusive.
+_snapshot_fail
+MOCK_CRIT=$(mktemp -d)
+ARTIFACTS_CRIT=$(mktemp -d)
+FINDINGS_CRIT="$MOCK_CRIT/findings-captured.json"
+_TEST_TMPDIRS+=("$MOCK_CRIT" "$ARTIFACTS_CRIT")
+
+# Mock classifier: security_overlay=true to trigger security overlay dispatch
+cat > "$MOCK_CRIT/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":true,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_CRIT/review-complexity-classifier.sh"
+
+# Mock curl: main tier → unparseable; security overlays → critical findings JSON
+cat > "$MOCK_CRIT/curl" <<'MOCKEOF'
+#!/usr/bin/env bash
+_body=""
+_prev=""
+for _arg in "$@"; do
+    if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
+        _body="$_arg"
+    elif [[ "$_prev" == "--data" ]]; then
+        _src="${_arg#@}"; [[ "$_src" != "$_arg" && -f "$_src" ]] && _body="$(cat "$_src")" || _body="$_arg"
+    fi
+    _prev="$_arg"
+done
+if printf '%s' "$_body" | grep -q "code-reviewer-security-red-team"; then
+    python3 -c "import json; t={\"scores\":{\"correctness\":1,\"verification\":1,\"hygiene\":1,\"design\":1,\"maintainability\":1},\"summary\":\"Critical: hardcoded credentials\",\"findings\":[{\"severity\":\"critical\",\"category\":\"correctness\",\"description\":\"SECURITY_OVERLAY_TRIGGERED: hardcoded credential pattern\",\"file\":\"foo.sh\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+elif printf '%s' "$_body" | grep -q "code-reviewer-security-blue-team"; then
+    python3 -c "import json; t={\"scores\":{\"correctness\":1,\"verification\":1,\"hygiene\":1,\"design\":1,\"maintainability\":1},\"summary\":\"Confirmed: hardcoded credentials\",\"findings\":[{\"severity\":\"critical\",\"category\":\"correctness\",\"description\":\"SECURITY_OVERLAY_TRIGGERED: confirmed credential pattern\",\"file\":\"foo.sh\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+else
+    # Main tier: return unparseable (truncated) response to produce inconclusive N/A tier
+    printf '{"content":[{"text":"I reviewed the diff. Here are my thoughts:\n\n```json\n{\"scores\":{\"hygiene\":"}],"stop_reason":"length"}'
+fi
+MOCKEOF
+chmod +x "$MOCK_CRIT/curl"
+
+# Mock write-reviewer-findings.sh: capture FINDINGS_JSON stdin to file for inspection
+cat > "$MOCK_CRIT/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+tee "${FINDINGS_CRIT}" > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_CRIT/write-reviewer-findings.sh"
+
+# Mock record-review.sh: reads the captured FINDINGS_JSON and writes "failed"
+# if any numeric score is below 3 (critical/important threshold), else "passed".
+cat > "$MOCK_CRIT/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "${ARTIFACTS_CRIT}"
+if [[ -f "${FINDINGS_CRIT}" ]]; then
+    result=\$(python3 -c "
+import json, sys
+with open('${FINDINGS_CRIT}') as f:
+    d = json.load(f)
+scores = d.get('scores', {})
+numeric_scores = [v for v in scores.values() if isinstance(v, (int, float))]
+if numeric_scores and min(numeric_scores) < 4:
+    print('failed')
+else:
+    print('passed')
+")
+    printf '%s\n' "\$result" > "${ARTIFACTS_CRIT}/review-status"
+else
+    printf 'passed\n' > "${ARTIFACTS_CRIT}/review-status"
+fi
+MOCKEOF
+chmod +x "$MOCK_CRIT/record-review.sh"
+
+mkdir -p "$ARTIFACTS_CRIT"
+
+overlay_crit_exit=0
+(
+    export PATH="$MOCK_CRIT:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CRIT"
+    printf 'diff --git a/foo.sh b/foo.sh\n+AWS_SECRET_ACCESS_KEY=FAKE-TEST-ONLY-NOT-A-REAL-KEY-000000000000\n' \
+        | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || overlay_crit_exit=$?
+
+assert_eq "test_overlay_critical_finding_overrides_inconclusive_tier: runner exits 1" "1" "$overlay_crit_exit"
+
+# Also verify the captured FINDINGS_JSON has numeric scores (not N/A) from overlay
+_crit_score_exit=0
+_crit_score_out=""
+if [[ -f "$FINDINGS_CRIT" ]]; then
+    _crit_score_out=$(python3 - <<PYEOF 2>&1 || _crit_score_exit=$?
+import json, sys
+with open('${FINDINGS_CRIT}') as f:
+    d = json.load(f)
+scores = d.get('scores', {})
+na_scores = [k for k, v in scores.items() if v == 'N/A']
+if na_scores:
+    print('STILL_NA: overlay scores did not replace N/A for: ' + str(na_scores))
+    sys.exit(1)
+min_score = min(v for v in scores.values() if isinstance(v, (int, float)))
+if min_score >= 3:
+    print('SCORE_NOT_CRITICAL: min score is ' + str(min_score) + ' (expected < 3 for critical overlay)')
+    sys.exit(1)
+print('OK')
+PYEOF
+    )
+else
+    _crit_score_out="findings-captured.json not written"
+    _crit_score_exit=1
+fi
+assert_eq "test_overlay_critical_finding_overrides_inconclusive_tier: overlay scores replace N/A" "0" "$_crit_score_exit"
+assert_eq "test_overlay_critical_finding_overrides_inconclusive_tier: scores are numeric from overlay" "OK" "$_crit_score_out"
+
+assert_pass_if_clean "test_overlay_critical_finding_overrides_inconclusive_tier"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
