@@ -98,5 +98,6 @@
     "sc_target_s": 0.05
   },
   "aggregate_sprint_turn_s": 2.9118,
-  "aggregate_sprint_turn_linux_s": 4.5
+  "aggregate_sprint_turn_linux_s": 4.5,
+  "_aggregate_sprint_turn_linux_s_comment": "Bumped from 3.5s to 4.5s (2026-04-28): original 3.5s estimate was unmeasured; per-op medians (0.22-0.28s × 20 ops) imply 4.4-5.6s pre-refactor on Linux CI shared runners. Also reflects BusyBox flock compatibility fixes applied to Alpine CI."
 }
