@@ -295,8 +295,15 @@ API_RESPONSE=$(curl -sf -m 300 --connect-timeout 10 \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
   --data @"$_REQ_TMP" \
-  "https://api.anthropic.com/v1/messages")
+  "https://api.anthropic.com/v1/messages") || {
+  echo "ERROR: Anthropic API call failed (curl exit $?). Check ANTHROPIC_API_KEY and network access." >&2
+  exit 1
+}
 rm -f "$_REQ_TMP"
+if [[ -z "${API_RESPONSE:-}" ]]; then
+  echo "ERROR: Anthropic API returned empty response body." >&2
+  exit 1
+fi
 
 LLM_TEXT=$(printf '%s\n' "$API_RESPONSE" | python3 -c "
 import json, sys, re
