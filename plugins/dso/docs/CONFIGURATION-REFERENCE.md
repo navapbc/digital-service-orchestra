@@ -1327,6 +1327,10 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 | **Default** | `bash-grep` |
 | **Used by** | `hooks/pre-commit-test-quality-gate.sh` |
 
+### CI runner exemption — `check-usage.sh`
+
+`ci-llm-review-runner.sh` does not invoke `check-usage.sh`. The usage throttle requires an active Claude Code OAuth session and is not available in headless CI environments. Rate-limit backoff for CI deep-tier parallel curl calls is handled via `curl --retry` / `--retry-delay` flags on each request instead.
+
 ---
 
 ## Section 2 — Environment Variables

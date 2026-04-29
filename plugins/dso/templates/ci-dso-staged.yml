@@ -11,6 +11,11 @@
 # tests/scripts/test-ci-dso-staged-template.sh with a .test-index entry
 # (added in the task that created the test file, ea9d-ed23, committed prior
 # to this template being added).
+#
+# The 'resolve-dso-version' step in the validate-ci job uses the companion
+# helper script ci-dso-fetch.sh (in the DSO plugin's scripts/ directory) to
+# resolve the active DSO plugin version and populate a cached clone at
+# CLONE_DIR. Tests for the fetch script are in tests/scripts/test-ci-dso-fetch.sh.
 
 name: CI
 
@@ -132,6 +137,22 @@ jobs:
           fi
         env:
           DSO_VALIDATE_CMD: ${{ vars.DSO_VALIDATE_CMD }}
+
+      - name: Resolve DSO version and fetch plugin
+        # Calls ci-dso-fetch.sh (DSO plugin scripts/) which:
+        #   1. Resolves the active DSO version via resolve-dso-version.sh (3-tier chain).
+        #   2. Derives CLONE_DIR=${RUNNER_TEMP}/dso/<version>/.
+        #   3. Checks dso-sentinel.json for a valid cached clone (schema: version + commit_sha).
+        #   4. Verifies the cached commit SHA against git ls-remote before reuse.
+        #   5. On cache miss or SHA mismatch: clones atomically (tmpdir → rename).
+        #   6. Writes dso-sentinel.json after a successful clone.
+        #   7. Validates CLONE_DIR/<plugin-path>/marketplace.json exists.
+        # CLONE_DIR is exported to subsequent steps via $GITHUB_ENV.
+        run: |
+          bash "${{ vars.DSO_PLUGIN_PATH }}/scripts/ci-dso-fetch.sh"
+          echo "CLONE_DIR=$CLONE_DIR" >> "$GITHUB_ENV"
+        env:
+          DSO_REPO_URL: ${{ vars.DSO_REPO_URL }}
 
       - name: Run DSO validation
         run: ${{ vars.DSO_VALIDATE_CMD }}

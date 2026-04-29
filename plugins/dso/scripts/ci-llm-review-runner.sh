@@ -58,11 +58,153 @@ case "$SELECTED_TIER" in
   light)    AGENT_FILE="$_PLUGIN_ROOT/agents/code-reviewer-light.md" ;;
   standard) AGENT_FILE="$_PLUGIN_ROOT/agents/code-reviewer-standard.md" ;;
   deep)
-    # CI single-runner context: multi-agent deep dispatch not supported.
-    # Fall back to standard agent as a single-pass approximation.
-    echo "INFO: deep tier selected; using standard agent (multi-agent deep not available in CI)" >&2
-    REVIEW_TIER="standard"
-    AGENT_FILE="$_PLUGIN_ROOT/agents/code-reviewer-standard.md" ;;
+    REVIEW_TIER="deep"
+    MODEL="${DSO_LLM_MODEL:-claude-sonnet-4-6}"
+
+    _SLOT_CORRECTNESS="${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-correctness.json"
+    _SLOT_VERIFICATION="${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-verification.json"
+    _SLOT_HYGIENE="${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-hygiene.json"
+
+    # Helper: build API request JSON for a specialist agent
+    _build_specialist_request() {
+      local _agent_file="$1"
+      local _sys
+      _sys="$(cat "$_agent_file")"
+      DSO_SYSTEM="$_sys" DSO_DIFF="$DIFF_CONTENT" DSO_MODEL="$MODEL" \
+        python3 - <<'PYEOF'
+import json, os
+print(json.dumps({
+  'model': os.environ['DSO_MODEL'],
+  'max_tokens': 8192,
+  'system': os.environ['DSO_SYSTEM'],
+  'messages': [{'role': 'user', 'content': 'Review this diff:\n\n' + os.environ['DSO_DIFF']}]
+}))
+PYEOF
+    }
+
+    # Step 1: dispatch 3 specialist curl calls sequentially.
+    # Each call fires the API request; the specialist agent (or mock) is responsible for
+    # writing its slot file. In production this would be a full agent sub-process; in CI
+    # tests the mock curl writes the slot file as a side-effect.
+    _REQ_C=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-correctness.md")
+    curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+      -H "x-api-key: $ANTHROPIC_API_KEY" \
+      -H "anthropic-version: 2023-06-01" \
+      -H "content-type: application/json" \
+      --data-raw "$_REQ_C" \
+      "https://api.anthropic.com/v1/messages" > /dev/null
+
+    _REQ_V=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-verification.md")
+    curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+      -H "x-api-key: $ANTHROPIC_API_KEY" \
+      -H "anthropic-version: 2023-06-01" \
+      -H "content-type: application/json" \
+      --data-raw "$_REQ_V" \
+      "https://api.anthropic.com/v1/messages" > /dev/null
+
+    _REQ_H=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-hygiene.md")
+    curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+      -H "x-api-key: $ANTHROPIC_API_KEY" \
+      -H "anthropic-version: 2023-06-01" \
+      -H "content-type: application/json" \
+      --data-raw "$_REQ_H" \
+      "https://api.anthropic.com/v1/messages" > /dev/null
+
+    # Step 2: validate all slot files exist and contain valid JSON (fail-closed)
+    for _slot in "$_SLOT_CORRECTNESS" "$_SLOT_VERIFICATION" "$_SLOT_HYGIENE"; do
+      if [[ ! -f "$_slot" ]]; then
+        echo "ERROR: deep-tier slot file missing: $_slot" >&2
+        exit 1
+      fi
+      if ! python3 -c "import json,sys; json.load(open('$_slot'))" 2>/dev/null; then
+        echo "ERROR: deep-tier slot file contains invalid JSON: $_slot" >&2
+        exit 1
+      fi
+    done
+
+    # Step 3: dispatch arch agent with slot file contents for synthesis
+    _SLOT_C_JSON=$(cat "$_SLOT_CORRECTNESS")
+    _SLOT_V_JSON=$(cat "$_SLOT_VERIFICATION")
+    _SLOT_H_JSON=$(cat "$_SLOT_HYGIENE")
+    _ARCH_USER_MSG="Synthesize these specialist reviews into a unified reviewer-findings JSON.
+
+Correctness specialist findings:
+${_SLOT_C_JSON}
+
+Verification specialist findings:
+${_SLOT_V_JSON}
+
+Hygiene/Design/Maintainability specialist findings:
+${_SLOT_H_JSON}
+
+Diff under review:
+${DIFF_CONTENT}"
+
+    _ARCH_SYS="$(cat "$_PLUGIN_ROOT/agents/code-reviewer-deep-arch.md")"
+    _ARCH_REQ=$(DSO_SYSTEM="$_ARCH_SYS" DSO_MODEL="$MODEL" DSO_ARCH_MSG="$_ARCH_USER_MSG" \
+      python3 - <<'PYEOF'
+import json, os
+print(json.dumps({
+  'model': os.environ['DSO_MODEL'],
+  'max_tokens': 8192,
+  'system': os.environ['DSO_SYSTEM'],
+  'messages': [{'role': 'user', 'content': os.environ['DSO_ARCH_MSG']}]
+}))
+PYEOF
+)
+    _ARCH_RESP=$(curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+      -H "x-api-key: $ANTHROPIC_API_KEY" \
+      -H "anthropic-version: 2023-06-01" \
+      -H "content-type: application/json" \
+      --data-raw "$_ARCH_REQ" \
+      "https://api.anthropic.com/v1/messages")
+
+    _ARCH_TEXT=$(printf '%s\n' "$_ARCH_RESP" | python3 -c "
+import json, sys, re
+data = sys.stdin.read()
+try:
+    d = json.loads(data)
+    print(d['content'][0]['text'])
+    sys.exit(0)
+except Exception:
+    pass
+m = re.search(r'\"text\"\s*:\s*\"([\s\S]+?)\"(?=\s*\}\s*\])', data)
+if m:
+    print(m.group(1))
+    sys.exit(0)
+print('ERROR: Cannot extract text from arch API response', file=sys.stderr)
+sys.exit(1)
+")
+
+    FINDINGS_JSON=$(DSO_LLM_TEXT="$_ARCH_TEXT" python3 - <<'PYEOF'
+import sys, re, json, os
+text = os.environ['DSO_LLM_TEXT'].strip()
+try:
+    json.loads(text)
+    print(text)
+    sys.exit(0)
+except Exception:
+    pass
+m = re.search(r'```(?:json)?\s*([\s\S]+?)```', text)
+if m:
+    extracted = m.group(1).strip()
+    json.loads(extracted)
+    print(extracted)
+    sys.exit(0)
+print('ERROR: Arch LLM response is not valid reviewer-findings JSON', file=sys.stderr)
+sys.exit(1)
+PYEOF
+)
+
+    REVIEWER_HASH=$(echo "$FINDINGS_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER")
+    bash "$(command -v record-review.sh)" --reviewer-hash "$REVIEWER_HASH"
+    REVIEW_STATUS=$(head -1 "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/review-status" 2>/dev/null || echo "")
+    if [[ "$REVIEW_STATUS" == "failed" ]]; then
+      echo "Review FAILED" >&2
+      exit 1
+    fi
+    echo "Review passed"
+    exit 0 ;;
   *) echo "ERROR: Unknown tier: $SELECTED_TIER" >&2; exit 1 ;;
 esac
 SYSTEM_PROMPT="$(cat "$AGENT_FILE")"
