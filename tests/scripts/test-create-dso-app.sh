@@ -104,25 +104,26 @@ BREWEOF
 }
 
 # ── test_homebrew_not_installed_exits_1 ──────────────────────────────────────
-# When `brew` is not on PATH, check_homebrew_deps must exit 1 and print an
-# install hint.
+# When `brew` is not on PATH AND the installer cannot be fetched (no curl),
+# check_homebrew_deps must exit non-zero with a manual-install hint.
 test_homebrew_not_installed_exits_1() {
     local stub_bin
     stub_bin=$(_make_stub_bin)
     # Intentionally do NOT add brew to stub_bin.
-    # Add proxy stubs for commands used before the brew check (path detection).
+    # Intentionally do NOT add curl — the script should detect curl missing
+    # before attempting the installer and exit with a clear error.
     _write_stub "$stub_bin" "dirname" '/usr/bin/dirname "$@"'
 
     local output exit_code
     output=$(_run_script "$stub_bin" 2>&1) && exit_code=0 || exit_code=$?
 
-    assert_ne "homebrew absent exits non-zero" "0" "$exit_code"
+    assert_ne "homebrew absent + no curl: exits non-zero" "0" "$exit_code"
 
     local msg_found="no"
     if grep -qi "homebrew" <<< "$output"; then
         msg_found="yes"
     fi
-    assert_eq "homebrew absent prints hint" "yes" "$msg_found"
+    assert_eq "homebrew absent + no curl: prints hint" "yes" "$msg_found"
 }
 
 # ── test_all_deps_present_exits_0 ────────────────────────────────────────────

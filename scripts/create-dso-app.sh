@@ -231,11 +231,36 @@ detect_dso_plugin_root() {
 }
 
 check_homebrew_deps() {
-  # Check Homebrew first
+  # Auto-install Homebrew if missing
   if ! command -v brew >/dev/null 2>&1; then
-    echo "Homebrew is required but not installed."
-    echo "Install it from https://brew.sh, then re-run this installer."
-    exit 1
+    echo "Homebrew not found — installing via official installer (may prompt for sudo password)..."
+    if ! command -v curl >/dev/null 2>&1; then
+      echo "curl is required to fetch the Homebrew installer but is not available."
+      echo "Install Homebrew manually from https://brew.sh and re-run this installer."
+      exit 1
+    fi
+    local _brew_install_script
+    if ! _brew_install_script=$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh); then
+      echo "Failed to download Homebrew installer. Check network connectivity and re-run."
+      exit 1
+    fi
+    if ! NONINTERACTIVE=1 /bin/bash -c "$_brew_install_script"; then
+      echo "Homebrew install failed. Install manually from https://brew.sh and re-run."
+      exit 1
+    fi
+    # The installer writes to ~/.zprofile but does not modify the current shell PATH.
+    # Activate brew in this shell from the platform-specific prefix.
+    if [ -x /opt/homebrew/bin/brew ]; then
+      eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [ -x /usr/local/bin/brew ]; then
+      eval "$(/usr/local/bin/brew shellenv)"
+    elif [ -x /home/linuxbrew/.linuxbrew/bin/brew ]; then  # portability-ok: canonical Homebrew Linux prefix
+      eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"  # portability-ok: canonical Homebrew Linux prefix
+    fi
+    if ! command -v brew >/dev/null 2>&1; then
+      echo "Homebrew installed but not on PATH. Open a new terminal and re-run this installer."
+      exit 1
+    fi
   fi
 
   eval "$(brew shellenv)" 2>/dev/null || true
