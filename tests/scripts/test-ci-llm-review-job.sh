@@ -32,9 +32,11 @@ echo "=== test-ci-llm-review-job.sh ==="
 _snapshot_fail
 claude_action_exit=0
 claude_action_output=""
-claude_action_output=$(python3 -c "
-import yaml, sys, re
-with open('$TEMPLATE') as f:
+claude_action_output=$(python3 - <<'PYEOF' 2>&1
+import yaml, sys, re, os
+
+template = os.environ.get('TEMPLATE', '')
+with open(template) as f:
     doc = yaml.safe_load(f)
 jobs = doc.get('jobs', {})
 llm_job = jobs.get('llm-review', {})
@@ -46,7 +48,8 @@ if not matched:
     print('MISSING_SHA_PIN: no step uses anthropics/claude-code-action@<40-char-sha>; found uses: ' + str(uses_values))
     sys.exit(1)
 print('OK')
-" 2>&1) || claude_action_exit=$?
+PYEOF
+) || claude_action_exit=$?
 assert_eq "test_llm_review_uses_claude_code_action: exit 0" "0" "$claude_action_exit"
 assert_eq "test_llm_review_uses_claude_code_action: SHA-pinned action present" "OK" "$claude_action_output"
 assert_pass_if_clean "test_llm_review_uses_claude_code_action"
@@ -57,9 +60,11 @@ assert_pass_if_clean "test_llm_review_uses_claude_code_action"
 _snapshot_fail
 timeout_exit=0
 timeout_output=""
-timeout_output=$(python3 -c "
-import yaml, sys
-with open('$TEMPLATE') as f:
+timeout_output=$(python3 - <<'PYEOF' 2>&1
+import yaml, sys, os
+
+template = os.environ.get('TEMPLATE', '')
+with open(template) as f:
     doc = yaml.safe_load(f)
 jobs = doc.get('jobs', {})
 llm_job = jobs.get('llm-review', {})
@@ -71,7 +76,8 @@ if not isinstance(timeout, int):
     print('INVALID_TIMEOUT: timeout-minutes must be an integer, got: ' + str(type(timeout).__name__))
     sys.exit(1)
 print('OK')
-" 2>&1) || timeout_exit=$?
+PYEOF
+) || timeout_exit=$?
 assert_eq "test_llm_review_timeout_minutes_set: exit 0" "0" "$timeout_exit"
 assert_eq "test_llm_review_timeout_minutes_set: timeout-minutes is an integer" "OK" "$timeout_output"
 assert_pass_if_clean "test_llm_review_timeout_minutes_set"
@@ -394,9 +400,11 @@ assert_pass_if_clean "test_llm_review_tier_selection_invalid_tier"
 _snapshot_fail
 api_key_exit=0
 api_key_output=""
-api_key_output=$(python3 -c "
-import yaml, sys
-with open('$TEMPLATE') as f:
+api_key_output=$(python3 - <<'PYEOF' 2>&1
+import yaml, sys, os
+
+template = os.environ.get('TEMPLATE', '')
+with open(template) as f:
     raw = f.read()
     doc = yaml.safe_load(raw)
 jobs = doc.get('jobs', {})
@@ -404,7 +412,7 @@ llm_job = jobs.get('llm-review', {})
 steps = llm_job.get('steps', [])
 # Check each step that uses the claude-code-action for the API key reference.
 # We check both parsed YAML (env/with blocks) and the raw text for the
-# \${{ secrets.ANTHROPIC_API_KEY }} expression.
+# ${{ secrets.ANTHROPIC_API_KEY }} expression.
 found = False
 for step in steps:
     uses = step.get('uses', '')
@@ -429,7 +437,8 @@ if not found:
     print('MISSING_API_KEY: no claude-code-action step references secrets.ANTHROPIC_API_KEY')
     sys.exit(1)
 print('OK')
-" 2>&1) || api_key_exit=$?
+PYEOF
+) || api_key_exit=$?
 assert_eq "test_llm_review_action_uses_api_key_from_secrets: exit 0" "0" "$api_key_exit"
 assert_eq "test_llm_review_action_uses_api_key_from_secrets: secrets.ANTHROPIC_API_KEY referenced" "OK" "$api_key_output"
 assert_pass_if_clean "test_llm_review_action_uses_api_key_from_secrets"

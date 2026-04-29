@@ -245,12 +245,12 @@ assert_pass_if_clean "test_command_sanitization_strips_metacharacters"
 # ── test_yaml_validation_blocks_invalid_yaml ─────────────────────────────────
 # When the generated YAML fails validation, the generator must exit 2 and
 # write no output file.  We simulate a validation failure by injecting a fake
-# python3 into PATH that always returns non-zero for yaml.safe_load calls.
+# python3 into PATH that always returns non-zero for yaml.safe_load calls, and
+# a fake actionlint that also always fails, so the test is resilient to whether
+# actionlint is installed on the host machine.
 #
 # Additionally, the error message on stderr must contain the string
-# "invalid YAML" so callers can parse it programmatically.  The current
-# implementation emits "failed YAML validation" (not "invalid YAML"), so the
-# stderr-content assertion fails RED until dso-cwyt normalises the message.
+# "invalid YAML" so callers can parse it programmatically.
 _snapshot_fail
 YAML_FAKE_BIN="$(mktemp -d)"
 cat > "$YAML_FAKE_BIN/python3" << 'FAKE_PYEOF'
@@ -263,6 +263,14 @@ fi
 exec /usr/bin/python3 "$@"
 FAKE_PYEOF
 chmod +x "$YAML_FAKE_BIN/python3"
+# Also inject a fake actionlint that always fails, so the test is not
+# affected by whether actionlint is installed on the host machine.
+cat > "$YAML_FAKE_BIN/actionlint" << 'FAKE_ALEOF'
+#!/usr/bin/env bash
+# Stub: pretend YAML is always invalid
+exit 1
+FAKE_ALEOF
+chmod +x "$YAML_FAKE_BIN/actionlint"
 trap 'rm -rf "$YAML_FAKE_BIN"' EXIT
 
 YAML_VAL_DIR="$TMPDIR_OUTPUT/yaml_validation"
@@ -368,6 +376,14 @@ fi
 exec /usr/bin/python3 "$@"
 TTM_PYEOF
 chmod +x "$TTM_FAKE_BIN/python3"
+# Also inject a fake actionlint that always fails, so the test is not
+# affected by whether actionlint is installed on the host machine.
+cat > "$TTM_FAKE_BIN/actionlint" << 'TTM_ALEOF'
+#!/usr/bin/env bash
+# Stub: pretend YAML is always invalid
+exit 1
+TTM_ALEOF
+chmod +x "$TTM_FAKE_BIN/actionlint"
 trap 'rm -rf "$TTM_FAKE_BIN"' EXIT
 
 # Part (a): success path — output file must exist after validation passes

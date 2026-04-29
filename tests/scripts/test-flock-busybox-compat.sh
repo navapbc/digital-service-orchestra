@@ -104,9 +104,30 @@ test_ticket_create_without_flock() {
     local repo
     repo=$(_make_test_repo)
 
-    # Run with a PATH that has no flock binary at all
+    # Run with a PATH that has no flock binary at all.
+    # Strategy: detect the actual flock binary path (it may live in /usr/bin or
+    # any other directory whose name does not contain "flock" or "util-linux"),
+    # then exclude that specific directory from PATH.  Fall back to the
+    # name-pattern filter as a secondary pass for belt-and-suspenders coverage.
+    local flock_dir=""
+    local flock_bin
+    flock_bin=$(command -v flock 2>/dev/null || true)
+    if [ -n "$flock_bin" ]; then
+        flock_dir=$(dirname "$flock_bin")
+    fi
+
     local no_flock_path
-    no_flock_path=$(echo "$PATH" | tr ':' '\n' | grep -v 'util-linux\|flock' | tr '\n' ':' | sed 's/:$//')
+    if [ -n "$flock_dir" ]; then
+        # Exclude the directory that actually contains flock, then also strip
+        # any residual path components whose name contains 'util-linux' or 'flock'.
+        no_flock_path=$(echo "$PATH" | tr ':' '\n' \
+            | grep -v "^${flock_dir}\$" \
+            | grep -v 'util-linux\|flock' \
+            | tr '\n' ':' | sed 's/:$//')
+    else
+        # flock is not in PATH on this host; just remove name-pattern matches.
+        no_flock_path=$(echo "$PATH" | tr ':' '\n' | grep -v 'util-linux\|flock' | tr '\n' ':' | sed 's/:$//')
+    fi
 
     local ticket_id
     ticket_id=$(
