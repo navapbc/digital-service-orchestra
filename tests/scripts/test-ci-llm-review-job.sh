@@ -103,24 +103,24 @@ assert_eq "test_llm_review_exposes_anthropic_api_key: run step env contains ANTH
 assert_pass_if_clean "test_llm_review_exposes_anthropic_api_key"
 
 # ── test_llm_review_uses_gh_pr_diff ───────────────────────────────────────────
-# The llm-review job must have a run: step whose body contains `gh pr diff |`
-# so the PR diff is piped into the classifier-driven runner.
-# RED until the runner step is added to the template.
-_snapshot_fail
+# The llm-review job must have a run: step whose body pipes `gh pr diff` output
+# into the classifier-driven runner. Accepts both:
+#   gh pr diff | bash ...          (branch-aware mode)
+#   gh pr diff "$PR_NUMBER" | ...  (explicit PR number for detached HEAD CI)
 gh_pr_diff_exit=0
 gh_pr_diff_output=""
 gh_pr_diff_output=$(python3 -c "
-import yaml, sys
+import yaml, sys, re
 with open('$TEMPLATE') as f:
     doc = yaml.safe_load(f)
 jobs = doc.get('jobs', {})
 llm_job = jobs.get('llm-review', {})
 steps = llm_job.get('steps', [])
 run_steps = [s for s in steps if s.get('run')]
-matched = [s for s in run_steps if 'gh pr diff |' in s.get('run', '')]
+matched = [s for s in run_steps if re.search(r'gh pr diff\b.*\|', s.get('run', ''))]
 if not matched:
     run_snippets = [s.get('run', '')[:80] for s in run_steps]
-    print('MISSING_GH_PR_DIFF: no run: step contains \"gh pr diff |\"; found run steps: ' + str(run_snippets))
+    print('MISSING_GH_PR_DIFF: no run: step pipes gh pr diff; found run steps: ' + str(run_snippets))
     sys.exit(1)
 print('OK')
 " 2>&1) || gh_pr_diff_exit=$?

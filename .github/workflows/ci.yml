@@ -170,5 +170,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash -eo pipefail {0}
         run: |
-          gh pr diff | bash plugins/dso/scripts/ci-llm-review-runner.sh
+          PR_NUMBER="${GITHUB_REF#refs/pull/}"
+          PR_NUMBER="${PR_NUMBER%/merge}"
+          gh pr diff "$PR_NUMBER" | bash plugins/dso/scripts/ci-llm-review-runner.sh
 
