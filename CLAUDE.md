@@ -36,6 +36,7 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Show ticket details | `.claude/scripts/dso ticket show <id>` |
 | Create a ticket | `.claude/scripts/dso ticket create <type> <title> [--description <text>] [--tags <tag>] [--parent <parent>] [--priority <priority>]` |
 | Close a ticket | `.claude/scripts/dso ticket transition <id> <current-status> closed` (bug tickets require `--reason="Fixed: <summary>"`) |
+| Delete a ticket (human-approved gate) | `.claude/scripts/dso ticket delete <id> --user-approved` |
 | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` |
 | Add tag to a ticket | `.claude/scripts/dso ticket tag <id> <tag>` |
 | Remove tag from a ticket | `.claude/scripts/dso ticket untag <id> <tag>` |
@@ -48,7 +49,7 @@ Less common: `check-skill-refs.sh`, `qualify-skill-refs.sh`.
 
 Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 
-**Ticket type terminology**: `epic` = container for a feature area; `story` = user story (epic children, written as "As a [user], [goal]"); `task` = implementation work item. Ticket titles must be ≤ 255 characters (Jira sync limit).
+**Ticket type terminology**: `epic` = container for a feature area; `story` = user story (epic children, written as "As a [user], [goal]"); `task` = implementation work item. Ticket titles must be ≤ 255 characters (Jira sync limit). `deleted` = terminal status; ticket is excluded from ticket list by default; requires `--user-approved` gate; all children must be deleted first
 
 ## Architecture
 

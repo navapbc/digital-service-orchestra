@@ -24,6 +24,7 @@ Module interface:
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 from pathlib import Path
@@ -61,7 +62,7 @@ def _get_reducer():
 # ---------------------------------------------------------------------------
 
 _BLOCKING_RELATIONS = {"blocks", "depends_on"}
-_CLOSED_STATUSES = {"closed"}
+_CLOSED_STATUSES = {"closed", "deleted"}
 _VALID_EVENT_SOURCES = {"local-close", "sync-resolution"}
 
 
@@ -127,12 +128,27 @@ def detect_newly_unblocked(
             if not entry.is_dir():
                 continue
             ticket_id = entry.name
+            # Tombstone-aware: .tombstone.json written by ticket delete carries the
+            # terminal status; the reducer does not read it.
+            tombstone_path = Path(entry.path) / ".tombstone.json"
+            tombstone_status: str | None = None
+            if tombstone_path.is_file():
+                try:
+                    _ts = json.loads(tombstone_path.read_text())
+                    tombstone_status = str(_ts.get("status", "deleted"))
+                except Exception:
+                    tombstone_status = "deleted"
             state = reduce_ticket(entry.path)
             if state is None:
+                if tombstone_status is not None:
+                    ticket_states[ticket_id] = {"status": tombstone_status}
                 continue
             # Skip error/fsck states — treat as non-existent
             if state.get("status") in ("error", "fsck_needed"):
                 continue
+            # Override status from tombstone (reducer does not read tombstone)
+            if tombstone_status is not None:
+                state["status"] = tombstone_status
             ticket_states[ticket_id] = state
     # else: ticket_states was provided — use it directly (empty dict is valid:
     # it means the caller scanned and found no tickets).

@@ -97,7 +97,7 @@ def _compute_dep_graph(
     ready_to_work = True
     for blocker_id in direct_blockers:
         status = _get_ticket_status(blocker_id, tracker_dir)
-        if status != "closed":
+        if status not in ("closed", "deleted"):
             ready_to_work = False
             break
 
@@ -178,9 +178,10 @@ def check_would_create_cycle(
     """Return True if adding source_id→target_id would create a cycle.
 
     Only 'blocks' and 'depends_on' relations can create cycles.
-    'relates_to' never creates cycles and always returns False.
+    'relates_to', 'duplicates', and 'supersedes' never create cycles
+    and always return False.
     """
-    if relation == "relates_to":
+    if relation in ("relates_to", "duplicates", "supersedes"):
         return False
 
     blocked_by_target = _get_all_blocked_by(target_id, tracker_dir)

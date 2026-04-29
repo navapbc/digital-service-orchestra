@@ -87,7 +87,7 @@ _write_create_event() {
     local filename="${timestamp}-${uuid}-CREATE.json"
 
     python3 -c "
-import json
+import json, sys
 payload = {
     'event_type': 'CREATE',
     'timestamp': $timestamp,
@@ -291,6 +291,110 @@ test_migrate_file_impact_idempotency() {
     fi
 }
 test_migrate_file_impact_idempotency
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 4: Git commit — events are committed to tracker branch after migration
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 4: events are committed to tracker git branch"
+test_migrate_file_impact_git_commit() {
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local ticket_id="ticket-gitcommit-004"
+    local ticket_dir="$tracker_dir/$ticket_id"
+    mkdir -p "$ticket_dir"
+
+    _write_create_event "$ticket_dir" "1700003000" "testuuid004cr001" "$ticket_id"
+    _write_comment_event "$ticket_dir" "1700003001" "testuuid004cm001" \
+        "## File Impact
+- src/qux.py (modified)"
+
+    # Stage event files so git knows about them (simulates pre-existing committed ticket)
+    git -C "$tracker_dir" add -A
+    git -C "$tracker_dir" commit -m "test: add fixture ticket" --no-verify >/dev/null 2>&1 || true
+
+    # Run migration
+    local exit_code=0
+    (cd "$repo" && bash "$MIGRATE_SCRIPT" --target "$repo") >/dev/null 2>&1 || exit_code=$?
+    assert_eq "git-commit: migration exits 0" "0" "$exit_code"
+
+    # The FILE_IMPACT event file must be committed (not just on disk)
+    local untracked_count
+    untracked_count=$(git -C "$tracker_dir" status --porcelain 2>/dev/null | grep '^??' | wc -l | tr -d ' ')
+    assert_eq "git-commit: no uncommitted FILE_IMPACT events after migration" "0" "$untracked_count"
+
+    # The commit message must mention file-impact-v1
+    local last_commit_msg
+    last_commit_msg=$(git -C "$tracker_dir" log -1 --pretty=%s 2>/dev/null || echo "")
+    if printf '%s' "$last_commit_msg" | grep -q "file-impact-v1"; then
+        assert_eq "git-commit: commit message mentions file-impact-v1" "yes" "yes"
+    else
+        assert_eq "git-commit: commit message mentions file-impact-v1" "yes" "no"
+    fi
+}
+test_migrate_file_impact_git_commit
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 5: Git commit failure — written event files are cleaned up and exit is 1
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 5: commit failure cleans up written events and exits 1"
+test_migrate_file_impact_git_commit_failure_cleanup() {
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local ticket_id="ticket-commitfail-005"
+    local ticket_dir="$tracker_dir/$ticket_id"
+    mkdir -p "$ticket_dir"
+
+    _write_create_event "$ticket_dir" "1700004000" "testuuid005cr001" "$ticket_id"
+    _write_comment_event "$ticket_dir" "1700004001" "testuuid005cm001" \
+        "## File Impact
+- src/quux.py (added)"
+
+    # Stage fixture so migration can write and git-add the FILE_IMPACT event
+    git -C "$tracker_dir" add -A
+    git -C "$tracker_dir" commit -m "test: add fixture ticket" --no-verify >/dev/null 2>&1 || true
+
+    # Install a pre-commit hook in the main repo that always fails.
+    # The tracker is a worktree sharing the main repo's hooks, so this blocks
+    # git commit in the tracker without touching the tracker's gitlink file.
+    # Fixture setup uses --no-verify, so only the migration's bare commit is blocked.
+    local hooks_dir="$repo/.git/hooks"
+    mkdir -p "$hooks_dir"
+    local hook="$hooks_dir/pre-commit"
+    printf '#!/bin/sh\nexit 1\n' > "$hook"
+    chmod +x "$hook"
+
+    # Run migration — should exit 1 due to commit failure
+    local exit_code=0
+    (cd "$repo" && bash "$MIGRATE_SCRIPT" --target "$repo") >/dev/null 2>&1 || exit_code=$?
+    assert_eq "commit-failure: migration exits 1" "1" "$exit_code"
+
+    # Event file must NOT remain on disk (cleanup removed it)
+    local fi_count
+    fi_count=$(_count_file_impact_events "$ticket_dir")
+    assert_eq "commit-failure: FILE_IMPACT event file removed by cleanup" "0" "$fi_count"
+
+    # Stamp file must NOT be written (migration did not complete)
+    if [ -f "$repo/.claude/.file-impact-migration-v1" ]; then
+        assert_eq "commit-failure: stamp file not written" "missing" "exists"
+    else
+        assert_eq "commit-failure: stamp file not written" "missing" "missing"
+    fi
+}
+test_migrate_file_impact_git_commit_failure_cleanup
 
 # ═══════════════════════════════════════════════════════════════════════════════
 print_summary

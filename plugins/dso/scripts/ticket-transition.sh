@@ -83,6 +83,13 @@ _validate_status() {
 }
 
 _validate_status "current_status" "$current_status"
+
+# Blocked transition targets
+if [ "$target_status" = "deleted" ]; then
+    echo "Error: deleted is not a valid transition target -- use ticket delete $ticket_id to delete a ticket" >&2
+    exit 1
+fi
+
 _validate_status "target_status" "$target_status"
 
 # ── Idempotent no-op ─────────────────────────────────────────────────────────
@@ -133,7 +140,7 @@ tracker_dir = sys.argv[1]
 ticket_id = sys.argv[2]
 reducer_path = sys.argv[3]
 
-CLOSED_STATUSES = frozenset(('closed', 'done', 'resolved', 'cancelled', 'wont_fix', 'archived'))
+CLOSED_STATUSES = frozenset(('closed', 'done', 'resolved', 'cancelled', 'wont_fix', 'archived', 'deleted'))
 
 def read_state_from_snapshot(ticket_dir):
     """Read compiled state from the newest *-SNAPSHOT.json event file. Returns dict or None."""
@@ -231,7 +238,19 @@ try:
 
         if state is None:
             continue
-        if state.get('status', 'open') not in CLOSED_STATUSES:
+        # Tombstone-aware: .tombstone.json is written by ticket delete and carries
+        # the terminal status; the reducer does not read it.
+        tombstone_path = os.path.join(entry.path, '.tombstone.json')
+        if os.path.isfile(tombstone_path):
+            try:
+                with open(tombstone_path) as _tf:
+                    _ts = json.load(_tf)
+                eff_status = str(_ts.get('status', 'deleted'))
+            except Exception:
+                eff_status = 'deleted'
+        else:
+            eff_status = state.get('status', 'open')
+        if eff_status not in CLOSED_STATUSES:
             open_children.append(tid)
 except Exception as e:
     print(f'Error: open-children scan failed: {e}', file=sys.stderr)

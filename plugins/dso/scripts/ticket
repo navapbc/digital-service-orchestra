@@ -430,6 +430,13 @@ case "$subcommand" in
         _ticketlib_dispatch ticket_archive "$@"
         exit $?
         ;;
+    delete)
+        _ensure_initialized
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_delete "$@"
+        exit $?
+        ;;
     set-file-impact)
         _ensure_initialized
         # shellcheck source=/dev/null

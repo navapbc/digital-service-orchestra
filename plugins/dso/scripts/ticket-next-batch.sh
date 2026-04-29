@@ -630,7 +630,24 @@ ticket_status_map = {
     if t.get("ticket_id")
 }
 
-CLOSED_STATUSES = {"closed", "done", "completed"}
+# Tombstone override: .tombstone.json written by ticket delete carries the terminal
+# status; the reducer does not read it, so ticket list returns the pre-delete status.
+# Scan the tracker directory and override status for any tombstoned ticket.
+if tracker_dir and os.path.isdir(tracker_dir):
+    import json as _json_ts
+    for _entry in os.scandir(tracker_dir):
+        if not _entry.is_dir():
+            continue
+        _tb = os.path.join(_entry.path, ".tombstone.json")
+        if os.path.isfile(_tb):
+            try:
+                with open(_tb) as _tbf:
+                    _ts = _json_ts.loads(_tbf.read())
+                ticket_status_map[_entry.name] = str(_ts.get("status", "deleted")).lower()
+            except Exception:
+                ticket_status_map[_entry.name] = "deleted"
+
+CLOSED_STATUSES = {"closed", "done", "completed", "deleted"}
 
 blocked_ids = set()
 ready_tasks = []
@@ -665,7 +682,7 @@ for t in all_tickets:
 # ── Identify stories and check which are blocked ──────────────────────────────
 
 STORY_TYPES = {"story"}
-CLOSED = {"closed", "done", "completed"}
+CLOSED = {"closed", "done", "completed", "deleted"}
 
 status_cache  = {}   # issue_id -> status string
 story_map     = {}   # story_id -> raw issue dict

@@ -6,8 +6,9 @@
 #   ticket-link.sh link <id1> <id2> [<relation>]  — write LINK event in id1 dir
 #   ticket-link.sh unlink <id1> <id2>            — write UNLINK event in id1 dir
 #
-# Relations supported: blocks, depends_on, relates_to
+# Relations supported: blocks, depends_on, relates_to, duplicates, supersedes
 # For relates_to, a reciprocal LINK event is also written in id2 dir.
+# duplicates and supersedes are directional — no reciprocal LINK is written.
 # Idempotent: duplicate link (same target_id + relation) is a no-op (exits 0).
 # Validates both ticket IDs exist; exits nonzero if not.
 set -euo pipefail
@@ -25,8 +26,9 @@ _usage() {
     echo "Usage: ticket link <source_id> <target_id> [<relation>]" >&2
     echo "       ticket unlink <source_id> <target_id>" >&2
     echo "" >&2
-    echo "  relation: blocks | depends_on | relates_to" >&2
+    echo "  relation: blocks | depends_on | relates_to | duplicates | supersedes" >&2
     echo "  relates_to creates bidirectional LINK events in both ticket dirs" >&2
+    echo "  duplicates and supersedes are directional (no reciprocal link)" >&2
     exit 1
 }
 
@@ -415,15 +417,15 @@ case "$subcommand" in
 
         # Validate relation
         case "$relation" in
-            blocks|depends_on|relates_to) ;;
+            blocks|depends_on|relates_to|duplicates|supersedes) ;;
             child|parent)
                 echo "Error: '$relation' is not a link relation. Parent-child relationships are" >&2
                 echo "  established at creation time via: ticket create <type> <title> --parent=<id>" >&2
-                echo "  'ticket link' is for dependency links: blocks, depends_on, relates_to" >&2
+                echo "  'ticket link' is for dependency links: blocks, depends_on, relates_to, duplicates, supersedes" >&2
                 exit 1
                 ;;
             *)
-                echo "Error: invalid relation '$relation'. Must be one of: blocks, depends_on, relates_to" >&2
+                echo "Error: invalid relation '$relation'. Must be one of: blocks, depends_on, relates_to, duplicates, supersedes" >&2
                 exit 1
                 ;;
         esac

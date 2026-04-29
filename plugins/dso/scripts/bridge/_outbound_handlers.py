@@ -139,6 +139,44 @@ def handle_status_event(
 
     compiled_status = get_compiled_status(ticket_dir, reducer_path=reducer_path)
     if compiled_status:
+        # Intercept 'deleted' BEFORE any generic update_issue call.
+        # A deleted ticket must be removed from Jira, not transitioned.
+        if compiled_status == "deleted":
+            sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
+            if not sync_files:
+                # Ticket was never synced to Jira — skip silently
+                logger.debug(
+                    "STATUS 'deleted' for %s: no SYNC file found — ticket was never "
+                    "synced to Jira; skipping deletion",
+                    ticket_id,
+                )
+                return []
+            sync_data = _read_event_file(sync_files[-1])
+            if sync_data:
+                jira_key = sync_data.get("jira_key", "")
+                if jira_key:
+                    try:
+                        acli_client.delete_issue(jira_key)
+                        status_updated.add(ticket_id)
+                    except PermissionError as exc:
+                        logger.warning(
+                            "delete_issue(%s) denied (403) — writing BRIDGE_ALERT: %s",
+                            jira_key,
+                            exc,
+                        )
+                        write_bridge_alert(
+                            ticket_dir,
+                            ticket_id=ticket_id,
+                            reason=f"403 delete denied for {jira_key}: {exc}",
+                            bridge_env_id=bridge_env_id,
+                        )
+                else:
+                    logger.debug(
+                        "STATUS 'deleted' for %s: SYNC file has no jira_key — skipping",
+                        ticket_id,
+                    )
+            return []
+
         sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
         if sync_files:
             sync_data = _read_event_file(sync_files[-1])
@@ -631,6 +669,24 @@ def handle_file_impact_event(
 
     dedup_map = _read_dedup_map(ticket_dir)
     uuid_to_jira = dedup_map.get("uuid_to_jira_id", {})
+    put_retry_uuids: set[str] = set(dedup_map.get("put_retry_uuids", []))
+
+    # If comment already posted but PUT failed on a prior run, retry only the PUT.
+    if event_uuid in uuid_to_jira and event_uuid in put_retry_uuids:
+        try:
+            acli_client.set_issue_property(jira_key, "dso.file_impact", file_impact)
+            put_retry_uuids.discard(event_uuid)
+            dedup_map["put_retry_uuids"] = list(put_retry_uuids)
+            _write_dedup_map(ticket_dir, dedup_map)
+        except Exception:
+            write_bridge_alert(
+                ticket_dir,
+                ticket_id=ticket_id,
+                reason="FILE_IMPACT_SYNC_FAILED",
+                bridge_env_id=bridge_env_id,
+            )
+        return []
+
     if event_uuid in uuid_to_jira:
         return []
 
@@ -651,14 +707,19 @@ def handle_file_impact_event(
     comment_failed = False
     try:
         result = acli_client.add_comment(jira_key, body_with_marker)
-        jira_comment_id = (result.get("id", "") if isinstance(result, dict) else "") or str(
-            event_uuid
-        )
+        jira_comment_id = (
+            result.get("id", "") if isinstance(result, dict) else ""
+        ) or str(event_uuid)
         jira_id_to_uuid = dedup_map.get("jira_id_to_uuid", {})
         uuid_to_jira[event_uuid] = jira_comment_id
         jira_id_to_uuid[jira_comment_id] = event_uuid
         dedup_map["uuid_to_jira_id"] = uuid_to_jira
         dedup_map["jira_id_to_uuid"] = jira_id_to_uuid
+        if put_failed:
+            # Dedup-mark the comment to prevent duplicate on retry, but flag the
+            # PUT channel so the next invocation retries only the property write.
+            put_retry_uuids.add(event_uuid)
+            dedup_map["put_retry_uuids"] = list(put_retry_uuids)
         _write_dedup_map(ticket_dir, dedup_map)
     except Exception:
         comment_failed = True

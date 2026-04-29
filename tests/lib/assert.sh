@@ -58,6 +58,18 @@ assert_contains() {
     fi
 }
 
+# assert_not_contains label substring string
+# Increments PASS if substring does NOT appear in string, FAIL otherwise.
+assert_not_contains() {
+    local label="$1" substring="$2" string="$3"
+    if [[ "$string" != *"$substring"* ]]; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: %s\n  expected NOT to contain: %s\n  actual:                  %s\n" "$label" "$substring" "$string" >&2
+    fi
+}
+
 # _snapshot_fail
 # Captures current FAIL count for later comparison by assert_pass_if_clean.
 _snapshot_fail() { _fail_snapshot=$FAIL; }
