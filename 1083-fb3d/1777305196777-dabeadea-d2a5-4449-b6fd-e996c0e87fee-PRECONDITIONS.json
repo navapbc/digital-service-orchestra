@@ -1,1 +1,0 @@
-{"event_type": "PRECONDITIONS", "schema_version": 1, "manifest_depth": "minimal", "gate_name": "preplanning_complete", "session_id": "preplanning-lightweight-1777305196", "worktree_id": "worktree-20260427-084003", "tier": "minimal", "timestamp": 1777305196777, "gate_verdicts": [], "evidence_ref": {}, "affects_fields": [], "data": {}}
