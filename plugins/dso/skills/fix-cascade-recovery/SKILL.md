@@ -30,7 +30,7 @@ git log --oneline -10                                 # last known good
 [[ -n "${TICKET_ID:-}" ]] && .claude/scripts/dso ticket show "$TICKET_ID" 2>/dev/null  # checkpoint notes
 ```
 
-Do NOT re-run the project test suite here — it is known-broken (that's why the breaker fired) and exceeds the 73s tool timeout (CLAUDE.md rule 19, INC-016). The file count from `git diff --stat` is the load-bearing signal.
+Do NOT re-run the project test suite here — it is known-broken (that's why the breaker fired) and exceeds the 73s tool timeout (CLAUDE.md rule 19, INC-001). The file count from `git diff --stat` is the load-bearing signal.
 
 If `TICKET_ID` is set, record file count and original task:
 
@@ -41,12 +41,12 @@ If `TICKET_ID` is set, record file count and original task:
 ### Step 2: Decide Revert
 
 Decision framework:
-- **>5 files changed during the cascade** → full revert: `git stash` (preserves for reference; drop after Step 3 confirms a fresh fix is on the way).
-- **Original error was a 1–2 line fix** → full revert: `git stash` and start fresh.
+- **>5 files changed during the cascade** → full revert: `git stash --keep-index` (preserves for reference; drop after Step 3 confirms a fresh fix is on the way).
+- **Original error was a 1–2 line fix** → full revert: `git stash --keep-index` and start fresh.
 - **Some changes correct, others not** → selective revert: `git checkout HEAD -- <bad-file>` per bad file. Do NOT stash — keep the correct changes in the working tree for the hand-off.
 - **Changes are small and likely all correct** → no revert. Do NOT stash. Proceed to Step 3 with the working tree intact.
 
-`git stash` is conditional on the revert decision — only stash when reverting. Stashing on the keep-changes path strands the in-progress fix and the hand-off to `/dso:fix-bug` will see a clean working tree.
+`git stash` is conditional on the revert decision — only stash when reverting. Always use `--keep-index` (INC-016): bare `git stash` destroys staged-file state, so if a cascade fired mid-commit-workflow with files already staged, those files come back unstaged after pop. Stashing on the keep-changes path strands the in-progress fix and the hand-off to `/dso:fix-bug` will see a clean working tree.
 
 When in doubt, revert. Untangling a cascade is almost always slower than re-fixing from clean state.
 
