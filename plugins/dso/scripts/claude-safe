@@ -119,10 +119,13 @@ _offer_worktree_cleanup() {
         # The amend changes the SHA so is-ancestor fails, but main's merge
         # commit message still references this branch name.
         is_merged=1
-    elif git -C "$main_root" log main --oneline --grep="Merge pull request.*$branch" -1 2>/dev/null | grep -q .; then
+    elif git -C "$main_root" log main --oneline --all-match -F \
+            --grep="Merge pull request" --grep="$branch" -1 2>/dev/null | grep -q .; then
         # Fallback: GitHub PR merge commits use "Merge pull request #N from org/branch".
-        # Anchored to "Merge pull request" to avoid false positives from unrelated
-        # commits that mention the branch name in their body text.
+        # Uses --all-match -F so both literals (no regex) must appear in the same
+        # commit message — avoids false positives from regex metacharacters in
+        # branch names (e.g., "." acting as wildcard) and from unrelated commits
+        # that mention only the branch name.
         is_merged=1
     fi
 

@@ -52,19 +52,21 @@ make_tmpdir() {
     echo "$d"
 }
 
-# ── Helper: set up repo with a GitHub-style PR squash merge ──────────────────
+# ── Helper: set up repo with a GitHub-style PR merge commit ──────────────────
 #
 # Creates:
 #   - A bare "origin" repo
 #   - A "main" clone with initial commit
 #   - A feature branch with one commit
 #   - A worktree on that feature branch
-#   - On main: a new squash commit (does NOT include feature branch tip as ancestor)
-#     with commit message "Merge pull request #42 from navapbc/<branch-name>"
+#   - On main: a new commit whose subject matches GitHub's PR merge format
+#     "Merge pull request #42 from navapbc/<branch-name>", but where the
+#     feature branch tip is NOT an ancestor of main.
 #
-# The feature branch tip is NOT an ancestor of main (squash merge scenario).
-# The only way to detect the merge is by finding the branch name in the PR
-# commit message on main.
+# The "branch tip not an ancestor of main" condition matches the observable
+# state for both squash merges (where commits are coalesced into a new SHA)
+# and rebase merges (where commits are cherry-picked). The standard PR merge
+# subject is what is_branch_merged must detect via its third grep fallback.
 #
 # Outputs (one per line):
 #   $1: path to main repo clone
@@ -115,24 +117,25 @@ _setup_github_pr_squash_merge() {
         git commit -q -m "feat: refine feature"
     )
 
-    # === Simulate GitHub squash merge ===
-    # On main, create a NEW commit (squash) that does NOT include
-    # the feature branch tip as an ancestor. This mimics a GitHub PR squash merge.
+    # === Simulate GitHub PR merge (squash- or rebase-mode behavior) ===
+    # On main, create a NEW commit that does NOT include the feature branch
+    # tip as an ancestor, with a commit subject matching GitHub's standard
+    # PR merge format. This mimics what main looks like after a squash or
+    # rebase PR merge: the original branch commits are gone, but a commit
+    # whose subject identifies the source branch lives on main.
     (
         cd "$tmp/main-repo" || exit
         git config user.email "test@test.com"
         git config user.name "Test"
-        # Create a squash commit: apply the same change but as a single new commit
-        # whose parent is main (NOT a merge commit that includes the branch tip).
-        echo "squashed feature content" > squashed-feature.txt
-        git add squashed-feature.txt
-        # Commit message matches GitHub PR merge format exactly
+        echo "merged feature content" > merged-feature.txt
+        git add merged-feature.txt
+        # Commit subject matches GitHub PR merge format exactly
         git commit -q -m "Merge pull request #42 from navapbc/$branch_name"
         git push -q origin main 2>/dev/null
     )
 
-    # Verify the feature branch tip is NOT an ancestor of main (confirms squash)
-    # If this check fails, the test setup is wrong — not a squash scenario.
+    # Verify the feature branch tip is NOT an ancestor of main.
+    # If this check fails, the test setup is wrong — not the scenario we want.
     if git -C "$tmp/main-repo" merge-base --is-ancestor "$branch_name" main 2>/dev/null; then
         echo "TEST SETUP ERROR: feature branch tip IS an ancestor of main — squash simulation failed" >&2
         exit 2
@@ -293,6 +296,74 @@ test_github_pr_merge_detected_in_claude_safe() {
         "$output"
 }
 
+# ── test_branch_name_regex_metacharacters_treated_as_literal ─────────────────
+# Regression test for Copilot review (PR #15): a branch with regex metacharacters
+# in its name (e.g., a literal "." or "*") must not match an unrelated PR merge
+# commit because the metacharacter acts as a wildcard. The fix uses git log
+# --grep with -F (fixed strings) and --all-match, treating both patterns as
+# literals — this test would have failed under the prior unanchored regex.
+test_branch_name_regex_metacharacters_treated_as_literal() {
+    local tmp
+    tmp=$(make_tmpdir)
+
+    # Branch with a literal "." — regex would treat as wildcard
+    local active_branch="worktree-20260429-feature.v2"
+    # An unrelated PR merge commit references a similarly-named (but distinct) branch
+    local distractor_branch="worktree-20260429-featureXv2"
+
+    git init --bare -b main -q "$tmp/origin.git"
+    git clone -q "$tmp/origin.git" "$tmp/main-repo" 2>/dev/null
+    (
+        cd "$tmp/main-repo" || exit
+        git config user.email "test@test.com"
+        git config user.name "Test"
+        echo "initial" > file.txt
+        git add file.txt && git commit -q -m "initial commit"
+        git push -q origin main 2>/dev/null
+    )
+
+    # Create the active (unmerged) branch + worktree
+    git -C "$tmp/main-repo" branch -q "$active_branch"
+    local wt_dir="$tmp/worktrees"
+    mkdir -p "$wt_dir"
+    local wt_path="$wt_dir/$active_branch"
+    git -C "$tmp/main-repo" worktree add "$wt_path" "$active_branch" -q
+    (
+        cd "$wt_path" || exit
+        git config user.email "test@test.com"
+        git config user.name "Test"
+        echo "in-progress" > work.txt
+        git add work.txt && git commit -q -m "wip"
+    )
+
+    # Add a PR merge commit on main referencing the DISTRACTOR branch.
+    # Under the prior unanchored regex, "feature.v2" matched "featureXv2"
+    # because "." was a wildcard. Under -F --all-match, this must NOT match.
+    (
+        cd "$tmp/main-repo" || exit
+        git config user.email "test@test.com"
+        git config user.name "Test"
+        echo "distractor" > distractor.txt
+        git add distractor.txt
+        git commit -q -m "Merge pull request #99 from navapbc/$distractor_branch"
+        git push -q origin main 2>/dev/null
+    )
+
+    local output
+    output=$(
+        cd "$tmp/main-repo" && \
+        AGE_HOURS=0 \
+        NON_INTERACTIVE=true \
+        bash "$CLEANUP_SCRIPT" --dry-run 2>/dev/null
+    ) || true
+
+    # The active branch must NOT be falsely classified as merged.
+    assert_not_contains \
+        "regex_metacharacter: 'feature.v2' must not match 'featureXv2' merge commit" \
+        "would remove" \
+        "$output"
+}
+
 # ── Run tests ─────────────────────────────────────────────────────────────────
 
 echo ""
@@ -312,5 +383,11 @@ echo "--- test_github_pr_merge_detected_in_claude_safe ---"
 _snapshot_fail
 test_github_pr_merge_detected_in_claude_safe
 assert_pass_if_clean "test_github_pr_merge_detected_in_claude_safe"
+
+echo ""
+echo "--- test_branch_name_regex_metacharacters_treated_as_literal ---"
+_snapshot_fail
+test_branch_name_regex_metacharacters_treated_as_literal
+assert_pass_if_clean "test_branch_name_regex_metacharacters_treated_as_literal"
 
 print_summary

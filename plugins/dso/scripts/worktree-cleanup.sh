@@ -222,9 +222,12 @@ is_branch_merged() {
     if git -C "$git_dir" log "$target_branch" --oneline --grep="(merge $branch_name)" -1 2>/dev/null | grep -q .; then
         return 0
     fi
-    if git -C "$git_dir" log "$target_branch" --oneline --grep="Merge pull request.*$branch_name" -1 2>/dev/null | grep -q .; then
-        # Anchored to "Merge pull request" to avoid false positives from unrelated
-        # commits that mention the branch name in their body text.
+    if git -C "$git_dir" log "$target_branch" --oneline --all-match -F \
+            --grep="Merge pull request" --grep="$branch_name" -1 2>/dev/null | grep -q .; then
+        # Uses --all-match -F so both literals (no regex) must appear in the same
+        # commit message — avoids false positives from regex metacharacters in
+        # branch names (e.g., "." acting as wildcard) and from unrelated commits
+        # that mention only the branch name.
         return 0
     fi
     return 1
