@@ -1862,6 +1862,8 @@ Do NOT close this story, do NOT transition it to closed, and do NOT proceed to S
 - `overall_verdict: FAIL` → see branching logic below
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
 
+**Re-dispatch rule (d039-ac65)**: If the completion-verifier returned `overall_verdict: FAIL` on ANY prior run during this story's lifecycle AND a fix was subsequently applied (remediation tasks completed, Phase 3 re-entry executed), you MUST re-dispatch the completion-verifier before closing the story — even when confidence is high that the fix addressed the failing criterion. High confidence is NOT a valid bypass. The verifier must confirm the fix did not introduce regressions on other criteria. Only technical failure (timeout, unparseable JSON) permits proceeding without re-verification. "I fixed the exact criterion that failed" is NOT a substitute for re-dispatch.
+
 **Story validation failure detection** — when `overall_verdict: FAIL`:
 
 Check whether all tasks under the story are closed (no open or in-progress tasks remain):
