@@ -104,42 +104,19 @@ test_ticket_create_without_flock() {
     local repo
     repo=$(_make_test_repo)
 
-    # Run with a PATH that has no flock binary at all.
-    # Strategy: resolve flock's real path (following symlinks) to detect all
-    # PATH directories that provide it — on Ubuntu 22.04+, /bin is a symlink to
-    # /usr/bin, so excluding only /usr/bin would still leave flock accessible via
-    # /bin. We exclude all directories that resolve to the same real location.
-    # A temp shim dir is prepended and populated with git (and other tools) that
-    # may have lived in flock's directory, so the ticket script still runs.
-    local flock_bin flock_real no_flock_tmpdir no_flock_path
-    flock_bin=$(command -v flock 2>/dev/null || true)
-    flock_real=$([ -n "$flock_bin" ] && (realpath "$flock_bin" 2>/dev/null || readlink -f "$flock_bin" 2>/dev/null || echo "$flock_bin") || true)
+    # Shadow flock with a non-util-linux stub so ticket-lib.sh treats flock as
+    # unavailable and falls through to its mkdir-based lock fallback.
+    # Prepend the stub dir to the FULL original PATH to keep all other tools
+    # (sed, date, mktemp, etc.) accessible — filtering entire PATH directories
+    # (e.g. /usr/bin) breaks those tools on Ubuntu where flock and sed share
+    # the same directory.
+    local no_flock_tmpdir no_flock_path
     no_flock_tmpdir=$(mktemp -d)
     _CLEANUP_DIRS+=("$no_flock_tmpdir")
-
-    if [ -n "$flock_real" ]; then
-        local flock_real_dir
-        flock_real_dir=$(dirname "$flock_real")
-        # Symlink tools the ticket script may need from flock's directory
-        for _t in git python3 python; do
-            local _tb
-            _tb=$(command -v "$_t" 2>/dev/null || true)
-            [ -n "$_tb" ] && ln -sf "$_tb" "$no_flock_tmpdir/$_t" 2>/dev/null || true
-        done
-        # Build PATH: exclude every entry that resolves to flock's real directory
-        no_flock_path="$no_flock_tmpdir"
-        while IFS= read -r _p; do
-            [ -z "$_p" ] && continue
-            local _p_real
-            _p_real=$(realpath "$_p" 2>/dev/null || readlink -f "$_p" 2>/dev/null || echo "$_p")
-            if [ "$_p_real" != "$flock_real_dir" ]; then
-                no_flock_path="${no_flock_path}:${_p}"
-            fi
-        done < <(printf '%s' "$PATH" | tr ':' '\n')
-    else
-        # flock is not in PATH on this host — PATH is already flock-free.
-        no_flock_path="$PATH"
-    fi
+    printf '#!/bin/sh\n# stub flock: exits non-zero, no util-linux output\nexit 127\n' \
+        > "$no_flock_tmpdir/flock"
+    chmod +x "$no_flock_tmpdir/flock"
+    no_flock_path="$no_flock_tmpdir:$PATH"
 
     local ticket_id
     ticket_id=$(
