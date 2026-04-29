@@ -370,4 +370,200 @@ with open(sys.argv[4], 'w') as f:
 }
 test_closed_statuses_includes_deleted_in_next_batch
 
+# ── Test 6: transition to 'deleted' from in_progress is also rejected ─────────
+echo "Test 6: transition to 'deleted' from in_progress is also rejected"
+test_transition_to_deleted_from_in_progress_rejected() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id
+    ticket_id=$(_create_ticket "$repo" task "In-progress ticket for delete test")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created" "non-empty" "empty"
+        assert_pass_if_clean "test_transition_to_deleted_from_in_progress_rejected"
+        return
+    fi
+
+    # Transition to in_progress first
+    cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_id" open in_progress 2>/dev/null || true
+
+    # Now attempt to transition from in_progress to deleted — must also be rejected
+    local output exit_code
+    exit_code=0
+    output=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_id" in_progress deleted 2>&1) || exit_code=$?
+
+    assert_ne "transition in_progress→deleted exits non-zero" "0" "$exit_code"
+    assert_contains "output mentions 'deleted is not a valid transition target'" \
+        "deleted is not a valid transition target" "$output"
+
+    assert_pass_if_clean "test_transition_to_deleted_from_in_progress_rejected"
+}
+test_transition_to_deleted_from_in_progress_rejected
+
+# ── Test 7: ticket status unchanged after rejected transition to deleted ────────
+echo "Test 7: ticket status remains unchanged after rejected transition to deleted"
+test_transition_to_deleted_leaves_status_unchanged() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id
+    ticket_id=$(_create_ticket "$repo" task "Status stability test ticket")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created" "non-empty" "empty"
+        assert_pass_if_clean "test_transition_to_deleted_leaves_status_unchanged"
+        return
+    fi
+
+    # Attempt rejected transition
+    cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_id" open deleted 2>/dev/null || true
+
+    # Assert: status is still 'open' (not 'deleted')
+    local show_output status_val
+    show_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || show_output=""
+    status_val=$(python3 -c "
+import json, sys
+try:
+    d = json.loads(sys.argv[1])
+    print(d.get('status', ''))
+except Exception:
+    print('')
+" "$show_output" 2>/dev/null) || status_val=""
+
+    assert_eq "ticket status still open after rejected delete-transition" "open" "$status_val"
+
+    assert_pass_if_clean "test_transition_to_deleted_leaves_status_unchanged"
+}
+test_transition_to_deleted_leaves_status_unchanged
+
+# ── Test 8: parent with ONLY deleted children (no closed) can be closed ────────
+echo "Test 8: parent with only deleted children (no closed) can be closed"
+test_closed_statuses_parent_with_only_deleted_children_closeable() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local parent_id
+    parent_id=$(_create_ticket "$repo" epic "Parent with only deleted children")
+    if [ -z "$parent_id" ]; then
+        assert_eq "parent created" "non-empty" "empty"
+        assert_pass_if_clean "test_closed_statuses_parent_with_only_deleted_children_closeable"
+        return
+    fi
+
+    local child1 child2
+    child1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Child 1 to delete" --parent "$parent_id" 2>/dev/null | tail -1) || true
+    child2=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Child 2 to delete" --parent "$parent_id" 2>/dev/null | tail -1) || true
+
+    if [ -z "$child1" ] || [ -z "$child2" ]; then
+        assert_eq "both children created" "non-empty" "empty"
+        assert_pass_if_clean "test_closed_statuses_parent_with_only_deleted_children_closeable"
+        return
+    fi
+
+    # Tombstone both children as deleted
+    _write_tombstone "$tracker_dir" "$child1" "deleted"
+    _write_tombstone "$tracker_dir" "$child2" "deleted"
+
+    # Assert: parent can be closed when all children are deleted
+    local parent_exit=0
+    cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed 2>/dev/null || parent_exit=$?
+
+    assert_eq "parent closeable with all-deleted children" "0" "$parent_exit"
+
+    assert_pass_if_clean "test_closed_statuses_parent_with_only_deleted_children_closeable"
+}
+test_closed_statuses_parent_with_only_deleted_children_closeable
+
+# ── Test 9: deleted status appears in CLOSED_STATUSES in all 3 source files ────
+echo "Test 9: 'deleted' string appears in CLOSED_STATUSES in all three source locations"
+test_closed_statuses_deleted_present_in_all_three_files() {
+    _snapshot_fail
+
+    # Static check: grep for 'deleted' in each CLOSED_STATUSES definition
+    local transition_sh_has unblock_py_has next_batch_has
+
+    transition_sh_has=$(grep -c "'deleted'" "$REPO_ROOT/plugins/dso/scripts/ticket-transition.sh" 2>/dev/null) || transition_sh_has=0
+    unblock_py_has=$(grep -c '"deleted"' "$REPO_ROOT/plugins/dso/scripts/ticket-unblock.py" 2>/dev/null) || unblock_py_has=0
+    next_batch_has=$(grep -c '"deleted"' "$REPO_ROOT/plugins/dso/scripts/ticket-next-batch.sh" 2>/dev/null) || next_batch_has=0
+
+    assert_ne "'deleted' present in ticket-transition.sh" "0" "$transition_sh_has"
+    assert_ne "'deleted' present in ticket-unblock.py" "0" "$unblock_py_has"
+    assert_ne "'deleted' present in ticket-next-batch.sh" "0" "$next_batch_has"
+
+    assert_pass_if_clean "test_closed_statuses_deleted_present_in_all_three_files"
+}
+test_closed_statuses_deleted_present_in_all_three_files
+
+# ── Test 10: next-batch excludes task when its BLOCKS-relation blocker is deleted
+echo "Test 10: next-batch treats deleted ticket as terminal for 'blocks' relation too"
+test_closed_statuses_blocks_relation_with_deleted_blocker_resolved() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local epic_id
+    epic_id=$(_create_ticket "$repo" epic "Test epic for blocks-relation delete")
+    if [ -z "$epic_id" ]; then
+        assert_eq "epic created" "non-empty" "empty"
+        assert_pass_if_clean "test_closed_statuses_blocks_relation_with_deleted_blocker_resolved"
+        return
+    fi
+
+    local task_a task_b
+    task_a=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Task A blocked by B" --parent "$epic_id" 2>/dev/null | tail -1) || true
+    task_b=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Task B blocks A (to be deleted)" --parent "$epic_id" 2>/dev/null | tail -1) || true
+
+    if [ -z "$task_a" ] || [ -z "$task_b" ]; then
+        assert_eq "both tasks created" "non-empty" "empty"
+        assert_pass_if_clean "test_closed_statuses_blocks_relation_with_deleted_blocker_resolved"
+        return
+    fi
+
+    # Write LINK directly: B blocks A
+    local ts link_uuid link_event_file
+    ts=$(python3 -c "import time; print(int(time.time_ns()))")
+    link_uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    link_event_file="$tracker_dir/$task_b/${ts}-${link_uuid}-LINK.json"
+    python3 -c "
+import json, sys
+event = {
+    'timestamp': int(sys.argv[1]),
+    'uuid': sys.argv[2],
+    'event_type': 'LINK',
+    'env_id': 'test',
+    'author': 'test',
+    'data': {'relation': 'blocks', 'target_id': sys.argv[3], 'link_uuid': sys.argv[2]},
+}
+with open(sys.argv[4], 'w') as f:
+    json.dump(event, f)
+" "$ts" "$link_uuid" "$task_a" "$link_event_file"
+    git -C "$tracker_dir" add "$task_b/" 2>/dev/null
+    git -C "$tracker_dir" commit -q -m "test: LINK $task_b blocks $task_a" 2>/dev/null || true
+
+    # Tombstone task B
+    _write_tombstone "$tracker_dir" "$task_b" "deleted"
+
+    # next-batch should include task_a (blocker B is deleted/terminal)
+    local batch_output batch_exit
+    batch_exit=0
+    batch_output=$(cd "$repo" && \
+        TICKETS_TRACKER_DIR="$tracker_dir" \
+        bash "$TICKET_NEXT_BATCH_SCRIPT" "$epic_id" 2>/dev/null) || batch_exit=$?
+
+    assert_eq "next-batch exits 0" "0" "$batch_exit"
+    assert_contains "task A in batch when blocks-relation blocker is deleted" \
+        "TASK: $task_a" "$batch_output"
+
+    assert_pass_if_clean "test_closed_statuses_blocks_relation_with_deleted_blocker_resolved"
+}
+test_closed_statuses_blocks_relation_with_deleted_blocker_resolved
+
 print_summary

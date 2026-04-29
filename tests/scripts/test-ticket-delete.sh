@@ -261,4 +261,44 @@ test_delete_writes_unlink_events_for_active_links() {
 }
 test_delete_writes_unlink_events_for_active_links
 
+# ── DD4b: ticket show returns status:deleted after delete ────────────────────
+echo "Test DD4b: ticket show returns status:deleted for a deleted ticket"
+test_delete_ticket_show_returns_status_deleted() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(_create_ticket "$repo" task "Ticket to verify show status")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for show status test" "non-empty" "empty"
+        assert_pass_if_clean "test_delete_ticket_show_returns_status_deleted"
+        return
+    fi
+
+    # Delete the ticket
+    local delete_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" delete "$ticket_id" --user-approved >/dev/null 2>&1) || delete_exit=$?
+    assert_eq "delete exits 0" "0" "$delete_exit"
+
+    # Assert: ticket show returns status:deleted
+    local show_output status_val
+    show_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || show_output=""
+    status_val=$(python3 -c "
+import json, sys
+try:
+    d = json.loads(sys.argv[1])
+    print(d.get('status', ''))
+except Exception:
+    print('')
+" "$show_output" 2>/dev/null) || status_val=""
+
+    assert_eq "ticket show returns status:deleted" "deleted" "$status_val"
+
+    assert_pass_if_clean "test_delete_ticket_show_returns_status_deleted"
+}
+test_delete_ticket_show_returns_status_deleted
+
 print_summary
