@@ -1829,5 +1829,47 @@ assert_eq "test_deep_tier_overlay_merge: output" "OK" "$_deep_ovl_check_out"
 
 assert_pass_if_clean "test_deep_tier_overlay_merge"
 
+# ── test_runner_exits_nonzero_when_no_dso_marker_and_no_assets_dir ────────────
+# When ci-llm-review-runner.sh is invoked from a git repo that has no
+# plugins/dso/.dso-source-of-truth marker file AND DSO_ASSETS_DIR is unset
+# AND CLAUDE_PLUGIN_ROOT is unset, the runner must:
+#   - exit with a non-zero (specifically 1) exit code
+#   - emit a message containing "DSO_ASSETS_DIR" on stderr
+#
+# RED until _resolve_plugin_root() is implemented (Task 4471-00a2).
+# Current runner silently uses BASH_SOURCE and exits 0.
+_snapshot_fail
+runner_mode_exit=0
+runner_mode_stderr=""
+
+FAKE_REPO_MODE=$(mktemp -d)
+_TEST_TMPDIRS+=("$FAKE_REPO_MODE")
+
+git -C "$FAKE_REPO_MODE" init -q 2>/dev/null
+git -C "$FAKE_REPO_MODE" -c user.email=t@t -c user.name=t \
+    commit -q --allow-empty -m "fake host project" 2>/dev/null
+
+if [[ -f "$FAKE_REPO_MODE/plugins/dso/.dso-source-of-truth" ]]; then
+    echo "SETUP ERROR: fake repo unexpectedly contains the DSO marker" >&2
+    exit 2
+fi
+
+runner_mode_stderr=$(
+    cd "$FAKE_REPO_MODE" && \
+    unset DSO_ASSETS_DIR 2>/dev/null || true && \
+    unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true && \
+    ANTHROPIC_API_KEY='x' bash "$RUNNER" < /dev/null 2>&1 >/dev/null
+) || runner_mode_exit=$?
+
+assert_eq \
+    "test_runner_exits_nonzero_when_no_dso_marker_and_no_assets_dir: exits 1" \
+    "1" "$runner_mode_exit"
+
+assert_contains \
+    "test_runner_exits_nonzero_when_no_dso_marker_and_no_assets_dir: stderr mentions DSO_ASSETS_DIR" \
+    "DSO_ASSETS_DIR" "$runner_mode_stderr"
+
+assert_pass_if_clean "test_runner_exits_nonzero_when_no_dso_marker_and_no_assets_dir"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
