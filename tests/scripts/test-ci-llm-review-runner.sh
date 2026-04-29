@@ -2082,9 +2082,9 @@ for _arg in "$@"; do
     _prev="$_arg"
 done
 if printf '%s' "$_body" | grep -q "code-reviewer-security-red-team"; then
-    python3 -c "import json; t={\"scores\":{\"correctness\":1,\"verification\":1,\"hygiene\":1,\"design\":1,\"maintainability\":1},\"summary\":\"Critical: hardcoded credentials\",\"findings\":[{\"severity\":\"critical\",\"category\":\"security\",\"description\":\"SECURITY_OVERLAY_TRIGGERED: hardcoded AWS secret key\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+    python3 -c "import json; t={\"scores\":{\"correctness\":1,\"verification\":1,\"hygiene\":1,\"design\":1,\"maintainability\":1},\"summary\":\"Critical: hardcoded credentials\",\"findings\":[{\"severity\":\"critical\",\"category\":\"correctness\",\"description\":\"SECURITY_OVERLAY_TRIGGERED: hardcoded credential pattern\",\"file\":\"foo.sh\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
 elif printf '%s' "$_body" | grep -q "code-reviewer-security-blue-team"; then
-    python3 -c "import json; t={\"scores\":{\"correctness\":1,\"verification\":1,\"hygiene\":1,\"design\":1,\"maintainability\":1},\"summary\":\"Confirmed: hardcoded credentials\",\"findings\":[{\"severity\":\"critical\",\"category\":\"security\",\"description\":\"SECURITY_OVERLAY_TRIGGERED: confirmed real credential pattern\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+    python3 -c "import json; t={\"scores\":{\"correctness\":1,\"verification\":1,\"hygiene\":1,\"design\":1,\"maintainability\":1},\"summary\":\"Confirmed: hardcoded credentials\",\"findings\":[{\"severity\":\"critical\",\"category\":\"correctness\",\"description\":\"SECURITY_OVERLAY_TRIGGERED: confirmed credential pattern\",\"file\":\"foo.sh\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
 else
     # Main tier: return unparseable (truncated) response to produce inconclusive N/A tier
     printf '{"content":[{"text":"I reviewed the diff. Here are my thoughts:\n\n```json\n{\"scores\":{\"hygiene\":"}],"stop_reason":"length"}'
@@ -2112,7 +2112,7 @@ with open('${FINDINGS_CRIT}') as f:
     d = json.load(f)
 scores = d.get('scores', {})
 numeric_scores = [v for v in scores.values() if isinstance(v, (int, float))]
-if numeric_scores and min(numeric_scores) < 3:
+if numeric_scores and min(numeric_scores) < 4:
     print('failed')
 else:
     print('passed')
@@ -2130,7 +2130,7 @@ overlay_crit_exit=0
 (
     export PATH="$MOCK_CRIT:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CRIT"
-    printf 'diff --git a/foo.sh b/foo.sh\n+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n' \
+    printf 'diff --git a/foo.sh b/foo.sh\n+AWS_SECRET_ACCESS_KEY=FAKE-TEST-ONLY-NOT-A-REAL-KEY-000000000000\n' \
         | ANTHROPIC_API_KEY='x' bash "$RUNNER"
 ) || overlay_crit_exit=$?
 
