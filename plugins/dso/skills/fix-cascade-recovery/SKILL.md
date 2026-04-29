@@ -63,7 +63,7 @@ Invoke `/dso:fix-bug` via the **Skill tool** (not bash) with `TICKET_ID` as argu
 Then reset the circuit breaker. The counter path `/tmp/claude-cascade-<worktree-hash>/counter` is the gate consumed by `cascade-circuit-breaker.sh` and `track-cascade-failures.sh`:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/fix-cascade-recovery/reset-cascade-counter.sh"  # shim-exempt: internal recovery script
+.claude/scripts/dso fix-cascade-recovery/reset-cascade-counter.sh
 ```
 
 The reset fires immediately after hand-off, not after the planned fix completes. Rationale: the counter exists to stop *blind* fix attempts; once analysis has produced a new mental model via `/dso:fix-bug`, the next fix attempt is informed, not blind.
