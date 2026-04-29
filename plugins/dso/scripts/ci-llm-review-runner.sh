@@ -119,34 +119,42 @@ PYEOF
     # writing its slot file. In production this would be a full agent sub-process; in CI
     # tests the mock curl writes the slot file as a side-effect.
     _SPECIALIST_PIDS=()
+    _SPECIALIST_REQ_TMPS=()
     _REQ_C=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-correctness.md")
+    _REQ_C_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_C" > "$_REQ_C_TMP"
+    _SPECIALIST_REQ_TMPS+=("$_REQ_C_TMP")
     curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
-      --data-raw "$_REQ_C" \
+      --data @"$_REQ_C_TMP" \
       "https://api.anthropic.com/v1/messages" > /dev/null &
     _SPECIALIST_PIDS+=($!)
 
     _REQ_V=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-verification.md")
+    _REQ_V_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_V" > "$_REQ_V_TMP"
+    _SPECIALIST_REQ_TMPS+=("$_REQ_V_TMP")
     curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
-      --data-raw "$_REQ_V" \
+      --data @"$_REQ_V_TMP" \
       "https://api.anthropic.com/v1/messages" > /dev/null &
     _SPECIALIST_PIDS+=($!)
 
     _REQ_H=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-hygiene.md")
+    _REQ_H_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_H" > "$_REQ_H_TMP"
+    _SPECIALIST_REQ_TMPS+=("$_REQ_H_TMP")
     curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
-      --data-raw "$_REQ_H" \
+      --data @"$_REQ_H_TMP" \
       "https://api.anthropic.com/v1/messages" > /dev/null &
     _SPECIALIST_PIDS+=($!)
 
     for _pid in "${_SPECIALIST_PIDS[@]}"; do wait "$_pid"; done
+    rm -f "${_SPECIALIST_REQ_TMPS[@]}"
 
     # Step 2: validate all slot files exist and contain valid JSON (fail-closed)
     for _slot in "$_SLOT_CORRECTNESS" "$_SLOT_VERIFICATION" "$_SLOT_HYGIENE"; do
@@ -196,12 +204,17 @@ print(json.dumps({
 }))
 PYEOF
 )
+    _arch_req_tmp=$(mktemp /tmp/dso-req.XXXXXX)
+    # shellcheck disable=SC2064
+    trap "rm -f '$_arch_msg_tmp' '$_arch_req_tmp'" EXIT
+    printf '%s' "$_ARCH_REQ" > "$_arch_req_tmp"
     _ARCH_RESP=$(curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
-      --data-raw "$_ARCH_REQ" \
+      --data @"$_arch_req_tmp" \
       "https://api.anthropic.com/v1/messages")
+    rm -f "$_arch_req_tmp"
 
     _ARCH_TEXT=$(printf '%s\n' "$_ARCH_RESP" | python3 -c "
 import json, sys, re
@@ -273,12 +286,17 @@ PYEOF
 )
 rm -f "$_DIFF_TMP"
 
+_REQ_TMP=$(mktemp /tmp/dso-req.XXXXXX)
+# shellcheck disable=SC2064
+trap "rm -f '$_DIFF_TMP' '$_REQ_TMP'" EXIT
+printf '%s' "$REQUEST_JSON" > "$_REQ_TMP"
 API_RESPONSE=$(curl -sf -m 30 --connect-timeout 10 \
   -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
-  --data-raw "$REQUEST_JSON" \
+  --data @"$_REQ_TMP" \
   "https://api.anthropic.com/v1/messages")
+rm -f "$_REQ_TMP"
 
 LLM_TEXT=$(printf '%s\n' "$API_RESPONSE" | python3 -c "
 import json, sys, re
@@ -350,11 +368,15 @@ print(json.dumps({
 }))
 PYEOF
   )
+  _req_tmp=$(mktemp /tmp/dso-req.XXXXXX)
+  # shellcheck disable=SC2064
+  trap "rm -f '$_overlay_diff_tmp' '$_req_tmp'" RETURN
+  printf '%s' "$_req" > "$_req_tmp"
   _resp=$(curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
     -H "x-api-key: $ANTHROPIC_API_KEY" \
     -H "anthropic-version: 2023-06-01" \
     -H "content-type: application/json" \
-    --data-raw "$_req" \
+    --data @"$_req_tmp" \
     "https://api.anthropic.com/v1/messages")
   # Extract text from API response, then strip markdown fences to get bare JSON.
   # Overlay agents may wrap their JSON output in ```json...``` fences.

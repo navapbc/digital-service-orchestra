@@ -57,12 +57,20 @@ _create_mock_curl() {
         # Double-quoted heredoc: ${body_file} and ${response_file} expand NOW (baked
         # into the script), while \$@, \$prev, \$i are escaped so they remain as
         # literal $ in the generated mock script.
+        # Handles both --data-raw "$body" and --data @/path/to/file (ARG_MAX-safe form).
         cat > "$mock_dir/curl" <<MOCKEOF
 #!/usr/bin/env bash
 prev=""
 for i in "\$@"; do
     if [[ "\$prev" == "--data-raw" || "\$prev" == "-d" ]]; then
         printf '%s' "\$i" > "${body_file}"
+    elif [[ "\$prev" == "--data" ]]; then
+        _src="\${i#@}"
+        if [[ "\$_src" != "\$i" && -f "\$_src" ]]; then
+            cp "\$_src" "${body_file}"
+        else
+            printf '%s' "\$i" > "${body_file}"
+        fi
     fi
     prev="\$i"
 done
@@ -571,7 +579,7 @@ printf '0' > "$CURL_COUNT_FILE"
 _SLOT_JSON='{"scores":{"correctness":4,"verification":4,"hygiene":4,"design":4,"maintainability":4},"summary":"Specialist OK","findings":[]}'
 
 # Mock curl: count calls; write a slot file named after the agent being invoked
-# (The runner is expected to pass --data-raw with a body referencing the agent file).
+# (The runner passes --data @file with a body referencing the agent file).
 # For each call, write the appropriate slot file and increment the counter.
 cat > "$MOCK13/curl" <<MOCKEOF
 #!/usr/bin/env bash
@@ -581,6 +589,8 @@ _prev=""
 for _arg in "\$@"; do
     if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
         _body="\$_arg"
+    elif [[ "\$_prev" == "--data" ]]; then
+        _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
     fi
     _prev="\$_arg"
 done
@@ -679,6 +689,8 @@ _prev=""
 for _arg in "\$@"; do
     if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
         _body="\$_arg"
+    elif [[ "\$_prev" == "--data" ]]; then
+        _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
     fi
     _prev="\$_arg"
 done
@@ -781,6 +793,8 @@ _prev=""
 for _arg in "\$@"; do
     if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
         _body="\$_arg"
+    elif [[ "\$_prev" == "--data" ]]; then
+        _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
     fi
     _prev="\$_arg"
 done
@@ -850,6 +864,8 @@ _prev=""
 for _arg in "\$@"; do
     if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
         _body="\$_arg"
+    elif [[ "\$_prev" == "--data" ]]; then
+        _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
     fi
     _prev="\$_arg"
 done
@@ -928,6 +944,8 @@ prev=""
 for i in "\$@"; do
     if [[ "\$prev" == "--data-raw" || "\$prev" == "-d" ]]; then
         printf '%s\n---CURL_CALL---\n' "\$i" >> "${CURL_CALL_LOG}"
+    elif [[ "\$prev" == "--data" ]]; then
+        _src="\${i#@}"; [[ "\$_src" != "\$i" && -f "\$_src" ]] && printf '%s\n---CURL_CALL---\n' "\$(cat "\$_src")" >> "${CURL_CALL_LOG}" || printf '%s\n---CURL_CALL---\n' "\$i" >> "${CURL_CALL_LOG}"
     fi
     prev="\$i"
 done
@@ -1005,6 +1023,8 @@ prev=""
 for i in "\$@"; do
     if [[ "\$prev" == "--data-raw" || "\$prev" == "-d" ]]; then
         printf '%s\n---CURL_CALL---\n' "\$i" >> "${CURL_CALL_LOG_PERF}"
+    elif [[ "\$prev" == "--data" ]]; then
+        _src="\${i#@}"; [[ "\$_src" != "\$i" && -f "\$_src" ]] && printf '%s\n---CURL_CALL---\n' "\$(cat "\$_src")" >> "${CURL_CALL_LOG_PERF}" || printf '%s\n---CURL_CALL---\n' "\$i" >> "${CURL_CALL_LOG_PERF}"
     fi
     prev="\$i"
 done
@@ -1078,6 +1098,8 @@ prev=""
 for i in "\$@"; do
     if [[ "\$prev" == "--data-raw" || "\$prev" == "-d" ]]; then
         printf '%s\n---CURL_CALL---\n' "\$i" >> "${CURL_CALL_LOG_NONE}"
+    elif [[ "\$prev" == "--data" ]]; then
+        _src="\${i#@}"; [[ "\$_src" != "\$i" && -f "\$_src" ]] && printf '%s\n---CURL_CALL---\n' "\$(cat "\$_src")" >> "${CURL_CALL_LOG_NONE}" || printf '%s\n---CURL_CALL---\n' "\$i" >> "${CURL_CALL_LOG_NONE}"
     fi
     prev="\$i"
 done
@@ -1138,7 +1160,7 @@ printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortc
 MOCKEOF
 chmod +x "$MOCK_BLUE/review-complexity-classifier.sh"
 
-# Mock curl: inspect --data-raw body to detect which reviewer is dispatched,
+# Mock curl: inspect request body to detect which reviewer is dispatched,
 # write the appropriate slot file, and log the dispatch order.
 cat > "$MOCK_BLUE/curl" <<MOCKEOF
 #!/usr/bin/env bash
@@ -1148,6 +1170,8 @@ _prev=""
 for _arg in "\$@"; do
     if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
         _body="\$_arg"
+    elif [[ "\$_prev" == "--data" ]]; then
+        _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
     fi
     _prev="\$_arg"
 done
@@ -1252,6 +1276,8 @@ _prev=""
 for _arg in "$@"; do
     if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
         _body="$_arg"
+    elif [[ "$_prev" == "--data" ]]; then
+        _src="${_arg#@}"; [[ "$_src" != "$_arg" && -f "$_src" ]] && _body="$(cat "$_src")" || _body="$_arg"
     fi
     _prev="$_arg"
 done
@@ -1359,6 +1385,8 @@ _prev=""
 for _arg in "$@"; do
     if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
         _body="$_arg"
+    elif [[ "$_prev" == "--data" ]]; then
+        _src="${_arg#@}"; [[ "$_src" != "$_arg" && -f "$_src" ]] && _body="$(cat "$_src")" || _body="$_arg"
     fi
     _prev="$_arg"
 done
@@ -1456,6 +1484,8 @@ _prev=""
 for _arg in "$@"; do
     if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
         _body="$_arg"
+    elif [[ "$_prev" == "--data" ]]; then
+        _src="${_arg#@}"; [[ "$_src" != "$_arg" && -f "$_src" ]] && _body="$(cat "$_src")" || _body="$_arg"
     fi
     _prev="$_arg"
 done
@@ -1636,6 +1666,8 @@ _prev=""
 for _arg in "$@"; do
     if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
         _body="$_arg"
+    elif [[ "$_prev" == "--data" ]]; then
+        _src="${_arg#@}"; [[ "$_src" != "$_arg" && -f "$_src" ]] && _body="$(cat "$_src")" || _body="$_arg"
     fi
     _prev="$_arg"
 done
@@ -1732,6 +1764,8 @@ _prev=""
 for _arg in "\$@"; do
     if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
         _body="\$_arg"
+    elif [[ "\$_prev" == "--data" ]]; then
+        _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
     fi
     _prev="\$_arg"
 done
@@ -1942,17 +1976,19 @@ assert_pass_if_clean "test_dso_llm_tier_absent_from_docs"
 
 # ── test_runner_uses_diff_file_not_env_var ────────────────────────────────────
 # Structural: diff content must be passed via a temp file (DSO_DIFF_FILE / DSO_ARCH_MSG_FILE),
-# not as a raw DSO_DIFF or DSO_ARCH_MSG env var. Passing large diffs as env vars hits the
-# Linux ARG_MAX (~2MB) limit for PRs with many commits (fix: story ab65-49f6).
+# not as a raw DSO_DIFF or DSO_ARCH_MSG env var. curl must use --data @file not --data-raw.
+# Passing large diffs/JSON bodies as env vars or CLI args hits the Linux ARG_MAX (~2MB) limit.
 # Given: ci-llm-review-runner.sh exists
-# When:  the script is grepped for DSO_DIFF= and DSO_ARCH_MSG= env-var assignments on python3
-# Then:  zero matches (all three paths use file-based approach)
+# When:  the script is grepped for the banned patterns
+# Then:  zero matches (all paths use file-based approach)
 _snapshot_fail
 _runner_file="$REPO_ROOT/plugins/dso/scripts/ci-llm-review-runner.sh"
 dso_diff_env_matches=$(grep -cE 'DSO_DIFF=[^_F]' "$_runner_file" 2>/dev/null || true)
 dso_arch_msg_env_matches=$(grep -cE 'DSO_ARCH_MSG=[^_F]' "$_runner_file" 2>/dev/null || true)
+data_raw_matches=$(grep -cE '\-\-data-raw' "$_runner_file" 2>/dev/null || true)
 assert_eq "test_runner_uses_diff_file_not_env_var: DSO_DIFF env var not used" "0" "$dso_diff_env_matches"
 assert_eq "test_runner_uses_diff_file_not_env_var: DSO_ARCH_MSG env var not used" "0" "$dso_arch_msg_env_matches"
+assert_eq "test_runner_uses_diff_file_not_env_var: --data-raw not used (use --data @file)" "0" "$data_raw_matches"
 assert_pass_if_clean "test_runner_uses_diff_file_not_env_var"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
