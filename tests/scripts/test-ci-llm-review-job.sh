@@ -4,11 +4,11 @@
 # plugins/dso/templates/ci-dso-staged.yml.
 #
 # Tests covered:
-#   1. test_llm_review_uses_claude_code_action     — step uses anthropics/claude-code-action@<40-char SHA> (RED)
+#   1. test_llm_review_uses_classifier_runner      — run: step invokes ci-llm-review-runner.sh (RED)
 #   2. test_llm_review_timeout_minutes_set         — timeout-minutes field present (PASS — already in placeholder)
-#   3. test_llm_review_validates_required_variables — run: checks 4 model vars + exits on missing (RED)
-#   4. test_llm_review_tier_selection_maps_model   — run: reads DSO_LLM_TIER, writes GITHUB_ENV (RED)
-#   5. test_llm_review_action_uses_api_key_from_secrets — step references secrets.ANTHROPIC_API_KEY (RED)
+#   3. test_llm_review_exposes_anthropic_api_key   — run: step env contains ANTHROPIC_API_KEY (RED)
+#   4. test_llm_review_uses_gh_pr_diff             — run: step invokes `gh pr diff |` (RED)
+#   5. test_llm_review_github_token_in_env         — run: step env contains GITHUB_TOKEN (RED)
 #
 # Usage: bash tests/scripts/test-ci-llm-review-job.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -25,34 +25,31 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 
 echo "=== test-ci-llm-review-job.sh ==="
 
-# ── test_llm_review_uses_claude_code_action ───────────────────────────────────
-# The llm-review job must have at least one step whose uses: field matches
-# anthropics/claude-code-action pinned to a 40-character SHA (not a mutable tag).
-# RED until the real implementation is added.
+# ── test_llm_review_uses_classifier_runner ────────────────────────────────────
+# The llm-review job must have at least one step whose run: field invokes
+# ci-llm-review-runner.sh (the classifier-driven runner script).
+# RED until the claude-code-action step is replaced with the runner script step.
 _snapshot_fail
-claude_action_exit=0
-claude_action_output=""
-claude_action_output=$(python3 - <<'PYEOF' 2>&1
-import yaml, sys, re, os
-
-template = os.environ.get('TEMPLATE', '')
-with open(template) as f:
+classifier_runner_exit=0
+classifier_runner_output=""
+classifier_runner_output=$(python3 -c "
+import yaml, sys
+with open('$TEMPLATE') as f:
     doc = yaml.safe_load(f)
 jobs = doc.get('jobs', {})
 llm_job = jobs.get('llm-review', {})
 steps = llm_job.get('steps', [])
-uses_values = [s.get('uses', '') for s in steps if s.get('uses')]
-sha_pattern = re.compile(r'anthropics/claude-code-action@[a-f0-9]{40}$')
-matched = [u for u in uses_values if sha_pattern.match(u)]
+run_steps = [s for s in steps if s.get('run')]
+matched = [s for s in run_steps if 'ci-llm-review-runner.sh' in s.get('run', '')]
 if not matched:
-    print('MISSING_SHA_PIN: no step uses anthropics/claude-code-action@<40-char-sha>; found uses: ' + str(uses_values))
+    run_values = [s.get('run', '')[:80] for s in run_steps]
+    print('MISSING_RUNNER: no run: step invokes ci-llm-review-runner.sh; found run steps: ' + str(run_values))
     sys.exit(1)
 print('OK')
-PYEOF
-) || claude_action_exit=$?
-assert_eq "test_llm_review_uses_claude_code_action: exit 0" "0" "$claude_action_exit"
-assert_eq "test_llm_review_uses_claude_code_action: SHA-pinned action present" "OK" "$claude_action_output"
-assert_pass_if_clean "test_llm_review_uses_claude_code_action"
+" 2>&1) || classifier_runner_exit=$?
+assert_eq "test_llm_review_uses_classifier_runner: exit 0" "0" "$classifier_runner_exit"
+assert_eq "test_llm_review_uses_classifier_runner: run step invokes ci-llm-review-runner.sh" "OK" "$classifier_runner_output"
+assert_pass_if_clean "test_llm_review_uses_classifier_runner"
 
 # ── test_llm_review_timeout_minutes_set ──────────────────────────────────────
 # The llm-review job must have a timeout-minutes field set (any integer value).
@@ -60,11 +57,9 @@ assert_pass_if_clean "test_llm_review_uses_claude_code_action"
 _snapshot_fail
 timeout_exit=0
 timeout_output=""
-timeout_output=$(python3 - <<'PYEOF' 2>&1
-import yaml, sys, os
-
-template = os.environ.get('TEMPLATE', '')
-with open(template) as f:
+timeout_output=$(python3 -c "
+import yaml, sys
+with open('$TEMPLATE') as f:
     doc = yaml.safe_load(f)
 jobs = doc.get('jobs', {})
 llm_job = jobs.get('llm-review', {})
@@ -76,372 +71,209 @@ if not isinstance(timeout, int):
     print('INVALID_TIMEOUT: timeout-minutes must be an integer, got: ' + str(type(timeout).__name__))
     sys.exit(1)
 print('OK')
-PYEOF
-) || timeout_exit=$?
+" 2>&1) || timeout_exit=$?
 assert_eq "test_llm_review_timeout_minutes_set: exit 0" "0" "$timeout_exit"
 assert_eq "test_llm_review_timeout_minutes_set: timeout-minutes is an integer" "OK" "$timeout_output"
 assert_pass_if_clean "test_llm_review_timeout_minutes_set"
 
-# ── test_llm_review_validates_required_variables ──────────────────────────────
-# The llm-review job must have a dedicated validation step whose run: body, when
-# executed as a shell script, exits non-zero when a required variable is unset
-# and exits zero when all four vars are set.
-# RED until the variable-validation step is added to the template.
+# ── test_llm_review_exposes_anthropic_api_key ─────────────────────────────────
+# The llm-review job must have a run: step whose env: block contains
+# ANTHROPIC_API_KEY (so the runner script can authenticate to the Anthropic API).
+# RED until the classifier-driven runner step is added with ANTHROPIC_API_KEY in env.
 _snapshot_fail
-validate_vars_exit=0
-validate_vars_output=""
-validate_vars_output=$(python3 - <<'PYEOF' 2>&1
-import yaml, sys, subprocess, os, tempfile
-
-template = os.environ.get('TEMPLATE', '')
-with open(template) as f:
+api_key_env_exit=0
+api_key_env_output=""
+api_key_env_output=$(python3 -c "
+import yaml, sys
+with open('$TEMPLATE') as f:
     doc = yaml.safe_load(f)
 jobs = doc.get('jobs', {})
 llm_job = jobs.get('llm-review', {})
 steps = llm_job.get('steps', [])
-
-# Find the validation step: a run: step that references DSO_LLM_LIGHT_MODEL
-validation_step = None
-for step in steps:
-    run_body = step.get('run', '')
-    if run_body and 'DSO_LLM_LIGHT_MODEL' in run_body:
-        validation_step = step
-        break
-
-if validation_step is None:
-    print('MISSING_STEP: validation step not found in llm-review job')
+run_steps = [s for s in steps if s.get('run')]
+matched = [s for s in run_steps if 'ANTHROPIC_API_KEY' in s.get('env', {})]
+if not matched:
+    env_keys = [list(s.get('env', {}).keys()) for s in run_steps]
+    print('MISSING_API_KEY: no run: step env block contains ANTHROPIC_API_KEY; run step env keys: ' + str(env_keys))
     sys.exit(1)
-
-run_body = validation_step['run']
-
-# Behavioral check 1: all 4 vars set → exit 0
-env_all = {
-    **os.environ,
-    'DSO_LLM_LIGHT_MODEL': 'a',
-    'DSO_LLM_STANDARD_MODEL': 'b',
-    'DSO_LLM_FRONTIER_MODEL': 'c',
-    'DSO_LLM_TIER': 'light',
-}
-result_all = subprocess.run(['bash', '-c', run_body], env=env_all, capture_output=True)
-if result_all.returncode != 0:
-    stderr = result_all.stderr.decode().strip()
-    print(f'FAIL_ALL_SET: expected exit 0 with all vars set, got exit {result_all.returncode}: {stderr}')
-    sys.exit(1)
-
-# Behavioral check 2: one var missing → exit non-zero
-env_missing = {
-    **os.environ,
-    'DSO_LLM_LIGHT_MODEL': '',
-    'DSO_LLM_STANDARD_MODEL': 'b',
-    'DSO_LLM_FRONTIER_MODEL': 'c',
-    'DSO_LLM_TIER': 'light',
-}
-result_missing = subprocess.run(['bash', '-c', run_body], env=env_missing, capture_output=True)
-if result_missing.returncode == 0:
-    print('FAIL_VAR_MISSING: expected exit non-zero when DSO_LLM_LIGHT_MODEL is empty, got exit 0')
-    sys.exit(1)
-
 print('OK')
-PYEOF
-) || validate_vars_exit=$?
-assert_eq "test_llm_review_validates_required_variables: exit 0" "0" "$validate_vars_exit"
-assert_eq "test_llm_review_validates_required_variables: validation step executes correctly" "OK" "$validate_vars_output"
-assert_pass_if_clean "test_llm_review_validates_required_variables"
+" 2>&1) || api_key_env_exit=$?
+assert_eq "test_llm_review_exposes_anthropic_api_key: exit 0" "0" "$api_key_env_exit"
+assert_eq "test_llm_review_exposes_anthropic_api_key: run step env contains ANTHROPIC_API_KEY" "OK" "$api_key_env_output"
+assert_pass_if_clean "test_llm_review_exposes_anthropic_api_key"
 
-# ── test_llm_review_tier_selection_maps_model ─────────────────────────────────
-# The llm-review job must have a step that, when executed with DSO_LLM_TIER=light
-# and a temp GITHUB_ENV file, writes ANTHROPIC_MODEL=<light-model-value> to
-# GITHUB_ENV.
-# RED until the tier-selection step is added to the template.
-_snapshot_fail
-tier_sel_exit=0
-tier_sel_output=""
-tier_sel_output=$(python3 - <<'PYEOF' 2>&1
-import yaml, sys, subprocess, os, tempfile
-
-template = os.environ.get('TEMPLATE', '')
-with open(template) as f:
+# ── test_llm_review_uses_gh_pr_diff ───────────────────────────────────────────
+# The llm-review job must have a run: step whose body pipes `gh pr diff` output
+# into the classifier-driven runner. Accepts both:
+#   gh pr diff | bash ...          (branch-aware mode)
+#   gh pr diff "$PR_NUMBER" | ...  (explicit PR number for detached HEAD CI)
+gh_pr_diff_exit=0
+gh_pr_diff_output=""
+gh_pr_diff_output=$(python3 -c "
+import yaml, sys, re
+with open('$TEMPLATE') as f:
     doc = yaml.safe_load(f)
 jobs = doc.get('jobs', {})
 llm_job = jobs.get('llm-review', {})
 steps = llm_job.get('steps', [])
-
-# Find the tier-selection step: a run: step that references GITHUB_ENV
-tier_step = None
-for step in steps:
-    run_body = step.get('run', '')
-    if run_body and 'GITHUB_ENV' in run_body and 'DSO_LLM_TIER' in run_body:
-        tier_step = step
-        break
-
-if tier_step is None:
-    print('MISSING_STEP: tier selection step not found in llm-review job')
+run_steps = [s for s in steps if s.get('run')]
+matched = [s for s in run_steps if re.search(r'gh pr diff\b.*\|', s.get('run', ''))]
+if not matched:
+    run_snippets = [s.get('run', '')[:80] for s in run_steps]
+    print('MISSING_GH_PR_DIFF: no run: step pipes gh pr diff; found run steps: ' + str(run_snippets))
     sys.exit(1)
-
-run_body = tier_step['run']
-
-# Behavioral check: execute with light tier, assert ANTHROPIC_MODEL written to GITHUB_ENV
-with tempfile.NamedTemporaryFile(mode='w', prefix='github_env_', suffix='.tmp', delete=False) as tmp:
-    github_env_path = tmp.name
-
-try:
-    env = {
-        **os.environ,
-        'GITHUB_ENV': github_env_path,
-        'DSO_LLM_TIER': 'light',
-        'DSO_LLM_LIGHT_MODEL': 'claude-haiku',
-        'DSO_LLM_STANDARD_MODEL': 'claude-sonnet',
-        'DSO_LLM_FRONTIER_MODEL': 'claude-opus',
-    }
-    result = subprocess.run(['bash', '-c', run_body], env=env, capture_output=True)
-    if result.returncode != 0:
-        stderr = result.stderr.decode().strip()
-        print(f'FAIL_EXEC: tier-selection step exited {result.returncode}: {stderr}')
-        sys.exit(1)
-
-    with open(github_env_path) as f:
-        github_env_contents = f.read()
-
-    if 'ANTHROPIC_MODEL=claude-haiku' not in github_env_contents:
-        print(f'FAIL_OUTPUT: expected ANTHROPIC_MODEL=claude-haiku in GITHUB_ENV, got: {github_env_contents!r}')
-        sys.exit(1)
-finally:
-    os.unlink(github_env_path)
-
 print('OK')
-PYEOF
-) || tier_sel_exit=$?
-assert_eq "test_llm_review_tier_selection_maps_model: exit 0" "0" "$tier_sel_exit"
-assert_eq "test_llm_review_tier_selection_maps_model: light tier maps to correct model in GITHUB_ENV" "OK" "$tier_sel_output"
-assert_pass_if_clean "test_llm_review_tier_selection_maps_model"
+" 2>&1) || gh_pr_diff_exit=$?
+assert_eq "test_llm_review_uses_gh_pr_diff: exit 0" "0" "$gh_pr_diff_exit"
+assert_eq "test_llm_review_uses_gh_pr_diff: run step contains gh pr diff pipe" "OK" "$gh_pr_diff_output"
+assert_pass_if_clean "test_llm_review_uses_gh_pr_diff"
 
-# ── test_llm_review_tier_selection_standard ───────────────────────────────────
-# The tier-selection step must map DSO_LLM_TIER=standard to DSO_LLM_STANDARD_MODEL.
+# ── test_llm_review_no_legacy_tier_vars ───────────────────────────────────────
+# DSO_LLM_TIER and DSO_LLM_*_MODEL vars must NOT appear in the new classifier-driven job.
+# Tier selection is now internal to ci-llm-review-runner.sh.
 _snapshot_fail
-tier_std_exit=0
-tier_std_output=""
-tier_std_output=$(python3 - <<'PYEOF' 2>&1
-import yaml, sys, subprocess, os, tempfile
+no_tier_vars_exit=0
+no_tier_vars_output=""
+no_tier_vars_output=$(python3 - <<'PYEOF' 2>&1
+import yaml, sys, os, json
 
 template = os.environ.get('TEMPLATE', '')
 with open(template) as f:
     doc = yaml.safe_load(f)
-jobs = doc.get('jobs', {})
-llm_job = jobs.get('llm-review', {})
-steps = llm_job.get('steps', [])
 
-tier_step = None
-for step in steps:
-    run_body = step.get('run', '')
-    if run_body and 'GITHUB_ENV' in run_body and 'DSO_LLM_TIER' in run_body:
-        tier_step = step
-        break
-
-if tier_step is None:
-    print('MISSING_STEP: tier selection step not found in llm-review job')
+# Check only the functional YAML structure (not comments) for legacy env vars
+llm_job = doc.get('jobs', {}).get('llm-review', {})
+job_str = json.dumps(llm_job)
+forbidden = ['DSO_LLM_LIGHT_MODEL', 'DSO_LLM_STANDARD_MODEL', 'DSO_LLM_FRONTIER_MODEL', 'DSO_LLM_TIER']
+found = [v for v in forbidden if v in job_str]
+if found:
+    print(f'FAIL: deprecated vars found in llm-review job YAML: {found}')
     sys.exit(1)
-
-run_body = tier_step['run']
-
-with tempfile.NamedTemporaryFile(mode='w', prefix='github_env_', suffix='.tmp', delete=False) as tmp:
-    github_env_path = tmp.name
-
-try:
-    env = {
-        **os.environ,
-        'GITHUB_ENV': github_env_path,
-        'DSO_LLM_TIER': 'standard',
-        'DSO_LLM_LIGHT_MODEL': 'claude-haiku',
-        'DSO_LLM_STANDARD_MODEL': 'claude-sonnet',
-        'DSO_LLM_FRONTIER_MODEL': 'claude-opus',
-    }
-    result = subprocess.run(['bash', '-c', run_body], env=env, capture_output=True)
-    if result.returncode != 0:
-        stderr = result.stderr.decode().strip()
-        print(f'FAIL_EXEC: tier-selection step exited {result.returncode}: {stderr}')
-        sys.exit(1)
-
-    with open(github_env_path) as f:
-        github_env_contents = f.read()
-
-    if 'ANTHROPIC_MODEL=claude-sonnet' not in github_env_contents:
-        print(f'FAIL_OUTPUT: expected ANTHROPIC_MODEL=claude-sonnet in GITHUB_ENV, got: {github_env_contents!r}')
-        sys.exit(1)
-finally:
-    os.unlink(github_env_path)
-
 print('OK')
 PYEOF
-) || tier_std_exit=$?
-assert_eq "test_llm_review_tier_selection_standard: exit 0" "0" "$tier_std_exit"
-assert_eq "test_llm_review_tier_selection_standard: standard tier maps to correct model in GITHUB_ENV" "OK" "$tier_std_output"
-assert_pass_if_clean "test_llm_review_tier_selection_standard"
+) || no_tier_vars_exit=$?
+assert_eq "test_llm_review_no_legacy_tier_vars: exit 0" "0" "$no_tier_vars_exit"
+assert_eq "test_llm_review_no_legacy_tier_vars: deprecated DSO_LLM_* vars absent from template" "OK" "$no_tier_vars_output"
+assert_pass_if_clean "test_llm_review_no_legacy_tier_vars"
 
-# ── test_llm_review_tier_selection_frontier ───────────────────────────────────
-# The tier-selection step must map DSO_LLM_TIER=frontier to DSO_LLM_FRONTIER_MODEL.
+# ── test_llm_review_exactly_two_steps ─────────────────────────────────────────
+# The new classifier-driven llm-review job has exactly 2 steps: checkout + run LLM review.
 _snapshot_fail
-tier_frontier_exit=0
-tier_frontier_output=""
-tier_frontier_output=$(python3 - <<'PYEOF' 2>&1
-import yaml, sys, subprocess, os, tempfile
-
-template = os.environ.get('TEMPLATE', '')
-with open(template) as f:
-    doc = yaml.safe_load(f)
-jobs = doc.get('jobs', {})
-llm_job = jobs.get('llm-review', {})
-steps = llm_job.get('steps', [])
-
-tier_step = None
-for step in steps:
-    run_body = step.get('run', '')
-    if run_body and 'GITHUB_ENV' in run_body and 'DSO_LLM_TIER' in run_body:
-        tier_step = step
-        break
-
-if tier_step is None:
-    print('MISSING_STEP: tier selection step not found in llm-review job')
-    sys.exit(1)
-
-run_body = tier_step['run']
-
-with tempfile.NamedTemporaryFile(mode='w', prefix='github_env_', suffix='.tmp', delete=False) as tmp:
-    github_env_path = tmp.name
-
-try:
-    env = {
-        **os.environ,
-        'GITHUB_ENV': github_env_path,
-        'DSO_LLM_TIER': 'frontier',
-        'DSO_LLM_LIGHT_MODEL': 'claude-haiku',
-        'DSO_LLM_STANDARD_MODEL': 'claude-sonnet',
-        'DSO_LLM_FRONTIER_MODEL': 'claude-opus',
-    }
-    result = subprocess.run(['bash', '-c', run_body], env=env, capture_output=True)
-    if result.returncode != 0:
-        stderr = result.stderr.decode().strip()
-        print(f'FAIL_EXEC: tier-selection step exited {result.returncode}: {stderr}')
-        sys.exit(1)
-
-    with open(github_env_path) as f:
-        github_env_contents = f.read()
-
-    if 'ANTHROPIC_MODEL=claude-opus' not in github_env_contents:
-        print(f'FAIL_OUTPUT: expected ANTHROPIC_MODEL=claude-opus in GITHUB_ENV, got: {github_env_contents!r}')
-        sys.exit(1)
-finally:
-    os.unlink(github_env_path)
-
-print('OK')
-PYEOF
-) || tier_frontier_exit=$?
-assert_eq "test_llm_review_tier_selection_frontier: exit 0" "0" "$tier_frontier_exit"
-assert_eq "test_llm_review_tier_selection_frontier: frontier tier maps to correct model in GITHUB_ENV" "OK" "$tier_frontier_output"
-assert_pass_if_clean "test_llm_review_tier_selection_frontier"
-
-# ── test_llm_review_tier_selection_invalid_tier ───────────────────────────────
-# The tier-selection step must exit non-zero when DSO_LLM_TIER is unrecognized.
-_snapshot_fail
-tier_invalid_exit=0
-tier_invalid_output=""
-tier_invalid_output=$(python3 - <<'PYEOF' 2>&1
-import yaml, sys, subprocess, os, tempfile
-
-template = os.environ.get('TEMPLATE', '')
-with open(template) as f:
-    doc = yaml.safe_load(f)
-jobs = doc.get('jobs', {})
-llm_job = jobs.get('llm-review', {})
-steps = llm_job.get('steps', [])
-
-tier_step = None
-for step in steps:
-    run_body = step.get('run', '')
-    if run_body and 'GITHUB_ENV' in run_body and 'DSO_LLM_TIER' in run_body:
-        tier_step = step
-        break
-
-if tier_step is None:
-    print('MISSING_STEP: tier selection step not found in llm-review job')
-    sys.exit(1)
-
-run_body = tier_step['run']
-
-with tempfile.NamedTemporaryFile(mode='w', prefix='github_env_', suffix='.tmp', delete=False) as tmp:
-    github_env_path = tmp.name
-
-try:
-    env = {
-        **os.environ,
-        'GITHUB_ENV': github_env_path,
-        'DSO_LLM_TIER': 'invalid-tier-xyz',
-        'DSO_LLM_LIGHT_MODEL': 'claude-haiku',
-        'DSO_LLM_STANDARD_MODEL': 'claude-sonnet',
-        'DSO_LLM_FRONTIER_MODEL': 'claude-opus',
-    }
-    result = subprocess.run(['bash', '-c', run_body], env=env, capture_output=True)
-    if result.returncode == 0:
-        print('FAIL_INVALID_TIER: expected non-zero exit for unrecognized DSO_LLM_TIER, got exit 0')
-        sys.exit(1)
-finally:
-    os.unlink(github_env_path)
-
-print('OK')
-PYEOF
-) || tier_invalid_exit=$?
-assert_eq "test_llm_review_tier_selection_invalid_tier: exit 0" "0" "$tier_invalid_exit"
-assert_eq "test_llm_review_tier_selection_invalid_tier: invalid tier exits non-zero" "OK" "$tier_invalid_output"
-assert_pass_if_clean "test_llm_review_tier_selection_invalid_tier"
-
-# ── test_llm_review_action_uses_api_key_from_secrets ─────────────────────────
-# The claude-code-action step must reference secrets.ANTHROPIC_API_KEY in its
-# env: or with: block.
-# RED until the real step is added with the API key wired in.
-_snapshot_fail
-api_key_exit=0
-api_key_output=""
-api_key_output=$(python3 - <<'PYEOF' 2>&1
+step_count_exit=0
+step_count_output=""
+step_count_output=$(python3 - <<'PYEOF' 2>&1
 import yaml, sys, os
 
 template = os.environ.get('TEMPLATE', '')
 with open(template) as f:
-    raw = f.read()
-    doc = yaml.safe_load(raw)
-jobs = doc.get('jobs', {})
-llm_job = jobs.get('llm-review', {})
-steps = llm_job.get('steps', [])
-# Check each step that uses the claude-code-action for the API key reference.
-# We check both parsed YAML (env/with blocks) and the raw text for the
-# ${{ secrets.ANTHROPIC_API_KEY }} expression.
-found = False
-for step in steps:
-    uses = step.get('uses', '')
-    if 'claude-code-action' not in uses:
-        continue
-    env_block = step.get('env', {})
-    with_block = step.get('with', {})
-    env_values = ' '.join(str(v) for v in env_block.values())
-    with_values = ' '.join(str(v) for v in with_block.values())
-    combined = env_values + ' ' + with_values
-    if 'secrets.ANTHROPIC_API_KEY' in combined:
-        found = True
-        break
-# Fallback: check raw YAML text near the action reference
-if not found:
-    idx = raw.find('claude-code-action')
-    if idx != -1:
-        surrounding = raw[max(0, idx-200):idx+500]
-        if 'secrets.ANTHROPIC_API_KEY' in surrounding:
-            found = True
-if not found:
-    print('MISSING_API_KEY: no claude-code-action step references secrets.ANTHROPIC_API_KEY')
+    doc = yaml.safe_load(f)
+steps = doc.get('jobs', {}).get('llm-review', {}).get('steps', [])
+if len(steps) != 2:
+    print(f'FAIL: expected exactly 2 steps in llm-review job, got {len(steps)}')
     sys.exit(1)
 print('OK')
 PYEOF
-) || api_key_exit=$?
-assert_eq "test_llm_review_action_uses_api_key_from_secrets: exit 0" "0" "$api_key_exit"
-assert_eq "test_llm_review_action_uses_api_key_from_secrets: secrets.ANTHROPIC_API_KEY referenced" "OK" "$api_key_output"
-assert_pass_if_clean "test_llm_review_action_uses_api_key_from_secrets"
+) || step_count_exit=$?
+assert_eq "test_llm_review_exactly_two_steps: exit 0" "0" "$step_count_exit"
+assert_eq "test_llm_review_exactly_two_steps: llm-review job has exactly 2 steps" "OK" "$step_count_output"
+assert_pass_if_clean "test_llm_review_exactly_two_steps"
+
+# ── test_llm_review_no_claude_code_action_ref ─────────────────────────────────
+# anthropics/claude-code-action must not appear anywhere in the llm-review job.
+_snapshot_fail
+no_action_exit=0
+no_action_output=""
+no_action_output=$(python3 - <<'PYEOF' 2>&1
+import yaml, sys, os
+
+template = os.environ.get('TEMPLATE', '')
+with open(template) as f:
+    content = f.read()
+if 'claude-code-action' in content:
+    print('FAIL: claude-code-action reference found in template')
+    sys.exit(1)
+print('OK')
+PYEOF
+) || no_action_exit=$?
+assert_eq "test_llm_review_no_claude_code_action_ref: exit 0" "0" "$no_action_exit"
+assert_eq "test_llm_review_no_claude_code_action_ref: claude-code-action absent from template" "OK" "$no_action_output"
+assert_pass_if_clean "test_llm_review_no_claude_code_action_ref"
+
+# ── test_llm_review_github_token_in_env ───────────────────────────────────────
+# The llm-review job must have a run: step whose env: block contains GITHUB_TOKEN
+# so the runner script can call `gh pr diff` and post review comments.
+# RED until the classifier-driven runner step is added with GITHUB_TOKEN in env.
+_snapshot_fail
+github_token_exit=0
+github_token_output=""
+github_token_output=$(python3 -c "
+import yaml, sys
+with open('$TEMPLATE') as f:
+    doc = yaml.safe_load(f)
+jobs = doc.get('jobs', {})
+llm_job = jobs.get('llm-review', {})
+steps = llm_job.get('steps', [])
+run_steps = [s for s in steps if s.get('run')]
+matched = [s for s in run_steps if 'GITHUB_TOKEN' in s.get('env', {})]
+if not matched:
+    env_keys = [list(s.get('env', {}).keys()) for s in run_steps]
+    print('MISSING_GITHUB_TOKEN: no run: step env block contains GITHUB_TOKEN; run step env keys: ' + str(env_keys))
+    sys.exit(1)
+print('OK')
+" 2>&1) || github_token_exit=$?
+assert_eq "test_llm_review_github_token_in_env: exit 0" "0" "$github_token_exit"
+assert_eq "test_llm_review_github_token_in_env: run step env contains GITHUB_TOKEN" "OK" "$github_token_output"
+assert_pass_if_clean "test_llm_review_github_token_in_env"
+
+# ── test_llm_review_pr_only_condition ────────────────────────────────────────
+# The llm-review job must have an if: condition restricting execution to
+# pull_request events so gh pr diff does not fail on push/workflow_dispatch.
+_snapshot_fail
+pr_only_exit=0
+pr_only_output=""
+pr_only_output=$(python3 - <<'PYEOF' 2>&1
+import yaml, sys, os
+
+template = os.environ.get('TEMPLATE', '')
+with open(template) as f:
+    doc = yaml.safe_load(f)
+llm_job = doc.get('jobs', {}).get('llm-review', {})
+job_if = llm_job.get('if', '')
+if 'pull_request' not in str(job_if):
+    print(f'MISSING_PR_GUARD: llm-review job has no if: condition restricting to pull_request events; got: {repr(job_if)}')
+    sys.exit(1)
+print('OK')
+PYEOF
+) || pr_only_exit=$?
+assert_eq "test_llm_review_pr_only_condition: exit 0" "0" "$pr_only_exit"
+assert_eq "test_llm_review_pr_only_condition: if condition restricts to pull_request" "OK" "$pr_only_output"
+assert_pass_if_clean "test_llm_review_pr_only_condition"
+
+# ── test_llm_review_pipefail_shell ────────────────────────────────────────────
+# The Run LLM review step must use shell: bash -eo pipefail so gh pr diff
+# failures are not silently masked by the pipe.
+_snapshot_fail
+pipefail_exit=0
+pipefail_output=""
+pipefail_output=$(python3 - <<'PYEOF' 2>&1
+import yaml, sys, os
+
+template = os.environ.get('TEMPLATE', '')
+with open(template) as f:
+    doc = yaml.safe_load(f)
+steps = doc.get('jobs', {}).get('llm-review', {}).get('steps', [])
+run_steps = [s for s in steps if s.get('run')]
+matched = [s for s in run_steps if 'pipefail' in s.get('shell', '')]
+if not matched:
+    shells = [s.get('shell', '(absent)') for s in run_steps]
+    print(f'MISSING_PIPEFAIL: no run: step sets shell with pipefail; shells: {shells}')
+    sys.exit(1)
+print('OK')
+PYEOF
+) || pipefail_exit=$?
+assert_eq "test_llm_review_pipefail_shell: exit 0" "0" "$pipefail_exit"
+assert_eq "test_llm_review_pipefail_shell: run step uses pipefail shell" "OK" "$pipefail_output"
+assert_pass_if_clean "test_llm_review_pipefail_shell"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
