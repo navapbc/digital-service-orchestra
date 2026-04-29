@@ -143,7 +143,15 @@ echo "Test 7: reinstall-hooks.sh degrades gracefully when no venv and no poetry"
     fake_repo="$(_make_fake_git_repo)"
     no_poetry_path="$(_path_without_poetry)"
     rc=0
-    output=$(WORKTREE_PATH="$fake_repo" PATH="$no_poetry_path" bash "$REINSTALL_HOOKS_SH" 2>&1) || rc=$?
+    # timeout guard: system pre-commit (when in PATH) initializes a SQLite cache
+    # on first run; on cold CI runners this can take 30s/hook-type x 3 = 90s,
+    # which hits the per-file test suite limit. timeout exits 124 (non-zero),
+    # which the assert below already accepts as valid graceful degradation.
+    if command -v timeout >/dev/null 2>&1; then
+        output=$(WORKTREE_PATH="$fake_repo" PATH="$no_poetry_path" timeout 30 bash "$REINSTALL_HOOKS_SH" 2>&1) || rc=$?
+    else
+        output=$(WORKTREE_PATH="$fake_repo" PATH="$no_poetry_path" bash "$REINSTALL_HOOKS_SH" 2>&1) || rc=$?
+    fi
     if [ "$rc" -eq 0 ]; then
         # Exit 0 is correct graceful degradation — no-op when nothing to install
         assert_eq "test_hook_chain_consistent_without_poetry" "exit=0" "exit=0"

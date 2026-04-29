@@ -158,11 +158,13 @@ if not acquired:
 
 # ── Lock acquired — all operations below are under flock ─────────────────
 
-# Re-list event files inside flock (authoritative)
+# Re-list event files inside flock (authoritative).
+# Exclude *-SYNC.json — SYNC files are bridge metadata (Jira key mapping) and
+# must survive compaction so resolve_jira_key() works on post-compact events.
 event_files = sorted([
     os.path.join(ticket_dir, f)
     for f in os.listdir(ticket_dir)
-    if f.endswith('.json') and not f.startswith('.')
+    if f.endswith('.json') and not f.startswith('.') and not f.endswith('-SYNC.json')
 ])
 event_count = len(event_files)
 

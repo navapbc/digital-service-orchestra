@@ -104,30 +104,19 @@ test_ticket_create_without_flock() {
     local repo
     repo=$(_make_test_repo)
 
-    # Run with a PATH that has no flock binary at all.
-    # Strategy: detect the actual flock binary path (it may live in /usr/bin or
-    # any other directory whose name does not contain "flock" or "util-linux"),
-    # then exclude that specific directory from PATH.  Fall back to the
-    # name-pattern filter as a secondary pass for belt-and-suspenders coverage.
-    local flock_dir=""
-    local flock_bin
-    flock_bin=$(command -v flock 2>/dev/null || true)
-    if [ -n "$flock_bin" ]; then
-        flock_dir=$(dirname "$flock_bin")
-    fi
-
-    local no_flock_path
-    if [ -n "$flock_dir" ]; then
-        # Exclude the directory that actually contains flock, then also strip
-        # any residual path components whose name contains 'util-linux' or 'flock'.
-        no_flock_path=$(echo "$PATH" | tr ':' '\n' \
-            | grep -v "^${flock_dir}\$" \
-            | grep -v 'util-linux\|flock' \
-            | tr '\n' ':' | sed 's/:$//')
-    else
-        # flock is not in PATH on this host; just remove name-pattern matches.
-        no_flock_path=$(echo "$PATH" | tr ':' '\n' | grep -v 'util-linux\|flock' | tr '\n' ':' | sed 's/:$//')
-    fi
+    # Shadow flock with a non-util-linux stub so ticket-lib.sh treats flock as
+    # unavailable and falls through to its mkdir-based lock fallback.
+    # Prepend the stub dir to the FULL original PATH to keep all other tools
+    # (sed, date, mktemp, etc.) accessible — filtering entire PATH directories
+    # (e.g. /usr/bin) breaks those tools on Ubuntu where flock and sed share
+    # the same directory.
+    local no_flock_tmpdir no_flock_path
+    no_flock_tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$no_flock_tmpdir")
+    printf '#!/bin/sh\n# stub flock: exits non-zero, no util-linux output\nexit 127\n' \
+        > "$no_flock_tmpdir/flock"
+    chmod +x "$no_flock_tmpdir/flock"
+    no_flock_path="$no_flock_tmpdir:$PATH"
 
     local ticket_id
     ticket_id=$(

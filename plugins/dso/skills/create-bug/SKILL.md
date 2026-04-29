@@ -34,6 +34,10 @@ BUG_CREATE_OUT=$(.claude/scripts/dso ticket create bug \
   "[Component]: [Condition] -> [Observed Result]" \
   --priority <priority> \
   -d "$(cat <<'DESC'
+### 1. Technical Environment
+
+* **code_version:** [40-char SHA from `git rev-parse HEAD` at time of filing]
+
 ### 2. Incident Overview
 
 * **Scenario Type:** [User-Flagged Behavior | Sub-Agent Blocker | Deferred Review Nitpick]

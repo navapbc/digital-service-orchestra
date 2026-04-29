@@ -27,9 +27,14 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-ci-generator.sh ==="
 
+# Single EXIT trap accumulates all temp dirs so later trap calls don't shadow earlier ones.
+_CI_GEN_CLEANUP_DIRS=()
+_ci_gen_cleanup() { for _d in "${_CI_GEN_CLEANUP_DIRS[@]:-}"; do rm -rf "$_d" 2>/dev/null || true; done; }
+trap _ci_gen_cleanup EXIT
+
 # Create a temp dir for output files used in tests
 TMPDIR_OUTPUT="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR_OUTPUT"' EXIT
+_CI_GEN_CLEANUP_DIRS+=("$TMPDIR_OUTPUT")
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -271,7 +276,7 @@ cat > "$YAML_FAKE_BIN/actionlint" << 'FAKE_ALEOF'
 exit 1
 FAKE_ALEOF
 chmod +x "$YAML_FAKE_BIN/actionlint"
-trap 'rm -rf "$YAML_FAKE_BIN"' EXIT
+_CI_GEN_CLEANUP_DIRS+=("$YAML_FAKE_BIN")
 
 YAML_VAL_DIR="$TMPDIR_OUTPUT/yaml_validation"
 mkdir -p "$YAML_VAL_DIR"
@@ -384,7 +389,7 @@ cat > "$TTM_FAKE_BIN/actionlint" << 'TTM_ALEOF'
 exit 1
 TTM_ALEOF
 chmod +x "$TTM_FAKE_BIN/actionlint"
-trap 'rm -rf "$TTM_FAKE_BIN"' EXIT
+_CI_GEN_CLEANUP_DIRS+=("$TTM_FAKE_BIN")
 
 # Part (a): success path — output file must exist after validation passes
 TTM_SUCCESS_DIR="$TMPDIR_OUTPUT/ttm_success"
@@ -421,6 +426,7 @@ assert_pass_if_clean "test_temp_then_move_pattern"
 # (skip validation) so the generator succeeds instead of exit 2.
 _snapshot_fail
 NOVAL_FAKE_BIN="$(mktemp -d)"
+_CI_GEN_CLEANUP_DIRS+=("$NOVAL_FAKE_BIN")
 cat > "$NOVAL_FAKE_BIN/python3" << 'NOVAL_PYEOF'
 #!/usr/bin/env bash
 # Stub: pretend PyYAML is not installed (import yaml fails)
@@ -447,7 +453,6 @@ if [[ -f "$NOVAL_DIR/ci.yml" ]]; then
 fi
 assert_eq "test_no_validator_available_succeeds: ci.yml written despite no validator" \
     "yes" "$noval_file_exists"
-rm -rf "$NOVAL_FAKE_BIN"
 assert_pass_if_clean "test_no_validator_available_succeeds"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
