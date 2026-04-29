@@ -178,7 +178,8 @@ def check_would_create_cycle(
     """Return True if adding source_id→target_id would create a cycle.
 
     Only 'blocks' and 'depends_on' relations can create cycles.
-    'relates_to' never creates cycles and always returns False.
+    'relates_to', 'duplicates', and 'supersedes' never create cycles
+    and always return False.
     """
     if relation in ("relates_to", "duplicates", "supersedes"):
         return False

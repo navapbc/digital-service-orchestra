@@ -41,11 +41,15 @@ done
 if [ -z "$_TARGET" ]; then
     _TARGET="$(git rev-parse --show-toplevel)"
 fi
+# Normalize _TARGET to a canonical absolute path so symlinks/relative paths
+# don't cause the plugin-source-repo equality check to miss.
+_TARGET="$(cd "$_TARGET" && pwd)"
 
 # ── Plugin-source-repo guard ─────────────────────────────────────────────────
 # Skip if _TARGET is the repo that contains this plugin (i.e., the plugin source repo).
 # Derived from _PLUGIN_ROOT to avoid hardcoding a literal install path.
-_PLUGIN_PARENT_REPO="$(git -C "$_PLUGIN_ROOT" rev-parse --show-toplevel)"
+# Fail-open: if the plugin dir is not a git checkout (installed copy), skip the guard.
+_PLUGIN_PARENT_REPO="$(git -C "$_PLUGIN_ROOT" rev-parse --show-toplevel 2>/dev/null)" || _PLUGIN_PARENT_REPO=""
 if [ "$_TARGET" = "$_PLUGIN_PARENT_REPO" ] && [ -f "$_PLUGIN_ROOT/.claude-plugin/plugin.json" ]; then
     echo "NOTICE: target '$_TARGET' is the plugin source repo — skipping migration" >&2
     exit 0

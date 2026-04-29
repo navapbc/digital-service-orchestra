@@ -501,10 +501,10 @@ def test_ready_to_work_when_blocker_has_deleted_tombstone(
 
     Expected: ready_to_work=True because a "deleted" tombstone status is terminal.
 
-    Currently RED: _graph.py line ~100 checks `if status != "closed"` —
-    _get_ticket_status returns "deleted" for this ticket (reads .tombstone.json),
-    and "deleted" != "closed" → blocker treated as non-terminal → ready_to_work=False.
-    The fix is to treat "deleted" as an additional terminal status alongside "closed".
+    Regression test: _graph.py treats "deleted" as a terminal status alongside "closed".
+    _get_ticket_status returns "deleted" for ticket-a (reads .tombstone.json),
+    and the terminal-status check now recognises "deleted" → blocker is terminal
+    → ready_to_work=True.
     """
     tracker_dir = tmp_path / "tracker"
     tracker_dir.mkdir()

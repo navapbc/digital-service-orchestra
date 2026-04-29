@@ -1958,7 +1958,8 @@ PYEOF
             # Re-invocation: commit any remaining UNLINK cleanup, then return.
             local _uf _unlink_staged=()
             while IFS= read -r _uf; do
-                [ -n "$_uf" ] && _unlink_staged+=("$_uf")
+                # Strip TRACKER_DIR prefix: git -C "$TRACKER_DIR" add expects relative paths.
+                [ -n "$_uf" ] && _unlink_staged+=("${_uf#"$TRACKER_DIR/"}")
             done <<< "$unlink_files_raw"
             if [ "${#_unlink_staged[@]}" -gt 0 ]; then
                 git -C "$TRACKER_DIR" add "${_unlink_staged[@]}"
@@ -2025,11 +2026,16 @@ with open(sys.argv[1], 'w', encoding='utf-8') as f:
         }
 
         # ── Atomic commit: UNLINK + STATUS + ARCHIVED + .tombstone.json ───────
+        # git -C "$TRACKER_DIR" add requires paths relative to TRACKER_DIR.
         local _sf _all_stage=()
         while IFS= read -r _sf; do
-            [ -n "$_sf" ] && _all_stage+=("$_sf")
+            [ -n "$_sf" ] && _all_stage+=("${_sf#"$TRACKER_DIR/"}")
         done <<< "$unlink_files_raw"
-        _all_stage+=("$status_event_path" "$archived_event_path" "$TICKET_DIR/.tombstone.json")
+        _all_stage+=(
+            "${status_event_path#"$TRACKER_DIR/"}"
+            "${archived_event_path#"$TRACKER_DIR/"}"
+            "${TICKET_DIR#"$TRACKER_DIR/"}/.tombstone.json"
+        )
         git -C "$TRACKER_DIR" add "${_all_stage[@]}"
         git -C "$TRACKER_DIR" commit -q --no-verify -m "ticket: DELETE $ticket_id"
 

@@ -35,7 +35,8 @@ if _SCRIPTS_DIR not in sys.path:
 from ticket_reducer import reduce_all_tickets  # noqa: E402  (after sys.path setup)
 from ticket_reducer.llm_format import to_llm  # noqa: E402
 
-# Load ticket_graph module (filename has no hyphens so import works directly)
+# Load ticket-graph from its file path because the filename contains a hyphen,
+# so it cannot be imported as a normal Python module name.
 _TICKET_GRAPH_SCRIPT = REPO_ROOT / "plugins" / "dso" / "scripts" / "ticket-graph.py"
 
 

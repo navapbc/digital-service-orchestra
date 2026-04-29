@@ -183,9 +183,9 @@ def _is_locally_deleted_or_archived(
     """Return True if the ticket's compiled local state is deleted or archived.
 
     Detection:
-    1. Read STATUS event files directly for latest status == 'deleted'.
-       The reducer does not recognize 'deleted' as a valid status enum value.
-    2. Use ticket_reducer.reduce_ticket() to check archived == True.
+    1. Check .tombstone.json — written at deletion time and survives compaction.
+    2. Read STATUS event files directly for latest status == 'deleted'.
+    3. Use ticket_reducer.reduce_ticket() to check archived == True.
 
     Returns False when the ticket dir does not exist.
     """
@@ -194,6 +194,10 @@ def _is_locally_deleted_or_archived(
 
     if not ticket_dir.is_dir():
         return False
+
+    # Fast path: tombstone is authoritative and survives ticket-compact
+    if (ticket_dir / ".tombstone.json").is_file():
+        return True
 
     # Check STATUS events directly for 'deleted'
     status_files = sorted(ticket_dir.glob("*-STATUS.json"))
@@ -207,8 +211,12 @@ def _is_locally_deleted_or_archived(
                 if isinstance(sf_ts, (int, float)) and sf_ts > best_ts:
                     best_ts = sf_ts
                     latest_status = data.get("data", {}).get("status", "")
-            except (OSError, _json.JSONDecodeError):
-                pass
+            except (OSError, _json.JSONDecodeError) as exc:
+                _logging.debug(
+                    "_is_locally_deleted_or_archived: skipping unreadable STATUS file %s: %s",
+                    sf,
+                    exc,
+                )
         if latest_status == "deleted":
             return True
 

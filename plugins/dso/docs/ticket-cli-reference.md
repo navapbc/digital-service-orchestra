@@ -183,7 +183,7 @@ ab12-cd34
 
 Delete a ticket permanently (marks status as `deleted`, excludes from `ticket list`, writes tombstone).
 
-**Syntax**: `ticket delete <id> [--user-approved]`
+**Syntax**: `ticket delete <id> --user-approved`
 
 **Behavior**:
 - Marks the ticket with `status=deleted` and `archived=True`
