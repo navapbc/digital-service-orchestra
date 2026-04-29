@@ -205,12 +205,13 @@ format_kb() {
     fi
 }
 
-# Check if a branch is merged to a target branch, with fallback for post-merge
-# amends. When merge-to-main.sh times out and the orchestrator amends the
-# worktree branch's HEAD during recovery, the branch tip SHA changes so
-# merge-base --is-ancestor fails. The fallback checks if the target branch has
-# a merge commit whose message references this branch name (the standard
-# merge-to-main.sh message format: "... (merge $branch)").
+# Check if a branch is merged to a target branch, with fallbacks for post-merge
+# amends and GitHub PR merges. When merge-to-main.sh times out and the
+# orchestrator amends the worktree branch's HEAD during recovery, the branch tip
+# SHA changes so merge-base --is-ancestor fails. The second fallback checks for
+# the standard merge-to-main.sh message format ("... (merge $branch)"). The
+# third fallback covers GitHub PR merge commits ("Merge pull request #N from
+# org/branch") which contain the branch name but not in the parenthetical form.
 # Args: $1=git_dir (main worktree), $2=branch_name, $3=target_branch
 # Returns: 0 if merged, 1 if not
 is_branch_merged() {
@@ -219,6 +220,11 @@ is_branch_merged() {
         return 0
     fi
     if git -C "$git_dir" log "$target_branch" --oneline --grep="(merge $branch_name)" -1 2>/dev/null | grep -q .; then
+        return 0
+    fi
+    if git -C "$git_dir" log "$target_branch" --oneline --grep="Merge pull request.*$branch_name" -1 2>/dev/null | grep -q .; then
+        # Anchored to "Merge pull request" to avoid false positives from unrelated
+        # commits that mention the branch name in their body text.
         return 0
     fi
     return 1

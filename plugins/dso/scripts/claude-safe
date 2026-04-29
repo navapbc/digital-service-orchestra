@@ -119,10 +119,15 @@ _offer_worktree_cleanup() {
         # The amend changes the SHA so is-ancestor fails, but main's merge
         # commit message still references this branch name.
         is_merged=1
+    elif git -C "$main_root" log main --oneline --grep="Merge pull request.*$branch" -1 2>/dev/null | grep -q .; then
+        # Fallback: GitHub PR merge commits use "Merge pull request #N from org/branch".
+        # Anchored to "Merge pull request" to avoid false positives from unrelated
+        # commits that mention the branch name in their body text.
+        is_merged=1
     fi
 
     # Check for uncommitted changes — any dirty file blocks auto-removal.
-    # .tickets-tracker/ files are treated like any other uncommitted change.
+    # .tickets-tracker/ files are treated like any other uncommitted change.  # tickets-boundary-ok: documents behavioral expectation, not direct access
     local is_clean=1
     if [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
         is_clean=0
