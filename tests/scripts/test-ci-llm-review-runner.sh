@@ -545,13 +545,6 @@ assert_pass_if_clean "test_runner_cli_overlay_overrides_classifier"
 
 # Cleanup test 12 temps
 rm -rf "$MOCK12" "$ARTIFACTS12"
-
-# REVIEW-DEFENSE: All tests from here onward (tests 13–20) are in the RED zone per .test-index
-# marker [test_deep_tier_dispatches_three_specialist_calls]. Per CLAUDE.md: "RED marker format:
-# tests/foo.sh [test_name] (space before bracket required) tolerates intentionally failing RED
-# tests at/after that boundary." record-test-status confirms this at runtime:
-# "RED zone failures tolerated for tests/scripts/test-ci-llm-review-runner.sh
-# (marker: test_deep_tier_dispatches_three_specialist_calls, zone starts line 632)".
 # This covers tests 13–16 (deep-tier dispatch) AND tests 17–20 (overlay dispatch) — all 8 RED
 # tests are TDD boundaries for GREEN tasks 0db5-9a72 and a871-cce0. The runner currently falls
 # back to standard for deep tier and writes overlay-flags.env but does not dispatch overlay curl
@@ -582,11 +575,6 @@ _SLOT_JSON='{"scores":{"correctness":4,"verification":4,"hygiene":4,"design":4,"
 # For each call, write the appropriate slot file and increment the counter.
 cat > "$MOCK13/curl" <<MOCKEOF
 #!/usr/bin/env bash
-# Increment call counter atomically (single-process test, so read-modify-write is safe)
-_count=\$(cat "${CURL_COUNT_FILE}")
-_count=\$((_count + 1))
-printf '%s' "\$_count" > "${CURL_COUNT_FILE}"
-
 # Detect which specialist this call is for by scanning --data-raw body for agent file path
 _body=""
 _prev=""
@@ -599,11 +587,15 @@ done
 
 _slot_json='${_SLOT_JSON}'
 
+# Count and handle specialist calls only (not the arch synthesis call)
 if printf '%s' "\$_body" | grep -q "code-reviewer-deep-correctness"; then
+    _count=\$(cat "${CURL_COUNT_FILE}"); _count=\$((_count + 1)); printf '%s' "\$_count" > "${CURL_COUNT_FILE}"
     printf '%s\n' "\$_slot_json" > "${ARTIFACTS13}/reviewer-findings-correctness.json"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-verification"; then
+    _count=\$(cat "${CURL_COUNT_FILE}"); _count=\$((_count + 1)); printf '%s' "\$_count" > "${CURL_COUNT_FILE}"
     printf '%s\n' "\$_slot_json" > "${ARTIFACTS13}/reviewer-findings-verification.json"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
+    _count=\$(cat "${CURL_COUNT_FILE}"); _count=\$((_count + 1)); printf '%s' "\$_count" > "${CURL_COUNT_FILE}"
     printf '%s\n' "\$_slot_json" > "${ARTIFACTS13}/reviewer-findings-hygiene.json"
 fi
 
@@ -1224,7 +1216,7 @@ assert_eq "test_security_blue_team_dispatched_after_red_team: both slot files pr
 # Verify ordering: red-team must appear before blue-team in dispatch log
 _dispatch_order=""
 if [[ -f "$DISPATCH_ORDER_LOG" ]]; then
-    _dispatch_order=$(grep -E "^(red-team|blue-team)$" "$DISPATCH_ORDER_LOG" | paste -s -d',' 2>/dev/null || true)
+    _dispatch_order=$(grep -E "^(red-team|blue-team)$" "$DISPATCH_ORDER_LOG" | paste -s -d',' - 2>/dev/null || true)
 fi
 assert_eq "test_security_blue_team_dispatched_after_red_team: red-team dispatched before blue-team" "red-team,blue-team" "$_dispatch_order"
 

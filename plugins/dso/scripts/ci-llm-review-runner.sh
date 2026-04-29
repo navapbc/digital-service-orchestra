@@ -48,6 +48,16 @@ print(str(d.get('security_overlay',False)).lower(),
 [[ "$OVERLAY_PERFORMANCE" == "true" ]]  && _PERF=true
 [[ "$OVERLAY_TEST_QUALITY" == "true" ]] && _TQ=true
 
+# Merge with any pre-existing overlay flags (OR semantics: upstream pipeline may have set flags).
+if [[ -f "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/overlay-flags.env" ]]; then
+  _prev_sec=$(grep '^security_overlay='     "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/overlay-flags.env" | cut -d= -f2 || true)
+  _prev_perf=$(grep '^performance_overlay=' "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/overlay-flags.env" | cut -d= -f2 || true)
+  _prev_tq=$(grep '^test_quality_overlay='  "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/overlay-flags.env" | cut -d= -f2 || true)
+  [[ "$_prev_sec"  == "true" ]] && _SEC=true
+  [[ "$_prev_perf" == "true" ]] && _PERF=true
+  [[ "$_prev_tq"   == "true" ]] && _TQ=true
+fi
+
 # Write overlay flags to artifacts dir for downstream overlay dispatch (Story 3 contract).
 # Format: KEY=value, one per line, sourced as bash or read line-by-line.
 printf 'security_overlay=%s\nperformance_overlay=%s\ntest_quality_overlay=%s\n' \
@@ -276,6 +286,73 @@ PYEOF
 )
 
 REVIEWER_HASH=$(echo "$FINDINGS_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER")
+
+# ── Overlay dispatch ────────────────────────────────────────────────────────────
+# Dispatch parallel overlay curl calls for each active overlay flag; write each
+# reviewer's LLM text to a slot file in WORKFLOW_PLUGIN_ARTIFACTS_DIR.  Serial
+# blue-team runs after red-team when security overlay is active.
+_run_overlay_curl() {
+  local _agent_file="$1" _slot_file="$2"
+  local _sys _req _resp
+  _sys="$(cat "$_agent_file")"
+  _req=$(DSO_SYSTEM="$_sys" DSO_DIFF="$DIFF_CONTENT" DSO_MODEL="$MODEL" \
+    python3 - <<'PYEOF'
+import json, os
+print(json.dumps({
+  'model': os.environ['DSO_MODEL'],
+  'max_tokens': 8192,
+  'system': os.environ['DSO_SYSTEM'],
+  'messages': [{'role': 'user', 'content': 'Review this diff:\n\n' + os.environ['DSO_DIFF']}]
+}))
+PYEOF
+  )
+  _resp=$(curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+    -H "x-api-key: $ANTHROPIC_API_KEY" \
+    -H "anthropic-version: 2023-06-01" \
+    -H "content-type: application/json" \
+    --data-raw "$_req" \
+    "https://api.anthropic.com/v1/messages")
+  printf '%s\n' "$_resp" | python3 -c "
+import json, sys, re
+data = sys.stdin.read()
+try:
+    d = json.loads(data)
+    print(d['content'][0]['text'])
+    sys.exit(0)
+except Exception:
+    pass
+m = re.search(r'\"text\"\s*:\s*\"([\s\S]+?)\"(?=\s*\}\s*\])', data)
+if m:
+    print(m.group(1))
+    sys.exit(0)
+print('ERROR: Cannot extract overlay text from API response', file=sys.stderr)
+sys.exit(1)
+" > "$_slot_file"
+}
+
+_OVERLAY_PIDS=()
+[[ "$_SEC"  == "true" ]] && {
+  _run_overlay_curl "$_PLUGIN_ROOT/agents/code-reviewer-security-red-team.md" \
+    "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-red.json" &
+  _OVERLAY_PIDS+=($!)
+}
+[[ "$_PERF" == "true" ]] && {
+  _run_overlay_curl "$_PLUGIN_ROOT/agents/code-reviewer-performance.md" \
+    "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-performance.json" &
+  _OVERLAY_PIDS+=($!)
+}
+[[ "$_TQ"   == "true" ]] && {
+  _run_overlay_curl "$_PLUGIN_ROOT/agents/code-reviewer-test-quality.md" \
+    "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-test-quality.json" &
+  _OVERLAY_PIDS+=($!)
+}
+if [[ ${#_OVERLAY_PIDS[@]} -gt 0 ]]; then
+  for _pid in "${_OVERLAY_PIDS[@]}"; do wait "$_pid"; done
+fi
+[[ "$_SEC" == "true" ]] && _run_overlay_curl \
+  "$_PLUGIN_ROOT/agents/code-reviewer-security-blue-team.md" \
+  "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json"
+
 bash "$(command -v record-review.sh)" --reviewer-hash "$REVIEWER_HASH"
 REVIEW_STATUS=$(head -1 "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/review-status" 2>/dev/null || echo "")
 if [[ "$REVIEW_STATUS" == "failed" ]]; then
