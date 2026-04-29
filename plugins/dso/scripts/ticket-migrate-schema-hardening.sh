@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# ticket-migrate-schema-hardening.sh
+# One-time migration: rebuild the SNAPSHOT with schema hardening applied.
+#
+# Usage:
+#   ticket-migrate-schema-hardening.sh [--dry-run | --rollback]
+#
+# Flags:
+#   --dry-run     Show what would change without making any changes (read-only)
+#   --rollback    Restore the most recent pre-migration backup to SNAPSHOT.json
+#
+# Exit codes:
+#   0 — Success
+#   1 — Fatal error (concurrent invocation, lock failure, or not yet implemented)
+#
+# Lock:
+#   Uses an exclusive lock (/tmp/ticket-migrate-schema-hardening.lock) to
+#   prevent concurrent invocations from corrupting the SNAPSHOT backup.
+#   Lock is released on success, failure, and SIGINT/SIGTERM.
+
+set -uo pipefail
+
+# ── Lock file ────────────────────────────────────────────────────────────────
+_LOCK_FILE="/tmp/ticket-migrate-schema-hardening.lock"
+_LOCK_TIMEOUT=5
+_LOCK_ACQUIRED=false
+
+# ── Acquire exclusive lock (portable: python3 fcntl.flock or mkdir fallback) ──
+_acquire_lock() {
+    local lock_file="$_LOCK_FILE"
+    local timeout="$_LOCK_TIMEOUT"
+
+    # Try python3 fcntl.flock first (works on macOS + Linux).
+    # This is an advisory pre-check: the fcntl lock is released when the python3
+    # subprocess exits. The mkdir-based sustained lock below is the real mutex.
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$lock_file" "$timeout" <<'PYEOF' 2>&1 || {
+import fcntl, os, sys, time
+
+lock_file = sys.argv[1]
+timeout = int(sys.argv[2])
+
+try:
+    fd = open(lock_file, 'w')
+    deadline = time.time() + timeout
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # Lock acquired — write PID and leave fd open (but we can't return fd)
+            fd.write(str(os.getpid()) + '\n')
+            fd.flush()
+            sys.exit(0)
+        except (IOError, OSError):
+            if time.time() >= deadline:
+                sys.exit(1)
+            time.sleep(0.1)
+except Exception as e:
+    print(str(e), file=sys.stderr)
+    sys.exit(1)
+PYEOF
+            echo "migration already in progress — aborting" >&2
+            exit 1
+        }
+        # fcntl lock was released when the python3 subprocess exited.
+        # Fall through to mkdir-based lock for sustained hold across script lifetime.
+    fi
+
+    # Sustained lock: use a directory lock (atomic mkdir, POSIX-compliant).
+    # This is the real mutex — it is held for the duration of this process and
+    # cleaned up by _release_lock().
+    local lock_dir="${lock_file}.d"
+    local deadline
+    deadline=$(( $(date +%s) + timeout ))
+    while true; do
+        if mkdir "$lock_dir" 2>/dev/null; then
+            _LOCK_ACQUIRED=true
+            # Write PID to lock file for diagnostics
+            echo "$$" > "$lock_file" 2>/dev/null || true
+            return 0
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "migration already in progress — aborting" >&2
+            exit 1
+        fi
+        sleep 0.1
+    done
+}
+
+# ── Lock cleanup (removes both the lock file and directory lock) ──────────────
+# shellcheck disable=SC2329  # invoked indirectly via trap
+_release_lock() {
+    if [ "$_LOCK_ACQUIRED" = true ]; then
+        rm -f "$_LOCK_FILE"
+        rm -rf "${_LOCK_FILE}.d"
+        _LOCK_ACQUIRED=false
+    fi
+}
+trap '_release_lock' EXIT
+trap '_release_lock; exit 130' INT
+trap '_release_lock; exit 143' TERM
+
+# ── Acquire lock before any operation ────────────────────────────────────────
+_acquire_lock
+
+# ── Parse arguments ──────────────────────────────────────────────────────────
+_DRYRUN=0
+_ROLLBACK=0
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --dry-run)
+            _DRYRUN=1
+            shift
+            ;;
+        --rollback)
+            _ROLLBACK=1
+            shift
+            ;;
+        *)
+            echo "Error: unknown argument '$1'" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# ── Dispatch ──────────────────────────────────────────────────────────────────
+
+if [ "$_DRYRUN" -eq 1 ]; then
+    echo "DRY_RUN: would bump schema_version to N"
+    exit 0
+fi
+
+if [ "$_ROLLBACK" -eq 1 ]; then
+    # Stub: rollback not yet implemented (will be done by e779-8b02)
+    echo "Error: --rollback not yet implemented" >&2
+    exit 1
+fi
+
+# Default: full migration not yet implemented (will be done by e779-8b02)
+echo "Error: migration not yet implemented" >&2
+exit 1
