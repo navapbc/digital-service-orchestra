@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Classification: behavioral, Score: 2 (BASIC) — severity=medium (CI failure blocks PR merge), complexity=simple (clear pattern violations), environment=CI, deterministic"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777354745479274000,"uuid":"912d4fa5-82fb-4adb-9837-f01b3514d88c"}
