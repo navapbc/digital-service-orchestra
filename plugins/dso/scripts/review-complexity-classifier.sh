@@ -109,6 +109,16 @@ if [[ -n "$READ_CONFIG" ]]; then
     fi
 fi
 
+# Size threshold configuration (read once at script init; fall back to hardcoded defaults)
+SIZE_UPGRADE_LINES=300
+SIZE_WARN_LINES=600
+if [[ -n "$READ_CONFIG" ]]; then
+    _cfg_upgrade=$("$READ_CONFIG" review.size_upgrade_lines 2>/dev/null || echo "")
+    [[ -n "$_cfg_upgrade" && "$_cfg_upgrade" =~ ^[0-9]+$ ]] && SIZE_UPGRADE_LINES="$_cfg_upgrade"
+    _cfg_warn=$("$READ_CONFIG" review.size_warn_lines 2>/dev/null || echo "")
+    [[ -n "$_cfg_warn" && "$_cfg_warn" =~ ^[0-9]+$ ]] && SIZE_WARN_LINES="$_cfg_warn"
+fi
+
 is_behavioral_file() {
     local file="$1"
     [[ ${#BEHAVIORAL_PATTERNS[@]} -eq 0 ]] && return 1
@@ -710,10 +720,10 @@ _compute_size_action() {
         return
     fi
 
-    if (( diff_size_lines >= 600 )); then
+    if (( diff_size_lines >= SIZE_WARN_LINES )); then
         echo "SIZE_WARNING: ${diff_size_lines}" >&2
         echo "warn"
-    elif (( diff_size_lines >= 300 )); then
+    elif (( diff_size_lines >= SIZE_UPGRADE_LINES )); then
         echo "upgrade"
     else
         echo "none"
