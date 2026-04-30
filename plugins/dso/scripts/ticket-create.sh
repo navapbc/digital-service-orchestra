@@ -181,6 +181,17 @@ ticket_id=$(echo "$event_meta" | sed -n '1p')
 event_uuid=$(echo "$event_meta" | sed -n '2p')
 timestamp=$(echo "$event_meta" | sed -n '3p')
 
+# ── Compute human-readable alias from ticket ID ───────────────────────────────
+# Honour TICKET_WORDLIST_PATH env override (for testing); fall back to the
+# wordlist bundled with the plugin.
+_wordlist="${TICKET_WORDLIST_PATH:-$SCRIPT_DIR/../resources/ticket-wordlist.txt}"
+_alias_stderr=$(mktemp /tmp/ticket-alias-stderr.XXXXXX)
+ticket_alias=$(python3 "$SCRIPT_DIR/ticket-alias-compute.py" "$ticket_id" "$_wordlist" 2>"$_alias_stderr")
+if grep -q "^FALLBACK$" "$_alias_stderr" 2>/dev/null; then
+    echo "WARN: ticket-wordlist.txt not found — using hex fallback alias" >&2
+fi
+rm -f "$_alias_stderr"
+
 # ── Build CREATE event JSON via python3 ───────────────────────────────────────
 temp_event=$(mktemp "$TRACKER_DIR/.tmp-create-XXXXXX")
 # Write description to temp file to avoid ARG_MAX limits on large payloads (195e-b410)
@@ -217,6 +228,10 @@ assignee_arg = sys.argv[11] if len(sys.argv) > 11 else ''
 if assignee_arg:
     data['assignee'] = assignee_arg
 
+alias_arg = sys.argv[13] if len(sys.argv) > 13 else ''
+if alias_arg:
+    data['alias'] = alias_arg
+
 event = {
     'timestamp': int(sys.argv[1]),
     'uuid': sys.argv[2],
@@ -228,7 +243,7 @@ event = {
 
 with open(sys.argv[12], 'w', encoding='utf-8') as f:
     json.dump(event, f, ensure_ascii=False)
-" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$desc_file" "$tags" "$assignee" "$temp_event" || {
+" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$desc_file" "$tags" "$assignee" "$temp_event" "$ticket_alias" || {
     rm -f "$temp_event" "$desc_file"
     echo "Error: failed to build CREATE event JSON" >&2
     exit 1

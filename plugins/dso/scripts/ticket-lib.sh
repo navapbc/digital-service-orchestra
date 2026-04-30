@@ -1095,6 +1095,156 @@ with open(staging_path, 'w', encoding='utf-8') as f:
     echo "Preconditions recorded: $final_filename"
 }
 
+# resolve_ticket_id <input>
+# Resolves a ticket identifier (full ID, 8-hex short ID, alias, jira_key, or prefix)
+# to the canonical ticket directory name. Prints the resolved ID to stdout on success.
+#
+# Resolution order:
+#   1. Exact 16-hex passthrough: ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$
+#      Verifies the ticket directory exists; returns ID unchanged.
+#   2. Exact 8-hex backward compat: ^[a-z0-9]{4}-[a-z0-9]{4}$
+#      Scans for ticket dirs whose first 9 chars (xxxx-xxxx) match; returns if unique.
+#   3. Alias match: scans CREATE events for data.alias == input; returns if unique.
+#   4. jira_key match: scans CREATE events for data.jira_key == input; returns if unique.
+#   5. Unique prefix (>= 4 chars): scans ticket dirs for IDs starting with input.
+#   6. Ambiguous or not found: prints error to stderr, exits 1.
+#
+# Honors TICKETS_TRACKER_DIR env var for tracker path.
+#
+# Exit codes:
+#   0 = success (resolved ID printed to stdout)
+#   1 = not found or ambiguous (error on stderr)
+resolve_ticket_id() {
+    local input="$1"
+
+    local _repo_root=""
+    if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
+        _repo_root="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel)"
+    fi
+    local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root/.tickets-tracker}"
+
+    # ── Step 1: Exact 16-hex passthrough ─────────────────────────────────────
+    if [[ "$input" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+        if [ -d "$_tracker_dir/$input" ]; then
+            echo "$input"
+            return 0
+        fi
+        echo "Error: ticket '$input' not found" >&2
+        return 1
+    fi
+
+    # ── Step 2: Exact 8-hex backward compat ──────────────────────────────────
+    if [[ "$input" =~ ^[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+        # Direct directory match (legacy or test-planted short ID)
+        if [ -d "$_tracker_dir/$input" ]; then
+            echo "$input"
+            return 0
+        fi
+        # Scan for full 16-hex dirs whose first 9 chars match
+        local _8hex_matches=()
+        local _entry
+        while IFS= read -r -d '' _entry; do
+            local _base
+            _base="$(basename "$_entry")"
+            if [[ "${_base:0:9}" == "$input" ]]; then
+                _8hex_matches+=("$_base")
+            fi
+        done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
+            ! -name '.*' -print0 2>/dev/null)
+        if [ "${#_8hex_matches[@]}" -eq 1 ]; then
+            echo "${_8hex_matches[0]}"
+            return 0
+        elif [ "${#_8hex_matches[@]}" -gt 1 ]; then
+            echo "Error: Ambiguous 8-hex ID '$input' matches: ${_8hex_matches[*]}" >&2
+            return 1
+        fi
+        echo "Error: ticket '$input' not found" >&2
+        return 1
+    fi
+
+    # ── Steps 3 & 4: Alias and jira_key scan ─────────────────────────────────
+    local _alias_matches=()
+    local _jira_matches=()
+    local _entry
+    while IFS= read -r -d '' _entry; do
+        local _base
+        _base="$(basename "$_entry")"
+        [[ "$_base" == .* ]] && continue
+        # Scan CREATE event files in this ticket directory
+        local _create_file
+        while IFS= read -r -d '' _create_file; do
+            if ! [ -f "$_create_file" ]; then
+                continue
+            fi
+            local _alias_val _jira_val _combined
+            # Single python3 call extracts both alias and jira_key, halving subprocess count.
+            _combined=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        data = json.load(f).get('data', {})
+    alias = data.get('alias', '') or ''
+    jira_key = data.get('jira_key', '') or ''
+    print(alias + '\t' + jira_key)
+except Exception:
+    print('\t')
+" "$_create_file" 2>/dev/null) || _combined=$'\t'
+            _alias_val="${_combined%%	*}"
+            _jira_val="${_combined##*	}"
+            if [ -n "$_alias_val" ] && [ "$_alias_val" = "$input" ]; then
+                _alias_matches+=("$_base")
+                break  # Only record each ticket once per alias match
+            fi
+            if [ -n "$_jira_val" ] && [ "$_jira_val" = "$input" ]; then
+                _jira_matches+=("$_base")
+                break  # Only record each ticket once per jira_key match
+            fi
+        done < <(find "$_entry" -maxdepth 1 -name 'CREATE-*.json' -print0 2>/dev/null)
+    done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
+        ! -name '.*' -print0 2>/dev/null)
+
+    if [ "${#_alias_matches[@]}" -eq 1 ]; then
+        echo "${_alias_matches[0]}"
+        return 0
+    elif [ "${#_alias_matches[@]}" -gt 1 ]; then
+        echo "Error: Ambiguous alias '$input' matches multiple tickets: ${_alias_matches[*]}" >&2
+        return 1
+    fi
+
+    if [ "${#_jira_matches[@]}" -eq 1 ]; then
+        echo "${_jira_matches[0]}"
+        return 0
+    elif [ "${#_jira_matches[@]}" -gt 1 ]; then
+        echo "Error: Ambiguous jira_key '$input' matches multiple tickets: ${_jira_matches[*]}" >&2
+        return 1
+    fi
+
+    # ── Step 5: Unique prefix (>= 4 chars) ───────────────────────────────────
+    if [ "${#input}" -ge 4 ]; then
+        local _prefix_matches=()
+        local _entry2
+        while IFS= read -r -d '' _entry2; do
+            local _base2
+            _base2="$(basename "$_entry2")"
+            if [[ "$_base2" == "$input"* ]]; then
+                _prefix_matches+=("$_base2")
+            fi
+        done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
+            ! -name '.*' -print0 2>/dev/null)
+        if [ "${#_prefix_matches[@]}" -eq 1 ]; then
+            echo "${_prefix_matches[0]}"
+            return 0
+        elif [ "${#_prefix_matches[@]}" -gt 1 ]; then
+            echo "Error: Ambiguous prefix '$input' matches multiple tickets: ${_prefix_matches[*]}" >&2
+            return 1
+        fi
+    fi
+
+    # ── Step 6: Not found ─────────────────────────────────────────────────────
+    echo "Error: ticket '$input' not found" >&2
+    return 1
+}
+
 # _read_latest_preconditions <ticket_id_or_dir> [<gate_name> <session_id>]
 # Reads PRECONDITIONS events. Supports two calling conventions:
 #   1-arg  (ticket_dir):            full path to ticket event dir; returns latest event overall

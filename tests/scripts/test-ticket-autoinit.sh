@@ -63,7 +63,7 @@ test_ticket_autoinit_on_create() {
     fi
 
     # Assert: stdout contains a ticket ID (non-empty, matches pattern)
-    if [ -n "$stdout_out" ] && [[ "$stdout_out" =~ ^[a-z0-9]+-[a-z0-9]+$ ]]; then
+    if [ -n "$stdout_out" ] && [[ "$stdout_out" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
         assert_eq "ticket ID output to stdout" "match" "match"
     else
         assert_eq "ticket ID output to stdout" "match" "no-match: ${stdout_out:-<empty>}"

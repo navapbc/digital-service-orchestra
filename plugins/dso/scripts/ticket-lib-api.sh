@@ -778,6 +778,18 @@ print(timestamp)
         event_uuid=$(echo "$event_meta" | sed -n '2p')
         timestamp=$(echo "$event_meta" | sed -n '3p')
 
+        # Compute human-readable alias from ticket ID.
+        # Honour TICKET_WORDLIST_PATH env override (for testing); fall back to the
+        # wordlist bundled with the plugin.
+        local _wordlist _alias_stderr ticket_alias
+        _wordlist="${TICKET_WORDLIST_PATH:-$_TICKETLIB_DIR/../resources/ticket-wordlist.txt}"
+        _alias_stderr=$(mktemp /tmp/ticket-alias-stderr.XXXXXX)
+        ticket_alias=$(python3 "$_TICKETLIB_DIR/ticket-alias-compute.py" "$ticket_id" "$_wordlist" 2>"$_alias_stderr")
+        if grep -q "^FALLBACK$" "$_alias_stderr" 2>/dev/null; then
+            echo "WARN: ticket-wordlist.txt not found — using hex fallback alias" >&2
+        fi
+        rm -f "$_alias_stderr"
+
         # Build CREATE event JSON via python3
         local temp_event desc_file
         temp_event=$(mktemp "$TRACKER_DIR/.tmp-create-XXXXXX")
@@ -809,6 +821,10 @@ assignee_arg = sys.argv[11] if len(sys.argv) > 11 else ''
 if assignee_arg:
     data['assignee'] = assignee_arg
 
+alias_arg = sys.argv[13] if len(sys.argv) > 13 else ''
+if alias_arg:
+    data['alias'] = alias_arg
+
 event = {
     'timestamp': int(sys.argv[1]),
     'uuid': sys.argv[2],
@@ -820,7 +836,7 @@ event = {
 
 with open(sys.argv[12], 'w', encoding='utf-8') as f:
     json.dump(event, f, ensure_ascii=False)
-" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$desc_file" "$tags" "$assignee" "$temp_event" || {
+" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$desc_file" "$tags" "$assignee" "$temp_event" "$ticket_alias" || {
             rm -f "$temp_event" "$desc_file"
             echo "Error: failed to build CREATE event JSON" >&2
             return 1
@@ -1747,6 +1763,25 @@ write_marker(sys.argv[1])
 " "$TICKET_DIR" 2>/dev/null || true
 
         echo "Archived ticket '$ticket_id'"
+    )
+}
+
+# ── ticket_resolve ───────────────────────────────────────────────────────────
+# In-process wrapper for resolve_ticket_id().
+ticket_resolve() {
+    (
+        set -euo pipefail
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        # shellcheck source=/dev/null
+        source "$_TICKETLIB_DIR/ticket-lib.sh"
+
+        if [ $# -lt 1 ]; then
+            echo "Usage: ticket resolve <id_or_alias_or_prefix>" >&2
+            return 1
+        fi
+
+        resolve_ticket_id "$1"
     )
 }
 

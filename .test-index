@@ -285,6 +285,8 @@ plugins/dso/skills/verification-before-completion/SKILL.md:tests/plugin/test-aud
 plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh,tests/scripts/test-ticket-link-duplicates-supersedes.sh
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh [test_16hex_stdout_last_line]
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh,tests/scripts/test-ticket-hardening-integration.sh [test_integration_16hex_and_alias]
+plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh [test_16hex_stdout_last_line],tests/scripts/test-ticket-create.sh,tests/scripts/test-ticket-hardening-integration.sh [test_integration_16hex_and_alias]
+plugins/dso/scripts/ticket-alias-compute.py:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/ticket-migrate-file-impact-v1.sh:tests/scripts/test-ticket-migrate-file-impact-v1.sh
 plugins/dso/scripts/ticket-migrate-schema-hardening.sh:tests/scripts/test-ticket-migration.sh
@@ -313,6 +315,7 @@ plugins/dso/scripts/preconditions-record.sh:tests/scripts/test-preconditions-rec
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-transition-flock.sh,tests/scripts/test-ticket-transition-deleted.sh,tests/scripts/test-ticket-transition.sh [test_parent_uuid_first_event_is_null]
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-transition-flock.sh,tests/scripts/test-ticket-transition-deleted.sh,tests/scripts/test-ticket-hardening-integration.sh [test_integration_16hex_and_alias]
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-transition-flock.sh,tests/scripts/test-ticket-transition-deleted.sh,tests/scripts/test-ticket-transition.sh [test_parent_uuid_first_event_is_null],tests/scripts/test-ticket-hardening-integration.sh [test_integration_16hex_and_alias]
+plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-transition-flock.sh,tests/scripts/test-ticket-transition-deleted.sh,tests/scripts/test-ticket-hardening-integration.sh [test_integration_16hex_and_alias]
 plugins/dso/scripts/ticket-unblock.py:tests/scripts/test-ticket-transition-deleted.sh
 plugins/dso/scripts/ticket-next-batch.sh:tests/scripts/test-ticket-next-batch-dispatcher.sh,tests/scripts/test-ticket-transition-deleted.sh
 plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-reference.sh
@@ -415,7 +418,7 @@ plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
 plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
-plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-ticket-write-commit-event.sh,tests/scripts/test-ticket-lib.sh,tests/scripts/test-preconditions-lww.sh,tests/scripts/test-preconditions-compaction.sh,tests/integration/test-preconditions-fault-injection.sh,tests/integration/test-preconditions-mixed-corpus.sh,tests/integration/test-preconditions-compaction-ordering.sh,tests/scripts/test-ticket-push-rebase-conflict.sh,tests/scripts/test-ticket-set-get-file-impact.sh,tests/scripts/test-flock-busybox-compat.sh,tests/scripts/test-ticket-lib.sh [test_resolver_16hex_passthrough],tests/scripts/test-ticket-lib.sh [test_resolver_8hex_backward_compat],tests/scripts/test-ticket-lib.sh [test_resolver_unique_prefix],tests/scripts/test-ticket-lib.sh [test_resolver_ambiguous_prefix_error],tests/scripts/test-ticket-lib.sh [test_resolver_alias_lookup],tests/scripts/test-ticket-lib.sh [test_resolver_alias_collision_error]
+plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-ticket-write-commit-event.sh,tests/scripts/test-ticket-lib.sh,tests/scripts/test-preconditions-lww.sh,tests/scripts/test-preconditions-compaction.sh,tests/integration/test-preconditions-fault-injection.sh,tests/integration/test-preconditions-mixed-corpus.sh,tests/integration/test-preconditions-compaction-ordering.sh,tests/scripts/test-ticket-push-rebase-conflict.sh,tests/scripts/test-ticket-set-get-file-impact.sh,tests/scripts/test-flock-busybox-compat.sh
 plugins/dso/scripts/ticket-tag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
