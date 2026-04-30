@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Structural-boundary tests for preplanning SKILL.md Phase 1.5 External Dependencies block reader.
+# Structural-boundary tests for preplanning SKILL.md External Dependencies Reading phase block reader.
 # Rule 5 (behavioral-testing-standard.md): SKILL.md is non-executable; tests assert structural
 # contracts (section headings, referenced flags, tag names, path references).
 set -euo pipefail
@@ -13,19 +13,19 @@ FAIL=0
 pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
-echo "=== Phase 1.5 section heading exists ==="
-# test_phase_1_5_section_heading_exists
-# Assert Phase 1.5 External Dependencies Block Reading section heading present.
-if grep -qi "Phase 1\.5.*External Dep\|External Dep.*Phase 1\.5" "$SKILL_MD"; then
-    pass "test_phase_1_5_section_heading_exists: Phase 1.5 External Dependencies heading found"
+echo "=== External Dependencies Reading phase heading exists ==="
+# test_external_deps_reading_phase_heading_exists
+# Assert the External Dependencies Reading phase heading is present (letter-based naming).
+if grep -qiE "Phase [A-Z]:.*External Dependencies Reading|External Dependencies Reading.*\(/dso:preplanning\)" "$SKILL_MD"; then
+    pass "test_external_deps_reading_phase_heading_exists: External Dependencies Reading phase heading found"
 else
-    fail "test_phase_1_5_section_heading_exists: Phase 1.5 External Dependencies heading not found in SKILL.md"
+    fail "test_external_deps_reading_phase_heading_exists: External Dependencies Reading phase heading not found in SKILL.md"
 fi
 
 echo ""
 echo "=== Flag check reference present ==="
 # test_flag_check_reference_present
-# Assert that Phase 1.5 references the feature flag that gates it.
+# Assert that Phase B references the feature flag that gates it.
 if grep -q "planning\.external_dependency_block_enabled\|is_external_dep_block_enabled\|planning-config\.sh" "$SKILL_MD"; then
     pass "test_flag_check_reference_present: planning flag reference found"
 else
@@ -45,7 +45,7 @@ fi
 echo ""
 echo "=== manual:awaiting_user tag referenced ==="
 # test_manual_awaiting_user_tag_referenced
-# Assert that Phase 1.5 references the manual:awaiting_user tag for handshake tracking.
+# Assert that Phase B references the manual:awaiting_user tag for handshake tracking.
 if grep -q "manual:awaiting_user\|manual\.awaiting_user" "$SKILL_MD"; then
     pass "test_manual_awaiting_user_tag_referenced: manual:awaiting_user tag reference found"
 else
@@ -53,19 +53,26 @@ else
 fi
 
 echo ""
-echo "=== Idempotency check instruction present ==="
-# test_idempotency_check_instruction_present
-# Assert that SKILL.md Phase 1.5 contains idempotency check guidance.
-if grep -qi "idempoten\|already.*present.*skip\|skip.*already.*present" "$SKILL_MD"; then
-    pass "test_idempotency_check_instruction_present: idempotency check instruction found"
+echo "=== Idempotency dedup contract: name-field match co-occurs with skip directive ==="
+# test_idempotency_dedup_contract
+# Structural per Rule 5: assert the actual dedup contract — match by `name` field
+# AND a "skip" instruction co-occur within the External Dependencies phase context
+# (within 30 lines of each other, since the phase body is short). This is not a
+# behavioral test (SKILL.md is non-executable) but it asserts the gate text in
+# the right structural relationship rather than a free-floating prose phrase.
+if awk '/Phase [A-Z]:.*External Dependencies Reading/,/^---$/' "$SKILL_MD" | \
+   grep -q "name.*field" && \
+   awk '/Phase [A-Z]:.*External Dependencies Reading/,/^---$/' "$SKILL_MD" | \
+   grep -qiE "skip.*creation|skip.*for that entry|skipping <name>"; then
+    pass "test_idempotency_dedup_contract: name-field match and skip directive both present in External Dependencies phase"
 else
-    fail "test_idempotency_check_instruction_present: idempotency check instruction missing from SKILL.md"
+    fail "test_idempotency_dedup_contract: dedup contract incomplete — need both 'name field' match instruction AND skip directive in External Dependencies phase body"
 fi
 
 echo ""
 echo "=== Verification command or token instruction present ==="
 # test_verification_command_or_token_instruction_present
-# Assert that SKILL.md Phase 1.5 references verification_command and confirmation token fallback.
+# Assert that SKILL.md Phase B references verification_command and confirmation token fallback.
 if grep -q "verification_command" "$SKILL_MD" && grep -q "confirmation.token\|confirmation_token" "$SKILL_MD"; then
     pass "test_verification_command_or_token_instruction_present: both verification_command and confirmation token found"
 else

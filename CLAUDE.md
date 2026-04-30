@@ -75,8 +75,8 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 | `dso:intent-search` | sonnet | `/dso:fix-bug` Phase B Step 1 (Intent Gate — pre-investigation intent search; skipped for CLI_user-tagged bugs); emits INTENT_CONFLICT signal when callers depend on current behavior |
 | `dso:scope-drift-reviewer` | sonnet | `/dso:fix-bug` Phase F Step 1 (scope-drift review after fix verification; skipped when `scope_drift.enabled=false`) |
 | `dso:feasibility-reviewer` | sonnet | `/dso:brainstorm` (conditional, on integration signals) |
-| `dso:red-team-reviewer` | opus | `/dso:preplanning` Phase 2.5 |
-| `dso:blue-team-filter` | sonnet | `/dso:preplanning` Phase 2.5 |
+| `dso:red-team-reviewer` | opus | `/dso:preplanning` Phase E |
+| `dso:blue-team-filter` | sonnet | `/dso:preplanning` Phase E |
 | `dso:completion-verifier` | sonnet | `/dso:sprint` story closure (Step 10a) + epic closure (Phase 7 Step 0.75) |
 | `dso:red-test-writer` | sonnet | `/dso:sprint` Phase 5, `/dso:fix-bug` Phase E Step 1 |
 | `dso:red-test-evaluator` | opus | On red-test-writer rejection (REVISE/REJECT/CONFIRM) |

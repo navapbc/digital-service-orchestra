@@ -2,9 +2,9 @@
 # Structural validation for preplanning story-level research phase in SKILL.md.
 # Tests: phase heading, trigger conditions, WebSearch/WebFetch references,
 #        Research Notes structure, and graceful degradation language.
-# All assertions are section-scoped to Phase 3.5 to avoid false positives
+# All assertions are section-scoped to Phase G to avoid false positives
 # from Phase 2.25 (Integration Research), which also references WebSearch/WebFetch.
-# This IS the RED test — all assertions fail until Phase 3.5 is added to SKILL.md.
+# This IS the RED test — all assertions fail until Phase G is added to SKILL.md.
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -20,15 +20,15 @@ pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 # followed by the human-readable message.
 fail() { echo "FAIL: ${SECTION}"; echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
-# Extract the Phase 3.5 section: from the Phase 3.5 heading to the next ## Phase heading.
+# Extract the Phase G section: from the Phase G heading to the next ## Phase heading.
 # Returns empty string if the heading is not present.
 extract_phase_35_section() {
   python3 - "$SKILL_MD" <<'PYEOF'
 import sys, re
 
 text = open(sys.argv[1]).read()
-# Find Phase 3.5 heading — matches "## Phase 3.5" or "### Phase 3.5" with any suffix
-start = re.search(r'^#{1,3} Phase 3\.5\b', text, re.MULTILINE)
+# Find Phase G heading — matches "## Phase G" or "### Phase G" with any suffix
+start = re.search(r'^#{1,3} Phase G\b', text, re.MULTILINE)
 if not start:
     sys.exit(0)
 # Find the next "## Phase" heading after the start
@@ -46,10 +46,10 @@ PHASE_35_SECTION="$(extract_phase_35_section)"
 
 echo "=== test_phase_heading ==="
 SECTION="test_phase_heading"
-if grep -qE "^#{1,3} Phase 3\.5" <<< "$PHASE_35_SECTION"; then
-  pass "SKILL.md contains a Phase 3.5 heading for story-level research"
+if grep -qE "^#{1,3} Phase G" <<< "$PHASE_35_SECTION"; then
+  pass "SKILL.md contains a Phase G heading for story-level research"
 else
-  fail "SKILL.md missing Phase 3.5 heading — expected '## Phase 3.5' or '### Phase 3.5'"
+  fail "SKILL.md missing Phase G heading — expected '## Phase G' or '### Phase G'"
 fi
 
 echo ""
@@ -68,19 +68,19 @@ for trigger in \
 done
 
 if [ "$TRIGGER_COUNT" -ge 2 ]; then
-  pass "Phase 3.5 section documents trigger conditions (found $TRIGGER_COUNT of 3)"
+  pass "Phase G section documents trigger conditions (found $TRIGGER_COUNT of 3)"
 else
-  fail "Phase 3.5 section needs at least 2 named trigger conditions (found $TRIGGER_COUNT) — expected: undocumented API, assumed data formats, low agent confidence"
+  fail "Phase G section needs at least 2 named trigger conditions (found $TRIGGER_COUNT) — expected: undocumented API, assumed data formats, low agent confidence"
 fi
 
 echo ""
 echo "=== test_websearch_reference ==="
 SECTION="test_websearch_reference"
-# This assertion is section-scoped to Phase 3.5 to avoid matching Phase 2.25
+# This assertion is section-scoped to Phase G to avoid matching Phase 2.25
 if grep -qE "WebSearch|WebFetch" <<< "$PHASE_35_SECTION"; then
-  pass "Phase 3.5 section references WebSearch or WebFetch"
+  pass "Phase G section references WebSearch or WebFetch"
 else
-  fail "Phase 3.5 section missing WebSearch or WebFetch reference (section-scoped check)"
+  fail "Phase G section missing WebSearch or WebFetch reference (section-scoped check)"
 fi
 
 echo ""
@@ -100,18 +100,18 @@ for field_pattern in \
 done
 
 if [ "$FIELD_COUNT" -ge 2 ]; then
-  pass "Phase 3.5 section references Research Notes with at least 2 of 4 field names (found $FIELD_COUNT)"
+  pass "Phase G section references Research Notes with at least 2 of 4 field names (found $FIELD_COUNT)"
 else
-  fail "Phase 3.5 section needs Research Notes with at least 2 of 4 field names: trigger condition name, query summary, source URLs, key insight (found $FIELD_COUNT)"
+  fail "Phase G section needs Research Notes with at least 2 of 4 field names: trigger condition name, query summary, source URLs, key insight (found $FIELD_COUNT)"
 fi
 
 echo ""
 echo "=== test_graceful_degradation ==="
 SECTION="test_graceful_degradation"
 if grep -qiE "fail|unavailable|not available|graceful|degraded?|skip.*search|if.*fails?\b|when.*fails?\b|cannot.*search|search.*unavailable" <<< "$PHASE_35_SECTION"; then
-  pass "Phase 3.5 section includes graceful degradation language"
+  pass "Phase G section includes graceful degradation language"
 else
-  fail "Phase 3.5 section missing graceful degradation language for when WebSearch/WebFetch is unavailable or fails"
+  fail "Phase G section missing graceful degradation language for when WebSearch/WebFetch is unavailable or fails"
 fi
 
 echo ""
