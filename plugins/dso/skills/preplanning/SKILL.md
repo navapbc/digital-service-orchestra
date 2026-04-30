@@ -91,6 +91,20 @@ This is a presence-based check — only block when the tag IS present. Existing 
 
 ---
 
+## UI Probes Deferred Gate
+
+Before proceeding, check if the epic has a `ui_probes:deferred` tag:
+
+1. Run `.claude/scripts/dso ticket show <epic-id>` and check the `tags` field
+2. If `ui_probes:deferred` is present in the tags array: **HALT immediately**. Output:
+   "This epic has unresolved UX probe gaps from a non-interactive brainstorm run. Re-run `/dso:brainstorm <epic-id>` interactively to complete the UX probe questions, then retry `/dso:preplanning`."
+   Do NOT produce any planning output.
+3. If `ui_probes:deferred` is NOT present (or tags field is empty/absent): proceed normally.
+
+This is a presence-based check — only block when the tag IS present. Existing epics without the tags field are NOT blocked. If ticket show fails, treat the tag as absent and proceed (fail-open).
+
+---
+
 ### Preconditions Entry Gate (/dso:preplanning)
 
 <!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
