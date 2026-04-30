@@ -86,10 +86,59 @@ fi
 printf 'security_overlay=%s\nperformance_overlay=%s\ntest_quality_overlay=%s\n' \
   "$_SEC" "$_PERF" "$_TQ" > "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/overlay-flags.env"
 
+# ── Overlay helper (hoisted to file scope; used by all tier branches) ─────────
+_run_overlay_llm() {
+  local _agent_file="$1" _slot_file="$2"
+  bash "$(command -v llm-api-call.sh)" "$_agent_file" \
+    "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_slot_file" || true
+}
+
 REVIEW_TIER="$SELECTED_TIER"
 case "$SELECTED_TIER" in
-  light)    AGENT_FILE="$_PLUGIN_ROOT/agents/code-reviewer-light.md" ;;
-  standard) AGENT_FILE="$_PLUGIN_ROOT/agents/code-reviewer-standard.md" ;;
+  light|standard)
+    AGENT_FILE="$_PLUGIN_ROOT/agents/code-reviewer-${SELECTED_TIER}.md"
+    _TIER_SLOT="${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-tier-raw.json"
+    _ALL_PIDS=()
+
+    # Launch tier and overlays concurrently.
+    bash "$(command -v llm-api-call.sh)" "$AGENT_FILE" \
+      "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "$SELECTED_TIER" > "$_TIER_SLOT" &
+    _ALL_PIDS+=($!)
+
+    [[ "$_SEC"  == "true" ]] && {
+      _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-security-red-team.md" \
+        "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-red.json" &
+      _ALL_PIDS+=($!)
+    }
+    [[ "$_PERF" == "true" ]] && {
+      _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-performance.md" \
+        "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-performance.json" &
+      _ALL_PIDS+=($!)
+    }
+    [[ "$_TQ"   == "true" ]] && {
+      _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-test-quality.md" \
+        "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-test-quality.json" &
+      _ALL_PIDS+=($!)
+    }
+
+    for _pid in "${_ALL_PIDS[@]}"; do wait "$_pid" || true; done
+
+    # Security blue-team runs serially after red-team slot is populated.
+    [[ "$_SEC" == "true" ]] && {
+      _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-security-blue-team.md" \
+        "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json" || true
+    }
+
+    LLM_TEXT=$(cat "$_TIER_SLOT")
+    FINDINGS_JSON=$(printf '%s' "${LLM_TEXT:-}" | python3 -c "
+import json,sys; t=sys.stdin.read().strip()
+if not t: raise ValueError('empty')
+json.loads(t); print(t)
+" 2>/dev/null) || {
+      echo "WARNING: LLM response parsing failed. Writing inconclusive review." >&2
+      FINDINGS_JSON='{"scores":{"hygiene":"N/A","design":"N/A","maintainability":"N/A","correctness":"N/A","verification":"N/A"},"findings":[],"summary":"Review inconclusive: LLM response could not be parsed as reviewer-findings JSON."}'
+    }
+    ;;
   deep)
     REVIEW_TIER="deep"
 
@@ -97,24 +146,46 @@ case "$SELECTED_TIER" in
     _SLOT_VERIFICATION="${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-verification.json"
     _SLOT_HYGIENE="${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-hygiene.json"
 
-    # Step 1: dispatch 3 specialist llm-api-call.sh invocations in parallel (& + wait).
-    # Each call delegates to llm-api-call.sh; stdout is redirected to the slot file.
-    _SPECIALIST_PIDS=()
+    # Launch 3 specialists and all overlays concurrently; single wait for all.
+    _ALL_DEEP_PIDS=()
     bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-correctness.md" \
       "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_SLOT_CORRECTNESS" &
-    _SPECIALIST_PIDS+=($!)
+    _ALL_DEEP_PIDS+=($!)
 
     bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-verification.md" \
       "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_SLOT_VERIFICATION" &
-    _SPECIALIST_PIDS+=($!)
+    _ALL_DEEP_PIDS+=($!)
 
     bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-hygiene.md" \
       "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_SLOT_HYGIENE" &
-    _SPECIALIST_PIDS+=($!)
+    _ALL_DEEP_PIDS+=($!)
 
-    for _pid in "${_SPECIALIST_PIDS[@]}"; do wait "$_pid"; done
+    [[ "$_SEC"  == "true" ]] && {
+      _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-security-red-team.md" \
+        "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-red.json" &
+      _ALL_DEEP_PIDS+=($!)
+    }
+    [[ "$_PERF" == "true" ]] && {
+      _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-performance.md" \
+        "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-performance.json" &
+      _ALL_DEEP_PIDS+=($!)
+    }
+    [[ "$_TQ"   == "true" ]] && {
+      _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-test-quality.md" \
+        "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-test-quality.json" &
+      _ALL_DEEP_PIDS+=($!)
+    }
 
-    # Step 2: validate all slot files exist and contain valid JSON (fail-closed)
+    # All are fired concurrently; wait for ALL before arch synthesis.
+    for _pid in "${_ALL_DEEP_PIDS[@]}"; do wait "$_pid" || true; done
+
+    # Security blue-team runs serially after red-team slot is populated.
+    [[ "$_SEC" == "true" ]] && {
+      _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-security-blue-team.md" \
+        "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json" || true
+    }
+
+    # Validate specialist slot files (fail-closed).
     for _slot in "$_SLOT_CORRECTNESS" "$_SLOT_VERIFICATION" "$_SLOT_HYGIENE"; do
       if [[ ! -f "$_slot" ]]; then
         echo "ERROR: deep-tier slot file missing: $_slot" >&2
@@ -126,7 +197,7 @@ case "$SELECTED_TIER" in
       fi
     done
 
-    # Step 3: dispatch arch agent with slot file contents for synthesis
+    # Arch synthesis uses specialist slot files.
     _SLOT_C_JSON=$(cat "$_SLOT_CORRECTNESS")
     _SLOT_V_JSON=$(cat "$_SLOT_VERIFICATION")
     _SLOT_H_JSON=$(cat "$_SLOT_HYGIENE")
@@ -154,60 +225,9 @@ json.loads(t); print(t)
       echo "WARNING: Arch LLM response could not be parsed as reviewer-findings JSON." >&2
       FINDINGS_JSON='{"scores":{"hygiene":"N/A","design":"N/A","maintainability":"N/A","correctness":"N/A","verification":"N/A"},"findings":[],"summary":"Review inconclusive: Arch response could not be parsed."}'
     }
-
-    # FINDINGS_JSON now set; fall through to shared overlay+write+record path.
     ;;
   *) echo "ERROR: Unknown tier: $SELECTED_TIER" >&2; exit 1 ;;
 esac
-
-# ── Standard / light tier: llm-api-call.sh → FINDINGS_JSON ───────────────────
-# Skipped for deep tier (FINDINGS_JSON already set above by arch synthesis).
-if [[ "$SELECTED_TIER" != "deep" ]]; then
-LLM_TEXT=$(bash "$(command -v llm-api-call.sh)" "$AGENT_FILE" \
-  "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "$SELECTED_TIER") || LLM_TEXT=""
-FINDINGS_JSON=$(printf '%s' "${LLM_TEXT:-}" | python3 -c "
-import json,sys; t=sys.stdin.read().strip()
-if not t: raise ValueError('empty')
-json.loads(t); print(t)
-" 2>/dev/null) || {
-  echo "WARNING: LLM response parsing failed. Writing inconclusive review." >&2
-  FINDINGS_JSON='{"scores":{"hygiene":"N/A","design":"N/A","maintainability":"N/A","correctness":"N/A","verification":"N/A"},"findings":[],"summary":"Review inconclusive: LLM response could not be parsed as reviewer-findings JSON."}'
-}
-fi  # end standard/light-only API call block
-
-# ── Overlay dispatch ────────────────────────────────────────────────────────────
-# Dispatch parallel overlay llm-api-call.sh calls for each active overlay flag; write each
-# reviewer's LLM text to a slot file in WORKFLOW_PLUGIN_ARTIFACTS_DIR.  Serial
-# blue-team runs after red-team when security overlay is active.
-# Applies to all tiers (deep FINDINGS_JSON carries through from arch synthesis).
-_run_overlay_llm() {
-  local _agent_file="$1" _slot_file="$2"
-  bash "$(command -v llm-api-call.sh)" "$_agent_file" \
-    "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_slot_file" || true
-}
-
-_OVERLAY_PIDS=()
-[[ "$_SEC"  == "true" ]] && {
-  _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-security-red-team.md" \
-    "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-red.json" &
-  _OVERLAY_PIDS+=($!)
-}
-[[ "$_PERF" == "true" ]] && {
-  _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-performance.md" \
-    "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-performance.json" &
-  _OVERLAY_PIDS+=($!)
-}
-[[ "$_TQ"   == "true" ]] && {
-  _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-test-quality.md" \
-    "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-test-quality.json" &
-  _OVERLAY_PIDS+=($!)
-}
-if [[ ${#_OVERLAY_PIDS[@]} -gt 0 ]]; then
-  for _pid in "${_OVERLAY_PIDS[@]}"; do wait "$_pid" || true; done
-fi
-[[ "$_SEC" == "true" ]] && { _run_overlay_llm \
-  "$_PLUGIN_ROOT/agents/code-reviewer-security-blue-team.md" \
-  "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json" || true; }
 
 # ── Overlay merge ───────────────────────────────────────────────────────────────
 # Collect non-empty overlay slot files and merge their findings arrays + scores

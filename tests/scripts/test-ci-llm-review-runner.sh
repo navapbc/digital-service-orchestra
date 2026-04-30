@@ -2737,25 +2737,16 @@ printf '{"selected_tier":"standard","blast_radius":3,"critical_path":1,"anti_sho
 MOCKEOF
 chmod +x "$MOCK_STD_CONC/review-complexity-classifier.sh"
 
-# llm-api-call.sh: sleep 1s then return a minimal valid findings JSON.
+# llm-api-call.sh mock: sleep 1s then output findings JSON directly.
 # Both the tier call AND the overlay call use this mock, so:
 #   serial  execution: ~2s total (1s tier + 1s overlay)
 #   parallel execution: ~1s total (tier & overlay overlap)
-cat > "$MOCK_STD_CONC/curl" <<MOCKEOF
+cat > "$MOCK_STD_CONC/llm-api-call.sh" <<'MOCKEOF'
 #!/usr/bin/env bash
-# Consume the request body (--data @file form)
-_prev=""
-for _arg in "\$@"; do
-    if [[ "\$_prev" == "--data" ]]; then
-        _src="\${_arg#@}"
-        [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && cat "\$_src" > /dev/null || true
-    fi
-    _prev="\$_arg"
-done
 sleep 1
-python3 -c "import json; t={'scores':{'correctness':5,'verification':5,'hygiene':5,'design':5,'maintainability':5},'findings':[],'summary':'ok'}; print(json.dumps({'content':[{'text':json.dumps(t)}],'stop_reason':'end_turn'}))"
+printf '{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"findings":[],"summary":"ok"}\n'
 MOCKEOF
-chmod +x "$MOCK_STD_CONC/curl"
+chmod +x "$MOCK_STD_CONC/llm-api-call.sh"
 
 # write-reviewer-findings.sh: consume stdin, return a hash
 cat > "$MOCK_STD_CONC/write-reviewer-findings.sh" <<'MOCKEOF'
@@ -2835,50 +2826,29 @@ printf '{"selected_tier":"deep","blast_radius":3,"critical_path":2,"anti_shortcu
 MOCKEOF
 chmod +x "$MOCK_DEEP_CONC/review-complexity-classifier.sh"
 
-# curl mock: every call sleeps 1s then returns findings JSON routed by agent name.
-# Slots written as side-effects (mirroring production mock pattern from test_deep_tier_overlay_merge).
-cat > "$MOCK_DEEP_CONC/curl" <<MOCKEOF
+# llm-api-call.sh mock: route by agent file path ($1), sleep 1s per call, output findings JSON
+# directly to stdout. This bypasses the provider API-key check and the Anthropic/OpenAI response
+# envelope that the real llm-api-call.sh parses — the runner captures this stdout into slot files
+# via its own > redirects, so no side-effect writes are needed here.
+cat > "$MOCK_DEEP_CONC/llm-api-call.sh" <<'MOCKEOF'
 #!/usr/bin/env bash
-_body=""
-_prev=""
-for _arg in "\$@"; do
-    if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
-        _body="\$_arg"
-    elif [[ "\$_prev" == "--data" ]]; then
-        _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
-    fi
-    _prev="\$_arg"
-done
+_agent_file="$1"
 sleep 1
-if printf '%s' "\$_body" | grep -q "code-reviewer-deep-correctness"; then
-    _slot='{"scores":{"correctness":4,"verification":5,"hygiene":5,"design":5,"maintainability":5},"findings":[],"summary":"C"}'
-    printf '%s\n' "\$_slot" > "${ARTIFACTS_DEEP_CONC}/reviewer-findings-correctness.json"
-    printf '{"content":[{"text":"{}"}],"stop_reason":"end_turn"}'
-elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-verification"; then
-    _slot='{"scores":{"correctness":5,"verification":4,"hygiene":5,"design":5,"maintainability":5},"findings":[],"summary":"V"}'
-    printf '%s\n' "\$_slot" > "${ARTIFACTS_DEEP_CONC}/reviewer-findings-verification.json"
-    printf '{"content":[{"text":"{}"}],"stop_reason":"end_turn"}'
-elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
-    _slot='{"scores":{"correctness":5,"verification":5,"hygiene":4,"design":5,"maintainability":5},"findings":[],"summary":"H"}'
-    printf '%s\n' "\$_slot" > "${ARTIFACTS_DEEP_CONC}/reviewer-findings-hygiene.json"
-    printf '{"content":[{"text":"{}"}],"stop_reason":"end_turn"}'
-elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-arch"; then
-    python3 -c "
-import json
-t = {'scores':{'correctness':4,'verification':4,'hygiene':4,'design':5,'maintainability':5},'findings':[{'severity':'minor','category':'correctness','description':'Arch synthesized finding','file':'foo.sh'}],'summary':'Arch synthesis'}
-print(json.dumps({'content':[{'text':json.dumps(t)}],'stop_reason':'end_turn'}))
-"
-elif printf '%s' "\$_body" | grep -q "code-reviewer-test-quality"; then
-    python3 -c "
-import json
-t = {'scores':{'correctness':4,'verification':4,'hygiene':4,'design':5,'maintainability':5},'findings':[{'severity':'minor','category':'verification','description':'TQ overlay finding','file':'tests/foo.sh'}],'summary':'TQ overlay'}
-print(json.dumps({'content':[{'text':json.dumps(t)}],'stop_reason':'end_turn'}))
-"
+if [[ "$_agent_file" == *"code-reviewer-deep-correctness"* ]]; then
+    printf '{"scores":{"correctness":4,"verification":5,"hygiene":5,"design":5,"maintainability":5},"findings":[],"summary":"C"}\n'
+elif [[ "$_agent_file" == *"code-reviewer-deep-verification"* ]]; then
+    printf '{"scores":{"correctness":5,"verification":4,"hygiene":5,"design":5,"maintainability":5},"findings":[],"summary":"V"}\n'
+elif [[ "$_agent_file" == *"code-reviewer-deep-hygiene"* ]]; then
+    printf '{"scores":{"correctness":5,"verification":5,"hygiene":4,"design":5,"maintainability":5},"findings":[],"summary":"H"}\n'
+elif [[ "$_agent_file" == *"code-reviewer-deep-arch"* ]]; then
+    printf '{"scores":{"correctness":4,"verification":4,"hygiene":4,"design":5,"maintainability":5},"findings":[{"severity":"minor","category":"correctness","description":"Arch synthesized finding","file":"foo.sh"}],"summary":"Arch synthesis"}\n'
+elif [[ "$_agent_file" == *"code-reviewer-test-quality"* ]]; then
+    printf '{"scores":{"correctness":4,"verification":4,"hygiene":4,"design":5,"maintainability":5},"findings":[{"severity":"minor","category":"verification","description":"TQ overlay finding","file":"tests/foo.sh"}],"summary":"TQ overlay"}\n'
 else
-    python3 -c "import json; print(json.dumps({'content':[{'text':'{}'}],'stop_reason':'end_turn'}))"
+    printf '{}\n'
 fi
 MOCKEOF
-chmod +x "$MOCK_DEEP_CONC/curl"
+chmod +x "$MOCK_DEEP_CONC/llm-api-call.sh"
 
 # write-reviewer-findings.sh: consume stdin, return a hash
 cat > "$MOCK_DEEP_CONC/write-reviewer-findings.sh" <<'MOCKEOF'
