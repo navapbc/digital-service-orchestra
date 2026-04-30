@@ -2936,5 +2936,192 @@ assert_eq "test_runner_deep_overlays_concurrent: elapsed < 3500ms (got ${_deep_c
 
 assert_pass_if_clean "test_runner_deep_overlays_concurrent"
 
+# ── test_runner_size_action_upgrade_overrides_to_deep_tier ───────────────────
+# Given: classifier returns selected_tier=light AND size_action=upgrade
+# When:  runner processes a non-empty diff
+# Then:  runner dispatches a deep-tier agent (not light or standard)
+#        because size_action=upgrade must override the tier upward to deep.
+#
+# Why RED: runner currently reads only selected_tier (ignores size_action),
+# so it dispatches code-reviewer-light.md instead of a deep-tier agent.
+_snapshot_fail
+MOCK_SA_UP=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_SA_UP")
+ARTIFACTS_SA_UP=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_SA_UP")
+
+# Classifier: selected_tier=light BUT size_action=upgrade (deep override required)
+cat > "$MOCK_SA_UP/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":320,"change_volume":2,"computed_total":4,"diff_size_lines":320,"size_action":"upgrade","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_SA_UP/review-complexity-classifier.sh"
+
+# Capture which agent body was sent in the first curl call.
+# The runner passes --data @<file> with a JSON body that references the agent file path.
+AGENT_BODY_FILE_SA_UP="$MOCK_SA_UP/first-curl-body.txt"
+
+# Specialist slot JSON (needed only if deep tier is correctly dispatched)
+_SA_SLOT='{"scores":{"correctness":4,"verification":4,"hygiene":4,"design":4,"maintainability":4},"summary":"Specialist OK","findings":[]}'
+
+# Mock curl: capture first API request body; write slot files for deep-tier specialists;
+# return valid response for every call.
+cat > "$MOCK_SA_UP/curl" <<MOCKEOF
+#!/usr/bin/env bash
+_body=""
+_prev=""
+for _arg in "\$@"; do
+    if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
+        _body="\$_arg"
+    elif [[ "\$_prev" == "--data" ]]; then
+        _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
+    fi
+    _prev="\$_arg"
+done
+
+# Save first-ever call body for tier detection
+if [[ ! -f "${AGENT_BODY_FILE_SA_UP}" ]]; then
+    printf '%s' "\$_body" > "${AGENT_BODY_FILE_SA_UP}"
+fi
+
+_slot='${_SA_SLOT}'
+# Write specialist slot files as side-effect so deep-tier synthesis proceeds
+if printf '%s' "\$_body" | grep -q "code-reviewer-deep-correctness"; then
+    printf '%s\n' "\$_slot" > "${ARTIFACTS_SA_UP}/reviewer-findings-correctness.json"
+elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-verification"; then
+    printf '%s\n' "\$_slot" > "${ARTIFACTS_SA_UP}/reviewer-findings-verification.json"
+elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
+    printf '%s\n' "\$_slot" > "${ARTIFACTS_SA_UP}/reviewer-findings-hygiene.json"
+elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-arch"; then
+    printf '%s\n' "\$_slot" > "${ARTIFACTS_SA_UP}/reviewer-findings.json"
+fi
+
+printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' \
+    "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
+MOCKEOF
+chmod +x "$MOCK_SA_UP/curl"
+
+cat > "$MOCK_SA_UP/write-reviewer-findings.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_SA_UP/write-reviewer-findings.sh"
+
+cat > "$MOCK_SA_UP/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$ARTIFACTS_SA_UP"
+printf 'passed\n' > "$ARTIFACTS_SA_UP/review-status"
+MOCKEOF
+chmod +x "$MOCK_SA_UP/record-review.sh"
+
+sa_up_exit=0
+(
+    export PATH="$MOCK_SA_UP:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_SA_UP"
+    printf 'diff --git a/foo.sh b/foo.sh\n+line\n' | ANTHROPIC_API_KEY=x bash "$RUNNER" 2>/dev/null
+) || sa_up_exit=$?
+
+assert_eq "test_runner_size_action_upgrade_overrides_to_deep_tier: runner exits 0" "0" "$sa_up_exit"
+
+# Verify the first API call body references a deep-tier agent, not light or standard.
+# The runner embeds the agent file path (via cat) into the system prompt in the request body.
+_sa_tier_check_exit=0
+_sa_tier_check_out=""
+if [[ -f "$AGENT_BODY_FILE_SA_UP" ]]; then
+    _sa_tier_check_out=$(python3 - <<PYEOF 2>&1 || _sa_tier_check_exit=$?
+import sys
+
+with open('${AGENT_BODY_FILE_SA_UP}') as f:
+    body = f.read()
+
+# The body must contain a deep-tier agent reference and must NOT contain light/standard agent.
+# We check the system field for agent file path strings embedded by the runner.
+has_deep = 'code-reviewer-deep' in body
+has_light = 'code-reviewer-light' in body and 'code-reviewer-deep' not in body
+has_standard = 'code-reviewer-standard' in body and 'code-reviewer-deep' not in body
+
+if has_light:
+    print('FAIL: dispatched light-tier agent despite size_action=upgrade; body contains code-reviewer-light')
+    sys.exit(1)
+if has_standard:
+    print('FAIL: dispatched standard-tier agent despite size_action=upgrade; body contains code-reviewer-standard')
+    sys.exit(1)
+if not has_deep:
+    print('FAIL: body does not reference any deep-tier agent; body preview=' + body[:200])
+    sys.exit(1)
+print('OK')
+PYEOF
+    )
+else
+    _sa_tier_check_out="MISSING: first-curl-body.txt not written — curl was never called"
+    _sa_tier_check_exit=1
+fi
+
+assert_eq "test_runner_size_action_upgrade_overrides_to_deep_tier: first curl call uses deep-tier agent" "0" "$_sa_tier_check_exit"
+assert_eq "test_runner_size_action_upgrade_overrides_to_deep_tier: tier check output" "OK" "$_sa_tier_check_out"
+
+assert_pass_if_clean "test_runner_size_action_upgrade_overrides_to_deep_tier"
+
+# ── test_runner_size_action_warn_does_not_block ───────────────────────────────
+# Given: classifier returns selected_tier=light AND size_action=warn
+# When:  runner processes a non-empty diff
+# Then:  runner exits 0 (warn does not block or change tier)
+#        AND stderr contains "SIZE_WARNING" (runner must emit the warning message)
+#
+# Why RED: runner currently ignores size_action entirely — it does not emit any
+# SIZE_WARNING message to stderr when size_action=warn, so the stderr assertion fails.
+_snapshot_fail
+MOCK_SA_WARN=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_SA_WARN")
+ARTIFACTS_SA_WARN=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_SA_WARN")
+
+# Classifier: selected_tier=light AND size_action=warn
+cat > "$MOCK_SA_WARN/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":280,"change_volume":1,"computed_total":3,"diff_size_lines":280,"size_action":"warn","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_SA_WARN/review-complexity-classifier.sh"
+
+cat > "$MOCK_SA_WARN/curl" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"content":[{"text":"{\"scores\":{\"hygiene\":4,\"design\":4,\"maintainability\":4,\"correctness\":4,\"verification\":4},\"summary\":\"OK\",\"findings\":[]}"}],"stop_reason":"end_turn"}'
+MOCKEOF
+chmod +x "$MOCK_SA_WARN/curl"
+
+cat > "$MOCK_SA_WARN/write-reviewer-findings.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_SA_WARN/write-reviewer-findings.sh"
+
+cat > "$MOCK_SA_WARN/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$ARTIFACTS_SA_WARN"
+printf 'passed\n' > "$ARTIFACTS_SA_WARN/review-status"
+MOCKEOF
+chmod +x "$MOCK_SA_WARN/record-review.sh"
+
+sa_warn_exit=0
+sa_warn_stderr=""
+sa_warn_stderr=$(
+    export PATH="$MOCK_SA_WARN:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_SA_WARN"
+    printf 'diff --git a/foo.sh b/foo.sh\n+line\n' | ANTHROPIC_API_KEY=x bash "$RUNNER" 2>&1 >/dev/null
+) || sa_warn_exit=$?
+
+# warn must NOT block — exit 0
+assert_eq "test_runner_size_action_warn_does_not_block: runner exits 0" "0" "$sa_warn_exit"
+
+# Runner must emit SIZE_WARNING to stderr when size_action=warn (informational, non-blocking)
+assert_contains "test_runner_size_action_warn_does_not_block: stderr contains SIZE_WARNING" "SIZE_WARNING" "$sa_warn_stderr"
+
+assert_pass_if_clean "test_runner_size_action_warn_does_not_block"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
