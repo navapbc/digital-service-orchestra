@@ -1,0 +1,1 @@
+{"event_type": "PRECONDITIONS", "schema_version": 1, "manifest_depth": "minimal", "gate_name": "commit_complete", "session_id": "pv-session-1777442184579", "worktree_id": "unknown", "tier": "minimal", "timestamp": 1777442184579, "spec_hash": "0b5b6c7aa884", "gate_verdicts": [], "workflow_completion_checklist": [], "completeness": "complete", "data": {}}
