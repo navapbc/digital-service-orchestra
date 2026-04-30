@@ -592,7 +592,10 @@ ticket_create() {
         set -euo pipefail
 
         # Unset git hook env vars so git commands target the correct repo.
-        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+        # PROJECT_ROOT is unset here because it is exported by the dso shim to
+        # point at the host project root — ticket_create must resolve the tracker
+        # from CWD (the repo the CLI was invoked in) rather than the shim's root.
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR PROJECT_ROOT 2>/dev/null || true
 
         # Source ticket-lib.sh for write_commit_event and ticket_read_status.
         # shellcheck source=/dev/null
@@ -1763,6 +1766,25 @@ write_marker(sys.argv[1])
 " "$TICKET_DIR" 2>/dev/null || true
 
         echo "Archived ticket '$ticket_id'"
+    )
+}
+
+# ── ticket_format ────────────────────────────────────────────────────────────
+# In-process wrapper for format_ticket_id().
+ticket_format() {
+    (
+        set -euo pipefail
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        # shellcheck source=/dev/null
+        source "$_TICKETLIB_DIR/ticket-lib.sh"
+
+        if [ $# -lt 1 ]; then
+            echo "Usage: ticket format <ticket_id> [mode]" >&2
+            return 1
+        fi
+
+        format_ticket_id "$@"
     )
 }
 

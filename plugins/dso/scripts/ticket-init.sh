@@ -14,7 +14,10 @@ set -euo pipefail
 # When run as a subprocess from a pre-commit hook, GIT_DIR is inherited and would
 # cause git rev-parse --show-toplevel (and all subsequent git -C commands) to
 # operate on the hook's repo instead of the intended target repo.
-unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+# PROJECT_ROOT is also unset: it is exported by the dso shim to the host project
+# root, but ticket-init.sh must always initialize the repo at CWD (the target repo
+# the CLI was invoked from), not the shim's project root.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR PROJECT_ROOT 2>/dev/null || true
 
 _silent=false
 for _arg in "$@"; do
@@ -53,13 +56,13 @@ if [ -d "$TRACKER_DIR" ] && [ -f "$TRACKER_DIR/.git" ]; then
         _tickets_git_dir=$(git -C "$TRACKER_DIR" rev-parse --git-dir 2>/dev/null)
         if [ -n "$_tickets_git_dir" ] && [ -f "$_tickets_git_dir/REBASE_HEAD" ]; then
             if [[ "$_silent" == false ]]; then
-                echo "WARNING: Aborting stale rebase on tickets branch"
+                echo "WARNING: Aborting stale rebase on tickets branch" >&2
             fi
             git -C "$TRACKER_DIR" rebase --abort 2>/dev/null || true
         fi
         _ensure_env_id "$TRACKER_DIR"
         if [[ "$_silent" == false ]]; then
-            echo "Ticket system already initialized."
+            echo "Ticket system already initialized." >&2
         fi
         exit 0
     fi
@@ -103,7 +106,7 @@ if [ -f "$REPO_ROOT/.git" ]; then
         if [ "$_current_target" = "$_expected_target" ]; then
             _ensure_env_id "$TRACKER_DIR"
             if [[ "$_silent" == false ]]; then
-                echo "Ticket system already initialized."
+                echo "Ticket system already initialized." >&2
             fi
             exit 0
         fi
@@ -144,7 +147,7 @@ if [ -f "$REPO_ROOT/.git" ]; then
 
     _ensure_env_id "$TRACKER_DIR"
     if [[ "$_silent" == false ]]; then
-        echo "Ticket system initialized (symlink to main repo)."
+        echo "Ticket system initialized (symlink to main repo)." >&2
     fi
     exit 0
 fi
@@ -213,15 +216,15 @@ fi
 
 if [ "$_branch_exists_local" = true ]; then
     # Branch exists locally — just mount the worktree
-    git -C "$REPO_ROOT" worktree add "$TRACKER_DIR" tickets 2>/dev/null
+    git -C "$REPO_ROOT" worktree add "$TRACKER_DIR" tickets >/dev/null 2>&1
 elif [ "$_branch_exists_remote" = true ]; then
     # Branch exists on remote — fetch and mount
     git -C "$REPO_ROOT" fetch origin tickets 2>/dev/null
-    git -C "$REPO_ROOT" worktree add "$TRACKER_DIR" tickets 2>/dev/null
+    git -C "$REPO_ROOT" worktree add "$TRACKER_DIR" tickets >/dev/null 2>&1
 else
     # No branch anywhere — create orphan (portable: works with git < 2.40)
     # git worktree add --orphan requires git 2.40+; use --detach + checkout --orphan instead
-    git -C "$REPO_ROOT" worktree add --detach "$TRACKER_DIR" 2>/dev/null
+    git -C "$REPO_ROOT" worktree add --detach "$TRACKER_DIR" >/dev/null 2>&1
     git -C "$TRACKER_DIR" checkout --orphan tickets 2>/dev/null
     git -C "$TRACKER_DIR" rm -rf . --quiet 2>/dev/null || true
 
@@ -264,5 +267,5 @@ fi
 git -C "$TRACKER_DIR" config gc.auto 0
 
 if [[ "$_silent" == false ]]; then
-    echo "Ticket system initialized."
+    echo "Ticket system initialized." >&2
 fi

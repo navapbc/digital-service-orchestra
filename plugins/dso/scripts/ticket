@@ -458,6 +458,13 @@ case "$subcommand" in
         _ticketlib_dispatch ticket_resolve "$@"
         exit $?
         ;;
+    format)
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then _ensure_initialized; fi
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_format "$@"
+        exit $?
+        ;;
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2
         _usage

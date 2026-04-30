@@ -1412,3 +1412,125 @@ with open(latest_path, encoding='utf-8') as f:
 
     [[ "$ticket_id" == /* ]] && return 1 || return 0
 }
+
+# format_ticket_id <ticket_id> [mode]
+# Formats a canonical ticket ID for display according to the configured display mode.
+#
+# Args:
+#   ticket_id: the canonical 16-hex ticket directory name (e.g., abcd1234efgh5678)
+#   mode:      optional — overrides ticket.display_mode config (canonical|alias|short)
+#
+# Modes:
+#   canonical (default): returns the ID unchanged
+#   alias:    reads data.alias from the ticket's CREATE event; falls back to canonical
+#   short:    returns shortest unambiguous prefix >= 4 chars; falls back to canonical
+#             if no unique prefix exists at any length
+#   <other>:  falls back to canonical silently
+#
+# Config: reads ticket.display_mode from WORKFLOW_CONFIG_FILE (or dso-config.conf).
+# Honors TICKETS_TRACKER_DIR env var for tracker path.
+format_ticket_id() {
+    local ticket_id="$1"
+    local mode="${2:-}"
+
+    # ── Resolve display mode from config if not explicitly provided ──────────
+    if [ -z "$mode" ]; then
+        local _config_file
+        if [ -n "${WORKFLOW_CONFIG_FILE:-}" ]; then
+            _config_file="$WORKFLOW_CONFIG_FILE"
+        else
+            local _repo_root
+            _repo_root="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)" || _repo_root=""
+            _config_file="${_repo_root}/.claude/dso-config.conf"
+        fi
+        mode=$(grep '^ticket\.display_mode=' "$_config_file" 2>/dev/null | cut -d= -f2- | head -1 || true)
+        mode="${mode:-canonical}"
+    fi
+
+    # ── Resolve tracker dir ───────────────────────────────────────────────────
+    local _repo_root2=""
+    if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
+        _repo_root2="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)" || _repo_root2=""
+    fi
+    local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root2/.tickets-tracker}"
+
+    case "$mode" in
+        canonical)
+            echo "$ticket_id"
+            return 0
+            ;;
+        alias)
+            # Scan for CREATE event in ticket directory; read data.alias field.
+            local _ticket_dir="$_tracker_dir/$ticket_id"
+            if [ -d "$_ticket_dir" ]; then
+                local _alias=""
+                local _create_file
+                # Support both filename patterns: <ts>-<uuid>-CREATE.json and CREATE-<uuid>.json
+                while IFS= read -r -d '' _create_file; do
+                    if [ -f "$_create_file" ]; then
+                        _alias=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+    alias = ev.get('data', {}).get('alias', '') or ''
+    print(alias)
+except Exception:
+    print('')
+" "$_create_file" 2>/dev/null) || _alias=""
+                        if [ -n "$_alias" ]; then
+                            break
+                        fi
+                    fi
+                done < <(find "$_ticket_dir" -maxdepth 1 \( -name '*-CREATE.json' -o -name 'CREATE-*.json' \) -print0 2>/dev/null)
+                if [ -n "$_alias" ]; then
+                    echo "$_alias"
+                    return 0
+                fi
+            fi
+            # Fall back to canonical when alias is absent (pre-migration ticket)
+            echo "$ticket_id"
+            return 0
+            ;;
+        short)
+            # Find shortest unambiguous prefix of ticket_id (no dashes, minimum 4 chars).
+            # The ticket_id may contain dashes (e.g., abcd-1234-efgh-5678); the prefix
+            # scan strips dashes and works against the raw hex characters.
+            local _nodash="${ticket_id//-/}"
+            local _prefix_len=4
+            local _found_prefix=""
+            while [ "$_prefix_len" -le "${#_nodash}" ]; do
+                local _candidate="${_nodash:0:$_prefix_len}"
+                # Count how many ticket dirs start with this prefix (after stripping dashes)
+                local _match_count=0
+                local _entry
+                while IFS= read -r -d '' _entry; do
+                    local _base
+                    _base="$(basename "$_entry")"
+                    local _base_nodash="${_base//-/}"
+                    if [[ "$_base_nodash" == "$_candidate"* ]]; then
+                        _match_count=$((_match_count + 1))
+                    fi
+                done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
+                    ! -name '.*' -print0 2>/dev/null)
+                if [ "$_match_count" -eq 1 ]; then
+                    _found_prefix="$_candidate"
+                    break
+                fi
+                _prefix_len=$((_prefix_len + 1))
+            done
+            if [ -n "$_found_prefix" ]; then
+                echo "$_found_prefix"
+                return 0
+            fi
+            # Fall back to canonical when no unique prefix exists
+            echo "$ticket_id"
+            return 0
+            ;;
+        *)
+            # Unrecognized mode: fall back to canonical silently
+            echo "$ticket_id"
+            return 0
+            ;;
+    esac
+}
