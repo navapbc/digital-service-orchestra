@@ -1281,6 +1281,137 @@ test_resolver_alias_collision_error() {
 }
 test_resolver_alias_collision_error
 
+echo ""
+echo "Test resolver_jira_key_lookup: resolve_ticket_id looks up jira_key from CREATE event"
+test_resolver_jira_key_lookup() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for jira_key-lookup test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (jira_key test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket with a known jira_key directly via CREATE event JSON
+    local ticket_id="jjjj9999kkkk0000"
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    mkdir -p "$ticket_dir"
+    local ts uuid
+    ts=$(python3 -c "import time; print(int(time.time_ns()))")
+    uuid=$(python3 -c "import uuid; print(uuid.uuid4())")
+    python3 -c "
+import json, sys
+data = {
+    'timestamp': int('$ts'),
+    'uuid': '$uuid',
+    'event_type': 'CREATE',
+    'env_id': '$uuid',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'jira_key lookup test ticket',
+        'parent_id': None,
+        'jira_key': 'PROJ-99'
+    }
+}
+json.dump(data, sys.stdout)
+" > "$ticket_dir/${ts}-${uuid}-CREATE.json"
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "PROJ-99" 2>/dev/null) \
+        || exit_code=$?
+    assert_eq "resolve_ticket_id: jira_key exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: jira_key returns canonical ID" "$ticket_id" "$result"
+}
+test_resolver_jira_key_lookup
+
+echo ""
+echo "Test resolver_jira_key_before_alias: jira_key takes precedence over alias when input matches both"
+test_resolver_jira_key_before_alias() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for jira_key-before-alias test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (jira_key-before-alias test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant ticket A: has jira_key="SHARED-TOKEN"
+    local id_a="aaaa1111bbbb2222"
+    local dir_a="$repo/.tickets-tracker/$id_a"
+    mkdir -p "$dir_a"
+    local ts_a uuid_a
+    ts_a=$(python3 -c "import time; print(int(time.time_ns()))")
+    uuid_a=$(python3 -c "import uuid; print(uuid.uuid4())")
+    python3 -c "
+import json, sys
+data = {
+    'timestamp': int('$ts_a'),
+    'uuid': '$uuid_a',
+    'event_type': 'CREATE',
+    'env_id': '$uuid_a',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'ticket-A with jira_key',
+        'parent_id': None,
+        'jira_key': 'SHARED-TOKEN'
+    }
+}
+json.dump(data, sys.stdout)
+" > "$dir_a/${ts_a}-${uuid_a}-CREATE.json"
+
+    # Plant ticket B: has alias="SHARED-TOKEN"
+    local id_b="cccc3333dddd4444"
+    local dir_b="$repo/.tickets-tracker/$id_b"
+    mkdir -p "$dir_b"
+    local ts_b uuid_b
+    ts_b=$(python3 -c "import time; print(int(time.time_ns()) + 1)")
+    uuid_b=$(python3 -c "import uuid; print(uuid.uuid4())")
+    python3 -c "
+import json, sys
+data = {
+    'timestamp': int('$ts_b'),
+    'uuid': '$uuid_b',
+    'event_type': 'CREATE',
+    'env_id': '$uuid_b',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'ticket-B with alias',
+        'parent_id': None,
+        'alias': 'SHARED-TOKEN'
+    }
+}
+json.dump(data, sys.stdout)
+" > "$dir_b/${ts_b}-${uuid_b}-CREATE.json"
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "SHARED-TOKEN" 2>/dev/null) \
+        || exit_code=$?
+    assert_eq "resolve_ticket_id: jira_key-before-alias exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: jira_key wins over alias" "$id_a" "$result"
+}
+test_resolver_jira_key_before_alias
+
 # ── format_ticket_id() tests (RED — function does not exist yet) ──────────────
 #
 # These tests exercise format_ticket_id() with the ticket.display_mode config key.

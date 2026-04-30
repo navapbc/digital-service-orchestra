@@ -1104,8 +1104,8 @@ with open(staging_path, 'w', encoding='utf-8') as f:
 #      Verifies the ticket directory exists; returns ID unchanged.
 #   2. Exact 8-hex backward compat: ^[a-z0-9]{4}-[a-z0-9]{4}$
 #      Scans for ticket dirs whose first 9 chars (xxxx-xxxx) match; returns if unique.
-#   3. Alias match: scans CREATE events for data.alias == input; returns if unique.
-#   4. jira_key match: scans CREATE events for data.jira_key == input; returns if unique.
+#   3. jira_key match: scans CREATE events for data.jira_key == input; returns if unique.
+#   4. Alias match: scans CREATE events for data.alias == input; returns if unique.
 #   5. Unique prefix (>= 4 chars): scans ticket dirs for IDs starting with input.
 #   6. Ambiguous or not found: prints error to stderr, exits 1.
 #
@@ -1203,19 +1203,19 @@ except Exception:
     done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
         ! -name '.*' -print0 2>/dev/null)
 
-    if [ "${#_alias_matches[@]}" -eq 1 ]; then
-        echo "${_alias_matches[0]}"
-        return 0
-    elif [ "${#_alias_matches[@]}" -gt 1 ]; then
-        echo "Error: Ambiguous alias '$input' matches multiple tickets: ${_alias_matches[*]}" >&2
-        return 1
-    fi
-
     if [ "${#_jira_matches[@]}" -eq 1 ]; then
         echo "${_jira_matches[0]}"
         return 0
     elif [ "${#_jira_matches[@]}" -gt 1 ]; then
         echo "Error: Ambiguous jira_key '$input' matches multiple tickets: ${_jira_matches[*]}" >&2
+        return 1
+    fi
+
+    if [ "${#_alias_matches[@]}" -eq 1 ]; then
+        echo "${_alias_matches[0]}"
+        return 0
+    elif [ "${#_alias_matches[@]}" -gt 1 ]; then
+        echo "Error: Ambiguous alias '$input' matches multiple tickets: ${_alias_matches[*]}" >&2
         return 1
     fi
 
