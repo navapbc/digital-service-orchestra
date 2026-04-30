@@ -14,6 +14,7 @@
 #   7. test_4xx_error_surfaces_diagnostic              — 4xx error surfaces provider/tier/model/error on one stderr line
 #   8. test_openai_request_body_contains_response_format — request body has response_format.type == "json_object"
 #   9. test_markdown_fence_stripping                   — fenced JSON in response is unwrapped to plain JSON on stdout
+#  10. test_ci_mode_suffix_appended_to_system_prompt   — request body system field contains CI-PIPELINE CONSTRAINT
 #
 # Usage: bash tests/scripts/test-llm-api-call.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -403,6 +404,44 @@ else
         "NOT_PRESENT" "NOT_PRESENT"
 fi
 assert_pass_if_clean "test_markdown_fence_stripping"
+
+# ── test_ci_mode_suffix_appended_to_system_prompt ────────────────────────────
+# Given: a system prompt file with generic content
+# When:  llm-api-call.sh is invoked
+# Then:  the request body's system field contains "CI-PIPELINE CONSTRAINT"
+_snapshot_fail
+MOCK10=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK10")
+CONF10="$MOCK10/config.conf"
+SYSPROMPT10="$MOCK10/system-prompt.md"
+BODY10="$MOCK10/request-body.json"
+printf 'You are a reviewer. Output JSON.\n' > "$SYSPROMPT10"
+_write_config "$CONF10" "anthropic" "standard" "claude-sonnet-4-6"
+_create_mock_curl_body "$MOCK10" "$BODY10" \
+    '{"content":[{"text":"{\"scores\":{},\"findings\":[],\"summary\":\"ok\"}"}],"stop_reason":"end_turn"}'
+
+ci_suffix_output=""
+ci_suffix_exit=0
+ci_suffix_output=$(
+    export PATH="$MOCK10:$PATH"
+    unset OPENAI_API_KEY || true
+    ANTHROPIC_API_KEY="test-key" bash "$SCRIPT" "$SYSPROMPT10" "review this" standard "$CONF10" 2>/dev/null
+) || ci_suffix_exit=$?
+
+# The captured request body must contain the CI-mode constraint phrase
+if [[ -f "$BODY10" ]]; then
+    if python3 -c "import json,sys; d=json.load(open('$BODY10')); assert 'CI-PIPELINE CONSTRAINT' in d['system'], 'suffix missing'" 2>/dev/null; then
+        assert_eq "test_ci_mode_suffix_appended_to_system_prompt: CI-PIPELINE CONSTRAINT present in system" \
+            "PRESENT" "PRESENT"
+    else
+        assert_eq "test_ci_mode_suffix_appended_to_system_prompt: CI-PIPELINE CONSTRAINT present in system" \
+            "PRESENT" "ABSENT"
+    fi
+else
+    assert_eq "test_ci_mode_suffix_appended_to_system_prompt: request body captured" \
+        "CAPTURED" "MISSING"
+fi
+assert_pass_if_clean "test_ci_mode_suffix_appended_to_system_prompt"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

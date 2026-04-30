@@ -69,6 +69,19 @@ fi
 # ── Read system prompt ────────────────────────────────────────────────────────
 SYSTEM_PROMPT="$(cat "$SYSTEM_PROMPT_FILE")"
 
+# ── CI-mode constraint appended to system prompt ─────────────────────────────
+# Agent files are designed for Claude Code interactive tool use. When called
+# via direct API (no tool definitions), the model would otherwise generate fake
+# tool-call XML instead of clean JSON. This suffix overrides that behavior.
+CI_MODE_SUFFIX="
+
+CI-PIPELINE CONSTRAINT: This invocation is via direct API call — tool use is NOT available.
+Do NOT attempt Bash, Read, or write-reviewer-findings.sh calls.
+Your ENTIRE response MUST be a single valid JSON object conforming to the
+reviewer-findings schema described above. No prose, no markdown fences, no tool calls."
+
+SYSTEM_PROMPT="${SYSTEM_PROMPT}${CI_MODE_SUFFIX}"
+
 # ── Build request body ────────────────────────────────────────────────────────
 # Use environment variables to safely pass values into python3 (avoids shell injection
 # in the heredoc and handles special characters in system prompt and user message).
