@@ -92,21 +92,28 @@ Flow: S1 (Discovery) → [ambiguities?] → Yes: Clarify with user → S1 (loop)
 
 ## Pre-flight Tag Guards
 
-Before any planning work, run a single tag-guard check on the ticket:
+Before any planning work, run a single tag-guard check on the ticket. Capture the exit code explicitly so a lookup failure (exit 2) is treated as fail-open rather than aborting under `set -e`:
 
 ```bash
+set +e
 _guard=$(bash "$PLUGIN_SCRIPTS/implementation-plan/check-tag-guards.sh" "${STORY_ID:-${primary_ticket_id}}")  # shim-exempt: internal orchestration script
+_guard_rc=$?
+set -e
+# rc=0 → verdict in $_guard (OK or BLOCKED:*); rc=1 → BLOCKED in $_guard;
+# rc=2 → lookup failure, treat as OK (fail-open).
+if (( _guard_rc == 2 )); then _guard="OK"; fi
 ```
 
-The script returns one of: `OK`, `BLOCKED:scrutiny_pending`, `BLOCKED:interaction_deferred`, `BLOCKED:manual_awaiting_user`. On `BLOCKED:*`, halt immediately and emit the corresponding human-readable message; do NOT produce any planning output.
+The script returns one of: `OK`, `BLOCKED:scrutiny_pending`, `BLOCKED:interaction_deferred`, `BLOCKED:manual_awaiting_user`. The first two BLOCKED verdicts halt planning; `BLOCKED:manual_awaiting_user` is non-halting — it enters the branching logic below.
 
-| Verdict | Halt message |
-|---------|-------------|
-| `BLOCKED:scrutiny_pending` | "This epic has not been through scrutiny review. Run `/dso:brainstorm <epic-id>` first to complete the scrutiny pipeline, then retry `/dso:implementation-plan`." |
-| `BLOCKED:interaction_deferred` | "This epic has unresolved cross-epic interaction conflicts. Resolve or override them in `/dso:brainstorm <epic-id>` before proceeding to `/dso:implementation-plan`." |
-| `BLOCKED:manual_awaiting_user` | Enter the manual-story branching logic below — do NOT halt outright. |
+| Verdict | Action |
+|---------|--------|
+| `BLOCKED:scrutiny_pending` | **HALT.** Emit: "This epic has not been through scrutiny review. Run `/dso:brainstorm <epic-id>` first to complete the scrutiny pipeline, then retry `/dso:implementation-plan`." Do NOT produce any planning output. |
+| `BLOCKED:interaction_deferred` | **HALT.** Emit: "This epic has unresolved cross-epic interaction conflicts. Resolve or override them in `/dso:brainstorm <epic-id>` before proceeding to `/dso:implementation-plan`." Do NOT produce any planning output. |
+| `BLOCKED:manual_awaiting_user` | **Do NOT halt** — enter the Manual Story Branching section below. |
+| `OK` | Proceed to Step 1 (Contextual Discovery). |
 
-Lookup failures return exit 2 / `OK` (fail-open). The `manual:awaiting_user` check is gated by `planning.external_dependency_block_enabled` — when the flag is absent or `false`, the script returns `OK` regardless of tags.
+The `manual:awaiting_user` check is gated by `planning.external_dependency_block_enabled` — when the flag is absent or `false`, the script returns `OK` regardless of tags.
 
 ### Manual Story Branching (only when `BLOCKED:manual_awaiting_user`)
 
@@ -139,7 +146,18 @@ Load: `.claude/scripts/dso ticket show <story-id>`. If not found, report the err
 Detect existing children before drafting:
 
 ```bash
+# Capture exit code separately — rc=2 is the fail-open lookup-failure path
+# and would abort the surrounding `set -e` context if not handled here.
+set +e
 _reinv=$(bash "$PLUGIN_SCRIPTS/implementation-plan/check-reinvocation.sh" "$STORY_ID")  # shim-exempt: internal orchestration script
+_reinv_rc=$?
+set -e
+# rc=2 → lookup failed; the script already emitted verdict=fresh, treat as fresh.
+# Any other non-zero rc is unexpected; surface and continue with verdict=fresh.
+if (( _reinv_rc != 0 && _reinv_rc != 2 )); then
+    echo "WARN: check-reinvocation.sh exited with unexpected rc=${_reinv_rc} — continuing with verdict=fresh"
+    _reinv="verdict=fresh"
+fi
 # Parse KEY=VALUE output line-by-line (do NOT use `eval` — script output is
 # trusted but eval on external command output is a fragile pattern).
 verdict=$(echo "$_reinv" | grep '^verdict=' | cut -d= -f2-)

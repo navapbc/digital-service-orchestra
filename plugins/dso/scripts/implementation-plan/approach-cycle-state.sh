@@ -32,8 +32,14 @@ TTL=14400
 
 _is_stale() {
     [[ ! -f "$STATE_FILE" ]] && return 0
+    # Portable mtime: BSD (macOS) uses `stat -f %m`; GNU coreutils uses `stat -c %Y`.
+    # `date -r FILE` is non-portable (BusyBox treats `-r` as date string).
     local _mtime
-    _mtime=$(date -r "$STATE_FILE" +%s 2>/dev/null || echo 0)
+    if [[ "$(uname)" == "Darwin" ]]; then
+        _mtime=$(stat -f %m "$STATE_FILE" 2>/dev/null || echo 0)
+    else
+        _mtime=$(stat -c %Y "$STATE_FILE" 2>/dev/null || echo 0)
+    fi
     local _now
     _now=$(date +%s)
     (( _now - _mtime > TTL ))
