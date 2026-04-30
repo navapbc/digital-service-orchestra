@@ -58,21 +58,58 @@ def process_create(
 
 
 def process_status(state: dict, event: dict, data: dict, filepath: str) -> None:
-    """Apply a STATUS event: update state.status or record an optimistic-concurrency conflict."""
+    """Apply a STATUS event with fork detection and lexical UUID tie-break.
+
+    If current_status in the event doesn't match state['status'], a fork has
+    been detected (two competing chains diverged).  Resolve by comparing the
+    incoming event's parent_status_uuid against the one already in state — the
+    lexically lower UUID wins and its target_status is applied.
+
+    On a normal (non-fork) update, state['status'] is updated to the event's
+    target status and state['parent_status_uuid'] is advanced.
+
+    The legacy state['conflicts'] key is never written and is removed if found
+    (e.g. replayed from an old SNAPSHOT compiled_state).
+    """
+    # Remove legacy conflicts key unconditionally — new behavior never uses it.
+    state.pop("conflicts", None)
+
     current_status = data.get("current_status")
     if current_status is not None and current_status != state["status"]:
-        if "conflicts" not in state:
-            state["conflicts"] = []
-        state["conflicts"].append(
-            {
-                "event_file": os.path.basename(filepath),
-                "expected": current_status,
-                "actual": state["status"],
-                "target": data.get("status"),
-            }
+        # Fork detected: two chains have diverged.
+        incoming_uuid = data.get("parent_status_uuid") or ""
+        existing_uuid = state.get("parent_status_uuid") or ""
+
+        # Lower lexical UUID wins.
+        if incoming_uuid <= existing_uuid:
+            # Incoming event wins.
+            winner_uuid = incoming_uuid
+            loser_uuid = existing_uuid
+            # Use last_status_env_id (set by most recent STATUS event) so we log
+            # the losing STATUS author's env, not the ticket creator's env.
+            loser_env_id = state.get("last_status_env_id") or ""
+            state["status"] = data.get("status", state["status"])
+            state["parent_status_uuid"] = incoming_uuid
+        else:
+            # Existing chain wins; keep state as-is.
+            winner_uuid = existing_uuid
+            loser_uuid = incoming_uuid
+            loser_env_id = event.get("env_id", "") or ""
+
+        ticket_id = state.get("ticket_id", "")
+        print(
+            f"PARENT_CHAIN_FORK_RESOLVED ticket={ticket_id}"
+            f" winner={winner_uuid}"
+            f" dropped=[{loser_uuid}]"
+            f" loser_env_id=[{loser_env_id}]",
+            file=sys.stderr,
         )
     else:
         state["status"] = data.get("status", state["status"])
+        state["parent_status_uuid"] = data.get(
+            "parent_status_uuid", state.get("parent_status_uuid", "")
+        )
+        state["last_status_env_id"] = event.get("env_id") or ""
 
 
 def process_comment(state: dict, event: dict, data: dict) -> None:

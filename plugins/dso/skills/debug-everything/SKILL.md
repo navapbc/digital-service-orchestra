@@ -372,7 +372,7 @@ For genuinely new failures (no matching open ticket exists), create a ticket. Fo
 # Capture both stdout and stderr to enable post-creation title validation
 BUG_CREATE_OUT=$(.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..." 2>/tmp/ticket_create_stderr.tmp)
 BUG_CREATE_ERR=$(cat /tmp/ticket_create_stderr.tmp); rm -f /tmp/ticket_create_stderr.tmp
-NEW_TICKET_ID=$(echo "$BUG_CREATE_OUT" | grep -oE '[0-9a-f]{4}-[0-9a-f]{4}' | head -1)
+NEW_TICKET_ID=$(echo "$BUG_CREATE_OUT" | tail -1)
 
 # Post-creation title validation: fix non-conforming titles immediately
 if echo "$BUG_CREATE_ERR" | grep -q "does not match required pattern"; then

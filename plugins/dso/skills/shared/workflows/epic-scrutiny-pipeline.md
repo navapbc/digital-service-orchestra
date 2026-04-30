@@ -36,7 +36,7 @@ Cross-reference the user's original request against the drafted success criteria
 2. For each user-named artifact, check whether it appears — directly or by fuzzy/partial match — in any success criterion
 3. Fuzzy matching rules (count as "covered", not "missing"):
    - Abbreviations and aliases (e.g., user says "tk" → SC says "bare tk CLI references" → **covered**)
-   - Containment (e.g., user says ".index.json" → SC says ".tickets-tracker/.index.json" → **covered**)
+   - Containment (e.g., user says ".index.json" → SC says ".tickets-tracker/.index.json" → **covered**) <!-- tickets-boundary-ok: documentation example illustrating fuzzy matching, not direct access --><!-- # tickets-boundary-ok -->
    - Synonyms and role descriptions (e.g., user says "ticket store" → SC says ".tickets/ directory" → **covered**)
    - Only flag an artifact as missing when no reasonable interpretation of the SC text would encompass it
 
@@ -186,7 +186,7 @@ If WebSearch or WebFetch fails (tool unavailable, network error, or returns no u
 
 Run failure scenario analysis to surface edge cases, failure modes, and missing constraints not caught by the gap analysis pass. This step identifies risks that the implementation plan would not naturally surface.
 
-**Differentiation note**: This scenario analysis targets epic-level spec gaps (edge cases, failure modes, missing constraints). Preplanning adversarial review (Phase 2.5) targets cross-story interaction gaps (shared state, conflicting assumptions, dependency gaps). These are complementary but distinct.
+**Differentiation note**: This scenario analysis targets epic-level spec gaps (edge cases, failure modes, missing constraints). Preplanning adversarial review (Phase E) targets cross-story interaction gaps (shared state, conflicting assumptions, dependency gaps). These are complementary but distinct.
 
 ### Complexity Scaling Thresholds
 
@@ -263,9 +263,9 @@ Trigger: epic references external integrations (third-party APIs, CI/CD, infrast
 1. **Keyword scan**: Scan the epic spec (Context + Success Criteria + Approach) for integration signal keywords using case-insensitive matching. Match on semantic intent, not exact substrings — "calls an external REST API" matches "external APIs/services" even without the exact phrase. Also check for first-time internal platform feature usage by comparing referenced hook types, tool types, and framework features against existing usages in the codebase. If any integration signal or first-time internal feature usage is present, dispatch the feasibility reviewer.
 2. **Skip**: If no integration signals and no first-time internal platform features found, skip the feasibility reviewer. Log: "No external integration or first-time internal platform feature signals — skipping feasibility review."
 
-**Note**: The complexity evaluator's `feasibility_review_recommended` field provides the same signal during preplanning (Phase 2.25 Integration Research) where it is available from the sprint classification. In brainstorm, the keyword scan is the primary trigger since the complexity evaluator has not yet run.
+**Note**: The complexity evaluator's `feasibility_review_recommended` field provides the same signal during preplanning (Phase D Integration Research) where it is available from the sprint classification. In brainstorm, the keyword scan is the primary trigger since the complexity evaluator has not yet run.
 
-The three core reviewers (Agent Clarity, Scope, Value) **always run as separate, independent Agent calls sent in the same message**. If feasibility review is triggered, dispatch the `dso:feasibility-reviewer` agent as a **4th parallel Agent call** alongside the existing 3 — all four Agent calls sent in a single message so they run concurrently. (`dso:feasibility-reviewer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Read `agents/feasibility-reviewer.md` inline and use `subagent_type: "general-purpose"` with `model: "sonnet"`. Each is its own isolated agent.
+The three core reviewers (Agent Clarity, Scope, Value) **always run as separate, independent Agent calls sent in the same message**. If feasibility review is triggered, dispatch the `dso:feasibility-reviewer` agent as a **4th parallel Agent call** alongside the existing 3 — all four Agent calls sent in a single message so they run concurrently. Use `subagent_type: "dso:feasibility-reviewer"` first. If that named `subagent_type` is unregistered in the current environment, fall back to reading `agents/feasibility-reviewer.md` inline and using `subagent_type: "general-purpose"` with `model: "sonnet"`. Each is its own isolated agent.
 
 **Pass threshold**: All dimensions must score 4 or above. When the feasibility reviewer runs, `technical_feasibility` and `integration_risk` are also included in the pass threshold check.
 

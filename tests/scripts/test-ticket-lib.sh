@@ -995,4 +995,831 @@ with open(sys.argv[1], 'w') as f:
 }
 test_forward_compat_warning_deduplication
 
+# ── Resolver tests (RED — resolve_ticket_id does not exist yet) ───────────────
+#
+# These tests exercise the multi-form ID resolver:
+#   - 16-hex canonical passthrough
+#   - 8-hex backward-compat passthrough
+#   - unique prefix expansion
+#   - ambiguous prefix error
+#   - alias lookup
+#   - alias collision error
+
+# ── Helper: build a minimal CREATE event JSON with optional alias ─────────────
+# Usage: _make_create_event_json <dest_path> <ticket_id> [alias]
+_make_create_event_json() {
+    local dest="$1"
+    local ticket_id="$2"
+    local alias="${3:-}"
+    local ts
+    ts=$(python3 -c "import time; print(int(time.time()))")
+    local uuid
+    uuid=$(python3 -c "import uuid; print(uuid.uuid4())")
+    if [ -n "$alias" ]; then
+        python3 -c "
+import json, sys
+data = {
+    'timestamp': $ts,
+    'uuid': '$uuid',
+    'event_type': 'CREATE',
+    'env_id': '$uuid',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'Test ticket',
+        'parent_id': None,
+        'alias': '$alias'
+    }
+}
+json.dump(data, sys.stdout)
+" > "$dest"
+    else
+        python3 -c "
+import json, sys
+data = {
+    'timestamp': $ts,
+    'uuid': '$uuid',
+    'event_type': 'CREATE',
+    'env_id': '$uuid',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'Test ticket',
+        'parent_id': None
+    }
+}
+json.dump(data, sys.stdout)
+" > "$dest"
+    fi
+}
+
+# ── Helper: plant a ticket in a test repo's tracker directory ─────────────────
+# Usage: _plant_ticket <tracker_dir> <ticket_id> [alias]
+# Creates the ticket directory and a CREATE event file. Does NOT git commit.
+_plant_ticket() {
+    local tracker_dir="$1"
+    local ticket_id="$2"
+    local alias="${3:-}"
+    local ticket_dir="$tracker_dir/$ticket_id"
+    mkdir -p "$ticket_dir"
+    local ts uuid
+    ts=$(python3 -c "import time; print(int(time.time_ns()))")
+    uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    local event_file="$ticket_dir/${ts}-${uuid}-CREATE.json"
+    _make_create_event_json "$event_file" "$ticket_id" "$alias"
+}
+
+# ── Test Resolver 1: 16-hex canonical passthrough ────────────────────────────
+echo "Test resolver_16hex_passthrough: resolve_ticket_id returns 16-hex ID unchanged"
+test_resolver_16hex_passthrough() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for resolver test" "exists" "missing"
+        return
+    fi
+
+    # Check that resolve_ticket_id is defined — RED: it must NOT exist yet
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (16hex test)" "defined" "undefined"
+        return
+    fi
+
+    local ticket_id="abcd1234efgh5678"
+    _plant_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && resolve_ticket_id "$ticket_id" 2>/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: 16-hex exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: 16-hex returns ID unchanged" "$ticket_id" "$result"
+}
+test_resolver_16hex_passthrough
+
+# ── Test Resolver 2: 8-hex backward-compat passthrough ───────────────────────
+echo "Test resolver_8hex_backward_compat: resolve_ticket_id returns 8-hex ID (xxxx-xxxx) unchanged"
+test_resolver_8hex_backward_compat() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for 8hex resolver test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (8hex test)" "defined" "undefined"
+        return
+    fi
+
+    local ticket_id="ab12-cd34"
+    _plant_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && resolve_ticket_id "$ticket_id" 2>/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: 8-hex exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: 8-hex returns ID unchanged" "$ticket_id" "$result"
+}
+test_resolver_8hex_backward_compat
+
+# ── Test Resolver 3: unique prefix expansion ─────────────────────────────────
+echo "Test resolver_unique_prefix: resolve_ticket_id expands a unique prefix to full canonical ID"
+test_resolver_unique_prefix() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for unique-prefix resolver test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (unique-prefix test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket with a unique prefix "zzzz"
+    local ticket_id="zzzz1234-5678-abcd"
+    _plant_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "zzzz" 2>/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: unique prefix exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: unique prefix expands to full ID" "$ticket_id" "$result"
+}
+test_resolver_unique_prefix
+
+# ── Test Resolver 4: ambiguous prefix error ───────────────────────────────────
+echo "Test resolver_ambiguous_prefix_error: resolve_ticket_id exits non-zero and prints 'Ambiguous' on stderr"
+test_resolver_ambiguous_prefix_error() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for ambiguous-prefix test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (ambiguous test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant two tickets that share the 4-char prefix "aaaa"
+    local id1="aaaa1111-bbbb-cccc"
+    local id2="aaaa2222-dddd-eeee"
+    _plant_ticket "$repo/.tickets-tracker" "$id1"
+    _plant_ticket "$repo/.tickets-tracker" "$id2"
+
+    local stderr_out exit_code=0
+    stderr_out=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "aaaa" 2>&1 >/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: ambiguous prefix exits non-zero" "1" \
+        "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+    local has_ambiguous
+    has_ambiguous=$(echo "$stderr_out" | grep -ic "Ambiguous" || true)
+    assert_eq "resolve_ticket_id: ambiguous prefix stderr contains 'Ambiguous'" "1" \
+        "$([ "${has_ambiguous:-0}" -gt 0 ] && echo 1 || echo 0)"
+}
+test_resolver_ambiguous_prefix_error
+
+# ── Test Resolver 5: alias lookup ─────────────────────────────────────────────
+echo "Test resolver_alias_lookup: resolve_ticket_id looks up alias from CREATE event and returns canonical ID"
+test_resolver_alias_lookup() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for alias-lookup test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (alias-lookup test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket with alias "fast-river-oak"
+    local ticket_id="qqqqrrrr-ssss-tttt"
+    _plant_ticket "$repo/.tickets-tracker" "$ticket_id" "fast-river-oak"
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "fast-river-oak" 2>/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: alias lookup exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: alias returns canonical ID" "$ticket_id" "$result"
+}
+test_resolver_alias_lookup
+
+# ── Test Resolver 6: alias collision error ────────────────────────────────────
+echo "Test resolver_alias_collision_error: resolve_ticket_id exits non-zero and lists both IDs when alias is ambiguous"
+test_resolver_alias_collision_error() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for alias-collision test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (alias-collision test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant two tickets both using alias "fast-river-oak"
+    local id1="uuuu1111-vvvv-2222"
+    local id2="wwww3333-xxxx-4444"
+    _plant_ticket "$repo/.tickets-tracker" "$id1" "fast-river-oak"
+    _plant_ticket "$repo/.tickets-tracker" "$id2" "fast-river-oak"
+
+    local stderr_out exit_code=0
+    stderr_out=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "fast-river-oak" 2>&1 >/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: alias collision exits non-zero" "1" \
+        "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Both canonical IDs must appear in stderr output
+    local has_id1 has_id2
+    has_id1=$(echo "$stderr_out" | grep -c "$id1" || true)
+    has_id2=$(echo "$stderr_out" | grep -c "$id2" || true)
+    assert_eq "resolve_ticket_id: alias collision lists id1 in stderr" "1" \
+        "$([ "${has_id1:-0}" -gt 0 ] && echo 1 || echo 0)"
+    assert_eq "resolve_ticket_id: alias collision lists id2 in stderr" "1" \
+        "$([ "${has_id2:-0}" -gt 0 ] && echo 1 || echo 0)"
+}
+test_resolver_alias_collision_error
+
+echo ""
+echo "Test resolver_jira_key_lookup: resolve_ticket_id looks up jira_key from CREATE event"
+test_resolver_jira_key_lookup() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for jira_key-lookup test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (jira_key test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket with a known jira_key directly via CREATE event JSON
+    local ticket_id="jjjj9999kkkk0000"
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    mkdir -p "$ticket_dir"
+    local ts uuid
+    ts=$(python3 -c "import time; print(int(time.time_ns()))")
+    uuid=$(python3 -c "import uuid; print(uuid.uuid4())")
+    python3 -c "
+import json, sys
+data = {
+    'timestamp': int('$ts'),
+    'uuid': '$uuid',
+    'event_type': 'CREATE',
+    'env_id': '$uuid',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'jira_key lookup test ticket',
+        'parent_id': None,
+        'jira_key': 'PROJ-99'
+    }
+}
+json.dump(data, sys.stdout)
+" > "$ticket_dir/${ts}-${uuid}-CREATE.json"
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "PROJ-99" 2>/dev/null) \
+        || exit_code=$?
+    assert_eq "resolve_ticket_id: jira_key exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: jira_key returns canonical ID" "$ticket_id" "$result"
+}
+test_resolver_jira_key_lookup
+
+echo ""
+echo "Test resolver_jira_key_before_alias: jira_key takes precedence over alias when input matches both"
+test_resolver_jira_key_before_alias() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for jira_key-before-alias test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type resolve_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "resolve_ticket_id function defined (jira_key-before-alias test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant ticket A: has jira_key="SHARED-TOKEN"
+    local id_a="aaaa1111bbbb2222"
+    local dir_a="$repo/.tickets-tracker/$id_a"
+    mkdir -p "$dir_a"
+    local ts_a uuid_a
+    ts_a=$(python3 -c "import time; print(int(time.time_ns()))")
+    uuid_a=$(python3 -c "import uuid; print(uuid.uuid4())")
+    python3 -c "
+import json, sys
+data = {
+    'timestamp': int('$ts_a'),
+    'uuid': '$uuid_a',
+    'event_type': 'CREATE',
+    'env_id': '$uuid_a',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'ticket-A with jira_key',
+        'parent_id': None,
+        'jira_key': 'SHARED-TOKEN'
+    }
+}
+json.dump(data, sys.stdout)
+" > "$dir_a/${ts_a}-${uuid_a}-CREATE.json"
+
+    # Plant ticket B: has alias="SHARED-TOKEN"
+    local id_b="cccc3333dddd4444"
+    local dir_b="$repo/.tickets-tracker/$id_b"
+    mkdir -p "$dir_b"
+    local ts_b uuid_b
+    ts_b=$(python3 -c "import time; print(int(time.time_ns()) + 1)")
+    uuid_b=$(python3 -c "import uuid; print(uuid.uuid4())")
+    python3 -c "
+import json, sys
+data = {
+    'timestamp': int('$ts_b'),
+    'uuid': '$uuid_b',
+    'event_type': 'CREATE',
+    'env_id': '$uuid_b',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'ticket-B with alias',
+        'parent_id': None,
+        'alias': 'SHARED-TOKEN'
+    }
+}
+json.dump(data, sys.stdout)
+" > "$dir_b/${ts_b}-${uuid_b}-CREATE.json"
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "SHARED-TOKEN" 2>/dev/null) \
+        || exit_code=$?
+    assert_eq "resolve_ticket_id: jira_key-before-alias exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: jira_key wins over alias" "$id_a" "$result"
+}
+test_resolver_jira_key_before_alias
+
+# ── format_ticket_id() tests (RED — function does not exist yet) ──────────────
+#
+# These tests exercise format_ticket_id() with the ticket.display_mode config key.
+# All 6 tests MUST FAIL until format_ticket_id() is implemented in ticket-lib.sh.
+#
+# Acceptance criteria:
+#   1. display_mode=canonical  → returns 16-hex canonical ID unchanged
+#   2. display_mode=alias      → returns adj-noun-noun alias from CREATE event data.alias
+#   3. display_mode=short      → returns shortest unambiguous prefix (>=4 chars)
+#   4. display_mode absent     → defaults to auto (cascade: jira_key → alias → short → canonical)
+#   5. display_mode=unrecognized_value → warns on stderr and delegates to auto
+#   6. display_mode=alias, no data.alias → falls back to canonical
+
+# ── Helper: create temp repo with optional ticket.display_mode config ─────────
+# Usage: _make_fmt_test_repo [display_mode_value]
+# When display_mode_value is empty, the key is omitted from config entirely.
+_make_fmt_test_repo() {
+    local display_mode="${1:-}"
+    local repo
+    repo=$(_make_test_repo)
+
+    # Write a minimal .claude/dso-config.conf in the repo fixture
+    mkdir -p "$repo/.claude"
+    {
+        printf 'version=1.1.0\n'
+        if [ -n "$display_mode" ]; then
+            printf 'ticket.display_mode=%s\n' "$display_mode"
+        fi
+    } > "$repo/.claude/dso-config.conf"
+
+    # Initialize ticket system
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    echo "$repo"
+}
+
+# ── Helper: plant a CREATE event with an optional alias field ─────────────────
+# Usage: _plant_fmt_ticket <tracker_dir> <ticket_id> [alias]
+# Creates the ticket dir and a CREATE event file; commits it to the tracker.
+_plant_fmt_ticket() {
+    local tracker_dir="$1"
+    local ticket_id="$2"
+    local alias="${3:-}"
+    local ticket_dir="$tracker_dir/$ticket_id"
+    mkdir -p "$ticket_dir"
+    local ts uuid
+    ts=$(python3 -c "import time; print(int(time.time() * 1000))")
+    uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    local event_file="$ticket_dir/${ts}-${uuid}-CREATE.json"
+
+    if [ -n "$alias" ]; then
+        python3 -c "
+import json, sys
+data = {
+    'timestamp': int('$ts'),
+    'uuid': '$uuid',
+    'event_type': 'CREATE',
+    'env_id': '$uuid',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'Format test ticket',
+        'parent_id': None,
+        'alias': '$alias'
+    }
+}
+json.dump(data, sys.stdout)
+" > "$event_file"
+    else
+        python3 -c "
+import json, sys
+data = {
+    'timestamp': int('$ts'),
+    'uuid': '$uuid',
+    'event_type': 'CREATE',
+    'env_id': '$uuid',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'Format test ticket',
+        'parent_id': None
+    }
+}
+json.dump(data, sys.stdout)
+" > "$event_file"
+    fi
+
+    # Commit event so git tree is clean
+    (cd "$tracker_dir" && git add "$ticket_id/" 2>/dev/null && \
+        git commit -m "test: CREATE $ticket_id" --no-verify 2>/dev/null) || true
+}
+
+# ── Test format_ticket_id 1: display_mode=canonical → returns 16-hex unchanged ─
+echo "Test format_ticket_id_canonical: display_mode=canonical returns 16-hex ID unchanged"
+test_format_ticket_id_canonical() {
+    local repo
+    repo=$(_make_fmt_test_repo "canonical")
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id canonical test" "exists" "missing"
+        return
+    fi
+
+    # RED: format_ticket_id must NOT be defined yet — test fails because function is absent
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (canonical test)" "defined" "undefined"
+        return
+    fi
+
+    local ticket_id="abcd1234efgh5678"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id canonical: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id canonical: returns 16-hex ID unchanged" "$ticket_id" "$result"
+}
+test_format_ticket_id_canonical
+
+# ── Test format_ticket_id 2: display_mode=alias → returns data.alias ──────────
+echo "Test format_ticket_id_alias: display_mode=alias returns adj-noun-noun alias from CREATE event"
+test_format_ticket_id_alias() {
+    local repo
+    repo=$(_make_fmt_test_repo "alias")
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id alias test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (alias test)" "defined" "undefined"
+        return
+    fi
+
+    local ticket_id="bbbb2222cccc3333"
+    local expected_alias="swift-river-oak"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id" "$expected_alias"
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id alias: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id alias: returns data.alias value" "$expected_alias" "$result"
+}
+test_format_ticket_id_alias
+
+# ── Test format_ticket_id 3: display_mode=short → shortest unambiguous prefix ──
+echo "Test format_ticket_id_short: display_mode=short returns shortest unambiguous prefix (>=4 chars)"
+test_format_ticket_id_short() {
+    local repo
+    repo=$(_make_fmt_test_repo "short")
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id short test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (short test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket with a unique prefix starting at 4 chars
+    local ticket_id="zzzz9999aaaa1111"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id short: exits 0" "0" "$exit_code"
+
+    # Result must be a prefix of the full ticket_id and at least 4 chars
+    local result_len="${#result}"
+    assert_eq "format_ticket_id short: prefix length >= 4" "1" \
+        "$([ "${result_len:-0}" -ge 4 ] && echo 1 || echo 0)"
+
+    # Result must be a prefix of the full ID
+    if [[ "$ticket_id" == "${result}"* ]]; then
+        assert_eq "format_ticket_id short: result is a prefix of full ID" "prefix" "prefix"
+    else
+        assert_eq "format_ticket_id short: result is a prefix of full ID" "prefix" "not-prefix"
+    fi
+}
+test_format_ticket_id_short
+
+# ── Test format_ticket_id 4: display_mode absent → defaults to auto ─────────────
+echo "Test format_ticket_id_default_auto: absent display_mode defaults to auto (returns short prefix)"
+test_format_ticket_id_default_auto() {
+    local repo
+    # Pass empty string — config omits ticket.display_mode entirely → auto is the default
+    repo=$(_make_fmt_test_repo "")
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id default test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (default test)" "defined" "undefined"
+        return
+    fi
+
+    # Ticket with no alias/jira_key — auto mode falls through to short prefix.
+    # Only one ticket in the tracker so the 4-char prefix "cccc" is unambiguous.
+    local ticket_id="cccc4444dddd5555"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id default auto: exits 0" "0" "$exit_code"
+    # auto → no jira_key/alias → short prefix; with one ticket "cccc" is unambiguous
+    assert_eq "format_ticket_id default auto: returns 4-char short prefix" \
+        "cccc" "$result"
+}
+test_format_ticket_id_default_auto
+
+# ── Test format_ticket_id 5: display_mode=unrecognized_value → warns + auto ──────
+echo "Test format_ticket_id_unrecognized_mode: unrecognized display_mode warns and delegates to auto"
+test_format_ticket_id_unrecognized_mode() {
+    local repo
+    repo=$(_make_fmt_test_repo "bogus_mode_xyz")
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id unrecognized-mode test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (unrecognized-mode test)" "defined" "undefined"
+        return
+    fi
+
+    # Ticket with no alias/jira_key — unrecognized mode warns on stderr, then delegates to auto,
+    # which falls through to short prefix. One ticket → "eeee" is unambiguous.
+    local ticket_id="eeee6666ffff7777"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result stderr_out exit_code=0
+    stderr_out=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>&1 >/dev/null) || exit_code=$?
+
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id unrecognized-mode: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id unrecognized-mode: returns 4-char short prefix via auto" \
+        "eeee" "$result"
+    # Verify warning was emitted on stderr
+    local has_warn
+    has_warn=$(echo "$stderr_out" | grep -c "WARN" || true)
+    assert_eq "format_ticket_id unrecognized-mode: emits WARN on stderr" "1" \
+        "$([ "${has_warn:-0}" -gt 0 ] && echo 1 || echo 0)"
+}
+test_format_ticket_id_unrecognized_mode
+
+# ── Test format_ticket_id 6: display_mode=alias, no data.alias → canonical fallback ─
+echo "Test format_ticket_id_alias_no_alias_field: display_mode=alias with no data.alias falls back to canonical"
+test_format_ticket_id_alias_no_alias_field() {
+    local repo
+    repo=$(_make_fmt_test_repo "alias")
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id alias-fallback test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (alias-fallback test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket WITHOUT an alias (simulates a pre-migration ticket with no data.alias)
+    local ticket_id="gggg8888hhhh9999"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id"  # no alias argument
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id alias-fallback: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id alias-fallback: returns canonical ID when data.alias absent" \
+        "$ticket_id" "$result"
+}
+test_format_ticket_id_alias_no_alias_field
+
+# ── Test format_ticket_id 7: display_mode=auto, alias present → returns alias ───
+echo "Test format_ticket_id_auto_with_alias: auto mode returns data.alias when present"
+test_format_ticket_id_auto_with_alias() {
+    local repo
+    repo=$(_make_fmt_test_repo "")  # no display_mode → auto default
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id auto-alias test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (auto-alias test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket WITH an alias — auto mode should return the alias (higher priority than short)
+    local ticket_id="iiii0000jjjj1111"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id" "calm-river-stone"
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id auto with alias: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id auto with alias: returns data.alias" \
+        "calm-river-stone" "$result"
+}
+test_format_ticket_id_auto_with_alias
+
+# ── Test format_ticket_id 8: display_mode=auto, jira_key present → returns jira_key ─
+echo "Test format_ticket_id_auto_with_jira_key: auto mode returns jira_key when present (highest priority)"
+test_format_ticket_id_auto_with_jira_key() {
+    local repo
+    repo=$(_make_fmt_test_repo "")  # no display_mode → auto default
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id auto-jira_key test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (auto-jira_key test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket with both jira_key AND alias — auto must prefer jira_key
+    local ticket_id="kkkk2222llll3333"
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    mkdir -p "$ticket_dir"
+    local ts uuid
+    ts=$(python3 -c "import time; print(int(time.time() * 1000))")
+    uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    python3 -c "
+import json, sys
+data = {
+    'timestamp': int('$ts'),
+    'uuid': '$uuid',
+    'event_type': 'CREATE',
+    'env_id': '$uuid',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'Jira key test ticket',
+        'parent_id': None,
+        'jira_key': 'PROJ-42',
+        'alias': 'warm-lake-oak'
+    }
+}
+json.dump(data, sys.stdout)
+" > "$ticket_dir/${ts}-${uuid}-CREATE.json"
+    (cd "$repo/.tickets-tracker" && git add "$ticket_id/" 2>/dev/null && \
+        git commit -m "test: CREATE $ticket_id jira_key" --no-verify 2>/dev/null) || true
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id auto with jira_key: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id auto with jira_key: returns jira_key (beats alias)" \
+        "PROJ-42" "$result"
+}
+test_format_ticket_id_auto_with_jira_key
+
 print_summary

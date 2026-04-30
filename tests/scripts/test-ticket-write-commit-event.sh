@@ -144,7 +144,7 @@ _init_ticket_dir() {
 test_write_commit_event_no_python3() {
     local repo ticket_id event_json sentinel shim_dir
     repo=$(_make_test_repo)
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "No-python3 test" 2>/dev/null | tr -d '[:space:]')
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "No-python3 test" 2>/dev/null | tail -1)
     if [ -z "$ticket_id" ]; then
         echo "  setup failed: ticket create returned empty ID"
         return 1
@@ -194,7 +194,7 @@ test_write_commit_event_no_python3() {
 test_write_commit_event_json_byte_exact() {
     local repo ticket_id sentinel shim_dir
     repo=$(_make_test_repo)
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Byte-exact test" 2>/dev/null | tr -d '[:space:]')
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Byte-exact test" 2>/dev/null | tail -1)
     if [ -z "$ticket_id" ]; then
         echo "  setup failed: ticket create returned empty ID"
         return 1
@@ -291,8 +291,8 @@ test_write_commit_event_concurrent_no_corruption() {
     repo=$(_make_test_repo)
 
     # Create two separate tickets so each gets its own event file.
-    ticket_id_a=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Concurrent A" 2>/dev/null | tr -d '[:space:]')
-    ticket_id_b=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Concurrent B" 2>/dev/null | tr -d '[:space:]')
+    ticket_id_a=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Concurrent A" 2>/dev/null | tail -1)
+    ticket_id_b=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Concurrent B" 2>/dev/null | tail -1)
     if [ -z "$ticket_id_a" ] || [ -z "$ticket_id_b" ]; then
         echo "  setup failed: ticket create returned empty IDs"
         return 1
@@ -379,7 +379,7 @@ test_write_commit_event_concurrent_no_corruption() {
 test_write_commit_event_retry_on_locked_file() {
     local repo ticket_id event_json
     repo=$(_make_test_repo)
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Lock-retry test" 2>/dev/null | tr -d '[:space:]')
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Lock-retry test" 2>/dev/null | tail -1)
     if [ -z "$ticket_id" ]; then
         echo "  setup failed: ticket create returned empty ID"
         return 1
@@ -474,7 +474,7 @@ os.close(fd)
 test_write_commit_event_exit_codes() {
     local repo ticket_id event_json sentinel shim_dir
     repo=$(_make_test_repo)
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Exit-code test" 2>/dev/null | tr -d '[:space:]')
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Exit-code test" 2>/dev/null | tail -1)
     if [ -z "$ticket_id" ]; then
         echo "  setup failed: ticket create returned empty ID"
         return 1
@@ -590,7 +590,7 @@ test_write_commit_event_json_byte_exact_randomized() {
 
         # Create a ticket for this input.
         local ticket_id
-        ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "$title" 2>/dev/null | tr -d '[:space:]')
+        ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "$title" 2>/dev/null | tail -1)
         if [ -z "$ticket_id" ]; then
             failures=$((failures + 1))
             continue
@@ -673,7 +673,7 @@ test_write_commit_event_read_after_write() {
 
     # Step 1: Create a ticket.
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Read-after-write test" 2>/dev/null | tr -d '[:space:]')
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Read-after-write test" 2>/dev/null | tail -1)
     if [ -z "$ticket_id" ]; then
         echo "  setup failed: ticket create returned empty ID"
         return 1
@@ -760,7 +760,7 @@ if not found:
 test_write_commit_event_accepts_file_impact() {
     local repo ticket_id
     repo=$(_make_test_repo)
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "FILE_IMPACT test" 2>/dev/null | tr -d '[:space:]')
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "FILE_IMPACT test" 2>/dev/null | tail -1)
     if [ -z "$ticket_id" ]; then
         echo "  setup failed: ticket create returned empty ID"
         return 1

@@ -89,7 +89,7 @@ test_ticket_create_with_busybox_flock() {
         bash "$TICKET_SCRIPT" create task "busybox flock compat test" 2>/dev/null
     ) || true
 
-    if [ -n "$ticket_id" ] && echo "$ticket_id" | grep -qE '^[a-f0-9]{4}-[a-f0-9]{4}$'; then
+    if [ -n "$ticket_id" ] && echo "$ticket_id" | grep -qE '^[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}$'; then
         assert_eq "ticket_create with mock busybox flock: returned valid id" "non-empty" "non-empty"
     else
         assert_eq "ticket_create with mock busybox flock: returned valid id" "non-empty" "empty_or_invalid:${ticket_id:-<empty>}"
@@ -127,7 +127,7 @@ test_ticket_create_without_flock() {
         bash "$TICKET_SCRIPT" create task "no flock compat test" 2>/dev/null
     ) || true
 
-    if [ -n "$ticket_id" ] && echo "$ticket_id" | grep -qE '^[a-f0-9]{4}-[a-f0-9]{4}$'; then
+    if [ -n "$ticket_id" ] && echo "$ticket_id" | grep -qE '^[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}$'; then
         assert_eq "ticket_create without any flock: returned valid id" "non-empty" "non-empty"
     else
         assert_eq "ticket_create without any flock: returned valid id" "non-empty" "empty_or_invalid:${ticket_id:-<empty>}"

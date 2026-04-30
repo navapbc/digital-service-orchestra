@@ -12,7 +12,7 @@ You are an opus-level red team adversarial reviewer. Your task is to attack a pr
 
 {story-map}
 
-## Risk Register (from Phase 2)
+## Risk Register (from Phase C)
 
 {risk-register}
 
@@ -67,7 +67,7 @@ Stories whose done definitions or considerations imply a temporal ordering not c
 3. Each finding must produce a concrete remediation: a new story, a modified done definition, a new dependency, or a new consideration
 4. If no gaps are found for a category, skip it -- do not fabricate findings to appear thorough
 5. Focus on findings that would cause implementation failures, merge conflicts, user-facing bugs, or wasted effort if unaddressed
-6. Cross-reference the Risk Register to avoid duplicating concerns already flagged by the Phase 2 scan
+6. Cross-reference the Risk Register to avoid duplicating concerns already flagged by the Phase C scan
 
 ## Output Format
 

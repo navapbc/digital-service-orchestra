@@ -410,3 +410,22 @@ Concurrent-writer race between additive and full-replacement writes is accepted 
 
 - **Concurrent-writer race**: two simultaneous additive tag operations can produce a last-writer-wins outcome. Accepted given low concurrency in practice.
 - **Source enforcement infeasible**: "only skill X may write tag Y" cannot be enforced at the CLI level. Policy is documented here for reference; enforcement relies on skill instructions.
+
+---
+
+## Transitional Behavior: Legacy-Entropy Ticket IDs (3e74-56da)
+
+Starting with the hardening introduced in epic `3e74-56da`, `ticket-create.sh` generates **16 hex-char** canonical IDs (`xxxx-xxxx-xxxx-xxxx`, 64 bits of entropy). Prior versions produced **8 hex-char** IDs (`xxxx-xxxx`, 32 bits of entropy).
+
+### Transitional Window
+
+Old plugin copies — pre-upgrade worktrees, cached installs, or CI environments pinned to an older plugin version — will continue generating 8-hex IDs for some bounded period after the upgrade ships. This is accepted behavior:
+
+- **No enforcement gate** blocks old clients from writing legacy-entropy IDs. Adding a gate would break incremental rollout and would require all worktrees to upgrade atomically.
+- **Both ID forms are valid canonical IDs.** The resolver (`resolve_ticket_id()` in `ticket-lib.sh`) accepts 8-hex, 16-hex, alias, `jira_key`, and unambiguous prefix inputs and resolves them uniformly.
+- **Forward-only migration**: existing 8-hex IDs are preserved exactly as-is. No backfill, no rewrite, no rename.
+- **Advisory log** (`LEGACY_CLIENT_WRITE`) for observability of old-format writes is deferred (out of scope for 3e74-56da); may be added in a follow-on if the transitional window proves slow to close.
+
+### When the Transition Ends
+
+The transitional window ends when all worktrees and CI environments have upgraded to a plugin version ≥ the `3e74-56da` release. At that point, all new IDs will be 16-hex and the only 8-hex IDs in the store will be tickets created before the upgrade.

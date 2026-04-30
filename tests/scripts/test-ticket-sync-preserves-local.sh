@@ -61,7 +61,7 @@ test_local_ticket_survives_sync() {
 
     # Create a ticket (local-only, not pushed to remote)
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Local-only ticket" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Local-only ticket" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         echo "  SKIP: ticket create failed (test infrastructure issue)"
@@ -79,7 +79,8 @@ test_local_ticket_survives_sync() {
     # Force the sync marker to expire by deleting it
     local tracker_dir
     tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$repo/.tickets-tracker" 2>/dev/null) || tracker_dir="$repo/.tickets-tracker"
-    local sync_marker="/tmp/.ticket-sync-$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$tracker_dir" 2>/dev/null || echo "fallback")"
+    local sync_marker
+    sync_marker="/tmp/.ticket-sync-$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$tracker_dir" 2>/dev/null || echo "fallback")"
     rm -f "$sync_marker"
 
     # Run another ticket command — this will trigger _ensure_initialized with expired marker
@@ -106,8 +107,8 @@ test_local_ticket_survives_compact_and_sync() {
 
     # Create two tickets
     local ticket_a ticket_b
-    ticket_a=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Ticket A" 2>/dev/null) || true
-    ticket_b=$(cd "$repo" && bash "$TICKET_SCRIPT" create bug "Ticket B" 2>/dev/null) || true
+    ticket_a=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Ticket A" 2>/dev/null | tail -1) || true
+    ticket_b=$(cd "$repo" && bash "$TICKET_SCRIPT" create bug "Ticket B" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_a" ] || [ -z "$ticket_b" ]; then
         echo "  SKIP: ticket create failed"
@@ -120,7 +121,8 @@ test_local_ticket_survives_compact_and_sync() {
     # Force sync marker to expire
     local tracker_dir
     tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$repo/.tickets-tracker" 2>/dev/null) || tracker_dir="$repo/.tickets-tracker"
-    local sync_marker="/tmp/.ticket-sync-$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$tracker_dir" 2>/dev/null || echo "fallback")"
+    local sync_marker
+    sync_marker="/tmp/.ticket-sync-$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$tracker_dir" 2>/dev/null || echo "fallback")"
     rm -f "$sync_marker"
 
     # Run ticket show on ticket A — triggers sync with expired marker

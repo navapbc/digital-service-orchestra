@@ -463,7 +463,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Name and version of the design system used by the project. |
 | **Accepted values** | String (e.g., `USWDS 3.x`, `Material UI 5`, `None (custom)`) |
 | **Default** | Absent — skill falls back to generic guidance |
-| **Used by** | Skills: `/dso:onboarding`, `/dso:design-review`; Agent: `dso:ui-designer` (dispatched by `/dso:preplanning` Step 6) |
+| **Used by** | Skills: `/dso:onboarding`, `/dso:design-review`; Agent: `dso:ui-designer` (dispatched by `/dso:preplanning` Phase H Step 7) |
 
 ---
 
@@ -474,7 +474,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Component library identifier used for adapter selection in design skills and component lookup. |
 | **Accepted values** | `uswds`, `material`, `bootstrap`, `chakra`, `custom` |
 | **Default** | Absent |
-| **Used by** | Agent: `dso:ui-designer` (dispatched by `/dso:preplanning` Step 6) |
+| **Used by** | Agent: `dso:ui-designer` (dispatched by `/dso:preplanning` Phase H Step 7) |
 
 ---
 
@@ -485,7 +485,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Template engine used for rendering UI components. Used by dso:ui-designer for adapter selection via resolve-stack-adapter.sh. |
 | **Accepted values** | `jinja2`, `react`, `vue`, `svelte`, `handlebars` |
 | **Default** | Absent |
-| **Used by** | Agent: `dso:ui-designer` (dispatched by `/dso:preplanning` Step 6) |
+| **Used by** | Agent: `dso:ui-designer` (dispatched by `/dso:preplanning` Phase H Step 7) |
 
 ---
 
@@ -1184,6 +1184,23 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 | **Accepted values** | `true`, `false` |
 | **Default** | `true` |
 | **Used by** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` | # shim-exempt: internal implementation references in config documentation
+
+---
+
+### `ticket.display_mode`
+
+| | |
+|---|---|
+| **Description** | Controls how ticket IDs are displayed in CLI output and skill files. |
+| **Accepted values** | `auto` (default) — cascade: jira_key → alias → short → canonical (most human-friendly form); `canonical` — full 16-hex ID: `xxxx-xxxx-xxxx-xxxx`; `alias` — adj-noun-noun alias from CREATE event `data.alias` (falls back to `canonical` if absent); `short` — shortest unambiguous prefix >= 4 hex chars (falls back to `canonical` if ambiguous). Unrecognized values fall back to `auto` with a warning. |
+| **Default** | `auto` |
+| **Used by** | `.claude/scripts/dso ticket` (display formatting) |
+
+**Example:**
+
+```ini
+ticket.display_mode=alias
+```
 
 ---
 

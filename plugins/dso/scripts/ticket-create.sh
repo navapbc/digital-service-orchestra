@@ -169,7 +169,7 @@ author=$(git config user.name 2>/dev/null || echo "Unknown")
 event_meta=$(python3 -c "
 import uuid, time
 u = str(uuid.uuid4()).replace('-', '')
-ticket_id = u[:4] + '-' + u[4:8]
+ticket_id = u[:4] + '-' + u[4:8] + '-' + u[8:12] + '-' + u[12:16]
 event_uuid = str(uuid.uuid4())
 timestamp = time.time_ns()
 print(ticket_id)
@@ -180,6 +180,19 @@ print(timestamp)
 ticket_id=$(echo "$event_meta" | sed -n '1p')
 event_uuid=$(echo "$event_meta" | sed -n '2p')
 timestamp=$(echo "$event_meta" | sed -n '3p')
+
+# ── Compute human-readable alias from ticket ID ───────────────────────────────
+# Honour TICKET_WORDLIST_PATH env override (for testing); fall back to the
+# wordlist bundled with the plugin.
+# ${SCRIPT_DIR%/scripts} strips the trailing "/scripts" suffix — assumes this script lives
+# in a directory named "scripts" with "resources" as a sibling. Matches the plugin layout.
+_wordlist="${TICKET_WORDLIST_PATH:-${SCRIPT_DIR%/scripts}/resources/ticket-wordlist.txt}"
+_alias_stderr=$(mktemp /tmp/ticket-alias-stderr.XXXXXX)
+ticket_alias=$(python3 "$SCRIPT_DIR/ticket-alias-compute.py" "$ticket_id" "$_wordlist" 2>"$_alias_stderr")
+if grep -q "^FALLBACK$" "$_alias_stderr" 2>/dev/null; then
+    echo "WARN: ticket-wordlist.txt not found — using hex fallback alias" >&2
+fi
+rm -f "$_alias_stderr"
 
 # ── Build CREATE event JSON via python3 ───────────────────────────────────────
 temp_event=$(mktemp "$TRACKER_DIR/.tmp-create-XXXXXX")
@@ -217,6 +230,12 @@ assignee_arg = sys.argv[11] if len(sys.argv) > 11 else ''
 if assignee_arg:
     data['assignee'] = assignee_arg
 
+alias_arg = sys.argv[13] if len(sys.argv) > 13 else ''
+if alias_arg:
+    data['alias'] = alias_arg
+
+data['id'] = sys.argv[14] if len(sys.argv) > 14 else ''
+
 event = {
     'timestamp': int(sys.argv[1]),
     'uuid': sys.argv[2],
@@ -228,7 +247,7 @@ event = {
 
 with open(sys.argv[12], 'w', encoding='utf-8') as f:
     json.dump(event, f, ensure_ascii=False)
-" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$desc_file" "$tags" "$assignee" "$temp_event" || {
+" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$desc_file" "$tags" "$assignee" "$temp_event" "$ticket_alias" "$ticket_id" || {
     rm -f "$temp_event" "$desc_file"
     echo "Error: failed to build CREATE event JSON" >&2
     exit 1
@@ -245,7 +264,10 @@ write_commit_event "$ticket_id" "$temp_event" || {
 # Clean up temp file (write_commit_event stages it, but original temp may remain)
 rm -f "$temp_event"
 
-# ── Output ticket ID ─────────────────────────────────────────────────────────
+# ── Output dual-format: human summary first, canonical ID last (both stdout) ──
+# SC3: both lines on stdout — human-readable summary line 1, canonical ID last.
+# Scripts extract the canonical ID via: ticket create ... | tail -1
+echo "Created ticket $ticket_id: $title"
 echo "$ticket_id"
 
 # ── Post-creation validation (warnings only, never blocks, exit 0) ───────────

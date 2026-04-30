@@ -36,7 +36,7 @@ _make_test_repo() {
 
 _create_ticket() {
     local repo="$1" title="${2:-Test bug}"
-    cd "$repo" && bash "$TICKET_SCRIPT" create bug "$title" -d "test" 2>/dev/null | grep -o '[a-f0-9]\{4\}-[a-f0-9]\{4\}'
+    cd "$repo" && bash "$TICKET_SCRIPT" create bug "$title" -d "test" 2>/dev/null | grep -o '[a-f0-9]\{4\}-[a-f0-9]\{4\}-[a-f0-9]\{4\}-[a-f0-9]\{4\}'
 }
 
 _snap_count() {

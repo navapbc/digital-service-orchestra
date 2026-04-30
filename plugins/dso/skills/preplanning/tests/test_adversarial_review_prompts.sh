@@ -17,7 +17,7 @@ pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 echo "=== Red team placeholder consistency ==="
-# Verify red team prompt has all placeholders referenced in SKILL.md Phase 2.5
+# Verify red team prompt has all placeholders referenced in SKILL.md Phase E
 for placeholder in epic-title epic-description story-map risk-register dependency-graph; do
   if grep -q "{$placeholder}" "$RED_TEAM"; then
     pass "red team placeholder {$placeholder} present in prompt"
@@ -28,7 +28,7 @@ done
 
 echo ""
 echo "=== Blue team placeholder consistency ==="
-# Verify blue team prompt has all placeholders referenced in SKILL.md Phase 2.5
+# Verify blue team prompt has all placeholders referenced in SKILL.md Phase E
 for placeholder in epic-title epic-description story-map red-team-findings; do
   if grep -q "{$placeholder}" "$BLUE_TEAM"; then
     pass "blue team placeholder {$placeholder} present in prompt"
@@ -85,7 +85,7 @@ for field in disposition rejection_rationale; do
   fi
 done
 
-# Verify SKILL.md Phase 2.5 references all four amendment types that match red team output types
+# Verify SKILL.md Phase E references all four amendment types that match red team output types
 echo ""
 echo "=== SKILL.md amendment type coverage ==="
 for amendment in "new_story|new story" "modify_done_definition|done def" "add_dependency|new.*depend" "add_consideration|consideration"; do

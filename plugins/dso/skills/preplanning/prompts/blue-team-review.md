@@ -31,7 +31,7 @@ The finding describes a concrete problem with a specific remediation. Reject fin
 
 The finding identifies a genuine interaction between two or more stories. Reject findings that:
 - Describe a single-story concern already covered by that story's done definitions or considerations
-- Flag a risk that the Phase 2 Risk & Scope Scan already captured in the risk register
+- Flag a risk that the Phase C Risk & Scope Scan already captured in the risk register
 - Describe a gap within one story's internal scope (that is implementation-plan-level, not preplanning-level)
 
 ### 3. Distinct from Existing Considerations

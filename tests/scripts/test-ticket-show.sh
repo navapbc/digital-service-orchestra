@@ -45,7 +45,7 @@ test_ticket_show_displays_compiled_state() {
 
     # Create a ticket first
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Test ticket" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Test ticket" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket ID returned for show test" "non-empty" "empty"
@@ -139,7 +139,7 @@ test_ticket_show_output_is_valid_json() {
 
     # Create a ticket
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "JSON validation ticket" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "JSON validation ticket" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket ID returned for JSON validation test" "non-empty" "empty"
@@ -167,7 +167,7 @@ test_ticket_show_valid_json_with_embedded_json_comments() {
 
     # Create a ticket
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Embedded JSON comment test" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Embedded JSON comment test" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket ID returned for embedded JSON test" "non-empty" "empty"
@@ -210,7 +210,7 @@ test_ticket_show_llm_format_minified() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "LLM format test ticket" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "LLM format test ticket" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket ID returned for llm format test" "non-empty" "empty"
@@ -306,7 +306,7 @@ test_ticket_show_llm_token_reduction() {
 
     # Create a ticket with a comment to give it some bulk
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Token reduction test ticket" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Token reduction test ticket" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket ID returned for token reduction test" "non-empty" "empty"
@@ -371,7 +371,7 @@ test_ticket_show_preconditions_corrupt_file_skipped() {
 
     # Create a ticket via the ticket CLI
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Preconditions corrupt test" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Preconditions corrupt test" 2>/dev/null | tail -1) || true
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket created for corrupt-file test" "non-empty" "empty"
         assert_pass_if_clean "test_ticket_show_preconditions_corrupt_file_skipped"
@@ -500,7 +500,7 @@ test_ticket_show_preconditions_summary_legacy_placeholder() {
 
     # Create a ticket with zero PRECONDITIONS events (legacy / pre-manifest state)
     local ticket_id=""
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "legacy preconditions test" 2>/dev/null || true)
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "legacy preconditions test" 2>/dev/null | tail -1 || true)
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket created for legacy preconditions check" "non-empty" "empty"

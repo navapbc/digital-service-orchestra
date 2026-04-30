@@ -51,7 +51,7 @@ TICKET_ID=$(
     _TICKET_TEST_NO_SYNC=1 \
     TICKETS_TRACKER_DIR="$TRACKER_DIR" \
     bash "$TICKET_SCRIPT" create task "perf-test-ticket" 2>/dev/null \
-    | tr -d '[:space:]'
+    | tail -1
 )
 
 if [ -z "$TICKET_ID" ]; then

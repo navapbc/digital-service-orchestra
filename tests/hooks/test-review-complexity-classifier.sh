@@ -1612,4 +1612,79 @@ test_floor_rule_external_api_import_forces_standard
 test_floor_rule_known_import_stays_light
 test_floor_rule_external_import_fail_open_no_manifest
 
+# ============================================================
+# Configurable size threshold tests (task a307-5d1d-f03f-4333)
+# RED: classifier currently hardcodes 300/600; does not read config.
+# These tests will FAIL until review.size_upgrade_lines /
+# review.size_warn_lines are read from WORKFLOW_CONFIG_FILE.
+# ============================================================
+
+test_classifier_size_upgrade_threshold_from_config() {
+    # Config sets upgrade threshold to 150; 200-line diff should give size_action="upgrade"
+    # RED: hardcoded threshold is 300, so 200-line diff currently gives size_action="none"
+    setup_temp_dir
+
+    local tmpconfig
+    tmpconfig="$(mktemp "$TEST_TMPDIR/config.XXXXXX")"
+    printf 'review.size_upgrade_lines=150\n' > "$tmpconfig"
+
+    local _diff=""
+    local i
+    for i in $(seq 1 200); do _diff+=$'+code_line_'"$i"$'=value\n'; done
+    local DIFF
+    DIFF=$(printf "diff --git a/src/foo.sh b/src/foo.sh\n@@ -0,0 +1,200 @@\n%s" "$_diff")
+
+    local output exit_code=0
+    if [[ -x "$CLASSIFIER" ]]; then
+        output=$(printf '%s' "$DIFF" | REPO_ROOT="$REPO_ROOT" _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" WORKFLOW_CONFIG_FILE="$tmpconfig" bash "$CLASSIFIER" 2>/dev/null) || exit_code=$?
+    else
+        output=""
+        exit_code=127
+    fi
+
+    local size_action=""
+    if [[ "$exit_code" -eq 0 ]] && is_valid_json "$output"; then
+        size_action=$(json_field "size_action" "$output")
+    fi
+
+    assert_eq "200-line diff with upgrade threshold=150 has size_action=upgrade" "upgrade" "$size_action"
+    teardown_temp_dir
+}
+
+test_classifier_size_warn_threshold_from_config() {
+    # Config sets warn threshold to 400; 500-line diff should give size_action="warn"
+    # RED: hardcoded threshold is 600, so 500-line diff currently gives size_action="upgrade"
+    setup_temp_dir
+
+    local tmpconfig
+    tmpconfig="$(mktemp "$TEST_TMPDIR/config.XXXXXX")"
+    printf 'review.size_warn_lines=400\n' > "$tmpconfig"
+
+    local _diff=""
+    local i
+    for i in $(seq 1 500); do _diff+=$'+code_line_'"$i"$'=value\n'; done
+    local DIFF
+    DIFF=$(printf "diff --git a/src/foo.sh b/src/foo.sh\n@@ -0,0 +1,500 @@\n%s" "$_diff")
+
+    local output exit_code=0
+    if [[ -x "$CLASSIFIER" ]]; then
+        output=$(printf '%s' "$DIFF" | REPO_ROOT="$REPO_ROOT" _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" WORKFLOW_CONFIG_FILE="$tmpconfig" bash "$CLASSIFIER" 2>/dev/null) || exit_code=$?
+    else
+        output=""
+        exit_code=127
+    fi
+
+    local size_action=""
+    if [[ "$exit_code" -eq 0 ]] && is_valid_json "$output"; then
+        size_action=$(json_field "size_action" "$output")
+    fi
+
+    assert_eq "500-line diff with warn threshold=400 has size_action=warn" "warn" "$size_action"
+    teardown_temp_dir
+}
+
+# Configurable size threshold tests (task a307-5d1d-f03f-4333)
+test_classifier_size_upgrade_threshold_from_config
+test_classifier_size_warn_threshold_from_config
+
 print_summary

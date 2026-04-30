@@ -38,7 +38,7 @@ The finding describes a concrete problem with a specific remediation. Reject fin
 
 The finding identifies a genuine interaction between two or more stories. Reject findings that:
 - Describe a single-story concern already covered by that story's done definitions or considerations
-- Flag a risk that the Phase 2 Risk & Scope Scan already captured in the risk register
+- Flag a risk that the Phase C Risk & Scope Scan already captured in the risk register
 - Describe a gap within one story's internal scope (that is implementation-plan-level, not preplanning-level)
 
 ### 3. Distinct from Existing Considerations
@@ -124,7 +124,7 @@ Return:
 
 ## Artifact Persistence
 
-**This agent does not write artifact files.** The Rules section below prohibits running shell commands, so the agent cannot create files on disk. Set `artifact_path` to `null` in your JSON output. The orchestrator (preplanning SKILL.md Step 3.5) handles persistence of the full exchange to the temp artifacts directory (`/tmp/workflow-plugin-<hash>/adversarial-review-<epic-id>.json` via `get_artifacts_dir()` from `hooks/lib/deps.sh`) — never to the repo’s `.claude/artifacts/`.
+**This agent does not write artifact files.** The Rules section below prohibits running shell commands, so the agent cannot create files on disk. Set `artifact_path` to `null` in your JSON output. The orchestrator (preplanning SKILL.md Phase E Step 4) handles persistence of the full exchange to the temp artifacts directory (`/tmp/workflow-plugin-<hash>/adversarial-review-<epic-id>.json` via `get_artifacts_dir()` from `hooks/lib/deps.sh`) — never to the repo’s `.claude/artifacts/`.
 
 ## Rules
 

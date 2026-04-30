@@ -52,7 +52,7 @@ BUG_CREATE_OUT=$(.claude/scripts/dso ticket create bug \
 DESC
 )" 2>"$BUG_CREATE_ERR_FILE")
 BUG_CREATE_ERR=$(cat "$BUG_CREATE_ERR_FILE"); rm -f "$BUG_CREATE_ERR_FILE"
-BUG_TICKET_ID=$(echo "$BUG_CREATE_OUT" | grep -oE '[0-9a-f]{4}-[0-9a-f]{4}' | head -1)
+BUG_TICKET_ID=$(echo "$BUG_CREATE_OUT" | tail -1)
 
 # Post-creation title gate — the only enforced check.
 if echo "$BUG_CREATE_ERR" | grep -q "does not match required pattern"; then

@@ -47,15 +47,19 @@ Act as a Senior Technical Product Manager (Google-style) to audit, reconcile, an
 
 ## Process Overview
 
-This skill implements a five-phase process to transform epics into implementable stories:
+This skill transforms epics into implementable stories:
 
-1. **Context Reconciliation & Discovery** - Audit existing work and clarify scope
-2. **Risk & Scope Scan** - Flag cross-cutting concerns and split candidates
-2.5. **Adversarial Review** - Red/blue team review for cross-story blind spots (3+ stories only)
-3. **Walking Skeleton & Vertical Slicing** - Prioritize the minimum viable path, split where needed
-4. **Verification & Traceability** - Present the plan and link to epic criteria
+- **Phase A**: Reconciliation — audit existing work, clarify scope
+- **Phase B**: External Dependencies Reading (flag-gated) — read epic's External Dependencies block, generate manual:awaiting_user stories
+- **Phase C**: Risk & Scope Scan — flag cross-cutting concerns, identify split candidates
+- **Phase D**: Integration Research — verify external integrations pre-slicing
+- **Phase E**: Adversarial Review — red/blue team review for cross-story blind spots (3+ stories only)
+- **Refusal Gate**: External Dependencies coverage check (flag-gated) — halt if externally-shaped SCs lack block coverage
+- **Phase F**: Walking Skeleton & Vertical Slicing — prioritize minimum viable path, Foundation/Enhancement splits
+- **Phase G**: Story-Level Research — research per-story decomposition gaps post-slicing
+- **Phase H**: Verification & Traceability — create stories, link criteria, validate, wireframe UI stories
 
-**Lightweight mode** (`--lightweight`): Runs an abbreviated subset — Phase 1 Step 1, Phase 2 (abbreviated), and writes done definitions directly to the epic. Skips Phases 2.5, 3-4. Returns `ENRICHED` or `ESCALATED`.
+**Lightweight mode** (`--lightweight`): runs an abbreviated subset (Phase A Step 1, abbreviated Phase C); see Lightweight Mode Appendix for the authoritative spec. Returns `ENRICHED` or `ESCALATED`.
 
 ---
 
@@ -91,7 +95,7 @@ This is a presence-based check — only block when the tag IS present. Existing 
 
 <!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
 
-[Instructions for the LLM: Before Phase 1 Step 1, validate that a brainstorm PRECONDITIONS event exists.
+[Instructions for the LLM: Before Phase A Step 1, validate that a brainstorm PRECONDITIONS event exists.
 Run: `.claude/scripts/dso preconditions-validator.sh <epic_id> brainstorm_complete [--event-file=<path if known>]`
 (or use preconditions-record.sh invocation from brainstorm; fail-open if script not found)
 If exit 0: continue. If exit 1: BLOCK with PRECONDITIONS_GATE_BLOCKED diagnostic.
@@ -101,15 +105,13 @@ This gate is depth-agnostic — unknown fields in the event are ignored, not rej
 
 ---
 
-## Phase 1: Context Reconciliation & Discovery (/dso:preplanning)
+## Phase A: Reconciliation (/dso:preplanning)
 
 ### Step 1: Select and Load Epic (/dso:preplanning)
 
 If `<epic-id>` was not provided:
 
-**Non-interactive gate (CP1)**: If `PREPLANNING_INTERACTIVE=false` and no `<epic-id>` argument was provided:
-- Log: `INTERACTIVITY_DEFERRED: preplanning.interactive=false — no epic-id provided. Invoke with /dso:preplanning <epic-id> to run non-interactively.`
-- Exit with error (do not proceed).
+**[CP1 non-interactive]** If `PREPLANNING_INTERACTIVE=false` and no `<epic-id>` was provided: log `INTERACTIVITY_DEFERRED: preplanning.interactive=false — no epic-id provided` and exit with error.
 
 1. Run `.claude/scripts/dso ticket list --type=epic`
 2. If no open epics exist, report and exit
@@ -121,12 +123,9 @@ Load the epic:
 .claude/scripts/dso ticket show <epic-id>
 ```
 
-### Step 1b: Select Escalation Policy (/dso:preplanning)
+### Step 2: Select Escalation Policy (/dso:preplanning)
 
-**Non-interactive default (CP2)**: If `PREPLANNING_INTERACTIVE=false`:
-- Use default escalation policy: **"Escalate when blocked"** (skip `AskUserQuestion`).
-- Set `{escalation_policy_label}` = `"Escalate when blocked"` and `{escalation_policy_text}` = the full text for that label (see table in Phase 4 Step 2).
-- Continue to the next step without presenting any question.
+**[CP2 non-interactive]** If `PREPLANNING_INTERACTIVE=false`: skip `AskUserQuestion`, default `{escalation_policy_label} = "Escalate when blocked"` (full text from Phase H Step 2 table), and continue.
 
 Use `AskUserQuestion` to ask the user which escalation policy should apply to all stories in this epic. Skip this step in `--lightweight` mode.
 
@@ -137,13 +136,13 @@ Use `AskUserQuestion` to ask the user which escalation policy should apply to al
   2. **Escalate when blocked** — Agents proceed unless a significant assumption is required to continue — one that could send the implementation in the wrong direction. Escalate only when genuinely blocked without a reasonable inference. All assumptions made without escalating are documented.
   3. **Escalate unless confident** — Agents escalate whenever high confidence is absent. "High confidence" means clear evidence from the codebase or ticket context — not inference or reasonable assumption. When in doubt, stop and ask rather than guess.
 
-Store the selected policy label and its full text as `{escalation_policy_label}` and `{escalation_policy_text}` for use in Phase 4 Step 2.
+Store the selected policy label and its full text as `{escalation_policy_label}` and `{escalation_policy_text}` for use in Phase H Step 2.
 
 ### Lightweight Mode Gate (/dso:preplanning)
 
-If `--lightweight` was passed: run Phase 1 Step 1 only, skip Step 1b, run abbreviated Phase 2, skip Phases 2.5 and 3-4, write done definitions to epic, return ENRICHED or ESCALATED per the Lightweight Mode Appendix below.
+If `--lightweight` was passed: jump to the **Lightweight Mode Appendix** (single authoritative source). Do not continue with Phase A Steps 3–5 or any subsequent phase.
 
-If `--lightweight` was NOT passed, continue to Phase 1 Step 2 as normal.
+If `--lightweight` was NOT passed, continue to Phase A Step 3.
 
 Source the planning flag helper now to determine whether External Dependencies processing is enabled:
 
@@ -151,9 +150,9 @@ Source the planning flag helper now to determine whether External Dependencies p
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh"
 ```
 
-If `is_external_dep_block_enabled` returns exit 1 (flag absent or `false`), set `EXTERNAL_DEP_BLOCK_ENABLED=false` — Phase 1.5 will be skipped. When the function returns exit 0, set `EXTERNAL_DEP_BLOCK_ENABLED=true`.
+If `is_external_dep_block_enabled` returns exit 1 (flag absent or `false`), set `EXTERNAL_DEP_BLOCK_ENABLED=false` — Phase B will be skipped. When the function returns exit 0, set `EXTERNAL_DEP_BLOCK_ENABLED=true`.
 
-### Step 2: Audit Existing Children (/dso:preplanning)
+### Step 3: Audit Existing Children (/dso:preplanning)
 
 Gather all existing child items:
 ```bash
@@ -162,7 +161,7 @@ Gather all existing child items:
 
 For each child, run `.claude/scripts/dso ticket show <child-id>` to read full details.
 
-### Step 3: Reconcile Existing Work (/dso:preplanning)
+### Step 4: Reconcile Existing Work (/dso:preplanning)
 
 ```
 For each existing child:
@@ -180,11 +179,9 @@ For each existing child, classify it:
 - "Tell me more about the intended scope for [Feature]... should it include [X]?"
 - "I see existing tasks for [Y]. Should these be absorbed into our new story map or kept separate?"
 
-**Non-interactive exit (CP3)**: If `PREPLANNING_INTERACTIVE=false` and scope clarification is required (boundaries are unclear or existing tasks conflict):
-- Log: `INTERACTIVITY_DEFERRED: preplanning.interactive=false — scope clarification required. Re-run /dso:preplanning <epic-id> interactively to resolve.`
-- Exit with error (do not proceed).
+**[CP3 non-interactive]** If `PREPLANNING_INTERACTIVE=false` and scope clarification is required: log `INTERACTIVITY_DEFERRED: preplanning.interactive=false — scope clarification required` and exit with error.
 
-### Step 4: Document Reconciliation Plan (/dso:preplanning)
+### Step 5: Document Reconciliation Plan (/dso:preplanning)
 
 Before creating new stories, present a reconciliation summary:
 
@@ -194,10 +191,7 @@ Before creating new stories, present a reconciliation summary:
 | xxx-124 | ... | in_progress | Modify | Needs updated success criteria |
 | xxx-125 | ... | pending | Delete | Redundant with new story approach |
 
-**Non-interactive auto-apply (CP4)**: If `PREPLANNING_INTERACTIVE=false`:
-- Auto-apply reconciliation changes (skip `AskUserQuestion` confirmation).
-- **In-progress guard**: Do NOT auto-apply Delete recommendations for any child story with status `in_progress`. Skip those deletions and log a warning for each: `"Skipping Delete for in_progress story <id> — manual review required."`
-- Continue to story creation without user confirmation.
+**[CP4 non-interactive]** If `PREPLANNING_INTERACTIVE=false`: auto-apply reconciliation (skip `AskUserQuestion`); **in-progress guard**: do NOT auto-apply Delete on `in_progress` children — skip and log `"Skipping Delete for in_progress story <id> — manual review required."`; continue.
 
 Use `AskUserQuestion` to get user approval before proceeding:
 - Question: "The reconciliation plan above summarizes how existing children will be handled. Do you approve this plan?"
@@ -207,17 +201,17 @@ If the user requests changes, iterate on the reconciliation plan and re-present.
 
 ---
 
-## Phase 1.5: External Dependencies Block Reading (/dso:preplanning)
+## Phase B: External Dependencies Reading (/dso:preplanning)
 
 **Skip this phase when `EXTERNAL_DEP_BLOCK_ENABLED=false`.**
 
 ### Purpose
 
-After auditing existing children (Step 2), read the parent epic's `## External Dependencies` block (conforming to `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`) and generate the corresponding child stories.
+After auditing existing children (Phase A Step 3), read the parent epic's `## External Dependencies` block (conforming to `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`) and generate the corresponding child stories.
 
 ### Reading the Block
 
-Parse the epic's description field for a YAML block under the `## External Dependencies` heading. If no block exists, skip this phase entirely and proceed to Phase 2.
+Parse the epic's description field for a YAML block under the `## External Dependencies` heading. If no block exists, skip this phase entirely and proceed to Phase C.
 
 **Validation**: For each entry, if `confirmation_token_required: true` is present alongside a `verification_command`, log a warning and ignore `confirmation_token_required`: `"Entry <name>: confirmation_token_required is only meaningful when verification_command is absent — ignoring."` Do not block story creation.
 
@@ -236,7 +230,7 @@ Parse the `children` field from the JSON output (not `deps` or `blockers`). Chec
 For each entry in the `external_dependencies` block:
 
 **`handling: claude_auto` entries:**
-- Create a standard automation story as a child of the epic (same Phase 4 story creation flow).
+- Create a standard automation story as a child of the epic (same Phase H story creation flow).
 - Story title: `"Verify and integrate <name>"`.
 - Done definition: verification_command passes and Claude has confirmed access.
 
@@ -250,7 +244,7 @@ For each entry in the `external_dependencies` block:
 
 ---
 
-## Phase 2: Risk & Scope Scan (/dso:preplanning)
+## Phase C: Risk & Scope Scan (/dso:preplanning)
 
 Scan all drafted stories (new and modified) as a batch to flag cross-cutting concerns that individual tasks would be too granular to catch. This is a lightweight analysis — no sub-agent dispatch, no scored review, no revision cycles.
 
@@ -296,11 +290,11 @@ While scanning, flag stories where scope risk is high — stories where the mini
 - New architectural patterns where a simpler interim approach could deliver value first
 - New infrastructure or integrations where a lightweight version proves the concept
 
-Mark these stories as **split candidates**. Phase 3 evaluates whether a Foundation/Enhancement split actually makes sense (see "Foundation/Enhancement Splitting" below).
+Mark these stories as **split candidates**. Phase F evaluates whether a Foundation/Enhancement split actually makes sense (see "Foundation/Enhancement Splitting" below).
 
 ---
 
-## Phase 2.25: Integration Research (/dso:preplanning)
+## Phase D: Integration Research (/dso:preplanning)
 
 After story decomposition and risk scanning, research integration capabilities for stories that involve external tools or services. This step surfaces verified constraints while the user is engaged and can redirect.
 
@@ -314,60 +308,41 @@ A story qualifies for integration research if it references any of:
 - Data format migrations
 - Authentication/credential flows
 
-### Research Process (shared)
+### Research Process
 
-**Pre-flight: deduplicate against `researchFindings`**. Before issuing any WebSearch call for a qualifying story's capability, check the merged `researchFindings` array (loaded from the epic's last `RESEARCH_FINDINGS:` ticket comment per Step 5a) for a matching `capability` entry:
-
-- `verified` → skip WebSearch entirely for this capability and reuse the prior `source` citation directly. (Skipping verified entries avoids redundant network calls and accelerates preplanning when upstream skills have already established the constraint.)
-- `partially_verified` → run a light WebSearch (1 spot-check query) to confirm the prior finding still holds.
-- `unverified` or `contradicted` → run full WebSearch verification as described below.
-- Empty array (no prior findings) → run full WebSearch verification for every qualifying capability.
-
-After research, append new entries (or upgrade existing entries) to `researchFindings` with the latest `status`, `source`, `skill_name: "preplanning"`, and current `timestamp` so downstream consumers benefit from the same dedup.
-
-For each qualifying story:
-
-1. Use WebSearch to find known-working code that uses the specific integration or topic. Search GitHub for repositories that import or call the tool/API.
-2. Verify specific capabilities claimed or implied by the story scope. Check official documentation against what the story requires.
-3. Add findings to the story's Considerations as **Verified Constraints**:
-   ```
-   - [Integration] Verified: <tool> supports <capability> (source: <URL>)
-   - [Integration] NOT verified: <tool> does not appear to support <capability>
-   ```
-4. If no sandbox or test environment is available for integration testing, flag this to the user during preplanning: "No sandbox available for <tool> — integration testing will require a live environment."
-5. If research finds no verified code or capabilities for a story's integration, emit `REPLAN_ESCALATE: brainstorm` with explanation of the unresolved gap. Sprint's replan machinery routes this signal. Track the current iteration in `feasibility_cycle_count` (state variable exposed for planning-intelligence log consumption).
+Follow the shared research procedure in `prompts/research-process.md` (single authoritative source — covers researchFindings dedup, the WebSearch-and-verify steps, REPLAN_ESCALATE emission, and graceful degradation). This phase is the pre-slicing trigger for that procedure.
 
 ### Skip Condition
 
-If no stories in the plan qualify for integration research, log: "No stories with external integration signals — skipping integration research." and proceed to Phase 2.5.
+If no stories in the plan qualify for integration research, log: "No stories with external integration signals — skipping integration research." and proceed to Phase E.
 
 ---
 
-## Phase 2.5: Adversarial Review (/dso:preplanning)
+## Phase E: Adversarial Review (/dso:preplanning)
 
 ### Threshold Gate
 
-**Skip this phase if fewer than 3 stories exist** after Phase 2 completes. Adversarial review adds value only when there are enough stories for cross-story interactions to matter. If skipped, log: `"Adversarial review skipped: fewer than 3 stories (<N> stories)."` and proceed directly to Phase 3.
+**Skip this phase if fewer than 3 stories exist** after Phase C completes. Adversarial review adds value only when there are enough stories for cross-story interactions to matter. If skipped, log: `"Adversarial review skipped: fewer than 3 stories (<N> stories)."` and proceed directly to Phase F.
 
 ### Step 1: Red Team Dispatch (/dso:preplanning)
 
-Read `agents/red-team-reviewer.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "opus"`. (`dso:red-team-reviewer` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) The agent definition contains the full review prompt including the 6-category taxonomy and Consumer Enumeration directive. Pass the following as task arguments:
+Dispatch via `subagent_type: "dso:red-team-reviewer"` (model defaults: opus). If the named type is unregistered in this session, fall back to `subagent_type: "general-purpose"` with `model: "opus"` and `agents/red-team-reviewer.md` content read inline as the prompt. The agent definition contains the full review prompt including the 6-category taxonomy and Consumer Enumeration directive. Pass the following as task arguments:
 
-- `{epic-title}`: Epic title from Phase 1
-- `{epic-description}`: Epic description from Phase 1
-- `{story-map}`: All stories with their done definitions, considerations, and dependencies (formatted from Phase 2 output)
-- `{risk-register}`: Risk Register table from Phase 2
+- `{epic-title}`: Epic title from Phase A
+- `{epic-description}`: Epic description from Phase A
+- `{story-map}`: All stories with their done definitions, considerations, and dependencies (formatted from Phase C output)
+- `{risk-register}`: Risk Register table from Phase C
 - `{dependency-graph}`: Dependency graph from `.claude/scripts/dso ticket deps <epic-id>`
 
 The red team sub-agent returns a JSON `findings` array. Parse the response and validate it contains well-formed JSON with the expected schema (array of objects with `type`, `target_story_id`, `title`, `description`, `rationale`, `taxonomy_category` fields).
 
 **Fallback — two-path protocol**:
 - **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `agents/red-team-reviewer.md` inline and re-dispatch as a general-purpose agent using that content as the prompt. Do NOT perform the review inline — the agent must do it.
-- **Execution failure** (timeout, malformed output, or fails to produce valid JSON): Log a warning `"Red team review failed: <reason>. Skipping adversarial review, proceeding to Phase 3."` and skip directly to Phase 3.
+- **Execution failure** (timeout, malformed output, or fails to produce valid JSON): Log a warning `"Red team review failed: <reason>. Skipping adversarial review, proceeding to Phase F."` and skip directly to Phase F.
 
 ### Step 2: Blue Team Dispatch (/dso:preplanning)
 
-If the red team returns a non-empty findings array, read `agents/blue-team-filter.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "sonnet"`. (`dso:blue-team-filter` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.) Pass the following as task arguments:
+If the red team returns a non-empty findings array, dispatch via `subagent_type: "dso:blue-team-filter"` (model defaults: sonnet). If the named type is unregistered, fall back to `subagent_type: "general-purpose"` with `model: "sonnet"` and `agents/blue-team-filter.md` content read inline as the prompt. Pass the following as task arguments:
 
 - `{epic-title}`: Same as red team
 - `{epic-description}`: Same as red team
@@ -376,11 +351,11 @@ If the red team returns a non-empty findings array, read `agents/blue-team-filte
 
 The blue team sub-agent returns a filtered JSON object with `findings` (accepted) and `rejected` arrays.
 
-**If red team returned zero findings**: Skip the blue team dispatch entirely. Log: `"Red team found no cross-story gaps. Skipping blue team filter."` and proceed to Phase 3.
+**If red team returned zero findings**: Skip the blue team dispatch entirely. Log: `"Red team found no cross-story gaps. Skipping blue team filter."` and proceed to Phase F.
 
 **Partial failure — two-path protocol**:
 - **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `agents/blue-team-filter.md` inline and re-dispatch as a general-purpose agent using that content as the prompt. Do NOT perform the filtering inline — the agent must do it; inline filtering by the orchestrator defeats the purpose of the impartial blue team.
-- **Execution failure** (timeout, malformed output, or error): **Discard all unfiltered findings** and proceed to Phase 3. Do NOT apply unfiltered red team findings — the blue team filter exists to prevent false positives from polluting the story map. Log: `"Blue team filter failed: <reason>. Discarding unfiltered red team findings, proceeding to Phase 3."`
+- **Execution failure** (timeout, malformed output, or error): **Discard all unfiltered findings** and proceed to Phase F. Do NOT apply unfiltered red team findings — the blue team filter exists to prevent false positives from polluting the story map. Log: `"Blue team filter failed: <reason>. Discarding unfiltered red team findings, proceeding to Phase F."`
 
 ### Step 3: Apply Surviving Findings (/dso:preplanning)
 
@@ -402,7 +377,7 @@ Adversarial review complete:
 - Applied: <A> new stories, <B> modified done definitions, <C> new dependencies, <D> new considerations
 ```
 
-### Step 3.5: Persist Adversarial Review Exchange (/dso:preplanning)
+### Step 4: Persist Adversarial Review Exchange (/dso:preplanning)
 
 After processing blue team findings, the orchestrator persists the full exchange for post-mortem analysis. The blue team agent does NOT write files (it cannot run shell commands) — it returns `artifact_path: null`, and the orchestrator handles persistence here using the red team findings and the blue team's `findings`/`rejected` arrays.
 
@@ -420,9 +395,9 @@ After processing blue team findings, the orchestrator persists the full exchange
 3. If writing the artifact fails (disk full, permission error): log a warning and continue — persistence failure is non-blocking.
 4. The artifact is available for future post-mortem analysis but is not surfaced in normal `ticket show` output.
 
-### Step 4: Continue to Phase 3
+### Step 5: Continue to Phase F
 
-Proceed to Phase 3 (Walking Skeleton & Vertical Slicing) with the updated story map. New stories from adversarial review are included in the walking skeleton analysis.
+Proceed to Phase F (Walking Skeleton & Vertical Slicing) with the updated story map. New stories from adversarial review are included in the walking skeleton analysis.
 
 ---
 
@@ -430,12 +405,12 @@ Proceed to Phase 3 (Walking Skeleton & Vertical Slicing) with the updated story 
 
 **Skip this gate when `EXTERNAL_DEP_BLOCK_ENABLED=false`.**
 
-Before proceeding to Phase 3 story decomposition, check whether the parent epic's External Dependencies block adequately covers any externally-shaped Success Criteria.
+Before proceeding to Phase F story decomposition, check whether the parent epic's External Dependencies block adequately covers any externally-shaped Success Criteria.
 
 ### When to fire
 
 This gate fires when ALL of the following are true:
-- `planning.external_dependency_block_enabled` is on (set during Phase 1.5 flag check)
+- `planning.external_dependency_block_enabled` is on (set during Phase B flag check)
 - The epic has Success Criteria that are externally-shaped (their outcomes are observable only in deployed or external contexts — e.g., "users can log in with OAuth", "emails are delivered", "the API responds to external callers")
 
 ### Gate check
@@ -443,10 +418,10 @@ This gate fires when ALL of the following are true:
 1. Identify externally-shaped SCs from the epic's Success Criteria list (SCs whose pass/fail depends on an external system, credential, or deployed environment).
 2. For each externally-shaped SC, check whether the parent epic's `## External Dependencies` block contains an entry covering that dependency.
 3. If ANY externally-shaped SC has no matching block entry (block is missing or the relevant entry is absent or incomplete per the schema in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`):
-   - **HALT decomposition.** Do not proceed to Phase 3.
+   - **HALT decomposition.** Do not proceed to Phase F.
    - Emit the following diagnostic, naming the specific SC(s) without block coverage:
      > "Preplanning cannot decompose this epic: the following success criteria are externally-shaped but have no corresponding entry in the External Dependencies block: [list of SC names]. Run `/dso:brainstorm <epic-id>` to capture the dependency information, then retry `/dso:preplanning`."
-4. If all externally-shaped SCs have valid block entries (or there are no externally-shaped SCs): proceed to Phase 3 normally.
+4. If all externally-shaped SCs have valid block entries (or there are no externally-shaped SCs): proceed to Phase F normally.
 
 ### Behavioral testing note
 
@@ -454,7 +429,7 @@ SKILL.md is a non-executable LLM instruction file. The structural tests verify o
 
 ---
 
-## Phase 3: Walking Skeleton & Vertical Slicing (/dso:preplanning)
+## Phase F: Walking Skeleton & Vertical Slicing (/dso:preplanning)
 
 ### Step 1: Identify the Walking Skeleton (/dso:preplanning)
 
@@ -493,7 +468,7 @@ The vertical slice includes all layers necessary to deliver value.
 
 ### Step 4: Foundation/Enhancement Splitting (/dso:preplanning)
 
-For each story flagged as a **split candidate** in Phase 2, evaluate whether splitting delivers better outcomes than keeping it as a single story.
+For each story flagged as a **split candidate** in Phase C, evaluate whether splitting delivers better outcomes than keeping it as a single story.
 
 **The question**: "Does the minimum that delivers the functional goal differ significantly from the ideal experience or architecture?"
 
@@ -528,9 +503,9 @@ For each split:
 
 ---
 
-## Phase 3.5: Story-Level Research (/dso:preplanning)
+## Phase G: Story-Level Research (/dso:preplanning)
 
-After Phase 3 completes story slicing and splitting, perform targeted research for stories where decomposition has revealed knowledge gaps. This phase fires per-story and is distinct from Phase 2.25 (Integration Research): Phase 2.25 fires for stories with external integration signals (third-party tools, APIs); Phase 3.5 fires for any decomposition gap regardless of whether an external integration is involved.
+After Phase F completes story slicing and splitting, perform targeted research for stories where decomposition has revealed knowledge gaps. This phase fires per-story and is distinct from Phase D (Integration Research): Phase D fires for stories with external integration signals (third-party tools, APIs); Phase G fires for any decomposition gap regardless of whether an external integration is involved.
 
 ### Trigger Conditions
 
@@ -540,19 +515,19 @@ A story qualifies for story-level research if any of the following apply:
 - **Assumed data format**: The story assumes a data format, schema, or protocol not described in the epic context (e.g., the exact shape of a webhook payload or file format encoding).
 - **Low agent confidence**: Agent confidence on a key implementation decision is low — the approach is unclear, multiple conflicting patterns exist, or the story references technology the agent is uncertain about.
 
-When a story qualifies, follow the Research Process defined in Phase 2.25. Record findings in the story spec under a **Research Notes** section, noting the trigger condition, query summary, source URLs, and key insight for each gap. If research resolves the gap, update the story's done definition or considerations. If research surfaces new risks, flag the story as high-risk for Phase 4 review.
+When a story qualifies, follow the Research Process defined in `prompts/research-process.md`. Record findings in the story spec under a **Research Notes** section, noting the trigger condition, query summary, source URLs, and key insight for each gap. If research resolves the gap, update the story's done definition or considerations. If research surfaces new risks, flag the story as high-risk for Phase H review.
 
 ### Graceful Degradation
 
-If WebSearch or WebFetch fails or is unavailable, continue without research rather than blocking the workflow. Log: `"Story-level research skipped for <story-id>: WebSearch/WebFetch unavailable."` and proceed to Phase 4.
+If WebSearch or WebFetch fails or is unavailable, continue without research rather than blocking the workflow. Log: `"Story-level research skipped for <story-id>: WebSearch/WebFetch unavailable."` and proceed to Phase H.
 
 ### Skip Condition
 
-If no stories qualify under the trigger conditions above, log: `"No stories with decomposition gaps — skipping story-level research."` and proceed to Phase 4.
+If no stories qualify under the trigger conditions above, log: `"No stories with decomposition gaps — skipping story-level research."` and proceed to Phase H.
 
 ---
 
-## Phase 4: Verification & Traceability (/dso:preplanning)
+## Phase H: Verification & Traceability (/dso:preplanning)
 
 ### Step 1: Create/Modify Stories in Tickets (/dso:preplanning)
 
@@ -560,10 +535,10 @@ For new stories, create the ticket then immediately write the full story body in
 
 ```bash
 # Assemble the story body from earlier phases and create the ticket in one command:
-# - Description: What/Why/Scope from Phase 2 analysis
-# - Done Definitions: assembled during Phase 3
-# - Considerations: flags from Phase 2 Risk & Scope Scan
-# - Escalation Policy: selected in Phase 1 Step 1b (omit if Autonomous)
+# - Description: What/Why/Scope from Phase C analysis
+# - Done Definitions: assembled during Phase F
+# - Considerations: flags from Phase C Risk & Scope Scan
+# - Escalation Policy: selected in Phase A Step 2 (omit if Autonomous)
 
 STORY_ID=$(.claude/scripts/dso ticket create story "As a [persona], [goal]" --parent=<epic-id> --priority=<priority> -d "$(cat <<'DESCRIPTION'
 ## Description
@@ -587,12 +562,12 @@ STORY_ID=$(.claude/scripts/dso ticket create story "As a [persona], [goal]" --pa
 
 ## Escalation Policy
 
-**Escalation policy**: <verbatim escalation policy text from Phase 1 Step 1b>
+**Escalation policy**: <verbatim escalation policy text from Phase A Step 2>
 DESCRIPTION
-)")
+)" | tail -1)
 ```
 
-Omit the `## Escalation Policy` section if the user selected **Autonomous** in Phase 1 Step 1b. The ticket must never be left as a bare title — always include the structured body at creation time.
+Omit the `## Escalation Policy` section if the user selected **Autonomous** in Phase A Step 2. The ticket must never be left as a bare title — always include the structured body at creation time.
 
 For modified stories, use `.claude/scripts/dso ticket comment <existing-id> "<updated content>"` to record changes.
 
@@ -675,7 +650,7 @@ Code-change stories (stories that produce or modify source code) must include **
 Documentation, research, and other non-code stories are exempt from this requirement — their Done Definitions focus on observable outcomes rather than test coverage.
 
 #### Considerations
-Notes from the Risk & Scope Scan (Phase 2). These provide context for `/dso:implementation-plan` to incorporate into task-level acceptance criteria:
+Notes from the Risk & Scope Scan (Phase C). These provide context for `/dso:implementation-plan` to incorporate into task-level acceptance criteria:
 
 ```
 Considerations:
@@ -686,7 +661,7 @@ Considerations:
 
 #### Escalation Policy
 
-Include the policy selected in Phase 1 Step 1b. Use the exact text for each label:
+Include the policy selected in Phase A Step 2. Use the exact text for each label:
 
 | Label | Text to include verbatim |
 |-------|--------------------------|
@@ -762,9 +737,7 @@ This RED acceptance criteria ensures the TDD test story's tests are observed to 
 
 ### Step 3: Present Story Dashboard (/dso:preplanning)
 
-**Non-interactive suppress (CP5)**: If `PREPLANNING_INTERACTIVE=false`:
-- Suppress dashboard presentation (continue silently without presenting the dashboard to the user).
-- Skip the table and full story descriptions below; proceed directly to Step 4.
+**[CP5 non-interactive]** If `PREPLANNING_INTERACTIVE=false`: suppress dashboard presentation; skip the table and full story descriptions below and proceed to Step 4.
 
 Display the epic ID prominently at the top so it can be referenced in follow-up commands:
 
@@ -811,9 +784,7 @@ If score < 5, fix issues before presenting to user.
 
 ### Step 5: Final Review Prompt (/dso:preplanning)
 
-**Non-interactive skip (CP6)**: If `PREPLANNING_INTERACTIVE=false`:
-- Skip the approval gate (proceed automatically without `AskUserQuestion`).
-- Treat the plan as approved and continue immediately to Step 5a, Step 6, and Step 7.
+**[CP6 non-interactive]** If `PREPLANNING_INTERACTIVE=false`: skip the approval gate (no `AskUserQuestion`), treat the plan as approved, and continue to Step 6, Step 7, and Step 8.
 
 Present the plan to the user with:
 
@@ -835,9 +806,9 @@ Use `AskUserQuestion` to get user approval:
 - Question: "The story map above captures the full plan for this epic. Do you approve?"
 - Options: ["Approve — finalize and proceed", "Request changes"]
 
-If the user requests changes, iterate on the plan and re-present. Once the user selects "Approve — finalize and proceed", immediately continue to Step 5a, Step 6, and Step 7 without pausing for additional input — approval is the signal to proceed, not a stopping point.
+If the user requests changes, iterate on the plan and re-present. Once the user selects "Approve — finalize and proceed", immediately continue to Step 6, Step 7, and Step 8 without pausing for additional input — approval is the signal to proceed, not a stopping point.
 
-### Step 5a: Write Planning Context to Epic Ticket (/dso:preplanning)
+### Step 6: Write Planning Context to Epic Ticket (/dso:preplanning)
 
 Write the accumulated context as a structured comment on the epic ticket so that `/dso:implementation-plan` can load richer context when planning individual stories from this epic, regardless of which session or environment runs next.
 
@@ -860,7 +831,7 @@ if result.returncode != 0:
 
 > **Known limitation**: For extremely large epic contexts (unlikely in practice), the actual ARG_MAX constraint boundary is `ticket-comment.sh`, which passes the comment body as a shell argument to its internal `python3 -c` invocation. The Python subprocess call in this skill avoids ARG_MAX at the *outer* shell level, but a body >~500KB could still hit the kernel limit inside `ticket-comment.sh`. A proper fix would write the payload to a temp file and pass the path instead of the body directly. A proper fix would pass the body via a temp file instead of a shell argument. Typical epic contexts are 10–50KB and well within limits.
 
-Serialize the JSON payload to a single minified line (no whitespace between keys/values) and write it as a ticket comment. If `/dso:preplanning` runs again on the same epic, write a new comment — `/dso:implementation-plan` will use the last `PREPLANNING_CONTEXT:` comment in the array.
+Serialize the JSON payload to a single minified line (no whitespace between keys/values). If `/dso:preplanning` runs again on the same epic, write a new comment — `/dso:implementation-plan` uses the last `PREPLANNING_CONTEXT:` comment in the array.
 
 **Schema** (version 1, schema_version 2):
 ```json
@@ -912,17 +883,15 @@ Serialize the JSON payload to a single minified line (no whitespace between keys
 
 **Content to include**:
 - **Epic data**: title, description, success criteria from the loaded epic
-- **All stories**: IDs, titles, descriptions, priorities, classifications (from Phase 1 reconciliation), walking skeleton flags (from Phase 3), done definitions and considerations (from Phase 2 Risk & Scope Scan), split role and pair info (from Phase 3 Step 4), dependency links, and traceability lines (from Phase 4 Step 2)
+- **All stories**: IDs, titles, descriptions, priorities, classifications (from Phase A reconciliation), walking skeleton flags (from Phase F), done definitions and considerations (from Phase C Risk & Scope Scan), split role and pair info (from Phase F Step 4), dependency links, and traceability lines (from Phase H Step 2)
 - **Story dashboard**: total story count, UI story count, critical path order
 - **`generatedAt`**: Current ISO-8601 timestamp for staleness detection
 
-Write the context as a ticket comment using `.claude/scripts/dso ticket comment`. If `/dso:preplanning` runs again on the same epic, write a new comment — `/dso:implementation-plan` uses the last `PREPLANNING_CONTEXT:` comment in the array.
-
-> **TTL note for consumers**: The `generatedAt` timestamp enables staleness detection. Consumers should treat `PREPLANNING_CONTEXT` comments older than 7 days as potentially stale — epic scope, story priorities, or dependency structures may have changed since generation. When consuming a stale context, re-invoke `/dso:preplanning` to refresh it rather than relying on outdated data.
+> **TTL note for consumers**: The `generatedAt` timestamp enables staleness detection. Consumers should treat `PREPLANNING_CONTEXT` comments older than 7 days as potentially stale and re-invoke `/dso:preplanning` to refresh.
 
 Log: `"Planning context written to epic ticket <epic-id> as PREPLANNING_CONTEXT comment"`
 
-### Step 6: Design Wireframes for UI Stories (/dso:preplanning)
+### Step 7: Design Wireframes for UI Stories (/dso:preplanning)
 
 After the user approves the story map, dispatch `dso:ui-designer` for **any
 story that involves UI changes**. The agent determines whether new components,
@@ -946,7 +915,7 @@ Stories that are purely backend, infrastructure, testing-only, or documentation 
 
 **For each qualifying story**, follow the six protocol steps in order:
 1. Input payload construction and session file initialization
-2. Agent dispatch via the Agent tool (read `agents/ui-designer.md` inline, use `subagent_type: "general-purpose"` with `model: "sonnet"` — `dso:ui-designer` is an agent file identifier, NOT a valid `subagent_type` value)
+2. Agent dispatch via the Agent tool — `subagent_type: "dso:ui-designer"` (model defaults: sonnet); fall back to `subagent_type: "general-purpose"` with `model: "sonnet"` and `agents/ui-designer.md` content read inline only if the named type is unregistered
 3. CACHE_MISSING retry loop (2 retry attempts; up to 3 total CACHE_MISSING
    returns before the retry cap is exceeded)
 4. Review loop (orchestrator-managed: invoke `/dso:review-protocol` on design
@@ -970,7 +939,7 @@ splits, session file updates) based on that object's fields.
 then stories that depend on them). This ensures base wireframes exist before
 dependent designs reference them.
 
-### Step 7: Sync Tickets (/dso:preplanning)
+### Step 8: Sync Tickets (/dso:preplanning)
 
 After wireframe phase completes (or is skipped), confirm all ticket state is
 up to date and report completion.
@@ -981,9 +950,9 @@ up to date and report completion.
 
 When `--lightweight` is passed:
 
-1. **Skip Steps 2-4** of Phase 1 (no children to reconcile)
-2. **Skip Phase 2.5** (Adversarial Review) entirely — lightweight mode does not create stories, so cross-story analysis is not applicable
-3. Proceed to **Phase 2 (abbreviated)**: Run the Risk & Scope Scan but with these modifications:
+1. **Skip Steps 3-5** of Phase A (no children to reconcile)
+2. **Skip Phase E** (Adversarial Review) entirely — lightweight mode does not create stories, so cross-story analysis is not applicable
+3. Proceed to **Phase C (abbreviated)**: Run the Risk & Scope Scan but with these modifications:
    - **Run** the Concern Areas scan (Security, Performance, Accessibility, Testing, Reliability, Maintainability)
    - **Run** the qualitative override check from the epic complexity evaluator (multiple personas, UI + backend, new DB migration, foundation/enhancement candidate, external integration)
    - **Skip** split-candidate identification (no stories to split)
@@ -1001,10 +970,10 @@ When `--lightweight` is passed:
      ```
 5. **If no overrides discovered**, proceed to write done definitions:
    - Update the epic description with:
-     - **Done Definitions**: Observable outcomes from the epic description, formatted the same way as story-level done definitions (see Phase 4 Step 2)
+     - **Done Definitions**: Observable outcomes from the epic description, formatted the same way as story-level done definitions (see Phase H Step 2)
      - **Scope**: What's in and what's explicitly out
      - **Considerations**: Flags from the abbreviated risk scan
-   - Write the preplanning context to the epic ticket as a comment (same schema as Phase 4 Step 5a, but with an empty `stories` array) using Python subprocess to avoid ARG_MAX shell argument limits. This write is an optional cache — if it fails, log a warning and continue; do not abort the phase:
+   - Write the preplanning context to the epic ticket as a comment (same schema as Phase H Step 6, but with an empty `stories` array) using Python subprocess to avoid ARG_MAX shell argument limits. This write is an optional cache — if it fails, log a warning and continue; do not abort the phase:
      ```python
      import json, subprocess
      payload = json.dumps(<context-dict>, separators=(",",":"))
@@ -1047,7 +1016,7 @@ Focus on requirements, constraints, and outcomes. Avoid dictating specific imple
 **Bad**: "Use the `email-validator` library with pattern `^[\w.-]+@[\w.-]+\.\w+$`"
 
 ### Ticket Integrity
-Check for existing items before creating new ones to prevent backlog pollution. Always run Phase 1 reconciliation before creating stories.
+Check for existing items before creating new ones to prevent backlog pollution. Always run Phase A reconciliation before creating stories.
 
 ### Story-Level Fidelity
 Stories should be detailed enough that `/dso:implementation-plan` can decompose them without further human clarification. Include:
@@ -1074,44 +1043,19 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 
 | Phase | Key Actions | Tools |
 |-------|-------------|-------|
-| 1: Reconciliation | Audit children, clarify scope | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps` |
-| 2: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
-| 2.5: Adversarial Review | Red team attack on story map, blue team filter findings (skip if < 3 stories) | `Task` (opus red team, sonnet blue team) |
-| 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `.claude/scripts/dso ticket link` |
-| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket comment`, `validate-issues.sh`, `dso:ui-designer` (via Agent tool), `.claude/scripts/dso ticket tag`/`.claude/scripts/dso ticket untag` (design:approved on REVIEW_PASS; design:pending_review on deferred/failed review) |
-| Flag-gated: external deps | When `planning.external_dependency_block_enabled=true`: reads External Dependencies block from epic, generates `manual:awaiting_user` stories for `user_manual` entries, refuses decomposition when block is missing. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md` | `.claude/scripts/dso ticket tag` |
+| A: Reconciliation | Audit children, clarify scope | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps` |
+| B: External Dependencies Reading (flag-gated) | Read epic's External Dependencies block, generate `manual:awaiting_user` stories for `user_manual` entries. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md` | `.claude/scripts/dso ticket tag` |
+| C: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
+| D: Integration Research (pre-slicing) | Verify external integrations via WebSearch | `WebSearch` |
+| E: Adversarial Review | Red team attack on story map, blue team filter findings (skip if < 3 stories) | `Task` (opus red team, sonnet blue team) |
+| Refusal Gate | Halt if externally-shaped SCs lack External Dependencies block coverage | (gate, no tools) |
+| F: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `.claude/scripts/dso ticket link` |
+| G: Story-Level Research (post-slicing) | Research per-story decomposition gaps | `WebSearch`, `WebFetch` |
+| H: Verification | Create stories, link criteria, validate, wireframe UI stories | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket comment`, `validate-issues.sh`, `dso:ui-designer` (via Agent tool), `.claude/scripts/dso ticket tag`/`.claude/scripts/dso ticket untag` |
 
 ## Example: Reconciliation + Story Creation
 
-**Epic**: "Implement document classification pipeline"
-**Epic Criterion**: "Users can upload a document and see its classification"
-
-**Existing Child**: "Add database schema for documents" (status: pending)
-
-**Reconciliation**:
-- **Reuse?** No — this is a horizontal layer, not a vertical slice
-- **Modify?** No — conflicts with vertical slicing approach
-- **Delete?** Yes — will be absorbed into vertical story slices
-
-**Risk & Scope Scan**:
-- [Testing] New LLM classification interaction — ensure mock-compatible interface
-- [Performance] Documents may be large (100+ pages) — consider processing timeouts
-- [Accessibility] Upload and results pages are new UI — WCAG 2.1 AA required
-
-**New Stories** (vertical slices):
-
-**Story 1** (Foundation): "As a user, I can upload a document and see its classification"
-- **Scope**: Upload flow, classification display, basic document types (PDF/Word)
-- **Done Definitions**:
-  - When complete, a user can upload a PDF or Word document and see its classified type within 30 seconds ← Satisfies: "Users can upload a document and see its classification"
-  - When complete, the classification result persists and is visible when the user returns ← Satisfies: "Classification results are preserved"
-- **Considerations**: [Testing] Mock-compatible LLM interface; [Performance] Processing timeout for large files
-
-**Story 2** (Enhancement of Story 1): "As a user, I can see detailed classification confidence and sub-categories"
-- **Scope**: Confidence scores, sub-category breakdown, classification explanation
-- **Done Definitions**:
-  - When complete, a user can see a confidence percentage and sub-categories for each classification ← Satisfies: "Users can understand why a document was classified a certain way"
-- **Depends on**: Story 1
+See `docs/example-reconciliation.md` for a worked example covering reconciliation, Risk & Scope Scan, and Foundation/Enhancement story creation.
 
 ---
 

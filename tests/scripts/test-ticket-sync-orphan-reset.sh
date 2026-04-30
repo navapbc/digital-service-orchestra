@@ -46,7 +46,7 @@ test_orphan_branch_resets_to_remote() {
     # Initialize ticket system in repo A and create a ticket
     (cd "$tmp/repo-a" && bash "$TICKET_SCRIPT" init >/dev/null 2>&1) || true
     local ticket_id
-    ticket_id=$(cd "$tmp/repo-a" && bash "$TICKET_SCRIPT" create task "Real ticket from repo A" 2>/dev/null) || true
+    ticket_id=$(cd "$tmp/repo-a" && bash "$TICKET_SCRIPT" create task "Real ticket from repo A" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         echo "  SKIP: ticket create in repo A failed"
@@ -91,7 +91,8 @@ EOF
     # Force sync marker to expire (resolve realpath to match _ensure_initialized's hash)
     local tracker_b_resolved
     tracker_b_resolved=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$tracker_b" 2>/dev/null) || tracker_b_resolved="$tracker_b"
-    local sync_marker="/tmp/.ticket-sync-$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$tracker_b_resolved" 2>/dev/null || echo "fallback")"
+    local sync_marker
+    sync_marker="/tmp/.ticket-sync-$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$tracker_b_resolved" 2>/dev/null || echo "fallback")"
     rm -f "$sync_marker"
 
     # Run a ticket command from repo B — this triggers _ensure_initialized with expired marker
@@ -134,7 +135,7 @@ test_related_history_local_ahead_preserved() {
 
     # Create a LOCAL-ONLY ticket (not pushed to remote)
     local local_ticket
-    local_ticket=$(cd "$tmp/local" && bash "$TICKET_SCRIPT" create task "Local only ticket" 2>/dev/null) || true
+    local_ticket=$(cd "$tmp/local" && bash "$TICKET_SCRIPT" create task "Local only ticket" 2>/dev/null | tail -1) || true
 
     if [ -z "$local_ticket" ]; then
         echo "  SKIP: ticket create failed"
@@ -142,7 +143,8 @@ test_related_history_local_ahead_preserved() {
     fi
 
     # Force sync marker to expire
-    local sync_marker="/tmp/.ticket-sync-$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$tracker_dir" 2>/dev/null || echo "fallback")"
+    local sync_marker
+    sync_marker="/tmp/.ticket-sync-$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$tracker_dir" 2>/dev/null || echo "fallback")"
     rm -f "$sync_marker"
 
     # Run another ticket command — triggers sync

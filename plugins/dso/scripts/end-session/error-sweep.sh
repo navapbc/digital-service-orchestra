@@ -204,7 +204,7 @@ ${details}"
         # non-fatal since sweep_tool_errors() returns 0 unconditionally to avoid blocking
         # session close on ticket infrastructure issues.
         local new_id
-        new_id=$("$TICKET_CMD" create bug "$ticket_title" --priority 2) || true
+        new_id=$("$TICKET_CMD" create bug "$ticket_title" --priority 2 | tail -1) || true
         if [ -n "$new_id" ]; then
             "$TICKET_CMD" comment "$new_id" "$description" || true
         fi
