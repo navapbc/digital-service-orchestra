@@ -1187,6 +1187,23 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 
 ---
 
+### `ticket.display_mode`
+
+| | |
+|---|---|
+| **Description** | Controls how ticket IDs are displayed in CLI output and skill files. |
+| **Accepted values** | `canonical` (default) — full 16-hex ID: `xxxx-xxxx-xxxx-xxxx`; `alias` — adj-noun-noun alias from CREATE event `data.alias` (falls back to `canonical` if absent); `short` — shortest unambiguous prefix >= 4 hex chars (falls back to `canonical` if ambiguous). Unrecognized values default to `canonical`. |
+| **Default** | `canonical` |
+| **Used by** | `.claude/scripts/dso ticket` (display formatting) |
+
+**Example:**
+
+```ini
+ticket.display_mode=alias
+```
+
+---
+
 ### `version.file_path`
 
 | | |
