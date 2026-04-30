@@ -45,7 +45,7 @@ test_integration_warnings_exit_persistence() {
 
     # Create a bug with non-conforming title AND description missing required headers
     local ticket_id exit_code
-    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "bad title no pattern" -d "Some description without headers" 2>"$stderr_out")
+    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "bad title no pattern" -d "Some description without headers" 2>"$stderr_out" | tail -1)
     exit_code=$?
 
     local stderr_content
@@ -85,7 +85,7 @@ test_actionable_remediation_warnings() {
 
     # Create a bug without required headers to trigger description warning
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "bad title no pattern" -d "No headers here" 2>"$stderr_out")
+    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "bad title no pattern" -d "No headers here" 2>"$stderr_out" | tail -1)
 
     local stderr_content
     stderr_content=$(cat "$stderr_out")

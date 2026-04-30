@@ -362,6 +362,24 @@ try:
                 os.close(fd)
                 sys.exit(1)
 
+    # Compute parent_status_uuid: UUID of the most recent prior STATUS event for this ticket,
+    # or null if this is the first STATUS event.
+    # Sort STATUS event files by filename (timestamp prefix ensures chronological order).
+    ticket_dir_path = os.path.join(tracker_dir, ticket_id)
+    parent_status_uuid = None
+    try:
+        status_files = sorted(
+            f for f in os.listdir(ticket_dir_path)
+            if f.endswith('-STATUS.json') and not f.startswith('.')
+        )
+        if status_files:
+            most_recent = os.path.join(ticket_dir_path, status_files[-1])
+            with open(most_recent, encoding='utf-8') as _sf:
+                _prev = json.load(_sf)
+            parent_status_uuid = _prev.get('uuid') or None
+    except Exception:
+        parent_status_uuid = None
+
     # Build STATUS event JSON
     timestamp = time.time_ns()
     event_uuid = str(uuid.uuid4())
@@ -371,9 +389,11 @@ try:
         'event_type': 'STATUS',
         'env_id': env_id_val,
         'author': author_val,
+        'parent_status_uuid': parent_status_uuid,
         'data': {
             'status': target_status,
             'current_status': current_status,
+            'parent_status_uuid': parent_status_uuid,
         },
     }
 

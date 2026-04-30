@@ -54,7 +54,7 @@ test_ticket_show_via_library_returns_correct_json() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Library dispatch ticket" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Library dispatch ticket" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket ID returned" "non-empty" "empty"
@@ -175,7 +175,7 @@ test_ticket_tag_via_library() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "tag test" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "tag test" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "created ticket" "non-empty" "empty"
@@ -209,7 +209,7 @@ test_ticket_untag_via_library() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "untag test" --tags testlabel 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "untag test" --tags testlabel 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "created ticket" "non-empty" "empty"
@@ -243,7 +243,7 @@ test_ticket_comment_via_library() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "comment test" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "comment test" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "created ticket" "non-empty" "empty"
@@ -283,7 +283,7 @@ test_ticket_edit_via_library() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "original title" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "original title" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "created ticket" "non-empty" "empty"
@@ -322,7 +322,7 @@ test_ticket_create_via_library() {
         export _TICKET_TEST_NO_SYNC=1
         # shellcheck disable=SC2030,SC2031
         export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
-        _invoke_lib_op ticket_create task "test creation" 2>/dev/null
+        _invoke_lib_op ticket_create task "test creation" 2>/dev/null | tail -1
     ) || true
 
     if [ -z "$created_id" ]; then
@@ -355,8 +355,8 @@ test_ticket_link_via_library() {
     repo=$(_make_test_repo)
 
     local t1 t2
-    t1=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "T1" 2>/dev/null) || true
-    t2=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "T2" 2>/dev/null) || true
+    t1=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "T1" 2>/dev/null | tail -1) || true
+    t2=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "T2" 2>/dev/null | tail -1) || true
 
     if [ -z "$t1" ] || [ -z "$t2" ]; then
         assert_eq "created both tickets" "non-empty" "empty"
@@ -428,7 +428,7 @@ test_ticket_transition_via_library() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "transition test" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "transition test" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "created ticket" "non-empty" "empty"

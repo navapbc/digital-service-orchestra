@@ -1015,8 +1015,8 @@ test_link_dry_run_no_event_written() {
     local tracker_dir="$repo/.tickets-tracker"
 
     local id1 id2
-    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Source ticket" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
-    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Target ticket" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
+    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Source ticket" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
+    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Target ticket" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
 
     if [ -z "$id1" ] || [ -z "$id2" ]; then
         assert_eq "dry-run: tickets created" "non-empty" "empty"

@@ -159,7 +159,7 @@ assert_eq \
     "$(test -d "$TRACKER_DIR" && echo 1 || echo 0)"
 
 ticket_id=""
-ticket_id=$(cd "$REPO" && bash "$TICKET_SCRIPT" create task "Bridge observability test ticket" 2>/dev/null) || true
+ticket_id=$(cd "$REPO" && bash "$TICKET_SCRIPT" create task "Bridge observability test ticket" 2>/dev/null | tail -1) || true
 
 assert_ne \
     "step2: create returned a non-empty ticket ID" \

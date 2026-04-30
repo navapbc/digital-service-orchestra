@@ -776,7 +776,7 @@ This task is responsible for satisfying the following story done definitions:
 - [ ] {task-specific criterion 2}
   Verify: {command}
 DESCRIPTION
-)")
+)" | tail -1)
 ```
 
 Universal criteria (test, lint, format) are always the first three lines. Task-specific criteria follow, drawn from the template library and customized.

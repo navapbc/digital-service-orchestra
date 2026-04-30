@@ -93,8 +93,8 @@ export _TICKET_TEST_NO_SYNC=1
 "$DSO_SHIM" ticket init >/dev/null
 
 # Create two tickets we can reference repeatedly.
-T1="$("$DSO_SHIM" ticket create task "bench ticket 1" 2>/dev/null | awk '/^[a-f0-9]{4}-[a-f0-9]{4}$/ {print; exit}')"
-T2="$("$DSO_SHIM" ticket create task "bench ticket 2" 2>/dev/null | awk '/^[a-f0-9]{4}-[a-f0-9]{4}$/ {print; exit}')"
+T1="$("$DSO_SHIM" ticket create task "bench ticket 1" 2>/dev/null | awk '/^[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}$/ {print; exit}')"
+T2="$("$DSO_SHIM" ticket create task "bench ticket 2" 2>/dev/null | awk '/^[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}$/ {print; exit}')"
 
 if [[ -z "${T1:-}" || -z "${T2:-}" ]]; then
   # Fall back: grab the most recent ticket IDs from list output (portable, no mapfile).

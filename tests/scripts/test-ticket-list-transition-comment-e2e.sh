@@ -130,8 +130,8 @@ test_list_transition_comment_full_lifecycle() {
 
     # Step 1: Create two tickets
     local id1 id2
-    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "First task" 2>/dev/null) || true
-    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create bug "Second bug" 2>/dev/null) || true
+    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "First task" 2>/dev/null | tail -1) || true
+    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create bug "Second bug" 2>/dev/null | tail -1) || true
 
     if [ -z "$id1" ] || [ -z "$id2" ]; then
         assert_eq "lifecycle: both ticket IDs are non-empty" "non-empty" "empty: '${id1:-}' '${id2:-}'"
@@ -275,9 +275,9 @@ test_multiple_tickets_in_list() {
 
     # Create three tickets of different types
     local id1 id2 id3
-    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Alpha" 2>/dev/null) || true
-    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create bug "Beta" 2>/dev/null) || true
-    id3=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "Gamma" 2>/dev/null) || true
+    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Alpha" 2>/dev/null | tail -1) || true
+    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create bug "Beta" 2>/dev/null | tail -1) || true
+    id3=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "Gamma" 2>/dev/null | tail -1) || true
 
     if [ -z "$id1" ] || [ -z "$id2" ] || [ -z "$id3" ]; then
         assert_eq "multi-list: all 3 IDs non-empty" "non-empty" "some-empty: '${id1:-}' '${id2:-}' '${id3:-}'"

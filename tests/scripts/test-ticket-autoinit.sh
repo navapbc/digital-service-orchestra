@@ -51,6 +51,8 @@ test_ticket_autoinit_on_create() {
     stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Auto-init test" 2>/tmp/autoinit_stderr_$$) || exit_code=$?
     stderr_out=$(cat /tmp/autoinit_stderr_$$ 2>/dev/null || true)
     rm -f /tmp/autoinit_stderr_$$
+    local ticket_id
+    ticket_id=$(echo "$stdout_out" | tail -1)
 
     # Assert: exits 0
     assert_eq "ticket create in fresh repo exits 0" "0" "$exit_code"
@@ -63,10 +65,10 @@ test_ticket_autoinit_on_create() {
     fi
 
     # Assert: stdout contains a ticket ID (non-empty, matches pattern)
-    if [ -n "$stdout_out" ] && [[ "$stdout_out" =~ ^[a-z0-9]+-[a-z0-9]+$ ]]; then
+    if [ -n "$ticket_id" ] && [[ "$ticket_id" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
         assert_eq "ticket ID output to stdout" "match" "match"
     else
-        assert_eq "ticket ID output to stdout" "match" "no-match: ${stdout_out:-<empty>}"
+        assert_eq "ticket ID output to stdout" "match" "no-match: ${ticket_id:-<empty>}"
     fi
 
     # Assert: init output is NOT visible on stdout (suppressed)
@@ -116,23 +118,24 @@ test_ticket_autoinit_on_show() {
 test_ticket_autoinit_on_show
 
 # ── Test 3: explicit ticket init still prints the success message ──────────────
-echo "Test 3: explicit 'ticket init' prints 'Ticket system initialized.' to stdout"
+echo "Test 3: explicit 'ticket init' prints 'Ticket system initialized.' to stderr"
 test_ticket_explicit_init_still_prints_message() {
     local repo
     repo=$(_make_uninit_repo)
 
-    # Run explicit ticket init (not auto-init) — should print the success message
-    local stdout_out exit_code=0
-    stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || exit_code=$?
+    # Run explicit ticket init (not auto-init) — should print the success message.
+    # Informational messages go to stderr (stdout stays clean for machine-readable output).
+    local stderr_out exit_code=0
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" init 2>&1 >/dev/null) || exit_code=$?
 
     # Assert: exits 0
     assert_eq "explicit ticket init exits 0" "0" "$exit_code"
 
-    # Assert: stdout contains the success message
-    if [[ "$stdout_out" == *"Ticket system initialized."* ]]; then
+    # Assert: stderr contains the success message
+    if [[ "$stderr_out" == *"Ticket system initialized."* ]]; then
         assert_eq "explicit init prints 'Ticket system initialized.'" "printed" "printed"
     else
-        assert_eq "explicit init prints 'Ticket system initialized.'" "printed" "not-printed: ${stdout_out:-<empty>}"
+        assert_eq "explicit init prints 'Ticket system initialized.'" "printed" "not-printed: ${stderr_out:-<empty>}"
     fi
 }
 test_ticket_explicit_init_still_prints_message

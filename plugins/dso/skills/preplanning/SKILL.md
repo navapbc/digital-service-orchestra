@@ -564,7 +564,7 @@ STORY_ID=$(.claude/scripts/dso ticket create story "As a [persona], [goal]" --pa
 
 **Escalation policy**: <verbatim escalation policy text from Phase A Step 2>
 DESCRIPTION
-)")
+)" | tail -1)
 ```
 
 Omit the `## Escalation Policy` section if the user selected **Autonomous** in Phase A Step 2. The ticket must never be left as a bare title — always include the structured body at creation time.

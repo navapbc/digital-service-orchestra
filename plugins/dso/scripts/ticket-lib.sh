@@ -1095,6 +1095,156 @@ with open(staging_path, 'w', encoding='utf-8') as f:
     echo "Preconditions recorded: $final_filename"
 }
 
+# resolve_ticket_id <input>
+# Resolves a ticket identifier (full ID, 8-hex short ID, alias, jira_key, or prefix)
+# to the canonical ticket directory name. Prints the resolved ID to stdout on success.
+#
+# Resolution order:
+#   1. Exact 16-hex passthrough: ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$
+#      Verifies the ticket directory exists; returns ID unchanged.
+#   2. Exact 8-hex backward compat: ^[a-z0-9]{4}-[a-z0-9]{4}$
+#      Scans for ticket dirs whose first 9 chars (xxxx-xxxx) match; returns if unique.
+#   3. jira_key match: scans CREATE events for data.jira_key == input; returns if unique.
+#   4. Alias match: scans CREATE events for data.alias == input; returns if unique.
+#   5. Unique prefix (>= 4 chars): scans ticket dirs for IDs starting with input.
+#   6. Ambiguous or not found: prints error to stderr, exits 1.
+#
+# Honors TICKETS_TRACKER_DIR env var for tracker path.
+#
+# Exit codes:
+#   0 = success (resolved ID printed to stdout)
+#   1 = not found or ambiguous (error on stderr)
+resolve_ticket_id() {
+    local input="$1"
+
+    local _repo_root=""
+    if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
+        _repo_root="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel)"
+    fi
+    local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root/.tickets-tracker}"
+
+    # ── Step 1: Exact 16-hex passthrough ─────────────────────────────────────
+    if [[ "$input" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+        if [ -d "$_tracker_dir/$input" ]; then
+            echo "$input"
+            return 0
+        fi
+        echo "Error: ticket '$input' not found" >&2
+        return 1
+    fi
+
+    # ── Step 2: Exact 8-hex backward compat ──────────────────────────────────
+    if [[ "$input" =~ ^[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+        # Direct directory match (legacy or test-planted short ID)
+        if [ -d "$_tracker_dir/$input" ]; then
+            echo "$input"
+            return 0
+        fi
+        # Scan for full 16-hex dirs whose first 9 chars match
+        local _8hex_matches=()
+        local _entry
+        while IFS= read -r -d '' _entry; do
+            local _base
+            _base="$(basename "$_entry")"
+            if [[ "${_base:0:9}" == "$input" ]]; then
+                _8hex_matches+=("$_base")
+            fi
+        done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
+            ! -name '.*' -print0 2>/dev/null)
+        if [ "${#_8hex_matches[@]}" -eq 1 ]; then
+            echo "${_8hex_matches[0]}"
+            return 0
+        elif [ "${#_8hex_matches[@]}" -gt 1 ]; then
+            echo "Error: Ambiguous 8-hex ID '$input' matches: ${_8hex_matches[*]}" >&2
+            return 1
+        fi
+        echo "Error: ticket '$input' not found" >&2
+        return 1
+    fi
+
+    # ── Steps 3 & 4: Alias and jira_key scan ─────────────────────────────────
+    local _alias_matches=()
+    local _jira_matches=()
+    local _entry
+    while IFS= read -r -d '' _entry; do
+        local _base
+        _base="$(basename "$_entry")"
+        [[ "$_base" == .* ]] && continue
+        # Scan CREATE event files in this ticket directory
+        local _create_file
+        while IFS= read -r -d '' _create_file; do
+            if ! [ -f "$_create_file" ]; then
+                continue
+            fi
+            local _alias_val _jira_val _combined
+            # Single python3 call extracts both alias and jira_key, halving subprocess count.
+            _combined=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        data = json.load(f).get('data', {})
+    alias = data.get('alias', '') or ''
+    jira_key = data.get('jira_key', '') or ''
+    print(alias + '\t' + jira_key)
+except Exception:
+    print('\t')
+" "$_create_file" 2>/dev/null) || _combined=$'\t'
+            _alias_val="${_combined%%	*}"
+            _jira_val="${_combined##*	}"
+            if [ -n "$_alias_val" ] && [ "$_alias_val" = "$input" ]; then
+                _alias_matches+=("$_base")
+                break  # Only record each ticket once per alias match
+            fi
+            if [ -n "$_jira_val" ] && [ "$_jira_val" = "$input" ]; then
+                _jira_matches+=("$_base")
+                break  # Only record each ticket once per jira_key match
+            fi
+        done < <(find "$_entry" -maxdepth 1 -name '*-CREATE.json' -print0 2>/dev/null)
+    done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
+        ! -name '.*' -print0 2>/dev/null)
+
+    if [ "${#_jira_matches[@]}" -eq 1 ]; then
+        echo "${_jira_matches[0]}"
+        return 0
+    elif [ "${#_jira_matches[@]}" -gt 1 ]; then
+        echo "Error: Ambiguous jira_key '$input' matches multiple tickets: ${_jira_matches[*]}" >&2
+        return 1
+    fi
+
+    if [ "${#_alias_matches[@]}" -eq 1 ]; then
+        echo "${_alias_matches[0]}"
+        return 0
+    elif [ "${#_alias_matches[@]}" -gt 1 ]; then
+        echo "Error: Ambiguous alias '$input' matches multiple tickets: ${_alias_matches[*]}" >&2
+        return 1
+    fi
+
+    # ── Step 5: Unique prefix (>= 4 chars) ───────────────────────────────────
+    if [ "${#input}" -ge 4 ]; then
+        local _prefix_matches=()
+        local _entry2
+        while IFS= read -r -d '' _entry2; do
+            local _base2
+            _base2="$(basename "$_entry2")"
+            if [[ "$_base2" == "$input"* ]]; then
+                _prefix_matches+=("$_base2")
+            fi
+        done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
+            ! -name '.*' -print0 2>/dev/null)
+        if [ "${#_prefix_matches[@]}" -eq 1 ]; then
+            echo "${_prefix_matches[0]}"
+            return 0
+        elif [ "${#_prefix_matches[@]}" -gt 1 ]; then
+            echo "Error: Ambiguous prefix '$input' matches multiple tickets: ${_prefix_matches[*]}" >&2
+            return 1
+        fi
+    fi
+
+    # ── Step 6: Not found ─────────────────────────────────────────────────────
+    echo "Error: ticket '$input' not found" >&2
+    return 1
+}
+
 # _read_latest_preconditions <ticket_id_or_dir> [<gate_name> <session_id>]
 # Reads PRECONDITIONS events. Supports two calling conventions:
 #   1-arg  (ticket_dir):            full path to ticket event dir; returns latest event overall
@@ -1261,4 +1411,179 @@ with open(latest_path, encoding='utf-8') as f:
     done
 
     [[ "$ticket_id" == /* ]] && return 1 || return 0
+}
+
+# format_ticket_id <ticket_id> [mode]
+# Formats a canonical ticket ID for display according to the configured display mode.
+#
+# Args:
+#   ticket_id: the canonical 16-hex ticket directory name (e.g., abcd1234efgh5678)
+#   mode:      optional — overrides ticket.display_mode config (auto|canonical|alias|short)
+#
+# Modes:
+#   auto (default): cascade jira_key → alias → short → canonical; most human-friendly form
+#   canonical:      returns the ID unchanged
+#   alias:          reads data.alias from the ticket's CREATE event; falls back to canonical
+#   short:          returns shortest unambiguous prefix >= 4 chars; falls back to canonical
+#                   if no unique prefix exists at any length
+#   <other>:        falls back to auto with a warning on stderr
+#
+# Config: reads ticket.display_mode from WORKFLOW_CONFIG_FILE (or dso-config.conf).
+# Honors TICKETS_TRACKER_DIR env var for tracker path.
+format_ticket_id() {
+    local ticket_id="$1"
+    local mode="${2:-}"
+
+    # ── Resolve display mode from config if not explicitly provided ──────────
+    if [ -z "$mode" ]; then
+        local _config_file
+        if [ -n "${WORKFLOW_CONFIG_FILE:-}" ]; then
+            _config_file="$WORKFLOW_CONFIG_FILE"
+        else
+            local _repo_root
+            _repo_root="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)" || _repo_root=""
+            _config_file="${_repo_root}/.claude/dso-config.conf"
+        fi
+        mode=$(grep '^ticket\.display_mode=' "$_config_file" 2>/dev/null | cut -d= -f2- | head -1 || true)
+        mode="${mode:-auto}"
+    fi
+
+    # ── Resolve tracker dir ───────────────────────────────────────────────────
+    local _repo_root2=""
+    if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
+        _repo_root2="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)" || _repo_root2=""
+    fi
+    local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root2/.tickets-tracker}"
+
+    case "$mode" in
+        auto)
+            # Cascade: jira_key → alias → short → canonical
+            local _ticket_dir2="$_tracker_dir/$ticket_id"
+            if [ -d "$_ticket_dir2" ]; then
+                local _create_file2 _jira_key2="" _alias2=""
+                while IFS= read -r -d '' _create_file2; do
+                    if [ -f "$_create_file2" ]; then
+                        local _fields
+                        _fields=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+    data = ev.get('data', {})
+    jira_key = data.get('jira_key', '') or ''
+    alias = data.get('alias', '') or ''
+    print(jira_key + '\t' + alias)
+except Exception:
+    print('\t')
+" "$_create_file2" 2>/dev/null) || _fields="\t"
+                        _jira_key2="${_fields%%$'\t'*}"
+                        _alias2="${_fields#*$'\t'}"
+                        if [ -n "$_jira_key2" ] || [ -n "$_alias2" ]; then
+                            break
+                        fi
+                    fi
+                done < <(find "$_ticket_dir2" -maxdepth 1 \( -name '*-CREATE.json' -o -name 'CREATE-*.json' \) -print0 2>/dev/null)
+                [ -n "$_jira_key2" ] && { echo "$_jira_key2"; return 0; }
+                [ -n "$_alias2" ] && { echo "$_alias2"; return 0; }
+            fi
+            # Try short prefix — collect all dir basenames once, then scan in bash
+            # (avoids re-running find once per prefix-length iteration)
+            local _nodash_a="${ticket_id//-/}"
+            local _all_dirs_a=() _e_a
+            while IFS= read -r -d '' _e_a; do
+                local _bn_a; _bn_a=$(basename "$_e_a"); _bn_a="${_bn_a//-/}"
+                _all_dirs_a+=("$_bn_a")
+            done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null)
+            local _prefix_len_a=4
+            while [ "$_prefix_len_a" -le "${#_nodash_a}" ]; do
+                local _candidate_a="${_nodash_a:0:$_prefix_len_a}"
+                local _mc_a=0
+                for _bn_a in "${_all_dirs_a[@]}"; do
+                    [[ "$_bn_a" == "$_candidate_a"* ]] && _mc_a=$((_mc_a + 1))
+                done
+                if [ "$_mc_a" -eq 1 ]; then echo "$_candidate_a"; return 0; fi
+                _prefix_len_a=$((_prefix_len_a + 1))
+            done
+            echo "$ticket_id"
+            return 0
+            ;;
+        canonical)
+            echo "$ticket_id"
+            return 0
+            ;;
+        alias)
+            # Scan for CREATE event in ticket directory; read data.alias field.
+            local _ticket_dir="$_tracker_dir/$ticket_id"
+            if [ -d "$_ticket_dir" ]; then
+                local _alias=""
+                local _create_file
+                # Support both filename patterns: <ts>-<uuid>-CREATE.json and CREATE-<uuid>.json
+                while IFS= read -r -d '' _create_file; do
+                    if [ -f "$_create_file" ]; then
+                        _alias=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+    alias = ev.get('data', {}).get('alias', '') or ''
+    print(alias)
+except Exception:
+    print('')
+" "$_create_file" 2>/dev/null) || _alias=""
+                        if [ -n "$_alias" ]; then
+                            break
+                        fi
+                    fi
+                done < <(find "$_ticket_dir" -maxdepth 1 \( -name '*-CREATE.json' -o -name 'CREATE-*.json' \) -print0 2>/dev/null)
+                if [ -n "$_alias" ]; then
+                    echo "$_alias"
+                    return 0
+                fi
+            fi
+            # Fall back to canonical when alias is absent (pre-migration ticket)
+            echo "$ticket_id"
+            return 0
+            ;;
+        short)
+            # Find shortest unambiguous prefix of ticket_id (no dashes, minimum 4 chars).
+            # The ticket_id may contain dashes (e.g., abcd-1234-efgh-5678); the prefix
+            # scan strips dashes and works against the raw hex characters.
+            local _nodash="${ticket_id//-/}"
+            local _prefix_len=4
+            local _found_prefix=""
+            while [ "$_prefix_len" -le "${#_nodash}" ]; do
+                local _candidate="${_nodash:0:$_prefix_len}"
+                # Count how many ticket dirs start with this prefix (after stripping dashes)
+                local _match_count=0
+                local _entry
+                while IFS= read -r -d '' _entry; do
+                    local _base
+                    _base="$(basename "$_entry")"
+                    local _base_nodash="${_base//-/}"
+                    if [[ "$_base_nodash" == "$_candidate"* ]]; then
+                        _match_count=$((_match_count + 1))
+                    fi
+                done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
+                    ! -name '.*' -print0 2>/dev/null)
+                if [ "$_match_count" -eq 1 ]; then
+                    _found_prefix="$_candidate"
+                    break
+                fi
+                _prefix_len=$((_prefix_len + 1))
+            done
+            if [ -n "$_found_prefix" ]; then
+                echo "$_found_prefix"
+                return 0
+            fi
+            # Fall back to canonical when no unique prefix exists
+            echo "$ticket_id"
+            return 0
+            ;;
+        *)
+            # Unrecognized mode: warn and fall back to auto
+            echo "WARN: unknown ticket.display_mode '$mode' — falling back to auto" >&2
+            format_ticket_id "$ticket_id" "auto"
+            return 0
+            ;;
+    esac
 }

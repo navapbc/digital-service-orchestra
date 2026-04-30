@@ -83,7 +83,7 @@ _make_initialized_repo_with_ticket() {
         echo "setup-failed: ticket init" >&2
         return 1
     }
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Bash-native test" 2>/dev/null | tr -d '[:space:]')
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "Bash-native test" 2>/dev/null | tail -1)
     if [ -z "$ticket_id" ]; then
         echo "setup-failed: ticket create" >&2
         return 1

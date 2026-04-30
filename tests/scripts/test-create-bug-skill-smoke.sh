@@ -109,7 +109,7 @@ The system exits with code 1 and prints 'Unexpected token' to stderr."
     local ticket_id
     local _ticket_stderr
     _ticket_stderr=$(mktemp)
-    ticket_id=$(cd "$repo" && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null bash "$TICKET_CREATE_SCRIPT" bug "Parser: valid JSON input -> Unexpected token (exit 1)" -d "$description" 2>"$_ticket_stderr") || true
+    ticket_id=$(cd "$repo" && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null bash "$TICKET_CREATE_SCRIPT" bug "Parser: valid JSON input -> Unexpected token (exit 1)" -d "$description" 2>"$_ticket_stderr" | tail -1) || true
     if [ -z "$ticket_id" ] && [ -s "$_ticket_stderr" ]; then
         echo "DIAGNOSTIC: ticket-create stderr: $(cat "$_ticket_stderr")" >&2
     fi

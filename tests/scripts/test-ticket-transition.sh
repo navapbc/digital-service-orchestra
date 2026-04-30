@@ -40,7 +40,7 @@ _create_ticket() {
     local title="${3:-Test ticket}"
     local out
     out=$(cd "$repo" && bash "$TICKET_SCRIPT" create "$ticket_type" "$title" 2>/dev/null) || true
-    echo "$out"
+    echo "$out" | tail -1
 }
 
 # ── Helper: count STATUS event files in a ticket directory ────────────────────
@@ -1083,5 +1083,299 @@ test_epic_close_emits_end_session_reminder() {
     assert_pass_if_clean "test_epic_close_emits_end_session_reminder"
 }
 test_epic_close_emits_end_session_reminder
+
+# ── Test 21 (RED): first STATUS event has parent_status_uuid: null ───────────
+echo "Test 21 (RED): first STATUS event has parent_status_uuid field set to JSON null"
+test_parent_uuid_first_event_is_null() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id
+    ticket_id=$(_create_ticket "$repo")
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Run first transition: open → in_progress
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_id" open in_progress 2>/dev/null) || exit_code=$?
+    assert_eq "parent-uuid-first: transition exits 0" "0" "$exit_code"
+
+    # Find the STATUS event file
+    local status_file
+    status_file=$(find "$tracker_dir/$ticket_id" -maxdepth 1 -name '*-STATUS.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+
+    if [ -z "$status_file" ]; then
+        assert_eq "parent-uuid-first: STATUS event file found" "found" "not-found"
+        assert_pass_if_clean "test_parent_uuid_first_event_is_null"
+        return
+    fi
+
+    # Assert: parent_status_uuid key exists AND value is JSON null (not absent, not empty string)
+    local check_result
+    check_result=$(python3 - "$status_file" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+# Key must exist (not absent)
+if 'parent_status_uuid' not in ev:
+    print("MISSING: parent_status_uuid key absent from event")
+    sys.exit(2)
+
+# Value must be JSON null (Python None), not empty string, not 0, not False
+val = ev['parent_status_uuid']
+if val is not None:
+    print(f"NOT_NULL: parent_status_uuid={val!r} (expected JSON null)")
+    sys.exit(2)
+
+print("OK")
+PYEOF
+) || true
+
+    assert_eq "parent-uuid-first: parent_status_uuid is JSON null" "OK" "$check_result"
+
+    assert_pass_if_clean "test_parent_uuid_first_event_is_null"
+}
+test_parent_uuid_first_event_is_null
+
+# ── Test 22 (RED): second STATUS event points to first event's UUID ───────────
+echo "Test 22 (RED): second STATUS event has parent_status_uuid equal to UUID of first STATUS event"
+test_parent_uuid_second_points_to_first() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id
+    ticket_id=$(_create_ticket "$repo")
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Run first transition: open → in_progress
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_id" open in_progress 2>/dev/null) || exit_code=$?
+    assert_eq "parent-uuid-second: first transition exits 0" "0" "$exit_code"
+
+    # Capture the first STATUS event filename (UUID basename without .json)
+    local first_status_file
+    first_status_file=$(find "$tracker_dir/$ticket_id" -maxdepth 1 -name '*-STATUS.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+
+    if [ -z "$first_status_file" ]; then
+        assert_eq "parent-uuid-second: first STATUS event file found" "found" "not-found"
+        assert_pass_if_clean "test_parent_uuid_second_points_to_first"
+        return
+    fi
+
+    # Extract UUID from first event JSON directly
+    local first_event_uuid
+    first_event_uuid=$(python3 -c "
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as f:
+    ev = json.load(f)
+print(ev.get('uuid', ''))
+" "$first_status_file" 2>/dev/null) || first_event_uuid=""
+
+    if [ -z "$first_event_uuid" ]; then
+        assert_eq "parent-uuid-second: first event UUID extracted" "non-empty" "empty"
+        assert_pass_if_clean "test_parent_uuid_second_points_to_first"
+        return
+    fi
+
+    # Run second transition: in_progress → closed
+    # Suppress compaction (DSO_COMPACT_SCRIPT=/bin/true) so the STATUS event file
+    # is not absorbed into a SNAPSHOT before we can read it.
+    local exit_code2=0
+    (cd "$repo" && DSO_COMPACT_SCRIPT=/bin/true bash "$TICKET_SCRIPT" transition "$ticket_id" in_progress closed 2>/dev/null) || exit_code2=$?
+    assert_eq "parent-uuid-second: second transition exits 0" "0" "$exit_code2"
+
+    # Find the second (newest) STATUS event file (compaction suppressed — should exist)
+    local second_status_file
+    second_status_file=$(find "$tracker_dir/$ticket_id" -maxdepth 1 -name '*-STATUS.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+
+    if [ -z "$second_status_file" ] || [ "$second_status_file" = "$first_status_file" ]; then
+        assert_eq "parent-uuid-second: second STATUS event file found" "found-new" "not-found-or-same"
+        assert_pass_if_clean "test_parent_uuid_second_points_to_first"
+        return
+    fi
+
+    # Assert: second event's parent_status_uuid equals the first event's UUID
+    local check_result
+    check_result=$(python3 - "$second_status_file" "$first_event_uuid" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+expected_uuid = sys.argv[2]
+
+if 'parent_status_uuid' not in ev:
+    print("MISSING: parent_status_uuid key absent from second event")
+    sys.exit(2)
+
+actual = ev['parent_status_uuid']
+if actual != expected_uuid:
+    print(f"WRONG: parent_status_uuid={actual!r} expected={expected_uuid!r}")
+    sys.exit(2)
+
+print("OK")
+PYEOF
+) || true
+
+    assert_eq "parent-uuid-second: parent_status_uuid points to first event UUID" "OK" "$check_result"
+
+    assert_pass_if_clean "test_parent_uuid_second_points_to_first"
+}
+test_parent_uuid_second_points_to_first
+
+# ── Test 23 (RED): parent_status_uuid is always present in STATUS event JSON ──
+echo "Test 23 (RED): parent_status_uuid field is always present in STATUS event (never omitted)"
+test_parent_uuid_always_present() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id
+    ticket_id=$(_create_ticket "$repo")
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Run any transition
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_id" open in_progress 2>/dev/null) || exit_code=$?
+    assert_eq "parent-uuid-always: transition exits 0" "0" "$exit_code"
+
+    local status_file
+    status_file=$(find "$tracker_dir/$ticket_id" -maxdepth 1 -name '*-STATUS.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+
+    if [ -z "$status_file" ]; then
+        assert_eq "parent-uuid-always: STATUS event file found" "found" "not-found"
+        assert_pass_if_clean "test_parent_uuid_always_present"
+        return
+    fi
+
+    # Assert: parent_status_uuid key is present (regardless of value)
+    local key_present
+    key_present=$(python3 - "$status_file" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+if 'parent_status_uuid' in ev:
+    print("PRESENT")
+else:
+    print("ABSENT")
+PYEOF
+) || key_present="PARSE_ERROR"
+
+    assert_eq "parent-uuid-always: parent_status_uuid key present in JSON" "PRESENT" "$key_present"
+
+    assert_pass_if_clean "test_parent_uuid_always_present"
+}
+test_parent_uuid_always_present
+
+# ── Test 24 (RED): legacy STATUS event (no parent_status_uuid) is treated as chain root ──
+echo "Test 24 (RED): new STATUS event after legacy event sets parent_status_uuid to legacy event UUID"
+test_parent_uuid_legacy_tolerated() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id
+    ticket_id=$(_create_ticket "$repo")
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Manually create a legacy STATUS event file WITHOUT parent_status_uuid field.
+    # This simulates an event written before the parent_status_uuid feature was added.
+    local legacy_uuid="aaaabbbb-cccc-dddd-eeee-ffffaaaabbbb"
+    local legacy_timestamp=1000000000000000000
+    local legacy_filename="${legacy_timestamp}-${legacy_uuid}-STATUS.json"
+    local ticket_dir="$tracker_dir/$ticket_id"
+
+    python3 - "$ticket_dir/$legacy_filename" <<'PYEOF'
+import json, sys
+legacy_event = {
+    'timestamp': 1000000000000000000,
+    'uuid': 'aaaabbbb-cccc-dddd-eeee-ffffaaaabbbb',
+    'event_type': 'STATUS',
+    'env_id': 'legacy-env',
+    'author': 'Legacy Author',
+    'data': {
+        'status': 'in_progress',
+        'current_status': 'open',
+    },
+    # Intentionally NO parent_status_uuid field
+}
+with open(sys.argv[1], 'w', encoding='utf-8') as f:
+    json.dump(legacy_event, f)
+PYEOF
+
+    # Verify the legacy event was written without parent_status_uuid
+    local legacy_has_field
+    legacy_has_field=$(python3 -c "
+import json
+with open('$ticket_dir/$legacy_filename', encoding='utf-8') as f:
+    ev = json.load(f)
+print('HAS_FIELD' if 'parent_status_uuid' in ev else 'NO_FIELD')
+" 2>/dev/null) || legacy_has_field="ERROR"
+    assert_eq "parent-uuid-legacy: legacy event has no parent_status_uuid" "NO_FIELD" "$legacy_has_field"
+
+    # Run a new transition: the reducer will compute current status from the legacy event (in_progress)
+    # so we transition from in_progress → closed.
+    # Suppress compaction (DSO_COMPACT_SCRIPT=/bin/true) so the STATUS event file
+    # is not absorbed into a SNAPSHOT before we can read it.
+    local exit_code=0
+    (cd "$repo" && DSO_COMPACT_SCRIPT=/bin/true bash "$TICKET_SCRIPT" transition "$ticket_id" in_progress closed 2>/dev/null) || exit_code=$?
+    assert_eq "parent-uuid-legacy: transition after legacy event exits 0" "0" "$exit_code"
+
+    # Find the new STATUS event (written by ticket-transition.sh — not the legacy one)
+    local new_status_file
+    new_status_file=$(find "$ticket_dir" -maxdepth 1 -name '*-STATUS.json' ! -name '.*' 2>/dev/null \
+        | grep -v "$legacy_filename" | sort | tail -1)
+
+    if [ -z "$new_status_file" ]; then
+        assert_eq "parent-uuid-legacy: new STATUS event file found" "found" "not-found"
+        assert_pass_if_clean "test_parent_uuid_legacy_tolerated"
+        return
+    fi
+
+    # Assert: new event's parent_status_uuid equals the legacy event's UUID
+    local check_result
+    check_result=$(python3 - "$new_status_file" "$legacy_uuid" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+expected_uuid = sys.argv[2]
+
+if 'parent_status_uuid' not in ev:
+    print("MISSING: parent_status_uuid key absent from new event")
+    sys.exit(2)
+
+actual = ev['parent_status_uuid']
+if actual != expected_uuid:
+    print(f"WRONG: parent_status_uuid={actual!r} expected={expected_uuid!r}")
+    sys.exit(2)
+
+print("OK")
+PYEOF
+) || true
+
+    assert_eq "parent-uuid-legacy: new event parent_status_uuid points to legacy UUID" "OK" "$check_result"
+
+    assert_pass_if_clean "test_parent_uuid_legacy_tolerated"
+}
+test_parent_uuid_legacy_tolerated
 
 print_summary

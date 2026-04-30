@@ -4,8 +4,8 @@
 # Tests for hooks/pre-commit-ticket-gate.sh (TDD RED phase)
 #
 # pre-commit-ticket-gate.sh is a git pre-commit hook that blocks commits
-# when the commit message does not reference a valid v3 ticket ID (XXXX-XXXX
-# hex format, with a corresponding dir+CREATE event in the tracker).
+# when the commit message does not reference a valid v3 ticket ID (XXXX-XXXX-XXXX-XXXX
+# 16-hex format, with a corresponding dir+CREATE event in the tracker).
 #
 # RED MARKER:
 # tests/hooks/test-pre-commit-ticket-gate.sh [test_snapshot_ticket_accepted]
@@ -13,7 +13,7 @@
 # Test cases (11):
 #   1. test_blocks_missing_ticket_id          — commit msg with no ID exits non-zero for non-allowlisted files
 #   2. test_blocks_invalid_ticket_format      — commit msg 'fix: ABC-123 bug' (wrong format) exits non-zero
-#   3. test_allows_valid_v3_ticket_id         — valid XXXX-XXXX hex ID + matching dir+CREATE event exits 0
+#   3. test_allows_valid_v3_ticket_id         — valid XXXX-XXXX-XXXX-XXXX hex ID + matching dir+CREATE event exits 0
 #   4. test_blocks_nonexistent_ticket         — valid format but no dir/CREATE event exits non-zero
 #   5. test_skips_when_all_allowlisted        — all staged files match allowlist → exits 0 without ticket check
 #   6. test_merge_commit_exempt               — MERGE_HEAD present → exits 0 unconditionally
@@ -187,7 +187,7 @@ test_blocks_missing_ticket_id() {
 
     local _repo _tracker _conf _msg_file
     _repo=$(make_test_repo)
-    _tracker=$(make_fake_tracker "ab12-cd34")
+    _tracker=$(make_fake_tracker "ab12-cd34-ef56-7890")
     _conf=$(make_empty_allowlist_conf)
     _msg_file=$(make_commit_msg_file "fix: improve error handling")
 
@@ -211,7 +211,7 @@ test_blocks_invalid_ticket_format() {
 
     local _repo _tracker _conf _msg_file
     _repo=$(make_test_repo)
-    _tracker=$(make_fake_tracker "ab12-cd34")
+    _tracker=$(make_fake_tracker "ab12-cd34-ef56-7890")
     _conf=$(make_empty_allowlist_conf)
     # Wrong format: Jira-style uppercase with numbers, not 4+4 hex
     _msg_file=$(make_commit_msg_file "fix: ABC-123 bug description")
@@ -236,10 +236,10 @@ test_allows_valid_v3_ticket_id() {
 
     local _repo _tracker _conf _msg_file
     _repo=$(make_test_repo)
-    _tracker=$(make_fake_tracker "ab12-cd34")
+    _tracker=$(make_fake_tracker "ab12-cd34-ef56-7890")
     _conf=$(make_empty_allowlist_conf)
     # Valid v3 ticket ID embedded in commit message
-    _msg_file=$(make_commit_msg_file "feat(ab12-cd34): implement new feature")
+    _msg_file=$(make_commit_msg_file "feat(ab12-cd34-ef56-7890): implement new feature")
 
     stage_source_file "$_repo"
 
@@ -261,10 +261,10 @@ test_blocks_nonexistent_ticket() {
 
     local _repo _tracker _conf _msg_file
     _repo=$(make_test_repo)
-    # Tracker has ticket ab12-cd34 but commit refs ff00-ee11 (does not exist)
-    _tracker=$(make_fake_tracker "ab12-cd34")
+    # Tracker has ticket ab12-cd34-ef56-7890 but commit refs ff00-ee11-1234-5678 (does not exist)
+    _tracker=$(make_fake_tracker "ab12-cd34-ef56-7890")
     _conf=$(make_empty_allowlist_conf)
-    _msg_file=$(make_commit_msg_file "feat(ff00-ee11): reference nonexistent ticket")
+    _msg_file=$(make_commit_msg_file "feat(ff00-ee11-1234-5678): reference nonexistent ticket")
 
     stage_source_file "$_repo"
 
@@ -317,7 +317,7 @@ test_merge_commit_exempt() {
 
     local _repo _tracker _conf _msg_file
     _repo=$(make_test_repo)
-    _tracker=$(make_fake_tracker "ab12-cd34")
+    _tracker=$(make_fake_tracker "ab12-cd34-ef56-7890")
     _conf=$(make_empty_allowlist_conf)
     # Commit message with no ticket ID — would block if MERGE_HEAD exemption didn't apply
     _msg_file=$(make_commit_msg_file "Merge branch 'main' into feature-branch")
@@ -354,7 +354,7 @@ test_graceful_degradation_no_tracker() {
     _conf=$(make_empty_allowlist_conf)
     # Valid format but tracker path does not exist
     local _nonexistent_tracker="/tmp/dso-test-nonexistent-tracker-$$"
-    _msg_file=$(make_commit_msg_file "feat(ab12-cd34): some feature")
+    _msg_file=$(make_commit_msg_file "feat(ab12-cd34-ef56-7890): some feature")
 
     stage_source_file "$_repo"
 
@@ -383,7 +383,7 @@ test_error_message_format_hint() {
 
     local _repo _tracker _conf _msg_file
     _repo=$(make_test_repo)
-    _tracker=$(make_fake_tracker "ab12-cd34")
+    _tracker=$(make_fake_tracker "ab12-cd34-ef56-7890")
     _conf=$(make_empty_allowlist_conf)
     # No ticket ID in message — will be blocked
     _msg_file=$(make_commit_msg_file "fix: something without a ticket reference")
@@ -412,11 +412,11 @@ test_allows_multiple_ids_in_message() {
 
     local _repo _tracker _conf _msg_file
     _repo=$(make_test_repo)
-    # Tracker has ab12-cd34 but not ff00-ee11
-    _tracker=$(make_fake_tracker "ab12-cd34")
+    # Tracker has ab12-cd34-ef56-7890 but not ff00-ee11-1234-5678
+    _tracker=$(make_fake_tracker "ab12-cd34-ef56-7890")
     _conf=$(make_empty_allowlist_conf)
     # Message contains two IDs: one invalid/missing + one valid
-    _msg_file=$(make_commit_msg_file "feat(ff00-ee11, ab12-cd34): related changes")
+    _msg_file=$(make_commit_msg_file "feat(ff00-ee11-1234-5678, ab12-cd34-ef56-7890): related changes")
 
     stage_source_file "$_repo"
 
@@ -438,7 +438,7 @@ test_non_allowlisted_staged_files_trigger_check() {
 
     local _repo _tracker _conf _msg_file
     _repo=$(make_test_repo)
-    _tracker=$(make_fake_tracker "ab12-cd34")
+    _tracker=$(make_fake_tracker "ab12-cd34-ef56-7890")
     _conf=$(make_empty_allowlist_conf)
     # No ticket ID in message
     _msg_file=$(make_commit_msg_file "refactor: clean up internals")
@@ -471,14 +471,14 @@ test_snapshot_ticket_accepted() {
     _TEST_TMPDIRS+=("$_tracker_dir")
 
     # Create a ticket directory with ONLY a SNAPSHOT event — no CREATE event.
-    mkdir -p "$_tracker_dir/abcd-1234"
-    cat > "$_tracker_dir/abcd-1234/001-SNAPSHOT.json" << 'EOF'
-{"event_type":"SNAPSHOT","ticket_id":"abcd-1234","timestamp":1700000000000000000,"data":{"title":"Test Snapshot Ticket","status":"open"}}
+    mkdir -p "$_tracker_dir/abcd-1234-5678-90ab"
+    cat > "$_tracker_dir/abcd-1234-5678-90ab/001-SNAPSHOT.json" << 'EOF'
+{"event_type":"SNAPSHOT","ticket_id":"abcd-1234-5678-90ab","timestamp":1700000000000000000,"data":{"title":"Test Snapshot Ticket","status":"open"}}
 EOF
 
     _repo=$(make_test_repo)
     _conf=$(make_empty_allowlist_conf)
-    _msg_file=$(make_commit_msg_file "feat(abcd-1234): implement snapshot-ticket feature")
+    _msg_file=$(make_commit_msg_file "feat(abcd-1234-5678-90ab): implement snapshot-ticket feature")
 
     stage_source_file "$_repo"
 

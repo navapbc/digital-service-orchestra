@@ -64,7 +64,7 @@ test_unicode_arrow_conversion() {
     # Use printf to get the actual unicode arrow character U+2192 (→)
     local unicode_title
     unicode_title=$(printf 'CLI: input fails \xe2\x86\x92 crash')
-    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "$unicode_title" 2>"$stderr_out") || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "$unicode_title" 2>"$stderr_out" | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket created with unicode arrow" "non-empty" "empty"
@@ -100,7 +100,7 @@ test_title_pattern_warning() {
     stderr_out=$(mktemp)
     _CLEANUP_DIRS+=("$stderr_out")
     # Title that does NOT match [Component]: [Condition] -> [Observed Result]
-    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "bad title no pattern" 2>"$stderr_out") || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "bad title no pattern" 2>"$stderr_out" | tail -1) || true
 
     local stderr_content
     stderr_content=$(cat "$stderr_out")
@@ -121,7 +121,7 @@ test_title_pattern_no_warning() {
     stderr_out=$(mktemp)
     _CLEANUP_DIRS+=("$stderr_out")
     # Title that matches the pattern
-    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "CLI: input fails -> crash" 2>"$stderr_out") || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "CLI: input fails -> crash" 2>"$stderr_out" | tail -1) || true
 
     local stderr_content
     stderr_content=$(cat "$stderr_out")
@@ -147,7 +147,7 @@ test_description_headers_warning() {
     stderr_out=$(mktemp)
     _CLEANUP_DIRS+=("$stderr_out")
     # Bug with description that lacks Expected/Actual Behavior
-    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "CLI: input fails -> crash" -d "Some random description without headers" 2>"$stderr_out") || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "CLI: input fails -> crash" -d "Some random description without headers" 2>"$stderr_out" | tail -1) || true
 
     local stderr_content
     stderr_content=$(cat "$stderr_out")
@@ -171,7 +171,7 @@ test_description_headers_no_warning() {
 Should work.
 
 ## Actual Behavior
-Crashes." 2>"$stderr_out") || true
+Crashes." 2>"$stderr_out" | tail -1) || true
 
     local stderr_content
     stderr_content=$(cat "$stderr_out")
@@ -200,7 +200,7 @@ test_description_size_warning() {
     local ticket_id stderr_out
     stderr_out=$(mktemp)
     _CLEANUP_DIRS+=("$stderr_out")
-    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "CLI: input fails -> crash" -d "$big_desc" 2>"$stderr_out") || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "CLI: input fails -> crash" -d "$big_desc" 2>"$stderr_out" | tail -1) || true
 
     local stderr_content
     stderr_content=$(cat "$stderr_out")
@@ -219,7 +219,7 @@ test_exit_code_always_zero() {
 
     local ticket_id exit_code
     # Non-conforming bug: bad title, no description headers, should still succeed
-    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "bad title" -d "no headers" 2>/dev/null)
+    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "bad title" -d "no headers" 2>/dev/null | tail -1)
     exit_code=$?
 
     assert_eq "exit code is 0" "0" "$exit_code"
@@ -252,7 +252,7 @@ CONF
     stderr_out=$(mktemp)
     _CLEANUP_DIRS+=("$stderr_out")
     # Non-conforming title — but warning should be suppressed
-    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "bad title no pattern" 2>"$stderr_out") || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "bad title no pattern" 2>"$stderr_out" | tail -1) || true
 
     local stderr_content
     stderr_content=$(cat "$stderr_out")
@@ -276,7 +276,7 @@ test_unicode_arrow_conversion_edit() {
 
     # First create a ticket
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "CLI: original title -> ok" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" bug "CLI: original title -> ok" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket created for edit test" "non-empty" "empty"
@@ -322,7 +322,7 @@ test_no_warnings_for_non_bug() {
     stderr_out=$(mktemp)
     _CLEANUP_DIRS+=("$stderr_out")
     # Create a task (not a bug) with non-conforming title/description
-    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" task "bad title" -d "no headers" 2>"$stderr_out") || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_CREATE_SCRIPT" task "bad title" -d "no headers" 2>"$stderr_out" | tail -1) || true
 
     local stderr_content
     stderr_content=$(cat "$stderr_out")
