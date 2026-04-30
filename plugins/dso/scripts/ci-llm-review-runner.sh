@@ -123,7 +123,7 @@ PYEOF
     _REQ_C=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-correctness.md")
     _REQ_C_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_C" > "$_REQ_C_TMP"
     _SPECIALIST_REQ_TMPS+=("$_REQ_C_TMP")
-    curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+    curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
@@ -134,7 +134,7 @@ PYEOF
     _REQ_V=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-verification.md")
     _REQ_V_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_V" > "$_REQ_V_TMP"
     _SPECIALIST_REQ_TMPS+=("$_REQ_V_TMP")
-    curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+    curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
@@ -145,7 +145,7 @@ PYEOF
     _REQ_H=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-hygiene.md")
     _REQ_H_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_H" > "$_REQ_H_TMP"
     _SPECIALIST_REQ_TMPS+=("$_REQ_H_TMP")
-    curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+    curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
@@ -208,7 +208,7 @@ PYEOF
     # shellcheck disable=SC2064
     trap "rm -f '$_arch_msg_tmp' '$_arch_req_tmp'" EXIT
     printf '%s' "$_ARCH_REQ" > "$_arch_req_tmp"
-    _ARCH_RESP=$(curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+    _ARCH_RESP=$(curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -H "content-type: application/json" \
@@ -290,13 +290,20 @@ _REQ_TMP=$(mktemp /tmp/dso-req.XXXXXX)
 # shellcheck disable=SC2064
 trap "rm -f '$_DIFF_TMP' '$_REQ_TMP'" EXIT
 printf '%s' "$REQUEST_JSON" > "$_REQ_TMP"
-API_RESPONSE=$(curl -sf -m 30 --connect-timeout 10 \
+API_RESPONSE=$(curl -sf -m 300 --connect-timeout 10 \
   -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
   --data @"$_REQ_TMP" \
-  "https://api.anthropic.com/v1/messages")
+  "https://api.anthropic.com/v1/messages") || {
+  echo "ERROR: Anthropic API call failed (curl exit $?). Check ANTHROPIC_API_KEY and network access." >&2
+  exit 1
+}
 rm -f "$_REQ_TMP"
+if [[ -z "${API_RESPONSE:-}" ]]; then
+  echo "ERROR: Anthropic API returned empty response body." >&2
+  exit 1
+fi
 
 LLM_TEXT=$(printf '%s\n' "$API_RESPONSE" | python3 -c "
 import json, sys, re
@@ -317,7 +324,7 @@ if m:
     sys.exit(0)
 print('ERROR: Cannot extract text from API response', file=sys.stderr)
 sys.exit(1)
-")
+") || LLM_TEXT=""
 
 # Extract structured reviewer-findings JSON from potential markdown code fence wrapping.
 # LLM_TEXT is passed via env var to avoid pipe+heredoc conflict (pipe would override heredoc stdin).
@@ -332,14 +339,20 @@ except Exception:
     pass
 m = re.search(r'```(?:json)?\s*([\s\S]+?)```', text)
 if m:
-    extracted = m.group(1).strip()
-    json.loads(extracted)
-    print(extracted)
-    sys.exit(0)
+    try:
+        extracted = m.group(1).strip()
+        json.loads(extracted)
+        print(extracted)
+        sys.exit(0)
+    except Exception:
+        pass
 print('ERROR: LLM response is not valid reviewer-findings JSON', file=sys.stderr)
 sys.exit(1)
 PYEOF
-)
+) || {
+  echo "WARNING: LLM response parsing failed (likely truncated due to diff size). Writing inconclusive review." >&2
+  FINDINGS_JSON='{"scores":{"hygiene":"N/A","design":"N/A","maintainability":"N/A","correctness":"N/A","verification":"N/A"},"findings":[],"summary":"Review inconclusive: LLM response could not be parsed as reviewer-findings JSON. The diff may be too large for the model to process in a single pass. Manual review recommended."}'
+}
 fi  # end standard/light-only API call block
 
 # ── Overlay dispatch ────────────────────────────────────────────────────────────
@@ -372,7 +385,7 @@ PYEOF
   # shellcheck disable=SC2064
   trap "rm -f '$_overlay_diff_tmp' '$_req_tmp'" RETURN
   printf '%s' "$_req" > "$_req_tmp"
-  _resp=$(curl -sf -m 30 --retry 3 --retry-delay 5 --connect-timeout 10 \
+  _resp=$(curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
     -H "x-api-key: $ANTHROPIC_API_KEY" \
     -H "anthropic-version: 2023-06-01" \
     -H "content-type: application/json" \
@@ -407,10 +420,13 @@ except Exception:
     pass
 m = re.search(r'```(?:json)?\s*([\s\S]+?)```', text)
 if m:
-    extracted = m.group(1).strip()
-    json.loads(extracted)
-    print(extracted)
-    sys.exit(0)
+    try:
+        extracted = m.group(1).strip()
+        json.loads(extracted)
+        print(extracted)
+        sys.exit(0)
+    except Exception:
+        pass
 print('ERROR: Overlay LLM response is not valid reviewer-findings JSON', file=sys.stderr)
 sys.exit(1)
 PYEOF
@@ -433,11 +449,11 @@ _OVERLAY_PIDS=()
   _OVERLAY_PIDS+=($!)
 }
 if [[ ${#_OVERLAY_PIDS[@]} -gt 0 ]]; then
-  for _pid in "${_OVERLAY_PIDS[@]}"; do wait "$_pid"; done
+  for _pid in "${_OVERLAY_PIDS[@]}"; do wait "$_pid" || true; done
 fi
-[[ "$_SEC" == "true" ]] && _run_overlay_curl \
+[[ "$_SEC" == "true" ]] && { _run_overlay_curl \
   "$_PLUGIN_ROOT/agents/code-reviewer-security-blue-team.md" \
-  "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json"
+  "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json" || true; }
 
 # ── Overlay merge ───────────────────────────────────────────────────────────────
 # Collect non-empty overlay slot files and merge their findings arrays + scores
@@ -475,7 +491,9 @@ for slot_path in sys.argv[1:]:
     for dim, val in overlay.get('scores', {}).items():
         if isinstance(val, (int, float)) and isinstance(merged_scores.get(dim), (int, float)):
             merged_scores[dim] = min(merged_scores[dim], val)
-        elif isinstance(val, (int, float)) and dim not in merged_scores:
+        elif isinstance(val, (int, float)) and not isinstance(merged_scores.get(dim), (int, float)):
+            # Replace N/A (or absent) with overlay's numeric score so a critical
+            # overlay finding propagates even when the main tier was inconclusive.
             merged_scores[dim] = val
 
 result = dict(tier)
