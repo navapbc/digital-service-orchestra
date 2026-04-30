@@ -211,9 +211,36 @@ for file in "${CHANGED_FILES[@]}"; do
     fi
 done
 
-# If all files are exempt, output zero scores
+# Shared helper: returns 0 if DIFF_CONTENT contains added lines matching any hardcoded-credential
+# pattern.  Called by both the all-exempt early-exit path and _compute_security_overlay() so the
+# two sites always apply identical detection logic (bug 52a4-adb5).
+_diff_contains_hardcoded_credential() {
+    # API key prefix patterns: OpenAI sk-..., AWS AKIA..., GitHub gh[psr]_..., GitLab glpat-,
+    # Slack xox[bpars]-.  Two separate greps avoid ERE complexity limits on some grep builds.
+    if printf '%s\n' "$DIFF_CONTENT" | grep -qE '^\+.*(sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|gh[psr]_[A-Za-z0-9]{10,}|glpat-[A-Za-z0-9_-]{10,}|xox[bpars]-[A-Za-z0-9-]{10,})' 2>/dev/null; then
+        return 0
+    fi
+    # Generic _API_KEY= / _SECRET= / _TOKEN= assignment with a literal value (≥10 alnum chars).
+    if printf '%s\n' "$DIFF_CONTENT" | grep -qE '^\+.*(_API_KEY|_SECRET|_TOKEN)[[:space:]]*[=:][[:space:]]*[A-Za-z0-9_-]{10,}' 2>/dev/null; then
+        return 0
+    fi
+    # Keyword patterns: security-sensitive imports/keywords and plaintext credential assignments.
+    if printf '%s\n' "$DIFF_CONTENT" | grep -qiE '^\+.*(from auth[. ]|import (crypto|cryptography|hashlib|hmac|secrets)([. ;]|$)|password|secret|token|credential|certificate)' 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# If all files are exempt, output zero scores.
+# Still scan diff content for hardcoded credentials even in allowlist-exempt files (e.g. docs/)
+# so that the security overlay fires when a credential is added regardless of file location.
 if [[ ${#SCORING_FILES[@]} -eq 0 ]]; then
-    printf '{"blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"selected_tier":"light","diff_size_lines":0,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+    if _diff_contains_hardcoded_credential; then
+        _sec_exempt="true"
+    else
+        _sec_exempt="false"
+    fi
+    printf '{"blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"selected_tier":"light","diff_size_lines":0,"size_action":"none","is_merge_commit":false,"security_overlay":%s,"performance_overlay":false,"test_quality_overlay":false}' "$_sec_exempt"
     exit 0
 fi
 
@@ -365,7 +392,7 @@ _diff_lines() {
         if [[ "$line" =~ ^diff\ --git\ a/.*\ b/(.*) ]]; then
             cur_file="${BASH_REMATCH[1]}"
         elif [[ "${line:0:1}" == "+" && "${line:1:1}" != "+" && -n "$cur_file" ]]; then
-            if ! is_test_file "$cur_file" && [[ "$cur_file" != .tickets-tracker/* ]]; then
+            if ! is_test_file "$cur_file" && [[ "$cur_file" != .tickets-tracker/* ]]; then  # tickets-boundary-ok: pattern exclusion, not directory access
                 total_lines=$(( total_lines + 1 ))
             fi
         fi
@@ -622,9 +649,9 @@ _compute_security_overlay() {
         fi
     done
 
-    # Scan added lines in diff for security-sensitive imports/keywords
-    # Patterns use word boundaries: 'from auth' matches 'from auth.models import ...' etc.
-    if printf '%s\n' "$DIFF_CONTENT" | grep -qiE '^\+.*(from auth[. ]|import (crypto|cryptography|hashlib|hmac|secrets)([. ;]|$)|password|secret|token|credential|certificate)' 2>/dev/null; then
+    # Scan added lines for credential patterns via the shared helper (defined above the early-exit
+    # block so both call sites apply identical detection logic — bug 52a4-adb5).
+    if _diff_contains_hardcoded_credential; then
         echo "true"
         return
     fi

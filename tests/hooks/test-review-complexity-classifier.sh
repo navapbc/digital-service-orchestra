@@ -1228,6 +1228,39 @@ print('true' if 'security_overlay' in d and isinstance(d['security_overlay'], bo
     teardown_temp_dir
 }
 
+test_security_overlay_true_for_openai_api_key_in_diff() {
+    # A diff adding a hardcoded OpenAI API key (sk-... pattern) must produce security_overlay:true.
+    # Regression guard for bug 52a4-adb5: classifier missed sk-... credential patterns, allowing
+    # CI security overlay to be skipped when the main-tier LLM response was inconclusive.
+    setup_temp_dir
+    local diff_file="$TEST_TMPDIR/test_openai_key.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/docs/security-overlay-test-fixture.sh b/docs/security-overlay-test-fixture.sh
+new file mode 100644
+--- /dev/null
++++ b/docs/security-overlay-test-fixture.sh
+@@ -0,0 +1,3 @@
++#!/usr/bin/env bash
++FAKE_OPENAI_KEY="sk-FAKE-TEST-ONLY-deliberate-violation-for-overlay-verification-1234567890abcdef"
++echo "test"
+DIFFEOF
+    run_classifier "$diff_file"
+
+    local security_overlay="absent"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        security_overlay=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+if 'security_overlay' not in d:
+    print('absent')
+else:
+    print(str(d['security_overlay']).lower())
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "absent")
+    fi
+    assert_eq "sk-... API key pattern in diff sets security_overlay=true" "true" "$security_overlay"
+    teardown_temp_dir
+}
+
 # Security overlay flag (RED — w22-wwu2)
 test_security_overlay_true_for_auth_path           # RED: security_overlay field not yet emitted
 test_security_overlay_true_for_crypto_path         # RED: security_overlay field not yet emitted
@@ -1236,6 +1269,7 @@ test_security_overlay_true_for_security_import_in_diff  # RED: security_overlay 
 test_security_overlay_true_for_password_keyword_in_diff # RED: security_overlay field not yet emitted
 test_security_overlay_false_for_non_security_path  # RED: security_overlay field not yet emitted
 test_security_overlay_field_present_in_output_schema    # RED: security_overlay field not yet emitted
+test_security_overlay_true_for_openai_api_key_in_diff
 
 # ============================================================
 # Performance Overlay Flag Tests (RED — w22-wwu2 / task a621-1689)
