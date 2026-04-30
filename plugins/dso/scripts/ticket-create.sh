@@ -260,10 +260,10 @@ write_commit_event "$ticket_id" "$temp_event" || {
 # Clean up temp file (write_commit_event stages it, but original temp may remain)
 rm -f "$temp_event"
 
-# ── Output dual-format: human summary to stderr, canonical ID to stdout ──────
-# SC3: human-readable summary on stderr; machine-parseable 16-hex ID on stdout.
-# Consumers reading stdout get the canonical ID directly; | tail -1 also works.
-echo "Created ticket $ticket_id: $title" >&2
+# ── Output dual-format: human summary first, canonical ID last (both stdout) ──
+# SC3: both lines on stdout — human-readable summary line 1, canonical ID last.
+# Scripts extract the canonical ID via: ticket create ... | tail -1
+echo "Created ticket $ticket_id: $title"
 echo "$ticket_id"
 
 # ── Post-creation validation (warnings only, never blocks, exit 0) ───────────

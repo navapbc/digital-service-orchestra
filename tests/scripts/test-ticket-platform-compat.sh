@@ -197,7 +197,7 @@ test_flock_fallback_comment_succeeds() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "fallback comment test" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "fallback comment test" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "created ticket for B1" "non-empty" "empty"
@@ -263,7 +263,7 @@ test_flock_fallback_create_succeeds() {
             # shellcheck source=/dev/null
             source "$TICKET_LIB_API" || exit 97
             _ticketlib_has_flock=0
-            ticket_create task "flock fallback create test"
+            ticket_create task "flock fallback create test" | tail -1
         ' 2>/dev/null
     ) || true
 
@@ -291,7 +291,7 @@ test_flock_fallback_tag_succeeds() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "fallback tag test" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "fallback tag test" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "created ticket for B3" "non-empty" "empty"
@@ -356,7 +356,7 @@ test_flock_fallback_output_identical() {
         TICKET_LIB_API="$TICKET_LIB_API" bash -c '
             source "$TICKET_LIB_API" || exit 97
             _ticketlib_has_flock=1
-            ticket_create task "compat test ticket"
+            ticket_create task "compat test ticket" | tail -1
         ' 2>/dev/null
     ) || true
 
@@ -371,7 +371,7 @@ test_flock_fallback_output_identical() {
         TICKET_LIB_API="$TICKET_LIB_API" bash -c '
             source "$TICKET_LIB_API" || exit 97
             _ticketlib_has_flock=0
-            ticket_create task "compat test ticket"
+            ticket_create task "compat test ticket" | tail -1
         ' 2>/dev/null
     ) || true
 
@@ -419,7 +419,7 @@ test_special_char_single_quotes_title() {
         export _TICKET_TEST_NO_SYNC=1
         # shellcheck disable=SC2030,SC2031
         export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
-        _invoke_lib_op ticket_create task "$title_in" 2>/dev/null
+        _invoke_lib_op ticket_create task "$title_in" 2>/dev/null | tail -1
     ) || true
 
     if [ -z "$created_id" ]; then
@@ -452,7 +452,7 @@ test_special_char_double_quotes_title() {
         export _TICKET_TEST_NO_SYNC=1
         # shellcheck disable=SC2030,SC2031
         export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
-        _invoke_lib_op ticket_create task "$title_in" 2>/dev/null
+        _invoke_lib_op ticket_create task "$title_in" 2>/dev/null | tail -1
     ) || true
 
     if [ -z "$created_id" ]; then
@@ -478,7 +478,7 @@ test_special_char_backslashes_comment() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "backslash test" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "backslash test" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "C3: created ticket" "non-empty" "empty"
@@ -516,7 +516,7 @@ test_special_char_newlines_comment() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "newline test" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "newline test" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "C4: created ticket" "non-empty" "empty"
@@ -564,7 +564,7 @@ test_special_char_unicode_title() {
         export _TICKET_TEST_NO_SYNC=1
         # shellcheck disable=SC2030,SC2031
         export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
-        _invoke_lib_op ticket_create task "$title_in" 2>/dev/null
+        _invoke_lib_op ticket_create task "$title_in" 2>/dev/null | tail -1
     ) || true
 
     if [ -z "$created_id" ]; then
@@ -590,7 +590,7 @@ test_special_char_unicode_comment() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "unicode comment test" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "unicode comment test" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "C6: created ticket" "non-empty" "empty"
@@ -629,7 +629,7 @@ test_special_char_edit_title_mixed() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "original title" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "original title" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "C7: created ticket" "non-empty" "empty"
@@ -665,7 +665,7 @@ test_special_char_tag_label() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "tag special char test" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "tag special char test" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "C8: created ticket" "non-empty" "empty"
@@ -716,7 +716,7 @@ test_special_char_ticket_list_title() {
         export _TICKET_TEST_NO_SYNC=1
         # shellcheck disable=SC2030,SC2031
         export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
-        _invoke_lib_op ticket_create task "$title_in" 2>/dev/null
+        _invoke_lib_op ticket_create task "$title_in" 2>/dev/null | tail -1
     ) || true
 
     if [ -z "$created_id" ]; then
@@ -761,7 +761,7 @@ test_special_char_transition_status() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "transition compat test" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "transition compat test" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "C10: created ticket" "non-empty" "empty"

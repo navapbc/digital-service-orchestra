@@ -855,9 +855,9 @@ with open(sys.argv[12], 'w', encoding='utf-8') as f:
 
         rm -f "$temp_event"
 
-        # Output dual-format: human summary to stderr, canonical ID to stdout.
-        # SC3: human-readable summary on stderr; machine-parseable 16-hex ID on stdout.
-        echo "Created ticket $ticket_id: $title" >&2
+        # Output dual-format: human summary first, canonical ID last (both stdout).
+        # SC3: both lines on stdout; scripts extract ID via | tail -1.
+        echo "Created ticket $ticket_id: $title"
         echo "$ticket_id"
     )
 }

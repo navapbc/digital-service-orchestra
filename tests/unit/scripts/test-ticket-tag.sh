@@ -50,7 +50,7 @@ _create_ticket() {
     local extra_args="${4:-}"
     local out
     # shellcheck disable=SC2086
-    out=$(cd "$repo" && bash "$TICKET_SCRIPT" create "$ticket_type" "$title" $extra_args 2>/dev/null) || true
+    out=$(cd "$repo" && bash "$TICKET_SCRIPT" create "$ticket_type" "$title" $extra_args 2>/dev/null | tail -1) || true
     echo "$out"
 }
 
@@ -74,7 +74,7 @@ _create_fixture_ticket() {
     fi
 
     (cd "$repo_dir" && bash "$TICKET_SCRIPT" create "${create_args[@]}" 2>/dev/null) \
-        | tr -d '[:space:]'
+        | tail -1
 }
 
 # ── Helper: get most-recent EDIT event file path in tracker ──────────────────
@@ -479,7 +479,7 @@ test_ticket_has_pil_finds_pil_in_create_description() {
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "PIL epic" \
         --description "### Planning Intelligence Log
 
-scrutiny complete" 2>/dev/null | tr -d '[:space:]')
+scrutiny complete" 2>/dev/null | tail -1)
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_has_pil_finds_pil_in_create_description: could not create ticket" >&2; return; }
 
@@ -502,7 +502,7 @@ test_ticket_has_pil_finds_pil_in_edit_fields_description() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Edit PIL epic" 2>/dev/null | tr -d '[:space:]')
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Edit PIL epic" 2>/dev/null | tail -1)
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_has_pil_finds_pil_in_edit_fields_description: could not create ticket" >&2; return; }
 
@@ -535,7 +535,7 @@ test_ticket_has_pil_finds_pil_in_comment_body() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Comment PIL epic" 2>/dev/null | tr -d '[:space:]')
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Comment PIL epic" 2>/dev/null | tail -1)
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_has_pil_finds_pil_in_comment_body: could not create ticket" >&2; return; }
 
@@ -570,7 +570,7 @@ test_ticket_has_pil_returns_nonzero_when_absent() {
 
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "No PIL epic" \
-        --description "Just a regular description" 2>/dev/null | tr -d '[:space:]')
+        --description "Just a regular description" 2>/dev/null | tail -1)
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_has_pil_returns_nonzero_when_absent: could not create ticket" >&2; return; }
 
@@ -593,7 +593,7 @@ test_tag_add_checked_bypasses_check_for_non_brainstorm_tags() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Non-brainstorm task" 2>/dev/null | tr -d '[:space:]')
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Non-brainstorm task" 2>/dev/null | tail -1)
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_tag_add_checked_bypasses_check_for_non_brainstorm_tags: could not create ticket" >&2; return; }
 
@@ -618,7 +618,7 @@ test_tag_add_checked_rejects_brainstorm_complete_without_pil() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "No PIL epic" 2>/dev/null | tr -d '[:space:]')
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "No PIL epic" 2>/dev/null | tail -1)
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_tag_add_checked_rejects_brainstorm_complete_without_pil: could not create ticket" >&2; return; }
 
@@ -644,7 +644,7 @@ test_tag_add_checked_allows_brainstorm_complete_with_pil() {
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "PIL present epic" \
         --description "### Planning Intelligence Log
 
-brainstorm done" 2>/dev/null | tr -d '[:space:]')
+brainstorm done" 2>/dev/null | tail -1)
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_tag_add_checked_allows_brainstorm_complete_with_pil: could not create ticket" >&2; return; }
 
@@ -670,7 +670,7 @@ test_ticket_tag_pil_round_trip() {
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Round-trip PIL epic" \
         --description "### Planning Intelligence Log
 
-all checks done" 2>/dev/null | tr -d '[:space:]')
+all checks done" 2>/dev/null | tail -1)
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_tag_pil_round_trip: could not create ticket" >&2; return; }
 
@@ -699,7 +699,7 @@ test_ticket_tag_cli_rejects_brainstorm_complete_without_pil() {
     repo=$(_make_test_repo)
 
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "No PIL epic for CLI" 2>/dev/null | tr -d '[:space:]')
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "No PIL epic for CLI" 2>/dev/null | tail -1)
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_tag_cli_rejects_brainstorm_complete_without_pil: could not create ticket" >&2; return; }
 

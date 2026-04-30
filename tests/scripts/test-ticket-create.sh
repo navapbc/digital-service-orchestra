@@ -83,7 +83,7 @@ test_ticket_create_outputs_ticket_id() {
     fi
 
     # SC1: stdout contains the 16-hex canonical ID.
-    # SC3: human summary is on stderr; canonical ID on stdout (| tail -1 also works).
+    # SC3: both lines on stdout — summary first, canonical ID last (| tail -1 extracts ID).
     local ticket_id
     ticket_id=$(echo "$stdout_out" | tail -1)
     if [[ "$ticket_id" =~ ^[a-z0-9]+-[a-z0-9]+-[a-z0-9]+-[a-z0-9]+$ ]]; then
@@ -92,11 +92,13 @@ test_ticket_create_outputs_ticket_id() {
         assert_eq "stdout last line matches 16-hex canonical ID pattern" "match" "no-match: $ticket_id"
     fi
 
-    # Assert: stderr contains the human summary "Created ticket <id>: <title>"
-    if [[ "$stderr_out" == "Created ticket $ticket_id: "* ]]; then
-        assert_eq "stderr contains human summary line" "match" "match"
+    # Assert: stdout first line contains the human summary "Created ticket <id>: <title>"
+    local summary_line
+    summary_line=$(echo "$stdout_out" | head -1)
+    if [[ "$summary_line" == "Created ticket $ticket_id: "* ]]; then
+        assert_eq "stdout first line contains human summary" "match" "match"
     else
-        assert_eq "stderr contains human summary line" "match" "no-match: $stderr_out"
+        assert_eq "stdout first line contains human summary" "match" "no-match: $summary_line"
     fi
 }
 test_ticket_create_outputs_ticket_id

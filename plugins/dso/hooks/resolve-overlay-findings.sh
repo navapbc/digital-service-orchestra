@@ -159,7 +159,7 @@ while IFS= read -r description; do
         # Truncate title to 255 chars (Jira sync limit per CLAUDE.md)
         _title="[overlay] ${description:0:244}"
         ticket_id=$(
-            "$TICKET_CMD" create task "$_title" --priority=3 2>/dev/null
+            "$TICKET_CMD" create task "$_title" --priority=3 2>/dev/null | tail -1
         ) || ticket_id="error"
         echo "OVERLAY_TICKET_CREATED:$ticket_id"
     fi

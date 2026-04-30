@@ -1192,8 +1192,8 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 | | |
 |---|---|
 | **Description** | Controls how ticket IDs are displayed in CLI output and skill files. |
-| **Accepted values** | `canonical` (default) — full 16-hex ID: `xxxx-xxxx-xxxx-xxxx`; `alias` — adj-noun-noun alias from CREATE event `data.alias` (falls back to `canonical` if absent); `short` — shortest unambiguous prefix >= 4 hex chars (falls back to `canonical` if ambiguous). Unrecognized values default to `canonical`. |
-| **Default** | `canonical` |
+| **Accepted values** | `auto` (default) — cascade: jira_key → alias → short → canonical (most human-friendly form); `canonical` — full 16-hex ID: `xxxx-xxxx-xxxx-xxxx`; `alias` — adj-noun-noun alias from CREATE event `data.alias` (falls back to `canonical` if absent); `short` — shortest unambiguous prefix >= 4 hex chars (falls back to `canonical` if ambiguous). Unrecognized values fall back to `auto` with a warning. |
+| **Default** | `auto` |
 | **Used by** | `.claude/scripts/dso ticket` (display formatting) |
 
 **Example:**

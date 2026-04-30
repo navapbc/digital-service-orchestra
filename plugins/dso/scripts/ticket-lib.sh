@@ -1418,14 +1418,15 @@ with open(latest_path, encoding='utf-8') as f:
 #
 # Args:
 #   ticket_id: the canonical 16-hex ticket directory name (e.g., abcd1234efgh5678)
-#   mode:      optional — overrides ticket.display_mode config (canonical|alias|short)
+#   mode:      optional — overrides ticket.display_mode config (auto|canonical|alias|short)
 #
 # Modes:
-#   canonical (default): returns the ID unchanged
-#   alias:    reads data.alias from the ticket's CREATE event; falls back to canonical
-#   short:    returns shortest unambiguous prefix >= 4 chars; falls back to canonical
-#             if no unique prefix exists at any length
-#   <other>:  falls back to canonical silently
+#   auto (default): cascade jira_key → alias → short → canonical; most human-friendly form
+#   canonical:      returns the ID unchanged
+#   alias:          reads data.alias from the ticket's CREATE event; falls back to canonical
+#   short:          returns shortest unambiguous prefix >= 4 chars; falls back to canonical
+#                   if no unique prefix exists at any length
+#   <other>:        falls back to auto with a warning on stderr
 #
 # Config: reads ticket.display_mode from WORKFLOW_CONFIG_FILE (or dso-config.conf).
 # Honors TICKETS_TRACKER_DIR env var for tracker path.
@@ -1444,7 +1445,7 @@ format_ticket_id() {
             _config_file="${_repo_root}/.claude/dso-config.conf"
         fi
         mode=$(grep '^ticket\.display_mode=' "$_config_file" 2>/dev/null | cut -d= -f2- | head -1 || true)
-        mode="${mode:-canonical}"
+        mode="${mode:-auto}"
     fi
 
     # ── Resolve tracker dir ───────────────────────────────────────────────────
@@ -1455,6 +1456,57 @@ format_ticket_id() {
     local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root2/.tickets-tracker}"
 
     case "$mode" in
+        auto)
+            # Cascade: jira_key → alias → short → canonical
+            local _ticket_dir2="$_tracker_dir/$ticket_id"
+            if [ -d "$_ticket_dir2" ]; then
+                local _create_file2 _jira_key2="" _alias2=""
+                while IFS= read -r -d '' _create_file2; do
+                    if [ -f "$_create_file2" ]; then
+                        local _fields
+                        _fields=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+    data = ev.get('data', {})
+    jira_key = data.get('jira_key', '') or ''
+    alias = data.get('alias', '') or ''
+    print(jira_key + '\t' + alias)
+except Exception:
+    print('\t')
+" "$_create_file2" 2>/dev/null) || _fields="\t"
+                        _jira_key2="${_fields%%$'\t'*}"
+                        _alias2="${_fields#*$'\t'}"
+                        if [ -n "$_jira_key2" ] || [ -n "$_alias2" ]; then
+                            break
+                        fi
+                    fi
+                done < <(find "$_ticket_dir2" -maxdepth 1 \( -name '*-CREATE.json' -o -name 'CREATE-*.json' \) -print0 2>/dev/null)
+                [ -n "$_jira_key2" ] && { echo "$_jira_key2"; return 0; }
+                [ -n "$_alias2" ] && { echo "$_alias2"; return 0; }
+            fi
+            # Try short prefix — collect all dir basenames once, then scan in bash
+            # (avoids re-running find once per prefix-length iteration)
+            local _nodash_a="${ticket_id//-/}"
+            local _all_dirs_a=() _e_a
+            while IFS= read -r -d '' _e_a; do
+                local _bn_a; _bn_a=$(basename "$_e_a"); _bn_a="${_bn_a//-/}"
+                _all_dirs_a+=("$_bn_a")
+            done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null)
+            local _prefix_len_a=4
+            while [ "$_prefix_len_a" -le "${#_nodash_a}" ]; do
+                local _candidate_a="${_nodash_a:0:$_prefix_len_a}"
+                local _mc_a=0
+                for _bn_a in "${_all_dirs_a[@]+"${_all_dirs_a[@]}"}"; do
+                    [[ "$_bn_a" == "$_candidate_a"* ]] && _mc_a=$((_mc_a + 1))
+                done
+                if [ "$_mc_a" -eq 1 ]; then echo "$_candidate_a"; return 0; fi
+                _prefix_len_a=$((_prefix_len_a + 1))
+            done
+            echo "$ticket_id"
+            return 0
+            ;;
         canonical)
             echo "$ticket_id"
             return 0
@@ -1528,8 +1580,9 @@ except Exception:
             return 0
             ;;
         *)
-            # Unrecognized mode: fall back to canonical silently
-            echo "$ticket_id"
+            # Unrecognized mode: warn and fall back to auto
+            echo "WARN: unknown ticket.display_mode '$mode' — falling back to auto" >&2
+            format_ticket_id "$ticket_id" "auto"
             return 0
             ;;
     esac

@@ -1290,8 +1290,8 @@ test_resolver_alias_collision_error
 #   1. display_mode=canonical  → returns 16-hex canonical ID unchanged
 #   2. display_mode=alias      → returns adj-noun-noun alias from CREATE event data.alias
 #   3. display_mode=short      → returns shortest unambiguous prefix (>=4 chars)
-#   4. display_mode absent     → defaults to canonical (returns 16-hex ID)
-#   5. display_mode=unrecognized_value → defaults to canonical
+#   4. display_mode absent     → defaults to auto (cascade: jira_key → alias → short → canonical)
+#   5. display_mode=unrecognized_value → warns on stderr and delegates to auto
 #   6. display_mode=alias, no data.alias → falls back to canonical
 
 # ── Helper: create temp repo with optional ticket.display_mode config ─────────
@@ -1483,11 +1483,11 @@ test_format_ticket_id_short() {
 }
 test_format_ticket_id_short
 
-# ── Test format_ticket_id 4: display_mode absent → defaults to canonical ───────
-echo "Test format_ticket_id_default_canonical: absent display_mode defaults to canonical (returns 16-hex)"
-test_format_ticket_id_default_canonical() {
+# ── Test format_ticket_id 4: display_mode absent → defaults to auto ─────────────
+echo "Test format_ticket_id_default_auto: absent display_mode defaults to auto (returns short prefix)"
+test_format_ticket_id_default_auto() {
     local repo
-    # Pass empty string — config omits ticket.display_mode entirely
+    # Pass empty string — config omits ticket.display_mode entirely → auto is the default
     repo=$(_make_fmt_test_repo "")
 
     if [ ! -f "$TICKET_LIB" ]; then
@@ -1502,6 +1502,8 @@ test_format_ticket_id_default_canonical() {
         return
     fi
 
+    # Ticket with no alias/jira_key — auto mode falls through to short prefix.
+    # Only one ticket in the tracker so the 4-char prefix "cccc" is unambiguous.
     local ticket_id="cccc4444dddd5555"
     _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id"
 
@@ -1511,14 +1513,15 @@ test_format_ticket_id_default_canonical() {
         TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
         source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
 
-    assert_eq "format_ticket_id default: exits 0" "0" "$exit_code"
-    assert_eq "format_ticket_id default: returns 16-hex ID unchanged (canonical default)" \
-        "$ticket_id" "$result"
+    assert_eq "format_ticket_id default auto: exits 0" "0" "$exit_code"
+    # auto → no jira_key/alias → short prefix; with one ticket "cccc" is unambiguous
+    assert_eq "format_ticket_id default auto: returns 4-char short prefix" \
+        "cccc" "$result"
 }
-test_format_ticket_id_default_canonical
+test_format_ticket_id_default_auto
 
-# ── Test format_ticket_id 5: display_mode=unrecognized_value → canonical ───────
-echo "Test format_ticket_id_unrecognized_mode: unrecognized display_mode defaults to canonical"
+# ── Test format_ticket_id 5: display_mode=unrecognized_value → warns + auto ──────
+echo "Test format_ticket_id_unrecognized_mode: unrecognized display_mode warns and delegates to auto"
 test_format_ticket_id_unrecognized_mode() {
     local repo
     repo=$(_make_fmt_test_repo "bogus_mode_xyz")
@@ -1535,18 +1538,30 @@ test_format_ticket_id_unrecognized_mode() {
         return
     fi
 
+    # Ticket with no alias/jira_key — unrecognized mode warns on stderr, then delegates to auto,
+    # which falls through to short prefix. One ticket → "eeee" is unambiguous.
     local ticket_id="eeee6666ffff7777"
     _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id"
 
-    local result exit_code=0
+    local result stderr_out exit_code=0
+    stderr_out=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>&1 >/dev/null) || exit_code=$?
+
     result=$(cd "$repo" && \
         WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
         TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
         source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
 
     assert_eq "format_ticket_id unrecognized-mode: exits 0" "0" "$exit_code"
-    assert_eq "format_ticket_id unrecognized-mode: falls back to canonical (16-hex unchanged)" \
-        "$ticket_id" "$result"
+    assert_eq "format_ticket_id unrecognized-mode: returns 4-char short prefix via auto" \
+        "eeee" "$result"
+    # Verify warning was emitted on stderr
+    local has_warn
+    has_warn=$(echo "$stderr_out" | grep -c "WARN" || true)
+    assert_eq "format_ticket_id unrecognized-mode: emits WARN on stderr" "1" \
+        "$([ "${has_warn:-0}" -gt 0 ] && echo 1 || echo 0)"
 }
 test_format_ticket_id_unrecognized_mode
 
@@ -1583,5 +1598,97 @@ test_format_ticket_id_alias_no_alias_field() {
         "$ticket_id" "$result"
 }
 test_format_ticket_id_alias_no_alias_field
+
+# ── Test format_ticket_id 7: display_mode=auto, alias present → returns alias ───
+echo "Test format_ticket_id_auto_with_alias: auto mode returns data.alias when present"
+test_format_ticket_id_auto_with_alias() {
+    local repo
+    repo=$(_make_fmt_test_repo "")  # no display_mode → auto default
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id auto-alias test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (auto-alias test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket WITH an alias — auto mode should return the alias (higher priority than short)
+    local ticket_id="iiii0000jjjj1111"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id" "calm-river-stone"
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id auto with alias: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id auto with alias: returns data.alias" \
+        "calm-river-stone" "$result"
+}
+test_format_ticket_id_auto_with_alias
+
+# ── Test format_ticket_id 8: display_mode=auto, jira_key present → returns jira_key ─
+echo "Test format_ticket_id_auto_with_jira_key: auto mode returns jira_key when present (highest priority)"
+test_format_ticket_id_auto_with_jira_key() {
+    local repo
+    repo=$(_make_fmt_test_repo "")  # no display_mode → auto default
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id auto-jira_key test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (auto-jira_key test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket with both jira_key AND alias — auto must prefer jira_key
+    local ticket_id="kkkk2222llll3333"
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    mkdir -p "$ticket_dir"
+    local ts uuid
+    ts=$(python3 -c "import time; print(int(time.time() * 1000))")
+    uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    python3 -c "
+import json, sys
+data = {
+    'timestamp': int('$ts'),
+    'uuid': '$uuid',
+    'event_type': 'CREATE',
+    'env_id': '$uuid',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'Jira key test ticket',
+        'parent_id': None,
+        'jira_key': 'PROJ-42',
+        'alias': 'warm-lake-oak'
+    }
+}
+json.dump(data, sys.stdout)
+" > "$ticket_dir/${ts}-${uuid}-CREATE.json"
+    (cd "$repo/.tickets-tracker" && git add "$ticket_id/" 2>/dev/null && \
+        git commit -m "test: CREATE $ticket_id jira_key" --no-verify 2>/dev/null) || true
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id auto with jira_key: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id auto with jira_key: returns jira_key (beats alias)" \
+        "PROJ-42" "$result"
+}
+test_format_ticket_id_auto_with_jira_key
 
 print_summary
