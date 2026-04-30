@@ -184,7 +184,9 @@ timestamp=$(echo "$event_meta" | sed -n '3p')
 # ── Compute human-readable alias from ticket ID ───────────────────────────────
 # Honour TICKET_WORDLIST_PATH env override (for testing); fall back to the
 # wordlist bundled with the plugin.
-_wordlist="${TICKET_WORDLIST_PATH:-$SCRIPT_DIR/../resources/ticket-wordlist.txt}"
+# ${SCRIPT_DIR%/scripts} strips the trailing "/scripts" suffix — assumes this script lives
+# in a directory named "scripts" with "resources" as a sibling. Matches the plugin layout.
+_wordlist="${TICKET_WORDLIST_PATH:-${SCRIPT_DIR%/scripts}/resources/ticket-wordlist.txt}"
 _alias_stderr=$(mktemp /tmp/ticket-alias-stderr.XXXXXX)
 ticket_alias=$(python3 "$SCRIPT_DIR/ticket-alias-compute.py" "$ticket_id" "$_wordlist" 2>"$_alias_stderr")
 if grep -q "^FALLBACK$" "$_alias_stderr" 2>/dev/null; then

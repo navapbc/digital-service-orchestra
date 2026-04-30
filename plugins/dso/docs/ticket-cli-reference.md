@@ -143,11 +143,11 @@ Create a new ticket.
 | `-d`, `--description` | No | Optional long-form description text for the ticket |
 | `--tags` | No | Comma-separated list of tags to attach to the ticket at creation time (e.g., `CLI_user`) |
 
-**Output:** Prints the canonical 16-hex ticket ID to stdout (e.g., `ab12-cd34-ef56-7890`). On success, also prints a human-readable summary to stderr: `Created ticket <id>: <title>`. Callers that capture only stdout are unaffected.
+**Output:** Emits two lines to stdout: a human-readable summary (`Created ticket <canonical_id>: <title>`) followed by the canonical 16-hex ID on the last line. Scripts that capture the ID must use `| tail -1`.
 
 **Behavior:**
 
-- Generates a collision-resistant 16-character ID (canonical format: `xxxx-xxxx-xxxx-xxxx`) derived from a UUID4; the `data.alias` field in the CREATE event stores the short 8-character legacy form (`xxxx-xxxx`) for display and backward-compatible resolution
+- Generates a collision-resistant 16-character ID (canonical format: `xxxx-xxxx-xxxx-xxxx`) derived from a UUID4; the `data.alias` field in the CREATE event stores the human-readable adjective-noun-noun alias (e.g., `calm-river-stone`) computed deterministically from the ticket ID's hex digits
 - **Backward compatibility**: existing 8-hex IDs (`xxxx-xxxx`) continue to resolve via the multi-form resolver in `ticket-lib-api.sh`; callers may pass either form to any subcommand
 - Validates that `--parent` ticket exists and has a CREATE event before writing
 - Writes a `CREATE` event JSON file to `.tickets-tracker/<ticket_id>/` # tickets-boundary-ok
@@ -1090,7 +1090,7 @@ The ticket system is append-only. All mutations write a new event JSON file. The
 
 | Event type | Written by | Description |
 |---|---|---|
-| `CREATE` | `.claude/scripts/dso ticket create` | Creates the ticket with type, title, and optional parent; `data.alias` stores the short 8-hex display form (`xxxx-xxxx`) of the canonical 16-hex ID |
+| `CREATE` | `.claude/scripts/dso ticket create` | Creates the ticket with type, title, and optional parent; `data.alias` stores the human-readable adjective-noun-noun alias (e.g., `calm-river-stone`) computed deterministically from the ticket ID |
 | `STATUS` | `.claude/scripts/dso ticket transition` | Changes ticket status (open, in_progress, closed, blocked); `data.parent_status_uuid` is `null` for the first STATUS event on a ticket and a UUID string referencing the preceding STATUS event for all subsequent transitions (enables concurrency detection) |
 | `COMMENT` | `.claude/scripts/dso ticket comment` | Appends a comment |
 | `LINK` | `.claude/scripts/dso ticket link` | Creates a directional relationship to another ticket |
@@ -1371,16 +1371,19 @@ _ticketlib_dispatch ticket_show --format=llm "$ticket_id"
 
 ### `_ticketlib_resolve <id-or-alias>`
 
-Resolves any ticket reference (16-hex canonical ID, 8-hex alias, or prefix) to its canonical 16-hex ID. Returns the canonical ID on stdout; exits non-zero when no match is found or the reference is ambiguous.
+Resolves any ticket reference to its canonical 16-hex ID. Accepted forms: 16-hex canonical ID (`xxxx-xxxx-xxxx-xxxx`), legacy 8-hex short canonical ID (`xxxx-xxxx`), adjective-noun-noun alias (e.g., `calm-river-stone`), `jira_key` (e.g., `PROJ-123`), or unambiguous prefix. Returns the canonical ID on stdout; exits non-zero when no match is found or the reference is ambiguous.
+
+Resolution precedence: exact canonical → jira_key → alias → short → prefix.
 
 ```bash
 source "$_PLUGIN_ROOT/scripts/ticket-lib-api.sh"
 
-canonical=$(_ticketlib_resolve "ab12-cd34")          # 8-hex alias → canonical
+canonical=$(_ticketlib_resolve "calm-river-stone")    # alias → canonical
+canonical=$(_ticketlib_resolve "ab12-cd34")           # 8-hex short canonical → canonical
 canonical=$(_ticketlib_resolve "ab12-cd34-ef56-gh78") # already canonical → returned as-is
 ```
 
-The resolver checks (in order): exact directory match, `data.alias` field in CREATE events, and unique prefix match. All ticket subcommands accept either form — `_ticketlib_resolve` is the shared resolution path used internally by `_ticketlib_dispatch`.
+The resolver checks (in order): exact directory match, `jira_key` field, `data.alias` field in CREATE events, legacy 8-hex short canonical, and unique prefix match. All ticket subcommands accept any of these forms — `_ticketlib_resolve` is the shared resolution path used internally by `_ticketlib_dispatch`.
 
 ### `_ticketlib_has_flock`
 

@@ -51,6 +51,8 @@ test_ticket_autoinit_on_create() {
     stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Auto-init test" 2>/tmp/autoinit_stderr_$$) || exit_code=$?
     stderr_out=$(cat /tmp/autoinit_stderr_$$ 2>/dev/null || true)
     rm -f /tmp/autoinit_stderr_$$
+    local ticket_id
+    ticket_id=$(echo "$stdout_out" | tail -1)
 
     # Assert: exits 0
     assert_eq "ticket create in fresh repo exits 0" "0" "$exit_code"
@@ -63,10 +65,10 @@ test_ticket_autoinit_on_create() {
     fi
 
     # Assert: stdout contains a ticket ID (non-empty, matches pattern)
-    if [ -n "$stdout_out" ] && [[ "$stdout_out" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+    if [ -n "$ticket_id" ] && [[ "$ticket_id" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
         assert_eq "ticket ID output to stdout" "match" "match"
     else
-        assert_eq "ticket ID output to stdout" "match" "no-match: ${stdout_out:-<empty>}"
+        assert_eq "ticket ID output to stdout" "match" "no-match: ${ticket_id:-<empty>}"
     fi
 
     # Assert: init output is NOT visible on stdout (suppressed)

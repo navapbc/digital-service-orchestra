@@ -39,7 +39,7 @@ _create_ticket() {
     local title="${3:-Test ticket}"
     local out
     out=$(cd "$repo" && bash "$TICKET_SCRIPT" create "$ticket_type" "$title" 2>/dev/null) || true
-    echo "$out"
+    echo "$out" | tail -1
 }
 
 # ── Test 1: batch reduce with 3 tickets → JSON array with 3 states ────────────

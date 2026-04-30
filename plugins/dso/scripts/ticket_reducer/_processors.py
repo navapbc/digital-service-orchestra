@@ -95,7 +95,6 @@ def process_status(state: dict, event: dict, data: dict, filepath: str) -> None:
             # Existing chain wins; keep state as-is.
             winner_uuid = existing_uuid
             loser_uuid = incoming_uuid
-            winner_target = state["status"]
             loser_env_id = event.get("env_id", "") or ""
 
         ticket_id = state.get("ticket_id", "")

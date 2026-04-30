@@ -784,8 +784,10 @@ print(timestamp)
         # Compute human-readable alias from ticket ID.
         # Honour TICKET_WORDLIST_PATH env override (for testing); fall back to the
         # wordlist bundled with the plugin.
+        # ${_TICKETLIB_DIR%/scripts} strips trailing "/scripts" — assumes this file lives
+        # in a directory named "scripts" with "resources" as a sibling (plugin layout).
         local _wordlist _alias_stderr ticket_alias
-        _wordlist="${TICKET_WORDLIST_PATH:-$_TICKETLIB_DIR/../resources/ticket-wordlist.txt}"
+        _wordlist="${TICKET_WORDLIST_PATH:-${_TICKETLIB_DIR%/scripts}/resources/ticket-wordlist.txt}"
         _alias_stderr=$(mktemp /tmp/ticket-alias-stderr.XXXXXX)
         ticket_alias=$(python3 "$_TICKETLIB_DIR/ticket-alias-compute.py" "$ticket_id" "$_wordlist" 2>"$_alias_stderr")
         if grep -q "^FALLBACK$" "$_alias_stderr" 2>/dev/null; then

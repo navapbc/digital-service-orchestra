@@ -61,7 +61,7 @@ test_full_workflow_init_create_show() {
 
     # 1b. Run ticket create task "My first ticket"
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "My first ticket" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "My first ticket" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "create: returned non-empty ticket ID" "non-empty" "empty"
@@ -139,7 +139,7 @@ test_workflow_with_special_chars_in_title() {
     # Title with apostrophe and double-quotes
     local special_title="It's a \"test\" title"
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "$special_title" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "$special_title" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "special-chars: create returns non-empty ticket ID" "non-empty" "empty"
@@ -196,9 +196,9 @@ test_create_and_show_multiple_tickets() {
     if [ "$init_exit" -ne 0 ]; then return; fi
 
     local id1 id2 id3
-    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "First ticket" 2>/dev/null) || true
-    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create bug "Second ticket" 2>/dev/null) || true
-    id3=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "Third ticket" 2>/dev/null) || true
+    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "First ticket" 2>/dev/null | tail -1) || true
+    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create bug "Second ticket" 2>/dev/null | tail -1) || true
+    id3=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "Third ticket" 2>/dev/null | tail -1) || true
 
     # Assert: all IDs are non-empty
     if [ -n "$id1" ] && [ -n "$id2" ] && [ -n "$id3" ]; then
@@ -270,7 +270,7 @@ test_env_id_embedded_in_events() {
     fi
 
     local ticket_id
-    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Env-id test ticket" 2>/dev/null) || true
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Env-id test ticket" 2>/dev/null | tail -1) || true
 
     if [ -z "$ticket_id" ]; then
         assert_eq "env_id: create returns ticket ID" "non-empty" "empty"
@@ -347,13 +347,13 @@ test_concurrent_create_serialized_by_flock() {
     tmp_id2="$tmp_id_dir/id2"
     tmp_id3="$tmp_id_dir/id3"
 
-    (cd "$repo" && bash "$TICKET_SCRIPT" create task "Concurrent ticket 1" >"$tmp_id1" 2>/dev/null) &
+    (cd "$repo" && bash "$TICKET_SCRIPT" create task "Concurrent ticket 1" 2>/dev/null | tail -1 >"$tmp_id1") &
     local pid1=$!
     sleep 0.1
-    (cd "$repo" && bash "$TICKET_SCRIPT" create task "Concurrent ticket 2" >"$tmp_id2" 2>/dev/null) &
+    (cd "$repo" && bash "$TICKET_SCRIPT" create task "Concurrent ticket 2" 2>/dev/null | tail -1 >"$tmp_id2") &
     local pid2=$!
     sleep 0.1
-    (cd "$repo" && bash "$TICKET_SCRIPT" create task "Concurrent ticket 3" >"$tmp_id3" 2>/dev/null) &
+    (cd "$repo" && bash "$TICKET_SCRIPT" create task "Concurrent ticket 3" 2>/dev/null | tail -1 >"$tmp_id3") &
     local pid3=$!
 
     # Wait for each individually and capture exit codes

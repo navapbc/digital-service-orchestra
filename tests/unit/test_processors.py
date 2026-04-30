@@ -4,8 +4,8 @@ These tests assert the NEW fork-detection behavior where a status conflict
 (current_status in event != state["status"]) triggers a lexical tie-break
 on parent_status_uuid instead of accumulating into state["conflicts"].
 
-All tests in this file are RED — they MUST FAIL against the current
-process_status() implementation and PASS only after T13 is applied.
+All tests in this file cover the fork-detection behavior implemented in epic
+3e74-56da (T13). They are expected to PASS against the current implementation.
 """
 
 from __future__ import annotations

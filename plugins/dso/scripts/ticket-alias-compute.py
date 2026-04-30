@@ -34,7 +34,7 @@ def load_words(path):
                 else:
                     nouns.append(line.strip())
     except (OSError, IOError):
-        pass
+        pass  # wordlist unavailable; caller checks for empty lists and falls back to hex alias
     return adjs, nouns
 
 
