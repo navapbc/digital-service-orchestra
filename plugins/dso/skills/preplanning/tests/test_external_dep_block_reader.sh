@@ -56,10 +56,12 @@ echo ""
 echo "=== Idempotency dedup contract: name-field match co-occurs with skip directive ==="
 # test_idempotency_dedup_contract
 # Structural per Rule 5: assert the actual dedup contract — match by `name` field
-# AND a "skip" instruction co-occur within the External Dependencies phase context
-# (within 30 lines of each other, since the phase body is short). This is not a
-# behavioral test (SKILL.md is non-executable) but it asserts the gate text in
-# the right structural relationship rather than a free-floating prose phrase.
+# AND a "skip" instruction both appear within the External Dependencies phase
+# section (extracted via awk between the phase heading and the next `^---$`
+# separator). The proximity bound is the section size, not a fixed line count.
+# This is not a behavioral test (SKILL.md is non-executable) but it asserts the
+# gate text in the right structural relationship rather than a free-floating
+# prose phrase.
 if awk '/Phase [A-Z]:.*External Dependencies Reading/,/^---$/' "$SKILL_MD" | \
    grep -q "name.*field" && \
    awk '/Phase [A-Z]:.*External Dependencies Reading/,/^---$/' "$SKILL_MD" | \

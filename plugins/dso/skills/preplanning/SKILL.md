@@ -64,7 +64,7 @@ Act as a Senior Technical Product Manager (Google-style) to audit, reconcile, an
 
 This skill transforms epics into implementable stories:
 
-- **Phase A**: Context Reconciliation & Discovery — audit existing work, clarify scope
+- **Phase A**: Reconciliation — audit existing work, clarify scope
 - **Phase B**: External Dependencies Reading (flag-gated) — read epic's External Dependencies block, generate manual:awaiting_user stories
 - **Phase C**: Risk & Scope Scan — flag cross-cutting concerns, identify split candidates
 - **Phase D**: Integration Research — verify external integrations pre-slicing
@@ -323,28 +323,9 @@ A story qualifies for integration research if it references any of:
 - Data format migrations
 - Authentication/credential flows
 
-### Research Process (shared — see `prompts/research-process.md`)
+### Research Process
 
-**Pre-flight: deduplicate against `researchFindings`**. Before issuing any WebSearch call for a qualifying story's capability, check the merged `researchFindings` array (loaded from the epic's last `RESEARCH_FINDINGS:` ticket comment per Phase H Step 6) for a matching `capability` entry:
-
-- `verified` → skip WebSearch entirely for this capability and reuse the prior `source` citation directly. (Skipping verified entries avoids redundant network calls and accelerates preplanning when upstream skills have already established the constraint.)
-- `partially_verified` → run a light WebSearch (1 spot-check query) to confirm the prior finding still holds.
-- `unverified` or `contradicted` → run full WebSearch verification as described below.
-- Empty array (no prior findings) → run full WebSearch verification for every qualifying capability.
-
-After research, append new entries (or upgrade existing entries) to `researchFindings` with the latest `status`, `source`, `skill_name: "preplanning"`, and current `timestamp` so downstream consumers benefit from the same dedup.
-
-For each qualifying story:
-
-1. Use WebSearch to find known-working code that uses the specific integration or topic. Search GitHub for repositories that import or call the tool/API.
-2. Verify specific capabilities claimed or implied by the story scope. Check official documentation against what the story requires.
-3. Add findings to the story's Considerations as **Verified Constraints**:
-   ```
-   - [Integration] Verified: <tool> supports <capability> (source: <URL>)
-   - [Integration] NOT verified: <tool> does not appear to support <capability>
-   ```
-4. If no sandbox or test environment is available for integration testing, flag this to the user during preplanning: "No sandbox available for <tool> — integration testing will require a live environment."
-5. If research finds no verified code or capabilities for a story's integration, emit `REPLAN_ESCALATE: brainstorm` with explanation of the unresolved gap. Sprint's replan machinery routes this signal. Track the current iteration in `feasibility_cycle_count` (state variable exposed for planning-intelligence log consumption).
+Follow the shared research procedure in `prompts/research-process.md` (single authoritative source — covers researchFindings dedup, the WebSearch-and-verify steps, REPLAN_ESCALATE emission, and graceful degradation). This phase is the pre-slicing trigger for that procedure.
 
 ### Skip Condition
 

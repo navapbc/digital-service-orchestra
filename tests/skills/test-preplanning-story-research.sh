@@ -22,7 +22,7 @@ fail() { echo "FAIL: ${SECTION}"; echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 # Extract the Phase G section: from the Phase G heading to the next ## Phase heading.
 # Returns empty string if the heading is not present.
-extract_phase_35_section() {
+extract_phase_g_section() {
   python3 - "$SKILL_MD" <<'PYEOF'
 import sys, re
 
@@ -42,11 +42,11 @@ print(section)
 PYEOF
 }
 
-PHASE_35_SECTION="$(extract_phase_35_section)"
+PHASE_G_SECTION="$(extract_phase_g_section)"
 
 echo "=== test_phase_heading ==="
 SECTION="test_phase_heading"
-if grep -qE "^#{1,3} Phase G" <<< "$PHASE_35_SECTION"; then
+if grep -qE "^#{1,3} Phase G" <<< "$PHASE_G_SECTION"; then
   pass "SKILL.md contains a Phase G heading for story-level research"
 else
   fail "SKILL.md missing Phase G heading — expected '## Phase G' or '### Phase G'"
@@ -62,7 +62,7 @@ for trigger in \
   "undocumented API|undocumented.*api|api.*undocumented" \
   "assumed data format|assumed.*format|data format.*assum|unknown.*format|format.*unknown" \
   "low.*confidence|agent confidence|uncertain|unclear.*behavior|behavior.*unclear"; do
-  if grep -qiE "$trigger" <<< "$PHASE_35_SECTION"; then
+  if grep -qiE "$trigger" <<< "$PHASE_G_SECTION"; then
     TRIGGER_COUNT=$((TRIGGER_COUNT + 1))
   fi
 done
@@ -77,7 +77,7 @@ echo ""
 echo "=== test_websearch_reference ==="
 SECTION="test_websearch_reference"
 # This assertion is section-scoped to Phase G to avoid matching Phase 2.25
-if grep -qE "WebSearch|WebFetch" <<< "$PHASE_35_SECTION"; then
+if grep -qE "WebSearch|WebFetch" <<< "$PHASE_G_SECTION"; then
   pass "Phase G section references WebSearch or WebFetch"
 else
   fail "Phase G section missing WebSearch or WebFetch reference (section-scoped check)"
@@ -94,7 +94,7 @@ for field_pattern in \
   "query summary|search query|query used" \
   "source URL|source url|URLs?\b|link.*found" \
   "key insight|insight\b|finding\b|takeaway"; do
-  if grep -qiE "$field_pattern" <<< "$PHASE_35_SECTION"; then
+  if grep -qiE "$field_pattern" <<< "$PHASE_G_SECTION"; then
     FIELD_COUNT=$((FIELD_COUNT + 1))
   fi
 done
@@ -108,7 +108,7 @@ fi
 echo ""
 echo "=== test_graceful_degradation ==="
 SECTION="test_graceful_degradation"
-if grep -qiE "fail|unavailable|not available|graceful|degraded?|skip.*search|if.*fails?\b|when.*fails?\b|cannot.*search|search.*unavailable" <<< "$PHASE_35_SECTION"; then
+if grep -qiE "fail|unavailable|not available|graceful|degraded?|skip.*search|if.*fails?\b|when.*fails?\b|cannot.*search|search.*unavailable" <<< "$PHASE_G_SECTION"; then
   pass "Phase G section includes graceful degradation language"
 else
   fail "Phase G section missing graceful degradation language for when WebSearch/WebFetch is unavailable or fails"

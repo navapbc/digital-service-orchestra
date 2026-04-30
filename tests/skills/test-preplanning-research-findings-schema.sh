@@ -74,37 +74,17 @@ test_preplanning_schema_version_field() {
     "1" "$_found"
 }
 
-# ===========================================================================
-# test_preplanning_skip_verified_capability
-#
-# Given: preplanning SKILL.md (any section)
-# When:  we check for the structural marker describing skipping WebSearch
-#        specifically when research findings already carry a "verified" status
-# Then:  a line containing both "verified" and "skip" (in proximity to
-#        WebSearch context) must appear — this is the structural boundary for
-#        the "skip WebSearch for already-verified researchFindings" behavior
-#
-# Structural boundary: a single structural marker — a line that links the
-# concept of "verified" findings to skipping redundant WebSearch — must exist.
-# This is a distinct contract from the existing skip conditions (which fire
-# when no stories qualify, not when findings are pre-verified). The grep
-# targets a line that combines both "verified" and "skip" in the WebSearch
-# deduplication context, which does not yet exist in the file.
-# ===========================================================================
-test_preplanning_skip_verified_capability() {
-  # Look for a line that ties "verified" findings to skipping WebSearch — the
-  # structural marker for the research deduplication contract. The existing
-  # skip conditions in the file are about "no qualifying stories", not about
-  # skipping when findings are pre-verified. This check requires a line where
-  # both "verified" and "skip" appear together in the WebSearch deduplication
-  # context (e.g., "skip WebSearch for findings with verified status").
-  local _found=0
-  grep -i "verified" "$SKILL_FILE" | grep -qi "skip" && _found=1
-
-  assert_eq \
-    "test_preplanning_skip_verified_capability: a line links verified findings to skipping WebSearch in preplanning SKILL.md" \
-    "1" "$_found"
-}
+# Note: test_preplanning_skip_verified_capability removed as a change detector
+# per behavioral-testing-standard.md Rule 5 + skill-refactor Phase 5 callers
+# test. The assertion grepped SKILL.md prose for "verified" + "skip" co-
+# occurrence with no binding caller — consumers (implementation-plan, sprint)
+# bind to the JSON `status: "verified"` field and the `RESEARCH_FINDINGS:`
+# ticket comment prefix, both of which are already gated by separate tests
+# in this file (test_preplanning_research_findings_array,
+# test_preplanning_schema_version_field, test_preplanning_research_findings_merge).
+# The dedup behavior could be expressed many valid ways without changing the
+# contract — exactly the false-positive failure mode change-detector tests
+# produce.
 
 # ===========================================================================
 # test_preplanning_research_findings_merge
@@ -133,7 +113,6 @@ test_preplanning_research_findings_merge() {
 # ---------------------------------------------------------------------------
 test_preplanning_research_findings_array_mentioned
 test_preplanning_schema_version_field
-test_preplanning_skip_verified_capability
 test_preplanning_research_findings_merge
 
 print_summary
