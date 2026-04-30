@@ -594,16 +594,16 @@ _TEST_TMPDIRS+=("$MOCK13")
 ARTIFACTS13=$(mktemp -d)
 _TEST_TMPDIRS+=("$ARTIFACTS13")
 
-# Counter file — incremented by each curl invocation
-CURL_COUNT_FILE="$MOCK13/curl-call-count"
-printf '0' > "$CURL_COUNT_FILE"
+# Counter dir — each curl invocation creates a unique sentinel file (race-safe vs read-modify-write)
+CURL_COUNT_DIR="$MOCK13/curl-calls"
+mkdir -p "$CURL_COUNT_DIR"
 
 # Specialist slot response — valid reviewer-findings JSON
 _SLOT_JSON='{"scores":{"correctness":4,"verification":4,"hygiene":4,"design":4,"maintainability":4},"summary":"Specialist OK","findings":[]}'
 
 # Mock curl: count calls; write a slot file named after the agent being invoked
 # (The runner passes --data @file with a body referencing the agent file).
-# For each call, write the appropriate slot file and increment the counter.
+# For each call, write the appropriate slot file and touch a unique counter sentinel.
 cat > "$MOCK13/curl" <<MOCKEOF
 #!/usr/bin/env bash
 # Detect which specialist this call is for by scanning --data-raw body for agent file path
@@ -622,13 +622,13 @@ _slot_json='${_SLOT_JSON}'
 
 # Count and handle specialist calls only (not the arch synthesis call)
 if printf '%s' "\$_body" | grep -q "code-reviewer-deep-correctness"; then
-    _count=\$(cat "${CURL_COUNT_FILE}"); _count=\$((_count + 1)); printf '%s' "\$_count" > "${CURL_COUNT_FILE}"
+    touch "${CURL_COUNT_DIR}/call.\${BASHPID}.\${RANDOM}"
     printf '%s\n' "\$_slot_json" > "${ARTIFACTS13}/reviewer-findings-correctness.json"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-verification"; then
-    _count=\$(cat "${CURL_COUNT_FILE}"); _count=\$((_count + 1)); printf '%s' "\$_count" > "${CURL_COUNT_FILE}"
+    touch "${CURL_COUNT_DIR}/call.\${BASHPID}.\${RANDOM}"
     printf '%s\n' "\$_slot_json" > "${ARTIFACTS13}/reviewer-findings-verification.json"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
-    _count=\$(cat "${CURL_COUNT_FILE}"); _count=\$((_count + 1)); printf '%s' "\$_count" > "${CURL_COUNT_FILE}"
+    touch "${CURL_COUNT_DIR}/call.\${BASHPID}.\${RANDOM}"
     printf '%s\n' "\$_slot_json" > "${ARTIFACTS13}/reviewer-findings-hygiene.json"
 fi
 
@@ -675,7 +675,7 @@ assert_eq "test_deep_tier_dispatches_three_specialist_calls: runner exits 0" "0"
 # (2) the test invokes the runner end-to-end with a real diff (not source inspection),
 # (3) the slot-file assertions below independently verify the behavioral outcomes.
 # Ref: tests/scripts/test-llm-api-call.sh for unit-level curl mock tests.
-_curl_count=$(cat "$CURL_COUNT_FILE")
+_curl_count=$(find "$CURL_COUNT_DIR/" -maxdepth 1 -type f | wc -l | tr -d ' ')
 assert_eq "test_deep_tier_dispatches_three_specialist_calls: exactly 3 specialist curl calls" "3" "$_curl_count"
 
 if [[ -f "$ARTIFACTS13/reviewer-findings-correctness.json" ]]; then _corr_exists=0; else _corr_exists=1; fi
@@ -700,19 +700,18 @@ _TEST_TMPDIRS+=("$MOCK14")
 ARTIFACTS14=$(mktemp -d)
 _TEST_TMPDIRS+=("$ARTIFACTS14")
 
-CURL_COUNT14="$MOCK14/curl-call-count"
-printf '0' > "$CURL_COUNT14"
+CURL_COUNT_DIR14="$MOCK14/curl-calls"
+mkdir -p "$CURL_COUNT_DIR14"
 
 _SLOT14='{"scores":{"correctness":4,"verification":4,"hygiene":4,"design":4,"maintainability":4},"summary":"Specialist OK","findings":[]}'
 _ARCH14='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"Arch synthesis complete","findings":[]}'
 
 # Mock curl: count calls; write slot files for specialist agents; write final
-# reviewer-findings.json when the arch agent body is detected
+# reviewer-findings.json when the arch agent body is detected.
+# Each call touches a unique sentinel file (race-safe vs read-modify-write counter).
 cat > "$MOCK14/curl" <<MOCKEOF
 #!/usr/bin/env bash
-_count=\$(cat "${CURL_COUNT14}")
-_count=\$((_count + 1))
-printf '%s' "\$_count" > "${CURL_COUNT14}"
+touch "${CURL_COUNT_DIR14}/call.\${BASHPID}.\${RANDOM}"
 
 _body=""
 _prev=""
@@ -786,7 +785,7 @@ assert_eq "test_deep_tier_arch_agent_is_sole_final_writer: runner exits 0" "0" "
 # REVIEW-DEFENSE: same external-boundary rationale as test 13.
 # 4 curl calls = 3 specialist llm-api-call.sh invocations + 1 arch llm-api-call.sh invocation.
 # This count verifies that the arch synthesis step is executed after all specialists complete.
-_curl_count14=$(cat "$CURL_COUNT14")
+_curl_count14=$(find "$CURL_COUNT_DIR14/" -maxdepth 1 -type f | wc -l | tr -d ' ')
 assert_eq "test_deep_tier_arch_agent_is_sole_final_writer: exactly 4 curl calls (3 specialists + arch)" "4" "$_curl_count14"
 
 if [[ -f "$ARTIFACTS14/reviewer-findings.json" ]]; then _final_exists=0; else _final_exists=1; fi
