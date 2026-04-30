@@ -1498,7 +1498,7 @@ except Exception:
             while [ "$_prefix_len_a" -le "${#_nodash_a}" ]; do
                 local _candidate_a="${_nodash_a:0:$_prefix_len_a}"
                 local _mc_a=0
-                for _bn_a in "${_all_dirs_a[@]+"${_all_dirs_a[@]}"}"; do
+                for _bn_a in "${_all_dirs_a[@]}"; do
                     [[ "$_bn_a" == "$_candidate_a"* ]] && _mc_a=$((_mc_a + 1))
                 done
                 if [ "$_mc_a" -eq 1 ]; then echo "$_candidate_a"; return 0; fi

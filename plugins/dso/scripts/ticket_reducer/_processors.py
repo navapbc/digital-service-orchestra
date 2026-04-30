@@ -85,11 +85,10 @@ def process_status(state: dict, event: dict, data: dict, filepath: str) -> None:
             # Incoming event wins.
             winner_uuid = incoming_uuid
             loser_uuid = existing_uuid
-            winner_target = data.get("status", state["status"])
             # Use last_status_env_id (set by most recent STATUS event) so we log
             # the losing STATUS author's env, not the ticket creator's env.
             loser_env_id = state.get("last_status_env_id") or ""
-            state["status"] = winner_target
+            state["status"] = data.get("status", state["status"])
             state["parent_status_uuid"] = incoming_uuid
         else:
             # Existing chain wins; keep state as-is.
