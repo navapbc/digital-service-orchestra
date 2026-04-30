@@ -199,7 +199,7 @@ plugins/dso/scripts/ticket-lib-api.sh:tests/scripts/test-ticket-lib-api.sh,tests
 .github/workflows/ticket-platform-matrix.yml:tests/scripts/test-ticket-platform-matrix-trigger.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh
 tests/lib/git-fixtures.sh:tests/scripts/test-create-bug-skill-smoke.sh
-CLAUDE.md:tests/scripts/test-claude-md-hook-error-handler.sh,tests/scripts/test-docs-behavioral-drift-prevention.sh,tests/skills/test-nextjs-starter-docs.sh,tests/scripts/test-tag-policy-docs.sh
+CLAUDE.md:tests/scripts/test-claude-md-hook-error-handler.sh,tests/scripts/test-docs-behavioral-drift-prevention.sh,tests/skills/test-nextjs-starter-docs.sh,tests/scripts/test-tag-policy-docs.sh,tests/scripts/test-claude-md-ci-review.sh
 plugins/dso/agents/red-team-reviewer.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/blue-team-filter.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/red-test-writer.md:tests/hooks/test-agent-standard-reference.sh
