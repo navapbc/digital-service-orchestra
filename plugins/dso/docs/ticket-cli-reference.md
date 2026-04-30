@@ -143,7 +143,7 @@ Create a new ticket.
 | `-d`, `--description` | No | Optional long-form description text for the ticket |
 | `--tags` | No | Comma-separated list of tags to attach to the ticket at creation time (e.g., `CLI_user`) |
 
-**Output:** Prints the generated ticket ID to stdout (e.g., `ab12-cd34-ef56-gh78`). No other output on success.
+**Output:** Prints the canonical 16-hex ticket ID to stdout (e.g., `ab12-cd34-ef56-7890`). On success, also prints a human-readable summary to stderr: `Created ticket <id>: <title>`. Callers that capture only stdout are unaffected.
 
 **Behavior:**
 

@@ -39,7 +39,7 @@ TICKET_ID=$(
     _TICKET_TEST_NO_SYNC=1 \
     TICKETS_TRACKER_DIR="$TRACKER_DIR" \
     bash "$TICKET_SCRIPT" create task "benchmark-seed-ticket" 2>/dev/null \
-    | awk '/^[a-f0-9]{4}-[a-f0-9]{4}$/ {print; exit}'
+    | awk '/^[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}$/ {print; exit}'
 )
 
 if [ -z "${TICKET_ID:-}" ]; then

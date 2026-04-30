@@ -436,7 +436,7 @@ for c in t.get('comments', []):
 
     # Create new lock using v3 ticket CLI (ticket create task "<title>")
     local new_id
-    new_id=$("$TICKET_CMD" create task "[LOCK] $label" 2>&1 | tr -d '[:space:]')
+    new_id=$("$TICKET_CMD" create task "[LOCK] $label" 2>/dev/null | tr -d '[:space:]')
 
     if [ -z "$new_id" ] || echo "$new_id" | grep -qiE 'error|fail'; then
         echo "ERROR: Failed to create lock ticket"

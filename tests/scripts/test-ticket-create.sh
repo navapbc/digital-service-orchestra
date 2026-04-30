@@ -68,8 +68,11 @@ test_ticket_create_outputs_ticket_id() {
         return
     fi
 
-    local stdout_out
-    stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "My ticket" 2>/dev/null) || true
+    local stdout_out stderr_out _stderr_tmp
+    _stderr_tmp=$(mktemp /tmp/tc1-stderr.XXXXXX)
+    stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "My ticket" 2>"$_stderr_tmp") || true
+    stderr_out=$(cat "$_stderr_tmp" 2>/dev/null) || true
+    rm -f "$_stderr_tmp"
 
     # Assert: stdout is non-empty
     if [ -n "$stdout_out" ]; then
@@ -79,12 +82,21 @@ test_ticket_create_outputs_ticket_id() {
         return
     fi
 
-    # Assert: stdout matches the collision-resistant short ID pattern [a-z0-9]+-[a-z0-9]+
-    # (e.g., "w21-gyn8" or "abc1-def2")
-    if [[ "$stdout_out" =~ ^[a-z0-9]+-[a-z0-9]+$ ]]; then
-        assert_eq "ticket ID matches [a-z0-9]+-[a-z0-9]+" "match" "match"
+    # SC1: stdout contains the 16-hex canonical ID.
+    # SC3: human summary is on stderr; canonical ID on stdout (| tail -1 also works).
+    local ticket_id
+    ticket_id=$(echo "$stdout_out" | tail -1)
+    if [[ "$ticket_id" =~ ^[a-z0-9]+-[a-z0-9]+-[a-z0-9]+-[a-z0-9]+$ ]]; then
+        assert_eq "stdout last line matches 16-hex canonical ID pattern" "match" "match"
     else
-        assert_eq "ticket ID matches [a-z0-9]+-[a-z0-9]+" "match" "no-match: $stdout_out"
+        assert_eq "stdout last line matches 16-hex canonical ID pattern" "match" "no-match: $ticket_id"
+    fi
+
+    # Assert: stderr contains the human summary "Created ticket <id>: <title>"
+    if [[ "$stderr_out" == "Created ticket $ticket_id: "* ]]; then
+        assert_eq "stderr contains human summary line" "match" "match"
+    else
+        assert_eq "stderr contains human summary line" "match" "no-match: $stderr_out"
     fi
 }
 test_ticket_create_outputs_ticket_id
@@ -103,6 +115,8 @@ test_ticket_create_writes_create_event_json() {
 
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "My ticket" 2>/dev/null) || true
+    # SC3: dual-output — last line is the canonical ID
+    ticket_id=$(echo "$ticket_id" | tail -1)
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket ID returned for event file check" "non-empty" "empty"
@@ -151,6 +165,8 @@ test_ticket_create_event_has_required_fields() {
 
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "My ticket" 2>/dev/null) || true
+    # SC3: dual-output — last line is the canonical ID
+    ticket_id=$(echo "$ticket_id" | tail -1)
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket ID returned for field check" "non-empty" "empty"
@@ -251,6 +267,8 @@ test_ticket_create_event_uses_python_json() {
     local special_title='it'"'"'s a "quoted" title'
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "$special_title" 2>/dev/null) || true
+    # SC3: dual-output — last line is the canonical ID
+    ticket_id=$(echo "$ticket_id" | tail -1)
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket ID returned for python-json check" "non-empty" "empty"
@@ -316,6 +334,8 @@ test_ticket_create_auto_commits_to_tickets_branch() {
 
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "My ticket" 2>/dev/null) || true
+    # SC3: dual-output — last line is the canonical ID
+    ticket_id=$(echo "$ticket_id" | tail -1)
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket ID returned for commit check" "non-empty" "empty"

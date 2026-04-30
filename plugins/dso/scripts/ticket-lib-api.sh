@@ -767,7 +767,7 @@ ticket_create() {
         event_meta=$(python3 -c "
 import uuid, time
 u = str(uuid.uuid4()).replace('-', '')
-ticket_id = u[:4] + '-' + u[4:8]
+ticket_id = u[:4] + '-' + u[4:8] + '-' + u[8:12] + '-' + u[12:16]
 event_uuid = str(uuid.uuid4())
 timestamp = time.time_ns()
 print(ticket_id)
@@ -836,7 +836,9 @@ with open(sys.argv[12], 'w', encoding='utf-8') as f:
 
         rm -f "$temp_event"
 
-        # Output ticket ID
+        # Output dual-format: human summary to stderr, canonical ID to stdout.
+        # SC3: human-readable summary on stderr; machine-parseable 16-hex ID on stdout.
+        echo "Created ticket $ticket_id: $title" >&2
         echo "$ticket_id"
     )
 }

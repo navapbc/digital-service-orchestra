@@ -169,7 +169,7 @@ author=$(git config user.name 2>/dev/null || echo "Unknown")
 event_meta=$(python3 -c "
 import uuid, time
 u = str(uuid.uuid4()).replace('-', '')
-ticket_id = u[:4] + '-' + u[4:8]
+ticket_id = u[:4] + '-' + u[4:8] + '-' + u[8:12] + '-' + u[12:16]
 event_uuid = str(uuid.uuid4())
 timestamp = time.time_ns()
 print(ticket_id)
@@ -245,7 +245,10 @@ write_commit_event "$ticket_id" "$temp_event" || {
 # Clean up temp file (write_commit_event stages it, but original temp may remain)
 rm -f "$temp_event"
 
-# ── Output ticket ID ─────────────────────────────────────────────────────────
+# ── Output dual-format: human summary to stderr, canonical ID to stdout ──────
+# SC3: human-readable summary on stderr; machine-parseable 16-hex ID on stdout.
+# Consumers reading stdout get the canonical ID directly; | tail -1 also works.
+echo "Created ticket $ticket_id: $title" >&2
 echo "$ticket_id"
 
 # ── Post-creation validation (warnings only, never blocks, exit 0) ───────────

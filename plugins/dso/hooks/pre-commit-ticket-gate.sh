@@ -6,8 +6,8 @@
 # DESIGN:
 #   This hook runs at the commit-msg stage, receiving the commit message file
 #   path as $1 (standard git commit-msg hook convention). It checks that the
-#   commit message contains at least one valid v3 ticket ID (XXXX-XXXX hex
-#   format) that exists in the event-sourced tracker.
+#   commit message contains at least one valid v3 ticket ID (XXXX-XXXX-XXXX-XXXX,
+#   16 hex chars in four 4-char groups) that exists in the event-sourced tracker.
 #
 # LOGIC (in order):
 #   1. Fail-open on timeout (SIGTERM/SIGURG).
@@ -133,11 +133,11 @@ if [[ ! -d "$TRACKER_DIR" ]]; then
 fi
 
 # ── Extract v3 ticket IDs from commit message ─────────────────────────────────
-# v3 format: four lowercase hex chars, dash, four lowercase hex chars: e.g. dso-78iq
+# v3 format: 16 hex chars in four 4-char groups: e.g. abcd-1234-ef56-7890
 TICKET_IDS=()
 while IFS= read -r _matched_id; do
     [[ -n "$_matched_id" ]] && TICKET_IDS+=("$_matched_id")
-done < <(echo "$COMMIT_MSG" | grep -oE '[a-z0-9]{4}-[a-z0-9]{4}' 2>/dev/null || true)
+done < <(echo "$COMMIT_MSG" | grep -oE '[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}' 2>/dev/null || true)
 
 # ── Validate each extracted ticket ID ────────────────────────────────────────
 TICKET_SHIM="${TICKET_SHIM_OVERRIDE:-${REPO_ROOT}/.claude/scripts/dso}"
@@ -155,7 +155,7 @@ echo "" >&2
 echo "BLOCKED: commit-msg ticket gate" >&2
 echo "" >&2
 echo "  Commit message must reference a valid v3 ticket ID." >&2
-echo "  Expected format: XXXX-XXXX (hex, e.g. dso-78iq)" >&2
+echo "  Expected format: XXXX-XXXX-XXXX-XXXX (16 hex chars in four 4-char groups, e.g. abcd-1234-ef56-7890)" >&2
 echo "" >&2
 echo "  Your commit message:" >&2
 echo "    ${COMMIT_MSG}" >&2
