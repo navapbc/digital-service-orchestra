@@ -59,6 +59,11 @@ fi
 
 CLASSIFIER_JSON=$(printf '%s\n' "$DIFF_CONTENT" | bash "$(command -v review-complexity-classifier.sh)")
 SELECTED_TIER=$(printf '%s\n' "$CLASSIFIER_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['selected_tier'])")
+SIZE_ACTION=$(printf '%s\n' "$CLASSIFIER_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('size_action','none'))")
+# size_action=upgrade overrides selected_tier upward to deep regardless of classifier score.
+[[ "$SIZE_ACTION" == "upgrade" ]] && SELECTED_TIER="deep"
+# size_action=warn is informational only; emit message to stderr but do not change tier.
+[[ "$SIZE_ACTION" == "warn" ]] && echo "SIZE_WARNING: diff exceeds warn threshold — review proceeds at ${SELECTED_TIER} tier" >&2
 
 # Extract overlay flags from classifier output; CLI --overlay-* flags act as OR override.
 read -r _SEC _PERF _TQ < <(printf '%s\n' "$CLASSIFIER_JSON" | python3 -c "

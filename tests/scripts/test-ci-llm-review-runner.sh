@@ -2928,49 +2928,23 @@ printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortc
 MOCKEOF
 chmod +x "$MOCK_SA_UP/review-complexity-classifier.sh"
 
-# Capture which agent body was sent in the first curl call.
-# The runner passes --data @<file> with a JSON body that references the agent file path.
-AGENT_BODY_FILE_SA_UP="$MOCK_SA_UP/first-curl-body.txt"
+# Capture which agent file was passed as the first argument to llm-api-call.sh.
+AGENT_BODY_FILE_SA_UP="$MOCK_SA_UP/first-agent-file.txt"
 
 # Specialist slot JSON (needed only if deep tier is correctly dispatched)
 _SA_SLOT='{"scores":{"correctness":4,"verification":4,"hygiene":4,"design":4,"maintainability":4},"summary":"Specialist OK","findings":[]}'
 
-# Mock curl: capture first API request body; write slot files for deep-tier specialists;
-# return valid response for every call.
-cat > "$MOCK_SA_UP/curl" <<MOCKEOF
+# llm-api-call.sh mock: record first agent file path for tier detection; output slot JSON.
+# The runner redirects stdout to slot files via >, so no direct file writes are needed here.
+cat > "$MOCK_SA_UP/llm-api-call.sh" <<MOCKEOF
 #!/usr/bin/env bash
-_body=""
-_prev=""
-for _arg in "\$@"; do
-    if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
-        _body="\$_arg"
-    elif [[ "\$_prev" == "--data" ]]; then
-        _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
-    fi
-    _prev="\$_arg"
-done
-
-# Save first-ever call body for tier detection
+_agent_file="\$1"
 if [[ ! -f "${AGENT_BODY_FILE_SA_UP}" ]]; then
-    printf '%s' "\$_body" > "${AGENT_BODY_FILE_SA_UP}"
+    printf '%s' "\$_agent_file" > "${AGENT_BODY_FILE_SA_UP}"
 fi
-
-_slot='${_SA_SLOT}'
-# Write specialist slot files as side-effect so deep-tier synthesis proceeds
-if printf '%s' "\$_body" | grep -q "code-reviewer-deep-correctness"; then
-    printf '%s\n' "\$_slot" > "${ARTIFACTS_SA_UP}/reviewer-findings-correctness.json"
-elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-verification"; then
-    printf '%s\n' "\$_slot" > "${ARTIFACTS_SA_UP}/reviewer-findings-verification.json"
-elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
-    printf '%s\n' "\$_slot" > "${ARTIFACTS_SA_UP}/reviewer-findings-hygiene.json"
-elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-arch"; then
-    printf '%s\n' "\$_slot" > "${ARTIFACTS_SA_UP}/reviewer-findings.json"
-fi
-
-printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' \
-    "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
+printf '%s\n' '${_SA_SLOT}'
 MOCKEOF
-chmod +x "$MOCK_SA_UP/curl"
+chmod +x "$MOCK_SA_UP/llm-api-call.sh"
 
 cat > "$MOCK_SA_UP/write-reviewer-findings.sh" <<'MOCKEOF'
 #!/usr/bin/env bash
@@ -2995,8 +2969,7 @@ sa_up_exit=0
 
 assert_eq "test_runner_size_action_upgrade_overrides_to_deep_tier: runner exits 0" "0" "$sa_up_exit"
 
-# Verify the first API call body references a deep-tier agent, not light or standard.
-# The runner embeds the agent file path (via cat) into the system prompt in the request body.
+# Verify the first llm-api-call.sh invocation passed a deep-tier agent file, not light/standard.
 _sa_tier_check_exit=0
 _sa_tier_check_out=""
 if [[ -f "$AGENT_BODY_FILE_SA_UP" ]]; then
@@ -3004,13 +2977,11 @@ if [[ -f "$AGENT_BODY_FILE_SA_UP" ]]; then
 import sys
 
 with open('${AGENT_BODY_FILE_SA_UP}') as f:
-    body = f.read()
+    agent_path = f.read()
 
-# The body must contain a deep-tier agent reference and must NOT contain light/standard agent.
-# We check the system field for agent file path strings embedded by the runner.
-has_deep = 'code-reviewer-deep' in body
-has_light = 'code-reviewer-light' in body and 'code-reviewer-deep' not in body
-has_standard = 'code-reviewer-standard' in body and 'code-reviewer-deep' not in body
+has_deep = 'code-reviewer-deep' in agent_path
+has_light = 'code-reviewer-light' in agent_path and 'code-reviewer-deep' not in agent_path
+has_standard = 'code-reviewer-standard' in agent_path and 'code-reviewer-deep' not in agent_path
 
 if has_light:
     print('FAIL: dispatched light-tier agent despite size_action=upgrade; body contains code-reviewer-light')
@@ -3019,17 +2990,17 @@ if has_standard:
     print('FAIL: dispatched standard-tier agent despite size_action=upgrade; body contains code-reviewer-standard')
     sys.exit(1)
 if not has_deep:
-    print('FAIL: body does not reference any deep-tier agent; body preview=' + body[:200])
+    print('FAIL: body does not reference any deep-tier agent; body preview=' + agent_path[:200])
     sys.exit(1)
 print('OK')
 PYEOF
     )
 else
-    _sa_tier_check_out="MISSING: first-curl-body.txt not written — curl was never called"
+    _sa_tier_check_out="MISSING: first-agent-file.txt not written — llm-api-call.sh was never called"
     _sa_tier_check_exit=1
 fi
 
-assert_eq "test_runner_size_action_upgrade_overrides_to_deep_tier: first curl call uses deep-tier agent" "0" "$_sa_tier_check_exit"
+assert_eq "test_runner_size_action_upgrade_overrides_to_deep_tier: first llm-api-call uses deep-tier agent" "0" "$_sa_tier_check_exit"
 assert_eq "test_runner_size_action_upgrade_overrides_to_deep_tier: tier check output" "OK" "$_sa_tier_check_out"
 
 assert_pass_if_clean "test_runner_size_action_upgrade_overrides_to_deep_tier"
@@ -3056,12 +3027,11 @@ printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortc
 MOCKEOF
 chmod +x "$MOCK_SA_WARN/review-complexity-classifier.sh"
 
-cat > "$MOCK_SA_WARN/curl" <<'MOCKEOF'
+cat > "$MOCK_SA_WARN/llm-api-call.sh" <<'MOCKEOF'
 #!/usr/bin/env bash
-cat > /dev/null
-printf '{"content":[{"text":"{\"scores\":{\"hygiene\":4,\"design\":4,\"maintainability\":4,\"correctness\":4,\"verification\":4},\"summary\":\"OK\",\"findings\":[]}"}],"stop_reason":"end_turn"}'
+printf '{"scores":{"hygiene":4,"design":4,"maintainability":4,"correctness":4,"verification":4},"summary":"OK","findings":[]}\n'
 MOCKEOF
-chmod +x "$MOCK_SA_WARN/curl"
+chmod +x "$MOCK_SA_WARN/llm-api-call.sh"
 
 cat > "$MOCK_SA_WARN/write-reviewer-findings.sh" <<'MOCKEOF'
 #!/usr/bin/env bash
