@@ -1199,7 +1199,7 @@ except Exception:
                 _jira_matches+=("$_base")
                 break  # Only record each ticket once per jira_key match
             fi
-        done < <(find "$_entry" -maxdepth 1 -name 'CREATE-*.json' -print0 2>/dev/null)
+        done < <(find "$_entry" -maxdepth 1 -name '*-CREATE.json' -print0 2>/dev/null)
     done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
         ! -name '.*' -print0 2>/dev/null)
 

@@ -393,6 +393,7 @@ try:
         'data': {
             'status': target_status,
             'current_status': current_status,
+            'parent_status_uuid': parent_status_uuid,
         },
     }
 

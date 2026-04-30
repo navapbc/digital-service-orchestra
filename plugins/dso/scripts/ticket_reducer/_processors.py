@@ -77,8 +77,8 @@ def process_status(state: dict, event: dict, data: dict, filepath: str) -> None:
     current_status = data.get("current_status")
     if current_status is not None and current_status != state["status"]:
         # Fork detected: two chains have diverged.
-        incoming_uuid = data.get("parent_status_uuid", "")
-        existing_uuid = state.get("parent_status_uuid", "")
+        incoming_uuid = data.get("parent_status_uuid") or ""
+        existing_uuid = state.get("parent_status_uuid") or ""
 
         # Lower lexical UUID wins.
         if incoming_uuid <= existing_uuid:

@@ -1062,9 +1062,10 @@ _plant_ticket() {
     local alias="${3:-}"
     local ticket_dir="$tracker_dir/$ticket_id"
     mkdir -p "$ticket_dir"
-    local uuid
+    local ts uuid
+    ts=$(python3 -c "import time; print(int(time.time_ns()))")
     uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
-    local event_file="$ticket_dir/CREATE-${uuid}.json"
+    local event_file="$ticket_dir/${ts}-${uuid}-CREATE.json"
     _make_create_event_json "$event_file" "$ticket_id" "$alias"
 }
 
