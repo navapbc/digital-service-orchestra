@@ -17,6 +17,18 @@ You are a Principal Product Manager at USDS. Turn a feature idea into a high-fid
 Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write any code until Phase 3 is complete and the user has explicitly approved the epic spec. This applies regardless of how simple the feature seems.
 </HARD-GATE>
 
+<ANTI-REDUNDANCY-GATE>
+Before forming any question — across all phases — you MUST:
+
+1. **Semantic duplicate check**: Review all prior conversation turns. Do NOT ask any question whose answer was already given, including answers expressed through paraphrase, negative signals ("I told you", "I answered that"), or semantically-equivalent rewordings of prior responses.
+
+2. **Codebase check**: Before asking a question whose answer may live in the repo, use Read, Grep, or Glob to look first. Only ask if the answer is not discoverable from code.
+
+3. **Probe suppression**: When a prior user answer covers one of the UX probe topics (criticality — interaction criticality; non_happy_path — non-happy-path state coverage; flow_entry_exit — flow entry/exit points), skip that probe. Do not re-ask what the user has already addressed.
+
+**Duplicate questions are prohibited.**
+</ANTI-REDUNDANCY-GATE>
+
 ## Layout
 
 This skill's logic is split across phase files to keep per-invocation context small. Load each file on demand:
@@ -221,7 +233,11 @@ Format for **subsequent** gap questions (no skip prompt):
 Before I propose approaches: [Targeted gap question]
 ```
 
-**Bounded gap loop**: Ask one question at a time. After each answer, ask the next highest-priority gap question (if any remain) or proceed to Phase 2 once you have enough context. Terminate when either (a) you have enough to propose approaches or (b) the user says "proceed". Do not loop indefinitely — every question must target a specific unresolved inferred/assumed item; stop when no such items remain.
+**Loop-back directive**: When a gap answer reveals a new understanding gap — one that genuinely increases epic understanding — return to the Tell Me More loop (Step 2) before resuming gap analysis. This applies equally to gaps surfaced by the UX probe checkpoint (any probe from the structured probe set by dimension ID: criticality, non_happy_path, flow_entry_exit) and to gaps surfaced by the intent gap analysis itself.
+
+**Termination condition**: Proceed to Phase 2 only when BOTH: (a) the gap list is empty (no remaining inferred/assumed items) AND (b) the user confirms the Understanding Summary in the same turn. No numeric cap is applied — the anti-redundancy directive bounds the loop in practice. If the user says "proceed", treat this as user-initiated early termination: the user is confirming acceptance of the current Understanding Summary with any remaining gaps deferred, satisfying condition (b) as a user override; proceed to Phase 2 immediately.
+
+**UNRESOLVABLE_INTENT_GAP escape**: When the anti-redundancy directive suppresses every candidate question during loop-back (all remaining gaps would duplicate questions already asked), record `UNRESOLVABLE_INTENT_GAP` as a comment on the epic ticket (`.claude/scripts/dso ticket comment <epic-id> "UNRESOLVABLE_INTENT_GAP: <reason>"`), inform the user that no further gap questions can be generated without repetition, and terminate Phase 1 (do NOT proceed to Phase 2). The user must re-invoke `/dso:brainstorm` or manually confirm intent to proceed.
 
 **Compression anti-pattern (prohibited)**: Do NOT reframe N independent decisions as a single "core question" with N sub-options or sub-lists. If your draft contains "Rather than asking", "Instead of asking", or more than one decision sub-list under one heading, STOP — split into separate sequential questions. Each question must cover exactly one independent axis.
 
