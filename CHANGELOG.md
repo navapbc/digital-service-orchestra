@@ -9,13 +9,16 @@ Versioning follows [Semantic Versioning](https://semver.org/) — see `docs/VERS
 
 ## [Unreleased] — 2026-04-29
 
-### Added: Ticket System — ID Widening and Concurrency Hardening
+### Added: Ticket System — ID Widening and Concurrency Hardening (epic 3e74-56da)
 
-- **16-hex canonical ID format**: New tickets receive a `xxxx-xxxx-xxxx-xxxx` ID (128-bit collision space); the short 8-hex alias is stored in `data.alias` on the CREATE event and surfaced in display output via `display.id_format` config.
-- **Backward-compatible resolver**: The multi-form resolver in `ticket-lib-api.sh` (`_ticketlib_resolve`) accepts 16-hex canonical IDs, 8-hex aliases, and unique prefixes — existing ticket references continue to resolve without migration.
-- **STATUS event concurrency chain**: Each STATUS event now carries `data.parent_status_uuid` (null for the first event; UUID of the preceding STATUS event for subsequent transitions), enabling detection of concurrent-write collisions at the event level.
-- **`_ticketlib_resolve` library function**: Exposed as a stable API in `ticket-lib-api.sh` for scripts that need to canonicalize ticket references in-process without spawning a subprocess.
-- **Display config**: `display.id_format` config key (`short` | `full`; default `short`) controls whether `ticket show` and `ticket list` render the 8-hex alias or the full 16-hex ID.
+- **16-hex canonical ID format**: New tickets receive a `xxxx-xxxx-xxxx-xxxx` canonical ID (64-bit entropy, <10⁻¹⁵ collision probability). Existing 8-hex IDs are preserved and continue to resolve without migration (forward-only).
+- **Adjective-noun-noun display alias**: Each new ticket receives a human-readable alias (e.g., `calm-river-stone`) computed deterministically from `hash(canonical_id)` and stored in the CREATE event's `data.alias` field. Aliases are immutable after creation — wordlist edits do not retroactively rename tickets.
+- **Multi-form resolver**: `resolve_ticket_id()` in `ticket-lib.sh` accepts ticket references in canonical (8 or 16 hex), `jira_key` (e.g., `PROJ-123`), alias, or unambiguous prefix. Resolution precedence: exact canonical → jira_key → alias → short → prefix. Ambiguous inputs are rejected with a disambiguation list.
+- **Display cascade**: Config key `ticket.display_mode` (`auto` | `canonical` | `alias` | `short`; default `auto`) controls output format. `auto` cascades jira_key → alias → short → canonical, rendering the most human-friendly form available. Unknown values fall back to `auto` with a startup warning.
+- **Dual-output ticket create**: `ticket create` emits a human-readable summary line (e.g., `Created ticket calm-river-stone: My ticket title`) followed by the canonical ID on the last stdout line. Scripts extract the canonical ID via `| tail -1`.
+- **STATUS event concurrency chain**: Each STATUS event carries a `parent_status_uuid` field (null for the first STATUS event; UUID of the preceding STATUS for subsequent ones). The reducer detects concurrent-write forks (two or more events sharing the same `parent_status_uuid`), resolves them via deterministic lexical UUID tie-break, and emits `PARENT_CHAIN_FORK_RESOLVED ticket=X winner=Y dropped=[Z]` at INFO. `state.conflicts[]` accumulation is removed — all forks are now resolved at replay time.
+- **SNAPSHOT schema migration**: One-shot `ticket-migrate-schema-hardening.sh` backfills `parent_status_uuid` into pre-existing STATUS events using timestamp order, leaving the store fully consistent post-upgrade. Supports `--dry-run` and `--rollback`.
+- **Transitional legacy-client behavior**: Pre-upgrade plugin copies (worktrees pinned to an older version) continue to generate 8-hex IDs during a bounded transition window. No enforcement gate blocks these writes — the backward-compatible resolver handles both ID lengths. The transition window is documented in `plugins/dso/docs/ticket-system-v3-architecture.md`.
 
 ---
 
