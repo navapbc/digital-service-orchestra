@@ -10,6 +10,9 @@ _resolve_plugin_root() {
   _plugin_dir="${_scripts_dir%/scripts}"
   _marker_path="$_plugin_dir/.dso-source-of-truth"
   if [[ -f "$_marker_path" ]]; then
+    # Expose the BASH_SOURCE-resolved scripts dir so callers can add it to PATH.
+    # Used when CLAUDE_PLUGIN_ROOT overrides _PLUGIN_ROOT (worktree/install mismatch).
+    _BASH_SOURCE_SCRIPTS_DIR="$_scripts_dir"
     return 0
   fi
   if [[ -z "${DSO_ASSETS_DIR:-}" ]]; then
@@ -22,7 +25,12 @@ _resolve_plugin_root || exit 1
 
 # Append plugin script dirs to PATH so PATH-based mocks in tests take precedence,
 # and production scripts are found via the appended dirs when no mock is present.
-export PATH="$PATH:$_PLUGIN_ROOT/scripts:$_PLUGIN_ROOT/hooks"
+# Also append the BASH_SOURCE-resolved scripts dir (may differ from _PLUGIN_ROOT/scripts
+# when CLAUDE_PLUGIN_ROOT is set to a different install, e.g., in worktree sessions).
+_extra_path=""
+[[ -n "${_BASH_SOURCE_SCRIPTS_DIR:-}" && "$_BASH_SOURCE_SCRIPTS_DIR" != "$_PLUGIN_ROOT/scripts" ]] && \
+  _extra_path=":$_BASH_SOURCE_SCRIPTS_DIR"
+export PATH="$PATH:$_PLUGIN_ROOT/scripts:$_PLUGIN_ROOT/hooks${_extra_path}"
 
 # All downstream scripts use WORKFLOW_PLUGIN_ARTIFACTS_DIR via get_artifacts_dir().
 # Export it here so runner + write-reviewer-findings.sh + record-review.sh all share one location.
@@ -41,7 +49,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -z "${ANTHROPIC_API_KEY:-}" ]] && { echo "ERROR: ANTHROPIC_API_KEY is required" >&2; exit 1; }
 
 DIFF_CONTENT="$(cat)"  # Caller must pipe: gh pr diff | bash runner.sh
 
@@ -85,76 +92,27 @@ case "$SELECTED_TIER" in
   standard) AGENT_FILE="$_PLUGIN_ROOT/agents/code-reviewer-standard.md" ;;
   deep)
     REVIEW_TIER="deep"
-    MODEL="${DSO_LLM_MODEL:-claude-sonnet-4-6}"
 
     _SLOT_CORRECTNESS="${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-correctness.json"
     _SLOT_VERIFICATION="${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-verification.json"
     _SLOT_HYGIENE="${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-hygiene.json"
 
-    # Helper: build API request JSON for a specialist agent
-    _build_specialist_request() {
-      local _agent_file="$1"
-      local _sys _diff_tmp
-      _sys="$(cat "$_agent_file")"
-      _diff_tmp=$(mktemp /tmp/dso-diff.XXXXXX)
-      # shellcheck disable=SC2064
-      trap "rm -f '$_diff_tmp'" RETURN
-      printf '%s' "$DIFF_CONTENT" > "$_diff_tmp"
-      DSO_SYSTEM="$_sys" DSO_DIFF_FILE="$_diff_tmp" DSO_MODEL="$MODEL" \
-        python3 - <<'PYEOF'
-import json, os
-with open(os.environ['DSO_DIFF_FILE']) as f:
-    diff = f.read()
-print(json.dumps({
-  'model': os.environ['DSO_MODEL'],
-  'max_tokens': 8192,
-  'system': os.environ['DSO_SYSTEM'],
-  'messages': [{'role': 'user', 'content': 'Review this diff:\n\n' + diff}]
-}))
-PYEOF
-    }
-
-    # Step 1: dispatch 3 specialist curl calls in parallel (& + wait).
-    # Each call fires the API request; the specialist agent (or mock) is responsible for
-    # writing its slot file. In production this would be a full agent sub-process; in CI
-    # tests the mock curl writes the slot file as a side-effect.
+    # Step 1: dispatch 3 specialist llm-api-call.sh invocations in parallel (& + wait).
+    # Each call delegates to llm-api-call.sh; stdout is redirected to the slot file.
     _SPECIALIST_PIDS=()
-    _SPECIALIST_REQ_TMPS=()
-    _REQ_C=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-correctness.md")
-    _REQ_C_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_C" > "$_REQ_C_TMP"
-    _SPECIALIST_REQ_TMPS+=("$_REQ_C_TMP")
-    curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
-      -H "x-api-key: $ANTHROPIC_API_KEY" \
-      -H "anthropic-version: 2023-06-01" \
-      -H "content-type: application/json" \
-      --data @"$_REQ_C_TMP" \
-      "https://api.anthropic.com/v1/messages" > /dev/null &
+    bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-correctness.md" \
+      "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_SLOT_CORRECTNESS" &
     _SPECIALIST_PIDS+=($!)
 
-    _REQ_V=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-verification.md")
-    _REQ_V_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_V" > "$_REQ_V_TMP"
-    _SPECIALIST_REQ_TMPS+=("$_REQ_V_TMP")
-    curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
-      -H "x-api-key: $ANTHROPIC_API_KEY" \
-      -H "anthropic-version: 2023-06-01" \
-      -H "content-type: application/json" \
-      --data @"$_REQ_V_TMP" \
-      "https://api.anthropic.com/v1/messages" > /dev/null &
+    bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-verification.md" \
+      "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_SLOT_VERIFICATION" &
     _SPECIALIST_PIDS+=($!)
 
-    _REQ_H=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-hygiene.md")
-    _REQ_H_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_H" > "$_REQ_H_TMP"
-    _SPECIALIST_REQ_TMPS+=("$_REQ_H_TMP")
-    curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
-      -H "x-api-key: $ANTHROPIC_API_KEY" \
-      -H "anthropic-version: 2023-06-01" \
-      -H "content-type: application/json" \
-      --data @"$_REQ_H_TMP" \
-      "https://api.anthropic.com/v1/messages" > /dev/null &
+    bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-hygiene.md" \
+      "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_SLOT_HYGIENE" &
     _SPECIALIST_PIDS+=($!)
 
     for _pid in "${_SPECIALIST_PIDS[@]}"; do wait "$_pid"; done
-    rm -f "${_SPECIALIST_REQ_TMPS[@]}"
 
     # Step 2: validate all slot files exist and contain valid JSON (fail-closed)
     for _slot in "$_SLOT_CORRECTNESS" "$_SLOT_VERIFICATION" "$_SLOT_HYGIENE"; do
@@ -186,272 +144,68 @@ ${_SLOT_H_JSON}
 Diff under review:
 ${DIFF_CONTENT}"
 
-    _arch_msg_tmp=$(mktemp /tmp/dso-diff.XXXXXX)
-    # shellcheck disable=SC2064
-    trap "rm -f '$_arch_msg_tmp'" EXIT
-    printf '%s' "$_ARCH_USER_MSG" > "$_arch_msg_tmp"
-    _ARCH_SYS="$(cat "$_PLUGIN_ROOT/agents/code-reviewer-deep-arch.md")"
-    _ARCH_REQ=$(DSO_SYSTEM="$_ARCH_SYS" DSO_MODEL="$MODEL" DSO_ARCH_MSG_FILE="$_arch_msg_tmp" \
-      python3 - <<'PYEOF'
-import json, os
-with open(os.environ['DSO_ARCH_MSG_FILE']) as f:
-    arch_msg = f.read()
-print(json.dumps({
-  'model': os.environ['DSO_MODEL'],
-  'max_tokens': 8192,
-  'system': os.environ['DSO_SYSTEM'],
-  'messages': [{'role': 'user', 'content': arch_msg}]
-}))
-PYEOF
-)
-    _arch_req_tmp=$(mktemp /tmp/dso-req.XXXXXX)
-    # shellcheck disable=SC2064
-    trap "rm -f '$_arch_msg_tmp' '$_arch_req_tmp'" EXIT
-    printf '%s' "$_ARCH_REQ" > "$_arch_req_tmp"
-    _ARCH_RESP=$(curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
-      -H "x-api-key: $ANTHROPIC_API_KEY" \
-      -H "anthropic-version: 2023-06-01" \
-      -H "content-type: application/json" \
-      --data @"$_arch_req_tmp" \
-      "https://api.anthropic.com/v1/messages")
-    rm -f "$_arch_req_tmp"
-
-    _ARCH_TEXT=$(printf '%s\n' "$_ARCH_RESP" | python3 -c "
-import json, sys, re
-data = sys.stdin.read()
-try:
-    d = json.loads(data)
-    print(d['content'][0]['text'])
-    sys.exit(0)
-except Exception:
-    pass
-m = re.search(r'\"text\"\s*:\s*\"([\s\S]+?)\"(?=\s*\}\s*\])', data)
-if m:
-    print(m.group(1))
-    sys.exit(0)
-print('ERROR: Cannot extract text from arch API response', file=sys.stderr)
-sys.exit(1)
-")
-
-    FINDINGS_JSON=$(DSO_LLM_TEXT="$_ARCH_TEXT" python3 - <<'PYEOF'
-import sys, re, json, os
-text = os.environ['DSO_LLM_TEXT'].strip()
-try:
-    json.loads(text)
-    print(text)
-    sys.exit(0)
-except Exception:
-    pass
-m = re.search(r'```(?:json)?\s*([\s\S]+?)```', text)
-if m:
-    extracted = m.group(1).strip()
-    json.loads(extracted)
-    print(extracted)
-    sys.exit(0)
-print('ERROR: Arch LLM response is not valid reviewer-findings JSON', file=sys.stderr)
-sys.exit(1)
-PYEOF
-)
+    _ARCH_RESP=$(bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-arch.md" \
+      "$_ARCH_USER_MSG" "deep")
+    FINDINGS_JSON=$(printf '%s' "$_ARCH_RESP" | python3 -c "
+import json,sys; t=sys.stdin.read().strip()
+if not t: raise ValueError('empty')
+json.loads(t); print(t)
+" 2>/dev/null) || {
+      echo "WARNING: Arch LLM response could not be parsed as reviewer-findings JSON." >&2
+      FINDINGS_JSON='{"scores":{"hygiene":"N/A","design":"N/A","maintainability":"N/A","correctness":"N/A","verification":"N/A"},"findings":[],"summary":"Review inconclusive: Arch response could not be parsed."}'
+    }
 
     # FINDINGS_JSON now set; fall through to shared overlay+write+record path.
     ;;
   *) echo "ERROR: Unknown tier: $SELECTED_TIER" >&2; exit 1 ;;
 esac
 
-# ── Standard / light tier: API call → FINDINGS_JSON ───────────────────────────
+# ── Standard / light tier: llm-api-call.sh → FINDINGS_JSON ───────────────────
 # Skipped for deep tier (FINDINGS_JSON already set above by arch synthesis).
 if [[ "$SELECTED_TIER" != "deep" ]]; then
-SYSTEM_PROMPT="$(cat "$AGENT_FILE")"
-
-MODEL="${DSO_LLM_MODEL:-claude-sonnet-4-6}"
-
-# Write diff to a temp file to avoid ARG_MAX limits on large PRs (Linux ~2MB env limit).
-# Note: no pipe before python3 - <<HEREDOC so the heredoc IS the script input.
-_DIFF_TMP=$(mktemp /tmp/dso-diff.XXXXXX)
-# shellcheck disable=SC2064
-trap "rm -f '$_DIFF_TMP'" EXIT
-printf '%s' "$DIFF_CONTENT" > "$_DIFF_TMP"
-REQUEST_JSON=$(DSO_SYSTEM="$SYSTEM_PROMPT" DSO_DIFF_FILE="$_DIFF_TMP" DSO_MODEL="$MODEL" \
-  python3 - <<'PYEOF'
-import json, os
-with open(os.environ['DSO_DIFF_FILE']) as f:
-    diff = f.read()
-print(json.dumps({
-  'model': os.environ['DSO_MODEL'],
-  'max_tokens': 8192,
-  'system': os.environ['DSO_SYSTEM'],
-  'messages': [{'role': 'user', 'content': 'Review this diff:\n\n' + diff}]
-}))
-PYEOF
-)
-rm -f "$_DIFF_TMP"
-
-_REQ_TMP=$(mktemp /tmp/dso-req.XXXXXX)
-# shellcheck disable=SC2064
-trap "rm -f '$_DIFF_TMP' '$_REQ_TMP'" EXIT
-printf '%s' "$REQUEST_JSON" > "$_REQ_TMP"
-API_RESPONSE=$(curl -sf -m 300 --connect-timeout 10 \
-  -H "x-api-key: $ANTHROPIC_API_KEY" \
-  -H "anthropic-version: 2023-06-01" \
-  -H "content-type: application/json" \
-  --data @"$_REQ_TMP" \
-  "https://api.anthropic.com/v1/messages") || {
-  echo "ERROR: Anthropic API call failed (curl exit $?). Check ANTHROPIC_API_KEY and network access." >&2
-  exit 1
-}
-rm -f "$_REQ_TMP"
-if [[ -z "${API_RESPONSE:-}" ]]; then
-  echo "ERROR: Anthropic API returned empty response body." >&2
-  exit 1
-fi
-
-LLM_TEXT=$(printf '%s\n' "$API_RESPONSE" | python3 -c "
-import json, sys, re
-data = sys.stdin.read()
-# Primary: standard JSON parsing
-try:
-    d = json.loads(data)
-    print(d['content'][0]['text'])
-    sys.exit(0)
-except Exception:
-    pass
-# Fallback: regex extraction when API response contains literal newlines/unescaped
-# content in the text field (non-standard but handles some edge cases in tests/CI).
-# Looks for 'text':'<CONTENT>'}] to find the closing quote reliably.
-m = re.search(r'\"text\"\s*:\s*\"([\s\S]+?)\"(?=\s*\}\s*\])', data)
-if m:
-    print(m.group(1))
-    sys.exit(0)
-print('ERROR: Cannot extract text from API response', file=sys.stderr)
-sys.exit(1)
-") || LLM_TEXT=""
-
-# Extract structured reviewer-findings JSON from potential markdown code fence wrapping.
-# LLM_TEXT is passed via env var to avoid pipe+heredoc conflict (pipe would override heredoc stdin).
-FINDINGS_JSON=$(DSO_LLM_TEXT="$LLM_TEXT" python3 - <<'PYEOF'
-import sys, re, json, os
-text = os.environ['DSO_LLM_TEXT'].strip()
-try:
-    json.loads(text)
-    print(text)
-    sys.exit(0)
-except Exception:
-    pass
-m = re.search(r'```(?:json)?\s*([\s\S]+?)```', text)
-if m:
-    try:
-        extracted = m.group(1).strip()
-        json.loads(extracted)
-        print(extracted)
-        sys.exit(0)
-    except Exception:
-        pass
-print('ERROR: LLM response is not valid reviewer-findings JSON', file=sys.stderr)
-sys.exit(1)
-PYEOF
-) || {
-  echo "WARNING: LLM response parsing failed (likely truncated due to diff size). Writing inconclusive review." >&2
-  FINDINGS_JSON='{"scores":{"hygiene":"N/A","design":"N/A","maintainability":"N/A","correctness":"N/A","verification":"N/A"},"findings":[],"summary":"Review inconclusive: LLM response could not be parsed as reviewer-findings JSON. The diff may be too large for the model to process in a single pass. Manual review recommended."}'
+LLM_TEXT=$(bash "$(command -v llm-api-call.sh)" "$AGENT_FILE" \
+  "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "$SELECTED_TIER") || LLM_TEXT=""
+FINDINGS_JSON=$(printf '%s' "${LLM_TEXT:-}" | python3 -c "
+import json,sys; t=sys.stdin.read().strip()
+if not t: raise ValueError('empty')
+json.loads(t); print(t)
+" 2>/dev/null) || {
+  echo "WARNING: LLM response parsing failed. Writing inconclusive review." >&2
+  FINDINGS_JSON='{"scores":{"hygiene":"N/A","design":"N/A","maintainability":"N/A","correctness":"N/A","verification":"N/A"},"findings":[],"summary":"Review inconclusive: LLM response could not be parsed as reviewer-findings JSON."}'
 }
 fi  # end standard/light-only API call block
 
 # ── Overlay dispatch ────────────────────────────────────────────────────────────
-# Dispatch parallel overlay curl calls for each active overlay flag; write each
+# Dispatch parallel overlay llm-api-call.sh calls for each active overlay flag; write each
 # reviewer's LLM text to a slot file in WORKFLOW_PLUGIN_ARTIFACTS_DIR.  Serial
 # blue-team runs after red-team when security overlay is active.
 # Applies to all tiers (deep FINDINGS_JSON carries through from arch synthesis).
-_run_overlay_curl() {
+_run_overlay_llm() {
   local _agent_file="$1" _slot_file="$2"
-  local _sys _req _resp _overlay_diff_tmp
-  _sys="$(cat "$_agent_file")"
-  _overlay_diff_tmp=$(mktemp /tmp/dso-diff.XXXXXX)
-  # shellcheck disable=SC2064
-  trap "rm -f '$_overlay_diff_tmp'" RETURN
-  printf '%s' "$DIFF_CONTENT" > "$_overlay_diff_tmp"
-  _req=$(DSO_SYSTEM="$_sys" DSO_DIFF_FILE="$_overlay_diff_tmp" DSO_MODEL="$MODEL" \
-    python3 - <<'PYEOF'
-import json, os
-with open(os.environ['DSO_DIFF_FILE']) as f:
-    diff = f.read()
-print(json.dumps({
-  'model': os.environ['DSO_MODEL'],
-  'max_tokens': 8192,
-  'system': os.environ['DSO_SYSTEM'],
-  'messages': [{'role': 'user', 'content': 'Review this diff:\n\n' + diff}]
-}))
-PYEOF
-  )
-  _req_tmp=$(mktemp /tmp/dso-req.XXXXXX)
-  # shellcheck disable=SC2064
-  trap "rm -f '$_overlay_diff_tmp' '$_req_tmp'" RETURN
-  printf '%s' "$_req" > "$_req_tmp"
-  _resp=$(curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
-    -H "x-api-key: $ANTHROPIC_API_KEY" \
-    -H "anthropic-version: 2023-06-01" \
-    -H "content-type: application/json" \
-    --data @"$_req_tmp" \
-    "https://api.anthropic.com/v1/messages")
-  # Extract text from API response, then strip markdown fences to get bare JSON.
-  # Overlay agents may wrap their JSON output in ```json...``` fences.
-  DSO_OVERLAY_RESP="$_resp" python3 - <<'PYEOF' > "$_slot_file"
-import json, sys, re, os
-data = os.environ['DSO_OVERLAY_RESP']
-# Extract text content from Anthropic API response envelope
-text = None
-try:
-    d = json.loads(data)
-    text = d['content'][0]['text']
-except Exception:
-    pass
-if text is None:
-    m = re.search(r'"text"\s*:\s*"([\s\S]+?)"(?=\s*\}\s*\])', data)
-    if m:
-        text = m.group(1)
-if text is None:
-    print('ERROR: Cannot extract overlay text from API response', file=sys.stderr)
-    sys.exit(1)
-# Strip markdown fences; overlay agents may return ```json...```
-text = text.strip()
-try:
-    json.loads(text)
-    print(text)
-    sys.exit(0)
-except Exception:
-    pass
-m = re.search(r'```(?:json)?\s*([\s\S]+?)```', text)
-if m:
-    try:
-        extracted = m.group(1).strip()
-        json.loads(extracted)
-        print(extracted)
-        sys.exit(0)
-    except Exception:
-        pass
-print('ERROR: Overlay LLM response is not valid reviewer-findings JSON', file=sys.stderr)
-sys.exit(1)
-PYEOF
+  bash "$(command -v llm-api-call.sh)" "$_agent_file" \
+    "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_slot_file" || true
 }
 
 _OVERLAY_PIDS=()
 [[ "$_SEC"  == "true" ]] && {
-  _run_overlay_curl "$_PLUGIN_ROOT/agents/code-reviewer-security-red-team.md" \
+  _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-security-red-team.md" \
     "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-red.json" &
   _OVERLAY_PIDS+=($!)
 }
 [[ "$_PERF" == "true" ]] && {
-  _run_overlay_curl "$_PLUGIN_ROOT/agents/code-reviewer-performance.md" \
+  _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-performance.md" \
     "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-performance.json" &
   _OVERLAY_PIDS+=($!)
 }
 [[ "$_TQ"   == "true" ]] && {
-  _run_overlay_curl "$_PLUGIN_ROOT/agents/code-reviewer-test-quality.md" \
+  _run_overlay_llm "$_PLUGIN_ROOT/agents/code-reviewer-test-quality.md" \
     "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-test-quality.json" &
   _OVERLAY_PIDS+=($!)
 }
 if [[ ${#_OVERLAY_PIDS[@]} -gt 0 ]]; then
   for _pid in "${_OVERLAY_PIDS[@]}"; do wait "$_pid" || true; done
 fi
-[[ "$_SEC" == "true" ]] && { _run_overlay_curl \
+[[ "$_SEC" == "true" ]] && { _run_overlay_llm \
   "$_PLUGIN_ROOT/agents/code-reviewer-security-blue-team.md" \
   "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json" || true; }
 
