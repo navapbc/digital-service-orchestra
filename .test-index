@@ -294,6 +294,7 @@ plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh [test_1
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh,tests/scripts/test-ticket-hardening-integration.sh [test_integration_16hex_and_alias]
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh [test_16hex_stdout_last_line],tests/scripts/test-ticket-create.sh,tests/scripts/test-ticket-hardening-integration.sh [test_integration_16hex_and_alias]
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh [test_16hex_stdout_last_line],tests/scripts/test-ticket-create.sh,tests/scripts/test-ticket-hardening-integration.sh
+plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh,tests/scripts/test-ticket-create.sh,tests/scripts/test-ticket-hardening-integration.sh
 plugins/dso/scripts/ticket-alias-compute.py:tests/scripts/test-ticket-create.sh,tests/integration/ticket-id-collision/run.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/ticket-migrate-file-impact-v1.sh:tests/scripts/test-ticket-migrate-file-impact-v1.sh
@@ -494,3 +495,23 @@ tests/scripts/test-ticket-transition-deleted.sh:tests/scripts/test-ticket-transi
 tests/scripts/test-ticket-delete.sh:tests/scripts/test-ticket-delete.sh
 tests/scripts/test-ticket-link-duplicates-supersedes.sh:tests/scripts/test-ticket-link-duplicates-supersedes.sh
 plugins/dso/resources/ticket-wordlist.txt:tests/scripts/test-ticket-create.sh [test_alias_wordlist_file_exists]
+plugins/dso/resources/ticket-wordlist.txt:tests/scripts/test-ticket-create.sh
+plugins/dso/docs/examples/CLAUDE.md.example:tests/hooks/test-generate-claude-md-skill.sh,tests/scripts/test-claude-md-rule18-task-auth.sh,tests/scripts/test-generate-claude-md.sh,tests/scripts/test-claude-md-replan-safety.sh,tests/scripts/test-claude-md-hook-error-handler.sh,tests/scripts/test-no-v2-refs-in-claude-md.sh,tests/scripts/test-claude-md-fix-bug-gates.sh
+plugins/dso/docs/workflows/TEST-FAILURE-DISPATCH.md:plugins/dso/skills/sprint/prompts/test-failure-dispatch-protocol.md
+plugins/dso/recipes/recipe-registry.yaml:tests/scripts/test-recipe-registry.sh
+plugins/dso/recipes/templates/flask/route.py.tmpl:tests/scripts/test_gate_escalation_router.py
+plugins/dso/scripts/agent-profiles/red-test-writer.yaml:tests/scripts/test-red-test-writer-md-rule5-compliance.sh
+plugins/dso/scripts/analyze_tool/__init__.py:tests/hooks/test-init-skill.sh,tests/scripts/test-ticket-init-bash-native.sh,tests/scripts/test-ticket-init.sh,tests/scripts/test-ticket-autoinit.sh
+plugins/dso/scripts/bridge/__init__.py:tests/hooks/test-init-skill.sh,tests/scripts/test-ticket-init-bash-native.sh,tests/scripts/test-ticket-init.sh,tests/scripts/test-ticket-autoinit.sh
+plugins/dso/scripts/fix-bug/route-escalation.sh:tests/scripts/test_gate_escalation_router.py
+plugins/dso/scripts/run-overlay-retrospective.sh:tests/hooks/test-run-overlay-retrospective-path.sh
+plugins/dso/scripts/ticket_graph/__init__.py:tests/hooks/test-init-skill.sh,tests/scripts/test-ticket-init-bash-native.sh,tests/scripts/test-ticket-init.sh,tests/scripts/test-ticket-autoinit.sh
+plugins/dso/scripts/ticket_reducer/__init__.py:tests/hooks/test-init-skill.sh,tests/scripts/test-ticket-init-bash-native.sh,tests/scripts/test-ticket-init.sh,tests/scripts/test-ticket-autoinit.sh
+plugins/dso/scripts/ticket-purge-bridge.sh:tests/scripts/test-ticket-purge-bridge-dispatcher.sh
+plugins/dso/skills/brainstorm/phases/convert-to-epic.md:tests/skills/test-brainstorm-convert-to-epic.sh
+plugins/dso/skills/shared/prompts/anti-patterns.md:plugins/dso/hooks/semgrep-rules/test-anti-patterns.yaml,tests/scripts/test-fix-bug-anti-pattern-step.sh
+plugins/dso/skills/shared/prompts/worktree-dispatch.md:tests/hooks/test-worktree-dispatch-orchestrator-root.sh
+plugins/dso/skills/sprint/prompts/test-failure-dispatch-protocol.md:plugins/dso/skills/sprint/prompts/test-failure-dispatch-protocol.md
+plugins/dso/scripts/implementation-plan/approach-cycle-state.sh:tests/scripts/test-implementation-plan-helpers.sh
+plugins/dso/scripts/implementation-plan/check-reinvocation.sh:tests/scripts/test-implementation-plan-helpers.sh
+plugins/dso/scripts/implementation-plan/check-tag-guards.sh:tests/scripts/test-implementation-plan-helpers.sh

@@ -234,6 +234,8 @@ alias_arg = sys.argv[13] if len(sys.argv) > 13 else ''
 if alias_arg:
     data['alias'] = alias_arg
 
+data['id'] = sys.argv[14] if len(sys.argv) > 14 else ''
+
 event = {
     'timestamp': int(sys.argv[1]),
     'uuid': sys.argv[2],
@@ -245,7 +247,7 @@ event = {
 
 with open(sys.argv[12], 'w', encoding='utf-8') as f:
     json.dump(event, f, ensure_ascii=False)
-" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$desc_file" "$tags" "$assignee" "$temp_event" "$ticket_alias" || {
+" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$desc_file" "$tags" "$assignee" "$temp_event" "$ticket_alias" "$ticket_id" || {
     rm -f "$temp_event" "$desc_file"
     echo "Error: failed to build CREATE event JSON" >&2
     exit 1
