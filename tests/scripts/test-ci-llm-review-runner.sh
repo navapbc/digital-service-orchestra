@@ -2591,5 +2591,79 @@ assert_eq "test_runner_integration_llm_api_call_mocked: reviewer-findings.json h
 assert_eq "test_runner_integration_llm_api_call_mocked: score check output" "OK" "$_integ_score_check_out"
 assert_pass_if_clean "test_runner_integration_llm_api_call_mocked"
 
+# ── test_openai_path_produces_schema_conformant_findings ──────────────────────
+# Integration: runner with OPENAI_API_KEY set and llm-api-call.sh mock exits 0
+# and writes reviewer-findings.json with all 5 dimension scores as numeric >= 0.
+_snapshot_fail
+_openai_mock_dir=$(mktemp -d)
+_openai_artifacts=$(mktemp -d)
+_TEST_TMPDIRS+=("$_openai_mock_dir" "$_openai_artifacts")
+_create_mock_llm_api_call "$_openai_mock_dir" "" ""
+
+cat > "$_openai_mock_dir/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$_openai_mock_dir/review-complexity-classifier.sh"
+
+# write-reviewer-findings.sh: accept valid findings JSON on stdin, write to file
+cat > "$_openai_mock_dir/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$_openai_artifacts"
+tee "$_openai_artifacts/reviewer-findings.json" > /dev/null
+sha256sum "$_openai_artifacts/reviewer-findings.json" 2>/dev/null | cut -d' ' -f1 \
+  || shasum -a 256 "$_openai_artifacts/reviewer-findings.json" | cut -d' ' -f1
+MOCKEOF
+chmod +x "$_openai_mock_dir/write-reviewer-findings.sh"
+
+cat > "$_openai_mock_dir/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$_openai_artifacts"
+printf 'passed\n' > "$_openai_artifacts/review-status"
+MOCKEOF
+chmod +x "$_openai_mock_dir/record-review.sh"
+
+_openai_exit=0
+(
+    export PATH="$_openai_mock_dir:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_openai_artifacts"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='sk-test' bash "$RUNNER"
+) || _openai_exit=$?
+
+assert_eq "test_openai_path_produces_schema_conformant_findings: runner exits 0" "0" "$_openai_exit"
+
+_openai_score_check_exit=0
+_openai_score_check_out=""
+if [[ -f "$_openai_artifacts/reviewer-findings.json" ]]; then
+    _openai_score_check_out=$(python3 - "$_openai_artifacts/reviewer-findings.json" <<'PYEOF' 2>&1 || _openai_score_check_exit=$?
+import json, sys
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+scores = d.get('scores', {})
+required = ['correctness', 'verification', 'hygiene', 'design', 'maintainability']
+missing = [k for k in required if k not in scores]
+if missing:
+    print('MISSING scores: ' + str(missing))
+    sys.exit(1)
+non_numeric = [k for k, v in scores.items() if not isinstance(v, (int, float))]
+if non_numeric:
+    print('NON-NUMERIC scores: ' + str(non_numeric))
+    sys.exit(1)
+negative = [k for k, v in scores.items() if isinstance(v, (int, float)) and v < 0]
+if negative:
+    print('NEGATIVE scores: ' + str(negative))
+    sys.exit(1)
+print('OK')
+PYEOF
+    )
+else
+    _openai_score_check_out="reviewer-findings.json not written"
+    _openai_score_check_exit=1
+fi
+assert_eq "test_openai_path_produces_schema_conformant_findings: reviewer-findings.json has all 5 numeric scores >= 0" "0" "$_openai_score_check_exit"
+assert_eq "test_openai_path_produces_schema_conformant_findings: score check output" "OK" "$_openai_score_check_out"
+assert_pass_if_clean "test_openai_path_produces_schema_conformant_findings"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

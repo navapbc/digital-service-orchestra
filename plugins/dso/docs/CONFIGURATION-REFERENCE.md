@@ -1333,6 +1333,17 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 
 ---
 
+### `DSO_LLM_MODEL` *(removed — ignored since Phase 2 provider abstraction)*
+
+`DSO_LLM_MODEL` was an early environment variable used to override the CI review model ID.
+It is now **silently ignored** — setting it has no effect on which model is used.
+
+**Migration**: Use `model.light`, `model.standard`, or `model.deep` in `.claude/dso-config.conf`
+to control per-tier model IDs. See [`model.light`](#modellight), [`model.standard`](#modelstandard),
+and [`model.deep`](#modeldeep) above.
+
+---
+
 ### `sprint.max_replan_cycles`
 
 | | |
