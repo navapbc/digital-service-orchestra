@@ -214,6 +214,8 @@ Wait for confirmation before proceeding to Step 2.
    - First check the `BRAINSTORM_UI_CLASSIFIER_STUB` env var. If set to `ui`, `non-ui`, or `fail`, short-circuit to that result immediately (test/mock path — do not dispatch a real classifier).
    - Otherwise dispatch a haiku classifier sub-agent per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/prompts/ui-detection-classifier.md`.
    - On any failure (agent unavailable, MAX_AGENTS=0, timeout, malformed output, or any response other than exactly `"ui"` or `"non-ui"`): log a degradation notice to the user, treat result as `non-ui`, and continue. The `ux_probe_fired` flag is NOT set on failure so a later successful run can still fire the probes.
+**Non-interactive path**: When `BRAINSTORM_INTERACTIVE=false` and the UI detection result is `ui`: emit `INTERACTIVITY_DEFERRED: UX probes require user input`, tag the epic `ui_probes:deferred` (`.claude/scripts/dso ticket tag <epic-id> ui_probes:deferred`), and skip all probes. Do NOT set the `ux_probe_fired` sentinel — a subsequent interactive run must still fire them. Phase 1 gap list gaps sourced from UX probes are deferred via the ui_probes:deferred tag; Phase 1 terminates without looping. Proceed to Step 2.
+
 4. **Probe firing** (when result is `ui` AND flag is unset):
    - Ask the three free-text follow-up probes from `${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/prompts/ux-probe-set.md` one at a time.
    - After all three probes are answered, write the sentinel file: `$ARTIFACTS_DIR/ux-probe-fired-<epic-id>` containing an ISO-8601 timestamp. This prevents re-firing on subsequent brainstorm invocations for the same epic.
@@ -233,7 +235,7 @@ Format for **subsequent** gap questions (no skip prompt):
 Before I propose approaches: [Targeted gap question]
 ```
 
-**Loop-back directive**: When a gap answer reveals a new understanding gap — one that genuinely increases epic understanding — return to the Tell Me More loop (Step 2) before resuming gap analysis. This applies equally to gaps surfaced by the UX probe checkpoint (any probe from the structured probe set by dimension ID: criticality, non_happy_path, flow_entry_exit) and to gaps surfaced by the intent gap analysis itself.
+**Loop-back directive**: When a gap answer reveals a new understanding gap — one that genuinely increases epic understanding — return to the Tell Me More loop (Step 2) before resuming gap analysis. This applies equally to gaps surfaced by the UX probe checkpoint (any probe from the structured probe set by dimension ID: criticality, non_happy_path, flow_entry_exit) and to gaps surfaced by the intent gap analysis itself. **Non-interactive exception**: When `BRAINSTORM_INTERACTIVE=false`, do not loop back on UX-probe-sourced gaps — Phase 1 terminates with the gaps deferred (signaled via `ui_probes:deferred` tag set in Step 1.5).
 
 **Termination condition**: Proceed to Phase 2 only when BOTH: (a) the gap list is empty (no remaining inferred/assumed items) AND (b) the user confirms the Understanding Summary in the same turn. No numeric cap is applied — the anti-redundancy directive bounds the loop in practice. If the user says "proceed", treat this as user-initiated early termination: the user is confirming acceptance of the current Understanding Summary with any remaining gaps deferred, satisfying condition (b) as a user override; proceed to Phase 2 immediately.
 
