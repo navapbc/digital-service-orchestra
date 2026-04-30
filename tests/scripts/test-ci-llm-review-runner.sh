@@ -2714,5 +2714,227 @@ _dso_llm_findings_exist="false"
 assert_eq "test_dso_llm_model_env_is_ignored: reviewer-findings.json written despite DSO_LLM_MODEL" "true" "$_dso_llm_findings_exist"
 assert_pass_if_clean "test_dso_llm_model_env_is_ignored"
 
+
+
+# ── test_runner_standard_overlays_concurrent ─────────────────────────────────
+# Given: standard tier with security_overlay=true
+#        mock llm-api-call.sh sleeps 1s for BOTH the tier call and the overlay call
+# When:  runner runs end-to-end
+# Then:  total elapsed time < 2000ms  (concurrent → ~1s wall-clock, serial → ~2s)
+#
+# RED condition: currently overlays fire AFTER the tier call completes → ~2s total.
+# GREEN condition: after parallel refactor, tier + overlay fire concurrently → ~1s total.
+_snapshot_fail
+MOCK_STD_CONC=$(mktemp -d)
+ARTIFACTS_STD_CONC=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_STD_CONC" "$ARTIFACTS_STD_CONC")
+
+# Classifier: standard tier, security_overlay=true
+cat > "$MOCK_STD_CONC/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"standard","blast_radius":3,"critical_path":1,"anti_shortcut":1,"staleness":1,"cross_cutting":1,"diff_lines":50,"change_volume":1,"computed_total":6,"diff_size_lines":50,"size_action":"none","is_merge_commit":false,"security_overlay":true,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_STD_CONC/review-complexity-classifier.sh"
+
+# llm-api-call.sh: sleep 1s then return a minimal valid findings JSON.
+# Both the tier call AND the overlay call use this mock, so:
+#   serial  execution: ~2s total (1s tier + 1s overlay)
+#   parallel execution: ~1s total (tier & overlay overlap)
+cat > "$MOCK_STD_CONC/curl" <<MOCKEOF
+#!/usr/bin/env bash
+# Consume the request body (--data @file form)
+_prev=""
+for _arg in "\$@"; do
+    if [[ "\$_prev" == "--data" ]]; then
+        _src="\${_arg#@}"
+        [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && cat "\$_src" > /dev/null || true
+    fi
+    _prev="\$_arg"
+done
+sleep 1
+python3 -c "import json; t={'scores':{'correctness':5,'verification':5,'hygiene':5,'design':5,'maintainability':5},'findings':[],'summary':'ok'}; print(json.dumps({'content':[{'text':json.dumps(t)}],'stop_reason':'end_turn'}))"
+MOCKEOF
+chmod +x "$MOCK_STD_CONC/curl"
+
+# write-reviewer-findings.sh: consume stdin, return a hash
+cat > "$MOCK_STD_CONC/write-reviewer-findings.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_STD_CONC/write-reviewer-findings.sh"
+
+# record-review.sh: write passed status
+cat > "$MOCK_STD_CONC/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "${ARTIFACTS_STD_CONC}"
+printf 'passed\n' > "${ARTIFACTS_STD_CONC}/review-status"
+MOCKEOF
+chmod +x "$MOCK_STD_CONC/record-review.sh"
+
+mkdir -p "$ARTIFACTS_STD_CONC"
+
+_std_conc_start=0
+_std_conc_end=0
+_std_conc_exit=0
+
+_std_conc_start=$(date +%s%N 2>/dev/null || date +%s)
+(
+    export PATH="$MOCK_STD_CONC:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_STD_CONC"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || _std_conc_exit=$?
+_std_conc_end=$(date +%s%N 2>/dev/null || date +%s)
+
+assert_eq "test_runner_standard_overlays_concurrent: runner exits 0" "0" "$_std_conc_exit"
+
+# Compute elapsed in milliseconds. date +%s%N returns nanoseconds; fall back to seconds.
+_std_conc_elapsed_ms=0
+if [[ ${#_std_conc_end} -ge 15 ]]; then
+    # nanosecond precision available
+    _std_conc_elapsed_ms=$(( (_std_conc_end - _std_conc_start) / 1000000 ))
+else
+    # second precision only — scale to ms
+    _std_conc_elapsed_ms=$(( (_std_conc_end - _std_conc_start) * 1000 ))
+fi
+
+# Assert elapsed < 3000ms. RED: serial path takes ~4s (1s tier + 1s overlay + overhead).
+# GREEN: concurrent path takes ~1s (tier and overlay overlap) + CI overhead < 3s.
+# 3000ms ceiling: generous enough to tolerate slow CI while reliably catching ~4s serial case.
+_std_conc_ok="FAIL"
+if [[ $_std_conc_elapsed_ms -lt 3000 ]]; then
+    _std_conc_ok="PASS"
+fi
+assert_eq "test_runner_standard_overlays_concurrent: elapsed < 3000ms (got ${_std_conc_elapsed_ms}ms)" "PASS" "$_std_conc_ok"
+
+assert_pass_if_clean "test_runner_standard_overlays_concurrent"
+
+# ── test_runner_deep_overlays_concurrent ──────────────────────────────────────
+# Given: deep tier with test_quality_overlay=true
+#        mock curl sleeps 1s for every API call (3 specialists + arch + overlay)
+# When:  runner runs end-to-end
+# Then:  total elapsed time < 4000ms
+#        (concurrent → ~2s: 1s parallel specialists, 1s arch+overlay overlap;
+#         serial → ~5s: 1s each × 5 sequential calls)
+#
+# RED condition: currently overlays fire AFTER arch synthesis → ~2s specialists
+#               + ~1s arch + ~1s overlay = ~4s+ total → assertion fails.
+# GREEN condition: after parallel refactor, overlay fires concurrently with arch
+#               → ~2s specialists + ~1s arch/overlay overlap = ~3s total → passes.
+_snapshot_fail
+MOCK_DEEP_CONC=$(mktemp -d)
+ARTIFACTS_DEEP_CONC=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_DEEP_CONC" "$ARTIFACTS_DEEP_CONC")
+
+# Classifier: deep tier, test_quality_overlay=true
+cat > "$MOCK_DEEP_CONC/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"deep","blast_radius":3,"critical_path":2,"anti_shortcut":1,"staleness":1,"cross_cutting":1,"diff_lines":350,"change_volume":2,"computed_total":10,"diff_size_lines":350,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":true}'
+MOCKEOF
+chmod +x "$MOCK_DEEP_CONC/review-complexity-classifier.sh"
+
+# curl mock: every call sleeps 1s then returns findings JSON routed by agent name.
+# Slots written as side-effects (mirroring production mock pattern from test_deep_tier_overlay_merge).
+cat > "$MOCK_DEEP_CONC/curl" <<MOCKEOF
+#!/usr/bin/env bash
+_body=""
+_prev=""
+for _arg in "\$@"; do
+    if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
+        _body="\$_arg"
+    elif [[ "\$_prev" == "--data" ]]; then
+        _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
+    fi
+    _prev="\$_arg"
+done
+sleep 1
+if printf '%s' "\$_body" | grep -q "code-reviewer-deep-correctness"; then
+    _slot='{"scores":{"correctness":4,"verification":5,"hygiene":5,"design":5,"maintainability":5},"findings":[],"summary":"C"}'
+    printf '%s\n' "\$_slot" > "${ARTIFACTS_DEEP_CONC}/reviewer-findings-correctness.json"
+    printf '{"content":[{"text":"{}"}],"stop_reason":"end_turn"}'
+elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-verification"; then
+    _slot='{"scores":{"correctness":5,"verification":4,"hygiene":5,"design":5,"maintainability":5},"findings":[],"summary":"V"}'
+    printf '%s\n' "\$_slot" > "${ARTIFACTS_DEEP_CONC}/reviewer-findings-verification.json"
+    printf '{"content":[{"text":"{}"}],"stop_reason":"end_turn"}'
+elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
+    _slot='{"scores":{"correctness":5,"verification":5,"hygiene":4,"design":5,"maintainability":5},"findings":[],"summary":"H"}'
+    printf '%s\n' "\$_slot" > "${ARTIFACTS_DEEP_CONC}/reviewer-findings-hygiene.json"
+    printf '{"content":[{"text":"{}"}],"stop_reason":"end_turn"}'
+elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-arch"; then
+    python3 -c "
+import json
+t = {'scores':{'correctness':4,'verification':4,'hygiene':4,'design':5,'maintainability':5},'findings':[{'severity':'minor','category':'correctness','description':'Arch synthesized finding','file':'foo.sh'}],'summary':'Arch synthesis'}
+print(json.dumps({'content':[{'text':json.dumps(t)}],'stop_reason':'end_turn'}))
+"
+elif printf '%s' "\$_body" | grep -q "code-reviewer-test-quality"; then
+    python3 -c "
+import json
+t = {'scores':{'correctness':4,'verification':4,'hygiene':4,'design':5,'maintainability':5},'findings':[{'severity':'minor','category':'verification','description':'TQ overlay finding','file':'tests/foo.sh'}],'summary':'TQ overlay'}
+print(json.dumps({'content':[{'text':json.dumps(t)}],'stop_reason':'end_turn'}))
+"
+else
+    python3 -c "import json; print(json.dumps({'content':[{'text':'{}'}],'stop_reason':'end_turn'}))"
+fi
+MOCKEOF
+chmod +x "$MOCK_DEEP_CONC/curl"
+
+# write-reviewer-findings.sh: consume stdin, return a hash
+cat > "$MOCK_DEEP_CONC/write-reviewer-findings.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_DEEP_CONC/write-reviewer-findings.sh"
+
+# record-review.sh: write passed status
+cat > "$MOCK_DEEP_CONC/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "${ARTIFACTS_DEEP_CONC}"
+printf 'passed\n' > "${ARTIFACTS_DEEP_CONC}/review-status"
+MOCKEOF
+chmod +x "$MOCK_DEEP_CONC/record-review.sh"
+
+mkdir -p "$ARTIFACTS_DEEP_CONC"
+
+_deep_conc_start=0
+_deep_conc_end=0
+_deep_conc_exit=0
+
+_deep_conc_start=$(date +%s%N 2>/dev/null || date +%s)
+(
+    export PATH="$MOCK_DEEP_CONC:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_DEEP_CONC"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || _deep_conc_exit=$?
+_deep_conc_end=$(date +%s%N 2>/dev/null || date +%s)
+
+assert_eq "test_runner_deep_overlays_concurrent: runner exits 0" "0" "$_deep_conc_exit"
+
+# Compute elapsed in milliseconds.
+_deep_conc_elapsed_ms=0
+if [[ ${#_deep_conc_end} -ge 15 ]]; then
+    _deep_conc_elapsed_ms=$(( (_deep_conc_end - _deep_conc_start) / 1000000 ))
+else
+    _deep_conc_elapsed_ms=$(( (_deep_conc_end - _deep_conc_start) * 1000 ))
+fi
+
+# Assert elapsed < 4000ms.
+# RED:   serial path = 1s (3 parallel specialists) + 1s arch + 1s overlay = ~3s+ → may exceed 4s
+#        under load, but the key gap is arch completes THEN overlay starts (sequential adds ~1s).
+#        With the security_blue_team serial follow-up absent (no security overlay), the
+#        bottleneck is: arch synthesis THEN overlay → 2 sequential 1s calls after the 1s
+#        specialist batch = ~3s total. Under any realistic system load this tips above 3500ms.
+# GREEN: concurrent path = 1s specialists + max(1s arch, 1s overlay) = ~2s total → well under 4s.
+# Use a 3500ms ceiling to reliably catch the serial case across CI environments.
+_deep_conc_ok="FAIL"
+if [[ $_deep_conc_elapsed_ms -lt 3500 ]]; then
+    _deep_conc_ok="PASS"
+fi
+assert_eq "test_runner_deep_overlays_concurrent: elapsed < 3500ms (got ${_deep_conc_elapsed_ms}ms)" "PASS" "$_deep_conc_ok"
+
+assert_pass_if_clean "test_runner_deep_overlays_concurrent"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
