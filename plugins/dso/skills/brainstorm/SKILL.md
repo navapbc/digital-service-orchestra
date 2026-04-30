@@ -31,6 +31,9 @@ This skill's logic is split across phase files to keep per-invocation context sm
 | `phases/follow-on-epic-gate.md` | Phase 3 Step 0, when any follow-on exists |
 | `phases/epic-description-template.md` | Phase 3 Step 1 ticket write |
 | `../shared/prompts/verifiable-sc-check.md` | Drafting each SC in Phase 2 Step 2 |
+| `prompts/ui-keyword-trigger.md` | Step 1.5 UI Intent Detection — keyword scan, config override, classifier stub |
+| `prompts/ui-detection-classifier.md` | Step 1.5 UI Intent Detection — classifier dispatch prompt |
+| `prompts/ux-probe-set.md` | Step 1.5 UI Intent Detection — structured UX probe set |
 
 ## Migration Check
 
@@ -190,6 +193,19 @@ Does this capture your intent? If anything is off, tell me what to adjust.
 Close the Understanding Summary with exactly this sentence: **"Does this capture your intent? If anything is off, tell me what to adjust."** Do not paraphrase — this exact phrasing is a standardized closing, not an example.
 
 Wait for confirmation before proceeding to Step 2.
+
+**Phase 1 Gate Step 1.5 — UI Intent Detection**: Immediately after the Understanding Summary is confirmed, assess whether the feature is UI-facing.
+
+1. **Re-invocation guard**: Check whether `$ARTIFACTS_DIR/ux-probe-fired-<epic-id>` sentinel file exists. If the sentinel file exists (flag set from a prior brainstorm run for this epic), skip the rest of this step — probes already fired for this epic.
+2. **Keyword scan**: Read `${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/prompts/ui-keyword-trigger.md`. Test the confirmed Understanding Summary text against the active surface-lexicon (the default lexicon from `ui-keyword-trigger.md`, or the `brainstorm.ui_keywords` override from `dso-config.conf` which REPLACES the default lexicon entirely). Result: `clear-ui`, `clear-non-ui`, or `ambiguous`.
+3. **Classifier dispatch** (ambiguous matches only):
+   - First check the `BRAINSTORM_UI_CLASSIFIER_STUB` env var. If set to `ui`, `non-ui`, or `fail`, short-circuit to that result immediately (test/mock path — do not dispatch a real classifier).
+   - Otherwise dispatch a haiku classifier sub-agent per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/prompts/ui-detection-classifier.md`.
+   - On any failure (agent unavailable, MAX_AGENTS=0, timeout, malformed output, or any response other than exactly `"ui"` or `"non-ui"`): log a degradation notice to the user, treat result as `non-ui`, and continue. The `ux_probe_fired` flag is NOT set on failure so a later successful run can still fire the probes.
+4. **Probe firing** (when result is `ui` AND flag is unset):
+   - Ask the three free-text follow-up probes from `${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/prompts/ux-probe-set.md` one at a time.
+   - After all three probes are answered, write the sentinel file: `$ARTIFACTS_DIR/ux-probe-fired-<epic-id>` containing an ISO-8601 timestamp. This prevents re-firing on subsequent brainstorm invocations for the same epic.
+5. **Non-UI fast-path**: When result is `clear-non-ui` from the keyword scan, skip probes entirely. Zero classifier calls are dispatched.
 
 **Step 2 — Intent Gap Analysis**: After confirmation, self-reflect on inferred or assumed content — items you filled in that the user did not explicitly state. Use targeted questions, one at a time, starting with the highest-priority gap. Exclude already-confirmed content.
 
