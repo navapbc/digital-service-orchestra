@@ -8,7 +8,7 @@
 #   1. test_runner_rejects_missing_api_key          — exits 1 when ANTHROPIC_API_KEY is empty
 #   2. test_runner_rejects_unknown_flags            — exits 1 for unrecognized CLI flag
 #   3. test_runner_exits_zero_for_empty_diff        — exits 0 with "No diff" message for empty stdin
-#   4. test_runner_calls_anthropic_api_with_system_prompt — API request body contains .system field
+#   4. test_runner_calls_openai_api_with_system_prompt — API request body contains message with role=system
 #   5. test_runner_extracts_json_from_markdown_fence — unwraps ```json fence before passing to write-reviewer-findings
 #   6. test_runner_reads_review_status_and_exits_nonzero_when_failed — exits 1 when review-status=failed
 #   7. test_runner_exits_zero_when_review_passes    — exits 0 when review-status=passed
@@ -50,7 +50,7 @@ _create_mock_curl() {
     # Write the canned response to a data file so the generated script can cat it
     # without any shell-quoting issues (JSON contains both { and " characters).
     local response_file="$mock_dir/curl-response.json"
-    printf '%s' '{"content":[{"text":"{\"scores\":{\"hygiene\":4,\"design\":4,\"maintainability\":4,\"correctness\":4,\"verification\":4},\"summary\":\"OK\",\"findings\":[]}"}],"stop_reason":"end_turn"}' \
+    printf '%s' '{"choices":[{"message":{"content":"{\"scores\":{\"hygiene\":4,\"design\":4,\"maintainability\":4,\"correctness\":4,\"verification\":4},\"summary\":\"OK\",\"findings\":[]}"}}]}' \
         > "$response_file"
 
     if [[ -n "$body_file" ]]; then
@@ -116,7 +116,7 @@ echo "=== test-ci-llm-review-runner.sh ==="
 #        when diff is empty.
 _snapshot_fail
 missing_key_exit=0
-( ANTHROPIC_API_KEY='' bash "$RUNNER" < /dev/null ) || missing_key_exit=$?
+( OPENAI_API_KEY='' bash "$RUNNER" < /dev/null ) || missing_key_exit=$?
 assert_eq "test_runner_exits_zero_on_empty_diff_regardless_of_api_key: exits 0 for empty diff" "0" "$missing_key_exit"
 assert_pass_if_clean "test_runner_exits_zero_on_empty_diff_regardless_of_api_key"
 
@@ -126,7 +126,7 @@ assert_pass_if_clean "test_runner_exits_zero_on_empty_diff_regardless_of_api_key
 # Then:  exit code is 1
 _snapshot_fail
 unknown_flag_exit=0
-( ANTHROPIC_API_KEY='x' bash "$RUNNER" --unknown-flag < /dev/null ) || unknown_flag_exit=$?
+( OPENAI_API_KEY='x' bash "$RUNNER" --unknown-flag < /dev/null ) || unknown_flag_exit=$?
 assert_eq "test_runner_rejects_unknown_flags: exits 1 for unknown flag" "1" "$unknown_flag_exit"
 assert_pass_if_clean "test_runner_rejects_unknown_flags"
 
@@ -137,12 +137,12 @@ assert_pass_if_clean "test_runner_rejects_unknown_flags"
 _snapshot_fail
 empty_diff_exit=0
 empty_diff_output=""
-empty_diff_output=$( ANTHROPIC_API_KEY='x' bash "$RUNNER" < /dev/null 2>&1 ) || empty_diff_exit=$?
+empty_diff_output=$( OPENAI_API_KEY='x' bash "$RUNNER" < /dev/null 2>&1 ) || empty_diff_exit=$?
 assert_eq "test_runner_exits_zero_for_empty_diff: exits 0" "0" "$empty_diff_exit"
 assert_contains "test_runner_exits_zero_for_empty_diff: output contains 'No diff'" "No diff" "$empty_diff_output"
 assert_pass_if_clean "test_runner_exits_zero_for_empty_diff"
 
-# ── test_runner_calls_anthropic_api_with_system_prompt ────────────────────────
+# ── test_runner_calls_openai_api_with_system_prompt ────────────────────────
 # Given: mocked curl, write-reviewer-findings.sh, and record-review.sh
 # When:  runner is fed a non-empty diff
 # Then:  the API request body sent to curl contains a .system field
@@ -185,13 +185,13 @@ api_system_exit=0
 (
     export PATH="$MOCK4:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS4"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || api_system_exit=$?
 
 # Verify: runner exited 0
-assert_eq "test_runner_calls_anthropic_api_with_system_prompt: runner exits 0" "0" "$api_system_exit"
+assert_eq "test_runner_calls_openai_api_with_system_prompt: runner exits 0" "0" "$api_system_exit"
 
-# Verify: the captured request body has a .system field
+# Verify: the captured request body has a message with role=system
 body_check_exit=0
 body_check_output=""
 if [[ -f "$BODY4_FILE" ]]; then
@@ -199,8 +199,9 @@ if [[ -f "$BODY4_FILE" ]]; then
 import json, sys
 with open('$BODY4_FILE') as f:
     d = json.load(f)
-if 'system' not in d:
-    print('MISSING_SYSTEM: .system field not in API request body; keys=' + str(list(d.keys())))
+messages = d.get('messages', [])
+if not any(m.get('role') == 'system' for m in messages):
+    print('MISSING_SYSTEM: no message with role=system in API request body; keys=' + str(list(d.keys())))
     sys.exit(1)
 print('OK')
 " 2>&1) || body_check_exit=$?
@@ -208,9 +209,9 @@ else
     body_check_output="MISSING_BODY_FILE: curl body was not captured"
     body_check_exit=1
 fi
-assert_eq "test_runner_calls_anthropic_api_with_system_prompt: request contains .system" "0" "$body_check_exit"
-assert_eq "test_runner_calls_anthropic_api_with_system_prompt: .system field present" "OK" "$body_check_output"
-assert_pass_if_clean "test_runner_calls_anthropic_api_with_system_prompt"
+assert_eq "test_runner_calls_openai_api_with_system_prompt: request contains system message" "0" "$body_check_exit"
+assert_eq "test_runner_calls_openai_api_with_system_prompt: system message present" "OK" "$body_check_output"
+assert_pass_if_clean "test_runner_calls_openai_api_with_system_prompt"
 
 # ── test_runner_extracts_json_from_markdown_fence ─────────────────────────────
 # Given: curl returns a markdown-fenced JSON response
@@ -229,7 +230,7 @@ FENCE_RECEIVED="$MOCK5/findings-received.json"
 cat > "$MOCK5/curl" <<MOCKEOF
 #!/usr/bin/env bash
 cat > /dev/null  # consume all args including body
-printf '{"content":[{"text":"\`\`\`json\\n${FENCE_FINDINGS}\\n\`\`\`"}],"stop_reason":"end_turn"}'
+printf '{"choices":[{"message":{"content":"\`\`\`json\\n${FENCE_FINDINGS}\\n\`\`\`"}}]}'
 MOCKEOF
 chmod +x "$MOCK5/curl"
 
@@ -262,7 +263,7 @@ fence_exit=0
 (
     export PATH="$MOCK5:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS5"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || fence_exit=$?
 
 assert_eq "test_runner_extracts_json_from_markdown_fence: runner exits 0 (write-reviewer-findings received valid JSON)" "0" "$fence_exit"
@@ -282,7 +283,7 @@ _TEST_TMPDIRS+=("$ARTIFACTS6")
 cat > "$MOCK6/curl" <<'MOCKEOF'
 #!/usr/bin/env bash
 cat > /dev/null
-printf '{"content":[{"text":"{\"scores\":{\"hygiene\":2,\"design\":2,\"maintainability\":2,\"correctness\":2,\"verification\":2},\"summary\":\"Review failed\",\"findings\":[{\"severity\":\"critical\",\"dimension\":\"correctness\",\"description\":\"Bug\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}"}],"stop_reason":"end_turn"}'
+printf '{"choices":[{"message":{"content":"{\"scores\":{\"hygiene\":2,\"design\":2,\"maintainability\":2,\"correctness\":2,\"verification\":2},\"summary\":\"Review failed\",\"findings\":[{\"severity\":\"critical\",\"dimension\":\"correctness\",\"description\":\"Bug\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}"}}]}'
 MOCKEOF
 chmod +x "$MOCK6/curl"
 
@@ -311,7 +312,7 @@ failed_status_exit=0
 (
     export PATH="$MOCK6:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS6"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || failed_status_exit=$?
 
 assert_eq "test_runner_reads_review_status_and_exits_nonzero_when_failed: exits 1 when status=failed" "1" "$failed_status_exit"
@@ -331,7 +332,7 @@ _TEST_TMPDIRS+=("$ARTIFACTS7")
 cat > "$MOCK7/curl" <<'MOCKEOF'
 #!/usr/bin/env bash
 cat > /dev/null
-printf '{"content":[{"text":"{\"scores\":{\"hygiene\":5,\"design\":5,\"maintainability\":5,\"correctness\":5,\"verification\":5},\"summary\":\"Excellent work\",\"findings\":[]}"}],"stop_reason":"end_turn"}'
+printf '{"choices":[{"message":{"content":"{\"scores\":{\"hygiene\":5,\"design\":5,\"maintainability\":5,\"correctness\":5,\"verification\":5},\"summary\":\"Excellent work\",\"findings\":[]}"}}]}'
 MOCKEOF
 chmod +x "$MOCK7/curl"
 
@@ -360,7 +361,7 @@ passed_exit=0
 (
     export PATH="$MOCK7:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS7"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || passed_exit=$?
 
 assert_eq "test_runner_exits_zero_when_review_passes: exits 0 when status=passed" "0" "$passed_exit"
@@ -389,7 +390,7 @@ unknown_tier_output=""
 unknown_tier_output=$(
     export PATH="$MOCK8:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS8"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER" 2>&1
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER" 2>&1
 ) || unknown_tier_exit=$?
 
 # Runner must exist AND exit non-zero for unknown tier — exit 127 (file not found) doesn't count
@@ -430,7 +431,7 @@ real_cls_exit=0
 (
     export PATH="$MOCK9:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS9"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || real_cls_exit=$?
 
 assert_eq "test_runner_integration_real_classifier_mocked_curl: exits 0 (classifier ran without error)" "0" "$real_cls_exit"
@@ -478,7 +479,7 @@ real_rr_exit=0
     cd "$REPO_ROOT"
     export PATH="$MOCK10:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS10"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || real_rr_exit=$?
 
 assert_eq "test_runner_integration_real_record_review_writes_status: runner exits without error" "0" "$real_rr_exit"
@@ -499,7 +500,7 @@ chmod +x "$MOCK11/review-complexity-classifier.sh"
 
 cat > "$MOCK11/curl" <<'MOCKEOF'
 #!/usr/bin/env bash
-printf '{"content":[{"type":"text","text":"{\"review_tier\":\"light\",\"selected_tier\":\"light\",\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"No findings. All checks passed.\",\"findings\":[]}"}]}'
+printf '{"choices":[{"message":{"content":"{\"review_tier\":\"light\",\"selected_tier\":\"light\",\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"No findings. All checks passed.\",\"findings\":[]}"}}]}'
 MOCKEOF
 chmod +x "$MOCK11/curl"
 
@@ -517,7 +518,7 @@ overlay_exit=0
   cd "$REPO_ROOT"
   export PATH="$MOCK11:$PATH"
   export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS11"
-  printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+  printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || overlay_exit=$?
 
 assert_eq "test_runner_writes_overlay_flags_env: runner exits 0" "0" "$overlay_exit"
@@ -547,7 +548,7 @@ chmod +x "$MOCK12/review-complexity-classifier.sh"
 
 cat > "$MOCK12/curl" <<'MOCKEOF'
 #!/usr/bin/env bash
-printf '{"content":[{"type":"text","text":"{\"review_tier\":\"light\",\"selected_tier\":\"light\",\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"No findings. All checks passed.\",\"findings\":[]}"}]}'
+printf '{"choices":[{"message":{"content":"{\"review_tier\":\"light\",\"selected_tier\":\"light\",\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"No findings. All checks passed.\",\"findings\":[]}"}}]}'
 MOCKEOF
 chmod +x "$MOCK12/curl"
 
@@ -565,7 +566,7 @@ cli_override_exit=0
   cd "$REPO_ROOT"
   export PATH="$MOCK12:$PATH"
   export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS12"
-  printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER" --overlay-security
+  printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER" --overlay-security
 ) || cli_override_exit=$?
 
 assert_eq "test_runner_cli_overlay_overrides_classifier: runner exits 0" "0" "$cli_override_exit"
@@ -632,7 +633,7 @@ elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
 fi
 
 # Return a minimal valid API response for every call
-printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot_json" | sed 's/"/\\\\"/g')"
+printf '{"choices":[{"message":{"content":"%s"}}]}' "\$(printf '%s' "\$_slot_json" | sed 's/"/\\\\"/g')"
 MOCKEOF
 chmod +x "$MOCK13/curl"
 
@@ -662,7 +663,7 @@ deep_dispatch_exit=0
 (
     export PATH="$MOCK13:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS13"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || deep_dispatch_exit=$?
 
 assert_eq "test_deep_tier_dispatches_three_specialist_calls: runner exits 0" "0" "$deep_dispatch_exit"
@@ -729,18 +730,18 @@ _arch='${_ARCH14}'
 
 if printf '%s' "\$_body" | grep -q "code-reviewer-deep-correctness"; then
     printf '%s\n' "\$_slot" > "${ARTIFACTS14}/reviewer-findings-correctness.json"
-    printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
+    printf '{"choices":[{"message":{"content":"%s"}}]}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-verification"; then
     printf '%s\n' "\$_slot" > "${ARTIFACTS14}/reviewer-findings-verification.json"
-    printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
+    printf '{"choices":[{"message":{"content":"%s"}}]}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
     printf '%s\n' "\$_slot" > "${ARTIFACTS14}/reviewer-findings-hygiene.json"
-    printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
+    printf '{"choices":[{"message":{"content":"%s"}}]}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-arch"; then
     printf '%s\n' "\$_arch" > "${ARTIFACTS14}/reviewer-findings.json"
-    printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' "\$(printf '%s' "\$_arch" | sed 's/"/\\\\"/g')"
+    printf '{"choices":[{"message":{"content":"%s"}}]}' "\$(printf '%s' "\$_arch" | sed 's/"/\\\\"/g')"
 else
-    printf '{"content":[{"text":"{\"scores\":{},\"summary\":\"fallback\",\"findings\":[]}"}],"stop_reason":"end_turn"}'
+    printf '{"choices":[{"message":{"content":"{\"scores\":{},\"summary\":\"fallback\",\"findings\":[]}"}}]}'
 fi
 MOCKEOF
 chmod +x "$MOCK14/curl"
@@ -777,7 +778,7 @@ arch_exit=0
 (
     export PATH="$MOCK14:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS14"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || arch_exit=$?
 
 assert_eq "test_deep_tier_arch_agent_is_sole_final_writer: runner exits 0" "0" "$arch_exit"
@@ -861,7 +862,7 @@ missing_slot_exit=0
 (
     export PATH="$MOCK15:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS15"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER" 2>/dev/null
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER" 2>/dev/null
 ) || missing_slot_exit=$?
 
 assert_ne "test_deep_tier_fail_closed_on_missing_slot_file: exits non-zero when hygiene slot missing" "0" "$missing_slot_exit"
@@ -924,7 +925,7 @@ invalid_json_exit=0
 (
     export PATH="$MOCK16:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS16"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER" 2>/dev/null
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER" 2>/dev/null
 ) || invalid_json_exit=$?
 
 assert_ne "test_deep_tier_fail_closed_on_invalid_slot_json: exits non-zero when slot file has invalid JSON" "0" "$invalid_json_exit"
@@ -963,7 +964,7 @@ for i in "\$@"; do
     fi
     prev="\$i"
 done
-printf '{"content":[{"text":"{\"scores\":{\"hygiene\":4,\"design\":4,\"maintainability\":4,\"correctness\":4,\"verification\":4},\"summary\":\"Security review completed\",\"findings\":[]}"}],"stop_reason":"end_turn"}'
+printf '{"choices":[{"message":{"content":"{\"scores\":{\"hygiene\":4,\"design\":4,\"maintainability\":4,\"correctness\":4,\"verification\":4},\"summary\":\"Security review completed\",\"findings\":[]}"}}]}'
 MOCKEOF
 chmod +x "$MOCK_SEC/curl"
 
@@ -992,7 +993,7 @@ sec_overlay_exit=0
 (
     export PATH="$MOCK_SEC:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_SEC"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || sec_overlay_exit=$?
 
 assert_eq "test_overlay_dispatch_fires_curl_for_security_overlay: runner exits 0" "0" "$sec_overlay_exit"
@@ -1042,7 +1043,7 @@ for i in "\$@"; do
     fi
     prev="\$i"
 done
-printf '{"content":[{"text":"{\"scores\":{\"hygiene\":4,\"design\":4,\"maintainability\":4,\"correctness\":4,\"verification\":4},\"summary\":\"Performance review completed\",\"findings\":[]}"}],"stop_reason":"end_turn"}'
+printf '{"choices":[{"message":{"content":"{\"scores\":{\"hygiene\":4,\"design\":4,\"maintainability\":4,\"correctness\":4,\"verification\":4},\"summary\":\"Performance review completed\",\"findings\":[]}"}}]}'
 MOCKEOF
 chmod +x "$MOCK_PERF/curl"
 
@@ -1068,7 +1069,7 @@ perf_overlay_exit=0
 (
     export PATH="$MOCK_PERF:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_PERF"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || perf_overlay_exit=$?
 
 assert_eq "test_overlay_dispatch_fires_curl_for_performance_overlay: runner exits 0" "0" "$perf_overlay_exit"
@@ -1117,7 +1118,7 @@ for i in "\$@"; do
     fi
     prev="\$i"
 done
-printf '{"content":[{"text":"{\"scores\":{\"hygiene\":4,\"design\":4,\"maintainability\":4,\"correctness\":4,\"verification\":4},\"summary\":\"Tier review completed\",\"findings\":[]}"}],"stop_reason":"end_turn"}'
+printf '{"choices":[{"message":{"content":"{\"scores\":{\"hygiene\":4,\"design\":4,\"maintainability\":4,\"correctness\":4,\"verification\":4},\"summary\":\"Tier review completed\",\"findings\":[]}"}}]}'
 MOCKEOF
 chmod +x "$MOCK_NONE/curl"
 
@@ -1140,7 +1141,7 @@ none_exit=0
 (
     export PATH="$MOCK_NONE:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_NONE"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || none_exit=$?
 
 assert_eq "test_overlay_dispatch_no_extra_curls_when_flags_false: runner exits 0" "0" "$none_exit"
@@ -1203,7 +1204,7 @@ elif printf '%s' "\$_body" | grep -q "code-reviewer-security-blue-team"; then
 else
     printf 'tier\n' >> "${DISPATCH_ORDER_LOG}"
 fi
-printf '{"content":[{"text":"{\"scores\":{\"hygiene\":4,\"design\":4,\"maintainability\":4,\"correctness\":4,\"verification\":4},\"summary\":\"Review completed successfully\",\"findings\":[]}"}],"stop_reason":"end_turn"}'
+printf '{"choices":[{"message":{"content":"{\"scores\":{\"hygiene\":4,\"design\":4,\"maintainability\":4,\"correctness\":4,\"verification\":4},\"summary\":\"Review completed successfully\",\"findings\":[]}"}}]}'
 MOCKEOF
 chmod +x "$MOCK_BLUE/curl"
 
@@ -1236,7 +1237,7 @@ blue_exit=0
 (
     export PATH="$MOCK_BLUE:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_BLUE"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || blue_exit=$?
 
 assert_eq "test_security_blue_team_dispatched_after_red_team: runner exits 0" "0" "$blue_exit"
@@ -1296,11 +1297,11 @@ for _arg in "$@"; do
     _prev="$_arg"
 done
 if printf '%s' "$_body" | grep -q "code-reviewer-security-red-team"; then
-    python3 -c "import json; t={\"scores\":{\"correctness\":3,\"verification\":3,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"summary\":\"Red team review\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"correctness\",\"description\":\"SQL injection risk\",\"location\":\"api.sh:10\",\"recommendation\":\"Sanitize input\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+    python3 -c "import json; t={\"scores\":{\"correctness\":3,\"verification\":3,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"summary\":\"Red team review\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"correctness\",\"description\":\"SQL injection risk\",\"location\":\"api.sh:10\",\"recommendation\":\"Sanitize input\"}]}; print(json.dumps({\"choices\":[{\"message\":{\"content\":json.dumps(t)}}]}))"
 elif printf '%s' "$_body" | grep -q "code-reviewer-security-blue-team"; then
-    python3 -c "import json; t={\"scores\":{\"correctness\":3,\"verification\":3,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"summary\":\"Blue team triage\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"verification\",\"description\":\"Missing auth check\",\"location\":\"api.sh:20\",\"recommendation\":\"Add auth\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+    python3 -c "import json; t={\"scores\":{\"correctness\":3,\"verification\":3,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"summary\":\"Blue team triage\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"verification\",\"description\":\"Missing auth check\",\"location\":\"api.sh:20\",\"recommendation\":\"Add auth\"}]}; print(json.dumps({\"choices\":[{\"message\":{\"content\":json.dumps(t)}}]}))"
 else
-    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier review OK\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"hygiene\",\"description\":\"Tier finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier review OK\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"hygiene\",\"description\":\"Tier finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}; print(json.dumps({\"choices\":[{\"message\":{\"content\":json.dumps(t)}}]}))"
 fi
 MOCKEOF
 chmod +x "$MOCK_MERGE_SEC/curl"
@@ -1329,7 +1330,7 @@ merge_sec_exit=0
 (
     export PATH="$MOCK_MERGE_SEC:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_MERGE_SEC"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || merge_sec_exit=$?
 
 assert_eq "test_overlay_merge_security_findings_into_canonical: runner exits 0" "0" "$merge_sec_exit"
@@ -1405,9 +1406,9 @@ for _arg in "$@"; do
     _prev="$_arg"
 done
 if printf '%s' "$_body" | grep -q "code-reviewer-performance"; then
-    python3 -c "import json; t={\"scores\":{\"correctness\":4,\"verification\":2,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"summary\":\"Perf overlay\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"verification\",\"description\":\"N+1 query detected\",\"location\":\"db.sh:5\",\"recommendation\":\"Batch queries\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+    python3 -c "import json; t={\"scores\":{\"correctness\":4,\"verification\":2,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"summary\":\"Perf overlay\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"verification\",\"description\":\"N+1 query detected\",\"location\":\"db.sh:5\",\"recommendation\":\"Batch queries\"}]}; print(json.dumps({\"choices\":[{\"message\":{\"content\":json.dumps(t)}}]}))"
 else
-    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier review OK\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"hygiene\",\"description\":\"Tier perf finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier review OK\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"hygiene\",\"description\":\"Tier perf finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}; print(json.dumps({\"choices\":[{\"message\":{\"content\":json.dumps(t)}}]}))"
 fi
 MOCKEOF
 chmod +x "$MOCK_MERGE_PERF/curl"
@@ -1434,7 +1435,7 @@ merge_perf_exit=0
 (
     export PATH="$MOCK_MERGE_PERF:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_MERGE_PERF"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || merge_perf_exit=$?
 
 assert_eq "test_overlay_merge_performance_findings_into_canonical: runner exits 0" "0" "$merge_perf_exit"
@@ -1504,9 +1505,9 @@ for _arg in "$@"; do
     _prev="$_arg"
 done
 if printf '%s' "$_body" | grep -q "code-reviewer-test-quality"; then
-    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":4,\"hygiene\":2,\"design\":5,\"maintainability\":5},\"summary\":\"Test quality overlay\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"hygiene\",\"description\":\"Change detector test found\",\"location\":\"tests/test_foo.sh:30\",\"recommendation\":\"Test behavior not implementation\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":4,\"hygiene\":2,\"design\":5,\"maintainability\":5},\"summary\":\"Test quality overlay\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"hygiene\",\"description\":\"Change detector test found\",\"location\":\"tests/test_foo.sh:30\",\"recommendation\":\"Test behavior not implementation\"}]}; print(json.dumps({\"choices\":[{\"message\":{\"content\":json.dumps(t)}}]}))"
 else
-    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier review OK\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"design\",\"description\":\"Tier TQ finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier review OK\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"design\",\"description\":\"Tier TQ finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}; print(json.dumps({\"choices\":[{\"message\":{\"content\":json.dumps(t)}}]}))"
 fi
 MOCKEOF
 chmod +x "$MOCK_MERGE_TQ/curl"
@@ -1533,7 +1534,7 @@ merge_tq_exit=0
 (
     export PATH="$MOCK_MERGE_TQ:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_MERGE_TQ"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || merge_tq_exit=$?
 
 assert_eq "test_overlay_merge_test_quality_findings_into_canonical: runner exits 0" "0" "$merge_tq_exit"
@@ -1593,7 +1594,7 @@ chmod +x "$MOCK_MERGE_NONE/review-complexity-classifier.sh"
 
 cat > "$MOCK_MERGE_NONE/curl" <<'MOCKEOF'
 #!/usr/bin/env bash
-python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier only\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"hygiene\",\"description\":\"Tier only finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier only\",\"findings\":[{\"severity\":\"important\",\"dimension\":\"hygiene\",\"description\":\"Tier only finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"Fix it\"}]}; print(json.dumps({\"choices\":[{\"message\":{\"content\":json.dumps(t)}}]}))"
 MOCKEOF
 chmod +x "$MOCK_MERGE_NONE/curl"
 
@@ -1616,7 +1617,7 @@ merge_none_exit=0
 (
     export PATH="$MOCK_MERGE_NONE:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_MERGE_NONE"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || merge_none_exit=$?
 
 assert_eq "test_no_overlay_merge_no_regression: runner exits 0" "0" "$merge_none_exit"
@@ -1693,10 +1694,10 @@ if printf '%s' "$_body" | grep -q "code-reviewer-test-quality"; then
 import json, sys
 inner = sys.argv[1]
 fenced = '\`\`\`json\n' + inner + '\n\`\`\`'
-print(json.dumps({'content': [{'text': fenced}], 'stop_reason': 'end_turn'}))
+print(json.dumps({'choices': [{'message': {'content': fenced}}]}))
 " "$_inner"
 else
-    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier OK\",\"findings\":[{\"severity\":\"minor\",\"dimension\":\"hygiene\",\"description\":\"Tier fence test finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"OK\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+    python3 -c "import json; t={\"scores\":{\"correctness\":5,\"verification\":5,\"hygiene\":5,\"design\":5,\"maintainability\":5},\"summary\":\"Tier OK\",\"findings\":[{\"severity\":\"minor\",\"dimension\":\"hygiene\",\"description\":\"Tier fence test finding\",\"location\":\"foo.sh:1\",\"recommendation\":\"OK\"}]}; print(json.dumps({\"choices\":[{\"message\":{\"content\":json.dumps(t)}}]}))"
 fi
 MOCKEOF
 chmod +x "$MOCK_FENCE/curl"
@@ -1721,7 +1722,7 @@ fence_overlay_exit=0
 (
     export PATH="$MOCK_FENCE:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_FENCE"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || fence_overlay_exit=$?
 
 assert_eq "test_overlay_curl_json_extraction_with_markdown_fence: runner exits 0" "0" "$fence_overlay_exit"
@@ -1828,7 +1829,7 @@ deep_ovl_exit=0
 (
     export PATH="$MOCK_DEEP_OVL:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_DEEP_OVL"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || deep_ovl_exit=$?
 
 assert_eq "test_deep_tier_overlay_merge: runner exits 0" "0" "$deep_ovl_exit"
@@ -1897,7 +1898,7 @@ runner_mode_stderr=$(
     cd "$FAKE_REPO_MODE" && \
     unset DSO_ASSETS_DIR 2>/dev/null || true && \
     unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true && \
-    ANTHROPIC_API_KEY='x' bash "$RUNNER_NO_MARKER" < /dev/null 2>&1 >/dev/null
+    OPENAI_API_KEY='x' bash "$RUNNER_NO_MARKER" < /dev/null 2>&1 >/dev/null
 ) || runner_mode_exit=$?
 
 assert_eq \
@@ -1950,7 +1951,7 @@ assets_dir_stderr=$(
     unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true && \
     DSO_ASSETS_DIR="$FAKE_ASSETS" \
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$FAKE_ASSETS_ARTIFACTS" \
-    ANTHROPIC_API_KEY='x' \
+    OPENAI_API_KEY='x' \
     bash "$RUNNER_NO_MARKER" < /dev/null 2>&1 >/dev/null
 ) || assets_dir_exit=$?
 
@@ -2006,7 +2007,7 @@ _TEST_TMPDIRS+=("$MOCK_UP" "$ARTIFACTS_UP")
 cat > "$MOCK_UP/curl" <<'MOCKEOF'
 #!/usr/bin/env bash
 cat > /dev/null
-printf '{"content":[{"text":"I reviewed the diff. Here are my thoughts:\n\n```json\n{\"scores\":{\"hygiene\":"}],"stop_reason":"length"}'
+printf '{"choices":[{"message":{"content":"I reviewed the diff. Here are my thoughts:\n\n```json\n{\"scores\":{\"hygiene\":"}}]}'
 MOCKEOF
 chmod +x "$MOCK_UP/curl"
 
@@ -2037,7 +2038,7 @@ chmod +x "$MOCK_UP/review-complexity-classifier.sh"
 (
     export PATH="$MOCK_UP:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_UP"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || unparseable_exit=$?
 
 assert_eq "test_runner_exits_zero_on_unparseable_llm_response: exits 0 (fail-open)" "0" "$unparseable_exit"
@@ -2082,12 +2083,12 @@ for _arg in "$@"; do
     _prev="$_arg"
 done
 if printf '%s' "$_body" | grep -q "code-reviewer-security-red-team"; then
-    python3 -c "import json; t={\"scores\":{\"correctness\":1,\"verification\":1,\"hygiene\":1,\"design\":1,\"maintainability\":1},\"summary\":\"Critical: hardcoded credentials\",\"findings\":[{\"severity\":\"critical\",\"category\":\"correctness\",\"description\":\"SECURITY_OVERLAY_TRIGGERED: hardcoded credential pattern\",\"file\":\"foo.sh\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+    python3 -c "import json; t={\"scores\":{\"correctness\":1,\"verification\":1,\"hygiene\":1,\"design\":1,\"maintainability\":1},\"summary\":\"Critical: hardcoded credentials\",\"findings\":[{\"severity\":\"critical\",\"category\":\"correctness\",\"description\":\"SECURITY_OVERLAY_TRIGGERED: hardcoded credential pattern\",\"file\":\"foo.sh\"}]}; print(json.dumps({\"choices\":[{\"message\":{\"content\":json.dumps(t)}}]}))"
 elif printf '%s' "$_body" | grep -q "code-reviewer-security-blue-team"; then
-    python3 -c "import json; t={\"scores\":{\"correctness\":1,\"verification\":1,\"hygiene\":1,\"design\":1,\"maintainability\":1},\"summary\":\"Confirmed: hardcoded credentials\",\"findings\":[{\"severity\":\"critical\",\"category\":\"correctness\",\"description\":\"SECURITY_OVERLAY_TRIGGERED: confirmed credential pattern\",\"file\":\"foo.sh\"}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+    python3 -c "import json; t={\"scores\":{\"correctness\":1,\"verification\":1,\"hygiene\":1,\"design\":1,\"maintainability\":1},\"summary\":\"Confirmed: hardcoded credentials\",\"findings\":[{\"severity\":\"critical\",\"category\":\"correctness\",\"description\":\"SECURITY_OVERLAY_TRIGGERED: confirmed credential pattern\",\"file\":\"foo.sh\"}]}; print(json.dumps({\"choices\":[{\"message\":{\"content\":json.dumps(t)}}]}))"
 else
     # Main tier: return unparseable (truncated) response to produce inconclusive N/A tier
-    printf '{"content":[{"text":"I reviewed the diff. Here are my thoughts:\n\n```json\n{\"scores\":{\"hygiene\":"}],"stop_reason":"length"}'
+    printf '{"choices":[{"message":{"content":"I reviewed the diff. Here are my thoughts:\n\n```json\n{\"scores\":{\"hygiene\":"}}]}'
 fi
 MOCKEOF
 chmod +x "$MOCK_CRIT/curl"
@@ -2131,7 +2132,7 @@ overlay_crit_exit=0
     export PATH="$MOCK_CRIT:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CRIT"
     printf 'diff --git a/foo.sh b/foo.sh\n+AWS_SECRET_ACCESS_KEY=FAKE-TEST-ONLY-NOT-A-REAL-KEY-000000000000\n' \
-        | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+        | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || overlay_crit_exit=$?
 
 assert_eq "test_overlay_critical_finding_overrides_inconclusive_tier: runner exits 1" "1" "$overlay_crit_exit"
@@ -2200,7 +2201,7 @@ _llmcall_runner_exit=0
 (
     export PATH="$_llmcall_mock_dir:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_llmcall_artifacts"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || _llmcall_runner_exit=$?
 
 _llmcall_invocations=0
@@ -2248,7 +2249,7 @@ _light_exit=0
 (
     export PATH="$_light_mock_dir:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_light_artifacts"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || _light_exit=$?
 
 _light_tier_arg=""
@@ -2296,7 +2297,7 @@ _std_exit=0
 (
     export PATH="$_std_mock_dir:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_std_artifacts"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || _std_exit=$?
 
 _std_tier_arg=""
@@ -2364,7 +2365,7 @@ _deep_del_exit=0
 (
     export PATH="$_deep_mock_dir:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_deep_artifacts"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || _deep_del_exit=$?
 
 _deep_invocations=0
@@ -2417,7 +2418,7 @@ _empty_resp_exit=0
 (
     export PATH="$_empty_resp_mock_dir:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_empty_resp_artifacts"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || _empty_resp_exit=$?
 
 assert_eq "test_runner_fail_open_when_llm_helper_returns_empty: runner exits 0 (fail-open)" "0" "$_empty_resp_exit"
@@ -2462,7 +2463,7 @@ _bad_json_exit=0
 (
     export PATH="$_bad_json_mock_dir:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_bad_json_artifacts"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || _bad_json_exit=$?
 
 assert_eq "test_runner_fail_open_when_llm_response_not_valid_json: runner exits 0 (fail-open)" "0" "$_bad_json_exit"
@@ -2509,7 +2510,7 @@ _fail_helper_exit=0
 (
     export PATH="$_fail_helper_mock_dir:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_fail_helper_artifacts"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || _fail_helper_exit=$?
 
 # Fail-open: runner exits 0 with inconclusive review when llm-api-call.sh fails
@@ -2554,7 +2555,7 @@ _integ_exit=0
 (
     export PATH="$_integ_mock_dir:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_integ_artifacts"
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || _integ_exit=$?
 
 assert_eq "test_runner_integration_llm_api_call_mocked: runner exits 0" "0" "$_integ_exit"
@@ -2705,7 +2706,7 @@ _dso_llm_exit=0
     export PATH="$_dso_llm_mock_dir:$PATH"
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_dso_llm_artifacts"
     export DSO_LLM_MODEL='bogus-model-xyz'
-    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | OPENAI_API_KEY='x' bash "$RUNNER"
 ) || _dso_llm_exit=$?
 
 assert_eq "test_dso_llm_model_env_is_ignored: runner exits 0 when DSO_LLM_MODEL is set" "0" "$_dso_llm_exit"
