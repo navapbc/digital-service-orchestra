@@ -1280,4 +1280,307 @@ test_resolver_alias_collision_error() {
 }
 test_resolver_alias_collision_error
 
+# ── format_ticket_id() tests (RED — function does not exist yet) ──────────────
+#
+# These tests exercise format_ticket_id() with the ticket.display_mode config key.
+# All 6 tests MUST FAIL until format_ticket_id() is implemented in ticket-lib.sh.
+#
+# Acceptance criteria:
+#   1. display_mode=canonical  → returns 16-hex canonical ID unchanged
+#   2. display_mode=alias      → returns adj-noun-noun alias from CREATE event data.alias
+#   3. display_mode=short      → returns shortest unambiguous prefix (>=4 chars)
+#   4. display_mode absent     → defaults to canonical (returns 16-hex ID)
+#   5. display_mode=unrecognized_value → defaults to canonical
+#   6. display_mode=alias, no data.alias → falls back to canonical
+
+# ── Helper: create temp repo with optional ticket.display_mode config ─────────
+# Usage: _make_fmt_test_repo [display_mode_value]
+# When display_mode_value is empty, the key is omitted from config entirely.
+_make_fmt_test_repo() {
+    local display_mode="${1:-}"
+    local repo
+    repo=$(_make_test_repo)
+
+    # Write a minimal .claude/dso-config.conf in the repo fixture
+    mkdir -p "$repo/.claude"
+    {
+        printf 'version=1.1.0\n'
+        if [ -n "$display_mode" ]; then
+            printf 'ticket.display_mode=%s\n' "$display_mode"
+        fi
+    } > "$repo/.claude/dso-config.conf"
+
+    # Initialize ticket system
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    echo "$repo"
+}
+
+# ── Helper: plant a CREATE event with an optional alias field ─────────────────
+# Usage: _plant_fmt_ticket <tracker_dir> <ticket_id> [alias]
+# Creates the ticket dir and a CREATE event file; commits it to the tracker.
+_plant_fmt_ticket() {
+    local tracker_dir="$1"
+    local ticket_id="$2"
+    local alias="${3:-}"
+    local ticket_dir="$tracker_dir/$ticket_id"
+    mkdir -p "$ticket_dir"
+    local ts uuid
+    ts=$(python3 -c "import time; print(int(time.time() * 1000))")
+    uuid=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    local event_file="$ticket_dir/${ts}-${uuid}-CREATE.json"
+
+    if [ -n "$alias" ]; then
+        python3 -c "
+import json, sys
+data = {
+    'timestamp': int('$ts'),
+    'uuid': '$uuid',
+    'event_type': 'CREATE',
+    'env_id': '$uuid',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'Format test ticket',
+        'parent_id': None,
+        'alias': '$alias'
+    }
+}
+json.dump(data, sys.stdout)
+" > "$event_file"
+    else
+        python3 -c "
+import json, sys
+data = {
+    'timestamp': int('$ts'),
+    'uuid': '$uuid',
+    'event_type': 'CREATE',
+    'env_id': '$uuid',
+    'author': 'Test',
+    'data': {
+        'ticket_type': 'task',
+        'title': 'Format test ticket',
+        'parent_id': None
+    }
+}
+json.dump(data, sys.stdout)
+" > "$event_file"
+    fi
+
+    # Commit event so git tree is clean
+    (cd "$tracker_dir" && git add "$ticket_id/" 2>/dev/null && \
+        git commit -m "test: CREATE $ticket_id" --no-verify 2>/dev/null) || true
+}
+
+# ── Test format_ticket_id 1: display_mode=canonical → returns 16-hex unchanged ─
+echo "Test format_ticket_id_canonical: display_mode=canonical returns 16-hex ID unchanged"
+test_format_ticket_id_canonical() {
+    local repo
+    repo=$(_make_fmt_test_repo "canonical")
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id canonical test" "exists" "missing"
+        return
+    fi
+
+    # RED: format_ticket_id must NOT be defined yet — test fails because function is absent
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (canonical test)" "defined" "undefined"
+        return
+    fi
+
+    local ticket_id="abcd1234efgh5678"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id canonical: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id canonical: returns 16-hex ID unchanged" "$ticket_id" "$result"
+}
+test_format_ticket_id_canonical
+
+# ── Test format_ticket_id 2: display_mode=alias → returns data.alias ──────────
+echo "Test format_ticket_id_alias: display_mode=alias returns adj-noun-noun alias from CREATE event"
+test_format_ticket_id_alias() {
+    local repo
+    repo=$(_make_fmt_test_repo "alias")
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id alias test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (alias test)" "defined" "undefined"
+        return
+    fi
+
+    local ticket_id="bbbb2222cccc3333"
+    local expected_alias="swift-river-oak"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id" "$expected_alias"
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id alias: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id alias: returns data.alias value" "$expected_alias" "$result"
+}
+test_format_ticket_id_alias
+
+# ── Test format_ticket_id 3: display_mode=short → shortest unambiguous prefix ──
+echo "Test format_ticket_id_short: display_mode=short returns shortest unambiguous prefix (>=4 chars)"
+test_format_ticket_id_short() {
+    local repo
+    repo=$(_make_fmt_test_repo "short")
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id short test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (short test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket with a unique prefix starting at 4 chars
+    local ticket_id="zzzz9999aaaa1111"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id short: exits 0" "0" "$exit_code"
+
+    # Result must be a prefix of the full ticket_id and at least 4 chars
+    local result_len="${#result}"
+    assert_eq "format_ticket_id short: prefix length >= 4" "1" \
+        "$([ "${result_len:-0}" -ge 4 ] && echo 1 || echo 0)"
+
+    # Result must be a prefix of the full ID
+    if [[ "$ticket_id" == "${result}"* ]]; then
+        assert_eq "format_ticket_id short: result is a prefix of full ID" "prefix" "prefix"
+    else
+        assert_eq "format_ticket_id short: result is a prefix of full ID" "prefix" "not-prefix"
+    fi
+}
+test_format_ticket_id_short
+
+# ── Test format_ticket_id 4: display_mode absent → defaults to canonical ───────
+echo "Test format_ticket_id_default_canonical: absent display_mode defaults to canonical (returns 16-hex)"
+test_format_ticket_id_default_canonical() {
+    local repo
+    # Pass empty string — config omits ticket.display_mode entirely
+    repo=$(_make_fmt_test_repo "")
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id default test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (default test)" "defined" "undefined"
+        return
+    fi
+
+    local ticket_id="cccc4444dddd5555"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id default: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id default: returns 16-hex ID unchanged (canonical default)" \
+        "$ticket_id" "$result"
+}
+test_format_ticket_id_default_canonical
+
+# ── Test format_ticket_id 5: display_mode=unrecognized_value → canonical ───────
+echo "Test format_ticket_id_unrecognized_mode: unrecognized display_mode defaults to canonical"
+test_format_ticket_id_unrecognized_mode() {
+    local repo
+    repo=$(_make_fmt_test_repo "bogus_mode_xyz")
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id unrecognized-mode test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (unrecognized-mode test)" "defined" "undefined"
+        return
+    fi
+
+    local ticket_id="eeee6666ffff7777"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id"
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id unrecognized-mode: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id unrecognized-mode: falls back to canonical (16-hex unchanged)" \
+        "$ticket_id" "$result"
+}
+test_format_ticket_id_unrecognized_mode
+
+# ── Test format_ticket_id 6: display_mode=alias, no data.alias → canonical fallback ─
+echo "Test format_ticket_id_alias_no_alias_field: display_mode=alias with no data.alias falls back to canonical"
+test_format_ticket_id_alias_no_alias_field() {
+    local repo
+    repo=$(_make_fmt_test_repo "alias")
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for format_ticket_id alias-fallback test" "exists" "missing"
+        return
+    fi
+
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type format_ticket_id &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "format_ticket_id function defined (alias-fallback test)" "defined" "undefined"
+        return
+    fi
+
+    # Plant a ticket WITHOUT an alias (simulates a pre-migration ticket with no data.alias)
+    local ticket_id="gggg8888hhhh9999"
+    _plant_fmt_ticket "$repo/.tickets-tracker" "$ticket_id"  # no alias argument
+
+    local result exit_code=0
+    result=$(cd "$repo" && \
+        WORKFLOW_CONFIG_FILE="$repo/.claude/dso-config.conf" \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && format_ticket_id "$ticket_id" 2>/dev/null) || exit_code=$?
+
+    assert_eq "format_ticket_id alias-fallback: exits 0" "0" "$exit_code"
+    assert_eq "format_ticket_id alias-fallback: returns canonical ID when data.alias absent" \
+        "$ticket_id" "$result"
+}
+test_format_ticket_id_alias_no_alias_field
+
 print_summary
