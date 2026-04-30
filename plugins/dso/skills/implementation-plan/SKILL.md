@@ -608,7 +608,7 @@ When the story involves UI changes:
 1. **Design wireframes inline (Recommended)** — create wireframes as part of planning.
 2. **Defer wireframes** — only when visual design is not part of the story's scope.
 
-If inline, verify `/dso:preplanning` has run for the parent epic — `dso:ui-designer` is dispatched by preplanning Step 6 and produces the Design Manifest (spatial layout, SVG wireframe, token overlay) as a `UI_DESIGNER_PAYLOAD`. If no design artifacts exist, re-run `/dso:preplanning <epic-id>` first. Include a wireframe task that references existing design artifacts before implementation tasks. UI implementation tasks depend on the wireframe task.
+If inline, verify `/dso:preplanning` has run for the parent epic — `dso:ui-designer` is dispatched by preplanning Phase H Step 7 and produces the Design Manifest (spatial layout, SVG wireframe, token overlay) as a `UI_DESIGNER_PAYLOAD`. If no design artifacts exist, re-run `/dso:preplanning <epic-id>` first. Include a wireframe task that references existing design artifacts before implementation tasks. UI implementation tasks depend on the wireframe task.
 
 If deferring, document the rationale (e.g., "Visual design is out of scope — wireframes will come from a dedicated design story").
 

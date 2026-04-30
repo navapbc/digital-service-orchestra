@@ -1,6 +1,6 @@
 # ui-designer Dispatch Protocol
 
-Inline orchestration protocol for `/dso:preplanning` Step 6. When dispatching
+Inline orchestration protocol for `/dso:preplanning` Phase H Step 7. When dispatching
 `dso:ui-designer` for a UI story, follow the six sections below in order.
 
 ---
@@ -134,7 +134,7 @@ re-dispatching.
   - **If `PREPLANNING_INTERACTIVE=false`** (non-interactive mode): Write the
     following comment to the epic ticket and skip this story:
     ```
-    .claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: CACHE_MISSING <story-id> — UI Discovery Cache could not be populated after 2 refresh attempts. Manual intervention required: run /dso:ui-discover <story-id> and re-trigger preplanning Step 6."
+    .claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: CACHE_MISSING <story-id> — UI Discovery Cache could not be populated after 2 refresh attempts. Manual intervention required: run /dso:ui-discover <story-id> and re-trigger preplanning Phase H Step 7."
     ```
     Continue processing remaining UI stories.
   - **If `PREPLANNING_INTERACTIVE=true`** (interactive mode): Escalate to the
@@ -261,7 +261,7 @@ are only evaluated when preplanning has NOT already split the story.
 
 **How to detect a preplanning split**: The story's description or metadata
 contains a `splitRole` marker — specifically `splitRole: Foundation` or
-`splitRole: Enhancement` — added by preplanning Phase 3 when it performed its
+`splitRole: Enhancement` — added by preplanning Phase F when it performed its
 own story split.
 
 ```

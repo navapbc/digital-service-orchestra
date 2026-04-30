@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 # tests/scripts/test-skill-dispatch-pattern.sh
-# Tests that skill files do not use invalid dso:* subagent_type values.
+# Tests skill files for the two real dispatch failure modes from bug 2c4d-490b:
+#   (1) double-prefix: `dso:dso:<name>` — an agent appending its own dso: prefix
+#       to an already-prefixed name
+#   (2) missing fallback: a named `subagent_type: "dso:<name>"` dispatch with no
+#       fallback to `general-purpose` for environments where the named type is
+#       unregistered (e.g., local plugin development)
 #
-# Bug 2c4d-490b: Same anti-pattern as a541-0ad7 (REVIEW-WORKFLOW.md).
-# Affected files: update-docs/SKILL.md, brainstorm/SKILL.md,
+# Named-first dispatch IS valid when paired with an explicit fallback — this
+# matches CLAUDE.md guidance: "Use subagent_type: 'dso:<name>' directly when the
+# agent is registered. Fall back to subagent_type: 'general-purpose' with the
+# agent file loaded verbatim only when the named type is not registered."
+#
+# Files checked: update-docs/SKILL.md, brainstorm/SKILL.md,
 #   resolve-conflicts/SKILL.md, preplanning/SKILL.md,
 #   preplanning/prompts/ui-designer-dispatch-protocol.md,
 #   plan-review/SKILL.md
-#
-# The Agent tool only accepts built-in subagent_type values (general-purpose,
-# Explore, Plan, etc.) — dso:* labels are agent file identifiers, NOT valid
-# subagent_type values.
 #
 # Usage: bash tests/scripts/test-skill-dispatch-pattern.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -33,30 +38,53 @@ FILES["preplanning"]="$PLUGIN_ROOT/plugins/dso/skills/preplanning/SKILL.md"
 FILES["ui-designer-dispatch-protocol"]="$PLUGIN_ROOT/plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md"
 FILES["plan-review"]="$PLUGIN_ROOT/plugins/dso/skills/plan-review/SKILL.md"
 
-# ── Test 1: No invalid dso: subagent_type values in any skill file ────────────
-# The Agent tool only accepts built-in subagent types (general-purpose, Explore, etc.).
-# dso:* values are agent file identifiers — using them as subagent_type is invalid.
-# This test catches both code block and inline prose occurrences.
-echo "Test 1: Skill files do not use invalid subagent_type: \"dso:\" values"
-_found_invalid=0
-_bad_files=()
+# ── Test 1a: No double-prefix `dso:dso:<name>` anywhere ───────────────────────
+# Failure mode 1 from bug 2c4d-490b: an agent appending its own dso: prefix to
+# an already-prefixed name. Block this everywhere — there is no valid use.
+echo "Test 1a: Skill files do not contain double-prefix dso:dso:<name>"
+_double_prefix_files=()
 for _label in "${!FILES[@]}"; do
     _file="${FILES[$_label]}"
-    if [[ ! -f "$_file" ]]; then
-        echo "  WARN: $_label file not found: $_file" >&2
-        continue
-    fi
-    if grep -qE 'subagent_type:[[:space:]]*"dso:' "$_file" 2>/dev/null; then
-        _found_invalid=1
-        _bad_files+=("$_label")
+    [[ -f "$_file" ]] || continue
+    if grep -qE 'dso:dso:' "$_file" 2>/dev/null; then
+        _double_prefix_files+=("$_label")
     fi
 done
-if [[ "$_found_invalid" -eq 1 ]]; then
-    echo "  FAIL: invalid subagent_type: \"dso:*\" found in: ${_bad_files[*]}" >&2
-    echo "        Replace with subagent_type: \"general-purpose\" + inline agent file content" >&2
+if [[ "${#_double_prefix_files[@]}" -gt 0 ]]; then
+    echo "  FAIL: double-prefix dso:dso:<name> found in: ${_double_prefix_files[*]}" >&2
     (( FAIL++ ))
 else
-    echo "  PASS: no invalid dso: subagent_type values in skill files"
+    echo "  PASS: no double-prefix dso:dso: occurrences"
+    (( PASS++ ))
+fi
+
+# ── Test 1b: Named `subagent_type: "dso:<name>"` must be paired with fallback ─
+# Failure mode 2 from bug 2c4d-490b: a named dispatch with no fallback breaks in
+# environments where the dso:* type is unregistered (e.g., local plugin dev).
+# Per CLAUDE.md, named dispatch is valid when paired with an explicit fallback
+# clause to `subagent_type: "general-purpose"`. This test asserts: if the file
+# uses named dispatch at all, it MUST also contain fallback guidance.
+echo "Test 1b: Named subagent_type: \"dso:<name>\" dispatch is paired with general-purpose fallback"
+_missing_fallback_files=()
+for _label in "${!FILES[@]}"; do
+    _file="${FILES[$_label]}"
+    [[ -f "$_file" ]] || continue
+    if grep -qE 'subagent_type:[[:space:]]*"dso:' "$_file" 2>/dev/null; then
+        # Named dispatch present — require an explicit general-purpose fallback
+        # clause somewhere in the same file. The fallback phrase indicates
+        # the orchestrator should switch to general-purpose when the named
+        # type is unavailable.
+        if ! grep -qiE 'fall back to[^"]*subagent_type:[[:space:]]*"general-purpose"|unregistered.*general-purpose|general-purpose.*if.*unregistered|fallback.*general-purpose' "$_file" 2>/dev/null; then
+            _missing_fallback_files+=("$_label")
+        fi
+    fi
+done
+if [[ "${#_missing_fallback_files[@]}" -gt 0 ]]; then
+    echo "  FAIL: named subagent_type: \"dso:<name>\" dispatch without general-purpose fallback in: ${_missing_fallback_files[*]}" >&2
+    echo "        Either remove named dispatch (use subagent_type: \"general-purpose\" + inline agent file content) or add explicit fallback clause." >&2
+    (( FAIL++ ))
+else
+    echo "  PASS: all named dso: dispatches are paired with general-purpose fallback (or no named dispatch present)"
     (( PASS++ ))
 fi
 

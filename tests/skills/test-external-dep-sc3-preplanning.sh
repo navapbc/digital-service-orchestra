@@ -22,7 +22,7 @@ FAIL=0
 # ---------------------------------------------------------------------------
 # shellcheck disable=SC2329
 test_skill_md_has_ext_dep_block_reader_section() {
-    grep -q 'Phase 1.5: External Dependencies Block Reading' "$SKILL_MD" || { echo "FAIL: ${FUNCNAME[0]}"; return 1; }
+    grep -qE 'Phase [A-Z]: External Dependencies Reading' "$SKILL_MD" || { echo "FAIL: ${FUNCNAME[0]}"; return 1; }
     echo "PASS: ${FUNCNAME[0]}"
 }
 

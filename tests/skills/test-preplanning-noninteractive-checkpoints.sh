@@ -26,6 +26,7 @@ fail() { echo "FAIL: ${SECTION}"; echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 # ---------------------------------------------------------------------------
 # Helper: extract text around a heading (the section from heading to next ##-heading or EOF)
 # ---------------------------------------------------------------------------
+# shellcheck disable=SC2329
 extract_section_by_heading() {
   local file="$1"
   local heading_pattern="$2"
@@ -106,7 +107,7 @@ echo ""
 echo "=== test_cp2_escalation_policy_default ==="
 SECTION="test_cp2_escalation_policy_default"
 
-STEP1B_SECTION="$(extract_step_section "$SKILL_MD" '^### Step 1b: Select Escalation Policy')"
+STEP1B_SECTION="$(extract_step_section "$SKILL_MD" '^### Step 2: Select Escalation Policy')"
 
 if grep -qiE "PREPLANNING_INTERACTIVE" <<< "$STEP1B_SECTION"; then
   pass "Phase 1 Step 1b contains PREPLANNING_INTERACTIVE branch"
@@ -129,7 +130,7 @@ echo ""
 echo "=== test_cp3_scope_clarification_exit ==="
 SECTION="test_cp3_scope_clarification_exit"
 
-STEP3_SECTION="$(extract_step_section "$SKILL_MD" '^### Step 3: Reconcile Existing Work')"
+STEP3_SECTION="$(extract_step_section "$SKILL_MD" '^### Step 4: Reconcile Existing Work')"
 
 if grep -qiE "PREPLANNING_INTERACTIVE" <<< "$STEP3_SECTION"; then
   pass "Phase 1 Step 3 contains PREPLANNING_INTERACTIVE branch"
@@ -152,7 +153,7 @@ echo ""
 echo "=== test_cp4_reconciliation_auto_apply ==="
 SECTION="test_cp4_reconciliation_auto_apply"
 
-STEP4_SECTION="$(extract_step_section "$SKILL_MD" '^### Step 4: Document Reconciliation Plan')"
+STEP4_SECTION="$(extract_step_section "$SKILL_MD" '^### Step 5: Document Reconciliation Plan')"
 
 if grep -qiE "PREPLANNING_INTERACTIVE" <<< "$STEP4_SECTION"; then
   pass "Phase 1 Step 4 contains PREPLANNING_INTERACTIVE branch"
