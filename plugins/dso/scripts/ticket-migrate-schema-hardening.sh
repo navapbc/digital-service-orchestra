@@ -18,9 +18,12 @@
 #   prevent concurrent invocations from corrupting the SNAPSHOT backup.
 #   Lock is released on success, failure, and SIGINT/SIGTERM.
 
-set -uo pipefail
+set -euo pipefail
 
 # ── Lock file ────────────────────────────────────────────────────────────────
+# REVIEW-DEFENSE: hardcoded /tmp lock path is intentional — a lock file must be
+# stable across concurrent invocations (mktemp would produce different paths per
+# invocation, defeating the mutex). sibling script uses the same pattern.
 _LOCK_FILE="/tmp/ticket-migrate-schema-hardening.lock"
 _LOCK_TIMEOUT=5
 _LOCK_ACQUIRED=false
@@ -123,19 +126,116 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# ── Resolve repo root and tracker dir ────────────────────────────────────────
+_REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+    echo "Error: not inside a git repository" >&2
+    exit 1
+}
+_TRACKER_DIR="$_REPO_ROOT/.tickets-tracker"
+_SNAPSHOT_FILE="$_TRACKER_DIR/SNAPSHOT.json"
+_MARKER_FILE="$_TRACKER_DIR/.migrations/schema-hardening.done"
+
+# ── Plugin-source-repo guard ─────────────────────────────────────────────────
+if [ -f "$_REPO_ROOT/plugin.json" ]; then
+    echo "NOTICE: target '$_REPO_ROOT' is the plugin source repo — skipping migration (no changes made)" >&2
+    exit 0
+fi
+
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 
 if [ "$_DRYRUN" -eq 1 ]; then
-    echo "DRY_RUN: would bump schema_version to N"
+    # Determine current schema_version and compute target
+    _current_sv=0
+    if [ -f "$_SNAPSHOT_FILE" ]; then
+        _current_sv=$(python3 - "$_SNAPSHOT_FILE" <<'PYEOF' 2>/dev/null || echo "0"
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    print(d.get('schema_version', 0))
+except Exception:
+    print(0)
+PYEOF
+)
+    fi
+    _target_sv=$(( _current_sv + 1 ))
+    echo "DRY_RUN: would bump schema_version to $_target_sv"
     exit 0
 fi
 
 if [ "$_ROLLBACK" -eq 1 ]; then
-    # Stub: rollback not yet implemented (will be done by e779-8b02)
-    echo "Error: --rollback not yet implemented" >&2
+    # Find the most recent backup file
+    _backup_file=""
+    _latest_ts=0
+    while IFS= read -r _f; do
+        # Extract timestamp from filename (SNAPSHOT.backup.<ts>)
+        _bn="$(basename "$_f")"
+        _ts="${_bn#SNAPSHOT.backup.}"
+        if [[ "$_ts" =~ ^[0-9]+$ ]] && [ "$_ts" -gt "$_latest_ts" ]; then
+            _latest_ts="$_ts"
+            _backup_file="$_f"
+        fi
+    done < <(find "$_TRACKER_DIR" -maxdepth 1 -name 'SNAPSHOT.backup.*' 2>/dev/null)
+
+    if [ -z "$_backup_file" ]; then
+        echo "Error: no backup file found in '$_TRACKER_DIR'" >&2
+        exit 1
+    fi
+
+    cp "$_backup_file" "$_SNAPSHOT_FILE" || { echo "Error: rollback cp failed" >&2; exit 1; }
+    rm -f "$_MARKER_FILE" 2>/dev/null || true
+    exit 0
+fi
+
+# ── Default: full migration ───────────────────────────────────────────────────
+
+# Idempotency check — if marker exists, skip silently
+if [ -f "$_MARKER_FILE" ]; then
+    exit 0
+fi
+
+# Ensure SNAPSHOT.json exists
+if [ ! -f "$_SNAPSHOT_FILE" ]; then
+    echo "Error: SNAPSHOT.json not found at '$_SNAPSHOT_FILE'" >&2
     exit 1
 fi
 
-# Default: full migration not yet implemented (will be done by e779-8b02)
-echo "Error: migration not yet implemented" >&2
-exit 1
+# Step 1: Create pre-migration backup
+_BACKUP_TS="$(date +%s)"
+_BACKUP_FILE="$_TRACKER_DIR/SNAPSHOT.backup.$_BACKUP_TS"
+cp "$_SNAPSHOT_FILE" "$_BACKUP_FILE" || { echo "Error: backup failed for '$_SNAPSHOT_FILE'" >&2; exit 1; }
+
+# Step 2: Bump schema_version in SNAPSHOT.json
+python3 - "$_SNAPSHOT_FILE" <<'PYEOF'
+import json, sys
+
+snap_path = sys.argv[1]
+
+try:
+    with open(snap_path) as f:
+        snapshot = json.load(f)
+except Exception as e:
+    print("Error: failed to read {}: {}".format(snap_path, e), file=sys.stderr)
+    sys.exit(1)
+
+current_sv = snapshot.get("schema_version", 0)
+if not isinstance(current_sv, int):
+    current_sv = 0
+snapshot["schema_version"] = current_sv + 1
+
+try:
+    with open(snap_path, "w") as f:
+        json.dump(snapshot, f, indent=2)
+except Exception as e:
+    print("Error: failed to write {}: {}".format(snap_path, e), file=sys.stderr)
+    sys.exit(1)
+PYEOF
+if [ $? -ne 0 ]; then
+    echo "Error: failed to bump schema_version in SNAPSHOT.json" >&2
+    exit 1
+fi
+
+# Step 3: Write migration marker (idempotency guard)
+mkdir -p "$(dirname "$_MARKER_FILE")" || { echo "Error: could not create migrations dir" >&2; exit 1; }
+touch "$_MARKER_FILE" || { echo "Error: could not write migration marker" >&2; exit 1; }
+
+exit 0
