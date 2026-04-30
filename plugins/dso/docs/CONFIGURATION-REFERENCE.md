@@ -241,7 +241,7 @@ Security, performance, and test-quality overlays are dispatched automatically wh
 | **Description** | Required in host-project CI when running `ci-llm-review-runner.sh` outside the DSO source checkout. When the runner detects that the marker file `${CLAUDE_PLUGIN_ROOT}/.dso-source-of-truth` is absent (indicating it is NOT running from the DSO local source), it falls back to `DSO_ASSETS_DIR` as the plugin root. If the marker is absent AND `DSO_ASSETS_DIR` is unset, the runner exits 1 with an error to stderr. In local DSO development, this variable is not required — the marker file is present and the runner uses a BASH_SOURCE-relative plugin root. |
 | **Accepted values** | Absolute path to the fetched DSO plugin assets directory |
 | **Default** | Absent — only required in host-project CI |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ci-llm-review-runner.sh` (auto-detect runner mode) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ci-llm-review-runner.sh` (auto-detect runner mode) | # shim-exempt: plugin path in config documentation, not an invocation
 
 ---
 
@@ -263,7 +263,7 @@ Security, performance, and test-quality overlays are dispatched automatically wh
 | **Description** | Colon-separated list of test directories. When set, `validate.sh` invokes `test-batched.sh` with `--runner=bash --test-dir=<dirs>` so each `test-*.sh` file runs as an individual resumable item. This enables incremental progress across `validate.sh` re-invocations for large test suites that exceed the 45s budget. When absent, `test-batched.sh` treats the entire suite as one atomic command (no sub-test resume). |
 | **Accepted values** | Colon-separated directory paths relative to repo root (e.g., `tests/hooks:tests/scripts:tests/skills:tests/integration`) |
 | **Default** | Empty (generic single-command runner) |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` (`run_test_check`) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` (`run_test_check`) | # shim-exempt: plugin path in config documentation, not an invocation
 
 ---
 
@@ -274,7 +274,7 @@ Security, performance, and test-quality overlays are dispatched automatically wh
 | **Description** | Test runner command used by `suite-engine.sh` for individual test file execution. Distinct from `commands.test` (full suite) — this command is invoked per-file by the test batching infrastructure. |
 | **Accepted values** | Any shell command string (e.g., `pytest`, `npx jest`, `bundle exec rspec`) |
 | **Default** | Stack-derived (see per-stack defaults table below) |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/suite-engine.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/test-batched.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/suite-engine.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/test-batched.sh` | # shim-exempt: plugin paths in config documentation, not invocations
 
 ---
 
@@ -408,7 +408,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Syntax check command run by `validate.sh` as a parallel lint step. When absent, `validate.sh` falls back to `make syntax-check`. Use `true` (no-op) to skip syntax checking on projects without a dedicated syntax step. |
 | **Accepted values** | Any shell command string (e.g., `make syntax-check`, `true`) |
 | **Default** | `make syntax-check` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` | # shim-exempt: plugin path in config documentation, not an invocation
 
 ---
 
@@ -417,9 +417,9 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | | |
 |---|---|
 | **Description** | Ruff linter command run by `validate.sh` as a parallel lint step. When absent, `validate.sh` falls back to `make lint-ruff`. Use this key to override the default ruff invocation (e.g., to restrict to specific paths or add `--select` flags). |
-| **Accepted values** | Any shell command string (e.g., `ruff check ${CLAUDE_PLUGIN_ROOT}/scripts/*.py tests/**/*.py`, `make lint-ruff`) |
+| **Accepted values** | Any shell command string (e.g., `ruff check ${CLAUDE_PLUGIN_ROOT}/scripts/*.py tests/**/*.py`, `make lint-ruff`) | # shim-exempt: plugin path in config documentation example, not an invocation
 | **Default** | `make lint-ruff` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` | # shim-exempt: plugin path in config documentation, not an invocation
 
 ---
 
@@ -430,7 +430,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | MyPy type-check command run by `validate.sh` as a parallel lint step. When absent, `validate.sh` falls back to `make lint-mypy`. Use `true` (no-op) to skip MyPy on projects that do not use type annotations. |
 | **Accepted values** | Any shell command string (e.g., `mypy src/`, `make lint-mypy`, `true`) |
 | **Default** | `make lint-mypy` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` | # shim-exempt: plugin path in config documentation, not an invocation
 
 ---
 
@@ -1285,6 +1285,51 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 | **Accepted values** | Anthropic model ID string (e.g., `claude-opus-4-6`) |
 | **Default** | No built-in default — **required** when any opus-tier agent is dispatched |
 | **Used by** | `scripts/resolve-model-id.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `model.provider`
+
+| | |
+|---|---|
+| **Description** | CI LLM provider for `llm-api-call.sh`. Controls which provider's API is called during CI review. |
+| **Accepted values** | `anthropic` \| `openai` |
+| **Default** | `anthropic` |
+| **Example** | `model.provider=anthropic` or `model.provider=openai` |
+| **Used by** | `scripts/llm-api-call.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `model.light`
+
+| | |
+|---|---|
+| **Description** | Model ID used for light-tier CI review (when `llm-api-call.sh` is called with `tier=light`). |
+| **Accepted values** | Provider model ID string |
+| **Default** | `claude-haiku-4-5-20251001` (Anthropic) / `gpt-5.4-nano` (OpenAI) |
+| **Used by** | `scripts/llm-api-call.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `model.standard`
+
+| | |
+|---|---|
+| **Description** | Model ID used for standard-tier CI review (when `llm-api-call.sh` is called with `tier=standard`). |
+| **Accepted values** | Provider model ID string |
+| **Default** | `claude-sonnet-4-6` (Anthropic) / `gpt-5.4` (OpenAI) |
+| **Used by** | `scripts/llm-api-call.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `model.deep`
+
+| | |
+|---|---|
+| **Description** | Model ID used for deep-tier CI review (opus-class) (when `llm-api-call.sh` is called with `tier=deep`). |
+| **Accepted values** | Provider model ID string |
+| **Default** | `claude-opus-4-7` (Anthropic) / `gpt-5.5` (OpenAI) |
+| **Used by** | `scripts/llm-api-call.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
