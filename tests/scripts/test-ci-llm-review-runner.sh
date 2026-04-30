@@ -2665,5 +2665,54 @@ assert_eq "test_openai_path_produces_schema_conformant_findings: reviewer-findin
 assert_eq "test_openai_path_produces_schema_conformant_findings: score check output" "OK" "$_openai_score_check_out"
 assert_pass_if_clean "test_openai_path_produces_schema_conformant_findings"
 
+# ── test_dso_llm_model_env_is_ignored ─────────────────────────────────────────
+# Behavioral: DSO_LLM_MODEL env var must be silently ignored — the runner
+# uses config-driven model IDs via llm-api-call.sh, not DSO_LLM_MODEL.
+# Given: DSO_LLM_MODEL=bogus-model-xyz in env, ANTHROPIC_API_KEY set, all deps mocked
+# When:  runner invoked with a fixture diff
+# Then:  runner exits 0 and writes reviewer-findings.json
+_snapshot_fail
+_dso_llm_mock_dir=$(mktemp -d)
+_dso_llm_artifacts=$(mktemp -d)
+_TEST_TMPDIRS+=("$_dso_llm_mock_dir" "$_dso_llm_artifacts")
+_create_mock_curl "$_dso_llm_mock_dir"
+
+cat > "$_dso_llm_mock_dir/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$_dso_llm_mock_dir/review-complexity-classifier.sh"
+
+cat > "$_dso_llm_mock_dir/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$_dso_llm_artifacts"
+tee "$_dso_llm_artifacts/reviewer-findings.json" > /dev/null
+sha256sum "$_dso_llm_artifacts/reviewer-findings.json" 2>/dev/null | cut -d' ' -f1 \
+  || shasum -a 256 "$_dso_llm_artifacts/reviewer-findings.json" | cut -d' ' -f1
+MOCKEOF
+chmod +x "$_dso_llm_mock_dir/write-reviewer-findings.sh"
+
+cat > "$_dso_llm_mock_dir/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$_dso_llm_artifacts"
+printf 'passed\n' > "$_dso_llm_artifacts/review-status"
+MOCKEOF
+chmod +x "$_dso_llm_mock_dir/record-review.sh"
+
+_dso_llm_exit=0
+(
+    export PATH="$_dso_llm_mock_dir:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_dso_llm_artifacts"
+    export DSO_LLM_MODEL='bogus-model-xyz'
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || _dso_llm_exit=$?
+
+assert_eq "test_dso_llm_model_env_is_ignored: runner exits 0 when DSO_LLM_MODEL is set" "0" "$_dso_llm_exit"
+_dso_llm_findings_exist="false"
+[[ -f "$_dso_llm_artifacts/reviewer-findings.json" ]] && _dso_llm_findings_exist="true"
+assert_eq "test_dso_llm_model_env_is_ignored: reviewer-findings.json written despite DSO_LLM_MODEL" "true" "$_dso_llm_findings_exist"
+assert_pass_if_clean "test_dso_llm_model_env_is_ignored"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
