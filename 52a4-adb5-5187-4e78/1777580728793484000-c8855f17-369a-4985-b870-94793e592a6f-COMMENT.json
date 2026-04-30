@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Classification: behavioral, Score: 3 (INTERMEDIATE). Security overlay not dispatched when main-tier LLM response is inconclusive."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777580728793484000,"uuid":"c8855f17-369a-4985-b870-94793e592a6f"}
