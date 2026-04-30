@@ -876,6 +876,28 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `review.size_upgrade_lines`
+
+| | |
+|---|---|
+| **Description** | Minimum number of scorable added lines in a diff that triggers a tier upgrade to deep review. When a non-merge diff meets or exceeds this threshold, the classifier sets `size_action=upgrade`, which causes ci-llm-review-runner.sh to route to the deep tier regardless of the score-based selected tier. This mirrors the local `/dso:review` Step 3b REVIEW_AGENT_OVERRIDE behavior. |
+| **Accepted values** | Positive integer. Values of `0` are valid (every diff triggers upgrade). Non-numeric values are ignored and the default applies. |
+| **Default** | `300` |
+| **Used by** | `scripts/review-complexity-classifier.sh`, `scripts/ci-llm-review-runner.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `review.size_warn_lines`
+
+| | |
+|---|---|
+| **Description** | Minimum number of scorable added lines in a diff that triggers a SIZE_WARNING log on stderr. When a non-merge diff meets or exceeds this threshold, the classifier sets `size_action=warn` and emits `SIZE_WARNING: <N>` to stderr. The runner does not upgrade the tier on `warn` — the warning is informational only. |
+| **Accepted values** | Positive integer. Must be greater than `review.size_upgrade_lines` for the thresholds to have distinct effects. Non-numeric values are ignored and the default applies. |
+| **Default** | `600` |
+| **Used by** | `scripts/review-complexity-classifier.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
 ### `review.huge_diff_file_threshold`
 
 | | |
