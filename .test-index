@@ -243,7 +243,7 @@ plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh
 docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh
 plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh
 plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
-scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh,tests/scripts/test-create-dso-app-populates-detect-output.sh,tests/scripts/test-create-dso-app-homebrew-auto-install.sh,tests/scripts/test-create-dso-app-broken-plugin-cache.sh
+scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh,tests/scripts/test-create-dso-app-populates-detect-output.sh,tests/scripts/test-create-dso-app-homebrew-auto-install.sh,tests/scripts/test-create-dso-app-broken-plugin-cache.sh,tests/scripts/test-host-project-e2e-bootstrap.sh
 plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-policy-docs.sh,tests/scripts/test-tag-cli-refactor.sh
 plugins/dso/scripts/bridge-inbound.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py,tests/scripts/test_bridge_inbound_comment.py,tests/scripts/test_bridge_delete_issue.py
@@ -344,3 +344,4 @@ tests/scripts/test-ticket-transition-deleted.sh:tests/scripts/test-ticket-transi
 tests/scripts/test-ticket-delete.sh:tests/scripts/test-ticket-delete.sh
 tests/scripts/test-ticket-link-duplicates-supersedes.sh:tests/scripts/test-ticket-link-duplicates-supersedes.sh
 plugins/dso/resources/ticket-wordlist.txt:tests/scripts/test-ticket-create.sh
+tests/scripts/test-host-project-e2e-bootstrap.sh [test_host_bootstrap_and_config_patch]:tests/scripts/test-host-project-e2e-bootstrap.sh
