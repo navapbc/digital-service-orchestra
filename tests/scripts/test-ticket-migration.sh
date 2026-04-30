@@ -495,6 +495,97 @@ PYEOF
 test_data_integrity_no_loss
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Test 6: Step 2.5 backfill — parent_status_uuid chained into legacy STATUS events
+# ─────────────────────────────────────────────────────────────────────────────
+echo "Test 6: Step 2.5 backfill — parent_status_uuid chained into pre-existing STATUS events"
+test_backfill_parent_status_uuid() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists" "exists" "missing"
+        assert_pass_if_clean "test_backfill_parent_status_uuid"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create a ticket with two STATUS events lacking parent_status_uuid in data.
+    # Use a helper that writes the payload without the field.
+    local ticket_id="bbbb-2222"
+    local ticket_dir="$tracker_dir/$ticket_id"
+    mkdir -p "$ticket_dir"
+
+    # CREATE event
+    python3 - "$ticket_dir" <<'PYEOF'
+import json, os, sys
+ticket_dir = sys.argv[1]
+# CREATE
+uuid_c = "00000000-0000-4000-8000-000000000010"
+with open(os.path.join(ticket_dir, f"1000000000000000000-{uuid_c}-CREATE.json"), "w") as f:
+    json.dump({
+        "event_type": "CREATE", "uuid": uuid_c, "timestamp": 1000000000000000000,
+        "author": "test", "env_id": "env-create",
+        "data": {"ticket_type": "task", "title": "Backfill test", "status": "open",
+                 "description": "", "tags": [], "parent_id": None, "priority": 2, "assignee": None}
+    }, f)
+# STATUS 1 — no parent_status_uuid in data
+uuid_s1 = "00000000-0000-4000-8000-000000000011"
+with open(os.path.join(ticket_dir, f"1000000000000001000-{uuid_s1}-STATUS.json"), "w") as f:
+    json.dump({
+        "event_type": "STATUS", "uuid": uuid_s1, "timestamp": 1000000000000001000,
+        "author": "test", "env_id": "env-s1",
+        "data": {"status": "in_progress", "current_status": "open"}
+    }, f)
+# STATUS 2 — no parent_status_uuid in data
+uuid_s2 = "00000000-0000-4000-8000-000000000012"
+with open(os.path.join(ticket_dir, f"1000000000000002000-{uuid_s2}-STATUS.json"), "w") as f:
+    json.dump({
+        "event_type": "STATUS", "uuid": uuid_s2, "timestamp": 1000000000000002000,
+        "author": "test", "env_id": "env-s2",
+        "data": {"status": "closed", "current_status": "in_progress"}
+    }, f)
+PYEOF
+
+    _write_tracker_snapshot "$tracker_dir" "1"
+
+    # Run the migration
+    local migrate_exit=0
+    (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || migrate_exit=$?
+    assert_eq "backfill: migration exits 0" "0" "$migrate_exit"
+
+    # Assert STATUS 1 has parent_status_uuid = null (first in chain)
+    local s1_parent
+    s1_parent=$(python3 - "$ticket_dir" <<'PYEOF'
+import json, os, sys
+files = sorted(f for f in os.listdir(sys.argv[1]) if f.endswith("-STATUS.json"))
+with open(os.path.join(sys.argv[1], files[0])) as fh:
+    ev = json.load(fh)
+print(str(ev["data"].get("parent_status_uuid", "ABSENT")))
+PYEOF
+)
+    assert_eq "backfill: STATUS-1 parent_status_uuid = null" "None" "$s1_parent"
+
+    # Assert STATUS 2 has parent_status_uuid = uuid of STATUS 1
+    local s2_parent
+    s2_parent=$(python3 - "$ticket_dir" <<'PYEOF'
+import json, os, sys
+files = sorted(f for f in os.listdir(sys.argv[1]) if f.endswith("-STATUS.json"))
+with open(os.path.join(sys.argv[1], files[0])) as fh:
+    s1_uuid = json.load(fh)["uuid"]
+with open(os.path.join(sys.argv[1], files[1])) as fh:
+    s2_parent = json.load(fh)["data"].get("parent_status_uuid", "ABSENT")
+print("match" if s2_parent == s1_uuid else f"mismatch: got {s2_parent!r} expected {s1_uuid!r}")
+PYEOF
+)
+    assert_eq "backfill: STATUS-2 parent_status_uuid = STATUS-1 uuid" "match" "$s2_parent"
+
+    assert_pass_if_clean "test_backfill_parent_status_uuid"
+}
+test_backfill_parent_status_uuid
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────────────
 print_summary

@@ -86,6 +86,9 @@ def process_status(state: dict, event: dict, data: dict, filepath: str) -> None:
             winner_uuid = incoming_uuid
             loser_uuid = existing_uuid
             winner_target = data.get("status", state["status"])
+            # Use last_status_env_id (set by most recent STATUS event) so we log
+            # the losing STATUS author's env, not the ticket creator's env.
+            loser_env_id = state.get("last_status_env_id") or ""
             state["status"] = winner_target
             state["parent_status_uuid"] = incoming_uuid
         else:
@@ -93,11 +96,14 @@ def process_status(state: dict, event: dict, data: dict, filepath: str) -> None:
             winner_uuid = existing_uuid
             loser_uuid = incoming_uuid
             winner_target = state["status"]
+            loser_env_id = event.get("env_id", "") or ""
 
+        ticket_id = state.get("ticket_id", "")
         print(
-            f"PARENT_CHAIN_FORK_RESOLVED source={winner_uuid}"
-            f" dropped={loser_uuid}"
-            f" target_status={winner_target}",
+            f"PARENT_CHAIN_FORK_RESOLVED ticket={ticket_id}"
+            f" winner={winner_uuid}"
+            f" dropped=[{loser_uuid}]"
+            f" loser_env_id=[{loser_env_id}]",
             file=sys.stderr,
         )
     else:
@@ -105,6 +111,7 @@ def process_status(state: dict, event: dict, data: dict, filepath: str) -> None:
         state["parent_status_uuid"] = data.get(
             "parent_status_uuid", state.get("parent_status_uuid", "")
         )
+        state["last_status_env_id"] = event.get("env_id") or ""
 
 
 def process_comment(state: dict, event: dict, data: dict) -> None:

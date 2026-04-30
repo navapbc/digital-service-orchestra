@@ -161,21 +161,24 @@ def test_fork_emits_resolved_log(tmp_path: Path, capsys: pytest.CaptureFixture) 
 def test_fork_log_has_winner_dropped_format(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ) -> None:
-    """Fork resolution log line includes source=, dropped=, and target_status= fields.
+    """Fork resolution log line includes ticket=, winner=, dropped=[], and loser_env_id=[] fields.
 
     Setup:
         - state["status"] = "in_progress", state["parent_status_uuid"] = "zzzz-9999"
         - Incoming event uuid="evt-winner-uuid", parent_status_uuid="aaaa-0000" (lower -> wins)
         - State chain uuid="zzzz-9999" (higher -> loses)
 
-    Expected stderr to contain all three fields:
-        source=<winner_uuid>
-        dropped=<loser_uuid>
-        target_status=<target>
+    Expected stderr to contain all four spec-required fields:
+        ticket=<id>
+        winner=<winner_uuid>
+        dropped=[<loser_uuid>]
+        loser_env_id=[<env_id>]
     """
     state = {
         "status": "in_progress",
         "parent_status_uuid": "zzzz-9999",
+        "ticket_id": "test-1234",
+        "last_status_env_id": "env-losing-chain",
     }
     event, data = _make_status_event(
         current_status="open",
@@ -189,12 +192,13 @@ def test_fork_log_has_winner_dropped_format(
     captured = capsys.readouterr()
     stderr = captured.err
 
-    assert "source=" in stderr, f"Expected 'source=' in fork log; got stderr={stderr!r}"
-    assert "dropped=" in stderr, (
-        f"Expected 'dropped=' in fork log; got stderr={stderr!r}"
+    assert "winner=" in stderr, f"Expected 'winner=' in fork log; got stderr={stderr!r}"
+    assert "dropped=[" in stderr, (
+        f"Expected 'dropped=[' in fork log; got stderr={stderr!r}"
     )
-    assert "target_status=" in stderr, (
-        f"Expected 'target_status=' in fork log; got stderr={stderr!r}"
+    assert "ticket=" in stderr, f"Expected 'ticket=' in fork log; got stderr={stderr!r}"
+    assert "loser_env_id=[env-losing-chain]" in stderr, (
+        f"Expected 'loser_env_id=[env-losing-chain]' in fork log; got stderr={stderr!r}"
     )
 
 

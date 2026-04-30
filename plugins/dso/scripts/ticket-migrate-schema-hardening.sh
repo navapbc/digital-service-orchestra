@@ -234,6 +234,66 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Step 2.5: Backfill parent_status_uuid into existing STATUS events
+# Sort STATUS events per-ticket by filename timestamp prefix and chain them so
+# that each event's data.parent_status_uuid points to the uuid of the prior
+# STATUS event (null for the first in the chain).
+python3 - "$_TRACKER_DIR" <<'PYEOF'
+import json
+import os
+import sys
+
+tracker_dir = sys.argv[1]
+
+for ticket_name in sorted(os.listdir(tracker_dir)):
+    ticket_dir = os.path.join(tracker_dir, ticket_name)
+    if not os.path.isdir(ticket_dir):
+        continue
+    if ticket_name.startswith('.'):
+        continue
+
+    # Collect STATUS event files for this ticket, sorted by filename (timestamp prefix).
+    status_files = sorted(
+        f for f in os.listdir(ticket_dir) if f.endswith('-STATUS.json')
+    )
+
+    prev_uuid = None
+    for fname in status_files:
+        fpath = os.path.join(ticket_dir, fname)
+        try:
+            with open(fpath, encoding='utf-8') as fh:
+                event = json.load(fh)
+        except (json.JSONDecodeError, OSError):
+            # Break the chain at a corrupt file: subsequent events get parent=null
+            # rather than a stale pointer into a chain whose middle is missing.
+            prev_uuid = None
+            continue
+
+        data = event.get('data', {})
+        # Only backfill if parent_status_uuid is absent from data (not merely null).
+        if 'parent_status_uuid' not in data:
+            data['parent_status_uuid'] = prev_uuid
+            event['data'] = data
+            tmp_path = fpath + '.tmp'
+            try:
+                with open(tmp_path, 'w', encoding='utf-8') as fh:
+                    json.dump(event, fh, ensure_ascii=False)
+                os.rename(tmp_path, fpath)
+            except OSError as e:
+                print(f'Warning: could not update {fpath}: {e}', file=sys.stderr)
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
+        # Advance chain: next event's parent = this event's uuid.
+        prev_uuid = event.get('uuid') or None
+PYEOF
+if [ $? -ne 0 ]; then
+    echo "Error: failed to backfill parent_status_uuid in STATUS events" >&2
+    exit 1
+fi
+
 # Step 3: Write migration marker (idempotency guard)
 mkdir -p "$(dirname "$_MARKER_FILE")" || { echo "Error: could not create migrations dir" >&2; exit 1; }
 touch "$_MARKER_FILE" || { echo "Error: could not write migration marker" >&2; exit 1; }
