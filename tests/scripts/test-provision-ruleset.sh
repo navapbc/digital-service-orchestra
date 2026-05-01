@@ -152,5 +152,116 @@ assert_eq "test_payload_includes_leg_names: macos-bash3 in payload" "present" "$
 assert_eq "test_payload_includes_leg_names: alpine-busybox in payload" "present" "$leg_alpine"
 assert_pass_if_clean "test_payload_includes_leg_names_from_required_checks"
 
+# ── test_bypass_actor_policy_pull_request_only ────────────────────────────────
+# When --bypass-actor-policy=pull_request_only is set, the dry-run payload
+# must include "bypass_mode": "pull_request_only" in bypass_actors[].
+_snapshot_fail
+bap_output=""
+bap_exit=0
+bap_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --bypass-actor-policy=pull_request_only 2>/dev/null) || bap_exit=$?
+if echo "$bap_output" | grep -q '"bypass_mode": "pull_request_only"'; then
+    actual_bap="present"
+else
+    actual_bap="missing"
+fi
+assert_eq "test_bypass_actor_policy_pull_request_only: exit 0" "0" "$bap_exit"
+assert_eq "test_bypass_actor_policy_pull_request_only: payload contains pull_request_only bypass_mode" "present" "$actual_bap"
+assert_pass_if_clean "test_bypass_actor_policy_pull_request_only"
+
+# ── test_require_conversation_resolution_true ─────────────────────────────────
+# When --require-conversation-resolution=true is set, the dry-run payload
+# must include "required_review_thread_resolution": true in pull_request.parameters.
+_snapshot_fail
+rcr_output=""
+rcr_exit=0
+rcr_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --require-conversation-resolution=true 2>/dev/null) || rcr_exit=$?
+if echo "$rcr_output" | grep -q '"required_review_thread_resolution": true'; then
+    actual_rcr="present"
+else
+    actual_rcr="missing"
+fi
+assert_eq "test_require_conversation_resolution_true: exit 0" "0" "$rcr_exit"
+assert_eq "test_require_conversation_resolution_true: payload contains required_review_thread_resolution true" "present" "$actual_rcr"
+assert_pass_if_clean "test_require_conversation_resolution_true"
+
+# ── test_request_copilot_review_true ──────────────────────────────────────────
+# When --request-copilot-review=true is set, the dry-run output must contain
+# a 'request_copilot_review' annotation/note (the implementation contract
+# allows a placeholder note since GitHub Rulesets may not directly support this).
+_snapshot_fail
+rcp_output=""
+rcp_exit=0
+rcp_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --request-copilot-review=true 2>/dev/null) || rcp_exit=$?
+if echo "$rcp_output" | grep -q 'request_copilot_review'; then
+    actual_rcp="present"
+else
+    actual_rcp="missing"
+fi
+assert_eq "test_request_copilot_review_true: exit 0" "0" "$rcp_exit"
+assert_eq "test_request_copilot_review_true: dry-run output references request_copilot_review" "present" "$actual_rcp"
+assert_pass_if_clean "test_request_copilot_review_true"
+
+# ── test_dismiss_stale_approvals_on_push_true ────────────────────────────────
+# When --dismiss-stale-approvals-on-push=true is set, the dry-run payload
+# must include "dismiss_stale_reviews_on_push": true in pull_request.parameters.
+_snapshot_fail
+dsa_output=""
+dsa_exit=0
+dsa_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --dismiss-stale-approvals-on-push=true 2>/dev/null) || dsa_exit=$?
+if echo "$dsa_output" | grep -q '"dismiss_stale_reviews_on_push": true'; then
+    actual_dsa="present"
+else
+    actual_dsa="missing"
+fi
+assert_eq "test_dismiss_stale_approvals_on_push_true: exit 0" "0" "$dsa_exit"
+assert_eq "test_dismiss_stale_approvals_on_push_true: payload contains dismiss_stale_reviews_on_push true" "present" "$actual_dsa"
+assert_pass_if_clean "test_dismiss_stale_approvals_on_push_true"
+
+# ── test_required_approvals_value ─────────────────────────────────────────────
+# When --required-approvals=2 is set, the dry-run payload must include
+# "required_approving_review_count": 2 in pull_request.parameters.
+_snapshot_fail
+ra_output=""
+ra_exit=0
+ra_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --required-approvals=2 2>/dev/null) || ra_exit=$?
+if echo "$ra_output" | grep -q '"required_approving_review_count": 2'; then
+    actual_ra="present"
+else
+    actual_ra="missing"
+fi
+assert_eq "test_required_approvals_value: exit 0" "0" "$ra_exit"
+assert_eq "test_required_approvals_value: payload contains required_approving_review_count 2" "present" "$actual_ra"
+assert_pass_if_clean "test_required_approvals_value"
+
+# ── test_bypass_actor_policy_requires_admin_token ─────────────────────────────
+# When --bypass-actor-policy is non-default (e.g. always or pull_request_only)
+# AND admin scope is unavailable (mocked here by setting GH_TOKEN to an obviously
+# invalid value so `gh auth status` fails the admin-scope check), the script
+# must exit non-zero (1) with a message referencing the admin token requirement.
+#
+# This is a non-dry-run path: the admin-scope guard must fire BEFORE any
+# network call. We invoke without DSO_DRY_RUN to exercise the real preflight,
+# but expect the script to exit before making API calls because the token is
+# invalid.
+_snapshot_fail
+bap_admin_exit=0
+bap_admin_output=""
+bap_admin_output=$(GH_TOKEN="invalid-token-for-test" \
+    bash "$PROVISION_SCRIPT" --bypass-actor-policy=always --non-interactive --repo=fake-owner/fake-repo 2>&1) \
+    || bap_admin_exit=$?
+if [[ $bap_admin_exit -eq 1 ]]; then
+    actual_bap_admin_exit="exit_1"
+else
+    actual_bap_admin_exit="exit_${bap_admin_exit}"
+fi
+if echo "$bap_admin_output" | grep -qiE 'admin.*token|admin.*scope|token.*admin'; then
+    actual_bap_admin_msg="references_admin_token"
+else
+    actual_bap_admin_msg="no_admin_reference"
+fi
+assert_eq "test_bypass_actor_policy_requires_admin_token: exits 1 on insufficient privs" "exit_1" "$actual_bap_admin_exit"
+assert_eq "test_bypass_actor_policy_requires_admin_token: error message references admin token" "references_admin_token" "$actual_bap_admin_msg"
+assert_pass_if_clean "test_bypass_actor_policy_requires_admin_token"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
