@@ -1017,7 +1017,7 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 ### `brainstorm.ui_keywords`
 
 **Type**: string (comma-separated keywords)
-**Default**: internal default surface-lexicon (web, form, screen, page, button, input, UI, dashboard, modal, dialog, navigation, sidebar, dropdown, toggle, menu, layout, component, widget, render, display, click, hover, scroll, responsive)
+**Default**: built-in UI surface lexicon; see `skills/brainstorm/prompts/ui-keyword-trigger.md` for the authoritative default keyword list
 **Override semantics**: REPLACES the default lexicon entirely (not merged). Set this to restrict or expand detection to project-specific UI keywords.
 **Example**: `brainstorm.ui_keywords=form,wizard,panel,chart,grid`
 **Used by**: Phase 1 Gate Step 1.5 (UI Intent Detection) in brainstorm SKILL.md

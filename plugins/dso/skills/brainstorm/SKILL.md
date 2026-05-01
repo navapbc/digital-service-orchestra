@@ -208,6 +208,13 @@ Wait for confirmation before proceeding to Step 2.
 
 **Phase 1 Gate Step 1.5 — UI Intent Detection**: Immediately after the Understanding Summary is confirmed, assess whether the feature is UI-facing.
 
+**Setup**: Resolve the artifacts directory before accessing the sentinel:
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
+ARTIFACTS_DIR=$(get_artifacts_dir)
+mkdir -p "$ARTIFACTS_DIR"
+```
+
 1. **Re-invocation guard**: Check whether `$ARTIFACTS_DIR/ux-probe-fired-<epic-id>` sentinel file exists. If the sentinel file exists (flag set from a prior brainstorm run for this epic), skip the rest of this step — probes already fired for this epic.
 2. **Keyword scan**: Read `${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/prompts/ui-keyword-trigger.md`. Test the confirmed Understanding Summary text against the active surface-lexicon (the default lexicon from `ui-keyword-trigger.md`, or the `brainstorm.ui_keywords` override from `dso-config.conf` which REPLACES the default lexicon entirely). Result: `clear-ui`, `clear-non-ui`, or `ambiguous`.
 3. **Classifier dispatch** (ambiguous matches only):
