@@ -781,6 +781,15 @@ DESCRIPTION
 
 Universal criteria (test, lint, format) are always the first three lines. Task-specific criteria follow, drawn from the template library and customized.
 
+**Declarative-artifact schema rule**: If the task's file impact table includes a declarative configuration file that executes in a remote runtime (`.github/workflows/*.yml`, GitHub Ruleset JSON, Kubernetes manifests, Terraform, cron schedules, OpenAPI specs), add a schema-validation AC bullet immediately after the universal three:
+
+```
+- [ ] {Artifact} is schema-valid (exit 0)
+  Verify: actionlint .github/workflows/<file>.yml   # or: yamllint, kubectl apply --dry-run=client, terraform validate, JSON-schema check
+```
+
+Pair this with the brainstorm executable-artifact SC (live execution / non-blocking landing) — the schema check catches Layer-1 invalidity at task time, the executable-artifact SC catches Layer-2 runtime gaps at epic close.
+
 If `.claude/scripts/dso ticket create` fails, retry once. If still failing, report the error.
 
 ### Add Dependencies

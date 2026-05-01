@@ -42,6 +42,16 @@ Non-executable instruction files have a structural boundary that CAN be tested: 
 
 When testing `.md` instruction files, always use section-heading checks (`grep -q "^## "` or `grep -q "^### "`) as the structural boundary assertion. Body-text phrase checks and existence-only checks are rejected even when the file is a skills/agents/prompts file.
 
+### Rule 6: Declarative Configuration Artifacts (remote-runtime)
+
+For files that execute only in a remote runtime (`.github/workflows/*.yml`, GitHub Ruleset JSON, k8s manifests, Terraform, OpenAPI specs), running the format's authoritative validator IS a behavioral test — it executes a real tool and asserts on its exit code. Acceptable RED assertions:
+
+- `actionlint .github/workflows/<file>.yml` returns non-zero on the broken state, zero after the fix.
+- `kubectl apply --dry-run=client -f <file>` exits non-zero on the broken state.
+- JSON-schema validation against the GitHub Ruleset schema fails on the broken state.
+
+Do NOT reject these as `structural_only_possible`. They satisfy "execute the code under test, assert on exit code." Pair-up with end-to-end verification (live invocation / non-blocking landing) is handled by the brainstorm executable-artifact SC, not this agent.
+
 ---
 
 ## Section 3: Decision Gate and Coverage Check
