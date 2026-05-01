@@ -40,12 +40,35 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-PASS=0
-FAIL=0
+# Use the harness's shared assertion library for PASS/FAIL counters and
+# print_summary so the test harness's RED-zone tolerance contract is honoured
+# (it scans for `FAIL: <test_name>` lines on stderr).
+# shellcheck source=../lib/assert.sh
+source "$REPO_ROOT/tests/lib/assert.sh"
+
+# Test name used in `FAIL: <test_name>` markers — kept in one place so prereq
+# failures and assertion failures use the identical token.
+TEST_NAME="test_host_bootstrap_and_config_patch"
 
 log()   { printf '%s\n' "$*" >&2; }
-ok()    { PASS=$((PASS + 1)); log "PASS: $*"; }
-fail()  { FAIL=$((FAIL + 1)); log "FAIL: $*"; }
+# Wrappers around the shared counters so existing call sites read naturally.
+ok()    { (( ++PASS )); log "PASS: $*"; }
+fail()  { (( ++FAIL )); log "FAIL: $*"; }
+
+# Emit a harness-recognised `FAIL: <test_name> — <reason>` line, finalise the
+# counters via print_summary, and exit with the prereq-failure code (2). Used
+# on every prerequisite failure path so the test harness applies RED-zone
+# tolerance instead of treating the missing prereq as a hard suite failure.
+prereq_fail() {
+    local reason="$1"
+    printf 'FAIL: %s — %s\n' "$TEST_NAME" "$reason" >&2
+    (( ++FAIL ))
+    echo "" >&2
+    printf "=== summary: PASSED=%d  FAILED=%d ===\n" "$PASS" "$FAIL" >&2
+    # Mirror print_summary's stdout format so harness summary parsers see it.
+    printf "PASSED: %d  FAILED: %d\n" "$PASS" "$FAIL"
+    exit 2
+}
 
 # Portable, idempotent key=value setter for shell-style config files.
 # Replaces the matching line if KEY exists; appends KEY=VALUE otherwise.
@@ -85,7 +108,7 @@ assert_kv() {
     # failure — it falls through to the fail() branch below with a clear diagnostic.
     # We split missing-key vs value-mismatch for diagnostic clarity only.
     if ! grep -qE "^${key_re}=" "$file"; then
-        fail "$key missing in $file (expected=$expected)"
+        fail "$TEST_NAME — $key missing in $file (expected=$expected)"
         log "----- $file -----"
         cat "$file" >&2 || true
         log "----- end $file -----"
@@ -95,7 +118,7 @@ assert_kv() {
     if [ "$actual" = "$expected" ]; then
         ok "$key=$expected in $file"
     else
-        fail "$key mismatch in $file (expected=$expected, actual=$actual)"
+        fail "$TEST_NAME — $key mismatch in $file (expected=$expected, actual=$actual)"
         log "----- $file -----"
         cat "$file" >&2 || true
         log "----- end $file -----"
@@ -109,18 +132,18 @@ test_host_bootstrap_and_config_patch() {
     # ── Prerequisite 1: gh auth ──────────────────────────────────────────────
     if ! command -v gh >/dev/null 2>&1; then
         log "ERROR: gh CLI not found in PATH"
-        return 2
+        prereq_fail "gh CLI not found in PATH"
     fi
     if ! gh auth status >/dev/null 2>&1; then
         log "ERROR: gh auth status failed — run 'gh auth login' before this test"
-        return 2
+        prereq_fail "gh auth status failed (run 'gh auth login')"
     fi
     ok "gh auth status OK"
 
     # ── Prerequisite 2: ANTHROPIC_API_KEY ────────────────────────────────────
     if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
         log "ERROR: ANTHROPIC_API_KEY is not exported or is empty"
-        return 2
+        prereq_fail "ANTHROPIC_API_KEY not exported or empty"
     fi
     ok "ANTHROPIC_API_KEY is set"
 
@@ -128,7 +151,7 @@ test_host_bootstrap_and_config_patch() {
     local installer="$REPO_ROOT/scripts/create-dso-app.sh"
     if [ ! -x "$installer" ]; then
         log "ERROR: $installer missing or not executable"
-        return 2
+        prereq_fail "create-dso-app.sh missing or not executable at $installer"
     fi
     ok "create-dso-app.sh executable"
 
@@ -166,7 +189,7 @@ test_host_bootstrap_and_config_patch() {
         local installer_rc=$?
         set -e
         if [ "$installer_rc" -ne 0 ]; then
-            fail "create-dso-app.sh exited $installer_rc (non-zero)"
+            fail "$TEST_NAME — create-dso-app.sh exited $installer_rc (non-zero)"
             return 1
         fi
         ok "create-dso-app.sh exit 0"
@@ -174,39 +197,53 @@ test_host_bootstrap_and_config_patch() {
 
     # ── Post-bootstrap structural sanity ─────────────────────────────────────
     if [ ! -d "$project_dir" ]; then
-        fail "expected project directory missing after bootstrap: $project_dir"
+        fail "$TEST_NAME — expected project directory missing after bootstrap: $project_dir"
         return 1
     fi
     if [ ! -f "$config_file" ]; then
-        fail "expected config file missing after bootstrap: $config_file"
+        fail "$TEST_NAME — expected config file missing after bootstrap: $config_file"
         return 1
     fi
     ok "$config_file exists"
 
     # ── Apply config patches (idempotent on every run) ───────────────────────
-    set_config_kv "$config_file" "merge.strategy" "pr"        || { fail "set merge.strategy=pr"; return 1; }
-    set_config_kv "$config_file" "model.provider" "anthropic" || { fail "set model.provider=anthropic"; return 1; }
+    set_config_kv "$config_file" "merge.strategy" "pr"        || { fail "$TEST_NAME — set merge.strategy=pr"; return 1; }
+    set_config_kv "$config_file" "model.provider" "anthropic" || { fail "$TEST_NAME — set model.provider=anthropic"; return 1; }
 
     # ── Assertions ───────────────────────────────────────────────────────────
     assert_kv "$config_file" "merge.strategy" "pr"
     assert_kv "$config_file" "model.provider" "anthropic"
 
+    # ── Write state file so the verify test can locate the bootstrapped repo ─
+    # Atomic write (write-temp + mv) so a partial write never leaves the
+    # verify test reading a half-written path. Path is the canonical fixed
+    # location documented in the verify test's discovery-order block.
+    local state_file="/tmp/dso-e2e-host-project-path.txt"
+    if printf '%s\n' "$project_dir" > "${state_file}.tmp" \
+            && mv "${state_file}.tmp" "$state_file"; then
+        ok "wrote state file $state_file -> $project_dir"
+    else
+        fail "$TEST_NAME — could not write state file $state_file"
+        return 1
+    fi
+
     return 0
 }
 
 # ── Run ──────────────────────────────────────────────────────────────────────
+# Prerequisite failures exit non-zero from inside the function via
+# prereq_fail (with the harness-recognised FAIL: token). Reaching this point
+# means prereqs passed; assertion outcomes are reflected in PASS/FAIL.
 test_host_bootstrap_and_config_patch
 rc=$?
 
 log ""
 log "=== summary: PASSED=$PASS  FAILED=$FAIL ==="
 
-if [ "$rc" -eq 2 ]; then
-    # Prerequisite failure — distinct exit code so CI can distinguish env
-    # failure from assertion failure.
-    exit 2
+# Defer to the shared harness summary (writes `PASSED: N  FAILED: N` to stdout
+# and exits 0/1 based on FAIL). If the function returned a non-zero rc but no
+# FAIL was recorded (defensive), force a failure exit.
+if [ "$rc" -ne 0 ] && [ "$FAIL" -eq 0 ]; then
+    (( ++FAIL ))
 fi
-if [ "$FAIL" -gt 0 ] || [ "$rc" -ne 0 ]; then
-    exit 1
-fi
-exit 0
+print_summary
