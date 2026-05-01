@@ -17,6 +17,18 @@ You are a Principal Product Manager at USDS. Turn a feature idea into a high-fid
 Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write any code until Phase 3 is complete and the user has explicitly approved the epic spec. This applies regardless of how simple the feature seems.
 </HARD-GATE>
 
+<ANTI-REDUNDANCY-GATE>
+Before forming any question — across all phases — you MUST:
+
+1. **Semantic duplicate check**: Review all prior conversation turns. Do NOT ask any question whose answer was already given, including answers expressed through paraphrase, negative signals ("I told you", "I answered that"), or semantically-equivalent rewordings of prior responses.
+
+2. **Codebase check**: Before asking a question whose answer may live in the repo, use Read, Grep, or Glob to look first. Only ask if the answer is not discoverable from code.
+
+3. **Probe suppression**: When a prior user answer covers one of the UX probe topics (criticality — interaction criticality; non_happy_path — non-happy-path state coverage; flow_entry_exit — flow entry/exit points), skip that probe. Do not re-ask what the user has already addressed.
+
+**Duplicate questions are prohibited.**
+</ANTI-REDUNDANCY-GATE>
+
 ## Layout
 
 This skill's logic is split across phase files to keep per-invocation context small. Load each file on demand:
@@ -31,6 +43,9 @@ This skill's logic is split across phase files to keep per-invocation context sm
 | `phases/follow-on-epic-gate.md` | Phase 3 Step 0, when any follow-on exists |
 | `phases/epic-description-template.md` | Phase 3 Step 1 ticket write |
 | `../shared/prompts/verifiable-sc-check.md` | Drafting each SC in Phase 2 Step 2 |
+| `prompts/ui-keyword-trigger.md` | Step 1.5 UI Intent Detection — keyword scan, config override, classifier stub |
+| `prompts/ui-detection-classifier.md` | Step 1.5 UI Intent Detection — classifier dispatch prompt |
+| `prompts/ux-probe-set.md` | Step 1.5 UI Intent Detection — structured UX probe set |
 
 ## Migration Check
 
@@ -159,6 +174,7 @@ Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encou
 | Scope | What's clearly in scope? What are you explicitly NOT building? |
 | Access Path | If this feature creates a new page or UI surface: how will users reach it? (global nav link, in-flow step, modal trigger, deep link, or not applicable?) |
 | Constraints | Any technical constraints, deadlines, or dependencies on other epics? |
+| Surface | Where does this feature manifest? (web page, form, screen, CLI flag, endpoint, background job, internal API, migration, or "no user-facing surface") |
 | Success | How will you know this worked? What would "done" look like? |
 
 **Do not ask all of these at once.** Pick the most important unknown and ask one question.
@@ -176,6 +192,7 @@ Before we move to approaches, here's my understanding:
 - **Users**: [who is affected — user type, role, or persona]
 - **Scope**: [what's in scope; what's explicitly out of scope]
 - **Access Path**: [if this feature creates a new page or UI surface: how will users reach it? (global nav link, in-flow step, modal trigger, deep link, or not applicable)] *(omit if feature does not introduce a new page or UI surface)*
+- **Surface**: [where the feature manifests]
 - **Success**: [how the user will know this worked — observable outcome]
 
 Does this capture your intent? If anything is off, tell me what to adjust.
@@ -188,6 +205,28 @@ Does this capture your intent? If anything is off, tell me what to adjust.
 Close the Understanding Summary with exactly this sentence: **"Does this capture your intent? If anything is off, tell me what to adjust."** Do not paraphrase — this exact phrasing is a standardized closing, not an example.
 
 Wait for confirmation before proceeding to Step 2.
+
+**Phase 1 Gate Step 1.5 — UI Intent Detection**: Immediately after the Understanding Summary is confirmed, assess whether the feature is UI-facing.
+
+**Setup**: Resolve the artifacts directory before accessing the sentinel:
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
+ARTIFACTS_DIR=$(get_artifacts_dir)
+mkdir -p "$ARTIFACTS_DIR"
+```
+
+1. **Re-invocation guard**: Check whether `$ARTIFACTS_DIR/ux-probe-fired-<epic-id>` sentinel file exists. If the sentinel file exists (flag set from a prior brainstorm run for this epic), skip the rest of this step — probes already fired for this epic.
+2. **Keyword scan**: Read `${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/prompts/ui-keyword-trigger.md`. Test the confirmed Understanding Summary text against the active surface-lexicon (the default lexicon from `ui-keyword-trigger.md`, or the `brainstorm.ui_keywords` override from `dso-config.conf` which REPLACES the default lexicon entirely). Result: `clear-ui`, `clear-non-ui`, or `ambiguous`.
+3. **Classifier dispatch** (ambiguous matches only):
+   - First check the `BRAINSTORM_UI_CLASSIFIER_STUB` env var. If set to `ui`, `non-ui`, or `fail`, short-circuit to that result immediately (test/mock path — do not dispatch a real classifier).
+   - Otherwise dispatch a haiku classifier sub-agent per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/prompts/ui-detection-classifier.md`.
+   - On any failure (agent unavailable, MAX_AGENTS=0, timeout, malformed output, or any response other than exactly `"ui"` or `"non-ui"`): log a degradation notice to the user, treat result as `non-ui`, and continue. The `ux_probe_fired` flag is NOT set on failure so a later successful run can still fire the probes.
+**Non-interactive path**: When `BRAINSTORM_INTERACTIVE=false` and the UI detection result is `ui`: emit `INTERACTIVITY_DEFERRED: UX probes require user input`, tag the epic `ui_probes:deferred` (`.claude/scripts/dso ticket tag <epic-id> ui_probes:deferred`), and skip all probes. Do NOT set the `ux_probe_fired` sentinel — a subsequent interactive run must still fire them. Phase 1 gap list gaps sourced from UX probes are deferred via the ui_probes:deferred tag; Phase 1 terminates without looping. Proceed to Step 2.
+
+4. **Probe firing** (when result is `ui` AND flag is unset):
+   - Ask the three free-text follow-up probes from `${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/prompts/ux-probe-set.md` one at a time.
+   - After all three probes are answered, write the sentinel file: `$ARTIFACTS_DIR/ux-probe-fired-<epic-id>` containing an ISO-8601 timestamp. This prevents re-firing on subsequent brainstorm invocations for the same epic.
+5. **Non-UI fast-path**: When result is `clear-non-ui` from the keyword scan, skip probes entirely. Zero classifier calls are dispatched.
 
 **Step 2 — Intent Gap Analysis**: After confirmation, self-reflect on inferred or assumed content — items you filled in that the user did not explicitly state. Use targeted questions, one at a time, starting with the highest-priority gap. Exclude already-confirmed content.
 
@@ -203,7 +242,11 @@ Format for **subsequent** gap questions (no skip prompt):
 Before I propose approaches: [Targeted gap question]
 ```
 
-**Bounded gap loop**: Ask one question at a time. After each answer, ask the next highest-priority gap question (if any remain) or proceed to Phase 2 once you have enough context. Terminate when either (a) you have enough to propose approaches or (b) the user says "proceed". Do not loop indefinitely — every question must target a specific unresolved inferred/assumed item; stop when no such items remain.
+**Loop-back directive**: When a gap answer reveals a new understanding gap — one that genuinely increases epic understanding — return to the Tell Me More loop (Step 2) before resuming gap analysis. This applies equally to gaps surfaced by the UX probe checkpoint (any probe from the structured probe set by dimension ID: criticality, non_happy_path, flow_entry_exit) and to gaps surfaced by the intent gap analysis itself. **Non-interactive exception**: When `BRAINSTORM_INTERACTIVE=false`, do not loop back on UX-probe-sourced gaps — Phase 1 terminates with the gaps deferred (signaled via `ui_probes:deferred` tag set in Step 1.5).
+
+**Termination condition**: Proceed to Phase 2 only when BOTH: (a) the gap list is empty (no remaining inferred/assumed items) AND (b) the user confirms the Understanding Summary in the same turn. No numeric cap is applied — the anti-redundancy directive bounds the loop in practice. If the user says "proceed", treat this as user-initiated early termination: the user is confirming acceptance of the current Understanding Summary with any remaining gaps deferred, satisfying condition (b) as a user override; proceed to Phase 2 immediately.
+
+**UNRESOLVABLE_INTENT_GAP escape**: When the anti-redundancy directive suppresses every candidate question during loop-back (all remaining gaps would duplicate questions already asked), record `UNRESOLVABLE_INTENT_GAP` as a comment on the epic ticket (`.claude/scripts/dso ticket comment <epic-id> "UNRESOLVABLE_INTENT_GAP: <reason>"`), inform the user that no further gap questions can be generated without repetition, and terminate Phase 1 (do NOT proceed to Phase 2). The user must re-invoke `/dso:brainstorm` or manually confirm intent to proceed.
 
 **Compression anti-pattern (prohibited)**: Do NOT reframe N independent decisions as a single "core question" with N sub-options or sub-lists. If your draft contains "Rather than asking", "Instead of asking", or more than one decision sub-list under one heading, STOP — split into separate sequential questions. Each question must cover exactly one independent axis.
 
