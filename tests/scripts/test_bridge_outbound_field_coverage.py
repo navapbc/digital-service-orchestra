@@ -18,6 +18,7 @@ Test: python3 -m pytest tests/scripts/test_bridge_outbound_field_coverage.py -v
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -920,4 +921,79 @@ class TestOutboundStatusNullCompiledStatus:
         assert len(alert_files) == 1, (
             f"OUTBOUND STATUS with null compiled_status must write exactly 1 BRIDGE_ALERT "
             f"to signal the dropped event (c22b-a25b). Got: {alert_files}"
+        )
+
+
+class TestOutboundStatusMissingSyncFile:
+    """Verify that a STATUS event without a SYNC.json marker emits a BRIDGE_ALERT
+    instead of silently dropping the event.
+
+    Behavioral RED test for jira-dig-1575/1576: when a Jira-originated ticket
+    has a CREATE event but no SYNC.json marker, handle_status_event currently
+    falls through with no action — no log, no alert, no error. This makes
+    chronic sync gaps invisible until users discover them weeks later. The
+    handler must emit a BRIDGE_ALERT so the failure is observable.
+    """
+
+    def test_status_missing_sync_file_writes_bridge_alert(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """STATUS event with a non-empty compiled_status but no SYNC.json marker
+        should write a BRIDGE_ALERT and skip the Jira push (rather than silently
+        no-op'ing)."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "test-no-sync"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        # CREATE present, but NO SYNC.json — exactly the state of jira-dig-*
+        # tickets imported by the inbound bridge before fix #3 lands.
+        make_create_event(ticket_dir, title="Imported-from-Jira ticket")
+        write_event(ticket_dir, "STATUS", {"status": "in_progress"})
+
+        status_files = sorted(ticket_dir.glob("*-STATUS.json"))
+        assert status_files, "STATUS event file should exist"
+        assert not list(ticket_dir.glob("*-SYNC.json")), (
+            "Pre-condition: no SYNC.json should exist for this RED case"
+        )
+
+        mock_acli = MagicMock()
+
+        events = [
+            {
+                "ticket_id": ticket_id,
+                "event_type": "STATUS",
+                "file_path": str(status_files[0]),
+            }
+        ]
+
+        outbound.process_outbound(
+            events,
+            acli_client=mock_acli,
+            tickets_root=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        # update_issue must NOT be called — there is no jira_key to update
+        assert not mock_acli.update_issue.called, (
+            "OUTBOUND STATUS with no SYNC.json must not call update_issue "
+            "(no jira_key resolvable)"
+        )
+
+        # A BRIDGE_ALERT must be written so the silent-drop becomes observable
+        alert_files = list(ticket_dir.glob("*-BRIDGE_ALERT.json"))
+        assert len(alert_files) == 1, (
+            f"OUTBOUND STATUS with missing SYNC.json must write exactly 1 "
+            f"BRIDGE_ALERT to surface the dropped event. Got: {alert_files}"
+        )
+
+        alert_payload = json.loads(alert_files[0].read_text(encoding="utf-8"))
+        # Reason wording isn't prescribed verbatim, but it must mention SYNC
+        # so the operator can grep the alert and identify this failure mode.
+        reason = alert_payload.get("data", {}).get("reason", "") or alert_payload.get(
+            "reason", ""
+        )
+        assert "SYNC" in reason or "sync" in reason, (
+            f"BRIDGE_ALERT for missing-SYNC drop must reference SYNC in its "
+            f"reason field; got reason={reason!r}"
         )
