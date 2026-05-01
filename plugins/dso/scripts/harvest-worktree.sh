@@ -65,6 +65,12 @@ fi
 
 GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo ".git")
 _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+
+# Resolve plugin root early — needed by skip-review-check.sh below and by the
+# attest step. Defined once here so both uses share the same resolved path.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PLUGIN_ROOT_HW="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # Prefer the absolute shim path so `dso` works without it being on PATH.
 # Fall back to bare `dso` (PATH lookup) when the shim is absent — this keeps
 # the test harness working when tests inject a stub via PATH="$STUB_BIN_DIR:$PATH"
@@ -188,17 +194,35 @@ if [[ "$TEST_GATE_STATUS" != "passed" ]]; then
 fi
 
 # Check review-status
-if [[ ! -f "$WORKTREE_ARTIFACTS_DIR/review-status" ]]; then
-    echo "ERROR: review-status not found in $WORKTREE_ARTIFACTS_DIR" >&2
-    _harvest_exit_code=2
-    exit 2
+# Skip when all worktree changes are allowlisted (SKIP_REVIEW=true path in COMMIT-WORKFLOW.md).
+# Mirrors pre-commit-review-gate.sh which exits 0 for all-allowlisted file sets.
+_worktree_merge_base=$(git merge-base HEAD "$WORKTREE_BRANCH" 2>/dev/null || echo "")
+_skip_review=false
+if [[ -n "$_worktree_merge_base" ]]; then
+    _changed_files=$(git diff --name-only "$_worktree_merge_base" "$WORKTREE_BRANCH" 2>/dev/null || true)
+    if [[ -n "$_changed_files" ]]; then
+        _skip_review_exit=0
+        echo "$_changed_files" | bash "$_PLUGIN_ROOT_HW/scripts/skip-review-check.sh" \
+            2>/dev/null || _skip_review_exit=$?
+        if [[ "$_skip_review_exit" -eq 0 ]]; then
+            _skip_review=true
+        fi
+    fi
 fi
 
-REVIEW_STATUS=$(head -1 "$WORKTREE_ARTIFACTS_DIR/review-status")
-if [[ "$REVIEW_STATUS" != "passed" ]]; then
-    echo "ERROR: review-status is '$REVIEW_STATUS' (expected 'passed')" >&2
-    _harvest_exit_code=2
-    exit 2
+if [[ "$_skip_review" != "true" ]]; then
+    if [[ ! -f "$WORKTREE_ARTIFACTS_DIR/review-status" ]]; then
+        echo "ERROR: review-status not found in $WORKTREE_ARTIFACTS_DIR" >&2
+        _harvest_exit_code=2
+        exit 2
+    fi
+
+    REVIEW_STATUS=$(head -1 "$WORKTREE_ARTIFACTS_DIR/review-status")
+    if [[ "$REVIEW_STATUS" != "passed" ]]; then
+        echo "ERROR: review-status is '$REVIEW_STATUS' (expected 'passed')" >&2
+        _harvest_exit_code=2
+        exit 2
+    fi
 fi
 
 # ── Merge ────────────────────────────────────────────────────────────────────
@@ -247,8 +271,7 @@ fi
 # ── Attest gate status to session artifacts ──────────────────────────────────
 
 # Determine session artifacts directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_PLUGIN_ROOT_HW="$(cd "$SCRIPT_DIR/.." && pwd)"
+# (SCRIPT_DIR and _PLUGIN_ROOT_HW are resolved at the top of the script)
 if [[ -z "$SESSION_ARTIFACTS_DIR" ]]; then
     # Use the current repo's artifacts dir
     if [[ -f "$_PLUGIN_ROOT_HW/hooks/lib/deps.sh" ]]; then
@@ -271,8 +294,11 @@ if [[ -n "$SESSION_ARTIFACTS_DIR" ]]; then
         bash "$HOOK_DIR/record-test-status.sh" --attest "$WORKTREE_ARTIFACTS_DIR"
 
     # Attest review status with post-merge diff hash.
-    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$SESSION_ARTIFACTS_DIR" \
-        bash "$HOOK_DIR/record-review.sh" --attest "$WORKTREE_ARTIFACTS_DIR"
+    # Skip when review was not required (all files were allowlisted — _skip_review=true).
+    if [[ "$_skip_review" != "true" ]]; then
+        WORKFLOW_PLUGIN_ARTIFACTS_DIR="$SESSION_ARTIFACTS_DIR" \
+            bash "$HOOK_DIR/record-review.sh" --attest "$WORKTREE_ARTIFACTS_DIR"
+    fi
 
     # Copy reviewer-findings*.json (canonical + per-specialist slots a/b/c) from
     # worktree artifacts dir to session artifacts dir. Deep-tier review running
@@ -335,7 +361,7 @@ if [[ -f "$SCRIPT_DIR/ticket-lib.sh" ]]; then
     # shellcheck source=/dev/null
     source "$SCRIPT_DIR/ticket-lib.sh" 2>/dev/null || true
     if [[ -n "${TICKET_ID:-}" ]] && declare -f _read_latest_preconditions >/dev/null 2>&1; then
-        _ticket_dir="${_REPO_ROOT}/.tickets-tracker/${TICKET_ID}"
+        _ticket_dir="${_REPO_ROOT}/.tickets-tracker/${TICKET_ID}" # tickets-boundary-ok: passes dir to ticket-lib function, not direct tracker access
         _preconditions_json=""
         _preconditions_json=$(_read_latest_preconditions "$_ticket_dir" 2>/dev/null) || true
         if [[ -n "$_preconditions_json" ]]; then
