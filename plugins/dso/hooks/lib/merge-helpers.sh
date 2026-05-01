@@ -55,8 +55,8 @@ _state_init() {
         # Not fresh (missing or stale) — write fresh skeleton
         # || true: state I/O is best-effort; set -e must not propagate from partial writes
         python3 -c "
-import json
-d = {'branch': '$BRANCH', 'merge_sha': '', 'completed_phases': [], 'current_phase': '', 'phases': {}}
+import json, os
+d = {'branch': '$BRANCH', 'merge_sha': '', 'completed_phases': [], 'current_phase': '', 'phases': {}, 'merge_strategy': os.environ.get('MERGE_STRATEGY', 'direct')}
 with open('${_sf}.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true

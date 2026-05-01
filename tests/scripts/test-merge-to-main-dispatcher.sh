@@ -325,4 +325,90 @@ test_direct_mode_regression_no_network() {
 test_direct_mode_regression_no_network
 
 # ---------------------------------------------------------------------------
+# Test 7: test_dispatcher_rejects_unknown_strategy
+# GREEN: dispatcher should exit 1 and mention the unknown value.
+# ---------------------------------------------------------------------------
+test_dispatcher_rejects_unknown_strategy() {
+    local _T _ec _out
+    _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _write_config "$_T/.claude/dso-config.conf" "unknown_value"
+
+    _out="$(
+        PROJECT_ROOT="$_T" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        bash "$MERGE_SCRIPT" 2>&1
+    )"; _ec=$?
+
+    local _exits_nonzero="false"
+    local _mentions_value="false"
+    [[ "$_ec" -ne 0 ]] && _exits_nonzero="true"
+    echo "$_out" | grep -q "unknown_value" && _mentions_value="true"
+
+    assert_eq "test_dispatcher_rejects_unknown_strategy_exits_nonzero" "true" "$_exits_nonzero"
+    assert_eq "test_dispatcher_rejects_unknown_strategy_mentions_value" "true" "$_mentions_value"
+}
+test_dispatcher_rejects_unknown_strategy
+
+# ---------------------------------------------------------------------------
+# Test 8: test_state_init_writes_merge_strategy_from_env
+# GREEN: _state_init in merge-helpers.sh must write merge_strategy from
+# the MERGE_STRATEGY env var (default "direct" when unset). This is the
+# behavioral contract the dispatcher relies on for cross-strategy --resume.
+# ---------------------------------------------------------------------------
+test_state_init_writes_merge_strategy_from_env() {
+    local _T _state_pr _state_default
+    _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    # Source merge-helpers.sh and call _state_init with branch fixtures.
+    # _state_init writes /tmp/merge-to-main-state-<branch>.json; redirect via
+    # a unique branch name so we don't clobber real state files.
+    local _branch_pr="dispatcher-test-pr-$$"
+    local _branch_default="dispatcher-test-default-$$"
+    local _state_pr_path="/tmp/merge-to-main-state-${_branch_pr}.json"
+    local _state_default_path="/tmp/merge-to-main-state-${_branch_default}.json"
+    rm -f "$_state_pr_path" "$_state_default_path"
+
+    # Case A: MERGE_STRATEGY=pr exported → state file contains "pr"
+    (
+        # shellcheck source=/dev/null
+        source "$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh"
+        BRANCH="$_branch_pr" MERGE_STRATEGY=pr _state_init >/dev/null 2>&1
+    )
+    _state_pr="$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$_state_pr_path'))
+    print(d.get('merge_strategy', 'MISSING'))
+except Exception as e:
+    print('ERR:' + str(e))
+" 2>/dev/null)"
+
+    # Case B: MERGE_STRATEGY unset → state file contains "direct" (default)
+    (
+        # shellcheck source=/dev/null
+        source "$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh"
+        BRANCH="$_branch_default" _state_init >/dev/null 2>&1
+    )
+    _state_default="$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$_state_default_path'))
+    print(d.get('merge_strategy', 'MISSING'))
+except Exception as e:
+    print('ERR:' + str(e))
+" 2>/dev/null)"
+
+    rm -f "$_state_pr_path" "$_state_default_path"
+
+    assert_eq "test_state_init_writes_merge_strategy_pr_when_env_set" "pr" "$_state_pr"
+    assert_eq "test_state_init_writes_merge_strategy_direct_when_env_unset" "direct" "$_state_default"
+}
+test_state_init_writes_merge_strategy_from_env
+
+# ---------------------------------------------------------------------------
 print_summary

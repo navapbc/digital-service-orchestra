@@ -352,27 +352,27 @@ tests/hooks/test-review-complexity-classifier.sh:tests/hooks/test-review-complex
 tests/scripts/test-host-project-e2e-bootstrap.sh:tests/scripts/test-host-project-e2e-bootstrap.sh [test_host_bootstrap_and_config_patch]
 plugins/dso/skills/brainstorm/prompts/ui-keyword-trigger.md:tests/skills/test-brainstorm-ui-intent-detection.sh
 plugins/dso/skills/brainstorm/prompts/ui-detection-classifier.md:tests/skills/test-brainstorm-ui-intent-detection.sh
-tests/hooks/test-enforcement-gate.sh [test_enforcement_ci_review_gate_skips]
-tests/hooks/test-enforcement-gate.sh [test_enforcement_ci_test_gate_skips]
-tests/hooks/test-enforcement-gate.sh [test_enforcement_ci_test_quality_gate_skips]
-tests/hooks/test-enforcement-gate.sh [test_structural_check_plugin_self_ref_runs_on_ci]
-tests/hooks/test-enforcement-gate.sh [test_structural_check_portability_runs_on_ci]
-tests/hooks/test-enforcement-gate.sh [test_structural_check_shim_refs_runs_on_ci]
-tests/hooks/test-enforcement-gate.sh [test_structural_check_contract_schemas_runs_on_ci]
-tests/hooks/test-enforcement-gate.sh [test_structural_check_referential_integrity_runs_on_ci]
-tests/hooks/test-enforcement-gate.sh [test_enforcement_both_no_double_execution]
-tests/hooks/test-enforcement-gate.sh [test_enforcement_both_runs_once]
-tests/hooks/test-enforcement-gate.sh [test_hook_gate_schema_review_gate]
-tests/hooks/test-enforcement-gate.sh [test_hook_gate_schema_test_gate]
-tests/hooks/test-enforcement-gate.sh [test_hook_gate_schema_test_quality_gate]
+tests/hooks/test-enforcement-gate.sh [test_enforcement_ci_review_gate_skips]:tests/hooks/test-enforcement-gate.sh [test_enforcement_ci_review_gate_skips]
+tests/hooks/test-enforcement-gate.sh [test_enforcement_ci_test_gate_skips]:tests/hooks/test-enforcement-gate.sh [test_enforcement_ci_test_gate_skips]
+tests/hooks/test-enforcement-gate.sh [test_enforcement_ci_test_quality_gate_skips]:tests/hooks/test-enforcement-gate.sh [test_enforcement_ci_test_quality_gate_skips]
+tests/hooks/test-enforcement-gate.sh [test_structural_check_plugin_self_ref_runs_on_ci]:tests/hooks/test-enforcement-gate.sh [test_structural_check_plugin_self_ref_runs_on_ci]
+tests/hooks/test-enforcement-gate.sh [test_structural_check_portability_runs_on_ci]:tests/hooks/test-enforcement-gate.sh [test_structural_check_portability_runs_on_ci]
+tests/hooks/test-enforcement-gate.sh [test_structural_check_shim_refs_runs_on_ci]:tests/hooks/test-enforcement-gate.sh [test_structural_check_shim_refs_runs_on_ci]
+tests/hooks/test-enforcement-gate.sh [test_structural_check_contract_schemas_runs_on_ci]:tests/hooks/test-enforcement-gate.sh [test_structural_check_contract_schemas_runs_on_ci]
+tests/hooks/test-enforcement-gate.sh [test_structural_check_referential_integrity_runs_on_ci]:tests/hooks/test-enforcement-gate.sh [test_structural_check_referential_integrity_runs_on_ci]
+tests/hooks/test-enforcement-gate.sh [test_enforcement_both_no_double_execution]:tests/hooks/test-enforcement-gate.sh [test_enforcement_both_no_double_execution]
+tests/hooks/test-enforcement-gate.sh [test_enforcement_both_runs_once]:tests/hooks/test-enforcement-gate.sh [test_enforcement_both_runs_once]
+tests/hooks/test-enforcement-gate.sh [test_hook_gate_schema_review_gate]:tests/hooks/test-enforcement-gate.sh [test_hook_gate_schema_review_gate]
+tests/hooks/test-enforcement-gate.sh [test_hook_gate_schema_test_gate]:tests/hooks/test-enforcement-gate.sh [test_hook_gate_schema_test_gate]
+tests/hooks/test-enforcement-gate.sh [test_hook_gate_schema_test_quality_gate]:tests/hooks/test-enforcement-gate.sh [test_hook_gate_schema_test_quality_gate]
 plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/pre-commit-test-quality-gate.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/check-plugin-self-ref.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/check-portability.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/skills/brainstorm/prompts/ux-probe-set.md:tests/skills/test-brainstorm-ui-intent-detection.sh
-tests/scripts/test-merge-to-main-dispatcher.sh [test_dispatcher_routes_to_direct_script]
-tests/scripts/test-merge-to-main-dispatcher.sh [test_dispatcher_routes_to_pr_script]
-tests/scripts/test-merge-to-main-dispatcher.sh [test_conflict_data_schema_direct]
-tests/scripts/test-merge-to-main-dispatcher.sh [test_conflict_data_schema_pr_equivalent]
-tests/scripts/test-merge-to-main-dispatcher.sh [test_resume_rejects_cross_strategy]
+tests/scripts/test-merge-to-main-dispatcher.sh [test_dispatcher_routes_to_direct_script]:tests/scripts/test-merge-to-main-dispatcher.sh [test_dispatcher_routes_to_direct_script]
+tests/scripts/test-merge-to-main-dispatcher.sh [test_dispatcher_routes_to_pr_script]:tests/scripts/test-merge-to-main-dispatcher.sh [test_dispatcher_routes_to_pr_script]
+tests/scripts/test-merge-to-main-dispatcher.sh [test_conflict_data_schema_direct]:tests/scripts/test-merge-to-main-dispatcher.sh [test_conflict_data_schema_direct]
+tests/scripts/test-merge-to-main-dispatcher.sh [test_conflict_data_schema_pr_equivalent]:tests/scripts/test-merge-to-main-dispatcher.sh [test_conflict_data_schema_pr_equivalent]
+tests/scripts/test-merge-to-main-dispatcher.sh [test_resume_rejects_cross_strategy]:tests/scripts/test-merge-to-main-dispatcher.sh [test_resume_rejects_cross_strategy]
