@@ -185,6 +185,37 @@ def handle_status_event(
                 if jira_key:
                     acli_client.update_issue(jira_key, status=compiled_status)
                     status_updated.add(ticket_id)
+                else:
+                    logger.warning(
+                        "STATUS event dropped for %s: SYNC file present but "
+                        "jira_key empty",
+                        ticket_id,
+                    )
+                    write_bridge_alert(
+                        ticket_dir,
+                        ticket_id=ticket_id,
+                        reason=(
+                            "STATUS event dropped: SYNC file has no jira_key — "
+                            "Jira link is broken; manual repair required"
+                        ),
+                        bridge_env_id=bridge_env_id,
+                    )
+        else:
+            logger.warning(
+                "STATUS event dropped for %s: no SYNC.json marker — "
+                "ticket has never been linked to Jira",
+                ticket_id,
+            )
+            write_bridge_alert(
+                ticket_dir,
+                ticket_id=ticket_id,
+                reason=(
+                    "STATUS event dropped: no SYNC.json marker — ticket is not "
+                    "linked to Jira (likely a Jira-originated ticket whose "
+                    "inbound CREATE predates the SYNC-marker fix)"
+                ),
+                bridge_env_id=bridge_env_id,
+            )
     else:
         write_bridge_alert(
             ticket_dir,

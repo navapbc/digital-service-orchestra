@@ -7,6 +7,14 @@ on:
   # Push trigger removed (71fa-c068): GitHub Actions does not detect workflow
   # files on orphan branches, so push-to-tickets never fired (all 100 recent
   # runs were workflow_dispatch). merge-to-main.sh dispatches explicitly.
+  #
+  # Scheduled trigger added (jira-dig-1575/1576): UI-merged PRs and direct
+  # ticket-CLI mutations bypass merge-to-main.sh, leaving event backlogs on
+  # the tickets branch indefinitely. The cron mirrors inbound-bridge.yml so
+  # outbound is as reliable as inbound. concurrency: jira-bridge prevents
+  # storms when both an explicit dispatch and a cron tick land together.
+  schedule:
+    - cron: '*/30 * * * *'
   workflow_dispatch: {}
 
 concurrency:

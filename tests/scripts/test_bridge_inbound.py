@@ -2074,3 +2074,146 @@ def test_fetch_jira_changes_defaults_to_utc_when_timezone_unrecognised(
     assert result == [], (
         "fetch_jira_changes must return empty list when no issues found"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test: write_create_events also writes a SYNC.json marker for new tickets
+# ---------------------------------------------------------------------------
+# Behavioral RED test for jira-dig-1575/1576 root cause B:
+# Without a SYNC.json marker, the outbound STATUS handler cannot resolve the
+# Jira key for a Jira-originated ticket and silently drops every status push.
+# The inbound bridge must write a SYNC.json alongside the CREATE event so
+# Jira-originated tickets are immediately addressable by the outbound side.
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_write_create_events_writes_sync_marker(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """write_create_events must write a SYNC.json marker alongside the CREATE
+    event so the outbound STATUS/EDIT/COMMENT handlers can resolve jira_key
+    via the same `*-SYNC.json` glob convention used for outbound-originated
+    tickets.
+
+    Without this marker, any local edit to a Jira-originated ticket
+    (status transition, comment, edit) is silently dropped by the outbound
+    bridge — the chronic root cause behind jira-dig-1575/1576.
+    """
+    tickets_tracker = tmp_path / ".tickets-tracker"
+    tickets_tracker.mkdir()
+
+    issue = _make_jira_issue(
+        key="DSO-9999",
+        summary="Round-trip-test ticket",
+        created="2026-03-21T10:00:00.000+0000",
+        updated="2026-03-21T10:00:00.000+0000",
+    )
+
+    written = bridge.write_create_events(
+        [issue],
+        tickets_tracker=tickets_tracker,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert len(written) == 1, "Expected exactly one CREATE event written"
+
+    ticket_dir = Path(written[0]).parent
+    sync_files = list(ticket_dir.glob("*-SYNC.json"))
+    assert len(sync_files) == 1, (
+        f"write_create_events must write exactly one SYNC.json marker per "
+        f"new Jira-originated ticket; found {len(sync_files)} in {ticket_dir}"
+    )
+
+    sync_payload = json.loads(sync_files[0].read_text(encoding="utf-8"))
+    assert sync_payload.get("event_type") == "SYNC", (
+        f"SYNC marker event_type must be 'SYNC'; got {sync_payload.get('event_type')!r}"
+    )
+    assert sync_payload.get("jira_key") == "DSO-9999", (
+        f"SYNC marker must carry the Jira key DSO-9999; got "
+        f"{sync_payload.get('jira_key')!r}"
+    )
+    assert sync_payload.get("local_id") == ticket_dir.name, (
+        f"SYNC marker local_id must match the ticket directory name "
+        f"({ticket_dir.name!r}); got {sync_payload.get('local_id')!r}"
+    )
+    assert sync_payload.get("env_id") == _BRIDGE_ENV_ID, (
+        f"SYNC marker env_id must equal bridge_env_id ({_BRIDGE_ENV_ID!r}); got "
+        f"{sync_payload.get('env_id')!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_write_create_events_heals_legacy_create_without_sync(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """write_create_events must self-heal: when an existing jira-* ticket
+    directory has a CREATE.json with jira_key but no SYNC.json (legacy state
+    from before the SYNC-marker fix), write the missing SYNC.json on the next
+    bridge run. This eliminates the need for a one-off backfill commit.
+
+    Idempotency: tickets that already have SYNC are not re-healed (no
+    duplicate SYNCs).
+    """
+    tickets_tracker = tmp_path / ".tickets-tracker"
+    tickets_tracker.mkdir()
+
+    legacy_dir = tickets_tracker / "jira-dso-1575"
+    legacy_dir.mkdir()
+    legacy_create = {
+        "event_type": "CREATE",
+        "env_id": "00000000-0000-4000-8000-000000000000",
+        "jira_key": "DSO-1575",
+        "local_id": "jira-dso-1575",
+        "timestamp": 1777000000000000000,
+        "data": {
+            "jira_key": "DSO-1575",
+            "ticket_type": "bug",
+            "title": "Legacy Jira-originated ticket",
+            "description": None,
+            "priority": 2,
+            "assignee": None,
+            "fields": {},
+        },
+    }
+    (
+        legacy_dir
+        / "1777000000000000000-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee-CREATE.json"
+    ).write_text(json.dumps(legacy_create), encoding="utf-8")
+
+    assert not list(legacy_dir.glob("*-SYNC.json")), (
+        "Pre-condition: no SYNC marker exists yet"
+    )
+
+    written = bridge.write_create_events(
+        [],  # no new issues — only the heal pass should run
+        tickets_tracker=tickets_tracker,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert written == [], "No new CREATE events expected"
+
+    sync_files = list(legacy_dir.glob("*-SYNC.json"))
+    assert len(sync_files) == 1, (
+        f"Self-heal pass must write exactly one SYNC.json for legacy "
+        f"CREATE-without-SYNC; found {len(sync_files)} in {legacy_dir}"
+    )
+    sync_payload = json.loads(sync_files[0].read_text(encoding="utf-8"))
+    assert sync_payload.get("jira_key") == "DSO-1575", (
+        f"Healed SYNC marker must carry the original jira_key DSO-1575; got "
+        f"{sync_payload.get('jira_key')!r}"
+    )
+    assert sync_payload.get("local_id") == "jira-dso-1575"
+
+    # Idempotency check: re-running write_create_events does NOT add a second SYNC
+    bridge.write_create_events(
+        [],
+        tickets_tracker=tickets_tracker,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+    sync_files_after = list(legacy_dir.glob("*-SYNC.json"))
+    assert len(sync_files_after) == 1, (
+        f"Self-heal must be idempotent — second run added a duplicate SYNC; "
+        f"found {len(sync_files_after)}"
+    )

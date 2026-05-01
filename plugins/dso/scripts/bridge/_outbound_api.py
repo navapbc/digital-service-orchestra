@@ -100,33 +100,10 @@ def get_compiled_status(ticket_dir: Path, *, reducer_path: Path) -> str | None:
     return state.get("status")
 
 
-def has_existing_sync(ticket_dir: Path) -> bool:
-    """Return True if a SYNC event file already exists in the ticket directory."""
-    return any(ticket_dir.glob("*-SYNC.json"))
-
-
-def write_sync_event(
-    ticket_dir: Path,
-    jira_key: str,
-    local_id: str,
-    bridge_env_id: str,
-    run_id: str = "",
-) -> Path:
-    """Write a SYNC event file to the ticket directory."""
-    ts = time.time_ns()
-    event_uuid = str(uuid.uuid4())
-    filename = f"{ts}-{event_uuid}-SYNC.json"
-    payload = {
-        "event_type": "SYNC",
-        "jira_key": jira_key,
-        "local_id": local_id,
-        "env_id": bridge_env_id,
-        "timestamp": ts,
-        "run_id": run_id,
-    }
-    path = ticket_dir / filename
-    path.write_text(json.dumps(payload, ensure_ascii=False))
-    return path
+# Re-exports — SYNC I/O lives in bridge._sync_io and is shared with
+# bridge._inbound_api. These names remain importable from _outbound_api so
+# existing callers (handlers, tests) are not broken.
+from bridge._sync_io import has_existing_sync, write_sync_event  # noqa: F401, E402
 
 
 def read_dedup_map(ticket_dir: Path) -> dict[str, Any]:

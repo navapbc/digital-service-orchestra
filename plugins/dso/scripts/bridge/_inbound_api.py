@@ -19,6 +19,7 @@ except ImportError:  # Python < 3.9
 
 from bridge._atomic import atomic_write_json
 from bridge._inbound_utils import parse_jira_timestamp
+from bridge._sync_io import has_existing_sync, write_sync_event
 
 # Jira priority name → local 0-4 integer scale
 _JIRA_PRIORITY_TO_LOCAL: dict[str, int] = {
@@ -133,23 +134,82 @@ def write_create_events(
     """Write CREATE event files for new Jira-originated tickets."""
     written: list[Path] = []
 
-    synced_jira_keys: set[str] = set()
+    # Self-heal pass: for any pre-existing CREATE.json with a jira_key but no
+    # sibling SYNC.json, write the missing SYNC marker now. This recovers
+    # historical inbound imports from before the SYNC-marker fix landed
+    # (jira-dig-1575/1576 root cause B). A `.sync-heal-complete` sentinel
+    # short-circuits the directory scan in steady state — once every legacy
+    # ticket has a SYNC, the loop becomes a single stat() per cron tick
+    # rather than ~13K readdir() syscalls.
     if tickets_tracker.is_dir():
-        for sync_file in tickets_tracker.rglob("*-SYNC.json"):
-            try:
-                sync_data = json.loads(sync_file.read_text(encoding="utf-8"))
-                jira_key = sync_data.get("jira_key", "")
-                if jira_key:
-                    synced_jira_keys.add(jira_key)
-            except (OSError, json.JSONDecodeError):
+        heal_sentinel = tickets_tracker / ".sync-heal-complete"
+        if not heal_sentinel.exists():
+            healed_any_missing = False
+            for ticket_dir in tickets_tracker.iterdir():
+                if not ticket_dir.is_dir() or not ticket_dir.name.startswith("jira-"):
+                    continue
+                if has_existing_sync(ticket_dir):
+                    continue
+                create_files = sorted(ticket_dir.glob("*-CREATE.json"))
+                if not create_files:
+                    continue
+                try:
+                    create_data = json.loads(
+                        create_files[0].read_text(encoding="utf-8")
+                    )
+                except (OSError, json.JSONDecodeError):
+                    continue
+                create_jira_key = create_data.get("jira_key") or create_data.get(
+                    "data", {}
+                ).get("jira_key", "")
+                create_local_id = create_data.get("local_id", ticket_dir.name)
+                if not create_jira_key:
+                    continue
+                write_sync_event(
+                    ticket_dir,
+                    jira_key=create_jira_key,
+                    local_id=create_local_id,
+                    bridge_env_id=bridge_env_id,
+                    run_id=run_id,
+                )
+                healed_any_missing = True
+            # Mark the heal pass complete only when we did not have to write
+            # anything — i.e., we have reached steady state. Subsequent runs
+            # short-circuit at the sentinel check above.
+            if not healed_any_missing:
+                heal_sentinel.write_text("", encoding="utf-8")
+
+    # Build a fallback set of jira_keys synced under non-`jira-*` directories
+    # (e.g., outbound-originated tickets that link a local ID to a Jira key).
+    # `jira-*` directories follow the deterministic `jira-{key.lower()}` naming,
+    # so they don't need scanning here — has_existing_sync(candidate_dir) below
+    # handles them in O(1). Non-jira dirs are typically a small subset (<100 in
+    # practice), so this scan stays cheap even at 13K total dirs.
+    synced_in_non_jira_dirs: set[str] = set()
+    if tickets_tracker.is_dir():
+        for ticket_dir in tickets_tracker.iterdir():
+            if not ticket_dir.is_dir() or ticket_dir.name.startswith("jira-"):
                 continue
+            for sync_file in ticket_dir.glob("*-SYNC.json"):
+                try:
+                    sync_data = json.loads(sync_file.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    continue
+                k = sync_data.get("jira_key", "")
+                if k:
+                    synced_in_non_jira_dirs.add(k)
 
     for issue in issues:
         jira_key = issue.get("key", "")
         if not jira_key:
             continue
 
-        if jira_key in synced_jira_keys:
+        if jira_key in synced_in_non_jira_dirs:
+            continue
+        # Per-issue dedup against the deterministic jira-{key} directory.
+        # local_id encoding mirrors the CREATE branch below.
+        candidate_dir = tickets_tracker / f"jira-{jira_key.lower()}"
+        if has_existing_sync(candidate_dir):
             continue
 
         normalized_issue = normalize_timestamps(
@@ -213,6 +273,19 @@ def write_create_events(
         event_path = ticket_dir / filename
         event_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         written.append(event_path)
+
+        # Write SYNC.json marker so outbound STATUS/EDIT/COMMENT/LINK handlers
+        # can resolve jira_key for this Jira-originated ticket via the standard
+        # `*-SYNC.json` glob convention. Without it, every later local edit on
+        # this ticket would be silently dropped by the outbound bridge
+        # (jira-dig-1575/1576 root cause B).
+        write_sync_event(
+            ticket_dir,
+            jira_key=jira_key,
+            local_id=local_id,
+            bridge_env_id=bridge_env_id,
+            run_id=run_id,
+        )
 
     return written
 
