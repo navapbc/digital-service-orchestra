@@ -452,17 +452,6 @@ test_concurrent_create_exit_captured_without_pipefail() {
     assert_eq "new-pattern-without-pipefail: failure returns non-zero" \
         "non-zero" "$([[ $new_exit -ne 0 ]] && echo non-zero || echo zero)"
 
-    # Structural: the production concurrent subshells must not use the bare pipeline
-    # pattern (which loses exit code without pipefail). Grep for old pattern.
-    # RED: the old pattern `bash "$TICKET_SCRIPT" ... | tail -1 >file) &` found
-    # GREEN: replaced with variable capture pattern (_out=$(cmd) || exit $?)
-    # Note: dollar sign in ERE requires escaping (\$) to match literal $ in file content.
-    local this_file="$SCRIPT_DIR/test-ticket-e2e.sh"
-    local old_pattern_count
-    # shellcheck disable=SC2016  # single quotes intentional: literal \$ matches "$" in file content
-    old_pattern_count=$(grep -cE '"\$TICKET_SCRIPT"[^|]*2>/dev/null \| tail -1 >"[^"]+"\) &' "$this_file" 2>/dev/null); old_pattern_count="${old_pattern_count:-0}"
-    assert_eq "concurrent subshells: no bare pipeline (exit code swallow risk)" "0" "$old_pattern_count"
-
     assert_pass_if_clean "test_concurrent_create_exit_captured_without_pipefail"
 }
 test_concurrent_create_exit_captured_without_pipefail

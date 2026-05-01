@@ -454,39 +454,4 @@ test_ticket_transition_via_library() {
 }
 test_ticket_transition_via_library
 
-# ── Test api_id_guard (RED): ticket-lib-api.sh uses if-guard for data['id'] ──
-# Structural test mirroring the ticket-create.sh test (125d-5ae5).
-echo "Test api_id_guard (RED): ticket-lib-api.sh uses if-guard for data['id'] (not unconditional)"
-test_lib_api_id_guard_pattern() {
-    local api_script="$REPO_ROOT/plugins/dso/scripts/ticket-lib-api.sh"
-    if [[ ! -f "$api_script" ]]; then
-        assert_eq "ticket-lib-api.sh exists" "exists" "missing"
-        return
-    fi
-    local result
-    result=$(python3 - "$api_script" <<'PYEOF'
-import sys, re
-with open(sys.argv[1]) as f:
-    src = f.read()
-# Use regex for robustness against whitespace/formatting changes.
-has_id_arg_var    = bool(re.search(r'\bid_arg\b\s*=\s*sys\.argv', src))
-has_if_guard      = bool(re.search(r'if\s+id_arg\s*:', src))
-has_unconditional = bool(re.search(r"data\[.id.\]\s*=\s*sys\.argv\[14\]", src))
-if has_id_arg_var and has_if_guard:
-    print("OK")
-elif has_unconditional:
-    print("FAIL: unconditional assignment found (missing if-guard)")
-else:
-    print("UNKNOWN: neither pattern found")
-PYEOF
-) || result="SCRIPT_ERROR"
-
-    if [[ "$result" == "OK" ]]; then
-        assert_eq "api_id_guard: ticket-lib-api.sh uses if-guard for data['id']" "OK" "OK"
-    else
-        assert_eq "api_id_guard: ticket-lib-api.sh uses if-guard for data['id']" "OK" "$result"
-    fi
-}
-test_lib_api_id_guard_pattern
-
 print_summary

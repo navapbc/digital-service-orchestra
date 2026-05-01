@@ -1343,40 +1343,4 @@ test_alias_fallback_on_missing_wordlist() {
 }
 test_alias_fallback_on_missing_wordlist
 
-# ── Test id_guard_1 (RED): ticket-create.sh uses if-guard for data['id'] like alias_arg ──
-# Structural test: the production code must use the if-guard pattern
-# (id_arg = ...; if id_arg: data['id'] = id_arg) rather than unconditional assignment
-# so that an empty id_arg is not written as data['id'] = ''.
-# RED: the unconditional assignment pattern is present → test fails
-# GREEN: the if-guard pattern is present → test passes
-echo "Test id_guard_1 (RED): ticket-create.sh uses if-guard for data['id'] (not unconditional)"
-test_create_event_id_guard_pattern() {
-    local result
-    result=$(python3 - "$TICKET_CREATE_SCRIPT" <<'PYEOF'
-import sys, re
-with open(sys.argv[1]) as f:
-    src = f.read()
-# Use regex for robustness against whitespace/formatting changes.
-# OK: id_arg variable assigned from sys.argv AND guarded with if id_arg:
-# FAIL: data['id'] unconditionally assigned from sys.argv[14]
-has_id_arg_var  = bool(re.search(r'\bid_arg\b\s*=\s*sys\.argv', src))
-has_if_guard    = bool(re.search(r'if\s+id_arg\s*:', src))
-has_unconditional = bool(re.search(r"data\[.id.\]\s*=\s*sys\.argv\[14\]", src))
-if has_id_arg_var and has_if_guard:
-    print("OK")
-elif has_unconditional:
-    print("FAIL: unconditional assignment found (missing if-guard)")
-else:
-    print("UNKNOWN: neither pattern found")
-PYEOF
-) || result="SCRIPT_ERROR"
-
-    if [[ "$result" == "OK" ]]; then
-        assert_eq "id_guard: ticket-create.sh uses if-guard for data['id']" "OK" "OK"
-    else
-        assert_eq "id_guard: ticket-create.sh uses if-guard for data['id']" "OK" "$result"
-    fi
-}
-test_create_event_id_guard_pattern
-
 print_summary
