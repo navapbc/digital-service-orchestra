@@ -349,6 +349,7 @@ plugins/dso/resources/ticket-wordlist.txt:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-review-complexity-classifier.sh
 tests/hooks/test-review-complexity-classifier.sh:tests/hooks/test-review-complexity-classifier.sh
 tests/scripts/test-host-project-e2e-bootstrap.sh:tests/scripts/test-host-project-e2e-bootstrap.sh [test_host_bootstrap_and_config_patch]
+tests/scripts/test-host-project-e2e-verify.sh:tests/scripts/test-host-project-e2e-verify.sh [test_host_e2e_security_overlay_blocks_merge]
 plugins/dso/skills/brainstorm/prompts/ui-keyword-trigger.md:tests/skills/test-brainstorm-ui-intent-detection.sh
 plugins/dso/skills/brainstorm/prompts/ui-detection-classifier.md:tests/skills/test-brainstorm-ui-intent-detection.sh
 plugins/dso/skills/brainstorm/prompts/ux-probe-set.md:tests/skills/test-brainstorm-ui-intent-detection.sh
