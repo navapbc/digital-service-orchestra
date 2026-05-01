@@ -23,6 +23,8 @@ If either side is SKIPPED, request user authorization ("skip authorized?") and w
 Inline triage by the orchestrator (scanning ticket lists, pattern-matching against open-epics output) is NOT a sub-agent dispatch and MUST be recorded as SKIPPED.
 
 Reasons that DO NOT justify SKIPPED (treat as a signal to dispatch, not skip): "pre-thought" / "well-defined" / "user is moving fast" / "save sub-agent budget" / "I'll be transparent about skipping" / "interactions are obvious from list" / "epic has existing description".
+
+If `cross_epic=SKIPPED` and the reason is anything other than "0 open/in-progress epics found", go back and dispatch the classifier now — do not present the gate with the SKIPPED value.
 </HARD-GATE>
 
 ## External Dependencies Contradiction Gate

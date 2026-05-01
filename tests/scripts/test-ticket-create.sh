@@ -1353,14 +1353,18 @@ echo "Test id_guard_1 (RED): ticket-create.sh uses if-guard for data['id'] (not 
 test_create_event_id_guard_pattern() {
     local result
     result=$(python3 - "$TICKET_CREATE_SCRIPT" <<'PYEOF'
-import sys
+import sys, re
 with open(sys.argv[1]) as f:
     src = f.read()
-# OLD pattern (no guard): data['id'] = sys.argv[14] ...
-# NEW pattern (with guard): id_arg = ...; if id_arg: data['id'] = id_arg
-if "if id_arg:\n    data['id'] = id_arg" in src or ("id_arg = sys.argv[14]" in src and "if id_arg:" in src):
+# Use regex for robustness against whitespace/formatting changes.
+# OK: id_arg variable assigned from sys.argv AND guarded with if id_arg:
+# FAIL: data['id'] unconditionally assigned from sys.argv[14]
+has_id_arg_var  = bool(re.search(r'\bid_arg\b\s*=\s*sys\.argv', src))
+has_if_guard    = bool(re.search(r'if\s+id_arg\s*:', src))
+has_unconditional = bool(re.search(r"data\[.id.\]\s*=\s*sys\.argv\[14\]", src))
+if has_id_arg_var and has_if_guard:
     print("OK")
-elif "data['id'] = sys.argv[14]" in src:
+elif has_unconditional:
     print("FAIL: unconditional assignment found (missing if-guard)")
 else:
     print("UNKNOWN: neither pattern found")

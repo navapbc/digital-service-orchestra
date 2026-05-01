@@ -465,12 +465,16 @@ test_lib_api_id_guard_pattern() {
     fi
     local result
     result=$(python3 - "$api_script" <<'PYEOF'
-import sys
+import sys, re
 with open(sys.argv[1]) as f:
     src = f.read()
-if "id_arg = sys.argv[14]" in src and "if id_arg:" in src:
+# Use regex for robustness against whitespace/formatting changes.
+has_id_arg_var    = bool(re.search(r'\bid_arg\b\s*=\s*sys\.argv', src))
+has_if_guard      = bool(re.search(r'if\s+id_arg\s*:', src))
+has_unconditional = bool(re.search(r"data\[.id.\]\s*=\s*sys\.argv\[14\]", src))
+if has_id_arg_var and has_if_guard:
     print("OK")
-elif "data['id'] = sys.argv[14]" in src:
+elif has_unconditional:
     print("FAIL: unconditional assignment found (missing if-guard)")
 else:
     print("UNKNOWN: neither pattern found")
