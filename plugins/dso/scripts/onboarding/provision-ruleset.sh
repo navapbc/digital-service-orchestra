@@ -4,7 +4,22 @@
 #
 # Usage:
 #   provision-ruleset.sh [--repo <owner/repo>] [--checks-file <path>] \
-#                        [--non-interactive] [--dry-run]
+#                        [--non-interactive] [--dry-run] \
+#                        [--bypass-actor-policy=always|pull_request_only] \
+#                        [--require-conversation-resolution=true|false] \
+#                        [--request-copilot-review=true|false] \
+#                        [--dismiss-stale-approvals-on-push=true|false] \
+#                        [--required-approvals=N]
+#
+# Knob defaults (all preserve existing behavior):
+#   --bypass-actor-policy=always
+#   --require-conversation-resolution=false
+#   --request-copilot-review=false
+#   --dismiss-stale-approvals-on-push=false
+#   --required-approvals=1
+#
+# Each flag accepts both "--flag=value" and "--flag value" forms. Boolean flags
+# accept true/false/yes/no/1/0 (normalized to 0/1 internally).
 #
 # Environment:
 #   DSO_DRY_RUN=1   — print payloads and gh commands; do not execute them
@@ -24,10 +39,32 @@ CHECKS_FILE=""
 NON_INTERACTIVE=0
 DRY_RUN="${DSO_DRY_RUN:-0}"
 
+# Named knobs (defaults preserve current hardcoded behavior)
+BYPASS_ACTOR_POLICY="always"
+REQUIRE_CONVERSATION_RESOLUTION=0
+REQUEST_COPILOT_REVIEW=0
+DISMISS_STALE_APPROVALS_ON_PUSH=0
+REQUIRED_APPROVALS=1
+
 # Resolve repo root (git root relative to script location or cwd)
 REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null \
   || git rev-parse --show-toplevel 2>/dev/null \
   || echo "")
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+# Normalize a boolean string (true/false/yes/no/1/0) to "0" or "1".
+# Exits 1 if the value is not a recognized boolean.
+_normalize_bool() {
+  local label="$1" raw="$2"
+  case "$raw" in
+    true|TRUE|True|yes|YES|Yes|1) echo 1 ;;
+    false|FALSE|False|no|NO|No|0) echo 0 ;;
+    *)
+      echo "ERROR: $label expects true/false (got: '$raw')" >&2
+      exit 1
+      ;;
+  esac
+}
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -36,9 +73,17 @@ while [[ $# -gt 0 ]]; do
       REPO="$2"
       shift 2
       ;;
+    --repo=*)
+      REPO="${1#*=}"
+      shift
+      ;;
     --checks-file)
       CHECKS_FILE="$2"
       shift 2
+      ;;
+    --checks-file=*)
+      CHECKS_FILE="${1#*=}"
+      shift
       ;;
     --non-interactive)
       NON_INTERACTIVE=1
@@ -48,12 +93,70 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN=1
       shift
       ;;
+    --bypass-actor-policy)
+      BYPASS_ACTOR_POLICY="$2"
+      shift 2
+      ;;
+    --bypass-actor-policy=*)
+      BYPASS_ACTOR_POLICY="${1#*=}"
+      shift
+      ;;
+    --require-conversation-resolution)
+      REQUIRE_CONVERSATION_RESOLUTION=$(_normalize_bool "--require-conversation-resolution" "$2")
+      shift 2
+      ;;
+    --require-conversation-resolution=*)
+      REQUIRE_CONVERSATION_RESOLUTION=$(_normalize_bool "--require-conversation-resolution" "${1#*=}")
+      shift
+      ;;
+    --request-copilot-review)
+      REQUEST_COPILOT_REVIEW=$(_normalize_bool "--request-copilot-review" "$2")
+      shift 2
+      ;;
+    --request-copilot-review=*)
+      REQUEST_COPILOT_REVIEW=$(_normalize_bool "--request-copilot-review" "${1#*=}")
+      shift
+      ;;
+    --dismiss-stale-approvals-on-push)
+      DISMISS_STALE_APPROVALS_ON_PUSH=$(_normalize_bool "--dismiss-stale-approvals-on-push" "$2")
+      shift 2
+      ;;
+    --dismiss-stale-approvals-on-push=*)
+      DISMISS_STALE_APPROVALS_ON_PUSH=$(_normalize_bool "--dismiss-stale-approvals-on-push" "${1#*=}")
+      shift
+      ;;
+    --required-approvals)
+      REQUIRED_APPROVALS="$2"
+      shift 2
+      ;;
+    --required-approvals=*)
+      REQUIRED_APPROVALS="${1#*=}"
+      shift
+      ;;
+    --help|-h)
+      sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
     *)
       echo "Unknown argument: $1" >&2
       exit 1
       ;;
   esac
 done
+
+# ── Validate knob values ──────────────────────────────────────────────────────
+case "$BYPASS_ACTOR_POLICY" in
+  always|pull_request_only) ;;
+  *)
+    echo "ERROR: --bypass-actor-policy must be 'always' or 'pull_request_only' (got: '$BYPASS_ACTOR_POLICY')" >&2
+    exit 1
+    ;;
+esac
+
+if ! [[ "$REQUIRED_APPROVALS" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: --required-approvals must be a non-negative integer (got: '$REQUIRED_APPROVALS')" >&2
+  exit 1
+fi
 
 # Default checks file relative to repo root
 if [[ -z "$CHECKS_FILE" ]]; then
@@ -109,6 +212,18 @@ if ! gh auth status >/dev/null 2>&1; then
   echo "WARNING: gh auth status check failed — token may lack admin scope." >&2
 fi
 
+# ── Admin-token guard for non-default bypass policy ──────────────────────────
+# Setting bypass_actor_policy=pull_request_only is a privileged change that
+# requires an admin-scoped token. We check this BEFORE the dry-run branch so
+# the guard fires consistently regardless of execution mode.
+if [[ "$BYPASS_ACTOR_POLICY" != "always" ]]; then
+  _auth_status_output=$(gh auth status -t 2>&1 || true)
+  if ! echo "$_auth_status_output" | grep -qE 'admin:org|admin:repo|repo admin'; then
+    echo "ERROR: Setting bypass_actor_policy=pull_request_only requires an admin token (admin:org or repo admin scope). Re-authenticate with: gh auth refresh -s admin:org" >&2
+    exit 1
+  fi
+fi
+
 # ── Pre-flight: verify jq ─────────────────────────────────────────────────────
 if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq is required but not found in PATH. Install jq and retry." >&2
@@ -138,8 +253,24 @@ if [[ "$STATUS_CONTEXTS_JSON" == "[]" ]] || [[ -z "$STATUS_CONTEXTS_JSON" ]]; th
   exit 1
 fi
 
+# ── Translate booleans to JSON literals ──────────────────────────────────────
+if [[ "$DISMISS_STALE_APPROVALS_ON_PUSH" == "1" ]]; then
+  _DISMISS_STALE_JSON="true"
+else
+  _DISMISS_STALE_JSON="false"
+fi
+if [[ "$REQUIRE_CONVERSATION_RESOLUTION" == "1" ]]; then
+  _REQUIRE_CONV_JSON="true"
+else
+  _REQUIRE_CONV_JSON="false"
+fi
+
 # ── Build ruleset JSON payload ────────────────────────────────────────────────
 # bypass_actors actor_id 5 = GitHub RepositoryRole "Admin" (standard ID on github.com)
+#
+# CodeQL and code-quality rules are deferred to a follow-on epic. When that
+# epic ships, add rule entries here for: required_workflows (CodeQL) and the
+# code-quality check contexts.
 PAYLOAD_JSON=$(cat <<EOF
 {
   "name": "DSO CI Enforcement",
@@ -155,7 +286,7 @@ PAYLOAD_JSON=$(cat <<EOF
     {
       "actor_id": 5,
       "actor_type": "RepositoryRole",
-      "bypass_mode": "always"
+      "bypass_mode": "${BYPASS_ACTOR_POLICY}"
     }
   ],
   "rules": [
@@ -164,11 +295,11 @@ PAYLOAD_JSON=$(cat <<EOF
     {
       "type": "pull_request",
       "parameters": {
-        "required_approving_review_count": 1,
-        "dismiss_stale_reviews_on_push": false,
+        "required_approving_review_count": ${REQUIRED_APPROVALS},
+        "dismiss_stale_reviews_on_push": ${_DISMISS_STALE_JSON},
         "require_code_owner_review": false,
         "require_last_push_approval": false,
-        "required_review_thread_resolution": false
+        "required_review_thread_resolution": ${_REQUIRE_CONV_JSON}
       }
     },
     {
@@ -183,6 +314,17 @@ PAYLOAD_JSON=$(cat <<EOF
 EOF
 )
 
+# ── Copilot-review annotation ────────────────────────────────────────────────
+# GitHub does not currently expose a Ruleset rule for "request Copilot review";
+# Copilot review is a repo-level (or PR-time UI) setting. When the user opts in,
+# emit a clearly-labelled annotation so the choice is recorded in the dry-run
+# output and the success summary. When the API exposes the field, this annotation
+# will be replaced by an actual gh-api call.
+_COPILOT_ANNOTATION=""
+if [[ "$REQUEST_COPILOT_REVIEW" == "1" ]]; then
+  _COPILOT_ANNOTATION="request_copilot_review=true (recorded; GitHub does not currently expose this via Rulesets — automation will be added when API support lands)"
+fi
+
 # ── Dry-run mode ──────────────────────────────────────────────────────────────
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "=== DSO_DRY_RUN=1: No API calls will be made ==="
@@ -190,6 +332,11 @@ if [[ "$DRY_RUN" == "1" ]]; then
   echo "--- Ruleset JSON payload ---"
   echo "$PAYLOAD_JSON"
   echo ""
+  if [[ -n "$_COPILOT_ANNOTATION" ]]; then
+    echo "--- Copilot review annotation ---"
+    echo "$_COPILOT_ANNOTATION"
+    echo ""
+  fi
   if [[ -n "$REPO" ]]; then
     echo "--- gh api invocation (not executed) ---"
     echo "gh api --method POST /repos/${REPO}/rulesets --input <(echo '\$payload_json')"
@@ -258,3 +405,6 @@ echo "Repository:  $REPO"
 echo "Branch:      $DEFAULT_BRANCH"
 echo "Ruleset ID:  ${RULESET_ID:-unknown}"
 echo "Auto-merge:  enabled"
+if [[ -n "$_COPILOT_ANNOTATION" ]]; then
+  echo "Note:        $_COPILOT_ANNOTATION"
+fi
