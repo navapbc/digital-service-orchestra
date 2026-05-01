@@ -131,14 +131,14 @@ PYEOF
 
 _CURL_EXIT=0
 if [[ "$PROVIDER" == "anthropic" ]]; then
-    curl -s -f --connect-timeout 10 --max-time 120 \
+    curl -s --fail-with-body --connect-timeout 10 --max-time 120 \
         -H "x-api-key: $ANTHROPIC_API_KEY" \
         -H "anthropic-version: 2023-06-01" \
         -H "content-type: application/json" \
         --data-binary "@${_REQUEST_TMP}" \
         "https://api.anthropic.com/v1/messages" > "$_RESPONSE_TMP" 2>/dev/null || _CURL_EXIT=$?
 else
-    curl -s -f --connect-timeout 10 --max-time 120 \
+    curl -s --fail-with-body --connect-timeout 10 --max-time 120 \
         -H "Authorization: Bearer $OPENAI_API_KEY" \
         -H "content-type: application/json" \
         --data-binary "@${_REQUEST_TMP}" \
