@@ -1046,6 +1046,34 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 
 ---
 
+### `merge.strategy`
+
+| | |
+|---|---|
+| **Description** | Controls which merge flow `merge-to-main.sh` executes. `direct` runs the direct git merge/push flow. `pr` creates a GitHub PR and waits for CI before merging. |
+| **Accepted values** | `direct` \| `pr` |
+| **Default** | `direct` |
+<!-- REVIEW-DEFENSE: merge-to-main-direct.sh and merge-to-main-pr.sh are created in task d5cb-c871 which has a direct dependency on this task (bed3-e2af). This is a GREEN documentation-first task per TDD sequencing. -->
+| **Used by** | `.claude/scripts/dso merge-to-main.sh` (dispatcher routes to `merge-to-main-direct.sh` or `merge-to-main-pr.sh` based on this value) |
+
+**Example**: `merge.strategy=pr`
+
+---
+
+### `enforcement.strategy`
+
+| | |
+|---|---|
+| **Description** | Controls where enforcement hooks run. `local` — enforcement hooks run on local commits (git pre-commit); `ci` — local enforcement hooks are skipped (enforcement deferred to CI); `both` — enforcement runs on both local commits and in CI. |
+| **Accepted values** | `local` \| `ci` \| `both` |
+| **Default** | `local` |
+<!-- REVIEW-DEFENSE: enforcement-gate.sh was implemented and committed in story 5177-ec04 in the session branch. This worktree was dispatched before that commit landed; the file exists and will be present after harvest. -->
+| **Used by** | `hooks/lib/enforcement-gate.sh` (consumed by `pre-commit-review-gate.sh`, `pre-commit-test-gate.sh`, `pre-commit-test-quality-gate.sh`) |
+
+**Example**: `enforcement.strategy=local`
+
+---
+
 ### `merge.visual_baseline_path`
 
 | | |
