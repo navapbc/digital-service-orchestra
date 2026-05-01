@@ -302,6 +302,25 @@ fi
 
 # ============================================================
 echo ""
+echo "=== test_surface_dimension ==="
+SECTION="test_surface_dimension"
+
+# Assert "| Surface |" row exists in the Phase 1 Step 2 probe table
+if grep -q '| Surface |' "$SKILL_MD"; then
+  pass "SKILL.md Phase 1 Step 2 probe table contains Surface row (| Surface |)"
+else
+  fail "SKILL.md Phase 1 Step 2 probe table missing Surface row (| Surface |)"
+fi
+
+# Assert "Surface" appears in the Understanding Summary schema block
+if grep -qE 'Surface:|Surface\*\*:|(\*\*Surface\*\*)' "$SKILL_MD"; then
+  pass "SKILL.md Understanding Summary schema block contains Surface field"
+else
+  fail "SKILL.md Understanding Summary schema block missing Surface field"
+fi
+
+# ============================================================
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS"
 echo "Failed: $FAIL"
