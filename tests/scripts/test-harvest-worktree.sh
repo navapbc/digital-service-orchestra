@@ -1077,4 +1077,124 @@ assert_eq "test_harvest_copies_reviewer_findings_files: canonical copied" "found
 assert_pass_if_clean "test_harvest_copies_reviewer_findings_files"
 
 # =============================================================================
+# Test 24: test_docs_only_commit_skips_review_status_check (d591-b6ad)
+# Given: worktree branch with ONLY docs/** files changed (allowlisted by review-gate-allowlist.conf)
+# And: NO review-status artifact is written (SKIP_REVIEW=true path in COMMIT-WORKFLOW.md)
+# When: harvest-worktree.sh is invoked
+# Then: exits 0 — review check is skipped for all-allowlisted file sets
+# RED: current code unconditionally requires review-status and exits 2
+# =============================================================================
+echo "--- test_docs_only_commit_skips_review_status_check ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+# Set up a custom repo (not using setup_test_repo which forces both gate artifacts)
+git init --bare "$tmpdir/origin24.git" >/dev/null 2>&1
+git clone "$tmpdir/origin24.git" "$tmpdir/session24" >/dev/null 2>&1
+SESSION_REPO24="$tmpdir/session24"
+cd "$SESSION_REPO24" || exit 1
+git config user.email "test@test.com"
+git config user.name "Test"
+echo "initial" > file.txt
+git add file.txt
+git commit -m "initial commit" >/dev/null 2>&1
+git push origin HEAD:main >/dev/null 2>&1
+git checkout -b session-branch24 >/dev/null 2>&1
+
+# Create worktree branch with ONLY a docs/ file changed (allowlisted)
+WORKTREE_BRANCH24="worktree-docs-only-$$-$RANDOM"
+git checkout -b "$WORKTREE_BRANCH24" >/dev/null 2>&1
+mkdir -p docs
+echo "# Updated docs" > docs/CHANGELOG.md
+git add docs/CHANGELOG.md
+git commit -m "docs: update changelog" >/dev/null 2>&1
+git checkout session-branch24 >/dev/null 2>&1
+
+# Artifacts: write test-gate-status=passed but deliberately OMIT review-status
+# (mirrors SKIP_REVIEW=true path where review pipeline is skipped in COMMIT-WORKFLOW.md)
+ARTIFACTS24="$tmpdir/artifacts24"
+mkdir -p "$ARTIFACTS24"
+# Compute diff_hash from the worktree branch's commit (as setup_test_repo does)
+_diff_hash24=$(cd "$SESSION_REPO24" && git diff "$WORKTREE_BRANCH24"~1 "$WORKTREE_BRANCH24" 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
+cat > "$ARTIFACTS24/test-gate-status" <<EOF
+passed
+diff_hash=${_diff_hash24}
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+tested_files=
+EOF
+# Intentionally do NOT write review-status — this is the docs-only path
+
+exit_code24=0
+output24=$(cd "$SESSION_REPO24" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH24" \
+    "$ARTIFACTS24" \
+    2>&1) || exit_code24=$?
+
+assert_eq "docs-only commit without review-status exits 0 (d591-b6ad)" "0" "$exit_code24"
+
+# Also verify the docs file was brought into the session branch
+docs_file_present="no"
+if [[ -f "$SESSION_REPO24/docs/CHANGELOG.md" ]]; then
+    docs_file_present="yes"
+fi
+assert_eq "docs-only branch was merged into session (d591-b6ad)" "yes" "$docs_file_present"
+
+assert_pass_if_clean "test_docs_only_commit_skips_review_status_check"
+
+# =============================================================================
+# Test 25: test_docs_only_commit_with_session_artifacts_skips_attest (d591-b6ad)
+# Given: worktree branch with ONLY docs/** files changed
+# And: NO review-status artifact (SKIP_REVIEW=true path)
+# And: --session-artifacts provided (triggers attest block at line ~283)
+# When: harvest-worktree.sh is invoked
+# Then: exits 0 — record-review.sh --attest is also skipped for allowlisted-only commits
+# RED: without the _skip_review guard at line 298, record-review.sh --attest would be
+#      called on a dir without review-status and harvest would exit 2
+# =============================================================================
+echo "--- test_docs_only_commit_with_session_artifacts_skips_attest ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+git init --bare "$tmpdir/origin25.git" >/dev/null 2>&1
+git clone "$tmpdir/origin25.git" "$tmpdir/session25" >/dev/null 2>&1
+SESSION_REPO25="$tmpdir/session25"
+cd "$SESSION_REPO25" || exit 1
+git config user.email "test@test.com"
+git config user.name "Test"
+echo "initial" > file.txt
+git add file.txt
+git commit -m "initial commit" >/dev/null 2>&1
+git push origin HEAD:main >/dev/null 2>&1
+git checkout -b session-branch25 >/dev/null 2>&1
+
+WORKTREE_BRANCH25="worktree-docs-attest-$$-$RANDOM"
+git checkout -b "$WORKTREE_BRANCH25" >/dev/null 2>&1
+mkdir -p docs
+echo "# Attest skip test" > docs/ATTEST_TEST.md
+git add docs/ATTEST_TEST.md
+git commit -m "docs: attest skip test" >/dev/null 2>&1
+git checkout session-branch25 >/dev/null 2>&1
+
+ARTIFACTS25="$tmpdir/artifacts25"
+mkdir -p "$ARTIFACTS25"
+_diff_hash25=$(cd "$SESSION_REPO25" && git diff "$WORKTREE_BRANCH25"~1 "$WORKTREE_BRANCH25" 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
+printf 'passed\ndiff_hash=%s\ntimestamp=%s\ntested_files=\n' \
+    "$_diff_hash25" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ARTIFACTS25/test-gate-status"
+# Intentionally do NOT write review-status
+
+SESSION_ARTIFACTS25="$tmpdir/session-artifacts25"
+mkdir -p "$SESSION_ARTIFACTS25"
+
+exit_code25=0
+cd "$SESSION_REPO25" && bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH25" \
+    "$ARTIFACTS25" \
+    --session-artifacts "$SESSION_ARTIFACTS25" \
+    >/dev/null 2>&1 || exit_code25=$?
+
+assert_eq "docs-only commit with --session-artifacts exits 0 (attest skip guard)" "0" "$exit_code25"
+
+assert_pass_if_clean "test_docs_only_commit_with_session_artifacts_skips_attest"
+
+# =============================================================================
 print_summary

@@ -162,7 +162,7 @@ Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encou
 
 **Before forming each question**: Check whether the answer is already in the codebase. DO NOT ask questions whose answers are discoverable by reading the repo — find those answers yourself first using Read, Grep, or Glob. Only surface questions that require genuine user knowledge (design intent, business priorities, user experience preferences).
 
-**Prefer multiple-choice questions** over open-ended when possible.
+**Prefer multiple-choice questions** over open-ended when possible. Option labels MUST use single ASCII letters (`a`, `b`, `c`, `d`) or single digits (`1`, `2`, `3`, `4`) — never Greek letters (`α`, `β`, `γ`), Roman numerals (`i`, `ii`, `iii`), or any multi-character label. These require special-character input or multi-character typing, creating friction for users who just want to type their choice. Bug 0f10-97ec: Greek and Roman numeral labels break keyboard-first UX.
 
 **Probe until you understand:**
 
@@ -355,6 +355,16 @@ Track provenance internally — the approval gate (Step 4) uses these categories
 
 ### Step 2.25: Cross-Epic Interaction Scan
 
+<HARD-GATE>
+DISPATCH the `dso:cross-epic-interaction-classifier` haiku sub-agent via `skills/brainstorm/prompts/cross-epic-scan.md`. Do NOT perform inline triage. The following are NOT substitutes for dispatching the sub-agent:
+- Reading the epic list yourself and pattern-matching titles
+- Keyword filtering ("skill", "onboarding", "init", "claude.md", "architect", etc.) against title text
+- Reasoning "the interactions are obvious" or "I'll log a rationale for skipping"
+- Surfacing a curated subset of epics to the user without classifier signals
+
+Inline triage misses semantic overlaps (descriptions, SCs, approach blocks) that the classifier reads via `ticket show`. If you are tempted to skip the dispatch, treat that temptation as a signal to dispatch immediately. Record as SKIPPED only if the epic list returns 0 epics (no open/in-progress epics exist).
+</HARD-GATE>
+
 Read and execute `skills/brainstorm/prompts/cross-epic-scan.md` with the current approach and success criteria as input. This dispatches haiku-tier classifiers against all open/in-progress epics to detect shared-resource conflicts.
 
 Route signals by severity:
@@ -441,8 +451,13 @@ Fix any issues before finalizing.
 
 Write a durable ticket-level tag to record that brainstorm has completed. This removes any `scrutiny:pending` tag while preserving all other existing tags (e.g., `design:approved`, `CLI_user`).
 
+<HARD-GATE>
+Run `preconditions-record.sh` FIRST — BEFORE the tag commands. The tag commands without the preconditions record leave downstream skills (preplanning, sprint) unable to verify brainstorm completed, causing PRECONDITIONS_GATE_BLOCKED failures. This call MUST be executed even if it seems redundant, even if the epic already has brainstorm:complete, and even if preconditions were recorded earlier in a prior session. The `|| true` is intentional (non-fatal) — run it regardless.
+</HARD-GATE>
+
 ```bash
-# Record brainstorm preconditions baseline before tagging complete
+# MANDATORY: Record brainstorm preconditions baseline BEFORE tagging complete.
+# Skipping this causes PRECONDITIONS_GATE_BLOCKED in preplanning/sprint.
 .claude/scripts/dso preconditions-record.sh \
   --ticket-id "$epic_id" \
   --gate-name "brainstorm_complete" \

@@ -136,6 +136,44 @@ EOF
     rm -rf "$repo"
 }
 
+# ── Test bbf6-4778 (RED): marker-only duplicates in test list collapsed to first marker ──
+# Same source file, same test file, different RED markers → should be collapsed.
+# RED: current dedup logic treats "tests/a.sh [markerA]" and "tests/a.sh [markerB]" as
+#      distinct strings and preserves both. After fix, only the first marker survives.
+test_collapses_marker_only_duplicates_in_test_list() {
+    local repo; repo=$(_make_fixture_repo)
+    cat > "$repo/.test-index" <<'EOF'
+src/a.py:tests/a.sh [markerA],tests/a.sh [markerB],tests/a.sh [markerC],tests/b.sh
+EOF
+    ( cd "$repo" && bash "$GUARD" )
+    assert_eq "marker-only dups: exit 0 after auto-fix" "0" "$?"
+    local a_line
+    a_line=$(grep '^src/a.py:' "$repo/.test-index")
+    assert_eq "marker-only dups collapsed to first marker" \
+        "src/a.py:tests/a.sh [markerA],tests/b.sh" "$a_line"
+    rm -rf "$repo"
+}
+
+# ── Test bbf6-4778b (RED): marker-only dups across separate source-key lines also collapsed ──
+test_collapses_marker_only_dups_across_source_key_lines() {
+    local repo; repo=$(_make_fixture_repo)
+    cat > "$repo/.test-index" <<'EOF'
+src/a.py:tests/a.sh [markerA]
+src/a.py:tests/a.sh [markerB],tests/b.sh
+EOF
+    ( cd "$repo" && bash "$GUARD" )
+    assert_eq "cross-line marker-only dups: exit 0 after auto-fix" "0" "$?"
+    # Source key collapsed to one line
+    local a_count
+    a_count=$(grep -c '^src/a.py:' "$repo/.test-index")
+    assert_eq "cross-line dups: one src/a.py line" "1" "$a_count"
+    local a_line
+    a_line=$(grep '^src/a.py:' "$repo/.test-index")
+    assert_eq "cross-line dups: first marker kept, second dropped" \
+        "src/a.py:tests/a.sh [markerA],tests/b.sh" "$a_line"
+    rm -rf "$repo"
+}
+
 echo "=== test-check-test-index-duplicates ==="
 test_no_op_on_clean_file
 test_auto_unions_duplicate_keys
@@ -144,5 +182,7 @@ test_auto_stages_even_if_file_was_not_previously_staged
 test_comments_not_counted_as_keys
 test_absent_file_passes
 test_idempotent
+test_collapses_marker_only_duplicates_in_test_list
+test_collapses_marker_only_dups_across_source_key_lines
 
 print_summary
