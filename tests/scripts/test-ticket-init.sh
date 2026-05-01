@@ -467,4 +467,37 @@ test_ticket_init_generates_env_id_on_main_repo_idempotent_path() {
 }
 test_ticket_init_generates_env_id_on_main_repo_idempotent_path
 
+# ── Test 15: test_ticket_init_emits_stderr_warning_when_worktree_add_fails ───
+# Given: tickets branch exists locally AND is already checked out in another worktree
+# When:  ticket init runs (git worktree add will fail with "already checked out")
+# Then:  stderr contains a WARNING message about the failure (not silently discarded)
+echo "Test 15: ticket init emits stderr warning when git worktree add fails"
+test_ticket_init_emits_stderr_warning_when_worktree_add_fails() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create the tickets orphan branch in the repo
+    git -C "$repo" checkout --orphan tickets 2>/dev/null
+    git -C "$repo" rm -rf . --quiet 2>/dev/null || true
+    git -C "$repo" commit --allow-empty -q --no-verify -m "init tickets" 2>/dev/null
+    git -C "$repo" checkout main 2>/dev/null || git -C "$repo" checkout - 2>/dev/null
+
+    # Check out tickets branch in a second worktree (forces worktree add to fail)
+    local second_wt
+    second_wt=$(mktemp -d)
+    _CLEANUP_DIRS+=("$second_wt")
+    git -C "$repo" worktree add "$second_wt" tickets 2>/dev/null
+
+    # Now try to init — should fail on worktree add but emit a WARNING to stderr
+    local stderr_out=""
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" init 2>&1 >/dev/null) || true
+
+    if echo "$stderr_out" | grep -qi "warning\|WARNING"; then
+        assert_eq "worktree-add-fail: stderr WARNING emitted" "yes" "yes"
+    else
+        assert_eq "worktree-add-fail: stderr WARNING emitted" "yes" "no (stderr was: $stderr_out)"
+    fi
+}
+test_ticket_init_emits_stderr_warning_when_worktree_add_fails
+
 print_summary

@@ -216,15 +216,24 @@ fi
 
 if [ "$_branch_exists_local" = true ]; then
     # Branch exists locally — just mount the worktree
-    git -C "$REPO_ROOT" worktree add "$TRACKER_DIR" tickets >/dev/null 2>&1
+    _wt_err_tmp=$(mktemp /tmp/dso-init-wt.XXXXXX)
+    git -C "$REPO_ROOT" worktree add "$TRACKER_DIR" tickets >/dev/null 2>"$_wt_err_tmp" || \
+        echo "WARNING: git worktree add (local branch) failed: $(cat "$_wt_err_tmp")" >&2
+    rm -f "$_wt_err_tmp"
 elif [ "$_branch_exists_remote" = true ]; then
     # Branch exists on remote — fetch and mount
     git -C "$REPO_ROOT" fetch origin tickets 2>/dev/null
-    git -C "$REPO_ROOT" worktree add "$TRACKER_DIR" tickets >/dev/null 2>&1
+    _wt_err_tmp=$(mktemp /tmp/dso-init-wt.XXXXXX)
+    git -C "$REPO_ROOT" worktree add "$TRACKER_DIR" tickets >/dev/null 2>"$_wt_err_tmp" || \
+        echo "WARNING: git worktree add (remote branch) failed: $(cat "$_wt_err_tmp")" >&2
+    rm -f "$_wt_err_tmp"
 else
     # No branch anywhere — create orphan (portable: works with git < 2.40)
     # git worktree add --orphan requires git 2.40+; use --detach + checkout --orphan instead
-    git -C "$REPO_ROOT" worktree add --detach "$TRACKER_DIR" >/dev/null 2>&1
+    _wt_err_tmp=$(mktemp /tmp/dso-init-wt.XXXXXX)
+    git -C "$REPO_ROOT" worktree add --detach "$TRACKER_DIR" >/dev/null 2>"$_wt_err_tmp" || \
+        echo "WARNING: git worktree add (detach) failed: $(cat "$_wt_err_tmp")" >&2
+    rm -f "$_wt_err_tmp"
     git -C "$TRACKER_DIR" checkout --orphan tickets 2>/dev/null
     git -C "$TRACKER_DIR" rm -rf . --quiet 2>/dev/null || true
 
