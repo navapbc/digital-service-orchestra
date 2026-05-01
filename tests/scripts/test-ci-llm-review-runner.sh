@@ -64,7 +64,7 @@ prev=""
 for i in "\$@"; do
     if [[ "\$prev" == "--data-raw" || "\$prev" == "-d" ]]; then
         printf '%s' "\$i" > "${body_file}"
-    elif [[ "\$prev" == "--data" ]]; then
+    elif [[ "\$prev" == "--data" || "\$prev" == "--data-binary" ]]; then
         _src="\${i#@}"
         if [[ "\$_src" != "\$i" && -f "\$_src" ]]; then
             cp "\$_src" "${body_file}"
@@ -628,7 +628,7 @@ _prev=""
 for _arg in "\$@"; do
     if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
         _body="\$_arg"
-    elif [[ "\$_prev" == "--data" ]]; then
+    elif [[ "\$_prev" == "--data" || "\$_prev" == "--data-binary" ]]; then
         _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
     fi
     _prev="\$_arg"
@@ -735,7 +735,7 @@ _prev=""
 for _arg in "\$@"; do
     if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
         _body="\$_arg"
-    elif [[ "\$_prev" == "--data" ]]; then
+    elif [[ "\$_prev" == "--data" || "\$_prev" == "--data-binary" ]]; then
         _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
     fi
     _prev="\$_arg"
@@ -976,7 +976,7 @@ prev=""
 for i in "\$@"; do
     if [[ "\$prev" == "--data-raw" || "\$prev" == "-d" ]]; then
         printf '%s\n---CURL_CALL---\n' "\$i" >> "${CURL_CALL_LOG}"
-    elif [[ "\$prev" == "--data" ]]; then
+    elif [[ "\$prev" == "--data" || "\$prev" == "--data-binary" ]]; then
         _src="\${i#@}"; [[ "\$_src" != "\$i" && -f "\$_src" ]] && printf '%s\n---CURL_CALL---\n' "\$(cat "\$_src")" >> "${CURL_CALL_LOG}" || printf '%s\n---CURL_CALL---\n' "\$i" >> "${CURL_CALL_LOG}"
     fi
     prev="\$i"
@@ -1055,7 +1055,7 @@ prev=""
 for i in "\$@"; do
     if [[ "\$prev" == "--data-raw" || "\$prev" == "-d" ]]; then
         printf '%s\n---CURL_CALL---\n' "\$i" >> "${CURL_CALL_LOG_PERF}"
-    elif [[ "\$prev" == "--data" ]]; then
+    elif [[ "\$prev" == "--data" || "\$prev" == "--data-binary" ]]; then
         _src="\${i#@}"; [[ "\$_src" != "\$i" && -f "\$_src" ]] && printf '%s\n---CURL_CALL---\n' "\$(cat "\$_src")" >> "${CURL_CALL_LOG_PERF}" || printf '%s\n---CURL_CALL---\n' "\$i" >> "${CURL_CALL_LOG_PERF}"
     fi
     prev="\$i"
@@ -1130,7 +1130,7 @@ prev=""
 for i in "\$@"; do
     if [[ "\$prev" == "--data-raw" || "\$prev" == "-d" ]]; then
         printf '%s\n---CURL_CALL---\n' "\$i" >> "${CURL_CALL_LOG_NONE}"
-    elif [[ "\$prev" == "--data" ]]; then
+    elif [[ "\$prev" == "--data" || "\$prev" == "--data-binary" ]]; then
         _src="\${i#@}"; [[ "\$_src" != "\$i" && -f "\$_src" ]] && printf '%s\n---CURL_CALL---\n' "\$(cat "\$_src")" >> "${CURL_CALL_LOG_NONE}" || printf '%s\n---CURL_CALL---\n' "\$i" >> "${CURL_CALL_LOG_NONE}"
     fi
     prev="\$i"
@@ -1203,7 +1203,7 @@ _prev=""
 for _arg in "\$@"; do
     if [[ "\$_prev" == "--data-raw" || "\$_prev" == "-d" ]]; then
         _body="\$_arg"
-    elif [[ "\$_prev" == "--data" ]]; then
+    elif [[ "\$_prev" == "--data" || "\$_prev" == "--data-binary" ]]; then
         _src="\${_arg#@}"; [[ "\$_src" != "\$_arg" && -f "\$_src" ]] && _body="\$(cat "\$_src")" || _body="\$_arg"
     fi
     _prev="\$_arg"
@@ -1310,7 +1310,7 @@ _prev=""
 for _arg in "$@"; do
     if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
         _body="$_arg"
-    elif [[ "$_prev" == "--data" ]]; then
+    elif [[ "$_prev" == "--data" || "$_prev" == "--data-binary" ]]; then
         _src="${_arg#@}"; [[ "$_src" != "$_arg" && -f "$_src" ]] && _body="$(cat "$_src")" || _body="$_arg"
     fi
     _prev="$_arg"
@@ -1420,7 +1420,7 @@ _prev=""
 for _arg in "$@"; do
     if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
         _body="$_arg"
-    elif [[ "$_prev" == "--data" ]]; then
+    elif [[ "$_prev" == "--data" || "$_prev" == "--data-binary" ]]; then
         _src="${_arg#@}"; [[ "$_src" != "$_arg" && -f "$_src" ]] && _body="$(cat "$_src")" || _body="$_arg"
     fi
     _prev="$_arg"
@@ -1520,7 +1520,7 @@ _prev=""
 for _arg in "$@"; do
     if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
         _body="$_arg"
-    elif [[ "$_prev" == "--data" ]]; then
+    elif [[ "$_prev" == "--data" || "$_prev" == "--data-binary" ]]; then
         _src="${_arg#@}"; [[ "$_src" != "$_arg" && -f "$_src" ]] && _body="$(cat "$_src")" || _body="$_arg"
     fi
     _prev="$_arg"
@@ -1704,7 +1704,7 @@ _prev=""
 for _arg in "$@"; do
     if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
         _body="$_arg"
-    elif [[ "$_prev" == "--data" ]]; then
+    elif [[ "$_prev" == "--data" || "$_prev" == "--data-binary" ]]; then
         _src="${_arg#@}"; [[ "$_src" != "$_arg" && -f "$_src" ]] && _body="$(cat "$_src")" || _body="$_arg"
     fi
     _prev="$_arg"
@@ -2101,7 +2101,7 @@ _prev=""
 for _arg in "$@"; do
     if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
         _body="$_arg"
-    elif [[ "$_prev" == "--data" ]]; then
+    elif [[ "$_prev" == "--data" || "$_prev" == "--data-binary" ]]; then
         _src="${_arg#@}"; [[ "$_src" != "$_arg" && -f "$_src" ]] && _body="$(cat "$_src")" || _body="$_arg"
     fi
     _prev="$_arg"

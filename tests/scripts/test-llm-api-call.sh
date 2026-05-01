@@ -74,7 +74,7 @@ prev=""
 for i in "\$@"; do
     if [[ "\$prev" == "--data-raw" || "\$prev" == "-d" ]]; then
         printf '%s' "\$i" > "${body_file}"
-    elif [[ "\$prev" == "--data" ]]; then
+    elif [[ "\$prev" == "--data" || "\$prev" == "--data-binary" ]]; then
         _src="\${i#@}"
         if [[ "\$_src" != "\$i" && -f "\$_src" ]]; then
             cp "\$_src" "${body_file}"

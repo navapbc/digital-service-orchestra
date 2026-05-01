@@ -86,17 +86,18 @@ SYSTEM_PROMPT="${SYSTEM_PROMPT}${CI_MODE_SUFFIX}"
 # Use environment variables to safely pass values into python3 (avoids shell injection
 # in the heredoc and handles special characters in system prompt and user message).
 _MSG_TMP=$(mktemp /tmp/llm-api-call-msg.XXXXXX)
+_REQUEST_TMP=$(mktemp /tmp/llm-api-call-req.XXXXXX)
 _RESPONSE_TMP=$(mktemp /tmp/llm-api-call-resp.XXXXXX)
 # shellcheck disable=SC2064
-trap "rm -f '$_MSG_TMP' '$_RESPONSE_TMP'" EXIT
+trap "rm -f '$_MSG_TMP' '$_REQUEST_TMP' '$_RESPONSE_TMP'" EXIT
 if [[ "$USER_MESSAGE" == @* ]]; then
     cat "${USER_MESSAGE#@}" > "$_MSG_TMP"
 else
     printf '%s' "$USER_MESSAGE" > "$_MSG_TMP"
 fi
 
-REQUEST_JSON=$(DSO_SYSTEM="$SYSTEM_PROMPT" DSO_MSG_FILE="$_MSG_TMP" \
-    DSO_PROVIDER="$PROVIDER" DSO_MODEL="$MODEL_ID" python3 - <<'PYEOF'
+DSO_SYSTEM="$SYSTEM_PROMPT" DSO_MSG_FILE="$_MSG_TMP" \
+    DSO_PROVIDER="$PROVIDER" DSO_MODEL="$MODEL_ID" python3 - <<'PYEOF' > "$_REQUEST_TMP"
 import json, os
 with open(os.environ['DSO_MSG_FILE']) as f:
     user_message = f.read()
@@ -123,10 +124,10 @@ else:
     }
 print(json.dumps(body))
 PYEOF
-)
-rm -f "$_MSG_TMP"
 
 # ── Execute curl and handle errors ────────────────────────────────────────────
+# Use --data-binary @file to avoid MAX_ARG_STRLEN (128KB) per-argument limit on
+# Linux when the diff + system prompt produce a large JSON request body.
 
 _CURL_EXIT=0
 if [[ "$PROVIDER" == "anthropic" ]]; then
@@ -134,13 +135,13 @@ if [[ "$PROVIDER" == "anthropic" ]]; then
         -H "x-api-key: $ANTHROPIC_API_KEY" \
         -H "anthropic-version: 2023-06-01" \
         -H "content-type: application/json" \
-        --data-raw "$REQUEST_JSON" \
+        --data-binary "@${_REQUEST_TMP}" \
         "https://api.anthropic.com/v1/messages" > "$_RESPONSE_TMP" 2>/dev/null || _CURL_EXIT=$?
 else
     curl -s -f --connect-timeout 10 --max-time 120 \
         -H "Authorization: Bearer $OPENAI_API_KEY" \
         -H "content-type: application/json" \
-        --data-raw "$REQUEST_JSON" \
+        --data-binary "@${_REQUEST_TMP}" \
         "https://api.openai.com/v1/chat/completions" > "$_RESPONSE_TMP" 2>/dev/null || _CURL_EXIT=$?
 fi
 
