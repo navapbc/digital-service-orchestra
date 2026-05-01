@@ -30,6 +30,10 @@ fi
 # Fast path: no duplicates → exit 0 without rewriting the file.
 # Check for both source-key duplicates and within-line marker-only duplicates.
 _dups=$(awk -F: '/^[^#]/ && NF>=2 { print $1 }' "$INDEX_FILE" | sort | uniq -d)
+# python3 failure must NOT silently shortcut to exit 0 — capture the exit code
+# explicitly and fall through to the slow auto-union path on detector error,
+# which has its own explicit python3 error handling.
+_marker_dups_exit=0
 _marker_dups=$(awk '/^[^#].*:/' "$INDEX_FILE" | python3 -c "
 import sys, re
 for line in sys.stdin:
@@ -47,8 +51,8 @@ for line in sys.stdin:
             print(line)
             break
         seen.add(base)
-" 2>/dev/null)
-if [[ -z "$_dups" && -z "$_marker_dups" ]]; then
+" 2>/dev/null) || _marker_dups_exit=$?
+if [[ -z "$_dups" && -z "$_marker_dups" && "$_marker_dups_exit" -eq 0 ]]; then
     exit 0
 fi
 

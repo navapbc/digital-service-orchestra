@@ -202,7 +202,7 @@ if [[ -n "$_worktree_merge_base" ]]; then
     _changed_files=$(git diff --name-only "$_worktree_merge_base" "$WORKTREE_BRANCH" 2>/dev/null || true)
     if [[ -n "$_changed_files" ]]; then
         _skip_review_exit=0
-        echo "$_changed_files" | bash "$_PLUGIN_ROOT_HW/scripts/skip-review-check.sh" \
+        printf '%s\n' "$_changed_files" | bash "$_PLUGIN_ROOT_HW/scripts/skip-review-check.sh" \
             2>/dev/null || _skip_review_exit=$?
         if [[ "$_skip_review_exit" -eq 0 ]]; then
             _skip_review=true
