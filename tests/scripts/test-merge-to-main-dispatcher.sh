@@ -14,7 +14,7 @@
 #
 # Usage: bash tests/scripts/test-merge-to-main-dispatcher.sh
 
-set -euo pipefail
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
