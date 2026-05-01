@@ -592,7 +592,7 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
    The skill handles epic type detection and runs inline (no sub-agent dispatch needed).
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. **Your next action is step 3: parse the STATUS output and continue.**
    </ORCHESTRATOR_RESUME>
 
 3. Parse the skill's output using the same STATUS protocol as Phase 2's Implementation Planning Gate
@@ -610,7 +610,7 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 - Invoke `/dso:implementation-plan` via Skill tool (same as Step 3a, step 2)
 
   <ORCHESTRATOR_RESUME>
-  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary.
+  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. **Your next action is: set `epic_routing = "MODERATE"` and continue to Phase 2.**
   </ORCHESTRATOR_RESUME>
 
 - Set `epic_routing = "MODERATE"`
@@ -808,10 +808,10 @@ b. For each story in the layer, invoke `/dso:implementation-plan` via Skill tool
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. You have more stories to process in this layer.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. **Your next action is step c: parse the STATUS line and continue.** Do not wait for user input.
    </ORCHESTRATOR_RESUME>
 
-   **POST-RETURN CONTINUATION (executes after Skill tool result above):** The skill has returned. You are still the sprint orchestrator inside the layer loop. Execute step c immediately — do not stop.
+   **POST-RETURN CONTINUATION (executes after Skill tool result above):** The skill has returned. You are still the sprint orchestrator inside the layer loop. Your immediate next action is **step c** — parse the STATUS line from the skill output and take the corresponding action. Do not stop, do not ask the user, do not wait.
 
 c. For each skill result, **parse STATUS:**
    - On `STATUS:complete TASKS:<ids> STORY:<id>`:
