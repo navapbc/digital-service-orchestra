@@ -57,6 +57,13 @@ if [[ -z "$(printf '%s' "$DIFF_CONTENT" | tr -d '[:space:]')" ]]; then
   exit 0
 fi
 
+# Write diff message to temp files to avoid ARG_MAX limits on large diffs.
+_DIFF_TMP=$(mktemp /tmp/ci-review-diff.XXXXXX)
+_ARCH_TMP=$(mktemp /tmp/ci-review-arch-msg.XXXXXX)
+# shellcheck disable=SC2064
+trap "rm -f '$_DIFF_TMP' '$_ARCH_TMP'" EXIT
+printf 'Review this diff:\n\n%s' "$DIFF_CONTENT" > "$_DIFF_TMP"
+
 CLASSIFIER_JSON=$(printf '%s\n' "$DIFF_CONTENT" | bash "$(command -v review-complexity-classifier.sh)")
 SELECTED_TIER=$(printf '%s\n' "$CLASSIFIER_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['selected_tier'])")
 SIZE_ACTION=$(printf '%s\n' "$CLASSIFIER_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('size_action','none'))")
@@ -95,7 +102,7 @@ printf 'security_overlay=%s\nperformance_overlay=%s\ntest_quality_overlay=%s\n' 
 _run_overlay_llm() {
   local _agent_file="$1" _slot_file="$2"
   bash "$(command -v llm-api-call.sh)" "$_agent_file" \
-    "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_slot_file" || true
+    "@${_DIFF_TMP}" "deep" > "$_slot_file" || true
 }
 
 REVIEW_TIER="$SELECTED_TIER"
@@ -107,7 +114,7 @@ case "$SELECTED_TIER" in
 
     # Launch tier and overlays concurrently.
     bash "$(command -v llm-api-call.sh)" "$AGENT_FILE" \
-      "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "$SELECTED_TIER" > "$_TIER_SLOT" &
+      "@${_DIFF_TMP}" "$SELECTED_TIER" > "$_TIER_SLOT" &
     _ALL_PIDS+=($!)
 
     [[ "$_SEC"  == "true" ]] && {
@@ -154,15 +161,15 @@ json.loads(t); print(t)
     # Launch 3 specialists and all overlays concurrently; single wait for all.
     _ALL_DEEP_PIDS=()
     bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-correctness.md" \
-      "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_SLOT_CORRECTNESS" &
+      "@${_DIFF_TMP}" "deep" > "$_SLOT_CORRECTNESS" &
     _ALL_DEEP_PIDS+=($!)
 
     bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-verification.md" \
-      "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_SLOT_VERIFICATION" &
+      "@${_DIFF_TMP}" "deep" > "$_SLOT_VERIFICATION" &
     _ALL_DEEP_PIDS+=($!)
 
     bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-hygiene.md" \
-      "$(printf 'Review this diff:\n\n%s' "$DIFF_CONTENT")" "deep" > "$_SLOT_HYGIENE" &
+      "@${_DIFF_TMP}" "deep" > "$_SLOT_HYGIENE" &
     _ALL_DEEP_PIDS+=($!)
 
     [[ "$_SEC"  == "true" ]] && {
@@ -219,9 +226,10 @@ ${_SLOT_H_JSON}
 
 Diff under review:
 ${DIFF_CONTENT}"
+    printf '%s' "$_ARCH_USER_MSG" > "$_ARCH_TMP"
 
     _ARCH_RESP=$(bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-arch.md" \
-      "$_ARCH_USER_MSG" "deep")
+      "@${_ARCH_TMP}" "deep")
     FINDINGS_JSON=$(printf '%s' "$_ARCH_RESP" | python3 -c "
 import json,sys; t=sys.stdin.read().strip()
 if not t: raise ValueError('empty')

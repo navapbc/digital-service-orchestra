@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2030,SC2031  # PATH/env modifications in subshells are intentional test isolation
 # tests/scripts/test-llm-api-call.sh
-# RED-phase behavioral tests for plugins/dso/scripts/llm-api-call.sh
-# (not yet implemented — all tests must FAIL until the implementation is created).
+# Behavioral tests for plugins/dso/scripts/llm-api-call.sh
+# Verifies request construction, response normalization, and error handling.
 #
 # Tests covered:
 #   1. test_anthropic_constructs_correct_headers       — curl args contain x-api-key and anthropic-version headers

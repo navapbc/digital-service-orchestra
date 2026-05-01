@@ -59,8 +59,8 @@ _SKIP_REASONS=()
 if ! gh auth status &>/dev/null; then
     _SKIP_REASONS+=("gh auth not configured")
 fi
-if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
-    _SKIP_REASONS+=("ANTHROPIC_API_KEY not set")
+if [[ -z "${ANTHROPIC_API_KEY:-}" && -z "${OPENAI_API_KEY:-}" ]]; then
+    _SKIP_REASONS+=("neither ANTHROPIC_API_KEY nor OPENAI_API_KEY is set")
 fi
 if [[ "${#_SKIP_REASONS[@]}" -gt 0 ]]; then
     for _reason in "${_SKIP_REASONS[@]}"; do

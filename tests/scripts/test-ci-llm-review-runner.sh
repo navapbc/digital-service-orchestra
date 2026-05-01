@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2030,SC2031  # PATH/env modifications in subshells are intentional test isolation
 # tests/scripts/test-ci-llm-review-runner.sh
-# RED-phase behavioral tests for plugins/dso/scripts/ci-llm-review-runner.sh
-# (not yet implemented — all tests must FAIL until the runner is created).
+# Behavioral tests for plugins/dso/scripts/ci-llm-review-runner.sh
+# Covers: empty-diff short-circuit, flag parsing, tier routing, overlay dispatch, and merge behavior.
 #
 # Tests covered:
 #   1. test_runner_rejects_missing_api_key          — exits 1 when ANTHROPIC_API_KEY is empty
@@ -106,6 +106,23 @@ MOCKEOF
     chmod +x "$mock_dir/llm-api-call.sh"
 }
 
+# ── Helper: wrap real llm-api-call.sh with forced anthropic config ─────────────
+# Use in tests that mock curl (expecting Anthropic request format). Ensures the
+# real llm-api-call.sh uses provider=anthropic regardless of project dso-config.conf.
+_add_anthropic_llm_wrapper() {
+    local mock_dir="$1"
+    local _wrap_conf_dir
+    _wrap_conf_dir=$(mktemp -d)
+    printf 'model.provider=anthropic\nmodel.light=claude-haiku-4-5-20251001\nmodel.standard=claude-sonnet-4-6\nmodel.deep=claude-opus-4-6\n' \
+        > "$_wrap_conf_dir/dso-config.conf"
+    local _real_llm="$REPO_ROOT/plugins/dso/scripts/llm-api-call.sh"
+    cat > "$mock_dir/llm-api-call.sh" <<MOCKEOF
+#!/usr/bin/env bash
+exec bash "$_real_llm" "\$1" "\$2" "\$3" "$_wrap_conf_dir/dso-config.conf"
+MOCKEOF
+    chmod +x "$mock_dir/llm-api-call.sh"
+}
+
 echo "=== test-ci-llm-review-runner.sh ==="
 
 # ── test_runner_exits_zero_on_empty_diff_regardless_of_api_key ───────────────
@@ -180,6 +197,7 @@ cat > /dev/null  # consume stdin
 printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
 MOCKEOF
 chmod +x "$MOCK4/review-complexity-classifier.sh"
+_add_anthropic_llm_wrapper "$MOCK4"
 
 api_system_exit=0
 (
@@ -657,6 +675,7 @@ mkdir -p "$ARTIFACTS13"
 printf 'passed\n' > "${ARTIFACTS13}/review-status"
 MOCKEOF
 chmod +x "$MOCK13/record-review.sh"
+_add_anthropic_llm_wrapper "$MOCK13"
 
 deep_dispatch_exit=0
 (
@@ -772,6 +791,7 @@ mkdir -p "$ARTIFACTS14"
 printf 'passed\n' > "${ARTIFACTS14}/review-status"
 MOCKEOF
 chmod +x "$MOCK14/record-review.sh"
+_add_anthropic_llm_wrapper "$MOCK14"
 
 arch_exit=0
 (
@@ -1319,6 +1339,7 @@ mkdir -p "${ARTIFACTS_MERGE_SEC}"
 printf 'passed\n' > "${ARTIFACTS_MERGE_SEC}/review-status"
 MOCKEOF
 chmod +x "$MOCK_MERGE_SEC/record-review.sh"
+_add_anthropic_llm_wrapper "$MOCK_MERGE_SEC"
 
 # Pre-populate overlay-flags.env so the runner reads security_overlay=true
 mkdir -p "$ARTIFACTS_MERGE_SEC"
@@ -1425,6 +1446,7 @@ mkdir -p "${ARTIFACTS_MERGE_PERF}"
 printf 'passed\n' > "${ARTIFACTS_MERGE_PERF}/review-status"
 MOCKEOF
 chmod +x "$MOCK_MERGE_PERF/record-review.sh"
+_add_anthropic_llm_wrapper "$MOCK_MERGE_PERF"
 
 mkdir -p "$ARTIFACTS_MERGE_PERF"
 printf 'security_overlay=false\nperformance_overlay=true\ntest_quality_overlay=false\n' \
@@ -1524,6 +1546,7 @@ mkdir -p "${ARTIFACTS_MERGE_TQ}"
 printf 'passed\n' > "${ARTIFACTS_MERGE_TQ}/review-status"
 MOCKEOF
 chmod +x "$MOCK_MERGE_TQ/record-review.sh"
+_add_anthropic_llm_wrapper "$MOCK_MERGE_TQ"
 
 mkdir -p "$ARTIFACTS_MERGE_TQ"
 printf 'security_overlay=false\nperformance_overlay=false\ntest_quality_overlay=true\n' \
@@ -1610,6 +1633,7 @@ mkdir -p "${ARTIFACTS_MERGE_NONE}"
 printf 'passed\n' > "${ARTIFACTS_MERGE_NONE}/review-status"
 MOCKEOF
 chmod +x "$MOCK_MERGE_NONE/record-review.sh"
+_add_anthropic_llm_wrapper "$MOCK_MERGE_NONE"
 
 # No overlay-flags.env pre-populated; classifier outputs all-false
 merge_none_exit=0
@@ -1714,6 +1738,7 @@ mkdir -p "${ARTIFACTS_FENCE}"
 printf 'passed\n' > "${ARTIFACTS_FENCE}/review-status"
 MOCKEOF
 chmod +x "$MOCK_FENCE/record-review.sh"
+_add_anthropic_llm_wrapper "$MOCK_FENCE"
 
 mkdir -p "$ARTIFACTS_FENCE"
 
@@ -2123,6 +2148,7 @@ else
 fi
 MOCKEOF
 chmod +x "$MOCK_CRIT/record-review.sh"
+_add_anthropic_llm_wrapper "$MOCK_CRIT"
 
 mkdir -p "$ARTIFACTS_CRIT"
 
@@ -2167,7 +2193,6 @@ assert_pass_if_clean "test_overlay_critical_finding_overrides_inconclusive_tier"
 
 # ── test_runner_resolves_llm_api_call_via_path ────────────────────────────────
 # Behavioral: when llm-api-call.sh is on PATH, runner invokes it at least once.
-# FAILS on current runner since runner calls curl directly, not llm-api-call.sh.
 _snapshot_fail
 _llmcall_mock_dir=$(mktemp -d)
 _llmcall_counter=$(mktemp)
@@ -2214,7 +2239,6 @@ assert_pass_if_clean "test_runner_resolves_llm_api_call_via_path"
 
 # ── test_runner_delegates_light_path_with_light_tier ─────────────────────────
 # Behavioral: for light tier, llm-api-call.sh is invoked with tier arg "light".
-# FAILS on current runner (RED state).
 _snapshot_fail
 _light_mock_dir=$(mktemp -d)
 _light_counter=$(mktemp)
@@ -2262,7 +2286,6 @@ assert_pass_if_clean "test_runner_delegates_light_path_with_light_tier"
 
 # ── test_runner_delegates_standard_path_with_standard_tier ───────────────────
 # Behavioral: for standard tier, llm-api-call.sh is invoked with tier arg "standard".
-# FAILS on current runner (RED state).
 _snapshot_fail
 _std_mock_dir=$(mktemp -d)
 _std_counter=$(mktemp)
@@ -2309,7 +2332,6 @@ assert_pass_if_clean "test_runner_delegates_standard_path_with_standard_tier"
 
 # ── test_runner_delegates_deep_specialists_with_deep_tier ─────────────────────
 # Behavioral: for deep tier, llm-api-call.sh is invoked with tier arg "deep".
-# FAILS on current runner (RED state).
 _snapshot_fail
 _deep_mock_dir=$(mktemp -d)
 _deep_counter=$(mktemp)
@@ -2379,7 +2401,6 @@ assert_pass_if_clean "test_runner_delegates_deep_specialists_with_deep_tier"
 
 # ── test_runner_fail_open_when_llm_helper_returns_empty ───────────────────────
 # Behavioral: when llm-api-call.sh returns empty string, runner exits 0 (fail-open).
-# FAILS on current runner since runner does not delegate to llm-api-call.sh.
 _snapshot_fail
 _empty_resp_mock_dir=$(mktemp -d)
 _empty_resp_artifacts=$(mktemp -d)
@@ -2425,7 +2446,6 @@ assert_pass_if_clean "test_runner_fail_open_when_llm_helper_returns_empty"
 
 # ── test_runner_fail_open_when_llm_response_not_valid_json ────────────────────
 # Behavioral: when llm-api-call.sh returns non-JSON, runner exits 0 (fail-open).
-# FAILS on current runner since it does not delegate to llm-api-call.sh.
 _snapshot_fail
 _bad_json_mock_dir=$(mktemp -d)
 _bad_json_artifacts=$(mktemp -d)
@@ -2471,7 +2491,6 @@ assert_pass_if_clean "test_runner_fail_open_when_llm_response_not_valid_json"
 # ── test_runner_fail_open_when_llm_helper_exits_nonzero ───────────────────────
 # Behavioral: when llm-api-call.sh exits 1, runner still exits 0 (fail-open
 # for inconclusive review). The runner uses `|| LLM_TEXT=""` pattern.
-# FAILS on current runner since it does not delegate to llm-api-call.sh.
 _snapshot_fail
 _fail_helper_mock_dir=$(mktemp -d)
 _fail_helper_artifacts=$(mktemp -d)
@@ -2519,7 +2538,6 @@ assert_pass_if_clean "test_runner_fail_open_when_llm_helper_exits_nonzero"
 # ── test_runner_integration_llm_api_call_mocked ───────────────────────────────
 # Integration: runner with llm-api-call.sh mock exits 0 and writes reviewer-findings.json
 # with all 5 dimension scores as numeric values >= 0.
-# FAILS on current runner since it does not delegate to llm-api-call.sh.
 _snapshot_fail
 _integ_mock_dir=$(mktemp -d)
 _integ_artifacts=$(mktemp -d)

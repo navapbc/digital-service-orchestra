@@ -89,7 +89,11 @@ _MSG_TMP=$(mktemp /tmp/llm-api-call-msg.XXXXXX)
 _RESPONSE_TMP=$(mktemp /tmp/llm-api-call-resp.XXXXXX)
 # shellcheck disable=SC2064
 trap "rm -f '$_MSG_TMP' '$_RESPONSE_TMP'" EXIT
-printf '%s' "$USER_MESSAGE" > "$_MSG_TMP"
+if [[ "$USER_MESSAGE" == @* ]]; then
+    cat "${USER_MESSAGE#@}" > "$_MSG_TMP"
+else
+    printf '%s' "$USER_MESSAGE" > "$_MSG_TMP"
+fi
 
 REQUEST_JSON=$(DSO_SYSTEM="$SYSTEM_PROMPT" DSO_MSG_FILE="$_MSG_TMP" \
     DSO_PROVIDER="$PROVIDER" DSO_MODEL="$MODEL_ID" python3 - <<'PYEOF'
@@ -126,14 +130,14 @@ rm -f "$_MSG_TMP"
 
 _CURL_EXIT=0
 if [[ "$PROVIDER" == "anthropic" ]]; then
-    curl -s -f \
+    curl -s -f --connect-timeout 10 --max-time 120 \
         -H "x-api-key: $ANTHROPIC_API_KEY" \
         -H "anthropic-version: 2023-06-01" \
         -H "content-type: application/json" \
         --data-raw "$REQUEST_JSON" \
         "https://api.anthropic.com/v1/messages" > "$_RESPONSE_TMP" 2>/dev/null || _CURL_EXIT=$?
 else
-    curl -s -f \
+    curl -s -f --connect-timeout 10 --max-time 120 \
         -H "Authorization: Bearer $OPENAI_API_KEY" \
         -H "content-type: application/json" \
         --data-raw "$REQUEST_JSON" \
