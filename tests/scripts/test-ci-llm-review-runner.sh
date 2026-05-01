@@ -578,12 +578,12 @@ printf '0' > "$CURL_COUNT_FILE"
 # Specialist slot response — valid reviewer-findings JSON
 _SLOT_JSON='{"scores":{"correctness":4,"verification":4,"hygiene":4,"design":4,"maintainability":4},"summary":"Specialist OK","findings":[]}'
 
-# Mock curl: count calls; write a slot file named after the agent being invoked
-# (The runner passes --data @file with a body referencing the agent file).
-# For each call, write the appropriate slot file and increment the counter.
+# Mock curl: count specialist calls and return an Anthropic API response envelope.
+# The production code's _run_specialist_curl helper extracts the text from the
+# envelope and writes the slot file — the mock must NOT write slot files directly.
 cat > "$MOCK13/curl" <<MOCKEOF
 #!/usr/bin/env bash
-# Detect which specialist this call is for by scanning --data-raw body for agent file path
+# Detect which specialist this call is for by scanning --data body for agent file path
 _body=""
 _prev=""
 for _arg in "\$@"; do
@@ -597,20 +597,21 @@ done
 
 _slot_json='${_SLOT_JSON}'
 
-# Count and handle specialist calls only (not the arch synthesis call)
+# Count specialist calls only (not the arch synthesis call); return an API response
+# envelope so _run_specialist_curl can extract + write the slot file.
 if printf '%s' "\$_body" | grep -q "code-reviewer-deep-correctness"; then
     _count=\$(cat "${CURL_COUNT_FILE}"); _count=\$((_count + 1)); printf '%s' "\$_count" > "${CURL_COUNT_FILE}"
-    printf '%s\n' "\$_slot_json" > "${ARTIFACTS13}/reviewer-findings-correctness.json"
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot_json" | sed 's/"/\\\\"/g')"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-verification"; then
     _count=\$(cat "${CURL_COUNT_FILE}"); _count=\$((_count + 1)); printf '%s' "\$_count" > "${CURL_COUNT_FILE}"
-    printf '%s\n' "\$_slot_json" > "${ARTIFACTS13}/reviewer-findings-verification.json"
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot_json" | sed 's/"/\\\\"/g')"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
     _count=\$(cat "${CURL_COUNT_FILE}"); _count=\$((_count + 1)); printf '%s' "\$_count" > "${CURL_COUNT_FILE}"
-    printf '%s\n' "\$_slot_json" > "${ARTIFACTS13}/reviewer-findings-hygiene.json"
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot_json" | sed 's/"/\\\\"/g')"
+else
+    # Arch synthesis call — return a valid envelope too
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot_json" | sed 's/"/\\\\"/g')"
 fi
-
-# Return a minimal valid API response for every call
-printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot_json" | sed 's/"/\\\\"/g')"
 MOCKEOF
 chmod +x "$MOCK13/curl"
 
@@ -676,8 +677,9 @@ printf '0' > "$CURL_COUNT14"
 _SLOT14='{"scores":{"correctness":4,"verification":4,"hygiene":4,"design":4,"maintainability":4},"summary":"Specialist OK","findings":[]}'
 _ARCH14='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"Arch synthesis complete","findings":[]}'
 
-# Mock curl: count calls; write slot files for specialist agents; write final
-# reviewer-findings.json when the arch agent body is detected
+# Mock curl: count calls; return API response envelopes so _run_specialist_curl
+# can extract and write the slot files. The arch call returns the arch JSON.
+# Mock does NOT write slot files directly — production code handles that.
 cat > "$MOCK14/curl" <<MOCKEOF
 #!/usr/bin/env bash
 _count=\$(cat "${CURL_COUNT14}")
@@ -699,19 +701,15 @@ _slot='${_SLOT14}'
 _arch='${_ARCH14}'
 
 if printf '%s' "\$_body" | grep -q "code-reviewer-deep-correctness"; then
-    printf '%s\n' "\$_slot" > "${ARTIFACTS14}/reviewer-findings-correctness.json"
-    printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-verification"; then
-    printf '%s\n' "\$_slot" > "${ARTIFACTS14}/reviewer-findings-verification.json"
-    printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
-    printf '%s\n' "\$_slot" > "${ARTIFACTS14}/reviewer-findings-hygiene.json"
-    printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-arch"; then
-    printf '%s\n' "\$_arch" > "${ARTIFACTS14}/reviewer-findings.json"
-    printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' "\$(printf '%s' "\$_arch" | sed 's/"/\\\\"/g')"
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_arch" | sed 's/"/\\\\"/g')"
 else
-    printf '{"content":[{"text":"{\"scores\":{},\"summary\":\"fallback\",\"findings\":[]}"}],"stop_reason":"end_turn"}'
+    printf '{"content":[{"type":"text","text":"{\"scores\":{},\"summary\":\"fallback\",\"findings\":[]}"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}'
 fi
 MOCKEOF
 chmod +x "$MOCK14/curl"
@@ -725,15 +723,11 @@ chmod +x "$MOCK14/review-complexity-classifier.sh"
 
 cat > "$MOCK14/write-reviewer-findings.sh" <<MOCKEOF
 #!/usr/bin/env bash
-# Read the pre-written reviewer-findings.json placed by arch mock curl above
+# Write the canonical reviewer-findings.json from stdin (FINDINGS_JSON piped by runner)
 # and return its hash — mimics what the real script does
-cat > /dev/null
-if [[ -f "${ARTIFACTS14}/reviewer-findings.json" ]]; then
-    sha256sum "${ARTIFACTS14}/reviewer-findings.json" 2>/dev/null | cut -d' ' -f1 \
-      || shasum -a 256 "${ARTIFACTS14}/reviewer-findings.json" | cut -d' ' -f1
-else
-    printf '%064x\n' 0
-fi
+tee "${ARTIFACTS14}/reviewer-findings.json" > /dev/null
+sha256sum "${ARTIFACTS14}/reviewer-findings.json" 2>/dev/null | cut -d' ' -f1 \
+  || shasum -a 256 "${ARTIFACTS14}/reviewer-findings.json" | cut -d' ' -f1
 MOCKEOF
 chmod +x "$MOCK14/write-reviewer-findings.sh"
 
@@ -785,7 +779,8 @@ _TEST_TMPDIRS+=("$ARTIFACTS15")
 
 _SLOT15='{"scores":{"correctness":4,"verification":4,"hygiene":4,"design":4,"maintainability":4},"summary":"Specialist OK","findings":[]}'
 
-# Mock curl that only writes correctness + verification — hygiene slot is intentionally omitted
+# Mock curl: returns API envelopes for correctness + verification; exits non-zero
+# for hygiene to simulate a specialist failure (slot file never written).
 cat > "$MOCK15/curl" <<MOCKEOF
 #!/usr/bin/env bash
 _body=""
@@ -802,13 +797,16 @@ done
 _slot='${_SLOT15}'
 
 if printf '%s' "\$_body" | grep -q "code-reviewer-deep-correctness"; then
-    printf '%s\n' "\$_slot" > "${ARTIFACTS15}/reviewer-findings-correctness.json"
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-verification"; then
-    printf '%s\n' "\$_slot" > "${ARTIFACTS15}/reviewer-findings-verification.json"
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
+elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
+    # Simulate curl failure for hygiene — exit non-zero so _run_specialist_curl fails
+    # and the hygiene slot file is never written
+    exit 1
 fi
-# Intentionally do NOT write hygiene slot file
-
-printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
+# Intentionally do NOT handle hygiene — slot file never written
+printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
 MOCKEOF
 chmod +x "$MOCK15/curl"
 
@@ -856,7 +854,9 @@ _TEST_TMPDIRS+=("$ARTIFACTS16")
 
 _SLOT16='{"scores":{"correctness":4,"verification":4,"hygiene":4,"design":4,"maintainability":4},"summary":"Specialist OK","findings":[]}'
 
-# Mock curl: writes valid JSON for correctness and verification, but invalid JSON for hygiene
+# Mock curl: returns valid API envelopes for correctness + verification, but returns
+# an envelope with invalid (non-JSON) text for hygiene so _run_specialist_curl
+# writes invalid JSON to the slot file (which triggers the fail-closed check).
 cat > "$MOCK16/curl" <<MOCKEOF
 #!/usr/bin/env bash
 _body=""
@@ -873,15 +873,15 @@ done
 _slot='${_SLOT16}'
 
 if printf '%s' "\$_body" | grep -q "code-reviewer-deep-correctness"; then
-    printf '%s\n' "\$_slot" > "${ARTIFACTS16}/reviewer-findings-correctness.json"
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-verification"; then
-    printf '%s\n' "\$_slot" > "${ARTIFACTS16}/reviewer-findings-verification.json"
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
 elif printf '%s' "\$_body" | grep -q "code-reviewer-deep-hygiene"; then
-    # Write intentionally malformed JSON
-    printf 'NOT VALID JSON {{{' > "${ARTIFACTS16}/reviewer-findings-hygiene.json"
+    # Return envelope with intentionally malformed JSON as the text content
+    printf '{"content":[{"type":"text","text":"NOT VALID JSON {{{"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}'
+else
+    printf '{"content":[{"type":"text","text":"%s"}],"model":"claude-opus-4-7","stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
 fi
-
-printf '{"content":[{"text":"%s"}],"stop_reason":"end_turn"}' "\$(printf '%s' "\$_slot" | sed 's/"/\\\\"/g')"
 MOCKEOF
 chmod +x "$MOCK16/curl"
 

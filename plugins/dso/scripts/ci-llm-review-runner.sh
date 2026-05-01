@@ -114,47 +114,74 @@ print(json.dumps({
 PYEOF
     }
 
+    # Helper: invoke one deep-tier specialist call and extract response into a slot file.
+    # Mirrors _run_overlay_curl but serves the deep-tier specialist dispatch.
+    _run_specialist_curl() {
+        local _agent_file="$1" _slot_file="$2"
+        local _req _resp _req_tmp
+        _req=$(_build_specialist_request "$_agent_file")
+        _req_tmp=$(mktemp /tmp/dso-specialist-req.XXXXXX)
+        # shellcheck disable=SC2064
+        trap "rm -f '${_req_tmp}'" RETURN
+        printf '%s' "$_req" > "$_req_tmp"
+        _resp=$(curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
+            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            --data "@${_req_tmp}" \
+            "https://api.anthropic.com/v1/messages") || {
+            echo "ERROR: specialist curl failed for $_agent_file" >&2
+            return 1
+        }
+        DSO_SPECIALIST_RESP="$_resp" python3 - <<'PYEOF' > "$_slot_file"
+import json, sys, re, os
+data = os.environ.get('DSO_SPECIALIST_RESP', '')
+text = None
+try:
+    d = json.loads(data)
+    text = d['content'][0]['text']
+except Exception:
+    pass
+if text is None:
+    m = re.search(r'"text"\s*:\s*"([\s\S]+?)"(?=\s*\}\s*\])', data)
+    if m:
+        text = m.group(1)
+if text is None:
+    print('ERROR: Cannot extract specialist text from API response', file=sys.stderr)
+    sys.exit(1)
+text = text.strip()
+try:
+    json.loads(text)
+    print(text)
+    sys.exit(0)
+except Exception:
+    pass
+m = re.search(r'```(?:json)?\s*([\s\S]+?)```', text)
+if m:
+    try:
+        extracted = m.group(1).strip()
+        json.loads(extracted)
+        print(extracted)
+        sys.exit(0)
+    except Exception:
+        pass
+print('ERROR: Specialist response is not valid reviewer-findings JSON', file=sys.stderr)
+sys.exit(1)
+PYEOF
+    }
+
     # Step 1: dispatch 3 specialist curl calls in parallel (& + wait).
-    # Each call fires the API request; the specialist agent (or mock) is responsible for
-    # writing its slot file. In production this would be a full agent sub-process; in CI
-    # tests the mock curl writes the slot file as a side-effect.
+    # _run_specialist_curl extracts the API response and writes the slot file.
     _SPECIALIST_PIDS=()
-    _SPECIALIST_REQ_TMPS=()
-    _REQ_C=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-correctness.md")
-    _REQ_C_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_C" > "$_REQ_C_TMP"
-    _SPECIALIST_REQ_TMPS+=("$_REQ_C_TMP")
-    curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
-      -H "x-api-key: $ANTHROPIC_API_KEY" \
-      -H "anthropic-version: 2023-06-01" \
-      -H "content-type: application/json" \
-      --data @"$_REQ_C_TMP" \
-      "https://api.anthropic.com/v1/messages" > /dev/null &
-    _SPECIALIST_PIDS+=($!)
-
-    _REQ_V=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-verification.md")
-    _REQ_V_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_V" > "$_REQ_V_TMP"
-    _SPECIALIST_REQ_TMPS+=("$_REQ_V_TMP")
-    curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
-      -H "x-api-key: $ANTHROPIC_API_KEY" \
-      -H "anthropic-version: 2023-06-01" \
-      -H "content-type: application/json" \
-      --data @"$_REQ_V_TMP" \
-      "https://api.anthropic.com/v1/messages" > /dev/null &
-    _SPECIALIST_PIDS+=($!)
-
-    _REQ_H=$(_build_specialist_request "$_PLUGIN_ROOT/agents/code-reviewer-deep-hygiene.md")
-    _REQ_H_TMP=$(mktemp /tmp/dso-req.XXXXXX); printf '%s' "$_REQ_H" > "$_REQ_H_TMP"
-    _SPECIALIST_REQ_TMPS+=("$_REQ_H_TMP")
-    curl -sf -m 300 --retry 3 --retry-delay 5 --connect-timeout 10 \
-      -H "x-api-key: $ANTHROPIC_API_KEY" \
-      -H "anthropic-version: 2023-06-01" \
-      -H "content-type: application/json" \
-      --data @"$_REQ_H_TMP" \
-      "https://api.anthropic.com/v1/messages" > /dev/null &
-    _SPECIALIST_PIDS+=($!)
-
-    for _pid in "${_SPECIALIST_PIDS[@]}"; do wait "$_pid"; done
-    rm -f "${_SPECIALIST_REQ_TMPS[@]}"
+    _run_specialist_curl "$_PLUGIN_ROOT/agents/code-reviewer-deep-correctness.md"  "$_SLOT_CORRECTNESS"  & _SPECIALIST_PIDS+=($!)
+    _run_specialist_curl "$_PLUGIN_ROOT/agents/code-reviewer-deep-verification.md" "$_SLOT_VERIFICATION" & _SPECIALIST_PIDS+=($!)
+    _run_specialist_curl "$_PLUGIN_ROOT/agents/code-reviewer-deep-hygiene.md"      "$_SLOT_HYGIENE"      & _SPECIALIST_PIDS+=($!)
+    _specialist_failed=0
+    for _pid in "${_SPECIALIST_PIDS[@]}"; do wait "$_pid" || _specialist_failed=1; done
+    if [[ "$_specialist_failed" -eq 1 ]]; then
+        echo "ERROR: one or more deep-tier specialist calls failed" >&2
+        exit 1
+    fi
 
     # Step 2: validate all slot files exist and contain valid JSON (fail-closed)
     for _slot in "$_SLOT_CORRECTNESS" "$_SLOT_VERIFICATION" "$_SLOT_HYGIENE"; do
