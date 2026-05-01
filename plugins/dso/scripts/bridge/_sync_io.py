@@ -16,7 +16,13 @@ from pathlib import Path
 
 def has_existing_sync(ticket_dir: Path) -> bool:
     """Return True if a SYNC event file already exists in the ticket directory."""
-    return any(ticket_dir.glob("*-SYNC.json"))
+    if not ticket_dir.is_dir():
+        return False
+
+    try:
+        return any(ticket_dir.glob("*-SYNC.json"))
+    except OSError:
+        return False
 
 
 def write_sync_event(
