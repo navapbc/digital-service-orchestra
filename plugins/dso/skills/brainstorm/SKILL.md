@@ -162,7 +162,7 @@ Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encou
 
 **Before forming each question**: Check whether the answer is already in the codebase. DO NOT ask questions whose answers are discoverable by reading the repo — find those answers yourself first using Read, Grep, or Glob. Only surface questions that require genuine user knowledge (design intent, business priorities, user experience preferences).
 
-**Prefer multiple-choice questions** over open-ended when possible.
+**Prefer multiple-choice questions** over open-ended when possible. Option labels MUST use single ASCII letters (`a`, `b`, `c`, `d`) or single digits (`1`, `2`, `3`, `4`) — never Greek letters (`α`, `β`, `γ`), Roman numerals (`i`, `ii`, `iii`), or any multi-character label. These require special-character input or multi-character typing, creating friction for users who just want to type their choice. Bug 0f10-97ec: Greek and Roman numeral labels break keyboard-first UX.
 
 **Probe until you understand:**
 
