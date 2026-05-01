@@ -467,12 +467,13 @@ test_ticket_init_generates_env_id_on_main_repo_idempotent_path() {
 }
 test_ticket_init_generates_env_id_on_main_repo_idempotent_path
 
-# ── Test 15: test_ticket_init_emits_stderr_warning_when_worktree_add_fails ───
+# ── Test 15: test_ticket_init_emits_error_and_exits_when_worktree_add_fails ──
 # Given: tickets branch exists locally AND is already checked out in another worktree
 # When:  ticket init runs (git worktree add will fail with "already checked out")
-# Then:  stderr contains a WARNING message about the failure (not silently discarded)
-echo "Test 15: ticket init emits stderr warning when git worktree add fails"
-test_ticket_init_emits_stderr_warning_when_worktree_add_fails() {
+# Then:  stderr contains an ERROR message with the git error text, and init exits non-zero
+#        so callers get a clear root-cause message instead of a cryptic downstream error
+echo "Test 15: ticket init emits ERROR to stderr and exits non-zero when git worktree add fails"
+test_ticket_init_emits_error_and_exits_when_worktree_add_fails() {
     local repo
     repo=$(_make_test_repo)
 
@@ -488,16 +489,19 @@ test_ticket_init_emits_stderr_warning_when_worktree_add_fails() {
     _CLEANUP_DIRS+=("$second_wt")
     git -C "$repo" worktree add "$second_wt" tickets 2>/dev/null
 
-    # Now try to init — should fail on worktree add but emit a WARNING to stderr
+    # Now try to init — should exit non-zero with an actionable ERROR on stderr
     local stderr_out=""
-    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" init 2>&1 >/dev/null) || true
+    local exit_code=0
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" init 2>&1 >/dev/null) || exit_code=$?
 
-    if echo "$stderr_out" | grep -qi "warning\|WARNING"; then
-        assert_eq "worktree-add-fail: stderr WARNING emitted" "yes" "yes"
+    assert_eq "worktree-add-fail: init exits non-zero" "non-zero" "$([[ $exit_code -ne 0 ]] && echo non-zero || echo zero)"
+
+    if echo "$stderr_out" | grep -qi "error\|ERROR"; then
+        assert_eq "worktree-add-fail: stderr ERROR emitted" "yes" "yes"
     else
-        assert_eq "worktree-add-fail: stderr WARNING emitted" "yes" "no (stderr was: $stderr_out)"
+        assert_eq "worktree-add-fail: stderr ERROR emitted" "yes" "no (stderr was: $stderr_out)"
     fi
 }
-test_ticket_init_emits_stderr_warning_when_worktree_add_fails
+test_ticket_init_emits_error_and_exits_when_worktree_add_fails
 
 print_summary

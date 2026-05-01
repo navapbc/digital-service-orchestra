@@ -1342,4 +1342,37 @@ test_alias_fallback_on_missing_wordlist() {
     fi
 }
 test_alias_fallback_on_missing_wordlist
+
+# ── Test id_guard_1 (RED): ticket-create.sh uses if-guard for data['id'] like alias_arg ──
+# Structural test: the production code must use the if-guard pattern
+# (id_arg = ...; if id_arg: data['id'] = id_arg) rather than unconditional assignment
+# so that an empty id_arg is not written as data['id'] = ''.
+# RED: the unconditional assignment pattern is present → test fails
+# GREEN: the if-guard pattern is present → test passes
+echo "Test id_guard_1 (RED): ticket-create.sh uses if-guard for data['id'] (not unconditional)"
+test_create_event_id_guard_pattern() {
+    local result
+    result=$(python3 - "$TICKET_CREATE_SCRIPT" <<'PYEOF'
+import sys
+with open(sys.argv[1]) as f:
+    src = f.read()
+# OLD pattern (no guard): data['id'] = sys.argv[14] ...
+# NEW pattern (with guard): id_arg = ...; if id_arg: data['id'] = id_arg
+if "if id_arg:\n    data['id'] = id_arg" in src or ("id_arg = sys.argv[14]" in src and "if id_arg:" in src):
+    print("OK")
+elif "data['id'] = sys.argv[14]" in src:
+    print("FAIL: unconditional assignment found (missing if-guard)")
+else:
+    print("UNKNOWN: neither pattern found")
+PYEOF
+) || result="SCRIPT_ERROR"
+
+    if [[ "$result" == "OK" ]]; then
+        assert_eq "id_guard: ticket-create.sh uses if-guard for data['id']" "OK" "OK"
+    else
+        assert_eq "id_guard: ticket-create.sh uses if-guard for data['id']" "OK" "$result"
+    fi
+}
+test_create_event_id_guard_pattern
+
 print_summary
