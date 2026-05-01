@@ -347,13 +347,13 @@ test_concurrent_create_serialized_by_flock() {
     tmp_id2="$tmp_id_dir/id2"
     tmp_id3="$tmp_id_dir/id3"
 
-    (cd "$repo" && bash "$TICKET_SCRIPT" create task "Concurrent ticket 1" 2>/dev/null | tail -1 >"$tmp_id1") &
+    (cd "$repo" && { _out=$(bash "$TICKET_SCRIPT" create task "Concurrent ticket 1" 2>/dev/null) || exit $?; printf '%s\n' "$_out" | tail -1 >"$tmp_id1"; }) &
     local pid1=$!
     sleep 0.1
-    (cd "$repo" && bash "$TICKET_SCRIPT" create task "Concurrent ticket 2" 2>/dev/null | tail -1 >"$tmp_id2") &
+    (cd "$repo" && { _out=$(bash "$TICKET_SCRIPT" create task "Concurrent ticket 2" 2>/dev/null) || exit $?; printf '%s\n' "$_out" | tail -1 >"$tmp_id2"; }) &
     local pid2=$!
     sleep 0.1
-    (cd "$repo" && bash "$TICKET_SCRIPT" create task "Concurrent ticket 3" 2>/dev/null | tail -1 >"$tmp_id3") &
+    (cd "$repo" && { _out=$(bash "$TICKET_SCRIPT" create task "Concurrent ticket 3" 2>/dev/null) || exit $?; printf '%s\n' "$_out" | tail -1 >"$tmp_id3"; }) &
     local pid3=$!
 
     # Wait for each individually and capture exit codes
@@ -421,5 +421,50 @@ test_concurrent_create_serialized_by_flock() {
     assert_pass_if_clean "test_concurrent_create_serialized_by_flock"
 }
 test_concurrent_create_serialized_by_flock
+
+# ── Test 6: test_concurrent_create_exit_captured_without_pipefail ────────────
+# Regression test for bug 6076-e8dc: concurrent create subshells must propagate
+# the bash command's exit code explicitly, not rely on pipefail inheritance.
+# RED: old pipeline pattern (cmd | tail -1 >file) returns 0 when cmd fails
+#      even without pipefail — error goes undetected.
+# GREEN: new pattern (out=$(cmd); echo | tail >file) correctly propagates exit.
+echo "Test 6: concurrent create exit code propagated without relying on pipefail"
+test_concurrent_create_exit_captured_without_pipefail() {
+    _snapshot_fail
+    local tmp_out
+    tmp_out=$(mktemp)
+    _CLEANUP_DIRS+=("$tmp_out")
+
+    # Simulate the old pipeline pattern explicitly WITHOUT pipefail.
+    # A failing command piped to tail returns 0 (tail's exit) without pipefail.
+    local old_exit=0
+    (set +o pipefail; false 2>/dev/null | tail -1 >"$tmp_out") &
+    wait $! || old_exit=$?
+    # If old_exit=0, the old pipeline pattern swallowed the failure.
+    assert_eq "old-pipeline-without-pipefail: failure returns non-zero" \
+        "zero-swallowed" "$([[ $old_exit -eq 0 ]] && echo zero-swallowed || echo non-zero)"
+
+    # The new production pattern uses variable capture — exit code is explicit.
+    # Simulate: `out=$(cmd) || exit $?` correctly propagates failures.
+    local new_exit=0
+    (set +o pipefail; _out=$(false 2>/dev/null) || exit $?; printf '%s\n' "$_out" | tail -1 >"$tmp_out") &
+    wait $! || new_exit=$?
+    assert_eq "new-pattern-without-pipefail: failure returns non-zero" \
+        "non-zero" "$([[ $new_exit -ne 0 ]] && echo non-zero || echo zero)"
+
+    # Structural: the production concurrent subshells must not use the bare pipeline
+    # pattern (which loses exit code without pipefail). Grep for old pattern.
+    # RED: the old pattern `bash "$TICKET_SCRIPT" ... | tail -1 >file) &` found
+    # GREEN: replaced with variable capture pattern (_out=$(cmd) || exit $?)
+    # Note: dollar sign in ERE requires escaping (\$) to match literal $ in file content.
+    local this_file="$SCRIPT_DIR/test-ticket-e2e.sh"
+    local old_pattern_count
+    # shellcheck disable=SC2016  # single quotes intentional: literal \$ matches "$" in file content
+    old_pattern_count=$(grep -cE '"\$TICKET_SCRIPT"[^|]*2>/dev/null \| tail -1 >"[^"]+"\) &' "$this_file" 2>/dev/null); old_pattern_count="${old_pattern_count:-0}"
+    assert_eq "concurrent subshells: no bare pipeline (exit code swallow risk)" "0" "$old_pattern_count"
+
+    assert_pass_if_clean "test_concurrent_create_exit_captured_without_pipefail"
+}
+test_concurrent_create_exit_captured_without_pipefail
 
 print_summary
