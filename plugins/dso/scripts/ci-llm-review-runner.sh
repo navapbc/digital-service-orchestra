@@ -387,6 +387,9 @@ fi  # end standard/light-only API call block
 # reviewer's LLM text to a slot file in WORKFLOW_PLUGIN_ARTIFACTS_DIR.  Serial
 # blue-team runs after red-team when security overlay is active.
 # Applies to all tiers (deep FINDINGS_JSON carries through from arch synthesis).
+# Overlays intentionally use the same MODEL as the main review tier — they are
+# specialist agents dispatched for focused concerns (security, performance, test
+# quality), not a deeper tier of review.
 _run_overlay_curl() {
   local _agent_file="$1" _slot_file="$2"
   local _sys _req _resp _overlay_diff_tmp

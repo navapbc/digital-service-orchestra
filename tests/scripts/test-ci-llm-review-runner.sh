@@ -1861,6 +1861,9 @@ fi
 assert_eq "test_deep_tier_overlay_merge: deep-tier arch + overlay findings both in canonical" "0" "$_deep_ovl_check_exit"
 assert_eq "test_deep_tier_overlay_merge: output" "OK" "$_deep_ovl_check_out"
 
+if [[ -f "$ARTIFACTS_DEEP_OVL/reviewer-findings-test-quality.json" ]]; then _tq_slot_exists=0; else _tq_slot_exists=1; fi
+assert_eq "test_deep_tier_overlay_merge: test-quality overlay slot file written to artifacts dir" "0" "$_tq_slot_exists"
+
 assert_pass_if_clean "test_deep_tier_overlay_merge"
 
 # ── test_runner_exits_nonzero_when_no_dso_marker_and_no_assets_dir ────────────

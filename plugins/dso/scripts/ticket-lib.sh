@@ -1449,11 +1449,17 @@ format_ticket_id() {
     fi
 
     # ── Resolve tracker dir ───────────────────────────────────────────────────
-    local _repo_root2=""
-    if [[ -z "${TICKETS_TRACKER_DIR:-}" ]]; then
-        _repo_root2="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)" || _repo_root2=""
+    local _tracker_dir
+    if [[ -n "${TICKETS_TRACKER_DIR:-}" ]]; then
+        _tracker_dir="$TICKETS_TRACKER_DIR"
+    else
+        # Reuse _repo_root when already resolved above; otherwise call git once.
+        local _rr="${_repo_root:-}"
+        if [[ -z "$_rr" ]]; then
+            _rr="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)" || _rr=""
+        fi
+        _tracker_dir="$_rr/.tickets-tracker"
     fi
-    local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root2/.tickets-tracker}"
 
     case "$mode" in
         auto)
