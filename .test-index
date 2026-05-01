@@ -51,6 +51,7 @@ plugins/dso/scripts/bridge/__init__.py:tests/hooks/test-init-skill.sh,tests/scri
 plugins/dso/scripts/bridge/_atomic.py:tests/hooks/test-atomic-write.sh,tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_outbound.py
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-generic.sh
 plugins/dso/scripts/check-script-writes.py:tests/scripts/test-check-script-writes.sh
+plugins/dso/scripts/ci-llm-review-runner.sh:tests/scripts/test-ci-llm-review-runner.sh
 plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh
 plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoveries-plugin-root.sh
 plugins/dso/scripts/enrich-file-impact.sh:tests/scripts/test-enrich-file-impact-v2-removal.sh,tests/scripts/test-enrich-file-impact-storage-api.sh
@@ -61,6 +62,7 @@ plugins/dso/scripts/figma_merge/tokens_merge.py:tests/unit/test_figma_merge_toke
 plugins/dso/scripts/figma-merge.py:tests/unit/test_figma_merge_svg.py,tests/unit/test_figma_merge_spatial.py,tests/unit/test_figma_merge_identity.py,tests/unit/test_figma_merge_id_validate.py,tests/unit/test_figma_merge_tokens.py,tests/integration/test-figma-merge-integration.sh
 plugins/dso/scripts/fix-bug/route-escalation.sh:tests/scripts/test_gate_escalation_router.py
 plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test-issue-quality-check-storage-api.sh,tests/scripts/test_issue_quality_check_file_impact.py
+plugins/dso/scripts/llm-api-call.sh:tests/scripts/test-llm-api-call.sh
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh,tests/scripts/test-residual-callers-polyglot.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts/test-ts-morph-normalize-imports.sh
@@ -197,7 +199,7 @@ plugins/dso/scripts/ticket-lib-api.sh:tests/scripts/test-ticket-lib-api.sh,tests
 .github/workflows/ticket-platform-matrix.yml:tests/scripts/test-ticket-platform-matrix-trigger.sh
 tests/fixtures/scope-drift-detection:tests/scripts/test-e2e-synthetic-fixtures.sh
 tests/lib/git-fixtures.sh:tests/scripts/test-create-bug-skill-smoke.sh
-CLAUDE.md:tests/scripts/test-claude-md-hook-error-handler.sh,tests/scripts/test-docs-behavioral-drift-prevention.sh,tests/skills/test-nextjs-starter-docs.sh,tests/scripts/test-tag-policy-docs.sh
+CLAUDE.md:tests/scripts/test-claude-md-hook-error-handler.sh,tests/scripts/test-docs-behavioral-drift-prevention.sh,tests/skills/test-nextjs-starter-docs.sh,tests/scripts/test-tag-policy-docs.sh,tests/scripts/test-claude-md-ci-review.sh
 plugins/dso/agents/red-team-reviewer.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/blue-team-filter.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/red-test-writer.md:tests/hooks/test-agent-standard-reference.sh
@@ -243,7 +245,7 @@ plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh
 docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh
 plugins/dso/docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh
 plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
-scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh,tests/scripts/test-create-dso-app-populates-detect-output.sh,tests/scripts/test-create-dso-app-homebrew-auto-install.sh,tests/scripts/test-create-dso-app-broken-plugin-cache.sh
+scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh,tests/scripts/test-create-dso-app-populates-detect-output.sh,tests/scripts/test-create-dso-app-homebrew-auto-install.sh,tests/scripts/test-create-dso-app-broken-plugin-cache.sh,tests/scripts/test-host-project-e2e-bootstrap.sh [test_host_bootstrap_and_config_patch]
 plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/docs/contracts/interaction-deferred-tag.md:tests/scripts/test-tag-policy-docs.sh,tests/scripts/test-tag-cli-refactor.sh
 plugins/dso/scripts/bridge-inbound.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py,tests/scripts/test_bridge_inbound_comment.py,tests/scripts/test_bridge_delete_issue.py
@@ -344,6 +346,9 @@ tests/scripts/test-ticket-transition-deleted.sh:tests/scripts/test-ticket-transi
 tests/scripts/test-ticket-delete.sh:tests/scripts/test-ticket-delete.sh
 tests/scripts/test-ticket-link-duplicates-supersedes.sh:tests/scripts/test-ticket-link-duplicates-supersedes.sh
 plugins/dso/resources/ticket-wordlist.txt:tests/scripts/test-ticket-create.sh
+plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-review-complexity-classifier.sh
+tests/hooks/test-review-complexity-classifier.sh:tests/hooks/test-review-complexity-classifier.sh
+tests/scripts/test-host-project-e2e-bootstrap.sh:tests/scripts/test-host-project-e2e-bootstrap.sh [test_host_bootstrap_and_config_patch]
 plugins/dso/skills/brainstorm/prompts/ui-keyword-trigger.md:tests/skills/test-brainstorm-ui-intent-detection.sh
 plugins/dso/skills/brainstorm/prompts/ui-detection-classifier.md:tests/skills/test-brainstorm-ui-intent-detection.sh
 plugins/dso/skills/brainstorm/prompts/ux-probe-set.md:tests/skills/test-brainstorm-ui-intent-detection.sh
