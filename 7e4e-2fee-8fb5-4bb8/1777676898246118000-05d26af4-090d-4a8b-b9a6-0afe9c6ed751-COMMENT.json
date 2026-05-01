@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"CHECKPOINT 6/6: AC1-AC6 all pass. Test script written, syntax+shellcheck clean, prereq guard verified (exits 2 without ANTHROPIC_API_KEY). RED marker present in .test-index."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777676898246118000,"uuid":"05d26af4-090d-4a8b-b9a6-0afe9c6ed751"}
