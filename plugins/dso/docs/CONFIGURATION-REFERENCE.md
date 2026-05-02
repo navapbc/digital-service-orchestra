@@ -1184,6 +1184,32 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 
 ---
 
+### `merge.pr_poll_interval_seconds`
+
+| | |
+|---|---|
+| **Description** | How often the PR-mode merge loop polls CI check conclusions for the open PR. Lower values increase responsiveness at the cost of GitHub API call volume. Only consulted when `merge.strategy=pr`. |
+| **Accepted values** | Positive integer (seconds) |
+| **Default** | `30` |
+| **Used by** | `.claude/scripts/dso merge-to-main.sh` (PR-mode `_phase_poll`) |
+
+**Example**: `merge.pr_poll_interval_seconds=15` (default: `merge.pr_poll_interval_seconds=30`)
+
+---
+
+### `merge.pr_max_wait_seconds`
+
+| | |
+|---|---|
+| **Description** | Maximum time the PR-mode merge loop will wait for CI completion before exiting non-zero with the PR URL. Prevents indefinite spin on a permanently broken required check. Only consulted when `merge.strategy=pr`. |
+| **Accepted values** | Positive integer (seconds) |
+| **Default** | `3600` |
+| **Used by** | `.claude/scripts/dso merge-to-main.sh` (PR-mode `_phase_poll`) |
+
+**Example**: `merge.pr_max_wait_seconds=7200` (default: `merge.pr_max_wait_seconds=3600`)
+
+---
+
 ### `staging.url`
 
 | | |
