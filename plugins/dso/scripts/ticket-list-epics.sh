@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# ticket-list-epics.sh — List unblocked epics for /dso:sprint Phase 1.
+# ticket-list-epics.sh — List unblocked epics for /dso:sprint Phase A.
 #
 # Reads ticket state from the v3 event-sourced tracker via ticket-reducer.py.
 #

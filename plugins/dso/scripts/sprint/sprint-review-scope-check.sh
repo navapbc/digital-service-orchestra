@@ -8,7 +8,7 @@ set -euo pipefail
 #   sprint-review-scope-check.sh <reviewer-findings-path> <task-id>
 #
 # Environment:
-#   TICKET_CMD — path to ticket CLI (default: <script-dir>/ticket)
+#   TICKET_CMD — path to ticket CLI (default: <script-dir>/../ticket)
 #
 # Exit codes:
 #   0 = success (IN_SCOPE or OUT_OF_SCOPE printed to stdout)
@@ -39,7 +39,7 @@ if [ ! -f "$FINDINGS_PATH" ]; then
 fi
 
 # ── Read task ticket and extract ## File Impact section ───────────────────────
-TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
+TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/../ticket}"
 ticket_output=$("$TICKET_CMD" show "$TASK_ID" 2>/dev/null) || ticket_output=""
 
 if [ -z "$ticket_output" ]; then

@@ -49,7 +49,7 @@ else
 fi
 
 # Assertion 4: migrated test at new path and executable
-if test -x "$REPO_ROOT/tests/skills/test-sprint-skill-step10-no-merge-to-main.sh"; then
+if test -x "$REPO_ROOT/tests/skills/test-sprint-skill-step17-no-merge-to-main.sh"; then
   echo "PASS: migrated test exists at tests/skills/"
   PASS=$((PASS+1))
 else
@@ -58,7 +58,7 @@ else
 fi
 
 # Assertion 5: migrated test passes
-if bash "$REPO_ROOT/tests/skills/test-sprint-skill-step10-no-merge-to-main.sh" 2>/dev/null; then
+if bash "$REPO_ROOT/tests/skills/test-sprint-skill-step17-no-merge-to-main.sh" 2>/dev/null; then
   echo "PASS: migrated test passes"
   PASS=$((PASS+1))
 else

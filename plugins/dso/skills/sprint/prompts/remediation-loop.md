@@ -1,4 +1,4 @@
-## Phase 7: Remediation Loop (/dso:sprint)
+## Phase H: Remediation Loop (/dso:sprint)
 
 When validation score < 5:
 
@@ -18,7 +18,7 @@ If it returns CLEAR: proceed to create tasks normally.
 
 **User confirmation required before any intent_gap SC is routed to brainstorm — autonomous brainstorm invocation is prohibited.**
 
-For each failing success criterion (SC) identified in Phase 6 validation, dispatch the gap-classification sub-agent to classify it before creating remediation tasks.
+For each failing success criterion (SC) identified in Phase G validation, dispatch the gap-classification sub-agent to classify it before creating remediation tasks.
 
 **Dispatch** (`subagent_type="general-purpose"`, `model="sonnet"`) with the prompt from `skills/sprint/prompts/gap-classification.md` and the following context for each failing SC: # shim-exempt: internal prompt path reference
 - The exact failing SC criterion text from the completion-verifier output
@@ -38,7 +38,7 @@ For each failing success criterion (SC) identified in Phase 6 validation, dispat
 
 - `intent_gap` + `ROUTING: brainstorm` — REQUIRE user confirmation before proceeding. Do NOT autonomously invoke `/dso:brainstorm`. Present the failing SC text and classification explanation to the user. Ask the user to confirm that brainstorm re-examination is desired. Proceed to `/dso:brainstorm` only after explicit user approval. If the user declines, mark the SC as deferred and continue to the next SC.
 
-- `implementation_gap` + `ROUTING: implementation-plan` — autonomous remediation is permitted. Proceed directly to **Step 1 (Create Remediation Tasks)** below without requiring user confirmation. **Important**: `ROUTING: implementation-plan` is a routing signal label — it does NOT mean invoking `/dso:implementation-plan` as a separate skill. The action for `implementation_gap` is bug-task creation via the Phase 7 Step 1 remediation flow (`.claude/scripts/dso ticket create bug`), which creates targeted implementation tasks under the epic. This is the correct and intended behavior for filling a clear implementation gap.
+- `implementation_gap` + `ROUTING: implementation-plan` — autonomous remediation is permitted. Proceed directly to **Step 1 (Create Remediation Tasks)** below without requiring user confirmation. **Important**: `ROUTING: implementation-plan` is a routing signal label — it does NOT mean invoking `/dso:implementation-plan` as a separate skill. The action for `implementation_gap` is bug-task creation via the Phase H Step 1 remediation flow (`.claude/scripts/dso ticket create bug`), which creates targeted implementation tasks under the epic. This is the correct and intended behavior for filling a clear implementation gap.
 
 ### Step 1: Create Remediation Tasks (/dso:sprint)
 
@@ -56,7 +56,7 @@ For each item in the validation agent's FAIL/REMEDIATION output:
 .claude/scripts/dso validate-issues.sh
 ```
 
-### Step 3: Return to Phase 3 (/dso:sprint)
+### Step 3: Return to Phase C (/dso:sprint)
 
 Re-enter the batch planning loop with the new remediation tasks. These tasks will be picked up as ready work and executed in the next batch.
 

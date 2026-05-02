@@ -202,7 +202,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 | | |
 |---|---|
-| **Description** | GitHub Actions workflow filename for integration test status checks. Used to poll the integration workflow separately from the main CI workflow. When absent, integration workflow status checks are skipped. Distinct from `ci.workflow_name`: `ci.workflow_name` is the primary CI workflow for `merge-to-main.sh` trigger recovery; `ci.integration_workflow` is the integration test workflow polled by `/dso:sprint` Phase 6 and `ci-status.sh`. They may reference the same file or different ones. Written by `/dso:onboarding` Phase 3 Step 2b using a confidence-gated selection: when `project-detect.sh` returns `ci_workflow_confidence=high` with a single detected workflow, the value is written automatically; when confidence is low or multiple workflows are detected, the user is shown a numbered selection dialogue to identify which workflow serves which purpose. |
+| **Description** | GitHub Actions workflow filename for integration test status checks. Used to poll the integration workflow separately from the main CI workflow. When absent, integration workflow status checks are skipped. Distinct from `ci.workflow_name`: `ci.workflow_name` is the primary CI workflow for `merge-to-main.sh` trigger recovery; `ci.integration_workflow` is the integration test workflow polled by `/dso:sprint` Phase G and `ci-status.sh`. They may reference the same file or different ones. Written by `/dso:onboarding` Phase C Step 2b using a confidence-gated selection: when `project-detect.sh` returns `ci_workflow_confidence=high` with a single detected workflow, the value is written automatically; when confidence is low or multiple workflows are detected, the user is shown a numbered selection dialogue to identify which workflow serves which purpose. |
 | **Accepted values** | Exact workflow name string (e.g., `Integration Tests`) |
 | **Default** | Absent — integration checks skipped |
 | **Used by** | `.claude/scripts/dso ci-status.sh`, validate-work skill, `/dso:onboarding` (Phase 3 config generation) |
@@ -529,7 +529,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Number of days after which a story tagged `design:awaiting_import` is considered stale. When the tag age exceeds this threshold, `/dso:sprint` appends a `⚠️ STALE (>N days)` warning to that story's dashboard line. Requires `design.figma_collaboration=true` to be meaningful. |
 | **Accepted values** | Positive integer (number of days) |
 | **Default** | `7` |
-| **Used by** | `/dso:sprint` (story dashboard display, Phase 2) |
+| **Used by** | `/dso:sprint` (story dashboard display, Phase B) |
 
 ---
 
@@ -542,7 +542,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | When `true`, skills emit an External Dependencies block and pause for user confirmation on manual-step dependencies. When `false` (default), the shape heuristic never fires and all four skills behave identically to the pre-feature baseline. |
 | **Accepted values** | `true` / `false` |
 | **Default** | `false` |
-| **Used by** | `/dso:brainstorm` (Phase 1 Gate shape heuristic + block renderer), `/dso:preplanning` (block reader + story generator), `/dso:implementation-plan` (tag guard), `/dso:sprint` (manual-pause handshake) |
+| **Used by** | `/dso:brainstorm` (Phase A Gate shape heuristic + block renderer), `/dso:preplanning` (block reader + story generator), `/dso:implementation-plan` (tag guard), `/dso:sprint` (manual-pause handshake) |
 
 ---
 

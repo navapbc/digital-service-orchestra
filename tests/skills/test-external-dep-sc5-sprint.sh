@@ -28,17 +28,17 @@ if [[ ! -f "$SKILL_MD" ]]; then
     exit 1
 fi
 
-# Extract Phase 3.5 section content for scoped assertions
-_phase35=$(awk 'flag && /^## Phase [0-9]/{exit} /^## Phase 3\.5:/{flag=1} flag' "$SKILL_MD")
+# Extract Phase D section content for scoped assertions
+_phase35=$(awk 'flag && /^## Phase [A-Z]/{exit} /^## Phase D:/{flag=1} flag' "$SKILL_MD")
 
 # ── test_manual_pause_handshake_section_exists ────────────────────────────────
-# Asserts the Phase 3.5 heading and manual:awaiting_user distinction are present
+# Asserts the Phase D heading and manual:awaiting_user distinction are present
 _snapshot_fail
 _has=0
 if echo "$_phase35" | grep -qiE "manual.pause handshake|manual:awaiting_user"; then
     _has=1
 fi
-assert_eq "test_manual_pause_handshake_section_exists: Phase 3.5 must contain manual-pause handshake section referencing manual:awaiting_user" "1" "$_has"
+assert_eq "test_manual_pause_handshake_section_exists: Phase D must contain manual-pause handshake section referencing manual:awaiting_user" "1" "$_has"
 assert_pass_if_clean "test_manual_pause_handshake_section_exists"
 
 # ── test_handshake_accepts_done_and_skip_inputs ───────────────────────────────
@@ -63,7 +63,7 @@ _has_vc=0
 if echo "$_phase35" | grep -q "verification_command"; then
     _has_vc=1
 fi
-assert_eq "test_verification_command_execution_documented: Phase 3.5 must document the verification_command field/execution clause" "1" "$_has_vc"
+assert_eq "test_verification_command_execution_documented: Phase D must document the verification_command field/execution clause" "1" "$_has_vc"
 assert_pass_if_clean "test_verification_command_execution_documented"
 
 # ── test_confirmation_token_audit_path ───────────────────────────────────────

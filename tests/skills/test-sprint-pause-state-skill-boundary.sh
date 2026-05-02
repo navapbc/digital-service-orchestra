@@ -36,7 +36,7 @@ assert_pass_if_clean "test_skill_references_sprint_pause_state_script"
 # ── test_skill_references_resume_for_pause ───────────────────────────────────
 _snapshot_fail
 # Extract Phase 3.5 section content to check --resume in that specific context
-_phase35=$(awk 'flag && /^## Phase [0-9]/{exit} /^## Phase 3\.5:/{flag=1} flag' "$SKILL_MD")
+_phase35=$(awk 'flag && /^## Phase [A-Z]/{exit} /^## Phase D:/{flag=1} flag' "$SKILL_MD")
 _has_resume=0
 if echo "$_phase35" | grep -q -- "--resume"; then
     _has_resume=1
