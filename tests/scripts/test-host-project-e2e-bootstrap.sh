@@ -61,7 +61,12 @@ fail()  { (( ++FAIL )); log "FAIL: $*"; }
 # tolerance instead of treating the missing prereq as a hard suite failure.
 prereq_fail() {
     local reason="$1"
-    printf 'FAIL: %s — %s\n' "$TEST_NAME" "$reason" >&2
+    # Bare "FAIL: <test_name>" line with end-of-line anchor so the harness's
+    # parse_failing_tests_from_output regex (^[[:space:]]*FAIL: <ident>$) can
+    # extract the function name and apply RED-zone tolerance. The diagnostic
+    # reason is printed on a separate line.
+    printf 'FAIL: %s\n' "$TEST_NAME" >&2
+    printf 'REASON: %s\n' "$reason" >&2
     (( ++FAIL ))
     echo "" >&2
     printf "=== summary: PASSED=%d  FAILED=%d ===\n" "$PASS" "$FAIL" >&2
