@@ -1228,6 +1228,96 @@ print('true' if 'security_overlay' in d and isinstance(d['security_overlay'], bo
     teardown_temp_dir
 }
 
+test_security_overlay_true_for_credential_keyword_in_diff() {
+    # A diff with 'credential' keyword in a non-exempt source file must produce security_overlay:true
+    setup_temp_dir
+    local diff_file="$TEST_TMPDIR/test_credential_keyword.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/src/services/user_service.py b/src/services/user_service.py
+index 0000000..1111111 100644
+--- a/src/services/user_service.py
++++ b/src/services/user_service.py
+@@ -1,3 +1,5 @@
++def store_credential(user, value):
++    db.put("credential", user, value)
+DIFFEOF
+    run_classifier "$diff_file"
+
+    local security_overlay="absent"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        security_overlay=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+if 'security_overlay' not in d:
+    print('absent')
+else:
+    print(str(d['security_overlay']).lower())
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "absent")
+    fi
+    assert_eq "credential keyword in non-exempt diff sets security_overlay=true" "true" "$security_overlay"
+    teardown_temp_dir
+}
+
+test_security_overlay_true_for_certificate_keyword_in_diff() {
+    # A diff with 'certificate' keyword in a non-exempt source file must produce security_overlay:true
+    setup_temp_dir
+    local diff_file="$TEST_TMPDIR/test_certificate_keyword.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/src/config/settings.py b/src/config/settings.py
+index 0000000..1111111 100644
+--- a/src/config/settings.py
++++ b/src/config/settings.py
+@@ -1,3 +1,5 @@
++certificate_path = "/etc/ssl/server.pem"
++verify_certificate = True
+DIFFEOF
+    run_classifier "$diff_file"
+
+    local security_overlay="absent"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        security_overlay=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+if 'security_overlay' not in d:
+    print('absent')
+else:
+    print(str(d['security_overlay']).lower())
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "absent")
+    fi
+    assert_eq "certificate keyword in non-exempt diff sets security_overlay=true" "true" "$security_overlay"
+    teardown_temp_dir
+}
+
+test_security_overlay_true_for_stdlib_security_import_in_diff() {
+    # A diff importing hashlib/hmac/secrets in a non-exempt source file must produce security_overlay:true
+    setup_temp_dir
+    local diff_file="$TEST_TMPDIR/test_hashlib_import.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/src/utils/hash_util.py b/src/utils/hash_util.py
+index 0000000..1111111 100644
+--- a/src/utils/hash_util.py
++++ b/src/utils/hash_util.py
+@@ -1,3 +1,5 @@
++import hashlib
++import hmac
+DIFFEOF
+    run_classifier "$diff_file"
+
+    local security_overlay="absent"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        security_overlay=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+if 'security_overlay' not in d:
+    print('absent')
+else:
+    print(str(d['security_overlay']).lower())
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "absent")
+    fi
+    assert_eq "stdlib security import (hashlib/hmac) in non-exempt diff sets security_overlay=true" "true" "$security_overlay"
+    teardown_temp_dir
+}
+
 # Security overlay flag (RED — w22-wwu2)
 test_security_overlay_true_for_auth_path           # RED: security_overlay field not yet emitted
 test_security_overlay_true_for_crypto_path         # RED: security_overlay field not yet emitted
@@ -1236,6 +1326,9 @@ test_security_overlay_true_for_security_import_in_diff  # RED: security_overlay 
 test_security_overlay_true_for_password_keyword_in_diff # RED: security_overlay field not yet emitted
 test_security_overlay_false_for_non_security_path  # RED: security_overlay field not yet emitted
 test_security_overlay_field_present_in_output_schema    # RED: security_overlay field not yet emitted
+test_security_overlay_true_for_credential_keyword_in_diff
+test_security_overlay_true_for_certificate_keyword_in_diff
+test_security_overlay_true_for_stdlib_security_import_in_diff
 
 # ============================================================
 # Performance Overlay Flag Tests (RED — w22-wwu2 / task a621-1689)
