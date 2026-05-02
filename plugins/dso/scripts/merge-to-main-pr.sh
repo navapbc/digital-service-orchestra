@@ -396,5 +396,103 @@ if ! _phase_poll "$_PR_NUMBER" "$_PR_URL"; then
     exit 1
 fi
 
-# Skeleton end — version_bump → archive → ci_trigger land in later tasks.
+# =============================================================================
+# Success exit path: verify merge commit on origin/main, then run lifecycle
+# phases that direct.sh runs (version_bump → archive → ci_trigger).
+# =============================================================================
+
+# --- Step 1: fetch latest origin/main so we have the merge commit locally ---
+git fetch origin main --quiet 2>/dev/null || {
+    echo "WARNING: git fetch origin main failed — merge SHA verification may be stale." >&2
+}
+
+# --- Step 2: get the merge commit SHA from the PR ---
+MERGE_SHA=$(gh pr view "$_PR_NUMBER" --json mergeCommit --jq .mergeCommit.oid 2>/dev/null || true)
+if [[ -z "$MERGE_SHA" ]]; then
+    echo "ERROR: Could not retrieve merge commit SHA from PR #${_PR_NUMBER} (URL: ${_PR_URL})" >&2
+    exit 1
+fi
+
+# --- Step 3: verify it appears on origin/main ---
+if ! git log origin/main --pretty=%H -n 50 2>/dev/null | grep -q "^${MERGE_SHA}$"; then
+    echo "ERROR: PR reported merged but merge commit ${MERGE_SHA} not found on origin/main (PR: ${_PR_URL})" >&2
+    exit 1
+fi
+
+echo "INFO: Merge commit ${MERGE_SHA} verified on origin/main."
+
+# --- Step 4: persist merge SHA into state file ---
+if type _state_record_merge_sha >/dev/null 2>&1; then
+    _state_record_merge_sha "$MERGE_SHA" 2>/dev/null || true
+fi
+
+# =============================================================================
+# Source merge-to-main-direct.sh in library mode to reuse the lifecycle phases.
+# Set the globals direct.sh phase functions expect, then invoke them in order.
+# =============================================================================
+
+_DIRECT_SH="${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-direct.sh"
+if [[ ! -f "$_DIRECT_SH" ]]; then
+    echo "ERROR: merge-to-main-direct.sh not found at $_DIRECT_SH" >&2
+    exit 1
+fi
+
+# Resolve MAIN_REPO and PRE_MERGE_SHA before sourcing (direct.sh phase functions
+# use these as globals). PRE_MERGE_SHA is the SHA of origin/main before the
+# merge — i.e., the parent of $MERGE_SHA on the main-line. Use git to derive it.
+if [[ -z "${REPO_ROOT:-}" ]]; then
+    REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+fi
+MAIN_REPO=$(dirname "$(git rev-parse --git-common-dir 2>/dev/null || echo "")")
+if [[ -z "$MAIN_REPO" || "$MAIN_REPO" == "." ]]; then
+    MAIN_REPO="$REPO_ROOT"
+fi
+export MAIN_REPO
+
+# PRE_MERGE_SHA: first parent of the merge commit (the main-line tip before merge).
+PRE_MERGE_SHA=$(git rev-parse "${MERGE_SHA}^1" 2>/dev/null || echo "")
+export PRE_MERGE_SHA
+
+# _CFG_TKDIR is referenced by _phase_archive (direct.sh).
+_CFG_TKDIR=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" tickets.directory 2>/dev/null || true)
+_CFG_TKDIR="${_CFG_TKDIR:-.tickets-tracker}"
+export _CFG_TKDIR
+
+# Source direct.sh in library mode (defines functions only; no top-level exec).
+# shellcheck source=./merge-to-main-direct.sh disable=SC1091
+MERGE_TO_MAIN_DIRECT_LIB=1 source "$_DIRECT_SH"
+
+# In PR mode, version_bump runs against the merged commit on origin/main. The
+# local main may not be checked out; cd into MAIN_REPO before invoking the
+# phase functions so their bare git operations target the main checkout.
+# However, the local main branch likely doesn't have the merge commit yet
+# (only origin/main does). Fast-forward local main to origin/main first so
+# version_bump's amend operates on the merge commit.
+if [[ -d "$MAIN_REPO/.git" ]] || [[ -f "$MAIN_REPO/.git" ]]; then
+    (
+        cd "$MAIN_REPO" 2>/dev/null || exit 0
+        # Best-effort: fast-forward local main to origin/main so the merge
+        # commit is present locally for downstream phases. Failures are
+        # tolerated — the phases gracefully handle missing local state.
+        git fetch origin main --quiet 2>/dev/null || true
+        if [[ "$(git branch --show-current 2>/dev/null)" == "main" ]]; then
+            git merge --ff-only origin/main --quiet 2>/dev/null || true
+        fi
+    )
+fi
+
+# Run the remaining lifecycle phases. Each function calls _state_mark_complete
+# on success and `exit 1` on failure (inherited via set -e propagation through
+# the source).
+_phase_version_bump
+_phase_archive
+_phase_ci_trigger
+
+# Clean up state + marker file on success (mirrors direct.sh tail).
+if type _state_file_path >/dev/null 2>&1; then
+    rm -f "$(_state_file_path)" 2>/dev/null || true
+fi
+rm -f "/tmp/merge-state-init-marker-${BRANCH//\//-}" 2>/dev/null || true
+
+echo "DONE: $BRANCH merged via PR ${_PR_URL}, version-bumped, and CI lifecycle complete."
 exit 0

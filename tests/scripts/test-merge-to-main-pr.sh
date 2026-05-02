@@ -356,7 +356,16 @@ case "\$1" in
         exit 0
         ;;
       view)
-        # gh pr view --json state OR --json mergeable
+        # gh pr view --json state OR --json mergeable OR --json mergeCommit
+        if [[ "\$*" == *"--json mergeCommit"* ]]; then
+          # Return a SHA that the success-path fixture seeded onto origin/main.
+          if [[ -f "$tmpdir/merge-sha" ]]; then
+            cat "$tmpdir/merge-sha"
+          else
+            echo "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+          fi
+          exit 0
+        fi
         # mergeable check (pre-auto-merge) → MERGEABLE; state check during poll → see below
         if [[ "\$*" == *"--json mergeable"* && "\$*" != *state* ]]; then
           echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
@@ -439,11 +448,37 @@ exec "$real_git" "\$@"
 GIT_SHIM
     chmod +x "$bin/git"
 
+    # Set up a bare remote so `git fetch origin main` succeeds in the success
+    # exit path. Seed it with a merge commit whose SHA is recorded so the gh
+    # shim can return it from `gh pr view --json mergeCommit`.
+    local remote_dir="$tmpdir/remote.git"
+    "$real_git" init -q --bare -b main "$remote_dir" >/dev/null 2>&1
+    local seed_dir="$tmpdir/seed-poll"
+    "$real_git" init -q -b main "$seed_dir" >/dev/null 2>&1
+    (
+        cd "$seed_dir" || exit 1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        echo "seed" > seed.txt
+        "$real_git" add seed.txt
+        "$real_git" commit -q -m "seed" >/dev/null
+        "$real_git" checkout -q -b feat
+        echo "feat" > feat.txt
+        "$real_git" add feat.txt
+        "$real_git" commit -q -m "feat" >/dev/null
+        "$real_git" checkout -q main
+        "$real_git" merge --no-ff -q feat -m "merge feat" >/dev/null
+    )
+    "$real_git" -C "$seed_dir" rev-parse HEAD > "$tmpdir/merge-sha"
+    "$real_git" -C "$seed_dir" remote add origin "$remote_dir"
+    "$real_git" -C "$seed_dir" push -q origin main >/dev/null 2>&1
+
     (
         cd "$tmpdir" || exit 1
         "$real_git" init -q -b main >/dev/null 2>&1
         "$real_git" config user.email "test@test.local"
         "$real_git" config user.name "test"
+        "$real_git" remote add origin "$remote_dir"
         echo "seed" > seed.txt
         "$real_git" add seed.txt
         "$real_git" commit -q -m "seed" >/dev/null
@@ -605,6 +640,260 @@ EOF
     assert_eq "t_pr_poll_timeout_has_pr_url" "true" "$_has_url"
 }
 t_pr_poll_timeout
+
+# ===========================================================================
+# Success-exit tests (Task 99f2-6aee — DD5)
+# ===========================================================================
+#
+# After polling reports MERGED, the script must:
+#   1. fetch origin main
+#   2. retrieve the merge SHA via gh pr view --json mergeCommit
+#   3. verify the SHA appears in git log origin/main
+#   4. invoke _phase_version_bump → _phase_archive → _phase_ci_trigger
+#   5. exit 0
+#
+# Failure mode: if the SHA is NOT on origin/main, exit non-zero with a
+# "merge commit ... not found on origin/main" error.
+#
+# Fixture builder: _build_pr_success_fixture <tmpdir> <branch> <mode>
+#   mode:
+#     present  → origin/main contains the merge SHA → exit 0 expected
+#     missing  → origin/main does NOT contain the SHA → exit non-zero expected
+
+_build_pr_success_fixture() {
+    local tmpdir="$1" branch="$2" mode="$3"
+    local bin="$tmpdir/bin"
+    mkdir -p "$bin"
+
+    local gh_argv_log="$tmpdir/gh-argv.log"
+
+    # Set up a real git repo with an "origin" remote pointing at a bare repo.
+    # The bare repo's main branch will (or will not) contain the merge SHA.
+    local real_git
+    real_git=$(command -v git)
+
+    # 1. Bare "remote" repo
+    local remote_dir="$tmpdir/remote.git"
+    "$real_git" init -q --bare -b main "$remote_dir" >/dev/null 2>&1
+
+    # 2. A scratch checkout used to seed the remote with the merge commit.
+    #    The merge commit's SHA is the value the gh shim will return.
+    local seed_dir="$tmpdir/seed"
+    "$real_git" init -q -b main "$seed_dir" >/dev/null 2>&1
+    (
+        cd "$seed_dir" || exit 1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        echo "seed" > seed.txt
+        "$real_git" add seed.txt
+        "$real_git" commit -q -m "seed" >/dev/null
+        # Make a feature branch + merge it (no-ff) to produce a real merge commit
+        "$real_git" checkout -q -b feat
+        echo "feat" > feat.txt
+        "$real_git" add feat.txt
+        "$real_git" commit -q -m "feat" >/dev/null
+        "$real_git" checkout -q main
+        "$real_git" merge --no-ff -q feat -m "merge feat" >/dev/null
+    )
+
+    local merge_sha
+    merge_sha=$("$real_git" -C "$seed_dir" rev-parse HEAD)
+    echo "$merge_sha" > "$tmpdir/merge-sha"
+
+    if [[ "$mode" == "present" ]]; then
+        # Push the merge commit to the bare remote so origin/main contains it.
+        "$real_git" -C "$seed_dir" remote add origin "$remote_dir"
+        "$real_git" -C "$seed_dir" push -q origin main >/dev/null 2>&1
+    else
+        # mode=missing → seed remote with a single unrelated commit so origin/main
+        # exists but does NOT contain the merge SHA. Use a separate seed.
+        local missing_seed="$tmpdir/missing-seed"
+        "$real_git" init -q -b main "$missing_seed" >/dev/null 2>&1
+        (
+            cd "$missing_seed" || exit 1
+            "$real_git" config user.email "test@test.local"
+            "$real_git" config user.name "test"
+            echo "other" > other.txt
+            "$real_git" add other.txt
+            "$real_git" commit -q -m "other" >/dev/null
+        )
+        "$real_git" -C "$missing_seed" remote add origin "$remote_dir"
+        "$real_git" -C "$missing_seed" push -q origin main >/dev/null 2>&1
+    fi
+
+    # 3. The actual working repo where merge-to-main-pr.sh will run.
+    #    Has the same remote configured so `git fetch origin main` works.
+    (
+        cd "$tmpdir" || exit 1
+        "$real_git" init -q -b main >/dev/null 2>&1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        "$real_git" remote add origin "$remote_dir"
+        echo "local-seed" > local-seed.txt
+        "$real_git" add local-seed.txt
+        "$real_git" commit -q -m "local-seed" >/dev/null
+        "$real_git" checkout -q -b "$branch"
+        echo "feature" > feature.txt
+        "$real_git" add feature.txt
+        "$real_git" commit -q -m "feature work" >/dev/null
+    )
+
+    # ---- gh shim: returns merge_sha for `gh pr view --json mergeCommit` ----
+    cat > "$bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$gh_argv_log"
+case "\$1" in
+  --version)
+    echo "gh version 2.40.1 (2024-01-01)"
+    exit 0
+    ;;
+  pr)
+    case "\$2" in
+      list) exit 0 ;;
+      create)
+        echo "https://github.com/x/y/pull/42"
+        exit 0
+        ;;
+      view)
+        if [[ "\$*" == *"--json mergeCommit"* ]]; then
+          echo "$merge_sha"
+          exit 0
+        fi
+        if [[ "\$*" == *"--json state"* ]]; then
+          echo "MERGED"
+          exit 0
+        fi
+        echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
+        exit 0
+        ;;
+      checks)
+        echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+        exit 0
+        ;;
+      merge) exit 0 ;;
+      *) exit 0 ;;
+    esac
+    ;;
+  workflow) exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$bin/gh"
+
+    # ---- git shim: pass-through except `git push` (no real push to remote) ----
+    # Note: we DO want `git fetch` to work (so origin/main is populated locally).
+    # Push would be triggered by _phase_merge — but in PR mode the publish-branch
+    # push targets origin/<branch>, not origin/main, and we don't want it to run.
+    # For success-path tests, the publish push is a no-op (the bare remote will
+    # accept it just fine), but skipping is safer for isolation.
+    cat > "$bin/git" <<GIT_SHIM
+#!/usr/bin/env bash
+if [[ "\$1" == "push" ]]; then
+  exit 0
+fi
+exec "$real_git" "\$@"
+GIT_SHIM
+    chmod +x "$bin/git"
+
+    # Per-test config: zero-cadence polling, no version_file_path so the
+    # version_bump phase becomes a no-op (DD5 covers exit-zero / lifecycle
+    # invocation, not version-bump correctness).
+    cat > "$tmpdir/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# t_pr_success_exits_zero
+# Given origin/main contains the merge SHA, when pr.sh runs, it exits 0
+# and the state file shows ci_trigger phase complete.
+# ---------------------------------------------------------------------------
+t_pr_success_exits_zero() {
+    local _T branch _ec _branch_safe _state_file _ci_trigger_complete
+    _T="$(mktemp -d /tmp/dso-pr-success-test.XXXXXX)"
+    branch="feature-success-exit"
+    _branch_safe="${branch//\//-}"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    _build_pr_success_fixture "$_T" "$branch" "present"
+
+    # Capture state file path BEFORE running pr.sh, since the script may
+    # remove the state file on success (mirroring direct.sh tail behavior).
+    # We assert on a captured snapshot instead of post-run readback.
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        bash "$PR_SCRIPT" >"$_T/out.log" 2>&1
+    )
+    _ec=$?
+
+    # The success-path tail removes the state file on exit 0. To verify
+    # ci_trigger completion, check the captured stdout/stderr for the DONE
+    # message AND for the "INFO: Merge commit ... verified" line.
+    _ci_trigger_complete="false"
+    if grep -q "DONE:" "$_T/out.log" 2>/dev/null; then
+        _ci_trigger_complete="true"
+    fi
+
+    local _verified="false"
+    if grep -qE "Merge commit [0-9a-f]+ verified on origin/main" "$_T/out.log"; then
+        _verified="true"
+    fi
+
+    assert_eq "t_pr_success_exits_zero_exit_zero" "0" "$_ec"
+    assert_eq "t_pr_success_exits_zero_done_message" "true" "$_ci_trigger_complete"
+    assert_eq "t_pr_success_exits_zero_sha_verified" "true" "$_verified"
+}
+t_pr_success_exits_zero
+
+# ---------------------------------------------------------------------------
+# t_pr_success_missing_merge_sha
+# Given gh reports merged but origin/main does NOT contain the merge SHA,
+# pr.sh must exit non-zero with a "merge commit <sha> not found on
+# origin/main" error in stderr.
+# ---------------------------------------------------------------------------
+t_pr_success_missing_merge_sha() {
+    local _T branch _ec _branch_safe _state_file _stderr _has_error
+    _T="$(mktemp -d /tmp/dso-pr-success-test.XXXXXX)"
+    branch="feature-missing-merge-sha"
+    _branch_safe="${branch//\//-}"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    _build_pr_success_fixture "$_T" "$branch" "missing"
+
+    _stderr="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        bash "$PR_SCRIPT" 2>&1 >/dev/null
+    )"
+    _ec=$?
+
+    local _exits_nonzero="false"
+    [[ "$_ec" -ne 0 ]] && _exits_nonzero="true"
+
+    _has_error="false"
+    if echo "$_stderr" | grep -qE "merge commit [0-9a-f]+ not found on origin/main"; then
+        _has_error="true"
+    fi
+
+    assert_eq "t_pr_success_missing_merge_sha_exits_nonzero" "true" "$_exits_nonzero"
+    assert_eq "t_pr_success_missing_merge_sha_has_error_message" "true" "$_has_error"
+}
+t_pr_success_missing_merge_sha
 
 # ---------------------------------------------------------------------------
 print_summary

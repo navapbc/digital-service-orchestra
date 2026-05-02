@@ -14,6 +14,14 @@ set -euo pipefail
 
 set -euo pipefail
 
+# --- Library mode guard ---
+# When MERGE_TO_MAIN_DIRECT_LIB=1, this script is being sourced as a library
+# (e.g., by merge-to-main-pr.sh to reuse _phase_version_bump / _phase_archive /
+# _phase_ci_trigger). In library mode, skip all top-level side effects (CLI
+# parsing, worktree checks, state init, MAIN_REPO derivation, dispatch tail)
+# and only define helper + phase functions. The caller is responsible for
+# setting MAIN_REPO, BRANCH, BUMP_TYPE, PRE_MERGE_SHA, _CFG_TKDIR, etc.
+if [[ -z "${MERGE_TO_MAIN_DIRECT_LIB:-}" ]]; then
 # --- CLI: --help (early exit before any context checks) ---
 for _arg in "$@"; do
     if [[ "$_arg" == "--help" ]]; then
@@ -44,14 +52,17 @@ if [ -z "$REPO_ROOT" ]; then
 fi
 cd "$REPO_ROOT"
 WORKTREE_DIR="$REPO_ROOT"
+fi  # end MERGE_TO_MAIN_DIRECT_LIB guard (block 1)
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set}"
 
+if [[ -z "${MERGE_TO_MAIN_DIRECT_LIB:-}" ]]; then
 # Pre-flight: ensure pre-commit is on PATH before any git commands that trigger hooks.
 # git merge (in _phase_merge) triggers pre-commit hooks; if venv is not in PATH,
 # the hooks fail with "pre-commit: command not found".
 source "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pre-commit.sh" || true  # shim-exempt: plugin-internal sibling-script source from scripts/
+fi  # end MERGE_TO_MAIN_DIRECT_LIB guard (block 2)
 
 # --- Load merge utility helpers (state file, lock, recovery, push-idempotency) ---
 # shellcheck source=${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-helpers.sh
@@ -131,6 +142,7 @@ MSG_EXCLUSION_PATTERN="${MERGE_MESSAGE_EXCLUSION_PATTERN:-}"
 CMD_FORMAT_CHECK="${COMMANDS_FORMAT_CHECK:-make format-check}"
 CMD_LINT="${COMMANDS_LINT:-make lint}"
 
+if [[ -z "${MERGE_TO_MAIN_DIRECT_LIB:-}" ]]; then
 # --- Verify worktree context ---
 if [ -d .git ]; then
     echo "ERROR: Not a worktree. This script is for worktree sessions only."
@@ -196,6 +208,7 @@ fi
 # done), this default is stale but _phase_ci_trigger handles empty/stale values
 # gracefully via git diff error suppression (2>/dev/null).
 PRE_MERGE_SHA=$(git -C "$MAIN_REPO" rev-parse HEAD 2>/dev/null || echo "")
+fi  # end MERGE_TO_MAIN_DIRECT_LIB guard (block 3)
 
 # =============================================================================
 # Helpers
@@ -824,6 +837,14 @@ _phase_ci_trigger() {
 # =============================================================================
 # CLI argument dispatch
 # =============================================================================
+
+if [[ -n "${MERGE_TO_MAIN_DIRECT_LIB:-}" ]]; then
+    # Library mode: function definitions only — caller invokes phases.
+    # `return` works when sourced; `exit 0` is the executed-script fallback
+    # (unreachable in practice — flagged SC2317).
+    # shellcheck disable=SC2317
+    { return 0 2>/dev/null || exit 0; }
+fi
 
 # Ordered list of all phase names (used by --resume to find next incomplete phase)
 _ALL_PHASES=(sync merge version_bump validate push archive ci_trigger)

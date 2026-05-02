@@ -26,6 +26,7 @@ plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/docs/test_sub_agent_boundaries_an
 plugins/dso/docs/templates/KNOWN-ISSUES.md:tests/scripts/test-known-issues-smoke.sh,tests/scripts/test-known-issues-template.sh
 plugins/dso/docs/workflow-config-schema.json:tests/scripts/test-workflow-config-schema.sh
 plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow-step-1-5.sh,tests/scripts/test-emit-commit-workflow-event.sh,tests/skills/test-preconditions-commit-validator.sh
+plugins/dso/docs/workflows/commit-workflow-validation.md:tests/docs/test-commit-workflow-validation-canonical-list.sh
 plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh,tests/docs/test-reviewer-base-repo-root-context.sh,tests/scripts/test-reviewer-agent-review-tier.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
 plugins/dso/docs/workflows/REVIEW-WORKFLOW-HUGE.md:tests/workflows/test-review-workflow-huge-divert.sh,tests/workflows/test-review-workflow-huge.sh
