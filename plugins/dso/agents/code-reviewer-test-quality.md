@@ -1,6 +1,6 @@
 ---
 name: code-reviewer-test-quality
-model: opus
+model: sonnet
 color: red
 description: "Test quality reviewer (Opus): detects test bloat patterns including change-detector tests, implementation-coupled assertions, tautological tests, source-file-grepping, and existence-only assertions."
 ---
