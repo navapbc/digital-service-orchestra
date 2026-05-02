@@ -36,6 +36,7 @@ plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.s
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/lib/centrality.sh:tests/hooks/test-record-test-status-centrality.sh
+plugins/dso/scripts/fix-cascade-recovery/reset-cascade-counter.sh:tests/scripts/test-reset-cascade-counter.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh
 plugins/dso/hooks/lib/test-index.sh:tests/hooks/test-record-test-status-part1.sh,tests/hooks/test-record-test-status-part2.sh,tests/hooks/test-record-test-status-part3.sh,tests/hooks/test-record-test-status-part4.sh
 plugins/dso/hooks/lib/test-result-processor.sh:tests/hooks/test-record-test-status-eagain.sh,tests/hooks/test-record-test-status-red-zone-merge.sh,tests/hooks/test-record-test-status-part1.sh
