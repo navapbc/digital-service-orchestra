@@ -261,5 +261,140 @@ if ! _phase_merge; then
     exit 1
 fi
 
-# Skeleton end — version_bump → push → archive → ci_trigger land in later tasks.
+# --- _phase_poll: poll CI checks + merge state until success / failure / timeout ---
+# DD1: configurable poll cadence (merge.pr_poll_interval_seconds, default 30)
+# DD2: ONE `gh pr checks` call per iteration (no fan-out)
+# DD3: configurable max-wait timeout (merge.pr_max_wait_seconds, default 3600)
+#
+# Each iteration:
+#   1. `gh pr checks <num> --json name,state,conclusion`
+#      - any FAILURE/CANCELLED conclusion → exit 1 with PR url
+#      - all SUCCESS → query merge state (step 2)
+#   2. `gh pr view <num> --json state --jq .state`
+#      - state == MERGED → break, success
+#      - else → continue
+#   3. Check elapsed: SECONDS - _start >= max_wait → exit 1 with PR url
+#   4. sleep $interval
+_phase_poll() {
+    local _pr_number="$1" _pr_url="$2"
+    local _interval _max_wait _read_config
+    _read_config="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
+
+    _interval=$(bash "$_read_config" merge.pr_poll_interval_seconds 2>/dev/null || true)
+    _max_wait=$(bash "$_read_config" merge.pr_max_wait_seconds 2>/dev/null || true)
+    [[ -z "$_interval" ]] && _interval=30
+    [[ -z "$_max_wait" ]] && _max_wait=3600
+
+    if type _state_write_phase >/dev/null 2>&1; then
+        _state_write_phase "poll" 2>/dev/null || true
+    fi
+
+    local _start=$SECONDS
+    while :; do
+        # --- Step 1: ONE pr checks call ---
+        local _checks_json _checks_rc=0
+        _checks_json=$(gh pr checks "$_pr_number" --json name,state,conclusion 2>&1) || _checks_rc=$?
+
+        # When PR has no checks, `gh pr checks` exits 8 with stderr "no checks reported".
+        # Treat as "no failures yet" — continue polling for merge state.
+        if [[ "$_checks_rc" -eq 0 ]]; then
+            # Detect any failed conclusion
+            local _has_failure
+            _has_failure=$(echo "$_checks_json" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    if not isinstance(d, list):
+        print('false'); sys.exit(0)
+    for c in d:
+        concl = (c.get('conclusion') or '').upper()
+        if concl in ('FAILURE', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED'):
+            print('true'); sys.exit(0)
+    print('false')
+except Exception:
+    print('false')
+" 2>/dev/null || echo "false")
+
+            if [[ "$_has_failure" == "true" ]]; then
+                echo "ERROR: required check failed for PR ${_pr_url}" >&2
+                return 1
+            fi
+        fi
+
+        # --- Step 2: check PR state for MERGED ---
+        local _state_raw _state
+        _state_raw=$(gh pr view "$_pr_number" --json state --jq .state 2>/dev/null || true)
+        # Strip whitespace
+        _state=$(echo "$_state_raw" | tr -d '[:space:]')
+        # Some gh versions output JSON-wrapped; fall back to grep
+        if [[ -z "$_state" || "$_state" == "{"*  ]]; then
+            _state=$(echo "$_state_raw" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get('state', '') if isinstance(d, dict) else str(d))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+        fi
+
+        if [[ "$_state" == "MERGED" ]]; then
+            echo "INFO: PR #${_pr_number} merged successfully."
+            if type _state_mark_complete >/dev/null 2>&1; then
+                _state_mark_complete "poll" 2>/dev/null || true
+            fi
+            return 0
+        fi
+
+        # --- Step 3: timeout check (computed on elapsed wall time) ---
+        local _elapsed=$(( SECONDS - _start ))
+        if (( _elapsed >= _max_wait )); then
+            echo "ERROR: max-wait exceeded (${_max_wait}s) — PR URL: ${_pr_url}" >&2
+            return 1
+        fi
+
+        # --- Step 4: sleep then continue ---
+        # When interval is 0 or sub-second, skip sleep entirely (used in tests).
+        if [[ "$_interval" != "0" && "$_interval" != "0.0" ]]; then
+            sleep "$_interval" 2>/dev/null || sleep 1
+        fi
+    done
+}
+
+# --- Resolve PR url + number for polling (from state file written above) ---
+_PR_URL=""
+_PR_NUMBER=""
+if type _state_file_path >/dev/null 2>&1; then
+    _SF=$(_state_file_path 2>/dev/null || true)
+    if [[ -n "$_SF" && -f "$_SF" ]]; then
+        _PR_URL=$(python3 -c "
+import json
+try:
+    d = json.load(open('$_SF'))
+    print(d.get('pr_url', ''))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+        _PR_NUMBER=$(python3 -c "
+import json
+try:
+    d = json.load(open('$_SF'))
+    n = d.get('pr_number', '')
+    print(n if n != '' else '')
+except Exception:
+    print('')
+" 2>/dev/null || true)
+    fi
+fi
+
+if [[ -z "$_PR_NUMBER" ]]; then
+    echo "ERROR: could not resolve PR number for polling phase" >&2
+    exit 1
+fi
+
+if ! _phase_poll "$_PR_NUMBER" "$_PR_URL"; then
+    exit 1
+fi
+
+# Skeleton end — version_bump → archive → ci_trigger land in later tasks.
 exit 0

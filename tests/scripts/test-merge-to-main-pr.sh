@@ -67,12 +67,22 @@ case "\$1" in
         exit 0
         ;;
       view)
-        # mergeable status query — used in the conflict path to detect CONFLICTING.
+        # gh pr view --json mergeable — pre-auto-merge check
+        # gh pr view --json state — polling-phase check (return MERGED so loop exits)
+        if [[ "\$*" == *"--json state"* ]]; then
+          echo "MERGED"
+          exit 0
+        fi
         if [[ "$pr_create_mode" == "conflict" ]]; then
           echo '{"mergeable":"CONFLICTING","number":42,"url":"https://github.com/x/y/pull/42"}'
         else
           echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
         fi
+        exit 0
+        ;;
+      checks)
+        # Polling-phase: return all SUCCESS so the loop proceeds to state check.
+        echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
         exit 0
         ;;
       merge)
@@ -302,6 +312,299 @@ t_pr_conflict_emits_conflict_data() {
     assert_eq "t_pr_conflict_emits_conflict_data_has_resolution_strategy" "true" "$_has_resolution_strategy"
 }
 t_pr_conflict_emits_conflict_data
+
+# ===========================================================================
+# Polling-loop tests (Task f7cf-4f1b — DD1, DD2, DD3)
+# ===========================================================================
+#
+# Polling fixture extends _build_pr_fixture's gh shim with iteration-aware
+# behavior for `gh pr checks` and `gh pr view --json state`. A counter file
+# tracks the iteration number across gh invocations.
+#
+# _build_pr_polling_fixture <tmpdir> <branch> <mode>
+#   mode:
+#     success_after_2  → iter 1: IN_PROGRESS / OPEN; iter 2: SUCCESS / MERGED
+#     check_failure    → iter 1: FAILURE → exit 1
+#     forever_pending  → always IN_PROGRESS / OPEN (used with low max_wait)
+#     success_after_3  → iters 1,2: IN_PROGRESS; iter 3: SUCCESS / MERGED
+#                        (used to assert ONE pr-checks call per iteration)
+_build_pr_polling_fixture() {
+    local tmpdir="$1" branch="$2" mode="$3"
+    local bin="$tmpdir/bin"
+    mkdir -p "$bin"
+
+    local gh_argv_log="$tmpdir/gh-argv.log"
+    local checks_counter="$tmpdir/checks-counter"
+    : > "$checks_counter"  # zero-length → iteration 0 before first call
+
+    cat > "$bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$gh_argv_log"
+case "\$1" in
+  --version)
+    echo "gh version 2.40.1 (2024-01-01)"
+    exit 0
+    ;;
+  pr)
+    case "\$2" in
+      list)
+        # Duplicate-PR guard — empty
+        exit 0
+        ;;
+      create)
+        echo "https://github.com/x/y/pull/42"
+        exit 0
+        ;;
+      view)
+        # gh pr view --json state OR --json mergeable
+        # mergeable check (pre-auto-merge) → MERGEABLE; state check during poll → see below
+        if [[ "\$*" == *"--json mergeable"* && "\$*" != *state* ]]; then
+          echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
+          exit 0
+        fi
+        # state query during polling
+        _iter=\$(wc -c < "$checks_counter" 2>/dev/null | tr -d ' ' || echo 0)
+        # Use checks-counter byte count as the pollIter (incremented by pr checks calls)
+        case "$mode" in
+          success_after_2)
+            if [[ "\$_iter" -ge 2 ]]; then
+              echo '{"state":"MERGED"}'
+            else
+              echo '{"state":"OPEN"}'
+            fi
+            ;;
+          success_after_3)
+            if [[ "\$_iter" -ge 3 ]]; then
+              echo '{"state":"MERGED"}'
+            else
+              echo '{"state":"OPEN"}'
+            fi
+            ;;
+          check_failure|forever_pending)
+            echo '{"state":"OPEN"}'
+            ;;
+        esac
+        exit 0
+        ;;
+      checks)
+        # Each call increments iteration counter (one byte per call)
+        printf 'x' >> "$checks_counter"
+        _iter=\$(wc -c < "$checks_counter" 2>/dev/null | tr -d ' ' || echo 0)
+        case "$mode" in
+          success_after_2)
+            if [[ "\$_iter" -ge 2 ]]; then
+              echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+            else
+              echo '[{"name":"ci","state":"IN_PROGRESS","conclusion":""}]'
+            fi
+            ;;
+          success_after_3)
+            if [[ "\$_iter" -ge 3 ]]; then
+              echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+            else
+              echo '[{"name":"ci","state":"IN_PROGRESS","conclusion":""}]'
+            fi
+            ;;
+          check_failure)
+            echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]'
+            ;;
+          forever_pending)
+            echo '[{"name":"ci","state":"IN_PROGRESS","conclusion":""}]'
+            ;;
+        esac
+        exit 0
+        ;;
+      merge)
+        exit 0
+        ;;
+      *) exit 0 ;;
+    esac
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$bin/gh"
+
+    # ---- git shim (same as _build_pr_fixture) ----
+    local real_git
+    real_git=$(command -v git)
+    local git_push_log="$tmpdir/git-push.log"
+    cat > "$bin/git" <<GIT_SHIM
+#!/usr/bin/env bash
+if [[ "\$1" == "push" ]]; then
+  printf '%s\n' "\$*" >> "$git_push_log"
+  exit 0
+fi
+exec "$real_git" "\$@"
+GIT_SHIM
+    chmod +x "$bin/git"
+
+    (
+        cd "$tmpdir" || exit 1
+        "$real_git" init -q -b main >/dev/null 2>&1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        echo "seed" > seed.txt
+        "$real_git" add seed.txt
+        "$real_git" commit -q -m "seed" >/dev/null
+        "$real_git" checkout -q -b "$branch"
+        echo "feature" > feature.txt
+        "$real_git" add feature.txt
+        "$real_git" commit -q -m "feature work" >/dev/null
+    )
+
+    # Per-test config override: zero-cadence polling
+    local cfg="$tmpdir/dso-config.conf"
+    cat > "$cfg" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# t_pr_poll_single_call_per_iteration
+# Given polling that succeeds on iter 3; assert exactly 3 `pr checks` calls.
+# ---------------------------------------------------------------------------
+t_pr_poll_single_call_per_iteration() {
+    local _T branch _argv _checks_count
+    _T="$(mktemp -d /tmp/dso-pr-poll-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-poll-once-per-iter"
+    _build_pr_polling_fixture "$_T" "$branch" "success_after_3"
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        bash "$PR_SCRIPT" >/dev/null 2>&1
+    ) || true
+
+    _argv="$(cat "$_T/gh-argv.log" 2>/dev/null || echo '')"
+    _checks_count=$(echo "$_argv" | grep -cE "^pr checks " || true)
+
+    assert_eq "t_pr_poll_single_call_per_iteration_count" "3" "$_checks_count"
+}
+t_pr_poll_single_call_per_iteration
+
+# ---------------------------------------------------------------------------
+# t_pr_poll_succeeds_on_merged_state
+# Given shim returns SUCCESS+MERGED on iter 2; expect exit 0.
+# ---------------------------------------------------------------------------
+t_pr_poll_succeeds_on_merged_state() {
+    local _T branch _ec
+    _T="$(mktemp -d /tmp/dso-pr-poll-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-poll-success"
+    _build_pr_polling_fixture "$_T" "$branch" "success_after_2"
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        bash "$PR_SCRIPT" >/dev/null 2>&1
+    )
+    _ec=$?
+
+    assert_eq "t_pr_poll_succeeds_on_merged_state_exit_zero" "0" "$_ec"
+}
+t_pr_poll_succeeds_on_merged_state
+
+# ---------------------------------------------------------------------------
+# t_pr_poll_fails_on_check_failure
+# Given shim returns FAILURE conclusion on iter 1; expect non-zero exit
+# and PR URL in stderr.
+# ---------------------------------------------------------------------------
+t_pr_poll_fails_on_check_failure() {
+    local _T branch _stderr _ec _has_url _exits_nonzero
+    _T="$(mktemp -d /tmp/dso-pr-poll-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-poll-failure"
+    _build_pr_polling_fixture "$_T" "$branch" "check_failure"
+
+    _stderr="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        bash "$PR_SCRIPT" 2>&1 >/dev/null
+    )"
+    _ec=$?
+
+    _exits_nonzero="false"
+    [[ "$_ec" -ne 0 ]] && _exits_nonzero="true"
+
+    _has_url="false"
+    if echo "$_stderr" | grep -q "pull/42"; then
+        _has_url="true"
+    fi
+
+    assert_eq "t_pr_poll_fails_on_check_failure_exits_nonzero" "true" "$_exits_nonzero"
+    assert_eq "t_pr_poll_fails_on_check_failure_has_pr_url" "true" "$_has_url"
+}
+t_pr_poll_fails_on_check_failure
+
+# ---------------------------------------------------------------------------
+# t_pr_poll_timeout
+# Given max_wait=1 and shim returns IN_PROGRESS forever; expect non-zero
+# exit, "max-wait exceeded" message, and PR URL in stderr.
+# ---------------------------------------------------------------------------
+t_pr_poll_timeout() {
+    local _T branch _stderr _ec _has_timeout _has_url _exits_nonzero _cfg
+    _T="$(mktemp -d /tmp/dso-pr-poll-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-poll-timeout"
+    _build_pr_polling_fixture "$_T" "$branch" "forever_pending"
+
+    # Override max_wait to 1 second
+    _cfg="$_T/dso-config.conf"
+    cat > "$_cfg" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=1
+EOF
+
+    _stderr="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        WORKFLOW_CONFIG_FILE="$_cfg" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        bash "$PR_SCRIPT" 2>&1 >/dev/null
+    )"
+    _ec=$?
+
+    _exits_nonzero="false"
+    [[ "$_ec" -ne 0 ]] && _exits_nonzero="true"
+
+    _has_timeout="false"
+    if echo "$_stderr" | grep -q "max-wait exceeded"; then
+        _has_timeout="true"
+    fi
+
+    _has_url="false"
+    if echo "$_stderr" | grep -q "pull/42"; then
+        _has_url="true"
+    fi
+
+    assert_eq "t_pr_poll_timeout_exits_nonzero" "true" "$_exits_nonzero"
+    assert_eq "t_pr_poll_timeout_has_max_wait_message" "true" "$_has_timeout"
+    assert_eq "t_pr_poll_timeout_has_pr_url" "true" "$_has_url"
+}
+t_pr_poll_timeout
 
 # ---------------------------------------------------------------------------
 print_summary
