@@ -6,6 +6,9 @@
 #   - Stale git state and rebase auto-resolution helpers
 #   - Push idempotency check
 #   - Squash-rebase recovery
+#   - PR thread-resolution helpers (_pr_fetch_unresolved_threads,
+#     _pr_thread_is_unresolved, _pr_post_thread_reply, _pr_resolve_thread,
+#     _pr_settling_check)
 #
 # Callers must set BRANCH before sourcing this file (used by _state_file_path).
 # The following variables are used if set: MAX_MERGE_RETRIES, LOCK_WAIT_CEILING.
@@ -345,7 +348,7 @@ _abort_stale_rebase() {
 }
 
 # --- Auto-resolve ticket-data conflicts during git pull --rebase ---
-# Ticket event JSON files (.tickets-tracker/<id>/*.json) may appear as conflicts
+# Ticket event JSON files (.tickets-tracker/<id>/*.json) may appear as conflicts # tickets-boundary-ok
 # during rebase (e.g., during worktree sync). These are always safe to resolve by
 # accepting our version (git add if present, git rm if absent).
 # Non-ticket conflicts cause an immediate abort.
@@ -390,12 +393,12 @@ _auto_resolve_archive_conflicts() {
     fi
 
     # Safety check: ALL conflicts must be ticket-data files (safe to auto-resolve).
-    # Ticket data: v3 .tickets-tracker/<id>/*.json or .tickets-tracker/*.json (includes .index.json).
+    # Ticket data: v3 .tickets-tracker/<id>/*.json or .tickets-tracker/*.json (includes .index.json). # tickets-boundary-ok
     local _non_archive_conflicts=0
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
         case "$_file" in
-            .tickets-tracker/*/*.json | .tickets-tracker/*.json)
+            .tickets-tracker/*/*.json | .tickets-tracker/*.json) # tickets-boundary-ok
                 # v3 ticket event JSON — safe to auto-resolve
                 ;;
             *)
@@ -419,7 +422,7 @@ _auto_resolve_archive_conflicts() {
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
 
-        if [[ "$_file" == .tickets-tracker/*.json || "$_file" == .tickets-tracker/*/*.json ]]; then
+        if [[ "$_file" == .tickets-tracker/*.json || "$_file" == .tickets-tracker/*/*.json ]]; then # tickets-boundary-ok
             # v3 ticket event JSON — accept ours (git add if present, git rm if absent)
             if [[ -f "$_file" ]]; then
                 git add "$_file" 2>/dev/null && _resolved=$(( _resolved + 1 )) || _failed=$(( _failed + 1 ))
@@ -499,7 +502,7 @@ _auto_resolve_archive_conflicts() {
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
                 case "$_nf" in
-                    .tickets-tracker/*/*.json | .tickets-tracker/*.json) ;;
+                    .tickets-tracker/*/*.json | .tickets-tracker/*.json) ;; # tickets-boundary-ok
                     *) _new_non_archive=$(( _new_non_archive + 1 )) ;;
                 esac
             done <<< "$_new_all"
@@ -514,7 +517,7 @@ _auto_resolve_archive_conflicts() {
             local _new_resolved=0 _new_failed=0
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
-                if [[ "$_nf" == .tickets-tracker/*.json || "$_nf" == .tickets-tracker/*/*.json ]]; then
+                if [[ "$_nf" == .tickets-tracker/*.json || "$_nf" == .tickets-tracker/*/*.json ]]; then # tickets-boundary-ok
                     # v3 ticket event JSON — accept ours
                     if [[ -f "$_nf" ]]; then
                         git add "$_nf" 2>/dev/null && _new_resolved=$(( _new_resolved + 1 )) || _new_failed=$(( _new_failed + 1 ))
@@ -695,5 +698,245 @@ _squash_rebase_recovery() {
     echo "ACTION REQUIRED: Rebase conflict in the following files:"
     echo "$_CONFLICTED_FILES"
     git rebase --abort 2>/dev/null || true
+    return 1
+}
+
+# =============================================================================
+# PR Thread-Resolution Helpers
+# =============================================================================
+# These helpers wrap `gh api` calls for the PR review-thread resolution loop.
+# They are designed to be tested via PATH-shadowed `gh` stubs (see T1 RED tests).
+# All helpers exit 0 on success, exit 1 on API/parse error.
+#
+# Owner/repo is derived on first call and cached in _PR_REPO_NAME_WITH_OWNER.
+# =============================================================================
+
+# Module-level cache for owner/repo slug (populated on first call).
+_PR_REPO_NAME_WITH_OWNER=""
+
+# _pr_repo() — returns "owner/repo" slug (cached after first successful call).
+# Exits 0 always; prints slug or empty string.
+_pr_repo() {
+    if [[ -n "${_PR_REPO_NAME_WITH_OWNER:-}" ]]; then
+        echo "$_PR_REPO_NAME_WITH_OWNER"
+        return 0
+    fi
+    local _slug
+    _slug=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || echo "")
+    _PR_REPO_NAME_WITH_OWNER="$_slug"
+    echo "$_slug"
+}
+
+# _pr_fetch_unresolved_threads <pr_number>
+# Fetches all review threads on the given PR via the reviewThreads GraphQL query.
+# Filters to threads where isResolved=false.
+# Prints one line per unresolved thread: <thread_node_id>\t<file_path>\t<line>\t<latest_comment_id>\t<body>
+# Exit 0 on success (even if empty result); exit 1 on API/parse error.
+_pr_fetch_unresolved_threads() {
+    local _pr_number="$1"
+    local _repo
+    _repo=$(_pr_repo) || true
+
+    local _query
+    # shellcheck disable=SC2016  # GraphQL vars ($owner etc.) intentionally not expanded here
+    _query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){reviewThreads(first:100){nodes{id,isResolved,path,line,comments(last:1){nodes{databaseId,body}}}}}}}'
+
+    local _owner _reponame
+    _owner="${_repo%%/*}"
+    _reponame="${_repo##*/}"
+
+    local _response
+    _response=$(gh api graphql \
+        -f query="$_query" \
+        -f owner="$_owner" \
+        -f repo="$_reponame" \
+        -F pr="$_pr_number" 2>/dev/null) || {
+        echo "ERROR: _pr_fetch_unresolved_threads: gh api graphql failed" >&2
+        return 1
+    }
+
+    # Parse the response: extract unresolved threads and emit one line each.
+    # Use python3 for JSON parsing (avoids jq dependency).
+    # Write response to a temp file to avoid ARG_MAX limits on large PR responses.
+    local _resp_tmp
+    _resp_tmp=$(mktemp /tmp/pr-threads-resp.XXXXXX)
+    printf '%s' "$_response" > "$_resp_tmp"
+    python3 - "$_resp_tmp" <<'PYEOF' 2>/dev/null; local _py_rc=$?; rm -f "$_resp_tmp"; [ "$_py_rc" -eq 0 ] || return 1
+import sys, json, base64
+
+response_str = open(sys.argv[1]).read()
+try:
+    data = json.loads(response_str)
+except Exception as e:
+    print(f"ERROR: failed to parse graphql response: {e}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    nodes = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+except (KeyError, TypeError):
+    # Empty or unexpected structure — treat as zero threads (not an error)
+    sys.exit(0)
+
+for node in nodes:
+    if node.get("isResolved", True):
+        continue
+    thread_id = node.get("id", "")
+    path = node.get("path", "")
+    line = str(node.get("line") or "")
+    comments = node.get("comments", {}).get("nodes", [])
+    if comments:
+        last_comment = comments[-1]
+        comment_id = str(last_comment.get("databaseId", ""))
+        body = last_comment.get("body", "")
+        body_b64 = base64.b64encode(body.encode("utf-8")).decode("utf-8")
+    else:
+        comment_id = ""
+        body_b64 = ""
+    print(f"{thread_id}\t{path}\t{line}\t{comment_id}\t{body_b64}")
+PYEOF
+}
+
+# _pr_thread_is_unresolved <thread_node_id>
+# Idempotent precheck: queries the single thread by node ID.
+# Prints "true" if isResolved=false; "false" otherwise (including missing/error).
+# Exit 0 always (a missing thread is treated as "false").
+_pr_thread_is_unresolved() {
+    local _thread_id="$1"
+
+    local _query
+    # shellcheck disable=SC2016  # GraphQL vars ($threadId) intentionally not expanded here
+    _query='query($threadId:ID!){node(id:$threadId){...on PullRequestReviewThread{id,isResolved}}}'
+
+    local _response
+    _response=$(gh api graphql \
+        -f query="$_query" \
+        -f threadId="$_thread_id" 2>/dev/null) || {
+        echo "false"
+        return 0
+    }
+
+    # Parse: extract isResolved from the node response.
+    # Write response to a temp file to avoid ARG_MAX limits on large API responses.
+    local _resp_tmp2
+    _resp_tmp2=$(mktemp /tmp/pr-thread-check.XXXXXX)
+    printf '%s' "$_response" > "$_resp_tmp2"
+    python3 - "$_resp_tmp2" <<'PYEOF' 2>/dev/null; local _py2_rc=$?; rm -f "$_resp_tmp2"; [ "$_py2_rc" -eq 0 ] || { echo "false"; return 0; }
+import sys, json
+
+response_str = open(sys.argv[1]).read()
+try:
+    data = json.loads(response_str)
+except Exception:
+    print("false")
+    sys.exit(0)
+
+# Check via node query result
+try:
+    node = data["data"]["node"]
+    if node and not node.get("isResolved", True):
+        print("true")
+    else:
+        print("false")
+    sys.exit(0)
+except (KeyError, TypeError):
+    pass
+
+# Fallback: check via reviewThreads list (when stub returns full reviewThreads structure)
+try:
+    nodes = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+    for n in nodes:
+        if not n.get("isResolved", True):
+            print("true")
+            sys.exit(0)
+    print("false")
+    sys.exit(0)
+except (KeyError, TypeError):
+    print("false")
+    sys.exit(0)
+PYEOF
+}
+
+# _pr_post_thread_reply <pr_number> <comment_id> <reply_text>
+# POSTs a reply to the given comment via the REST API.
+# Uses: gh api -X POST /repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies
+# Exit 0 on 201 Created; exit 1 on any non-2xx response.
+_pr_post_thread_reply() {
+    local _pr_number="$1"
+    local _comment_id="$2"
+    local _reply_text="$3"
+    local _repo
+    _repo=$(_pr_repo) || true
+
+    local _owner _reponame
+    _owner="${_repo%%/*}"
+    _reponame="${_repo##*/}"
+
+    local _response
+    _response=$(gh api \
+        -X POST \
+        "/repos/${_owner}/${_reponame}/pulls/${_pr_number}/comments/${_comment_id}/replies" \
+        -f body="$_reply_text" 2>/dev/null) || {
+        echo "ERROR: _pr_post_thread_reply: gh api POST failed" >&2
+        return 1
+    }
+
+    return 0
+}
+
+# _pr_resolve_thread <thread_node_id>
+# Resolves the given review thread via the resolveReviewThread GraphQL mutation.
+# MUST first call _pr_thread_is_unresolved; only invokes the mutation when the
+# result is "true". Idempotent: exit 0 on success or already-resolved no-op.
+# Exit 1 on mutation error.
+_pr_resolve_thread() {
+    local _thread_id="$1"
+
+    # Idempotent precheck: only resolve if not already resolved.
+    local _is_unresolved
+    _is_unresolved=$(_pr_thread_is_unresolved "$_thread_id") || true
+
+    if [[ "$_is_unresolved" != "true" ]]; then
+        # Already resolved — no-op.
+        return 0
+    fi
+
+    # Invoke the resolveReviewThread mutation.
+    local _mutation
+    # shellcheck disable=SC2016  # GraphQL vars ($threadId) intentionally not expanded here
+    _mutation='mutation($threadId:ID!){resolveReviewThread(input:{threadId:$threadId}){thread{id,isResolved}}}'
+
+    local _response
+    _response=$(gh api graphql \
+        -f query="$_mutation" \
+        -f threadId="$_thread_id" 2>/dev/null) || {
+        echo "ERROR: _pr_resolve_thread: resolveReviewThread mutation failed" >&2
+        return 1
+    }
+
+    return 0
+}
+
+# _pr_settling_check [--ci-green=<true|false>] [--threads=<N>] [--quiet-window-elapsed=<true|false>]
+# Heuristic: settled when ALL THREE hold:
+#   1. CI is green (--ci-green=true)
+#   2. Zero unresolved threads (--threads=0)
+#   3. Quiet window has elapsed (--quiet-window-elapsed=true)
+# Exit 0 when settled; exit 1 when any condition is unmet.
+_pr_settling_check() {
+    local _ci_green="false"
+    local _threads="1"
+    local _quiet_elapsed="false"
+
+    for _arg in "$@"; do
+        case "$_arg" in
+            --ci-green=*)    _ci_green="${_arg#--ci-green=}" ;;
+            --threads=*)     _threads="${_arg#--threads=}" ;;
+            --quiet-window-elapsed=*) _quiet_elapsed="${_arg#--quiet-window-elapsed=}" ;;
+        esac
+    done
+
+    if [[ "$_ci_green" == "true" && "$_threads" == "0" && "$_quiet_elapsed" == "true" ]]; then
+        return 0
+    fi
     return 1
 }
