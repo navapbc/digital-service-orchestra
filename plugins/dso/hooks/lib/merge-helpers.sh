@@ -886,7 +886,7 @@ _pr_thread_is_unresolved() {
     local _resp_tmp2
     _resp_tmp2=$(mktemp /tmp/pr-thread-check.XXXXXX)
     printf '%s' "$_response" > "$_resp_tmp2"
-    python3 - "$_resp_tmp2" <<'PYEOF' 2>/dev/null; local _py2_rc=$?; rm -f "$_resp_tmp2"; [ "$_py2_rc" -eq 0 ] || { echo "false"; return 0; }
+    python3 - "$_resp_tmp2" "$_thread_id" <<'PYEOF' 2>/dev/null; local _py2_rc=$?; rm -f "$_resp_tmp2"; [ "$_py2_rc" -eq 0 ] || { echo "false"; return 0; }
 import sys, json
 
 response_str = open(sys.argv[1]).read()
@@ -908,9 +908,14 @@ except (KeyError, TypeError):
     pass
 
 # Fallback: check via reviewThreads list (when stub returns full reviewThreads structure)
+# Only return true if the specific thread_node_id is unresolved.
+thread_id_arg = sys.argv[2] if len(sys.argv) > 2 else ""
 try:
     nodes = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
     for n in nodes:
+        # Match by id when available; fall back to any-unresolved only when no id field
+        if thread_id_arg and n.get("id") and n.get("id") != thread_id_arg:
+            continue
         if not n.get("isResolved", True):
             print("true")
             sys.exit(0)
@@ -923,9 +928,10 @@ PYEOF
 }
 
 # _pr_post_thread_reply <pr_number> <comment_id> <reply_text>
-# POSTs a reply to the given comment via the REST API.
-# Uses: gh api -X POST /repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies
-# Exit 0 on 201 Created; exit 1 on any non-2xx response.
+# POSTs a reply to the given review comment via the REST API.
+# Uses: gh api -X POST /repos/{owner}/{repo}/pulls/comments/{id}/replies
+# (GitHub REST endpoint is scoped by comment_id only — no PR number in path.)
+# Exit 0 on success; exit 1 on failure.
 _pr_post_thread_reply() {
     local _pr_number="$1"
     local _comment_id="$2"
@@ -940,7 +946,7 @@ _pr_post_thread_reply() {
     local _response
     _response=$(gh api \
         -X POST \
-        "/repos/${_owner}/${_reponame}/pulls/${_pr_number}/comments/${_comment_id}/replies" \
+        "/repos/${_owner}/${_reponame}/pulls/comments/${_comment_id}/replies" \
         -f body="$_reply_text" 2>/dev/null) || {
         echo "ERROR: _pr_post_thread_reply: gh api POST failed" >&2
         return 1

@@ -106,6 +106,8 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-2-skip-review-check" >> "$ARTIFACTS_DI
 
 Read `enforcement.strategy` from `dso-config.conf` to decide whether local validation steps run before commit, or are deferred to CI.
 
+> **Failure routing**: When a validation or CI failure is found, dispatch using the `discover-agents.sh` routing system (`agent-routing.conf`) by failure category — unit test failures → routing category `test_fix_unit`, lint/type errors → `mechanical_fix`, multi-file/complex (CI-only) → `error-debugging:error-detective`. See [commit-workflow-validation.md](commit-workflow-validation.md) Step 1 for the full routing table.
+
 - `enforcement.strategy=ci` — local validation is **skipped**. All steps in [commit-workflow-validation.md](commit-workflow-validation.md) are deferred to CI; jump directly to Step 5 (Stage) after this gate. The always-on structural hooks (`check-portability`, `check-shim-refs`, `check-contract-schemas`, `check-referential-integrity`, `check-plugin-self-ref` — which blocks literal `${CLAUDE_PLUGIN_ROOT}/`-style paths inside plugin scripts — and `pre-commit-enforcement-boundary-check`) still run; only the gated test/review/quality hooks are deferred.
 - `enforcement.strategy=local`, `both`, or **absent** — read and execute [commit-workflow-validation.md](commit-workflow-validation.md) inline before continuing to Step 5. That file holds Steps 1–4 verbatim; Steps 5–6 from it run after Step 5 of this workflow and before Step 6.
 

@@ -255,7 +255,7 @@ except Exception:
 _phase_resolve_threads() {
     local _pr_number="$1" _pr_url="$2"
     local _read_config
-    _read_config="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
+    _read_config="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"  # shim-exempt: internal plugin script
 
     # Read config with env override support
     local _max_dispatches _max_wait _quiet_window _interval
@@ -286,7 +286,7 @@ _phase_resolve_threads() {
     local _last_thread_seen_ts=0
     local _last_thread_count=0
     local _last_head_sha=""
-    local _llm_cmd="${_LLM_DISPATCH_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"
+    local _llm_cmd="${_LLM_DISPATCH_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
     # Track threads the LLM escalated so they are skipped on subsequent iterations
     # instead of burning the dispatch budget repeatedly on unresolvable threads.
     declare -A _escalated_threads=()
@@ -428,8 +428,9 @@ except Exception:
 
             local _llm_result=""
             local _llm_rc=0
+            local _responder_prompt="${CLAUDE_PLUGIN_ROOT}/scripts/prompts/pr-comment-responder.md"  # shim-exempt: internal plugin script
             _llm_result=$($_llm_cmd \
-                "${CLAUDE_PLUGIN_ROOT}/scripts/prompts/pr-comment-responder.md" \
+                "$_responder_prompt" \
                 "$_user_msg" \
                 "standard" \
                 2>/dev/null) || _llm_rc=$?
@@ -545,7 +546,7 @@ except Exception:
 _phase_poll() {
     local _pr_number="$1" _pr_url="$2"
     local _interval _max_wait _read_config
-    _read_config="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
+    _read_config="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"  # shim-exempt: internal plugin script
 
     _interval=$(bash "$_read_config" merge.pr_poll_interval_seconds 2>/dev/null || true)
     _max_wait=$(bash "$_read_config" merge.pr_max_wait_seconds 2>/dev/null || true)
@@ -654,9 +655,34 @@ if type _state_init >/dev/null 2>&1; then
 fi
 
 # --- Run merge phase; on failure, emit CONFLICT_DATA contract line ---
-if ! _phase_merge; then
+# Always emitted for parity with direct mode (resolve-conflicts/SKILL.md relies on it).
+# resolution_strategy distinguishes whether the failure was a push/create error or a
+# CONFLICTING merge: "pr-create-failed" when no PR was created, "pr-conflict" when
+# gh reported the PR as CONFLICTING.
+_PHASE_MERGE_RC=0
+_phase_merge || _PHASE_MERGE_RC=$?
+if [[ "$_PHASE_MERGE_RC" -ne 0 ]]; then
     if type _emit_conflict_data >/dev/null 2>&1; then
-        _emit_conflict_data "$BRANCH" "main" "pr-auto-merge"
+        # Determine resolution strategy from state: if PR URL was written, the phase
+        # reached the CONFLICTING check; otherwise failure was at push/create time.
+        _MERGE_SF=""
+        if type _state_file_path >/dev/null 2>&1; then
+            _MERGE_SF=$(_state_file_path 2>/dev/null || true)
+        fi
+        _PR_URL_CHECK=""
+        if [[ -n "$_MERGE_SF" && -f "$_MERGE_SF" ]]; then
+            _PR_URL_CHECK=$(python3 -c "
+import json
+try:
+    d = json.load(open('$_MERGE_SF'))
+    print(d.get('pr_url', ''))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+        fi
+        _RESOLUTION_STRATEGY="pr-create-failed"
+        [[ -n "$_PR_URL_CHECK" ]] && _RESOLUTION_STRATEGY="pr-conflict"
+        _emit_conflict_data "$BRANCH" "main" "$_RESOLUTION_STRATEGY"
     fi
     exit 1
 fi
@@ -736,7 +762,7 @@ fi
 # Set the globals direct.sh phase functions expect, then invoke them in order.
 # =============================================================================
 
-_DIRECT_SH="${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-direct.sh"
+_DIRECT_SH="${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-direct.sh"  # shim-exempt: internal plugin script
 if [[ ! -f "$_DIRECT_SH" ]]; then
     echo "ERROR: merge-to-main-direct.sh not found at $_DIRECT_SH" >&2
     exit 1
@@ -759,7 +785,7 @@ PRE_MERGE_SHA=$(git rev-parse "${MERGE_SHA}^1" 2>/dev/null || echo "")
 export PRE_MERGE_SHA
 
 # _CFG_TKDIR is referenced by _phase_archive (direct.sh).
-_CFG_TKDIR=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" tickets.directory 2>/dev/null || true)
+_CFG_TKDIR=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" tickets.directory 2>/dev/null || true)  # shim-exempt: internal plugin script
 _CFG_TKDIR="${_CFG_TKDIR:-.tickets-tracker}"
 export _CFG_TKDIR
 

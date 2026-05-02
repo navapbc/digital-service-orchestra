@@ -316,10 +316,11 @@ test_resolve_thread_calls_mutation_only_when_unresolved() {
     assert_eq "test_resolve_thread_calls_mutation_only_when_unresolved: zero mutations when pre-resolved" "0" "$mut1"
 
     # Case 2: unresolved thread → precheck reports isResolved=false, mutation
-    # invoked exactly once. Stub returns isResolved=false for the open thread.
+    # invoked exactly once. Stub returns isResolved=false for PRT_STUCK.
+    # Must pass the same ID the stub returns — _pr_thread_is_unresolved filters by ID.
     export STUB_GH_SCENARIO=threads_one_unresolved
     : > "$STUB_GH_LOG"
-    _pr_resolve_thread "PRT_OPEN" >/dev/null 2>&1 || true
+    _pr_resolve_thread "PRT_STUCK" >/dev/null 2>&1 || true
     local mut2
     mut2=$(grep -c 'resolveReviewThread' "$STUB_GH_LOG" 2>/dev/null; true)
     assert_eq "test_resolve_thread_calls_mutation_only_when_unresolved: one mutation when unresolved" "1" "$mut2"

@@ -366,9 +366,10 @@ case "\$1" in
       view)
         # gh pr view --json state OR --json mergeable OR --json mergeCommit
         if [[ "\$*" == *"--json mergeCommit"* ]]; then
-          # Return a SHA that the success-path fixture seeded onto origin/main.
+          # Return the raw OID (simulates gh pr view --json mergeCommit --jq .mergeCommit.oid output)
           if [[ -f "$tmpdir/merge-sha" ]]; then
-            cat "$tmpdir/merge-sha"
+            tr -d '[:space:]' < "$tmpdir/merge-sha"
+            echo
           else
             echo "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
           fi
