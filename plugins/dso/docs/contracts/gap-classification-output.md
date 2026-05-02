@@ -2,12 +2,12 @@
 
 - Signal Name: GAP_CLASSIFICATION
 - Status: accepted
-- Scope: sprint Phase 7 remediation routing (epic ca76-bb4e)
+- Scope: sprint Phase H remediation routing (epic ca76-bb4e)
 - Date: 2026-04-04
 
 ## Purpose
 
-This document defines the shared output interface for the `GAP_CLASSIFICATION` signal emitted by the gap-classification sub-agent prompt when the sprint completion-verifier identifies failing success criteria (SC). The `/dso:sprint` orchestrator Phase 7 (Remediation) consumes this signal to route each failing SC to the correct remediation path — either brainstorm-level intent re-examination (user-confirmed) or autonomous implementation-plan routing.
+This document defines the shared output interface for the `GAP_CLASSIFICATION` signal emitted by the gap-classification sub-agent prompt when the sprint completion-verifier identifies failing success criteria (SC). The `/dso:sprint` orchestrator Phase H (Remediation) consumes this signal to route each failing SC to the correct remediation path — either brainstorm-level intent re-examination (user-confirmed) or autonomous implementation-plan routing.
 
 This contract must be agreed upon before any implementation begins to prevent implicit assumptions and ensure the emitter and parser stay in sync.
 
@@ -21,7 +21,7 @@ This contract must be agreed upon before any implementation begins to prevent im
 
 ## Emitter
 
-`skills/sprint/prompts/gap-classification.md` — LLM prompt dispatched as a sub-agent during Phase 7 (Remediation) # shim-exempt: internal implementation path reference
+`skills/sprint/prompts/gap-classification.md` — LLM prompt dispatched as a sub-agent during Phase H (Remediation) # shim-exempt: internal implementation path reference
 
 The emitter receives the failing SC text, the completion-verifier failure explanation, and relevant code snippets or file paths from the validation context. For each failing SC, the emitter outputs one signal line and then stops. The emitter MUST output exactly one `GAP_CLASSIFICATION:` line per failing SC — no additional commentary, no partial output.
 
@@ -29,7 +29,7 @@ The emitter receives the failing SC text, the completion-verifier failure explan
 
 ## Parser
 
-`skills/sprint/SKILL.md` — Sprint orchestrator Phase 7 (Remediation) # shim-exempt: internal implementation path reference
+`skills/sprint/SKILL.md` — Sprint orchestrator Phase H (Remediation) # shim-exempt: internal implementation path reference
 
 The parser reads the gap-classification sub-agent output, scans for all `GAP_CLASSIFICATION:` prefixed lines, and routes each failing SC according to the `ROUTING:` field value. When multiple failing SCs exist, each is routed independently based on its classification line.
 
@@ -131,7 +131,7 @@ When a SC is classified as `implementation_gap`, the sprint orchestrator MAY rou
 
 ## REPLAN_ESCALATE Integration
 
-> **Invocation context note**: This section applies when `/dso:implementation-plan` is invoked **directly** (e.g., from the `/dso:sprint` preplanning gate, a cascade replan, or a standalone `implementation-plan` call) — **not** from Phase 7 `implementation_gap` routing. As described in the Routing Behavior section above, Phase 7 `implementation_gap` routing does NOT invoke `/dso:implementation-plan` as a separate skill; it proceeds to Phase 7 Step 1 bug-task creation. The REPLAN_ESCALATE integration below therefore applies only in contexts where `/dso:implementation-plan` is genuinely invoked as a skill.
+> **Invocation context note**: This section applies when `/dso:implementation-plan` is invoked **directly** (e.g., from the `/dso:sprint` preplanning gate, a cascade replan, or a standalone `implementation-plan` call) — **not** from Phase H `implementation_gap` routing. As described in the Routing Behavior section above, Phase H `implementation_gap` routing does NOT invoke `/dso:implementation-plan` as a separate skill; it proceeds to Phase H Step 1 bug-task creation. The REPLAN_ESCALATE integration below therefore applies only in contexts where `/dso:implementation-plan` is genuinely invoked as a skill.
 
 If `/dso:implementation-plan` returns a `REPLAN_ESCALATE` signal during a direct invocation of the skill (e.g., preplanning gate or cascade replan), the sprint orchestrator MUST:
 
@@ -186,8 +186,8 @@ The following components emit or consume this signal:
 
 | Component | Role | Notes |
 |---|---|---|
-| `skills/sprint/prompts/gap-classification.md` | Emitter | LLM prompt dispatched as sub-agent in Phase 7 # shim-exempt: internal implementation path reference |
-| `skills/sprint/SKILL.md` Phase 7 | Parser | Sprint orchestrator — routes each failing SC based on classification # shim-exempt: internal implementation path reference |
+| `skills/sprint/prompts/gap-classification.md` | Emitter | LLM prompt dispatched as sub-agent in Phase H # shim-exempt: internal implementation path reference |
+| `skills/sprint/SKILL.md` Phase H | Parser | Sprint orchestrator — routes each failing SC based on classification # shim-exempt: internal implementation path reference |
 | `docs/contracts/replan-escalate-signal.md` | Related contract | Defines REPLAN_ESCALATE signal that can override implementation_gap classification # shim-exempt: internal implementation path reference |
 
 All implementors must read this contract before writing the emitter prompt or parser logic. Changes to the signal format require updating all conforming emitters and parsers and this document atomically in the same commit.
@@ -200,4 +200,4 @@ This contract is versioned. Breaking changes (format changes, field removal, pre
 
 ### Change Log
 
-- **2026-04-04**: Initial version — defines GAP_CLASSIFICATION signal for gap-classification sub-agent → sprint Phase 7 remediation routing. Establishes intent_gap/implementation_gap classification, user confirmation requirement for intent_gap, REPLAN_ESCALATE integration, and input specification.
+- **2026-04-04**: Initial version — defines GAP_CLASSIFICATION signal for gap-classification sub-agent → sprint Phase H remediation routing. Establishes intent_gap/implementation_gap classification, user confirmation requirement for intent_gap, REPLAN_ESCALATE integration, and input specification.

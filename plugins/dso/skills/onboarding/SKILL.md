@@ -1231,7 +1231,7 @@ ci.test_ceil_job=<job name for test ceiling — e.g., test-all>
 ci.integration_workflow=<integration workflow filename from ci_workflow_names>
 ```
 
-> **Key distinction**: `ci.workflow_name` is the primary CI workflow used by `merge-to-main.sh` for `gh workflow run` (CI trigger recovery). `ci.integration_workflow` identifies the integration test workflow for `/dso:sprint` Phase 6 verification. They may reference the same file or different ones.
+> **Key distinction**: `ci.workflow_name` is the primary CI workflow used by `merge-to-main.sh` for `gh workflow run` (CI trigger recovery). `ci.integration_workflow` identifies the integration test workflow for `/dso:sprint` Phase G verification. They may reference the same file or different ones.
 
 Populate these keys from the `ci_workflow_names` (comma-separated) and `ci_workflow_confidence` (high|low) output of `project-detect.sh`.
 

@@ -110,7 +110,7 @@ The following skills emit or consume the External Dependencies block:
 | `skills/brainstorm/SKILL.md` | Emitter | Identifies external dependencies during feasibility analysis; populates initial block with `ownership` and `handling` classification |
 | `skills/preplanning/SKILL.md` | Emitter + Consumer | Refines block per story; links dependencies to specific stories via `linked-epic-<id>` when cross-epic delivery applies |
 | `skills/implementation-plan/SKILL.md` | Consumer | Reads block at plan entry; surfaces `user_manual` + `claude_has_access: no` entries as blockers before task decomposition |
-| `skills/sprint/SKILL.md` | Consumer | Verifies `claude_auto` entries via `verification_command` at Phase 1 kickoff; emits `DEPENDENCY_BLOCKED` and pauses for `user_manual` entries with `claude_has_access: no` |
+| `skills/sprint/SKILL.md` | Consumer | Verifies `claude_auto` entries via `verification_command` at Phase A kickoff; emits `DEPENDENCY_BLOCKED` and pauses for `user_manual` entries with `claude_has_access: no` |
 
 All implementors must read this contract before modifying any skill that emits or parses the `external_dependencies` block. Changes to field names, enum values, or required/optional status require updating all conforming emitters and parsers and this document atomically in the same commit.
 

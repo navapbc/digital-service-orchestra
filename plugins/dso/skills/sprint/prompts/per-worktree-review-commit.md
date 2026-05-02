@@ -130,4 +130,4 @@ Both commands run from the session branch directory (not inside the worktree). `
 
 **Worktree Retention Protocol**: Do NOT remove a worktree until its harvest is complete. Worktrees with conflicts are retained for re-implementation (Step 6). Race condition guard: the worktree must be held open until harvest — Claude Code auto-cleanup is suppressed by the presence of uncommitted changes (or a sentinel file).
 
-**Important**: merge-to-main.sh runs ONCE at session end (Phase 8), not per worktree merge. Each per-worktree harvest is worktree-branch → session-branch only.
+**Important**: merge-to-main.sh runs ONCE at session end (Phase I), not per worktree merge. Each per-worktree harvest is worktree-branch → session-branch only.

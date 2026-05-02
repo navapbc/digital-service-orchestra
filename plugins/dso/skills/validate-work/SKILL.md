@@ -273,7 +273,7 @@ VISUAL_REGRESSION={pass|fail|skipped_macos|no_baselines|skipped}
 
 **Append change scope context** to the sub-agent prompt when called from `/dso:sprint` (or any caller that provides a `CHANGED_FILES` list):
 
-Check if the current invocation context contains a `### Sprint Change Scope` block (written by `/dso:sprint` Phase 7 Step 1). If present, append it verbatim to the sub-agent prompt:
+Check if the current invocation context contains a `### Sprint Change Scope` block (written by `/dso:sprint` Phase H Step 1). If present, append it verbatim to the sub-agent prompt:
 ```
 ### Change Scope
 CHANGED_FILES:

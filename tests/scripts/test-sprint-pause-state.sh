@@ -9,7 +9,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/sprint-pause-state.sh"
+SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/sprint/sprint-pause-state.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

@@ -60,10 +60,10 @@ The `/dso:sprint` orchestrator includes a self-healing layer that detects and ro
 
 | Checkpoint | Phase | Detection Mechanism | Action |
 |---|---|---|---|
-| Drift detection | Phase 1 Step 6 | `sprint-drift-check.sh` compares git history since task creation against each story's file impact table | Re-invoke `implementation-plan` for affected stories |
-| Confidence failure | Phase 5 Step 1a2 | Count `UNCERTAIN` signals per story across batch iterations; threshold: 2 | Re-invoke `implementation-plan` for the story (Phase 3 double-failure detection) |
-| Validation failure | Step 10a | All tasks closed but story done-definition validation fails | Create TDD remediation tasks via `implementation-plan` |
-| Out-of-scope review | Step 7a / Step 13a | `sprint-review-scope-check.sh` identifies review findings for files outside task scope | Create tasks for out-of-scope files via `implementation-plan` |
+| Drift detection | Phase A Step 6 | `sprint-drift-check.sh` compares git history since task creation against each story's file impact table | Re-invoke `implementation-plan` for affected stories |
+| Confidence failure | Phase F Step 4 | Count `UNCERTAIN` signals per story across batch iterations; threshold: 2 | Re-invoke `implementation-plan` for the story (Phase 3 double-failure detection) |
+| Validation failure | Step 18 (Phase F) | All tasks closed but story done-definition validation fails | Create TDD remediation tasks via `implementation-plan` |
+| Out-of-scope review | Phase F Step 14 / Step 20 | `sprint-review-scope-check.sh` identifies review findings for files outside task scope | Create tasks for out-of-scope files via `implementation-plan` |
 
 ### Confidence Signal
 
@@ -88,8 +88,8 @@ Contract: `plugins/dso/docs/contracts/replan-observability.md`
 
 ### Scripts
 
-- `plugins/dso/scripts/sprint-drift-check.sh` — detects codebase drift by comparing git history against story file impact tables.
-- `plugins/dso/scripts/sprint-review-scope-check.sh` — identifies review findings for files outside the story's defined task scope.
+- `plugins/dso/scripts/sprint/sprint-drift-check.sh` — detects codebase drift by comparing git history against story file impact tables.
+- `plugins/dso/scripts/sprint/sprint-review-scope-check.sh` — identifies review findings for files outside the story's defined task scope.
 
 ## Agent Fallback
 

@@ -2,12 +2,12 @@
 
 - Signal Name: CLARITY_SCORE
 - Status: accepted
-- Scope: sprint Phase 1 clarity gate (epic 0d66-ceb6)
+- Scope: sprint Phase A clarity gate (epic 0d66-ceb6)
 - Date: 2026-04-06
 
 ## Purpose
 
-This document defines the output interface between `ticket-clarity-check.sh` (emitter) and the `/dso:sprint` Phase 1 clarity gate (parser). The emitter evaluates a ticket's clarity — presence and quality of description, acceptance criteria, file impact, and success indicators — then prints a single JSON object to stdout and exits with a code indicating pass or fail. The parser uses the `verdict` field to determine whether the sprint may proceed or must pause for ticket enrichment.
+This document defines the output interface between `ticket-clarity-check.sh` (emitter) and the `/dso:sprint` Phase A clarity gate (parser). The emitter evaluates a ticket's clarity — presence and quality of description, acceptance criteria, file impact, and success indicators — then prints a single JSON object to stdout and exits with a code indicating pass or fail. The parser uses the `verdict` field to determine whether the sprint may proceed or must pause for ticket enrichment.
 
 This contract must be agreed upon before implementation begins to prevent implicit assumptions and ensure the emitter and parser stay in sync.
 
@@ -31,9 +31,9 @@ The emitter evaluates the ticket identified by its argument (or reads JSON ticke
 
 ## Parser
 
-`skills/sprint/SKILL.md` — Phase 1 clarity gate # shim-exempt: internal implementation path reference
+`skills/sprint/SKILL.md` — Phase A clarity gate # shim-exempt: internal implementation path reference
 
-The parser invokes the emitter with the current epic ticket ID, reads the JSON from stdout, and inspects the `verdict` field. When `verdict` is `"fail"`, the sprint must not proceed to Phase 2 until the ticket owner enriches the ticket and the emitter re-evaluates to `"pass"`.
+The parser invokes the emitter with the current epic ticket ID, reads the JSON from stdout, and inspects the `verdict` field. When `verdict` is `"fail"`, the sprint must not proceed to Phase B until the ticket owner enriches the ticket and the emitter re-evaluates to `"pass"`.
 
 ---
 
@@ -51,7 +51,7 @@ The emitter outputs a single JSON object on stdout. All fields are required.
 
 | Value | Meaning |
 |---|---|
-| `"pass"` | Score meets or exceeds the threshold. The sprint clarity gate is satisfied and Phase 2 may proceed. |
+| `"pass"` | Score meets or exceeds the threshold. The sprint clarity gate is satisfied and Phase B may proceed. |
 | `"fail"` | Score is below the threshold. The sprint must pause and surface the gap to the user before continuing. |
 
 ### Canonical parsing prefix
@@ -132,7 +132,7 @@ echo '{"ticket_id":"0000-test","description":"...","acceptance_criteria":"..."}'
 | Component | Role | Notes |
 |---|---|---|
 | `scripts/ticket-clarity-check.sh` | Emitter | Evaluates ticket clarity and emits JSON + exit code # shim-exempt: internal implementation path reference |
-| `skills/sprint/SKILL.md` Phase 1 | Parser | Invokes emitter; blocks sprint progression on `verdict: "fail"` # shim-exempt: internal implementation path reference |
+| `skills/sprint/SKILL.md` Phase A | Parser | Invokes emitter; blocks sprint progression on `verdict: "fail"` # shim-exempt: internal implementation path reference |
 
 All implementors must read this contract before modifying the emitter script or Phase 1 parser logic. Changes to the signal format require updating both the emitter and parser and this document atomically in the same commit.
 
@@ -144,4 +144,4 @@ This contract is unversioned. Breaking changes (field removal, type changes, enu
 
 ### Change Log
 
-- **2026-04-06**: Initial version — defines CLARITY_SCORE output interface for `ticket-clarity-check.sh` → sprint Phase 1 clarity gate. Establishes JSON schema, exit code semantics, `--stdin` testing mode, and fail-safe default for absent/erroring emitter.
+- **2026-04-06**: Initial version — defines CLARITY_SCORE output interface for `ticket-clarity-check.sh` → sprint Phase A clarity gate. Establishes JSON schema, exit code semantics, `--stdin` testing mode, and fail-safe default for absent/erroring emitter.

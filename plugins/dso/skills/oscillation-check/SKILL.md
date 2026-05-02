@@ -14,7 +14,7 @@ iteration -- preventing infinite fix-revert-fix loops.
 
 Invoke as a sub-agent from:
 - **CLAUDE.md review loop**: Before implementing `/dso:review` feedback on iteration 2+
-- **`/dso:sprint` Phase 8**: Before creating remediation tasks from re-validation
+- **`/dso:sprint` Phase I**: Before creating remediation tasks from re-validation
 - **`/dso:debug-everything` Phase H Step 5**: Before retrying a fix after critic CONCERN
 
 ## Input
@@ -88,6 +88,6 @@ Recommendation: Stop loop. Present both positions to user.
 
 ### Rules
 - Do NOT modify any code files
-- Do NOT `git commit`, `git push`, `.claude/scripts/dso ticket transition`, edit `.tickets-tracker/` files
+- Do NOT `git commit`, `git push`, `.claude/scripts/dso ticket transition`, edit `.tickets-tracker/` files <!-- # tickets-boundary-ok -->
 - You CAN run `git diff`, `git log`, `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`
 - This is a read-only analysis -- report findings only
