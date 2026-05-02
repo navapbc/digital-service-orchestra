@@ -175,6 +175,21 @@ plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-stagin
 plugins/dso/hooks/lib/validate-check-runners.sh:tests/scripts/test-validate-test-batched-integration.sh
 plugins/dso/hooks/lib/validate-helpers.sh:tests/scripts/test-validate-test-batched-integration.sh
 plugins/dso/hooks/record-review.sh:tests/hooks/test-record-review-attest.sh
+tests/hooks/test-record-review.sh [test_record_review_accepts_two_key_schema]:tests/hooks/test-record-review.sh [test_record_review_accepts_two_key_schema]
+tests/hooks/test-record-review.sh [test_severity_critical_produces_failed_status]:tests/hooks/test-record-review.sh [test_severity_critical_produces_failed_status]
+tests/hooks/test-record-review.sh [test_severity_important_produces_failed_status]:tests/hooks/test-record-review.sh [test_severity_important_produces_failed_status]
+tests/hooks/test-record-review.sh [test_severity_fragile_produces_failed_status]:tests/hooks/test-record-review.sh [test_severity_fragile_produces_failed_status]
+tests/hooks/test-record-review.sh [test_severity_minor_produces_passed_status]:tests/hooks/test-record-review.sh [test_severity_minor_produces_passed_status]
+tests/hooks/test-record-review.sh [test_empty_findings_produces_passed_status]:tests/hooks/test-record-review.sh [test_empty_findings_produces_passed_status]
+tests/hooks/test-record-review.sh [test_minor_with_critical_in_description_produces_passed_status]:tests/hooks/test-record-review.sh [test_minor_with_critical_in_description_produces_passed_status]
+tests/hooks/test-record-review.sh [test_review_status_has_no_score_line]:tests/hooks/test-record-review.sh [test_review_status_has_no_score_line]
+tests/hooks/test-record-review-attest.sh [test_attest_writes_passed_status]:tests/hooks/test-record-review-attest.sh [test_attest_writes_passed_status]
+tests/hooks/test-record-review-crossval.sh [test_schema_v2_red_zone_boundary]:tests/hooks/test-record-review-crossval.sh [test_schema_v2_red_zone_boundary]
+tests/scripts/test-write-reviewer-findings.sh [test_valid_json_exit_code]:tests/scripts/test-write-reviewer-findings.sh [test_valid_json_exit_code]
+tests/scripts/test-write-reviewer-findings.sh [test_write_reviewer_two_key_schema_succeeds]:tests/scripts/test-write-reviewer-findings.sh [test_write_reviewer_two_key_schema_succeeds]
+tests/scripts/test-write-reviewer-findings.sh [test_write_reviewer_scores_key_rejected]:tests/scripts/test-write-reviewer-findings.sh [test_write_reviewer_scores_key_rejected]
+tests/hooks/test-validate-review-output.sh [test_code_review_dispatch_valid_passes]:tests/hooks/test-validate-review-output.sh [test_code_review_dispatch_valid_passes]
+tests/hooks/test-validate-review-output.sh [test_code_review_dispatch_with_scores_key_rejected]:tests/hooks/test-validate-review-output.sh [test_code_review_dispatch_with_scores_key_rejected]
 plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/pre-all-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh

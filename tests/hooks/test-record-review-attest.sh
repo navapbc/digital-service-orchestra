@@ -50,16 +50,17 @@ _init_git_repo() {
 }
 
 # Write a source review-status file with given parameters.
-# Usage: _write_source_review_status <dir> <status> <score> <review_hash> [<diff_hash>]
+# After the schema change, review-status no longer contains a score= line.
+# Usage: _write_source_review_status <dir> <status> <score_unused> <review_hash> [<diff_hash>]
+# Note: <score_unused> is accepted for backward-compat call sites but NOT written to the file.
 _write_source_review_status() {
-    local dir="$1" status="$2" score="$3" review_hash="$4"
+    local dir="$1" status="$2" review_hash="$4"
     local diff_hash="${5:-abc123def456}"
     mkdir -p "$dir"
     cat > "$dir/review-status" <<EOF
 ${status}
 timestamp=2026-04-12T00:00:00Z
 diff_hash=${diff_hash}
-score=${score}
 review_hash=${review_hash}
 EOF
 }
@@ -130,34 +131,36 @@ _test_attest_writes_current_diff_hash() {
 _test_attest_writes_current_diff_hash
 
 # ---------------------------------------------------------------------------
-# test_attest_preserves_source_score
-# Given: source review-status has score=5
+# test_attest_output_has_no_score_line
+# After the schema change, review-status no longer contains score=.
+# Given: source review-status has status=passed and no score= line
 # When:  record-review.sh --attest <source-dir> is invoked
-# Then:  output score=5
+# Then:  output review-status does NOT contain a score= line
 # ---------------------------------------------------------------------------
-_test_attest_preserves_source_score() {
-    local repo_dir source_dir session_dir exit_code actual_score
+_test_attest_output_has_no_score_line() {
+    local repo_dir source_dir session_dir exit_code score_line
 
     repo_dir=$(_make_tmpdir)
     source_dir=$(_make_tmpdir)
     session_dir=$(_make_tmpdir)
 
     _init_git_repo "$repo_dir"
-    _write_source_review_status "$source_dir" "passed" "5" "aabbccdd1234"
+    _write_source_review_status "$source_dir" "passed" "" "aabbccdd1234"
 
     export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$session_dir"
     exit_code=0
     (cd "$repo_dir" && bash "$HOOK" --attest "$source_dir") 2>/dev/null || exit_code=$?
 
     if [[ -f "$session_dir/review-status" ]]; then
-        actual_score=$(grep '^score=' "$session_dir/review-status" | head -1 | cut -d= -f2)
+        score_line=$(grep '^score=' "$session_dir/review-status" 2>/dev/null || echo "absent")
     else
-        actual_score="FILE_NOT_WRITTEN"
+        score_line="FILE_NOT_WRITTEN"
     fi
 
-    assert_eq "test_attest_preserves_source_score: score is 5" "5" "$actual_score"
+    assert_eq "test_attest_output_has_no_score_line: exit code 0" "0" "$exit_code"
+    assert_eq "test_attest_output_has_no_score_line: no score= line in output review-status" "absent" "$score_line"
 }
-_test_attest_preserves_source_score
+_test_attest_output_has_no_score_line
 
 # ---------------------------------------------------------------------------
 # test_attest_preserves_review_hash

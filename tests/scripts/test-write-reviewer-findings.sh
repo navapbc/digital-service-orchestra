@@ -3,10 +3,10 @@
 # Tests for scripts/write-reviewer-findings.sh
 #
 # Verifies the validate-then-write gate for reviewer-findings.json:
-#   - Valid JSON produces a hash and writes findings file
+#   - Valid 2-key JSON {findings:[...],summary:"..."} produces a hash and writes findings file
+#   - 3-key JSON with scores key is rejected (exit non-zero)
 #   - Invalid JSON is rejected (exit 1, no file written)
 #   - Empty input is rejected (exit 2)
-#   - Out-of-range scores are rejected
 #   - Script sources deps.sh for get_artifacts_dir()
 
 set -uo pipefail
@@ -31,15 +31,8 @@ export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_DIR"
 # Clean up temp directory on exit
 trap 'rm -rf "$ARTIFACTS_DIR"' EXIT
 
-# Valid findings JSON
+# Valid findings JSON — 2-key schema (findings + summary only, no scores)
 VALID_JSON='{
-  "scores": {
-    "hygiene": 5,
-    "design": "N/A",
-    "maintainability": 4,
-    "correctness": 5,
-    "verification": 5
-  },
   "findings": [
     {
       "severity": "minor",
@@ -51,16 +44,10 @@ VALID_JSON='{
   "summary": "Test summary for validation."
 }'
 
-# Invalid JSON (missing required score dimensions)
-INVALID_JSON='{
-  "scores": {
-    "hygiene": 5
-  },
-  "findings": [],
-  "summary": "Incomplete scores"
-}'
+# Invalid JSON (truly malformed — not valid JSON at all)
+INVALID_JSON='this is not json'
 
-# Invalid JSON (out-of-range score value)
+# Invalid JSON (out-of-range score value — scores key present, should be rejected)
 OUT_OF_RANGE_JSON='{
   "scores": {
     "hygiene": 5,
@@ -146,75 +133,26 @@ fi
 assert_eq "test_no_pending_file_on_failure" "no_pending" "$actual"
 
 # test_write_new_dimension_names_accepted
-# Piping valid JSON with NEW dimension names should exit 0 and produce a hash.
-# RED: fails until Task w22-4391 renames the dimension keys in the validator.
+# Piping valid 2-key JSON should exit 0 and produce a hash.
 NEW_DIM_JSON='{
-  "scores": {
-    "correctness": 5,
-    "verification": 5,
-    "hygiene": 5,
-    "design": 5,
-    "maintainability": 5
-  },
   "findings": [],
-  "summary": "New dimension names are valid after the rename."
+  "summary": "Two-key schema is valid."
 }'
 rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 new_hash_output=$(echo "$NEW_DIM_JSON" | "$SCRIPT" 2>/dev/null) && new_exit_code=0 || new_exit_code=$?
 assert_eq "test_write_new_dimension_names_accepted" "0" "$new_exit_code"
-
-# test_dimensions_key_normalized_to_scores
-# Piping JSON with 'dimensions' top-level key (instead of 'scores') should succeed
-# after normalization — the script should rename 'dimensions' to 'scores' before validation.
-DIMENSIONS_KEY_JSON='{
-  "dimensions": {
-    "hygiene": 5,
-    "design": "N/A",
-    "maintainability": 4,
-    "correctness": 5,
-    "verification": 5
-  },
-  "findings": [
-    {
-      "severity": "minor",
-      "category": "maintainability",
-      "description": "Test finding with dimensions key",
-      "file": "test.py"
-    }
-  ],
-  "summary": "Test that dimensions key gets normalized to scores."
-}'
-rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
-dim_hash_output=$(echo "$DIMENSIONS_KEY_JSON" | "$SCRIPT" 2>/dev/null) && dim_exit_code=0 || dim_exit_code=$?
-assert_eq "test_dimensions_key_normalized_exit_code" "0" "$dim_exit_code"
-
-# After normalization, the written file should contain 'scores' key, not 'dimensions'
-if [[ -f "$ARTIFACTS_DIR/reviewer-findings.json" ]]; then
-    if python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings.json')); assert 'scores' in d and 'dimensions' not in d" 2>/dev/null; then
-        actual="scores_key"
-    else
-        actual="wrong_key"
-    fi
-else
-    actual="no_file"
-fi
-assert_eq "test_dimensions_key_normalized_to_scores" "scores_key" "$actual"
-
-# Clean up
-rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 
 # ---------------------------------------------------------------------------
 # --review-tier flag tests (RED: write-reviewer-findings.sh does not support
 # --review-tier yet; these tests document the expected behaviour)
 # ---------------------------------------------------------------------------
 # REVIEW-DEFENSE: field_in_json tests assert review_tier as a top-level key.
-# validate-review-output.sh currently enforces exactly 3 top-level keys. This
-# is intentional TDD RED state — the GREEN implementation task will add
-# --review-tier support to write-reviewer-findings.sh AND update
-# validate-review-output.sh schema to accept review_tier as a 4th top-level
-# key. Both changes are scoped to the same GREEN task, ensuring the validator
-# contract and writer output stay in sync. The .test-index RED markers for
-# these tests enforce that the test gate tolerates their current failure.
+# validate-review-output.sh accepts 2-key schema {findings, summary} and optionally
+# review_tier / selected_tier injected by write-reviewer-findings.sh flags.
+# These tests remain RED until write-reviewer-findings.sh implements --review-tier
+# support AND validate-review-output.sh accepts review_tier as an additional key.
+# The .test-index RED markers for these tests enforce that the test gate tolerates
+# their current failure.
 
 # test_review_tier_light_accepted
 # --review-tier light should exit 0 and produce a review_tier field in the output JSON.
@@ -360,7 +298,7 @@ assert_eq "test_selected_tier_invalid_rejected" "rejected" "$sel_inv_result"
 # ---------------------------------------------------------------------------
 
 # test_write_old_dimension_names_rejected
-# Piping JSON with OLD dimension names should exit 1 (validator rejects them).
+# Piping JSON with scores key (3-key schema) should exit non-zero (validator rejects scores key).
 OLD_DIM_JSON='{
   "scores": {
     "invalid_dim_a": 4,
@@ -370,53 +308,35 @@ OLD_DIM_JSON='{
     "invalid_dim_e": 5
   },
   "findings": [],
-  "summary": "Unknown dimension names should be rejected by the validator."
+  "summary": "Scores key should be rejected by the validator."
 }'
 rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 echo "$OLD_DIM_JSON" | "$SCRIPT" 2>/dev/null && old_exit_code=0 || old_exit_code=$?
-assert_eq "test_write_old_dimension_names_rejected" "1" "$old_exit_code"
+assert_ne "test_write_old_dimension_names_rejected" "0" "$old_exit_code"
 
 # ---------------------------------------------------------------------------
-# test_dimensions_nested_scores_normalized (bug 8e5d-ade1)
-# LLM sometimes writes { "dimensions": { "correctness": { "score": 4, "rationale": "..." } } }
-# (nested object per dimension) instead of flat integers.
-# The normalizer should handle both: rename 'dimensions'→'scores' AND flatten
-# nested { "score": N } objects to integers.
+# test_write_reviewer_two_key_schema_succeeds
+# Piping a 2-key schema {findings:[...], summary:"..."} should exit 0 and output a hash.
+# RED: fails until write-reviewer-findings.sh is updated to accept 2-key schema.
 # ---------------------------------------------------------------------------
-NESTED_DIM_JSON='{
-  "dimensions": {
-    "hygiene": { "score": 5, "rationale": "Clean code" },
-    "design": { "score": 5, "rationale": "Good structure" },
-    "maintainability": { "score": 5, "rationale": "Easy to maintain" },
-    "correctness": { "score": 5, "rationale": "Correct logic" },
-    "verification": { "score": 5, "rationale": "Well tested" }
-  },
-  "findings": [],
-  "summary": "Test that nested dimension score objects are flattened to integers."
-}'
-rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
-nested_dim_exit=1
-nested_dim_output=$(echo "$NESTED_DIM_JSON" | "$SCRIPT" 2>/dev/null) && nested_dim_exit=0 || true
-assert_eq "test_dimensions_nested_scores_normalized_exit_code" "0" "$nested_dim_exit"
+echo "=== test_write_reviewer_two_key_schema_succeeds ==="
+TMPDIR_TEST=$(mktemp -d "${TMPDIR:-/tmp}/test-write-reviewer-XXXXXX")
+trap 'rm -rf "$TMPDIR_TEST"' EXIT
+RESULT=$(WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TMPDIR_TEST" bash -c 'echo '"'"'{"findings":[],"summary":"All good."}'"'"' | '"\"$SCRIPT\""'' 2>/dev/null) && TWO_KEY_EXIT=0 || TWO_KEY_EXIT=$?
+assert_eq "test_write_reviewer_two_key_schema_succeeds: exits 0" "0" "$TWO_KEY_EXIT"
+assert_ne "test_write_reviewer_two_key_schema_succeeds: outputs a hash" "" "$RESULT"
 
-if [[ -f "$ARTIFACTS_DIR/reviewer-findings.json" ]]; then
-    if python3 -c "
-import json
-d = json.load(open('$ARTIFACTS_DIR/reviewer-findings.json'))
-# Must have 'scores' not 'dimensions'
-assert 'scores' in d and 'dimensions' not in d, 'dimensions key not renamed'
-# All score values must be integers, not objects
-for k, v in d['scores'].items():
-    assert isinstance(v, int), f'{k} is {type(v).__name__}, expected int'
-" 2>/dev/null; then
-        nested_dim_schema="valid"
-    else
-        nested_dim_schema="invalid"
-    fi
-else
-    nested_dim_schema="no_file"
-fi
-assert_eq "test_dimensions_nested_scores_normalized_schema" "valid" "$nested_dim_schema"
+# ---------------------------------------------------------------------------
+# test_write_reviewer_scores_key_rejected
+# Piping 3-key schema with scores should exit non-zero (scores key no longer accepted).
+# RED: fails until write-reviewer-findings.sh is updated to reject 3-key schema.
+# ---------------------------------------------------------------------------
+echo "=== test_write_reviewer_scores_key_rejected ==="
+TMPDIR_TEST2=$(mktemp -d "${TMPDIR:-/tmp}/test-write-reviewer2-XXXXXX")
+trap 'rm -rf "$TMPDIR_TEST2"' EXIT
+THREE_KEY_EXIT=0
+WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TMPDIR_TEST2" bash -c 'echo '"'"'{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"..."}'"'"' | '"\"$SCRIPT\""'' 2>/dev/null || THREE_KEY_EXIT=$?
+assert_ne "test_write_reviewer_scores_key_rejected: exits non-zero when scores present" "0" "$THREE_KEY_EXIT"
 
 # Clean up
 rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
