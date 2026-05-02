@@ -39,7 +39,7 @@ if [ ! -f "$FINDINGS_PATH" ]; then
 fi
 
 # ── Read task ticket and extract ## File Impact section ───────────────────────
-TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/../ticket}"
+TICKET_CMD="${TICKET_CMD:-${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/scripts/ticket}"
 ticket_output=$("$TICKET_CMD" show "$TASK_ID" 2>/dev/null) || ticket_output=""
 
 if [ -z "$ticket_output" ]; then

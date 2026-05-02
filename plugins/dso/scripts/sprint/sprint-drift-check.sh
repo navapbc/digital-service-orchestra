@@ -83,7 +83,7 @@ fi
 
 # ── Resolve ticket CLI ────────────────────────────────────────────────────────
 
-TICKET_CMD="${TICKET_CMD:-${SCRIPT_DIR}/../ticket}"
+TICKET_CMD="${TICKET_CMD:-${CLAUDE_PLUGIN_ROOT:-${SCRIPT_DIR}/..}/scripts/ticket}"
 
 # ── Helper: extract file paths from a ticket description's File Impact section ──
 # Supports three formats:
