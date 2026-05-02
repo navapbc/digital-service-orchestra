@@ -116,12 +116,141 @@ if type _state_init >/dev/null 2>&1; then
     _state_init 2>/dev/null || true
 fi
 
-# --- Placeholder _phase_merge (full implementation in Task 3) ---
-# Returns 1 to exercise the CONFLICT_DATA emission path. Task 3 will replace
-# this with the real `gh pr create` + auto-merge flow.
+# --- State writer: persist PR url + number into the state file ---
+# Best-effort; mirrors merge-helpers.sh's other _state_* writers.
+_state_write_pr_meta() {
+    local _pr_url="$1"
+    local _pr_number="$2"
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    [[ -f "$_sf" ]] || return 0
+    PR_URL="$_pr_url" PR_NUMBER="$_pr_number" SF="$_sf" python3 -c "
+import json, os
+sf = os.environ['SF']
+with open(sf) as f:
+    d = json.load(f)
+d['pr_url'] = os.environ.get('PR_URL', '')
+try:
+    d['pr_number'] = int(os.environ.get('PR_NUMBER', '0'))
+except Exception:
+    d['pr_number'] = os.environ.get('PR_NUMBER', '')
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
+    return 0
+}
+
+# --- _phase_merge (PR mode): push branch, create PR, queue auto-merge ---
+# DD1: gh pr create + gh pr merge --auto --merge
+# DD6: emit CONFLICT_DATA when gh reports mergeable=CONFLICTING
+#
+# Steps:
+#   1. git push -u origin "$BRANCH"           — publish branch
+#   2. gh pr create --base main --head "$BRANCH" --title <derived> --body <auto>
+#      → capture PR url + number
+#   3. Persist pr_url, pr_number into state file
+#   4. gh pr view <num> --json mergeable      — detect CONFLICTING up-front
+#   5. gh pr merge <num> --auto --merge       — queue auto-merge
+#      → on "auto-merge not allowed" stderr: print clear error, exit 1
+#
+# Returns 0 on success, 1 on conflict / auto-merge-disabled / unrecoverable error.
+# CONFLICT_DATA emission is performed by the caller (top-level error handler
+# below) so the contract surface is identical to direct mode.
 _phase_merge() {
-    echo "INFO: PR-mode _phase_merge not yet implemented (Task 3) — emitting placeholder failure" >&2
-    return 1
+    if type _state_write_phase >/dev/null 2>&1; then
+        _state_write_phase "merge" 2>/dev/null || true
+    fi
+
+    # --- 1. Publish branch ---
+    if ! git push -u origin "$BRANCH" 2>&1; then
+        echo "ERROR: git push -u origin $BRANCH failed" >&2
+        return 1
+    fi
+
+    # --- 2. Derive PR title from last meaningful commit subject ---
+    local _title
+    _title=$(git log -1 --pretty=%s 2>/dev/null || echo "Merge $BRANCH")
+    if [[ -z "$_title" ]]; then
+        _title="Merge $BRANCH"
+    fi
+
+    local _body
+    _body="Auto-generated PR for branch \`$BRANCH\` (created by merge-to-main-pr.sh)."
+
+    # --- 3. Create the PR ---
+    local _pr_url _pr_create_rc=0
+    _pr_url=$(gh pr create --base main --head "$BRANCH" \
+                          --title "$_title" --body "$_body" 2>&1) || _pr_create_rc=$?
+    if [[ "$_pr_create_rc" -ne 0 ]]; then
+        echo "ERROR: gh pr create failed: $_pr_url" >&2
+        # _pr_url may contain the error text — still return 1 so caller emits
+        # CONFLICT_DATA (best-effort) for upstream orchestrators.
+        return 1
+    fi
+
+    # gh pr create may print extra log lines before the URL; extract the
+    # last line that looks like a PR url.
+    local _final_url
+    _final_url=$(echo "$_pr_url" | grep -Eo 'https://[^[:space:]]+/pull/[0-9]+' | tail -n1)
+    if [[ -z "$_final_url" ]]; then
+        # Fallback: trust the entire stdout as the URL (some gh versions emit
+        # only the URL with no surrounding text).
+        _final_url=$(echo "$_pr_url" | tail -n1 | tr -d '[:space:]')
+    fi
+
+    local _pr_number
+    _pr_number=$(echo "$_final_url" | grep -Eo '/pull/[0-9]+' | grep -Eo '[0-9]+$')
+    if [[ -z "$_pr_number" ]]; then
+        echo "ERROR: could not parse PR number from gh pr create output: $_pr_url" >&2
+        return 1
+    fi
+
+    # --- 4. Persist PR url + number to state file (best-effort) ---
+    _state_write_pr_meta "$_final_url" "$_pr_number" 2>/dev/null || true
+
+    echo "INFO: Created PR #${_pr_number}: $_final_url"
+
+    # --- 5. Detect CONFLICTING up-front via `gh pr view --json mergeable` ---
+    # If GitHub reports the PR as CONFLICTING, return 1 so the caller emits
+    # CONFLICT_DATA. We do not enqueue auto-merge for a known-conflicting PR.
+    local _mergeable_json _mergeable
+    _mergeable_json=$(gh pr view "$_pr_number" --json mergeable 2>/dev/null || true)
+    _mergeable=$(echo "$_mergeable_json" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get('mergeable', ''))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+
+    if [[ "$_mergeable" == "CONFLICTING" ]]; then
+        echo "ERROR: PR #${_pr_number} is CONFLICTING — cannot enqueue auto-merge" >&2
+        return 1
+    fi
+
+    # --- 6. Queue auto-merge (--merge to match direct mode's --no-ff semantics) ---
+    local _merge_out _merge_rc=0
+    _merge_out=$(gh pr merge "$_pr_number" --auto --merge 2>&1) || _merge_rc=$?
+    if [[ "$_merge_rc" -ne 0 ]]; then
+        # Detect the "auto-merge not allowed" repo-setting case so the user
+        # gets actionable guidance (DD1 acceptance criterion).
+        if echo "$_merge_out" | grep -qiE "auto.?merge.*(not allowed|disabled|cannot be enabled)"; then
+            echo "ERROR: GitHub auto-merge is disabled for this repository." >&2
+            echo "       Enable it under Settings → General → 'Allow auto-merge', then re-run with --resume." >&2
+            echo "       (gh stderr: $_merge_out)" >&2
+        else
+            echo "ERROR: gh pr merge ${_pr_number} --auto --merge failed: $_merge_out" >&2
+        fi
+        return 1
+    fi
+
+    if type _state_mark_complete >/dev/null 2>&1; then
+        _state_mark_complete "merge" 2>/dev/null || true
+    fi
+
+    echo "INFO: Auto-merge queued for PR #${_pr_number}."
+    return 0
 }
 
 # --- Run merge phase; on failure, emit CONFLICT_DATA contract line ---
@@ -132,5 +261,5 @@ if ! _phase_merge; then
     exit 1
 fi
 
-# Skeleton end — Task 3 fills in version_bump → push → archive → ci_trigger.
+# Skeleton end — version_bump → push → archive → ci_trigger land in later tasks.
 exit 0

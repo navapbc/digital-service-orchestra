@@ -370,8 +370,3 @@ plugins/dso/hooks/pre-commit-test-quality-gate.sh:tests/hooks/test-enforcement-g
 plugins/dso/hooks/check-plugin-self-ref.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/check-portability.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/skills/brainstorm/prompts/ux-probe-set.md:tests/skills/test-brainstorm-ui-intent-detection.sh
-tests/scripts/test-merge-to-main-dispatcher.sh [test_dispatcher_routes_to_direct_script]:tests/scripts/test-merge-to-main-dispatcher.sh [test_dispatcher_routes_to_direct_script]
-tests/scripts/test-merge-to-main-dispatcher.sh [test_dispatcher_routes_to_pr_script]:tests/scripts/test-merge-to-main-dispatcher.sh [test_dispatcher_routes_to_pr_script]
-tests/scripts/test-merge-to-main-dispatcher.sh [test_conflict_data_schema_direct]:tests/scripts/test-merge-to-main-dispatcher.sh [test_conflict_data_schema_direct]
-tests/scripts/test-merge-to-main-dispatcher.sh [test_conflict_data_schema_pr_equivalent]:tests/scripts/test-merge-to-main-dispatcher.sh [test_conflict_data_schema_pr_equivalent]
-tests/scripts/test-merge-to-main-dispatcher.sh [test_resume_rejects_cross_strategy]:tests/scripts/test-merge-to-main-dispatcher.sh [test_resume_rejects_cross_strategy]

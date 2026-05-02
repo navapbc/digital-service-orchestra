@@ -62,5 +62,11 @@ _dso_enforcement_gate_check() {
         return 0
     fi
 
+    if [[ "$_strategy" == "both" ]]; then
+        # Emit HOOK_GATE:run marker so observers can confirm the gating hook
+        # ran exactly once under strategy=both (caller still proceeds).
+        echo "HOOK_GATE: run reason=enforcement.strategy=both" >&2
+    fi
+
     return 1
 }

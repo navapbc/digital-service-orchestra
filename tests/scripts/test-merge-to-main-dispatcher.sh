@@ -331,14 +331,30 @@ test_resume_rejects_cross_strategy() {
 
     _write_config "$_T/.claude/dso-config.conf" "pr"
 
+    # Initialize a git repo on the branch named in the state file. The dispatcher
+    # resolves the per-branch state-file path via `git branch --show-current`, so
+    # without a real git context the cross-strategy check would silently no-op
+    # and the test would only catch the rejection by accident (e.g., an unrelated
+    # error in the downstream strategy script). Setting up the matching branch
+    # exercises the production code path.
+    local _branch_name="worktrees/cross-strategy-test-$$"
+    local _branch_safe="${_branch_name//\//-}"
+    (
+        cd "$_T" || exit 1
+        git init -q -b main >/dev/null 2>&1
+        git config user.email "test@test.local"
+        git config user.name "test"
+        git commit -q --allow-empty -m "init" >/dev/null
+        git checkout -q -b "$_branch_name"
+    )
+
     # Write a state file with merge.strategy=direct (simulating a prior run
     # that started with direct mode, now resumed under pr config).
-    local _branch_safe="worktrees-cross-strategy-test-$$"
     local _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
     python3 - <<PYEOF > "$_state_file"
 import json, time
 data = {
-    'branch': 'worktrees/cross-strategy-test',
+    'branch': '$_branch_name',
     'merge_sha': '',
     'completed_phases': ['sync'],
     'current_phase': 'merge',
