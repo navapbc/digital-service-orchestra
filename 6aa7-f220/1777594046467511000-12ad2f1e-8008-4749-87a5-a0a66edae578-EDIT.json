@@ -1,1 +1,0 @@
-{"author":"Test","data":{"fields":{"title":"ci.yml: DSO_LLM_TIMEOUT_MINUTES variable documented but llm-review job uses hardcoded timeout-minutes: 10"}},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"EDIT","timestamp":1777594046467511000,"uuid":"12ad2f1e-8008-4749-87a5-a0a66edae578"}
