@@ -1046,6 +1046,103 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 
 ---
 
+### `merge.strategy`
+
+| | |
+|---|---|
+| **Description** | Controls which merge flow `merge-to-main.sh` executes. `direct` runs the direct git merge/push flow. `pr` creates a GitHub PR and waits for CI before merging. |
+| **Accepted values** | `direct` \| `pr` |
+| **Default** | `direct` |
+<!-- REVIEW-DEFENSE: merge-to-main-direct.sh and merge-to-main-pr.sh are created in task d5cb-c871 which has a direct dependency on this task (bed3-e2af). This is a GREEN documentation-first task per TDD sequencing. -->
+| **Used by** | `.claude/scripts/dso merge-to-main.sh` (dispatcher routes to `merge-to-main-direct.sh` or `merge-to-main-pr.sh` based on this value) |
+
+**Example**: `merge.strategy=pr`
+
+---
+
+### `enforcement.strategy`
+
+| | |
+|---|---|
+| **Description** | Controls where enforcement hooks run. `local` — enforcement hooks run on local commits (git pre-commit); `ci` — local enforcement hooks are skipped (enforcement deferred to CI); `both` — enforcement runs on both local commits and in CI. |
+| **Accepted values** | `local` \| `ci` \| `both` |
+| **Default** | `local` |
+<!-- REVIEW-DEFENSE: enforcement-gate.sh was implemented and committed in story 5177-ec04 in the session branch. This worktree was dispatched before that commit landed; the file exists and will be present after harvest. -->
+| **Used by** | `hooks/lib/enforcement-gate.sh` (consumed by `pre-commit-review-gate.sh`, `pre-commit-test-gate.sh`, `pre-commit-test-quality-gate.sh`) |
+
+**Example**: `enforcement.strategy=local`
+
+---
+
+## Ruleset Provisioning Knobs
+
+The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh`. They are NOT `dso-config.conf` keys — they are passed as command-line arguments when provisioning the GitHub Ruleset. Each flag has a default that matches the prior hardcoded behavior so existing invocations remain backward compatible.
+
+### `--bypass-actor-policy`
+
+| | |
+|---|---|
+| **Description** | Bypass mode applied to the `bypass_actors` entry on the Ruleset. `always` allows admins to bypass at any time; `pull_request_only` restricts the bypass window to pull-request flows. Setting a non-default value requires an admin token (script exits 1 if `gh auth status` does not report admin scope). |
+| **Accepted values** | `always` \| `pull_request_only` |
+| **Default** | `always` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
+
+**Example**: `provision-ruleset.sh --bypass-actor-policy=pull_request_only`
+
+---
+
+### `--require-conversation-resolution`
+
+| | |
+|---|---|
+| **Description** | Maps to the `required_review_thread_resolution` parameter on the Ruleset's `pull_request` rule. When `true`, GitHub requires every PR review thread to be marked resolved before merge. |
+| **Accepted values** | `true` \| `false` (also `1`/`0`, `yes`/`no`) |
+| **Default** | `false` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
+
+**Example**: `provision-ruleset.sh --require-conversation-resolution=true`
+
+---
+
+### `--request-copilot-review`
+
+| | |
+|---|---|
+| **Description** | When `true`, the script records the preference in dry-run output and the success summary. GitHub does not currently expose Copilot code review configuration via the Rulesets API — the flag is a documented placeholder for future automation when API support lands. |
+| **Accepted values** | `true` \| `false` |
+| **Default** | `false` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
+
+**Example**: `provision-ruleset.sh --request-copilot-review=true`
+
+---
+
+### `--dismiss-stale-approvals-on-push`
+
+| | |
+|---|---|
+| **Description** | Maps to the `dismiss_stale_reviews_on_push` parameter on the Ruleset's `pull_request` rule. When `true`, GitHub dismisses prior approvals when new commits are pushed to the PR branch. |
+| **Accepted values** | `true` \| `false` |
+| **Default** | `false` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
+
+**Example**: `provision-ruleset.sh --dismiss-stale-approvals-on-push=true`
+
+---
+
+### `--required-approvals`
+
+| | |
+|---|---|
+| **Description** | Maps to the `required_approving_review_count` parameter on the Ruleset's `pull_request` rule. Sets the minimum number of approving reviews required before a PR can be merged. |
+| **Accepted values** | Non-negative integer |
+| **Default** | `1` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
+
+**Example**: `provision-ruleset.sh --required-approvals=2`
+
+---
+
 ### `merge.visual_baseline_path`
 
 | | |

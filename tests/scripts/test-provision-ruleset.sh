@@ -152,5 +152,131 @@ assert_eq "test_payload_includes_leg_names: macos-bash3 in payload" "present" "$
 assert_eq "test_payload_includes_leg_names: alpine-busybox in payload" "present" "$leg_alpine"
 assert_pass_if_clean "test_payload_includes_leg_names_from_required_checks"
 
+# ── test_bypass_actor_policy_pull_request_only ───────────────────────────────
+# When --bypass-actor-policy=pull_request_only is passed (with admin token
+# present), the dry-run payload must include "bypass_mode": "pull_request_only".
+# We export GH_TOKEN to satisfy the admin-token guard via mock auth status —
+# but since gh auth status reads from the real auth, we instead pass through
+# a path with a stub gh that reports admin scope.
+_snapshot_fail
+_stub_dir=$(mktemp -d)
+cat > "$_stub_dir/gh" <<'STUB'
+#!/usr/bin/env bash
+# Minimal gh stub: report admin scope for auth status -t; succeed silently otherwise.
+case "$*" in
+  "auth status -t"|"auth status")
+    echo "admin:org" >&2
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+STUB
+chmod +x "$_stub_dir/gh"
+bypass_output=""
+bypass_exit=0
+bypass_output=$(PATH="$_stub_dir:$PATH" DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --bypass-actor-policy=pull_request_only 2>&1) || bypass_exit=$?
+rm -rf "$_stub_dir"
+if echo "$bypass_output" | grep -q '"bypass_mode": "pull_request_only"'; then
+    actual_bypass="present"
+else
+    actual_bypass="missing"
+fi
+assert_eq "test_bypass_actor_policy_pull_request_only: payload bypass_mode" "present" "$actual_bypass"
+assert_eq "test_bypass_actor_policy_pull_request_only: exit 0" "0" "$bypass_exit"
+assert_pass_if_clean "test_bypass_actor_policy_pull_request_only"
+
+# ── test_require_conversation_resolution_true ────────────────────────────────
+# When --require-conversation-resolution=true, payload must set
+# required_review_thread_resolution: true.
+_snapshot_fail
+conv_output=""
+conv_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --require-conversation-resolution=true 2>/dev/null) || true
+if echo "$conv_output" | grep -q '"required_review_thread_resolution": true'; then
+    actual_conv="true"
+else
+    actual_conv="not_true"
+fi
+assert_eq "test_require_conversation_resolution_true: payload field" "true" "$actual_conv"
+assert_pass_if_clean "test_require_conversation_resolution_true"
+
+# ── test_request_copilot_review_true ─────────────────────────────────────────
+# When --request-copilot-review=true, dry-run output must include the documented
+# placeholder annotation (since GitHub does not expose this via Rulesets today).
+_snapshot_fail
+copilot_output=""
+copilot_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --request-copilot-review=true 2>/dev/null) || true
+if echo "$copilot_output" | grep -q 'request_copilot_review=true'; then
+    actual_copilot="annotated"
+else
+    actual_copilot="missing"
+fi
+assert_eq "test_request_copilot_review_true: annotation present" "annotated" "$actual_copilot"
+assert_pass_if_clean "test_request_copilot_review_true"
+
+# ── test_dismiss_stale_approvals_on_push_true ────────────────────────────────
+# When --dismiss-stale-approvals-on-push=true, payload must set
+# dismiss_stale_reviews_on_push: true.
+_snapshot_fail
+dismiss_output=""
+dismiss_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --dismiss-stale-approvals-on-push=true 2>/dev/null) || true
+if echo "$dismiss_output" | grep -q '"dismiss_stale_reviews_on_push": true'; then
+    actual_dismiss="true"
+else
+    actual_dismiss="not_true"
+fi
+assert_eq "test_dismiss_stale_approvals_on_push_true: payload field" "true" "$actual_dismiss"
+assert_pass_if_clean "test_dismiss_stale_approvals_on_push_true"
+
+# ── test_required_approvals_value ────────────────────────────────────────────
+# When --required-approvals=3, payload must set
+# required_approving_review_count: 3.
+_snapshot_fail
+approvals_output=""
+approvals_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --required-approvals=3 2>/dev/null) || true
+if echo "$approvals_output" | grep -q '"required_approving_review_count": 3'; then
+    actual_approvals="3"
+else
+    actual_approvals="not_3"
+fi
+assert_eq "test_required_approvals_value: payload field" "3" "$actual_approvals"
+assert_pass_if_clean "test_required_approvals_value"
+
+# ── test_bypass_actor_policy_requires_admin_token ────────────────────────────
+# When --bypass-actor-policy=pull_request_only is passed AND gh auth status
+# reports no admin scope, the script must exit non-zero with a clear admin-token
+# error message. We use a stub gh that reports auth without admin scope.
+_snapshot_fail
+_noadmin_dir=$(mktemp -d)
+cat > "$_noadmin_dir/gh" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  "auth status -t"|"auth status")
+    # Auth succeeds but no admin scope listed.
+    echo "Logged in to github.com as user (oauth_token)" >&2
+    echo "Token scopes: 'repo', 'workflow'" >&2
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+STUB
+chmod +x "$_noadmin_dir/gh"
+admin_output=""
+admin_exit=0
+admin_output=$(PATH="$_noadmin_dir:$PATH" DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --bypass-actor-policy=pull_request_only 2>&1) || admin_exit=$?
+rm -rf "$_noadmin_dir"
+if [[ $admin_exit -ne 0 ]]; then
+    actual_admin_exit="nonzero"
+else
+    actual_admin_exit="zero"
+fi
+if echo "$admin_output" | grep -qE 'admin token|admin:org'; then
+    actual_admin_msg="present"
+else
+    actual_admin_msg="missing"
+fi
+assert_eq "test_bypass_actor_policy_requires_admin_token: exits non-zero" "nonzero" "$actual_admin_exit"
+assert_eq "test_bypass_actor_policy_requires_admin_token: error message" "present" "$actual_admin_msg"
+assert_pass_if_clean "test_bypass_actor_policy_requires_admin_token"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
