@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"CHECKPOINT 4/6: Implementation complete ✓ (success-path: fetch+verify SHA, source direct.sh under MERGE_TO_MAIN_DIRECT_LIB=1 guard, run version_bump→archive→ci_trigger)"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777691798683605000,"uuid":"d5526a7a-eb14-4a74-bf0c-59c6cb97954f"}
