@@ -45,6 +45,13 @@ trap _fail_open_on_timeout TERM URG
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$HOOK_DIR/.." && pwd)}"
 
+# ── Enforcement strategy gate ────────────────────────────────────────────────
+# Read enforcement.strategy from dso-config.conf and short-circuit when ci.
+# Library is double-source-guarded; safe to source unconditionally.
+# shellcheck disable=SC1091
+source "$HOOK_DIR/lib/enforcement-gate.sh"
+_dso_enforcement_gate_check && exit 0
+
 # ── Resolve config file ─────────────────────────────────────────────────────
 _resolve_quality_config() {
     local config_file=""
