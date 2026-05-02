@@ -14,7 +14,9 @@ fi
 echo "Git root verified: $SUB_AGENT_ROOT (differs from orchestrator root: $ORCHESTRATOR_ROOT)"
 ```
 
-If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and continue.
+If `ORCHESTRATOR_ROOT` is not present in this prompt, check `worktree.isolation_enabled` in `.claude/dso-config.conf`:
+- **`isolation_enabled=true`**: exit 1 with `"ERROR: isolation_enabled=true but ORCHESTRATOR_ROOT not injected — isolation cannot be verified; refusing to proceed in shared worktree."` Do NOT continue — proceeding risks corrupting the orchestrator's session branch.
+- **`isolation_enabled=false` or absent**: skip this check and continue.
 
 **CWD lock (isolation:worktree mode)**: When `ORCHESTRATOR_ROOT` is set, your current working directory at startup IS your isolated worktree root. Treat it as authoritative for all operations in this session:
 - Do NOT `cd` to `ORCHESTRATOR_ROOT` or any path derived from it.
@@ -27,7 +29,7 @@ If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and contin
 
 **Retry Budget contract**: If the task description contains a `## Retry Budget` block (see implementation-plan SKILL.md Step 3 → Retry Budget), respect the `MAX_ATTEMPTS` cap declared in that block. On terminal failure (you cannot complete the task within budget), emit a final report containing the full failure context — failing test output, files modified, error messages, and a brief diagnosis — so the orchestrator can pass that context to the opus escalation tier.
 
-Post WORKTREE_TRACKING:start on this task ticket (fail silently if .tickets-tracker/ unavailable):
+Post WORKTREE_TRACKING:start on this task ticket (fail silently if .tickets-tracker/ unavailable):  # tickets-boundary-ok
 ```bash
 _BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")

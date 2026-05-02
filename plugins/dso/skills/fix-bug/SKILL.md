@@ -784,6 +784,7 @@ Launch a sub-agent to implement the approved fix per the worktree-isolation bloc
 - The sub-agent receives the full investigation RESULT (root cause, confidence, approved fix) as `root_cause_report`
 - Change ONLY what is necessary — no refactoring, no scope creep
 - One logical change at a time
+- **Model override for LLM-behavioral fixes**: When the fix requires editing files in `skills/`, `agents/`, or `prompts/` directories (LLM prompt creation or editing), dispatch the fix sub-agent with `model: "opus"`. These changes alter agent reasoning and require deeper judgment than code changes.
 
 ### Step 4: Verify Fix (/dso:fix-bug)
 

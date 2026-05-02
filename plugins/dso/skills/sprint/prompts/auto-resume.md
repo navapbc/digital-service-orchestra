@@ -2,11 +2,19 @@
 
 (a) Print: `"Ticket <primary_ticket_id> is in_progress — resuming from checkpoint scan."`
 
-(b) Run `.claude/scripts/dso ticket deps <primary_ticket_id>` to check for children.
+(b) Count active (open + in_progress) children:
+   ```bash
+   ACTIVE=$({ .claude/scripts/dso ticket list --parent=<primary_ticket_id> --status=open 2>/dev/null; .claude/scripts/dso ticket list --parent=<primary_ticket_id> --status=in_progress 2>/dev/null; } | grep -c '"ticket_id"' || echo 0)
+   ```
 
-(c) **If zero children**: Log `"No children found — falling through to Preplanning Gate."` and continue to Drift Detection → Preplanning Gate normally (scenario: abandoned mid-preplanning, skip checkpoint resume).
+(c) **If `ACTIVE == 0`**: Check for historical (including closed) children:
+   ```bash
+   ALL=$(.claude/scripts/dso ticket list --parent=<primary_ticket_id> --include-archived 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+   ```
+   - **`ALL > 0`**: All children are closed (since clause (b) found zero active). Log `"All children closed — skipping to Phase 6."` Skip to Phase 6 Step 0.75. Do NOT continue to Preplanning Gate.
+   - **`ALL == 0`**: No children ever created. Log `"No children found — falling through to Preplanning Gate."` Continue to Drift Detection → Preplanning Gate normally.
 
-(d) **If children exist**:
+(d) **If `ACTIVE > 0`** (active children exist):
    - Run drift detection with `--status=open` filter:
      ```
      DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <primary_ticket_id> --status=open)

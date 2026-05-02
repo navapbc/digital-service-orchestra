@@ -314,13 +314,13 @@ Wait for user response and route accordingly:
 #### Step 1: Check for Existing Children (/dso:sprint)
 
 ```bash
-.claude/scripts/dso ticket deps <epic-id>
+OPEN=$({ .claude/scripts/dso ticket list --parent=<epic-id> --status=open 2>/dev/null; .claude/scripts/dso ticket list --parent=<epic-id> --status=in_progress 2>/dev/null; } | grep -c '"ticket_id"' || echo 0)
+ALL=$(.claude/scripts/dso ticket list --parent=<epic-id> --include-archived 2>/dev/null | grep -c '"ticket_id"' || echo 0)
 ```
 
-Count the number of child tasks returned.
-
-- **If children exist**: proceed to Step 2a (Existing Children Readiness Check)
-- **If zero children**: proceed to Step 2b (Epic Complexity Evaluation)
+- **`OPEN > 0`**: → Step 2a (Existing Children Readiness Check)
+- **`OPEN == 0` and `ALL > 0`**: All children closed. Log `"Preplanning Gate: all children closed — routing to Phase 6."` Skip to Phase 6. Do NOT route to Step 2b.
+- **`ALL == 0`**: → Step 2b (Epic Complexity Evaluation)
 
 #### Step 2a: Existing Children Readiness Check (/dso:sprint)
 
@@ -1360,6 +1360,7 @@ When launching each Task tool call, set `subagent_type` and `model` from the TAS
 | any | `COMPLEX` | `opus` | any | No change (already opus). |
 | any | not COMPLEX | any | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
 | any | not COMPLEX | any | any other | No change — use `model` and `subagent` from TASK line as-is. |
+| any | any | any | any — task edits `skills/`, `agents/`, or `prompts/` files | Override `model` to `opus`. Log: `"LLM prompt edit detected — upgrading to opus."` |
 
 **Doc-story title match**: Task title or parent story title matches `Update project docs to reflect`.
 
