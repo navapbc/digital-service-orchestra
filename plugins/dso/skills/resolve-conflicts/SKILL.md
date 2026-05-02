@@ -59,13 +59,13 @@ if ms_is_merge_in_progress; then MERGE_IN_PROGRESS="yes"; else MERGE_IN_PROGRESS
 - If `$MERGE_IN_PROGRESS` is `yes` and no unresolved conflicts remain: report "Merge in progress with all conflicts pre-resolved — run `git commit` to finalize the merge." and exit. Do NOT report "no conflicts detected" — the merge needs committing, not aborting.
 - If `$MERGE_IN_PROGRESS` is `no`: report "No conflicts detected — merge is clean." and exit.
 
-Separate `.tickets-tracker/` conflicts from code conflicts:
+Separate `.tickets-tracker/` conflicts from code conflicts: <!-- # tickets-boundary-ok -->
 ```bash
-TICKET_CONFLICTS=$(echo "$CONFLICTED" | grep '^\.tickets-tracker/' || true)
-CODE_CONFLICTS=$(echo "$CONFLICTED" | grep -v '^\.tickets-tracker/' || true)
+TICKET_CONFLICTS=$(echo "$CONFLICTED" | grep '^\.tickets-tracker/' || true) # tickets-boundary-ok
+CODE_CONFLICTS=$(echo "$CONFLICTED" | grep -v '^\.tickets-tracker/' || true) # tickets-boundary-ok
 ```
 
-If only `.tickets-tracker/` conflicts exist (JSON event files): auto-resolve by accepting ours (`git checkout --ours` + `git add` for each), complete the merge, and exit. Ticket event files are append-only and safe to auto-resolve.
+If only `.tickets-tracker/` conflicts exist (JSON event files): auto-resolve by accepting ours (`git checkout --ours` + `git add` for each), complete the merge, and exit. Ticket event files are append-only and safe to auto-resolve. <!-- # tickets-boundary-ok -->
 
 If code conflicts exist: proceed to Step 2.
 
@@ -157,9 +157,55 @@ If resolution was abandoned (user chose to resolve manually):
 | User rejects all proposals | Abort merge, report manual resolution needed |
 | Merge --continue fails after staging | `git reset --merge`, report error, escalate to user |
 
+## CONFLICT_DATA Contract
+
+When a merge conflict occurs, the calling script (via `_emit_conflict_data` in
+`${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-helpers.sh`) emits a single-line signal that this
+skill consumes:
+
+```
+CONFLICT_DATA <json>
+```
+
+### Schema
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `branch` | string | The branch being merged (the incoming/worktree side) |
+| `base_branch` | string | The target branch being merged into (e.g., `main`) |
+| `conflicted_files` | string[] | JSON array of file paths with unresolved conflicts |
+| `resolution_strategy` | string | How the merge was attempted (see values below) |
+
+### `resolution_strategy` values
+
+**Direct merge mode** (`merge-to-main-direct.sh`):
+- `git-merge-no-ff` — standard no-fast-forward merge attempt
+- `git-rebase-recovery` — squash-rebase recovery path after merge failure
+
+**PR merge mode** (`merge-to-main-pr.sh`):
+- `pr-auto-merge` — GitHub PR auto-merge returned `CONFLICTING`
+- `gh-pr-create` — PR was created but merge failed due to conflicts
+
+### Shared helper
+
+Both merge modes call the **same** `_emit_conflict_data` helper so the schema
+is always identical regardless of mode. Skill consumers **MUST NOT** branch on
+merge strategy — treat both outputs the same way.
+
+### Regression test (contract anchor)
+
+<!-- REVIEW-DEFENSE: tests/integration/test-conflict-data-schema-parity.sh was committed in
+     story 0bb9-ebde (closed). It is absent from this worktree only because this worktree was
+     branched before that commit landed on the session branch. The file exists at session HEAD
+     and will be present post-merge. Reference is accurate in the final merged state. -->
+`tests/integration/test-conflict-data-schema-parity.sh` drives both modes
+through their conflict paths and asserts the emitted JSON has identical key
+sets and field-type shapes. If either mode diverges from this schema, that test
+fails first.
+
 ## Constraints
 
-- `.tickets-tracker/` JSON event files are auto-resolved (accept ours) — they are append-only and safe to resolve without user input.
+- `.tickets-tracker/` JSON event files are auto-resolved (accept ours) — they are append-only and safe to resolve without user input. <!-- # tickets-boundary-ok -->
 - Individual ticket `.md` files are NOT auto-resolved — show a diff to the user and ask for confirmation before choosing a version, as each side may contain important state changes.
 - Sub-agent model: **sonnet** — conflict resolution needs code understanding but not architectural reasoning
 - This skill does NOT commit or push — it only completes the merge. The calling skill handles commit/push.
