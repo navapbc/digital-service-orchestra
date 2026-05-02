@@ -491,6 +491,10 @@ GIT_SHIM
         echo "seed" > seed.txt
         "$real_git" add seed.txt
         "$real_git" commit -q -m "seed" >/dev/null
+        # Pre-fetch origin/main so the merge commit is already in refs/remotes/origin/main
+        # before the script runs. This prevents a race where the script's git fetch call
+        # (which uses the git shim's exec delegation) might not see the commit in CI.
+        "$real_git" fetch -q origin main >/dev/null 2>&1 || true
         "$real_git" checkout -q -b "$branch"
         echo "feature" > feature.txt
         "$real_git" add feature.txt
@@ -758,6 +762,8 @@ _build_pr_success_fixture() {
         echo "local-seed" > local-seed.txt
         "$real_git" add local-seed.txt
         "$real_git" commit -q -m "local-seed" >/dev/null
+        # Pre-fetch to populate refs/remotes/origin/main before the script runs.
+        "$real_git" fetch -q origin main >/dev/null 2>&1 || true
         "$real_git" checkout -q -b "$branch"
         echo "feature" > feature.txt
         "$real_git" add feature.txt
