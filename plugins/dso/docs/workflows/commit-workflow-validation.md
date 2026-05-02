@@ -1,6 +1,6 @@
 # Commit Workflow — Local Validation
 
-This file contains the local-validation steps extracted from `COMMIT-WORKFLOW.md` (Steps 1.5, 2, 3, 3a, 4.5, and 5). It is referenced from the parent commit workflow's Step 0.6 (enforcement-strategy gate) — when `enforcement.strategy=local`, the parent workflow executes the steps below in order; when `enforcement.strategy=ci`, these steps are deferred to CI.
+This file contains the local-validation steps extracted from `COMMIT-WORKFLOW.md` (originally Steps 1.5, 2, 3, 3a, 4.5, and 5; now renumbered as Steps 1–6 of this file). It is referenced from the parent commit workflow's Step 3 (enforcement-strategy gate) — when `enforcement.strategy=local`, the parent workflow executes the steps below in order; when `enforcement.strategy=ci`, these steps are deferred to CI.
 
 Every command and breadcrumb log line in this file is preserved verbatim from the original COMMIT-WORKFLOW.md. Do not paraphrase or restructure when consuming.
 
@@ -35,7 +35,7 @@ These honor `enforcement.strategy`. When `enforcement.strategy=ci`, they are ski
 
 ---
 
-## Step 1.5: Changed Integration/E2E Tests
+## Step 1: Changed Integration/E2E Tests
 
 If any integration or e2e test files changed, run only those files now. This prevents broken tests from being committed when the full suite is excluded from the standard commit gate.
 
@@ -55,10 +55,10 @@ fi
 - **No changed integration/e2e files**: Script exits silently. Continue to Step 2.
 
 ```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-1.5-changed-tests" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-1-changed-tests" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-### Test Failure Delegation (Step 1.5)
+### Test Failure Delegation (Step 1)
 
 If integration or E2E tests fail after environment checks (DB/app running), apply this decision gate:
 
@@ -99,7 +99,7 @@ CHANGED_FILES=$(git diff --name-only)
    - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt exceeds `review.max_resolution_attempts` (default: 5), escalate to user.
    - `RESULT: PARTIAL` — log concerns via `.claude/scripts/dso ticket comment`, continue to Step 2 with caveats.
 
-5. **Fallback**: Sub-agent timeout (>5 min) or malformed output — fall back to inline fix attempt and restart from Step 1.5.
+5. **Fallback**: Sub-agent timeout (>5 min) or malformed output — fall back to inline fix attempt and restart from Step 1.
 
 ## Step 2: Format
 
@@ -127,15 +127,15 @@ cd app && make lint-mypy 2>&1 | tail -5
 
 On success, only the summary lines are needed. If either exit code is non-zero, re-run with full output to see errors.
 
-If either check fails, fix the issue and **restart from Step 1.5**.
+If either check fails, fix the issue and **restart from Step 1**.
 
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3-lint-typecheck" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-## Step 3a: Write Validation State File
+## Step 4: Write Validation State File
 
-After Steps 1.5-3 all pass, write a validation state file so the review workflow can skip redundant re-validation:
+After Steps 1–3 all pass, write a validation state file so the review workflow can skip redundant re-validation:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -157,12 +157,12 @@ echo "passed" > "$ARTIFACTS_DIR/validation-status"
 ```
 
 ```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3a-validation-state" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4-validation-state" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-## Step 4.5: Record Test Status
+## Step 5: Record Test Status
 
-Run `record-test-status.sh` **after** `git add -u` (Step 4) so that the recorded diff hash matches the staged index — the pre-commit test gate validates against the staged hash, not the working-tree hash.
+Run `record-test-status.sh` **after** `git add -u` (Step 5 of the parent COMMIT-WORKFLOW.md) so that the recorded diff hash matches the staged index — the pre-commit test gate validates against the staged hash, not the working-tree hash.
 
 The invocation must be prefixed with `DSO_COMMIT_WORKFLOW=1` — the PreToolUse `hook_record_test_status_guard` rejects unprefixed direct calls to prevent casual misuse. See `${CLAUDE_PLUGIN_ROOT}/hooks/lib/pre-bash-functions.sh` for the allowlist and `${CLAUDE_PLUGIN_ROOT}/hooks/pre-commit-test-gate.sh` for the defense-in-depth diff_hash check that catches mismatched status regardless.
 
@@ -170,7 +170,7 @@ The invocation must be prefixed with `DSO_COMMIT_WORKFLOW=1` — the PreToolUse 
 DSO_COMMIT_WORKFLOW=1 bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
 ```
 
-- **exit 0**: all associated tests passed (or no associated tests found) — continue to Step 5 (Review Gate).
+- **exit 0**: all associated tests passed (or no associated tests found) — continue to Step 6 (Review Gate).
 - **exit 144**: test runner was terminated; follow the actionable guidance printed by `record-test-status.sh`. Use `test-batched.sh` to run the tests in time-bounded chunks:
   ```bash
   .claude/scripts/dso test-batched.sh --timeout=50 "bash tests/hooks/test-<name>.sh"
@@ -184,25 +184,25 @@ DSO_COMMIT_WORKFLOW=1 bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
   DO NOT PROCEED until the command above prints a final summary.
   ════════════════════════════════════════════════════════════
   ```
-  Run the command shown on the `RUN:` line in subsequent calls until the summary appears, then re-run Step 4.5.
-- **exit non-zero (other)**: tests failed; fix the failures and **restart from Step 1.5**.
+  Run the command shown on the `RUN:` line in subsequent calls until the summary appears, then re-run Step 5.
+- **exit non-zero (other)**: tests failed; fix the failures and **restart from Step 1**.
 
 > **NEVER add RED markers to `.test-index` to bypass a test gate failure.** RED markers (`[test_name]` entries in `.test-index`) are exclusively for TDD — they mark tests that are expected to fail because the feature under test is not yet implemented. If the test gate blocks due to pre-existing failures unrelated to your change, create a bug ticket (`.claude/scripts/dso ticket create bug "<test failure description>"`) and fix the test. Do NOT add a marker to mask the failure.
 
 ```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4.5-record-test-status" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-5-record-test-status" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-## Step 5: Review Gate
+## Step 6: Review Gate
 
 Decide whether a review is needed:
 
-- **Review ran earlier this session and no files changed since**: Skip to Step 6.
-- **No recent review, or files changed since the last review**: Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context. Note: Steps 1.5-3a above already ran format/lint/type-check and wrote the validation-status file, so REVIEW-WORKFLOW.md Step 1 (auto-fix pass) will skip via the fresh validation-status check. This ensures the diff hash captured in REVIEW-WORKFLOW.md Step 2 reflects the post-auto-fix state and will not be invalidated by pre-commit hooks.
-- **The commit in Step 6 is blocked** with "Review is stale" or "No code review recorded": Run REVIEW-WORKFLOW.md, then retry Step 6. Do NOT inspect, copy, or modify review state files — the commit gate enforces correctness and any workaround will be caught at the merge step.
+- **Review ran earlier this session and no files changed since**: Skip to Step 6 of the parent COMMIT-WORKFLOW.md (Commit).
+- **No recent review, or files changed since the last review**: Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context. Note: Steps 1–4 above already ran format/lint/type-check and wrote the validation-status file, so REVIEW-WORKFLOW.md Step 1 (auto-fix pass) will skip via the fresh validation-status check. This ensures the diff hash captured in REVIEW-WORKFLOW.md Step 2 reflects the post-auto-fix state and will not be invalidated by pre-commit hooks.
+- **The commit in Step 6 of the parent COMMIT-WORKFLOW.md is blocked** with "Review is stale" or "No code review recorded": Run REVIEW-WORKFLOW.md, then retry the commit step. Do NOT inspect, copy, or modify review state files — the commit gate enforces correctness and any workaround will be caught at the merge step.
 
-If review fails, the review workflow's Autonomous Resolution Loop handles fix/defend attempts automatically (up to `review.max_resolution_attempts`, default: 5). If it escalates to you (the orchestrator), fix the issues and **restart from Step 1.5** (not Step 5).
+If review fails, the review workflow's Autonomous Resolution Loop handles fix/defend attempts automatically (up to `review.max_resolution_attempts`, default: 5). If it escalates to you (the orchestrator), fix the issues and **restart from Step 1** (not Step 6).
 
 ```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-5-review-gate" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-6-review-gate" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```

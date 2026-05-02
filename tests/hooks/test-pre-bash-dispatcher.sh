@@ -240,7 +240,7 @@ assert_eq "test_pre_bash_dispatcher_record_test_status_attest_allowed: exit 0 (a
 # ============================================================
 # test_pre_bash_dispatcher_record_test_status_commit_workflow_sentinel_allowed
 # When the command is prefixed with the DSO_COMMIT_WORKFLOW=1 env-var sentinel
-# (set by COMMIT-WORKFLOW.md Step 4.5, single-agent-integrate.md, and
+# (set by commit-workflow-validation.md Step 5, single-agent-integrate.md, and
 # per-worktree-review-commit.md), the dispatcher must allow the invocation.
 # This restores the legitimate commit path that pre-commit-test-gate.sh
 # depends on — the gate reads test-gate-status, and record-test-status.sh

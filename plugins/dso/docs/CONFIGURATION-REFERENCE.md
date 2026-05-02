@@ -372,7 +372,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | Command to run changed integration/E2E tests before committing. When absent, Step 1.5 of the commit workflow is skipped. |
+| **Description** | Command to run changed integration/E2E tests before committing. When absent, Step 1 of `commit-workflow-validation.md` (the changed-tests step) is skipped. |
 | **Accepted values** | Any shell command string (e.g., `./scripts/run-changed-tests.sh`) |
 | **Default** | Absent — step skipped |
 | **Used by** | `docs/workflows/COMMIT-WORKFLOW.md` |
