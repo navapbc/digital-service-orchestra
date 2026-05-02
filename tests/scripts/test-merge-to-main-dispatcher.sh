@@ -133,30 +133,57 @@ test_dispatcher_routes_to_pr_script
 
 # ---------------------------------------------------------------------------
 # Test 3: test_conflict_data_schema_direct
-# RED: dispatcher split not done; CONFLICT_DATA not emitted with required fields.
-# When merge.strategy=direct, output should contain CONFLICT_DATA JSON with
-# fields: branch, base_branch, conflicted_files, resolution_strategy.
+# Verifies the shared _emit_conflict_data helper (in merge-helpers.sh) emits
+# the four-key contract used by direct-mode merge-failure paths. Also verifies
+# merge-to-main-direct.sh wires the helper into both exit-1 paths in
+# _phase_merge so a real merge conflict produces CONFLICT_DATA output.
+#
+# This is a unit-level test of the helper (end-to-end integration with a real
+# git conflict is covered by S7 ab3f-46a4 — it requires a full git fixture).
 # ---------------------------------------------------------------------------
 test_conflict_data_schema_direct() {
-    local _T _ec _out
+    local _T _out
     _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
-    _write_config "$_T/.claude/dso-config.conf" "direct"
+    # Set up a minimal git repo with two unmerged paths so _emit_conflict_data's
+    # `git diff --name-only --diff-filter=U` fallback reports real conflicted files.
+    (
+        cd "$_T" || exit 1
+        git init -q -b main >/dev/null 2>&1
+        git config user.email "test@test.local"
+        git config user.name "test"
+        echo "base" > a.txt
+        echo "base" > b.txt
+        git add a.txt b.txt
+        git commit -q -m "base" >/dev/null
+        git checkout -q -b feature
+        echo "feature-a" > a.txt
+        echo "feature-b" > b.txt
+        git commit -aq -m "feature"
+        git checkout -q main
+        echo "main-a" > a.txt
+        echo "main-b" > b.txt
+        git commit -aq -m "main"
+        # Trigger a real conflict that leaves unmerged paths in the index.
+        git merge feature -q >/dev/null 2>&1 || true
+    )
 
+    # Source merge-helpers.sh and call the helper from inside the conflicted repo.
     _out="$(
-        PROJECT_ROOT="$_T" \
-        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
-        bash "$MERGE_SCRIPT" 2>&1
-    )"; _ec=$?
-    : "$_ec"
+        cd "$_T" || exit 1
+        # shellcheck source=/dev/null
+        BRANCH="feature" source "$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh"
+        _emit_conflict_data "feature" "main" "git-merge-no-ff" 2>&1
+    )"
 
     local _has_conflict_data="false"
     local _has_branch="false"
     local _has_base_branch="false"
     local _has_conflicted_files="false"
     local _has_resolution_strategy="false"
+    local _has_real_files="false"
 
     if echo "$_out" | grep -q "CONFLICT_DATA"; then
         _has_conflict_data="true"
@@ -164,6 +191,8 @@ test_conflict_data_schema_direct() {
         echo "$_out" | grep -q '"base_branch"' && _has_base_branch="true"
         echo "$_out" | grep -q '"conflicted_files"' && _has_conflicted_files="true"
         echo "$_out" | grep -q '"resolution_strategy"' && _has_resolution_strategy="true"
+        # Verify the helper actually populated conflicted_files from the real repo.
+        echo "$_out" | grep -q 'a.txt' && _has_real_files="true"
     fi
 
     assert_eq "test_conflict_data_schema_direct_emitted" "true" "$_has_conflict_data"
@@ -171,8 +200,78 @@ test_conflict_data_schema_direct() {
     assert_eq "test_conflict_data_schema_direct_has_base_branch" "true" "$_has_base_branch"
     assert_eq "test_conflict_data_schema_direct_has_conflicted_files" "true" "$_has_conflicted_files"
     assert_eq "test_conflict_data_schema_direct_has_resolution_strategy" "true" "$_has_resolution_strategy"
+    assert_eq "test_conflict_data_schema_direct_populates_real_conflicted_files" "true" "$_has_real_files"
+
+    # Wiring check: merge-to-main-direct.sh must call _emit_conflict_data on
+    # both exit-1 paths in the merge-failure flow (retry-failed, recovery-failed).
+    # Source-grepping is acceptable here because the runtime conflict path is
+    # not reachable without a multi-commit upstream fixture (S7 territory).
+    local _direct_script="$DSO_PLUGIN_DIR/scripts/merge-to-main-direct.sh"
+    local _wire_count
+    _wire_count=$(grep -c '_emit_conflict_data .*git-merge-no-ff' "$_direct_script" 2>/dev/null || echo 0)
+    local _wired_both="false"
+    [[ "$_wire_count" -ge 2 ]] && _wired_both="true"
+    assert_eq "test_conflict_data_schema_direct_wired_in_phase_merge" "true" "$_wired_both"
 }
 test_conflict_data_schema_direct
+
+# ---------------------------------------------------------------------------
+# Test 3b: test_conflict_data_schema_direct_recovery_failed_fallback
+# Regression for important finding 2026-05-01: on the recovery-failed branch
+# of _phase_merge, _squash_rebase_recovery aborts the rebase before returning,
+# AND the caller cd's back to a non-conflicted repo. Both effects strip the
+# live `git diff --diff-filter=U` signal. The helper must populate
+# conflicted_files via the _SQUASH_REBASE_CONFLICTS export captured by the
+# recovery helper before its abort.
+# ---------------------------------------------------------------------------
+test_conflict_data_schema_direct_recovery_failed_fallback() {
+    local _T _out
+    _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    # Set up a clean (non-conflicted) git repo to simulate $_MERGE_SAVED_DIR
+    # after the caller has cd'd back from the worktree where conflicts arose.
+    (
+        cd "$_T" || exit 1
+        git init -q -b main >/dev/null 2>&1
+        git config user.email "test@test.local"
+        git config user.name "test"
+        echo "clean" > c.txt
+        git add c.txt
+        git commit -q -m "clean" >/dev/null
+    )
+
+    # Source merge-helpers.sh from inside the clean repo, set the global
+    # _SQUASH_REBASE_CONFLICTS as _squash_rebase_recovery would have done
+    # before its rebase --abort, then call the helper.
+    _out="$(
+        cd "$_T" || exit 1
+        # shellcheck source=/dev/null
+        BRANCH="feature" source "$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh"
+        export _SQUASH_REBASE_CONFLICTS=$'pkg/foo.py\npkg/bar.py'
+        _emit_conflict_data "feature" "main" "git-merge-no-ff" 2>&1
+    )"
+
+    local _has_conflict_data="false"
+    local _has_foo="false"
+    local _has_bar="false"
+    local _empty_array="false"
+
+    if echo "$_out" | grep -q "CONFLICT_DATA"; then
+        _has_conflict_data="true"
+        echo "$_out" | grep -q 'pkg/foo.py' && _has_foo="true"
+        echo "$_out" | grep -q 'pkg/bar.py' && _has_bar="true"
+        # Sanity: ensure the fallback isn't degenerating to an empty array.
+        echo "$_out" | grep -q '"conflicted_files": *\[\]' && _empty_array="true"
+    fi
+
+    assert_eq "test_recovery_failed_fallback_emitted" "true" "$_has_conflict_data"
+    assert_eq "test_recovery_failed_fallback_includes_foo" "true" "$_has_foo"
+    assert_eq "test_recovery_failed_fallback_includes_bar" "true" "$_has_bar"
+    assert_eq "test_recovery_failed_fallback_not_empty" "false" "$_empty_array"
+}
+test_conflict_data_schema_direct_recovery_failed_fallback
 
 # ---------------------------------------------------------------------------
 # Test 4: test_conflict_data_schema_pr_equivalent

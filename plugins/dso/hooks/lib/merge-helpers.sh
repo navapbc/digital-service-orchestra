@@ -685,6 +685,13 @@ _squash_rebase_recovery() {
         _CONFLICTED_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
     fi
 
+    # REVIEW-DEFENSE: export conflicted files BEFORE rebase --abort so callers
+    # (e.g., _phase_merge's recovery-failed branch in merge-to-main-direct.sh)
+    # can populate CONFLICT_DATA after we return — otherwise the abort plus the
+    # caller's `cd "$_MERGE_SAVED_DIR"` strips all conflict signal from the
+    # working tree (fix for important finding 2026-05-01).
+    export _SQUASH_REBASE_CONFLICTS="${_CONFLICTED_FILES:-}"
+
     if [[ -z "$_CONFLICTED_FILES" ]]; then
         # No conflicts detected — unknown rebase failure
         git rebase --abort 2>/dev/null || true
@@ -696,4 +703,63 @@ _squash_rebase_recovery() {
     echo "$_CONFLICTED_FILES"
     git rebase --abort 2>/dev/null || true
     return 1
+}
+
+# --- Emit CONFLICT_DATA contract line ---
+# Usage: _emit_conflict_data <branch> <base_branch> <resolution_strategy>
+# Prints a single-line JSON contract describing a merge conflict, consumed by
+# orchestrators (e.g., /dso:resolve-conflicts) and by the dispatcher tests.
+#
+# Schema (single line):
+#   CONFLICT_DATA {"branch":"<branch>","base_branch":"<base_branch>",
+#                  "conflicted_files":["<file>",...],
+#                  "resolution_strategy":"<resolution_strategy>"}
+#
+# Conflicted files are computed via ms_get_conflicted_files (merge-state.sh) when
+# available; falls back to `git diff --name-only --diff-filter=U`. The list is
+# JSON-encoded with python3 (always available — already a hard dep of this lib).
+# Emitting the line is best-effort — failures must not abort the caller.
+#
+# This helper is shared between merge-to-main-direct.sh (called before each
+# exit 1 on the merge-failure path) and merge-to-main-pr.sh (S3a) so both
+# strategies emit the same contract.
+_emit_conflict_data() {
+    local _branch="${1:-}"
+    local _base_branch="${2:-main}"
+    local _resolution_strategy="${3:-}"
+
+    local _conflicted_files
+    if type ms_get_conflicted_files >/dev/null 2>&1; then
+        _conflicted_files=$(ms_get_conflicted_files 2>/dev/null || true)
+    else
+        _conflicted_files=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+    fi
+
+    # REVIEW-DEFENSE: when the live computation returns empty (e.g., the caller
+    # has already aborted the merge/rebase or cd'd to a non-conflicted repo),
+    # fall back to _SQUASH_REBASE_CONFLICTS captured by _squash_rebase_recovery
+    # before its rebase --abort. Preserves the contract on the recovery-failed
+    # path in merge-to-main-direct.sh (fix for important finding 2026-05-01).
+    if [[ -z "$_conflicted_files" && -n "${_SQUASH_REBASE_CONFLICTS:-}" ]]; then
+        _conflicted_files="$_SQUASH_REBASE_CONFLICTS"
+    fi
+
+    # Build the JSON payload. Use python3 to safely encode the conflicted_files
+    # list (handles spaces, quotes, unicode in filenames).
+    local _payload
+    _payload=$(BR="$_branch" BB="$_base_branch" RS="$_resolution_strategy" \
+               CF="$_conflicted_files" \
+               python3 -c '
+import json, os
+files = [ln for ln in os.environ.get("CF", "").splitlines() if ln.strip()]
+print(json.dumps({
+    "branch": os.environ.get("BR", ""),
+    "base_branch": os.environ.get("BB", "main"),
+    "conflicted_files": files,
+    "resolution_strategy": os.environ.get("RS", ""),
+}))
+' 2>/dev/null) || _payload='{"branch":"'"$_branch"'","base_branch":"'"$_base_branch"'","conflicted_files":[],"resolution_strategy":"'"$_resolution_strategy"'"}'
+
+    echo "CONFLICT_DATA $_payload"
+    return 0
 }

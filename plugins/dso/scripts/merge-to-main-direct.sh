@@ -506,7 +506,12 @@ _phase_merge() {
                 echo "OK: Merged $BRANCH into main (after squash-rebase recovery)."
                 _restore_pre_merge_stash
             else
-                # Retry also failed — increment retry count and exit with directive
+                # Retry also failed — increment retry count, emit CONFLICT_DATA, exit with directive
+                # REVIEW-DEFENSE: emit BEFORE `git merge --abort` so the live
+                # `git diff --diff-filter=U` lookup in _emit_conflict_data sees
+                # the unmerged paths from the failed retry merge in $_MERGE_SAVED_DIR
+                # (fix for important finding 2026-05-01).
+                _emit_conflict_data "$BRANCH" "main" "git-merge-no-ff"
                 git merge --abort 2>/dev/null || true
                 _restore_pre_merge_stash
                 _state_increment_retry
@@ -515,7 +520,16 @@ _phase_merge() {
                 exit 1
             fi
         else
-            # Recovery failed — return to main repo, increment retry, exit with directive
+            # Recovery failed — emit CONFLICT_DATA from the worktree (where the
+            # rebase conflicts surfaced) BEFORE cd'ing back to the saved dir.
+            # REVIEW-DEFENSE: capture conflicted_files before cd to saved dir so
+            # the helper sees the conflict signal from the recovery worktree.
+            # _squash_rebase_recovery aborts the rebase before returning, so
+            # the live computation will be empty here too — but the helper
+            # falls back to _SQUASH_REBASE_CONFLICTS (exported by the recovery
+            # helper before its abort). This dual layering preserves the
+            # contract regardless of CWD (fix for important finding 2026-05-01).
+            _emit_conflict_data "$BRANCH" "main" "git-merge-no-ff"
             cd "$_MERGE_SAVED_DIR"
             _restore_pre_merge_stash
             _state_increment_retry
