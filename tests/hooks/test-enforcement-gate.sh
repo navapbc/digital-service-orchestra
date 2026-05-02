@@ -165,13 +165,22 @@ test_enforcement_ci_test_quality_gate_skips() {
 }
 
 # ════════════════════════════════════════════════════════════════════════════
-# test_structural_check_plugin_self_ref_runs_on_ci
+# test_structural_check_plugin_self_ref_runs_on_ci  ← RED ZONE ANCHOR
 # Given enforcement.strategy=ci AND staged file with literal "plugins/dso/" path;
 # When check-plugin-self-ref hook runs;
 # Then exits 1 (structural hooks always block regardless of enforcement.strategy)
 # FAILS: hook doesn't read enforcement.strategy (can't distinguish structural yet)
+#
+# REVIEW-DEFENSE: Only this function is listed as the .test-index RED marker for
+# tests/hooks/test-enforcement-gate.sh. The suite-engine _RED_MARKER_MAP stores ONE
+# value per file path (last entry wins). By anchoring the RED zone at this FIRST
+# structural test, ALL 5 structural tests (which appear at/after this line) are
+# tolerated when they fail. Adding entries for the other 4 tests would cause the
+# LAST entry to win (test_structural_check_referential_integrity_runs_on_ci), leaving
+# tests 1-4 BEFORE the zone boundary and NOT tolerated. Single-entry is intentional.
 # ════════════════════════════════════════════════════════════════════════════
 test_structural_check_plugin_self_ref_runs_on_ci() {
+    _snapshot_fail
     local tmpdir
     tmpdir="$(_make_ci_tmpdir)"
     _make_git_repo_in "$tmpdir"
@@ -192,6 +201,7 @@ EOF
         "check-plugin-self-ref exits 1 (blocks) when enforcement.strategy=ci (structural hooks always-on)" \
         "1" \
         "$exit_code"
+    assert_pass_if_clean "test_structural_check_plugin_self_ref_runs_on_ci"
 }
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -202,6 +212,7 @@ EOF
 # FAILS: hook doesn't read enforcement.strategy
 # ════════════════════════════════════════════════════════════════════════════
 test_structural_check_portability_runs_on_ci() {
+    _snapshot_fail
     local tmpdir
     tmpdir="$(_make_ci_tmpdir)"
     _make_git_repo_in "$tmpdir"
@@ -224,6 +235,7 @@ EOF
         "check-portability exits 1 (blocks) when enforcement.strategy=ci (structural hooks always-on)" \
         "1" \
         "$exit_code"
+    assert_pass_if_clean "test_structural_check_portability_runs_on_ci"
 }
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -234,6 +246,7 @@ EOF
 # FAILS: hook doesn't read enforcement.strategy
 # ════════════════════════════════════════════════════════════════════════════
 test_structural_check_shim_refs_runs_on_ci() {
+    _snapshot_fail
     local tmpdir
     tmpdir="$(_make_ci_tmpdir)"
     _make_git_repo_in "$tmpdir"
@@ -254,6 +267,7 @@ EOF
         "check-shim-refs exits 1 (blocks) when enforcement.strategy=ci (structural hooks always-on)" \
         "1" \
         "$exit_code"
+    assert_pass_if_clean "test_structural_check_shim_refs_runs_on_ci"
 }
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -264,6 +278,7 @@ EOF
 # FAILS: hook doesn't read enforcement.strategy
 # ════════════════════════════════════════════════════════════════════════════
 test_structural_check_contract_schemas_runs_on_ci() {
+    _snapshot_fail
     local tmpdir
     tmpdir="$(_make_ci_tmpdir)"
     _make_git_repo_in "$tmpdir"
@@ -285,6 +300,7 @@ EOF
         "check-contract-schemas exits 1 (blocks) when enforcement.strategy=ci (structural hooks always-on)" \
         "1" \
         "$exit_code"
+    assert_pass_if_clean "test_structural_check_contract_schemas_runs_on_ci"
 }
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -295,6 +311,7 @@ EOF
 # FAILS: hook doesn't read enforcement.strategy
 # ════════════════════════════════════════════════════════════════════════════
 test_structural_check_referential_integrity_runs_on_ci() {
+    _snapshot_fail
     local tmpdir
     tmpdir="$(_make_ci_tmpdir)"
     _make_git_repo_in "$tmpdir"
@@ -315,6 +332,7 @@ EOF
         "check-referential-integrity exits 1 (blocks) when enforcement.strategy=ci (structural hooks always-on)" \
         "1" \
         "$exit_code"
+    assert_pass_if_clean "test_structural_check_referential_integrity_runs_on_ci"
 }
 
 # ════════════════════════════════════════════════════════════════════════════
