@@ -881,7 +881,8 @@ cat > "$FINDINGS_FILE" <<'EOF'
 {"findings":[{"severity":"critical","category":"correctness","file":"src/foo.sh","description":"Critical defect found in authentication logic"}],"summary":"Critical issue found."}
 EOF
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
-bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+# isolation-ok: inject changed files matching the finding's file to prevent per-finding strip
+RECORD_REVIEW_CHANGED_FILES="src/foo.sh" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
 REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
 ACTUAL_STATUS=$(head -1 "$REVIEW_STATUS_FILE" 2>/dev/null || echo "missing")
 assert_eq "test_severity_critical_produces_failed_status: STATUS=failed" "failed" "$ACTUAL_STATUS"
@@ -894,7 +895,8 @@ cat > "$FINDINGS_FILE" <<'EOF'
 {"findings":[{"severity":"important","category":"hygiene","file":"src/bar.sh","description":"Important style violation"}],"summary":"Important issue found."}
 EOF
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
-bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+# isolation-ok: inject changed files matching the finding's file to prevent per-finding strip
+RECORD_REVIEW_CHANGED_FILES="src/bar.sh" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
 REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
 ACTUAL_STATUS=$(head -1 "$REVIEW_STATUS_FILE" 2>/dev/null || echo "missing")
 assert_eq "test_severity_important_produces_failed_status: STATUS=failed" "failed" "$ACTUAL_STATUS"
@@ -907,7 +909,8 @@ cat > "$FINDINGS_FILE" <<'EOF'
 {"findings":[{"severity":"fragile","category":"design","file":"src/baz.sh","description":"Fragile coupling detected"}],"summary":"Fragile issue found."}
 EOF
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
-bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+# isolation-ok: inject changed files matching the finding's file to prevent per-finding strip
+RECORD_REVIEW_CHANGED_FILES="src/baz.sh" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
 REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
 ACTUAL_STATUS=$(head -1 "$REVIEW_STATUS_FILE" 2>/dev/null || echo "missing")
 assert_eq "test_severity_fragile_produces_failed_status: STATUS=failed" "failed" "$ACTUAL_STATUS"
@@ -920,7 +923,8 @@ cat > "$FINDINGS_FILE" <<'EOF'
 {"findings":[{"severity":"minor","category":"hygiene","file":"src/foo.sh","description":"Minor style nit"}],"summary":"Minor issue only."}
 EOF
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
-bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+# isolation-ok: inject changed files matching the finding's file to prevent per-finding strip
+RECORD_REVIEW_CHANGED_FILES="src/foo.sh" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
 REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
 ACTUAL_STATUS=$(head -1 "$REVIEW_STATUS_FILE" 2>/dev/null || echo "missing")
 assert_eq "test_severity_minor_produces_passed_status: STATUS=passed" "passed" "$ACTUAL_STATUS"

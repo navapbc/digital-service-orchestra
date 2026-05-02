@@ -113,10 +113,11 @@ rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 echo "$INVALID_JSON" | "$SCRIPT" 2>/dev/null && exit_code=0 || exit_code=$?
 assert_eq "test_invalid_json_rejected" "1" "$exit_code"
 
-# test_out_of_range_score_rejected
-# Piping JSON with score=10 (outside 1-5 range) should exit non-zero.
+# test_out_of_range_score_deprecated
+# Piping JSON with score=10 (outside 1-5 range) exits 0 — scores no longer validated,
+# only deprecated with a warning. Invalid score values are tolerated during transition.
 echo "$OUT_OF_RANGE_JSON" | "$SCRIPT" 2>/dev/null && exit_code=0 || exit_code=$?
-assert_eq "test_out_of_range_score_rejected" "1" "$exit_code"
+assert_eq "test_out_of_range_score_deprecated: exits 0 (scores not validated during transition)" "0" "$exit_code"
 
 # test_empty_input_rejected
 # Piping truly empty input (no bytes) should exit 2.
@@ -297,8 +298,8 @@ assert_eq "test_selected_tier_invalid_rejected" "rejected" "$sel_inv_result"
 # End --selected-tier tests
 # ---------------------------------------------------------------------------
 
-# test_write_old_dimension_names_rejected
-# Piping JSON with scores key (3-key schema) should exit non-zero (validator rejects scores key).
+# test_write_old_dimension_names_deprecated
+# Piping JSON with scores key (3-key schema) exits 0 (scores tolerated during transition).
 OLD_DIM_JSON='{
   "scores": {
     "invalid_dim_a": 4,
@@ -308,11 +309,11 @@ OLD_DIM_JSON='{
     "invalid_dim_e": 5
   },
   "findings": [],
-  "summary": "Scores key should be rejected by the validator."
+  "summary": "Scores key is deprecated but tolerated during transition."
 }'
 rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 echo "$OLD_DIM_JSON" | "$SCRIPT" 2>/dev/null && old_exit_code=0 || old_exit_code=$?
-assert_ne "test_write_old_dimension_names_rejected" "0" "$old_exit_code"
+assert_eq "test_write_old_dimension_names_deprecated: exits 0 (scores tolerated during transition)" "0" "$old_exit_code"
 
 # ---------------------------------------------------------------------------
 # test_write_reviewer_two_key_schema_succeeds
@@ -322,21 +323,24 @@ assert_ne "test_write_old_dimension_names_rejected" "0" "$old_exit_code"
 echo "=== test_write_reviewer_two_key_schema_succeeds ==="
 TMPDIR_TEST=$(mktemp -d "${TMPDIR:-/tmp}/test-write-reviewer-XXXXXX")
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
-RESULT=$(WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TMPDIR_TEST" bash -c 'echo '"'"'{"findings":[],"summary":"All good."}'"'"' | '"\"$SCRIPT\""'' 2>/dev/null) && TWO_KEY_EXIT=0 || TWO_KEY_EXIT=$?
+RESULT=$(WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TMPDIR_TEST" bash -c 'echo '"'"'{"findings":[],"summary":"All checks passed."}'"'"' | '"\"$SCRIPT\""'' 2>/dev/null) && TWO_KEY_EXIT=0 || TWO_KEY_EXIT=$?
 assert_eq "test_write_reviewer_two_key_schema_succeeds: exits 0" "0" "$TWO_KEY_EXIT"
 assert_ne "test_write_reviewer_two_key_schema_succeeds: outputs a hash" "" "$RESULT"
 
 # ---------------------------------------------------------------------------
-# test_write_reviewer_scores_key_rejected
-# Piping 3-key schema with scores should exit non-zero (scores key no longer accepted).
-# RED: fails until write-reviewer-findings.sh is updated to reject 3-key schema.
+# test_write_reviewer_scores_key_deprecated
+# Piping 3-key schema with scores should exit 0 (scores tolerated with deprecation warning
+# during transition until reviewer agents are updated in story f19a-c97e).
 # ---------------------------------------------------------------------------
-echo "=== test_write_reviewer_scores_key_rejected ==="
+echo "=== test_write_reviewer_scores_key_deprecated ==="
 TMPDIR_TEST2=$(mktemp -d "${TMPDIR:-/tmp}/test-write-reviewer2-XXXXXX")
 trap 'rm -rf "$TMPDIR_TEST2"' EXIT
+_STDERR_WRF=$(mktemp "${TMPDIR:-/tmp}/test-write-reviewer-stderr.XXXXXX")
 THREE_KEY_EXIT=0
-WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TMPDIR_TEST2" bash -c 'echo '"'"'{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"..."}'"'"' | '"\"$SCRIPT\""'' 2>/dev/null || THREE_KEY_EXIT=$?
-assert_ne "test_write_reviewer_scores_key_rejected: exits non-zero when scores present" "0" "$THREE_KEY_EXIT"
+WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TMPDIR_TEST2" bash -c 'echo '"'"'{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}'"'"' | '"\"$SCRIPT\""'' 2>"$_STDERR_WRF" || THREE_KEY_EXIT=$?
+SCORES_STDERR=$(cat "$_STDERR_WRF"); rm -f "$_STDERR_WRF"
+assert_eq "test_write_reviewer_scores_key_deprecated: exits 0 (scores tolerated during transition)" "0" "$THREE_KEY_EXIT"
+assert_contains "test_write_reviewer_scores_key_deprecated: stderr contains DEPRECATION WARNING" "DEPRECATION WARNING" "$SCORES_STDERR"
 
 # Clean up
 rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
