@@ -3,6 +3,28 @@
 > Composable criteria blocks for sub-agent task verification.
 > Read once by `/dso:implementation-plan` Step 3; sub-agents never read this file.
 
+## Authoring Notes for `Verify:` Commands
+
+When composing `Verify:` commands that exercise tests built on `tests/lib/assert.sh`, do NOT grep test output for the literal string `PASS`. The shared assertion helpers (`assert_eq`, `assert_ne`, `assert_contains`, `assert_not_contains`) are **silent on success** — they only emit output on failure (`FAIL: ...` lines). The only sources of `PASS` text are:
+
+- `assert_pass_if_clean` — opt-in helper used by a small subset of tests
+- `print_summary` — final line of the form `PASSED: N  FAILED: N`
+
+A pattern like `grep -E 't_pr_success_.*PASS'` against the stdout of an assert.sh-based test will therefore NEVER match, even when every assertion passes — making the criterion unsatisfiable rather than verifying anything. Use one of these instead:
+
+```bash
+# Prefer: rely on the script's exit code (print_summary exits 1 on any FAIL, 0 otherwise)
+Verify: bash tests/path/test_foo.sh
+
+# Or: assert against the final PASSED/FAILED summary line
+Verify: bash tests/path/test_foo.sh 2>&1 | tail -1 | grep -qE 'FAILED: 0\b'
+
+# Or: grep for the absence of FAIL lines (assert.sh emits these on failure)
+Verify: { bash tests/path/test_foo.sh 2>&1 | grep -q '^FAIL:'; test $? -ne 0; }
+```
+
+This applies any time a `Verify:` command must confirm an assert.sh-based test passed. Pytest, jest, and other framework outputs that print explicit per-test PASS lines are unaffected.
+
 ## Universal Criteria (applied to ALL tasks)
 
 - [ ] `make test-unit-only` passes (exit 0)
