@@ -553,6 +553,8 @@ t_pr_poll_succeeds_on_merged_state() {
     branch="feature-poll-success"
     _build_pr_polling_fixture "$_T" "$branch" "success_after_2"
 
+    local _stderr_file
+    _stderr_file="$(mktemp /tmp/pr-poll-success-test.XXXXXX)"
     (
         cd "$_T" || exit 1
         PATH="$_T/bin:$PATH" \
@@ -561,9 +563,13 @@ t_pr_poll_succeeds_on_merged_state() {
         MERGE_STRATEGY="pr" \
         PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
         PR_THREAD_LOOP_INTERVAL=0 \
-        bash "$PR_SCRIPT" >/dev/null 2>&1
+        bash "$PR_SCRIPT" >/dev/null 2>"$_stderr_file"
     )
     _ec=$?
+    if [[ "$_ec" -ne 0 ]]; then
+        echo "  debug stderr: $(cat "$_stderr_file" 2>/dev/null | head -5)" >&2
+    fi
+    rm -f "$_stderr_file"
 
     assert_eq "t_pr_poll_succeeds_on_merged_state_exit_zero" "0" "$_ec"
 }
