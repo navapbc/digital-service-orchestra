@@ -13,7 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-WORKFLOW_FILE="$DSO_PLUGIN_DIR/docs/workflows/COMMIT-WORKFLOW.md"
+# REVIEW-DEFENSE: Step 1.5 extracted to commit-workflow-validation.md per task 73af-f56e (2026-05-01); assertion updated to follow.
+WORKFLOW_FILE="$DSO_PLUGIN_DIR/docs/workflows/commit-workflow-validation.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
