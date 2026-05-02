@@ -102,6 +102,25 @@ git diff HEAD --name-only | bash ".claude/scripts/dso skip-review-check.sh" && S
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0.5-skip-review-check" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
+## Step 0.6: Load Enforcement Profile
+
+Read `enforcement.strategy` from `dso-config.conf` to decide whether local validation steps run before commit, or are deferred to CI.
+
+- `enforcement.strategy=ci` — local validation is **skipped**. Steps 1.5, 2, 3, 3a, 4.5, and 5 are deferred to CI; jump directly to Step 4 (Stage) after this gate. The always-on structural hooks (`check-portability`, `check-shim-refs`, `check-contract-schemas`, `check-referential-integrity`, `check-plugin-self-ref` — which blocks literal `${CLAUDE_PLUGIN_ROOT}/`-style paths inside plugin scripts — and `pre-commit-enforcement-boundary-check`) still run; only the gated test/review/quality hooks are deferred.
+- `enforcement.strategy=local`, `both`, or **absent** — read and execute [commit-workflow-validation.md](commit-workflow-validation.md) inline before continuing to Step 4. That file holds Steps 1.5, 2, 3, and 3a verbatim; Steps 4.5 and 5 from it run after Step 4 and before Step 6.
+
+> **[Security] Network-partition warning**: When `enforcement.strategy=ci`, this commit will land locally (and may be pushed) before any test/lint/review gate has executed. If CI is unreachable (network partition, GitHub outage, expired credentials, broken workflow), the broken state can reach `main` undetected. Prefer `enforcement.strategy=local` or `both` on long-lived branches, on release-bearing commits, and whenever CI health is unverified. Operators choosing `ci` accept responsibility for verifying CI ran green before merge.
+
+```bash
+ENFORCEMENT_STRATEGY=$(grep -m1 '^enforcement\.strategy=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0.6-load-enforcement-profile strategy=${ENFORCEMENT_STRATEGY:-absent}" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+if [ "$ENFORCEMENT_STRATEGY" = "ci" ]; then echo "enforcement.strategy=ci — skipping local validation"; else echo "enforcement.strategy=${ENFORCEMENT_STRATEGY:-absent} — loading commit-workflow-validation.md"; fi
+```
+
+**If `ENFORCEMENT_STRATEGY=ci`**: skip Steps 1.5–3a and 4.5–5 entirely. Proceed to Step 0.9, then Step 4 (Stage), then Step 6 (Commit).
+
+**Otherwise** (`local`, `both`, or absent): read [commit-workflow-validation.md](commit-workflow-validation.md) and execute Steps 1.5, 2, 3, and 3a from that file before Step 4; then execute Steps 4.5 and 5 from that file before Step 6.
+
 ## Step 0.9: Emit Commit Workflow Start Event
 
 Emit a durable start event **before** any timeout-prone steps (test, lint, review). This must be committed to the orphan branch so that SIGURG (exit 144) cannot lose it. Incomplete commits are detectable as unpaired start events (start without a matching end in the same session).
