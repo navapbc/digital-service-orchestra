@@ -7,8 +7,9 @@
 # These tests drive (not-yet-built) helpers:
 #   _pr_fetch_unresolved_threads <pr_number>     — emits unresolved thread IDs,
 #                                                  one per line, on stdout.
-#   _pr_thread_is_unresolved      <thread_json>  — exit 0 when isResolved=false,
-#                                                  exit 1 when isResolved=true.
+#   _pr_thread_is_unresolved      <thread_node_id> — prints "true" when the
+#                                                    thread is still open (unresolved),
+#                                                    "false" otherwise; always exits 0.
 #   _pr_post_thread_reply         <thread> <txt> — posts a reply via gh.
 #   _pr_resolve_thread            <thread_id>    — short-circuits when already
 #                                                  resolved; otherwise mutates.
@@ -304,7 +305,9 @@ test_resolve_thread_calls_mutation_only_when_unresolved() {
     : > "$STUB_GH_LOG"
     _pr_resolve_thread "PRT_RESOLVED" >/dev/null 2>&1 || true
     local mut1
-    mut1=$(grep -c 'resolveReviewThread' "$STUB_GH_LOG" 2>/dev/null || echo 0)
+    # grep -c outputs "0" (no matches) and exits 1 when file exists; strip the
+    # || fallback so we don't capture "0\n0" when there are zero matches.
+    mut1=$(grep -c 'resolveReviewThread' "$STUB_GH_LOG" 2>/dev/null; true)
     assert_eq "test_resolve_thread_calls_mutation_only_when_unresolved: zero mutations when pre-resolved" "0" "$mut1"
 
     # Case 2: unresolved thread → precheck reports isResolved=false, mutation
@@ -313,7 +316,7 @@ test_resolve_thread_calls_mutation_only_when_unresolved() {
     : > "$STUB_GH_LOG"
     _pr_resolve_thread "PRT_OPEN" >/dev/null 2>&1 || true
     local mut2
-    mut2=$(grep -c 'resolveReviewThread' "$STUB_GH_LOG" 2>/dev/null || echo 0)
+    mut2=$(grep -c 'resolveReviewThread' "$STUB_GH_LOG" 2>/dev/null; true)
     assert_eq "test_resolve_thread_calls_mutation_only_when_unresolved: one mutation when unresolved" "1" "$mut2"
 
     _teardown_test
