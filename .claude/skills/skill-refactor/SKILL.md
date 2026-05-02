@@ -114,6 +114,10 @@ Launch an opus sub-agent to red-team the proposed plan. Direct the agent to:
 
 Brief the sub-agent with: full file paths to the target SKILL.md and any extracted helpers, the complete plan (every change, every classification table entry), and a starter list of scenarios to walk (happy path, every error branch the skill currently handles, every gate the plan compresses or removes, every contract the plan extracts). Ask the sub-agent to add scenarios beyond the seed list.
 
+**Out-of-scope concerns the red team MUST NOT flag** (these are project-level decisions already made; flagging them wastes review cycles):
+
+- **Phase / step renumbering blast radius.** Renumbering is a non-negotiable Phase 7 deliverable of every refactor. The cost of updating cross-skill references, contracts, and docs is accepted. Do NOT flag "X external references will need updating" as a blocker, important, or nit — Phase 7 of the skill-refactor workflow is responsible for those updates and the post-grep verify catches stragglers. Treat the renumbering as a fixed input, not a design choice to litigate.
+
 Output format the sub-agent should use:
 
 - **Scenarios walked** — each scenario, expected behavior under the new plan, verdict (OK / RISK / BUG).

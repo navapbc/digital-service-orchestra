@@ -13,11 +13,11 @@ This document defines the JSON schema for suggestion records written by `suggest
 ## Storage Location
 
 ```
-.tickets-tracker/.suggestions/<filename>.json
+.tickets-tracker/.suggestions/<filename>.json <!-- # tickets-boundary-ok -->
 ```
 
-- **Branch**: `tickets` orphan branch (same worktree as `.tickets-tracker/`)
-- **Directory**: `.tickets-tracker/.suggestions/` (hidden directory — starts with `.`)
+- **Branch**: `tickets` orphan branch (same worktree as `.tickets-tracker/`) <!-- # tickets-boundary-ok -->
+- **Directory**: `.tickets-tracker/.suggestions/` (hidden directory — starts with `.`) <!-- # tickets-boundary-ok -->
 - **Isolation invariant**: `.suggestions/` starts with `.`, so `ticket-reducer.py`'s `reduce_all_tickets()` batch mode skips it automatically (hidden-dir exclusion: `entry.startswith(".")`). Suggestion records **never** appear in `ticket list` or `ticket health` output.
 - **Creation**: `suggestion-record.sh` creates `.suggestions/` on first use (`mkdir -p`). No pre-creation required.
 
@@ -70,7 +70,7 @@ Files sort lexicographically in chronological order (timestamp-first).
   "timestamp": 1775750392123,
   "session_id": "550e8400-e29b-41d4-a716-446655440000",
   "source": "stop-hook",
-  "observation": "sprint Phase 5 (red test writing) took 47s wall-clock for a 3-task batch",
+  "observation": "sprint Phase F (red test writing) took 47s wall-clock for a 3-task batch",
   "recommendation": "cap red-test-writer dispatch to 2 parallel agents on haiku when batch size < 5",
   "skill_name": "dso:sprint",
   "affected_file": "${CLAUDE_PLUGIN_ROOT}/skills/sprint/SKILL.md",
@@ -95,7 +95,7 @@ Suggestion files are **immutable after creation**. Once written and committed, a
 `suggestion-record.sh` uses `_flock_stage_commit` from `ticket-lib.sh`, acquiring the shared lock at:
 
 ```
-.tickets-tracker/.ticket-write.lock
+.tickets-tracker/.ticket-write.lock <!-- # tickets-boundary-ok -->
 ```
 
 This is the **same lock** used by ticket write operations. All writes from parallel sessions are serialized. See `ticket-flock-contract.md` for timeout budget and retry behavior.
@@ -104,7 +104,7 @@ This is the **same lock** used by ticket write operations. All writes from paral
 
 | Parameter | Value |
 |-----------|-------|
-| Lock file | `.tickets-tracker/.ticket-write.lock` |
+| Lock file | `.tickets-tracker/.ticket-write.lock` | <!-- # tickets-boundary-ok -->
 | Timeout per attempt | `$SUGGESTION_LOCK_TIMEOUT` (default: 30s) |
 | Max retries | 2 |
 | Worst-case total wait | 60s |
@@ -121,7 +121,7 @@ This is the **same lock** used by ticket write operations. All writes from paral
 
 ### retro-gather.sh (Story 5)
 
-Must read suggestion files from `.tickets-tracker/.suggestions/` sorted by filename (lexicographic = chronological). Must tolerate unknown optional fields gracefully (forward-compatible). Must not modify or delete suggestion files.
+Must read suggestion files from `.tickets-tracker/.suggestions/` sorted by filename (lexicographic = chronological). Must tolerate unknown optional fields gracefully (forward-compatible). Must not modify or delete suggestion files. <!-- # tickets-boundary-ok -->
 
 ### Stop hook integration (Story 3)
 

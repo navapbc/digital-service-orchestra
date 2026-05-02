@@ -2,7 +2,7 @@
 
 - Signal Name: Recipe Engine Adapter Output
 - Status: accepted
-- Scope: recipe-executor.sh → adapter scripts → sprint Phase 5 (epic 5108-39a1)
+- Scope: recipe-executor.sh → adapter scripts → sprint Phase F (epic 5108-39a1)
 - Date: 2026-04-07
 
 ## Purpose

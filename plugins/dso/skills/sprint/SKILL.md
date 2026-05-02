@@ -75,7 +75,7 @@ Flow: P1 (Init) → Preplanning Gate
 
 ---
 
-## Phase 1: Initialization & Primary Ticket Selection (/dso:sprint)
+## Phase A: Initialization & Primary Ticket Selection (/dso:sprint)
 
 ### Parse Arguments
 
@@ -144,7 +144,7 @@ When ticket type is `bug`:
 
 1. Log: `"Primary ticket <primary_ticket_id> is a bug — dispatching /dso:fix-bug."`
 2. Invoke `/dso:fix-bug <primary_ticket_id>` via Skill tool.
-3. Exit Phase 1 and proceed to Phase 8 (Session Close). Do not continue to the Preplanning Gate or Phase 2.
+3. Exit Phase A and proceed to Phase I (Session Close). Do not continue to the Preplanning Gate or Phase B.
 
 #### Non-Epic Routing
 
@@ -156,19 +156,19 @@ When ticket type is `story` or `task`:
    **Fallback**: If the `agents/complexity-evaluator.md` file is missing, log a warning and fall back to inline complexity assessment using the story description and acceptance criteria.
 
 3. Route based on the complexity classification:
-   - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Before proceeding, run a **file-count guard**: estimate the number of files the task will touch by running `enrich-file-impact.sh` or by counting file paths mentioned in the ticket description. If the estimated file count exceeds 30, split the task into parallel sub-tasks by directory or alphabetical range (each sub-task ≤ 30 files), create child task tickets for each subset, and proceed to Phase 3 with the split tasks. If ≤ 30 files, proceed directly to Phase 3 (Batch Preparation) with the ticket as the sole task.
+   - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Before proceeding, run a **file-count guard**: estimate the number of files the task will touch by running `enrich-file-impact.sh` or by counting file paths mentioned in the ticket description. If the estimated file count exceeds 30, split the task into parallel sub-tasks by directory or alphabetical range (each sub-task ≤ 30 files), create child task tickets for each subset, and proceed to Phase C with the split tasks. If ≤ 30 files, proceed directly to Phase C (Batch Preparation) with the ticket as the sole task.
    - **TRIVIAL (medium)** or **MODERATE/COMPLEX (any)**: Invoke `/dso:implementation-plan <primary_ticket_id>` via Skill tool.
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Non-Epic Routing. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your next action is step 4: continue to Phase 3.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Non-Epic Routing. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your next action is step 4: continue to Phase C.
    </ORCHESTRATOR_RESUME>
-4. After routing, continue to Phase 3. Non-epics **skip** the Preplanning Gate and proceed directly to Phase 3.
+4. After routing, continue to Phase C. Non-epics **skip** the Preplanning Gate and proceed directly to Phase C.
 
 ### Drift Detection Check
 
 After validating the epic, check for codebase drift before proceeding to the Preplanning Gate.
 
-**Initialize the cascade counter** (if not already set from a prior phase — drift-triggered REPLAN_ESCALATE feeds into the same machinery as Phase 2):
+**Initialize the cascade counter** (if not already set from a prior phase — drift-triggered REPLAN_ESCALATE feeds into the same machinery as Phase B):
 
 ```
 replan_cycle_count = replan_cycle_count ?? 0
@@ -178,7 +178,7 @@ max_replan_cycles = read_config("sprint.max_replan_cycles", default=2)
 **Run the drift check:**
 
 ```bash
-DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
+DRIFT_RESULT=$(.claude/scripts/dso sprint/sprint-drift-check.sh <epic-id>)
 ```
 
 **If `DRIFT_DETECTED`:**
@@ -190,15 +190,15 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Files drifted: <files>. Re-invoking implementation-plan for affected stories."
    ```
 4. Identify which stories' tasks reference any of the drifted files (inspect each child task's `## File Impact` or `## Files to Modify` section).
-5. For each affected story, re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as Phase 2 Step 2).
+5. For each affected story, re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as Phase B Step 2).
 
    <ORCHESTRATOR_RESUME>
    **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
    </ORCHESTRATOR_RESUME>
 
    - **On success (`STATUS:complete`)**: continue.
-   - **On `STATUS:blocked`**: surface the story as blocked for user input (same handling as Phase 2 blocked-stories list).
-   - **On `REPLAN_ESCALATE: brainstorm EXPLANATION:<text>`**: add the story and its explanation to the **replan-stories list** and route through the existing d-replan-collect cascade machinery (Phase 2 step d-replan-collect). The `replan_cycle_count` / `max_replan_cycles` initialized above are shared with Phase 2 — do not reinitialize them.
+   - **On `STATUS:blocked`**: surface the story as blocked for user input (same handling as Phase B blocked-stories list).
+   - **On `REPLAN_ESCALATE: brainstorm EXPLANATION:<text>`**: add the story and its explanation to the **replan-stories list** and route through the existing d-replan-collect cascade machinery (Phase B step d-replan-collect). The `replan_cycle_count` / `max_replan_cycles` initialized above are shared with Phase B — do not reinitialize them.
 6. After all re-invocations complete (and no REPLAN_ESCALATE is outstanding), record:
    ```bash
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: implementation-plan — Drift re-planning complete for <N> stories."
@@ -223,8 +223,8 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
    </ORCHESTRATOR_RESUME>
 
    - **On success (`STATUS:complete`)**: continue.
-   - **On `STATUS:blocked`**: surface the story as blocked for user input (same handling as Phase 2 blocked-stories list).
-   - **On `REPLAN_ESCALATE: brainstorm EXPLANATION:<text>`**: add the story and its explanation to the **replan-stories list** and route through the existing d-replan-collect cascade machinery (Phase 2 step d-replan-collect). The `replan_cycle_count` / `max_replan_cycles` initialized above are shared with Phase 2 — do not reinitialize them.
+   - **On `STATUS:blocked`**: surface the story as blocked for user input (same handling as Phase B blocked-stories list).
+   - **On `REPLAN_ESCALATE: brainstorm EXPLANATION:<text>`**: add the story and its explanation to the **replan-stories list** and route through the existing d-replan-collect cascade machinery (Phase B step d-replan-collect). The `replan_cycle_count` / `max_replan_cycles` initialized above are shared with Phase B — do not reinitialize them.
 6. After all re-invocations complete (and no REPLAN_ESCALATE is outstanding), record:
    ```bash
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: implementation-plan — Relates_to drift re-planning complete for <N> stories."
@@ -286,7 +286,7 @@ When either Layer 1 or Layer 2 signals low clarity, present options via AskUserQ
 > (c) Proceed anyway with the current ticket as-is"
 
 Wait for user response and route accordingly:
-- **(a) fix-bug**: dispatch `/dso:fix-bug <primary_ticket_id>`, then exit to Phase 8.
+- **(a) fix-bug**: dispatch `/dso:fix-bug <primary_ticket_id>`, then exit to Phase I.
 - **(b) brainstorm**: invoke `/dso:brainstorm <primary_ticket_id>` via Skill tool, then re-enter Preplanning Gate.
 - **(c) proceed**: log `"User elected to proceed with low-clarity ticket."`, continue to Preplanning Gate.
 
@@ -318,11 +318,11 @@ OPEN=$({ .claude/scripts/dso ticket list --parent=<epic-id> --status=open 2>/dev
 ALL=$(.claude/scripts/dso ticket list --parent=<epic-id> --include-archived 2>/dev/null | grep -c '"ticket_id"' || echo 0)
 ```
 
-- **`OPEN > 0`**: → Step 2a (Existing Children Readiness Check)
-- **`OPEN == 0` and `ALL > 0`**: All children closed. Log `"Preplanning Gate: all children closed — routing to Phase 6."` Skip to Phase 6. Do NOT route to Step 2b.
-- **`ALL == 0`**: → Step 2b (Epic Complexity Evaluation)
+- **`OPEN > 0`**: → Step 2 (Existing Children Readiness Check)
+- **`OPEN == 0` and `ALL > 0`**: All children closed. Log `"Preplanning Gate: all children closed — routing to Phase G."` Skip to Phase G. Do NOT route to Step 7.
+- **`ALL == 0`**: → Step 7 (Epic Complexity Evaluation)
 
-#### Step 2a: Existing Children Readiness Check (/dso:sprint)
+#### Step 2: Existing Children Readiness Check (/dso:sprint)
 
 **Trigger `/dso:preplanning` (full mode) if ANY of the following are true:**
 
@@ -342,21 +342,21 @@ If **more than half** of the children are ambiguous, trigger preplanning for the
 If any trigger condition is met:
 1. Log: `"Epic has ambiguous tasks — running /dso:preplanning to decompose before execution."`
 2. Invoke `/dso:preplanning <epic-id>` (full mode)
-3. After preplanning completes, continue to Phase 2
+3. After preplanning completes, continue to Phase B
 
-If no trigger condition is met, proceed to Step 2a1 (SC Coverage Haiku Gate).
+If no trigger condition is met, proceed to Step 3 (SC Coverage Haiku Gate).
 
-#### Step 2a1: SC Coverage Haiku Gate (/dso:sprint)
+#### Step 3: SC Coverage Haiku Gate (/dso:sprint)
 
-**Purpose**: Fast-path check that all epic success criteria (SCs) are traceable to at least one child story or task. Uses a haiku sub-agent for speed. This is a read-only advisory gate — it never blocks execution. Sonnet/opus escalation for ESCALATE verdicts is handled by Step 2a2.
+**Purpose**: Fast-path check that all epic success criteria (SCs) are traceable to at least one child story or task. Uses a haiku sub-agent for speed. This is a read-only advisory gate — it never blocks execution. Sonnet/opus escalation for ESCALATE verdicts is handled by Step 4.
 
-**ORCHESTRATOR_RESUME idempotency**: If your resume context contains `SC_COVERAGE_HAIKU_GATE: complete` for this epic, skip this entire sub-step and proceed to Step 2a2 if any ESCALATE verdicts were recorded, otherwise proceed to Phase 2.
+**ORCHESTRATOR_RESUME idempotency**: If your resume context contains `SC_COVERAGE_HAIKU_GATE: complete` for this epic, skip this entire sub-step and proceed to Step 4 if any ESCALATE verdicts were recorded, otherwise proceed to Phase B.
 
 **Step 1 — Collect inputs**:
 
 1. Retrieve the epic's success criteria list from the epic ticket description.
-2. Retrieve child descriptions (already fetched by Step 1 and Step 2a above).
-3. If the epic has **0 SCs** (empty success criteria list): log `"0-SC epic: skipping SC coverage haiku gate — no SCs to validate"` and proceed directly to Phase 2. Do not dispatch the haiku sub-agent.
+2. Retrieve child descriptions (already fetched by Step 1 and Step 2 above).
+3. If the epic has **0 SCs** (empty success criteria list): log `"0-SC epic: skipping SC coverage haiku gate — no SCs to validate"` and proceed directly to Phase B. Do not dispatch the haiku sub-agent.
 
 **Step 2 — Dispatch haiku sub-agent**:
 
@@ -381,30 +381,30 @@ The haiku sub-agent returns a JSON object with this structure:
 ```
 Parse the `results` array. Check `verdict` on each entry. On any missing key, null `results`, or invalid JSON: trigger the fail-open path below.
 
-**On parse failure** (malformed JSON, missing fields, timeout, or empty output): this gate is fail-open — log a warning `"SC coverage haiku gate: parse failure — skipping gate, proceeding to Phase 2"` and proceed directly to Phase 2. Do not block execution.
+**On parse failure** (malformed JSON, missing fields, timeout, or empty output): this gate is fail-open — log a warning `"SC coverage haiku gate: parse failure — skipping gate, proceeding to Phase B"` and proceed directly to Phase B. Do not block execution.
 
 **Step 4 — Emit idempotency marker and route on verdicts**:
 
 Emit `SC_COVERAGE_HAIKU_GATE: complete` to your output so that ORCHESTRATOR_RESUME can detect it on resume.
 
-- **ALL verdicts are `COVERED`**: log `"SC coverage haiku gate: all SCs covered — proceeding to Phase 2"` and proceed to Phase 2 normally. Skip Step 2a2.
-- **ANY verdict is `ESCALATE`**: collect the ESCALATE SCs into an escalation list and proceed to Step 2a2 (SC Coverage Sonnet Tier).
+- **ALL verdicts are `COVERED`**: log `"SC coverage haiku gate: all SCs covered — proceeding to Phase B"` and proceed to Phase B normally. Skip Step 4.
+- **ANY verdict is `ESCALATE`**: collect the ESCALATE SCs into an escalation list and proceed to Step 4 (SC Coverage Sonnet Tier).
 
 <!-- REVIEW-DEFENSE: Finding 2 — sc-coverage-sonnet.md, sc-coverage-haiku.md, and sc-coverage-opus.md not in this worktree.
      All three prompt files are created by story 3812-d606 in branch worktree-agent-ae49f130 (Batch 1).
      Merge order: Batch 1 (prompt files) → Batch 3 (haiku gate) → Batch 5 (sonnet tier) → Batch 6 (opus tier, this change).
      Files will be present on main before this change lands. Merge order is enforced by the per-worktree-review-commit.md
      sequential commit protocol. Worktree-isolation artifact — not a runtime missing file risk. -->
-#### Step 2a2: SC Coverage Sonnet Tier (/dso:sprint)
+#### Step 4: SC Coverage Sonnet Tier (/dso:sprint)
 
-**Trigger**: Only runs if the haiku gate (Step 2a1) returned ANY `ESCALATE` verdict. If haiku marked ALL SCs as `COVERED` (empty escalation list), skip this sub-step entirely and proceed to Phase 2.
+**Trigger**: Only runs if the haiku gate (Step 3) returned ANY `ESCALATE` verdict. If haiku marked ALL SCs as `COVERED` (empty escalation list), skip this sub-step entirely and proceed to Phase B.
 
 **Purpose**: Deeper evaluation of SCs that haiku could not conclusively mark as COVERED. Sonnet evaluates each escalated SC independently, with no knowledge of haiku's verdicts.
 
 **ORCHESTRATOR_RESUME idempotency**: If your resume context contains `SC_COVERAGE_SONNET_GATE: complete` for this epic, skip this entire sub-step and:
-- If any UNSURE verdicts were recorded → proceed to Step 2a3 (opus dispatch)
+- If any UNSURE verdicts were recorded → proceed to Step 5 (opus dispatch)
 - If any MISSING verdicts were recorded (no UNSURE) → proceed to REPLAN_TRIGGER Routing (no opus dispatch)
-- If all verdicts are COVERED → proceed to Phase 2 directly
+- If all verdicts are COVERED → proceed to Phase B directly
 
 **Step 1 — Prepare input**:
 
@@ -442,7 +442,7 @@ The sonnet sub-agent returns a JSON object:
 ```
 Parse the `results` array. Check `verdict` on each entry.
 
-**On parse failure** (malformed JSON, missing fields, timeout, or empty output): this gate is fail-open — log a warning `"SC coverage sonnet gate: parse failure — treating all sonnet SCs as UNSURE, escalating to opus (Step 2a3)"` and treat ALL sonnet-evaluated SCs as `UNSURE`. Proceed to Step 2a3.
+**On parse failure** (malformed JSON, missing fields, timeout, or empty output): this gate is fail-open — log a warning `"SC coverage sonnet gate: parse failure — treating all sonnet SCs as UNSURE, escalating to opus (Step 5)"` and treat ALL sonnet-evaluated SCs as `UNSURE`. Proceed to Step 5.
 
 **Step 4 — Collect verdicts**:
 
@@ -456,11 +456,11 @@ For each SC in the sonnet results:
 Emit `SC_COVERAGE_SONNET_GATE: complete` to your output so that ORCHESTRATOR_RESUME can detect it on resume.
 
 - **If the UNSURE list is empty**: proceed directly to REPLAN_TRIGGER Routing below (no opus dispatch needed). Log: `"SC coverage sonnet gate: no UNSURE SCs — opus escalation skipped"`.
-- **If any SCs are UNSURE**: proceed to Step 2a3 (SC Coverage Opus Tier) with the UNSURE SCs passed as input to opus.
+- **If any SCs are UNSURE**: proceed to Step 5 (SC Coverage Opus Tier) with the UNSURE SCs passed as input to opus.
 
-#### Step 2a3: SC Coverage Opus Tier (/dso:sprint)
+#### Step 5: SC Coverage Opus Tier (/dso:sprint)
 
-**Trigger**: Only dispatch opus if the UNSURE list from Step 2a2 is non-empty. If the UNSURE list is empty (all SCs resolved by haiku + sonnet), skip opus entirely — log `"SC coverage opus tier: UNSURE list empty — skipping opus, proceeding to REPLAN_TRIGGER routing"` and proceed directly to REPLAN_TRIGGER routing below.
+**Trigger**: Only dispatch opus if the UNSURE list from Step 4 is non-empty. If the UNSURE list is empty (all SCs resolved by haiku + sonnet), skip opus entirely — log `"SC coverage opus tier: UNSURE list empty — skipping opus, proceeding to REPLAN_TRIGGER routing"` and proceed directly to REPLAN_TRIGGER routing below.
 
 **Purpose**: Opus is the final arbiter for SCs that sonnet could not conclusively classify as COVERED or MISSING. Opus returns only COVERED or MISSING — no UNSURE. This terminates the escalation cascade.
 
@@ -517,13 +517,13 @@ For each SC in the opus results:
 
 Emit `SC_COVERAGE_OPUS_GATE: complete` to your output so that ORCHESTRATOR_RESUME can detect it on resume.
 
-#### REPLAN_TRIGGER Routing: SC Coverage Gaps (/dso:sprint)
+#### Step 6: REPLAN_TRIGGER Routing — SC Coverage Gaps (/dso:sprint)
 
 After completing all applicable escalation tiers, evaluate the `sc_coverage_missing` list:
 
 **If ALL SCs are COVERED** (empty `sc_coverage_missing` list):
-- Log: `"SC coverage check complete: all SCs covered — proceeding to Phase 2 normally."`
-- Continue to Phase 2.
+- Log: `"SC coverage check complete: all SCs covered — proceeding to Phase B normally."`
+- Continue to Phase B.
 
 **If ANY SCs are MISSING** (non-empty `sc_coverage_missing` list):
 
@@ -545,7 +545,7 @@ for each child to retrieve the `ticket_type` field. This is required to determin
    Invoke `/dso:preplanning <epic-id>` via Skill tool.
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The preplanning skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Proceed to Phase 2. Do not stop.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The preplanning skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Proceed to Phase B. Do not stop.
    </ORCHESTRATOR_RESUME>
 
    **If all children have `ticket_type: task`** (route to `/dso:implementation-plan`):
@@ -553,14 +553,14 @@ for each child to retrieve the `ticket_type` field. This is required to determin
    Invoke `/dso:implementation-plan <epic-id>` via Skill tool.
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Proceed to Phase 2. Do not stop.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Proceed to Phase B. Do not stop.
    </ORCHESTRATOR_RESUME>
 
-   **Otherwise** (children are all epics or have unexpected ticket types): log a warning `"SC coverage REPLAN_TRIGGER: unexpected child types — no story or task children found; proceeding to Phase 2 without decomposition routing"` and proceed to Phase 2.
+   **Otherwise** (children are all epics or have unexpected ticket types): log a warning `"SC coverage REPLAN_TRIGGER: unexpected child types — no story or task children found; proceeding to Phase B without decomposition routing"` and proceed to Phase B.
 
-3. Continue to Phase 2.
+3. Continue to Phase B.
 
-#### Step 2b: Epic Complexity Evaluation (/dso:sprint)
+#### Step 7: Epic Complexity Evaluation (/dso:sprint)
 
 When the epic has zero children, dispatch the `dso:complexity-evaluator` agent to classify the epic's complexity before deciding the decomposition path. (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` value — the Agent tool only accepts built-in types.)
 
@@ -574,15 +574,15 @@ Read `agents/complexity-evaluator.md` inline and use `subagent_type: "general-pu
 
 | Classification | Confidence | Route |
 |---------------|------------|-------|
-| SIMPLE | high | Step 3a (Direct Implementation Planning) |
+| SIMPLE | high | Step 8 (Direct Implementation Planning) |
 | SIMPLE | medium | Treat as MODERATE |
-| MODERATE | high | Step 3b (Lightweight Preplanning) |
+| MODERATE | high | Step 9 (Lightweight Preplanning) |
 | MODERATE | medium | Treat as COMPLEX |
-| COMPLEX | any | Step 3c (Full Preplanning) |
+| COMPLEX | any | Step 10 (Full Preplanning) |
 
 Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: <confidence>) — routing to <path>."`
 
-#### Step 3a: Direct Implementation Planning (SIMPLE epics) (/dso:sprint)
+#### Step 8: Direct Implementation Planning (SIMPLE epics) (/dso:sprint)
 
 1. Log: `"Epic <id> classified as SIMPLE — running /dso:implementation-plan directly on epic."`
 2. Invoke `/dso:implementation-plan` via Skill tool with the epic ID as the argument:
@@ -592,14 +592,14 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
    The skill handles epic type detection and runs inline (no sub-agent dispatch needed).
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. **Your next action is step 3: parse the STATUS output and continue.**
    </ORCHESTRATOR_RESUME>
 
-3. Parse the skill's output using the same STATUS protocol as Phase 2's Implementation Planning Gate
-4. Set `epic_routing = "SIMPLE"` — this flag tells Phase 2 to skip the Implementation Planning Gate
-5. Continue to Phase 2
+3. Parse the skill's output using the same STATUS protocol as Phase B's Implementation Planning Gate
+4. Set `epic_routing = "SIMPLE"` — this flag tells Phase B to skip the Implementation Planning Gate
+5. Continue to Phase B
 
-#### Step 3b: Lightweight Preplanning (MODERATE epics) (/dso:sprint)
+#### Step 9: Lightweight Preplanning (MODERATE epics) (/dso:sprint)
 
 1. Log: `"Epic <id> classified as MODERATE — running /dso:preplanning --lightweight for scope clarification."`
 2. Invoke `/dso:preplanning <epic-id> --lightweight`
@@ -607,31 +607,31 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 
 **On `ENRICHED`:**
 - Log: `"Lightweight preplanning complete — epic enriched with done definitions. Running /dso:implementation-plan on epic."`
-- Invoke `/dso:implementation-plan` via Skill tool (same as Step 3a, step 2)
+- Invoke `/dso:implementation-plan` via Skill tool (same as Step 8, step 2)
 
   <ORCHESTRATOR_RESUME>
-  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary.
+  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. **Your next action is: set `epic_routing = "MODERATE"` and continue to Phase 2.**
   </ORCHESTRATOR_RESUME>
 
 - Set `epic_routing = "MODERATE"`
-- Continue to Phase 2
+- Continue to Phase B
 
 **On `ESCALATED`:**
 - Log: `"Lightweight preplanning escalated to full mode — reason: <reason>. Running full /dso:preplanning."`
 - Invoke `/dso:preplanning <epic-id>` (full mode, no --lightweight flag)
 - Set `epic_routing = "COMPLEX"`
-- Continue to Phase 2
+- Continue to Phase B
 
-#### Step 3c: Full Preplanning (COMPLEX epics) (/dso:sprint)
+#### Step 10: Full Preplanning (COMPLEX epics) (/dso:sprint)
 
 1. Log: `"Epic <id> classified as COMPLEX — running /dso:preplanning for full story decomposition."`
 2. Invoke `/dso:preplanning <epic-id>`
 3. After preplanning completes, set `epic_routing = "COMPLEX"`
-4. Continue to Phase 2
+4. Continue to Phase B
 
 ---
 
-## Phase 2: Task Analysis & Dependency Graph (/dso:sprint)
+## Phase B: Task Analysis & Dependency Graph (/dso:sprint)
 
 ### Gather Tasks
 
@@ -643,7 +643,7 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 
 #### Pre-check: Skip for SIMPLE/MODERATE Routing (/dso:sprint)
 
-If `epic_routing` is `"SIMPLE"` or `"MODERATE"` (set in Phase 1's Preplanning Gate), skip the entire Implementation Planning Gate and proceed directly to **Classify Tasks** below. Tasks were already created as direct children of the epic by `/dso:implementation-plan` — there is no story layer to decompose.
+If `epic_routing` is `"SIMPLE"` or `"MODERATE"` (set in Phase A's Preplanning Gate), skip the entire Implementation Planning Gate and proceed directly to **Classify Tasks** below. Tasks were already created as direct children of the epic by `/dso:implementation-plan` — there is no story layer to decompose.
 
 Log: `"Skipping Implementation Planning Gate — epic was routed as <epic_routing>, tasks already exist under epic."`
 
@@ -677,7 +677,7 @@ awaiting_manual_stories = []   # List of {id, title} for manual:awaiting_user st
    - Log: `"Story <id> tagged design:awaiting_import — skipping implementation planning."`
    - Estimate the tag age from the ticket's comment timestamps: find the comment whose body contains `"Import designs/"` (written by ui-designer when the tag was applied) and read its `timestamp` field from the JSON output. Compute days elapsed: `$(( ($(date +%s) - comment_timestamp_epoch) / 86400 ))`. If no such comment exists, treat tag age as unknown (no staleness warning).
    - Add the story to the `awaiting_design_stories` list: `{id: "<story-id>", title: "<story-title>", tag_applied_date: "<date or unknown>"}`
-   - **Do not add this story to the needs-planning list**. Skip all further processing for this story (no complexity eval, no implementation-plan dispatch, no batch dispatch in Phase 4).
+   - **Do not add this story to the needs-planning list**. Skip all further processing for this story (no complexity eval, no implementation-plan dispatch, no batch dispatch in Phase E).
 3. Only stories **without** the `design:awaiting_import` tag proceed to the `manual:awaiting_user` check below.
 
 **Manual-awaiting-user check** (runs when `planning.external_dependency_block_enabled=true`):
@@ -700,7 +700,7 @@ For each story that passed the design filter:
 After populating `awaiting_manual_stories`, sort them so manual stories appear before their transitive autonomous dependents:
 1. Build a dependency graph from `.claude/scripts/dso ticket deps` for each manual story
 2. Sort: if manual story M1 is a dependency of M2, M1 appears first
-3. **Cycle detection**: if M1 and M2 are both `manual:awaiting_user` and M1 blocks M2 AND M2 blocks M1, log `"CYCLE_DETECTED: manual stories <M1-id> and <M2-id> have mutual dependency"` and escalate to user — do not continue Phase 3.5.
+3. **Cycle detection**: if M1 and M2 are both `manual:awaiting_user` and M1 blocks M2 AND M2 blocks M1, log `"CYCLE_DETECTED: manual stories <M1-id> and <M2-id> have mutual dependency"` and escalate to user — do not continue Phase D.
 
 #### Step 1: Identify Stories Needing Implementation Planning (/dso:sprint)
 
@@ -721,7 +721,7 @@ For each ready task from `.claude/scripts/dso ticket ready --epic=<epic-id>`:
 | TRIVIAL | medium | Treat as COMPLEX (medium confidence = plan) |
 | COMPLEX | any | Run `/dso:implementation-plan` via Skill tool (see Step 2) |
 
-**Post-routing action for COMPLEX stories**: After routing a story to `/dso:implementation-plan`, tag it so Phase 4 can upgrade implementation task models:
+**Post-routing action for COMPLEX stories**: After routing a story to `/dso:implementation-plan`, tag it so Phase E can upgrade implementation task models:
 ```bash
 .claude/scripts/dso ticket comment <story-id> "COMPLEXITY_CLASSIFICATION: COMPLEX"
 ```
@@ -788,7 +788,7 @@ This counter is shared across all stories in the epic. Each full brainstorm → 
 story_uncertain_counts = {}
 ```
 
-This dictionary tracks the number of `STATUS:pass` + `UNCERTAIN` signals received per story across all batch iterations. Keys are parent story IDs (not task IDs). The counter persists across the Phase 5 → Phase 3 batch loop — do NOT re-initialize between batches. See Phase 5 Step 1a2 for parsing logic and Phase 3 Step 4 for double-failure detection.
+This dictionary tracks the number of `STATUS:pass` + `UNCERTAIN` signals received per story across all batch iterations. Keys are parent story IDs (not task IDs). The counter persists across the Phase F → Phase C batch loop — do NOT re-initialize between batches. See Phase F Step 4 for parsing logic and Phase C Step 4 for double-failure detection.
 
 **Out-of-scope review findings accumulator (initialize once before the layer loop):**
 
@@ -796,7 +796,7 @@ This dictionary tracks the number of `STATUS:pass` + `UNCERTAIN` signals receive
 batch_out_of_scope_findings = []
 ```
 
-This list collects out-of-scope files detected by `sprint-review-scope-check.sh` during Phase 5 Step 7a. Each entry is a dict `{"task_id": "<id>", "story_id": "<parent>", "files": ["file1", ...]}`. The list is consumed between batches in Step 13 and cleared after processing. Do NOT process these findings mid-batch — they are only routed between batches to avoid task injection conflicts.
+This list collects out-of-scope files detected by `sprint-review-scope-check.sh` during Phase F Step 14. Each entry is a dict `{"task_id": "<id>", "story_id": "<parent>", "files": ["file1", ...]}`. The list is consumed between batches in Step 13 and cleared after processing. Do NOT process these findings mid-batch — they are only routed between batches to avoid task injection conflicts.
 
 **For each layer (in order Layer 0, Layer 1, ...):**
 
@@ -808,10 +808,10 @@ b. For each story in the layer, invoke `/dso:implementation-plan` via Skill tool
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
 
    <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. You have more stories to process in this layer.
+   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. **Your next action is step c: parse the STATUS line and continue.** Do not wait for user input.
    </ORCHESTRATOR_RESUME>
 
-   **POST-RETURN CONTINUATION (executes after Skill tool result above):** The skill has returned. You are still the sprint orchestrator inside the layer loop. Execute step c immediately — do not stop.
+   **POST-RETURN CONTINUATION (executes after Skill tool result above):** The skill has returned. You are still the sprint orchestrator inside the layer loop. Your immediate next action is **step c** — parse the STATUS line from the skill output and take the corresponding action. Do not stop, do not ask the user, do not wait.
 
 c. For each skill result, **parse STATUS:**
    - On `STATUS:complete TASKS:<ids> STORY:<id>`:
@@ -902,7 +902,7 @@ Proceed to task classification with the updated task list.
 
 ### Classify Tasks
 
-Classification is performed automatically by `ticket next-batch` in Phase 3 (Batch Preparation). Each `TASK:` line in its output already includes `model`, `subagent`, and `class` fields — no separate classification step is needed here. Proceed directly to building the dependency graph below.
+Classification is performed automatically by `ticket next-batch` in Phase C (Batch Preparation). Each `TASK:` line in its output already includes `model`, `subagent`, and `class` fields — no separate classification step is needed here. Proceed directly to building the dependency graph below.
 
 ### Build Dependency Graph
 
@@ -914,14 +914,14 @@ Output a textual dependency graph showing:
 ### Exit Condition
 
 If no ready tasks exist:
-1. Parse the `skipped_blocked_story` / `skipped_overlap` / `skipped_in_progress` / `skipped_needs_planning` arrays from the most recent `.claude/scripts/dso ticket next-batch <epic-id> --json` output (already computed in Phase 3). These arrays identify the epic-scoped tasks that were eligible but deferred and the reason for each.
+1. Parse the `skipped_blocked_story` / `skipped_overlap` / `skipped_in_progress` / `skipped_needs_planning` arrays from the most recent `.claude/scripts/dso ticket next-batch <epic-id> --json` output (already computed in Phase C). These arrays identify the epic-scoped tasks that were eligible but deferred and the reason for each.
 2. For transitive chains (A blocks B blocks C), run `.claude/scripts/dso ticket deps <id>` on each surfaced blocked ticket to walk blockers one hop at a time. Do NOT re-read the full ticket list.
 3. Report which tasks are blocked and by what
 4. Exit with recommendation
 
 ---
 
-## Phase 3: Batch Preparation (/dso:sprint)
+## Phase C: Batch Preparation (/dso:sprint)
 
 ### Step 1: Pre-Batch Checks
 
@@ -953,7 +953,7 @@ Output: `DISCOVERIES_CLEANED: <N>`. Exit 0 always (best-effort).
 |---------------------|----------|
 | `unlimited` | Dispatch all ready tasks in a single batch with no artificial cap. Pass `--limit=unlimited` (or omit `--limit`) to `ticket next-batch`. |
 | `N` (positive integer) | Cap the batch at N sub-agents. Pass `--limit=N` to `ticket next-batch`. Log: `"Session usage elevated, limiting to N sub-agent(s)."` |
-| `0` | Skip sub-agent dispatch entirely. Write a ticket comment with utilization percentages and estimated reset time, then proceed to Phase 5 Step 13 (Continuation Decision). Log: `"MAX_AGENTS=0 — session at critical utilization, skipping dispatch."` Comment format: `.claude/scripts/dso ticket comment <epic-id> "BATCH_SKIPPED: MAX_AGENTS=0. Session utilization: <SESSION_USAGE>. Estimated reset: next session."` |
+| `0` | Skip sub-agent dispatch entirely. Write a ticket comment with utilization percentages and estimated reset time, then proceed to Phase F Step 20 (Continuation Decision). Log: `"MAX_AGENTS=0 — session at critical utilization, skipping dispatch."` Comment format: `.claude/scripts/dso ticket comment <epic-id> "BATCH_SKIPPED: MAX_AGENTS=0. Session utilization: <SESSION_USAGE>. Estimated reset: next session."` |
 
 All Task tool calls use `run_in_background: true`.
 
@@ -998,13 +998,13 @@ Run the deterministic batch selector:
 .claude/scripts/dso ticket next-batch <epic-id>
 # When max_agents is a positive integer N:
 .claude/scripts/dso ticket next-batch <epic-id> --limit=N
-# When max_agents is 0: do NOT call ticket next-batch — skip dispatch (see Phase 3 Step 1 protocol)
+# When max_agents is 0: do NOT call ticket next-batch — skip dispatch (see Phase C Step 1 protocol)
 ```
 
 - **`max_agents`**: Determined by Step 1's pre-batch check (3-tier: `unlimited`, `N`, or `0`).
 - **`unlimited`**: Returns the full non-conflicting pool — dispatch all candidates.
 - **`N`** (positive integer): Caps batch at N tasks.
-- **`0`**: Skip dispatch entirely — do not call `ticket next-batch`. Write the utilization comment per Phase 3 Step 1 protocol and proceed to Phase 5 Step 13.
+- **`0`**: Skip dispatch entirely — do not call `ticket next-batch`. Write the utilization comment per Phase C Step 1 protocol and proceed to Phase F Step 20.
 
 #### Output format
 
@@ -1027,9 +1027,9 @@ TASK: <id>  P<priority>  <issue-type>  <model>  <subagent-type>  <class>  <title
 | `SKIPPED_DESIGN_AWAITING: <id> <title>` | Deferred — story tagged `design:awaiting_import` (Figma designs not yet finalized) |
 | `SKIPPED_MANUAL_AWAITING: <id> <title>` | Deferred — story tagged `manual:awaiting_user` (manual user input required; only emitted when `planning.external_dependency_block_enabled=true`) |
 
-**Parsing `SKIPPED_DESIGN_AWAITING` lines:** After running `ticket next-batch`, parse any `SKIPPED_DESIGN_AWAITING` lines from the output. For each such line, extract the story ID and title and add them to the `awaiting_design_stories` list (if not already present from Phase 2 filtering). These stories are surfaced in the Phase 5 Batch Completion Summary "Awaiting designer input" section.
+**Parsing `SKIPPED_DESIGN_AWAITING` lines:** After running `ticket next-batch`, parse any `SKIPPED_DESIGN_AWAITING` lines from the output. For each such line, extract the story ID and title and add them to the `awaiting_design_stories` list (if not already present from Phase B filtering). These stories are surfaced in the Phase F Batch Completion Summary "Awaiting designer input" section.
 
-**`manual:awaiting_user` filter** (when `planning.external_dependency_block_enabled=true`): Stories tagged `manual:awaiting_user` are excluded from the autonomous batch and surfaced as `SKIPPED_MANUAL_AWAITING` lines. After autonomous stories drain, sprint enters Phase 3.5 (Manual-Pause Handshake), which presents a blocking handshake listing per-story instructions and an optional `verification_command`. Accepts: `done`, `done <story-id>`, `skip`. Handles `verification_command` execution (timeout: `planning.verification_command_timeout_seconds`, default 30s) and confirmation-token audit logging. Topological sort surfaces manual stories before their transitive autonomous dependents. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
+**`manual:awaiting_user` filter** (when `planning.external_dependency_block_enabled=true`): Stories tagged `manual:awaiting_user` are excluded from the autonomous batch and surfaced as `SKIPPED_MANUAL_AWAITING` lines. After autonomous stories drain, sprint enters Phase D (Manual-Pause Handshake), which presents a blocking handshake listing per-story instructions and an optional `verification_command`. Accepts: `done`, `done <story-id>`, `skip`. Handles `verification_command` execution (timeout: `planning.verification_command_timeout_seconds`, default 30s) and confirmation-token audit logging. Topological sort surfaces manual stories before their transitive autonomous dependents. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
 
 #### Interaction Conflict Filter (/dso:sprint)
 
@@ -1046,7 +1046,7 @@ Before dispatching any task from the batch, filter out tasks whose parent epic i
 
 **Failure contract**: If `ticket show` fails for a given epic, treat the tag as absent and include the task (fail-open).
 
-**No error is thrown** when tasks are filtered — sprint continues with the remaining batch. If all tasks are filtered and `BATCH_SIZE` drops to 0 after filtering, proceed to Phase 5 Step 13 (Continuation Decision) rather than treating it as a blocking error. Log: `"All batch tasks filtered — interaction:deferred tag present on parent epic(s). Resolve cross-epic conflicts to proceed."`
+**No error is thrown** when tasks are filtered — sprint continues with the remaining batch. If all tasks are filtered and `BATCH_SIZE` drops to 0 after filtering, proceed to Phase F Step 20 (Continuation Decision) rather than treating it as a blocking error. Log: `"All batch tasks filtered — interaction:deferred tag present on parent epic(s). Resolve cross-epic conflicts to proceed."`
 
 Use `--json` for machine-readable output with full detail including file lists.
 
@@ -1091,7 +1091,7 @@ finalizing the batch to avoid parallel conflicts.
 
 #### Double-Failure Detection (per story)
 
-After composing the batch, check each task's parent story against the `story_uncertain_counts` map (initialized in Phase 2 Step 2) **before dispatching**:
+After composing the batch, check each task's parent story against the `story_uncertain_counts` map (initialized in Phase B Step 2) **before dispatching**:
 
 1. For each `TASK:` line in the batch output, extract the parent story ID from the `story:<id>` field.
 2. Look up `story_uncertain_counts[<story-id>]`. If the count is **>= 2**, do NOT dispatch the task. Instead:
@@ -1114,13 +1114,13 @@ After composing the batch, check each task's parent story against the `story_unc
    e. Remove the affected task(s) from the current batch and proceed with the remaining tasks. The re-planned story's new tasks will be picked up in the next batch cycle.
 3. Tasks whose parent story has a count of 0 or 1 are dispatched normally.
 
-**Key invariant**: Only `STATUS:pass` + `UNCERTAIN` signals (tracked in Phase 5 Step 1a2) count toward this threshold. `STATUS:fail` tasks are handled via revert-to-open in Phase 5 Step 9 and do not affect this counter.
+**Key invariant**: Only `STATUS:pass` + `UNCERTAIN` signals (tracked in Phase F Step 4) count toward this threshold. `STATUS:fail` tasks are handled via revert-to-open in Phase F Step 16 and do not affect this counter.
 
 ### Dry-Run Mode
 
 If `--dry-run` was specified:
 1. Run `ticket next-batch <epic-id>` (no `--limit`) to get the full pool
-2. For each story that needs implementation planning (Phase 2 gate), output one line per story:
+2. For each story that needs implementation planning (Phase B gate), output one line per story:
    ```
    Dispatching impl-plan sub-agent for story <story-id>: <story-title>
    ```
@@ -1129,7 +1129,7 @@ If `--dry-run` was specified:
 
 ---
 
-## Phase 3.5: Manual-Pause Handshake (/dso:sprint)
+## Phase D: Manual-Pause Handshake (/dso:sprint)
 
 This phase runs **only** when all of the following are true:
 - `planning.external_dependency_block_enabled=true`
@@ -1138,33 +1138,33 @@ This phase runs **only** when all of the following are true:
 
 ### Pause State Management
 
-Before starting the handshake, manage the pause state file via `sprint-pause-state.sh` (the SIGURG recovery state manager):
+Before starting the handshake, manage the pause state file via `sprint/sprint-pause-state.sh` (the SIGURG recovery state manager):
 
 ```bash
 # 1. Remove stale state files from prior sessions (fail-open — no-op when flag is off)
-.claude/scripts/dso sprint-pause-state.sh stale-cleanup  # shim-exempt: internal orchestration script
+.claude/scripts/dso sprint/sprint-pause-state.sh stale-cleanup  # shim-exempt: internal orchestration script
 
 # 2. Check whether a pause state already exists for this epic (--resume path)
-.claude/scripts/dso sprint-pause-state.sh is-fresh <epic-id>  # shim-exempt: internal orchestration script
+.claude/scripts/dso sprint/sprint-pause-state.sh is-fresh <epic-id>  # shim-exempt: internal orchestration script
 ```
 
-- **If `is-fresh` exits 0** (fresh state exists): a prior SIGURG interrupted the handshake. Present the user with: `"Found existing pause state for epic <epic-id>. Use --resume when re-invoking sprint to continue the handshake."` Then call `sprint-pause-state.sh resume-context <epic-id>` to get the first unanswered story and rehydrate the handshake from that story forward.
-- **If `is-fresh` exits non-zero** (no fresh state): call `sprint-pause-state.sh init <epic-id>` to create a fresh state file.
+- **If `is-fresh` exits 0** (fresh state exists): a prior SIGURG interrupted the handshake. Present the user with: `"Found existing pause state for epic <epic-id>. Use --resume when re-invoking sprint to continue the handshake."` Then call `sprint/sprint-pause-state.sh resume-context <epic-id>` to get the first unanswered story and rehydrate the handshake from that story forward.
+- **If `is-fresh` exits non-zero** (no fresh state): call `sprint/sprint-pause-state.sh init <epic-id>` to create a fresh state file.
 
 ```bash
 # 3. Initialize fresh pause state (no-op when flag is off or state already fresh)
-.claude/scripts/dso sprint-pause-state.sh init <epic-id>  # shim-exempt: internal orchestration script
+.claude/scripts/dso sprint/sprint-pause-state.sh init <epic-id>  # shim-exempt: internal orchestration script
 ```
 
-**SIGURG trap**: register `_spause_sigurg_handler <epic-id>` (by sourcing `sprint-pause-state.sh`) as the SIGURG handler. On interrupt, the handler sets `in_progress_marker=false` without removing the state file — the state is preserved for `--resume` on re-invocation.
+**SIGURG trap**: register `_spause_sigurg_handler <epic-id>` (by sourcing `sprint/sprint-pause-state.sh`) as the SIGURG handler. On interrupt, the handler sets `in_progress_marker=false` without removing the state file — the state is preserved for `--resume` on re-invocation.
 
 **Per-story state writes**: after each manual story answer is collected via `sprint-manual-drain.sh`, record the answer:
 
 ```bash
-.claude/scripts/dso sprint-pause-state.sh write <epic-id> <story-id> <answer>  # shim-exempt: internal orchestration script
+.claude/scripts/dso sprint/sprint-pause-state.sh write <epic-id> <story-id> <answer>  # shim-exempt: internal orchestration script
 ```
 
-**After all stories answered**: call `sprint-pause-state.sh cleanup <epic-id>` to remove the state file.
+**After all stories answered**: call `sprint/sprint-pause-state.sh cleanup <epic-id>` to remove the state file.
 
 ### Handshake Input Contract
 
@@ -1174,7 +1174,7 @@ Stories tagged `manual:awaiting_user` are collected into `awaiting_manual_storie
 - **`done <story-id>`** — same as `done` but explicitly names the story, used when multiple stories are presented.
 - **`skip`** — mark the story skipped; `sprint-manual-drain.sh` writes a sentinel with `handshake_outcome=skip` and propagates skip to transitive dependents.
 
-**Confirmation-token audit path**: when `verification_command` is omitted, `sprint-manual-drain.sh` prompts for a `MANUAL_CONFIRMATION_TOKEN` (a short user-typed string) and writes it as a `MANUAL_PAUSE_SENTINEL` ticket comment. `dso:completion-verifier` reads this sentinel at Step 10a to verify the manual story without re-executing the manual step.
+**Confirmation-token audit path**: when `verification_command` is omitted, `sprint-manual-drain.sh` prompts for a `MANUAL_CONFIRMATION_TOKEN` (a short user-typed string) and writes it as a `MANUAL_PAUSE_SENTINEL` ticket comment. `dso:completion-verifier` reads this sentinel at Phase F Step 18 to verify the manual story without re-executing the manual step.
 
 **Steps:**
 
@@ -1187,21 +1187,21 @@ Stories tagged `manual:awaiting_user` are collected into `awaiting_manual_storie
 
 2. Call the manual-drain script via the host-project shim:
    ```bash
-   .claude/scripts/dso sprint-manual-drain.sh "$MANUAL_JSON_FILE"  # shim-exempt: internal orchestration script
+   .claude/scripts/dso sprint/sprint-manual-drain.sh "$MANUAL_JSON_FILE"  # shim-exempt: internal orchestration script
    ```
 
 3. Parse the exit code:
-   - **0**: all manual stories handled — proceed to Phase 4 (or Phase 5 if no autonomous tasks remain in this batch)
+   - **0**: all manual stories handled — proceed to Phase E (or Phase F if no autonomous tasks remain in this batch)
    - **1**: skip propagation applied — log skipped stories and proceed; skipped stories have a sentinel written with `handshake_outcome=skip`
    - **2**: re-prompt required (this should not occur — `sprint-manual-drain.sh` handles re-prompting internally; if it surfaces here, log as an error and escalate to user)
 
 4. After handshake completes: run `.claude/scripts/dso ticket next-batch <epic-id>` again to pick up any autonomous stories that were unblocked by the manual step completion.
 
-5. Clean up: `rm -f "$MANUAL_JSON_FILE"` and `sprint-pause-state.sh cleanup <epic-id>`
+5. Clean up: `rm -f "$MANUAL_JSON_FILE"` and `sprint/sprint-pause-state.sh cleanup <epic-id>`
 
 ---
 
-## Phase 4: Sub-Agent Launch (/dso:sprint)
+## Phase E: Sub-Agent Launch (/dso:sprint)
 
 <HARD-GATE>
 Do NOT implement any task directly using Edit, Write, or other file-modification tools. ALL implementation tasks must be dispatched to sub-agents via the Task tool — regardless of how small, simple, or obvious the change appears. "Small markdown edit", "single-line change", "user already approved", or "sub-agent dispatch is overhead" are not valid exceptions. Direct implementation by the orchestrator bypasses checkpoint protocol, code review, and acceptance criteria gates.
@@ -1223,7 +1223,7 @@ Instead, parallelize: dispatch one Explore sub-agent per distinct search objecti
 
 A single broad Explore dispatch is a known anti-pattern that produces lower quality results and misses edge cases. Always parallelize independent search objectives.
 
-Launch up to `max_agents` sub-agents (determined by Phase 3 Step 1's MAX_AGENTS protocol — `unlimited`, `N`, or `0`) via the Task tool. When `max_agents=0`, this phase is skipped entirely (see Phase 3 Step 1). Each sub-agent gets a structured prompt:
+Launch up to `max_agents` sub-agents (determined by Phase C Step 1's MAX_AGENTS protocol — `unlimited`, `N`, or `0`) via the Task tool. When `max_agents=0`, this phase is skipped entirely (see Phase C Step 1). Each sub-agent gets a structured prompt:
 
 ### Retry Budget Parsing (sub-agent dispatch)
 
@@ -1260,7 +1260,7 @@ Titles are parsed from the `TASK:` tab-separated lines produced by `ticket next-
 
 Before dispatching sub-agents, create the blackboard file and build per-agent file ownership context:
 
-1. **Write the blackboard**: Pipe the batch JSON (from `ticket next-batch --json` in Phase 3 Step 4) to `write-blackboard.sh`:
+1. **Write the blackboard**: Pipe the batch JSON (from `ticket next-batch --json` in Phase C Step 4) to `write-blackboard.sh`:
    ```bash
    echo "$BATCH_JSON" | .claude/scripts/dso write-blackboard.sh
    ```
@@ -1347,7 +1347,7 @@ For each task, launch a Task with the appropriate `subagent_type`.
 ### Subagent Type and Model Selection
 
 Use the `model` and `subagent` fields from the `TASK:` lines produced by
-`ticket next-batch` in Phase 3 Step 4 — **no additional classify-task.sh call needed**.
+`ticket next-batch` in Phase C Step 4 — **no additional classify-task.sh call needed**.
 
 When launching each Task tool call, set `subagent_type` and `model` from the TASK line, then apply the decision table below in order (first matching row wins):
 
@@ -1360,7 +1360,6 @@ When launching each Task tool call, set `subagent_type` and `model` from the TAS
 | any | `COMPLEX` | `opus` | any | No change (already opus). |
 | any | not COMPLEX | any | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
 | any | not COMPLEX | any | any other | No change — use `model` and `subagent` from TASK line as-is. |
-| any | any | any | any — task edits `skills/`, `agents/`, or `prompts/` files | Override `model` to `opus`. Log: `"LLM prompt edit detected — upgrading to opus."` |
 
 **Doc-story title match**: Task title or parent story title matches `Update project docs to reflect`.
 
@@ -1402,7 +1401,7 @@ context:
 
 **Agent description**: 3-5 word summary from ticket title (e.g., Fix review gate hash).
 
-**Important**: Launch ALL sub-agents in the batch within a single message, each with `run_in_background: true`. The number of Task calls is governed by `max_agents` from Phase 3 Step 1 (unlimited = all candidates, N = cap at N, 0 = skip dispatch).
+**Important**: Launch ALL sub-agents in the batch within a single message, each with `run_in_background: true`. The number of Task calls is governed by `max_agents` from Phase C Step 1 (unlimited = all candidates, N = cap at N, 0 = skip dispatch).
 
 **Stale HEAD warning (4ad5-25df)**: When `ISOLATION_ENABLED=true`, all agent worktrees are branched from the session HEAD at the moment of dispatch. Agents that complete later will be missing commits from agents that were harvested earlier in the same batch. This is expected and handled by the conflict queue protocol in `per-worktree-review-commit.md` Step 6: if `harvest-worktree.sh` returns exit 1 (merge conflict), the conflicting worktree is queued for post-batch resolution (rebase first, full re-implementation only as a last resort). Do NOT attempt to resolve conflicts during the serial harvest loop — finish all non-conflicting harvests first, then work through the conflict queue.
 
@@ -1450,7 +1449,7 @@ Route based on `TESTING_MODE`:
 - Parse the leading `TEST_RESULT:` line from the output:
   - `TEST_RESULT:written` → Success. Proceed to TDD setup using `TEST_FILE` and `RED_ASSERTION` fields. Do NOT escalate.
   - `TEST_RESULT:no_new_tests_needed` → Success. No new test was needed. Do NOT escalate to Tier 2. Proceed to normal task execution without TDD setup.
-  - `TEST_RESULT:rejected` → Escalate to Tier 2. This is **not** a dispatch failure — do not route to Phase 5 Step 0.
+  - `TEST_RESULT:rejected` → Escalate to Tier 2. This is **not** a dispatch failure — do not route to Phase F Step 1.
   - Timeout / malformed / non-zero exit → Treat as `TEST_RESULT:rejected` with `REJECTION_REASON: ambiguous_spec`. Escalate to Tier 2.
 
 **Tier 2 — Dispatch `dso:red-test-evaluator` (opus)**:
@@ -1483,55 +1482,55 @@ See `prompts/red-task-escalation.md` for the complete escalation reference.
 
 ---
 
-## Phase 5: Post-Batch Processing (/dso:sprint)
+## Phase F: Post-Batch Processing (/dso:sprint)
 
 After ALL sub-agents in the batch return, follow the Orchestrator Checkpoint Protocol from CLAUDE.md.
 
 ### Worktree Isolation Mode: Per-Worktree Serial Review and Commit
 
-**When `worktree.isolation_enabled` is `true` and sub-agents returned with `isolation:worktree`**, do NOT proceed to the shared-directory batch review flow (Step 7). Instead, process each worktree **serially** using the per-worktree protocol:
+**When `worktree.isolation_enabled` is `true` and sub-agents returned with `isolation:worktree`**, do NOT proceed to the shared-directory batch review flow (Step 13). Instead, process each worktree **serially** using the per-worktree protocol:
 
-Read and execute `skills/sprint/prompts/per-worktree-review-commit.md` for each worktree, in completion order (first-pass-first-merge). This means: for each worktree — run review in the worktree context, commit to the worktree branch, merge the worktree branch into the session branch, then remove the worktree and its branch (Step 7) — before moving to the next worktree.
+Read and execute `skills/sprint/prompts/per-worktree-review-commit.md` for each worktree, in completion order (first-pass-first-merge). This means: for each worktree — run review in the worktree context, commit to the worktree branch, merge the worktree branch into the session branch, then remove the worktree and its branch (Step 13) — before moving to the next worktree.
 
 **Git log note**: In worktree isolation mode, `git log` on the session branch shows one commit per worktree (no combined batch commits). Each worktree's changes are merged independently into the session branch.
 
-**merge-to-main.sh note**: `merge-to-main.sh` runs **once** at session end (Phase 8), not per worktree. Each per-worktree merge is worktree-branch → session-branch only.
+**merge-to-main.sh note**: `merge-to-main.sh` runs **once** at session end (Phase I), not per worktree. Each per-worktree merge is worktree-branch → session-branch only.
 
 After all worktrees have been processed via `per-worktree-review-commit.md`, skip Steps 7 and 10 (which apply only in shared-directory mode) and proceed directly to Steps 8, 9, 10a, 11, and 13.
 
-**When `worktree.isolation_enabled` is `false`, empty, or absent** (shared-directory mode), proceed through Steps 0–13 as written below, including Step 7 (formal code review) and Step 10 (commit and push).
+**When `worktree.isolation_enabled` is `false`, empty, or absent** (shared-directory mode), proceed through Steps 0–13 as written below, including Step 13 (formal code review) and Step 17 (commit and push).
 
-### Step 0: Dispatch Failure Recovery (/dso:sprint)
+### Step 1: Dispatch Failure Recovery (/dso:sprint)
 
 Check whether any sub-agent Task call returned an **infrastructure-level dispatch failure** (no `STATUS:` line, no `FILES_MODIFIED:` line, error message references agent type/tool availability/internal errors).
 
-**RED test task exception**: If the failed task's `subagent` field was `dso:red-test-writer`, do NOT fall back to `general-purpose`. A `TEST_RESULT:rejected` response triggers the three-tier escalation protocol (Phase 4 RED Task Dispatch). Only true dispatch failures (no `TEST_RESULT:` line, no `STATUS:` line, tool-level error indicators) qualify for the recovery flow below.
+**RED test task exception**: If the failed task's `subagent` field was `dso:red-test-writer`, do NOT fall back to `general-purpose`. A `TEST_RESULT:rejected` response triggers the three-tier escalation protocol (Phase E RED Task Dispatch). Only true dispatch failures (no `TEST_RESULT:` line, no `STATUS:` line, tool-level error indicators) qualify for the recovery flow below.
 
 **For each sub-agent that returned a dispatch failure:**
 
 1. **Detect**: The Task result contains no `STATUS:` or `FILES_MODIFIED:` lines AND includes error indicators (e.g., "unknown subagent_type", "agent unavailable", "internal error", "Tool result missing")
 2. **Retry with general-purpose**: Re-dispatch the same task immediately using `subagent_type="general-purpose"` with the same model and prompt. Log: `"Dispatch failure for task <id> with subagent_type=<original-type> — retrying with general-purpose."`
-3. **If retry succeeds**: Continue to Step 1 with the retry result
+3. **If retry succeeds**: Continue to Step 2 with the retry result
 4. **If retry also fails**: Escalate model (sonnet → opus) and retry once more with `subagent_type="general-purpose"`. Log: `"Retry with general-purpose also failed for task <id> — escalating model to opus."`
-5. **If all retries fail**: Mark the task as failed and proceed to Step 9
+5. **If all retries fail**: Mark the task as failed and proceed to Step 16
 
 **Important**: Dispatch failure retries happen sequentially. Do not count retries toward the `max_agents` cap.
 
-### Step 1: Verify Results (/dso:sprint)
+### Step 2: Verify Results (/dso:sprint)
 
 For each sub-agent (including any that succeeded on retry), check the Task tool result:
 - Did it report success?
 - Are the expected files present? (spot-check with Glob)
 - Were tests passing?
 
-### Step 1a: Migration Behavioral Verification (/dso:sprint)
+### Step 3: Migration Behavioral Verification (/dso:sprint)
 
 For each sub-agent in the batch, check if its task description contains migration keywords (`remove`, `delete`, `migrate`, `move`, `replace`). For migration tasks:
 
 1. **Verify the replacement exists**: Run the first task-specific AC `Verify:` command. If it fails, mark the task as failed.
 2. **Behavioral smoke test**: If the task migrates a command/skill/script, invoke or test the migrated artifact. Log: `"Migration behavioral check for <task-id>: <pass|fail>"`
 
-### Step 1a2: Confidence Signal Parsing (/dso:sprint)
+### Step 4: Confidence Signal Parsing (/dso:sprint)
 
 For each sub-agent result, scan for the confidence signal line (see `docs/contracts/confidence-signal.md`): # shim-exempt: internal contract reference
 
@@ -1540,15 +1539,15 @@ For each sub-agent result, scan for the confidence signal line (see `docs/contra
    - `UNCERTAIN:<reason>` — low confidence; proceed to steps below.
    - **Absent or malformed signal** (no confidence line, bare `UNCERTAIN` with no colon, `UNCERTAIN:` with empty reason) — treat as `UNCERTAIN` with reason `"no confidence signal emitted"`. Log a warning: `"Warning: task <task-id> emitted no valid confidence signal — treating as UNCERTAIN."`
 
-2. **Only count `STATUS:pass` + `UNCERTAIN` signals toward the threshold.** `STATUS:fail` tasks already trigger revert-to-open in Step 9 through the normal failure path — the UNCERTAIN signal on a failing task does not change routing.
+2. **Only count `STATUS:pass` + `UNCERTAIN` signals toward the threshold.** `STATUS:fail` tasks already trigger revert-to-open in Step 16 through the normal failure path — the UNCERTAIN signal on a failing task does not change routing.
 
 3. **For each task where `STATUS:pass` + `UNCERTAIN`:**
-   a. Identify the parent story ID from the task's `story:<id>` field in the TASK line (from Phase 4 batch list).
+   a. Identify the parent story ID from the task's `story:<id>` field in the TASK line (from Phase E batch list).
    b. Record the signal: `.claude/scripts/dso ticket comment <story-id> "UNCERTAIN_SIGNAL: task <task-id> — <reason>"`
    c. Increment the per-story counter: `story_uncertain_counts[<story-id>] += 1` (initialize to 0 if not yet set).
    d. Log: `"UNCERTAIN signal from task <task-id> under story <story-id> — count now <N>."`
 
-### Step 1b: Integrate Discovered Tasks (/dso:sprint)
+### Step 5: Integrate Discovered Tasks (/dso:sprint)
 
 For each sub-agent result, check the `TASKS_CREATED` line:
 - If `none` → skip
@@ -1563,25 +1562,25 @@ After processing all sub-agents in the batch, if any tasks were created:
 .claude/scripts/dso validate-issues.sh --quick --terse
 ```
 
-### Step 1c: Collect Agent Discoveries (/dso:sprint)
+### Step 6: Collect Agent Discoveries (/dso:sprint)
 
-Collect structured discovery files from sub-agent execution (propagated to next batch via `{prior_batch_discoveries}` in Phase 3 Step 4).
+Collect structured discovery files from sub-agent execution (propagated to next batch via `{prior_batch_discoveries}` in Phase C Step 10).
 
 ```bash
 DISCOVERIES=$(.claude/scripts/dso collect-discoveries.sh 2>/dev/null) || DISCOVERIES="[]"
 ```
 
 - If `collect-discoveries.sh` succeeds, `DISCOVERIES` contains a JSON array of discovery objects
-- Store the result for use in Phase 3 Step 4 when composing the next batch's sub-agent prompts
+- Store the result for use in Phase C Step 10 when composing the next batch's sub-agent prompts
 - **Graceful degradation**: If discovery collection fails (script error, malformed JSON), log a
   warning and continue with `DISCOVERIES="[]"`. Discovery collection failure must not block the
   sprint. The script itself handles per-file validation — malformed individual files are skipped
   with warnings to stderr.
 
-### Step 2: Acceptance Criteria Validation (/dso:sprint)
+### Step 7: Acceptance Criteria Validation (/dso:sprint)
 
 **Batched shared criteria** (run ONCE per batch, not per-task):
-Universal criteria (test, lint, format) are already verified by Phase 5 Step 4
+Universal criteria (test, lint, format) are already verified by Phase F Step 17
 (validate-phase.sh post-batch). Do not re-run per task.
 
 **Per-task structural criteria**:
@@ -1594,11 +1593,11 @@ and run each task-specific (non-universal) `Verify:` command:
 4. Grep-verifiable: run the grep pattern — exit 0 = pass
 
 Criteria without a `Verify:` command are logged but not machine-verified —
-caught by the formal code review (Step 7).
+caught by the formal code review (Step 13).
 
 If any machine-verifiable criterion fails:
 - Log the failed criterion and its `Verify:` output
-- Mark the task as failed in Step 9 (revert to open)
+- Mark the task as failed in Step 16 (revert to open)
 - Include the failed criterion text in the re-dispatch prompt
 
 ### Batch Completion Summary
@@ -1610,7 +1609,7 @@ Print a completion summary. Each line must show the task ID, title, and pass/fai
 ✗ [dso-abc2] Other task (fail — reverted to open)
 ```
 
-Titles are retained from the pre-launch batch list printed in Phase 4 — no additional `.claude/scripts/dso ticket show` calls are needed.
+Titles are retained from the pre-launch batch list printed in Phase E — no additional `.claude/scripts/dso ticket show` calls are needed.
 
 #### Awaiting Designer Input Section
 
@@ -1628,9 +1627,9 @@ Awaiting designer input:
 - If tag age exceeds `figma_staleness_days` (read from `design.figma_staleness_days` in `.claude/dso-config.conf`, default 7), append ` ⚠️ STALE (>N days)` to that story's line.
 - Stories in this section are **not** counted as batch failures — they are explicitly blocked pending designer delivery.
 
-These stories are excluded from Phase 2 implementation-plan dispatch and Phase 4 sub-agent dispatch. They are surfaced here to give the user visibility into what is blocked on design. No action is required from the orchestrator — the sprint continues with non-blocked stories.
+These stories are excluded from Phase B implementation-plan dispatch and Phase E sub-agent dispatch. They are surfaced here to give the user visibility into what is blocked on design. No action is required from the orchestrator — the sprint continues with non-blocked stories.
 
-### Step 3: File Overlap Check (Safety Net) (/dso:sprint)
+### Step 8: File Overlap Check (Safety Net) (/dso:sprint)
 
 Check for actual file conflicts before committing:
 
@@ -1643,7 +1642,7 @@ Check for actual file conflicts before committing:
    ```
    The script outputs `CONFLICTS: <N>` followed by one `CONFLICT:` line per overlap.
    Exit 0 = no conflicts, exit 1 = conflicts detected.
-3. If conflicts are detected, resolution (same protocol as `/dso:debug-everything` Phase H Step 4):
+3. If conflicts are detected, resolution (same protocol as `/dso:debug-everything` Phase H Step 10):
    a. Identify the primary agent for each conflicting file (highest priority)
    b. Revert ALL secondary agents' changes to conflicting files
    c. Re-run secondary agents one at a time in priority order (not parallel),
@@ -1651,9 +1650,9 @@ Check for actual file conflicts before committing:
       instruction to respect current file state). Commit after each re-run.
    d. After each re-run: if agent only touched non-conflicting files -> merge OK.
       If it re-modified the same conflicting files -> escalate to user.
-4. If no conflicts -> proceed to Step 4
+4. If no conflicts -> proceed to Step 10
 
-### Step 3b: Semantic Conflict Check (/dso:sprint)
+### Step 9: Semantic Conflict Check (/dso:sprint)
 
 After the file overlap check, run the LLM-based semantic conflict detector on the
 batch's combined diff:
@@ -1671,7 +1670,7 @@ Parse the JSON output:
   key: if present, log `"Semantic conflict check warning: <error>"` and proceed. Semantic
   conflict check failure is non-fatal and must not block the sprint.
 
-### Step 4: Run Validation (/dso:sprint)
+### Step 10: Run Validation (/dso:sprint)
 
 ```bash
 $PLUGIN_SCRIPTS/validate-phase.sh post-batch  # shim-exempt: internal orchestration script
@@ -1679,7 +1678,7 @@ $PLUGIN_SCRIPTS/validate-phase.sh post-batch  # shim-exempt: internal orchestrat
 
 If validation fails, identify which sub-agent's code is broken and note it.
 
-#### Test Failure Sub-Agent Delegation (Phase 5 Step 4)
+#### Test Failure Sub-Agent Delegation (Phase F Step 17)
 
 When `validate-phase.sh post-batch` fails, dispatch a debugging sub-agent BEFORE reverting tasks to open. Follow `prompts/test-failure-dispatch-protocol.md` with these caller-specific fields:
 - `test_command`: the `validate-phase.sh post-batch` command that failed
@@ -1688,9 +1687,9 @@ When `validate-phase.sh post-batch` fails, dispatch a debugging sub-agent BEFORE
 - `context`: `sprint-post-batch`
 - `batch_task_ids`: IDs of all tasks in the current batch
 
-On `PASS`: re-run `validate-phase.sh post-batch` to confirm, then continue to Step 5.
+On `PASS`: re-run `validate-phase.sh post-batch` to confirm, then continue to Step 11.
 
-### Step 5: Persistence Coverage Check (/dso:sprint)
+### Step 11: Persistence Coverage Check (/dso:sprint)
 
 If any task in the batch touched persistence-critical files (job_store, document_processor,
 DB models, DB clients), run the persistence coverage check:
@@ -1707,7 +1706,7 @@ If the check fails:
    b. If the persistence change was made by the orchestrator, write the missing test directly.
 3. After adding the test, re-run the check and proceed only when it passes.
 
-### Step 6: Visual Verification (UI tasks only) (/dso:sprint)
+### Step 12: Visual Verification (UI tasks only) (/dso:sprint)
 
 If any task in the batch modified templates, CSS, or frontend code:
 
@@ -1720,13 +1719,13 @@ cd $REPO_ROOT/app && make test-visual 2>&1
 - **Fail** → Use `/dso:playwright-debug` Tier 2. If still failing, revert task to open.
 - **No baselines** → Use `/dso:playwright-debug` full 3-tier. Verify local env: `$PLUGIN_SCRIPTS/check-local-env.sh`.  # shim-exempt: internal orchestration script
 
-### Step 7: Formal Code Review (/dso:sprint) — Shared-Directory Mode Only
+### Step 13: Formal Code Review (/dso:sprint) — Shared-Directory Mode Only
 
-**This step applies only when `worktree.isolation_enabled` is `false` (shared-directory mode).** When worktree isolation is enabled, review is handled per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase 5). Skip this step in worktree isolation mode.
+**This step applies only when `worktree.isolation_enabled` is `false` (shared-directory mode).** When worktree isolation is enabled, review is handled per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase F). Skip this step in worktree isolation mode.
 
 Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in this conversation, use the version in context. Produces a review state file at `$(get_artifacts_dir)/review-status`.
 
-**Do NOT dispatch any `dso:code-reviewer-*` agent directly.** You MUST execute REVIEW-WORKFLOW.md Step 3 first to obtain `REVIEW_TIER` and `REVIEW_AGENT` from the complexity classifier before dispatching. Hardcoding `dso:code-reviewer-light` or any other tier is prohibited — the classifier determines the tier based on diff characteristics.
+**Do NOT dispatch any `dso:code-reviewer-*` agent directly.** You MUST execute REVIEW-WORKFLOW.md Step 8 first to obtain `REVIEW_TIER` and `REVIEW_AGENT` from the complexity classifier before dispatching. Hardcoding `dso:code-reviewer-light` or any other tier is prohibited — the classifier determines the tier based on diff characteristics.
 
 **Snapshot exclusion**: Exclude snapshot baselines from review diffs:
 ```bash
@@ -1735,24 +1734,24 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in thi
 ```
 
 **Interpret results:**
-- **No Critical or Important issues** (all scores >= 4) → proceed to Step 8
+- **No Critical or Important issues** (all scores >= 4) → proceed to Step 15
 - **Critical or Important issues found** (any score < 4, OR any critical/important finding regardless of score) → Enter Autonomous Resolution Loop per REVIEW-WORKFLOW.md. No inline fixes by orchestrator. Failed tasks: revert to open, add issue details, re-run with reviewer feedback. **Score=3 with important findings is NOT a pass — do NOT suggest graceful shutdown or proceed to commit. Apply the fix or escalate.**
 - **Minor issues only** → proceed (note them in ticket but don't block)
 - **Autonomous resolution**: Up to `review.max_resolution_attempts` (default: 5) fix/defend attempts before tier escalation (light → standard → deep). When attempts are exhausted, upgrade to the next tier before escalating to user — the deep tier (3 sonnet + opus synthesis) must be tried before user escalation. Resolution sub-agent applies fixes, then orchestrator dispatches separate re-review sub-agent (no nesting). If issues persist after deep tier, escalate to the user — do NOT commit or initiate graceful shutdown. The review loop continues until the review passes OR the user explicitly approves proceeding.
-- **Stale or invalid review findings**: If the review gate rejects a commit because findings are stale (from a different context, wrong diff hash, or prior session), do NOT work around the gate. Re-run REVIEW-WORKFLOW.md from Step 0 (which clears stale artifacts) to get a fresh review. Never dispatch a generic agent to write `reviewer-findings.json` — this is fabrication regardless of whether the orchestrator writes the file directly or delegates it to a non-reviewer agent.
+- **Stale or invalid review findings**: If the review gate rejects a commit because findings are stale (from a different context, wrong diff hash, or prior session), do NOT work around the gate. Re-run REVIEW-WORKFLOW.md from Step 1 (which clears stale artifacts) to get a fresh review. Never dispatch a generic agent to write `reviewer-findings.json` — this is fabrication regardless of whether the orchestrator writes the file directly or delegates it to a non-reviewer agent.
 
-> **CONTEXT ANCHOR**: When REVIEW_RESULT: passed is received from the review sub-agent, this is NOT a session completion signal. Proceed immediately to Step 7a → Step 8 → Step 9 → Step 10. Do NOT stop, wait for user input, or treat review completion as a stopping point.
+> **CONTEXT ANCHOR**: When REVIEW_RESULT: passed is received from the review sub-agent, this is NOT a session completion signal. Proceed immediately to Step 14 → Step 15 → Step 16 → Step 17. Do NOT stop, wait for user input, or treat review completion as a stopping point.
 
-### Step 7a: Out-of-Scope Review Feedback Detection (/dso:sprint)
+### Step 14: Out-of-Scope Review Feedback Detection (/dso:sprint)
 
-After review resolution completes (Step 7) and before proceeding to Step 8, check whether accepted review findings reference files outside the task's scope.
+After review resolution completes (Step 13) and before proceeding to Step 15, check whether accepted review findings reference files outside the task's scope.
 
 
 For each task in the batch that completed review:
 
 1. Run `sprint-review-scope-check.sh` with the reviewer-findings path and task ID:
    ```bash
-   SCOPE_RESULT=$(.claude/scripts/dso sprint-review-scope-check.sh "$(get_artifacts_dir)/reviewer-findings.json" "<task-id>")  # shim-exempt: internal orchestration script
+   SCOPE_RESULT=$(.claude/scripts/dso sprint/sprint-review-scope-check.sh "$(get_artifacts_dir)/reviewer-findings.json" "<task-id>")  # shim-exempt: internal orchestration script
    ```
 2. If `SCOPE_RESULT` starts with `OUT_OF_SCOPE`:
    a. Parse the out-of-scope file list (everything after `OUT_OF_SCOPE: `).
@@ -1765,11 +1764,11 @@ For each task in the batch that completed review:
           "files": [<out-of-scope files>]
       })
       ```
-   d. **DO NOT route to implementation-plan here.** Out-of-scope findings are collected during the batch and processed only between batches (Step 13) to avoid mid-batch task injection conflicts.
+   d. **DO NOT route to implementation-plan here.** Out-of-scope findings are collected during the batch and processed only between batches (Step 20) to avoid mid-batch task injection conflicts.
 3. If `IN_SCOPE` → no action needed; proceed normally.
 4. If the script fails (non-zero exit) → log a warning and continue. Scope checking failure must not block the sprint.
 
-### Step 8: Update Ticket Notes (/dso:sprint)
+### Step 15: Update Ticket Notes (/dso:sprint)
 
 For each task in the batch, write checkpoint-format notes for crash recovery:
 
@@ -1785,15 +1784,15 @@ Use semantic checkpoint names to describe progress phase:
 - `CHECKPOINT:validation-passed` — batch validation passed
 - `CHECKPOINT:batch-complete` — all substeps done
 
-### Step 9: Handle Failures (/dso:sprint)
+### Step 16: Handle Failures (/dso:sprint)
 
 For tasks that failed:
 - Revert to open: `.claude/scripts/dso ticket transition <id> open`
-- Record the failure reason in notes (already done in Step 8)
+- Record the failure reason in notes (already done in Step 15)
 
-### Step 10: Commit & Push (/dso:sprint) — Shared-Directory Mode Only
+### Step 17: Commit & Push (/dso:sprint) — Shared-Directory Mode Only
 
-**This step applies only when `worktree.isolation_enabled` is `false` (shared-directory mode).** When worktree isolation is enabled, commits are made per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase 5). Skip this step in worktree isolation mode.
+**This step applies only when `worktree.isolation_enabled` is `false` (shared-directory mode).** When worktree isolation is enabled, commits are made per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase F). Skip this step in worktree isolation mode.
 
 Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
 
@@ -1813,22 +1812,22 @@ Do NOT merge to main here.
 ```
 
 <HARD-GATE>
-Do NOT proceed to Step 11 until Step 10a (completion-verifier dispatch) has completed and returned an overall_verdict. The orchestrator is biased toward confirming its own work — CLAUDE.md rule 24 exists because this step has been skipped in past sessions. "All tests pass" and "all tasks closed" do NOT substitute for independent verification.
+Do NOT proceed to Step 19 until Step 18 (completion-verifier dispatch) has completed and returned an overall_verdict. The orchestrator is biased toward confirming its own work — CLAUDE.md rule 24 exists because this step has been skipped in past sessions. "All tests pass" and "all tasks closed" do NOT substitute for independent verification.
 
-Do NOT rationalize skipping Step 10a. Prior evidence ("RED tests are GREEN", "CI passes", "AC verified") does not satisfy the completion-verifier requirement. The verifier checks done-definitions that task-level AC verification does not cover.
+Do NOT rationalize skipping Step 18. Prior evidence ("RED tests are GREEN", "CI passes", "AC verified") does not satisfy the completion-verifier requirement. The verifier checks done-definitions that task-level AC verification does not cover.
 
 Do NOT use the `/dso:commit` Skill tool here — read and execute COMMIT-WORKFLOW.md inline to avoid nested skill invocations that may not return control.
 </HARD-GATE>
 
-After `git push -u origin HEAD` and blackboard cleanup are done, proceed to **Step 10a** then Step 11 then Step 13. Do NOT close the epic or invoke `/dso:end-session` here.
+After `git push -u origin HEAD` and blackboard cleanup are done, proceed to **Step 18** then Step 19 then Step 20. Do NOT close the epic or invoke `/dso:end-session` here.
 
-> **CONTINUE:** After commit and push, proceed immediately to Step 10a. Do NOT stop, wait for user input, or initiate graceful shutdown here.
+> **CONTINUE:** After commit and push, proceed immediately to Step 18. Do NOT stop, wait for user input, or initiate graceful shutdown here.
 
-### Step 10a: Close Completed Tasks (/dso:sprint)
+### Step 18: Close Completed Tasks (/dso:sprint)
 
 After the batch commit and `git push -u origin HEAD` succeed, close each task whose code was successfully committed:
 
-**Pre-dispatch child closure check (Step 10a prerequisite):**
+**Pre-dispatch child closure check (Step 18 prerequisite):**
 Before dispatching dso:completion-verifier, verify all child tasks of this story are closed:
 
 ```bash
@@ -1842,15 +1841,15 @@ If OPEN_CHILDREN > 0:
 - Do NOT dispatch dso:completion-verifier
 - Do NOT close the story
 - Transition story back to in_progress: `.claude/scripts/dso ticket transition <story-id> in_progress`
-- Add a comment: `.claude/scripts/dso ticket comment <story-id> "Step 10a blocked: <N> child tasks still open: <list IDs>. Complete them before closure."`
-- Resume Phase 3 to close the remaining tasks
+- Add a comment: `.claude/scripts/dso ticket comment <story-id> "Step 18 blocked: <N> child tasks still open: <list IDs>. Complete them before closure."`
+- Resume Phase C to close the remaining tasks
 
 Only when OPEN_CHILDREN == 0, proceed to dispatch dso:completion-verifier.
 
-**Manual story sentinel path (Step 10a)**: When the story has the `manual:awaiting_user` tag, `dso:completion-verifier` reads the `MANUAL_PAUSE_SENTINEL` comment written by `sprint-manual-drain.sh` to determine the verdict (see `completion-verifier.md` Step 3b). The orchestrator takes no special action — dispatch the verifier normally and let it apply the sentinel verdict rules automatically.
+**Manual story sentinel path (Step 18)**: When the story has the `manual:awaiting_user` tag, `dso:completion-verifier` reads the `MANUAL_PAUSE_SENTINEL` comment written by `sprint-manual-drain.sh` to determine the verdict (see `completion-verifier.md` Step 9). The orchestrator takes no special action — dispatch the verifier normally and let it apply the sentinel verdict rules automatically.
 
 <HARD-GATE>
-Do NOT close this story, do NOT transition it to closed, and do NOT proceed to Step 11 until dso:completion-verifier has been dispatched via Task tool and its verdict received. This gate applies regardless of whether:
+Do NOT close this story, do NOT transition it to closed, and do NOT proceed to Step 19 until dso:completion-verifier has been dispatched via Task tool and its verdict received. This gate applies regardless of whether:
 - All RED tests are GREEN
 - All child tasks are closed
 - CI passes
@@ -1864,13 +1863,13 @@ Do NOT close this story, do NOT transition it to closed, and do NOT proceed to S
 - `overall_verdict: FAIL` → see branching logic below
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
 
-**Re-dispatch rule (d039-ac65)**: If the completion-verifier returned `overall_verdict: FAIL` on ANY prior run during this story's lifecycle AND a fix was subsequently applied (remediation tasks completed, Phase 3 re-entry executed), you MUST re-dispatch the completion-verifier before closing the story — even when confidence is high that the fix addressed the failing criterion. High confidence is NOT a valid bypass. The verifier must confirm the fix did not introduce regressions on other criteria. Only technical failure (timeout, unparseable JSON) permits proceeding without re-verification. "I fixed the exact criterion that failed" is NOT a substitute for re-dispatch.
+**Re-dispatch rule (d039-ac65)**: If the completion-verifier returned `overall_verdict: FAIL` on ANY prior run during this story's lifecycle AND a fix was subsequently applied (remediation tasks completed, Phase C re-entry executed), you MUST re-dispatch the completion-verifier before closing the story — even when confidence is high that the fix addressed the failing criterion. High confidence is NOT a valid bypass. The verifier must confirm the fix did not introduce regressions on other criteria. Only technical failure (timeout, unparseable JSON) permits proceeding without re-verification. "I fixed the exact criterion that failed" is NOT a substitute for re-dispatch.
 
 **Story validation failure detection** — when `overall_verdict: FAIL`:
 
 Check whether all tasks under the story are closed (no open or in-progress tasks remain):
 
-- **If open/in-progress tasks still exist**: create bug tasks from `remediation_tasks_created` and return to Phase 3 (Batch Preparation) as normal.
+- **If open/in-progress tasks still exist**: create bug tasks from `remediation_tasks_created` and return to Phase C (Batch Preparation) as normal.
 - **If all tasks are closed but validation fails** (story-level done definition not satisfied despite no remaining tasks):
   1. Do NOT close the story.
   2. Log: `"Story <id> validation failed despite all tasks closed — creating TDD remediation tasks"`
@@ -1878,10 +1877,10 @@ Check whether all tasks under the story are closed (no open or in-progress tasks
      ```bash
      .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: validation — Story <story-id> validation failed with all tasks closed. Creating TDD remediation tasks."
      ```
-  4. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool on the story to create remediation tasks. The implementation-plan re-invocation guard will detect existing closed children and produce a diff plan (new tasks only for uncovered success criteria — no duplication). **If implementation-plan emits `REPLAN_ESCALATE: brainstorm`**: add the story to the `replan-stories` list and route to **d-replan-collect** (Phase 2 replan logic). The cascade counter (`sprint.max_replan_cycles`) applies — if the cap is reached, escalate to the user. Do NOT assume implementation-plan always succeeds here.
+  4. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool on the story to create remediation tasks. The implementation-plan re-invocation guard will detect existing closed children and produce a diff plan (new tasks only for uncovered success criteria — no duplication). **If implementation-plan emits `REPLAN_ESCALATE: brainstorm`**: add the story to the `replan-stories` list and route to **d-replan-collect** (Phase B replan logic). The cascade counter (`sprint.max_replan_cycles`) applies — if the cap is reached, escalate to the user. Do NOT assume implementation-plan always succeeds here.
 
      <ORCHESTRATOR_RESUME>
-     **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Story Validation Failure handling (Step 10a). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step 5 (TDD remediation tasks) and then step 6 (record REPLAN_RESOLVED), then return to Phase 3.
+     **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Story Validation Failure handling (Step 18). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step 5 (TDD remediation tasks) and then step 6 (record REPLAN_RESOLVED), then return to Phase C.
      Stopping here is a known bug (7d7a-b707). Do not stop.
      </ORCHESTRATOR_RESUME>
 
@@ -1890,10 +1889,10 @@ Check whether all tasks under the story are closed (no open or in-progress tasks
      ```bash
      .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: implementation-plan — Remediation tasks created for story <story-id>."
      ```
-  7. Return to Phase 3 (Batch Preparation) to execute the new remediation tasks.
+  7. Return to Phase C (Batch Preparation) to execute the new remediation tasks.
 
 <HARD-GATE>
-Do NOT rationalize around a FAIL verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase 3 path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding past this step.
+Do NOT rationalize around a FAIL verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase C path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding past this step.
 </HARD-GATE>
 
 **RED marker cleanup (before closure)**: After `overall_verdict: PASS`, check `.test-index` for stale RED markers associated with tests from this story's scope. If any `[test_name]` entries exist for tests that now pass (GREEN), remove them before closing the story. Stale markers accumulate across story completions and block epic closure.
@@ -1911,9 +1910,9 @@ grep -n "\[.*\]" .test-index || true
 
 Do NOT close tasks that are still open or in a failed state.
 
-### Step 11: Context Compaction Check (/dso:sprint)
+### Step 19: Context Compaction Check (/dso:sprint)
 
-**Pre-Step 11 gate (5b10-0d02):** Before doing anything else in Step 11, confirm that Step 10a completed successfully this story cycle: dso:completion-verifier was dispatched via the Task tool AND returned an `overall_verdict`. If you cannot confirm this (e.g., Step 10a was skipped or the verifier result is not in context), STOP and return to Step 10a now. Do NOT proceed to Step 11 without the verifier verdict.
+**Pre-Step 19 gate (5b10-0d02):** Before doing anything else in Step 19, confirm that Step 18 completed successfully this story cycle: dso:completion-verifier was dispatched via the Task tool AND returned an `overall_verdict`. If you cannot confirm this (e.g., Step 18 was skipped or the verifier result is not in context), STOP and return to Step 18 now. Do NOT proceed to Step 19 without the verifier verdict.
 
 Between batches — after all work is committed and pushed — check whether the session context is at least 70% capacity.
 
@@ -1928,7 +1927,7 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?  # shi
 
 | Output | Exit Code | Meaning | Action |
 |--------|-----------|---------|--------|
-| `CONTEXT_LEVEL: normal` | 0 | <70% usage | Proceed to Step 13 normally |
+| `CONTEXT_LEVEL: normal` | 0 | <70% usage | Proceed to Step 20 normally |
 | `CONTEXT_LEVEL: medium` | 10 | 70–90% usage | Compact before next batch (see below) |
 | `CONTEXT_LEVEL: high` | 11 | >90% usage | Compact before next batch |
 
@@ -1947,16 +1946,16 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?  # shi
    ```
    /compact
    ```
-5. After compaction, check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>`. **Continue directly to Phase 3.** Do NOT go to Phase 8.
-6. **Agent-count after compact**: No special action needed — Phase 3 Step 1's pre-check re-evaluates `MAX_AGENTS` (may return `unlimited`, `N`, or `0`) automatically.
+5. After compaction, check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>`. **Continue directly to Phase C.** Do NOT go to Phase I.
+6. **Agent-count after compact**: No special action needed — Phase C Step 2's pre-check re-evaluates `MAX_AGENTS` (may return `unlimited`, `N`, or `0`) automatically.
 
 ---
 
-### Step 13: Continuation Decision (/dso:sprint)
+### Step 20: Continuation Decision (/dso:sprint)
 
-#### Step 13a: Out-of-Scope Review Feedback Routing (between batches)
+#### Out-of-Scope Review Feedback Routing (between batches)
 
-Before evaluating the continuation decision, process any out-of-scope review findings collected during the batch (Step 7a). This fires ONLY between batches — never mid-batch.
+Before evaluating the continuation decision, process any out-of-scope review findings collected during the batch (Step 14). This fires ONLY between batches — never mid-batch.
 
 If `batch_out_of_scope_findings` is non-empty:
 
@@ -1984,7 +1983,7 @@ If `batch_out_of_scope_findings` is non-empty:
    d. Invoke `/dso:implementation-plan <story-id>` via the Skill tool to create tasks covering the out-of-scope files.
 
       <ORCHESTRATOR_RESUME>
-      **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Out-of-Scope Review Feedback Routing (Step 13a). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step e (handle REPLAN_ESCALATE) and then step f (record resolution).
+      **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Out-of-Scope Review Feedback Routing (Step 20). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step e (handle REPLAN_ESCALATE) and then step f (record resolution).
       Stopping here is a known bug (7d7a-b707). Do not stop.
       </ORCHESTRATOR_RESUME>
 
@@ -1998,7 +1997,7 @@ If `batch_out_of_scope_findings` is non-empty:
      ```bash
      .claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: brainstorm — implementation-plan emitted REPLAN_ESCALATE for story <story-id>: <explanation>. Re-run sprint interactively to address."
      ```
-     Skip the brainstorm cascade entirely. Do NOT write `REPLAN_RESOLVED`. Continue to step 3 below (clear accumulator and return to Phase 3). See `docs/contracts/replan-observability.md` for the INTERACTIVITY_DEFERRED signal format. # shim-exempt: internal documentation reference
+     Skip the brainstorm cascade entirely. Do NOT write `REPLAN_RESOLVED`. Continue to step 3 below (clear accumulator and return to Phase C). See `docs/contracts/replan-observability.md` for the INTERACTIVITY_DEFERRED signal format. # shim-exempt: internal documentation reference
    - **If `replan_cycle_count >= max_replan_cycles`:** Present the **cap-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "skip re-planning for these stories and continue sprint execution".
    - **If cap is not yet exhausted:** Present the **cap-not-exhausted** user prompt from `prompts/replan-user-prompt.md`, substituting the story list and using `{{proceed_label}}` = "accept the current state and continue sprint with these stories as-is".
      - **If user selects (b) or (c):** act accordingly — proceed or abort. Do not enter cascade.
@@ -2014,11 +2013,11 @@ If `batch_out_of_scope_findings` is non-empty:
           ```
        7. If `REPLAN_ESCALATE` persists: repeat from 2a (check cap first)
 3. Clear the accumulator: `batch_out_of_scope_findings = []`
-4. Return to Phase 3 (Batch Preparation) to include the newly created tasks.
+4. Return to Phase C (Batch Preparation) to include the newly created tasks.
 
 If `batch_out_of_scope_findings` is empty, proceed to the standard continuation decision below.
 
-#### Step 13b: Standard Continuation Decision
+#### Standard Continuation Decision
 
 ```
 Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
@@ -2026,43 +2025,43 @@ Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
                                   → No: P6 (Validation)
 ```
 
-**Voluntary vs involuntary compaction**: If `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>` exists, delete it and continue to Phase 3. If no intent file exists, the compaction was involuntary — go to Phase 8.
+**Voluntary vs involuntary compaction**: If `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>` exists, delete it and continue to Phase C. If no intent file exists, the compaction was involuntary — go to Phase I.
 
-- If **involuntary** context compaction has occurred (no intent file) → Phase 8 (graceful shutdown)
-- If more ready tasks exist (`.claude/scripts/dso ticket ready --epic=<epic-id>`) → return to Phase 3
-- If no more ready tasks and some tasks are still blocked → report blocking chain, Phase 8
-- If all tasks are closed → **Phase 6 is MANDATORY** — proceed to Phase 6 (validation). Phase 6 has a HARD-GATE requiring completion-verifier dispatch (Step 0.75) before any other Phase 6 step executes. Do NOT skip the Phase 6 HARD-GATE.
+- If **involuntary** context compaction has occurred (no intent file) → Phase I (graceful shutdown)
+- If more ready tasks exist (`.claude/scripts/dso ticket ready --epic=<epic-id>`) → return to Phase C
+- If no more ready tasks and some tasks are still blocked → report blocking chain, Phase I
+- If all tasks are closed → **Phase G is MANDATORY** — proceed to Phase G (validation). Phase G has a HARD-GATE requiring completion-verifier dispatch (Phase G Step 2) before any other Phase G step executes. Do NOT skip the Phase G HARD-GATE.
 
 ---
 
-## Phase 6: Post-Primary Ticket Validation (/dso:sprint)
+## Phase G: Post-Primary Ticket Validation (/dso:sprint)
 
 **Triggered when**: all child tasks are closed (or all remaining are failed/blocked).
 
 <HARD-GATE>
-Do NOT execute any Phase 6 step until Step 0.75 (completion-verifier dispatch) has completed and returned an overall_verdict for the epic. Do NOT skip Step 0.75 because "all stories are closed" or "all tasks passed" — those are orchestrator-level observations, not independent verification. CLAUDE.md rule 24: the verifier exists because the orchestrator is biased toward confirming its own work.
+Do NOT execute any Phase G step until Step 2 (completion-verifier dispatch) has completed and returned an overall_verdict for the epic. Do NOT skip Step 2 because "all stories are closed" or "all tasks passed" — those are orchestrator-level observations, not independent verification. CLAUDE.md rule 24: the verifier exists because the orchestrator is biased toward confirming its own work.
 
-Do NOT proceed to Step 1 (/dso:validate-work) or Phase 8 (Session Close) without the completion-verifier result. Phase 6 steps must execute in order: Step 0.75 → Step 1 → Step 2 → Step 3 → Step 4 → Step 5.
+Do NOT proceed to Step 3 (/dso:validate-work) or Phase I (Session Close) without the completion-verifier result. Phase G steps must execute in order: Step 2 → Step 3 → Step 4 → Step 5 → Step 6 → Step 7.
 </HARD-GATE>
 
-### Steps 0 through 0.5: Integration Test Gate, CI Verification, and E2E Tests
+### Step 1: Integration Test Gate, CI Verification, and E2E Tests
 
-Read and execute `prompts/phase6-ci-gates.md` for the integration test gate, CI verification, and E2E testing. After completing those steps, proceed to Step 0.75 below.
+Read and execute `prompts/epic-ci-and-e2e-gates.md` for the integration test gate, CI verification, and E2E testing. After completing those steps, proceed to Step 2 below.
 
-### Step 0.75: Completion Verification (/dso:sprint)
+### Step 2: Completion Verification (/dso:sprint)
 
 **MANDATORY**: Read `agents/completion-verifier.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: sonnet` and the epic ID (CLAUDE.md rule #24; inline dispatch is the required path — see CLAUDE.md Agent dispatch section).
-- `overall_verdict: PASS` → proceed to Step 1
-- `overall_verdict: FAIL` → **STOP. Do NOT proceed to Phase 7 or epic closure under ANY circumstances.** Create bug tasks from `remediation_tasks_created` and return to Phase 3 (Batch Preparation).
-- **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 1.
+- `overall_verdict: PASS` → proceed to Step 3
+- `overall_verdict: FAIL` → **STOP. Do NOT proceed to Phase H or epic closure under ANY circumstances.** Create bug tasks from `remediation_tasks_created` and return to Phase C (Batch Preparation).
+- **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 3.
 
 <HARD-GATE>
-Do NOT rationalize around a FAIL verdict (7c1d-9acf). The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase 3 path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding to Step 1.
+Do NOT rationalize around a FAIL verdict (7c1d-9acf). The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase C path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding to Step 3.
 
-On FAIL: the ONLY valid responses are (a) return to Phase 3 to create and complete remediation tasks, or (b) if the user explicitly says to stop the sprint (not "close the epic anyway"), escalate for sprint abort. Do NOT present FAIL findings with waiver arguments. Do NOT ask the user if criteria can be skipped. Do NOT proceed to Phase 7.
+On FAIL: the ONLY valid responses are (a) return to Phase C to create and complete remediation tasks, or (b) if the user explicitly says to stop the sprint (not "close the epic anyway"), escalate for sprint abort. Do NOT present FAIL findings with waiver arguments. Do NOT ask the user if criteria can be skipped. Do NOT proceed to Phase H.
 </HARD-GATE>
 
-### Step 1: Run /dso:validate-work (/dso:sprint)
+### Step 3: Run /dso:validate-work (/dso:sprint)
 
 Before invoking `/dso:validate-work`, gather the changed files:
 
@@ -2082,23 +2081,23 @@ scripts/validate.sh
 ```
 
 **Interpret the report:**
-- **All 5 domains PASS** → proceed to Step 2
-- **Any domain FAIL** → create remediation tasks and return to Phase 3 (Batch Preparation)
-- **Staging test SKIPPED** (staging down) → proceed to Step 2 but note in the final report that staging was not verified
+- **All 5 domains PASS** → proceed to Step 4
+- **Any domain FAIL** → create remediation tasks and return to Phase C (Batch Preparation)
+- **Staging test SKIPPED** (staging down) → proceed to Step 4 but note in the final report that staging was not verified
 
-### Step 2: Determine Epic Type (/dso:sprint)
+### Step 4: Determine Epic Type (/dso:sprint)
 
 Scan the epic description and child task titles for UI keywords:
 - **UI keywords**: `template`, `page`, `route`, `component`, `CSS`, `frontend`, `upload`, `form`, `layout`, `button`, `HTML`, `style`, `responsive`, `modal`, `dialog`
 - **Classification**: If any UI keyword found → **UI epic**; otherwise → **backend-only epic**
 
-### Step 3: Gather Changed Files (/dso:sprint)
+### Step 5: Gather Changed Files (/dso:sprint)
 
 ```bash
 git diff --name-only main...HEAD
 ```
 
-### Step 4: Launch Epic-Specific Validation Sub-Agent (/dso:sprint)
+### Step 6: Launch Epic-Specific Validation Sub-Agent (/dso:sprint)
 
 Launch a Task tool with the appropriate subagent type:
 - UI epic: `subagent_type="full-stack-orchestration:test-automator"`
@@ -2111,17 +2110,17 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 # Placeholders: {title}, {id}, {epic-type}, {repo_root}, {list of files from git diff}
 ```
 
-### Step 5: Parse Validation Output (/dso:sprint)
+### Step 7: Parse Validation Output (/dso:sprint)
 
 Extract the SCORE from the validation agent's output:
-- **Score = 5** → Phase 8 (completion)
-- **Score < 5** → Phase 7 (remediation)
+- **Score = 5** → Phase I (completion)
+- **Score < 5** → Phase H (remediation)
 
 ---
 
-## Phase 7: Remediation Loop (/dso:sprint)
+## Phase H: Remediation Loop (/dso:sprint)
 
-**Trigger**: Epic validation score < 5 (from Phase 6 Step 5).
+**Trigger**: Epic validation score < 5 (from Phase G Step 7).
 
 Read and execute `prompts/remediation-loop.md` for the full remediation protocol (gap classification, oscillation check, user confirmation, task creation, and safety bounds).
 
@@ -2129,30 +2128,30 @@ Read and execute `prompts/remediation-loop.md` for the full remediation protocol
 
 ## Stage-Boundary Exit Write
 
-Before entering Phase 8 (Primary Ticket Closure), write the preconditions exit event for the sprint stage (fail-open):
+Before entering Phase I (Primary Ticket Closure), write the preconditions exit event for the sprint stage (fail-open):
 
 ```bash
 _dso_pv_exit_write "sprint" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:-}" "${primary_ticket_id:-}" || true
 ```
 
-## Phase 8: Primary Ticket Closure (/dso:sprint)
+## Phase I: Primary Ticket Closure (/dso:sprint)
 
-Phase 8 delegates to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh`, and reporting.
+Phase I delegates to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh`, and reporting.
 
 ### On Success (Score = 5)
 
-**Pre-condition**: Phase 6 Step 0.75 must have returned `overall_verdict: PASS` during this session. If the completion-verifier returned FAIL at any point and no remediation batch was executed after the FAIL (i.e., the FAIL was not addressed via Phase 3 re-entry), do NOT proceed with epic closure — return to Phase 3 to address the FAIL findings first.
+**Pre-condition**: Phase G Step 2 must have returned `overall_verdict: PASS` during this session. If the completion-verifier returned FAIL at any point and no remediation batch was executed after the FAIL (i.e., the FAIL was not addressed via Phase C re-entry), do NOT proceed with epic closure — return to Phase C to address the FAIL findings first.
 
-**FAIL is unconditionally blocking.** If the completion-verifier returned `overall_verdict: FAIL` at any point (Step 10a story-level or Phase 6 Step 0.75 epic-level) and no subsequent remediation batch resolved the FAIL findings, do NOT proceed to epic closure. Do NOT:
+**FAIL is unconditionally blocking.** If the completion-verifier returned `overall_verdict: FAIL` at any point (Phase F Step 18 story-level or Phase G Step 2 epic-level) and no subsequent remediation batch resolved the FAIL findings, do NOT proceed to epic closure. Do NOT:
 - Present the FAIL verdict to the user with rationalizations
 - Ask the user whether failing criteria can be waived
 - Suggest that "most" criteria passing is sufficient
 - Offer to close the epic with caveats
 
-The only valid actions on FAIL are: (a) return to Phase 3 to address the findings, or (b) explicitly confirm with the user that they want to STOP the sprint entirely (not close the epic as "done").
+The only valid actions on FAIL are: (a) return to Phase C to address the findings, or (b) explicitly confirm with the user that they want to STOP the sprint entirely (not close the epic as "done").
 
 <HARD-GATE>
-Before closing the epic, confirm that dso:completion-verifier was dispatched at Phase 6 Step 0.75 with the EPIC ID (not a story ID) and returned overall_verdict: PASS during THIS session. Story-level verifier results from Step 10a do NOT satisfy this requirement — each story verifier runs against one story's done definition; only the epic-level verifier (Step 0.75) runs against all epic-level success criteria simultaneously. If Step 0.75 has not yet been dispatched for the epic, stop and return to Phase 6 Step 0.75 NOW. Do NOT proceed to epic closure until the epic-level verifier verdict is received.
+Before closing the epic, confirm that dso:completion-verifier was dispatched at Phase G Step 2 with the EPIC ID (not a story ID) and returned overall_verdict: PASS during THIS session. Story-level verifier results from Phase F Step 18 do NOT satisfy this requirement — each story verifier runs against one story's done definition; only the epic-level verifier (Phase G Step 2) runs against all epic-level success criteria simultaneously. If Phase G Step 2 has not yet been dispatched for the epic, stop and return to Phase G Step 2 NOW. Do NOT proceed to epic closure until the epic-level verifier verdict is received.
 </HARD-GATE>
 
 1. **Verify all changes are merged before closing the epic** (399f-abad):
@@ -2162,7 +2161,7 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
    If this exits non-zero, do NOT close the epic — changes have not been merged to main. Run `merge-to-main.sh` first and resolve any conflicts before proceeding. Only close the epic after `merge-base --is-ancestor` exits 0.
    <ORCHESTRATOR_RESUME>
    **MANDATORY CONTINUATION — DO NOT STOP HERE.** merge-to-main.sh returning does NOT
-   signal sprint completion. You are the sprint orchestrator in Phase 8 (Primary Ticket
+   signal sprint completion. You are the sprint orchestrator in Phase I (Primary Ticket
    Closure). Proceed immediately to step 2 (close the epic). Do NOT stop, wait for user
    input, or treat merge-to-main.sh completion as a session end. Exiting after step 1
    without completing steps 2–4 is the specific failure mode documented in bug 89fe-bad1.
@@ -2175,7 +2174,7 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
    ```
    <ORCHESTRATOR_RESUME>
    **MANDATORY CONTINUATION — DO NOT STOP HERE.** Closing the epic ticket does NOT
-   signal sprint completion or session end. You are the sprint orchestrator in Phase 8
+   signal sprint completion or session end. You are the sprint orchestrator in Phase I
    (Primary Ticket Closure). Proceed immediately to step 3 (set sprint context). Do NOT
    stop, treat epic ticket closure as a session end, or wait for user input here.
    Exiting after step 2 without completing steps 3–5 (including invoking
@@ -2204,7 +2203,7 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
 
    Wait for the user's response:
    - If the user provides a next epic ID or says they want to continue sprinting: print
-     `/dso:sprint <next-epic-id>` as a reminder and EXIT Phase 8 here. Do NOT invoke
+     `/dso:sprint <next-epic-id>` as a reminder and EXIT Phase I here. Do NOT invoke
      `/dso:end-session` — the session is not ending.
    - If the user replies "close", presses Enter, or gives no further epic to sprint:
      proceed to step 5.
@@ -2229,7 +2228,7 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
    chose to close the session (step 4), invoke /dso:end-session immediately — do not ask
    again.
    Closing the epic in step 2 and running merge-to-main.sh in step 1 do NOT complete
-   Phase 8 — they are prerequisites for /dso:end-session, not substitutes. Exiting
+   Phase I — they are prerequisites for /dso:end-session, not substitutes. Exiting
    after steps 1–4 without invoking /dso:end-session (when the user chose session close)
    is the specific anti-pattern this gate prevents (bug 89fe-bad1).
    </HARD-GATE>
@@ -2251,7 +2250,7 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
    - Tasks completed this session
    - Tasks remaining (with IDs and titles)
    - Resume command: `/dso:sprint <epic-id>`
-6. Invoke `/dso:end-session` via the Skill tool. Pass `--bump minor` if the epic reached Phase 6 completion-verifier PASS this session; omit `--bump` for incomplete sprints (no version bump earned):
+6. Invoke `/dso:end-session` via the Skill tool. Pass `--bump minor` if the epic reached Phase G completion-verifier PASS this session; omit `--bump` for incomplete sprints (no version bump earned):
    ```
    Skill({skill: "dso:end-session", args: "--bump minor"})   # on success
    Skill({skill: "dso:end-session"})                         # on graceful shutdown

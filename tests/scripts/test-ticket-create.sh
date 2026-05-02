@@ -1342,4 +1342,5 @@ test_alias_fallback_on_missing_wordlist() {
     fi
 }
 test_alias_fallback_on_missing_wordlist
+
 print_summary

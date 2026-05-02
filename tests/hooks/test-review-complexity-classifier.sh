@@ -1258,6 +1258,40 @@ else:
     teardown_temp_dir
 }
 
+test_security_overlay_true_for_openai_api_key_in_diff() {
+    # A diff adding a hardcoded OpenAI API key (sk-... pattern) must produce security_overlay:true.
+    # Regression guard for bug 52a4-adb5: classifier missed sk-... credential patterns, allowing
+    # CI security overlay to be skipped when the main-tier LLM response was inconclusive.
+    setup_temp_dir
+    local diff_file="$TEST_TMPDIR/test_openai_key.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/docs/security-overlay-test-fixture.sh b/docs/security-overlay-test-fixture.sh
+new file mode 100644
+--- /dev/null
++++ b/docs/security-overlay-test-fixture.sh
+@@ -0,0 +1,3 @@
++#!/usr/bin/env bash
++FAKE_OPENAI_KEY="sk-FAKE-TEST-ONLY-deliberate-violation-for-overlay-verification-1234567890abcdef"
++echo "test"
+
+DIFFEOF
+    run_classifier "$diff_file"
+
+    local security_overlay="absent"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        security_overlay=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+if 'security_overlay' not in d:
+    print('absent')
+else:
+    print(str(d['security_overlay']).lower())
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "absent")
+    fi
+    assert_eq "sk-... API key pattern in diff sets security_overlay=true" "true" "$security_overlay"
+    teardown_temp_dir
+}
+
 test_security_overlay_true_for_certificate_keyword_in_diff() {
     # A diff with 'certificate' keyword in a non-exempt source file must produce security_overlay:true
     setup_temp_dir
@@ -1315,6 +1349,7 @@ else:
 " "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "absent")
     fi
     assert_eq "stdlib security import (hashlib/hmac) in non-exempt diff sets security_overlay=true" "true" "$security_overlay"
+
     teardown_temp_dir
 }
 
@@ -1327,6 +1362,7 @@ test_security_overlay_true_for_password_keyword_in_diff # RED: security_overlay 
 test_security_overlay_false_for_non_security_path  # RED: security_overlay field not yet emitted
 test_security_overlay_field_present_in_output_schema    # RED: security_overlay field not yet emitted
 test_security_overlay_true_for_credential_keyword_in_diff
+test_security_overlay_true_for_openai_api_key_in_diff
 test_security_overlay_true_for_certificate_keyword_in_diff
 test_security_overlay_true_for_stdlib_security_import_in_diff
 
@@ -1670,5 +1706,80 @@ DIFFEOF
 test_floor_rule_external_api_import_forces_standard
 test_floor_rule_known_import_stays_light
 test_floor_rule_external_import_fail_open_no_manifest
+
+# ============================================================
+# Configurable size threshold tests (task a307-5d1d-f03f-4333)
+# RED: classifier currently hardcodes 300/600; does not read config.
+# These tests will FAIL until review.size_upgrade_lines /
+# review.size_warn_lines are read from WORKFLOW_CONFIG_FILE.
+# ============================================================
+
+test_classifier_size_upgrade_threshold_from_config() {
+    # Config sets upgrade threshold to 150; 200-line diff should give size_action="upgrade"
+    # RED: hardcoded threshold is 300, so 200-line diff currently gives size_action="none"
+    setup_temp_dir
+
+    local tmpconfig
+    tmpconfig="$(mktemp "$TEST_TMPDIR/config.XXXXXX")"
+    printf 'review.size_upgrade_lines=150\n' > "$tmpconfig"
+
+    local _diff=""
+    local i
+    for i in $(seq 1 200); do _diff+=$'+code_line_'"$i"$'=value\n'; done
+    local DIFF
+    DIFF=$(printf "diff --git a/src/foo.sh b/src/foo.sh\n@@ -0,0 +1,200 @@\n%s" "$_diff")
+
+    local output exit_code=0
+    if [[ -x "$CLASSIFIER" ]]; then
+        output=$(printf '%s' "$DIFF" | REPO_ROOT="$REPO_ROOT" _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" WORKFLOW_CONFIG_FILE="$tmpconfig" bash "$CLASSIFIER" 2>/dev/null) || exit_code=$?
+    else
+        output=""
+        exit_code=127
+    fi
+
+    local size_action=""
+    if [[ "$exit_code" -eq 0 ]] && is_valid_json "$output"; then
+        size_action=$(json_field "size_action" "$output")
+    fi
+
+    assert_eq "200-line diff with upgrade threshold=150 has size_action=upgrade" "upgrade" "$size_action"
+    teardown_temp_dir
+}
+
+test_classifier_size_warn_threshold_from_config() {
+    # Config sets warn threshold to 400; 500-line diff should give size_action="warn"
+    # RED: hardcoded threshold is 600, so 500-line diff currently gives size_action="upgrade"
+    setup_temp_dir
+
+    local tmpconfig
+    tmpconfig="$(mktemp "$TEST_TMPDIR/config.XXXXXX")"
+    printf 'review.size_warn_lines=400\n' > "$tmpconfig"
+
+    local _diff=""
+    local i
+    for i in $(seq 1 500); do _diff+=$'+code_line_'"$i"$'=value\n'; done
+    local DIFF
+    DIFF=$(printf "diff --git a/src/foo.sh b/src/foo.sh\n@@ -0,0 +1,500 @@\n%s" "$_diff")
+
+    local output exit_code=0
+    if [[ -x "$CLASSIFIER" ]]; then
+        output=$(printf '%s' "$DIFF" | REPO_ROOT="$REPO_ROOT" _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" WORKFLOW_CONFIG_FILE="$tmpconfig" bash "$CLASSIFIER" 2>/dev/null) || exit_code=$?
+    else
+        output=""
+        exit_code=127
+    fi
+
+    local size_action=""
+    if [[ "$exit_code" -eq 0 ]] && is_valid_json "$output"; then
+        size_action=$(json_field "size_action" "$output")
+    fi
+
+    assert_eq "500-line diff with warn threshold=400 has size_action=warn" "warn" "$size_action"
+    teardown_temp_dir
+}
+
+# Configurable size threshold tests (task a307-5d1d-f03f-4333)
+test_classifier_size_upgrade_threshold_from_config
+test_classifier_size_warn_threshold_from_config
 
 print_summary

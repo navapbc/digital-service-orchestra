@@ -9,7 +9,7 @@
 #   sprint-drift-check.sh <epic-id> [--repo=<path>]
 #
 # Environment:
-#   TICKET_CMD  — path to ticket CLI (default: <script-dir>/ticket)
+#   TICKET_CMD  — path to ticket CLI (default: <script-dir>/../ticket)
 #
 # Output:
 #   NO_DRIFT                           — no files modified since task creation
@@ -83,7 +83,7 @@ fi
 
 # ── Resolve ticket CLI ────────────────────────────────────────────────────────
 
-TICKET_CMD="${TICKET_CMD:-${SCRIPT_DIR}/ticket}"
+TICKET_CMD="${TICKET_CMD:-${CLAUDE_PLUGIN_ROOT:-${SCRIPT_DIR}/..}/scripts/ticket}"
 
 # ── Helper: extract file paths from a ticket description's File Impact section ──
 # Supports three formats:

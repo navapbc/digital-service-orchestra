@@ -16,7 +16,7 @@
 set -uo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SCRIPT_DIR/../.." && pwd)}"
 
 _STATE_DIR="${SPRINT_PAUSE_STATE_DIR:-/tmp}"
 _TTL_MINUTES=240

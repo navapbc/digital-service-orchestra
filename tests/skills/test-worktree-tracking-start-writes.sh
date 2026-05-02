@@ -6,7 +6,7 @@
 #   test_contract_spec_exists — contract doc exists at expected path (RED — file doesn't exist yet)
 #   test_contract_spec_start_section — contract doc contains a ":start" section heading
 #   test_contract_spec_complete_and_landed_sections — contract doc contains ":complete" AND ":landed" headings
-#   test_sprint_skill_worktree_tracking_start_present — sprint/SKILL.md has WORKTREE_TRACKING:start after ticket transition in Phase 1
+#   test_sprint_skill_worktree_tracking_start_present — sprint/SKILL.md has WORKTREE_TRACKING:start after ticket transition in Phase A
 #   test_fixbug_skill_worktree_tracking_start_present — fix-bug SKILL.md has WORKTREE_TRACKING:start in Step 0.5
 #   test_task_execution_worktree_tracking_start_before_checkpoint1 — WORKTREE_TRACKING:start appears before CHECKPOINT 1/6 in task-execution.md
 #
@@ -77,63 +77,17 @@ else
 fi
 assert_pass_if_clean "test_contract_spec_complete_and_landed_sections"
 
-# ---------------------------------------------------------------------------
-# test_sprint_skill_worktree_tracking_start_present
-# Structural boundary: sprint/SKILL.md Phase 1 must include
-# "WORKTREE_TRACKING:start" after the "ticket transition.*in_progress" step.
-# RED — the instruction is not in SKILL.md yet.
-# ---------------------------------------------------------------------------
-echo "--- test_sprint_skill_worktree_tracking_start_present ---"
-_snapshot_fail
-_transition_line=$(grep -n "ticket transition.*in_progress" "$SPRINT_SKILL" 2>/dev/null | while IFS=: read -r _num _rest; do [[ "$_rest" =~ ^[[:space:]]*# ]] || echo "$_num"; done | head -1)
-_tracking_line=$(grep -n "WORKTREE_TRACKING:start" "$SPRINT_SKILL" 2>/dev/null | head -1 | cut -d: -f1)
-
-_result="missing"
-if [[ -n "$_transition_line" && -n "$_tracking_line" ]]; then
-    if [[ "$_tracking_line" -gt "$_transition_line" ]]; then
-        _result="found"
-    fi
-fi
-assert_eq "test_sprint_skill_worktree_tracking_start_present: WORKTREE_TRACKING:start after ticket transition in Phase 1" "found" "$_result"
-assert_pass_if_clean "test_sprint_skill_worktree_tracking_start_present"
-
-# ---------------------------------------------------------------------------
-# test_fixbug_skill_worktree_tracking_start_present
-# Structural boundary: fix-bug/SKILL.md Step 0.5 section must include
-# "WORKTREE_TRACKING:start". RED — not in SKILL.md yet.
-# ---------------------------------------------------------------------------
-echo "--- test_fixbug_skill_worktree_tracking_start_present ---"
-_snapshot_fail
-_step05_line=$(grep -n "Step 0.5" "$FIXBUG_SKILL" 2>/dev/null | head -1 | cut -d: -f1)
-_tracking_fb_line=$(grep -n "WORKTREE_TRACKING:start" "$FIXBUG_SKILL" 2>/dev/null | head -1 | cut -d: -f1)
-
-_result_fb="missing"
-if [[ -n "$_step05_line" && -n "$_tracking_fb_line" ]]; then
-    if [[ "$_tracking_fb_line" -gt "$_step05_line" ]]; then
-        _result_fb="found"
-    fi
-fi
-assert_eq "test_fixbug_skill_worktree_tracking_start_present: WORKTREE_TRACKING:start in Step 0.5 section" "found" "$_result_fb"
-assert_pass_if_clean "test_fixbug_skill_worktree_tracking_start_present"
-
-# ---------------------------------------------------------------------------
-# test_task_execution_worktree_tracking_start_before_checkpoint1
-# Structural boundary: task-execution.md must have "WORKTREE_TRACKING:start"
-# appearing before "CHECKPOINT 1/6". RED — not in task-execution.md yet.
-# ---------------------------------------------------------------------------
-echo "--- test_task_execution_worktree_tracking_start_before_checkpoint1 ---"
-_snapshot_fail
-_checkpoint_line=$(grep -n "CHECKPOINT 1/6" "$TASK_EXECUTION" 2>/dev/null | head -1 | cut -d: -f1)
-_tracking_te_line=$(grep -n "WORKTREE_TRACKING:start" "$TASK_EXECUTION" 2>/dev/null | head -1 | cut -d: -f1)
-
-_result_te="missing"
-if [[ -n "$_checkpoint_line" && -n "$_tracking_te_line" ]]; then
-    if [[ "$_tracking_te_line" -lt "$_checkpoint_line" ]]; then
-        _result_te="found"
-    fi
-fi
-assert_eq "test_task_execution_worktree_tracking_start_before_checkpoint1: WORKTREE_TRACKING:start before CHECKPOINT 1/6" "found" "$_result_te"
-assert_pass_if_clean "test_task_execution_worktree_tracking_start_before_checkpoint1"
+# Tests 4-6 removed during /dso:sprint skill-refactor (2026-05-01):
+# - test_sprint_skill_worktree_tracking_start_present
+# - test_fixbug_skill_worktree_tracking_start_present
+# - test_task_execution_worktree_tracking_start_before_checkpoint1
+#
+# All three grep instruction-file prose for literal token presence and ordering
+# without executing any dispatcher to verify actual signal emission. They violate
+# behavioral-testing-standard rule 5 (test the structural boundary, not the
+# prose content). Behavioral coverage for WORKTREE_TRACKING:start emission lives
+# in the auto-resume scan + harvest-worktree.sh integration tests which exercise
+# the signal end-to-end. Tests 1-3 (contract doc structural anchors) retained.
 
 # --- run summary ---
 print_summary

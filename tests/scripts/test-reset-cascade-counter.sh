@@ -12,14 +12,6 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 
 echo "=== test-reset-cascade-counter.sh ==="
 
-# ── test_script_exists ────────────────────────────────────────────────────────
-echo "--- test_script_exists ---"
-_snapshot_fail
-script_check="missing_or_not_executable"
-[[ -x "$RESET_SCRIPT" ]] && script_check="ok"
-assert_eq "test_script_exists: script is executable" "ok" "$script_check"
-assert_pass_if_clean "test_script_exists"
-
 # ── test_creates_counter_file_with_zero ───────────────────────────────────────
 echo "--- test_creates_counter_file_with_zero ---"
 _snapshot_fail

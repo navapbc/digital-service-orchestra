@@ -17,7 +17,7 @@
 (d) **If `ACTIVE > 0`** (active children exist):
    - Run drift detection with `--status=open` filter:
      ```
-     DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <primary_ticket_id> --status=open)
+     DRIFT_RESULT=$(.claude/scripts/dso sprint/sprint-drift-check.sh <primary_ticket_id> --status=open)
      ```
    - Handle `DRIFT_DETECTED` / `NO_DRIFT` the same as the existing Drift Detection Check section below.
    - Then apply checkpoint resume rules:
@@ -31,7 +31,7 @@
         - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `.claude/scripts/dso ticket transition <id> in-progress open`
      4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
      5. **Backward compatibility**: Sprint reads old positional-counter checkpoints (CHECKPOINT N/6) without error and resumes from the last completed phase — no migration of existing checkpoint notes is required. Semantic-named checkpoints (CHECKPOINT:batch-complete, CHECKPOINT:review-passed, CHECKPOINT:validation-passed) are equivalent in resume logic.
-   - After checkpoint processing, run the **WORKTREE_TRACKING Auto-Resume Detection** scan before proceeding to Phase 3:
+   - After checkpoint processing, run the **WORKTREE_TRACKING Auto-Resume Detection** scan before proceeding to Phase C:
 
      **WORKTREE_TRACKING Auto-Resume Detection Scan** (runs after checkpoint processing):
      1. Enumerate tickets to scan: the top-level epic ticket + all child story/task tickets
@@ -51,10 +51,10 @@
         - If branch has unique commits (not in HEAD): attempt `git merge --no-edit <branch>`
           - On success: log `'Merged abandoned branch <b>'`
           - On conflict: run `git merge --abort`, log `'Conflict in <b> — discarded'`
-     5. After scan: if repo is clean, proceed to Phase 3
+     5. After scan: if repo is clean, proceed to Phase C
 
-   - Proceed to Phase 3.
+   - Proceed to Phase C.
 
 (e) **Non-epic tickets** (story, task, bug) with `in_progress` status are NOT affected by auto-resume detection — they proceed through Non-Epic Routing as before. Auto-resume only applies to epic-type tickets.
 
-(f) Run `.claude/scripts/dso ticket deps <primary_ticket_id>` — if 100% complete, skip to Phase 6 (validation)
+(f) Run `.claude/scripts/dso ticket deps <primary_ticket_id>` — if 100% complete, skip to Phase G (validation)

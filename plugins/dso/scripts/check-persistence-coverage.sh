@@ -15,7 +15,7 @@ set -euo pipefail
 #
 # Runs in:
 #   - CI: lightweight job after fast-gate (<10s)
-#   - /dso:sprint Phase 6: after lint/test, before commit
+#   - /dso:sprint Phase G: after lint/test, before commit
 
 set -euo pipefail
 

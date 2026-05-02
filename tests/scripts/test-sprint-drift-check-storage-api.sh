@@ -20,7 +20,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 cd "$REPO_ROOT" || exit 1
-SCRIPT="$REPO_ROOT/plugins/dso/scripts/sprint-drift-check.sh"
+SCRIPT="$REPO_ROOT/plugins/dso/scripts/sprint/sprint-drift-check.sh"
 
 source "$SCRIPT_DIR/../lib/assert.sh"
 

@@ -1,24 +1,35 @@
 # Verifiable Success-Criterion Check
 
-Applied during SC drafting (Phase 2 Step 2 of `/dso:brainstorm`) to prevent post-deployment measurement criteria from polluting the verifiable SC list.
+Applied during SC drafting (Phase 2 Step 2 of `/dso:brainstorm`) to prevent SCs that cannot be resolved within the session that closes the epic.
 
 ## Rule
 
-**Post-deployment measurement SCs are prohibited from the verifiable SC list.**
+**Session-infeasible SCs are prohibited from the verifiable SC list.**
 
 After drafting each SC, apply this self-check:
 
-> *Can this criterion be evaluated during the sprint session using only (a) code/artifacts in the repo, (b) CI test results, or (c) a command that runs in the local dev environment?*
+> *Can this criterion be evaluated during the session that closes the epic, using only (a) code/artifacts in the repo, (b) CI/test results from the closing PR or merge, or (c) a command that runs in the local dev environment or against a live target the agent can reach?*
 
-If **NO** — because the criterion requires live production telemetry, A/B test accumulation, user adoption rates, rate comparisons against a pre-epic baseline, time-series measurements that don't exist yet, or user behavior observed post-deployment — then the criterion is a **post-deployment measurement SC** and must NOT appear as a verifiable sprint-session criterion.
+If **NO** — because the criterion requires accumulated production telemetry, A/B test results, user adoption over days/weeks, baseline comparisons that don't yet exist, or human dogfooding feedback — then the criterion is **session-infeasible** and must NOT appear as a verifiable closing-session criterion.
 
-## Violating examples
+"Post-deployment" is **not** the same as "session-infeasible." A criterion gated on a deployment that completes during the closing session, and whose outcome is observable via a deterministic command (`gh pr checks`, `gh run list`, an HTTP probe, a CLI invocation against a live endpoint), IS verifiable.
+
+## Violating examples (session-infeasible)
 
 - "workflow-restart rate drops ≥30% against pre-epic baseline"
 - "adoption rate reaches 40% within 30 days"
 - "P95 latency improves by 20% over 2-week baseline"
+- "users report the new flow is clearer in feedback survey"
 
-## Remediation — pick one
+## Permitted examples (in-session verifiable, even if post-deployment)
+
+- "After merging to main, all required CI status checks report a green conclusion on the merge commit (verified via `gh run list`)"
+- "After deployment, `curl <prod-endpoint>/health` returns 200 and the new field is present in the response body"
+- "After enabling the Ruleset, an attempted direct push to main from a clean clone is rejected with the expected error"
+
+If the SC produces a deterministic pass/fail within the closing session, it is verifiable — regardless of whether the verification step happens before or after the merge/deploy.
+
+## Remediation for session-infeasible SCs — pick one
 
 **(a) Rewrite as a verifiable proxy** — instrument the measurement mechanism as the SC.
 
