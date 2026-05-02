@@ -88,7 +88,7 @@ Document the agent's internal logic flow *before* the error was fully understood
 
 ### 5. Skills and Workflows (Optional)
 
-* **Active Workflow:** [High-level task being executed, e.g., `/dso:sprint` Phase 5]
+* **Active Workflow:** [High-level task being executed, e.g., `/dso:sprint` Phase F]
 * **Skills Invoked:** [List of agent capabilities used during the failure]
 
 ### 6. Logs (Optional)

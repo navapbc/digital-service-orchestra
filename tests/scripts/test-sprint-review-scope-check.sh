@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-sprint-review-scope-check.sh
-# RED tests for plugins/dso/scripts/sprint-review-scope-check.sh (does not exist yet).
+# RED tests for plugins/dso/scripts/sprint/sprint-review-scope-check.sh (does not exist yet).
 # REVIEW-DEFENSE: Script intentionally absent — TDD RED phase. Sprint 9d3e-957d batch 4
 # creates these tests; the script will be implemented in a subsequent batch. All 7 tests
 # are registered with RED markers in .test-index.
@@ -20,8 +20,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 # suite-engine sets TMPDIR to a per-test dir that gets deleted after the test exits;
 # on CI Linux, bash resolves CWD from TMPDIR at startup, causing getcwd failures
 # when the test_tmpdir is removed.
-cd "$REPO_ROOT"
-SCRIPT="$REPO_ROOT/plugins/dso/scripts/sprint-review-scope-check.sh"
+cd "$REPO_ROOT" || exit
+SCRIPT="$REPO_ROOT/plugins/dso/scripts/sprint/sprint-review-scope-check.sh"
 
 source "$SCRIPT_DIR/../lib/assert.sh"
 

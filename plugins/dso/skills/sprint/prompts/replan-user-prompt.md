@@ -17,10 +17,10 @@ These canonical prompt templates are used at multiple call sites in SKILL.md whe
 
 | Call site | `{{proceed_label}}` value |
 |-----------|--------------------------|
-| Phase 2 d-replan-collect (cap-exhausted) | `accept the current plan as-is and continue sprint execution` |
-| Phase 2 d-replan-collect (cap-not-exhausted) | `accept the current state and continue sprint with these stories as-is` |
-| Step 13a Step 2a (cap-exhausted) | `skip re-planning for these stories and continue sprint execution` |
-| Step 13a Step 2a (cap-not-exhausted) | `accept the current state and continue sprint with these stories as-is` |
+| Phase B d-replan-collect (cap-exhausted) | `accept the current plan as-is and continue sprint execution` |
+| Phase B d-replan-collect (cap-not-exhausted) | `accept the current state and continue sprint with these stories as-is` |
+| Phase F Step 20 (Continuation Decision sub-section "Out-of-Scope Review Feedback Routing") (cap-exhausted) | `skip re-planning for these stories and continue sprint execution` |
+| Phase F Step 20 (Continuation Decision sub-section "Out-of-Scope Review Feedback Routing") (cap-not-exhausted) | `accept the current state and continue sprint with these stories as-is` |
 
 ---
 

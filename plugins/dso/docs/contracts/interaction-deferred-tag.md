@@ -59,7 +59,7 @@ Tag removal (on override):
 |---|---|---|
 | `/dso:preplanning` | Interaction Conflict Gate (entry) | Halt and direct practitioner to run `/dso:brainstorm` on the epic |
 | `/dso:implementation-plan` | Interaction Conflict Gate (entry) | Halt and direct practitioner to run `/dso:brainstorm` on the epic |
-| `/dso:sprint` | Phase 3 Batch Preparation — Interaction Conflict Filter | Skip the tagged epic's tasks from the dispatch batch (no error; log and continue) |
+| `/dso:sprint` | Phase C Batch Preparation — Interaction Conflict Filter | Skip the tagged epic's tasks from the dispatch batch (no error; log and continue) |
 
 ---
 

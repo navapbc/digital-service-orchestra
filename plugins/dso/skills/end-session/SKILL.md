@@ -51,7 +51,7 @@ Output is a JSON array `[{epic_id, title, child_status, session_related, match_r
   ```bash
   .claude/scripts/dso ticket transition <epic-id> in_progress closed --reason="Epic complete: all children closed (safety-net close by /dso:end-session, verifier confirmed by user)"
   ```
-  If the user cannot confirm and no verifier result is available, do NOT close — ask them to run `/dso:sprint` Phase 6 to complete verification first.
+  If the user cannot confirm and no verifier result is available, do NOT close — ask them to run `/dso:sprint` Phase G to complete verification first.
 - `child_status: "all_closed"` AND `session_related: false` — report informationally, do not close: `"Note: Epic <epic-id> (<title>) has all children closed but was not worked on in this session. Consider closing it manually."`
 
 ### 4. Release debug-everything Session Lock (if held by this worktree)

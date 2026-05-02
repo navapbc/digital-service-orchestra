@@ -2,12 +2,12 @@
 
 - Signal Name: CONFIDENT / UNCERTAIN
 - Status: accepted
-- Scope: task-execution sub-agents → sprint Phase 5 post-batch processing (epic 74f8-7d2a)
+- Scope: task-execution sub-agents → sprint Phase F post-batch processing (epic 74f8-7d2a)
 - Date: 2026-04-04
 
 ## Purpose
 
-This document defines the shared output interface for the `CONFIDENT` / `UNCERTAIN` confidence signals emitted by implementation sub-agents at the end of each task execution. The `/dso:sprint` orchestrator Phase 5 (Post-Batch Processing) consumes these signals to identify tasks that completed with `STATUS:pass` but where the agent had low confidence in the result — enabling targeted escalation before closing tasks.
+This document defines the shared output interface for the `CONFIDENT` / `UNCERTAIN` confidence signals emitted by implementation sub-agents at the end of each task execution. The `/dso:sprint` orchestrator Phase F (Post-Batch Processing) consumes these signals to identify tasks that completed with `STATUS:pass` but where the agent had low confidence in the result — enabling targeted escalation before closing tasks.
 
 This contract must be agreed upon before any implementation begins to prevent implicit assumptions and ensure the emitter and parser stay in sync.
 
@@ -21,7 +21,7 @@ This contract must be agreed upon before any implementation begins to prevent im
 
 ## Emitter
 
-`skills/sprint/prompts/task-execution.md` — Implementation sub-agents dispatched during Phase 4 batch execution # shim-exempt: internal implementation path reference
+`skills/sprint/prompts/task-execution.md` — Implementation sub-agents dispatched during Phase E batch execution # shim-exempt: internal implementation path reference
 
 The emitter evaluates its own confidence in the completed work immediately before producing its final report. It emits exactly one confidence signal line per task execution, positioned alongside (not instead of) the `STATUS:` and `FILES_MODIFIED:` output lines. The emitter MUST emit one of the two signals — a missing confidence line is treated as `UNCERTAIN` by the parser (fail-safe default).
 
@@ -29,7 +29,7 @@ The emitter evaluates its own confidence in the completed work immediately befor
 
 ## Parser
 
-`skills/sprint/SKILL.md` — Sprint orchestrator Phase 5 post-batch processing # shim-exempt: internal implementation path reference
+`skills/sprint/SKILL.md` — Sprint orchestrator Phase F post-batch processing # shim-exempt: internal implementation path reference
 
 The parser reads each task sub-agent result, scans for the confidence signal line, and records the signal per task. UNCERTAIN signals on `STATUS:pass` tasks are tracked as a count per story (not per task ID) so that task replacement cannot reset the counter.
 
@@ -161,7 +161,7 @@ The following components emit or consume this signal:
 | Component | Role | Notes |
 |---|---|---|
 | `skills/sprint/prompts/task-execution.md` | Emitter | All implementation sub-agents dispatched via this prompt must emit a confidence signal line # shim-exempt: internal implementation path reference |
-| `skills/sprint/SKILL.md` Phase 5 | Parser | Sprint orchestrator — reads and tracks UNCERTAIN count per story; triggers user pause at threshold # shim-exempt: internal implementation path reference |
+| `skills/sprint/SKILL.md` Phase F | Parser | Sprint orchestrator — reads and tracks UNCERTAIN count per story; triggers user pause at threshold # shim-exempt: internal implementation path reference |
 
 All implementors must read this contract before modifying the task-execution prompt or Phase 5 parser logic. Changes to the signal format require updating all conforming emitters and parsers and this document atomically in the same commit.
 
@@ -173,4 +173,4 @@ This contract is versioned. Breaking changes (format changes, field removal, key
 
 ### Change Log
 
-- **2026-04-04**: Initial version — defines CONFIDENT/UNCERTAIN confidence signal interface for task-execution sub-agents → sprint Phase 5 post-batch processing. Establishes orthogonal relationship with STATUS:, per-story UNCERTAIN tracking semantics, and fail-safe defaults for absent/malformed signals.
+- **2026-04-04**: Initial version — defines CONFIDENT/UNCERTAIN confidence signal interface for task-execution sub-agents → sprint Phase F post-batch processing. Establishes orthogonal relationship with STATUS:, per-story UNCERTAIN tracking semantics, and fail-safe defaults for absent/malformed signals.

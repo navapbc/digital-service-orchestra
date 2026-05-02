@@ -9,23 +9,23 @@
 # Test cases (15+):
 #
 # Terminology (negative constraints — old epic-selection language must be absent)
-#   test_no_epic_selection_header         — "## Phase 1: Initialization & Epic Selection" absent
-#   test_no_post_epic_validation          — "## Phase 6: Post-Epic Validation" absent
+#   test_no_epic_selection_header         — "## Phase A: Initialization & Primary Ticket Selection" absent
+#   test_no_post_epic_validation          — "## Phase G: Post-Primary Ticket Validation" absent
 #
 # Terminology (positive constraints — new primary ticket language must be present)
 #   test_primary_ticket_in_phase1         — "Primary Ticket Selection" present
-#   test_primary_ticket_in_phase6         — "Primary Ticket" present in Phase 6 header
+#   test_primary_ticket_in_phase6         — "Primary Ticket" present in Phase G header
 #   test_primary_ticket_id_var            — "primary_ticket_id" or "primary-ticket-id" variable present
 #
-# Clarity Gate (behavioral structure tests in Phase 1)
-#   test_clarity_gate_section             — "clarity gate" or "Clarity Gate" in Phase 1
-#   test_clarity_gate_layer1              — "ticket-clarity-check" referenced in Phase 1
+# Clarity Gate (behavioral structure tests in Phase A)
+#   test_clarity_gate_section             — "clarity gate" or "Clarity Gate" in Phase A
+#   test_clarity_gate_layer1              — "ticket-clarity-check" referenced in Phase A
 #   test_clarity_gate_layer2              — "scope_certainty" referenced as second gate
 #   test_clarity_gate_layer3              — User escalation section with AskUserQuestion
 #
-# Routing (SC1 positive structure tests in Phase 1)
-#   test_bug_routing                      — Phase 1 contains "fix-bug" dispatch for bug-typed tickets
-#   test_non_epic_routing                 — Phase 1 contains complexity evaluation for non-epic types
+# Routing (SC1 positive structure tests in Phase A)
+#   test_bug_routing                      — Phase A contains "fix-bug" dispatch for bug-typed tickets
+#   test_non_epic_routing                 — Phase A contains complexity evaluation for non-epic types
 #   test_epic_routing_preserved           — Preplanning gate still references "/dso:preplanning"
 #
 # User Escalation (SC4)
@@ -83,32 +83,35 @@ _count_in_section() {
 # ── Terminology: negative constraints ────────────────────────────────────────
 
 # test_no_epic_selection_header
-# The old "## Phase 1: Initialization & Epic Selection" heading must NOT appear.
-# After the primary ticket model is implemented, Phase 1 is renamed to use
-# "Primary Ticket" language.
+# The pre-Primary-Ticket-model "## Phase 1: Initialization & Epic Selection"
+# heading must NOT appear. This regression-guards against accidental revert
+# of the rename to "Initialization & Primary Ticket Selection". The literal
+# uses Phase 1 (the original numbering) because it asserts the historical
+# pre-rename text is absent — independent of the current Phase A-I scheme.
 test_no_epic_selection_header() {
     _snapshot_fail
     local match=0
     match=$(_count_in_file "## Phase 1: Initialization & Epic Selection" "$SKILL_FILE")
-    assert_eq "test_no_epic_selection_header: old Phase 1 header absent" "0" "$match"
+    assert_eq "test_no_epic_selection_header: pre-rename header absent" "0" "$match"
     assert_pass_if_clean "test_no_epic_selection_header"
 }
 
 # test_no_post_epic_validation
-# The old "## Phase 6: Post-Epic Validation" heading must NOT appear.
-# After the primary ticket model, Phase 6 is renamed to include "Primary Ticket" language.
+# The pre-Primary-Ticket-model "## Phase 6: Post-Epic Validation" heading
+# must NOT appear. Same historical-absence guard as above; literal stays
+# Phase 6 because it asserts the pre-rename text is absent.
 test_no_post_epic_validation() {
     _snapshot_fail
     local match=0
     match=$(_count_in_file "## Phase 6: Post-Epic Validation" "$SKILL_FILE")
-    assert_eq "test_no_post_epic_validation: old Phase 6 header absent" "0" "$match"
+    assert_eq "test_no_post_epic_validation: pre-rename header absent" "0" "$match"
     assert_pass_if_clean "test_no_post_epic_validation"
 }
 
 # ── Terminology: positive constraints ────────────────────────────────────────
 
 # test_primary_ticket_in_phase1
-# "Primary Ticket Selection" must appear as a section heading in Phase 1.
+# "Primary Ticket Selection" must appear as a section heading in Phase A.
 test_primary_ticket_in_phase1() {
     _snapshot_fail
     local match=0
@@ -119,13 +122,13 @@ test_primary_ticket_in_phase1() {
 }
 
 # test_primary_ticket_in_phase6
-# "Primary Ticket" must appear in the Phase 6 heading.
+# "Primary Ticket" must appear in the Phase G heading.
 test_primary_ticket_in_phase6() {
     _snapshot_fail
     local match=0
-    match=$(grep -c "## Phase 6:.*Primary Ticket" "$SKILL_FILE" 2>/dev/null) || match=0
+    match=$(grep -c "## Phase G:.*Primary Ticket" "$SKILL_FILE" 2>/dev/null) || match=0
     [[ "$match" -gt 0 ]] && match=1
-    assert_eq "test_primary_ticket_in_phase6: Primary Ticket present in Phase 6 heading" "1" "$match"
+    assert_eq "test_primary_ticket_in_phase6: Primary Ticket present in Phase G heading" "1" "$match"
     assert_pass_if_clean "test_primary_ticket_in_phase6"
 }
 
@@ -154,13 +157,13 @@ test_clarity_gate_section() {
 }
 
 # test_clarity_gate_layer1
-# The script "ticket-clarity-check" must be referenced within the Phase 1 section.
+# The script "ticket-clarity-check" must be referenced within the Phase A section.
 test_clarity_gate_layer1() {
     _snapshot_fail
     local match=0
-    match=$(_count_in_section "Phase 1:" "Phase 2:" "ticket-clarity-check" "$SKILL_FILE")
+    match=$(_count_in_section "Phase A:" "Phase B:" "ticket-clarity-check" "$SKILL_FILE")
     [[ "$match" -gt 0 ]] && match=1
-    assert_eq "test_clarity_gate_layer1: ticket-clarity-check referenced in Phase 1" "1" "$match"
+    assert_eq "test_clarity_gate_layer1: ticket-clarity-check referenced in Phase A" "1" "$match"
     assert_pass_if_clean "test_clarity_gate_layer1"
 }
 
@@ -176,37 +179,37 @@ test_clarity_gate_layer2() {
 }
 
 # test_clarity_gate_layer3
-# User escalation with AskUserQuestion must be present in Phase 1's clarity gate section.
+# User escalation with AskUserQuestion must be present in Phase A's clarity gate section.
 test_clarity_gate_layer3() {
     _snapshot_fail
     local match=0
-    match=$(_count_in_section "Phase 1:" "Phase 2:" "AskUserQuestion" "$SKILL_FILE")
+    match=$(_count_in_section "Phase A:" "Phase B:" "AskUserQuestion" "$SKILL_FILE")
     [[ "$match" -gt 0 ]] && match=1
-    assert_eq "test_clarity_gate_layer3: AskUserQuestion escalation in Phase 1" "1" "$match"
+    assert_eq "test_clarity_gate_layer3: AskUserQuestion escalation in Phase A" "1" "$match"
     assert_pass_if_clean "test_clarity_gate_layer3"
 }
 
 # ── Routing (SC1) ─────────────────────────────────────────────────────────────
 
 # test_bug_routing
-# Phase 1 must contain routing logic that dispatches fix-bug for bug-typed tickets.
+# Phase A must contain routing logic that dispatches fix-bug for bug-typed tickets.
 test_bug_routing() {
     _snapshot_fail
     local match=0
-    match=$(_count_in_section "Phase 1:" "Phase 2:" "fix-bug" "$SKILL_FILE")
+    match=$(_count_in_section "Phase A:" "Phase B:" "fix-bug" "$SKILL_FILE")
     [[ "$match" -gt 0 ]] && match=1
-    assert_eq "test_bug_routing: fix-bug dispatch in Phase 1 for bug tickets" "1" "$match"
+    assert_eq "test_bug_routing: fix-bug dispatch in Phase A for bug tickets" "1" "$match"
     assert_pass_if_clean "test_bug_routing"
 }
 
 # test_non_epic_routing
-# Phase 1 must contain complexity evaluation routing for non-epic ticket types.
+# Phase A must contain complexity evaluation routing for non-epic ticket types.
 test_non_epic_routing() {
     _snapshot_fail
     local match=0
-    match=$(awk '/Phase 1:/,/Phase 2:/' "$SKILL_FILE" 2>/dev/null | grep -cE "complexity.evaluator|complexity-evaluator|dso:complexity" 2>/dev/null) || match=0
+    match=$(awk '/Phase A:/,/Phase B:/' "$SKILL_FILE" 2>/dev/null | grep -cE "complexity.evaluator|complexity-evaluator|dso:complexity" 2>/dev/null) || match=0
     [[ "$match" -gt 0 ]] && match=1
-    assert_eq "test_non_epic_routing: complexity evaluation for non-epic types in Phase 1" "1" "$match"
+    assert_eq "test_non_epic_routing: complexity evaluation for non-epic types in Phase A" "1" "$match"
     assert_pass_if_clean "test_non_epic_routing"
 }
 

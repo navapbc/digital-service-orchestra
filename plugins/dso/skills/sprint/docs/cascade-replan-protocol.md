@@ -29,7 +29,7 @@ The cascade exits under either of these conditions:
 
 ### (a) Plan accepted by implementation-plan
 
-implementation-plan completes for all stories in the epic without returning `REPLAN_ESCALATE`. This means implementation-plan has a plan it can execute. Sprint proceeds to Phase 5 (RED test writing) normally.
+implementation-plan completes for all stories in the epic without returning `REPLAN_ESCALATE`. This means implementation-plan has a plan it can execute. Sprint proceeds to Phase F (RED test writing) normally.
 
 ### (b) Max cascade iterations exhausted
 
