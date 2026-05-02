@@ -233,6 +233,7 @@ plugins/dso/docs/workflows/prompts/investigator-delta-escalated-web.md:tests/uni
 plugins/dso/docs/workflows/prompts/investigator-delta-intermediate-fallback.md:tests/unit/scripts/test-build-review-agents.sh
 plugins/dso/docs/workflows/prompts/investigator-delta-intermediate.md:tests/unit/scripts/test-build-review-agents.sh
 .github/workflows/inbound-bridge.yml:tests/scripts/test-inbound-bridge-push-retry.sh
+.github/workflows/outbound-bridge.yml:tests/scripts/test-outbound-bridge-push-retry.sh
 plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md:tests/skills/test-preplanning-noninteractive-checkpoints.sh,tests/scripts/test-tag-cli-refactor.sh
 plugins/dso/scripts/artifact-merge-lib.sh:tests/scripts/test-update-artifacts.sh
 plugins/dso/hooks/check-artifact-versions.sh:tests/scripts/test-artifact-update-integration.sh
