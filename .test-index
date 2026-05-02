@@ -372,3 +372,5 @@ plugins/dso/hooks/pre-commit-test-quality-gate.sh:tests/hooks/test-enforcement-g
 plugins/dso/hooks/check-plugin-self-ref.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/check-portability.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/skills/brainstorm/prompts/ux-probe-set.md:tests/skills/test-brainstorm-ui-intent-detection.sh
+plugins/dso/scripts/merge-to-main-pr.sh:tests/integration/test-merge-to-main-pr-thread-resolution.sh [test_review_threads_query_parses_unresolved_thread_ids]
+plugins/dso/hooks/lib/merge-helpers.sh:tests/integration/test-merge-to-main-pr-thread-resolution.sh [test_review_threads_query_parses_unresolved_thread_ids]
