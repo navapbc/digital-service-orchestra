@@ -188,8 +188,6 @@ tests/hooks/test-record-review-crossval.sh [test_schema_v2_red_zone_boundary]:te
 tests/scripts/test-write-reviewer-findings.sh [test_valid_json_exit_code]:tests/scripts/test-write-reviewer-findings.sh [test_valid_json_exit_code]
 tests/scripts/test-write-reviewer-findings.sh [test_write_reviewer_two_key_schema_succeeds]:tests/scripts/test-write-reviewer-findings.sh [test_write_reviewer_two_key_schema_succeeds]
 tests/scripts/test-write-reviewer-findings.sh [test_write_reviewer_scores_key_rejected]:tests/scripts/test-write-reviewer-findings.sh [test_write_reviewer_scores_key_rejected]
-tests/hooks/test-validate-review-output.sh [test_code_review_dispatch_valid_passes]:tests/hooks/test-validate-review-output.sh [test_code_review_dispatch_valid_passes]
-tests/hooks/test-validate-review-output.sh [test_code_review_dispatch_with_scores_key_rejected]:tests/hooks/test-validate-review-output.sh [test_code_review_dispatch_with_scores_key_rejected]
 plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/pre-all-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh

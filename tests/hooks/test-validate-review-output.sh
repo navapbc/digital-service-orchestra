@@ -227,15 +227,21 @@ assert_contains \
     "SCHEMA_VALID: yes" \
     "$VALID_CRD_OUTPUT"
 
-# test_code_review_dispatch_with_scores_key_rejected
-# Given: reviewer-findings.json with a scores key present
+# test_code_review_dispatch_with_scores_key_deprecated
+# Given: reviewer-findings.json with a scores key present (and valid summary)
 # When: validate-review-output.sh code-review-dispatch <file> runs
-# Then: exits non-zero, output does NOT contain "SCHEMA_VALID: yes" (scores key forbidden)
-echo "=== test_code_review_dispatch_with_scores_key_rejected ==="
-FIXTURE_FILE=$(write_fixture "scores-key-present.json" '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All good."}')
+# Then: exits 0 (scores tolerated during transition), SCHEMA_VALID: yes,
+#       and a DEPRECATION WARNING appears on stderr
+echo "=== test_code_review_dispatch_with_scores_key_deprecated ==="
+FIXTURE_FILE=$(write_fixture "scores-key-present.json" '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}')
+_STDERR_TMP=$(mktemp "${TMPDIR:-/tmp}/test-validate-review-output-stderr.XXXXXX")
 EXIT_CODE=0
-OUTPUT=$(bash "$SCRIPT" code-review-dispatch "$FIXTURE_FILE" 2>&1) || EXIT_CODE=$?
-assert_ne "test_code_review_dispatch_with_scores_key_rejected: exits non-zero when scores key present" "0" "$EXIT_CODE"
+STDOUT_OUT=$(bash "$SCRIPT" code-review-dispatch "$FIXTURE_FILE" 2>"$_STDERR_TMP") || EXIT_CODE=$?
+STDERR_OUT=$(cat "$_STDERR_TMP")
+rm -f "$_STDERR_TMP"
+assert_eq "test_code_review_dispatch_with_scores_key_deprecated: exits 0 (scores tolerated)" "0" "$EXIT_CODE"
+assert_contains "test_code_review_dispatch_with_scores_key_deprecated: stdout contains SCHEMA_VALID: yes" "SCHEMA_VALID: yes" "$STDOUT_OUT"
+assert_contains "test_code_review_dispatch_with_scores_key_deprecated: stderr contains DEPRECATION WARNING" "DEPRECATION WARNING" "$STDERR_OUT"
 
 # code-review-dispatch: valid with findings (2-key schema)
 VALID_CRD_WITH_FINDINGS=$(write_fixture "valid-crd-findings.json" '{

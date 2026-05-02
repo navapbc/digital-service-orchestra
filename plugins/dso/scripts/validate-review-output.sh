@@ -10,6 +10,12 @@ set -euo pipefail
 #
 # Prompt IDs and their schema hashes:
 #   code-review-dispatch   d2c2c0f6c66b4ae5   (reviewer-findings.json schema)
+#                          Required top-level keys: findings, summary
+#                          Optional: review_tier, selected_tier, escalate_review
+#                          DEPRECATED (tolerated with warning): scores
+#                          NOTE: scores key was required before story 6c75-cc5d;
+#                          it is tolerated during transition and will be rejected
+#                          after story f19a-c97e updates all reviewer agents.
 #   review-protocol        3053fa9a43e12b79   (REVIEW-SCHEMA.md base structure)
 #   plan-review            9dba6875b85b7bc3   (structured text verdict format)
 #
@@ -90,8 +96,10 @@ Validates review agent output against the expected schema.
 
 Prompt IDs:
   code-review-dispatch   Schema hash: ${HASH_CODE_REVIEW_DISPATCH}
-                         Validates: reviewer-findings.json (3 required top-level
-                         keys + optional review_tier, 5 score dimensions, findings with severity/category)
+                         Validates: reviewer-findings.json (2 required top-level
+                         keys: findings, summary; optional: review_tier,
+                         selected_tier, escalate_review; scores tolerated with
+                         deprecation warning during transition — story f19a-c97e)
 
   review-protocol        Schema hash: ${HASH_REVIEW_PROTOCOL}
                          Validates: REVIEW-SCHEMA.md JSON (subject, reviews[],
@@ -209,6 +217,8 @@ if [[ ! -s "$OUTPUT_FILE" ]]; then
 fi
 
 # --- Validator: code-review-dispatch ---
+# Schema: 2-key required ({findings, summary}); scores tolerated with deprecation
+# warning during transition to severity-only schema (story 6c75-cc5d → f19a-c97e).
 validate_code_review_dispatch() {
     local file="$1"
     python3 - "$file" <<'PYEOF'
@@ -224,9 +234,11 @@ with open(output_file) as f:
 
 errors = []
 
-# Must have required top-level keys; review_tier, selected_tier, and escalate_review are optional
-required_top = {"scores", "findings", "summary"}
-optional_top = {"review_tier", "selected_tier", "escalate_review"}
+# Required top-level keys: findings and summary (2-key schema, story 6c75-cc5d).
+# scores is DEPRECATED: tolerated with a warning during transition until reviewer
+# agents are updated (story f19a-c97e), at which point it will be rejected.
+required_top = {"findings", "summary"}
+optional_top = {"review_tier", "selected_tier", "escalate_review", "scores"}
 allowed_top = required_top | optional_top
 actual_top = set(data.keys())
 extra = actual_top - allowed_top
@@ -235,6 +247,14 @@ if extra:
     errors.append(f"unexpected top-level keys: {sorted(extra)} (only {sorted(allowed_top)} allowed)")
 if missing:
     errors.append(f"missing top-level keys: {sorted(missing)}")
+
+# Deprecation warning: scores key present but no longer required.
+if "scores" in actual_top:
+    print(
+        "DEPRECATION WARNING: 'scores' key is deprecated and will be rejected after "
+        "reviewer agents are updated (story f19a-c97e). Remove scores from reviewer output.",
+        file=sys.stderr,
+    )
 
 # Validate review_tier if present
 if "review_tier" in data:
@@ -245,24 +265,6 @@ if "review_tier" in data:
 if "selected_tier" in data:
     if data["selected_tier"] not in ("light", "standard", "deep"):
         errors.append(f"'selected_tier' must be one of: light, standard, deep (got '{data['selected_tier']}')")
-
-# Validate scores
-scores = data.get("scores")
-if not isinstance(scores, dict):
-    errors.append("'scores' must be an object")
-else:
-    required_dims = ["hygiene", "design", "maintainability", "correctness", "verification"]
-    for dim in required_dims:
-        if dim not in scores:
-            errors.append(f"missing score dimension: '{dim}'")
-        else:
-            val = scores[dim]
-            if val != "N/A":
-                if not isinstance(val, (int, float)) or not (1 <= val <= 5):
-                    errors.append(f"score '{dim}' must be 1-5 or 'N/A', got: {val!r}")
-    extra_dims = set(scores.keys()) - set(required_dims)
-    if extra_dims:
-        errors.append(f"unexpected score dimensions: {sorted(extra_dims)}")
 
 # Validate findings
 findings = data.get("findings")
@@ -287,31 +289,6 @@ else:
         cat = finding.get("category")
         if cat is not None and cat not in valid_categories:
             errors.append(f"{prefix}.category: must be one of {sorted(valid_categories)}, got: {cat!r}")
-        if sev == "critical" and cat in (scores or {}):
-            score = (scores or {}).get(cat)
-            if isinstance(score, (int, float)) and score > 2:
-                errors.append(f"{prefix}: severity='critical' but scores[{cat}]={score} (critical requires score 1-2)")
-
-# Score-severity consistency: scores are driven by the worst finding severity.
-# No findings → 5, minor only → 4, important → 3, critical → 1-2.
-if isinstance(findings, list) and isinstance(scores, dict):
-    from collections import defaultdict
-    dim_severities: dict = defaultdict(set)
-    for finding in findings:
-        cat = finding.get("category")
-        sev = finding.get("severity")
-        if cat and sev:
-            dim_severities[cat].add(sev)
-    for dim, score in scores.items():
-        if not isinstance(score, (int, float)):
-            continue
-        sevs = dim_severities.get(dim, set())
-        if not sevs and score != 5:
-            errors.append(f"score '{dim}'={score}: no findings requires score 5")
-        elif sevs == {"minor"} and score != 4:
-            errors.append(f"score '{dim}'={score}: minor-only findings requires score 4")
-        elif ("important" in sevs or "fragile" in sevs) and "critical" not in sevs and score != 3:
-            errors.append(f"score '{dim}'={score}: important (no critical) findings requires score 3")
 
 # Validate summary
 summary = data.get("summary")
@@ -351,8 +328,6 @@ if errors:
     for e in errors:
         print(f"  - {e}")
     sys.exit(1)
-
-print("OK")
 PYEOF
 }
 
@@ -802,7 +777,8 @@ CALLER_FAILED=0
 case "$PROMPT_ID" in
     code-review-dispatch)
         SCHEMA_HASH="$HASH_CODE_REVIEW_DISPATCH"
-        RESULT=$(validate_code_review_dispatch "$OUTPUT_FILE" 2>&1) || FAILED=1
+        # Capture stdout only; let stderr (deprecation warnings) flow to caller's stderr.
+        RESULT=$(validate_code_review_dispatch "$OUTPUT_FILE") || FAILED=1
         ;;
     review-protocol)
         SCHEMA_HASH="$HASH_REVIEW_PROTOCOL"
