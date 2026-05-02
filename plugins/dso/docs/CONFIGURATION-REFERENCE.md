@@ -1210,6 +1210,45 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 
 ---
 
+### `merge.pr_max_thread_dispatches`
+
+| | |
+|---|---|
+| **Description** | Maximum number of LLM dispatches the thread-resolution loop (`_phase_resolve_threads`) will issue across all threads before escalating. Prevents runaway LLM calls when threads keep re-opening. Only consulted when `merge.strategy=pr`. |
+| **Accepted values** | Positive integer |
+| **Default** | `10` |
+| **Used by** | `.claude/scripts/dso merge-to-main.sh` (PR-mode `_phase_resolve_threads`) |
+
+**Example**: `merge.pr_max_thread_dispatches=20` (default: `merge.pr_max_thread_dispatches=10`)
+
+---
+
+### `merge.pr_thread_resolution_max_wait_seconds`
+
+| | |
+|---|---|
+| **Description** | Wall-clock cap for the thread-resolution loop (`_phase_resolve_threads`). If threads remain unresolved after this many seconds, the loop escalates rather than waiting indefinitely. Only consulted when `merge.strategy=pr`. |
+| **Accepted values** | Positive integer (seconds) |
+| **Default** | `1800` |
+| **Used by** | `.claude/scripts/dso merge-to-main.sh` (PR-mode `_phase_resolve_threads`) |
+
+**Example**: `merge.pr_thread_resolution_max_wait_seconds=3600` (default: `merge.pr_thread_resolution_max_wait_seconds=1800`)
+
+---
+
+### `merge.pr_thread_quiet_window_seconds`
+
+| | |
+|---|---|
+| **Description** | Minimum quiet period (no new unresolved threads) required before `_phase_resolve_threads` considers all threads settled and returns success. Prevents premature exit when review bots post follow-up threads after a short delay. Only consulted when `merge.strategy=pr`. |
+| **Accepted values** | Positive integer (seconds) |
+| **Default** | `120` |
+| **Used by** | `.claude/scripts/dso merge-to-main.sh` (PR-mode `_phase_resolve_threads`) |
+
+**Example**: `merge.pr_thread_quiet_window_seconds=60` (default: `merge.pr_thread_quiet_window_seconds=120`)
+
+---
+
 ### `staging.url`
 
 | | |

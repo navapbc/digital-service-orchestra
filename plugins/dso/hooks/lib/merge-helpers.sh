@@ -982,26 +982,26 @@ _pr_resolve_thread() {
     return 0
 }
 
-# _pr_settling_check [--ci-green=<true|false>] [--threads=<N>] [--quiet-window-elapsed=<true|false>]
-# Heuristic: settled when ALL THREE hold:
-#   1. CI is green (--ci-green=true)
-#   2. Zero unresolved threads (--threads=0)
-#   3. Quiet window has elapsed (--quiet-window-elapsed=true)
+# _pr_settling_check [--threads=<N>] [--quiet-window-elapsed=<true|false>]
+# Heuristic: settled when BOTH hold:
+#   1. Zero unresolved threads (--threads=0)
+#   2. Quiet window has elapsed (--quiet-window-elapsed=true)
+# CI state is not checked here — _phase_poll handles CI validation.
+# --ci-green is accepted but ignored for backward compatibility.
 # Exit 0 when settled; exit 1 when any condition is unmet.
 _pr_settling_check() {
-    local _ci_green="false"
     local _threads="1"
     local _quiet_elapsed="false"
 
     for _arg in "$@"; do
         case "$_arg" in
-            --ci-green=*)    _ci_green="${_arg#--ci-green=}" ;;
+            --ci-green=*)    : ;;  # accepted but ignored
             --threads=*)     _threads="${_arg#--threads=}" ;;
             --quiet-window-elapsed=*) _quiet_elapsed="${_arg#--quiet-window-elapsed=}" ;;
         esac
     done
 
-    if [[ "$_ci_green" == "true" && "$_threads" == "0" && "$_quiet_elapsed" == "true" ]]; then
+    if [[ "$_threads" == "0" && "$_quiet_elapsed" == "true" ]]; then
         return 0
     fi
     return 1

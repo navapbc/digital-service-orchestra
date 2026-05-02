@@ -177,7 +177,7 @@ LOG="${STUB_LLM_LOG:-/dev/null}"
     for a in "$@"; do printf '\t%s' "$a"; done
     printf '\n'
 } >> "$LOG" 2>/dev/null || true
-echo '{"resolution":"reply","reply_body":"acknowledged"}'
+echo 'ACTION:reply REPLY:acknowledged'
 exit 0
 LLMEOF
     chmod +x "$d/llm-api-call.sh"
@@ -225,6 +225,8 @@ _setup_test() {
     _SAVED_PATH="$PATH"
     PATH="$STUB_DIR:$PATH"
     export PATH
+    # Point _phase_resolve_threads at the stub so tests never hit the real LLM.
+    export _LLM_DISPATCH_CMD="$STUB_DIR/llm-api-call.sh"
     # Set BRANCH so merge-helpers.sh state functions don't blow up.
     BRANCH="test-branch-$$"
     export BRANCH
@@ -234,6 +236,9 @@ _teardown_test() {
     PATH="$_SAVED_PATH"
     export PATH
     unset STUB_GH_SCENARIO STUB_GH_THREADS_FIXTURE
+    unset PR_THREAD_LOOP_INTERVAL PR_THREAD_LOOP_MAX_DISPATCHES PR_THREAD_LOOP_MAX_WALL_SECONDS
+    unset PR_THREAD_LOOP_START_OVERRIDE_SECONDS PR_THREAD_LOOP_TEST_STOP_AFTER_RESET
+    unset _LLM_DISPATCH_CMD
 }
 
 # Convenience: count how many times the gh stub was called with given subcmd.
@@ -327,7 +332,7 @@ test_resolve_thread_calls_mutation_only_when_unresolved() {
 # unresolved threads AND a quiet window since last activity. Falsified by any
 # missing condition.
 # ===========================================================================
-test_settling_heuristic_requires_ci_green_and_zero_threads_and_quiet_window() {
+test_settling_heuristic_requires_zero_threads_and_quiet_window() {
     _setup_test
 
     # shellcheck disable=SC1090
@@ -335,29 +340,29 @@ test_settling_heuristic_requires_ci_green_and_zero_threads_and_quiet_window() {
 
     if ! type _pr_settling_check >/dev/null 2>&1; then
         (( ++FAIL ))
-        echo "FAIL: test_settling_heuristic_requires_ci_green_and_zero_threads_and_quiet_window — _pr_settling_check not defined (RED until T3)" >&2
+        echo "FAIL: test_settling_heuristic_requires_zero_threads_and_quiet_window — _pr_settling_check not defined" >&2
         _teardown_test
         return
     fi
 
-    # All three conditions hold → settled (exit 0).
+    # Both conditions hold → settled (exit 0).
     local rc=0
-    _pr_settling_check --ci-green=true --threads=0 --quiet-window-elapsed=true >/dev/null 2>&1 || rc=$?
-    assert_eq "test_settling_heuristic: settles when all three hold" "0" "$rc"
+    _pr_settling_check --threads=0 --quiet-window-elapsed=true >/dev/null 2>&1 || rc=$?
+    assert_eq "test_settling_heuristic: settles when threads=0 and quiet window elapsed" "0" "$rc"
 
-    # CI not green → unsettled.
+    # CI state is irrelevant — settles regardless of CI green/not-green.
     rc=0
     _pr_settling_check --ci-green=false --threads=0 --quiet-window-elapsed=true >/dev/null 2>&1 || rc=$?
-    assert_ne "test_settling_heuristic: unsettled when CI not green" "0" "$rc"
+    assert_eq "test_settling_heuristic: settles with ci-green=false (CI state ignored)" "0" "$rc"
 
     # Threads remaining → unsettled.
     rc=0
-    _pr_settling_check --ci-green=true --threads=2 --quiet-window-elapsed=true >/dev/null 2>&1 || rc=$?
+    _pr_settling_check --threads=2 --quiet-window-elapsed=true >/dev/null 2>&1 || rc=$?
     assert_ne "test_settling_heuristic: unsettled when threads remain" "0" "$rc"
 
     # Quiet window not elapsed → unsettled.
     rc=0
-    _pr_settling_check --ci-green=true --threads=0 --quiet-window-elapsed=false >/dev/null 2>&1 || rc=$?
+    _pr_settling_check --threads=0 --quiet-window-elapsed=false >/dev/null 2>&1 || rc=$?
     assert_ne "test_settling_heuristic: unsettled when quiet window not elapsed" "0" "$rc"
 
     _teardown_test
@@ -524,7 +529,7 @@ test_push_induced_dismissal_resets_poll_window() {
 # ---------------------------------------------------------------------------
 test_review_threads_query_parses_unresolved_thread_ids
 test_resolve_thread_calls_mutation_only_when_unresolved
-test_settling_heuristic_requires_ci_green_and_zero_threads_and_quiet_window
+test_settling_heuristic_requires_zero_threads_and_quiet_window
 test_dispatch_count_cap_triggers_escalation
 test_wall_clock_cap_triggers_escalation
 test_push_induced_dismissal_resets_poll_window

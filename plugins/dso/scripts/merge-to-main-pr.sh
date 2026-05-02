@@ -88,10 +88,6 @@ _check_gh_version() {
     return 0
 }
 
-if ! _check_gh_version; then
-    exit 1
-fi
-
 # --- Duplicate-PR guard (DD4) ---
 # `gh pr list --head $BRANCH --state open --json number,url --jq '.[0].url'`.
 # Non-empty result → an open PR already exists for this branch → exit non-zero.
@@ -106,15 +102,6 @@ _check_duplicate_pr() {
     fi
     return 0
 }
-
-if ! _check_duplicate_pr; then
-    exit 1
-fi
-
-# --- Initialize state file (best-effort; requires BRANCH set above) ---
-if type _state_init >/dev/null 2>&1; then
-    _state_init 2>/dev/null || true
-fi
 
 # --- State writer: persist PR url + number into the state file ---
 # Best-effort; mirrors merge-helpers.sh's other _state_* writers.
@@ -253,13 +240,293 @@ except Exception:
     return 0
 }
 
-# --- Run merge phase; on failure, emit CONFLICT_DATA contract line ---
-if ! _phase_merge; then
-    if type _emit_conflict_data >/dev/null 2>&1; then
-        _emit_conflict_data "$BRANCH" "main" "pr-auto-merge"
+# --- _phase_resolve_threads: loop to resolve all PR review threads before poll ---
+# Settling heuristic: done when zero unresolved threads AND quiet window elapsed.
+# Bounds: max dispatch count (merge.pr_max_thread_dispatches, default 10) and
+#         wall-clock budget (merge.pr_thread_resolution_max_wait_seconds, default 1800).
+# Emits ESCALATE:thread_resolution on stderr with PR url + thread IDs when bounds hit.
+# Env overrides for tests:
+#   PR_THREAD_LOOP_MAX_DISPATCHES     — overrides config default (10)
+#   PR_THREAD_LOOP_MAX_WALL_SECONDS   — overrides config default (1800)
+#   PR_THREAD_LOOP_INTERVAL           — overrides config default (30)
+#   PR_THREAD_LOOP_START_OVERRIDE_SECONDS — simulate elapsed time at start (default 0)
+#   PR_THREAD_LOOP_TEST_STOP_AFTER_RESET  — exit 0 after first POLL_WINDOW_RESET (testing)
+#   _LLM_DISPATCH_CMD                 — override LLM dispatch command (default: llm-api-call.sh)
+_phase_resolve_threads() {
+    local _pr_number="$1" _pr_url="$2"
+    local _read_config
+    _read_config="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
+
+    # Read config with env override support
+    local _max_dispatches _max_wait _quiet_window _interval
+    _max_dispatches="${PR_THREAD_LOOP_MAX_DISPATCHES:-}"
+    if [[ -z "$_max_dispatches" ]]; then
+        _max_dispatches=$(bash "$_read_config" merge.pr_max_thread_dispatches 2>/dev/null || true)
+        [[ -z "$_max_dispatches" ]] && _max_dispatches=10
     fi
-    exit 1
-fi
+
+    _max_wait="${PR_THREAD_LOOP_MAX_WALL_SECONDS:-}"
+    if [[ -z "$_max_wait" ]]; then
+        _max_wait=$(bash "$_read_config" merge.pr_thread_resolution_max_wait_seconds 2>/dev/null || true)
+        [[ -z "$_max_wait" ]] && _max_wait=1800
+    fi
+
+    _quiet_window=$(bash "$_read_config" merge.pr_thread_quiet_window_seconds 2>/dev/null || true)
+    [[ -z "$_quiet_window" ]] && _quiet_window=120
+
+    _interval="${PR_THREAD_LOOP_INTERVAL:-}"
+    if [[ -z "$_interval" ]]; then
+        _interval=$(bash "$_read_config" merge.pr_poll_interval_seconds 2>/dev/null || true)
+        [[ -z "$_interval" ]] && _interval=30
+    fi
+
+    local _dispatches=0
+    local _start_offset="${PR_THREAD_LOOP_START_OVERRIDE_SECONDS:-0}"
+    local _start=$(( SECONDS - _start_offset ))
+    local _last_thread_seen_ts=0
+    local _last_thread_count=0
+    local _last_head_sha=""
+    local _llm_cmd="${_LLM_DISPATCH_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"
+    # Track threads the LLM escalated so they are skipped on subsequent iterations
+    # instead of burning the dispatch budget repeatedly on unresolvable threads.
+    declare -A _escalated_threads=()
+
+    if type _state_write_phase >/dev/null 2>&1; then
+        _state_write_phase "resolve_threads" 2>/dev/null || true
+    fi
+
+    while :; do
+        # --- Fetch unresolved threads ---
+        local _threads_raw=""
+        local _threads_arr=()
+        local _threads_count=0
+        if type _pr_fetch_unresolved_threads >/dev/null 2>&1; then
+            _threads_raw=$(_pr_fetch_unresolved_threads "$_pr_number" 2>/dev/null || true)
+        fi
+        if [[ -n "$_threads_raw" ]]; then
+            mapfile -t _threads_arr <<< "$_threads_raw"
+            _threads_count="${#_threads_arr[@]}"
+        fi
+
+        # --- Detect head SHA change (push-induced dismissal reset) ---
+        local _curr_head_sha=""
+        _curr_head_sha=$(gh pr view "$_pr_number" --json headRefOid 2>/dev/null | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get('headRefOid', ''))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+
+        if [[ -n "$_last_head_sha" && -n "$_curr_head_sha" && "$_curr_head_sha" != "$_last_head_sha" ]]; then
+            echo "INFO: POLL_WINDOW_RESET — head SHA changed from ${_last_head_sha} to ${_curr_head_sha}; resetting wall-clock window"
+            _start=$SECONDS
+            _last_thread_seen_ts=0
+            _last_thread_count=0
+            if [[ "${PR_THREAD_LOOP_TEST_STOP_AFTER_RESET:-0}" == "1" ]]; then
+                return 0
+            fi
+        fi
+        _last_head_sha="$_curr_head_sha"
+
+        local _now_ts=$SECONDS
+
+        # --- Track last-thread-seen time ---
+        if (( _threads_count > _last_thread_count )); then
+            _last_thread_seen_ts=$_now_ts
+        fi
+        _last_thread_count=$_threads_count
+
+        # --- Settling heuristic ---
+        local _quiet_elapsed="false"
+        if (( _last_thread_seen_ts == 0 )); then
+            (( (_now_ts - _start) >= _quiet_window )) && _quiet_elapsed="true"
+        else
+            (( (_now_ts - _last_thread_seen_ts) >= _quiet_window )) && _quiet_elapsed="true"
+        fi
+
+        if type _pr_settling_check >/dev/null 2>&1; then
+            if _pr_settling_check --threads="$_threads_count" --quiet-window-elapsed="$_quiet_elapsed"; then
+                echo "INFO: PR #${_pr_number} thread resolution settled."
+                if type _state_mark_complete >/dev/null 2>&1; then
+                    _state_mark_complete "resolve_threads" 2>/dev/null || true
+                fi
+                return 0
+            fi
+        fi
+
+        # Build comma-separated unresolved (non-escalated) thread IDs for ESCALATE messages.
+        local _unresolved_ids="" _entry
+        for _entry in "${_threads_arr[@]:-}"; do
+            [[ -z "$_entry" ]] && continue
+            local _eid="${_entry%%$'\t'*}"
+            [[ -n "${_escalated_threads[$_eid]:-}" ]] && continue
+            _unresolved_ids+="${_eid},"
+        done
+        _unresolved_ids="${_unresolved_ids%,}"
+
+        # Early-exit: if all active threads are escalated, no dispatches are
+        # possible on this iteration or any future one — emit ESCALATE immediately
+        # rather than spinning out the full wall-clock budget.
+        if (( _threads_count > 0 )) && [[ -z "$_unresolved_ids" ]]; then
+            echo "ESCALATE:thread_resolution REASON:all_escalated PR:${_pr_url} DISPATCHES:${_dispatches}" >&2
+            return 1
+        fi
+
+        # --- Bounds: wall-clock ---
+        local _elapsed=$(( _now_ts - _start ))
+        if (( _elapsed >= _max_wait )); then
+            echo "ESCALATE:thread_resolution REASON:wall_clock PR:${_pr_url} UNRESOLVED:${_unresolved_ids} DISPATCHES:${_dispatches}" >&2
+            return 1
+        fi
+
+        # --- Bounds: dispatch cap ---
+        if (( _dispatches >= _max_dispatches )); then
+            echo "ESCALATE:thread_resolution REASON:dispatch_cap PR:${_pr_url} UNRESOLVED:${_unresolved_ids} DISPATCHES:${_dispatches}" >&2
+            return 1
+        fi
+
+        # --- Dispatch sub-agent for each unresolved thread ---
+        local _repo_root
+        _repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+        local _code_change_threads=()
+        local _t
+        for _t in "${_threads_arr[@]:-}"; do
+            [[ -z "$_t" ]] && continue
+            if (( _dispatches >= _max_dispatches )); then break; fi
+
+            # Parse tab-delimited thread fields: thread_id, file, line, comment_id, body_b64
+            local _thread_id="${_t%%$'\t'*}"
+            # Skip threads already escalated in a prior loop iteration.
+            [[ -n "${_escalated_threads[$_thread_id]:-}" ]] && continue
+
+            local _file_path="" _line_range="" _comment_id="" _thread_body_b64=""
+            IFS=$'\t' read -r _ _file_path _line_range _comment_id _thread_body_b64 <<< "$_t" || true
+            local _thread_body=""
+            [[ -n "$_thread_body_b64" ]] && _thread_body=$(echo "$_thread_body_b64" | base64 -d 2>/dev/null || true)
+
+            # Generate a short diff_context for the file (best-effort; empty if unavailable).
+            # Use a repo-relative path with git run from the repo root to avoid path doubling.
+            local _diff_context=""
+            if [[ -n "$_file_path" && -n "$_repo_root" ]]; then
+                _diff_context=$(git -C "$_repo_root" diff HEAD -- "$_file_path" 2>/dev/null | head -30 || true)
+            fi
+
+            # Build a structured user message containing all thread context.
+            # This avoids sed injection from reviewer-supplied values (thread_body, etc.)
+            # while giving the LLM all inputs it needs per pr-comment-responder.md.
+            local _user_msg
+            _user_msg=$(printf 'thread_id: %s\nthread_body: %s\npr_url: %s\nrepo_root: %s\nfile_path: %s\nline_range: %s\ndiff_context:\n%s' \
+                "$_thread_id" \
+                "${_thread_body:-[no body]}" \
+                "$_pr_url" \
+                "$_repo_root" \
+                "${_file_path:-}" \
+                "${_line_range:-}" \
+                "${_diff_context:-[none]}")
+
+            local _llm_result=""
+            local _llm_rc=0
+            _llm_result=$($_llm_cmd \
+                "${CLAUDE_PLUGIN_ROOT}/scripts/prompts/pr-comment-responder.md" \
+                "$_user_msg" \
+                "standard" \
+                2>/dev/null) || _llm_rc=$?
+
+            # On infrastructure failure (non-zero exit, empty result), skip this
+            # thread without consuming dispatch budget — it will be retried next iteration.
+            if [[ $_llm_rc -ne 0 || -z "$_llm_result" ]]; then
+                echo "WARNING: LLM dispatch failed (exit ${_llm_rc}) for thread ${_thread_id} — will retry next iteration." >&2
+                continue
+            fi
+            _dispatches=$(( _dispatches + 1 ))
+
+            # Parse the terminal ACTION: line from the LLM output
+            local _action_line=""
+            _action_line=$(echo "$_llm_result" | grep -E "^ACTION:" | tail -1 || true)
+
+            case "$_action_line" in
+                ACTION:code_change*)
+                    # Track threads with code changes; batch commit happens after the loop
+                    # so one commit and one push covers all code_change threads per iteration.
+                    _code_change_threads+=("$_thread_id")
+                    ;;
+                ACTION:reply\ REPLY:*)
+                    local _reply_body=""
+                    _reply_body="${_action_line#ACTION:reply REPLY:}"
+                    # Trim all leading whitespace (LLM may emit 'REPLY: text' with space(s)/tab after colon)
+                    _reply_body="${_reply_body#"${_reply_body%%[![:space:]]*}"}"
+                    [[ -z "$_reply_body" ]] && _reply_body="Acknowledged"
+                    local _reply_rc=0
+                    if type _pr_post_thread_reply >/dev/null 2>&1; then
+                        _pr_post_thread_reply "$_pr_number" "$_comment_id" "$_reply_body" >/dev/null 2>&1 || _reply_rc=$?
+                    fi
+                    if [[ $_reply_rc -eq 0 ]]; then
+                        # Only resolve after a successful reply to prevent duplicate replies
+                        # if the resolve mutation fails and this thread is retried next iteration.
+                        if type _pr_resolve_thread >/dev/null 2>&1; then
+                            _pr_resolve_thread "$_thread_id" >/dev/null 2>&1 || {
+                                # Resolve failed — escalate so next iteration skips re-posting
+                                _escalated_threads[$_thread_id]=1
+                            }
+                        fi
+                    fi
+                    ;;
+                ACTION:escalate*|""|*)
+                    echo "INFO: Thread ${_thread_id} escalated — leaving for user review." >&2
+                    _escalated_threads[$_thread_id]=1
+                    ;;
+            esac
+        done
+
+        # --- Batch commit + push for code_change threads ---
+        # All code_change threads in this iteration share one commit + push to avoid
+        # triggering N CI runs for N concurrent changes. Threads are only resolved on
+        # GitHub after a successful commit AND push — never mark resolved when the fix
+        # hasn't reached the remote.
+        #
+        # This raw git commit is intentional and CI-only: merge-to-main-pr.sh runs in
+        # CI environments (e.g. GitHub Actions) where the project pre-commit hook suite
+        # is not installed. In interactive/local sessions the review gate would block
+        # this commit; guard below escalates code_change threads instead of committing.
+        if [[ ${#_code_change_threads[@]} -gt 0 ]]; then
+            if [[ "${CI:-}" != "true" ]]; then
+                echo "WARNING: code_change threads require CI mode (CI=true) for auto-commit — escalating threads to avoid review-gate conflict." >&2
+                local _ct
+                for _ct in "${_code_change_threads[@]}"; do
+                    _escalated_threads[$_ct]=1
+                done
+                _code_change_threads=()
+            fi
+        fi
+        if [[ ${#_code_change_threads[@]} -gt 0 ]]; then
+            local _commit_rc=0
+            git -C "$_repo_root" commit -m "fix: address PR review threads ${_code_change_threads[*]}" 2>/dev/null || _commit_rc=$?
+            if [[ $_commit_rc -eq 0 ]]; then
+                local _push_rc=0
+                git -C "$_repo_root" push origin HEAD 2>/dev/null || _push_rc=$?
+                if [[ $_push_rc -eq 0 ]]; then
+                    if type _pr_resolve_thread >/dev/null 2>&1; then
+                        local _ct
+                        for _ct in "${_code_change_threads[@]}"; do
+                            _pr_resolve_thread "$_ct" >/dev/null 2>&1 || true
+                        done
+                    fi
+                else
+                    echo "WARNING: push failed (exit ${_push_rc}) — code_change threads not resolved." >&2
+                fi
+            else
+                echo "WARNING: batch commit failed (exit ${_commit_rc}) — code_change threads not resolved." >&2
+            fi
+        fi
+
+        # --- Sleep ---
+        if [[ "$_interval" != "0" && "$_interval" != "0.0" ]]; then
+            sleep "$_interval" 2>/dev/null || sleep 1
+        fi
+    done
+}
 
 # --- _phase_poll: poll CI checks + merge state until success / failure / timeout ---
 # DD1: configurable poll cadence (merge.pr_poll_interval_seconds, default 30)
@@ -361,7 +628,40 @@ except Exception:
     done
 }
 
-# --- Resolve PR url + number for polling (from state file written above) ---
+# =============================================================================
+# Library-mode guard: when sourced with PR_LIB_MODE=1, skip all top-level
+# execution. Used by tests to load function definitions without running the
+# phase pipeline.
+# =============================================================================
+# shellcheck disable=SC2317  # exit 0 is the non-sourced fallback; return is the sourced path
+if [[ "${PR_LIB_MODE:-0}" == "1" ]]; then return 0 2>/dev/null || exit 0; fi
+
+# =============================================================================
+# Top-level execution begins here
+# =============================================================================
+
+if ! _check_gh_version; then
+    exit 1
+fi
+
+if ! _check_duplicate_pr; then
+    exit 1
+fi
+
+# --- Initialize state file (best-effort; requires BRANCH set above) ---
+if type _state_init >/dev/null 2>&1; then
+    _state_init 2>/dev/null || true
+fi
+
+# --- Run merge phase; on failure, emit CONFLICT_DATA contract line ---
+if ! _phase_merge; then
+    if type _emit_conflict_data >/dev/null 2>&1; then
+        _emit_conflict_data "$BRANCH" "main" "pr-auto-merge"
+    fi
+    exit 1
+fi
+
+# --- Resolve PR url + number for resolve_threads + polling (from state file written above) ---
 _PR_URL=""
 _PR_NUMBER=""
 if type _state_file_path >/dev/null 2>&1; then
@@ -389,6 +689,11 @@ fi
 
 if [[ -z "$_PR_NUMBER" ]]; then
     echo "ERROR: could not resolve PR number for polling phase" >&2
+    exit 1
+fi
+
+# --- Resolve review threads before polling for merge ---
+if ! _phase_resolve_threads "$_PR_NUMBER" "$_PR_URL"; then
     exit 1
 fi
 

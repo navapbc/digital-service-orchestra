@@ -152,6 +152,8 @@ t_pr_create_invocation() {
         PATH="$_T/bin:$PATH" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
         bash "$PR_SCRIPT" >/dev/null 2>&1
     ) || true
 
@@ -188,6 +190,8 @@ t_pr_auto_merge_queued() {
         PATH="$_T/bin:$PATH" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
         bash "$PR_SCRIPT" >/dev/null 2>&1
     ) || true
 
@@ -237,6 +241,8 @@ t_pr_state_file_persists_pr_url() {
         PATH="$_T/bin:$PATH" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
         bash "$PR_SCRIPT" >/dev/null 2>&1
     ) || true
 
@@ -285,6 +291,8 @@ t_pr_conflict_emits_conflict_data() {
         PATH="$_T/bin:$PATH" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
         bash "$PR_SCRIPT" 2>&1
     )"; _ec=$?
 
@@ -499,7 +507,10 @@ EOF
 
 # ---------------------------------------------------------------------------
 # t_pr_poll_single_call_per_iteration
-# Given polling that succeeds on iter 3; assert exactly 3 `pr checks` calls.
+# Given polling that succeeds on iter 3; assert exactly 3 `gh pr checks` calls
+# total: all 3 from _phase_poll (iters 1, 2, 3). _phase_resolve_threads settles
+# immediately (threads=0 + quiet window elapsed via override) and makes zero
+# `gh pr checks` calls — it only calls `gh pr view` and GraphQL.
 # ---------------------------------------------------------------------------
 t_pr_poll_single_call_per_iteration() {
     local _T branch _argv _checks_count
@@ -516,6 +527,8 @@ t_pr_poll_single_call_per_iteration() {
         WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
         bash "$PR_SCRIPT" >/dev/null 2>&1
     ) || true
 
@@ -545,6 +558,8 @@ t_pr_poll_succeeds_on_merged_state() {
         WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
         bash "$PR_SCRIPT" >/dev/null 2>&1
     )
     _ec=$?
@@ -573,6 +588,8 @@ t_pr_poll_fails_on_check_failure() {
         WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
         bash "$PR_SCRIPT" 2>&1 >/dev/null
     )"
     _ec=$?
@@ -618,6 +635,8 @@ EOF
         WORKFLOW_CONFIG_FILE="$_cfg" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
         bash "$PR_SCRIPT" 2>&1 >/dev/null
     )"
     _ec=$?
@@ -831,6 +850,8 @@ t_pr_success_exits_zero() {
         WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
         bash "$PR_SCRIPT" >"$_T/out.log" 2>&1
     )
     _ec=$?
@@ -878,6 +899,8 @@ t_pr_success_missing_merge_sha() {
         WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
         bash "$PR_SCRIPT" 2>&1 >/dev/null
     )"
     _ec=$?
