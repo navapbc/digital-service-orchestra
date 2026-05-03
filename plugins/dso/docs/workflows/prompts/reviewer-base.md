@@ -180,6 +180,31 @@ When uncertain whether a finding is `important` or `critical`, prefer `important
 
 ---
 
+## NOT-Flag Auto-Downgrade Rules
+
+NOT-flag rules proactively prevent minor findings from being escalated to `important`. Apply these rules before assigning severity: if a finding matches a category below, the maximum severity is `minor` regardless of other indicators. When a finding qualifies under both a NOT-Flag category and the Severity Calibration Rubric, these rules take precedence — suppress to `minor` rather than emitting a finding.
+
+### Categories (auto-downgrade to `minor`)
+
+1. **Purely mechanical style preferences already enforced by the configured linter** — whitespace, indentation, spacing around operators, trailing commas, or similar formatting choices that the project's automated formatter already catches. Do NOT apply this rule to naming choices that affect readability or that a linter would not flag (e.g., confusingly similar names, names that misrepresent the function's behavior) — those remain valid `hygiene` or `maintainability` findings at their assigned severity.
+
+2. **Missing error handling for paths the calling code guarantees are unreachable** — adding error handling for an impossible path (e.g., null check after a non-nullable constructor guarantee, bounds check after a prior range assertion) is `minor` at most. Exception: when the calling context is user-controlled input (untrusted external data boundary), error handling is no longer impossible-path — escalate normally.
+
+3. **Non-public API naming convention deviations** — a private function or internal module using a different naming convention than the rest of the codebase (e.g., `camelCase` in a `snake_case` codebase) is `minor` under `maintainability`. Only escalate if the deviation causes ambiguity with a public symbol or shadows an exported name.
+
+4. **Redundant null or bounds checks the runtime guarantees cannot trigger** — a null check on a field the type system marks non-nullable, or a bounds check on a range the constructor/factory already enforces, is `minor` under `maintainability`. Applies only when the non-reachability is statically provable from the diff; when uncertain, do not apply this rule.
+
+5. **Comment and docstring formatting inconsistencies** — missing periods at end of docstrings, inconsistent capitalization in block comments, irregular spacing around comment delimiters. These are `minor` under `maintainability`. Only escalate if the comment is in a user-facing API (public SDK docs, error messages) and the formatting error makes it misleading.
+
+### Scope Boundary
+
+NOT-flag rules do NOT override findings where:
+- The coding pattern creates a security vulnerability (even if stylistic in appearance)
+- The error path is reachable via untrusted input
+- The "impossible path" relies on caller contracts not enforced in the current diff
+
+---
+
 ## Escalation
 
 `escalate_review` is an **optional** top-level key. Include it only when you are uncertain about the severity assignment for one or more specific findings — for example, when a finding could be `important` or `critical` depending on runtime context you cannot verify from the diff alone. Omit it entirely when confident about all severity assignments.
