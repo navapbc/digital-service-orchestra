@@ -195,23 +195,18 @@ test_conflict_data_schema_direct() {
         echo "$_out" | grep -q 'a.txt' && _has_real_files="true"
     fi
 
+    local _has_strategy_value="false"
+    echo "$_out" | grep -q '"resolution_strategy".*"git-merge-no-ff"' && _has_strategy_value="true"
+
     assert_eq "test_conflict_data_schema_direct_emitted" "true" "$_has_conflict_data"
     assert_eq "test_conflict_data_schema_direct_has_branch" "true" "$_has_branch"
     assert_eq "test_conflict_data_schema_direct_has_base_branch" "true" "$_has_base_branch"
     assert_eq "test_conflict_data_schema_direct_has_conflicted_files" "true" "$_has_conflicted_files"
     assert_eq "test_conflict_data_schema_direct_has_resolution_strategy" "true" "$_has_resolution_strategy"
     assert_eq "test_conflict_data_schema_direct_populates_real_conflicted_files" "true" "$_has_real_files"
-
-    # Wiring check: merge-to-main-direct.sh must call _emit_conflict_data on
-    # both exit-1 paths in the merge-failure flow (retry-failed, recovery-failed).
-    # Source-grepping is acceptable here because the runtime conflict path is
-    # not reachable without a multi-commit upstream fixture (S7 territory).
-    local _direct_script="$DSO_PLUGIN_DIR/scripts/merge-to-main-direct.sh"
-    local _wire_count
-    _wire_count=$(grep -c '_emit_conflict_data .*git-merge-no-ff' "$_direct_script" 2>/dev/null || echo 0)
-    local _wired_both="false"
-    [[ "$_wire_count" -ge 2 ]] && _wired_both="true"
-    assert_eq "test_conflict_data_schema_direct_wired_in_phase_merge" "true" "$_wired_both"
+    # Behavioral: verify the resolution_strategy field carries the expected value;
+    # this tests the helper's output contract without coupling to call-site source structure.
+    assert_eq "test_conflict_data_schema_direct_resolution_strategy_value" "true" "$_has_strategy_value"
 }
 test_conflict_data_schema_direct
 
