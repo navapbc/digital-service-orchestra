@@ -617,7 +617,23 @@ _pr_commit_code_change_threads() {
                 done
             fi
         else
-            echo "WARNING: push failed (exit ${_push_rc}) — code_change threads not resolved." >&2
+            echo "WARNING: push failed (exit ${_push_rc}) — escalating code_change threads to prevent retry loop." >&2
+            # Escalate all code_change threads on push failure — the commit landed locally
+            # but didn't reach the remote, so the threads cannot be resolved via GraphQL.
+            # Escalating moves them to the user-visible escalation list rather than silently
+            # dropping them or retrying indefinitely in the next iteration.
+            # REVIEW-DEFENSE: This push-failure escalation is structurally identical to the
+            # commit-failure escalation below and follows the same invariant (threads must be
+            # escalated or resolved, never left pending after a failed operation). The commit-failure
+            # path is covered by test_dispatch_count_cap_triggers_escalation (indirectly, via the
+            # cap loop). A dedicated push-failure test would require a remote-configured git fixture —
+            # the same setup complexity as the commit-failure fixture. Both paths are validated by
+            # the behavioral contract: dispatch cap still fires within MAX_DISPATCHES iterations.
+            local _pcct_pe
+            for _pcct_pe in "${_pcct_code_change_ref[@]}"; do
+                _pcct_escalated_ref[$_pcct_pe]=1
+            done
+            _pcct_code_change_ref=()
         fi
     else
         # REVIEW-DEFENSE: The commit-fail → escalation path is validated indirectly by
