@@ -215,13 +215,13 @@ json.loads(t); print(t)
     _SLOT_H_JSON=$(cat "$_SLOT_HYGIENE")
     _ARCH_USER_MSG="Synthesize these specialist reviews into a unified reviewer-findings JSON.
 
-Correctness specialist findings:
+=== SONNET-A FINDINGS (correctness) ===
 ${_SLOT_C_JSON}
 
-Verification specialist findings:
+=== SONNET-B FINDINGS (verification) ===
 ${_SLOT_V_JSON}
 
-Hygiene/Design/Maintainability specialist findings:
+=== SONNET-C FINDINGS (hygiene/design) ===
 ${_SLOT_H_JSON}
 
 Diff under review:
@@ -291,9 +291,44 @@ PYEOF
   )
 fi
 
-REVIEWER_HASH=$(echo "$FINDINGS_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER")
+_VALIDATION_ERR_TMP=$(mktemp /tmp/ci-review-validation.XXXXXX)
+_WRITE_RC=0
+REVIEWER_HASH=$(echo "$FINDINGS_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER" 2>"$_VALIDATION_ERR_TMP") || _WRITE_RC=$?
 
-bash "$(command -v record-review.sh)" --reviewer-hash "$REVIEWER_HASH"
+# Single-shot retry: when write-reviewer-findings.sh fails (schema error) AND we have a
+# single agent file to retry against (light/standard tier only — deep tier arch step has
+# its own multi-step synthesis and does not set AGENT_FILE).
+if [[ "$_WRITE_RC" -ne 0 && -n "${AGENT_FILE:-}" ]]; then
+  _VALIDATION_ERRORS=$(cat "$_VALIDATION_ERR_TMP" 2>/dev/null || true)
+  echo "Schema validation failed — retrying with validation errors in prompt" >&2
+  _RETRY_SUFFIX=$(printf '\n\nPREVIOUS ATTEMPT SCHEMA ERRORS (fix these in your response):\n%s' "$_VALIDATION_ERRORS")
+  _RETRY_TMP=$(mktemp /tmp/ci-review-retry.XXXXXX)
+  printf '%s%s' "$DIFF_CONTENT" "$_RETRY_SUFFIX" > "$_RETRY_TMP"
+  _RETRY_TEXT=$(bash "$(command -v llm-api-call.sh)" "$AGENT_FILE" \
+    "@${_RETRY_TMP}" "$REVIEW_TIER" 2>/dev/null || true)
+  rm -f "$_RETRY_TMP"
+  _RETRY_JSON=$(printf '%s' "${_RETRY_TEXT:-}" | python3 -c "
+import json,sys; t=sys.stdin.read().strip()
+if not t: raise ValueError('empty')
+t2=t.lstrip('\`'); t2=t2.lstrip('json').strip()
+i=t2.find('{'); e=t2.rfind('}')
+if i>=0 and e>i: t2=t2[i:e+1]
+json.loads(t2); print(t2)
+" 2>/dev/null) || true
+  if [[ -n "$_RETRY_JSON" ]]; then
+    _RETRY_HASH=""
+    _RETRY_WRITE_RC=0
+    _RETRY_HASH=$(echo "$_RETRY_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER" 2>/dev/null) || _RETRY_WRITE_RC=$?
+    if [[ "$_RETRY_WRITE_RC" -eq 0 && -n "$_RETRY_HASH" ]]; then
+      REVIEWER_HASH="$_RETRY_HASH"
+      FINDINGS_JSON="$_RETRY_JSON"
+      _WRITE_RC=0
+    fi
+  fi
+fi
+rm -f "$_VALIDATION_ERR_TMP"
+
+bash "$(command -v record-review.sh)" --reviewer-hash "${REVIEWER_HASH:-}"
 REVIEW_STATUS=$(head -1 "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/review-status" 2>/dev/null || echo "")
 if [[ "$REVIEW_STATUS" == "failed" ]]; then
   echo "Review FAILED" >&2
