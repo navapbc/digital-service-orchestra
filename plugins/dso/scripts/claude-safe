@@ -113,6 +113,11 @@ _offer_worktree_cleanup() {
     local is_merged=0
     if git -C "$main_root" merge-base --is-ancestor "$branch" main 2>/dev/null; then
         is_merged=1
+    elif git -C "$main_root" merge-base --is-ancestor "$branch" "origin/main" 2>/dev/null; then
+        # Fallback: local main may be stale (behind origin/main) when the main repo is
+        # checked out on a non-main branch — git pull only fast-forwards the current
+        # branch, not main. Check origin/main as the authoritative merge target.
+        is_merged=1
     elif git -C "$main_root" log main --oneline --grep="(merge $branch)" -1 2>/dev/null | grep -q .; then
         # Fallback: the branch tip may have been amended after the merge
         # (e.g., orchestrator recovery after merge-to-main.sh timeout).
