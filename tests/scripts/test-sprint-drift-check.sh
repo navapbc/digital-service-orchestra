@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-sprint-drift-check.sh
-# RED tests for plugins/dso/scripts/sprint-drift-check.sh (does not exist yet).
+# RED tests for plugins/dso/scripts/sprint/sprint-drift-check.sh (does not exist yet).
 #
 # Behavioral tests: create mock git repos with known commit histories and mock
 # ticket CLIs, then execute the script and assert on stdout and exit codes.
@@ -12,7 +12,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$REPO_ROOT/plugins/dso/scripts/sprint-drift-check.sh"
+SCRIPT="$REPO_ROOT/plugins/dso/scripts/sprint/sprint-drift-check.sh"
 
 source "$SCRIPT_DIR/../lib/assert.sh"
 

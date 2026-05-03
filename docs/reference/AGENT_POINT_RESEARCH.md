@@ -383,7 +383,7 @@ Phase 2.5 of `/dso:preplanning` for Epic 2. Currently running (agent ID: a56b6e4
 
 ### Consumer Enumeration (submitted to red team)
 - test-gate-status file: record-test-status.sh (write), pre-commit-test-gate.sh (read), kudos-snapshot.sh (new reader)
-- completion-verifier.md: /dso:sprint Step 10a and Phase 7 Step 0.75
+- completion-verifier.md: /dso:sprint Phase F Step 18 and Phase G Step 2
 - approach-decision-maker.md: /dso:implementation-plan proposal resolution loop
 - doc-writer.md: /dso:sprint doc stories, /dso:update-docs
 - using-dso/SKILL.md: /dso:sprint and related orchestrators

@@ -5,7 +5,8 @@
 #   DSO_TEST_CMD        — command to run tests (e.g., "make test")
 #   DSO_VALIDATE_CMD    — command to run DSO validation (e.g., your project's validate.sh --ci invocation)
 #   DSO_PLUGIN_PATH    — path to the DSO plugin root in your repo (set during onboarding)
-#   ANTHROPIC_API_KEY  — (secret) Anthropic API key for LLM review runner
+#   ANTHROPIC_API_KEY  — (secret) Anthropic API key for LLM review runner (required for Anthropic provider)
+#   OPENAI_API_KEY     — (secret) OpenAI API key for LLM review runner (required when model.provider=openai)
 #
 # REVIEW-DEFENSE: Structural tests for this template are in
 # tests/scripts/test-ci-dso-staged-template.sh with a .test-index entry
@@ -116,6 +117,7 @@ jobs:
       - name: Run LLM review
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash -eo pipefail {0}
         run: |

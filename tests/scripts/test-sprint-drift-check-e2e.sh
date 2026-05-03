@@ -23,7 +23,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$REPO_ROOT/plugins/dso/scripts/sprint-drift-check.sh"
+SCRIPT="$REPO_ROOT/plugins/dso/scripts/sprint/sprint-drift-check.sh"
 PIPELINE_MD="$REPO_ROOT/plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md"
 
 source "$SCRIPT_DIR/../lib/assert.sh"

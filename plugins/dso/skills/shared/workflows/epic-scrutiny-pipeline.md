@@ -66,13 +66,23 @@ If gaps are found in either part, present them to the user and resolve before pr
 
 ### Part C: Shared Artifact Impact Analysis
 
-**When Part C triggers**: Part C activates only when the Success Criteria section (not the original user request) references creating or modifying a file that is consumed by "2+ other files" outside its own directory. Identify the artifact from the SC section first (same fuzzy-matching heuristics as Part A — this is Part C's scope, not Part A's). Part C also activates when SCs reference moving, deprecating, removing, or renaming a file or directory.
+**When Part C triggers**: Part C activates in either of two modes:
+
+- **File-artifact mode**: when the Success Criteria section (not the original user request) references creating or modifying a file that is consumed by "2+ other files" outside its own directory, or references moving, deprecating, removing, or renaming a file or directory. Identify the artifact from the SC section first (same fuzzy-matching heuristics as Part A — this is Part C's scope, not Part A's).
+- **Behavioral-prohibition mode**: when an SC introduces a new enforcement, restriction, or gate that prohibits a previously-permitted action — e.g., "block direct pushes to main", "prohibit X", "require Y before Z", "reject commits that …", "enforce …". The artifact in this mode is the *behavior being newly forbidden*, not a file. Trigger phrases include (case-insensitive, semantic match): "block", "prohibit", "reject", "deny", "forbid", "require … before", "enforce", "gate", "must pass", "cannot merge until".
 
 **If the artifact is not yet in the codebase** or a scan produces no results, skip Part C and log: `Part C scan skipped: no consumers found or scan unavailable`.
 
-**Scanning**: Use Grep/Glob to find all files that reference the artifact — path references, import statements, source/include directives. Count only consumers outside the artifact's own directory.
+**Scanning**:
 
-**Cross-referencing**: For each discovered consumer, check whether it is covered by any success criterion in the epic spec. Assign `covered_by_SC: true` if the consumer appears in any SC, `covered_by_SC: false` if not (boolean — not a string).
+- **File-artifact mode**: Use Grep/Glob to find all files that reference the artifact — path references, import statements, source/include directives. Count only consumers outside the artifact's own directory.
+- **Behavioral-prohibition mode**: Translate the prohibited behavior into one or more concrete grep patterns that would match existing call sites of that behavior, and scan the codebase for them (use the Grep tool or `grep -E` — POSIX/BSD grep on macOS treats `\b` and unparenthesized alternations as literals). Examples:
+  - SC "block direct pushes to main" → grep for `git push.*\b(origin/)?(main|master)\b`, `git push -u origin main`, `gh repo` direct-merge invocations, and any script-level `--force-with-lease`/`--force` against the default branch.
+  - SC "require all PRs to pass tests before merge" → grep for `gh pr merge` invocations and CI workflow `merge` steps that bypass the new gate.
+  - SC "prohibit raw `git commit`" → grep for `git commit` invocations in scripts, hooks, and skill workflows.
+  Each existing call site is a "consumer" of the behavior the new SC will newly forbid.
+
+**Cross-referencing**: For each discovered consumer, check whether it is covered by any success criterion in the epic spec. Assign `covered_by_SC: true` if the consumer appears in any SC, `covered_by_SC: false` if not (boolean — not a string). In behavioral-prohibition mode, "covered" means the SCs explicitly account for the existing call site — either by migrating it to a permitted alternative, exempting it via the bypass mechanism, or descoping it with rationale.
 
 **Output**: Present a raw list of `(file_path, matching_line, covered_by_SC)` tuples to downstream consumers. Do NOT curate or summarize — pass the raw scan output. Example:
 

@@ -79,9 +79,9 @@ fi
 echo "Git root verified: $SUB_AGENT_ROOT (differs from orchestrator root: $ORCHESTRATOR_ROOT)"
 ```
 
-If the sub-agent cannot determine the orchestrator root (not passed via dispatch prompt), it should log a warning and continue — do not block on an unverifiable condition.
+If `ORCHESTRATOR_ROOT` is not set AND `worktree.isolation_enabled=true`, exit 1: `"ERROR: isolation_enabled=true but ORCHESTRATOR_ROOT not injected — refusing to proceed."` Do NOT log-and-continue (proceeding risks corrupting the orchestrator's session branch).
 
-When `worktree.isolation_enabled=false` (shared-directory mode), skip the git root verification check — both roots are expected to match.
+If `worktree.isolation_enabled` is false or absent, skip the verification — both roots may match in shared mode.
 
 ## Orchestrator Responsibilities
 
@@ -90,11 +90,14 @@ When using this protocol, orchestrators must:
 1. Read `worktree.isolation_enabled` before the first Agent dispatch (Step 1 above).
 2. Pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each sub-agent's dispatch prompt so the sub-agent can verify isolation.
 3. Apply the isolation parameter consistently — do not mix isolated and non-isolated dispatches within the same sprint or debug session.
-4. Handle sub-agent isolation errors by logging and re-dispatching rather than falling through silently.
+4. On sub-agent isolation error (exit 1), HALT the batch, record the failure as a ticket comment, and surface to the user. Do not silently re-dispatch.
 
 ## Non-Interactive Fallback
 
-In non-interactive mode, isolation errors should be recorded as `INTERACTIVITY_DEFERRED` ticket comments rather than blocking the session. The orchestrator continues with the next sub-agent and surfaces the isolation failure in the session summary.
+In non-interactive mode, on sub-agent isolation error:
+1. Add ticket comment: `.claude/scripts/dso ticket comment <task-id> "ISOLATION_ERROR: sub-agent exited 1 — ORCHESTRATOR_ROOT not injected under isolation_enabled=true"`
+2. Transition task back to open: `.claude/scripts/dso ticket transition <task-id> in_progress open`
+3. Do NOT silently continue — re-dispatch only after confirming the dispatch prompt includes `ORCHESTRATOR_ROOT`.
 
 ## Post-Dispatch Integration
 

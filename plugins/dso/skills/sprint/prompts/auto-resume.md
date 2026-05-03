@@ -2,14 +2,22 @@
 
 (a) Print: `"Ticket <primary_ticket_id> is in_progress — resuming from checkpoint scan."`
 
-(b) Run `.claude/scripts/dso ticket deps <primary_ticket_id>` to check for children.
+(b) Count active (open + in_progress) children:
+   ```bash
+   ACTIVE=$({ .claude/scripts/dso ticket list --parent=<primary_ticket_id> --status=open 2>/dev/null; .claude/scripts/dso ticket list --parent=<primary_ticket_id> --status=in_progress 2>/dev/null; } | grep -c '"ticket_id"' || echo 0)
+   ```
 
-(c) **If zero children**: Log `"No children found — falling through to Preplanning Gate."` and continue to Drift Detection → Preplanning Gate normally (scenario: abandoned mid-preplanning, skip checkpoint resume).
+(c) **If `ACTIVE == 0`**: Check for historical (including closed) children:
+   ```bash
+   ALL=$(.claude/scripts/dso ticket list --parent=<primary_ticket_id> --include-archived 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+   ```
+   - **`ALL > 0`**: All children are closed (since clause (b) found zero active). Log `"All children closed — skipping to Phase 6."` Skip to Phase 6 Step 0.75. Do NOT continue to Preplanning Gate.
+   - **`ALL == 0`**: No children ever created. Log `"No children found — falling through to Preplanning Gate."` Continue to Drift Detection → Preplanning Gate normally.
 
-(d) **If children exist**:
+(d) **If `ACTIVE > 0`** (active children exist):
    - Run drift detection with `--status=open` filter:
      ```
-     DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <primary_ticket_id> --status=open)
+     DRIFT_RESULT=$(.claude/scripts/dso sprint/sprint-drift-check.sh <primary_ticket_id> --status=open)
      ```
    - Handle `DRIFT_DETECTED` / `NO_DRIFT` the same as the existing Drift Detection Check section below.
    - Then apply checkpoint resume rules:
@@ -23,7 +31,7 @@
         - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `.claude/scripts/dso ticket transition <id> in-progress open`
      4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
      5. **Backward compatibility**: Sprint reads old positional-counter checkpoints (CHECKPOINT N/6) without error and resumes from the last completed phase — no migration of existing checkpoint notes is required. Semantic-named checkpoints (CHECKPOINT:batch-complete, CHECKPOINT:review-passed, CHECKPOINT:validation-passed) are equivalent in resume logic.
-   - After checkpoint processing, run the **WORKTREE_TRACKING Auto-Resume Detection** scan before proceeding to Phase 3:
+   - After checkpoint processing, run the **WORKTREE_TRACKING Auto-Resume Detection** scan before proceeding to Phase C:
 
      **WORKTREE_TRACKING Auto-Resume Detection Scan** (runs after checkpoint processing):
      1. Enumerate tickets to scan: the top-level epic ticket + all child story/task tickets
@@ -43,10 +51,10 @@
         - If branch has unique commits (not in HEAD): attempt `git merge --no-edit <branch>`
           - On success: log `'Merged abandoned branch <b>'`
           - On conflict: run `git merge --abort`, log `'Conflict in <b> — discarded'`
-     5. After scan: if repo is clean, proceed to Phase 3
+     5. After scan: if repo is clean, proceed to Phase C
 
-   - Proceed to Phase 3.
+   - Proceed to Phase C.
 
 (e) **Non-epic tickets** (story, task, bug) with `in_progress` status are NOT affected by auto-resume detection — they proceed through Non-Epic Routing as before. Auto-resume only applies to epic-type tickets.
 
-(f) Run `.claude/scripts/dso ticket deps <primary_ticket_id>` — if 100% complete, skip to Phase 6 (validation)
+(f) Run `.claude/scripts/dso ticket deps <primary_ticket_id>` — if 100% complete, skip to Phase G (validation)

@@ -56,3 +56,7 @@ The confidence signal contract and observability signal contract are defined in 
 **Scripts introduced:**
 - `plugins/dso/scripts/sprint-drift-check.sh`
 - `plugins/dso/scripts/sprint-review-scope-check.sh`
+
+---
+
+**Revision (2026-05-01)**: Both scripts relocated to `plugins/dso/scripts/sprint/` as part of the `/dso:sprint` skill-refactor housekeeping pass. Script behavior unchanged. New paths: `plugins/dso/scripts/sprint/sprint-drift-check.sh`, `plugins/dso/scripts/sprint/sprint-review-scope-check.sh`. Shim invocation form: `.claude/scripts/dso sprint/sprint-drift-check.sh`.

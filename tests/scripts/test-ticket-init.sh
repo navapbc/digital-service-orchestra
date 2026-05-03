@@ -467,4 +467,41 @@ test_ticket_init_generates_env_id_on_main_repo_idempotent_path() {
 }
 test_ticket_init_generates_env_id_on_main_repo_idempotent_path
 
+# ── Test 15: test_ticket_init_emits_error_and_exits_when_worktree_add_fails ──
+# Given: tickets branch exists locally AND is already checked out in another worktree
+# When:  ticket init runs (git worktree add will fail with "already checked out")
+# Then:  stderr contains an ERROR message with the git error text, and init exits non-zero
+#        so callers get a clear root-cause message instead of a cryptic downstream error
+echo "Test 15: ticket init emits ERROR to stderr and exits non-zero when git worktree add fails"
+test_ticket_init_emits_error_and_exits_when_worktree_add_fails() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create the tickets orphan branch in the repo
+    git -C "$repo" checkout --orphan tickets 2>/dev/null
+    git -C "$repo" rm -rf . --quiet 2>/dev/null || true
+    git -C "$repo" commit --allow-empty -q --no-verify -m "init tickets" 2>/dev/null
+    git -C "$repo" checkout main 2>/dev/null || git -C "$repo" checkout - 2>/dev/null
+
+    # Check out tickets branch in a second worktree (forces worktree add to fail)
+    local second_wt
+    second_wt=$(mktemp -d)
+    _CLEANUP_DIRS+=("$second_wt")
+    git -C "$repo" worktree add "$second_wt" tickets 2>/dev/null
+
+    # Now try to init — should exit non-zero with an actionable ERROR on stderr
+    local stderr_out=""
+    local exit_code=0
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" init 2>&1 >/dev/null) || exit_code=$?
+
+    assert_eq "worktree-add-fail: init exits non-zero" "non-zero" "$([[ $exit_code -ne 0 ]] && echo non-zero || echo zero)"
+
+    if echo "$stderr_out" | grep -qi "error\|ERROR"; then
+        assert_eq "worktree-add-fail: stderr ERROR emitted" "yes" "yes"
+    else
+        assert_eq "worktree-add-fail: stderr ERROR emitted" "yes" "no (stderr was: $stderr_out)"
+    fi
+}
+test_ticket_init_emits_error_and_exits_when_worktree_add_fails
+
 print_summary

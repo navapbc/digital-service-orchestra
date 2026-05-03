@@ -368,6 +368,58 @@ _delete_local_branch() {
     git -C "$repo" branch -D "$branch" 2>/dev/null
 }
 
+# Delete the remote tracking branch if $has_remote is true.
+# kind: optional prefix for the success message (e.g. "orphaned ").
+# Uses globals: has_remote, MAIN_WORKTREE, RED, RESET
+_delete_remote_if_present() {
+    local branch="$1" kind="${2:-}"
+    [[ "$has_remote" != "true" ]] && return 0
+    if git -C "$MAIN_WORKTREE" push origin --delete "$branch" 2>/dev/null; then
+        echo -e "Deleted ${kind}remote branch 'origin/${branch}'"
+    else
+        echo -e "${RED}Failed to delete remote branch 'origin/${branch}'${RESET}"
+    fi
+}
+
+# Handle deletion of one orphaned worktree-* branch (dry-run, force, or interactive).
+# Uses globals: DRY_RUN, FORCE, MAIN_WORKTREE, has_remote, CYAN, YELLOW, RED, RESET
+# Modifies caller's orphan_deleted variable on local success.
+_handle_orphan_branch() {
+    local branch="$1" merged_label="$2"
+    local local_remote_label="local"
+    [[ "$has_remote" == "true" ]] && local_remote_label="local + remote"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${CYAN}[DRY RUN]${RESET} Would delete orphaned branch '${branch}' (${local_remote_label})${merged_label}"
+        return
+    fi
+
+    if [[ "$FORCE" == "true" ]]; then
+        if git -C "$MAIN_WORKTREE" branch -d "$branch" 2>/dev/null; then
+            echo -e "Deleted orphaned local branch '${branch}'${merged_label}"
+            orphan_deleted=$((orphan_deleted + 1))
+            _delete_remote_if_present "$branch" "orphaned "
+        else
+            echo -e "${YELLOW}Skipped '${branch}' — not fully merged (use git branch -D to force)${RESET}"
+        fi
+        return
+    fi
+
+    read -rp "Delete orphaned branch '${branch}' (${local_remote_label})?${merged_label} [y/N] " answer
+    case "$answer" in
+        [yY]|[yY][eE][sS])
+            if git -C "$MAIN_WORKTREE" branch -d "$branch" 2>/dev/null; then
+                echo -e "Deleted orphaned local branch '${branch}'${merged_label}"
+                orphan_deleted=$((orphan_deleted + 1))
+                _delete_remote_if_present "$branch" "orphaned "
+            else
+                echo -e "${YELLOW}Skipped '${branch}' — not fully merged (use git branch -D to force)${RESET}"
+            fi
+            ;;
+        *) echo "Skipped branch '${branch}'" ;;
+    esac
+}
+
 # ── Find main repo root ──────────────────────────────────────────────────────
 
 # Resolve the repo root via git (works from any nested directory).
@@ -820,13 +872,7 @@ if [[ "$INCLUDE_BRANCHES" == "true" && ${#removed_branches[@]} -gt 0 ]]; then
                 echo -e "Deleted local branch '${branch}'${merged_label}"
                 branches_deleted=$((branches_deleted + 1))
             fi
-            if [[ "$has_remote" == "true" ]]; then
-                if git -C "$MAIN_WORKTREE" push origin --delete "$branch" 2>/dev/null; then
-                    echo -e "Deleted remote branch 'origin/${branch}'"
-                else
-                    echo -e "${RED}Failed to delete remote branch 'origin/${branch}'${RESET}"
-                fi
-            fi
+            _delete_remote_if_present "$branch"
         else
             local_remote_label="local"
             [[ "$has_remote" == "true" ]] && local_remote_label="local + remote"
@@ -839,13 +885,7 @@ if [[ "$INCLUDE_BRANCHES" == "true" && ${#removed_branches[@]} -gt 0 ]]; then
                     else
                         echo -e "${RED}Failed to delete local branch '${branch}'${RESET}"
                     fi
-                    if [[ "$has_remote" == "true" ]]; then
-                        if git -C "$MAIN_WORKTREE" push origin --delete "$branch" 2>/dev/null; then
-                            echo -e "Deleted remote branch 'origin/${branch}'"
-                        else
-                            echo -e "${RED}Failed to delete remote branch 'origin/${branch}'${RESET}"
-                        fi
-                    fi
+                    _delete_remote_if_present "$branch"
                     ;;
                 *) echo "Skipped branch '${branch}'" ;;
             esac
@@ -907,51 +947,7 @@ if [[ "$INCLUDE_BRANCHES" == "true" ]]; then
                 has_remote=true
             fi
 
-            if [[ "$DRY_RUN" == "true" ]]; then
-                prefix="${CYAN}[DRY RUN]${RESET} "
-                local_remote_label="local"
-                [[ "$has_remote" == "true" ]] && local_remote_label="local + remote"
-                echo -e "${prefix}Would delete orphaned branch '${branch}' (${local_remote_label})${merged_label}"
-                continue
-            fi
-
-            if [[ "$FORCE" == "true" ]]; then
-                if git -C "$MAIN_WORKTREE" branch -d "$branch" 2>/dev/null; then
-                    echo -e "Deleted orphaned local branch '${branch}'${merged_label}"
-                    orphan_deleted=$((orphan_deleted + 1))
-                    if [[ "$has_remote" == "true" ]]; then
-                        if git -C "$MAIN_WORKTREE" push origin --delete "$branch" 2>/dev/null; then
-                            echo -e "Deleted orphaned remote branch 'origin/${branch}'"
-                        else
-                            echo -e "${RED}Failed to delete remote branch 'origin/${branch}'${RESET}"
-                        fi
-                    fi
-                else
-                    echo -e "${YELLOW}Skipped '${branch}' — not fully merged (use git branch -D to force)${RESET}"
-                fi
-            else
-                local_remote_label="local"
-                [[ "$has_remote" == "true" ]] && local_remote_label="local + remote"
-                read -rp "Delete orphaned branch '${branch}' (${local_remote_label})?${merged_label} [y/N] " answer
-                case "$answer" in
-                    [yY]|[yY][eE][sS])
-                        if git -C "$MAIN_WORKTREE" branch -d "$branch" 2>/dev/null; then
-                            echo -e "Deleted orphaned local branch '${branch}'${merged_label}"
-                            orphan_deleted=$((orphan_deleted + 1))
-                            if [[ "$has_remote" == "true" ]]; then
-                                if git -C "$MAIN_WORKTREE" push origin --delete "$branch" 2>/dev/null; then
-                                    echo -e "Deleted orphaned remote branch 'origin/${branch}'"
-                                else
-                                    echo -e "${RED}Failed to delete remote branch 'origin/${branch}'${RESET}"
-                                fi
-                            fi
-                        else
-                            echo -e "${YELLOW}Skipped '${branch}' — not fully merged (use git branch -D to force)${RESET}"
-                        fi
-                        ;;
-                    *) echo "Skipped branch '${branch}'" ;;
-                esac
-            fi
+            _handle_orphan_branch "$branch" "$merged_label"
         done
 
         if [[ $orphan_deleted -gt 0 && "$DRY_RUN" != "true" ]]; then

@@ -3,7 +3,7 @@
 # Structural boundary test for sprint SKILL.md sonnet+opus SC coverage escalation.
 #
 # Verifies that sprint SKILL.md contains the two-tier escalation sub-steps
-# (2a2 sonnet tier, 2a3 opus tier) in the preplanning gate section, including
+# (Step 4 sonnet tier, Step 5 opus tier) in the preplanning gate section, including
 # prompt file references, verdict collection language, UNSURE escalation logic,
 # conditional opus dispatch, REPLAN_TRIGGER:sc_coverage routing, routing
 # for story vs task children, fail-open language for both tiers, and that
@@ -53,9 +53,9 @@ echo "=== test-sprint-sc-coverage-escalation.sh ==="
 # ---------------------------------------------------------------------------
 test_has_substep_2a2_heading() {
     local match=0
-    match=$(grep -c "2a2" "$SKILL_FILE" 2>/dev/null) || match=0
+    match=$(grep -cE "^#### Step 4: SC Coverage Sonnet Tier" "$SKILL_FILE" 2>/dev/null) || match=0
     [[ "$match" -gt 0 ]] && match=1
-    assert_eq "test_has_substep_2a2_heading: sub-step 2a2 heading present in SKILL.md" "1" "$match"
+    assert_eq "test_has_substep_sonnet_tier_heading: SC Coverage Sonnet Tier sub-step heading present in SKILL.md" "1" "$match"
 }
 
 # ---------------------------------------------------------------------------
@@ -121,9 +121,9 @@ test_has_substep_2a3_heading() {
     local match=0
     # Require a heading line containing "2a3" — must be a markdown heading (starts with #)
     # or a bold heading pattern, not just a forward reference in body text.
-    match=$(grep -cE "^#{1,6}.*2a3|^\*\*.*2a3.*\*\*$|^####.*2a3" "$SKILL_FILE" 2>/dev/null) || match=0
+    match=$(grep -cE "^#### Step 5: SC Coverage Opus Tier" "$SKILL_FILE" 2>/dev/null) || match=0
     [[ "$match" -gt 0 ]] && match=1
-    assert_eq "test_has_substep_2a3_heading: sub-step 2a3 heading present in SKILL.md" "1" "$match"
+    assert_eq "test_has_substep_opus_tier_heading: SC Coverage Opus Tier sub-step heading present in SKILL.md" "1" "$match"
 }
 
 # ---------------------------------------------------------------------------
@@ -141,7 +141,7 @@ test_references_sc_coverage_opus_md() {
 # ---------------------------------------------------------------------------
 # test_opus_dispatch_conditional_on_unsure
 # SKILL.md must contain conditional early-exit language indicating that the
-# opus dispatch (2a3) only happens when the UNSURE list is non-empty.
+# opus dispatch (Step 5) only happens when the UNSURE list is non-empty.
 # Must be specific to SC coverage context, not generic opus dispatch logic.
 # ---------------------------------------------------------------------------
 test_opus_dispatch_conditional_on_unsure() {
@@ -150,7 +150,7 @@ test_opus_dispatch_conditional_on_unsure() {
     # forward references in 2a2. Extract lines after a 2a3 heading and check for
     # early-exit/skip-when-empty language specifically within that section.
     local section
-    section=$(grep -A 30 -E "^#{1,6}.*2a3|^####.*2a3" "$SKILL_FILE" 2>/dev/null) || section=""
+    section=$(grep -A 30 -E "^#### Step 5: SC Coverage Opus Tier" "$SKILL_FILE" 2>/dev/null) || section=""
     if [[ -n "$section" ]]; then
         match=$(echo "$section" | grep -cEi "UNSURE.*empty|empty.*UNSURE|skip.*opus|opus.*skip|no.*UNSURE|UNSURE.*list.*non.empty|only.*when.*UNSURE") || match=0
         [[ "$match" -gt 0 ]] && match=1

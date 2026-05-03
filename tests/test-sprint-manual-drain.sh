@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # tests/test-sprint-manual-drain.sh
-# RED test suite for plugins/dso/scripts/sprint-manual-drain.sh
+# RED test suite for plugins/dso/scripts/sprint/sprint-manual-drain.sh
 # All tests MUST fail until the script is implemented.
 
 set -uo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-DRAIN_SCRIPT="${REPO_ROOT}/plugins/dso/scripts/sprint-manual-drain.sh"
+DRAIN_SCRIPT="${REPO_ROOT}/plugins/dso/scripts/sprint/sprint-manual-drain.sh"
 
 PASS=0
 FAIL=0

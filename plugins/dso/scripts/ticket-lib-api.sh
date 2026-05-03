@@ -800,7 +800,7 @@ print(timestamp)
         temp_event=$(mktemp "$TRACKER_DIR/.tmp-create-XXXXXX")
         desc_file=$(mktemp "$TRACKER_DIR/.tmp-desc-XXXXXX")
         # shellcheck disable=SC2064
-        trap "rm -f '$temp_event' '$desc_file'" EXIT
+        trap "rm -f '$temp_event' '$desc_file' '$_alias_stderr'" EXIT
         printf '%s' "$description" > "$desc_file"
 
         python3 -c "
@@ -830,7 +830,9 @@ alias_arg = sys.argv[13] if len(sys.argv) > 13 else ''
 if alias_arg:
     data['alias'] = alias_arg
 
-data['id'] = sys.argv[14] if len(sys.argv) > 14 else ''
+id_arg = sys.argv[14] if len(sys.argv) > 14 else ''
+if id_arg:
+    data['id'] = id_arg
 
 event = {
     'timestamp': int(sys.argv[1]),

@@ -333,7 +333,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 ".claude/scripts/dso" emit-commit-workflow-event.sh --phase=end --success=true
 ```
 
-After committing, report the SHA and **immediately return control to the caller** — do NOT wait for user input. Resume the calling workflow at the step after this commit invocation. If you were executing `/dso:debug-everything`, continue at the step after this commit invocation (Phase F Step 5 for auto-fix commits, or Phase H Step 11 for post-batch commits). If you were executing `/dso:sprint`, continue at Phase 5 Step 10 (Commit & Push) or the step that invoked this workflow. Do NOT output any text that implies the session is complete.
+After committing, report the SHA and **immediately return control to the caller** — do NOT wait for user input. Resume the calling workflow at the step after this commit invocation. If you were executing `/dso:debug-everything`, continue at the step after this commit invocation (Phase F Step 5 for auto-fix commits, or Phase H Step 11 for post-batch commits). If you were executing `/dso:sprint`, continue at Phase F Step 17 (Commit & Push) or the step that invoked this workflow. Do NOT output any text that implies the session is complete.
 
 ## After Commit: Merging to Main
 

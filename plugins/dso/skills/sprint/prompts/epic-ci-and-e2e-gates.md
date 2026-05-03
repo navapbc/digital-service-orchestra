@@ -1,6 +1,6 @@
-# Phase 6: Integration Test Gate, CI Verification, and E2E Tests
+# Phase G: Integration Test Gate, CI Verification, and E2E Tests
 
-These steps execute after all tasks close, before the completion verifier (Step 0.75).
+These steps execute after all tasks close, before the completion verifier (sprint SKILL.md Phase G Step 2 — Completion Verification).
 
 ## Initialize Post-Loop Progress Checklist
 
@@ -15,9 +15,9 @@ Complete all remaining batch tasks, then create new tasks via `TaskCreate` for t
 [ ] Close out (close epic + /dso:end-session)
 ```
 
-Mark each item `in_progress` when starting and `completed` when done. If remediation triggers (score < 5), check off "Remediation" and return to Phase 3 (Batch Preparation).
+Mark each item `in_progress` when starting and `completed` when done. If remediation triggers (score < 5), check off "Remediation" and return to Phase C (Batch Preparation).
 
-## Step 0: Integration Test Gate (/dso:sprint)
+## Step 1: Integration Test Gate (/dso:sprint)
 
 Check if this epic modified integration-relevant code and verify the External API Integration Tests workflow:
 
@@ -37,19 +37,19 @@ Check if this epic modified integration-relevant code and verify the External AP
      - Poll status (max 15 min): `gh run list --workflow="External API Integration Tests" --limit 1 --json status,conclusion --jq '.[0]'`
    - If last run passed and is recent (<24h): Log "Integration tests: PASS (last run: {createdAt})"
    - If no integration-relevant changes: Log "No integration-relevant changes — skipping integration test gate"
-5. If integration tests fail after trigger: create a P1 bug issue and include in the Phase 6 report. Continue with /dso:validate-work (non-blocking but flagged).
+5. If integration tests fail after trigger: create a P1 bug issue and include in the Phase G report. Continue with /dso:validate-work (non-blocking but flagged).
 
-## Step 0.5: CI Verification + E2E Tests (/dso:sprint)
+## Step 2: CI Verification + E2E Tests (/dso:sprint)
 
-### Step 0.5a: Wait for CI Containing the Final Commit
+### Step 2a: Wait for CI Containing the Final Commit
 
 **Docs-only detection (run first)**:
 
 ```bash
-CODE_FILES=$(git diff --name-only main...HEAD | grep -vE '\.(md|txt|json)$|^\.tickets-tracker/|^\.claude/|^docs/' | head -1)
+CODE_FILES=$(git diff --name-only main...HEAD | grep -vE '\.(md|txt|json)$|^\.tickets-tracker/|^\.claude/|^docs/' | head -1) # tickets-boundary-ok
 ```
 
-If `CODE_FILES` is empty: Log "Docs-only changes detected — skipping CI verification." Skip to Step 0.75.
+If `CODE_FILES` is empty: Log "Docs-only changes detected — skipping CI verification." Skip to sprint SKILL.md Phase G Step 2 (Completion Verification).
 
 If `CODE_FILES` is non-empty:
 
@@ -59,15 +59,15 @@ If `CODE_FILES` is non-empty:
 
 | CI Result | Action |
 |-----------|--------|
-| `success` | Proceed to Step 0.5b |
-| `failure` | Write the validation state file (see below), dispatch an `error-debugging:error-detective` sub-agent (model: `sonnet`) with the CI run URL and failed job names. Follow the test-failure-dispatch protocol (`prompts/test-failure-dispatch-protocol.md`). Commit+push, restart Step 0.5a. If still failing after one attempt → Phase 8 (Graceful Shutdown). |
+| `success` | Proceed to Step 2b |
+| `failure` | Write the validation state file (see below), dispatch an `error-debugging:error-detective` sub-agent (model: `sonnet`) with the CI run URL and failed job names. Follow the test-failure-dispatch protocol (`prompts/test-failure-dispatch-protocol.md`). Commit+push, restart Step 2a. If still failing after one attempt → Phase I (Graceful Shutdown). |
 | Not found after 30 min | Run `gh run list --workflow=CI --limit 10` to check if CI triggered. Report to user. |
 
 ### Validation State File (CI failure context for error-detective sub-agent)
 
 Before dispatching the error-detective sub-agent on CI failure, write the validation state file per `prompts/ci-failure-validation-state.md`.
 
-### Step 0.5b: Run E2E Tests
+### Step 2b: Run E2E Tests
 
 Run the full E2E suite locally.
 
@@ -76,10 +76,10 @@ cd $(git rev-parse --show-toplevel)/app && make test-e2e
 ```
 
 **Interpret results:**
-- **Pass** → proceed to Step 0.75
+- **Pass** → proceed to sprint SKILL.md Phase G Step 2 (Completion Verification)
 - **Fail** → do NOT proceed. Dispatch a debugging sub-agent FIRST before creating bug issues.
 
-### E2E Test Failure Sub-Agent Delegation (Phase 6 Step 0.5b)
+### E2E Test Failure Sub-Agent Delegation (Phase G Step 2b)
 
 When E2E tests fail, follow `prompts/test-failure-dispatch-protocol.md` with these caller-specific fields:
 - `test_command`: `cd $(git rev-parse --show-toplevel)/app && make test-e2e`
@@ -87,4 +87,4 @@ When E2E tests fail, follow `prompts/test-failure-dispatch-protocol.md` with the
 - `task_id`: a tracking task ID for checkpoint notes
 - `context`: `sprint-e2e`
 
-On `FAIL` after attempt 2: create a P1 bug issue for each failing test, set as child of epic, return to Phase 3 (Batch Preparation).
+On `FAIL` after attempt 2: create a P1 bug issue for each failing test, set as child of epic, return to Phase C (Batch Preparation).

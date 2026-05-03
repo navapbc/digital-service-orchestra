@@ -27,7 +27,7 @@
 
 set -uo pipefail
 
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
 # ── Arguments ────────────────────────────────────────────────────────────────
 STORIES_FILE="${1:-}"

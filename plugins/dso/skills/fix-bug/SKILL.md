@@ -690,6 +690,10 @@ Proceed to the corresponding Phase E Step 1 branch below.
 
 **Standard reference**: Load `skills/shared/prompts/behavioral-testing-standard.md` before writing or modifying any test. Apply all five rules (coverage check, observable behavior, execute-don't-inspect, refactoring litmus test, instruction-file structural boundary) to every test written or modified in this step.
 
+<HARD-GATE>
+When the bug fix changes only skill/CLAUDE.md/agent instruction files (LLM-behavioral), do NOT write tests that grep skill files for specific strings. Per behavioral testing standard rule 5, instruction files must be tested by their structural boundary (heading structure, required sections), NOT by content strings. Tests like `grep -q "Step 2.5: Worktree Ancestry Gate"` or `grep -qE "if.*code_version.*empty"` are change-detector tests — they break on every normal refactoring of the skill without testing any observable behavior. The only valid structural tests for skill files check: (a) required section headings exist, or (b) required commands/script paths are callable. Content strings are NOT structural boundaries. If a code reviewer flags "no test covers the new gate behavior" for an instruction-file-only change, the correct response is R5 defense (instruction files are tested by structure, per standard rule 5), not writing a content-grepping test.
+</HARD-GATE>
+
 If the bug already causes an existing test to fail, skip this step — the existing test serves as the RED test.
 
 **Branch based on `testing_mode` from Phase D Step 3:**
@@ -784,6 +788,7 @@ Launch a sub-agent to implement the approved fix per the worktree-isolation bloc
 - The sub-agent receives the full investigation RESULT (root cause, confidence, approved fix) as `root_cause_report`
 - Change ONLY what is necessary — no refactoring, no scope creep
 - One logical change at a time
+- **Model override for LLM-behavioral fixes**: When the fix requires editing files in `skills/`, `agents/`, or `prompts/` directories (LLM prompt creation or editing), dispatch the fix sub-agent with `model: "opus"`. These changes alter agent reasoning and require deeper judgment than code changes.
 
 ### Step 4: Verify Fix (/dso:fix-bug)
 

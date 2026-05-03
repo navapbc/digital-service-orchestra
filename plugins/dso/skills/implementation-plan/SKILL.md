@@ -781,6 +781,15 @@ DESCRIPTION
 
 Universal criteria (test, lint, format) are always the first three lines. Task-specific criteria follow, drawn from the template library and customized.
 
+**Declarative-artifact schema rule**: If the task's file impact table includes a declarative configuration file that executes in a remote runtime (`.github/workflows/*.yml`, GitHub Ruleset JSON, Kubernetes manifests, Terraform, cron schedules, OpenAPI specs), add a schema-validation AC bullet immediately after the universal three:
+
+```
+- [ ] {Artifact} is schema-valid (exit 0)
+  Verify: actionlint .github/workflows/<file>.yml   # or: yamllint, kubectl apply --dry-run=client, terraform validate, JSON-schema check
+```
+
+Pair this with the brainstorm executable-artifact SC (live execution / non-blocking landing) — the schema check catches Layer-1 invalidity at task time, the executable-artifact SC catches Layer-2 runtime gaps at epic close.
+
 If `.claude/scripts/dso ticket create` fails, retry once. If still failing, report the error.
 
 ### Add Dependencies
@@ -899,7 +908,7 @@ Add a **Gap Analysis Results** section:
 
 ### Return Control to Sprint Orchestrator
 
-**When invoked from `/dso:sprint`**: after updating the summary, emit STATUS:complete per the Output Protocol. Do not wait for user input.
+**When invoked from `/dso:sprint`**: after updating the summary, emit STATUS:complete per the Output Protocol. Do not wait for user input. Do not halt the session — STATUS:complete is a return value for the sprint orchestrator to parse; the orchestrator continues autonomously.
 
 ---
 
@@ -973,4 +982,4 @@ REPLAN_ESCALATE: brainstorm EXPLANATION:<explanation>
 
 Emitted when SC cannot be satisfied given the current codebase state — they are actively contradicted, internally contradictory, or unsatisfiable regardless of approach. Terminal signal — do not emit STATUS:complete or STATUS:blocked after it. No tasks are created. The calling orchestrator routes this signal to `/dso:brainstorm` on the story rather than proceeding to implementation batches.
 
-**Termination directive**: after emitting a STATUS line, emit no further prose, questions, or options within this skill — the STATUS line is the final output for this skill invocation. **Do NOT halt the session** — the STATUS line is a return-to-caller signal, not a session-ending one. The calling context (sprint orchestrator or user) decides what happens next.
+**Output boundary**: after emitting a STATUS line, emit no further prose, questions, or options within this skill invocation — the STATUS line is the skill's return value, not a session terminator. **Do NOT stop the session or wait for user input** — the STATUS line is a return-to-caller signal. The calling context (sprint orchestrator or user) reads the STATUS line and continues autonomously.
