@@ -187,6 +187,8 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 #    Phases: sync → merge → version_bump → validate → push → archive → ci_trigger
 #    State file: /tmp/merge-to-main-state-<branch>.json (expires after 4h); lock file: /tmp/merge-to-main-lock-<hash>
 #    On interruption (SIGURG), current phase is saved to state file — re-run with --resume to continue.
+#    merge.strategy=direct (default): 7-phase pipeline above. merge.strategy=pr: step 2 becomes gh pr create + auto-merge wait
+#    via merge-to-main-pr.sh (validate phase skipped — CI enforces; ci_trigger implicit). See CONFIGURATION-REFERENCE.md for both keys.
 # 3. .claude/scripts/dso ticket transition <id> <current-status> closed --reason="Fixed: <summary>"  # bug tickets require --reason
 ```
 
