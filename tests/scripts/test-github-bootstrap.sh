@@ -115,22 +115,20 @@ assert_eq "test_admin_failure_exits_zero exit" "0" "$rc7"
 assert_pass_if_clean "test_admin_failure_exits_zero"
 
 # -- test_idempotency_exits_zero ----------------------------------------------
-# When the Ruleset already exists, script must exit 0 without re-provisioning.
+# When the Ruleset already exists in direct mode (merge.strategy=direct),
+# script must exit 0 without re-provisioning.
 # Mock: gh returns admin=true and rulesets JSON containing "DSO CI Enforcement".
+# Uses a fake REPO_ROOT with merge.strategy=direct so the new PR-mode guard
+# does not trigger.
 _snapshot_fail
 TMP_DIR8="$(mktemp -d)"
 _TMP_DIRS+=("$TMP_DIR8")
-
-# Create a real required-checks.txt so the checks-file guard passes
-REAL_REPO_ROOT="$(git rev-parse --show-toplevel)"
-CHECKS_DIR="$REAL_REPO_ROOT/.github"
-CHECKS_FILE_PATH="$CHECKS_DIR/required-checks.txt"
-CREATED_CHECKS_FILE=0
-if [[ ! -f "$CHECKS_FILE_PATH" ]]; then
-    mkdir -p "$CHECKS_DIR"
-    echo "ci / test" > "$CHECKS_FILE_PATH"
-    CREATED_CHECKS_FILE=1
-fi
+FAKE_ROOT8="$(mktemp -d)"
+_TMP_DIRS+=("$FAKE_ROOT8")
+mkdir -p "$FAKE_ROOT8/.github"
+echo "ci / test" > "$FAKE_ROOT8/.github/required-checks.txt"
+mkdir -p "$FAKE_ROOT8/.claude"
+echo "merge.strategy=direct" > "$FAKE_ROOT8/.claude/dso-config.conf"
 
 cat > "$TMP_DIR8/gh" <<GH_EOF
 #!/usr/bin/env bash
@@ -148,7 +146,7 @@ chmod +x "$TMP_DIR8/gh"
 cat > "$TMP_DIR8/git" <<GIT_EOF
 #!/usr/bin/env bash
 if [[ "\$*" == *"rev-parse"* ]]; then
-    echo "$REAL_REPO_ROOT"
+    echo "$FAKE_ROOT8"
     exit 0
 fi
 echo "mock-git \$*"
@@ -158,11 +156,6 @@ chmod +x "$TMP_DIR8/git"
 
 rc8=0
 PATH="$TMP_DIR8:$PATH" bash "$SCRIPT" 2>/dev/null || rc8=$?
-
-# Clean up the checks file if we created it
-if [[ "$CREATED_CHECKS_FILE" -eq 1 ]]; then
-    rm -f "$CHECKS_FILE_PATH"
-fi
 
 assert_eq "test_idempotency_exits_zero exit" "0" "$rc8"
 assert_pass_if_clean "test_idempotency_exits_zero"
@@ -229,5 +222,123 @@ rc10=0
 PATH="$TMP_BIN10:$PATH" bash "$TMP_SCRIPT_DIR/github-bootstrap.sh" 2>/dev/null || rc10=$?
 assert_eq "test_happy_path_exits_zero exit" "0" "$rc10"
 assert_pass_if_clean "test_happy_path_exits_zero"
+
+
+# -- test_pr_mode_with_existing_ruleset_emits_error ---------------------------
+# When merge.strategy=pr and "DSO CI Enforcement" Ruleset already exists,
+# script must exit non-zero with guidance to disable the Ruleset.
+_snapshot_fail
+TMP_DIR_PR1="$(mktemp -d)"
+_TMP_DIRS+=("$TMP_DIR_PR1")
+FAKE_ROOT_PR1="$(mktemp -d)"
+_TMP_DIRS+=("$FAKE_ROOT_PR1")
+mkdir -p "$FAKE_ROOT_PR1/.github"
+echo "ci / test" > "$FAKE_ROOT_PR1/.github/required-checks.txt"
+mkdir -p "$FAKE_ROOT_PR1/.claude"
+echo "merge.strategy=pr" > "$FAKE_ROOT_PR1/.claude/dso-config.conf"
+cat > "$TMP_DIR_PR1/gh" <<GH_EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"nameWithOwner"* ]]; then echo "mock-owner/mock-repo"
+elif [[ "\$*" == *"rulesets"* ]]; then printf '[{"name":"DSO CI Enforcement","id":1}]'
+else printf '{"permissions":{"admin":true}}'; fi
+exit 0
+GH_EOF
+chmod +x "$TMP_DIR_PR1/gh"
+cat > "$TMP_DIR_PR1/git" <<GIT_EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"rev-parse"* ]]; then echo "$FAKE_ROOT_PR1"; exit 0; fi
+echo "mock-git \$*"; exit 0
+GIT_EOF
+chmod +x "$TMP_DIR_PR1/git"
+rc_pr1=0
+stderr_pr1="$(PATH="$TMP_DIR_PR1:$PATH" bash "$SCRIPT" 2>&1 >/dev/null)" || rc_pr1=$?
+assert_ne "test_pr_mode_with_existing_ruleset_emits_error exit nonzero" "0" "$rc_pr1"
+assert_contains "test_pr_mode_with_existing_ruleset_emits_error stderr has 'disable'" "disable" "$stderr_pr1"
+assert_contains "test_pr_mode_with_existing_ruleset_emits_error stderr has 'Ruleset'" "Ruleset" "$stderr_pr1"
+assert_pass_if_clean "test_pr_mode_with_existing_ruleset_emits_error"
+
+# -- test_pr_mode_without_existing_ruleset_calls_provision_ruleset ------------
+# When merge.strategy=pr and no Ruleset exists, script must invoke provision-
+# ruleset.sh and exit 0.
+_snapshot_fail
+TMP_SCRIPT_DIR_PR2="$(mktemp -d)"
+_TMP_DIRS+=("$TMP_SCRIPT_DIR_PR2")
+cp "$SCRIPT" "$TMP_SCRIPT_DIR_PR2/github-bootstrap.sh"
+PROVISION_CALLED_FILE="$(mktemp)"
+_TMP_DIRS+=("$PROVISION_CALLED_FILE")
+cat > "$TMP_SCRIPT_DIR_PR2/provision-ruleset.sh" <<PROV_EOF
+#!/usr/bin/env bash
+echo "provision-called" > "$PROVISION_CALLED_FILE"
+exit 0
+PROV_EOF
+chmod +x "$TMP_SCRIPT_DIR_PR2/provision-ruleset.sh"
+
+TMP_BIN_PR2="$(mktemp -d)"
+_TMP_DIRS+=("$TMP_BIN_PR2")
+FAKE_ROOT_PR2="$(mktemp -d)"
+_TMP_DIRS+=("$FAKE_ROOT_PR2")
+mkdir -p "$FAKE_ROOT_PR2/.github"
+echo "ci / test" > "$FAKE_ROOT_PR2/.github/required-checks.txt"
+mkdir -p "$FAKE_ROOT_PR2/.claude"
+echo "merge.strategy=pr" > "$FAKE_ROOT_PR2/.claude/dso-config.conf"
+cat > "$TMP_BIN_PR2/gh" <<GH_EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"nameWithOwner"* ]]; then echo "mock-owner/mock-repo"
+elif [[ "\$*" == *"rulesets"* ]]; then echo "[]"
+else printf '{"permissions":{"admin":true}}'; fi
+exit 0
+GH_EOF
+chmod +x "$TMP_BIN_PR2/gh"
+cat > "$TMP_BIN_PR2/git" <<GIT_EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"rev-parse"* ]]; then echo "$FAKE_ROOT_PR2"; exit 0; fi
+if [[ "\$*" == *"push"* ]]; then exit 0; fi
+echo "mock-git \$*"; exit 0
+GIT_EOF
+chmod +x "$TMP_BIN_PR2/git"
+rc_pr2=0
+PATH="$TMP_BIN_PR2:$PATH" bash "$TMP_SCRIPT_DIR_PR2/github-bootstrap.sh" 2>/dev/null || rc_pr2=$?
+assert_eq "test_pr_mode_without_existing_ruleset_calls_provision_ruleset exit" "0" "$rc_pr2"
+assert_eq "test_pr_mode_without_existing_ruleset_calls_provision_ruleset provision called" \
+    "provision-called" "$(cat "$PROVISION_CALLED_FILE" 2>/dev/null | tr -d '\n')"
+assert_pass_if_clean "test_pr_mode_without_existing_ruleset_calls_provision_ruleset"
+
+# -- test_missing_merge_strategy_defaults_to_direct_behavior -----------------
+# When dso-config.conf is absent, merge.strategy defaults to "direct" and
+# the script must NOT exit 1 due to the conditional — it should proceed
+# normally (e.g., exit 0 after admin/checks guards or happy path).
+_snapshot_fail
+TMP_SCRIPT_DIR_PR3="$(mktemp -d)"
+_TMP_DIRS+=("$TMP_SCRIPT_DIR_PR3")
+cp "$SCRIPT" "$TMP_SCRIPT_DIR_PR3/github-bootstrap.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP_SCRIPT_DIR_PR3/provision-ruleset.sh"
+chmod +x "$TMP_SCRIPT_DIR_PR3/provision-ruleset.sh"
+
+TMP_BIN_PR3="$(mktemp -d)"
+_TMP_DIRS+=("$TMP_BIN_PR3")
+FAKE_ROOT_PR3="$(mktemp -d)"
+_TMP_DIRS+=("$FAKE_ROOT_PR3")
+# No .claude/dso-config.conf created — simulates absent config
+mkdir -p "$FAKE_ROOT_PR3/.github"
+echo "ci / test" > "$FAKE_ROOT_PR3/.github/required-checks.txt"
+cat > "$TMP_BIN_PR3/gh" <<GH_EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"nameWithOwner"* ]]; then echo "mock-owner/mock-repo"
+elif [[ "\$*" == *"rulesets"* ]]; then echo "[]"
+else printf '{"permissions":{"admin":true}}'; fi
+exit 0
+GH_EOF
+chmod +x "$TMP_BIN_PR3/gh"
+cat > "$TMP_BIN_PR3/git" <<GIT_EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"rev-parse"* ]]; then echo "$FAKE_ROOT_PR3"; exit 0; fi
+if [[ "\$*" == *"push"* ]]; then exit 0; fi
+echo "mock-git \$*"; exit 0
+GIT_EOF
+chmod +x "$TMP_BIN_PR3/git"
+rc_pr3=0
+PATH="$TMP_BIN_PR3:$PATH" bash "$TMP_SCRIPT_DIR_PR3/github-bootstrap.sh" 2>/dev/null || rc_pr3=$?
+assert_eq "test_missing_merge_strategy_defaults_to_direct_behavior exit" "0" "$rc_pr3"
+assert_pass_if_clean "test_missing_merge_strategy_defaults_to_direct_behavior"
 
 print_summary

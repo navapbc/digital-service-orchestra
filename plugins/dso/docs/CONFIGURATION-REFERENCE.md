@@ -1058,6 +1058,8 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 
 **Example**: `merge.strategy=pr`
 
+**Default selection**: `create-dso-app.sh` installer writes `direct` as the initial default for new projects. `/dso:onboarding` Phase 3 Step 2b.1 may override with the user's choice.
+
 ---
 
 ### `enforcement.strategy`

@@ -455,5 +455,66 @@ assert_eq "test_no_validator_available_succeeds: ci.yml written despite no valid
     "yes" "$noval_file_exists"
 assert_pass_if_clean "test_no_validator_available_succeeds"
 
+# ── test_mode_pr_protected_generates_resolve_fetch_step ──────────────────────
+# Given: ci-generator.sh invoked with --mode=pr-protected on a temp dir with a
+#        minimal fast suite config.
+# When:  generator runs.
+# Then:  (a) the output CI workflow YAML contains a step whose name/description
+#            includes "Resolve", "fetch", and "DSO plugin", AND
+#        (b) the YAML contains validate-required-checks.sh inside a run: block
+#            (grep -A2 'validate-required-checks' <file> | grep -q 'run:').
+#
+# This test is RED until Task 2b implements --mode=pr-protected.
+_snapshot_fail
+PR_PROTECTED_SUITES='[{"name":"unit","command":"make test-unit","speed_class":"fast","runner":"make"}]'
+PR_PROTECTED_DIR="$TMPDIR_OUTPUT/pr_protected"
+mkdir -p "$PR_PROTECTED_DIR"
+CI_NONINTERACTIVE=1 bash "$SCRIPT" \
+    --mode=pr-protected \
+    --suites-json "$PR_PROTECTED_SUITES" \
+    --output-dir "$PR_PROTECTED_DIR" \
+    2>/dev/null || true
+
+# Locate the generated workflow file (may be ci.yml or a pr-protected variant)
+pr_protected_yml=""
+for _candidate in "$PR_PROTECTED_DIR/ci.yml" "$PR_PROTECTED_DIR/ci-pr-protected.yml" "$PR_PROTECTED_DIR"/*.yml; do
+    if [[ -f "$_candidate" ]]; then
+        pr_protected_yml="$_candidate"
+        break
+    fi
+done
+
+pr_protected_content=""
+if [[ -n "$pr_protected_yml" && -f "$pr_protected_yml" ]]; then
+    pr_protected_content="$(cat "$pr_protected_yml")"
+fi
+
+# Assertion (a): step name/description contains "Resolve", "fetch", and "DSO plugin"
+has_resolve="no"
+has_fetch="no"
+has_dso_plugin="no"
+if [[ "$pr_protected_content" == *"Resolve"* ]]; then has_resolve="yes"; fi
+if [[ "$pr_protected_content" == *"fetch"* ]]; then has_fetch="yes"; fi
+if [[ "$pr_protected_content" == *"DSO plugin"* ]]; then has_dso_plugin="yes"; fi
+
+assert_eq "test_mode_pr_protected_generates_resolve_fetch_step: step contains Resolve" \
+    "yes" "$has_resolve"
+assert_eq "test_mode_pr_protected_generates_resolve_fetch_step: step contains fetch" \
+    "yes" "$has_fetch"
+assert_eq "test_mode_pr_protected_generates_resolve_fetch_step: step contains DSO plugin" \
+    "yes" "$has_dso_plugin"
+
+# Assertion (b): validate-required-checks.sh appears inside a run: block
+validate_in_run="no"
+if [[ -n "$pr_protected_yml" && -f "$pr_protected_yml" ]]; then
+    if grep -A2 'validate-required-checks' "$pr_protected_yml" 2>/dev/null | grep -q 'run:'; then
+        validate_in_run="yes"
+    fi
+fi
+assert_eq "test_mode_pr_protected_generates_resolve_fetch_step: validate-required-checks.sh in run: block" \
+    "yes" "$validate_in_run"
+
+assert_pass_if_clean "test_mode_pr_protected_generates_resolve_fetch_step"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
