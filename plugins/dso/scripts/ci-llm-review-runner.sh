@@ -233,7 +233,13 @@ ${DIFF_CONTENT}"
     FINDINGS_JSON=$(printf '%s' "$_ARCH_RESP" | python3 -c "
 import json,sys; t=sys.stdin.read().strip()
 if not t: raise ValueError('empty')
-json.loads(t); print(t)
+# Strip markdown fence if present
+t2=t.lstrip('\`'); t2=t2.lstrip('json').strip()
+# Extract first valid JSON object using raw_decode (handles nested braces in strings)
+i=t2.find('{')
+if i<0: raise ValueError('no JSON object found')
+obj,_=json.JSONDecoder().raw_decode(t2,i)
+print(json.dumps(obj))
 " 2>/dev/null) || {
       echo "WARNING: Arch LLM response could not be parsed as reviewer-findings JSON." >&2
       FINDINGS_JSON='{"scores":{"hygiene":"N/A","design":"N/A","maintainability":"N/A","correctness":"N/A","verification":"N/A"},"findings":[],"summary":"Review inconclusive: Arch response could not be parsed."}'
