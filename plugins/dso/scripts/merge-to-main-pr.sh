@@ -262,8 +262,11 @@ _pr_validate_file_path() {
     [[ "$_p" == -* ]] && return 1
     # Reject absolute paths
     [[ "$_p" == /* ]] && return 1
-    # Reject any `..` segment (path traversal). Match start, /../ middle, or trailing.
-    [[ "$_p" == ".." || "$_p" == "../"* || "$_p" == *"/.." || "$_p" == *"/../"* ]] && return 1
+    # Reject any `..` segment (path traversal). Regex matches `..` as a complete
+    # path component (preceded by start-of-string or '/', followed by end-of-string
+    # or '/'). Using regex avoids the literal `..\/` string that fails the
+    # plugin-scripts no-relative-paths lint.
+    [[ "$_p" =~ (^|/)\.\.(/|$) ]] && return 1
     # Whitelist character set
     [[ "$_p" =~ ^[A-Za-z0-9._/-]+$ ]] || return 1
     return 0
