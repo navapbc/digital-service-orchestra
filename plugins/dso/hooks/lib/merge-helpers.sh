@@ -803,7 +803,10 @@ _pr_repo() {
     fi
     local _slug
     _slug=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || echo "")
-    _PR_REPO_NAME_WITH_OWNER="$_slug"
+    # Only cache non-empty results — empty means auth/network failure; let next call retry.
+    if [[ -n "$_slug" ]]; then
+        _PR_REPO_NAME_WITH_OWNER="$_slug"
+    fi
     echo "$_slug"
 }
 
