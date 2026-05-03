@@ -364,7 +364,7 @@ If output is absent, malformed, missing the prefix, or has an unrecognized `mode
 1. Read `selected_proposal_index`; extract the corresponding proposal.
 2. Log the ADR rationale (`context`, `decision`, `consequences`, `rationale_summary`).
 3. Autonomous mode: proceed directly to Step 3 with the selected proposal. Interactive mode: present selection and rationale; confirm before Step 3.
-4. Clear cycle state: `bash "$PLUGIN_SCRIPTS/implementation-plan/approach-cycle-state.sh" clear "$STORY_ID"`.
+4. Clear cycle state: `bash "$PLUGIN_SCRIPTS/implementation-plan/approach-cycle-state.sh" clear "$STORY_ID"`.  # shim-exempt: documentation reference in skill prompt
 
 #### Revise Path (`mode: "counter_proposal"`)
 

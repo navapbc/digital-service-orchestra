@@ -1,6 +1,6 @@
 # Sub-Agent Routing Table (Phase G fix dispatch)
 
-Resolve `subagent_type` via `discover-agents.sh` using the routing category from `agent-routing.conf`. Run `$PLUGIN_SCRIPTS/discover-agents.sh` and use the resolved agent for each category.
+Resolve `subagent_type` via `discover-agents.sh` using the routing category from `agent-routing.conf`. Run `$PLUGIN_SCRIPTS/discover-agents.sh` and use the resolved agent for each category.  # shim-exempt: documentation reference in skill prompt
 
 | Fix Category | Routing Category | `model` |
 |---|---|---|

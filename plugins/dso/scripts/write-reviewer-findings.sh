@@ -9,11 +9,11 @@ set -euo pipefail
 # to obtain a valid REVIEWER_HASH without passing schema validation.
 #
 # Usage:
-#   cat findings.json | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"
-#   cat findings.json | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh" --output /path/to/slot.json
+#   cat findings.json | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"  # shim-exempt: usage example in script header
+#   cat findings.json | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh" --output /path/to/slot.json  # shim-exempt: usage example in script header
 #
 #   Or with a heredoc:
-#   cat <<'EOF' | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"
+#   cat <<'EOF' | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"  # shim-exempt: usage example in script header
 #   { "scores": {...}, "findings": [...], "summary": "..." }
 #   EOF
 #
@@ -94,6 +94,7 @@ fi
 # flat integers — flatten { "score": N } values to just N (bug 8e5d-ade1).
 python3 -c "
 import json, sys
+SCORE_DIMS = {'correctness', 'design', 'hygiene', 'maintainability', 'verification'}
 with open(sys.argv[1], 'r') as f:
     data = json.load(f)
 changed = False
@@ -102,6 +103,16 @@ if 'dimensions' in data and 'scores' not in data:
     print('WARNING: Normalizing top-level key \"dimensions\" to \"scores\"', file=sys.stderr)
     data['scores'] = data.pop('dimensions')
     changed = True
+# Normalize dimension names at top level: the arch agent sometimes emits
+# { 'correctness': 4, 'hygiene': 3, ... } instead of { 'scores': { ... } }.
+# Collect any top-level score dimensions into a 'scores' sub-dict.
+top_dims = {k: v for k, v in data.items() if k in SCORE_DIMS}
+if top_dims and 'scores' not in data:
+    print('WARNING: Collecting top-level dimension keys into \"scores\"', file=sys.stderr)
+    # Build a new dict without the dimension keys to avoid fragile in-place deletion
+    data = {k: v for k, v in data.items() if k not in SCORE_DIMS}
+    data['scores'] = top_dims
+    changed = True
 # Normalize nested score objects: { 'score': N, 'rationale': '...' } -> N
 if isinstance(data.get('scores'), dict):
     for k, v in list(data['scores'].items()):
@@ -109,6 +120,16 @@ if isinstance(data.get('scores'), dict):
             print(f'WARNING: Flattening nested score object for \"{k}\"', file=sys.stderr)
             data['scores'][k] = v['score']
             changed = True
+# Add missing 'summary' field when absent (arch agent occasionally omits it).
+# Use a diagnostic default rather than a neutral one so the absence is observable.
+if 'summary' not in data:
+    print('WARNING: Adding default summary field (arch agent did not provide one)', file=sys.stderr)
+    data['summary'] = 'Summary unavailable — arch agent response did not include a summary field.'
+    changed = True
+# Add missing 'findings' field with empty list when absent
+if 'findings' not in data:
+    data['findings'] = []
+    changed = True
 if changed:
     with open(sys.argv[1], 'w') as f:
         json.dump(data, f, indent=2)
