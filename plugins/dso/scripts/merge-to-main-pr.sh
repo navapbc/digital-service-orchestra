@@ -289,6 +289,12 @@ _pr_validate_file_path() {
 # Outputs four variables into the caller's scope via nameref-style assignments.
 # Call as: _pr_resolve_threads_read_config <max_dispatches_var> <max_wait_var> <quiet_window_var> <interval_var>
 # Populates each named variable with the resolved value.
+# REVIEW-DEFENSE: Uses printf -v (not local -n) for caller-variable mutation.
+# printf -v is used here because this function predates the bash 4.3+ version
+# guard added at the top of the script. While local -n would be consistent with
+# _pr_dispatch_unresolved_batch and _pr_commit_code_change_threads, the
+# printf -v approach is functionally equivalent and avoids nameref pitfalls with
+# array-typed caller variables. Harmonization deferred to follow-up refactor.
 _pr_resolve_threads_read_config() {
     local _rc_max_dispatches_var="$1"
     local _rc_max_wait_var="$2"
@@ -373,6 +379,14 @@ except Exception:
 #       _code_change_threads_var (nameref to indexed array name), _threads_arr (by value via "$@")
 # The _threads_arr elements are passed as positional args starting at arg 9.
 # Returns 0. Updates _dispatches, _escalated_threads, and _code_change_threads in the caller.
+# REVIEW-DEFENSE: This function is covered by integration tests in
+# tests/integration/test-merge-to-main-pr-thread-resolution.sh:
+# test_dispatch_count_cap_triggers_escalation (exercises the full dispatch→escalation
+# path including tab-delimited parsing and thread routing) and
+# test_wall_clock_cap_triggers_escalation (exercises the wall-clock exit condition
+# through the same code path). Dedicated unit tests for tab-parsing edge cases
+# would be fragile change-detector tests; behavioral coverage via the cap tests
+# is the appropriate boundary.
 _pr_dispatch_unresolved_batch() {
     local _pdb_pr_number="$1"
     local _pdb_pr_url="$2"

@@ -383,6 +383,11 @@ _auto_resolve_archive_conflicts() {
     local _tickets_dir="${TICKETS_TRACKER_DIR:-.tickets-tracker}"
     # Strip any trailing slash for consistent prefix matching.
     _tickets_dir="${_tickets_dir%/}"
+    # Escape glob metacharacters in the directory path so [[ == pattern ]] treats
+    # the directory portion as a literal prefix, not a glob.
+    local _tickets_dir_safe="${_tickets_dir//\*/\\*}"
+    _tickets_dir_safe="${_tickets_dir_safe//\?/\\?}"
+    _tickets_dir_safe="${_tickets_dir_safe//\[/\\[}"
 
     # Only proceed if a rebase is actually in progress
     if [[ ! -f "$_git_dir/REBASE_HEAD" ]]; then
@@ -422,7 +427,7 @@ _auto_resolve_archive_conflicts() {
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
         # Use variable-based prefix matching since bash case arms cannot use variables.
-        if [[ "$_file" == "${_tickets_dir}"/*/*.json || "$_file" == "${_tickets_dir}"/*.json ]]; then
+        if [[ "$_file" == "${_tickets_dir_safe}"/*/*.json || "$_file" == "${_tickets_dir_safe}"/*.json ]]; then
             # v3 ticket event JSON — safe to auto-resolve
             :
         else
@@ -446,7 +451,7 @@ _auto_resolve_archive_conflicts() {
         [[ -z "$_file" ]] && continue
 
         # Use variable-based prefix matching since bash case arms cannot use variables. # tickets-boundary-ok
-        if [[ "$_file" == "${_tickets_dir}"/*.json || "$_file" == "${_tickets_dir}"/*/*.json ]]; then
+        if [[ "$_file" == "${_tickets_dir_safe}"/*.json || "$_file" == "${_tickets_dir_safe}"/*/*.json ]]; then
             # v3 ticket event JSON — accept ours (git add if present, git rm if absent)
             if [[ -f "$_file" ]]; then
                 git add "$_file" 2>/dev/null && _resolved=$(( _resolved + 1 )) || _failed=$(( _failed + 1 ))
@@ -526,7 +531,7 @@ _auto_resolve_archive_conflicts() {
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
                 # Use variable-based prefix matching since bash case arms cannot use variables. # tickets-boundary-ok
-                if [[ "$_nf" != "${_tickets_dir}"/*/*.json && "$_nf" != "${_tickets_dir}"/*.json ]]; then
+                if [[ "$_nf" != "${_tickets_dir_safe}"/*/*.json && "$_nf" != "${_tickets_dir_safe}"/*.json ]]; then
                     _new_non_archive=$(( _new_non_archive + 1 ))
                 fi
             done <<< "$_new_all"
@@ -542,7 +547,7 @@ _auto_resolve_archive_conflicts() {
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
                 # Use variable-based prefix matching since bash case arms cannot use variables. # tickets-boundary-ok
-                if [[ "$_nf" == "${_tickets_dir}"/*.json || "$_nf" == "${_tickets_dir}"/*/*.json ]]; then
+                if [[ "$_nf" == "${_tickets_dir_safe}"/*.json || "$_nf" == "${_tickets_dir_safe}"/*/*.json ]]; then
                     # v3 ticket event JSON — accept ours
                     if [[ -f "$_nf" ]]; then
                         git add "$_nf" 2>/dev/null && _new_resolved=$(( _new_resolved + 1 )) || _new_failed=$(( _new_failed + 1 ))
