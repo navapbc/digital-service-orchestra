@@ -642,8 +642,40 @@ test_file_path_validator_rejects_malicious_input() {
 }
 
 # ---------------------------------------------------------------------------
+# Unit tests for extracted helper functions (GREEN — helpers exist post-T5)
+# ---------------------------------------------------------------------------
+
+# test_pr_resolve_threads_read_config_env_override: _pr_resolve_threads_read_config
+# reads PR_THREAD_LOOP_MAX_DISPATCHES and PR_THREAD_LOOP_INTERVAL from env vars
+# when set, writing values into caller-provided variable names.
+test_pr_resolve_threads_read_config_env_override() {
+    echo "=== test_pr_resolve_threads_read_config_env_override ==="
+    _snapshot_fail
+    # Source the function in a subshell and verify env overrides take effect.
+    # Use PR_LIB_MODE=1 to suppress top-level script execution.
+    local _result
+    _result=$(
+        PR_THREAD_LOOP_MAX_DISPATCHES=5 PR_THREAD_LOOP_INTERVAL=15 \
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            _max_d='' _max_w='' _qw='' _iv=''
+            _pr_resolve_threads_read_config _max_d _max_w _qw _iv 2>/dev/null || true
+            echo \"max_dispatches=\$_max_d interval=\$_iv\"
+        " 2>/dev/null
+    ) || true
+    assert_eq "test_pr_resolve_threads_read_config_env_override: max_dispatches env override" \
+        "1" "$(echo "$_result" | grep -c 'max_dispatches=5')"
+    assert_eq "test_pr_resolve_threads_read_config_env_override: interval env override" \
+        "1" "$(echo "$_result" | grep -c 'interval=15')"
+    assert_pass_if_clean "test_pr_resolve_threads_read_config_env_override"
+}
+
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
+test_pr_resolve_threads_read_config_env_override
 test_review_threads_query_parses_unresolved_thread_ids
 test_resolve_thread_calls_mutation_only_when_unresolved
 test_settling_heuristic_requires_zero_threads_and_quiet_window

@@ -18,6 +18,12 @@
 # Exit codes: 0=success, 1=error
 set -euo pipefail
 
+# Require bash 4.3+ for nameref support (local -n used in helper functions)
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]] || { [[ "${BASH_VERSINFO[0]}" -eq 4 ]] && [[ "${BASH_VERSINFO[1]}" -lt 3 ]]; }; then
+    echo "ERROR: merge-to-main-pr.sh requires bash 4.3+ (current: ${BASH_VERSION})" >&2
+    exit 1
+fi
+
 # --- CLI: --help (early exit before any context checks) ---
 for _arg in "$@"; do
     if [[ "$_arg" == "--help" ]]; then
@@ -545,6 +551,7 @@ _pr_commit_code_change_threads() {
 
     local _commit_rc=0
     local _thread_list="${_pcct_code_change_ref[*]}"
+    git -C "$_pcct_repo_root" add -u 2>/dev/null || true
     git -C "$_pcct_repo_root" commit -m "fix: address PR review threads ${_thread_list}" 2>/dev/null || _commit_rc=$?
     if [[ $_commit_rc -eq 0 ]]; then
         local _push_rc=0

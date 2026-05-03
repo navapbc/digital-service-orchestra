@@ -263,7 +263,7 @@ This is rarely needed, as the automatic port assignment prevents conflicts in mo
 
 | Resource | Shared or Isolated | Notes |
 |----------|-------------------|-------|
-| `.tickets-tracker/` (v3 orphan branch) | Shared | ticket commands read from the event-sourced orphan branch mounted as `.tickets-tracker/`; shared across all worktrees | <!-- # tickets-boundary-ok -->
+| `.tickets-tracker/` (v3 orphan branch) | Shared | ticket commands read from the event-sourced orphan branch mounted as `.tickets-tracker/`; shared across all worktrees <!-- # tickets-boundary-ok --> |
 | `CLAUDE.md`, `.claude/` | Git-tracked | Same content on the same branch |
 | `app/.venv/` | Isolated | Each worktree needs `poetry install --no-root` |
 | Docker full-stack (`docker compose up`) | Isolated | Use different ports per worktree |
@@ -467,7 +467,7 @@ fi
 | `poetry install` fails with "requires Python <3.14" | Same as above: Pin Python 3.13 explicitly before running `poetry install` |
 | Port conflict on Docker startup (full-stack) | **Should not happen** - automatic port assignment prevents this. If it occurs, check that you're running `make test` (not raw `docker compose up`), which ensures ports are set. Manual override: `DB_PORT=<port> APP_PORT=<port> docker compose up` |
 | Port conflict with persistent DB (`make db-start`) | The persistent DB is shared (one instance for all worktrees). If another worktree already started it, just use the existing instance. Or stop it first: `make db-stop` |
-| `ticket` commands fail in worktree | Verify `.tickets-tracker/` is accessible: `ls $(git rev-parse --show-toplevel)/.tickets-tracker/` — it should be present as the v3 orphan branch worktree | <!-- # tickets-boundary-ok -->
+| `ticket` commands fail in worktree | Verify `.tickets-tracker/` is accessible: `ls $(git rev-parse --show-toplevel)/.tickets-tracker/` <!-- # tickets-boundary-ok --> — it should be present as the v3 orphan branch worktree |
 | Pre-commit hooks not working | Re-run `.venv/bin/pre-commit install --config ../.pre-commit-config.yaml` from `app/` |
 | Disk space running low | Each worktree with venv takes ~500MB+; remove unused worktrees with `git worktree remove <name>` |
 | "Not a git repository" error | Ensure you are inside the worktree directory, not a parent |
