@@ -243,10 +243,6 @@ except Exception:
     return 0
 }
 
-# REVIEW-DEFENSE: Finding 1 — these helper functions are covered by the existing integration
-# tests (test-merge-to-main-pr-thread-resolution.sh) which exercise the _phase_resolve_threads
-# entry point end-to-end. Individual unit tests for each extracted helper would be
-# change-detector tests that test implementation structure rather than behavior.
 # --- _pr_validate_file_path: sanitize a reviewer-supplied file path ---
 # Reviewer-supplied input from PR review threads is untrusted. Reject paths
 # that could be used for path traversal, absolute-path access outside the
@@ -279,292 +275,6 @@ _pr_validate_file_path() {
     return 0
 }
 
-# --- _pr_resolve_threads_read_config: read loop config with env-override support ---
-# Outputs four variables into the caller's scope via nameref-style assignments.
-# Call as: _pr_resolve_threads_read_config <max_dispatches_var> <max_wait_var> <quiet_window_var> <interval_var>
-# Populates each named variable with the resolved value.
-_pr_resolve_threads_read_config() {
-    local _rc_max_dispatches_var="$1"
-    local _rc_max_wait_var="$2"
-    local _rc_quiet_window_var="$3"
-    local _rc_interval_var="$4"
-    local _read_config
-    _read_config="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"  # shim-exempt: internal plugin script
-
-    local _v_max_dispatches="${PR_THREAD_LOOP_MAX_DISPATCHES:-}"
-    if [[ -z "$_v_max_dispatches" ]]; then
-        _v_max_dispatches=$(bash "$_read_config" merge.pr_max_thread_dispatches 2>/dev/null || true)
-        [[ -z "$_v_max_dispatches" ]] && _v_max_dispatches=10
-    fi
-
-    local _v_max_wait="${PR_THREAD_LOOP_MAX_WALL_SECONDS:-}"
-    if [[ -z "$_v_max_wait" ]]; then
-        _v_max_wait=$(bash "$_read_config" merge.pr_thread_resolution_max_wait_seconds 2>/dev/null || true)
-        [[ -z "$_v_max_wait" ]] && _v_max_wait=1800
-    fi
-
-    local _v_quiet_window
-    _v_quiet_window=$(bash "$_read_config" merge.pr_thread_quiet_window_seconds 2>/dev/null || true)
-    [[ -z "$_v_quiet_window" ]] && _v_quiet_window=120
-
-    local _v_interval="${PR_THREAD_LOOP_INTERVAL:-}"
-    if [[ -z "$_v_interval" ]]; then
-        _v_interval=$(bash "$_read_config" merge.pr_poll_interval_seconds 2>/dev/null || true)
-        [[ -z "$_v_interval" ]] && _v_interval=30
-    fi
-
-    # Assign into caller-provided variable names via printf+eval (bash-portable nameref alternative).
-    printf -v "$_rc_max_dispatches_var" '%s' "$_v_max_dispatches"
-    printf -v "$_rc_max_wait_var"       '%s' "$_v_max_wait"
-    printf -v "$_rc_quiet_window_var"   '%s' "$_v_quiet_window"
-    printf -v "$_rc_interval_var"       '%s' "$_v_interval"
-}
-
-# --- _pr_handle_head_sha_reset: detect head SHA change and reset wall-clock window ---
-# Args: _pr_number, _last_head_sha_var (nameref), _start_var (nameref),
-#       _last_thread_seen_ts_var (nameref), _last_thread_count_var (nameref)
-# Emits INFO:POLL_WINDOW_RESET on a change. Returns 0 normally; returns 2 when
-# PR_THREAD_LOOP_TEST_STOP_AFTER_RESET=1 (test escape hatch).
-_pr_handle_head_sha_reset() {
-    local _phr_pr_number="$1"
-    local _phr_last_sha_var="$2"
-    local _phr_start_var="$3"
-    local _phr_last_thread_seen_ts_var="$4"
-    local _phr_last_thread_count_var="$5"
-
-    local _curr_head_sha=""
-    _curr_head_sha=$(gh pr view "$_phr_pr_number" --json headRefOid 2>/dev/null | python3 -c "
-import json, sys
-try:
-    d = json.load(sys.stdin)
-    print(d.get('headRefOid', ''))
-except Exception:
-    print('')
-" 2>/dev/null || true)
-
-    local _last_sha="${!_phr_last_sha_var}"
-    if [[ -n "$_last_sha" && -n "$_curr_head_sha" && "$_curr_head_sha" != "$_last_sha" ]]; then
-        echo "INFO: POLL_WINDOW_RESET — head SHA changed from ${_last_sha} to ${_curr_head_sha}; resetting wall-clock window"
-        printf -v "$_phr_start_var"                  '%s' "$SECONDS"
-        printf -v "$_phr_last_thread_seen_ts_var"    '%s' "0"
-        printf -v "$_phr_last_thread_count_var"      '%s' "0"
-        if [[ "${PR_THREAD_LOOP_TEST_STOP_AFTER_RESET:-0}" == "1" ]]; then
-            return 2
-        fi
-    fi
-    # Only update tracked head SHA when we got a non-empty value from gh.
-    # A transient `gh` failure produces an empty _curr_head_sha; overwriting
-    # would mask a real subsequent push and silently defeat the wall-clock cap.
-    if [[ -n "$_curr_head_sha" ]]; then
-        printf -v "$_phr_last_sha_var" '%s' "$_curr_head_sha"
-    fi
-    return 0
-}
-
-# --- _pr_dispatch_unresolved_batch: dispatch LLM for each unresolved thread in one loop iteration ---
-# Args: _pr_number, _pr_url, _repo_root, _llm_cmd, _max_dispatches,
-#       _dispatches_var (nameref), _escalated_threads_var (nameref to assoc array name),
-#       _code_change_threads_var (nameref to indexed array name), _threads_arr (by value via "$@")
-# The _threads_arr elements are passed as positional args starting at arg 9.
-# Returns 0. Updates _dispatches, _escalated_threads, and _code_change_threads in the caller.
-_pr_dispatch_unresolved_batch() {
-    local _pdb_pr_number="$1"
-    local _pdb_pr_url="$2"
-    local _pdb_repo_root="$3"
-    local _pdb_llm_cmd="$4"
-    local _pdb_max_dispatches="$5"
-    local _pdb_dispatches_var="$6"
-    local _pdb_escalated_var="$7"     # name of the caller's associative array
-    local _pdb_code_change_var="$8"   # name of the caller's indexed array
-    shift 8
-    # Remaining positional args are the thread entries (tab-delimited).
-    local _pdb_threads=("$@")
-
-    # Use namerefs to access the caller's associative/indexed arrays directly,
-    # avoiding eval on variable names that originate from parameter input.
-    # shellcheck disable=SC2178
-    local -n _pdb_escalated_ref="$_pdb_escalated_var"
-    # shellcheck disable=SC2178
-    local -n _pdb_code_change_ref="$_pdb_code_change_var"
-    # shellcheck disable=SC2178
-    local -n _pdb_dispatches_ref="$_pdb_dispatches_var"
-
-    local _t
-    for _t in "${_pdb_threads[@]:-}"; do
-        [[ -z "$_t" ]] && continue
-        local _cur_dispatches="${_pdb_dispatches_ref}"
-        if (( _cur_dispatches >= _pdb_max_dispatches )); then break; fi
-
-        # Parse tab-delimited thread fields: thread_id, file, line, comment_id, body_b64
-        local _thread_id="${_t%%$'\t'*}"
-        # Skip threads already escalated in a prior loop iteration.
-        [[ -n "${_pdb_escalated_ref[$_thread_id]:-}" ]] && continue
-
-        local _file_path="" _line_range="" _comment_id="" _thread_body_b64=""
-        IFS=$'\t' read -r _ _file_path _line_range _comment_id _thread_body_b64 <<< "$_t" || true
-        local _thread_body=""
-        [[ -n "$_thread_body_b64" ]] && _thread_body=$(echo "$_thread_body_b64" | base64 -d 2>/dev/null || true)
-
-        # Validate reviewer-supplied file path before using it. _file_path
-        # comes from the GraphQL response (untrusted reviewer input). An
-        # invalid path is dropped: we skip the diff fetch and pass an empty
-        # string to the LLM dispatch so neither `git diff` nor
-        # `llm-api-call.sh` ever sees the malicious value.
-        local _safe_file_path=""
-        if _pr_validate_file_path "$_file_path"; then
-            _safe_file_path="$_file_path"
-        else
-            echo "WARNING: rejecting unsafe file_path from thread ${_thread_id}: $(printf '%q' "$_file_path")" >&2
-        fi
-
-        # Generate a short diff_context for the file (best-effort; empty if unavailable).
-        # Use a repo-relative path with git run from the repo root to avoid path doubling.
-        local _diff_context=""
-        if [[ -n "$_safe_file_path" && -n "$_pdb_repo_root" ]]; then
-            # Even after _pr_validate_file_path, the path could resolve to
-            # outside the repo via symlinks or simply not exist as a tracked
-            # file. Restrict diff fetch to git-tracked paths so a reviewer
-            # cannot trick us into reading arbitrary working-tree files.
-            if git -C "$_pdb_repo_root" ls-files --error-unmatch -- "$_safe_file_path" >/dev/null 2>&1; then
-                _diff_context=$(git -C "$_pdb_repo_root" diff HEAD -- "$_safe_file_path" 2>/dev/null | head -30 || true)
-            fi
-        fi
-
-        # Build a structured user message containing all thread context.
-        # This avoids sed injection from reviewer-supplied values (thread_body, etc.)
-        # while giving the LLM all inputs it needs per pr-comment-responder.md.
-        local _user_msg
-        _user_msg=$(printf 'thread_id: %s\nthread_body: %s\npr_url: %s\nrepo_root: %s\nfile_path: %s\nline_range: %s\ndiff_context:\n%s' \
-            "$_thread_id" \
-            "${_thread_body:-[no body]}" \
-            "$_pdb_pr_url" \
-            "$_pdb_repo_root" \
-            "${_safe_file_path:-}" \
-            "${_line_range:-}" \
-            "${_diff_context:-[none]}")
-
-        local _llm_result=""
-        local _llm_rc=0
-        local _responder_prompt="${CLAUDE_PLUGIN_ROOT}/scripts/prompts/pr-comment-responder.md"  # shim-exempt: internal plugin script
-        _llm_result=$("$_pdb_llm_cmd" \
-            "$_responder_prompt" \
-            "$_user_msg" \
-            "standard" \
-            2>/dev/null) || _llm_rc=$?
-
-        # Every LLM dispatch attempt counts against the cap, regardless of
-        # outcome. Otherwise a thread that consistently fails (non-zero exit
-        # or empty result) would be retried indefinitely without ever
-        # tripping the dispatch cap, defeating its purpose.
-        _pdb_dispatches_ref=$(( _cur_dispatches + 1 ))
-
-        # On infrastructure failure (non-zero exit, empty result), skip
-        # action handling for this thread — it will be retried next
-        # iteration (subject to the dispatch cap above).
-        if [[ $_llm_rc -ne 0 || -z "$_llm_result" ]]; then
-            echo "WARNING: LLM dispatch failed (exit ${_llm_rc}) for thread ${_thread_id} — will retry next iteration." >&2
-            continue
-        fi
-
-        # Parse the terminal ACTION: line from the LLM output
-        local _action_line=""
-        _action_line=$(echo "$_llm_result" | grep -E "^ACTION:" | tail -1 || true)
-
-        case "$_action_line" in
-            ACTION:code_change*)
-                # Track threads with code changes; batch commit happens after the loop
-                # so one commit and one push covers all code_change threads per iteration.
-                _pdb_code_change_ref+=("$_thread_id")
-                ;;
-            ACTION:reply\ REPLY:*)
-                local _reply_body=""
-                _reply_body="${_action_line#ACTION:reply REPLY:}"
-                # Trim all leading whitespace (LLM may emit 'REPLY: text' with space(s)/tab after colon)
-                _reply_body="${_reply_body#"${_reply_body%%[![:space:]]*}"}"
-                [[ -z "$_reply_body" ]] && _reply_body="Acknowledged"
-                local _reply_rc=0
-                if type _pr_post_thread_reply >/dev/null 2>&1; then
-                    _pr_post_thread_reply "$_pdb_pr_number" "$_comment_id" "$_reply_body" >/dev/null 2>&1 || _reply_rc=$?
-                fi
-                if [[ $_reply_rc -eq 0 ]]; then
-                    # Only resolve after a successful reply to prevent duplicate replies
-                    # if the resolve mutation fails and this thread is retried next iteration.
-                    if type _pr_resolve_thread >/dev/null 2>&1; then
-                        _pr_resolve_thread "$_thread_id" >/dev/null 2>&1 || {
-                            # Resolve failed — escalate so next iteration skips re-posting
-                            _pdb_escalated_ref[$_thread_id]=1
-                        }
-                    fi
-                fi
-                ;;
-            ACTION:escalate*|""|*)
-                echo "INFO: Thread ${_thread_id} escalated — leaving for user review." >&2
-                _pdb_escalated_ref[$_thread_id]=1
-                ;;
-        esac
-    done
-    return 0
-}
-
-# --- _pr_commit_code_change_threads: batch commit + push for code_change threads ---
-# All code_change threads in one iteration share one commit + push to avoid
-# triggering N CI runs for N concurrent changes. Threads are only resolved on
-# GitHub after a successful commit AND push — never mark resolved when the fix
-# hasn't reached the remote.
-#
-# This raw git commit is intentional and CI-only: merge-to-main-pr.sh runs in
-# CI environments (e.g. GitHub Actions) where the project pre-commit hook suite
-# is not installed. In interactive/local sessions the review gate would block
-# this commit; guard below escalates code_change threads instead of committing.
-#
-# Args: _repo_root, _escalated_threads_var (nameref), _code_change_threads_var (nameref)
-# Modifies _escalated_threads and _code_change_threads in place via the namerefs.
-_pr_commit_code_change_threads() {
-    local _pcct_repo_root="$1"
-    local _pcct_escalated_var="$2"
-    local _pcct_code_change_var="$3"
-
-    # Use namerefs to avoid eval on caller-supplied variable names.
-    # shellcheck disable=SC2178
-    local -n _pcct_escalated_ref="$_pcct_escalated_var"
-    # shellcheck disable=SC2178
-    local -n _pcct_code_change_ref="$_pcct_code_change_var"
-
-    local _pcct_count="${#_pcct_code_change_ref[@]}"
-    (( _pcct_count == 0 )) && return 0
-
-    if [[ "${CI:-}" != "true" ]]; then
-        echo "WARNING: code_change threads require CI mode (CI=true) for auto-commit — escalating threads to avoid review-gate conflict." >&2
-        local _pcct_ct
-        for _pcct_ct in "${_pcct_code_change_ref[@]}"; do
-            _pcct_escalated_ref[$_pcct_ct]=1
-        done
-        _pcct_code_change_ref=()
-        return 0
-    fi
-
-    local _commit_rc=0
-    local _thread_list="${_pcct_code_change_ref[*]}"
-    git -C "$_pcct_repo_root" commit -m "fix: address PR review threads ${_thread_list}" 2>/dev/null || _commit_rc=$?
-    if [[ $_commit_rc -eq 0 ]]; then
-        local _push_rc=0
-        git -C "$_pcct_repo_root" push origin HEAD 2>/dev/null || _push_rc=$?
-        if [[ $_push_rc -eq 0 ]]; then
-            if type _pr_resolve_thread >/dev/null 2>&1; then
-                local _pcct_ct
-                for _pcct_ct in "${_pcct_code_change_ref[@]}"; do
-                    _pr_resolve_thread "$_pcct_ct" >/dev/null 2>&1 || true
-                done
-            fi
-        else
-            echo "WARNING: push failed (exit ${_push_rc}) — code_change threads not resolved." >&2
-        fi
-    else
-        echo "WARNING: batch commit failed (exit ${_commit_rc}) — code_change threads not resolved." >&2
-    fi
-    return 0
-}
-
 # --- _phase_resolve_threads: loop to resolve all PR review threads before poll ---
 # Settling heuristic: done when zero unresolved threads AND quiet window elapsed.
 # Bounds: max dispatch count (merge.pr_max_thread_dispatches, default 10) and
@@ -579,9 +289,31 @@ _pr_commit_code_change_threads() {
 #   _LLM_DISPATCH_CMD                 — override LLM dispatch command (default: llm-api-call.sh)
 _phase_resolve_threads() {
     local _pr_number="$1" _pr_url="$2"
+    local _read_config
+    _read_config="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"  # shim-exempt: internal plugin script
 
+    # Read config with env override support
     local _max_dispatches _max_wait _quiet_window _interval
-    _pr_resolve_threads_read_config _max_dispatches _max_wait _quiet_window _interval
+    _max_dispatches="${PR_THREAD_LOOP_MAX_DISPATCHES:-}"
+    if [[ -z "$_max_dispatches" ]]; then
+        _max_dispatches=$(bash "$_read_config" merge.pr_max_thread_dispatches 2>/dev/null || true)
+        [[ -z "$_max_dispatches" ]] && _max_dispatches=10
+    fi
+
+    _max_wait="${PR_THREAD_LOOP_MAX_WALL_SECONDS:-}"
+    if [[ -z "$_max_wait" ]]; then
+        _max_wait=$(bash "$_read_config" merge.pr_thread_resolution_max_wait_seconds 2>/dev/null || true)
+        [[ -z "$_max_wait" ]] && _max_wait=1800
+    fi
+
+    _quiet_window=$(bash "$_read_config" merge.pr_thread_quiet_window_seconds 2>/dev/null || true)
+    [[ -z "$_quiet_window" ]] && _quiet_window=120
+
+    _interval="${PR_THREAD_LOOP_INTERVAL:-}"
+    if [[ -z "$_interval" ]]; then
+        _interval=$(bash "$_read_config" merge.pr_poll_interval_seconds 2>/dev/null || true)
+        [[ -z "$_interval" ]] && _interval=30
+    fi
 
     local _dispatches=0
     local _start_offset="${PR_THREAD_LOOP_START_OVERRIDE_SECONDS:-0}"
@@ -612,15 +344,31 @@ _phase_resolve_threads() {
         fi
 
         # --- Detect head SHA change (push-induced dismissal reset) ---
-        local _sha_reset_rc=0
-        _pr_handle_head_sha_reset \
-            "$_pr_number" \
-            _last_head_sha \
-            _start \
-            _last_thread_seen_ts \
-            _last_thread_count || _sha_reset_rc=$?
-        if [[ "$_sha_reset_rc" -eq 2 ]]; then
-            return 0
+        local _curr_head_sha=""
+        _curr_head_sha=$(gh pr view "$_pr_number" --json headRefOid 2>/dev/null | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get('headRefOid', ''))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+
+        if [[ -n "$_last_head_sha" && -n "$_curr_head_sha" && "$_curr_head_sha" != "$_last_head_sha" ]]; then
+            echo "INFO: POLL_WINDOW_RESET — head SHA changed from ${_last_head_sha} to ${_curr_head_sha}; resetting wall-clock window"
+            _start=$SECONDS
+            _last_thread_seen_ts=0
+            _last_thread_count=0
+            if [[ "${PR_THREAD_LOOP_TEST_STOP_AFTER_RESET:-0}" == "1" ]]; then
+                return 0
+            fi
+        fi
+        # Only update tracked head SHA when we got a non-empty value from gh.
+        # A transient `gh` failure produces an empty _curr_head_sha; overwriting
+        # _last_head_sha with empty would mask a real subsequent push and
+        # silently defeat the wall-clock cap.
+        if [[ -n "$_curr_head_sha" ]]; then
+            _last_head_sha="$_curr_head_sha"
         fi
 
         local _now_ts=$SECONDS
@@ -684,22 +432,164 @@ _phase_resolve_threads() {
         local _repo_root
         _repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
         local _code_change_threads=()
-        _pr_dispatch_unresolved_batch \
-            "$_pr_number" \
-            "$_pr_url" \
-            "$_repo_root" \
-            "$_llm_cmd" \
-            "$_max_dispatches" \
-            _dispatches \
-            _escalated_threads \
-            _code_change_threads \
-            "${_threads_arr[@]:-}"
+        local _t
+        for _t in "${_threads_arr[@]:-}"; do
+            [[ -z "$_t" ]] && continue
+            if (( _dispatches >= _max_dispatches )); then break; fi
+
+            # Parse tab-delimited thread fields: thread_id, file, line, comment_id, body_b64
+            local _thread_id="${_t%%$'\t'*}"
+            # Skip threads already escalated in a prior loop iteration.
+            [[ -n "${_escalated_threads[$_thread_id]:-}" ]] && continue
+
+            local _file_path="" _line_range="" _comment_id="" _thread_body_b64=""
+            IFS=$'\t' read -r _ _file_path _line_range _comment_id _thread_body_b64 <<< "$_t" || true
+            local _thread_body=""
+            [[ -n "$_thread_body_b64" ]] && _thread_body=$(echo "$_thread_body_b64" | base64 -d 2>/dev/null || true)
+
+            # Validate reviewer-supplied file path before using it. _file_path
+            # comes from the GraphQL response (untrusted reviewer input). An
+            # invalid path is dropped: we skip the diff fetch and pass an empty
+            # string to the LLM dispatch so neither `git diff` nor
+            # `llm-api-call.sh` ever sees the malicious value.
+            local _safe_file_path=""
+            if _pr_validate_file_path "$_file_path"; then
+                _safe_file_path="$_file_path"
+            else
+                echo "WARNING: rejecting unsafe file_path from thread ${_thread_id}: $(printf '%q' "$_file_path")" >&2
+            fi
+
+            # Generate a short diff_context for the file (best-effort; empty if unavailable).
+            # Use a repo-relative path with git run from the repo root to avoid path doubling.
+            local _diff_context=""
+            if [[ -n "$_safe_file_path" && -n "$_repo_root" ]]; then
+                # Even after _pr_validate_file_path, the path could resolve to
+                # outside the repo via symlinks or simply not exist as a tracked
+                # file. Restrict diff fetch to git-tracked paths so a reviewer
+                # cannot trick us into reading arbitrary working-tree files.
+                if git -C "$_repo_root" ls-files --error-unmatch -- "$_safe_file_path" >/dev/null 2>&1; then
+                    _diff_context=$(git -C "$_repo_root" diff HEAD -- "$_safe_file_path" 2>/dev/null | head -30 || true)
+                fi
+            fi
+
+            # Build a structured user message containing all thread context.
+            # This avoids sed injection from reviewer-supplied values (thread_body, etc.)
+            # while giving the LLM all inputs it needs per pr-comment-responder.md.
+            local _user_msg
+            _user_msg=$(printf 'thread_id: %s\nthread_body: %s\npr_url: %s\nrepo_root: %s\nfile_path: %s\nline_range: %s\ndiff_context:\n%s' \
+                "$_thread_id" \
+                "${_thread_body:-[no body]}" \
+                "$_pr_url" \
+                "$_repo_root" \
+                "${_safe_file_path:-}" \
+                "${_line_range:-}" \
+                "${_diff_context:-[none]}")
+
+            local _llm_result=""
+            local _llm_rc=0
+            local _responder_prompt="${CLAUDE_PLUGIN_ROOT}/scripts/prompts/pr-comment-responder.md"  # shim-exempt: internal plugin script
+            _llm_result=$($_llm_cmd \
+                "$_responder_prompt" \
+                "$_user_msg" \
+                "standard" \
+                2>/dev/null) || _llm_rc=$?
+
+            # Every LLM dispatch attempt counts against the cap, regardless of
+            # outcome. Otherwise a thread that consistently fails (non-zero exit
+            # or empty result) would be retried indefinitely without ever
+            # tripping the dispatch cap, defeating its purpose.
+            _dispatches=$(( _dispatches + 1 ))
+
+            # On infrastructure failure (non-zero exit, empty result), skip
+            # action handling for this thread — it will be retried next
+            # iteration (subject to the dispatch cap above).
+            if [[ $_llm_rc -ne 0 || -z "$_llm_result" ]]; then
+                echo "WARNING: LLM dispatch failed (exit ${_llm_rc}) for thread ${_thread_id} — will retry next iteration." >&2
+                continue
+            fi
+
+            # Parse the terminal ACTION: line from the LLM output
+            local _action_line=""
+            _action_line=$(echo "$_llm_result" | grep -E "^ACTION:" | tail -1 || true)
+
+            case "$_action_line" in
+                ACTION:code_change*)
+                    # Track threads with code changes; batch commit happens after the loop
+                    # so one commit and one push covers all code_change threads per iteration.
+                    _code_change_threads+=("$_thread_id")
+                    ;;
+                ACTION:reply\ REPLY:*)
+                    local _reply_body=""
+                    _reply_body="${_action_line#ACTION:reply REPLY:}"
+                    # Trim all leading whitespace (LLM may emit 'REPLY: text' with space(s)/tab after colon)
+                    _reply_body="${_reply_body#"${_reply_body%%[![:space:]]*}"}"
+                    [[ -z "$_reply_body" ]] && _reply_body="Acknowledged"
+                    local _reply_rc=0
+                    if type _pr_post_thread_reply >/dev/null 2>&1; then
+                        _pr_post_thread_reply "$_pr_number" "$_comment_id" "$_reply_body" >/dev/null 2>&1 || _reply_rc=$?
+                    fi
+                    if [[ $_reply_rc -eq 0 ]]; then
+                        # Only resolve after a successful reply to prevent duplicate replies
+                        # if the resolve mutation fails and this thread is retried next iteration.
+                        if type _pr_resolve_thread >/dev/null 2>&1; then
+                            _pr_resolve_thread "$_thread_id" >/dev/null 2>&1 || {
+                                # Resolve failed — escalate so next iteration skips re-posting
+                                _escalated_threads[$_thread_id]=1
+                            }
+                        fi
+                    fi
+                    ;;
+                ACTION:escalate*|""|*)
+                    echo "INFO: Thread ${_thread_id} escalated — leaving for user review." >&2
+                    _escalated_threads[$_thread_id]=1
+                    ;;
+            esac
+        done
 
         # --- Batch commit + push for code_change threads ---
-        _pr_commit_code_change_threads \
-            "$_repo_root" \
-            _escalated_threads \
-            _code_change_threads
+        # All code_change threads in this iteration share one commit + push to avoid
+        # triggering N CI runs for N concurrent changes. Threads are only resolved on
+        # GitHub after a successful commit AND push — never mark resolved when the fix
+        # hasn't reached the remote.
+        #
+        # This raw git commit is intentional and CI-only: merge-to-main-pr.sh runs in
+        # CI environments (e.g. GitHub Actions) where the project pre-commit hook suite
+        # is not installed. In interactive/local sessions the review gate would block
+        # this commit; guard below escalates code_change threads instead of committing.
+        if [[ ${#_code_change_threads[@]} -gt 0 ]]; then
+            if [[ "${CI:-}" != "true" ]]; then
+                echo "WARNING: code_change threads require CI mode (CI=true) for auto-commit — escalating threads to avoid review-gate conflict." >&2
+                local _ct
+                for _ct in "${_code_change_threads[@]}"; do
+                    _escalated_threads[$_ct]=1
+                done
+                _code_change_threads=()
+            fi
+        fi
+        if [[ ${#_code_change_threads[@]} -gt 0 ]]; then
+            local _commit_rc=0
+            git -C "$_repo_root" commit -m "fix: address PR review threads ${_code_change_threads[*]}" 2>/dev/null || _commit_rc=$?
+            if [[ $_commit_rc -eq 0 ]]; then
+                local _push_rc=0
+                git -C "$_repo_root" push origin HEAD 2>/dev/null || _push_rc=$?
+                if [[ $_push_rc -eq 0 ]]; then
+                    if type _pr_resolve_thread >/dev/null 2>&1; then
+                        local _ct
+                        for _ct in "${_code_change_threads[@]}"; do
+                            local _resolve_rc=0
+                            _pr_resolve_thread "$_ct" >/dev/null 2>&1 || _resolve_rc=$?
+                            if [[ $_resolve_rc -ne 0 ]]; then
+                                echo "WARNING: thread ${_ct} resolution failed (rc=${_resolve_rc}) — will retry next iteration." >&2
+                            fi
+                        done
+                    fi
+                else
+                    echo "WARNING: push failed (exit ${_push_rc}) — code_change threads not resolved." >&2
+                fi
+            else
+                echo "WARNING: batch commit failed (exit ${_commit_rc}) — code_change threads not resolved." >&2
+            fi
+        fi
 
         # --- Sleep ---
         if [[ "$_interval" != "0" && "$_interval" != "0.0" ]]; then
@@ -850,10 +740,10 @@ if [[ "$_PHASE_MERGE_RC" -ne 0 ]]; then
         fi
         _PR_URL_CHECK=""
         if [[ -n "$_MERGE_SF" && -f "$_MERGE_SF" ]]; then
-            _PR_URL_CHECK=$(_DSO_SF="$_MERGE_SF" python3 -c "
-import json, os
+            _PR_URL_CHECK=$(python3 -c "
+import json
 try:
-    d = json.load(open(os.environ['_DSO_SF']))
+    d = json.load(open('$_MERGE_SF'))
     print(d.get('pr_url', ''))
 except Exception:
     print('')
@@ -872,18 +762,18 @@ _PR_NUMBER=""
 if type _state_file_path >/dev/null 2>&1; then
     _SF=$(_state_file_path 2>/dev/null || true)
     if [[ -n "$_SF" && -f "$_SF" ]]; then
-        _PR_URL=$(_DSO_SF="$_SF" python3 -c "
-import json, os
+        _PR_URL=$(python3 -c "
+import json
 try:
-    d = json.load(open(os.environ['_DSO_SF']))
+    d = json.load(open('$_SF'))
     print(d.get('pr_url', ''))
 except Exception:
     print('')
 " 2>/dev/null || true)
-        _PR_NUMBER=$(_DSO_SF="$_SF" python3 -c "
-import json, os
+        _PR_NUMBER=$(python3 -c "
+import json
 try:
-    d = json.load(open(os.environ['_DSO_SF']))
+    d = json.load(open('$_SF'))
     n = d.get('pr_number', '')
     print(n if n != '' else '')
 except Exception:
