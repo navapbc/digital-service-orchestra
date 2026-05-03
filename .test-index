@@ -184,7 +184,8 @@ plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/s
 plugins/dso/scripts/sprint/sprint-drift-check.sh:tests/scripts/test-sprint-drift-check.sh,tests/scripts/test-sprint-drift-check-storage-api.sh
 plugins/dso/scripts/sprint/sprint-review-scope-check.sh:tests/scripts/test-sprint-review-scope-check.sh,tests/scripts/test-sprint-review-scope-check-storage-api.sh
 plugins/dso/scripts/validate.sh:tests/scripts/test-validate-config-driven.sh
-plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py,tests/scripts/test_worktree_cleanup_gather_progress.py,tests/scripts/test-worktree-cleanup.sh,tests/scripts/test-worktree-pr-merge-detection.sh
+plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py,tests/scripts/test_worktree_cleanup_gather_progress.py,tests/scripts/test-worktree-cleanup.sh,tests/scripts/test-worktree-pr-merge-detection.sh,tests/scripts/test-claude-safe-stale-local-main.sh
+plugins/dso/scripts/claude-safe:tests/scripts/test-claude-safe-portability.sh,tests/scripts/test-claude-safe-post-merge-amend.sh,tests/scripts/test-claude-safe-tickets-dir.sh,tests/scripts/test-worktree-pr-merge-detection.sh,tests/scripts/test-claude-safe-stale-local-main.sh
 plugins/dso/skills/sprint/prompts/sc-coverage-sonnet.md:tests/skills/test-sprint-sc-coverage-prompts.sh
 plugins/dso/skills/sprint/prompts/sc-coverage-opus.md:tests/skills/test-sprint-sc-coverage-prompts.sh
 plugins/dso/skills/ui-discover/lock.sh:tests/hooks/test-edit-block-generated-agents.sh,tests/hooks/test-blocked-test-command-hook.sh,tests/scripts/test-merge-to-main-locking.sh,tests/scripts/test-lock-lifecycle.sh,tests/scripts/test-validate-flock-timeout.sh,tests/scripts/test-lock-acquire-ticket-format.sh,tests/scripts/test_ticket_unblock.py,tests/scripts/test-cross-stack-lockpick-snapshot.sh,tests/skills/test-using-dso-clarification.sh

@@ -219,6 +219,11 @@ is_branch_merged() {
     if git -C "$git_dir" merge-base --is-ancestor "$branch_name" "$target_branch" 2>/dev/null; then
         return 0
     fi
+    # Also check remote tracking branch; local ref may be stale when the main repo is
+    # checked out on a non-main branch (git pull only fast-forwards the current branch).
+    if git -C "$git_dir" merge-base --is-ancestor "$branch_name" "origin/$target_branch" 2>/dev/null; then
+        return 0
+    fi
     if git -C "$git_dir" log "$target_branch" --oneline --grep="(merge $branch_name)" -1 2>/dev/null | grep -q .; then
         return 0
     fi

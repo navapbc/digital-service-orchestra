@@ -77,4 +77,25 @@ else
     assert_eq "gha-scanner.md uses .claude/scripts/dso shim path" "found" "missing"
 fi
 
+# ── Test 7: branch detection step section present ─────────────────────────────
+# Tests structural boundary: a dedicated step for detecting the default branch
+# must exist. Tests the section heading, not the implementation mechanism.
+echo "--- test_gha_scanner_branch_detection_step_present ---"
+if grep -q '^### Step 1.5' "$SCANNER_MD"; then
+    assert_eq "gha-scanner.md has a branch detection step (Step 1.5)" "found" "found"
+else
+    assert_eq "gha-scanner.md has a branch detection step (Step 1.5)" "found" "missing"
+fi
+
+# ── Test 8: Step 4 API call includes branch parameter ─────────────────────────
+# Tests structural boundary: Step 4's API call parameters list must include
+# a 'branch' entry. Tests the documented contract, not the variable name used.
+echo "--- test_gha_scanner_step4_api_includes_branch_param ---"
+step4_section=$(awk '/^### Step 4/,/^### Step 5/' "$SCANNER_MD")
+if echo "$step4_section" | grep -q 'branch'; then
+    assert_eq "gha-scanner.md Step 4 API call includes branch parameter" "found" "found"
+else
+    assert_eq "gha-scanner.md Step 4 API call includes branch parameter" "found" "missing"
+fi
+
 print_summary

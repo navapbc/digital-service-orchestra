@@ -849,9 +849,9 @@ Report:
 - Ready tasks (`.claude/scripts/dso ticket ready --epic=<story-id>`)
 - Whether documentation/E2E tasks were included and why
 
-**When invoked interactively (user-initiated)**: stop and wait for user instructions — do not begin implementing.
+**When invoked from `/dso:sprint` (via Skill tool)**: continue immediately to Step 6 (Gap Analysis), then emit STATUS:complete per the Output Protocol. Do not pause.
 
-**When invoked from `/dso:sprint` (via Skill tool)**: do NOT stop. Continue immediately to Step 6 (Gap Analysis), then emit STATUS:complete per the Output Protocol.
+**When invoked interactively (user-initiated)**: present the summary above and wait for user instructions before implementing.
 
 ---
 
