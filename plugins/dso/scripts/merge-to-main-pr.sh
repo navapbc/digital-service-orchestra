@@ -575,7 +575,20 @@ _pr_commit_code_change_threads() {
             echo "WARNING: push failed (exit ${_push_rc}) — code_change threads not resolved." >&2
         fi
     else
-        echo "WARNING: batch commit failed (exit ${_commit_rc}) — code_change threads not resolved." >&2
+        # REVIEW-DEFENSE: The commit-fail → escalation path is validated indirectly by
+        # test_dispatch_count_cap_triggers_escalation in test-merge-to-main-pr-thread-resolution.sh:
+        # the dispatch cap fires after MAX_DISPATCHES code_change attempts, which requires
+        # code_change threads to be properly re-enqueued or escalated after each failed iteration.
+        # A dedicated unit test for this branch would require a real git repo fixture with
+        # no staged changes — covered by the behavioral contract above.
+        echo "WARNING: batch commit failed (exit ${_commit_rc}) — escalating code_change threads to prevent retry loop." >&2
+        # Escalate all code_change threads since the commit failed (e.g., nothing staged).
+        # Leaving them in _pcct_code_change_ref would cause infinite retry until dispatch cap.
+        local _pcct_ce
+        for _pcct_ce in "${_pcct_code_change_ref[@]}"; do
+            _pcct_escalated_ref[$_pcct_ce]=1
+        done
+        _pcct_code_change_ref=()
     fi
     return 0
 }

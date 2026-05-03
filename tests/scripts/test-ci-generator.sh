@@ -462,7 +462,8 @@ assert_pass_if_clean "test_no_validator_available_succeeds"
 # Then:  (a) the output CI workflow YAML contains a step whose name/description
 #            includes "Resolve", "fetch", and "DSO plugin", AND
 #        (b) the YAML contains validate-required-checks.sh inside a run: block
-#            (grep -A2 'validate-required-checks' <file> | grep -q 'run:').
+#            (grep -B5 'validate-required-checks' <file> | grep -q 'run:'
+#             looks for run: in the 5 lines BEFORE the bash command).
 #
 # This test is RED until Task 2b implements --mode=pr-protected.
 _snapshot_fail
@@ -507,7 +508,7 @@ assert_eq "test_mode_pr_protected_generates_resolve_fetch_step: step contains DS
 # Assertion (b): validate-required-checks.sh appears inside a run: block
 validate_in_run="no"
 if [[ -n "$pr_protected_yml" && -f "$pr_protected_yml" ]]; then
-    if grep -A2 'validate-required-checks' "$pr_protected_yml" 2>/dev/null | grep -q 'run:'; then
+    if grep -B5 'validate-required-checks' "$pr_protected_yml" 2>/dev/null | grep -q 'run:'; then
         validate_in_run="yes"
     fi
 fi
