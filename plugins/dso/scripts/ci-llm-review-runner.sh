@@ -390,6 +390,35 @@ rm -f "$_VALIDATION_ERR_TMP"
 
 bash "$(command -v record-review.sh)" --reviewer-hash "${REVIEWER_HASH:-}"
 REVIEW_STATUS=$(head -1 "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/review-status" 2>/dev/null || echo "")
+
+# Always log the reviewer findings so CI output is actionable for agents and humans.
+_findings_file="${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings.json"
+if [[ -f "$_findings_file" ]]; then
+  echo ""
+  echo "=== LLM Reviewer Findings ==="
+  python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    summary = d.get('summary', '(no summary)')
+    findings = d.get('findings', [])
+    print('Summary:', summary)
+    print('Findings:', len(findings))
+    for i, f in enumerate(findings, 1):
+        sev = f.get('severity', '?')
+        cat = f.get('category', '?')
+        desc = f.get('description', '')[:200]
+        ffile = f.get('file', '')
+        print(f'  [{i}] {sev.upper()} ({cat}): {desc}', flush=True)
+        if ffile:
+            print(f'       file: {ffile}', flush=True)
+except Exception as e:
+    print('(could not parse findings:', e, ')')
+" "$_findings_file" 2>/dev/null || true
+  echo "=== End LLM Reviewer Findings ==="
+  echo ""
+fi
+
 if [[ "$REVIEW_STATUS" == "failed" ]]; then
   echo "Review FAILED" >&2
   exit 1
