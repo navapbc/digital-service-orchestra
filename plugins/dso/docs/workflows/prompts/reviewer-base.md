@@ -145,6 +145,66 @@ Set `approach_viability_concern: true` in the `summary` text when you detect a *
   the method name matches the library's documented interface. Fragile findings are treated
   the same as `important` for pass/fail purposes.
 
+## Severity Calibration Rubric
+
+Severity calibration prevents two failure modes: under-reporting real bugs as `minor`, and over-escalating style issues as `important` or `critical`. Apply this rubric when in doubt.
+
+### MINOR — not IMPORTANT
+
+The following are `minor` regardless of how widespread they appear in a diff:
+
+1. **Unused imports in non-critical files** — an unused import adds noise but does not affect runtime behavior. Flag as `minor` under `hygiene`. Exception: security-sensitive imports (e.g., unused crypto primitives) may warrant `important` if their presence signals confusion.
+2. **Misspellings in non-user-facing strings or comments** — typos in internal log messages, code comments, or developer-facing docstrings are `minor` under `maintainability`. Only escalate to `important` if the misspelling is in a user-visible string, an API response field name, or a configuration key.
+3. **Redundant blank lines or minor whitespace inconsistencies** — extra blank lines, trailing spaces, or inconsistent indentation are `minor` under `maintainability`. The configured formatter catches these automatically; do not escalate whitespace issues.
+4. **Variable name style that deviates from convention in non-public code** — a private function using `camelCase` in a snake_case codebase is `minor` under `maintainability`. Only escalate if the name collision causes ambiguity or shadows a public symbol.
+5. **Comment formatting inconsistencies** — inconsistent comment style (e.g., `# comment` vs `#comment`, or missing period at end of docstring) is `minor` under `maintainability`.
+6. **Log message wording that could be clearer** — a log statement that is functional but could be worded more precisely is `minor` under `maintainability`, not `important`. Escalate only if the message is actively misleading and could cause an operator to take the wrong action.
+
+### Explicit carve-outs
+
+These patterns look alarming but are NOT elevated severity when the conditions are fully met:
+
+- **Moved or renamed code with all callsites updated → `minor`, not `critical`**: If a function/class/constant is renamed and every reference in the repo is updated consistently, this is a `minor` `hygiene` or `maintainability` note at most. It is only `critical` when one or more callsites are missed (dangling reference). Always grep for the old name before escalating a rename to `critical`.
+- **Pure formatting-only changes → `minor`, not `important`**: Even when a formatter reformats hundreds of lines, the finding is `minor` under `maintainability`. Widespread reformatting does not introduce bugs.
+- **Adding a test for existing behavior → `minor`, not `important`**: Adding test coverage for code that already works is a `minor` positive signal under `verification`. Only escalate if the new test is structurally incorrect or tests the wrong behavior.
+
+### IMPORTANT vs CRITICAL distinction
+
+Severity inflation (marking `important` as `critical`) is as harmful as under-reporting. Use this rule:
+
+- `critical`: the code **will** cause a bug, data loss, security vulnerability, or broken build as written. No speculation required — the defect is directly observable in the diff.
+- `important`: the code **likely** has a problem that should be fixed before merge, but it may not manifest in all execution paths or environments.
+- `minor`: a low-risk improvement. The code works; this suggestion improves quality or consistency.
+
+When uncertain whether a finding is `important` or `critical`, prefer `important` and use `escalate_review` to flag the ambiguity rather than inflating to `critical`.
+
+---
+
+## NOT-Flag Auto-Downgrade Rules
+
+NOT-flag rules proactively prevent minor findings from being escalated to `important`. Apply these rules before assigning severity: if a finding matches a category below, the maximum severity is `minor` regardless of other indicators. When a finding qualifies under both a NOT-Flag category and the Severity Calibration Rubric, these rules take precedence — suppress to `minor` rather than emitting a finding.
+
+### Categories (auto-downgrade to `minor`)
+
+1. **Purely mechanical style preferences already enforced by the configured linter** — whitespace, indentation, spacing around operators, trailing commas, or similar formatting choices that the project's automated formatter already catches. Do NOT apply this rule to naming choices that affect readability or that a linter would not flag (e.g., confusingly similar names, names that misrepresent the function's behavior) — those remain valid `hygiene` or `maintainability` findings at their assigned severity.
+
+2. **Missing error handling for paths the calling code guarantees are unreachable** — adding error handling for an impossible path (e.g., null check after a non-nullable constructor guarantee, bounds check after a prior range assertion) is `minor` at most. Exception: when the calling context is user-controlled input (untrusted external data boundary), error handling is no longer impossible-path — escalate normally.
+
+3. **Non-public API naming convention deviations** — a private function or internal module using a different naming convention than the rest of the codebase (e.g., `camelCase` in a `snake_case` codebase) is `minor` under `maintainability`. Only escalate if the deviation causes ambiguity with a public symbol or shadows an exported name.
+
+4. **Redundant null or bounds checks the runtime guarantees cannot trigger** — a null check on a field the type system marks non-nullable, or a bounds check on a range the constructor/factory already enforces, is `minor` under `maintainability`. Applies only when the non-reachability is statically provable from the diff; when uncertain, do not apply this rule.
+
+5. **Comment and docstring formatting inconsistencies** — missing periods at end of docstrings, inconsistent capitalization in block comments, irregular spacing around comment delimiters. These are `minor` under `maintainability`. Only escalate if the comment is in a user-facing API (public SDK docs, error messages) and the formatting error makes it misleading.
+
+### Scope Boundary
+
+NOT-flag rules do NOT override findings where:
+- The coding pattern creates a security vulnerability (even if stylistic in appearance)
+- The error path is reachable via untrusted input
+- The "impossible path" relies on caller contracts not enforced in the current diff
+
+---
+
 ## Escalation
 
 `escalate_review` is an **optional** top-level key. Include it only when you are uncertain about the severity assignment for one or more specific findings — for example, when a finding could be `important` or `critical` depending on runtime context you cannot verify from the diff alone. Omit it entirely when confident about all severity assignments.

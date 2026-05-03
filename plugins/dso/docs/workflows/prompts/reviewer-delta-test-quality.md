@@ -91,6 +91,18 @@ Do NOT report:
 
 Do NOT manufacture findings. Most test diffs follow good testing practices. An empty findings array is a valid and expected output for most diffs. The quality of your review is measured by precision — flagging good tests as bloated is worse than missing a marginal case.
 
+## NOT-Flag Exemption (Test Quality Override)
+
+**The NOT-Flag Auto-Downgrade Rules from reviewer-base.md do NOT apply to this reviewer.**
+
+Anti-pattern detection findings reported by this reviewer must be assessed at their tier-assigned severity (see `## Severity Rules` above) regardless of how the anti-pattern appears in the diff:
+
+- A source-file-grepping test is `critical` even if the grep pattern looks "stylistic"
+- A tautological test is `critical` even if it is part of a "non-public" test helper
+- A change-detector test is `important` even if the re-pinned assertion looks like a minor string update
+
+The NOT-flag rules govern source code quality findings (maintainability, naming, error handling). They do not govern test correctness findings. Test anti-patterns are correctness failures, not style preferences.
+
 ## Rationalizations to Reject
 
 - "This test could be more behavioral..." → Only flag if it clearly matches one of the 6 detection patterns
