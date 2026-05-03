@@ -314,13 +314,13 @@ Wait for user response and route accordingly:
 #### Step 1: Check for Existing Children (/dso:sprint)
 
 ```bash
-.claude/scripts/dso ticket deps <epic-id>
+OPEN=$({ .claude/scripts/dso ticket list --parent=<epic-id> --status=open 2>/dev/null; .claude/scripts/dso ticket list --parent=<epic-id> --status=in_progress 2>/dev/null; } | grep -c '"ticket_id"' || echo 0)
+ALL=$(.claude/scripts/dso ticket list --parent=<epic-id> --include-archived 2>/dev/null | grep -c '"ticket_id"' || echo 0)
 ```
 
-Count the number of child tasks returned.
-
-- **If children exist**: proceed to Step 2 (Existing Children Readiness Check)
-- **If zero children**: proceed to Step 7 (Epic Complexity Evaluation)
+- **`OPEN > 0`**: → Step 2 (Existing Children Readiness Check)
+- **`OPEN == 0` and `ALL > 0`**: All children closed. Log `"Preplanning Gate: all children closed — routing to Phase G."` Skip to Phase G. Do NOT route to Step 7.
+- **`ALL == 0`**: → Step 7 (Epic Complexity Evaluation)
 
 #### Step 2: Existing Children Readiness Check (/dso:sprint)
 

@@ -800,7 +800,7 @@ print(timestamp)
         temp_event=$(mktemp "$TRACKER_DIR/.tmp-create-XXXXXX")
         desc_file=$(mktemp "$TRACKER_DIR/.tmp-desc-XXXXXX")
         # shellcheck disable=SC2064
-        trap "rm -f '$temp_event' '$desc_file'" EXIT
+        trap "rm -f '$temp_event' '$desc_file' '$_alias_stderr'" EXIT
         printf '%s' "$description" > "$desc_file"
 
         python3 -c "

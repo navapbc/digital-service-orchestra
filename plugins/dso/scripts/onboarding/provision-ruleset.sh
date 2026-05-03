@@ -233,7 +233,8 @@ fi
 # ── Resolve default branch ────────────────────────────────────────────────────
 # Auto-detect from the git remote when a repo is known; fall back to "main".
 # Resolved later after REPO is confirmed (see confirm-repo section).
-DEFAULT_BRANCH="main"
+# Override with DSO_DEFAULT_BRANCH env var for repos using a non-main default.
+DEFAULT_BRANCH="${DSO_DEFAULT_BRANCH:-main}"
 
 # ── Read check names from file ────────────────────────────────────────────────
 if [[ ! -f "$CHECKS_FILE" ]]; then

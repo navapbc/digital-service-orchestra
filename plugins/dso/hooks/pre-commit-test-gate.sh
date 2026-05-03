@@ -506,12 +506,14 @@ if [[ -f "$_fp_status_file" ]]; then
                     _fp_exclude_pathspecs+=(":!${_fp_pat}")
                 done <<< "$_fp_al_src"
             fi
-            # Compute hash inline: git diff HEAD with the same exclusions as compute-diff-hash.sh.
+            # Compute hash inline using --cached (staged-only) to match compute-diff-hash.sh.
+            # --cached is invariant to pre-commit auto-stash (which only affects the working tree,
+            # not the index), eliminating the hash mismatch bug described in 00a5-548f.
             # hash_stdin is sourced from deps.sh above.
             if [[ ${#_fp_exclude_pathspecs[@]} -gt 0 ]]; then
-                _fp_current_hash=$(git diff HEAD -- "${_fp_exclude_pathspecs[@]}" 2>/dev/null | hash_stdin || echo "")
+                _fp_current_hash=$(git diff --cached HEAD -- "${_fp_exclude_pathspecs[@]}" 2>/dev/null | hash_stdin || echo "")
             else
-                _fp_current_hash=$(git diff HEAD -- 2>/dev/null | hash_stdin || echo "")
+                _fp_current_hash=$(git diff --cached HEAD -- 2>/dev/null | hash_stdin || echo "")
             fi
             if [[ -n "$_fp_current_hash" && "$_fp_recorded_hash" == "$_fp_current_hash" ]]; then
                 # Status is valid and hashes match — verify tested_files is present before skipping.

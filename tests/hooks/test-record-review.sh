@@ -617,9 +617,11 @@ echo "initial" > "$_OVERLAY_REPO/file.txt"
 git -C "$_OVERLAY_REPO" add file.txt
 git -C "$_OVERLAY_REPO" commit -m "initial" --quiet >/dev/null 2>&1
 echo "modified" >> "$_OVERLAY_REPO/file.txt"
+git -C "$_OVERLAY_REPO" add file.txt
 # Compute diff hash using the same method as compute-diff-hash.sh:
-# `git diff HEAD` then sha256.
-_OVERLAY_DIFF_HASH=$(cd "$_OVERLAY_REPO" && git diff HEAD | shasum -a 256 | awk '{print $1}')
+# `git diff --cached HEAD` (staged-only) then sha256. Updated from `git diff HEAD`
+# when compute-diff-hash.sh was changed to use --cached for auto-stash invariance (00a5-548f).
+_OVERLAY_DIFF_HASH=$(cd "$_OVERLAY_REPO" && git diff --cached HEAD | shasum -a 256 | awk '{print $1}')
 
 # Set up reviewer-findings.json (tier reviewer's output — passes baseline gates)
 cat > "$_OVERLAY_TMP/reviewer-findings.json" <<'EOFJ'
@@ -685,7 +687,8 @@ echo "initial" > "$_DIFFHASH_REPO/file.txt"
 git -C "$_DIFFHASH_REPO" add file.txt
 git -C "$_DIFFHASH_REPO" commit -m "initial" --quiet >/dev/null 2>&1
 echo "modified-diffhash" >> "$_DIFFHASH_REPO/file.txt"
-_CURRENT_HASH=$(cd "$_DIFFHASH_REPO" && git diff HEAD | shasum -a 256 | awk '{print $1}')
+git -C "$_DIFFHASH_REPO" add file.txt
+_CURRENT_HASH=$(cd "$_DIFFHASH_REPO" && git diff --cached HEAD | shasum -a 256 | awk '{print $1}')
 _STALE_HASH="0000000000000000000000000000000000000000000000000000000000000000"
 
 cat > "$_DIFFHASH_TMP/reviewer-findings.json" <<'EOFJ'
@@ -728,7 +731,8 @@ echo "initial" > "$_SEC_REPO/file.txt"
 git -C "$_SEC_REPO" add file.txt
 git -C "$_SEC_REPO" commit -m "initial" --quiet >/dev/null 2>&1
 echo "modified-security" >> "$_SEC_REPO/file.txt"
-_SEC_DIFF_HASH=$(cd "$_SEC_REPO" && git diff HEAD | shasum -a 256 | awk '{print $1}')
+git -C "$_SEC_REPO" add file.txt
+_SEC_DIFF_HASH=$(cd "$_SEC_REPO" && git diff --cached HEAD | shasum -a 256 | awk '{print $1}')
 
 cat > "$_SEC_TMP/reviewer-findings.json" <<'EOFJ'
 {"findings":[],"summary":"All checks passed.","review_tier":"standard","selected_tier":"standard"}
@@ -836,7 +840,8 @@ echo "initial" > "$_FC_REPO/file.txt"
 git -C "$_FC_REPO" add file.txt
 git -C "$_FC_REPO" commit -m "initial" --quiet >/dev/null 2>&1
 echo "modified-failclosed" >> "$_FC_REPO/file.txt"
-_FC_DIFF_HASH=$(cd "$_FC_REPO" && git diff HEAD | shasum -a 256 | awk '{print $1}')
+git -C "$_FC_REPO" add file.txt
+_FC_DIFF_HASH=$(cd "$_FC_REPO" && git diff --cached HEAD | shasum -a 256 | awk '{print $1}')
 
 # Set up reviewer-findings.json
 cat > "$_FC_TMP/reviewer-findings.json" <<'EOFJ'
