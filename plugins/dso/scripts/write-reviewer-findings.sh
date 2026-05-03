@@ -92,13 +92,36 @@ fi
 python3 -c "
 import json, sys
 SCORE_DIMS = {'correctness', 'design', 'hygiene', 'maintainability', 'verification'}
+FINDING_ITEM_KEYS = {'severity', 'category', 'description', 'file'}
 with open(sys.argv[1], 'r') as f:
     data = json.load(f)
+changed = False
 if 'scores' in data:
     print('DEPRECATION WARNING: \"scores\" key is deprecated. '
           'Update reviewer agents to 2-key schema {findings, summary} (story f19a-c97e).',
           file=sys.stderr)
-" "$PENDING_FILE" || true  # non-fatal; deprecation warning goes to stderr (not stdout)
+# Normalization: when the arch agent emits a single finding dict at the top level
+# (e.g., {category, description, severity, file}) instead of the {findings, summary}
+# container, wrap it into the expected structure so the schema validator accepts it.
+if 'findings' not in data and (FINDING_ITEM_KEYS & set(data.keys())):
+    print('WARNING: Top-level keys look like a finding item; wrapping into '
+          '{findings:[<finding>], summary: ...}', file=sys.stderr)
+    finding = {k: v for k, v in data.items() if k in FINDING_ITEM_KEYS or k in {'rationale', 'recommendation'}}
+    data = {'findings': [finding], 'summary': 'Single finding wrapped from non-container response.'}
+    changed = True
+# Add missing 'summary' field with diagnostic default
+if 'summary' not in data:
+    print('WARNING: Adding default summary field (arch agent did not provide one)', file=sys.stderr)
+    data['summary'] = 'Summary unavailable — arch agent response did not include a summary field.'
+    changed = True
+# Add missing 'findings' field with empty list when absent
+if 'findings' not in data:
+    data['findings'] = []
+    changed = True
+if changed:
+    with open(sys.argv[1], 'w') as f:
+        json.dump(data, f, indent=2)
+" "$PENDING_FILE" 2>&1 || true  # normalization failure is non-fatal
 
 # Inject review_tier field if --review-tier was provided
 if [[ -n "$_REVIEW_TIER" ]]; then
