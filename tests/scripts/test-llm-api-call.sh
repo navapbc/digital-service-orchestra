@@ -15,6 +15,8 @@
 #   8. test_openai_request_body_contains_response_format — request body has response_format.type == "json_object"
 #   9. test_markdown_fence_stripping                   — fenced JSON in response is unwrapped to plain JSON on stdout
 #  10. test_ci_mode_suffix_appended_to_system_prompt   — request body system field contains CI-PIPELINE CONSTRAINT
+#  11. test_ci_context_marker_present_when_github_actions_set — GITHUB_ACTIONS=true → REVIEW_CONTEXT: ci first line of user message
+#  12. test_ci_context_marker_absent_when_github_actions_unset — GITHUB_ACTIONS unset → REVIEW_CONTEXT: ci absent from user message
 #
 # Usage: bash tests/scripts/test-llm-api-call.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -442,6 +444,104 @@ else
         "CAPTURED" "MISSING"
 fi
 assert_pass_if_clean "test_ci_mode_suffix_appended_to_system_prompt"
+
+# ── test_ci_context_marker_present_when_github_actions_set ───────────────────
+# Given: model.provider=anthropic, ANTHROPIC_API_KEY set, GITHUB_ACTIONS=true
+# When:  llm-api-call.sh is invoked
+# Then:  captured request body messages[0].content starts with "REVIEW_CONTEXT: ci\n"
+_snapshot_fail
+MOCK11=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK11")
+CONF11="$MOCK11/config.conf"
+SYSPROMPT11="$MOCK11/system-prompt.md"
+BODY11="$MOCK11/request-body.json"
+printf 'You are a reviewer.\n' > "$SYSPROMPT11"
+_write_config "$CONF11" "anthropic" "standard" "claude-sonnet-4-6"
+_create_mock_curl_body "$MOCK11" "$BODY11" \
+    '{"content":[{"text":"{\"scores\":{},\"findings\":[],\"summary\":\"ok\"}"}],"stop_reason":"end_turn"}'
+
+ci_marker_present_exit=0
+(
+    export PATH="$MOCK11:$PATH"
+    unset OPENAI_API_KEY || true
+    ANTHROPIC_API_KEY="test-key" GITHUB_ACTIONS="true" \
+        bash "$SCRIPT" "$SYSPROMPT11" "review this diff" standard "$CONF11"
+) > /dev/null 2>&1 || ci_marker_present_exit=$?
+
+if [[ -f "$BODY11" ]]; then
+    ci_marker_check_out=""
+    ci_marker_check_exit=0
+    ci_marker_check_out=$(python3 -c "
+import json, sys
+with open('$BODY11') as f:
+    d = json.load(f)
+msgs = d.get('messages', [])
+if not msgs:
+    print('NO_MESSAGES')
+    sys.exit(1)
+content = msgs[0].get('content', '')
+if content.startswith('REVIEW_CONTEXT: ci\n'):
+    print('OK')
+else:
+    print('MISSING: content starts with: ' + repr(content[:40]))
+    sys.exit(1)
+" 2>&1) || ci_marker_check_exit=$?
+    assert_eq "test_ci_context_marker_present_when_github_actions_set: marker is first line" \
+        "OK" "$ci_marker_check_out"
+else
+    assert_eq "test_ci_context_marker_present_when_github_actions_set: request body captured" \
+        "CAPTURED" "MISSING"
+fi
+assert_pass_if_clean "test_ci_context_marker_present_when_github_actions_set"
+
+# ── test_ci_context_marker_absent_when_github_actions_unset ──────────────────
+# Given: model.provider=anthropic, ANTHROPIC_API_KEY set, GITHUB_ACTIONS unset
+# When:  llm-api-call.sh is invoked
+# Then:  captured request body messages[0].content does NOT contain "REVIEW_CONTEXT: ci"
+_snapshot_fail
+MOCK12=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK12")
+CONF12="$MOCK12/config.conf"
+SYSPROMPT12="$MOCK12/system-prompt.md"
+BODY12="$MOCK12/request-body.json"
+printf 'You are a reviewer.\n' > "$SYSPROMPT12"
+_write_config "$CONF12" "anthropic" "standard" "claude-sonnet-4-6"
+_create_mock_curl_body "$MOCK12" "$BODY12" \
+    '{"content":[{"text":"{\"scores\":{},\"findings\":[],\"summary\":\"ok\"}"}],"stop_reason":"end_turn"}'
+
+ci_marker_absent_exit=0
+(
+    export PATH="$MOCK12:$PATH"
+    unset OPENAI_API_KEY || true
+    unset GITHUB_ACTIONS || true
+    ANTHROPIC_API_KEY="test-key" \
+        bash "$SCRIPT" "$SYSPROMPT12" "review this diff" standard "$CONF12"
+) > /dev/null 2>&1 || ci_marker_absent_exit=$?
+
+if [[ -f "$BODY12" ]]; then
+    ci_absent_check_out=""
+    ci_absent_check_exit=0
+    ci_absent_check_out=$(python3 -c "
+import json, sys
+with open('$BODY12') as f:
+    d = json.load(f)
+msgs = d.get('messages', [])
+if not msgs:
+    print('NO_MESSAGES')
+    sys.exit(1)
+content = msgs[0].get('content', '')
+if 'REVIEW_CONTEXT: ci' in content:
+    print('PRESENT_UNEXPECTEDLY: ' + repr(content[:60]))
+    sys.exit(1)
+print('OK')
+" 2>&1) || ci_absent_check_exit=$?
+    assert_eq "test_ci_context_marker_absent_when_github_actions_unset: marker absent" \
+        "OK" "$ci_absent_check_out"
+else
+    assert_eq "test_ci_context_marker_absent_when_github_actions_unset: request body captured" \
+        "CAPTURED" "MISSING"
+fi
+assert_pass_if_clean "test_ci_context_marker_absent_when_github_actions_unset"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

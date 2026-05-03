@@ -45,6 +45,16 @@ Returning prose, markdown, or raw JSON instead of this format will force a re-di
 
 ---
 
+## Diff-Boundary Discipline
+
+When the user message begins with `REVIEW_CONTEXT: ci`:
+- **CI boundary enforced**: Report findings only for code visible in the provided diff. Do NOT assert bugs, missing tests, or design issues about code that is not present in the diff. If you identify a concern in surrounding context, note it as informational only — do not emit it as a scored finding.
+
+When `REVIEW_CONTEXT: ci` is absent:
+- **Full-codebase reasoning permitted**: You may reason about code outside the diff using Read/Grep/Glob, and may raise findings about code not in the diff when the issue is directly caused by or tightly coupled to the diff.
+
+---
+
 ## Procedure
 
 ### Step 1 — Validate and read the diff file
