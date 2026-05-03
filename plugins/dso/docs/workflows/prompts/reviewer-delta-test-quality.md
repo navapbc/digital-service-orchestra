@@ -1,7 +1,7 @@
 # Test Quality Reviewer Delta
 
 **Tier**: test-quality
-**Model**: opus
+**Model**: sonnet
 **Agent name**: code-reviewer-test-quality
 
 This delta file is composed with reviewer-base.md by build-review-agents.sh.

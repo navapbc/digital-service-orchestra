@@ -35,9 +35,9 @@ jobs:
       - name: Mount tickets branch as worktree
         run: |
           git fetch origin tickets --depth=1
-          # Remove the placeholder .tickets-tracker/ from main (if it exists)
-          rm -rf .tickets-tracker
-          git worktree add .tickets-tracker tickets
+          # Remove the placeholder .tickets-tracker/ from main (if it exists)  # tickets-boundary-ok
+          rm -rf .tickets-tracker  # tickets-boundary-ok
+          git worktree add .tickets-tracker tickets  # tickets-boundary-ok
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -145,7 +145,7 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           BRIDGE_ENV_ID: ${{ vars.BRIDGE_ENV_ID }}
           GH_RUN_ID: ${{ github.run_id }}
-          INBOUND_CHECKPOINT_PATH: ${{ vars.INBOUND_CHECKPOINT_PATH || '.tickets-tracker/.inbound-checkpoint.json' }}
+          INBOUND_CHECKPOINT_PATH: ${{ vars.INBOUND_CHECKPOINT_PATH || '.tickets-tracker/.inbound-checkpoint.json' }}  # tickets-boundary-ok
           INBOUND_OVERLAP_BUFFER_MINUTES: ${{ vars.INBOUND_OVERLAP_BUFFER_MINUTES || '15' }}
           INBOUND_STATUS_MAPPING: ${{ vars.INBOUND_STATUS_MAPPING || '{}' }}
           INBOUND_TYPE_MAPPING: ${{ vars.INBOUND_TYPE_MAPPING || '{}' }}
@@ -153,7 +153,7 @@ jobs:
 
       - name: Commit CREATE events back to tickets branch
         run: |
-          cd .tickets-tracker
+          cd .tickets-tracker  # tickets-boundary-ok
           # Check for any changes (staged, unstaged, or untracked)
           if [ -z "$(git status --porcelain)" ]; then
             echo "No new events to commit — skipping."
@@ -169,11 +169,12 @@ jobs:
           git add -A
           git commit -m "chore: sync CREATE events from Jira inbound bridge [run ${{ github.run_id }}]"
 
-          # Push with 3-retry fetch-rebase-push loop.
+          # Push with 5-retry fetch-rebase-push loop with exponential backoff+jitter.
           # The tickets branch may be updated by outbound-bridge or merge-to-main.sh
           # concurrently, causing a non-fast-forward rejection (d411-c0e7).
+          # Fixes 7e1c-ef09: added backoff, SHA-progress detection, stderr logging.
           # Pattern mirrors outbound-bridge.yml.
-          max_retries=3
+          max_retries=5
           attempt=0
           while [ "$attempt" -lt "$max_retries" ]; do
             attempt=$((attempt + 1))
@@ -188,23 +189,54 @@ jobs:
 
             # Check if failure is retryable (non-fast-forward) vs fatal
             if echo "$push_stderr" | grep -qiE 'non-fast-forward|rejected|fetch first'; then
-              echo "Push rejected (attempt $attempt) — fetching and rebasing before retry..."
-              git fetch origin tickets 2>/dev/null || true
+              printf 'Push rejected (attempt %d):\n%s\n' "$attempt" "$push_stderr" >&2
+              # Fetch — log stderr, do not swallow errors (7e1c-ef09 factor b)
+              fetch_exit=0
+              git fetch origin tickets 2>&1 || fetch_exit=$?
+              if [ "$fetch_exit" -ne 0 ]; then
+                echo "Fetch failed (exit $fetch_exit) — retrying without updated remote" >&2
+              fi
             else
               echo "Push failed (non-retryable, exit $push_exit): $push_stderr" >&2
               exit 1
             fi
 
+            # SHA-progress check: if rebase produces no new commit, retrying pushes the
+            # same tip again and will be rejected the same way (7e1c-ef09 factor b).
+            pre_sha=$(git rev-parse HEAD)
             rebase_exit=0
-            git rebase origin/tickets 2>/dev/null || rebase_exit=$?
+            git rebase origin/tickets 2>&1 || rebase_exit=$?
             if [ "$rebase_exit" -ne 0 ]; then
               git rebase --abort 2>/dev/null || true
               echo "Rebase conflict during push retry (attempt $attempt)" >&2
               exit 1
             fi
+            post_sha=$(git rev-parse HEAD)
+            if [ "$pre_sha" = "$post_sha" ] && [ "$attempt" -lt "$max_retries" ]; then
+              echo "Rebase produced no progress (origin/tickets unchanged) — re-fetching before next attempt" >&2
+              recovery_fetch_exit=0
+              git fetch origin tickets 2>&1 || recovery_fetch_exit=$?
+              if [ "$recovery_fetch_exit" -ne 0 ]; then
+                echo "Recovery fetch failed (exit $recovery_fetch_exit) — proceeding with stale remote ref" >&2
+              fi
+              recovery_rebase_exit=0
+              git rebase origin/tickets 2>&1 || recovery_rebase_exit=$?
+              if [ "$recovery_rebase_exit" -ne 0 ]; then
+                git rebase --abort 2>/dev/null || true
+                echo "Recovery rebase conflict — skipping backoff and retrying immediately" >&2
+                continue  # skip backoff; next iteration will push (fail) then fetch+rebase again
+              fi
+            fi
+
+            # Exponential backoff with jitter: 2^attempt + random(0-2)s (7e1c-ef09 factor a)
+            if [ "$attempt" -lt "$max_retries" ]; then
+              backoff=$(( (1 << attempt) + RANDOM % 3 ))
+              echo "Waiting ${backoff}s before retry $((attempt + 1))..." >&2
+              sleep "$backoff"
+            fi
           done
 
-          echo "Push failed after $max_retries retries" >&2
+          echo "Push failed after $max_retries retries. Last push stderr: $push_stderr" >&2
           exit 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
