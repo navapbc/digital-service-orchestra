@@ -69,11 +69,11 @@ CLEANUP_LOG="${CLEANUP_LOG:-$HOME/.claude-safe-cleanup.log}"
 # Removing them now would break the follow-on tasks.
 
 PLUGIN_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_COMPOSE_DB_FILE=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.compose_db_file 2>/dev/null || true)
-CONFIG_COMPOSE_PROJECT=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.compose_project 2>/dev/null || true)
-CONFIG_CONTAINER_PREFIX=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.container_prefix 2>/dev/null || true)
-CONFIG_BRANCH_PATTERN=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.branch_pattern 2>/dev/null || true)
-CONFIG_MAX_AGE_HOURS=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.max_age_hours 2>/dev/null || true)
+CONFIG_COMPOSE_DB_FILE=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.compose_db_file 2>/dev/null || true)  # shim-exempt: internal plugin script
+CONFIG_COMPOSE_PROJECT=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.compose_project 2>/dev/null || true)  # shim-exempt: internal plugin script
+CONFIG_CONTAINER_PREFIX=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.container_prefix 2>/dev/null || true)  # shim-exempt: internal plugin script
+CONFIG_BRANCH_PATTERN=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.branch_pattern 2>/dev/null || true)  # shim-exempt: internal plugin script
+CONFIG_MAX_AGE_HOURS=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.max_age_hours 2>/dev/null || true)  # shim-exempt: internal plugin script
 
 # Capture whether AGE_HOURS was explicitly set in the environment before applying defaults.
 _AGE_HOURS_FROM_ENV="${AGE_HOURS:-}"

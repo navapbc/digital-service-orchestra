@@ -73,7 +73,7 @@ CHECKPOINT_LABEL='checkpoint: pre-compaction auto-save'
 if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" || ! -d "${CLAUDE_PLUGIN_ROOT:-}/hooks/lib" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
-_READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
+_READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"  # shim-exempt: internal plugin script
 if [[ -n "$_READ_CONFIG" ]]; then
     _LABEL=$("$_READ_CONFIG" checkpoint.commit_label 2>/dev/null || echo '')
     [[ -n "$_LABEL" ]] && CHECKPOINT_LABEL="$_LABEL"
