@@ -224,7 +224,7 @@ while pos < len(t2):
         break
     try:
         obj, _ = dec.raw_decode(t2, i)
-        if isinstance(obj, dict) and ('scores' in obj or 'findings' in obj or 'summary' in obj):
+        if isinstance(obj, dict):
             found = obj
             break
     except json.JSONDecodeError:
@@ -274,8 +274,10 @@ t2 = t.lstrip('\`')
 if t2.startswith('json'):
     t2 = t2[4:]
 t2 = t2.strip()
-# Try each '{' position in order until one produces a valid reviewer-findings dict.
-# This handles responses where prose contains '{' before the actual JSON object.
+# Scan for the first '{' that starts a valid JSON object. In LLM responses,
+# prose braces ({foo: bar}) are not valid JSON, so raw_decode naturally skips
+# them. Accept the first successfully-decoded dict — schema validation is
+# delegated to write-reviewer-findings.sh downstream.
 dec = json.JSONDecoder()
 pos = 0
 found = None
@@ -284,15 +286,15 @@ while pos < len(t2):
     if i < 0:
         break
     try:
-        obj, end = dec.raw_decode(t2, i)
-        if isinstance(obj, dict) and ('scores' in obj or 'findings' in obj or 'summary' in obj):
+        obj, _ = dec.raw_decode(t2, i)
+        if isinstance(obj, dict):
             found = obj
             break
     except json.JSONDecodeError:
         pass
     pos = i + 1
 if found is None:
-    raise ValueError('no reviewer-findings JSON object found')
+    raise ValueError('no JSON object found in arch response')
 print(json.dumps(found))
 " 2>/dev/null) || {
       echo "WARNING: Arch LLM response could not be parsed as reviewer-findings JSON." >&2
