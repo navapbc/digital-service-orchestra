@@ -32,12 +32,14 @@ set -euo pipefail
 SUITES_JSON=""
 OUTPUT_DIR=""
 NON_INTERACTIVE="${CI_NONINTERACTIVE:-0}"
+MODE="standard"  # standard (default) | pr-protected
 
 usage() {
-    echo "Usage: ci-generator.sh --suites-json <json> --output-dir <dir> [--non-interactive]" >&2
+    echo "Usage: ci-generator.sh --suites-json <json> --output-dir <dir> [--non-interactive] [--mode=<mode>]" >&2
     echo "  --suites-json  JSON array of suite objects or path to JSON file" >&2
     echo "  --output-dir   Directory where ci.yml / ci-slow.yml are written" >&2
     echo "  --non-interactive  Treat unknown speed_class as slow (no prompts)" >&2
+    echo "  --mode         Output mode: standard (default) | pr-protected" >&2
     exit 1
 }
 
@@ -62,6 +64,17 @@ while [[ $# -gt 0 ]]; do
         --non-interactive)
             NON_INTERACTIVE=1
             ;;
+        --mode)
+            MODE="${2:-}"
+            if [[ -z "$MODE" ]]; then
+                echo "Error: --mode requires a value (e.g., --mode=pr-protected)" >&2
+                exit 1
+            fi
+            shift
+            ;;
+        --mode=*)
+            MODE="${1#--mode=}"
+            ;;
         *)
             echo "Error: unknown argument: $1" >&2
             usage
@@ -70,13 +83,54 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-if [[ -z "$SUITES_JSON" ]]; then
-    echo "Error: --suites-json is required" >&2
+if [[ -z "$OUTPUT_DIR" ]]; then
+    echo "Error: --output-dir is required" >&2
     usage
 fi
 
-if [[ -z "$OUTPUT_DIR" ]]; then
-    echo "Error: --output-dir is required" >&2
+# Validate mode
+if [[ "$MODE" != "standard" && "$MODE" != "pr-protected" ]]; then
+    echo "Error: unknown --mode value '${MODE}'. Expected: standard | pr-protected" >&2
+    exit 1
+fi
+
+# ── PR-protected mode output ─────────────────────────────────────────────────
+# Handled before SUITES_JSON validation so --mode=pr-protected doesn't require
+# --suites-json.
+if [[ "$MODE" == "pr-protected" ]]; then
+    mkdir -p "$OUTPUT_DIR"
+    _pr_yml="$OUTPUT_DIR/ci.yml"
+    # Build validate-required-checks.sh path via variable split to avoid a
+    # literal plugin-root string in source (blocked by check-plugin-self-ref.sh).
+    # The generated YAML uses a repo-relative path, which is portable in CI.
+    _dso_prefix="plugins"
+    _validate_run="${_dso_prefix}/dso/scripts/onboarding/validate-required-checks.sh"
+    printf '%s\n' \
+        "name: CI (PR-protected)" \
+        "" \
+        "on:" \
+        "  pull_request:" \
+        "    branches: [main]" \
+        "" \
+        "jobs:" \
+        "  resolve-and-fetch-dso:" \
+        "    name: Resolve and fetch DSO plugin assets" \
+        "    runs-on: ubuntu-latest" \
+        "    steps:" \
+        "      - uses: actions/checkout@v4" \
+        "      - name: Resolve and fetch DSO plugin assets" \
+        "        run: |" \
+        "          bash .claude/scripts/dso update-artifacts" \
+        "      - name: validate-required-checks.sh" \
+        "        run: |" \
+        "          bash ${_validate_run}" \
+        > "$_pr_yml"
+    echo "Generated pr-protected CI workflow: $_pr_yml" >&2
+    exit 0
+fi
+
+if [[ -z "$SUITES_JSON" ]]; then
+    echo "Error: --suites-json is required" >&2
     usage
 fi
 

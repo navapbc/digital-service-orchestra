@@ -371,4 +371,4 @@ plugins/dso/hooks/check-plugin-self-ref.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/check-portability.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/skills/brainstorm/prompts/ux-probe-set.md:tests/skills/test-brainstorm-ui-intent-detection.sh
 plugins/dso/scripts/merge-to-main-direct.sh:tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-dispatcher.sh
-plugins/dso/scripts/onboarding/ci-generator.sh:tests/scripts/test-ci-generator.sh [test_mode_pr_protected_generates_resolve_fetch_step]
+plugins/dso/scripts/onboarding/ci-generator.sh:tests/scripts/test-ci-generator.sh
