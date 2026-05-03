@@ -108,11 +108,69 @@ test_blindspot_in_light() {
         "$found"
 }
 
+# Helper: create a tracked temp dir
+_new_tmpdir() {
+    local d
+    d="$(mktemp -d)"
+    _TEST_TMPDIRS+=("$d")
+    echo "$d"
+}
+
+test_deep_tier_has_negative_scope_constraint() {
+    echo ""
+    echo "=== test_deep_tier_has_negative_scope_constraint ==="
+    for tier in deep-correctness deep-verification deep-hygiene; do
+        local tmpdir
+        tmpdir=$(_new_tmpdir)
+        bash "$BUILD_SCRIPT" --base "$REPO_ROOT/plugins/dso/docs/workflows/prompts/reviewer-base.md" \
+            --deltas "$REPO_ROOT/plugins/dso/docs/workflows/prompts/reviewer-delta-${tier}.md" \
+            --output "$tmpdir" --expect-count 1 2>/dev/null || true
+        local generated_file="$tmpdir/code-reviewer-${tier}.md"
+        if [[ -f "$generated_file" ]]; then
+            # Check for negative scope constraint language
+            if grep -qiE 'Emit findings ONLY|only in your (owned |assigned )?category|Do NOT emit findings in other|findings only in your' "$generated_file"; then
+                assert_eq "test_deep_tier_has_negative_scope_constraint: ${tier}" "present" "present"
+            else
+                assert_eq "test_deep_tier_has_negative_scope_constraint: ${tier}" \
+                    "negative scope constraint (Emit findings ONLY in your category)" \
+                    "no negative scope constraint found in ${tier} agent"
+            fi
+        else
+            assert_eq "test_deep_tier_has_negative_scope_constraint: ${tier} agent generated" "present" "missing"
+        fi
+    done
+}
+
+test_preoutput_checklist_in_generated_agent() {
+    echo ""
+    echo "=== test_preoutput_checklist_in_generated_agent ==="
+    local tmpdir
+    tmpdir=$(_new_tmpdir)
+    bash "$BUILD_SCRIPT" --base "$REPO_ROOT/plugins/dso/docs/workflows/prompts/reviewer-base.md" \
+        --deltas "$REPO_ROOT/plugins/dso/docs/workflows/prompts/reviewer-delta-light.md" \
+        --output "$tmpdir" --expect-count 1 2>/dev/null || true
+    local generated_file="$tmpdir/code-reviewer-light.md"
+    if [[ -f "$generated_file" ]]; then
+        # Check for pre-output checklist or category coverage check
+        if grep -qiE 'Pre-Output Category|pre-output checklist|Before writing|verify.*all 5 categories|category coverage check' "$generated_file"; then
+            assert_eq "test_preoutput_checklist_in_generated_agent: light reviewer" "present" "present"
+        else
+            assert_eq "test_preoutput_checklist_in_generated_agent: light reviewer" \
+                "pre-output category checklist in generated agent" \
+                "no pre-output checklist found in generated code-reviewer-light.md"
+        fi
+    else
+        assert_eq "test_preoutput_checklist_in_generated_agent: agent generated" "present" "missing"
+    fi
+}
+
 # Dispatch
 test_blindspot_in_deep_hygiene
 test_blindspot_in_deep_correctness
 test_blindspot_in_deep_arch
 test_blindspot_in_standard
 test_blindspot_in_light
+test_deep_tier_has_negative_scope_constraint
+test_preoutput_checklist_in_generated_agent
 
 print_summary

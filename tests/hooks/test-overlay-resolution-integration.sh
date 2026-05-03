@@ -277,15 +277,12 @@ assert_ne "test_fragile_finding_blocks_commit: exit code must be non-zero (fragi
     "0" "$INTEGRATION_EXIT"
 
 # ============================================================
-# test_fragile_finding_score_is_3
+# test_2key_schema_no_scores
 # Given:  overlay findings JSON with a fragile-severity finding mapped to category
 #         "correctness".
 # When:   resolve-overlay-findings.sh is called and invokes write-reviewer-findings.sh.
-# Then:   the JSON piped to the write stub contains a correctness score of 3
-#         (fragile maps to score 3, same as important — not the default fallback of 4).
-#
-# RED: severity_to_score does not include "fragile", so .get("fragile", 4) returns 4,
-#      and the correctness dimension score will be 4 instead of the expected 3.
+# Then:   the JSON piped to the write stub contains only "findings" and "summary" keys
+#         (scores removed in story 6c75-cc5d — schema is now findings + summary only).
 # ============================================================
 tmpdir=$(_new_tmpdir)
 findings_file=$(make_findings_file "$tmpdir" "fragile" "correctness")
@@ -305,18 +302,18 @@ run_integration \
     --findings-json "$findings_file" \
     --write-findings-cmd "$capture_stub"
 
-# Extract the correctness score from the captured JSON payload.
-correctness_score=$(python3 -c "
+# Verify output has 2-key schema: findings + summary, no scores key.
+has_scores=$(python3 -c "
 import json, sys
 try:
     with open('$captured_json') as fh:
         data = json.load(fh)
-    print(data.get('scores', {}).get('correctness', 'missing'))
-except Exception as e:
-    print('missing')
+    print('yes' if 'scores' in data else 'no')
+except Exception:
+    print('error')
 ")
 
-assert_eq "test_fragile_finding_score_is_3: correctness score for fragile must be 3" \
-    "3" "$correctness_score"
+assert_eq "test_2key_schema_no_scores: output must not contain scores key" \
+    "no" "$has_scores"
 
 print_summary
