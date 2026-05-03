@@ -197,11 +197,31 @@ json.loads(t); print(t)
         "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json" || true
     }
 
-    # Validate specialist slot files (fail-closed).
+    # Normalize specialist slot files: extract first valid JSON object (handles LLM
+    # responses with surrounding prose), then validate (fail-closed).
     for _slot in "$_SLOT_CORRECTNESS" "$_SLOT_VERIFICATION" "$_SLOT_HYGIENE"; do
       if [[ ! -f "$_slot" ]]; then
         echo "ERROR: deep-tier slot file missing: $_slot" >&2
         exit 1
+      fi
+      _slot_normalized=$(python3 -c "
+import json, sys
+t = open(sys.argv[1]).read().strip()
+if not t:
+    sys.exit(1)
+# Strip leading backticks and any 'json' language tag from fenced code blocks
+t2 = t.lstrip('\`')
+if t2.startswith('json'):
+    t2 = t2[4:]
+t2 = t2.strip()
+i = t2.find('{')
+if i < 0:
+    sys.exit(1)
+obj, _ = json.JSONDecoder().raw_decode(t2, i)
+print(json.dumps(obj))
+" "$_slot" 2>/dev/null) || true
+      if [[ -n "$_slot_normalized" ]]; then
+        printf '%s\n' "$_slot_normalized" > "$_slot"
       fi
       if ! python3 -c "import json,sys; json.load(open('$_slot'))" 2>/dev/null; then
         echo "ERROR: deep-tier slot file contains invalid JSON: $_slot" >&2
@@ -233,8 +253,10 @@ ${DIFF_CONTENT}"
     FINDINGS_JSON=$(printf '%s' "$_ARCH_RESP" | python3 -c "
 import json,sys; t=sys.stdin.read().strip()
 if not t: raise ValueError('empty')
-# Strip markdown fence if present
-t2=t.lstrip('\`'); t2=t2.lstrip('json').strip()
+# Strip leading backticks and any 'json' language tag from fenced code blocks
+t2=t.lstrip('\`')
+if t2.startswith('json'): t2=t2[4:]
+t2=t2.strip()
 # Extract first valid JSON object using raw_decode (handles nested braces in strings)
 i=t2.find('{')
 if i<0: raise ValueError('no JSON object found')

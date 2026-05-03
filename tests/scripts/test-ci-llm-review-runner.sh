@@ -3258,5 +3258,70 @@ assert_eq "test_runner_retries_once_on_schema_validation_failure: retry msg incl
 
 assert_pass_if_clean "test_runner_retries_once_on_schema_validation_failure"
 
+# ── test_deep_tier_specialist_slot_prose_is_normalized ────────────────────────
+# Given: deep-tier; a specialist returns prose + JSON (not pure JSON)
+# When:  runner processes the slot file
+# Then:  runner extracts the JSON successfully and completes without error
+#        (previously FAILED: json.load() on prose+JSON returned invalid JSON error)
+_snapshot_fail
+MOCK_PROSE=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_PROSE")
+ARTIFACTS_PROSE=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_PROSE")
+
+_SLOT_OK='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"OK","findings":[]}'
+_ARCH_OK='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"Arch OK","findings":[]}'
+
+# Mock llm-api-call.sh: return prose+JSON for the correctness specialist,
+# clean JSON for verification and hygiene, and clean JSON for arch.
+cat > "$MOCK_PROSE/llm-api-call.sh" <<MOCKEOF
+#!/usr/bin/env bash
+_agent="\$1"
+if printf '%s' "\$_agent" | grep -q "deep-correctness"; then
+    # Prose surrounding the JSON object — simulates an LLM that adds a preamble
+    printf 'Here is my review analysis:\n\n%s\n\nEnd of review.\n' '${_SLOT_OK}'
+elif printf '%s' "\$_agent" | grep -q "deep-arch"; then
+    printf '%s\n' '${_ARCH_OK}'
+else
+    printf '%s\n' '${_SLOT_OK}'
+fi
+MOCKEOF
+chmod +x "$MOCK_PROSE/llm-api-call.sh"
+
+cat > "$MOCK_PROSE/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"deep","blast_radius":1,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":100,"change_volume":1,"computed_total":5,"diff_size_lines":100,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_PROSE/review-complexity-classifier.sh"
+
+cat > "$MOCK_PROSE/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_PROSE/write-reviewer-findings.sh"
+
+cat > "$MOCK_PROSE/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$ARTIFACTS_PROSE"
+printf 'passed\n' > "${ARTIFACTS_PROSE}/review-status"
+MOCKEOF
+chmod +x "$MOCK_PROSE/record-review.sh"
+
+_prose_exit=0
+_prose_stderr=""
+_prose_stderr=$(
+    export PATH="$MOCK_PROSE:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_PROSE"
+    printf 'diff --git a/foo.sh b/foo.sh\n+line\n' | ANTHROPIC_API_KEY=x bash "$RUNNER" 2>&1 >/dev/null
+) || _prose_exit=$?
+
+assert_eq "test_deep_tier_specialist_slot_prose_is_normalized: runner exits 0" "0" "$_prose_exit"
+_has_invalid_error="false"
+echo "$_prose_stderr" | grep -q "invalid JSON" && _has_invalid_error="true"
+assert_eq "test_deep_tier_specialist_slot_prose_is_normalized: no invalid JSON error" "false" "$_has_invalid_error"
+assert_pass_if_clean "test_deep_tier_specialist_slot_prose_is_normalized"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
