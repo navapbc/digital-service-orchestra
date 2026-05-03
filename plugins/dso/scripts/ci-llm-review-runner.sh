@@ -214,11 +214,25 @@ t2 = t.lstrip('\`')
 if t2.startswith('json'):
     t2 = t2[4:]
 t2 = t2.strip()
-i = t2.find('{')
-if i < 0:
+# Try each '{' until one produces a valid reviewer-findings dict (handles prose with '{')
+dec = json.JSONDecoder()
+pos = 0
+found = None
+while pos < len(t2):
+    i = t2.find('{', pos)
+    if i < 0:
+        break
+    try:
+        obj, _ = dec.raw_decode(t2, i)
+        if isinstance(obj, dict) and ('scores' in obj or 'findings' in obj or 'summary' in obj):
+            found = obj
+            break
+    except json.JSONDecodeError:
+        pass
+    pos = i + 1
+if found is None:
     sys.exit(1)
-obj, _ = json.JSONDecoder().raw_decode(t2, i)
-print(json.dumps(obj))
+print(json.dumps(found))
 " "$_slot" 2>/dev/null) || true
       if [[ -n "$_slot_normalized" ]]; then
         printf '%s\n' "$_slot_normalized" > "$_slot"
@@ -251,17 +265,35 @@ ${DIFF_CONTENT}"
     _ARCH_RESP=$(bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-arch.md" \
       "@${_ARCH_TMP}" "deep")
     FINDINGS_JSON=$(printf '%s' "$_ARCH_RESP" | python3 -c "
-import json,sys; t=sys.stdin.read().strip()
-if not t: raise ValueError('empty')
+import json, sys
+t = sys.stdin.read().strip()
+if not t:
+    raise ValueError('empty')
 # Strip leading backticks and any 'json' language tag from fenced code blocks
-t2=t.lstrip('\`')
-if t2.startswith('json'): t2=t2[4:]
-t2=t2.strip()
-# Extract first valid JSON object using raw_decode (handles nested braces in strings)
-i=t2.find('{')
-if i<0: raise ValueError('no JSON object found')
-obj,_=json.JSONDecoder().raw_decode(t2,i)
-print(json.dumps(obj))
+t2 = t.lstrip('\`')
+if t2.startswith('json'):
+    t2 = t2[4:]
+t2 = t2.strip()
+# Try each '{' position in order until one produces a valid reviewer-findings dict.
+# This handles responses where prose contains '{' before the actual JSON object.
+dec = json.JSONDecoder()
+pos = 0
+found = None
+while pos < len(t2):
+    i = t2.find('{', pos)
+    if i < 0:
+        break
+    try:
+        obj, end = dec.raw_decode(t2, i)
+        if isinstance(obj, dict) and ('scores' in obj or 'findings' in obj or 'summary' in obj):
+            found = obj
+            break
+    except json.JSONDecodeError:
+        pass
+    pos = i + 1
+if found is None:
+    raise ValueError('no reviewer-findings JSON object found')
+print(json.dumps(found))
 " 2>/dev/null) || {
       echo "WARNING: Arch LLM response could not be parsed as reviewer-findings JSON." >&2
       FINDINGS_JSON='{"scores":{"hygiene":"N/A","design":"N/A","maintainability":"N/A","correctness":"N/A","verification":"N/A"},"findings":[],"summary":"Review inconclusive: Arch response could not be parsed."}'
