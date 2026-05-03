@@ -827,7 +827,12 @@ _pr_fetch_unresolved_threads() {
     local _resp_tmp
     _resp_tmp=$(mktemp /tmp/pr-threads-resp.XXXXXX)
     printf '%s' "$_response" > "$_resp_tmp"
-    python3 - "$_resp_tmp" <<'PYEOF' 2>/dev/null; local _py_rc=$?; rm -f "$_resp_tmp"; [ "$_py_rc" -eq 0 ] || return 1
+    # Capture python3's exit code via `|| _py_rc=$?`. The earlier pattern
+    # (`<<'PYEOF' 2>/dev/null; local _py_rc=$?`) is wrong: the semicolon after
+    # the heredoc terminator means $? captures the heredoc/list exit code
+    # (always 0 here) instead of python3's exit code.
+    local _py_rc=0
+    python3 - "$_resp_tmp" <<'PYEOF' 2>/dev/null || _py_rc=$?
 import sys, json, base64
 
 response_str = open(sys.argv[1]).read()
@@ -860,6 +865,8 @@ for node in nodes:
         body_b64 = ""
     print(f"{thread_id}\t{path}\t{line}\t{comment_id}\t{body_b64}")
 PYEOF
+    rm -f "$_resp_tmp"
+    [ "$_py_rc" -eq 0 ] || return 1
 }
 
 # _pr_thread_is_unresolved <thread_node_id>
@@ -886,7 +893,11 @@ _pr_thread_is_unresolved() {
     local _resp_tmp2
     _resp_tmp2=$(mktemp /tmp/pr-thread-check.XXXXXX)
     printf '%s' "$_response" > "$_resp_tmp2"
-    python3 - "$_resp_tmp2" "$_thread_id" <<'PYEOF' 2>/dev/null; local _py2_rc=$?; rm -f "$_resp_tmp2"; [ "$_py2_rc" -eq 0 ] || { echo "false"; return 0; }
+    # See companion fix in _pr_fetch_unresolved_threads: capture python3's
+    # exit code via `|| _py2_rc=$?` rather than `; local _py2_rc=$?` after
+    # the heredoc, which would always observe 0.
+    local _py2_rc=0
+    python3 - "$_resp_tmp2" "$_thread_id" <<'PYEOF' 2>/dev/null || _py2_rc=$?
 import sys, json
 
 response_str = open(sys.argv[1]).read()
@@ -925,6 +936,11 @@ except (KeyError, TypeError):
     print("false")
     sys.exit(0)
 PYEOF
+    rm -f "$_resp_tmp2"
+    if [ "$_py2_rc" -ne 0 ]; then
+        echo "false"
+        return 0
+    fi
 }
 
 # _pr_post_thread_reply <pr_number> <comment_id> <reply_text>

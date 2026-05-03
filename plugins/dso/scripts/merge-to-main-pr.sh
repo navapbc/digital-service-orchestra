@@ -360,7 +360,13 @@ except Exception:
                 return 0
             fi
         fi
-        _last_head_sha="$_curr_head_sha"
+        # Only update tracked head SHA when we got a non-empty value from gh.
+        # A transient `gh` failure produces an empty _curr_head_sha; overwriting
+        # _last_head_sha with empty would mask a real subsequent push and
+        # silently defeat the wall-clock cap.
+        if [[ -n "$_curr_head_sha" ]]; then
+            _last_head_sha="$_curr_head_sha"
+        fi
 
         local _now_ts=$SECONDS
 
@@ -454,7 +460,13 @@ except Exception:
             # Use a repo-relative path with git run from the repo root to avoid path doubling.
             local _diff_context=""
             if [[ -n "$_safe_file_path" && -n "$_repo_root" ]]; then
-                _diff_context=$(git -C "$_repo_root" diff HEAD -- "$_safe_file_path" 2>/dev/null | head -30 || true)
+                # Even after _pr_validate_file_path, the path could resolve to
+                # outside the repo via symlinks or simply not exist as a tracked
+                # file. Restrict diff fetch to git-tracked paths so a reviewer
+                # cannot trick us into reading arbitrary working-tree files.
+                if git -C "$_repo_root" ls-files --error-unmatch -- "$_safe_file_path" >/dev/null 2>&1; then
+                    _diff_context=$(git -C "$_repo_root" diff HEAD -- "$_safe_file_path" 2>/dev/null | head -30 || true)
+                fi
             fi
 
             # Build a structured user message containing all thread context.

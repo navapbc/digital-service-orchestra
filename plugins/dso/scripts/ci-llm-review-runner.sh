@@ -130,7 +130,7 @@ while pos < len(t2):
     if i < 0:
         break
     try:
-        obj, _ = dec.raw_decode(t2, i)
+        obj, end = dec.raw_decode(t2, i)
         if isinstance(obj, dict):
             score = 1
             if 'summary' in obj:
@@ -142,9 +142,12 @@ while pos < len(t2):
                 best_score = score
             if best_score == 3:
                 break  # perfect match — no need to scan further
+        # Advance past the parsed object so we never rewind into already-
+        # consumed text. Using i+1 caused non-deterministic best-match
+        # selection on inputs containing nested or sibling objects.
+        pos = end
     except json.JSONDecodeError:
-        pass
-    pos = i + 1
+        pos = i + 1
 if best is None:
     sys.exit(1)
 print(json.dumps(best))
