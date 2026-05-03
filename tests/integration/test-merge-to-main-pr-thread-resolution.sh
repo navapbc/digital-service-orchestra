@@ -525,6 +525,84 @@ test_push_induced_dismissal_resets_poll_window() {
     _teardown_test
 }
 
+# ===========================================================================
+# Test 7: file_path from GraphQL response is untrusted reviewer input. The
+# validator MUST reject path-traversal segments, absolute paths, leading
+# dashes (argument injection), and any chars outside [A-Za-z0-9._/-]. Safe
+# paths must be accepted. This guards _phase_resolve_threads against passing
+# malicious paths to `git diff` and `llm-api-call.sh`.
+# ===========================================================================
+test_file_path_validator_rejects_malicious_input() {
+    _setup_test
+
+    # Source merge-to-main-pr.sh in library mode to define _pr_validate_file_path.
+    # shellcheck disable=SC1090
+    (
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+            source "$MERGE_PR_SCRIPT" >/dev/null 2>&1 || true
+
+        if ! type _pr_validate_file_path >/dev/null 2>&1; then
+            echo "MISSING_FUNCTION:_pr_validate_file_path" >&2
+            exit 99
+        fi
+
+        local rc=0
+
+        # --- Must reject ---
+        local malicious=(
+            "../etc/passwd"
+            "../../etc/passwd"
+            "src/../../etc/passwd"
+            "/etc/passwd"
+            "/tmp/evil"
+            "--upload-pack=evil"
+            "-rf"
+            "foo;rm -rf /"
+            "foo\$(whoami)"
+            "foo bar.py"
+            "foo|bar"
+            "foo>bar"
+        )
+        local p
+        for p in "${malicious[@]}"; do
+            if _pr_validate_file_path "$p" 2>/dev/null; then
+                echo "MALICIOUS_ACCEPTED:$p" >&2
+                rc=1
+            fi
+        done
+
+        # --- Must accept ---
+        local safe=(
+            ""
+            "src/a.py"
+            "plugins/dso/scripts/merge-to-main-pr.sh"
+            "tests/integration/test-foo.sh"
+            "README.md"
+            "deeply/nested/path/file_name-1.0.txt"
+        )
+        for p in "${safe[@]}"; do
+            if ! _pr_validate_file_path "$p" 2>/dev/null; then
+                echo "SAFE_REJECTED:$p" >&2
+                rc=1
+            fi
+        done
+
+        exit "$rc"
+    )
+    local subshell_rc=$?
+
+    if [[ "$subshell_rc" == "99" ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_file_path_validator_rejects_malicious_input — _pr_validate_file_path not defined" >&2
+        _teardown_test
+        return
+    fi
+
+    assert_eq "test_file_path_validator_rejects_malicious_input: validator behaves correctly" "0" "$subshell_rc"
+
+    _teardown_test
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -534,6 +612,7 @@ test_settling_heuristic_requires_zero_threads_and_quiet_window
 test_dispatch_count_cap_triggers_escalation
 test_wall_clock_cap_triggers_escalation
 test_push_induced_dismissal_resets_poll_window
+test_file_path_validator_rejects_malicious_input
 
 # Print summary and exit non-zero on any failure (RED state expected pre-T3/T4).
 print_summary

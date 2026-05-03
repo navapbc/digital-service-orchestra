@@ -240,6 +240,35 @@ except Exception:
     return 0
 }
 
+# --- _pr_validate_file_path: sanitize a reviewer-supplied file path ---
+# Reviewer-supplied input from PR review threads is untrusted. Reject paths
+# that could be used for path traversal, absolute-path access outside the
+# repo, or argument injection (paths starting with `-` would be parsed as
+# a flag by `git diff` or `llm-api-call.sh`).
+#
+# Returns 0 if path is safe, 1 otherwise. Empty string is treated as safe
+# (callers handle empty by skipping diff context).
+#
+# Allowed: alphanumerics, `/`, `.`, `_`, `-` (not as first char), and the
+# typical filename character set. Rejects:
+#   * leading `-`           — would be parsed as a flag
+#   * leading `/`           — absolute path
+#   * any `..` segment      — path traversal
+#   * characters outside    [A-Za-z0-9._/-]
+_pr_validate_file_path() {
+    local _p="${1:-}"
+    [[ -z "$_p" ]] && return 0
+    # Reject leading dash (flag injection)
+    [[ "$_p" == -* ]] && return 1
+    # Reject absolute paths
+    [[ "$_p" == /* ]] && return 1
+    # Reject any `..` segment (path traversal). Match start, /../ middle, or trailing.
+    [[ "$_p" == ".." || "$_p" == "../"* || "$_p" == *"/.." || "$_p" == *"/../"* ]] && return 1
+    # Whitelist character set
+    [[ "$_p" =~ ^[A-Za-z0-9._/-]+$ ]] || return 1
+    return 0
+}
+
 # --- _phase_resolve_threads: loop to resolve all PR review threads before poll ---
 # Settling heuristic: done when zero unresolved threads AND quiet window elapsed.
 # Bounds: max dispatch count (merge.pr_max_thread_dispatches, default 10) and
@@ -406,11 +435,23 @@ except Exception:
             local _thread_body=""
             [[ -n "$_thread_body_b64" ]] && _thread_body=$(echo "$_thread_body_b64" | base64 -d 2>/dev/null || true)
 
+            # Validate reviewer-supplied file path before using it. _file_path
+            # comes from the GraphQL response (untrusted reviewer input). An
+            # invalid path is dropped: we skip the diff fetch and pass an empty
+            # string to the LLM dispatch so neither `git diff` nor
+            # `llm-api-call.sh` ever sees the malicious value.
+            local _safe_file_path=""
+            if _pr_validate_file_path "$_file_path"; then
+                _safe_file_path="$_file_path"
+            else
+                echo "WARNING: rejecting unsafe file_path from thread ${_thread_id}: $(printf '%q' "$_file_path")" >&2
+            fi
+
             # Generate a short diff_context for the file (best-effort; empty if unavailable).
             # Use a repo-relative path with git run from the repo root to avoid path doubling.
             local _diff_context=""
-            if [[ -n "$_file_path" && -n "$_repo_root" ]]; then
-                _diff_context=$(git -C "$_repo_root" diff HEAD -- "$_file_path" 2>/dev/null | head -30 || true)
+            if [[ -n "$_safe_file_path" && -n "$_repo_root" ]]; then
+                _diff_context=$(git -C "$_repo_root" diff HEAD -- "$_safe_file_path" 2>/dev/null | head -30 || true)
             fi
 
             # Build a structured user message containing all thread context.
@@ -422,7 +463,7 @@ except Exception:
                 "${_thread_body:-[no body]}" \
                 "$_pr_url" \
                 "$_repo_root" \
-                "${_file_path:-}" \
+                "${_safe_file_path:-}" \
                 "${_line_range:-}" \
                 "${_diff_context:-[none]}")
 
