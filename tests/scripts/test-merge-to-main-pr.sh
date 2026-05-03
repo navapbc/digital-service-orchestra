@@ -345,6 +345,38 @@ _build_pr_polling_fixture() {
     local checks_counter="$tmpdir/checks-counter"
     : > "$checks_counter"  # zero-length → iteration 0 before first call
 
+    # ---- Build the remote and seed the merge commit BEFORE writing shims ----
+    # merge_sha must be captured first so it can be baked into the gh shim heredoc
+    # at write time (runtime file reads proved unreliable on Linux CI / git 2.53.0).
+    local real_git
+    real_git=$(command -v git)
+    local git_push_log="$tmpdir/git-push.log"
+
+    local remote_dir="$tmpdir/remote.git"
+    "$real_git" init -q --bare -b main "$remote_dir" >/dev/null 2>&1
+    local seed_dir="$tmpdir/seed-poll"
+    "$real_git" init -q -b main "$seed_dir" >/dev/null 2>&1
+    (
+        cd "$seed_dir" || exit 1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        echo "seed" > seed.txt
+        "$real_git" add seed.txt
+        "$real_git" commit -q -m "seed" >/dev/null
+        "$real_git" checkout -q -b feat
+        echo "feat" > feat.txt
+        "$real_git" add feat.txt
+        "$real_git" commit -q -m "feat" >/dev/null
+        "$real_git" checkout -q main
+        "$real_git" merge --no-ff -q feat -m "merge feat" >/dev/null
+    )
+    local merge_sha
+    merge_sha=$("$real_git" -C "$seed_dir" rev-parse HEAD)
+    echo "$merge_sha" > "$tmpdir/merge-sha"
+    "$real_git" -C "$seed_dir" remote add origin "$remote_dir"
+    "$real_git" -C "$seed_dir" push -q origin main >/dev/null 2>&1
+
+    # ---- gh shim: now merge_sha is available for heredoc expansion ----
     cat > "$bin/gh" <<GH_SHIM
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$gh_argv_log"
@@ -366,13 +398,9 @@ case "\$1" in
       view)
         # gh pr view --json state OR --json mergeable OR --json mergeCommit
         if [[ "\$*" == *"--json mergeCommit"* ]]; then
-          # Return the raw OID (simulates gh pr view --json mergeCommit --jq .mergeCommit.oid output)
-          if [[ -f "$tmpdir/merge-sha" ]]; then
-            tr -d '[:space:]' < "$tmpdir/merge-sha"
-            echo
-          else
-            echo "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
-          fi
+          # SHA baked in at fixture-build time (same pattern as _build_pr_success_fixture).
+          # Runtime file reads proved unreliable on Linux CI (git 2.53.0).
+          echo "$merge_sha"
           exit 0
         fi
         # mergeable check (pre-auto-merge) → MERGEABLE; state check during poll → see below
@@ -443,10 +471,7 @@ esac
 GH_SHIM
     chmod +x "$bin/gh"
 
-    # ---- git shim (same as _build_pr_fixture) ----
-    local real_git
-    real_git=$(command -v git)
-    local git_push_log="$tmpdir/git-push.log"
+    # ---- git shim ----
     cat > "$bin/git" <<GIT_SHIM
 #!/usr/bin/env bash
 if [[ "\$1" == "push" ]]; then
@@ -456,31 +481,6 @@ fi
 exec "$real_git" "\$@"
 GIT_SHIM
     chmod +x "$bin/git"
-
-    # Set up a bare remote so `git fetch origin main` succeeds in the success
-    # exit path. Seed it with a merge commit whose SHA is recorded so the gh
-    # shim can return it from `gh pr view --json mergeCommit`.
-    local remote_dir="$tmpdir/remote.git"
-    "$real_git" init -q --bare -b main "$remote_dir" >/dev/null 2>&1
-    local seed_dir="$tmpdir/seed-poll"
-    "$real_git" init -q -b main "$seed_dir" >/dev/null 2>&1
-    (
-        cd "$seed_dir" || exit 1
-        "$real_git" config user.email "test@test.local"
-        "$real_git" config user.name "test"
-        echo "seed" > seed.txt
-        "$real_git" add seed.txt
-        "$real_git" commit -q -m "seed" >/dev/null
-        "$real_git" checkout -q -b feat
-        echo "feat" > feat.txt
-        "$real_git" add feat.txt
-        "$real_git" commit -q -m "feat" >/dev/null
-        "$real_git" checkout -q main
-        "$real_git" merge --no-ff -q feat -m "merge feat" >/dev/null
-    )
-    "$real_git" -C "$seed_dir" rev-parse HEAD > "$tmpdir/merge-sha"
-    "$real_git" -C "$seed_dir" remote add origin "$remote_dir"
-    "$real_git" -C "$seed_dir" push -q origin main >/dev/null 2>&1
 
     (
         cd "$tmpdir" || exit 1
@@ -500,6 +500,14 @@ GIT_SHIM
         "$real_git" add feature.txt
         "$real_git" commit -q -m "feature work" >/dev/null
     )
+
+    # Fixture invariant check: origin/main must contain the merge SHA.
+    # This catches fixture-setup failures early rather than producing a confusing
+    # downstream "not found" error from the script under test.
+    if ! "$real_git" -C "$tmpdir" log origin/main --pretty=%H -n 50 2>/dev/null | grep -q "^${merge_sha}$"; then
+        echo "FIXTURE_BUG: merge_sha $merge_sha not on origin/main in $tmpdir" >&2
+        return 1
+    fi
 
     # Per-test config override: zero-cadence polling
     local cfg="$tmpdir/dso-config.conf"
