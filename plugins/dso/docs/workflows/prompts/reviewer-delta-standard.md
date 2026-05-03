@@ -190,7 +190,7 @@ Apply the file-type sub-criteria above in addition to the generic checks here.
   dispatcher scripts (`pre-bash.sh`, `post-bash.sh`) — dispatchers should remain thin
   routers to keep complexity out of the hot path
 - [ ] Ticket event writes must go through the ticket dispatcher (`ticket` CLI or
-  event-append helpers) — direct writes to `.tickets-tracker/` bypass locking and
+  event-append helpers) — direct writes to `.tickets-tracker/` bypass locking and  # tickets-boundary-ok
   the reducer contract
 
 ### Escalation (ESCALATE_REVIEW)

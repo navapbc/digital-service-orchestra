@@ -227,7 +227,8 @@ assert_pass_if_clean "test_llm_review_github_token_in_env"
 
 # ── test_llm_review_pr_only_condition ────────────────────────────────────────
 # The llm-review job must have an if: condition restricting execution to
-# pull_request events so gh pr diff does not fail on push/workflow_dispatch.
+# pull_request events AND base_ref == main so gh pr diff does not fail on
+# push/workflow_dispatch and non-main-target PRs are excluded.
 _snapshot_fail
 pr_only_exit=0
 pr_only_output=""
@@ -238,15 +239,20 @@ template = os.environ.get('TEMPLATE', '')
 with open(template) as f:
     doc = yaml.safe_load(f)
 llm_job = doc.get('jobs', {}).get('llm-review', {})
-job_if = llm_job.get('if', '')
-if 'pull_request' not in str(job_if):
-    print(f'MISSING_PR_GUARD: llm-review job has no if: condition restricting to pull_request events; got: {repr(job_if)}')
+job_if = str(llm_job.get('if', ''))
+errors = []
+if 'pull_request' not in job_if:
+    errors.append(f'MISSING_PR_GUARD: if condition lacks pull_request check; got: {repr(job_if)}')
+if "base_ref == 'main'" not in job_if and 'base_ref == "main"' not in job_if:
+    errors.append(f'MISSING_BASE_REF_GUARD: if condition lacks base_ref == main check; got: {repr(job_if)}')
+if errors:
+    print('\n'.join(errors))
     sys.exit(1)
 print('OK')
 PYEOF
 ) || pr_only_exit=$?
 assert_eq "test_llm_review_pr_only_condition: exit 0" "0" "$pr_only_exit"
-assert_eq "test_llm_review_pr_only_condition: if condition restricts to pull_request" "OK" "$pr_only_output"
+assert_eq "test_llm_review_pr_only_condition: if condition restricts to pull_request AND base_ref=main" "OK" "$pr_only_output"
 assert_pass_if_clean "test_llm_review_pr_only_condition"
 
 # ── test_llm_review_pipefail_shell ────────────────────────────────────────────

@@ -4,7 +4,7 @@
 # Includes changes in the git index (staged) and modifications to tracked files.
 # Excludes untracked files — new files must be staged before review (per COMMIT-WORKFLOW.md).
 # This prevents temp test fixtures from causing hash mismatches between review and pre-commit.
-# Excludes .tickets-tracker/ files from hash — ticket metadata changes must not invalidate code reviews.
+# Excludes .tickets-tracker/ files from hash — ticket metadata changes must not invalidate code reviews.  # tickets-boundary-ok
 #
 # Usage:
 #   HASH=$(.claude/hooks/compute-diff-hash.sh)
@@ -51,7 +51,7 @@ hash_stdin() {
 source "$SCRIPT_DIR/lib/config-paths.sh"
 
 # Anchor all git pathspec exclusions and file operations to the repo root,
-# regardless of the caller's CWD. Without this, pathspecs like ':!app/.tickets-tracker/'
+# regardless of the caller's CWD. Without this, pathspecs like ':!app/.tickets-tracker/'  # tickets-boundary-ok
 # resolve relative to CWD, producing different hashes when called from app/.
 cd "$(git rev-parse --show-toplevel)"
 
@@ -73,7 +73,7 @@ CHECKPOINT_LABEL='checkpoint: pre-compaction auto-save'
 if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" || ! -d "${CLAUDE_PLUGIN_ROOT:-}/hooks/lib" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
-_READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
+_READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"  # shim-exempt: internal plugin script
 if [[ -n "$_READ_CONFIG" ]]; then
     _LABEL=$("$_READ_CONFIG" checkpoint.commit_label 2>/dev/null || echo '')
     [[ -n "$_LABEL" ]] && CHECKPOINT_LABEL="$_LABEL"
@@ -141,7 +141,7 @@ fi
 # Fallback defaults when allowlist or helpers are unavailable
 _FALLBACK_PATHSPECS=(
     ':!.checkpoint-needs-review'
-    ':!.tickets-tracker/**'
+    ':!.tickets-tracker/**'  # tickets-boundary-ok
     ':!.sync-state.json'
     ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp'
     ':!*.pdf' ':!*.docx'
@@ -196,7 +196,7 @@ if ms_is_merge_in_progress; then
                 [[ -n "$_f" ]] && _file_pathspecs+=("$_f")
             done <<< "$_worktree_files"
             {
-                git diff "$DIFF_BASE" -- "${_file_pathspecs[@]}" "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+                git diff --cached "$DIFF_BASE" -- "${_file_pathspecs[@]}" "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
             } | hash_stdin
         else
             # No worktree-branch changes — hash an empty diff
@@ -205,7 +205,7 @@ if ms_is_merge_in_progress; then
     else
         # merge-base failed — fall through to default behavior
         {
-            git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+            git diff --cached "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
         } | hash_stdin
     fi
 elif ms_is_rebase_in_progress; then
@@ -220,7 +220,7 @@ elif ms_is_rebase_in_progress; then
                 [[ -n "$_f" ]] && _rebase_file_pathspecs+=("$_f")
             done <<< "$_rebase_worktree_files"
             {
-                git diff "$DIFF_BASE" -- "${_rebase_file_pathspecs[@]}" "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+                git diff --cached "$DIFF_BASE" -- "${_rebase_file_pathspecs[@]}" "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
             } | hash_stdin
         else
             # No worktree-branch changes — hash an empty diff
@@ -229,11 +229,11 @@ elif ms_is_rebase_in_progress; then
     else
         # merge-base failed — fall through to default behavior
         {
-            git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+            git diff --cached "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
         } | hash_stdin
     fi
 else
     {
-        git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+        git diff --cached "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
     } | hash_stdin
 fi
