@@ -491,13 +491,19 @@ except Exception:
                 "standard" \
                 2>/dev/null) || _llm_rc=$?
 
-            # On infrastructure failure (non-zero exit, empty result), skip this
-            # thread without consuming dispatch budget — it will be retried next iteration.
+            # Every LLM dispatch attempt counts against the cap, regardless of
+            # outcome. Otherwise a thread that consistently fails (non-zero exit
+            # or empty result) would be retried indefinitely without ever
+            # tripping the dispatch cap, defeating its purpose.
+            _dispatches=$(( _dispatches + 1 ))
+
+            # On infrastructure failure (non-zero exit, empty result), skip
+            # action handling for this thread — it will be retried next
+            # iteration (subject to the dispatch cap above).
             if [[ $_llm_rc -ne 0 || -z "$_llm_result" ]]; then
                 echo "WARNING: LLM dispatch failed (exit ${_llm_rc}) for thread ${_thread_id} — will retry next iteration." >&2
                 continue
             fi
-            _dispatches=$(( _dispatches + 1 ))
 
             # Parse the terminal ACTION: line from the LLM output
             local _action_line=""
