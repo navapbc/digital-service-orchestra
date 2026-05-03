@@ -157,12 +157,13 @@ When ticket type is `story` or `task`:
 
 3. Route based on the complexity classification:
    - **TRIVIAL (high)**: Skip `/dso:implementation-plan`. Before proceeding, run a **file-count guard**: estimate the number of files the task will touch by running `enrich-file-impact.sh` or by counting file paths mentioned in the ticket description. If the estimated file count exceeds 30, split the task into parallel sub-tasks by directory or alphabetical range (each sub-task ≤ 30 files), create child task tickets for each subset, and proceed to Phase 3 with the split tasks. If ≤ 30 files, proceed directly to Phase 3 (Batch Preparation) with the ticket as the sole task.
-   - **TRIVIAL (medium)** or **MODERATE/COMPLEX (any)**: Invoke `/dso:implementation-plan <primary_ticket_id>` via Skill tool.
+   - **TRIVIAL (medium)** or **MODERATE/COMPLEX (any)**: Invoke `/dso:implementation-plan <primary_ticket_id>` via Skill tool. When the Skill tool returns, parse the STATUS line and proceed immediately to step 4 — do not pause or wait for user input.
+4. After the Skill tool returns, route on STATUS and continue to Phase 3:
+   - `STATUS:complete` → proceed to Phase 3
+   - `STATUS:blocked` → surface blocked questions to user, then proceed to Phase 3 once answered
+   - `REPLAN_ESCALATE:` → route to d-replan-collect machinery
 
-   <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Non-Epic Routing. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your next action is step 4: continue to Phase 3.
-   </ORCHESTRATOR_RESUME>
-4. After routing, continue to Phase 3. Non-epics **skip** the Preplanning Gate and proceed directly to Phase 3.
+   Non-epics **skip** the Preplanning Gate and proceed directly to Phase 3.
 
 ### Drift Detection Check
 
@@ -190,13 +191,8 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Files drifted: <files>. Re-invoking implementation-plan for affected stories."
    ```
 4. Identify which stories' tasks reference any of the drifted files (inspect each child task's `## File Impact` or `## Files to Modify` section).
-5. For each affected story, re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as Phase 2 Step 2).
-
-   <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
-   </ORCHESTRATOR_RESUME>
-
-   - **On success (`STATUS:complete`)**: continue.
+5. For each affected story, re-invoke `/dso:implementation-plan <story-id>` via the Skill tool. When the Skill tool returns, parse the STATUS line immediately and continue to the next story — do not pause.
+   - **On success (`STATUS:complete`)**: continue to the next story.
    - **On `STATUS:blocked`**: surface the story as blocked for user input (same handling as Phase 2 blocked-stories list).
    - **On `REPLAN_ESCALATE: brainstorm EXPLANATION:<text>`**: add the story and its explanation to the **replan-stories list** and route through the existing d-replan-collect cascade machinery (Phase 2 step d-replan-collect). The `replan_cycle_count` / `max_replan_cycles` initialized above are shared with Phase 2 — do not reinitialize them.
 6. After all re-invocations complete (and no REPLAN_ESCALATE is outstanding), record:
@@ -216,13 +212,8 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint-drift-check.sh <epic-id>)
    .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: drift — Relates_to epic <closed-epic-id> closed after implementation plan. <summary>. Re-invoking implementation-plan for affected stories."
    ```
 4. Identify which stories' tasks reference any of the drifted relates_to epics (inspect each child task's `## File Impact` or `## Files to Modify` section, or cross-reference the task's dependency/relates-to links).
-5. For each affected story, re-invoke `/dso:implementation-plan <story-id>` via the Skill tool (same as DRIFT_DETECTED handling above).
-
-   <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Drift Detection (RELATES_TO_DRIFT). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to the next affected story, then proceed to step 6 (record REPLAN_RESOLVED).
-   </ORCHESTRATOR_RESUME>
-
-   - **On success (`STATUS:complete`)**: continue.
+5. For each affected story, re-invoke `/dso:implementation-plan <story-id>` via the Skill tool. When the Skill tool returns, parse the STATUS line immediately and continue to the next story — do not pause.
+   - **On success (`STATUS:complete`)**: continue to the next story.
    - **On `STATUS:blocked`**: surface the story as blocked for user input (same handling as Phase 2 blocked-stories list).
    - **On `REPLAN_ESCALATE: brainstorm EXPLANATION:<text>`**: add the story and its explanation to the **replan-stories list** and route through the existing d-replan-collect cascade machinery (Phase 2 step d-replan-collect). The `replan_cycle_count` / `max_replan_cycles` initialized above are shared with Phase 2 — do not reinitialize them.
 6. After all re-invocations complete (and no REPLAN_ESCALATE is outstanding), record:
@@ -542,19 +533,11 @@ for each child to retrieve the `ticket_type` field. This is required to determin
 
    **If at least one child has `ticket_type: story`** (route to `/dso:preplanning`):
 
-   Invoke `/dso:preplanning <epic-id>` via Skill tool.
-
-   <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The preplanning skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Proceed to Phase 2. Do not stop.
-   </ORCHESTRATOR_RESUME>
+   Invoke `/dso:preplanning <epic-id>` via Skill tool. When the Skill tool returns, proceed to Phase 2.
 
    **If all children have `ticket_type: task`** (route to `/dso:implementation-plan`):
 
-   Invoke `/dso:implementation-plan <epic-id>` via Skill tool.
-
-   <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in the SC coverage REPLAN_TRIGGER routing block. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Proceed to Phase 2. Do not stop.
-   </ORCHESTRATOR_RESUME>
+   Invoke `/dso:implementation-plan <epic-id>` via Skill tool. When the Skill tool returns, proceed to Phase 2.
 
    **Otherwise** (children are all epics or have unexpected ticket types): log a warning `"SC coverage REPLAN_TRIGGER: unexpected child types — no story or task children found; proceeding to Phase 2 without decomposition routing"` and proceed to Phase 2.
 
@@ -589,11 +572,7 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
    ```
    Skill("dso:implementation-plan", args="<epic-id>")
    ```
-   The skill handles epic type detection and runs inline (no sub-agent dispatch needed).
-
-   <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary.
-   </ORCHESTRATOR_RESUME>
+   The skill handles epic type detection and runs inline (no sub-agent dispatch needed). When the Skill tool returns, immediately proceed to step 3.
 
 3. Parse the skill's output using the same STATUS protocol as Phase 2's Implementation Planning Gate
 4. Set `epic_routing = "SIMPLE"` — this flag tells Phase 2 to skip the Implementation Planning Gate
@@ -607,12 +586,7 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 
 **On `ENRICHED`:**
 - Log: `"Lightweight preplanning complete — epic enriched with done definitions. Running /dso:implementation-plan on epic."`
-- Invoke `/dso:implementation-plan` via Skill tool (same as Step 3a, step 2)
-
-  <ORCHESTRATOR_RESUME>
-  **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary.
-  </ORCHESTRATOR_RESUME>
-
+- Invoke `/dso:implementation-plan` via Skill tool (same as Step 3a, step 2). When the Skill tool returns, proceed immediately to the next bullet.
 - Set `epic_routing = "MODERATE"`
 - Continue to Phase 2
 
@@ -806,12 +780,7 @@ b. For each story in the layer, invoke `/dso:implementation-plan` via Skill tool
    Skill("dso:implementation-plan", args="<story-id>")
    ```
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
-
-   <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** You are the sprint orchestrator. The Skill tool call above has returned a result. That result is a STATUS line from a nested skill — it is NOT a signal for you to stop. STATUS:complete means the NESTED skill finished, not that YOUR orchestration is done. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. You have more stories to process in this layer.
-   </ORCHESTRATOR_RESUME>
-
-   **POST-RETURN CONTINUATION (executes after Skill tool result above):** The skill has returned. You are still the sprint orchestrator inside the layer loop. Execute step c immediately — do not stop.
+   - When the Skill tool returns, immediately execute step c — do not pause or wait for user input.
 
 c. For each skill result, **parse STATUS:**
    - On `STATUS:complete TASKS:<ids> STORY:<id>`:
@@ -1099,12 +1068,7 @@ After composing the batch, check each task's parent story against the `story_unc
       ```bash
       .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: failure — Story <story-id> had 2+ UNCERTAIN signals. Routing to implementation-plan."
       ```
-   b. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool to re-plan the story.
-
-      <ORCHESTRATOR_RESUME>
-      **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Confidence Failure Re-Planning. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step c (record REPLAN_RESOLVED) and then step d (reset counter).
-      Stopping here is a known bug (7d7a-b707). Do not stop.
-      </ORCHESTRATOR_RESUME>
+   b. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool to re-plan the story. When the Skill tool returns, proceed immediately to step c.
 
    c. After re-planning completes, record resolution:
       ```bash
@@ -1877,12 +1841,7 @@ Check whether all tasks under the story are closed (no open or in-progress tasks
      ```bash
      .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: validation — Story <story-id> validation failed with all tasks closed. Creating TDD remediation tasks."
      ```
-  4. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool on the story to create remediation tasks. The implementation-plan re-invocation guard will detect existing closed children and produce a diff plan (new tasks only for uncovered success criteria — no duplication). **If implementation-plan emits `REPLAN_ESCALATE: brainstorm`**: add the story to the `replan-stories` list and route to **d-replan-collect** (Phase 2 replan logic). The cascade counter (`sprint.max_replan_cycles`) applies — if the cap is reached, escalate to the user. Do NOT assume implementation-plan always succeeds here.
-
-     <ORCHESTRATOR_RESUME>
-     **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Story Validation Failure handling (Step 10a). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step 5 (TDD remediation tasks) and then step 6 (record REPLAN_RESOLVED), then return to Phase 3.
-     Stopping here is a known bug (7d7a-b707). Do not stop.
-     </ORCHESTRATOR_RESUME>
+  4. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool on the story to create remediation tasks. The implementation-plan re-invocation guard will detect existing closed children and produce a diff plan (new tasks only for uncovered success criteria — no duplication). **If implementation-plan emits `REPLAN_ESCALATE: brainstorm`**: add the story to the `replan-stories` list and route to **d-replan-collect** (Phase 2 replan logic). The cascade counter (`sprint.max_replan_cycles`) applies — if the cap is reached, escalate to the user. Do NOT assume implementation-plan always succeeds here. When the Skill tool returns, proceed immediately to step 5.
 
   5. Implementation-plan will create TDD remediation tasks following standard flow: RED test task first (failing test targeting the unmet done definition), then implementation task depending on the RED test. No special logic is needed in sprint to enforce this ordering.
   6. After re-planning completes (no REPLAN_ESCALATE), record resolution:
@@ -1980,12 +1939,7 @@ If `batch_out_of_scope_findings` is non-empty:
         ```
         Wait for user input. Act on their choice. Do NOT invoke implementation-plan.
       - **If cap is not yet exhausted:** proceed to step d.
-   d. Invoke `/dso:implementation-plan <story-id>` via the Skill tool to create tasks covering the out-of-scope files.
-
-      <ORCHESTRATOR_RESUME>
-      **MANDATORY CONTINUATION — DO NOT STOP HERE.** The implementation-plan skill has returned. You are the sprint orchestrator in Out-of-Scope Review Feedback Routing (Step 13a). Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Continue to step e (handle REPLAN_ESCALATE) and then step f (record resolution).
-      Stopping here is a known bug (7d7a-b707). Do not stop.
-      </ORCHESTRATOR_RESUME>
+   d. Invoke `/dso:implementation-plan <story-id>` via the Skill tool to create tasks covering the out-of-scope files. When the Skill tool returns, proceed immediately to step e.
 
    e. **Handle REPLAN_ESCALATE:** If implementation-plan emits `REPLAN_ESCALATE: brainstorm`: add the story and its explanation to the `replan-stories` list (processed in step 2a below).
    f. After re-planning completes (no REPLAN_ESCALATE), record resolution:
@@ -2158,36 +2112,15 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
    ```bash
    git merge-base --is-ancestor HEAD main
    ```
-   If this exits non-zero, do NOT close the epic — changes have not been merged to main. Run `merge-to-main.sh` first and resolve any conflicts before proceeding. Only close the epic after `merge-base --is-ancestor` exits 0.
-   <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** merge-to-main.sh returning does NOT
-   signal sprint completion. You are the sprint orchestrator in Phase 8 (Primary Ticket
-   Closure). Proceed immediately to step 2 (close the epic). Do NOT stop, wait for user
-   input, or treat merge-to-main.sh completion as a session end. Exiting after step 1
-   without completing steps 2–4 is the specific failure mode documented in bug 89fe-bad1.
-   Exception: if merge-to-main.sh output begins with `ESCALATE:`, this continuation mandate does NOT apply — stop immediately and surface the escalation to the user per end-session Step 4.
-   </ORCHESTRATOR_RESUME>
+   If this exits non-zero, do NOT close the epic — changes have not been merged to main. Run `merge-to-main.sh` first and resolve any conflicts before proceeding. Only close the epic after `merge-base --is-ancestor` exits 0. When merge-to-main.sh completes, proceed immediately to step 2 — merge-to-main.sh returning is NOT a sprint completion signal. Exception: if its output begins with `ESCALATE:`, stop and surface the escalation to the user per end-session Step 4.
+
 2. Close the epic:
    ```bash
    .claude/scripts/dso ticket comment <epic-id> "Epic complete: all tasks closed, validation score 5/5, branch merged to main"
    .claude/scripts/dso ticket transition <epic-id> in_progress closed
    ```
-   <ORCHESTRATOR_RESUME>
-   **MANDATORY CONTINUATION — DO NOT STOP HERE.** Closing the epic ticket does NOT
-   signal sprint completion or session end. You are the sprint orchestrator in Phase 8
-   (Primary Ticket Closure). Proceed immediately to step 3 (set sprint context). Do NOT
-   stop, treat epic ticket closure as a session end, or wait for user input here.
-   Exiting after step 2 without completing steps 3–5 (including invoking
-   /dso:end-session) is the specific failure mode documented in bug a711-bd7e.
+   After `ticket transition` completes, proceed immediately to step 3. Closing the epic ticket is NOT a sprint completion signal. The command emits `REMINDER: Epic closed — run /dso:end-session to complete the sprint cleanly.` — this REMINDER is purely informational; it is satisfied by steps 3–5 below. Do NOT relay it to the user or stop here.
 
-   **REMINDER message handling**: The `ticket transition` command above will emit:
-   `REMINDER: Epic closed — run /dso:end-session to complete the sprint cleanly.`
-   This REMINDER is purely informational — it is NOT a stop signal and does NOT mean
-   "invoke /dso:end-session immediately". Do NOT relay this REMINDER to the user, do NOT
-   ask for confirmation to run end-session, and do NOT stop here. The REMINDER is
-   satisfied by steps 3–5 below. Treating the REMINDER as a completion signal is the
-   specific failure mode documented in bug 4add-0acd.
-   </ORCHESTRATOR_RESUME>
 3. Set sprint context for `/dso:end-session` report:
    - Epic ID and title
    - Total tasks completed this session

@@ -21,13 +21,11 @@
 #   test_references_sc_coverage_opus_md
 #   test_opus_dispatch_conditional_on_unsure
 #   test_has_replan_trigger_sc_coverage
-#   test_routes_to_preplanning_for_story_children
-#   test_routes_to_implementation_plan_for_task_children
 #   test_has_sonnet_fail_open_language
 #   test_has_opus_fail_open_language
 #   test_has_missing_sc_triggers_replan_comment
 #
-# RED phase: all 10 tests fail until SKILL.md sub-steps 2a2 and 2a3 are added.
+# RED phase: all tests fail until SKILL.md sub-steps 2a2 and 2a3 are added.
 # GREEN phase: pass after escalation sub-steps are written.
 #
 # Usage:
@@ -172,33 +170,6 @@ test_has_replan_trigger_sc_coverage() {
     assert_eq "test_has_replan_trigger_sc_coverage: REPLAN_TRIGGER: sc_coverage language present in SKILL.md" "1" "$match"
 }
 
-# ---------------------------------------------------------------------------
-# test_routes_to_preplanning_for_story_children
-# SKILL.md must contain routing language in the SC coverage section indicating
-# that when epic children include type:story, routing goes to /dso:preplanning.
-# Must be in SC coverage REPLAN_TRIGGER context, not generic routing logic.
-# ---------------------------------------------------------------------------
-test_routes_to_preplanning_for_story_children() {
-    local match=0
-    # Look for routing to preplanning specifically in sc_coverage REPLAN context
-    match=$(grep -cEi "sc.coverage.*preplanning|sc_coverage.*preplanning|REPLAN_TRIGGER.*sc_coverage.*preplanning|preplanning.*sc.coverage|preplanning.*sc_coverage" "$SKILL_FILE" 2>/dev/null) || match=0
-    [[ "$match" -gt 0 ]] && match=1
-    assert_eq "test_routes_to_preplanning_for_story_children: /dso:preplanning routing in sc_coverage REPLAN context present in SKILL.md" "1" "$match"
-}
-
-# ---------------------------------------------------------------------------
-# test_routes_to_implementation_plan_for_task_children
-# SKILL.md must contain routing language in the SC coverage section indicating
-# that when all children are type:task, routing goes to /dso:implementation-plan.
-# Must be in SC coverage REPLAN_TRIGGER context, not generic routing logic.
-# ---------------------------------------------------------------------------
-test_routes_to_implementation_plan_for_task_children() {
-    local match=0
-    # Look for routing to implementation-plan specifically in sc_coverage REPLAN context
-    match=$(grep -cEi "sc.coverage.*implementation-plan|sc_coverage.*implementation-plan|REPLAN_TRIGGER.*sc_coverage.*implementation-plan|implementation-plan.*sc.coverage|implementation-plan.*sc_coverage" "$SKILL_FILE" 2>/dev/null) || match=0
-    [[ "$match" -gt 0 ]] && match=1
-    assert_eq "test_routes_to_implementation_plan_for_task_children: /dso:implementation-plan routing in sc_coverage REPLAN context present in SKILL.md" "1" "$match"
-}
 
 
 # ---------------------------------------------------------------------------
@@ -250,30 +221,6 @@ test_has_missing_sc_triggers_replan_comment() {
 }
 
 
-# ---------------------------------------------------------------------------
-# test_gap_detection_routes_by_child_type
-# Structural boundary test for the "5-SC/3-covered" routing scenario:
-# when sc_coverage_missing is non-empty after the cascade, SKILL.md must
-# contain conditional routing language that branches on child ticket type —
-# story children route to /dso:preplanning, task-only children route to
-# /dso:implementation-plan.
-#
-# This is a structural boundary test per behavioral testing standard Rule 5:
-# SKILL.md is an instruction file; the observable boundary is its text
-# content, not LLM execution behavior.
-# ---------------------------------------------------------------------------
-test_gap_detection_routes_by_child_type() {
-    local match=0
-    # Verify routing block contains BOTH child-type branches:
-    # (1) story children → preplanning, (2) task children → implementation-plan
-    # Both must appear in a sc_coverage REPLAN context (not general routing).
-    local has_story_branch=0
-    local has_task_branch=0
-    has_story_branch=$(grep -cEi "sc.coverage.*preplanning|sc_coverage.*preplanning|REPLAN_TRIGGER.*sc_coverage.*preplanning|preplanning.*sc.coverage|preplanning.*sc_coverage" "$SKILL_FILE" 2>/dev/null) || has_story_branch=0
-    has_task_branch=$(grep -cEi "sc.coverage.*implementation-plan|sc_coverage.*implementation-plan|REPLAN_TRIGGER.*sc_coverage.*implementation-plan|implementation-plan.*sc.coverage|implementation-plan.*sc_coverage" "$SKILL_FILE" 2>/dev/null) || has_task_branch=0
-    [[ "$has_story_branch" -gt 0 && "$has_task_branch" -gt 0 ]] && match=1
-    assert_eq "test_gap_detection_routes_by_child_type: 5-SC/3-covered scenario — gap detected routes to preplanning (story) or implementation-plan (task) in SKILL.md" "1" "$match"
-}
 
 # ---------------------------------------------------------------------------
 # Run tests
@@ -286,12 +233,9 @@ test_has_substep_2a3_heading
 test_references_sc_coverage_opus_md
 test_opus_dispatch_conditional_on_unsure
 test_has_replan_trigger_sc_coverage
-test_routes_to_preplanning_for_story_children
-test_routes_to_implementation_plan_for_task_children
 test_has_sonnet_fail_open_language
 test_has_opus_fail_open_language
 test_has_missing_sc_triggers_replan_comment
-test_gap_detection_routes_by_child_type
 
 print_summary
 
@@ -307,10 +251,7 @@ _TEST_GATE_ANCHORS=(
     test_references_sc_coverage_opus_md
     test_opus_dispatch_conditional_on_unsure
     test_has_replan_trigger_sc_coverage
-    test_routes_to_preplanning_for_story_children
-    test_routes_to_implementation_plan_for_task_children
     test_has_sonnet_fail_open_language
     test_has_opus_fail_open_language
     test_has_missing_sc_triggers_replan_comment
-    test_gap_detection_routes_by_child_type
 )

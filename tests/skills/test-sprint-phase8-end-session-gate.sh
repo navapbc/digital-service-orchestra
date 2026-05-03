@@ -29,18 +29,7 @@ fi
 phase8_content=$(awk '/^## Phase 8:/{flag=1; next} flag && /^## /{flag=0} flag' "$SKILL_MD")
 
 # ---------------------------------------------------------------------------
-# Test 1: Phase 8 contains an ORCHESTRATOR_RESUME block
-# ---------------------------------------------------------------------------
-if echo "$phase8_content" | grep -q '<ORCHESTRATOR_RESUME>'; then
-    echo "PASS: test_phase8_has_orchestrator_resume"
-    (( ++PASS ))
-else
-    echo "FAIL: test_phase8_has_orchestrator_resume — Phase 8 is missing <ORCHESTRATOR_RESUME> anchor (bug 89fe-bad1 fix)" >&2
-    (( ++FAIL ))
-fi
-
-# ---------------------------------------------------------------------------
-# Test 2: ORCHESTRATOR_RESUME references merge-to-main.sh returning
+# Test 2: Phase 8 references merge-to-main.sh returning
 # ---------------------------------------------------------------------------
 if echo "$phase8_content" | grep -q 'merge-to-main\.sh returning\|merge-to-main\.sh.*does NOT\|merge-to-main\.sh.*NOT.*signal'; then
     echo "PASS: test_orchestrator_resume_references_merge_to_main"
@@ -106,42 +95,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Test 8: Phase 8 has ORCHESTRATOR_RESUME after epic closure (bug a711-bd7e fix)
-# After step 2 closes the epic ticket, an ORCHESTRATOR_RESUME must explicitly
-# warn against stopping at this point and mandate continuing to step 5
-# (/dso:end-session). Without it, the orchestrator exits after closing the ticket
-# instead of proceeding to invoke end-session (chronic failure documented in a711-bd7e).
-# ---------------------------------------------------------------------------
-if echo "$phase8_content" | grep -q 'a711-bd7e'; then
-    echo "PASS: test_phase8_has_orchestrator_resume_after_epic_close"
-    (( ++PASS ))
-else
-    echo "FAIL: test_phase8_has_orchestrator_resume_after_epic_close — Phase 8 missing ORCHESTRATOR_RESUME guard after epic ticket closure (bug a711-bd7e fix)" >&2
-    (( ++FAIL ))
-fi
-
-# ---------------------------------------------------------------------------
-# Test 9: The a711-bd7e ORCHESTRATOR_RESUME warns that ticket closure is NOT
-# a session end signal (symmetric with the merge-to-main.sh guard in Test 2)
-# ---------------------------------------------------------------------------
-if echo "$phase8_content" | grep -q 'a711-bd7e'; then
-    # Only meaningful if the block exists — check it warns about closure ≠ done
-    # The bug ref appears at end of block; use -B10 to capture preceding warning lines
-    block_text=$(echo "$phase8_content" | grep -B10 'a711-bd7e' || true)
-    if echo "$block_text" | grep -qiE '(closing|ticket|epic).*(does NOT|does not|NOT.*signal|not.*session|not.*complete)'; then
-        echo "PASS: test_a711_resume_warns_closure_is_not_done"
-        (( ++PASS ))
-    else
-        echo "FAIL: test_a711_resume_warns_closure_is_not_done — a711-bd7e ORCHESTRATOR_RESUME does not warn that ticket closure is not a sprint completion signal" >&2
-        (( ++FAIL ))
-    fi
-else
-    echo "FAIL: test_a711_resume_warns_closure_is_not_done — no a711-bd7e reference found" >&2
-    (( ++FAIL ))
-fi
-
-# ---------------------------------------------------------------------------
-# Test 10: Phase 8 ORCHESTRATOR_RESUME at step 2 explicitly handles the
+# Test 10: Phase 8 continuation handling at step 2 explicitly handles the
 # ticket-transition REMINDER message that causes agents to stop prematurely.
 # The REMINDER "Epic closed — run /dso:end-session..." triggers sycophantic
 # stop behavior unless the ORCHESTRATOR_RESUME explicitly neutralizes it.
@@ -157,6 +111,17 @@ else
     echo "FAIL: test_orchestrator_resume_neutralizes_transition_reminder — Phase 8 ORCHESTRATOR_RESUME does not address the ticket-transition REMINDER message (bug 4add-0acd)" >&2
     (( ++FAIL ))
 fi
+
+# REVIEW-DEFENSE: Tests 8 and 9 (test_phase8_has_orchestrator_resume_after_epic_close
+# and test_a711_resume_warns_closure_is_not_done) were change-detector tests that
+# grepped for the literal <ORCHESTRATOR_RESUME> XML tag and the bug reference
+# "a711-bd7e" inside it. They were removed because the ORCHESTRATOR_RESUME blocks
+# themselves were removed (8006-c7fc fix: MANDATORY CONTINUATION blocks were
+# replaced with inline "When X completes, proceed to step N" continuations).
+# The behavioral contract — that Phase 8 warns against stopping after epic ticket
+# closure — is preserved in the SKILL.md prose; the tests were testing the
+# implementation mechanism, not the behavior. User explicitly requested removal
+# without replacement (not fixing the change-detector pattern).
 
 # ---------------------------------------------------------------------------
 # Summary
