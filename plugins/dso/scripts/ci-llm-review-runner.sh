@@ -105,6 +105,55 @@ _run_overlay_llm() {
     "@${_DIFF_TMP}" "deep" > "$_slot_file" || true
 }
 
+# ── JSON extraction helper (hoisted; used by slot normalization and retry) ─────
+# Scans LLM output for the best reviewer-findings JSON dict, stripping fences.
+# Preference order: (1) dict with 'findings' key (top-level container),
+# (2) dict with 'summary' key, (3) any valid dict.
+# Prose braces ({text}) are not valid JSON; raw_decode skips them naturally.
+# Prints the extracted JSON to stdout; exits 1 when no dict is found.
+_extract_json_from_llm_text() {
+  python3 -c "
+import json, sys
+t = sys.stdin.read().strip()
+if not t:
+    sys.exit(1)
+t2 = t.lstrip('\`')
+if t2.startswith('json'):
+    t2 = t2[4:]
+t2 = t2.strip()
+dec = json.JSONDecoder()
+pos = 0
+best = None      # best candidate seen so far
+best_score = 0   # 3=has findings, 2=has summary, 1=any dict
+while pos < len(t2):
+    i = t2.find('{', pos)
+    if i < 0:
+        break
+    try:
+        obj, end = dec.raw_decode(t2, i)
+        if isinstance(obj, dict):
+            score = 1
+            if 'summary' in obj:
+                score = 2
+            if 'findings' in obj:
+                score = 3
+            if score > best_score:
+                best = obj
+                best_score = score
+            if best_score == 3:
+                break  # perfect match — no need to scan further
+        # Advance past the parsed object so we never rewind into already-
+        # consumed text. Using i+1 caused non-deterministic best-match
+        # selection on inputs containing nested or sibling objects.
+        pos = end
+    except json.JSONDecodeError:
+        pos = i + 1
+if best is None:
+    sys.exit(1)
+print(json.dumps(best))
+" 2>/dev/null
+}
+
 REVIEW_TIER="$SELECTED_TIER"
 case "$SELECTED_TIER" in
   light|standard)
@@ -197,11 +246,16 @@ json.loads(t); print(t)
         "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings-security-blue.json" || true
     }
 
-    # Validate specialist slot files (fail-closed).
+    # Normalize specialist slot files: extract first valid JSON object (handles LLM
+    # responses with surrounding prose), then validate (fail-closed).
     for _slot in "$_SLOT_CORRECTNESS" "$_SLOT_VERIFICATION" "$_SLOT_HYGIENE"; do
       if [[ ! -f "$_slot" ]]; then
         echo "ERROR: deep-tier slot file missing: $_slot" >&2
         exit 1
+      fi
+      _slot_normalized=$(cat "$_slot" | _extract_json_from_llm_text) || true
+      if [[ -n "$_slot_normalized" ]]; then
+        printf '%s\n' "$_slot_normalized" > "$_slot"
       fi
       if ! python3 -c "import json,sys; json.load(open('$_slot'))" 2>/dev/null; then
         echo "ERROR: deep-tier slot file contains invalid JSON: $_slot" >&2
@@ -215,13 +269,13 @@ json.loads(t); print(t)
     _SLOT_H_JSON=$(cat "$_SLOT_HYGIENE")
     _ARCH_USER_MSG="Synthesize these specialist reviews into a unified reviewer-findings JSON.
 
-Correctness specialist findings:
+=== SONNET-A FINDINGS (correctness) ===
 ${_SLOT_C_JSON}
 
-Verification specialist findings:
+=== SONNET-B FINDINGS (verification) ===
 ${_SLOT_V_JSON}
 
-Hygiene/Design/Maintainability specialist findings:
+=== SONNET-C FINDINGS (hygiene/design) ===
 ${_SLOT_H_JSON}
 
 Diff under review:
@@ -230,11 +284,7 @@ ${DIFF_CONTENT}"
 
     _ARCH_RESP=$(bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-arch.md" \
       "@${_ARCH_TMP}" "deep")
-    FINDINGS_JSON=$(printf '%s' "$_ARCH_RESP" | python3 -c "
-import json,sys; t=sys.stdin.read().strip()
-if not t: raise ValueError('empty')
-json.loads(t); print(t)
-" 2>/dev/null) || {
+    FINDINGS_JSON=$(printf '%s' "$_ARCH_RESP" | _extract_json_from_llm_text) || {
       echo "WARNING: Arch LLM response could not be parsed as reviewer-findings JSON." >&2
       FINDINGS_JSON='{"scores":{"hygiene":"N/A","design":"N/A","maintainability":"N/A","correctness":"N/A","verification":"N/A"},"findings":[],"summary":"Review inconclusive: Arch response could not be parsed."}'
     }
@@ -291,10 +341,87 @@ PYEOF
   )
 fi
 
-REVIEWER_HASH=$(echo "$FINDINGS_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER")
+_VALIDATION_ERR_TMP=$(mktemp /tmp/ci-review-validation.XXXXXX)
+_WRITE_RC=0
+REVIEWER_HASH=$(echo "$FINDINGS_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER" 2>"$_VALIDATION_ERR_TMP") || _WRITE_RC=$?
 
-bash "$(command -v record-review.sh)" --reviewer-hash "$REVIEWER_HASH"
+# Always surface validation errors so CI logs show the actual schema problem.
+if [[ "$_WRITE_RC" -ne 0 ]]; then
+  _VALIDATION_ERRORS=$(cat "$_VALIDATION_ERR_TMP" 2>/dev/null || true)
+  echo "Schema validation failed:" >&2
+  echo "$_VALIDATION_ERRORS" >&2
+fi
+
+# Single-shot retry with validation errors prepended to the user message.
+# Covers both light/standard (via AGENT_FILE) and deep-tier (via _ARCH_TMP).
+if [[ "$_WRITE_RC" -ne 0 ]]; then
+  _RETRY_SUFFIX=$(printf '\n\nPREVIOUS ATTEMPT SCHEMA ERRORS — fix these in your JSON response:\n%s' "${_VALIDATION_ERRORS:-}")
+
+  if [[ -n "${AGENT_FILE:-}" ]]; then
+    # Light/standard: retry with diff + validation errors
+    echo "Schema validation failed — retrying light/standard with validation errors in prompt" >&2
+    _RETRY_TMP=$(mktemp /tmp/ci-review-retry.XXXXXX)
+    printf '%s%s' "$DIFF_CONTENT" "$_RETRY_SUFFIX" > "$_RETRY_TMP"
+    _RETRY_TEXT=$(bash "$(command -v llm-api-call.sh)" "$AGENT_FILE" \
+      "@${_RETRY_TMP}" "$REVIEW_TIER" 2>/dev/null || true)
+    rm -f "$_RETRY_TMP"
+    _RETRY_JSON=$(printf '%s' "${_RETRY_TEXT:-}" | _extract_json_from_llm_text) || true
+  elif [[ -n "${_ARCH_TMP:-}" && -f "${_ARCH_TMP:-/dev/null}" ]]; then
+    # Deep-tier: retry arch synthesis with validation errors appended to its user message
+    echo "Schema validation failed — retrying deep-tier arch with validation errors in prompt" >&2
+    _RETRY_ARCH_TMP=$(mktemp /tmp/ci-review-arch-retry.XXXXXX)
+    cat "$_ARCH_TMP" > "$_RETRY_ARCH_TMP"
+    printf '%s' "$_RETRY_SUFFIX" >> "$_RETRY_ARCH_TMP"
+    _RETRY_TEXT=$(bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-arch.md" \
+      "@${_RETRY_ARCH_TMP}" "deep" 2>/dev/null || true)
+    rm -f "$_RETRY_ARCH_TMP"
+    _RETRY_JSON=$(printf '%s' "${_RETRY_TEXT:-}" | _extract_json_from_llm_text) || true
+  fi
+
+  if [[ -n "${_RETRY_JSON:-}" ]]; then
+    _RETRY_HASH=""
+    _RETRY_WRITE_RC=0
+    _RETRY_HASH=$(echo "$_RETRY_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER" 2>/dev/null) || _RETRY_WRITE_RC=$?
+    if [[ "$_RETRY_WRITE_RC" -eq 0 && -n "$_RETRY_HASH" ]]; then
+      REVIEWER_HASH="$_RETRY_HASH"
+      FINDINGS_JSON="$_RETRY_JSON"
+      _WRITE_RC=0
+    fi
+  fi
+fi
+rm -f "$_VALIDATION_ERR_TMP"
+
+bash "$(command -v record-review.sh)" --reviewer-hash "${REVIEWER_HASH:-}"
 REVIEW_STATUS=$(head -1 "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/review-status" 2>/dev/null || echo "")
+
+# Always log the reviewer findings so CI output is actionable for agents and humans.
+_findings_file="${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings.json"
+if [[ -f "$_findings_file" ]]; then
+  echo ""
+  echo "=== LLM Reviewer Findings ==="
+  python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    summary = d.get('summary', '(no summary)')
+    findings = d.get('findings', [])
+    print('Summary:', summary)
+    print('Findings:', len(findings))
+    for i, f in enumerate(findings, 1):
+        sev = f.get('severity', '?')
+        cat = f.get('category', '?')
+        desc = f.get('description', '')[:200]
+        ffile = f.get('file', '')
+        print(f'  [{i}] {sev.upper()} ({cat}): {desc}', flush=True)
+        if ffile:
+            print(f'       file: {ffile}', flush=True)
+except Exception as e:
+    print('(could not parse findings:', e, ')')
+" "$_findings_file" 2>/dev/null || true
+  echo "=== End LLM Reviewer Findings ==="
+  echo ""
+fi
+
 if [[ "$REVIEW_STATUS" == "failed" ]]; then
   echo "Review FAILED" >&2
   exit 1

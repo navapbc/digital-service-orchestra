@@ -26,14 +26,16 @@ plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/docs/test_sub_agent_boundaries_an
 plugins/dso/docs/templates/KNOWN-ISSUES.md:tests/scripts/test-known-issues-smoke.sh,tests/scripts/test-known-issues-template.sh
 plugins/dso/docs/workflow-config-schema.json:tests/scripts/test-workflow-config-schema.sh
 plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow-step-1-5.sh,tests/scripts/test-emit-commit-workflow-event.sh,tests/skills/test-preconditions-commit-validator.sh
+plugins/dso/docs/workflows/commit-workflow-validation.md:tests/docs/test-commit-workflow-validation-canonical-list.sh
 plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh,tests/docs/test-reviewer-base-repo-root-context.sh,tests/scripts/test-reviewer-agent-review-tier.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
 plugins/dso/docs/workflows/REVIEW-WORKFLOW-HUGE.md:tests/workflows/test-review-workflow-huge-divert.sh,tests/workflows/test-review-workflow-huge.sh
-plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-huge-divert.sh,tests/workflows/test-review-workflow-compute-hash-path.sh,tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/workflows/test-review-workflow-huge.sh,tests/workflows/test-review-workflow-classifier-failure-guards.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/hooks/test-review-workflow-deep-tier-dispatch-guidance.sh,tests/hooks/test-review-protocol-workflow.sh,tests/scripts/test-review-workflow-dispatch-pattern.sh,tests/skills/test_review_workflow_model_escalation.py,tests/scripts/test-compute-diff-hash-shim-refs.sh
+plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-huge-divert.sh,tests/workflows/test-review-workflow-compute-hash-path.sh,tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/workflows/test-review-workflow-huge.sh,tests/workflows/test-review-workflow-classifier-failure-guards.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/hooks/test-review-workflow-deep-tier-dispatch-guidance.sh,tests/hooks/test-review-protocol-workflow.sh,tests/scripts/test-review-workflow-dispatch-pattern.sh,tests/skills/test_review_workflow_model_escalation.py,tests/scripts/test-compute-diff-hash-shim-refs.sh,tests/workflows/test-review-workflow-severity-schema.sh
 plugins/dso/hooks/dispatchers/post-agent.sh:tests/hooks/test-post-agent-sentinel.sh,tests/hooks/test-post-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
+plugins/dso/hooks/lib/merge-helpers.sh:tests/integration/test-merge-to-main-pr-thread-resolution.sh,tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-dispatcher.sh,tests/hooks/test-merge-helpers-pr-repo-cache.sh,tests/hooks/test-merge-helpers-special-chars.sh
 plugins/dso/hooks/lib/centrality.sh:tests/hooks/test-record-test-status-centrality.sh
 plugins/dso/scripts/fix-cascade-recovery/reset-cascade-counter.sh:tests/scripts/test-reset-cascade-counter.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh
@@ -177,10 +179,14 @@ plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-stagin
 plugins/dso/hooks/lib/validate-check-runners.sh:tests/scripts/test-validate-test-batched-integration.sh
 plugins/dso/hooks/lib/validate-helpers.sh:tests/scripts/test-validate-test-batched-integration.sh
 plugins/dso/hooks/record-review.sh:tests/hooks/test-record-review-attest.sh
+plugins/dso/hooks/resolve-overlay-findings.sh:tests/hooks/test-overlay-resolution-integration.sh
 plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/pre-all-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/session-misc-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
-plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-resume-cwd.sh,tests/scripts/test-merge-to-main-resume-push-idempotent.sh,tests/scripts/test-merge-to-main-cleanliness.sh,tests/scripts/test-merge-to-main-locking.sh,tests/scripts/test-merge-to-main-version-bump.sh,tests/scripts/test-merge-to-main-version-bump-integration.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-config-driven.sh,tests/scripts/test-merge-to-main-ci-workflow-name.sh,tests/scripts/test-merge-to-main-ucq2.sh,tests/scripts/test-merge-to-main-stale-version-bump-reset.sh,tests/hooks/test-merge-to-main-portability.sh
+plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-resume-cwd.sh,tests/scripts/test-merge-to-main-resume-push-idempotent.sh,tests/scripts/test-merge-to-main-cleanliness.sh,tests/scripts/test-merge-to-main-locking.sh,tests/scripts/test-merge-to-main-version-bump.sh,tests/scripts/test-merge-to-main-version-bump-integration.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-config-driven.sh,tests/scripts/test-merge-to-main-ci-workflow-name.sh,tests/scripts/test-merge-to-main-ucq2.sh,tests/scripts/test-merge-to-main-stale-version-bump-reset.sh,tests/hooks/test-merge-to-main-portability.sh,tests/scripts/test-merge-to-main-dispatcher.sh
+plugins/dso/scripts/merge-to-main-pr.sh:tests/integration/test-merge-to-main-pr-thread-resolution.sh,tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-pr.sh,tests/scripts/test-merge-to-main-dispatcher.sh
+plugins/dso/scripts/sprint-drift-check.sh:tests/scripts/test-sprint-drift-check.sh,tests/scripts/test-sprint-drift-check-storage-api.sh
+plugins/dso/scripts/sprint-review-scope-check.sh:tests/scripts/test-sprint-review-scope-check.sh,tests/scripts/test-sprint-review-scope-check-storage-api.sh
 plugins/dso/scripts/sprint/sprint-drift-check.sh:tests/scripts/test-sprint-drift-check.sh,tests/scripts/test-sprint-drift-check-storage-api.sh
 plugins/dso/scripts/sprint/sprint-review-scope-check.sh:tests/scripts/test-sprint-review-scope-check.sh,tests/scripts/test-sprint-review-scope-check-storage-api.sh
 plugins/dso/scripts/validate.sh:tests/scripts/test-validate-config-driven.sh
@@ -289,6 +295,7 @@ plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-wor
 scripts/release.sh:tests/scripts/test-release.sh
 plugins/dso/scripts/ticket-archive-markers-backfill.sh:tests/scripts/test-ticket-archive-markers-backfill.sh
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
+plugins/dso/hooks/lib/enforcement-gate.sh:tests/hooks/lib/test-enforcement-gate-lib.sh
 plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
 plugins/dso/scripts/ticket-lib.sh:tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-ticket-write-commit-event.sh,tests/scripts/test-ticket-lib.sh,tests/scripts/test-preconditions-lww.sh,tests/scripts/test-preconditions-compaction.sh,tests/integration/test-preconditions-fault-injection.sh,tests/integration/test-preconditions-mixed-corpus.sh,tests/integration/test-preconditions-compaction-ordering.sh,tests/scripts/test-ticket-push-rebase-conflict.sh,tests/scripts/test-ticket-set-get-file-impact.sh,tests/scripts/test-flock-busybox-compat.sh
@@ -329,6 +336,7 @@ docs/designs/stage-boundary-preconditions/:tests/docs/test-stage-boundary-precon
 plugins/dso/scripts/onboarding/plugin-inventory.sh:tests/unit/scripts/test-plugin-inventory.sh
 plugins/dso/scripts/onboarding/detect-enforcement-artifacts.sh:tests/unit/scripts/test-detect-enforcement-artifacts.sh
 plugins/dso/scripts/onboarding/adr-upsert.sh:tests/unit/scripts/test-adr-upsert.sh
+plugins/dso/scripts/onboarding/provision-ruleset.sh:tests/scripts/test-provision-ruleset.sh
 plugins/dso/hooks/pre-commit-ticket-gate.sh:tests/hooks/test-pre-commit-ticket-gate.sh
 plugins/dso/hooks/check-tickets-boundary.sh:tests/hooks/test-check-tickets-boundary.sh
 plugins/dso/skills/debug-everything/prompts/session-init.md:tests/scripts/test-debug-everything-prompt-contracts.sh
@@ -340,7 +348,6 @@ plugins/dso/skills/debug-everything/prompts/gha-dispatch.md:tests/scripts/test-d
 plugins/dso/scripts/test-batched.sh:tests/scripts/test-test-batched.sh
 tests/integration/test-figma-pullback-integration.sh:tests/integration/test-figma-pullback-integration.sh [test_fp_merge_1_new_component_tagged]
 tests/scripts/test-sigpipe-canary.sh:tests/scripts/test-sigpipe-canary.sh
-plugins/dso/scripts/onboarding/provision-ruleset.sh:tests/scripts/test-provision-ruleset.sh
 plugins/dso/scripts/onboarding/validate-required-checks.sh:tests/scripts/test-validate-required-checks.sh
 plugins/dso/scripts/onboarding/github-bootstrap.sh:tests/scripts/test-github-bootstrap.sh
 tests/scripts/test-ci-enforcement-e2e.sh [test_opt_in_gate_exits_zero_skip]:tests/scripts/test-ci-enforcement-e2e-behavioral.sh
@@ -356,4 +363,11 @@ tests/scripts/test-host-project-e2e-bootstrap.sh:tests/scripts/test-host-project
 tests/scripts/test-host-project-e2e-verify.sh:tests/scripts/test-host-project-e2e-verify.sh [test_host_e2e_security_overlay_blocks_merge]
 plugins/dso/skills/brainstorm/prompts/ui-keyword-trigger.md:tests/skills/test-brainstorm-ui-intent-detection.sh
 plugins/dso/skills/brainstorm/prompts/ui-detection-classifier.md:tests/skills/test-brainstorm-ui-intent-detection.sh
+tests/hooks/test-enforcement-gate.sh [test_structural_check_plugin_self_ref_runs_on_ci]:tests/hooks/test-enforcement-gate.sh [test_structural_check_plugin_self_ref_runs_on_ci]
+plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-enforcement-gate.sh
+plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-enforcement-gate.sh
+plugins/dso/hooks/pre-commit-test-quality-gate.sh:tests/hooks/test-enforcement-gate.sh
+plugins/dso/hooks/check-plugin-self-ref.sh:tests/hooks/test-enforcement-gate.sh
+plugins/dso/hooks/check-portability.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/skills/brainstorm/prompts/ux-probe-set.md:tests/skills/test-brainstorm-ui-intent-detection.sh
+plugins/dso/scripts/merge-to-main-direct.sh:tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-dispatcher.sh

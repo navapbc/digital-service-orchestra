@@ -6,6 +6,9 @@
 #   - Stale git state and rebase auto-resolution helpers
 #   - Push idempotency check
 #   - Squash-rebase recovery
+#   - PR thread-resolution helpers (_pr_fetch_unresolved_threads,
+#     _pr_thread_is_unresolved, _pr_post_thread_reply, _pr_resolve_thread,
+#     _pr_settling_check)
 #
 # Callers must set BRANCH before sourcing this file (used by _state_file_path).
 # The following variables are used if set: MAX_MERGE_RETRIES, LOCK_WAIT_CEILING.
@@ -28,10 +31,10 @@ _state_is_fresh() {
     fi
     # Check if mtime > 4 hours (240 minutes) ago using python3 (portable across /tmp symlinks)
     local _is_stale
-    _is_stale=$(python3 -c "
+    _is_stale=$(_DSO_SF="$_sf" python3 -c "
 import os, time
 try:
-    mtime = os.path.getmtime('$_sf')
+    mtime = os.path.getmtime(os.environ['_DSO_SF'])
     if (time.time() - mtime) > 240 * 60:
         print('stale')
     else:
@@ -54,10 +57,13 @@ _state_init() {
     if ! _state_is_fresh; then
         # Not fresh (missing or stale) — write fresh skeleton
         # || true: state I/O is best-effort; set -e must not propagate from partial writes
-        python3 -c "
-import json
-d = {'branch': '$BRANCH', 'merge_sha': '', 'completed_phases': [], 'current_phase': '', 'phases': {}}
-with open('${_sf}.tmp', 'w') as f:
+        # Pass variables via env to avoid shell-string interpolation injection
+        # (branch names with quotes/backslashes/newlines would break python source).
+        _DSO_BRANCH="$BRANCH" _DSO_SF="$_sf" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+d = {'branch': os.environ['_DSO_BRANCH'], 'merge_sha': '', 'completed_phases': [], 'current_phase': '', 'phases': {}, 'merge_strategy': os.environ.get('MERGE_STRATEGY', 'direct')}
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     fi
@@ -73,12 +79,14 @@ _state_write_phase() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
     # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    python3 -c "
-import json
-with open('$_sf') as f:
+    # Pass variables via env to avoid shell-string interpolation injection.
+    _DSO_SF="$_sf" _DSO_PHASE="$_phase" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
     d = json.load(f)
-d['current_phase'] = '$_phase'
-with open('${_sf}.tmp', 'w') as f:
+d['current_phase'] = os.environ['_DSO_PHASE']
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
@@ -90,14 +98,17 @@ _state_mark_complete() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
     # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    python3 -c "
-import json
-with open('$_sf') as f:
+    # Pass variables via env to avoid shell-string interpolation injection.
+    _DSO_SF="$_sf" _DSO_PHASE="$_phase" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+phase = os.environ['_DSO_PHASE']
+with open(sf) as f:
     d = json.load(f)
-if '$_phase' not in d.get('completed_phases', []):
-    d.setdefault('completed_phases', []).append('$_phase')
-d.setdefault('phases', {})['$_phase'] = {'status': 'complete'}
-with open('${_sf}.tmp', 'w') as f:
+if phase not in d.get('completed_phases', []):
+    d.setdefault('completed_phases', []).append(phase)
+d.setdefault('phases', {})[phase] = {'status': 'complete'}
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
@@ -110,12 +121,14 @@ _set_phase_status() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
     # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    python3 -c "
-import json
-with open('$_sf') as f:
+    # Pass variables via env to avoid shell-string interpolation injection.
+    _DSO_SF="$_sf" _DSO_PHASE="$_phase" _DSO_STATUS="$_status" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
     d = json.load(f)
-d.setdefault('phases', {}).setdefault('$_phase', {})['status'] = '$_status'
-with open('${_sf}.tmp', 'w') as f:
+d.setdefault('phases', {}).setdefault(os.environ['_DSO_PHASE'], {})['status'] = os.environ['_DSO_STATUS']
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
@@ -127,12 +140,14 @@ _state_record_merge_sha() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
     # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    python3 -c "
-import json
-with open('$_sf') as f:
+    # Pass variables via env to avoid shell-string interpolation injection.
+    _DSO_SF="$_sf" _DSO_SHA="$_sha" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
     d = json.load(f)
-d['merge_sha'] = '$_sha'
-with open('${_sf}.tmp', 'w') as f:
+d['merge_sha'] = os.environ['_DSO_SHA']
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
@@ -142,9 +157,9 @@ _state_get_retry_count() {
     local _sf
     _sf=$(_state_file_path) 2>/dev/null || { echo "0"; return 0; }
     [[ -f "$_sf" ]] || { echo "0"; return 0; }
-    python3 -c "
-import json
-with open('$_sf') as f:
+    _DSO_SF="$_sf" python3 -c "
+import json, os
+with open(os.environ['_DSO_SF']) as f:
     d = json.load(f)
 print(d.get('retry_count', 0))
 " 2>/dev/null || echo "0"
@@ -155,12 +170,13 @@ _state_increment_retry() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
     # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    python3 -c "
-import json
-with open('$_sf') as f:
+    _DSO_SF="$_sf" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
     d = json.load(f)
 d['retry_count'] = d.get('retry_count', 0) + 1
-with open('${_sf}.tmp', 'w') as f:
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
@@ -171,12 +187,13 @@ _state_reset_retry_count() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
     # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    python3 -c "
-import json
-with open('$_sf') as f:
+    _DSO_SF="$_sf" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
     d = json.load(f)
 d['retry_count'] = 0
-with open('${_sf}.tmp', 'w') as f:
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
@@ -345,7 +362,7 @@ _abort_stale_rebase() {
 }
 
 # --- Auto-resolve ticket-data conflicts during git pull --rebase ---
-# Ticket event JSON files (.tickets-tracker/<id>/*.json) may appear as conflicts
+# Ticket event JSON files (.tickets-tracker/<id>/*.json) may appear as conflicts # tickets-boundary-ok
 # during rebase (e.g., during worktree sync). These are always safe to resolve by
 # accepting our version (git add if present, git rm if absent).
 # Non-ticket conflicts cause an immediate abort.
@@ -390,12 +407,12 @@ _auto_resolve_archive_conflicts() {
     fi
 
     # Safety check: ALL conflicts must be ticket-data files (safe to auto-resolve).
-    # Ticket data: v3 .tickets-tracker/<id>/*.json or .tickets-tracker/*.json (includes .index.json).
+    # Ticket data: v3 .tickets-tracker/<id>/*.json or .tickets-tracker/*.json (includes .index.json). # tickets-boundary-ok
     local _non_archive_conflicts=0
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
         case "$_file" in
-            .tickets-tracker/*/*.json | .tickets-tracker/*.json)
+            .tickets-tracker/*/*.json | .tickets-tracker/*.json) # tickets-boundary-ok
                 # v3 ticket event JSON — safe to auto-resolve
                 ;;
             *)
@@ -419,7 +436,7 @@ _auto_resolve_archive_conflicts() {
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
 
-        if [[ "$_file" == .tickets-tracker/*.json || "$_file" == .tickets-tracker/*/*.json ]]; then
+        if [[ "$_file" == .tickets-tracker/*.json || "$_file" == .tickets-tracker/*/*.json ]]; then # tickets-boundary-ok
             # v3 ticket event JSON — accept ours (git add if present, git rm if absent)
             if [[ -f "$_file" ]]; then
                 git add "$_file" 2>/dev/null && _resolved=$(( _resolved + 1 )) || _failed=$(( _failed + 1 ))
@@ -499,7 +516,7 @@ _auto_resolve_archive_conflicts() {
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
                 case "$_nf" in
-                    .tickets-tracker/*/*.json | .tickets-tracker/*.json) ;;
+                    .tickets-tracker/*/*.json | .tickets-tracker/*.json) ;; # tickets-boundary-ok
                     *) _new_non_archive=$(( _new_non_archive + 1 )) ;;
                 esac
             done <<< "$_new_all"
@@ -514,7 +531,7 @@ _auto_resolve_archive_conflicts() {
             local _new_resolved=0 _new_failed=0
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
-                if [[ "$_nf" == .tickets-tracker/*.json || "$_nf" == .tickets-tracker/*/*.json ]]; then
+                if [[ "$_nf" == .tickets-tracker/*.json || "$_nf" == .tickets-tracker/*/*.json ]]; then # tickets-boundary-ok
                     # v3 ticket event JSON — accept ours
                     if [[ -f "$_nf" ]]; then
                         git add "$_nf" 2>/dev/null && _new_resolved=$(( _new_resolved + 1 )) || _new_failed=$(( _new_failed + 1 ))
@@ -685,6 +702,13 @@ _squash_rebase_recovery() {
         _CONFLICTED_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
     fi
 
+    # REVIEW-DEFENSE: export conflicted files BEFORE rebase --abort so callers
+    # (e.g., _phase_merge's recovery-failed branch in merge-to-main-direct.sh)
+    # can populate CONFLICT_DATA after we return — otherwise the abort plus the
+    # caller's `cd "$_MERGE_SAVED_DIR"` strips all conflict signal from the
+    # working tree (fix for important finding 2026-05-01).
+    export _SQUASH_REBASE_CONFLICTS="${_CONFLICTED_FILES:-}"
+
     if [[ -z "$_CONFLICTED_FILES" ]]; then
         # No conflicts detected — unknown rebase failure
         git rebase --abort 2>/dev/null || true
@@ -695,5 +719,329 @@ _squash_rebase_recovery() {
     echo "ACTION REQUIRED: Rebase conflict in the following files:"
     echo "$_CONFLICTED_FILES"
     git rebase --abort 2>/dev/null || true
+    return 1
+}
+
+# --- Emit CONFLICT_DATA contract line ---
+# Usage: _emit_conflict_data <branch> <base_branch> <resolution_strategy>
+# Prints a single-line JSON contract describing a merge conflict, consumed by
+# orchestrators (e.g., /dso:resolve-conflicts) and by the dispatcher tests.
+#
+# Schema (single line):
+#   CONFLICT_DATA {"branch":"<branch>","base_branch":"<base_branch>",
+#                  "conflicted_files":["<file>",...],
+#                  "resolution_strategy":"<resolution_strategy>"}
+#
+# Conflicted files are computed via ms_get_conflicted_files (merge-state.sh) when
+# available; falls back to `git diff --name-only --diff-filter=U`. The list is
+# JSON-encoded with python3 (always available — already a hard dep of this lib).
+# Emitting the line is best-effort — failures must not abort the caller.
+#
+# This helper is shared between merge-to-main-direct.sh (called before each
+# exit 1 on the merge-failure path) and merge-to-main-pr.sh (S3a) so both
+# strategies emit the same contract.
+_emit_conflict_data() {
+    local _branch="${1:-}"
+    local _base_branch="${2:-main}"
+    local _resolution_strategy="${3:-}"
+
+    local _conflicted_files
+    if type ms_get_conflicted_files >/dev/null 2>&1; then
+        _conflicted_files=$(ms_get_conflicted_files 2>/dev/null || true)
+    else
+        _conflicted_files=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+    fi
+
+    # REVIEW-DEFENSE: when the live computation returns empty (e.g., the caller
+    # has already aborted the merge/rebase or cd'd to a non-conflicted repo),
+    # fall back to _SQUASH_REBASE_CONFLICTS captured by _squash_rebase_recovery
+    # before its rebase --abort. Preserves the contract on the recovery-failed
+    # path in merge-to-main-direct.sh (fix for important finding 2026-05-01).
+    if [[ -z "$_conflicted_files" && -n "${_SQUASH_REBASE_CONFLICTS:-}" ]]; then
+        _conflicted_files="$_SQUASH_REBASE_CONFLICTS"
+    fi
+
+    # Build the JSON payload. Use python3 to safely encode the conflicted_files
+    # list (handles spaces, quotes, unicode in filenames).
+    local _payload
+    _payload=$(BR="$_branch" BB="$_base_branch" RS="$_resolution_strategy" \
+               CF="$_conflicted_files" \
+               python3 -c '
+import json, os
+files = [ln for ln in os.environ.get("CF", "").splitlines() if ln.strip()]
+print(json.dumps({
+    "branch": os.environ.get("BR", ""),
+    "base_branch": os.environ.get("BB", "main"),
+    "conflicted_files": files,
+    "resolution_strategy": os.environ.get("RS", ""),
+}))
+' 2>/dev/null) || _payload='{"branch":"'"$_branch"'","base_branch":"'"$_base_branch"'","conflicted_files":[],"resolution_strategy":"'"$_resolution_strategy"'"}'
+
+    echo "CONFLICT_DATA $_payload"
+    return 0
+}
+
+# =============================================================================
+# PR Thread-Resolution Helpers
+# =============================================================================
+# These helpers wrap `gh api` calls for the PR review-thread resolution loop.
+# They are designed to be tested via PATH-shadowed `gh` stubs (see T1 RED tests).
+# All helpers exit 0 on success, exit 1 on API/parse error.
+#
+# Owner/repo is derived on first call and cached in _PR_REPO_NAME_WITH_OWNER.
+# =============================================================================
+
+# Module-level cache for owner/repo slug (populated on first call).
+_PR_REPO_NAME_WITH_OWNER=""
+
+# _pr_repo() — returns "owner/repo" slug (cached after first successful call).
+# Exits 0 always; prints slug or empty string.
+_pr_repo() {
+    if [[ -n "${_PR_REPO_NAME_WITH_OWNER:-}" ]]; then
+        echo "$_PR_REPO_NAME_WITH_OWNER"
+        return 0
+    fi
+    local _slug
+    _slug=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || echo "")
+    # Only cache non-empty results — empty means auth/network failure; let next call retry.
+    if [[ -n "$_slug" ]]; then
+        _PR_REPO_NAME_WITH_OWNER="$_slug"
+    fi
+    echo "$_slug"
+}
+
+# _pr_fetch_unresolved_threads <pr_number>
+# Fetches all review threads on the given PR via the reviewThreads GraphQL query.
+# Filters to threads where isResolved=false.
+# Prints one line per unresolved thread: <thread_node_id>\t<file_path>\t<line>\t<latest_comment_id>\t<body>
+# Exit 0 on success (even if empty result); exit 1 on API/parse error.
+_pr_fetch_unresolved_threads() {
+    local _pr_number="$1"
+    local _repo
+    _repo=$(_pr_repo) || true
+
+    local _query
+    # shellcheck disable=SC2016  # GraphQL vars ($owner etc.) intentionally not expanded here
+    _query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){reviewThreads(first:100){nodes{id,isResolved,path,line,comments(last:1){nodes{databaseId,body}}}}}}}'
+
+    local _owner _reponame
+    _owner="${_repo%%/*}"
+    _reponame="${_repo##*/}"
+
+    local _response
+    _response=$(gh api graphql \
+        -f query="$_query" \
+        -f owner="$_owner" \
+        -f repo="$_reponame" \
+        -F pr="$_pr_number" 2>/dev/null) || {
+        echo "ERROR: _pr_fetch_unresolved_threads: gh api graphql failed" >&2
+        return 1
+    }
+
+    # Parse the response: extract unresolved threads and emit one line each.
+    # Use python3 for JSON parsing (avoids jq dependency).
+    # Write response to a temp file to avoid ARG_MAX limits on large PR responses.
+    local _resp_tmp
+    _resp_tmp=$(mktemp /tmp/pr-threads-resp.XXXXXX)
+    printf '%s' "$_response" > "$_resp_tmp"
+    # Capture python3's exit code via `|| _py_rc=$?`. The earlier pattern
+    # (`<<'PYEOF' 2>/dev/null; local _py_rc=$?`) is wrong: the semicolon after
+    # the heredoc terminator means $? captures the heredoc/list exit code
+    # (always 0 here) instead of python3's exit code.
+    local _py_rc=0
+    python3 - "$_resp_tmp" <<'PYEOF' 2>/dev/null || _py_rc=$?
+import sys, json, base64
+
+response_str = open(sys.argv[1]).read()
+try:
+    data = json.loads(response_str)
+except Exception as e:
+    print(f"ERROR: failed to parse graphql response: {e}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    nodes = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+except (KeyError, TypeError):
+    # Empty or unexpected structure — treat as zero threads (not an error)
+    sys.exit(0)
+
+for node in nodes:
+    if node.get("isResolved", True):
+        continue
+    thread_id = node.get("id", "")
+    path = node.get("path", "")
+    line = str(node.get("line") or "")
+    comments = node.get("comments", {}).get("nodes", [])
+    if comments:
+        last_comment = comments[-1]
+        comment_id = str(last_comment.get("databaseId", ""))
+        body = last_comment.get("body", "")
+        body_b64 = base64.b64encode(body.encode("utf-8")).decode("utf-8")
+    else:
+        comment_id = ""
+        body_b64 = ""
+    print(f"{thread_id}\t{path}\t{line}\t{comment_id}\t{body_b64}")
+PYEOF
+    rm -f "$_resp_tmp"
+    [ "$_py_rc" -eq 0 ] || return 1
+}
+
+# _pr_thread_is_unresolved <thread_node_id>
+# Idempotent precheck: queries the single thread by node ID.
+# Prints "true" if isResolved=false; "false" otherwise (including missing/error).
+# Exit 0 always (a missing thread is treated as "false").
+_pr_thread_is_unresolved() {
+    local _thread_id="$1"
+
+    local _query
+    # shellcheck disable=SC2016  # GraphQL vars ($threadId) intentionally not expanded here
+    _query='query($threadId:ID!){node(id:$threadId){...on PullRequestReviewThread{id,isResolved}}}'
+
+    local _response
+    _response=$(gh api graphql \
+        -f query="$_query" \
+        -f threadId="$_thread_id" 2>/dev/null) || {
+        echo "false"
+        return 0
+    }
+
+    # Parse: extract isResolved from the node response.
+    # Write response to a temp file to avoid ARG_MAX limits on large API responses.
+    local _resp_tmp2
+    _resp_tmp2=$(mktemp /tmp/pr-thread-check.XXXXXX)
+    printf '%s' "$_response" > "$_resp_tmp2"
+    # See companion fix in _pr_fetch_unresolved_threads: capture python3's
+    # exit code via `|| _py2_rc=$?` rather than `; local _py2_rc=$?` after
+    # the heredoc, which would always observe 0.
+    local _py2_rc=0
+    python3 - "$_resp_tmp2" "$_thread_id" <<'PYEOF' 2>/dev/null || _py2_rc=$?
+import sys, json
+
+response_str = open(sys.argv[1]).read()
+try:
+    data = json.loads(response_str)
+except Exception:
+    print("false")
+    sys.exit(0)
+
+# Check via node query result
+try:
+    node = data["data"]["node"]
+    if node and not node.get("isResolved", True):
+        print("true")
+    else:
+        print("false")
+    sys.exit(0)
+except (KeyError, TypeError):
+    pass
+
+# Fallback: check via reviewThreads list (when stub returns full reviewThreads structure)
+# Only return true if the specific thread_node_id is unresolved.
+thread_id_arg = sys.argv[2] if len(sys.argv) > 2 else ""
+try:
+    nodes = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+    for n in nodes:
+        # Match by id when available; fall back to any-unresolved only when no id field
+        if thread_id_arg and n.get("id") and n.get("id") != thread_id_arg:
+            continue
+        if not n.get("isResolved", True):
+            print("true")
+            sys.exit(0)
+    print("false")
+    sys.exit(0)
+except (KeyError, TypeError):
+    print("false")
+    sys.exit(0)
+PYEOF
+    rm -f "$_resp_tmp2"
+    if [ "$_py2_rc" -ne 0 ]; then
+        echo "false"
+        return 0
+    fi
+}
+
+# _pr_post_thread_reply <pr_number> <comment_id> <reply_text>
+# POSTs a reply to the given review comment via the REST API.
+# Uses: gh api -X POST /repos/{owner}/{repo}/pulls/comments/{id}/replies
+# (GitHub REST endpoint is scoped by comment_id only — no PR number in path.)
+# Exit 0 on success; exit 1 on failure.
+_pr_post_thread_reply() {
+    local _pr_number="$1"
+    local _comment_id="$2"
+    local _reply_text="$3"
+    local _repo
+    _repo=$(_pr_repo) || true
+
+    local _owner _reponame
+    _owner="${_repo%%/*}"
+    _reponame="${_repo##*/}"
+
+    local _response
+    _response=$(gh api \
+        -X POST \
+        "/repos/${_owner}/${_reponame}/pulls/comments/${_comment_id}/replies" \
+        -f body="$_reply_text" 2>/dev/null) || {
+        echo "ERROR: _pr_post_thread_reply: gh api POST failed" >&2
+        return 1
+    }
+
+    return 0
+}
+
+# _pr_resolve_thread <thread_node_id>
+# Resolves the given review thread via the resolveReviewThread GraphQL mutation.
+# MUST first call _pr_thread_is_unresolved; only invokes the mutation when the
+# result is "true". Idempotent: exit 0 on success or already-resolved no-op.
+# Exit 1 on mutation error.
+_pr_resolve_thread() {
+    local _thread_id="$1"
+
+    # Idempotent precheck: only resolve if not already resolved.
+    local _is_unresolved
+    _is_unresolved=$(_pr_thread_is_unresolved "$_thread_id") || true
+
+    if [[ "$_is_unresolved" != "true" ]]; then
+        # Already resolved — no-op.
+        return 0
+    fi
+
+    # Invoke the resolveReviewThread mutation.
+    local _mutation
+    # shellcheck disable=SC2016  # GraphQL vars ($threadId) intentionally not expanded here
+    _mutation='mutation($threadId:ID!){resolveReviewThread(input:{threadId:$threadId}){thread{id,isResolved}}}'
+
+    local _response
+    _response=$(gh api graphql \
+        -f query="$_mutation" \
+        -f threadId="$_thread_id" 2>/dev/null) || {
+        echo "ERROR: _pr_resolve_thread: resolveReviewThread mutation failed" >&2
+        return 1
+    }
+
+    return 0
+}
+
+# _pr_settling_check [--threads=<N>] [--quiet-window-elapsed=<true|false>]
+# Heuristic: settled when BOTH hold:
+#   1. Zero unresolved threads (--threads=0)
+#   2. Quiet window has elapsed (--quiet-window-elapsed=true)
+# CI state is not checked here — _phase_poll handles CI validation.
+# --ci-green is accepted but ignored for backward compatibility.
+# Exit 0 when settled; exit 1 when any condition is unmet.
+_pr_settling_check() {
+    local _threads="1"
+    local _quiet_elapsed="false"
+
+    for _arg in "$@"; do
+        case "$_arg" in
+            --ci-green=*)    : ;;  # accepted but ignored
+            --threads=*)     _threads="${_arg#--threads=}" ;;
+            --quiet-window-elapsed=*) _quiet_elapsed="${_arg#--quiet-window-elapsed=}" ;;
+        esac
+    done
+
+    if [[ "$_threads" == "0" && "$_quiet_elapsed" == "true" ]]; then
+        return 0
+    fi
     return 1
 }

@@ -17,7 +17,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
 REVIEW_GATE="$DSO_PLUGIN_DIR/hooks/pre-commit-review-gate.sh"
 TEST_GATE="$DSO_PLUGIN_DIR/hooks/pre-commit-test-gate.sh"
-MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
+MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main-direct.sh"
+# Fallback for projects that haven't split to the dispatcher pattern yet
+[[ -f "$MERGE_SCRIPT" ]] || MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
 SENTINEL_LIB="$DSO_PLUGIN_DIR/hooks/lib/review-gate-bypass-sentinel.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"

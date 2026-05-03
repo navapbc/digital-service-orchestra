@@ -1698,13 +1698,13 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in thi
 ```
 
 **Interpret results:**
-- **No Critical or Important issues** (all scores >= 4) → proceed to Step 15
-- **Critical or Important issues found** (any score < 4, OR any critical/important finding regardless of score) → Enter Autonomous Resolution Loop per REVIEW-WORKFLOW.md. No inline fixes by orchestrator. Failed tasks: revert to open, add issue details, re-run with reviewer feedback. **Score=3 with important findings is NOT a pass — do NOT suggest graceful shutdown or proceed to commit. Apply the fix or escalate.**
+- **No Critical, Important, or Fragile findings** → proceed to Step 15
+- **Critical, Important, or Fragile findings found** → Enter Autonomous Resolution Loop per REVIEW-WORKFLOW.md. No inline fixes by orchestrator. Failed tasks: revert to open, add issue details, re-run with reviewer feedback. **Critical, Important, or Fragile findings are NOT a pass — do NOT suggest graceful shutdown or proceed to commit. Apply the fix or escalate.**
 - **Minor issues only** → proceed (note them in ticket but don't block)
 - **Autonomous resolution**: Up to `review.max_resolution_attempts` (default: 5) fix/defend attempts before tier escalation (light → standard → deep). When attempts are exhausted, upgrade to the next tier before escalating to user — the deep tier (3 sonnet + opus synthesis) must be tried before user escalation. Resolution sub-agent applies fixes, then orchestrator dispatches separate re-review sub-agent (no nesting). If issues persist after deep tier, escalate to the user — do NOT commit or initiate graceful shutdown. The review loop continues until the review passes OR the user explicitly approves proceeding.
 - **Stale or invalid review findings**: If the review gate rejects a commit because findings are stale (from a different context, wrong diff hash, or prior session), do NOT work around the gate. Re-run REVIEW-WORKFLOW.md from Step 0 (which clears stale artifacts) to get a fresh review. Never dispatch a generic agent to write `reviewer-findings.json` — this is fabrication regardless of whether the orchestrator writes the file directly or delegates it to a non-reviewer agent.
 
-> **CONTEXT ANCHOR**: When REVIEW_RESULT: passed is received from the review sub-agent, this is NOT a session completion signal. Proceed immediately to Step 14 → Step 15 → Step 16 → Step 17. Do NOT stop, wait for user input, or treat review completion as a stopping point.
+> **CONTEXT ANCHOR**: When the review sub-agent returns no critical/important/fragile findings (FINDING_COUNT with all minor or 0), this is NOT a session completion signal. Proceed immediately to Step 14 → Step 15 → Step 16 → Step 17. Do NOT stop, wait for user input, or treat review completion as a stopping point.
 
 ### Step 14: Out-of-Scope Review Feedback Detection (/dso:sprint)
 

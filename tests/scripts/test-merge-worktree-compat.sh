@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # tests/scripts/test-merge-worktree-compat.sh
-# Integration smoke tests for scripts/merge-to-main.sh worktree path compatibility.
+# Integration smoke tests for scripts/merge-to-main-direct.sh worktree path compatibility.
 #
 # Usage: bash tests/scripts/test-merge-worktree-compat.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # Tests:
-#   1. No hardcoded worktree paths in merge-to-main.sh
+#   1. No hardcoded worktree paths in merge-to-main-direct.sh
 #   2. MAIN_REPO resolution via git rev-parse --git-common-dir works from a real worktree
 #   3. Worktree detection guard (exits non-zero when run from main repo)
 #   4. Path resolution logic reaches the worktree-detection guard without path errors
@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main-direct.sh"
 
 source "$SCRIPT_DIR/../lib/run_test.sh"
 
@@ -27,10 +27,10 @@ echo "=== test-merge-worktree-compat.sh ==="
 # ── Test 1: Script is executable ──────────────────────────────────────────────
 echo "Test 1: Script is executable"
 if [ -x "$SCRIPT" ]; then
-    echo "  PASS: merge-to-main.sh is executable"
+    echo "  PASS: merge-to-main-direct.sh is executable"
     (( PASS++ ))
 else
-    echo "  FAIL: merge-to-main.sh is not executable" >&2
+    echo "  FAIL: merge-to-main-direct.sh is not executable" >&2
     (( FAIL++ ))
 fi
 
@@ -40,17 +40,17 @@ if bash -n "$SCRIPT" 2>/dev/null; then
     echo "  PASS: no syntax errors"
     (( PASS++ ))
 else
-    echo "  FAIL: syntax errors found in merge-to-main.sh" >&2
+    echo "  FAIL: syntax errors found in merge-to-main-direct.sh" >&2
     (( FAIL++ ))
 fi
 
 # ── Test 3: No hardcoded worktree path patterns ───────────────────────────────
-# AC #1: merge-to-main.sh must not contain repo-specific or project-specific
+# AC #1: merge-to-main-direct.sh must not contain repo-specific or project-specific
 # worktree path literals. Paths like "lockpick-worktrees" or "doc-to-logic-worktrees"
 # indicate a hardcoded, non-portable path.
-echo "Test 3: No hardcoded worktree paths in merge-to-main.sh"
+echo "Test 3: No hardcoded worktree paths in merge-to-main-direct.sh"
 if grep -iE 'lockpick-worktrees|doc-to-logic-worktrees' "$SCRIPT" >/dev/null 2>&1; then
-    echo "  FAIL: hardcoded worktree path found in merge-to-main.sh" >&2
+    echo "  FAIL: hardcoded worktree path found in merge-to-main-direct.sh" >&2
     grep -iE 'lockpick-worktrees|doc-to-logic-worktrees' "$SCRIPT" | head -5 >&2
     (( FAIL++ ))
 else
@@ -72,7 +72,7 @@ else
 fi
 
 # ── Test 5: Worktree context guard exits non-zero from main repo ──────────────
-# merge-to-main.sh is designed for worktree sessions only and must exit non-zero
+# merge-to-main-direct.sh is designed for worktree sessions only and must exit non-zero
 # when run from the main repo (where .git is a directory, not a file).
 # Derive the actual main repo root via git-common-dir so this test works correctly
 # whether invoked from the main repo OR from a worktree session.
@@ -126,7 +126,7 @@ if [ "$wt_exit" -ne 0 ]; then
     # Don't fail the test suite for setup failures — skip instead
 else
     wt_created=true
-    # From within the worktree, derive MAIN_REPO using the same expression in merge-to-main.sh
+    # From within the worktree, derive MAIN_REPO using the same expression in merge-to-main-direct.sh
     derived_main=""
     derive_exit=0
     derived_main=$(cd "$WT_PATH" && dirname "$(git rev-parse --git-common-dir)") || derive_exit=$?
@@ -158,7 +158,7 @@ else
 fi
 
 # ── Test 7: Static analysis — path derivation is dynamic (no hardcoded paths) ──
-# Verifies that the MAIN_REPO assignment expression in merge-to-main.sh is the
+# Verifies that the MAIN_REPO assignment expression in merge-to-main-direct.sh is the
 # dynamic git rev-parse pattern and does not embed any absolute path literals.
 # This complements Test 6 (live MAIN_REPO resolution) with a source-level check.
 #
@@ -186,9 +186,9 @@ else
 fi
 
 # ── Test 8: Script references no project-specific ticket/path strings ─────────
-# Verify merge-to-main.sh does not contain project-specific directory names
+# Verify merge-to-main-direct.sh does not contain project-specific directory names
 # that would break portability across repos.
-echo "Test 8: No project-specific directory references in merge-to-main.sh"
+echo "Test 8: No project-specific directory references in merge-to-main-direct.sh"
 project_specific_found=false
 # Check for common anti-patterns: hardcoded repo name in paths
 if grep -qE 'lockpick-doc-to-logic(?!/)|\bloc-to-logic\b' "$SCRIPT" 2>/dev/null; then
@@ -196,7 +196,7 @@ if grep -qE 'lockpick-doc-to-logic(?!/)|\bloc-to-logic\b' "$SCRIPT" 2>/dev/null;
 fi
 
 if $project_specific_found; then
-    echo "  FAIL: project-specific directory references found in merge-to-main.sh" >&2
+    echo "  FAIL: project-specific directory references found in merge-to-main-direct.sh" >&2
     (( FAIL++ ))
 else
     echo "  PASS: no project-specific directory references"

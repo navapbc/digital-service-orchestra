@@ -3081,5 +3081,332 @@ assert_contains "test_runner_size_action_warn_does_not_block: stderr contains SI
 
 assert_pass_if_clean "test_runner_size_action_warn_does_not_block"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# RED TESTS: Fix 1 (marker format) and Fix 3 (schema-error retry)
+# RED marker: test_deep_tier_arch_user_msg_uses_sonnet_markers
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── test_deep_tier_arch_user_msg_uses_sonnet_markers ─────────────────────────
+# Given: deep-tier; 3 specialist slot files present
+# When:  runner builds the arch synthesis user message
+# Then:  the user message sent to the arch agent contains EXACTLY the three
+#        section markers that code-reviewer-deep-arch.md's mandatory input
+#        contract requires:
+#          === SONNET-A FINDINGS (correctness) ===
+#          === SONNET-B FINDINGS (verification) ===
+#          === SONNET-C FINDINGS (hygiene/design) ===
+#        (currently FAILS: runner uses "Correctness specialist findings:" etc.)
+_snapshot_fail
+MOCK_MKR=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_MKR")
+ARTIFACTS_MKR=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_MKR")
+ARCH_MSG_FILE="$ARTIFACTS_MKR/arch-user-msg.txt"
+
+_SLOT_MKR='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"OK","findings":[]}'
+_ARCH_MKR='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"Arch OK","findings":[]}'
+
+# Mock llm-api-call.sh: capture the user message arg when arch agent is called,
+# write it to a file so we can inspect the markers.
+cat > "$MOCK_MKR/llm-api-call.sh" <<MOCKEOF
+#!/usr/bin/env bash
+# \$1 = agent file, \$2 = user message or @file, \$3 = tier
+_agent_file="\$1"
+_user_arg="\$2"
+# Capture user message content
+if [[ "\$_user_arg" == @* ]]; then
+    _msg_file="\${_user_arg#@}"
+    [[ -f "\$_msg_file" ]] && cat "\$_msg_file" > "$ARCH_MSG_FILE"
+else
+    printf '%s' "\$_user_arg" > "$ARCH_MSG_FILE"
+fi
+# Write slot or arch response depending on agent
+if printf '%s' "\$_agent_file" | grep -q "deep-arch"; then
+    printf '%s\n' '${_ARCH_MKR}'
+else
+    printf '%s\n' '${_SLOT_MKR}'
+fi
+MOCKEOF
+chmod +x "$MOCK_MKR/llm-api-call.sh"
+
+cat > "$MOCK_MKR/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"deep","blast_radius":3,"critical_path":2,"anti_shortcut":1,"staleness":1,"cross_cutting":1,"diff_lines":350,"change_volume":2,"computed_total":10,"diff_size_lines":350,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_MKR/review-complexity-classifier.sh"
+
+cat > "$MOCK_MKR/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_MKR/write-reviewer-findings.sh"
+
+cat > "$MOCK_MKR/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$ARTIFACTS_MKR"
+printf 'passed\n' > "${ARTIFACTS_MKR}/review-status"
+MOCKEOF
+chmod +x "$MOCK_MKR/record-review.sh"
+
+(
+    export PATH="$MOCK_MKR:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_MKR"
+    printf 'diff --git a/foo.sh b/foo.sh\n+line\n' | ANTHROPIC_API_KEY=x bash "$RUNNER" >/dev/null 2>&1
+) || true
+
+# Check arch user message contains required SONNET-A/B/C markers
+_arch_msg_content=""
+[[ -f "$ARCH_MSG_FILE" ]] && _arch_msg_content=$(cat "$ARCH_MSG_FILE")
+
+_has_sonnet_a="false"
+_has_sonnet_b="false"
+_has_sonnet_c="false"
+echo "$_arch_msg_content" | grep -qF "=== SONNET-A FINDINGS (correctness) ===" && _has_sonnet_a="true"
+echo "$_arch_msg_content" | grep -qF "=== SONNET-B FINDINGS (verification) ===" && _has_sonnet_b="true"
+echo "$_arch_msg_content" | grep -qF "=== SONNET-C FINDINGS (hygiene/design) ===" && _has_sonnet_c="true"
+
+assert_eq "test_deep_tier_arch_user_msg_uses_sonnet_markers: SONNET-A marker present" "true" "$_has_sonnet_a"
+assert_eq "test_deep_tier_arch_user_msg_uses_sonnet_markers: SONNET-B marker present" "true" "$_has_sonnet_b"
+assert_eq "test_deep_tier_arch_user_msg_uses_sonnet_markers: SONNET-C marker present" "true" "$_has_sonnet_c"
+assert_pass_if_clean "test_deep_tier_arch_user_msg_uses_sonnet_markers"
+
+# ── test_runner_retries_once_on_schema_validation_failure ─────────────────────
+# Given: write-reviewer-findings.sh fails on the first call (schema error)
+#        but succeeds on the second call (retry)
+# When:  runner processes a non-empty diff with standard tier
+# Then:  llm-api-call.sh is invoked exactly twice (initial + 1 retry),
+#        AND the second call's user message includes the validation error from
+#        the first attempt
+#        (currently FAILS: runner has no retry logic)
+_snapshot_fail
+MOCK_RETRY=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_RETRY")
+ARTIFACTS_RETRY=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_RETRY")
+LLM_CALL_LOG="$ARTIFACTS_RETRY/llm-calls.log"
+RETRY_USER_MSG_FILE="$ARTIFACTS_RETRY/retry-user-msg.txt"
+
+_FINDINGS_RETRY='{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"summary":"Fixed","findings":[]}'
+
+cat > "$MOCK_RETRY/llm-api-call.sh" <<MOCKEOF
+#!/usr/bin/env bash
+_call_num=\$(wc -l < "$LLM_CALL_LOG" 2>/dev/null | tr -d ' ')
+printf 'call\n' >> "$LLM_CALL_LOG"
+_user_arg="\$2"
+if [[ "\$_user_arg" == @* ]]; then
+    _msg_file="\${_user_arg#@}"
+    [[ -f "\$_msg_file" ]] && cat "\$_msg_file" >> "$RETRY_USER_MSG_FILE"
+else
+    printf '%s' "\$_user_arg" >> "$RETRY_USER_MSG_FILE"
+fi
+printf '%s\n' '${_FINDINGS_RETRY}'
+MOCKEOF
+chmod +x "$MOCK_RETRY/llm-api-call.sh"
+
+cat > "$MOCK_RETRY/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"standard","blast_radius":1,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":50,"change_volume":1,"computed_total":3,"diff_size_lines":50,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_RETRY/review-complexity-classifier.sh"
+
+# write-reviewer-findings.sh: fail first call, succeed second
+cat > "$MOCK_RETRY/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+cat > /dev/null
+_n=\$(wc -l < "$LLM_CALL_LOG" 2>/dev/null | tr -d ' ')
+if [[ "\$_n" -le 1 ]]; then
+    # First call: emit schema error to stderr and exit 1
+    echo "SCHEMA_VALID: no" >&2
+    echo "Validation errors:" >&2
+    echo "  - score 'maintainability'=3: minor-only findings requires score 4" >&2
+    exit 1
+fi
+# Second call (retry): succeed
+printf '%064x\n' 1
+MOCKEOF
+chmod +x "$MOCK_RETRY/write-reviewer-findings.sh"
+
+cat > "$MOCK_RETRY/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$ARTIFACTS_RETRY"
+printf 'passed\n' > "${ARTIFACTS_RETRY}/review-status"
+MOCKEOF
+chmod +x "$MOCK_RETRY/record-review.sh"
+
+(
+    export PATH="$MOCK_RETRY:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_RETRY"
+    printf 'diff --git a/foo.sh b/foo.sh\n+line\n' | ANTHROPIC_API_KEY=x bash "$RUNNER" >/dev/null 2>&1
+) || true
+
+_llm_call_count=0
+[[ -f "$LLM_CALL_LOG" ]] && _llm_call_count=$(wc -l < "$LLM_CALL_LOG" | tr -d ' ')
+
+# Runner must call LLM twice (initial + retry)
+assert_eq "test_runner_retries_once_on_schema_validation_failure: llm called twice" "2" "$_llm_call_count"
+
+# Second call must contain the validation error text
+_retry_msg=""
+[[ -f "$RETRY_USER_MSG_FILE" ]] && _retry_msg=$(cat "$RETRY_USER_MSG_FILE")
+_has_schema_error="false"
+echo "$_retry_msg" | grep -qiF "schema" && _has_schema_error="true"
+echo "$_retry_msg" | grep -qiF "validation" && _has_schema_error="true"
+assert_eq "test_runner_retries_once_on_schema_validation_failure: retry msg includes validation error" "true" "$_has_schema_error"
+
+assert_pass_if_clean "test_runner_retries_once_on_schema_validation_failure"
+
+# ── test_deep_tier_arch_retries_on_schema_validation_failure ─────────────────
+# Given: deep-tier; arch synthesis passes but write-reviewer-findings.sh fails
+#        schema validation on first call, then succeeds on retry
+# When:  runner processes the diff
+# Then:  llm-api-call.sh is called for the arch agent exactly twice (initial +
+#        retry), and the retry user message includes the validation error text
+_snapshot_fail
+MOCK_ARCH_RETRY=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_ARCH_RETRY")
+ARTIFACTS_ARCH_RETRY=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_ARCH_RETRY")
+ARCH_LLM_LOG="$ARTIFACTS_ARCH_RETRY/arch-llm-calls.log"
+ARCH_RETRY_MSG_FILE="$ARTIFACTS_ARCH_RETRY/arch-retry-msg.txt"
+
+_SLOT_AR='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"OK","findings":[]}'
+_ARCH_AR='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"Arch OK","findings":[]}'
+
+cat > "$MOCK_ARCH_RETRY/llm-api-call.sh" <<MOCKEOF
+#!/usr/bin/env bash
+_agent="\$1"
+_user_arg="\$2"
+if printf '%s' "\$_agent" | grep -q "deep-arch"; then
+    printf 'call\n' >> "$ARCH_LLM_LOG"
+    # Capture user message content on second call (retry)
+    _call_num=\$(wc -l < "$ARCH_LLM_LOG" | tr -d ' ')
+    if [[ "\$_user_arg" == @* ]]; then
+        _msg_file="\${_user_arg#@}"
+        [[ -f "\$_msg_file" && "\$_call_num" -ge 2 ]] && cat "\$_msg_file" >> "$ARCH_RETRY_MSG_FILE"
+    fi
+    printf '%s\n' '${_ARCH_AR}'
+else
+    printf '%s\n' '${_SLOT_AR}'
+fi
+MOCKEOF
+chmod +x "$MOCK_ARCH_RETRY/llm-api-call.sh"
+
+cat > "$MOCK_ARCH_RETRY/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"deep","blast_radius":1,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":100,"change_volume":1,"computed_total":5,"diff_size_lines":100,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_ARCH_RETRY/review-complexity-classifier.sh"
+
+# write-reviewer-findings.sh: fail first arch call, succeed on retry
+cat > "$MOCK_ARCH_RETRY/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+cat > /dev/null
+_arch_calls=\$(wc -l < "$ARCH_LLM_LOG" 2>/dev/null | tr -d ' ')
+if [[ "\$_arch_calls" -le 1 ]]; then
+    echo "SCHEMA_VALID: no" >&2
+    echo "Validation errors:" >&2
+    echo "  - score 'hygiene'=4: no findings requires score 5" >&2
+    exit 1
+fi
+printf '%064x\n' 2
+MOCKEOF
+chmod +x "$MOCK_ARCH_RETRY/write-reviewer-findings.sh"
+
+cat > "$MOCK_ARCH_RETRY/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$ARTIFACTS_ARCH_RETRY"
+printf 'passed\n' > "${ARTIFACTS_ARCH_RETRY}/review-status"
+MOCKEOF
+chmod +x "$MOCK_ARCH_RETRY/record-review.sh"
+
+(
+    export PATH="$MOCK_ARCH_RETRY:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_ARCH_RETRY"
+    printf 'diff --git a/foo.sh b/foo.sh\n+line\n' | ANTHROPIC_API_KEY=x bash "$RUNNER" >/dev/null 2>&1
+) || true
+
+_arch_call_count=0
+[[ -f "$ARCH_LLM_LOG" ]] && _arch_call_count=$(wc -l < "$ARCH_LLM_LOG" | tr -d ' ')
+
+assert_eq "test_deep_tier_arch_retries_on_schema_validation_failure: arch llm called twice" "2" "$_arch_call_count"
+
+_retry_msg=""
+[[ -f "$ARCH_RETRY_MSG_FILE" ]] && _retry_msg=$(cat "$ARCH_RETRY_MSG_FILE")
+_has_error_in_retry="false"
+echo "$_retry_msg" | grep -qiF "schema" && _has_error_in_retry="true"
+echo "$_retry_msg" | grep -qiF "validation" && _has_error_in_retry="true"
+assert_eq "test_deep_tier_arch_retries_on_schema_validation_failure: retry includes validation error" "true" "$_has_error_in_retry"
+
+assert_pass_if_clean "test_deep_tier_arch_retries_on_schema_validation_failure"
+
+# ── test_deep_tier_specialist_slot_prose_is_normalized ────────────────────────
+# Given: deep-tier; a specialist returns prose + JSON (not pure JSON)
+# When:  runner processes the slot file
+# Then:  runner extracts the JSON successfully and completes without error
+#        (previously FAILED: json.load() on prose+JSON returned invalid JSON error)
+_snapshot_fail
+MOCK_PROSE=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_PROSE")
+ARTIFACTS_PROSE=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_PROSE")
+
+_SLOT_OK='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"OK","findings":[]}'
+_ARCH_OK='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"Arch OK","findings":[]}'
+
+# Mock llm-api-call.sh: return prose+JSON for the correctness specialist,
+# clean JSON for verification and hygiene, and clean JSON for arch.
+cat > "$MOCK_PROSE/llm-api-call.sh" <<MOCKEOF
+#!/usr/bin/env bash
+_agent="\$1"
+if printf '%s' "\$_agent" | grep -q "deep-correctness"; then
+    # Prose surrounding the JSON object — simulates an LLM that adds a preamble
+    printf 'Here is my review analysis:\n\n%s\n\nEnd of review.\n' '${_SLOT_OK}'
+elif printf '%s' "\$_agent" | grep -q "deep-arch"; then
+    printf '%s\n' '${_ARCH_OK}'
+else
+    printf '%s\n' '${_SLOT_OK}'
+fi
+MOCKEOF
+chmod +x "$MOCK_PROSE/llm-api-call.sh"
+
+cat > "$MOCK_PROSE/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"deep","blast_radius":1,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":100,"change_volume":1,"computed_total":5,"diff_size_lines":100,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_PROSE/review-complexity-classifier.sh"
+
+cat > "$MOCK_PROSE/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_PROSE/write-reviewer-findings.sh"
+
+cat > "$MOCK_PROSE/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$ARTIFACTS_PROSE"
+printf 'passed\n' > "${ARTIFACTS_PROSE}/review-status"
+MOCKEOF
+chmod +x "$MOCK_PROSE/record-review.sh"
+
+_prose_exit=0
+_prose_stderr=""
+_prose_stderr=$(
+    export PATH="$MOCK_PROSE:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_PROSE"
+    printf 'diff --git a/foo.sh b/foo.sh\n+line\n' | ANTHROPIC_API_KEY=x bash "$RUNNER" 2>&1 >/dev/null
+) || _prose_exit=$?
+
+assert_eq "test_deep_tier_specialist_slot_prose_is_normalized: runner exits 0" "0" "$_prose_exit"
+_has_invalid_error="false"
+echo "$_prose_stderr" | grep -q "invalid JSON" && _has_invalid_error="true"
+assert_eq "test_deep_tier_specialist_slot_prose_is_normalized: no invalid JSON error" "false" "$_has_invalid_error"
+assert_pass_if_clean "test_deep_tier_specialist_slot_prose_is_normalized"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

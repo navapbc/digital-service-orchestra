@@ -41,7 +41,7 @@ run_hook_exit() {
 # No --reviewer-hash → exit 1
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
-echo '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+echo '{"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
 EXIT_CODE=$(run_hook_exit)
 assert_ne "test_record_review_exits_nonzero_without_reviewer_hash" "0" "$EXIT_CODE"
 
@@ -55,42 +55,33 @@ assert_ne "test_record_review_exits_nonzero_without_findings_file" "0" "$EXIT_CO
 # Wrong hash → exit 1
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
-echo '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+echo '{"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
 EXIT_CODE=$(run_hook_exit --reviewer-hash "0000000000000000000000000000000000000000000000000000000000000000")
 assert_ne "test_record_review_exits_nonzero_on_hash_mismatch" "0" "$EXIT_CODE"
 
-# test_record_review_exits_nonzero_on_missing_scores
-# Findings file without scores → exit 1
+# test_record_review_accepts_two_key_schema
+# Findings file with 2-key schema (findings + summary, no scores) → exit 0
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
-echo '{"findings":[],"summary":"Missing scores object entirely"}' > "$FINDINGS_FILE"
+echo '{"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
 EXIT_CODE=$(run_hook_exit --reviewer-hash "$HASH")
-assert_ne "test_record_review_exits_nonzero_on_missing_scores" "0" "$EXIT_CODE"
+assert_eq "test_record_review_accepts_two_key_schema" "0" "$EXIT_CODE"
 
 # test_record_review_exits_nonzero_on_missing_summary
 # Findings file without summary → exit 1
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
-echo '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[]}' > "$FINDINGS_FILE"
+echo '{"findings":[]}' > "$FINDINGS_FILE"
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
 EXIT_CODE=$(run_hook_exit --reviewer-hash "$HASH")
 assert_ne "test_record_review_exits_nonzero_on_missing_summary" "0" "$EXIT_CODE"
-
-# test_record_review_exits_nonzero_on_score_out_of_range
-# Score of 6 → exit 1
-cleanup
-mkdir -p "$ARTIFACTS_DIR"
-echo '{"scores":{"hygiene":6,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"Score out of range test review"}' > "$FINDINGS_FILE"
-HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
-EXIT_CODE=$(run_hook_exit --reviewer-hash "$HASH")
-assert_ne "test_record_review_exits_nonzero_on_score_out_of_range" "0" "$EXIT_CODE"
 
 # test_record_review_drains_stdin_silently
 # Piped stdin should be drained without error (backward compat)
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
-echo '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+echo '{"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
 EXIT_CODE=0
 echo "some old stdin json" | bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || EXIT_CODE=$?
@@ -143,7 +134,7 @@ assert_eq \
 # ---------------------------------------------------------------------------
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
-echo '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+echo '{"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
 EXIT_CODE=0
 bash "$HOOK" "--reviewer-hash=${HASH}" 2>/dev/null || EXIT_CODE=$?
@@ -189,11 +180,11 @@ _write_findings() {
     mkdir -p "$ARTIFACTS_DIR"
     if [[ -n "$tier" ]]; then
         cat > "$FINDINGS_FILE" <<EOFJ
-{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found.","review_tier":"${tier}"}
+{"findings":[],"summary":"All checks passed. No issues found.","review_tier":"${tier}"}
 EOFJ
     else
         cat > "$FINDINGS_FILE" <<EOFJ
-{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}
+{"findings":[],"summary":"All checks passed. No issues found."}
 EOFJ
     fi
     shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}'
@@ -320,7 +311,7 @@ _write_findings_with_selected() {
     cleanup
     mkdir -p "$ARTIFACTS_DIR"
     cat > "$FINDINGS_FILE" <<EOFJ
-{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found.","review_tier":"${review_tier}","selected_tier":"${selected_tier}"}
+{"findings":[],"summary":"All checks passed. No issues found.","review_tier":"${review_tier}","selected_tier":"${selected_tier}"}
 EOFJ
     shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}'
 }
@@ -377,11 +368,10 @@ assert_contains "test_tier_max_rank_prevents_agent_self_downgrade: stderr names 
 # ---------------------------------------------------------------------------
 # test_fragile_severity_accepted_no_validation_error
 #
-# Given: reviewer-findings.json with a finding of severity "fragile" and
-#        scores where min=3 (below pass threshold of 4).
+# Given: reviewer-findings.json with a finding of severity "fragile" (2-key schema).
 # When:  record-review.sh is invoked with the correct reviewer-hash.
 # Then:  The script exits 0 (fragile is a valid severity — no validation error).
-#        STATUS=failed is written to review-status because min_score=3 < 4.
+#        STATUS=failed is written to review-status because fragile is a blocking severity.
 #
 # RED: Currently exits non-zero because "fragile" is not in valid_severities
 #      {'critical', 'important', 'minor'} — the severity validation rejects it.
@@ -389,7 +379,7 @@ assert_contains "test_tier_max_rank_prevents_agent_self_downgrade: stderr names 
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
 cat > "$FINDINGS_FILE" <<'EOFJ'
-{"scores":{"hygiene":3,"design":3,"maintainability":3,"correctness":3,"verification":3},"findings":[{"severity":"fragile","category":"hygiene","file":"src/foo.py","description":"Fragile coupling between modules makes this brittle under change."}],"summary":"Minor issues found but overall acceptable for fragile dependencies."}
+{"findings":[{"severity":"fragile","category":"hygiene","file":"src/foo.py","description":"Fragile coupling between modules makes this brittle under change."}],"summary":"Minor issues found but overall acceptable for fragile dependencies."}
 EOFJ
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
 EXIT_CODE=0
@@ -400,11 +390,10 @@ assert_eq "test_fragile_severity_accepted_no_validation_error: exits 0 (fragile 
 # ---------------------------------------------------------------------------
 # test_fragile_severity_produces_failed_status
 #
-# Given: reviewer-findings.json with a finding of severity "fragile" and
-#        min_score=3 (below pass threshold of 4).
+# Given: reviewer-findings.json with a finding of severity "fragile" (2-key schema).
 # When:  record-review.sh runs successfully (after fragile severity is accepted).
 # Then:  review-status file contains "failed" on its first line because
-#        min_score=3 is below the pass threshold of 4.
+#        fragile is a blocking severity (any critical/important/fragile = failed).
 #
 # RED: Currently the script exits non-zero at severity validation (fragile
 #      not in valid_severities), so review-status is never written from this
@@ -415,7 +404,7 @@ cleanup
 rm -f "$ARTIFACTS_DIR/review-status"
 mkdir -p "$ARTIFACTS_DIR"
 cat > "$FINDINGS_FILE" <<'EOFJ'
-{"scores":{"hygiene":3,"design":3,"maintainability":3,"correctness":3,"verification":3},"findings":[{"severity":"fragile","category":"hygiene","file":"src/foo.py","description":"Fragile coupling between modules makes this brittle under change."}],"summary":"Minor issues found but overall acceptable for fragile dependencies."}
+{"findings":[{"severity":"fragile","category":"hygiene","file":"src/foo.py","description":"Fragile coupling between modules makes this brittle under change."}],"summary":"Minor issues found but overall acceptable for fragile dependencies."}
 EOFJ
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
 # isolation-ok: inject changed files to bypass real git diff (overlap check uses RECORD_REVIEW_CHANGED_FILES when set)
@@ -492,7 +481,7 @@ _merge_artifacts=$(mktemp -d)
 _MERGE_TEST_TMPDIRS+=("$_merge_artifacts")
 
 cat > "$_merge_artifacts/reviewer-findings.json" <<'EOFJ'
-{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[{"severity":"minor","category":"hygiene","file":"incoming-only.py","description":"Minor style issue on incoming branch file."}],"summary":"Review performed on the incoming branch file only. No issues found."}
+{"findings":[{"severity":"minor","category":"hygiene","file":"incoming-only.py","description":"Minor style issue on incoming branch file."}],"summary":"Review performed on the incoming branch file only. No issues found."}
 EOFJ
 _MERGE_HASH=$(shasum -a 256 "$_merge_artifacts/reviewer-findings.json" | awk '{print $1}')
 
@@ -530,7 +519,6 @@ cleanup
 mkdir -p "$ARTIFACTS_DIR"
 cat > "$FINDINGS_FILE" <<'EOFJ'
 {
-  "scores": {"hygiene":4,"design":5,"maintainability":5,"correctness":1,"verification":5},
   "findings": [
     {"severity":"minor","category":"hygiene","file":"src/real-file.py","description":"Minor style issue in the real changed file."},
     {"severity":"critical","category":"correctness","file":"src/hallucinated-file.py","description":"Hallucinated critical issue in a file not in the diff."}
@@ -582,7 +570,7 @@ mkdir -p "$_FALLBACK_REPO_DIR/.claude/artifacts"
 # Write a valid reviewer-findings.json to the FALLBACK location only
 _FALLBACK_FINDINGS="$_FALLBACK_REPO_DIR/.claude/artifacts/reviewer-findings.json"
 cat > "$_FALLBACK_FINDINGS" <<'EOFJ'
-{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"Fallback path test: all checks passed."}
+{"findings":[],"summary":"Fallback path test: all checks passed."}
 EOFJ
 _FALLBACK_HASH=$(shasum -a 256 "$_FALLBACK_FINDINGS" | awk '{print $1}')
 
@@ -637,7 +625,7 @@ _OVERLAY_DIFF_HASH=$(cd "$_OVERLAY_REPO" && git diff --cached HEAD | shasum -a 2
 
 # Set up reviewer-findings.json (tier reviewer's output — passes baseline gates)
 cat > "$_OVERLAY_TMP/reviewer-findings.json" <<'EOFJ'
-{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. Tier reviewer ran but overlays were skipped.","review_tier":"standard","selected_tier":"standard"}
+{"findings":[],"summary":"All checks passed. Tier reviewer ran but overlays were skipped.","review_tier":"standard","selected_tier":"standard"}
 EOFJ
 _OVERLAY_HASH=$(shasum -a 256 "$_OVERLAY_TMP/reviewer-findings.json" | awk '{print $1}')
 
@@ -663,7 +651,7 @@ assert_ne "test_overlay_gate_blocks_missing_test_quality_findings: exits non-zer
 # Companion test: when overlay findings file IS present, gate passes.
 echo "--- test_overlay_gate_passes_when_findings_present ---"
 cat > "$_OVERLAY_TMP/reviewer-findings-test-quality.json" <<'EOFJ'
-{"scores":{"verification":5},"findings":[],"summary":"Test quality overlay: clean.","review_tier":"deep"}
+{"findings":[],"summary":"Test quality overlay: clean.","review_tier":"deep"}
 EOFJ
 _OVERLAY_PASS_EXIT=0
 (
@@ -704,7 +692,7 @@ _CURRENT_HASH=$(cd "$_DIFFHASH_REPO" && git diff --cached HEAD | shasum -a 256 |
 _STALE_HASH="0000000000000000000000000000000000000000000000000000000000000000"
 
 cat > "$_DIFFHASH_TMP/reviewer-findings.json" <<'EOFJ'
-{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed.","review_tier":"standard","selected_tier":"standard"}
+{"findings":[],"summary":"All checks passed.","review_tier":"standard","selected_tier":"standard"}
 EOFJ
 _DH_HASH=$(shasum -a 256 "$_DIFFHASH_TMP/reviewer-findings.json" | awk '{print $1}')
 
@@ -747,7 +735,7 @@ git -C "$_SEC_REPO" add file.txt
 _SEC_DIFF_HASH=$(cd "$_SEC_REPO" && git diff --cached HEAD | shasum -a 256 | awk '{print $1}')
 
 cat > "$_SEC_TMP/reviewer-findings.json" <<'EOFJ'
-{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed.","review_tier":"standard","selected_tier":"standard"}
+{"findings":[],"summary":"All checks passed.","review_tier":"standard","selected_tier":"standard"}
 EOFJ
 _SEC_HASH=$(shasum -a 256 "$_SEC_TMP/reviewer-findings.json" | awk '{print $1}')
 
@@ -857,7 +845,7 @@ _FC_DIFF_HASH=$(cd "$_FC_REPO" && git diff --cached HEAD | shasum -a 256 | awk '
 
 # Set up reviewer-findings.json
 cat > "$_FC_TMP/reviewer-findings.json" <<'EOFJ'
-{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed in the fail-closed branch test scenario.","review_tier":"standard","selected_tier":"standard"}
+{"findings":[],"summary":"All checks passed in the fail-closed branch test scenario.","review_tier":"standard","selected_tier":"standard"}
 EOFJ
 _FC_HASH=$(shasum -a 256 "$_FC_TMP/reviewer-findings.json" | awk '{print $1}')
 
@@ -886,5 +874,174 @@ assert_ne "test_overlay_gate_fails_closed_when_helper_missing: exits non-zero wh
 _FC_HAS_SIGNAL=missing
 echo "$_FC_STDERR" | grep -q "OVERLAY_GATE_UNAVAILABLE" && _FC_HAS_SIGNAL=found
 assert_eq "test_overlay_gate_fails_closed_when_helper_missing: stderr emits OVERLAY_GATE_UNAVAILABLE signal" "found" "$_FC_HAS_SIGNAL"
+
+# test_severity_critical_produces_failed_status
+# Given: 2-key findings.json with a critical severity finding
+# When: record-review.sh runs
+# Then: review-status line 1 = "failed"
+echo "=== test_severity_critical_produces_failed_status ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOF'
+{"findings":[{"severity":"critical","category":"correctness","file":"src/foo.sh","description":"Critical defect found in authentication logic"}],"summary":"Critical issue found."}
+EOF
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+# isolation-ok: inject changed files matching the finding's file to prevent per-finding strip
+RECORD_REVIEW_CHANGED_FILES="src/foo.sh" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+ACTUAL_STATUS=$(head -1 "$REVIEW_STATUS_FILE" 2>/dev/null || echo "missing")
+assert_eq "test_severity_critical_produces_failed_status: STATUS=failed" "failed" "$ACTUAL_STATUS"
+
+# test_severity_important_produces_failed_status
+echo "=== test_severity_important_produces_failed_status ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOF'
+{"findings":[{"severity":"important","category":"hygiene","file":"src/bar.sh","description":"Important style violation"}],"summary":"Important issue found."}
+EOF
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+# isolation-ok: inject changed files matching the finding's file to prevent per-finding strip
+RECORD_REVIEW_CHANGED_FILES="src/bar.sh" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+ACTUAL_STATUS=$(head -1 "$REVIEW_STATUS_FILE" 2>/dev/null || echo "missing")
+assert_eq "test_severity_important_produces_failed_status: STATUS=failed" "failed" "$ACTUAL_STATUS"
+
+# test_severity_fragile_produces_failed_status
+echo "=== test_severity_fragile_produces_failed_status ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOF'
+{"findings":[{"severity":"fragile","category":"design","file":"src/baz.sh","description":"Fragile coupling detected"}],"summary":"Fragile issue found."}
+EOF
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+# isolation-ok: inject changed files matching the finding's file to prevent per-finding strip
+RECORD_REVIEW_CHANGED_FILES="src/baz.sh" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+ACTUAL_STATUS=$(head -1 "$REVIEW_STATUS_FILE" 2>/dev/null || echo "missing")
+assert_eq "test_severity_fragile_produces_failed_status: STATUS=failed" "failed" "$ACTUAL_STATUS"
+
+# test_severity_minor_produces_passed_status
+echo "=== test_severity_minor_produces_passed_status ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOF'
+{"findings":[{"severity":"minor","category":"hygiene","file":"src/foo.sh","description":"Minor style nit"}],"summary":"Minor issue only."}
+EOF
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+# isolation-ok: inject changed files matching the finding's file to prevent per-finding strip
+RECORD_REVIEW_CHANGED_FILES="src/foo.sh" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+ACTUAL_STATUS=$(head -1 "$REVIEW_STATUS_FILE" 2>/dev/null || echo "missing")
+assert_eq "test_severity_minor_produces_passed_status: STATUS=passed" "passed" "$ACTUAL_STATUS"
+
+# test_empty_findings_produces_passed_status
+echo "=== test_empty_findings_produces_passed_status ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOF'
+{"findings":[],"summary":"All checks passed. No issues found."}
+EOF
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+ACTUAL_STATUS=$(head -1 "$REVIEW_STATUS_FILE" 2>/dev/null || echo "missing")
+assert_eq "test_empty_findings_produces_passed_status: STATUS=passed" "passed" "$ACTUAL_STATUS"
+
+# test_minor_with_critical_in_description_produces_passed_status
+# Finding has severity=minor but description text contains "critical".
+# The gate must NOT block based on description text — only the severity field matters.
+echo "=== test_minor_with_critical_in_description_produces_passed_status ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOF'
+{"findings":[{"severity":"minor","category":"hygiene","file":"src/foo.sh","description":"This minor issue has the word critical in it but should not fail"}],"summary":"Minor only."}
+EOF
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+ACTUAL_STATUS=$(head -1 "$REVIEW_STATUS_FILE" 2>/dev/null || echo "missing")
+assert_eq "test_minor_with_critical_in_description_produces_passed_status: STATUS=passed" "passed" "$ACTUAL_STATUS"
+
+# test_review_status_has_no_score_line
+# After record-review.sh runs with a valid 2-key findings.json,
+# the review-status file must NOT contain a score= line.
+echo "=== test_review_status_has_no_score_line ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOF'
+{"findings":[],"summary":"All good."}
+EOF
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || true
+REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
+SCORE_LINE=$(grep '^score=' "$REVIEW_STATUS_FILE" 2>/dev/null || echo "absent")
+assert_eq "test_review_status_has_no_score_line: no score= line in review-status" "absent" "$SCORE_LINE"
+
+# ---------------------------------------------------------------------------
+# test_overlap_normalizes_dot_slash_prefix
+#
+# Given: RECORD_REVIEW_CHANGED_FILES contains "foo.sh" (bare path).
+#        reviewer-findings.json has a single minor finding with file="./foo.sh"
+#        (leading "./" prefix).
+# When:  record-review.sh runs.
+# Then:  Python _normalize strips './' so the per-finding strip recognizes the
+#        finding as in-diff and preserves it in the findings file. The script
+#        exits 0 and the finding's file field remains './foo.sh' (the strip is
+#        non-mutating — it only filters, never rewrites the file field).
+# ---------------------------------------------------------------------------
+echo "=== test_overlap_normalizes_dot_slash_prefix ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOF'
+{"findings":[{"severity":"minor","category":"hygiene","file":"./foo.sh","description":"Minor style issue."}],"summary":"One minor finding with ./ prefix path."}
+EOF
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+DOT_SLASH_EXIT=0
+# isolation-ok: inject bare path; finding uses ./-prefixed equivalent
+RECORD_REVIEW_CHANGED_FILES="foo.sh" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || DOT_SLASH_EXIT=$?
+assert_eq "test_overlap_normalizes_dot_slash_prefix: ./foo.sh matches foo.sh (exit 0)" "0" "$DOT_SLASH_EXIT"
+# Finding must survive the per-finding strip (NOT be filtered out as out-of-diff).
+DOT_SLASH_FINDINGS_COUNT=$(python3 -c "
+import json
+with open('$FINDINGS_FILE') as f:
+    print(len(json.load(f).get('findings', [])))
+" 2>/dev/null || echo "0")
+assert_eq "test_overlap_normalizes_dot_slash_prefix: finding preserved after per-finding strip" "1" "$DOT_SLASH_FINDINGS_COUNT"
+
+# ---------------------------------------------------------------------------
+# test_overlap_normalizes_redundant_separators
+#
+# Given: RECORD_REVIEW_CHANGED_FILES contains "foo/bar.sh".
+#        reviewer-findings.json has a single minor finding with
+#        file="foo//bar.sh" (redundant separator).
+# When:  record-review.sh runs.
+# Then:  Python _normalize collapses "foo//bar.sh" to "foo/bar.sh", the
+#        per-finding strip recognizes it as in-diff, and the finding is
+#        preserved in the findings file (count remains 1).
+#
+# Without os.path.normpath, the substring match 'foo/bar.sh' vs 'foo//bar.sh'
+# fails in both directions, the finding gets stripped, and FILES_FROM_FINDINGS
+# becomes empty — so this test catches missing normalization via the survival
+# count, not via exit code (which would silently pass with empty findings).
+# ---------------------------------------------------------------------------
+echo "=== test_overlap_normalizes_redundant_separators ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOF'
+{"findings":[{"severity":"minor","category":"hygiene","file":"foo//bar.sh","description":"Minor style issue."}],"summary":"One minor finding with redundant separator."}
+EOF
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+REDUNDANT_SEP_EXIT=0
+# isolation-ok: inject normalized path; finding uses redundant-separator equivalent
+RECORD_REVIEW_CHANGED_FILES="foo/bar.sh" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || REDUNDANT_SEP_EXIT=$?
+assert_eq "test_overlap_normalizes_redundant_separators: foo//bar.sh matches foo/bar.sh (exit 0)" "0" "$REDUNDANT_SEP_EXIT"
+# Finding must survive the per-finding strip — this is the behavioral signal
+# that path normalization actually ran.
+REDUNDANT_SEP_FINDINGS_COUNT=$(python3 -c "
+import json
+with open('$FINDINGS_FILE') as f:
+    print(len(json.load(f).get('findings', [])))
+" 2>/dev/null || echo "0")
+assert_eq "test_overlap_normalizes_redundant_separators: finding preserved after per-finding strip" "1" "$REDUNDANT_SEP_FINDINGS_COUNT"
 
 print_summary

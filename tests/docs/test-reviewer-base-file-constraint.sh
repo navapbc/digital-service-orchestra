@@ -199,4 +199,76 @@ else
         "no re-dispatch instruction found near file-overlap recovery guidance"
 fi
 
+# test_no_review_result_in_output_contract
+# Given: plugins/dso/docs/workflows/prompts/reviewer-base.md
+# When: inspect the mandatory output contract section for REVIEW_RESULT
+# Then: REVIEW_RESULT must NOT appear (3-line output: REVIEWER_HASH, FINDING_COUNT, FILES only)
+# RED: fails until reviewer-base.md is updated
+echo ""
+echo "=== test_no_review_result_in_output_contract ==="
+if ! grep -q 'REVIEW_RESULT' "$REVIEWER_BASE"; then
+    assert_eq "REVIEW_RESULT must not appear in reviewer-base.md output contract" "absent" "absent"
+else
+    assert_eq "REVIEW_RESULT must not appear in reviewer-base.md output contract" \
+        "REVIEW_RESULT absent (deprecated — record-review.sh derives pass/fail from severity)" \
+        "REVIEW_RESULT still present in reviewer-base.md"
+fi
+
+# test_no_min_score_in_output_contract
+echo ""
+echo "=== test_no_min_score_in_output_contract ==="
+if ! grep -q 'MIN_SCORE' "$REVIEWER_BASE"; then
+    assert_eq "MIN_SCORE must not appear in reviewer-base.md output contract" "absent" "absent"
+else
+    assert_eq "MIN_SCORE must not appear in reviewer-base.md output contract" \
+        "MIN_SCORE absent (deprecated — scores removed from schema)" \
+        "MIN_SCORE still present in reviewer-base.md"
+fi
+
+# test_three_line_output_contract
+echo ""
+echo "=== test_three_line_output_contract ==="
+# The output contract must specify exactly: REVIEWER_HASH, FINDING_COUNT, FILES
+# Extract the mandatory output contract block and verify it has these 3 lines
+output_contract="$(python3 - "$REVIEWER_BASE" <<'PYEOF'
+import sys, re
+content = open(sys.argv[1]).read()
+m = re.search(r'(REVIEWER_HASH|FINDING_COUNT|FILES)', content)
+if m:
+    print("has_required_lines")
+PYEOF
+)"
+if [[ "$output_contract" == *"has_required_lines"* ]]; then
+    assert_eq "3-line output contract (REVIEWER_HASH, FINDING_COUNT, FILES) present" "present" "present"
+else
+    assert_eq "3-line output contract (REVIEWER_HASH, FINDING_COUNT, FILES) present" \
+        "REVIEWER_HASH + FINDING_COUNT + FILES lines" \
+        "output contract lines missing"
+fi
+
+# test_two_key_json_schema
+echo ""
+echo "=== test_two_key_json_schema ==="
+# The JSON schema must specify exactly two required top-level keys: findings and summary
+# (no scores key in required)
+schema_section="$(python3 - "$REVIEWER_BASE" <<'PYEOF'
+import sys, re
+content = open(sys.argv[1]).read()
+# Look for "EXACTLY two top-level keys" on a SINGLE LINE (not cross-section DOTALL match).
+# The current reviewer-base.md says "EXACTLY three top-level keys" — this test should fail until
+# that is updated to "EXACTLY two top-level keys". Using re.MULTILINE (not DOTALL) so the
+# match cannot span multiple lines and pick up unrelated "findings" and "summary" sections.
+m = re.search(r'EXACTLY two top-level keys|two required top-level keys|required.*two.*keys', content, re.IGNORECASE)
+if m:
+    print("two_key_found")
+PYEOF
+)"
+if [[ "$schema_section" == *"two_key_found"* ]]; then
+    assert_eq "JSON schema specifies 2-key schema (EXACTLY two top-level keys: findings + summary)" "present" "present"
+else
+    assert_eq "JSON schema specifies 2-key schema (findings + summary, no scores)" \
+        "2-key schema specification (findings + summary)" \
+        "2-key schema language not found — still using 3-key schema?"
+fi
+
 print_summary

@@ -1,0 +1,894 @@
+#!/usr/bin/env bash
+# merge-to-main-pr.sh — PR merge mode (skeleton).
+#
+# Skeleton implementation that satisfies:
+#   * gh CLI version gate (requires >= 2.0.0 for GraphQL features used by
+#     downstream PR-create logic in Task 3 — DD7).
+#   * Duplicate-PR guard: refuse to run when an open PR already exists for
+#     the current branch (DD4).
+#   * CONFLICT_DATA contract parity with merge-to-main-direct.sh: when the
+#     (placeholder) merge phase fails, emit the same JSON line via the
+#     shared _emit_conflict_data helper in merge-helpers.sh (DD6 — PR side).
+#
+# Full PR-creation flow (gh pr create, auto-merge enable, status polling)
+# lands in Task 3. This skeleton makes the T1 dispatcher routing and PR
+# CONFLICT_DATA tests turn GREEN without committing to that flow yet.
+#
+# Usage: merge-to-main-pr.sh [--resume|--help]
+# Exit codes: 0=success, 1=error
+set -euo pipefail
+
+# --- CLI: --help (early exit before any context checks) ---
+for _arg in "$@"; do
+    if [[ "$_arg" == "--help" ]]; then
+        cat <<'USAGE'
+Usage: merge-to-main-pr.sh [--resume|--help]
+
+  --resume        Resume from last incomplete phase (state file in /tmp).
+  --help          Print this usage message and exit.
+
+  (no args)       Run all phases sequentially.
+
+PR mode creates a pull request against main, enables auto-merge, and waits
+for required status checks to pass. Requires gh CLI 2.0.0+ for GraphQL.
+USAGE
+        exit 0
+    fi
+done
+
+# --- Required env vars (set by the dispatcher) ---
+: "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set}"
+: "${MERGE_STRATEGY:?MERGE_STRATEGY must be set (expected: pr)}"
+
+# --- Resolve repo root (best-effort; PR mode can run outside a git repo for
+# certain failure paths in skeleton form, but most production paths require it). ---
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
+if [[ -n "$REPO_ROOT" ]]; then
+    cd "$REPO_ROOT"
+fi
+
+# --- Resolve current branch (best-effort) ---
+# Falls back to "unknown" outside a git repo so downstream helpers (e.g.,
+# _emit_conflict_data, _state_init) still receive a non-empty value.
+BRANCH=$(git branch --show-current 2>/dev/null || true)
+BRANCH="${BRANCH:-unknown}"
+
+# --- Load merge utility helpers (state file, lock, recovery, CONFLICT_DATA) ---
+# shellcheck source=${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-helpers.sh
+_MERGE_HELPERS_LIB="${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-helpers.sh"
+if [[ -f "$_MERGE_HELPERS_LIB" ]]; then
+    # shellcheck disable=SC1090
+    source "$_MERGE_HELPERS_LIB"
+fi
+
+# --- gh CLI version gate (DD7) ---
+# Parse `gh --version` first line: "gh version 2.40.1 (2024-...)" → "2.40.1".
+# Compare against minimum 2.0.0 via `sort -V`. On too-old / missing gh: exit 1.
+_check_gh_version() {
+    local _min="2.0.0"
+    local _found
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "ERROR: gh CLI not found on PATH (required for PR-mode merge)" >&2
+        return 1
+    fi
+    _found=$(gh --version 2>/dev/null | awk 'NR==1 {print $3; exit}')
+    if [[ -z "$_found" ]]; then
+        echo "ERROR: gh CLI 2.0.0+ required for PR-mode merge (could not parse \`gh --version\` output)" >&2
+        return 1
+    fi
+    # `printf "%s\n%s\n" "$_min" "$_found" | sort -V | head -n1` → smaller of the two.
+    # When equal, sort -V emits _min first (input order is _min then _found, and
+    # sort -V is stable on equal keys), so _smallest == _min covers both
+    # _found > _min and _found == _min. If _smallest != _min, _found is older
+    # than the minimum required.
+    local _smallest
+    _smallest=$(printf '%s\n%s\n' "$_min" "$_found" | sort -V | head -n1)
+    if [[ "$_smallest" != "$_min" ]]; then
+        # _found is the smaller → too old
+        echo "ERROR: gh CLI 2.0.0+ required for PR-mode merge (found $_found)" >&2
+        return 1
+    fi
+    return 0
+}
+
+# --- Duplicate-PR guard (DD4) ---
+# `gh pr list --head $BRANCH --state open --json number,url --jq '.[0].url'`.
+# Non-empty result → an open PR already exists for this branch → exit non-zero.
+# Best-effort: if gh fails (no auth, no remote, etc.), proceed — the downstream
+# PR-create call in Task 3 will surface the underlying error with full context.
+_check_duplicate_pr() {
+    local _existing
+    _existing=$(gh pr list --head "$BRANCH" --state open --json number,url --jq '.[0].url' 2>/dev/null || true)
+    if [[ -n "$_existing" ]]; then
+        echo "ERROR: open PR already exists for branch $BRANCH: $_existing" >&2
+        return 1
+    fi
+    return 0
+}
+
+# --- State writer: persist PR url + number into the state file ---
+# Best-effort; mirrors merge-helpers.sh's other _state_* writers.
+_state_write_pr_meta() {
+    local _pr_url="$1"
+    local _pr_number="$2"
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    [[ -f "$_sf" ]] || return 0
+    PR_URL="$_pr_url" PR_NUMBER="$_pr_number" SF="$_sf" python3 -c "
+import json, os
+sf = os.environ['SF']
+with open(sf) as f:
+    d = json.load(f)
+d['pr_url'] = os.environ.get('PR_URL', '')
+try:
+    d['pr_number'] = int(os.environ.get('PR_NUMBER', '0'))
+except Exception:
+    d['pr_number'] = os.environ.get('PR_NUMBER', '')
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
+    return 0
+}
+
+# --- _phase_merge (PR mode): push branch, create PR, queue auto-merge ---
+# DD1: gh pr create + gh pr merge --auto --merge
+# DD6: emit CONFLICT_DATA when gh reports mergeable=CONFLICTING
+#
+# Steps:
+#   1. git push -u origin "$BRANCH"           — publish branch
+#   2. gh pr create --base main --head "$BRANCH" --title <derived> --body <auto>
+#      → capture PR url + number
+#   3. Persist pr_url, pr_number into state file
+#   4. gh pr view <num> --json mergeable      — detect CONFLICTING up-front
+#   5. gh pr merge <num> --auto --merge       — queue auto-merge
+#      → on "auto-merge not allowed" stderr: print clear error, exit 1
+#
+# Returns 0 on success, 1 on conflict / auto-merge-disabled / unrecoverable error.
+# CONFLICT_DATA emission is performed by the caller (top-level error handler
+# below) so the contract surface is identical to direct mode.
+_phase_merge() {
+    if type _state_write_phase >/dev/null 2>&1; then
+        _state_write_phase "merge" 2>/dev/null || true
+    fi
+
+    # --- 1. Publish branch ---
+    if ! git push -u origin "$BRANCH" 2>&1; then
+        echo "ERROR: git push -u origin $BRANCH failed" >&2
+        return 1
+    fi
+
+    # --- 2. Derive PR title from last meaningful commit subject ---
+    local _title
+    _title=$(git log -1 --pretty=%s 2>/dev/null || echo "Merge $BRANCH")
+    if [[ -z "$_title" ]]; then
+        _title="Merge $BRANCH"
+    fi
+
+    local _body
+    _body="Auto-generated PR for branch \`$BRANCH\` (created by merge-to-main-pr.sh)."
+
+    # --- 3. Create the PR ---
+    local _pr_url _pr_create_rc=0
+    _pr_url=$(gh pr create --base main --head "$BRANCH" \
+                          --title "$_title" --body "$_body" 2>&1) || _pr_create_rc=$?
+    if [[ "$_pr_create_rc" -ne 0 ]]; then
+        echo "ERROR: gh pr create failed: $_pr_url" >&2
+        # _pr_url may contain the error text — still return 1 so caller emits
+        # CONFLICT_DATA (best-effort) for upstream orchestrators.
+        return 1
+    fi
+
+    # gh pr create may print extra log lines before the URL; extract the
+    # last line that looks like a PR url.
+    local _final_url
+    _final_url=$(echo "$_pr_url" | grep -Eo 'https://[^[:space:]]+/pull/[0-9]+' | tail -n1)
+    if [[ -z "$_final_url" ]]; then
+        # Fallback: trust the entire stdout as the URL (some gh versions emit
+        # only the URL with no surrounding text).
+        _final_url=$(echo "$_pr_url" | tail -n1 | tr -d '[:space:]')
+    fi
+
+    local _pr_number
+    _pr_number=$(echo "$_final_url" | grep -Eo '/pull/[0-9]+' | grep -Eo '[0-9]+$')
+    if [[ -z "$_pr_number" ]]; then
+        echo "ERROR: could not parse PR number from gh pr create output: $_pr_url" >&2
+        return 1
+    fi
+
+    # --- 4. Persist PR url + number to state file (best-effort) ---
+    _state_write_pr_meta "$_final_url" "$_pr_number" 2>/dev/null || true
+
+    echo "INFO: Created PR #${_pr_number}: $_final_url"
+
+    # --- 5. Detect CONFLICTING up-front via `gh pr view --json mergeable` ---
+    # If GitHub reports the PR as CONFLICTING, return 1 so the caller emits
+    # CONFLICT_DATA. We do not enqueue auto-merge for a known-conflicting PR.
+    local _mergeable_json _mergeable
+    _mergeable_json=$(gh pr view "$_pr_number" --json mergeable 2>/dev/null || true)
+    _mergeable=$(echo "$_mergeable_json" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get('mergeable', ''))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+
+    if [[ "$_mergeable" == "CONFLICTING" ]]; then
+        echo "ERROR: PR #${_pr_number} is CONFLICTING — cannot enqueue auto-merge" >&2
+        return 1
+    fi
+
+    # --- 6. Queue auto-merge (--merge to match direct mode's --no-ff semantics) ---
+    local _merge_out _merge_rc=0
+    _merge_out=$(gh pr merge "$_pr_number" --auto --merge 2>&1) || _merge_rc=$?
+    if [[ "$_merge_rc" -ne 0 ]]; then
+        # Detect the "auto-merge not allowed" repo-setting case so the user
+        # gets actionable guidance (DD1 acceptance criterion).
+        if echo "$_merge_out" | grep -qiE "auto.?merge.*(not allowed|disabled|cannot be enabled)"; then
+            echo "ERROR: GitHub auto-merge is disabled for this repository." >&2
+            echo "       Enable it under Settings → General → 'Allow auto-merge', then re-run with --resume." >&2
+            echo "       (gh stderr: $_merge_out)" >&2
+        else
+            echo "ERROR: gh pr merge ${_pr_number} --auto --merge failed: $_merge_out" >&2
+        fi
+        return 1
+    fi
+
+    if type _state_mark_complete >/dev/null 2>&1; then
+        _state_mark_complete "merge" 2>/dev/null || true
+    fi
+
+    echo "INFO: Auto-merge queued for PR #${_pr_number}."
+    return 0
+}
+
+# --- _pr_validate_file_path: sanitize a reviewer-supplied file path ---
+# Reviewer-supplied input from PR review threads is untrusted. Reject paths
+# that could be used for path traversal, absolute-path access outside the
+# repo, or argument injection (paths starting with `-` would be parsed as
+# a flag by `git diff` or `llm-api-call.sh`).
+#
+# Returns 0 if path is safe, 1 otherwise. Empty string is treated as safe
+# (callers handle empty by skipping diff context).
+#
+# Allowed: alphanumerics, `/`, `.`, `_`, `-` (not as first char), and the
+# typical filename character set. Rejects:
+#   * leading `-`           — would be parsed as a flag
+#   * leading `/`           — absolute path
+#   * any `..` segment      — path traversal
+#   * characters outside    [A-Za-z0-9._/-]
+_pr_validate_file_path() {
+    local _p="${1:-}"
+    [[ -z "$_p" ]] && return 0
+    # Reject leading dash (flag injection)
+    [[ "$_p" == -* ]] && return 1
+    # Reject absolute paths
+    [[ "$_p" == /* ]] && return 1
+    # Reject any `..` segment (path traversal). Regex matches `..` as a complete
+    # path component (preceded by start-of-string or '/', followed by end-of-string
+    # or '/'). Using regex avoids the literal `..\/` string that fails the
+    # plugin-scripts no-relative-paths lint.
+    [[ "$_p" =~ (^|/)\.\.(/|$) ]] && return 1
+    # Whitelist character set
+    [[ "$_p" =~ ^[A-Za-z0-9._/-]+$ ]] || return 1
+    return 0
+}
+
+# --- _phase_resolve_threads: loop to resolve all PR review threads before poll ---
+# Settling heuristic: done when zero unresolved threads AND quiet window elapsed.
+# Bounds: max dispatch count (merge.pr_max_thread_dispatches, default 10) and
+#         wall-clock budget (merge.pr_thread_resolution_max_wait_seconds, default 1800).
+# Emits ESCALATE:thread_resolution on stderr with PR url + thread IDs when bounds hit.
+# Env overrides for tests:
+#   PR_THREAD_LOOP_MAX_DISPATCHES     — overrides config default (10)
+#   PR_THREAD_LOOP_MAX_WALL_SECONDS   — overrides config default (1800)
+#   PR_THREAD_LOOP_INTERVAL           — overrides config default (30)
+#   PR_THREAD_LOOP_START_OVERRIDE_SECONDS — simulate elapsed time at start (default 0)
+#   PR_THREAD_LOOP_TEST_STOP_AFTER_RESET  — exit 0 after first POLL_WINDOW_RESET (testing)
+#   _LLM_DISPATCH_CMD                 — override LLM dispatch command (default: llm-api-call.sh)
+_phase_resolve_threads() {
+    local _pr_number="$1" _pr_url="$2"
+    local _read_config
+    _read_config="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"  # shim-exempt: internal plugin script
+
+    # Read config with env override support
+    local _max_dispatches _max_wait _quiet_window _interval
+    _max_dispatches="${PR_THREAD_LOOP_MAX_DISPATCHES:-}"
+    if [[ -z "$_max_dispatches" ]]; then
+        _max_dispatches=$(bash "$_read_config" merge.pr_max_thread_dispatches 2>/dev/null || true)
+        [[ -z "$_max_dispatches" ]] && _max_dispatches=10
+    fi
+
+    _max_wait="${PR_THREAD_LOOP_MAX_WALL_SECONDS:-}"
+    if [[ -z "$_max_wait" ]]; then
+        _max_wait=$(bash "$_read_config" merge.pr_thread_resolution_max_wait_seconds 2>/dev/null || true)
+        [[ -z "$_max_wait" ]] && _max_wait=1800
+    fi
+
+    _quiet_window=$(bash "$_read_config" merge.pr_thread_quiet_window_seconds 2>/dev/null || true)
+    [[ -z "$_quiet_window" ]] && _quiet_window=120
+
+    _interval="${PR_THREAD_LOOP_INTERVAL:-}"
+    if [[ -z "$_interval" ]]; then
+        _interval=$(bash "$_read_config" merge.pr_poll_interval_seconds 2>/dev/null || true)
+        [[ -z "$_interval" ]] && _interval=30
+    fi
+
+    local _dispatches=0
+    local _start_offset="${PR_THREAD_LOOP_START_OVERRIDE_SECONDS:-0}"
+    local _start=$(( SECONDS - _start_offset ))
+    local _last_thread_seen_ts=0
+    local _last_thread_count=0
+    local _last_head_sha=""
+    local _llm_cmd="${_LLM_DISPATCH_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
+    # Track threads the LLM escalated so they are skipped on subsequent iterations
+    # instead of burning the dispatch budget repeatedly on unresolvable threads.
+    declare -A _escalated_threads=()
+
+    if type _state_write_phase >/dev/null 2>&1; then
+        _state_write_phase "resolve_threads" 2>/dev/null || true
+    fi
+
+    while :; do
+        # --- Fetch unresolved threads ---
+        local _threads_raw=""
+        local _threads_arr=()
+        local _threads_count=0
+        if type _pr_fetch_unresolved_threads >/dev/null 2>&1; then
+            _threads_raw=$(_pr_fetch_unresolved_threads "$_pr_number" 2>/dev/null || true)
+        fi
+        if [[ -n "$_threads_raw" ]]; then
+            mapfile -t _threads_arr <<< "$_threads_raw"
+            _threads_count="${#_threads_arr[@]}"
+        fi
+
+        # --- Detect head SHA change (push-induced dismissal reset) ---
+        local _curr_head_sha=""
+        _curr_head_sha=$(gh pr view "$_pr_number" --json headRefOid 2>/dev/null | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get('headRefOid', ''))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+
+        if [[ -n "$_last_head_sha" && -n "$_curr_head_sha" && "$_curr_head_sha" != "$_last_head_sha" ]]; then
+            echo "INFO: POLL_WINDOW_RESET — head SHA changed from ${_last_head_sha} to ${_curr_head_sha}; resetting wall-clock window"
+            _start=$SECONDS
+            _last_thread_seen_ts=0
+            _last_thread_count=0
+            if [[ "${PR_THREAD_LOOP_TEST_STOP_AFTER_RESET:-0}" == "1" ]]; then
+                return 0
+            fi
+        fi
+        # Only update tracked head SHA when we got a non-empty value from gh.
+        # A transient `gh` failure produces an empty _curr_head_sha; overwriting
+        # _last_head_sha with empty would mask a real subsequent push and
+        # silently defeat the wall-clock cap.
+        if [[ -n "$_curr_head_sha" ]]; then
+            _last_head_sha="$_curr_head_sha"
+        fi
+
+        local _now_ts=$SECONDS
+
+        # --- Track last-thread-seen time ---
+        if (( _threads_count > _last_thread_count )); then
+            _last_thread_seen_ts=$_now_ts
+        fi
+        _last_thread_count=$_threads_count
+
+        # --- Settling heuristic ---
+        local _quiet_elapsed="false"
+        if (( _last_thread_seen_ts == 0 )); then
+            (( (_now_ts - _start) >= _quiet_window )) && _quiet_elapsed="true"
+        else
+            (( (_now_ts - _last_thread_seen_ts) >= _quiet_window )) && _quiet_elapsed="true"
+        fi
+
+        if type _pr_settling_check >/dev/null 2>&1; then
+            if _pr_settling_check --threads="$_threads_count" --quiet-window-elapsed="$_quiet_elapsed"; then
+                echo "INFO: PR #${_pr_number} thread resolution settled."
+                if type _state_mark_complete >/dev/null 2>&1; then
+                    _state_mark_complete "resolve_threads" 2>/dev/null || true
+                fi
+                return 0
+            fi
+        fi
+
+        # Build comma-separated unresolved (non-escalated) thread IDs for ESCALATE messages.
+        local _unresolved_ids="" _entry
+        for _entry in "${_threads_arr[@]:-}"; do
+            [[ -z "$_entry" ]] && continue
+            local _eid="${_entry%%$'\t'*}"
+            [[ -n "${_escalated_threads[$_eid]:-}" ]] && continue
+            _unresolved_ids+="${_eid},"
+        done
+        _unresolved_ids="${_unresolved_ids%,}"
+
+        # Early-exit: if all active threads are escalated, no dispatches are
+        # possible on this iteration or any future one — emit ESCALATE immediately
+        # rather than spinning out the full wall-clock budget.
+        if (( _threads_count > 0 )) && [[ -z "$_unresolved_ids" ]]; then
+            echo "ESCALATE:thread_resolution REASON:all_escalated PR:${_pr_url} DISPATCHES:${_dispatches}" >&2
+            return 1
+        fi
+
+        # --- Bounds: wall-clock ---
+        local _elapsed=$(( _now_ts - _start ))
+        if (( _elapsed >= _max_wait )); then
+            echo "ESCALATE:thread_resolution REASON:wall_clock PR:${_pr_url} UNRESOLVED:${_unresolved_ids} DISPATCHES:${_dispatches}" >&2
+            return 1
+        fi
+
+        # --- Bounds: dispatch cap ---
+        if (( _dispatches >= _max_dispatches )); then
+            echo "ESCALATE:thread_resolution REASON:dispatch_cap PR:${_pr_url} UNRESOLVED:${_unresolved_ids} DISPATCHES:${_dispatches}" >&2
+            return 1
+        fi
+
+        # --- Dispatch sub-agent for each unresolved thread ---
+        local _repo_root
+        _repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+        local _code_change_threads=()
+        local _t
+        for _t in "${_threads_arr[@]:-}"; do
+            [[ -z "$_t" ]] && continue
+            if (( _dispatches >= _max_dispatches )); then break; fi
+
+            # Parse tab-delimited thread fields: thread_id, file, line, comment_id, body_b64
+            local _thread_id="${_t%%$'\t'*}"
+            # Skip threads already escalated in a prior loop iteration.
+            [[ -n "${_escalated_threads[$_thread_id]:-}" ]] && continue
+
+            local _file_path="" _line_range="" _comment_id="" _thread_body_b64=""
+            IFS=$'\t' read -r _ _file_path _line_range _comment_id _thread_body_b64 <<< "$_t" || true
+            local _thread_body=""
+            [[ -n "$_thread_body_b64" ]] && _thread_body=$(echo "$_thread_body_b64" | base64 -d 2>/dev/null || true)
+
+            # Validate reviewer-supplied file path before using it. _file_path
+            # comes from the GraphQL response (untrusted reviewer input). An
+            # invalid path is dropped: we skip the diff fetch and pass an empty
+            # string to the LLM dispatch so neither `git diff` nor
+            # `llm-api-call.sh` ever sees the malicious value.
+            local _safe_file_path=""
+            if _pr_validate_file_path "$_file_path"; then
+                _safe_file_path="$_file_path"
+            else
+                echo "WARNING: rejecting unsafe file_path from thread ${_thread_id}: $(printf '%q' "$_file_path")" >&2
+            fi
+
+            # Generate a short diff_context for the file (best-effort; empty if unavailable).
+            # Use a repo-relative path with git run from the repo root to avoid path doubling.
+            local _diff_context=""
+            if [[ -n "$_safe_file_path" && -n "$_repo_root" ]]; then
+                # Even after _pr_validate_file_path, the path could resolve to
+                # outside the repo via symlinks or simply not exist as a tracked
+                # file. Restrict diff fetch to git-tracked paths so a reviewer
+                # cannot trick us into reading arbitrary working-tree files.
+                if git -C "$_repo_root" ls-files --error-unmatch -- "$_safe_file_path" >/dev/null 2>&1; then
+                    _diff_context=$(git -C "$_repo_root" diff HEAD -- "$_safe_file_path" 2>/dev/null | head -30 || true)
+                fi
+            fi
+
+            # Build a structured user message containing all thread context.
+            # This avoids sed injection from reviewer-supplied values (thread_body, etc.)
+            # while giving the LLM all inputs it needs per pr-comment-responder.md.
+            local _user_msg
+            _user_msg=$(printf 'thread_id: %s\nthread_body: %s\npr_url: %s\nrepo_root: %s\nfile_path: %s\nline_range: %s\ndiff_context:\n%s' \
+                "$_thread_id" \
+                "${_thread_body:-[no body]}" \
+                "$_pr_url" \
+                "$_repo_root" \
+                "${_safe_file_path:-}" \
+                "${_line_range:-}" \
+                "${_diff_context:-[none]}")
+
+            local _llm_result=""
+            local _llm_rc=0
+            local _responder_prompt="${CLAUDE_PLUGIN_ROOT}/scripts/prompts/pr-comment-responder.md"  # shim-exempt: internal plugin script
+            _llm_result=$($_llm_cmd \
+                "$_responder_prompt" \
+                "$_user_msg" \
+                "standard" \
+                2>/dev/null) || _llm_rc=$?
+
+            # Every LLM dispatch attempt counts against the cap, regardless of
+            # outcome. Otherwise a thread that consistently fails (non-zero exit
+            # or empty result) would be retried indefinitely without ever
+            # tripping the dispatch cap, defeating its purpose.
+            _dispatches=$(( _dispatches + 1 ))
+
+            # On infrastructure failure (non-zero exit, empty result), skip
+            # action handling for this thread — it will be retried next
+            # iteration (subject to the dispatch cap above).
+            if [[ $_llm_rc -ne 0 || -z "$_llm_result" ]]; then
+                echo "WARNING: LLM dispatch failed (exit ${_llm_rc}) for thread ${_thread_id} — will retry next iteration." >&2
+                continue
+            fi
+
+            # Parse the terminal ACTION: line from the LLM output
+            local _action_line=""
+            _action_line=$(echo "$_llm_result" | grep -E "^ACTION:" | tail -1 || true)
+
+            case "$_action_line" in
+                ACTION:code_change*)
+                    # Track threads with code changes; batch commit happens after the loop
+                    # so one commit and one push covers all code_change threads per iteration.
+                    _code_change_threads+=("$_thread_id")
+                    ;;
+                ACTION:reply\ REPLY:*)
+                    local _reply_body=""
+                    _reply_body="${_action_line#ACTION:reply REPLY:}"
+                    # Trim all leading whitespace (LLM may emit 'REPLY: text' with space(s)/tab after colon)
+                    _reply_body="${_reply_body#"${_reply_body%%[![:space:]]*}"}"
+                    [[ -z "$_reply_body" ]] && _reply_body="Acknowledged"
+                    local _reply_rc=0
+                    if type _pr_post_thread_reply >/dev/null 2>&1; then
+                        _pr_post_thread_reply "$_pr_number" "$_comment_id" "$_reply_body" >/dev/null 2>&1 || _reply_rc=$?
+                    fi
+                    if [[ $_reply_rc -eq 0 ]]; then
+                        # Only resolve after a successful reply to prevent duplicate replies
+                        # if the resolve mutation fails and this thread is retried next iteration.
+                        if type _pr_resolve_thread >/dev/null 2>&1; then
+                            _pr_resolve_thread "$_thread_id" >/dev/null 2>&1 || {
+                                # Resolve failed — escalate so next iteration skips re-posting
+                                _escalated_threads[$_thread_id]=1
+                            }
+                        fi
+                    fi
+                    ;;
+                ACTION:escalate*|""|*)
+                    echo "INFO: Thread ${_thread_id} escalated — leaving for user review." >&2
+                    _escalated_threads[$_thread_id]=1
+                    ;;
+            esac
+        done
+
+        # --- Batch commit + push for code_change threads ---
+        # All code_change threads in this iteration share one commit + push to avoid
+        # triggering N CI runs for N concurrent changes. Threads are only resolved on
+        # GitHub after a successful commit AND push — never mark resolved when the fix
+        # hasn't reached the remote.
+        #
+        # This raw git commit is intentional and CI-only: merge-to-main-pr.sh runs in
+        # CI environments (e.g. GitHub Actions) where the project pre-commit hook suite
+        # is not installed. In interactive/local sessions the review gate would block
+        # this commit; guard below escalates code_change threads instead of committing.
+        if [[ ${#_code_change_threads[@]} -gt 0 ]]; then
+            if [[ "${CI:-}" != "true" ]]; then
+                echo "WARNING: code_change threads require CI mode (CI=true) for auto-commit — escalating threads to avoid review-gate conflict." >&2
+                local _ct
+                for _ct in "${_code_change_threads[@]}"; do
+                    _escalated_threads[$_ct]=1
+                done
+                _code_change_threads=()
+            fi
+        fi
+        if [[ ${#_code_change_threads[@]} -gt 0 ]]; then
+            local _commit_rc=0
+            git -C "$_repo_root" commit -m "fix: address PR review threads ${_code_change_threads[*]}" 2>/dev/null || _commit_rc=$?
+            if [[ $_commit_rc -eq 0 ]]; then
+                local _push_rc=0
+                git -C "$_repo_root" push origin HEAD 2>/dev/null || _push_rc=$?
+                if [[ $_push_rc -eq 0 ]]; then
+                    if type _pr_resolve_thread >/dev/null 2>&1; then
+                        local _ct
+                        for _ct in "${_code_change_threads[@]}"; do
+                            _pr_resolve_thread "$_ct" >/dev/null 2>&1 || true
+                        done
+                    fi
+                else
+                    echo "WARNING: push failed (exit ${_push_rc}) — code_change threads not resolved." >&2
+                fi
+            else
+                echo "WARNING: batch commit failed (exit ${_commit_rc}) — code_change threads not resolved." >&2
+            fi
+        fi
+
+        # --- Sleep ---
+        if [[ "$_interval" != "0" && "$_interval" != "0.0" ]]; then
+            sleep "$_interval" 2>/dev/null || sleep 1
+        fi
+    done
+}
+
+# --- _phase_poll: poll CI checks + merge state until success / failure / timeout ---
+# DD1: configurable poll cadence (merge.pr_poll_interval_seconds, default 30)
+# DD2: ONE `gh pr checks` call per iteration (no fan-out)
+# DD3: configurable max-wait timeout (merge.pr_max_wait_seconds, default 3600)
+#
+# Each iteration:
+#   1. `gh pr checks <num> --json name,state,conclusion`
+#      - any FAILURE/CANCELLED conclusion → exit 1 with PR url
+#      - all SUCCESS → query merge state (step 2)
+#   2. `gh pr view <num> --json state --jq .state`
+#      - state == MERGED → break, success
+#      - else → continue
+#   3. Check elapsed: SECONDS - _start >= max_wait → exit 1 with PR url
+#   4. sleep $interval
+_phase_poll() {
+    local _pr_number="$1" _pr_url="$2"
+    local _interval _max_wait _read_config
+    _read_config="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"  # shim-exempt: internal plugin script
+
+    _interval=$(bash "$_read_config" merge.pr_poll_interval_seconds 2>/dev/null || true)
+    _max_wait=$(bash "$_read_config" merge.pr_max_wait_seconds 2>/dev/null || true)
+    [[ -z "$_interval" ]] && _interval=30
+    [[ -z "$_max_wait" ]] && _max_wait=3600
+
+    if type _state_write_phase >/dev/null 2>&1; then
+        _state_write_phase "poll" 2>/dev/null || true
+    fi
+
+    local _start=$SECONDS
+    while :; do
+        # --- Step 1: ONE pr checks call ---
+        local _checks_json _checks_rc=0
+        _checks_json=$(gh pr checks "$_pr_number" --json name,state,conclusion 2>&1) || _checks_rc=$?
+
+        # When PR has no checks, `gh pr checks` exits 8 with stderr "no checks reported".
+        # Treat as "no failures yet" — continue polling for merge state.
+        if [[ "$_checks_rc" -eq 0 ]]; then
+            # Detect any failed conclusion
+            local _has_failure
+            _has_failure=$(echo "$_checks_json" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    if not isinstance(d, list):
+        print('false'); sys.exit(0)
+    for c in d:
+        concl = (c.get('conclusion') or '').upper()
+        if concl in ('FAILURE', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED'):
+            print('true'); sys.exit(0)
+    print('false')
+except Exception:
+    print('false')
+" 2>/dev/null || echo "false")
+
+            if [[ "$_has_failure" == "true" ]]; then
+                echo "ERROR: required check failed for PR ${_pr_url}" >&2
+                return 1
+            fi
+        fi
+
+        # --- Step 2: check PR state for MERGED ---
+        local _state_raw _state
+        _state_raw=$(gh pr view "$_pr_number" --json state --jq .state 2>/dev/null || true)
+        # Strip whitespace
+        _state=$(echo "$_state_raw" | tr -d '[:space:]')
+        # Some gh versions output JSON-wrapped; fall back to grep
+        if [[ -z "$_state" || "$_state" == "{"*  ]]; then
+            _state=$(echo "$_state_raw" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get('state', '') if isinstance(d, dict) else str(d))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+        fi
+
+        if [[ "$_state" == "MERGED" ]]; then
+            echo "INFO: PR #${_pr_number} merged successfully."
+            if type _state_mark_complete >/dev/null 2>&1; then
+                _state_mark_complete "poll" 2>/dev/null || true
+            fi
+            return 0
+        fi
+
+        # --- Step 3: timeout check (computed on elapsed wall time) ---
+        local _elapsed=$(( SECONDS - _start ))
+        if (( _elapsed >= _max_wait )); then
+            echo "ERROR: max-wait exceeded (${_max_wait}s) — PR URL: ${_pr_url}" >&2
+            return 1
+        fi
+
+        # --- Step 4: sleep then continue ---
+        # When interval is 0 or sub-second, skip sleep entirely (used in tests).
+        if [[ "$_interval" != "0" && "$_interval" != "0.0" ]]; then
+            sleep "$_interval" 2>/dev/null || sleep 1
+        fi
+    done
+}
+
+# =============================================================================
+# Library-mode guard: when sourced with PR_LIB_MODE=1, skip all top-level
+# execution. Used by tests to load function definitions without running the
+# phase pipeline.
+# =============================================================================
+# shellcheck disable=SC2317  # exit 0 is the non-sourced fallback; return is the sourced path
+if [[ "${PR_LIB_MODE:-0}" == "1" ]]; then return 0 2>/dev/null || exit 0; fi
+
+# =============================================================================
+# Top-level execution begins here
+# =============================================================================
+
+if ! _check_gh_version; then
+    exit 1
+fi
+
+if ! _check_duplicate_pr; then
+    exit 1
+fi
+
+# --- Initialize state file (best-effort; requires BRANCH set above) ---
+if type _state_init >/dev/null 2>&1; then
+    _state_init 2>/dev/null || true
+fi
+
+# --- Run merge phase; on failure, emit CONFLICT_DATA contract line ---
+# Always emitted for parity with direct mode (resolve-conflicts/SKILL.md relies on it).
+# resolution_strategy distinguishes whether the failure was a push/create error or a
+# CONFLICTING merge: "pr-create-failed" when no PR was created, "pr-conflict" when
+# gh reported the PR as CONFLICTING.
+_PHASE_MERGE_RC=0
+_phase_merge || _PHASE_MERGE_RC=$?
+if [[ "$_PHASE_MERGE_RC" -ne 0 ]]; then
+    if type _emit_conflict_data >/dev/null 2>&1; then
+        # Determine resolution strategy from state: if PR URL was written, the phase
+        # reached the CONFLICTING check; otherwise failure was at push/create time.
+        _MERGE_SF=""
+        if type _state_file_path >/dev/null 2>&1; then
+            _MERGE_SF=$(_state_file_path 2>/dev/null || true)
+        fi
+        _PR_URL_CHECK=""
+        if [[ -n "$_MERGE_SF" && -f "$_MERGE_SF" ]]; then
+            _PR_URL_CHECK=$(python3 -c "
+import json
+try:
+    d = json.load(open('$_MERGE_SF'))
+    print(d.get('pr_url', ''))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+        fi
+        _RESOLUTION_STRATEGY="pr-create-failed"
+        [[ -n "$_PR_URL_CHECK" ]] && _RESOLUTION_STRATEGY="pr-conflict"
+        _emit_conflict_data "$BRANCH" "main" "$_RESOLUTION_STRATEGY"
+    fi
+    exit 1
+fi
+
+# --- Resolve PR url + number for resolve_threads + polling (from state file written above) ---
+_PR_URL=""
+_PR_NUMBER=""
+if type _state_file_path >/dev/null 2>&1; then
+    _SF=$(_state_file_path 2>/dev/null || true)
+    if [[ -n "$_SF" && -f "$_SF" ]]; then
+        _PR_URL=$(python3 -c "
+import json
+try:
+    d = json.load(open('$_SF'))
+    print(d.get('pr_url', ''))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+        _PR_NUMBER=$(python3 -c "
+import json
+try:
+    d = json.load(open('$_SF'))
+    n = d.get('pr_number', '')
+    print(n if n != '' else '')
+except Exception:
+    print('')
+" 2>/dev/null || true)
+    fi
+fi
+
+if [[ -z "$_PR_NUMBER" ]]; then
+    echo "ERROR: could not resolve PR number for polling phase" >&2
+    exit 1
+fi
+
+# --- Resolve review threads before polling for merge ---
+if ! _phase_resolve_threads "$_PR_NUMBER" "$_PR_URL"; then
+    exit 1
+fi
+
+if ! _phase_poll "$_PR_NUMBER" "$_PR_URL"; then
+    exit 1
+fi
+
+# =============================================================================
+# Success exit path: verify merge commit on origin/main, then run lifecycle
+# phases that direct.sh runs (version_bump → archive → ci_trigger).
+# =============================================================================
+
+# --- Step 1: fetch latest origin/main so we have the merge commit locally ---
+git fetch origin main --quiet 2>/dev/null || {
+    echo "WARNING: git fetch origin main failed — merge SHA verification may be stale." >&2
+}
+
+# --- Step 2: get the merge commit SHA from the PR ---
+MERGE_SHA=$(gh pr view "$_PR_NUMBER" --json mergeCommit --jq .mergeCommit.oid 2>/dev/null || true)
+if [[ -z "$MERGE_SHA" ]]; then
+    echo "ERROR: Could not retrieve merge commit SHA from PR #${_PR_NUMBER} (URL: ${_PR_URL})" >&2
+    exit 1
+fi
+
+# --- Step 3: verify it appears on origin/main ---
+if ! git log origin/main --pretty=%H -n 50 2>/dev/null | grep -q "^${MERGE_SHA}$"; then
+    echo "ERROR: PR reported merged but merge commit ${MERGE_SHA} not found on origin/main (PR: ${_PR_URL})" >&2
+    exit 1
+fi
+
+echo "INFO: Merge commit ${MERGE_SHA} verified on origin/main."
+
+# --- Step 4: persist merge SHA into state file ---
+if type _state_record_merge_sha >/dev/null 2>&1; then
+    _state_record_merge_sha "$MERGE_SHA" 2>/dev/null || true
+fi
+
+# =============================================================================
+# Source merge-to-main-direct.sh in library mode to reuse the lifecycle phases.
+# Set the globals direct.sh phase functions expect, then invoke them in order.
+# =============================================================================
+
+_DIRECT_SH="${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-direct.sh"  # shim-exempt: internal plugin script
+if [[ ! -f "$_DIRECT_SH" ]]; then
+    echo "ERROR: merge-to-main-direct.sh not found at $_DIRECT_SH" >&2
+    exit 1
+fi
+
+# Resolve MAIN_REPO and PRE_MERGE_SHA before sourcing (direct.sh phase functions
+# use these as globals). PRE_MERGE_SHA is the SHA of origin/main before the
+# merge — i.e., the parent of $MERGE_SHA on the main-line. Use git to derive it.
+if [[ -z "${REPO_ROOT:-}" ]]; then
+    REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+fi
+MAIN_REPO=$(dirname "$(git rev-parse --git-common-dir 2>/dev/null || echo "")")
+if [[ -z "$MAIN_REPO" || "$MAIN_REPO" == "." ]]; then
+    MAIN_REPO="$REPO_ROOT"
+fi
+export MAIN_REPO
+
+# PRE_MERGE_SHA: first parent of the merge commit (the main-line tip before merge).
+PRE_MERGE_SHA=$(git rev-parse "${MERGE_SHA}^1" 2>/dev/null || echo "")
+export PRE_MERGE_SHA
+
+# _CFG_TKDIR is referenced by _phase_archive (direct.sh).
+_CFG_TKDIR=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" tickets.directory 2>/dev/null || true)  # shim-exempt: internal plugin script
+_CFG_TKDIR="${_CFG_TKDIR:-.tickets-tracker}"
+export _CFG_TKDIR
+
+# Source direct.sh in library mode (defines functions only; no top-level exec).
+# shellcheck source=./merge-to-main-direct.sh disable=SC1091
+MERGE_TO_MAIN_DIRECT_LIB=1 source "$_DIRECT_SH"
+
+# In PR mode, version_bump runs against the merged commit on origin/main. The
+# local main may not be checked out; cd into MAIN_REPO before invoking the
+# phase functions so their bare git operations target the main checkout.
+# However, the local main branch likely doesn't have the merge commit yet
+# (only origin/main does). Fast-forward local main to origin/main first so
+# version_bump's amend operates on the merge commit.
+if [[ -d "$MAIN_REPO/.git" ]] || [[ -f "$MAIN_REPO/.git" ]]; then
+    (
+        cd "$MAIN_REPO" 2>/dev/null || exit 0
+        # Best-effort: fast-forward local main to origin/main so the merge
+        # commit is present locally for downstream phases. Failures are
+        # tolerated — the phases gracefully handle missing local state.
+        git fetch origin main --quiet 2>/dev/null || true
+        if [[ "$(git branch --show-current 2>/dev/null)" == "main" ]]; then
+            git merge --ff-only origin/main --quiet 2>/dev/null || true
+        fi
+    )
+fi
+
+# Run the remaining lifecycle phases. Each function calls _state_mark_complete
+# on success and `exit 1` on failure (inherited via set -e propagation through
+# the source).
+_phase_version_bump
+_phase_archive
+_phase_ci_trigger
+
+# Clean up state + marker file on success (mirrors direct.sh tail).
+if type _state_file_path >/dev/null 2>&1; then
+    rm -f "$(_state_file_path)" 2>/dev/null || true
+fi
+rm -f "/tmp/merge-state-init-marker-${BRANCH//\//-}" 2>/dev/null || true
+
+echo "DONE: $BRANCH merged via PR ${_PR_URL}, version-bumped, and CI lifecycle complete."
+exit 0

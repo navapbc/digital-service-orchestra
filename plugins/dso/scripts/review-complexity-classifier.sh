@@ -69,7 +69,7 @@ declare -a CHANGED_FILES=()
 while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     CHANGED_FILES+=("$line")
-done < <(printf '%s\n' "$DIFF_CONTENT" | grep -E '^diff --git a/' | sed 's|^diff --git a/.* b/||' || true)
+done < <(printf '%s\n' "$DIFF_CONTENT" 2>/dev/null | grep -E '^diff --git a/' | sed 's|^diff --git a/.* b/||' || true)
 
 if [[ ${#CHANGED_FILES[@]} -eq 0 ]]; then
     printf '{"blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"selected_tier":"light","diff_size_lines":0,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
@@ -227,15 +227,15 @@ done
 _diff_contains_hardcoded_credential() {
     # API key prefix patterns: OpenAI sk-..., AWS AKIA..., GitHub gh[psr]_..., GitLab glpat-,
     # Slack xox[bpars]-.  Two separate greps avoid ERE complexity limits on some grep builds.
-    if printf '%s\n' "$DIFF_CONTENT" | grep -qE '^\+.*(sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|gh[psr]_[A-Za-z0-9]{10,}|glpat-[A-Za-z0-9_-]{10,}|xox[bpars]-[A-Za-z0-9-]{10,})' 2>/dev/null; then
+    if printf '%s\n' "$DIFF_CONTENT" 2>/dev/null | grep -qE '^\+.*(sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|gh[psr]_[A-Za-z0-9]{10,}|glpat-[A-Za-z0-9_-]{10,}|xox[bpars]-[A-Za-z0-9-]{10,})' 2>/dev/null; then
         return 0
     fi
     # Generic _API_KEY= / _SECRET= / _TOKEN= assignment with a literal value (≥10 alnum chars).
-    if printf '%s\n' "$DIFF_CONTENT" | grep -qE '^\+.*(_API_KEY|_SECRET|_TOKEN)[[:space:]]*[=:][[:space:]]*[A-Za-z0-9_-]{10,}' 2>/dev/null; then
+    if printf '%s\n' "$DIFF_CONTENT" 2>/dev/null | grep -qE '^\+.*(_API_KEY|_SECRET|_TOKEN)[[:space:]]*[=:][[:space:]]*[A-Za-z0-9_-]{10,}' 2>/dev/null; then
         return 0
     fi
     # Keyword patterns: security-sensitive imports/keywords and plaintext credential assignments.
-    if printf '%s\n' "$DIFF_CONTENT" | grep -qiE '^\+.*(from auth[. ]|import (crypto|cryptography|hashlib|hmac|secrets)([. ;]|$)|password|secret|token|credential|certificate)' 2>/dev/null; then
+    if printf '%s\n' "$DIFF_CONTENT" 2>/dev/null | grep -qiE '^\+.*(from auth[. ]|import (crypto|cryptography|hashlib|hmac|secrets)([. ;]|$)|password|secret|token|credential|certificate)' 2>/dev/null; then
         return 0
     fi
     return 1
@@ -331,9 +331,9 @@ _critical_path() {
 _anti_shortcut() {
     local noqa_n type_ign_n skip_n total
     # Only count markers in added lines (^+ prefix), matching _has_anti_shortcut_signal behavior
-    noqa_n=$(printf '%s\n' "$DIFF_CONTENT" | grep -c '^+.*# noqa' || true)
-    type_ign_n=$(printf '%s\n' "$DIFF_CONTENT" | grep -c '^+.*type: *ignore' || true)
-    skip_n=$(printf '%s\n' "$DIFF_CONTENT" | grep -c '^+.*pytest\.mark\.skip' || true)
+    noqa_n=$(printf '%s\n' "$DIFF_CONTENT" 2>/dev/null | grep -c '^+.*# noqa' || true)
+    type_ign_n=$(printf '%s\n' "$DIFF_CONTENT" 2>/dev/null | grep -c '^+.*type: *ignore' || true)
+    skip_n=$(printf '%s\n' "$DIFF_CONTENT" 2>/dev/null | grep -c '^+.*pytest\.mark\.skip' || true)
     noqa_n=${noqa_n:-0}
     type_ign_n=${type_ign_n:-0}
     skip_n=${skip_n:-0}
@@ -437,7 +437,7 @@ _change_volume() {
 # Floor rule checks
 # ============================================================
 _has_anti_shortcut_signal() {
-    printf '%s\n' "$DIFF_CONTENT" | grep -qE '^\+.*(# noqa|type: *ignore|pytest\.mark\.skip)' 2>/dev/null && return 0
+    printf '%s\n' "$DIFF_CONTENT" 2>/dev/null | grep -qE '^\+.*(# noqa|type: *ignore|pytest\.mark\.skip)' 2>/dev/null && return 0
     return 1
 }
 
@@ -467,7 +467,7 @@ _has_test_deletion_without_source() {
 }
 
 _has_exception_broadening() {
-    printf '%s\n' "$DIFF_CONTENT" | grep -qE '^\+.*(except Exception|catch Exception|bare except)' 2>/dev/null && return 0
+    printf '%s\n' "$DIFF_CONTENT" 2>/dev/null | grep -qE '^\+.*(except Exception|catch Exception|bare except)' 2>/dev/null && return 0
     return 1
 }
 
@@ -514,7 +514,7 @@ _has_external_api_signal() {
         [[ -z "$import_name" ]] && continue
         added_imports+=("$import_name")
     done < <(
-        printf '%s\n' "$DIFF_CONTENT" | grep -E '^\+' | \
+        printf '%s\n' "$DIFF_CONTENT" 2>/dev/null | grep -E '^\+' | \
         grep -oE '^\+[[:space:]]*(import[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)|from[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)|require\(["'"'"']([a-zA-Z_@][a-zA-Z0-9_/-]*)["'"'"']\))' | \
         sed -E 's/^\+[[:space:]]*(import[[:space:]]+|from[[:space:]]+|require\(["'"'"'])//' | \
         sed -E 's/["'"'"']\)$//' | \
@@ -700,7 +700,7 @@ _compute_performance_overlay() {
 
     # Scan added lines in diff for performance-sensitive keywords
     # SQL keywords, connection pooling, async patterns, concurrency primitives
-    if printf '%s\n' "$DIFF_CONTENT" | grep -qiE '^\+.*(SELECT|INSERT|UPDATE|DELETE|cursor|pool|async def|await|threading|multiprocessing)([. ;]|$)' 2>/dev/null; then
+    if printf '%s\n' "$DIFF_CONTENT" 2>/dev/null | grep -qiE '^\+.*(SELECT|INSERT|UPDATE|DELETE|cursor|pool|async def|await|threading|multiprocessing)([. ;]|$)' 2>/dev/null; then
         echo "true"
         return
     fi

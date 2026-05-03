@@ -25,7 +25,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 DEPS_SH="$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
-MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
+MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main-direct.sh"
 WORKTREE_CREATE_SCRIPT="$DSO_PLUGIN_DIR/scripts/worktree-create.sh"
 
 echo "=== test-retry-with-backoff.sh ==="

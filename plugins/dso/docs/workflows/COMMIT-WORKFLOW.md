@@ -13,7 +13,7 @@ Replace commands below with values from your `.claude/dso-config.conf`:
 - `commands.lint` (default: `make lint-ruff`)
 - `commands.type_check` (default: `make lint-mypy`)
 - `commands.format` (default: `make format-modified`)
-- `commands.test_changed` (optional — when absent, Step 1.5 is skipped)
+- `commands.test_changed` (optional — when absent, validation Step 1 is skipped)
 - `commands.validate` (default: `validate.sh --ci`)
 
 The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
@@ -22,7 +22,7 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 <!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
 
-## Step 0: Gather Context
+## Step 1: Gather Context
 
 ### Pre-flight: Ensure `pre-commit` Is Available
 
@@ -82,27 +82,48 @@ git log --oneline -5
 ```
 
 ```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0-gather-context" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-1-gather-context" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-## Step 0.5: Check for Non-Reviewable-Only Changes
+## Step 2: Check for Non-Reviewable-Only Changes
 
-Check if all changed files are non-reviewable. If every file matches a non-reviewable pattern, Steps 1-3a can be skipped. Otherwise a full review is required.
+Check if all changed files are non-reviewable. If every file matches a non-reviewable pattern, the validation steps that produce a review can be skipped. Otherwise a full review is required.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 git diff HEAD --name-only | bash ".claude/scripts/dso skip-review-check.sh" && SKIP_REVIEW=true || SKIP_REVIEW=false
 ```
 
-**If `SKIP_REVIEW` is true**: Skip Steps 1.5-3a entirely. Go directly to Step 4 (Stage).
+**If `SKIP_REVIEW` is true**: Skip all of `commit-workflow-validation.md` entirely. Go directly to Step 5 (Stage).
 
-**Otherwise**: Continue to Step 1.5.
+**Otherwise**: Continue to Step 3.
 
 ```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0.5-skip-review-check" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-2-skip-review-check" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-## Step 0.9: Emit Commit Workflow Start Event
+## Step 3: Load Enforcement Profile
+
+Read `enforcement.strategy` from `dso-config.conf` to decide whether local validation steps run before commit, or are deferred to CI.
+
+> **Failure routing**: When a validation or CI failure is found, dispatch using the `discover-agents.sh` routing system (`agent-routing.conf`) by failure category — unit test failures → routing category `test_fix_unit`, lint/type errors → `mechanical_fix`, multi-file/complex (CI-only) → `error-debugging:error-detective`. See [commit-workflow-validation.md](commit-workflow-validation.md) Step 1 for the full routing table.
+
+- `enforcement.strategy=ci` — local validation is **skipped**. All steps in [commit-workflow-validation.md](commit-workflow-validation.md) are deferred to CI; jump directly to Step 5 (Stage) after this gate. The always-on structural hooks (`check-portability`, `check-shim-refs`, `check-contract-schemas`, `check-referential-integrity`, `check-plugin-self-ref` — which blocks literal `${CLAUDE_PLUGIN_ROOT}/`-style paths inside plugin scripts — and `pre-commit-enforcement-boundary-check`) still run; only the gated test/review/quality hooks are deferred.
+- `enforcement.strategy=local`, `both`, or **absent** — read and execute [commit-workflow-validation.md](commit-workflow-validation.md) inline before continuing to Step 5. That file holds Steps 1–4 verbatim; Steps 5–6 from it run after Step 5 of this workflow and before Step 6.
+
+> **[Security] Network-partition warning**: When `enforcement.strategy=ci`, this commit will land locally (and may be pushed) before any test/lint/review gate has executed. If CI is unreachable (network partition, GitHub outage, expired credentials, broken workflow), the broken state can reach `main` undetected. Prefer `enforcement.strategy=local` or `both` on long-lived branches, on release-bearing commits, and whenever CI health is unverified. Operators choosing `ci` accept responsibility for verifying CI ran green before merge.
+
+```bash
+ENFORCEMENT_STRATEGY=$(grep -m1 '^enforcement\.strategy=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3-load-enforcement-profile strategy=${ENFORCEMENT_STRATEGY:-absent}" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+if [ "$ENFORCEMENT_STRATEGY" = "ci" ]; then echo "enforcement.strategy=ci — skipping local validation"; else echo "enforcement.strategy=${ENFORCEMENT_STRATEGY:-absent} — loading commit-workflow-validation.md"; fi
+```
+
+**If `ENFORCEMENT_STRATEGY=ci`**: skip all of `commit-workflow-validation.md`. Proceed to Step 4, then Step 5 (Stage), then Step 6 (Commit).
+
+**Otherwise** (`local`, `both`, or absent): read [commit-workflow-validation.md](commit-workflow-validation.md) and execute its Steps 1, 2, 3, and 4 before Step 5 of this workflow; then execute its Steps 5 and 6 before Step 6 of this workflow.
+
+## Step 4: Emit Commit Workflow Start Event
 
 Emit a durable start event **before** any timeout-prone steps (test, lint, review). This must be committed to the orphan branch so that SIGURG (exit 144) cannot lose it. Incomplete commits are detectable as unpaired start events (start without a matching end in the same session).
 
@@ -113,7 +134,7 @@ Emit a durable start event **before** any timeout-prone steps (test, lint, revie
 > ".claude/scripts/dso" emit-commit-workflow-event.sh --phase=end --success=false --failure-reason="<step and reason>"
 > ```
 >
-> Replace `<step and reason>` with a concise description (e.g., `"Step 1.5: integration tests failed after 5 attempts"`, `"Step 5: review escalated to user"`). This pairs with the start event to close the observability window.
+> Replace `<step and reason>` with a concise description (e.g., `"validation Step 1: integration tests failed after 5 attempts"`, `"validation Step 6: review escalated to user"`). This pairs with the start event to close the observability window.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -121,135 +142,12 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 ```
 
 ```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0.9-emit-start-event" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4-emit-start-event" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-## Step 1.5: Changed Integration/E2E Tests
+<!-- The validation steps in commit-workflow-validation.md (Changed Integration/E2E Tests, Format, Lint and Type Check, Write Validation State File) are gated by Step 3 (enforcement-strategy gate). When `enforcement.strategy=local`, execute Steps 1, 2, 3, and 4 of that file before continuing to Step 5. When `enforcement.strategy=ci`, skip directly to Step 5. -->
 
-If any integration or e2e test files changed, run only those files now. This prevents broken tests from being committed when the full suite is excluded from the standard commit gate.
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-TEST_CHANGED_CMD="$(".claude/scripts/dso read-config.sh" commands.test_changed)"
-if [ -z "$TEST_CHANGED_CMD" ]; then
-    echo "commands.test_changed not configured — skipping changed-test step"
-    # continue to Step 2
-else
-    "$REPO_ROOT/$TEST_CHANGED_CMD"
-fi
-```
-
-- **Integration tests fail**: DB is not running. Start it with `make db-start` and re-run. Fix the test if it is broken.
-- **E2E tests fail**: App is not running. Start it with `make start` and re-run. Fix the test if it is broken.
-- **No changed integration/e2e files**: Script exits silently. Continue to Step 2.
-
-```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-1.5-changed-tests" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
-```
-
-### Test Failure Delegation (Step 1.5)
-
-If integration or E2E tests fail after environment checks (DB/app running), apply this decision gate:
-
-**Fix inline**: Single obvious failure (typo, missing import, one-line fix) — fix it and re-run.
-
-**Delegate to sub-agent** (via [TEST-FAILURE-DISPATCH.md](TEST-FAILURE-DISPATCH.md)):
-- More than 1 test fails, OR
-- 1 test fails and an inline fix attempt did not resolve it.
-
-Dispatch procedure:
-
-1. **Build the input payload** using the integration/E2E test command that failed:
-
-```bash
-TEST_CHANGED_CMD="$(".claude/scripts/dso read-config.sh" commands.test_changed)"
-TEST_COMMAND="$REPO_ROOT/$TEST_CHANGED_CMD"
-# EXIT_CODE and STDERR_TAIL come from the ALREADY-FAILED test run above.
-# Do NOT re-run the tests — capture from the original failure.
-# EXIT_CODE=<exit code from the failed test run>
-# STDERR_TAIL=<last 50 lines of output from the failed test run>
-CHANGED_FILES=$(git diff --name-only)
-```
-
-2. **Set context** based on failure type:
-   - Integration test failure: `context="sprint-ci-failure"`
-   - E2E test failure: `context="commit-time"`
-
-3. **Sub-agent type by failure category** (see [TEST-FAILURE-DISPATCH.md](TEST-FAILURE-DISPATCH.md) for full dispatch procedure):
-
-   | Failure Category | Sub-Agent Type |
-   |-----------------|----------------|
-   | Unit test failure | `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`) |
-   | Type / lint error | `discover-agents.sh` routing category `mechanical_fix` |
-   | Multi-file / complex (CI-only) | `error-debugging:error-detective` |
-
-4. **Parse the result**:
-   - `RESULT: PASS` — re-run the config-driven test command (`$REPO_ROOT/$TEST_CHANGED_CMD`) to confirm the fix, then continue to Step 2.
-   - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt exceeds `review.max_resolution_attempts` (default: 5), escalate to user.
-   - `RESULT: PARTIAL` — log concerns via `.claude/scripts/dso ticket comment`, continue to Step 2 with caveats.
-
-5. **Fallback**: Sub-agent timeout (>5 min) or malformed output — fall back to inline fix attempt and restart from Step 1.5.
-
-## Step 2: Format
-
-Run formatting on modified files so file edits are complete before staging.
-
-```bash
-cd app && make format-modified
-```
-
-```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-2-format" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
-```
-
-## Step 3: Lint and Type Check
-
-Run lint and type checks before staging. Any tool that may edit files must run before `git add`.
-
-```bash
-cd app && make lint-ruff 2>&1 | tail -3
-```
-
-```bash
-cd app && make lint-mypy 2>&1 | tail -5
-```
-
-On success, only the summary lines are needed. If either exit code is non-zero, re-run with full output to see errors.
-
-If either check fails, fix the issue and **restart from Step 1.5**.
-
-```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3-lint-typecheck" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
-```
-
-## Step 3a: Write Validation State File
-
-After Steps 1.5-3 all pass, write a validation state file so the review workflow can skip redundant re-validation:
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-# Resolve CLAUDE_PLUGIN_ROOT if not set by the caller (e.g., manual run outside Claude Code)
-if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-    _cfg="$REPO_ROOT/.claude/dso-config.conf"
-    if [[ -f "$_cfg" ]]; then
-        CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$_cfg" 2>/dev/null | cut -d= -f2-)"
-    fi
-    # Final fallback: read dso.plugin_root from config
-    if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-        CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)"
-    fi
-fi
-source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
-ARTIFACTS_DIR=$(get_artifacts_dir)
-mkdir -p "$ARTIFACTS_DIR"
-echo "passed" > "$ARTIFACTS_DIR/validation-status"
-```
-
-```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3a-validation-state" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
-```
-
-## Step 4: Stage
+## Step 5: Stage
 
 If you intend to include new (untracked) files in this commit, add them explicitly by name first.
 
@@ -260,61 +158,16 @@ git add -u
 ```
 
 ```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4-stage" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-5-stage" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-## Step 4.5: Record Test Status
-
-Run `record-test-status.sh` **after** `git add -u` (Step 4) so that the recorded diff hash matches the staged index — the pre-commit test gate validates against the staged hash, not the working-tree hash.
-
-The invocation must be prefixed with `DSO_COMMIT_WORKFLOW=1` — the PreToolUse `hook_record_test_status_guard` rejects unprefixed direct calls to prevent casual misuse. See `${CLAUDE_PLUGIN_ROOT}/hooks/lib/pre-bash-functions.sh` for the allowlist and `${CLAUDE_PLUGIN_ROOT}/hooks/pre-commit-test-gate.sh` for the defense-in-depth diff_hash check that catches mismatched status regardless.
-
-```bash
-DSO_COMMIT_WORKFLOW=1 bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
-```
-
-- **exit 0**: all associated tests passed (or no associated tests found) — continue to Step 5 (Review Gate).
-- **exit 144**: test runner was terminated; follow the actionable guidance printed by `record-test-status.sh`. Use `test-batched.sh` to run the tests in time-bounded chunks:
-  ```bash
-  .claude/scripts/dso test-batched.sh --timeout=50 "bash tests/hooks/test-<name>.sh"
-  ```
-  When `test-batched.sh` runs out of time, it emits a **Structured Action-Required Block**:
-  ```
-  ════════════════════════════════════════════════════════════
-    ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠
-  ════════════════════════════════════════════════════════════
-  RUN: TEST_BATCHED_STATE_FILE=... bash .../test-batched.sh ...
-  DO NOT PROCEED until the command above prints a final summary.
-  ════════════════════════════════════════════════════════════
-  ```
-  Run the command shown on the `RUN:` line in subsequent calls until the summary appears, then re-run Step 4.5.
-- **exit non-zero (other)**: tests failed; fix the failures and **restart from Step 1.5**.
-
-> **NEVER add RED markers to `.test-index` to bypass a test gate failure.** RED markers (`[test_name]` entries in `.test-index`) are exclusively for TDD — they mark tests that are expected to fail because the feature under test is not yet implemented. If the test gate blocks due to pre-existing failures unrelated to your change, create a bug ticket (`.claude/scripts/dso ticket create bug "<test failure description>"`) and fix the test. Do NOT add a marker to mask the failure.
-
-```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4.5-record-test-status" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
-```
-
-## Step 5: Review Gate
-
-Decide whether a review is needed:
-
-- **Review ran earlier this session and no files changed since**: Skip to Step 6.
-- **No recent review, or files changed since the last review**: Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context. Note: Steps 1.5-3a above already ran format/lint/type-check and wrote the validation-status file, so REVIEW-WORKFLOW.md Step 1 (auto-fix pass) will skip via the fresh validation-status check. This ensures the diff hash captured in REVIEW-WORKFLOW.md Step 2 reflects the post-auto-fix state and will not be invalidated by pre-commit hooks.
-- **The commit in Step 6 is blocked** with "Review is stale" or "No code review recorded": Run REVIEW-WORKFLOW.md, then retry Step 6. Do NOT inspect, copy, or modify review state files — the commit gate enforces correctness and any workaround will be caught at the merge step.
-
-If review fails, the review workflow's Autonomous Resolution Loop handles fix/defend attempts automatically (up to `review.max_resolution_attempts`, default: 5). If it escalates to you (the orchestrator), fix the issues and **restart from Step 1.5** (not Step 5).
-
-```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-5-review-gate" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
-```
+<!-- Steps 5 and 6 of commit-workflow-validation.md (Record Test Status, Review Gate) are gated by Step 3 (enforcement-strategy gate). When `enforcement.strategy=local`, execute the corresponding sections in [commit-workflow-validation.md](commit-workflow-validation.md) before continuing to Step 6. When `enforcement.strategy=ci`, skip directly to Step 6. -->
 
 ## Step 6: Commit
 
-Files are already staged from Step 4. The diff stat summary is already in context from Step 0 or the review workflow. Use that for the commit message — do not re-run `git diff --staged`. If you need a file list, use `git diff --staged --name-only` (minimal output).
+Files are already staged from Step 5. The diff stat summary is already in context from Step 1 or the review workflow. Use that for the commit message — do not re-run `git diff --staged`. If you need a file list, use `git diff --staged --name-only` (minimal output).
 
-Create a single git commit following the repository's commit message conventions visible in the recent commits from Step 0.
+Create a single git commit following the repository's commit message conventions visible in the recent commits from Step 1.
 
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-6-commit" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"

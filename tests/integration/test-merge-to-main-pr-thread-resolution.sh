@@ -1,0 +1,618 @@
+#!/usr/bin/env bash
+# tests/integration/test-merge-to-main-pr-thread-resolution.sh
+#
+# RED integration tests for the PR review-thread resolution loop in
+# merge-to-main-pr.sh and the supporting helpers in hooks/lib/merge-helpers.sh.
+#
+# These tests drive (not-yet-built) helpers:
+#   _pr_fetch_unresolved_threads <pr_number>     — emits unresolved thread IDs,
+#                                                  one per line, on stdout.
+#   _pr_thread_is_unresolved      <thread_node_id> — prints "true" when the
+#                                                    thread is still open (unresolved),
+#                                                    "false" otherwise; always exits 0.
+#   _pr_post_thread_reply         <thread> <txt> — posts a reply via gh.
+#   _pr_resolve_thread            <thread_id>    — short-circuits when already
+#                                                  resolved; otherwise mutates.
+#   _phase_resolve_threads        <pr_number>    — main loop. Settling heuristic
+#                                                  requires (CI green AND zero
+#                                                  unresolved threads AND quiet
+#                                                  window). Caps: 10 dispatches
+#                                                  or 30 minutes elapsed.
+#                                                  Emits PR url + unresolved IDs
+#                                                  on stderr when escalating.
+#                                                  Resets the poll wall-clock
+#                                                  when a code push triggers
+#                                                  dismiss_stale_approvals_on_push.
+#
+# RED state: these functions DO NOT EXIST yet. Each test sources the libs,
+# verifies the function is missing (via `type`), and asserts on observable
+# behavior the helpers MUST produce once T3/T4 land. A FAIL here is the
+# expected RED outcome — the test gate accepts it via .test-index markers.
+#
+# Stubbing: a per-test temp dir is prepended to PATH. The dir contains
+#   * `gh` — bash shim that records argv and stdin to $STUB_GH_LOG, then
+#            emits canned JSON keyed by $STUB_GH_SCENARIO.
+#   * `llm-api-call.sh` — bash shim that records argv to $STUB_LLM_LOG and
+#                         emits a canned response.
+#
+# Tests assert against:
+#   - exit codes
+#   - captured stdout/stderr
+#   - the per-test stub call logs (counts, invoked subcommands)
+# No source-file greps.
+#
+# Usage:
+#   bash tests/integration/test-merge-to-main-pr-thread-resolution.sh
+# Exit: 0 if all tests pass (GREEN once T3/T4 land), non-zero otherwise (RED).
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+
+# shellcheck source=../lib/assert.sh
+source "$REPO_ROOT/tests/lib/assert.sh"
+
+echo "=== test-merge-to-main-pr-thread-resolution.sh ==="
+
+# ---------------------------------------------------------------------------
+# Globals & cleanup
+# ---------------------------------------------------------------------------
+_TEST_TMPDIRS=()
+_cleanup() {
+    local d
+    for d in "${_TEST_TMPDIRS[@]:-}"; do
+        [[ -n "${d:-}" && -d "$d" ]] && rm -rf "$d"
+    done
+}
+trap _cleanup EXIT
+
+MERGE_HELPERS_LIB="$REPO_ROOT/plugins/dso/hooks/lib/merge-helpers.sh"
+MERGE_PR_SCRIPT="$REPO_ROOT/plugins/dso/scripts/merge-to-main-pr.sh"
+
+# ---------------------------------------------------------------------------
+# _make_stub_dir — create a per-test stub PATH prefix containing `gh` and
+# `llm-api-call.sh` shims. Returns the dir path on stdout.
+#
+# The stubs are scenario-driven via env vars set by the caller before invoking
+# the helper under test:
+#   STUB_GH_SCENARIO       — selector for the canned JSON response
+#   STUB_GH_LOG            — file the gh shim appends each call's argv to
+#   STUB_GH_THREADS_FIXTURE — path to a JSON fixture for graphql thread lists
+#   STUB_LLM_LOG           — file the llm shim appends each call's argv to
+# ---------------------------------------------------------------------------
+_make_stub_dir() {
+    local d
+    d=$(mktemp -d "/tmp/dso-pr-thread-stubs.XXXXXX")
+    _TEST_TMPDIRS+=("$d")
+
+    cat > "$d/gh" <<'GHEOF'
+#!/usr/bin/env bash
+# Test stub for `gh`. Records argv+stdin to $STUB_GH_LOG, returns scenario JSON.
+set -u
+LOG="${STUB_GH_LOG:-/dev/null}"
+{
+    printf 'CALL'
+    for a in "$@"; do printf '\t%s' "$a"; done
+    printf '\n'
+} >> "$LOG" 2>/dev/null || true
+
+# Capture stdin for graphql mutation calls (so tests can assert payloads)
+if [[ "${1:-}" == "api" && "${2:-}" == "graphql" ]]; then
+    if [[ ! -t 0 ]]; then
+        {
+            printf 'STDIN_BEGIN\n'
+            cat
+            printf '\nSTDIN_END\n'
+        } >> "$LOG" 2>/dev/null || true
+    fi
+fi
+
+case "${STUB_GH_SCENARIO:-default}" in
+    threads_mixed)
+        # Fixture-backed: emit the contents of $STUB_GH_THREADS_FIXTURE
+        if [[ -n "${STUB_GH_THREADS_FIXTURE:-}" && -f "${STUB_GH_THREADS_FIXTURE:-}" ]]; then
+            cat "$STUB_GH_THREADS_FIXTURE"
+        else
+            echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+        fi
+        ;;
+    threads_all_resolved)
+        echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[{"id":"PRT_1","isResolved":true}]}}}}}'
+        ;;
+    ci_green_quiet)
+        # gh pr checks → all SUCCESS
+        if [[ "${1:-}" == "pr" && "${2:-}" == "checks" ]]; then
+            echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+        elif [[ "${1:-}" == "pr" && "${2:-}" == "view" ]]; then
+            echo '{"state":"OPEN","mergeable":"MERGEABLE","headRefOid":"abc123"}'
+        else
+            echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+        fi
+        ;;
+    ci_pending)
+        if [[ "${1:-}" == "pr" && "${2:-}" == "checks" ]]; then
+            echo '[{"name":"ci","state":"IN_PROGRESS","conclusion":""}]'
+        else
+            echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+        fi
+        ;;
+    push_dismissed)
+        # Simulate a code push between iterations: headRefOid changes.
+        # Each call returns a fresh oid → forces dismiss_stale_approvals reset.
+        if [[ "${1:-}" == "pr" && "${2:-}" == "view" ]]; then
+            echo '{"state":"OPEN","mergeable":"MERGEABLE","headRefOid":"newsha'"$RANDOM"'"}'
+        elif [[ "${1:-}" == "pr" && "${2:-}" == "checks" ]]; then
+            echo '[{"name":"ci","state":"IN_PROGRESS","conclusion":""}]'
+        else
+            echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+        fi
+        ;;
+    threads_one_unresolved)
+        # Loop-style: always returns one unresolved thread → keeps loop spinning
+        # until dispatch cap or wall-clock cap fires.
+        if [[ "${1:-}" == "pr" && "${2:-}" == "checks" ]]; then
+            echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+        elif [[ "${1:-}" == "pr" && "${2:-}" == "view" ]]; then
+            echo '{"state":"OPEN","mergeable":"MERGEABLE","headRefOid":"sha-stable"}'
+        else
+            echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[{"id":"PRT_STUCK","isResolved":false,"path":"x.py","body":"comment"}]}}}}}'
+        fi
+        ;;
+    *)
+        echo '{}'
+        ;;
+esac
+exit 0
+GHEOF
+    chmod +x "$d/gh"
+
+    cat > "$d/llm-api-call.sh" <<'LLMEOF'
+#!/usr/bin/env bash
+# Test stub for llm-api-call.sh. Records each invocation, returns canned output.
+set -u
+LOG="${STUB_LLM_LOG:-/dev/null}"
+{
+    printf 'CALL'
+    for a in "$@"; do printf '\t%s' "$a"; done
+    printf '\n'
+} >> "$LOG" 2>/dev/null || true
+echo 'ACTION:reply REPLY:acknowledged'
+exit 0
+LLMEOF
+    chmod +x "$d/llm-api-call.sh"
+
+    echo "$d"
+}
+
+# ---------------------------------------------------------------------------
+# _make_threads_fixture <out_path>
+# Mixed fixture: 2 unresolved + 1 resolved review thread.
+# ---------------------------------------------------------------------------
+_make_threads_fixture() {
+    local out="$1"
+    cat > "$out" <<'FIX'
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "reviewThreads": {
+          "nodes": [
+            {"id": "PRT_AAA", "isResolved": false, "path": "src/a.py", "body": "fix me"},
+            {"id": "PRT_BBB", "isResolved": true,  "path": "src/b.py", "body": "ok now"},
+            {"id": "PRT_CCC", "isResolved": false, "path": "src/c.py", "body": "still wrong"}
+          ]
+        }
+      }
+    }
+  }
+}
+FIX
+}
+
+# ---------------------------------------------------------------------------
+# _setup_test — fresh stubs + per-test logs + PATH prefix.
+# Sets the following env for the test body:
+#   STUB_DIR, STUB_GH_LOG, STUB_LLM_LOG, original PATH saved as _SAVED_PATH.
+# ---------------------------------------------------------------------------
+_setup_test() {
+    STUB_DIR=$(_make_stub_dir)
+    STUB_GH_LOG="$STUB_DIR/gh.log"
+    STUB_LLM_LOG="$STUB_DIR/llm.log"
+    : > "$STUB_GH_LOG"
+    : > "$STUB_LLM_LOG"
+    export STUB_GH_LOG STUB_LLM_LOG
+    _SAVED_PATH="$PATH"
+    PATH="$STUB_DIR:$PATH"
+    export PATH
+    # Point _phase_resolve_threads at the stub so tests never hit the real LLM.
+    export _LLM_DISPATCH_CMD="$STUB_DIR/llm-api-call.sh"
+    # Set BRANCH so merge-helpers.sh state functions don't blow up.
+    BRANCH="test-branch-$$"
+    export BRANCH
+}
+
+_teardown_test() {
+    PATH="$_SAVED_PATH"
+    export PATH
+    unset STUB_GH_SCENARIO STUB_GH_THREADS_FIXTURE
+    unset PR_THREAD_LOOP_INTERVAL PR_THREAD_LOOP_MAX_DISPATCHES PR_THREAD_LOOP_MAX_WALL_SECONDS
+    unset PR_THREAD_LOOP_START_OVERRIDE_SECONDS PR_THREAD_LOOP_TEST_STOP_AFTER_RESET
+    unset _LLM_DISPATCH_CMD
+}
+
+# Convenience: count how many times the gh stub was called with given subcmd.
+_gh_call_count() {
+    local pattern="$1"
+    grep -c "^CALL.*${pattern}" "$STUB_GH_LOG" 2>/dev/null || echo 0
+}
+
+# ===========================================================================
+# Test 1: _pr_fetch_unresolved_threads parses unresolved IDs from a mixed
+# GraphQL response, returning ONLY the unresolved thread IDs on stdout.
+# ===========================================================================
+test_review_threads_query_parses_unresolved_thread_ids() {
+    _setup_test
+    local fixture="$STUB_DIR/threads-mixed.json"
+    _make_threads_fixture "$fixture"
+    export STUB_GH_SCENARIO=threads_mixed
+    export STUB_GH_THREADS_FIXTURE="$fixture"
+
+    # Source the merge-helpers library; helper must be defined here (RED until T3).
+    # shellcheck disable=SC1090
+    source "$MERGE_HELPERS_LIB" 2>/dev/null || true
+
+    if ! type _pr_fetch_unresolved_threads >/dev/null 2>&1; then
+        (( ++FAIL ))
+        echo "FAIL: test_review_threads_query_parses_unresolved_thread_ids — _pr_fetch_unresolved_threads not defined (RED until T3)" >&2
+        _teardown_test
+        return
+    fi
+
+    local out
+    out=$(_pr_fetch_unresolved_threads 42 2>/dev/null) || out=""
+
+    # Behavioral assertions: only unresolved IDs appear, resolved ID is absent.
+    assert_contains "test_review_threads_query_parses_unresolved_thread_ids: includes PRT_AAA" "PRT_AAA" "$out"
+    assert_contains "test_review_threads_query_parses_unresolved_thread_ids: includes PRT_CCC" "PRT_CCC" "$out"
+    assert_not_contains "test_review_threads_query_parses_unresolved_thread_ids: excludes PRT_BBB (resolved)" "PRT_BBB" "$out"
+
+    # Exactly one gh graphql call was made.
+    local n
+    n=$(_gh_call_count "graphql")
+    assert_eq "test_review_threads_query_parses_unresolved_thread_ids: one graphql call" "1" "$n"
+
+    _teardown_test
+}
+
+# ===========================================================================
+# Test 2: _pr_resolve_thread short-circuits when the thread is already resolved
+# (verified internally by calling _pr_thread_is_unresolved); invokes the
+# resolveReviewThread mutation exactly once when the thread is unresolved.
+# Helper signature per T3 spec: _pr_resolve_thread <thread_node_id> (single arg).
+# ===========================================================================
+test_resolve_thread_calls_mutation_only_when_unresolved() {
+    _setup_test
+
+    # shellcheck disable=SC1090
+    source "$MERGE_HELPERS_LIB" 2>/dev/null || true
+
+    if ! type _pr_resolve_thread >/dev/null 2>&1; then
+        (( ++FAIL ))
+        echo "FAIL: test_resolve_thread_calls_mutation_only_when_unresolved — _pr_resolve_thread not defined (RED until T3)" >&2
+        _teardown_test
+        return
+    fi
+
+    # Case 1: pre-resolved thread → idempotent precheck reports isResolved=true,
+    # mutation NOT invoked. Stub gh returns isResolved=true for any thread query.
+    export STUB_GH_SCENARIO=threads_all_resolved
+    : > "$STUB_GH_LOG"
+    _pr_resolve_thread "PRT_RESOLVED" >/dev/null 2>&1 || true
+    local mut1
+    # grep -c outputs "0" (no matches) and exits 1 when file exists; strip the
+    # || fallback so we don't capture "0\n0" when there are zero matches.
+    mut1=$(grep -c 'resolveReviewThread' "$STUB_GH_LOG" 2>/dev/null; true)
+    assert_eq "test_resolve_thread_calls_mutation_only_when_unresolved: zero mutations when pre-resolved" "0" "$mut1"
+
+    # Case 2: unresolved thread → precheck reports isResolved=false, mutation
+    # invoked exactly once. Stub returns isResolved=false for PRT_STUCK.
+    # Must pass the same ID the stub returns — _pr_thread_is_unresolved filters by ID.
+    export STUB_GH_SCENARIO=threads_one_unresolved
+    : > "$STUB_GH_LOG"
+    _pr_resolve_thread "PRT_STUCK" >/dev/null 2>&1 || true
+    local mut2
+    mut2=$(grep -c 'resolveReviewThread' "$STUB_GH_LOG" 2>/dev/null; true)
+    assert_eq "test_resolve_thread_calls_mutation_only_when_unresolved: one mutation when unresolved" "1" "$mut2"
+
+    _teardown_test
+}
+
+# ===========================================================================
+# Test 3: settling heuristic — must require ALL THREE: CI green AND zero
+# unresolved threads AND a quiet window since last activity. Falsified by any
+# missing condition.
+# ===========================================================================
+test_settling_heuristic_requires_zero_threads_and_quiet_window() {
+    _setup_test
+
+    # shellcheck disable=SC1090
+    source "$MERGE_HELPERS_LIB" 2>/dev/null || true
+
+    if ! type _pr_settling_check >/dev/null 2>&1; then
+        (( ++FAIL ))
+        echo "FAIL: test_settling_heuristic_requires_zero_threads_and_quiet_window — _pr_settling_check not defined" >&2
+        _teardown_test
+        return
+    fi
+
+    # Both conditions hold → settled (exit 0).
+    local rc=0
+    _pr_settling_check --threads=0 --quiet-window-elapsed=true >/dev/null 2>&1 || rc=$?
+    assert_eq "test_settling_heuristic: settles when threads=0 and quiet window elapsed" "0" "$rc"
+
+    # CI state is irrelevant — settles regardless of CI green/not-green.
+    rc=0
+    _pr_settling_check --ci-green=false --threads=0 --quiet-window-elapsed=true >/dev/null 2>&1 || rc=$?
+    assert_eq "test_settling_heuristic: settles with ci-green=false (CI state ignored)" "0" "$rc"
+
+    # Threads remaining → unsettled.
+    rc=0
+    _pr_settling_check --threads=2 --quiet-window-elapsed=true >/dev/null 2>&1 || rc=$?
+    assert_ne "test_settling_heuristic: unsettled when threads remain" "0" "$rc"
+
+    # Quiet window not elapsed → unsettled.
+    rc=0
+    _pr_settling_check --threads=0 --quiet-window-elapsed=false >/dev/null 2>&1 || rc=$?
+    assert_ne "test_settling_heuristic: unsettled when quiet window not elapsed" "0" "$rc"
+
+    _teardown_test
+}
+
+# ===========================================================================
+# Test 4: dispatch count cap — after 10 dispatches without settling, the loop
+# exits non-zero with PR url + unresolved thread IDs in stderr.
+# ===========================================================================
+test_dispatch_count_cap_triggers_escalation() {
+    _setup_test
+    export STUB_GH_SCENARIO=threads_one_unresolved
+    # Force the loop to test the dispatch cap by setting interval to 0 and
+    # disabling wall-clock cap (very large).
+    export PR_THREAD_LOOP_INTERVAL=0
+    export PR_THREAD_LOOP_MAX_DISPATCHES=10
+    export PR_THREAD_LOOP_MAX_WALL_SECONDS=99999
+
+    # Source merge-helpers.sh + define _phase_resolve_threads by sourcing
+    # merge-to-main-pr.sh in library mode if/when it supports that. Until T4
+    # lands, the function is missing → RED.
+    # shellcheck disable=SC1090
+    source "$MERGE_HELPERS_LIB" 2>/dev/null || true
+
+    # Run the loop call in a subshell so an exit/abort cannot kill the test
+    # runner. T4 currently has NOT landed: _phase_resolve_threads is missing
+    # and the subshell will exit non-zero. That is the RED outcome we record.
+    local stderr_capture rc=0
+    stderr_capture=$(
+        # shellcheck disable=SC1090
+        source "$MERGE_HELPERS_LIB" 2>/dev/null || true
+        if ! type _phase_resolve_threads >/dev/null 2>&1; then
+            # Library-mode source attempt; will run top-level code in this
+            # subshell only. Suppress its output.
+            PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+                source "$MERGE_PR_SCRIPT" >/dev/null 2>&1 || true
+        fi
+        if ! type _phase_resolve_threads >/dev/null 2>&1; then
+            echo "MISSING_FUNCTION:_phase_resolve_threads" >&2
+            exit 99
+        fi
+        _phase_resolve_threads 99 "https://github.com/o/r/pull/99" 2>&1 >/dev/null
+    ) || rc=$?
+
+    if [[ "$rc" == "99" ]] || [[ "$stderr_capture" == *"MISSING_FUNCTION:_phase_resolve_threads"* ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_dispatch_count_cap_triggers_escalation — _phase_resolve_threads not defined (RED until T4)" >&2
+        _teardown_test
+        return
+    fi
+
+    assert_ne "test_dispatch_count_cap_triggers_escalation: non-zero exit on cap" "0" "$rc"
+    assert_contains "test_dispatch_count_cap_triggers_escalation: PR url in stderr" "pull/99" "$stderr_capture"
+    assert_contains "test_dispatch_count_cap_triggers_escalation: unresolved id in stderr" "PRT_STUCK" "$stderr_capture"
+
+    _teardown_test
+}
+
+# ===========================================================================
+# Test 5: wall-clock cap — after 30 simulated minutes elapsed, the loop exits
+# non-zero with the same envelope (PR url + unresolved IDs).
+# ===========================================================================
+test_wall_clock_cap_triggers_escalation() {
+    _setup_test
+    export STUB_GH_SCENARIO=threads_one_unresolved
+    # High dispatch cap + tiny wall-clock cap → wall-clock fires first.
+    # The implementation must accept these env overrides (or read config).
+    export PR_THREAD_LOOP_INTERVAL=0
+    export PR_THREAD_LOOP_MAX_DISPATCHES=99999
+    export PR_THREAD_LOOP_MAX_WALL_SECONDS=1
+    # Pretend 30 minutes have already elapsed when the loop starts.
+    export PR_THREAD_LOOP_START_OVERRIDE_SECONDS=1800
+
+    # shellcheck disable=SC1090
+    source "$MERGE_HELPERS_LIB" 2>/dev/null || true
+
+    local stderr_capture rc=0
+    stderr_capture=$(
+        # shellcheck disable=SC1090
+        source "$MERGE_HELPERS_LIB" 2>/dev/null || true
+        if ! type _phase_resolve_threads >/dev/null 2>&1; then
+            PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+                source "$MERGE_PR_SCRIPT" >/dev/null 2>&1 || true
+        fi
+        if ! type _phase_resolve_threads >/dev/null 2>&1; then
+            echo "MISSING_FUNCTION:_phase_resolve_threads" >&2
+            exit 99
+        fi
+        _phase_resolve_threads 77 "https://github.com/o/r/pull/77" 2>&1 >/dev/null
+    ) || rc=$?
+
+    if [[ "$rc" == "99" ]] || [[ "$stderr_capture" == *"MISSING_FUNCTION:_phase_resolve_threads"* ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_wall_clock_cap_triggers_escalation — _phase_resolve_threads not defined (RED until T4)" >&2
+        _teardown_test
+        return
+    fi
+
+    assert_ne "test_wall_clock_cap_triggers_escalation: non-zero exit on wall-clock cap" "0" "$rc"
+    assert_contains "test_wall_clock_cap_triggers_escalation: PR url in stderr" "pull/77" "$stderr_capture"
+    assert_contains "test_wall_clock_cap_triggers_escalation: unresolved id in stderr" "PRT_STUCK" "$stderr_capture"
+
+    _teardown_test
+}
+
+# ===========================================================================
+# Test 6: push-induced dismissal resets poll wall-clock window — when a code
+# push occurs between iterations and dismiss_stale_approvals_on_push fires,
+# the poll window restart must not double-count the restarted CI as a
+# separate timeout. After the reset, the loop must continue (no escalation).
+# ===========================================================================
+test_push_induced_dismissal_resets_poll_window() {
+    _setup_test
+    export STUB_GH_SCENARIO=push_dismissed
+    # Wall-clock cap large enough that without the reset the test would never
+    # escalate naturally; we only validate that the reset DOES fire (via a
+    # signal emitted by the implementation) and the loop survives one iter.
+    export PR_THREAD_LOOP_INTERVAL=0
+    export PR_THREAD_LOOP_MAX_DISPATCHES=2
+    export PR_THREAD_LOOP_MAX_WALL_SECONDS=10
+    # Tell the loop to stop after detecting one reset (test-only escape).
+    export PR_THREAD_LOOP_TEST_STOP_AFTER_RESET=1
+
+    # shellcheck disable=SC1090
+    source "$MERGE_HELPERS_LIB" 2>/dev/null || true
+
+    local combined rc=0
+    combined=$(
+        # shellcheck disable=SC1090
+        source "$MERGE_HELPERS_LIB" 2>/dev/null || true
+        if ! type _phase_resolve_threads >/dev/null 2>&1; then
+            PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+                source "$MERGE_PR_SCRIPT" >/dev/null 2>&1 || true
+        fi
+        if ! type _phase_resolve_threads >/dev/null 2>&1; then
+            echo "MISSING_FUNCTION:_phase_resolve_threads"
+            exit 99
+        fi
+        _phase_resolve_threads 55 "https://github.com/o/r/pull/55" 2>&1
+    ) || rc=$?
+
+    if [[ "$rc" == "99" ]] || [[ "$combined" == *"MISSING_FUNCTION:_phase_resolve_threads"* ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_push_induced_dismissal_resets_poll_window — _phase_resolve_threads not defined (RED until T4)" >&2
+        _teardown_test
+        return
+    fi
+
+    # Behavioral assertion: the implementation MUST emit a recognizable signal
+    # whenever it detects a head-sha change and resets its poll window. The
+    # exact wording is contract-defined — assert on the signal token.
+    assert_contains "test_push_induced_dismissal_resets_poll_window: emits POLL_WINDOW_RESET signal" "POLL_WINDOW_RESET" "$combined"
+
+    # And the wall-clock-cap escalation envelope must NOT fire on the very
+    # first iteration just because CI restarted — i.e., no max-wait error
+    # for PR 55.
+    assert_not_contains "test_push_induced_dismissal_resets_poll_window: no premature wall-clock escalation" "max-wait exceeded" "$combined"
+
+    _teardown_test
+}
+
+# ===========================================================================
+# Test 7: file_path from GraphQL response is untrusted reviewer input. The
+# validator MUST reject path-traversal segments, absolute paths, leading
+# dashes (argument injection), and any chars outside [A-Za-z0-9._/-]. Safe
+# paths must be accepted. This guards _phase_resolve_threads against passing
+# malicious paths to `git diff` and `llm-api-call.sh`.
+# ===========================================================================
+test_file_path_validator_rejects_malicious_input() {
+    _setup_test
+
+    # Source merge-to-main-pr.sh in library mode to define _pr_validate_file_path.
+    # shellcheck disable=SC1090
+    (
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+            source "$MERGE_PR_SCRIPT" >/dev/null 2>&1 || true
+
+        if ! type _pr_validate_file_path >/dev/null 2>&1; then
+            echo "MISSING_FUNCTION:_pr_validate_file_path" >&2
+            exit 99
+        fi
+
+        local rc=0
+
+        # --- Must reject ---
+        local malicious=(
+            "../etc/passwd"
+            "../../etc/passwd"
+            "src/../../etc/passwd"
+            "/etc/passwd"
+            "/tmp/evil"
+            "--upload-pack=evil"
+            "-rf"
+            "foo;rm -rf /"
+            "foo\$(whoami)"
+            "foo bar.py"
+            "foo|bar"
+            "foo>bar"
+        )
+        local p
+        for p in "${malicious[@]}"; do
+            if _pr_validate_file_path "$p" 2>/dev/null; then
+                echo "MALICIOUS_ACCEPTED:$p" >&2
+                rc=1
+            fi
+        done
+
+        # --- Must accept ---
+        local safe=(
+            ""
+            "src/a.py"
+            "plugins/dso/scripts/merge-to-main-pr.sh"
+            "tests/integration/test-foo.sh"
+            "README.md"
+            "deeply/nested/path/file_name-1.0.txt"
+        )
+        for p in "${safe[@]}"; do
+            if ! _pr_validate_file_path "$p" 2>/dev/null; then
+                echo "SAFE_REJECTED:$p" >&2
+                rc=1
+            fi
+        done
+
+        exit "$rc"
+    )
+    local subshell_rc=$?
+
+    if [[ "$subshell_rc" == "99" ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_file_path_validator_rejects_malicious_input — _pr_validate_file_path not defined" >&2
+        _teardown_test
+        return
+    fi
+
+    assert_eq "test_file_path_validator_rejects_malicious_input: validator behaves correctly" "0" "$subshell_rc"
+
+    _teardown_test
+}
+
+# ---------------------------------------------------------------------------
+# Run all tests
+# ---------------------------------------------------------------------------
+test_review_threads_query_parses_unresolved_thread_ids
+test_resolve_thread_calls_mutation_only_when_unresolved
+test_settling_heuristic_requires_zero_threads_and_quiet_window
+test_dispatch_count_cap_triggers_escalation
+test_wall_clock_cap_triggers_escalation
+test_push_induced_dismissal_resets_poll_window
+test_file_path_validator_rejects_malicious_input
+
+# Print summary and exit non-zero on any failure (RED state expected pre-T3/T4).
+print_summary

@@ -832,7 +832,7 @@ hook_tickets_tracker_bash_guard() {
 # does not need to be load-bearing.
 # Allowlist:
 #   --attest flag            harvest-worktree.sh worktree trust transfer
-#   DSO_COMMIT_WORKFLOW=1    env-var sentinel set by COMMIT-WORKFLOW.md Step 4.5
+#   DSO_COMMIT_WORKFLOW=1    env-var sentinel set by commit-workflow-validation.md Step 5
 #                            and related commit-flow prompts (single-agent-integrate,
 #                            per-worktree-review-commit)
 hook_record_test_status_guard() {

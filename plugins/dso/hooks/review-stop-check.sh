@@ -74,7 +74,7 @@ if [[ ! -f "$REVIEW_STATE_FILE" ]]; then
     echo ""
     echo "Before completing this task, follow the Task Completion Workflow:"
     echo "  1. Run \`/dso:review\` to review your changes"
-    echo "  2. Fix any issues (scores must be >= 4)"
+    echo "  2. Fix any issues (findings must have no critical, important, or fragile severity)"
     echo "  3. Commit and push"
     echo "  4. Wait for CI to pass"
     echo ""

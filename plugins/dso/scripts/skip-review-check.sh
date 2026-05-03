@@ -11,7 +11,7 @@ set -uo pipefail
 #   git diff HEAD --name-only | bash scripts/skip-review-check.sh
 #   echo '.tickets-tracker/abc.md' | bash scripts/skip-review-check.sh
 #
-# Classification logic extracted from COMMIT-WORKFLOW.md Step 0.5 (lines 48-74).
+# Classification logic extracted from COMMIT-WORKFLOW.md Step 2 (Check for Non-Reviewable-Only Changes).
 
 set -uo pipefail
 

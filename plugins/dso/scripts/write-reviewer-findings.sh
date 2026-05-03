@@ -9,12 +9,12 @@ set -euo pipefail
 # to obtain a valid REVIEWER_HASH without passing schema validation.
 #
 # Usage:
-#   cat findings.json | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"
-#   cat findings.json | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh" --output /path/to/slot.json
+#   cat findings.json | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"  # shim-exempt: usage example in script header
+#   cat findings.json | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh" --output /path/to/slot.json  # shim-exempt: usage example in script header
 #
 #   Or with a heredoc:
-#   cat <<'EOF' | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"
-#   { "scores": {...}, "findings": [...], "summary": "..." }
+#   cat <<'EOF' | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"  # shim-exempt: usage example in script header
+#   { "findings": [...], "summary": "..." }
 #   EOF
 #
 # Options:
@@ -86,33 +86,42 @@ if [ ! -s "$PENDING_FILE" ]; then
     exit 2
 fi
 
-# Normalize 'dimensions' → 'scores' key if the LLM used the wrong top-level key name.
-# The light reviewer (haiku) sometimes writes "dimensions" instead of "scores" due to
-# positional bias in the agent prompt — the concept word "dimensions" competes with the
-# JSON key name "scores". Also normalize nested score objects: the LLM sometimes writes
-# { "dimensions": { "correctness": { "score": 4, "rationale": "..." } } } instead of
-# flat integers — flatten { "score": N } values to just N (bug 8e5d-ade1).
+# Warn on deprecated 'scores' key during transition — scores key will be rejected
+# once reviewer agents are updated in story f19a-c97e. During this transition, scores
+# is tolerated so the review pipeline continues to function with existing agents.
 python3 -c "
 import json, sys
+SCORE_DIMS = {'correctness', 'design', 'hygiene', 'maintainability', 'verification'}
+FINDING_ITEM_KEYS = {'severity', 'category', 'description', 'file'}
 with open(sys.argv[1], 'r') as f:
     data = json.load(f)
 changed = False
-# Normalize top-level 'dimensions' key to 'scores'
-if 'dimensions' in data and 'scores' not in data:
-    print('WARNING: Normalizing top-level key \"dimensions\" to \"scores\"', file=sys.stderr)
-    data['scores'] = data.pop('dimensions')
+if 'scores' in data:
+    print('DEPRECATION WARNING: \"scores\" key is deprecated. '
+          'Update reviewer agents to 2-key schema {findings, summary} (story f19a-c97e).',
+          file=sys.stderr)
+# Normalization: when the arch agent emits a single finding dict at the top level
+# (e.g., {category, description, severity, file}) instead of the {findings, summary}
+# container, wrap it into the expected structure so the schema validator accepts it.
+if 'findings' not in data and (FINDING_ITEM_KEYS & set(data.keys())):
+    print('WARNING: Top-level keys look like a finding item; wrapping into '
+          '{findings:[<finding>], summary: ...}', file=sys.stderr)
+    finding = {k: v for k, v in data.items() if k in FINDING_ITEM_KEYS or k in {'rationale', 'recommendation'}}
+    data = {'findings': [finding], 'summary': 'Single finding wrapped from non-container response.'}
     changed = True
-# Normalize nested score objects: { 'score': N, 'rationale': '...' } -> N
-if isinstance(data.get('scores'), dict):
-    for k, v in list(data['scores'].items()):
-        if isinstance(v, dict) and 'score' in v:
-            print(f'WARNING: Flattening nested score object for \"{k}\"', file=sys.stderr)
-            data['scores'][k] = v['score']
-            changed = True
+# Add missing 'summary' field with diagnostic default
+if 'summary' not in data:
+    print('WARNING: Adding default summary field (arch agent did not provide one)', file=sys.stderr)
+    data['summary'] = 'Summary unavailable — arch agent response did not include a summary field.'
+    changed = True
+# Add missing 'findings' field with empty list when absent
+if 'findings' not in data:
+    data['findings'] = []
+    changed = True
 if changed:
     with open(sys.argv[1], 'w') as f:
         json.dump(data, f, indent=2)
-" "$PENDING_FILE" 2>&1 || true  # normalization failure is non-fatal
+" "$PENDING_FILE" >&2 || true  # warnings to stderr; normalization failure is non-fatal
 
 # Inject review_tier field if --review-tier was provided
 if [[ -n "$_REVIEW_TIER" ]]; then

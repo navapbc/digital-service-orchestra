@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016  # single-quoted patterns intentionally grep for literal $VAR in source
 # tests/scripts/test-merge-to-main-ci-workflow-name.sh
 # Tests that merge-to-main.sh reads ci.workflow_name (as CI_WORKFLOW_NAME via
 # batch eval), falls back to merge.ci_workflow_name with a deprecation warning,
@@ -20,7 +21,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
+MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main-direct.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
