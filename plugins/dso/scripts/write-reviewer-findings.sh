@@ -97,7 +97,7 @@ if 'scores' in data:
     print('DEPRECATION WARNING: \"scores\" key is deprecated. '
           'Update reviewer agents to 2-key schema {findings, summary} (story f19a-c97e).',
           file=sys.stderr)
-" "$PENDING_FILE" 2>&1 || true  # non-fatal; deprecation warning only
+" "$PENDING_FILE" || true  # non-fatal; deprecation warning goes to stderr (not stdout)
 
 # Inject review_tier field if --review-tier was provided
 if [[ -n "$_REVIEW_TIER" ]]; then
