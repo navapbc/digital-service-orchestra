@@ -121,7 +121,7 @@ if 'findings' not in data:
 if changed:
     with open(sys.argv[1], 'w') as f:
         json.dump(data, f, indent=2)
-" "$PENDING_FILE" 2>&1 || true  # normalization failure is non-fatal
+" "$PENDING_FILE" >&2 || true  # warnings to stderr; normalization failure is non-fatal
 
 # Inject review_tier field if --review-tier was provided
 if [[ -n "$_REVIEW_TIER" ]]; then
