@@ -671,11 +671,86 @@ test_pr_resolve_threads_read_config_env_override() {
     assert_pass_if_clean "test_pr_resolve_threads_read_config_env_override"
 }
 
+# test_pr_handle_head_sha_reset_skips_update_on_empty_sha: _pr_handle_head_sha_reset
+# must not update the tracked SHA when gh returns an empty string (transient failure).
+# Given: a running loop where the tracked SHA is 'abc123'
+# When: gh returns empty headRefOid (network hiccup stub)
+# Then: the tracked SHA remains 'abc123' (not overwritten) — verified by reading
+#       the variable value through the printf-v nameref pattern.
+test_pr_handle_head_sha_reset_skips_update_on_empty_sha() {
+    echo ""
+    echo "=== test_pr_handle_head_sha_reset_skips_update_on_empty_sha ==="
+    _snapshot_fail
+    # Source the function
+    local _result
+    _result=$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            # Stub gh to return empty headRefOid (transient failure)
+            gh() { echo '{\"headRefOid\":\"\"}'; }
+            export -f gh
+            _last_sha='abc123'
+            _start=0 _last_ts=0 _last_count=0
+            _pr_handle_head_sha_reset 99 _last_sha _start _last_ts _last_count 2>/dev/null || true
+            echo \"sha_after=\$_last_sha\"
+        " 2>/dev/null
+    ) || true
+    # SHA must NOT be updated when gh returns empty
+    assert_eq "test_pr_handle_head_sha_reset_skips_update_on_empty_sha" \
+        "1" "$(echo "$_result" | grep -c 'sha_after=abc123')"
+    assert_pass_if_clean "test_pr_handle_head_sha_reset_skips_update_on_empty_sha"
+}
+
+# test_pr_dispatch_unresolved_batch_routes_reply_action: when the LLM returns
+# ACTION:reply, the batch dispatches a reply comment (not code_change or escalate).
+# This tests the 3-way routing branch in _pr_dispatch_unresolved_batch.
+test_pr_dispatch_unresolved_batch_routes_reply_action() {
+    echo ""
+    echo "=== test_pr_dispatch_unresolved_batch_routes_reply_action ==="
+    _snapshot_fail
+    # Test the routing by inspecting which code path was taken.
+    # _pr_dispatch_unresolved_batch reads LLM output with ACTION:reply → calls _pr_post_thread_reply
+    # We verify by checking that _code_change_threads remains empty (no code_change routing)
+    # and _escalated_threads remains empty (no escalation routing).
+    local _result
+    _result=$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            # Stub LLM to return ACTION:reply with REPLY: keyword (matching production pattern)
+            _llm_cmd() { echo 'ACTION:reply REPLY:Fixed the issue'; }
+            # Stub gh for reply posting
+            gh() { :; }
+            export -f gh
+            declare -A _escaped=()
+            declare -a _code=()
+            declare -a _threads=('PRT_test_thread')
+            _dispatches=0
+            _pr_dispatch_unresolved_batch 42 'https://x/42' '$REPO_ROOT' '_llm_cmd' 10 \
+                _dispatches _escaped _code \"\${_threads[@]}\" 2>/dev/null || true
+            echo \"code_change_count=\${#_code[@]}\"
+            echo \"escalated_count=\${#_escaped[@]}\"
+            echo \"dispatches=\$_dispatches\"
+        " 2>/dev/null
+    ) || true
+    # Reply action: code_change empty (no code_change), escalated empty (no escalation), 1 dispatch
+    assert_eq "test_pr_dispatch_unresolved_batch_routes_reply_action: no code_change" \
+        "1" "$(echo "$_result" | grep -c 'code_change_count=0')"
+    assert_eq "test_pr_dispatch_unresolved_batch_routes_reply_action: not escalated" \
+        "1" "$(echo "$_result" | grep -c 'escalated_count=0')"
+    assert_eq "test_pr_dispatch_unresolved_batch_routes_reply_action: dispatch counted" \
+        "1" "$(echo "$_result" | grep -c 'dispatches=1')"
+    assert_pass_if_clean "test_pr_dispatch_unresolved_batch_routes_reply_action"
+}
+
 
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 test_pr_resolve_threads_read_config_env_override
+test_pr_handle_head_sha_reset_skips_update_on_empty_sha
+test_pr_dispatch_unresolved_batch_routes_reply_action
 test_review_threads_query_parses_unresolved_thread_ids
 test_resolve_thread_calls_mutation_only_when_unresolved
 test_settling_heuristic_requires_zero_threads_and_quiet_window

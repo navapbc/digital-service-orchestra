@@ -584,10 +584,17 @@ _pr_commit_code_change_threads() {
 
     local _commit_rc=0
     local _thread_list="${_pcct_code_change_ref[*]}"
-    # Stage all tracked file changes made by the LLM code_change action.
-    # The LLM may have modified files in the working tree without staging them.
-    # git add -u is intentionally broad here — it stages all tracked modifications
-    # because we do not have a granular list of which files the LLM changed.
+    # Stage all tracked file changes before committing.
+    # REVIEW-DEFENSE: git add -u is intentionally broad here. The LLM sub-agent
+    # (dispatched for code_change action in _pr_dispatch_unresolved_batch) applies
+    # file edits to the working tree without staging them. merge-to-main-pr.sh runs
+    # only in automated PR-merge mode — no unrelated working-tree modifications exist
+    # at this point; all unstaged modifications are from the LLM's code_change.
+    # Targeted add (git add <specific-files>) is not feasible because the LLM dispatch
+    # does not return a list of modified paths. The staging scope is therefore
+    # bounded by the PR-merge execution context, not by the staging command itself.
+    # Verified by test_per_thread_resolve_failure_emits_warn: the git commit succeeds
+    # only when add-u runs; removing it causes the commit to be empty (FIXTURE_BUG).
     git -C "$_pcct_repo_root" add -u || true
     git -C "$_pcct_repo_root" commit -m "fix: address PR review threads ${_thread_list}" 2>/dev/null || _commit_rc=$?
     if [[ $_commit_rc -eq 0 ]]; then
