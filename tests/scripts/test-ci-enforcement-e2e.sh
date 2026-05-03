@@ -68,6 +68,8 @@ CLEANUP_PR_CONFORMING=""
 CLEANUP_PR_FAILING=""
 CLEANUP_BRANCH_CONFORMING=""
 CLEANUP_BRANCH_FAILING=""
+CLEANUP_PR_THREAD=""
+CLEANUP_BRANCH_THREAD=""
 
 cleanup() {
     echo "" >&2
@@ -83,6 +85,12 @@ cleanup() {
     fi
     if [ -n "$CLEANUP_BRANCH_FAILING" ]; then
         git push origin --delete "$CLEANUP_BRANCH_FAILING" 2>/dev/null || true
+    fi
+    if [ -n "$CLEANUP_PR_THREAD" ]; then
+        gh pr close "$CLEANUP_PR_THREAD" --repo "$CI_E2E_REPO" 2>/dev/null || true
+    fi
+    if [ -n "$CLEANUP_BRANCH_THREAD" ]; then
+        git push origin --delete "$CLEANUP_BRANCH_THREAD" 2>/dev/null || true
     fi
 }
 trap cleanup EXIT
@@ -417,6 +425,66 @@ else
     echo "WARNING: Timed out waiting for a check failure — Ruleset block test inconclusive" >&2
     _fail "test_failing_check_detected"
     _fail "test_ruleset_blocks_failing_pr"
+fi
+
+# ── Phase 3: Thread-resolution escalation negative test ───────────────────────
+echo ""
+echo "--- Phase 3: Thread-resolution escalation ---"
+
+THREAD_BRANCH="e2e-thread-escalation-${TIMESTAMP}"
+git checkout -b "$THREAD_BRANCH" 2>/dev/null
+CLEANUP_BRANCH_THREAD="$THREAD_BRANCH"
+
+# Create a conforming commit on this branch
+git commit --allow-empty -m "test: thread-escalation E2E test branch (${TIMESTAMP})" 2>/dev/null
+git push origin "$THREAD_BRANCH" 2>/dev/null
+
+THREAD_PR_URL="$(gh pr create \
+    --repo "$CI_E2E_REPO" \
+    --base main \
+    --head "$THREAD_BRANCH" \
+    --title "E2E thread-escalation test ${TIMESTAMP}" \
+    --body "Automated E2E test PR for thread-resolution escalation negative test" \
+    2>/dev/null)"
+CLEANUP_PR_THREAD="$THREAD_PR_URL"
+echo "INFO: Created thread-escalation PR: $THREAD_PR_URL" >&2
+
+# Extract PR number
+THREAD_PR_NUMBER="$(gh pr view "$THREAD_PR_URL" --repo "$CI_E2E_REPO" --json number --jq .number 2>/dev/null || echo "")"
+
+# Seed a review thread with REQUEST_CHANGES (intentionally unresolvable)
+if [ -n "$THREAD_PR_NUMBER" ]; then
+    gh api "repos/${CI_E2E_REPO}/pulls/${THREAD_PR_NUMBER}/reviews" \
+        --method POST \
+        --field body="Intentionally unresolvable thread for DSO E2E test ${TIMESTAMP}" \
+        --field event="REQUEST_CHANGES" 2>/dev/null || true
+fi
+
+# Run merge-to-main-pr.sh with escalation-forcing env vars
+THREAD_MERGE_STDERR=$(mktemp /tmp/dso-thread-merge-stderr.XXXXXX)
+PR_THREAD_LOOP_MAX_DISPATCHES=1 PR_THREAD_LOOP_MAX_WAIT_SECONDS=60 \
+    bash plugins/dso/scripts/merge-to-main-pr.sh 2>"$THREAD_MERGE_STDERR" || true
+THREAD_MERGE_EXIT=$?
+THREAD_STDERR_CONTENT=$(cat "$THREAD_MERGE_STDERR")
+rm -f "$THREAD_MERGE_STDERR"
+
+# Assertions
+if [ "$THREAD_MERGE_EXIT" -ne 0 ]; then
+    _pass "test_thread_escalation_exits_nonzero"
+else
+    _fail "test_thread_escalation_exits_nonzero"
+fi
+
+if echo "$THREAD_STDERR_CONTENT" | grep -q 'ESCALATE:thread_resolution'; then
+    _pass "test_thread_escalation_emits_signal"
+else
+    _fail "test_thread_escalation_emits_signal"
+fi
+
+if echo "$THREAD_STDERR_CONTENT" | grep -qE "$THREAD_BRANCH|$THREAD_PR_URL"; then
+    _pass "test_thread_escalation_emits_pr_url"
+else
+    _fail "test_thread_escalation_emits_pr_url"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────────
