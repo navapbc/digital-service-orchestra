@@ -105,6 +105,38 @@ _run_overlay_llm() {
     "@${_DIFF_TMP}" "deep" > "$_slot_file" || true
 }
 
+# ── JSON extraction helper (hoisted; used by slot normalization and retry) ─────
+# Scans LLM output for the first valid JSON dict, stripping fences if present.
+# Prose braces ({text}) are not valid JSON and are skipped by raw_decode naturally.
+# Prints the extracted JSON to stdout; exits 1 when no dict is found.
+_extract_json_from_llm_text() {
+  python3 -c "
+import json, sys
+t = sys.stdin.read().strip()
+if not t:
+    sys.exit(1)
+t2 = t.lstrip('\`')
+if t2.startswith('json'):
+    t2 = t2[4:]
+t2 = t2.strip()
+dec = json.JSONDecoder()
+pos = 0
+while pos < len(t2):
+    i = t2.find('{', pos)
+    if i < 0:
+        break
+    try:
+        obj, _ = dec.raw_decode(t2, i)
+        if isinstance(obj, dict):
+            print(json.dumps(obj))
+            sys.exit(0)
+    except json.JSONDecodeError:
+        pass
+    pos = i + 1
+sys.exit(1)
+" 2>/dev/null
+}
+
 REVIEW_TIER="$SELECTED_TIER"
 case "$SELECTED_TIER" in
   light|standard)
@@ -204,36 +236,7 @@ json.loads(t); print(t)
         echo "ERROR: deep-tier slot file missing: $_slot" >&2
         exit 1
       fi
-      _slot_normalized=$(python3 -c "
-import json, sys
-t = open(sys.argv[1]).read().strip()
-if not t:
-    sys.exit(1)
-# Strip leading backticks and any 'json' language tag from fenced code blocks
-t2 = t.lstrip('\`')
-if t2.startswith('json'):
-    t2 = t2[4:]
-t2 = t2.strip()
-# Try each '{' until one produces a valid reviewer-findings dict (handles prose with '{')
-dec = json.JSONDecoder()
-pos = 0
-found = None
-while pos < len(t2):
-    i = t2.find('{', pos)
-    if i < 0:
-        break
-    try:
-        obj, _ = dec.raw_decode(t2, i)
-        if isinstance(obj, dict):
-            found = obj
-            break
-    except json.JSONDecodeError:
-        pass
-    pos = i + 1
-if found is None:
-    sys.exit(1)
-print(json.dumps(found))
-" "$_slot" 2>/dev/null) || true
+      _slot_normalized=$(cat "$_slot" | _extract_json_from_llm_text) || true
       if [[ -n "$_slot_normalized" ]]; then
         printf '%s\n' "$_slot_normalized" > "$_slot"
       fi
@@ -357,27 +360,40 @@ _VALIDATION_ERR_TMP=$(mktemp /tmp/ci-review-validation.XXXXXX)
 _WRITE_RC=0
 REVIEWER_HASH=$(echo "$FINDINGS_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER" 2>"$_VALIDATION_ERR_TMP") || _WRITE_RC=$?
 
-# Single-shot retry: when write-reviewer-findings.sh fails (schema error) AND we have a
-# single agent file to retry against (light/standard tier only — deep tier arch step has
-# its own multi-step synthesis and does not set AGENT_FILE).
-if [[ "$_WRITE_RC" -ne 0 && -n "${AGENT_FILE:-}" ]]; then
+# Always surface validation errors so CI logs show the actual schema problem.
+if [[ "$_WRITE_RC" -ne 0 ]]; then
   _VALIDATION_ERRORS=$(cat "$_VALIDATION_ERR_TMP" 2>/dev/null || true)
-  echo "Schema validation failed — retrying with validation errors in prompt" >&2
-  _RETRY_SUFFIX=$(printf '\n\nPREVIOUS ATTEMPT SCHEMA ERRORS (fix these in your response):\n%s' "$_VALIDATION_ERRORS")
-  _RETRY_TMP=$(mktemp /tmp/ci-review-retry.XXXXXX)
-  printf '%s%s' "$DIFF_CONTENT" "$_RETRY_SUFFIX" > "$_RETRY_TMP"
-  _RETRY_TEXT=$(bash "$(command -v llm-api-call.sh)" "$AGENT_FILE" \
-    "@${_RETRY_TMP}" "$REVIEW_TIER" 2>/dev/null || true)
-  rm -f "$_RETRY_TMP"
-  _RETRY_JSON=$(printf '%s' "${_RETRY_TEXT:-}" | python3 -c "
-import json,sys; t=sys.stdin.read().strip()
-if not t: raise ValueError('empty')
-t2=t.lstrip('\`'); t2=t2.lstrip('json').strip()
-i=t2.find('{'); e=t2.rfind('}')
-if i>=0 and e>i: t2=t2[i:e+1]
-json.loads(t2); print(t2)
-" 2>/dev/null) || true
-  if [[ -n "$_RETRY_JSON" ]]; then
+  echo "Schema validation failed:" >&2
+  echo "$_VALIDATION_ERRORS" >&2
+fi
+
+# Single-shot retry with validation errors prepended to the user message.
+# Covers both light/standard (via AGENT_FILE) and deep-tier (via _ARCH_TMP).
+if [[ "$_WRITE_RC" -ne 0 ]]; then
+  _RETRY_SUFFIX=$(printf '\n\nPREVIOUS ATTEMPT SCHEMA ERRORS — fix these in your JSON response:\n%s' "${_VALIDATION_ERRORS:-}")
+
+  if [[ -n "${AGENT_FILE:-}" ]]; then
+    # Light/standard: retry with diff + validation errors
+    echo "Schema validation failed — retrying light/standard with validation errors in prompt" >&2
+    _RETRY_TMP=$(mktemp /tmp/ci-review-retry.XXXXXX)
+    printf '%s%s' "$DIFF_CONTENT" "$_RETRY_SUFFIX" > "$_RETRY_TMP"
+    _RETRY_TEXT=$(bash "$(command -v llm-api-call.sh)" "$AGENT_FILE" \
+      "@${_RETRY_TMP}" "$REVIEW_TIER" 2>/dev/null || true)
+    rm -f "$_RETRY_TMP"
+    _RETRY_JSON=$(printf '%s' "${_RETRY_TEXT:-}" | _extract_json_from_llm_text) || true
+  elif [[ -n "${_ARCH_TMP:-}" && -f "${_ARCH_TMP:-/dev/null}" ]]; then
+    # Deep-tier: retry arch synthesis with validation errors appended to its user message
+    echo "Schema validation failed — retrying deep-tier arch with validation errors in prompt" >&2
+    _RETRY_ARCH_TMP=$(mktemp /tmp/ci-review-arch-retry.XXXXXX)
+    cat "$_ARCH_TMP" > "$_RETRY_ARCH_TMP"
+    printf '%s' "$_RETRY_SUFFIX" >> "$_RETRY_ARCH_TMP"
+    _RETRY_TEXT=$(bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-arch.md" \
+      "@${_RETRY_ARCH_TMP}" "deep" 2>/dev/null || true)
+    rm -f "$_RETRY_ARCH_TMP"
+    _RETRY_JSON=$(printf '%s' "${_RETRY_TEXT:-}" | _extract_json_from_llm_text) || true
+  fi
+
+  if [[ -n "${_RETRY_JSON:-}" ]]; then
     _RETRY_HASH=""
     _RETRY_WRITE_RC=0
     _RETRY_HASH=$(echo "$_RETRY_JSON" | bash "$(command -v write-reviewer-findings.sh)" --review-tier "$REVIEW_TIER" --selected-tier "$SELECTED_TIER" 2>/dev/null) || _RETRY_WRITE_RC=$?

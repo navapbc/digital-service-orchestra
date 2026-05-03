@@ -3258,6 +3258,91 @@ assert_eq "test_runner_retries_once_on_schema_validation_failure: retry msg incl
 
 assert_pass_if_clean "test_runner_retries_once_on_schema_validation_failure"
 
+# ── test_deep_tier_arch_retries_on_schema_validation_failure ─────────────────
+# Given: deep-tier; arch synthesis passes but write-reviewer-findings.sh fails
+#        schema validation on first call, then succeeds on retry
+# When:  runner processes the diff
+# Then:  llm-api-call.sh is called for the arch agent exactly twice (initial +
+#        retry), and the retry user message includes the validation error text
+_snapshot_fail
+MOCK_ARCH_RETRY=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_ARCH_RETRY")
+ARTIFACTS_ARCH_RETRY=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_ARCH_RETRY")
+ARCH_LLM_LOG="$ARTIFACTS_ARCH_RETRY/arch-llm-calls.log"
+ARCH_RETRY_MSG_FILE="$ARTIFACTS_ARCH_RETRY/arch-retry-msg.txt"
+
+_SLOT_AR='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"OK","findings":[]}'
+_ARCH_AR='{"scores":{"correctness":5,"verification":5,"hygiene":5,"design":5,"maintainability":5},"summary":"Arch OK","findings":[]}'
+
+cat > "$MOCK_ARCH_RETRY/llm-api-call.sh" <<MOCKEOF
+#!/usr/bin/env bash
+_agent="\$1"
+_user_arg="\$2"
+if printf '%s' "\$_agent" | grep -q "deep-arch"; then
+    printf 'call\n' >> "$ARCH_LLM_LOG"
+    # Capture user message content on second call (retry)
+    _call_num=\$(wc -l < "$ARCH_LLM_LOG" | tr -d ' ')
+    if [[ "\$_user_arg" == @* ]]; then
+        _msg_file="\${_user_arg#@}"
+        [[ -f "\$_msg_file" && "\$_call_num" -ge 2 ]] && cat "\$_msg_file" >> "$ARCH_RETRY_MSG_FILE"
+    fi
+    printf '%s\n' '${_ARCH_AR}'
+else
+    printf '%s\n' '${_SLOT_AR}'
+fi
+MOCKEOF
+chmod +x "$MOCK_ARCH_RETRY/llm-api-call.sh"
+
+cat > "$MOCK_ARCH_RETRY/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"deep","blast_radius":1,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":100,"change_volume":1,"computed_total":5,"diff_size_lines":100,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_ARCH_RETRY/review-complexity-classifier.sh"
+
+# write-reviewer-findings.sh: fail first arch call, succeed on retry
+cat > "$MOCK_ARCH_RETRY/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+cat > /dev/null
+_arch_calls=\$(wc -l < "$ARCH_LLM_LOG" 2>/dev/null | tr -d ' ')
+if [[ "\$_arch_calls" -le 1 ]]; then
+    echo "SCHEMA_VALID: no" >&2
+    echo "Validation errors:" >&2
+    echo "  - score 'hygiene'=4: no findings requires score 5" >&2
+    exit 1
+fi
+printf '%064x\n' 2
+MOCKEOF
+chmod +x "$MOCK_ARCH_RETRY/write-reviewer-findings.sh"
+
+cat > "$MOCK_ARCH_RETRY/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$ARTIFACTS_ARCH_RETRY"
+printf 'passed\n' > "${ARTIFACTS_ARCH_RETRY}/review-status"
+MOCKEOF
+chmod +x "$MOCK_ARCH_RETRY/record-review.sh"
+
+(
+    export PATH="$MOCK_ARCH_RETRY:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_ARCH_RETRY"
+    printf 'diff --git a/foo.sh b/foo.sh\n+line\n' | ANTHROPIC_API_KEY=x bash "$RUNNER" >/dev/null 2>&1
+) || true
+
+_arch_call_count=0
+[[ -f "$ARCH_LLM_LOG" ]] && _arch_call_count=$(wc -l < "$ARCH_LLM_LOG" | tr -d ' ')
+
+assert_eq "test_deep_tier_arch_retries_on_schema_validation_failure: arch llm called twice" "2" "$_arch_call_count"
+
+_retry_msg=""
+[[ -f "$ARCH_RETRY_MSG_FILE" ]] && _retry_msg=$(cat "$ARCH_RETRY_MSG_FILE")
+_has_error_in_retry="false"
+echo "$_retry_msg" | grep -qiF "schema" && _has_error_in_retry="true"
+echo "$_retry_msg" | grep -qiF "validation" && _has_error_in_retry="true"
+assert_eq "test_deep_tier_arch_retries_on_schema_validation_failure: retry includes validation error" "true" "$_has_error_in_retry"
+
+assert_pass_if_clean "test_deep_tier_arch_retries_on_schema_validation_failure"
+
 # ── test_deep_tier_specialist_slot_prose_is_normalized ────────────────────────
 # Given: deep-tier; a specialist returns prose + JSON (not pure JSON)
 # When:  runner processes the slot file
