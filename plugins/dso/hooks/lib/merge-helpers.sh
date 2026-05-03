@@ -367,12 +367,22 @@ _abort_stale_rebase() {
 # accepting our version (git add if present, git rm if absent).
 # Non-ticket conflicts cause an immediate abort.
 #
+# The tickets directory is resolved from (in priority order):
+#   1. TICKETS_TRACKER_DIR env var (allows test injection and custom config)
+#   2. Default: .tickets-tracker
+#
 # Usage: call from the git pull --rebase failure handler in _phase_sync.
 # Must be called while a rebase is in progress (REBASE_HEAD exists).
 # Returns 0 on success (rebase continued), 1 on failure (rebase aborted).
 _auto_resolve_archive_conflicts() {
     local _git_dir
     _git_dir=$(git rev-parse --git-dir 2>/dev/null) || return 1
+
+    # Resolve configured tickets directory (TICKETS_TRACKER_DIR allows override
+    # for non-default installs and test injection; default: .tickets-tracker).
+    local _tickets_dir="${TICKETS_TRACKER_DIR:-.tickets-tracker}"
+    # Strip any trailing slash for consistent prefix matching.
+    _tickets_dir="${_tickets_dir%/}"
 
     # Only proceed if a rebase is actually in progress
     if [[ ! -f "$_git_dir/REBASE_HEAD" ]]; then
@@ -407,18 +417,17 @@ _auto_resolve_archive_conflicts() {
     fi
 
     # Safety check: ALL conflicts must be ticket-data files (safe to auto-resolve).
-    # Ticket data: v3 .tickets-tracker/<id>/*.json or .tickets-tracker/*.json (includes .index.json). # tickets-boundary-ok
+    # Ticket data: v3 <tickets_dir>/<id>/*.json or <tickets_dir>/*.json (includes .index.json). # tickets-boundary-ok
     local _non_archive_conflicts=0
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
-        case "$_file" in
-            .tickets-tracker/*/*.json | .tickets-tracker/*.json) # tickets-boundary-ok
-                # v3 ticket event JSON — safe to auto-resolve
-                ;;
-            *)
-                _non_archive_conflicts=$(( _non_archive_conflicts + 1 ))
-                ;;
-        esac
+        # Use variable-based prefix matching since bash case arms cannot use variables.
+        if [[ "$_file" == "${_tickets_dir}"/*/*.json || "$_file" == "${_tickets_dir}"/*.json ]]; then
+            # v3 ticket event JSON — safe to auto-resolve
+            :
+        else
+            _non_archive_conflicts=$(( _non_archive_conflicts + 1 ))
+        fi
     done <<< "$_all_conflicts"
 
     if [[ "$_non_archive_conflicts" -gt 0 ]]; then
@@ -436,7 +445,8 @@ _auto_resolve_archive_conflicts() {
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
 
-        if [[ "$_file" == .tickets-tracker/*.json || "$_file" == .tickets-tracker/*/*.json ]]; then # tickets-boundary-ok
+        # Use variable-based prefix matching since bash case arms cannot use variables. # tickets-boundary-ok
+        if [[ "$_file" == "${_tickets_dir}"/*.json || "$_file" == "${_tickets_dir}"/*/*.json ]]; then
             # v3 ticket event JSON — accept ours (git add if present, git rm if absent)
             if [[ -f "$_file" ]]; then
                 git add "$_file" 2>/dev/null && _resolved=$(( _resolved + 1 )) || _failed=$(( _failed + 1 ))
@@ -515,10 +525,10 @@ _auto_resolve_archive_conflicts() {
             local _new_non_archive=0
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
-                case "$_nf" in
-                    .tickets-tracker/*/*.json | .tickets-tracker/*.json) ;; # tickets-boundary-ok
-                    *) _new_non_archive=$(( _new_non_archive + 1 )) ;;
-                esac
+                # Use variable-based prefix matching since bash case arms cannot use variables. # tickets-boundary-ok
+                if [[ "$_nf" != "${_tickets_dir}"/*/*.json && "$_nf" != "${_tickets_dir}"/*.json ]]; then
+                    _new_non_archive=$(( _new_non_archive + 1 ))
+                fi
             done <<< "$_new_all"
 
             if [[ "$_new_non_archive" -gt 0 ]]; then
@@ -531,7 +541,8 @@ _auto_resolve_archive_conflicts() {
             local _new_resolved=0 _new_failed=0
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
-                if [[ "$_nf" == .tickets-tracker/*.json || "$_nf" == .tickets-tracker/*/*.json ]]; then # tickets-boundary-ok
+                # Use variable-based prefix matching since bash case arms cannot use variables. # tickets-boundary-ok
+                if [[ "$_nf" == "${_tickets_dir}"/*.json || "$_nf" == "${_tickets_dir}"/*/*.json ]]; then
                     # v3 ticket event JSON — accept ours
                     if [[ -f "$_nf" ]]; then
                         git add "$_nf" 2>/dev/null && _new_resolved=$(( _new_resolved + 1 )) || _new_failed=$(( _new_failed + 1 ))
