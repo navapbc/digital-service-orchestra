@@ -419,6 +419,14 @@ test_dispatch_count_cap_triggers_escalation() {
     assert_contains "test_dispatch_count_cap_triggers_escalation: PR url in stderr" "pull/99" "$stderr_capture"
     assert_contains "test_dispatch_count_cap_triggers_escalation: unresolved id in stderr" "PRT_STUCK" "$stderr_capture"
 
+    # Behavioral assertion: LLM dispatch was actually attempted before the cap fired.
+    # A regression that skips dispatch silently would leave llm.log empty and fail here.
+    local llm_call_count
+    llm_call_count=$(grep -c '^CALL' "$STUB_LLM_LOG" 2>/dev/null || echo 0)
+    assert_ne "test_dispatch_count_cap_triggers_escalation: LLM was dispatched at least once before cap" "0" "$llm_call_count"
+    # With MAX_DISPATCHES=10 and a perpetually-unresolved thread, exactly 10 dispatches expected.
+    assert_eq "test_dispatch_count_cap_triggers_escalation: LLM dispatched exactly max_dispatches times" "10" "$llm_call_count"
+
     _teardown_test
 }
 
@@ -465,6 +473,12 @@ test_wall_clock_cap_triggers_escalation() {
     assert_ne "test_wall_clock_cap_triggers_escalation: non-zero exit on wall-clock cap" "0" "$rc"
     assert_contains "test_wall_clock_cap_triggers_escalation: PR url in stderr" "pull/77" "$stderr_capture"
     assert_contains "test_wall_clock_cap_triggers_escalation: unresolved id in stderr" "PRT_STUCK" "$stderr_capture"
+
+    # Behavioral assertion: LLM dispatch was actually attempted before the wall-clock cap fired.
+    # A regression that skips dispatch silently would leave llm.log empty and fail here.
+    local llm_call_count
+    llm_call_count=$(grep -c '^CALL' "$STUB_LLM_LOG" 2>/dev/null || echo 0)
+    assert_ne "test_wall_clock_cap_triggers_escalation: LLM was dispatched at least once before wall-clock cap" "0" "$llm_call_count"
 
     _teardown_test
 }
