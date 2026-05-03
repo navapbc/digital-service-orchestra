@@ -211,13 +211,6 @@ assert_ne \
 # ============================================================
 
 VALID_CRD_FILE=$(write_fixture "valid-crd.json" '{
-  "scores": {
-    "hygiene": 5,
-    "design": 5,
-    "maintainability": 5,
-    "correctness": 5,
-    "verification": 5
-  },
   "findings": [],
   "summary": "Code is well-structured and tests are adequate."
 }')
@@ -234,15 +227,24 @@ assert_contains \
     "SCHEMA_VALID: yes" \
     "$VALID_CRD_OUTPUT"
 
-# code-review-dispatch: valid with N/A scores and findings
+# test_code_review_dispatch_with_scores_key_deprecated
+# Given: reviewer-findings.json with a scores key present (and valid summary)
+# When: validate-review-output.sh code-review-dispatch <file> runs
+# Then: exits 0 (scores tolerated during transition), SCHEMA_VALID: yes,
+#       and a DEPRECATION WARNING appears on stderr
+echo "=== test_code_review_dispatch_with_scores_key_deprecated ==="
+FIXTURE_FILE=$(write_fixture "scores-key-present.json" '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}')
+_STDERR_TMP=$(mktemp "${TMPDIR:-/tmp}/test-validate-review-output-stderr.XXXXXX")
+EXIT_CODE=0
+STDOUT_OUT=$(bash "$SCRIPT" code-review-dispatch "$FIXTURE_FILE" 2>"$_STDERR_TMP") || EXIT_CODE=$?
+STDERR_OUT=$(cat "$_STDERR_TMP")
+rm -f "$_STDERR_TMP"
+assert_eq "test_code_review_dispatch_with_scores_key_deprecated: exits 0 (scores tolerated)" "0" "$EXIT_CODE"
+assert_contains "test_code_review_dispatch_with_scores_key_deprecated: stdout contains SCHEMA_VALID: yes" "SCHEMA_VALID: yes" "$STDOUT_OUT"
+assert_contains "test_code_review_dispatch_with_scores_key_deprecated: stderr contains DEPRECATION WARNING" "DEPRECATION WARNING" "$STDERR_OUT"
+
+# code-review-dispatch: valid with findings (2-key schema)
 VALID_CRD_WITH_FINDINGS=$(write_fixture "valid-crd-findings.json" '{
-  "scores": {
-    "hygiene": 1,
-    "design": 5,
-    "maintainability": 5,
-    "correctness": 5,
-    "verification": "N/A"
-  },
   "findings": [
     {
       "severity": "critical",
@@ -266,13 +268,6 @@ assert_eq \
 
 # Missing required top-level key 'summary'
 MISSING_SUMMARY_FILE=$(write_fixture "missing-summary.json" '{
-  "scores": {
-    "hygiene": 5,
-    "design": 5,
-    "maintainability": 5,
-    "correctness": 5,
-    "verification": 5
-  },
   "findings": []
 }')
 MISSING_SUMMARY_EXIT=$(run_script code-review-dispatch "$MISSING_SUMMARY_FILE")
@@ -281,50 +276,8 @@ assert_ne \
     "0" \
     "$MISSING_SUMMARY_EXIT"
 
-# Missing required score dimension
-MISSING_DIM_FILE=$(write_fixture "missing-dim.json" '{
-  "scores": {
-    "hygiene": 5,
-    "maintainability": 5,
-    "correctness": 5,
-    "verification": 5
-  },
-  "findings": [],
-  "summary": "A sufficiently long summary string here."
-}')
-MISSING_DIM_EXIT=$(run_script code-review-dispatch "$MISSING_DIM_FILE")
-assert_ne \
-    "test_code_review_dispatch_missing_dimension_fails: missing score dimension exits non-zero" \
-    "0" \
-    "$MISSING_DIM_EXIT"
-
-# Score out of valid range (1-5)
-OUT_OF_RANGE_FILE=$(write_fixture "out-of-range.json" '{
-  "scores": {
-    "hygiene": 6,
-    "design": 5,
-    "maintainability": 5,
-    "correctness": 5,
-    "verification": 5
-  },
-  "findings": [],
-  "summary": "A sufficiently long summary string here."
-}')
-OUT_OF_RANGE_EXIT=$(run_script code-review-dispatch "$OUT_OF_RANGE_FILE")
-assert_ne \
-    "test_code_review_dispatch_score_out_of_range_fails: score out of range exits non-zero" \
-    "0" \
-    "$OUT_OF_RANGE_EXIT"
-
 # Unexpected extra top-level key
 EXTRA_KEY_FILE=$(write_fixture "extra-key.json" '{
-  "scores": {
-    "hygiene": 5,
-    "design": 5,
-    "maintainability": 5,
-    "correctness": 5,
-    "verification": 5
-  },
   "findings": [],
   "summary": "A sufficiently long summary string here.",
   "unexpected_key": "not allowed"
@@ -691,48 +644,18 @@ assert_ne \
     "$NOT_APPLICABLE_NO_RATIONALE_EXIT"
 
 # ============================================================
-# 12. NEW dimension names: accepted (RED — fails until w22-4391)
+# 12. Missing required key 'findings': rejected
 # ============================================================
 
-NEW_DIM_VALID_FILE=$(write_fixture "new-dim-valid.json" '{
-  "scores": {
-    "correctness": 5,
-    "verification": 5,
-    "hygiene": 5,
-    "design": 5,
-    "maintainability": 5
-  },
-  "findings": [],
-  "summary": "All new dimension names present and scores are valid."
+MISSING_FINDINGS_CRD_FILE=$(write_fixture "missing-findings-crd.json" '{
+  "summary": "No findings array present — should fail validation."
 }')
 
-NEW_DIM_VALID_EXIT=$(run_script code-review-dispatch "$NEW_DIM_VALID_FILE")
-assert_eq \
-    "test_new_dimension_names_accepted: new dimension names (correctness/verification/hygiene/design/maintainability) are valid" \
-    "0" \
-    "$NEW_DIM_VALID_EXIT"
-
-# ============================================================
-# 13. OLD dimension names: rejected (RED — fails until w22-4391)
-# ============================================================
-
-OLD_DIM_FILE=$(write_fixture "old-dim.json" '{
-  "scores": {
-    "invalid_dim_a": 4,
-    "invalid_dim_b": 3,
-    "invalid_dim_c": 4,
-    "invalid_dim_d": 4,
-    "invalid_dim_e": 5
-  },
-  "findings": [],
-  "summary": "Unknown dimension names should be rejected by the validator."
-}')
-
-OLD_DIM_EXIT=$(run_script code-review-dispatch "$OLD_DIM_FILE")
+MISSING_FINDINGS_CRD_EXIT=$(run_script code-review-dispatch "$MISSING_FINDINGS_CRD_FILE")
 assert_ne \
-    "test_old_dimension_names_rejected: unknown dimension names are rejected" \
+    "test_missing_findings_key_rejected: missing findings key exits non-zero" \
     "0" \
-    "$OLD_DIM_EXIT"
+    "$MISSING_FINDINGS_CRD_EXIT"
 
 # ============================================================
 # 14. brainstorm caller: accepted with same schema as roadmap
@@ -954,133 +877,19 @@ assert_contains \
     "$INVALID_RISK_CATEGORY_OUTPUT"
 
 # =============================================================================
-# Test: no-findings dimension with low score should be rejected (6d83-b949)
-# Scoring rules: no findings → score must be 5; score 4 requires findings.
-# A dimension with zero findings and score < 5 is a scoring error.
-# =============================================================================
-echo ""
-echo "--- test_no_findings_dimension_low_score_rejected ---"
-_snapshot_fail
-
-_NO_FINDINGS_LOW_SCORE_FILE=$(write_fixture "no_findings_low_score.json" '{
-  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 2, "verification": 4},
-  "findings": [
-    {"severity": "minor", "category": "verification", "description": "Minor test coverage gap", "file": "a.sh"}
-  ],
-  "summary": "All findings are minor but correctness scored low with no correctness findings."
-}')
-_NO_FINDINGS_LOW_SCORE_EXIT=$(run_script code-review-dispatch "$_NO_FINDINGS_LOW_SCORE_FILE")
-assert_ne "test_no_findings_dimension_low_score_rejected" "0" "$_NO_FINDINGS_LOW_SCORE_EXIT"
-_NO_FINDINGS_LOW_SCORE_OUTPUT=$(bash "$SCRIPT" code-review-dispatch "$_NO_FINDINGS_LOW_SCORE_FILE" 2>&1 || true)
-assert_contains "test_no_findings_dimension_low_score_error_message" "no findings" "$_NO_FINDINGS_LOW_SCORE_OUTPUT"
-
-assert_pass_if_clean "test_no_findings_dimension_low_score_rejected"
-
-# =============================================================================
-# Test: no-findings with score=4 should be rejected (score 4 was valid under
-# old "Minor only or no findings → score 4-5" rule; now invalid — no findings
-# requires score=5).
-# =============================================================================
-echo ""
-echo "--- test_no_findings_score_4_rejected ---"
-_snapshot_fail
-
-_NO_FINDINGS_SCORE_4_FILE=$(write_fixture "no_findings_score_4.json" '{
-  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 4, "verification": 5},
-  "findings": [],
-  "summary": "No findings but correctness scored 4 instead of 5."
-}')
-_NO_FINDINGS_SCORE_4_EXIT=$(run_script code-review-dispatch "$_NO_FINDINGS_SCORE_4_FILE")
-assert_ne "test_no_findings_score_4_rejected" "0" "$_NO_FINDINGS_SCORE_4_EXIT"
-
-assert_pass_if_clean "test_no_findings_score_4_rejected"
-
-# =============================================================================
-# Test: important finding with score 3 is accepted (6d83-b949)
-# Scoring rule: "important (no critical) → score 3"
-# =============================================================================
-echo ""
-echo "--- test_important_finding_score_3_accepted ---"
-_snapshot_fail
-
-_IMPORTANT_SCORE_3_FILE=$(write_fixture "important_score_3.json" '{
-  "scores": {"correctness": 3, "verification": 5, "hygiene": 5, "design": 5, "maintainability": 5},
-  "findings": [
-    {"severity": "important", "category": "correctness", "description": "Logic error in edge case handling", "file": "app/src/handler.py"}
-  ],
-  "summary": "One important finding in correctness dimension, score correctly set to 3."
-}')
-_IMPORTANT_SCORE_3_EXIT=$(run_script code-review-dispatch "$_IMPORTANT_SCORE_3_FILE")
-assert_eq "test_important_finding_score_3_accepted" "0" "$_IMPORTANT_SCORE_3_EXIT"
-
-assert_pass_if_clean "test_important_finding_score_3_accepted"
-
-# =============================================================================
-# Test: important finding with wrong score is rejected (6d83-b949)
-# Score 4 with an important finding should fail (requires score 3)
-# =============================================================================
-echo ""
-echo "--- test_important_finding_wrong_score_rejected ---"
-_snapshot_fail
-
-_IMPORTANT_WRONG_SCORE_FILE=$(write_fixture "important_wrong_score.json" '{
-  "scores": {"correctness": 4, "verification": 5, "hygiene": 5, "design": 5, "maintainability": 5},
-  "findings": [
-    {"severity": "important", "category": "correctness", "description": "Logic error in edge case handling", "file": "app/src/handler.py"}
-  ],
-  "summary": "One important finding in correctness dimension but score is incorrectly 4 instead of 3."
-}')
-_IMPORTANT_WRONG_SCORE_EXIT=$(run_script code-review-dispatch "$_IMPORTANT_WRONG_SCORE_FILE")
-assert_ne "test_important_finding_wrong_score_rejected" "0" "$_IMPORTANT_WRONG_SCORE_EXIT"
-
-assert_pass_if_clean "test_important_finding_wrong_score_rejected"
-
-# =============================================================================
-# Test: minor-only dimension scored 5 should be rejected
-# Scoring rule: "minor only → score 4" (deterministic; score 5 requires no findings)
-# =============================================================================
-echo ""
-echo "--- test_minor_only_score_5_rejected ---"
-_snapshot_fail
-
-_MINOR_ONLY_SCORE_5_FILE=$(write_fixture "minor_only_score_5.json" '{
-  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 5, "verification": 5},
-  "findings": [
-    {"severity": "minor", "category": "hygiene", "description": "Minor style inconsistency in variable naming.", "file": "app/src/util.py"}
-  ],
-  "summary": "One minor hygiene finding but hygiene scored 5 instead of required 4."
-}')
-_MINOR_ONLY_SCORE_5_EXIT=$(run_script code-review-dispatch "$_MINOR_ONLY_SCORE_5_FILE")
-assert_ne "test_minor_only_score_5_rejected" "0" "$_MINOR_ONLY_SCORE_5_EXIT"
-
-assert_pass_if_clean "test_minor_only_score_5_rejected"
-
-# =============================================================================
 # Tests: review_tier field acceptance in code-review-dispatch schema (f493-bf4e)
 #
-# These tests are RED against the current schema — validate-review-output.sh
-# currently requires EXACTLY 3 top-level keys (scores, findings, summary) and
-# rejects review_tier as an unexpected extra key. Once SC2 of epic b430-9eb3
-# is implemented (validate-review-output.sh accepts the extended schema),
-# test_review_tier_valid_value_passes will turn GREEN and
-# test_review_tier_invalid_value_fails will remain RED (then GREEN once enum
-# validation is in place).
+# These tests use the 2-key schema (findings + summary).
+# test_review_tier_valid_value_passes asserts exit 0 with review_tier present.
+# test_review_tier_invalid_value_fails asserts exit non-zero for bad enum value.
 # =============================================================================
 
 # Test: findings JSON with review_tier field (valid value) should pass schema validation
-# RED: current schema rejects review_tier as an unexpected top-level key
 echo ""
 echo "--- test_review_tier_valid_value_passes ---"
 _snapshot_fail
 
 _REVIEW_TIER_VALID_FILE=$(write_fixture "review_tier_valid.json" '{
-  "scores": {
-    "hygiene": 5,
-    "design": 5,
-    "maintainability": 5,
-    "correctness": 5,
-    "verification": 5
-  },
   "findings": [],
   "summary": "No issues found. Code is well-structured and tests are adequate.",
   "review_tier": "standard"
@@ -1091,19 +900,11 @@ assert_eq "test_review_tier_valid_value_passes" "0" "$_REVIEW_TIER_VALID_EXIT"
 assert_pass_if_clean "test_review_tier_valid_value_passes"
 
 # Test: findings JSON with review_tier=invalid_value should fail schema validation
-# RED: currently fails for wrong reason (unexpected key), should fail due to enum check
 echo ""
 echo "--- test_review_tier_invalid_value_fails ---"
 _snapshot_fail
 
 _REVIEW_TIER_INVALID_FILE=$(write_fixture "review_tier_invalid.json" '{
-  "scores": {
-    "hygiene": 5,
-    "design": 5,
-    "maintainability": 5,
-    "correctness": 5,
-    "verification": 5
-  },
   "findings": [],
   "summary": "No issues found. Code is well-structured and tests are adequate.",
   "review_tier": "ultra_deep"
@@ -1118,7 +919,8 @@ assert_pass_if_clean "test_review_tier_invalid_value_fails"
 #
 # RED tests — fail against current validate-review-output.sh because
 # valid_severities = {"critical", "important", "minor"} does not include "fragile".
-# These pass once fragile is added to valid_severities with score mapping score=3.
+# These pass once fragile is added to valid_severities.
+# All fixtures use 2-key schema (findings + summary).
 # =============================================================================
 
 # Test: fragile finding passes code-review-dispatch validation
@@ -1128,57 +930,32 @@ echo "--- test_fragile_severity_passes_crd_validation ---"
 _snapshot_fail
 
 _FRAGILE_VALID_FILE=$(write_fixture "fragile_valid.json" '{
-  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 3, "verification": 5},
   "findings": [
     {"severity": "fragile", "category": "correctness", "description": "Edge case in error path not covered by tests.", "file": "app/src/handler.py"}
   ],
-  "summary": "One fragile finding in correctness dimension; score correctly set to 3."
+  "summary": "One fragile finding in correctness dimension."
 }')
 _FRAGILE_VALID_EXIT=$(run_script code-review-dispatch "$_FRAGILE_VALID_FILE")
 assert_eq "test_fragile_severity_passes_crd_validation" "0" "$_FRAGILE_VALID_EXIT"
 
 assert_pass_if_clean "test_fragile_severity_passes_crd_validation"
 
-# Test: fragile finding with score 3 passes score-severity consistency
-# RED: current validator rejects fragile as an invalid severity before reaching
-# score-consistency checks; test asserts exit 0
+# Test: fragile finding passes validation (2-key schema)
+# RED: current validator rejects fragile as an invalid severity; test asserts exit 0
 echo ""
-echo "--- test_fragile_finding_score_3_passes_consistency ---"
+echo "--- test_fragile_finding_passes_validation ---"
 _snapshot_fail
 
 _FRAGILE_SCORE_3_FILE=$(write_fixture "fragile_score_3.json" '{
-  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 3, "verification": 5},
   "findings": [
     {"severity": "fragile", "category": "correctness", "description": "Brittle assumption about input ordering in merge logic.", "file": "app/src/merge.py"}
   ],
-  "summary": "Fragile finding in correctness dimension with score 3 as required by fragile severity rule."
+  "summary": "Fragile finding in correctness dimension."
 }')
 _FRAGILE_SCORE_3_EXIT=$(run_script code-review-dispatch "$_FRAGILE_SCORE_3_FILE")
-assert_eq "test_fragile_finding_score_3_passes_consistency" "0" "$_FRAGILE_SCORE_3_EXIT"
+assert_eq "test_fragile_finding_passes_validation" "0" "$_FRAGILE_SCORE_3_EXIT"
 
-assert_pass_if_clean "test_fragile_finding_score_3_passes_consistency"
-
-# Test: fragile finding with score 4 fails score-severity consistency
-# RED: current validator rejects fragile as an invalid severity (not a score-consistency
-# error); test asserts the output contains a score-consistency message about score=4,
-# which is only emitted once fragile is a valid severity and triggers the consistency check
-echo ""
-echo "--- test_fragile_finding_score_4_fails_consistency ---"
-_snapshot_fail
-
-_FRAGILE_SCORE_4_FILE=$(write_fixture "fragile_score_4.json" '{
-  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 4, "verification": 5},
-  "findings": [
-    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption about input ordering that may fail under load.", "file": "app/src/merge.py"}
-  ],
-  "summary": "Fragile finding in correctness dimension with incorrectly high score of 4."
-}')
-_FRAGILE_SCORE_4_OUTPUT=$(bash "$SCRIPT" code-review-dispatch "$_FRAGILE_SCORE_4_FILE" 2>&1 || true)
-assert_contains "test_fragile_finding_score_4_fails_consistency_score_msg" "score 'correctness'=4" "$_FRAGILE_SCORE_4_OUTPUT"
-_FRAGILE_SCORE_4_EXIT=$(run_script code-review-dispatch "$_FRAGILE_SCORE_4_FILE")
-assert_ne "test_fragile_finding_score_4_fails_consistency_nonzero" "0" "$_FRAGILE_SCORE_4_EXIT"
-
-assert_pass_if_clean "test_fragile_finding_score_4_fails_consistency"
+assert_pass_if_clean "test_fragile_finding_passes_validation"
 
 # Test: integration — fragile finding piped through write-reviewer-findings.sh succeeds
 # RED: write-reviewer-findings.sh calls validate-review-output.sh code-review-dispatch,
@@ -1189,7 +966,6 @@ _snapshot_fail
 
 WRITE_SCRIPT="$DSO_PLUGIN_DIR/scripts/write-reviewer-findings.sh"
 _FRAGILE_INTEGRATION_FILE=$(write_fixture "fragile_integration.json" '{
-  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 3, "verification": 5},
   "findings": [
     {"severity": "fragile", "category": "correctness", "description": "Brittle assumption in retry logic; may fail under concurrent load.", "file": "app/src/retry.py"}
   ],
@@ -1203,6 +979,7 @@ assert_pass_if_clean "test_fragile_severity_write_reviewer_findings_integration"
 
 # ============================================================
 # Tests: escalate_review optional field validation
+# All fixtures use 2-key schema (findings + summary).
 # ============================================================
 
 # Test: findings JSON with valid escalate_review array passes validation
@@ -1213,13 +990,6 @@ echo "--- test_escalate_review_valid_array_passes_validation ---"
 _snapshot_fail
 
 _ESC_VALID_FILE=$(write_fixture "escalate_review_valid.json" '{
-  "scores": {
-    "hygiene": 5,
-    "design": 5,
-    "maintainability": 5,
-    "correctness": 4,
-    "verification": 5
-  },
   "findings": [{"severity": "minor", "category": "correctness", "file": "src/foo.py", "description": "uncertain severity assignment"}],
   "summary": "One finding with uncertain severity; escalation requested.",
   "escalate_review": [{"finding_index": 0, "reason": "uncertain severity"}]
@@ -1233,13 +1003,6 @@ assert_pass_if_clean "test_escalate_review_valid_array_passes_validation"
 # This is a behavioral GREEN test confirming the absence of escalate_review is accepted.
 # Placed here as documentation of the contract; no _snapshot_fail needed.
 _ESC_ABSENT_FILE=$(write_fixture "escalate_review_absent.json" '{
-  "scores": {
-    "hygiene": 5,
-    "design": 5,
-    "maintainability": 5,
-    "correctness": 5,
-    "verification": 5
-  },
   "findings": [],
   "summary": "All dimensions clean; no escalation field present."
 }')
@@ -1258,13 +1021,6 @@ echo "--- test_escalate_review_string_fails_with_type_error_message ---"
 _snapshot_fail
 
 _ESC_STRING_FILE=$(write_fixture "escalate_review_string.json" '{
-  "scores": {
-    "hygiene": 5,
-    "design": 5,
-    "maintainability": 5,
-    "correctness": 5,
-    "verification": 5
-  },
   "findings": [],
   "summary": "All dimensions clean but escalate_review is malformed as a string.",
   "escalate_review": "uncertain severity"
@@ -1286,13 +1042,6 @@ echo "--- test_escalate_review_element_missing_finding_index_fails_validation --
 _snapshot_fail
 
 _ESC_MISSING_IDX_FILE=$(write_fixture "escalate_review_missing_index.json" '{
-  "scores": {
-    "hygiene": 5,
-    "design": 5,
-    "maintainability": 5,
-    "correctness": 5,
-    "verification": 5
-  },
   "findings": [],
   "summary": "All dimensions clean but escalate_review element is missing finding_index.",
   "escalate_review": [{"reason": "uncertain severity"}]
@@ -1314,13 +1063,6 @@ assert_pass_if_clean "test_escalate_review_element_missing_finding_index_fails_v
 # Test: findings JSON without approach_viability_concern passes (optional field)
 # This test is GREEN immediately: absent optional fields are not flagged as errors.
 _AVC_ABSENT_FILE=$(write_fixture "approach_viability_concern_absent.json" '{
-  "scores": {
-    "hygiene": 5,
-    "design": 5,
-    "maintainability": 5,
-    "correctness": 5,
-    "verification": 5
-  },
   "findings": [],
   "summary": "No approach_viability_concern field present at all."
 }')

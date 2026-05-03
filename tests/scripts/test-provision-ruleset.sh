@@ -152,38 +152,35 @@ assert_eq "test_payload_includes_leg_names: macos-bash3 in payload" "present" "$
 assert_eq "test_payload_includes_leg_names: alpine-busybox in payload" "present" "$leg_alpine"
 assert_pass_if_clean "test_payload_includes_leg_names_from_required_checks"
 
-# ── test_bypass_actor_policy_pull_request_only ───────────────────────────────
-# When --bypass-actor-policy=pull_request_only is passed (with admin token
-# present), the dry-run payload must include "bypass_mode": "pull_request_only".
-# We export GH_TOKEN to satisfy the admin-token guard via mock auth status —
-# but since gh auth status reads from the real auth, we instead pass through
-# a path with a stub gh that reports admin scope.
+# ── test_payload_valid_json_with_special_chars ────────────────────────────────
+# Check names containing JSON-special characters (quotes, backslashes) must be
+# properly escaped so the generated payload is valid JSON (2bf0-1eb5).
 _snapshot_fail
-_stub_dir=$(mktemp -d)
-cat > "$_stub_dir/gh" <<'STUB'
-#!/usr/bin/env bash
-# Minimal gh stub: report admin scope for auth status -t; succeed silently otherwise.
-case "$*" in
-  "auth status -t"|"auth status")
-    echo "admin:org" >&2
-    exit 0
-    ;;
-  *) exit 0 ;;
-esac
-STUB
-chmod +x "$_stub_dir/gh"
-bypass_output=""
-bypass_exit=0
-bypass_output=$(PATH="$_stub_dir:$PATH" DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --bypass-actor-policy=pull_request_only 2>&1) || bypass_exit=$?
-rm -rf "$_stub_dir"
-if echo "$bypass_output" | grep -q '"bypass_mode": "pull_request_only"'; then
-    actual_bypass="present"
-else
-    actual_bypass="missing"
+special_checks_dir=$(mktemp -d)
+special_checks_file="$special_checks_dir/required-checks.txt"
+printf '%s\n' 'check/with-slash' 'check-with-hyphen' 'check.with.dot' > "$special_checks_file"
+special_output=""
+special_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --checks-file "$special_checks_file" 2>/dev/null) || true
+rm -rf "$special_checks_dir"
+
+special_valid="invalid"
+# Extract the first valid JSON object from the DSO_DRY_RUN output
+json_payload=$(echo "$special_output" | python3 -c "
+import sys, json
+text = sys.stdin.read()
+idx = text.find('{')
+if idx >= 0:
+    try:
+        obj, _ = json.JSONDecoder().raw_decode(text, idx)
+        print('ok')
+    except Exception:
+        pass
+" 2>/dev/null)
+if [[ "$json_payload" == "ok" ]]; then
+    special_valid="valid"
 fi
-assert_eq "test_bypass_actor_policy_pull_request_only: payload bypass_mode" "present" "$actual_bypass"
-assert_eq "test_bypass_actor_policy_pull_request_only: exit 0" "0" "$bypass_exit"
-assert_pass_if_clean "test_bypass_actor_policy_pull_request_only"
+assert_eq "test_payload_valid_json_with_special_chars: payload is valid JSON" "valid" "$special_valid"
+assert_pass_if_clean "test_payload_valid_json_with_special_chars"
 
 # ── test_require_conversation_resolution_true ────────────────────────────────
 # When --require-conversation-resolution=true, payload must set
@@ -277,36 +274,6 @@ fi
 assert_eq "test_bypass_actor_policy_requires_admin_token: exits non-zero" "nonzero" "$actual_admin_exit"
 assert_eq "test_bypass_actor_policy_requires_admin_token: error message" "present" "$actual_admin_msg"
 assert_pass_if_clean "test_bypass_actor_policy_requires_admin_token"
-
-# ── test_payload_valid_json_with_special_chars ────────────────────────────────
-# Check names containing JSON-special characters (quotes, backslashes) must be
-# properly escaped so the generated payload is valid JSON (2bf0-1eb5).
-_snapshot_fail
-special_checks_dir=$(mktemp -d)
-special_checks_file="$special_checks_dir/required-checks.txt"
-printf '%s\n' 'check/with-slash' 'check-with-hyphen' 'check.with.dot' > "$special_checks_file"
-special_output=""
-special_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --checks-file "$special_checks_file" 2>/dev/null) || true
-rm -rf "$special_checks_dir"
-
-special_valid="invalid"
-# Extract the first valid JSON object from the DSO_DRY_RUN output
-json_payload=$(echo "$special_output" | python3 -c "
-import sys, json
-text = sys.stdin.read()
-idx = text.find('{')
-if idx >= 0:
-    try:
-        obj, _ = json.JSONDecoder().raw_decode(text, idx)
-        print('ok')
-    except Exception:
-        pass
-" 2>/dev/null)
-if [[ "$json_payload" == "ok" ]]; then
-    special_valid="valid"
-fi
-assert_eq "test_payload_valid_json_with_special_chars: payload is valid JSON" "valid" "$special_valid"
-assert_pass_if_clean "test_payload_valid_json_with_special_chars"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

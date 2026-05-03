@@ -14,7 +14,7 @@ set -euo pipefail
 #
 #   Or with a heredoc:
 #   cat <<'EOF' | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"  # shim-exempt: usage example in script header
-#   { "scores": {...}, "findings": [...], "summary": "..." }
+#   { "findings": [...], "summary": "..." }
 #   EOF
 #
 # Options:
@@ -86,54 +86,19 @@ if [ ! -s "$PENDING_FILE" ]; then
     exit 2
 fi
 
-# Normalize 'dimensions' → 'scores' key if the LLM used the wrong top-level key name.
-# The light reviewer (haiku) sometimes writes "dimensions" instead of "scores" due to
-# positional bias in the agent prompt — the concept word "dimensions" competes with the
-# JSON key name "scores". Also normalize nested score objects: the LLM sometimes writes
-# { "dimensions": { "correctness": { "score": 4, "rationale": "..." } } } instead of
-# flat integers — flatten { "score": N } values to just N (bug 8e5d-ade1).
+# Warn on deprecated 'scores' key during transition — scores key will be rejected
+# once reviewer agents are updated in story f19a-c97e. During this transition, scores
+# is tolerated so the review pipeline continues to function with existing agents.
 python3 -c "
 import json, sys
 SCORE_DIMS = {'correctness', 'design', 'hygiene', 'maintainability', 'verification'}
 with open(sys.argv[1], 'r') as f:
     data = json.load(f)
-changed = False
-# Normalize top-level 'dimensions' key to 'scores'
-if 'dimensions' in data and 'scores' not in data:
-    print('WARNING: Normalizing top-level key \"dimensions\" to \"scores\"', file=sys.stderr)
-    data['scores'] = data.pop('dimensions')
-    changed = True
-# Normalize dimension names at top level: the arch agent sometimes emits
-# { 'correctness': 4, 'hygiene': 3, ... } instead of { 'scores': { ... } }.
-# Collect any top-level score dimensions into a 'scores' sub-dict.
-top_dims = {k: v for k, v in data.items() if k in SCORE_DIMS}
-if top_dims and 'scores' not in data:
-    print('WARNING: Collecting top-level dimension keys into \"scores\"', file=sys.stderr)
-    # Build a new dict without the dimension keys to avoid fragile in-place deletion
-    data = {k: v for k, v in data.items() if k not in SCORE_DIMS}
-    data['scores'] = top_dims
-    changed = True
-# Normalize nested score objects: { 'score': N, 'rationale': '...' } -> N
-if isinstance(data.get('scores'), dict):
-    for k, v in list(data['scores'].items()):
-        if isinstance(v, dict) and 'score' in v:
-            print(f'WARNING: Flattening nested score object for \"{k}\"', file=sys.stderr)
-            data['scores'][k] = v['score']
-            changed = True
-# Add missing 'summary' field when absent (arch agent occasionally omits it).
-# Use a diagnostic default rather than a neutral one so the absence is observable.
-if 'summary' not in data:
-    print('WARNING: Adding default summary field (arch agent did not provide one)', file=sys.stderr)
-    data['summary'] = 'Summary unavailable — arch agent response did not include a summary field.'
-    changed = True
-# Add missing 'findings' field with empty list when absent
-if 'findings' not in data:
-    data['findings'] = []
-    changed = True
-if changed:
-    with open(sys.argv[1], 'w') as f:
-        json.dump(data, f, indent=2)
-" "$PENDING_FILE" 2>&1 || true  # normalization failure is non-fatal
+if 'scores' in data:
+    print('DEPRECATION WARNING: \"scores\" key is deprecated. '
+          'Update reviewer agents to 2-key schema {findings, summary} (story f19a-c97e).',
+          file=sys.stderr)
+" "$PENDING_FILE" || true  # non-fatal; deprecation warning goes to stderr (not stdout)
 
 # Inject review_tier field if --review-tier was provided
 if [[ -n "$_REVIEW_TIER" ]]; then

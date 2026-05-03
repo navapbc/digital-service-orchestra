@@ -170,25 +170,12 @@ done < "$MINOR_DESCS"
 # ---------------------------------------------------------------------------
 
 if [[ -x "$WRITE_FINDINGS_CMD" ]]; then
-    # Build full reviewer-findings.json schema (3 keys: scores, findings, summary)
-    # Scores derived per-dimension from findings' categories and severities.
-    # Severity mapping: critical→1, important→3, minor→4 (per CLAUDE.md reviewer schema).
-    # Each finding's category maps to a dimension; unaffected dimensions stay at 5.
+    # Build 2-key reviewer-findings.json schema (findings + summary).
+    # Scores removed in story 6c75-cc5d — schema is now findings + summary only.
     python3 -c "
 import json, sys
 d = json.load(open(sys.argv[1]))
-severity_to_score = {'critical': 1, 'important': 3, 'fragile': 3, 'minor': 4}
-dim_scores = {'correctness': 5, 'verification': 5, 'hygiene': 5, 'design': 5, 'maintainability': 5}
-for f in d['findings']:
-    sev = f.get('severity', 'minor')
-    cat = f.get('category', 'correctness')
-    score = severity_to_score.get(sev, 4)
-    if cat in dim_scores:
-        dim_scores[cat] = min(dim_scores[cat], score)
-    else:
-        dim_scores['correctness'] = min(dim_scores['correctness'], score)
 output = {
-    'scores': dim_scores,
     'findings': d['findings'],
     'summary': 'Overlay findings aggregated from security, performance, and/or test quality review.'
 }

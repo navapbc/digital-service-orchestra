@@ -21,19 +21,15 @@ write-reviewer-findings.sh call procedure.
 
 ## Mandatory Output Contract
 
-Your final message MUST be ONLY these five lines — no prose, no JSON, no explanation:
+Your final message MUST be ONLY these three lines — no prose, no JSON, no explanation:
 
 ```
-REVIEW_RESULT: {passed|failed}
 REVIEWER_HASH={sha256 of reviewer-findings.json}
-MIN_SCORE={lowest numeric score, or "N/A" if all N/A}
 FINDING_COUNT={N}
 FILES: {comma-separated list of files referenced in findings}
 ```
 
-**Pass/fail rule**: `REVIEW_RESULT` is `passed` only when every numeric score is 4 or 5
-(minor findings or none). It is `failed` when ANY numeric dimension scores 3 or lower
-(important or critical finding present). If all scores are `N/A`, emit `passed`.
+Pass/fail is determined by record-review.sh from findings[].severity — no pass/fail output is required from the reviewer.
 
 You MUST also write reviewer-findings.json to disk (Step 3 below) before returning.
 Returning prose, markdown, or raw JSON instead of this format will force a re-dispatch.
@@ -71,8 +67,8 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 "$REPO_ROOT/.claude/scripts/dso" verify-review-diff.sh "$DIFF_FILE_PATH"
 ```
 
-- If it returns non-zero: STOP and return `REVIEW_RESULT: error` with the mismatch details.
-- If the file is missing or empty: STOP and return `REVIEW_RESULT: error`.
+- If it returns non-zero: STOP and note the mismatch details.
+- If the file is missing or empty: STOP and note the error.
 
 Then read the diff from the provided diff file path using the Read tool.
 
@@ -107,28 +103,20 @@ Produce a JSON object with this EXACT schema (for writing to disk in Step 3).
 
 VIOLATIONS CAUSE RE-DISPATCH.
 
-REQUIRED: EXACTLY three top-level keys: "scores", "findings" (file field must reference diff files only), "summary".
+REQUIRED: EXACTLY two top-level keys:
+- `"findings"` — array of finding objects; each `"file"` field MUST reference a file present in the diff being reviewed
+- `"summary"` — 2–3 sentence assessment
+
+Do NOT include a scores key.
 Do NOT add "schema_version", "review_result", "id", "review_date", or any other key except escalate_review (see Escalation section below) —
 the validator will reject unrecognized keys and force a re-dispatch.
-The "scores" object MUST contain ALL five dimensions listed below with integer 1–5 or "N/A". Before writing the JSON, verify all five keys are present: hygiene, design, maintainability, correctness, verification. A missing dimension causes immediate re-dispatch.
-
-**SCORE SCALE: INTEGER 1–5 ONLY. NOT 0–10. NOT 0–100. NOT any other scale.**
-Valid numeric score values: 1, 2, 3, 4, 5. Any value outside this range (e.g. 6, 7, 8, 9, 10)
-will be rejected by the validator and force a re-dispatch.
 
 ```json
 {
-  "scores": {
-    "hygiene": "<integer 1-5 or N/A>",
-    "design": "<integer 1-5 or N/A>",
-    "maintainability": "<integer 1-5 or N/A>",
-    "correctness": "<integer 1-5 or N/A>",
-    "verification": "<integer 1-5 or N/A>"
-  },
   "findings": [
     {
       "severity": "critical|important|minor|fragile",
-      "category": "<one of the 5 score dimensions>",
+      "category": "<one of the 5 review categories>",
       "description": "...",
       "file": "path/to/file (MUST be from the diff being reviewed)"
     }
@@ -142,7 +130,6 @@ Example **without** `escalate_review` (omit when confident about all severities)
 
 ```json
 {
-  "scores": { "hygiene": 4, "design": 5, "maintainability": 4, "correctness": 3, "verification": 4 },
   "findings": [
     {
       "severity": "important",
@@ -184,24 +171,6 @@ Each element must have `finding_index` (zero-based index into the `findings` arr
 **`file` field constraint**: The `file` field in each finding MUST reference a file present in the diff being reviewed (DIFF_FILE). Do not use files from your recommendations (e.g., test files that should be created) — only files that appear in the actual diff. `record-review.sh` validates that finding files overlap with changed files and rejects the review if they do not.
 
 ---
-
-## Scoring Rules
-
-Scores are integers 1–5 (not 0–10), driven by findings. `write-reviewer-findings.sh`
-validates consistency and rejects mismatches.
-
-| Worst finding in dimension | Score |
-|---------------------------|-------|
-| No findings | 5 |
-| Minor only | 4 |
-| Important (not critical) | 3 |
-| Critical | 1–2 |
-
-- Multiple severities in same dimension → worst wins
-- Dimension not relevant → "N/A"
-
----
-
 ## Category Mapping
 
 Each finding's `category` must be exactly one of these five dimensions:
@@ -228,6 +197,20 @@ When you encounter a `# REVIEW-DEFENSE:` comment in the code:
 
 Defenses based on unverifiable claims (e.g., "for performance reasons" with no benchmark,
 test, or documented tradeoff) should be treated skeptically.
+
+---
+
+## Pre-Output Category Coverage Check
+
+Before writing your findings JSON, verify you have considered all 5 review categories:
+
+- **correctness** — logic errors, off-by-one, null-pointer, wrong algorithm, incorrect return values
+- **verification** — test coverage, test quality, edge case coverage, mock correctness
+- **hygiene** — naming, formatting, dead code, unnecessary complexity, code duplication
+- **design** — coupling, cohesion, interface clarity, SOLID principles, abstraction quality
+- **maintainability** — documentation, readability, future-change cost, cognitive load
+
+If you have found NO issues in a category, that is acceptable — record that you reviewed it and found it clean. Do NOT fabricate findings to fill categories.
 
 ---
 
@@ -261,9 +244,7 @@ FINDINGS_EOF
 ## Step 4 — Return the Fixed Format (nothing else)
 
 ```
-REVIEW_RESULT: {passed|failed}
 REVIEWER_HASH={hash from write-reviewer-findings.sh above}
-MIN_SCORE={lowest numeric score, or "N/A" if all N/A}
 FINDING_COUNT={N}
 FILES: {comma-separated list of files referenced in findings}
 ```
@@ -495,7 +476,7 @@ Always evaluate these two items and include the results in your summary field te
 - [ ] **security_overlay_warranted**: Does this diff touch authentication, authorization, cryptography, session management, trust boundaries, or sensitive data handling? Answer yes or no in the summary.
 - [ ] **performance_overlay_warranted**: Does this diff touch database queries, caching, connection pools, async/concurrent patterns, or batch processing? Answer yes or no in the summary.
 
-These items MUST appear in your summary field text (e.g., "security_overlay_warranted: no, performance_overlay_warranted: yes"). They do NOT add new top-level keys to the JSON output — validate-review-output.sh enforces exactly 3 top-level keys (scores, findings, summary).
+These items MUST appear in your summary field text (e.g., "security_overlay_warranted: no, performance_overlay_warranted: yes"). They do NOT add new top-level keys to the JSON output — validate-review-output.sh enforces exactly 2 top-level keys (findings, summary).
 
 ---
 

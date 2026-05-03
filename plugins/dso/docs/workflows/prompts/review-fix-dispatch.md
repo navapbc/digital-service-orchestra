@@ -71,7 +71,7 @@ Read the findings file:
 cat "{findings_file}"
 ```
 
-Parse the JSON: extract `findings` array and `scores` object.
+Parse the JSON: extract the `findings` array.
 
 **Step 2 — Triage findings**
 

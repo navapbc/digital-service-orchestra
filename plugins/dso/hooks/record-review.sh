@@ -2,11 +2,14 @@
 # hooks/record-review.sh
 # Utility: records that a code review passed for the current working tree state.
 #
-# Called after a successful /dso:review run. Reads scores, findings, and summary
+# Called after a successful /dso:review run. Reads findings and summary
 # directly from reviewer-findings.json (written by the code-reviewer sub-agent
 # via write-reviewer-findings.sh). This ensures that only genuine sub-agent
 # reviews can produce a valid review state — no orchestrator-constructed JSON
 # is accepted.
+#
+# Derives STATUS (passed/failed) from findings[].severity:
+#   critical/important/fragile = failed, minor/empty = passed
 #
 # Usage:
 #   record-review.sh --reviewer-hash HASH [--expected-hash HASH]
@@ -21,8 +24,6 @@
 #                          wrote it.
 #
 # reviewer-findings.json must contain (written by sub-agent):
-#   - scores: object with hygiene, design, maintainability,
-#             correctness, verification (each 1-5 or "N/A")
 #   - summary: non-empty string (min 10 chars)
 #   - findings: array of finding objects (may be empty)
 #
@@ -31,8 +32,7 @@
 #   Line 1: "passed" or "failed"
 #   Line 2: timestamp=<ISO8601>
 #   Line 3: diff_hash=<sha256 of staged+unstaged diff>
-#   Line 4: score=<min numeric score from review>
-#   Line 5: review_hash=<sha256 of reviewer-findings.json>
+#   Line 4: review_hash=<sha256 of reviewer-findings.json>
 #
 # The diff_hash lets hooks detect whether code has changed since the review.
 # The review_hash proves that structured review data was provided.
@@ -156,15 +156,10 @@ if [[ -n "$ATTEST_SOURCE_DIR" ]]; then
         exit 1
     fi
 
-    # Extract score and review_hash from source
-    SOURCE_SCORE=$(grep '^score=' "$SOURCE_STATUS_FILE" | head -1 | cut -d= -f2)
+    # Extract review_hash from source
     SOURCE_REVIEW_HASH=$(grep '^review_hash=' "$SOURCE_STATUS_FILE" | head -1 | cut -d= -f2)
 
     # Validate extracted fields are non-empty
-    if [[ -z "$SOURCE_SCORE" ]]; then
-        echo "ERROR: source review-status missing score= field" >&2
-        exit 1
-    fi
     if [[ -z "$SOURCE_REVIEW_HASH" ]]; then
         echo "ERROR: source review-status missing review_hash= field" >&2
         exit 1
@@ -191,7 +186,6 @@ if [[ -n "$ATTEST_SOURCE_DIR" ]]; then
 passed
 timestamp=${TIMESTAMP}
 diff_hash=${DIFF_HASH}
-score=${SOURCE_SCORE}
 review_hash=${SOURCE_REVIEW_HASH}
 attest_source=${WORKTREE_ID}
 EOF
@@ -201,7 +195,7 @@ EOF
         echo "$_PREV_CHECKPOINT_CLEARED" >> "$REVIEW_STATE_FILE"
     fi
 
-    echo "Review status attested from worktree ${WORKTREE_ID}: passed (score=${SOURCE_SCORE}, diff_hash=${DIFF_HASH:0:12}...)"
+    echo "Review status attested from worktree ${WORKTREE_ID}: passed (diff_hash=${DIFF_HASH:0:12}...)"
     exit 0
 fi
 
@@ -259,47 +253,17 @@ if [[ "$REVIEWER_HASH" != "$ACTUAL_HASH" ]]; then
 fi
 
 # --- Validate and extract review data from reviewer-findings.json ---
-# Read scores, summary, findings, and files from the sub-agent's findings file.
+# Read summary, findings, and files from the sub-agent's findings file.
+# Derives STATUS from findings[].severity: critical/important/fragile = failed,
+# minor or empty findings = passed.
 # Note: do NOT use || true here — we want to fail closed on Python errors.
 # Instead, temporarily disable set -e for this block to capture exit code.
 set +e
-REVIEWER_SCORE=$(FINDINGS_PATH="$FINDINGS_FILE" python3 -c "
-import sys, json, os
+REVIEWER_VALIDATION_OUTPUT=$(FINDINGS_PATH="$FINDINGS_FILE" python3 -c "
+import sys, json, os, re
 
 with open(os.environ['FINDINGS_PATH']) as f:
     data = json.load(f)
-
-scores = data.get('scores', {})
-required = ['hygiene', 'design', 'maintainability', 'correctness', 'verification']
-
-# Normalize string digits to int so both '4' and 4 are accepted
-for key in list(scores.keys()):
-    val = scores[key]
-    if isinstance(val, str) and val.isdigit():
-        scores[key] = int(val)
-
-for key in required:
-    if key not in scores:
-        print(f'ERROR: reviewer missing score dimension: {key}')
-        print()
-        print('Required schema for reviewer-findings.json:')
-        print('{')
-        print('  \"scores\": {')
-        print('    \"hygiene\": <1-5 or \"N/A\">,')
-        print('    \"design\": <1-5 or \"N/A\">,')
-        print('    \"maintainability\": <1-5 or \"N/A\">,')
-        print('    \"correctness\": <1-5 or \"N/A\">,')
-        print('    \"verification\": <1-5 or \"N/A\">}')
-        print('  },')
-        print('  \"findings\": [{\"severity\": \"critical|important|minor|fragile\", \"category\": \"<one of 5 score dims>\", \"file\": \"path\", \"description\": \"...\"}],')
-        print('  \"summary\": \"<10+ char assessment>\"')
-        print('}')
-        sys.exit(1)
-    val = scores[key]
-    if val != 'N/A':
-        if not isinstance(val, (int, float)) or not (1 <= val <= 5):
-            print(f'ERROR: reviewer score {key} must be 1-5 or N/A, got: {val}')
-            sys.exit(1)
 
 # Validate summary
 summary = data.get('summary')
@@ -307,58 +271,53 @@ if not summary or not isinstance(summary, str) or len(summary.strip()) < 10:
     print('ERROR: missing or too short summary in reviewer-findings.json (min 10 chars)')
     sys.exit(1)
 
-# Cross-validate findings against scores
-valid_categories = set(required)
+# Validate findings severity values
 valid_severities = {'critical', 'important', 'minor', 'fragile'}
-for finding in data.get('findings', []):
+valid_categories = {'hygiene', 'design', 'maintainability', 'correctness', 'verification'}
+findings = data.get('findings', [])
+for finding in findings:
     severity = finding.get('severity', '')
     category = finding.get('category', '')
     if severity not in valid_severities:
         print(f'ERROR: finding has invalid severity: {severity} (must be one of {sorted(valid_severities)})')
         sys.exit(1)
     if category not in valid_categories:
-        print(f'ERROR: finding has invalid category: {category} (must be one of {sorted(required)})')
-        sys.exit(1)
-    score = scores.get(category)
-    if score == 'N/A' or not isinstance(score, (int, float)):
-        continue
-    if severity == 'critical' and score > 2:
-        print(f'ERROR: {category}={score} but reviewer found critical issue — score must be 1-2')
+        print(f'ERROR: finding has invalid category: {category} (must be one of {sorted(valid_categories)})')
         sys.exit(1)
 
-numeric = [v for v in scores.values() if isinstance(v, (int, float))]
-min_score = min(numeric) if numeric else 5
-has_critical = any(f.get('severity') == 'critical' for f in data.get('findings', []))
+# Determine STATUS from severity (text of descriptions must NOT affect STATUS)
+blocking = {'critical', 'important', 'fragile'}
+status = 'failed' if any(f.get('severity') in blocking for f in findings) else 'passed'
+has_critical = any(f.get('severity') == 'critical' for f in findings)
 critical_flag = 'yes' if has_critical else 'no'
 
 # Extract files from findings for overlap check
 files = set()
-for finding in data.get('findings', []):
-    f = finding.get('file', '')
-    if f:
-        files.add(f)
+for finding in findings:
+    fpath = finding.get('file', '')
+    if fpath:
+        files.add(fpath)
 
-files_str = '\\n'.join(sorted(files)) if files else ''
-import re
+files_str = '\n'.join(sorted(files)) if files else ''
 review_tier = data.get('review_tier', '')
 # Sanitize review_tier: only lowercase letters allowed to prevent colon-delimiter corruption
 review_tier = re.sub(r'[^a-z]', '', review_tier) if review_tier else ''
 selected_tier = data.get('selected_tier', '')
 selected_tier = re.sub(r'[^a-z]', '', selected_tier) if selected_tier else ''
 # Emit selected_tier before files_str (files_str is the tail — everything after the last expected colon).
-print(f'OK:{min_score}:{critical_flag}:{review_tier}:{selected_tier}:{files_str}')
+print(f'OK:{status}:{critical_flag}:{review_tier}:{selected_tier}:{files_str}')
 " 2>&1)
 REVIEWER_EXIT=$?
 set -e
 
-if [[ $REVIEWER_EXIT -ne 0 || "$REVIEWER_SCORE" == ERROR:* ]]; then
-    echo "Reviewer findings validation failed: $REVIEWER_SCORE" >&2
+if [[ $REVIEWER_EXIT -ne 0 || "$REVIEWER_VALIDATION_OUTPUT" == ERROR:* ]]; then
+    echo "Reviewer findings validation failed: $REVIEWER_VALIDATION_OUTPUT" >&2
     exit 1
 fi
 
-# Parse the OK response: OK:<score>:<critical_flag>:<review_tier>:<selected_tier>:<files>
-RESULT_BODY="${REVIEWER_SCORE#OK:}"
-SCORE="${RESULT_BODY%%:*}"
+# Parse the OK response: OK:<status>:<critical_flag>:<review_tier>:<selected_tier>:<files>
+RESULT_BODY="${REVIEWER_VALIDATION_OUTPUT#OK:}"
+STATUS_FROM_FINDINGS="${RESULT_BODY%%:*}"  # "passed" or "failed"
 REMAINDER="${RESULT_BODY#*:}"
 HAS_CRITICAL="${REMAINDER%%:*}"
 REMAINDER="${REMAINDER#*:}"
@@ -419,8 +378,8 @@ fi
 
 # Fix c751-600d: per-finding strip — remove findings whose file is not in OVERLAP_CHECK_FILES.
 # Set-level overlap (any match lets all findings through) allowed hallucinated out-of-diff
-# findings to inflate the score and spuriously set has_critical.  After stripping, re-parse
-# SCORE and HAS_CRITICAL so the recorded state reflects only legitimate in-diff findings.
+# findings to spuriously set has_critical.  After stripping, STATUS_FROM_FINDINGS and
+# HAS_CRITICAL are re-derived so the recorded state reflects only legitimate in-diff findings.
 # Skip when --findings-file override is set (cross-worktree findings are already trusted)
 # and when OVERLAP_CHECK_FILES is empty (no scope to filter against).
 if [[ -z "$FINDINGS_FILE_OVERRIDE" ]] && [[ -n "$OVERLAP_CHECK_FILES" ]] && [[ -s "$FINDINGS_FILE" ]]; then
@@ -457,32 +416,7 @@ if not stripped:
     print('NO_STRIP')
     sys.exit(0)
 
-# For each score dimension, if ALL penalizing findings in that dimension
-# were stripped (out-of-diff), reset the score to 5 so the hallucinated penalty
-# does not persist.  Penalizing severities: critical, important, fragile (all
-# three can lower a dimension score).  Dimensions that still have penalizing
-# in-diff findings keep their reviewer-assigned score unchanged.
-scores = dict(data.get('scores', {}))
-_penalizing = ('critical', 'important', 'fragile')
-dims_with_remaining_penalizing = set()
-for f in in_diff:
-    if f.get('severity') in _penalizing:
-        dims_with_remaining_penalizing.add(f.get('category', ''))
-
-dims_fully_stripped = set()
-for f in stripped:
-    if f.get('severity') in _penalizing:
-        dim = f.get('category', '')
-        if dim and dim not in dims_with_remaining_penalizing:
-            dims_fully_stripped.add(dim)
-
-for dim in dims_fully_stripped:
-    if dim in scores:
-        # Normalize: reset to 5 (no remaining penalizing findings in this dimension)
-        scores[dim] = 5
-
 data['findings'] = in_diff
-data['scores'] = scores
 print(json.dumps(data))
 " "$FINDINGS_FILE" "$OVERLAP_CHECK_FILES" 2>/dev/null)
     _FILTER_EXIT=$?
@@ -491,28 +425,23 @@ print(json.dumps(data))
     if [[ $_FILTER_EXIT -eq 0 && -n "$_FILTERED_FINDINGS" && "$_FILTERED_FINDINGS" != "NO_STRIP" ]]; then
         echo "$_FILTERED_FINDINGS" > "$FINDINGS_FILE"
 
-        # Re-parse SCORE and HAS_CRITICAL from the filtered findings file so the
-        # rest of the script operates on the cleaned data.
+        # Re-derive STATUS_FROM_FINDINGS and HAS_CRITICAL from the filtered findings file
+        # so the rest of the script operates on the cleaned data.
         set +e
         _REPARSED=$(python3 -c "
-import json, sys, os
+import json, sys
 with open(sys.argv[1]) as fh:
     data = json.load(fh)
-scores = data.get('scores', {})
-# Normalize string digits
-for k in list(scores.keys()):
-    v = scores[k]
-    if isinstance(v, str) and v.isdigit():
-        scores[k] = int(v)
-numeric = [v for v in scores.values() if isinstance(v, (int, float))]
-min_score = min(numeric) if numeric else 5
-has_critical = any(f.get('severity') == 'critical' for f in data.get('findings', []))
-print(str(min_score) + ':' + ('yes' if has_critical else 'no'))
+findings = data.get('findings', [])
+blocking = {'critical', 'important', 'fragile'}
+status = 'failed' if any(f.get('severity') in blocking for f in findings) else 'passed'
+has_critical = any(f.get('severity') == 'critical' for f in findings)
+print(status + ':' + ('yes' if has_critical else 'no'))
 " "$FINDINGS_FILE" 2>/dev/null)
         _REPARSE_EXIT=$?
         set -e
         if [[ $_REPARSE_EXIT -eq 0 && -n "$_REPARSED" ]]; then
-            SCORE="${_REPARSED%%:*}"
+            STATUS_FROM_FINDINGS="${_REPARSED%%:*}"
             HAS_CRITICAL="${_REPARSED#*:}"
         fi
 
@@ -726,7 +655,7 @@ if [[ -f "$TELEMETRY_FILE" ]]; then
         # cannot enforce. Allowing the commit through would silently disable
         # overlay coverage — the exact failure mode this gate was added to
         # prevent. Surface the misconfiguration to the user instead.
-        echo "OVERLAY_GATE_UNAVAILABLE: read-overlay-flags.sh not found at $_READ_OVERLAY_SCRIPT — overlay enforcement cannot run. Sync the plugin (the helper is shipped under \${CLAUDE_PLUGIN_ROOT}/scripts/) and re-run the commit workflow." >&2
+        echo "OVERLAY_GATE_UNAVAILABLE: read-overlay-flags.sh not found at $_READ_OVERLAY_SCRIPT — overlay enforcement cannot run. Sync the plugin and re-run the commit workflow." >&2  # shim-exempt: error message text
         exit 1
     fi
     _OVERLAY_FLAGS=$(bash "$_READ_OVERLAY_SCRIPT" --mode telemetry --diff-hash "$DIFF_HASH" < "$TELEMETRY_FILE" 2>/dev/null || true)
@@ -745,13 +674,8 @@ fi
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# Determine pass/fail: pass requires min score >= 4 AND no critical findings.
-# Important findings may coexist with a passing score (reviewer uses judgment on 3-4 range).
-# Critical findings always fail regardless of score.
-STATUS="passed"
-if [[ $(echo "$SCORE < 4" | bc -l 2>/dev/null || echo "1") == "1" ]] || [[ "$HAS_CRITICAL" == "yes" ]]; then
-    STATUS="failed"
-fi
+# Determine pass/fail from severity-based STATUS already computed by Python validator.
+STATUS="$STATUS_FROM_FINDINGS"  # already determined by severity in Python
 
 # Preserve any existing checkpoint_cleared line across the overwrite below.
 # On multi-session branches a review may run after the sentinel was already cleared;
@@ -766,7 +690,6 @@ cat > "$REVIEW_STATE_FILE" <<EOF
 ${STATUS}
 timestamp=${TIMESTAMP}
 diff_hash=${DIFF_HASH}
-score=${SCORE}
 review_hash=${REVIEW_HASH}
 EOF
 
@@ -775,7 +698,7 @@ if [[ "$TIER_VERIFIED" == "false" ]]; then
     echo "tier_verified=false" >> "$REVIEW_STATE_FILE"
 fi
 
-echo "Review status recorded: ${STATUS} (score=${SCORE}, diff_hash=${DIFF_HASH:0:12}...)"
+echo "Review status recorded: ${STATUS} (diff_hash=${DIFF_HASH:0:12}...)" >&2
 
 # --- Detect and clear checkpoint review sentinel ---
 # If pre-compact-checkpoint.sh wrote .checkpoint-needs-review, record that this

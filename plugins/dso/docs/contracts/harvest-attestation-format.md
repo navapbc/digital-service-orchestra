@@ -72,9 +72,8 @@ Line-oriented key=value format. Each field occupies one line.
 | 1 | *(status)* | string | Review result: `passed`. Attestation only writes `passed` (refuses if source is not passing). |
 | 2 | `timestamp` | string | ISO 8601 UTC timestamp of the attestation write. |
 | 3 | `diff_hash` | string | SHA-256 hash of the post-merge staged+unstaged diff (computed by `compute-diff-hash.sh` in the session context). |
-| 4 | `score` | integer | Minimum numeric score from the original worktree review (carried forward from source). |
-| 5 | `review_hash` | string | SHA-256 hash of the original `reviewer-findings.json` (carried forward from source). |
-| 6 | `attest_source` | string | Worktree artifacts directory path that provided the source gate status. Identifies the trust chain origin. |
+| 4 | `review_hash` | string | SHA-256 hash of the original `reviewer-findings.json` (carried forward from source). |
+| 5 | `attest_source` | string | Worktree artifacts directory path that provided the source gate status. Identifies the trust chain origin. |
 
 **Example**:
 
@@ -82,7 +81,6 @@ Line-oriented key=value format. Each field occupies one line.
 passed
 timestamp=2026-04-12T14:30:05Z
 diff_hash=a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
-score=4
 review_hash=b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3
 attest_source=/tmp/workflow-plugin-abc123/
 ```

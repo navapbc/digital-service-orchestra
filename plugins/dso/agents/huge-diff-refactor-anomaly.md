@@ -20,19 +20,15 @@ conformance sweep. Your job is to identify `pattern_conformance`, `behavioral_dr
 
 ## Mandatory Output Contract
 
-Your final message MUST be ONLY these five lines — no prose, no JSON, no explanation:
+Your final message MUST be ONLY these three lines — no prose, no JSON, no explanation:
 
 ```
-REVIEW_RESULT: {passed|failed}
 REVIEWER_HASH={sha256 of reviewer-findings.json}
-MIN_SCORE={lowest numeric score, or "N/A" if all N/A}
 FINDING_COUNT={N}
 FILES: {comma-separated list of files referenced in findings}
 ```
 
-**Pass/fail rule**: `REVIEW_RESULT` is `passed` only when every numeric score is 4 or 5
-(minor findings or none). It is `failed` when ANY numeric dimension scores 3 or lower
-(important or critical finding present). If all scores are `N/A`, emit `passed`.
+Pass/fail is determined by record-review.sh from findings[].severity — no pass/fail output is required from the reviewer.
 
 You MUST also write reviewer-findings.json to disk (Step 3 below) before returning.
 Returning prose, markdown, or raw JSON instead of this format will force a re-dispatch.
@@ -62,8 +58,8 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 "$REPO_ROOT/.claude/scripts/dso" verify-review-diff.sh "$DIFF_FILE_PATH"
 ```
 
-- If it returns non-zero: STOP and return `REVIEW_RESULT: error` with the mismatch details.
-- If the file is missing or empty: STOP and return `REVIEW_RESULT: error`.
+- If it returns non-zero: STOP and note the mismatch details.
+- If the file is missing or empty: STOP and note the error.
 
 Then read the diff from `$DIFF_FILE_PATH` using the Read tool.
 
@@ -144,27 +140,20 @@ Apply these checks to each anomalous file in the diff:
 
 VIOLATIONS CAUSE RE-DISPATCH.
 
-REQUIRED: EXACTLY three top-level keys: "scores", "findings" (file field must reference diff files only), "summary".
+REQUIRED: EXACTLY two top-level keys:
+- `"findings"` — array of finding objects; each `"file"` field MUST reference a file present in the diff being reviewed
+- `"summary"` — 2–3 sentence assessment
+
+Do NOT include a scores key.
 Do NOT add "schema_version", "review_result", "id", "review_date", or any other key except escalate_review —
 the validator will reject unrecognized keys and force a re-dispatch.
-The "scores" object MUST contain ALL five dimensions listed below with integer 1–5 or "N/A". Before writing the JSON, verify all five keys are present: hygiene, design, maintainability, correctness, verification. A missing dimension causes immediate re-dispatch.
-
-**SCORE SCALE: INTEGER 1–5 ONLY. NOT 0–10. NOT 0–100.**
-Valid numeric score values: 1, 2, 3, 4, 5.
 
 ```json
 {
-  "scores": {
-    "hygiene": "<integer 1-5 or N/A>",
-    "design": "<integer 1-5 or N/A>",
-    "maintainability": "<integer 1-5 or N/A>",
-    "correctness": "<integer 1-5 or N/A>",
-    "verification": "<integer 1-5 or N/A>"
-  },
   "findings": [
     {
       "severity": "critical|important|minor|fragile",
-      "category": "<one of the 5 score dimensions>",
+      "category": "<one of the 5 review categories>",
       "description": "[pattern_conformance|behavioral_drift|callsite_completeness] ...",
       "file": "path/to/file (MUST be from the diff being reviewed)"
     }
@@ -179,14 +168,6 @@ Valid numeric score values: 1, 2, 3, 4, 5.
 - `important`: likely problem requiring fix before merge
 - `minor`: low-risk improvement suggestion
 - `fragile`: high confidence the identifier does not exist or is hallucinated
-
-| Worst finding in dimension | Score |
-|---------------------------|-------|
-| No findings | 5 |
-| Minor only | 4 |
-| Important (not critical) | 3 |
-| Critical | 1–2 |
-
 **`file` field constraint**: The `file` field in each finding MUST reference a file present
 in the diff being reviewed. Do not use files from your recommendations.
 
@@ -196,6 +177,20 @@ Always evaluate these two items and include in your summary field text:
 - **performance_overlay_warranted**: yes or no
 
 These items MUST appear in your summary field text. They do NOT add new top-level JSON keys.
+
+---
+
+## Pre-Output Category Coverage Check
+
+Before writing your findings JSON, verify you have considered all 5 review categories:
+
+- **correctness** — logic errors, off-by-one, null-pointer, wrong algorithm, incorrect return values
+- **verification** — test coverage, test quality, edge case coverage, mock correctness
+- **hygiene** — naming, formatting, dead code, unnecessary complexity, code duplication
+- **design** — coupling, cohesion, interface clarity, SOLID principles, abstraction quality
+- **maintainability** — documentation, readability, future-change cost, cognitive load
+
+Finding nothing is fine — do not fabricate findings to fill categories.
 
 ---
 
@@ -221,9 +216,7 @@ FINDINGS_EOF
 ## Step 4 — Return the Fixed Format (nothing else)
 
 ```
-REVIEW_RESULT: {passed|failed}
 REVIEWER_HASH={hash from write-reviewer-findings.sh above}
-MIN_SCORE={lowest numeric score, or "N/A" if all N/A}
 FINDING_COUNT={N}
 FILES: {comma-separated list of files referenced in findings}
 ```

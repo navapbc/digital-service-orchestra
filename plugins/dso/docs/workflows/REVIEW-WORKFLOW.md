@@ -459,7 +459,7 @@ Agent tool:
 
 **Step 4: Pass `REVIEWER_HASH` from the opus arch agent output to `record-review.sh` in Step 5** — not the REVIEWER_HASH from any of the sonnet agents.
 
-**Retry on malformed output:** If the sub-agent does not return the fixed format (`REVIEW_RESULT:`, `REVIEWER_HASH=`, etc.) or does not include `REVIEWER_HASH=`, re-dispatch with a correction prompt. Never fabricate scores.
+**Retry on malformed output:** If the sub-agent does not return the fixed format (`REVIEWER_HASH=`, `FINDING_COUNT`, `FILES`, etc.) or does not include `REVIEWER_HASH=`, re-dispatch with a correction prompt. Never fabricate findings or severity values.
 
 **NO-FIX RULE**: After dispatching the sub-agent in this step, you (the orchestrator) MUST NOT use Edit, Write, or Bash to modify any files until Step 5 is complete. Any file modification between dispatch and recording invalidates the diff hash and will be rejected by `--expected-hash`.
 
@@ -643,7 +643,7 @@ uncertain_indices = sorted({e['finding_index'] for e in escalate})
 # (The escalation reviewer returns findings with updated severity — apply by position)
 # NOTE: escalation reviewer findings are expected to correspond 1:1 to the uncertain_indices list
 # If the escalation reviewer returns fewer findings, the remainder keep original severities
-# Implementation note: the orchestrator reads the escalation reviewer's REVIEW_RESULT output
+# Implementation note: the orchestrator reads the escalation reviewer's output (REVIEWER_HASH, FINDING_COUNT, FILES)
 # and extracts severity updates before calling this merge step
 print('Merge step: apply escalated severities from escalation reviewer output to reviewer-findings.json')
 print('Uncertain finding indices: ' + str(uncertain_indices))
@@ -778,7 +778,7 @@ Use `overlay_dispatch_with_fallback` (from `scripts/overlay-dispatch.sh`) to ens
 ### Extract sub-agent output
 
 1. Extract `REVIEWER_HASH=<hash>` from the sub-agent's fixed-format Task tool return value.
-2. Extract `REVIEW_RESULT` (passed/failed), `FINDING_COUNT`, and `FILES` for constructing `feedback` and `files_targeted`.
+2. Extract `FINDING_COUNT` and `FILES` from the sub-agent output for constructing `feedback` and `files_targeted`. Pass/fail is determined by record-review.sh from findings[].severity — no `REVIEW_RESULT` field is emitted by the reviewer.
 3. If the review failed and you need finding details, read `reviewer-findings.json` from disk:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -818,8 +818,8 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 ## After Review
 
-### If ALL scores are 4, 5, or "N/A" AND no critical findings:
-Review passed. **Immediately resume the calling workflow** — do NOT wait for user input. If this workflow was invoked from COMMIT-WORKFLOW.md Step 5, proceed directly to Step 6 (Commit). If invoked from another orchestrator, resume at the step after the review invocation. Note: this branch requires ALL scores >= 4. A score of 3 with important findings is NOT a pass — it enters the resolution loop below.
+### If NO Critical, Important, or Fragile findings:
+Review passed. **Immediately resume the calling workflow** — do NOT wait for user input. If this workflow was invoked from COMMIT-WORKFLOW.md Step 5, proceed directly to Step 6 (Commit). If invoked from another orchestrator, resume at the step after the review invocation. Note: Critical, Important, or Fragile findings are NOT a pass — they enter the resolution loop below.
 
 **Post-pass findings inspection** (required — runs before resuming the calling workflow):
 
@@ -854,8 +854,8 @@ This step is non-blocking: ticket creation failures do not prevent the calling w
   --overlay-test-quality="$(echo "$OVERLAY_DIMS" | grep -qx test-quality && echo true || echo false)"
 ```
 
-### If ANY score is below 4, OR any critical finding exists:
-Review failed. Enter the Autonomous Resolution Loop. Critical findings always fail regardless of score.
+### If ANY Critical, Important, or Fragile findings exist:
+Review failed. Enter the Autonomous Resolution Loop.
 
 #### Autonomous Resolution Loop
 
@@ -1029,9 +1029,9 @@ Task tool:
 
    **NEVER set `isolation: "worktree"` on this sub-agent.** It must access `reviewer-findings.json` and `write-reviewer-findings.sh` in the shared working directory.
 
-3. Parse re-review sub-agent output: extract `REVIEW_RESULT`, `MIN_SCORE`, `REVIEWER_HASH`.
+3. Parse re-review sub-agent output: extract `REVIEWER_HASH` and findings severity summary.
 
-4. **If re-review passes** (MIN_SCORE ≥ 4 and no critical findings):
+4. **If re-review passes** (no critical/important/fragile findings):
    Call `record-review.sh` with the NEW diff hash and re-review's REVIEWER_HASH:
    ```bash
    "${CLAUDE_PLUGIN_ROOT}/hooks/record-review.sh" \
