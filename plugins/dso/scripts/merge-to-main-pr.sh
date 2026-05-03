@@ -736,10 +736,10 @@ if [[ "$_PHASE_MERGE_RC" -ne 0 ]]; then
         fi
         _PR_URL_CHECK=""
         if [[ -n "$_MERGE_SF" && -f "$_MERGE_SF" ]]; then
-            _PR_URL_CHECK=$(python3 -c "
-import json
+            _PR_URL_CHECK=$(_DSO_SF="$_MERGE_SF" python3 -c "
+import json, os
 try:
-    d = json.load(open('$_MERGE_SF'))
+    d = json.load(open(os.environ['_DSO_SF']))
     print(d.get('pr_url', ''))
 except Exception:
     print('')
@@ -758,18 +758,18 @@ _PR_NUMBER=""
 if type _state_file_path >/dev/null 2>&1; then
     _SF=$(_state_file_path 2>/dev/null || true)
     if [[ -n "$_SF" && -f "$_SF" ]]; then
-        _PR_URL=$(python3 -c "
-import json
+        _PR_URL=$(_DSO_SF="$_SF" python3 -c "
+import json, os
 try:
-    d = json.load(open('$_SF'))
+    d = json.load(open(os.environ['_DSO_SF']))
     print(d.get('pr_url', ''))
 except Exception:
     print('')
 " 2>/dev/null || true)
-        _PR_NUMBER=$(python3 -c "
-import json
+        _PR_NUMBER=$(_DSO_SF="$_SF" python3 -c "
+import json, os
 try:
-    d = json.load(open('$_SF'))
+    d = json.load(open(os.environ['_DSO_SF']))
     n = d.get('pr_number', '')
     print(n if n != '' else '')
 except Exception:
