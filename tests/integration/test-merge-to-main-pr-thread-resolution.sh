@@ -474,16 +474,28 @@ test_wall_clock_cap_triggers_escalation() {
 # push occurs between iterations and dismiss_stale_approvals_on_push fires,
 # the poll window restart must not double-count the restarted CI as a
 # separate timeout. After the reset, the loop must continue (no escalation).
+#
+# Coverage: verifies POLL_WINDOW_RESET signal emission and that no wall-clock
+# escalation fires (ESCALATE:thread_resolution REASON:wall_clock). The test
+# uses PR_THREAD_LOOP_TEST_STOP_AFTER_RESET=1 so the loop returns 0 on the
+# iteration where reset is detected; rc=0 is an additional assertion.
+#
+# Trade-off note: proving that _start was *numerically* zeroed (not just that
+# the signal was emitted) would require injecting synthetic $SECONDS values —
+# not possible without modifying the implementation. This test instead verifies
+# the observable contract: POLL_WINDOW_RESET emitted, function exits 0, and no
+# wall_clock ESCALATE signal appears in the combined output.
 # ===========================================================================
 test_push_induced_dismissal_resets_poll_window() {
     _setup_test
     export STUB_GH_SCENARIO=push_dismissed
-    # Wall-clock cap large enough that without the reset the test would never
-    # escalate naturally; we only validate that the reset DOES fire (via a
-    # signal emitted by the implementation) and the loop survives one iter.
+    # Tight wall-clock budget to make any wall_clock escalation visible if it
+    # fires. The loop exits via STOP_AFTER_RESET before the wall-clock check
+    # on the reset iteration, so the only way wall_clock could fire is on an
+    # earlier iteration (which would mean the reset never happened).
     export PR_THREAD_LOOP_INTERVAL=0
     export PR_THREAD_LOOP_MAX_DISPATCHES=2
-    export PR_THREAD_LOOP_MAX_WALL_SECONDS=10
+    export PR_THREAD_LOOP_MAX_WALL_SECONDS=5
     # Tell the loop to stop after detecting one reset (test-only escape).
     export PR_THREAD_LOOP_TEST_STOP_AFTER_RESET=1
 
@@ -512,15 +524,27 @@ test_push_induced_dismissal_resets_poll_window() {
         return
     fi
 
+    # Wall-clock counter reset verification: the function must return 0 when
+    # STOP_AFTER_RESET fires. A non-zero rc means the loop escalated (wall_clock
+    # or dispatch_cap) before the reset was detected — i.e., the counter reset
+    # path was never reached.
+    if (( rc != 0 )); then
+        (( ++FAIL ))
+        echo "FAIL: test_push_induced_dismissal_resets_poll_window: expected rc=0 (reset path), got rc=${rc}" >&2
+        _teardown_test
+        return
+    fi
+
     # Behavioral assertion: the implementation MUST emit a recognizable signal
     # whenever it detects a head-sha change and resets its poll window. The
     # exact wording is contract-defined — assert on the signal token.
     assert_contains "test_push_induced_dismissal_resets_poll_window: emits POLL_WINDOW_RESET signal" "POLL_WINDOW_RESET" "$combined"
 
-    # And the wall-clock-cap escalation envelope must NOT fire on the very
-    # first iteration just because CI restarted — i.e., no max-wait error
-    # for PR 55.
-    assert_not_contains "test_push_induced_dismissal_resets_poll_window: no premature wall-clock escalation" "max-wait exceeded" "$combined"
+    # The wall-clock escalation signal from _phase_resolve_threads must NOT
+    # appear. Note: "max-wait exceeded" is emitted by a different function
+    # (_phase_wait_for_merge_check); the correct signal here is wall_clock REASON.
+    assert_not_contains "test_push_induced_dismissal_resets_poll_window: no wall-clock escalation after push reset" \
+        "ESCALATE:thread_resolution REASON:wall_clock" "$combined"
 
     _teardown_test
 }
