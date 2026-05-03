@@ -35,7 +35,7 @@ plugins/dso/hooks/dispatchers/post-agent.sh:tests/hooks/test-post-agent-sentinel
 plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh,tests/hooks/test-pre-dispatcher-err-handler.sh
-plugins/dso/hooks/lib/merge-helpers.sh:tests/integration/test-merge-to-main-pr-thread-resolution.sh,tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-dispatcher.sh,tests/hooks/test-merge-helpers-pr-repo-cache.sh,tests/hooks/test-merge-helpers-special-chars.sh,tests/hooks/test-merge-helpers-auto-resolve-tickets-dir.sh
+plugins/dso/hooks/lib/merge-helpers.sh:tests/integration/test-merge-to-main-pr-thread-resolution.sh,tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-dispatcher.sh,tests/hooks/test-merge-helpers-pr-repo-cache.sh,tests/hooks/test-merge-helpers-special-chars.sh
 plugins/dso/hooks/lib/centrality.sh:tests/hooks/test-record-test-status-centrality.sh
 plugins/dso/scripts/fix-cascade-recovery/reset-cascade-counter.sh:tests/scripts/test-reset-cascade-counter.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh
