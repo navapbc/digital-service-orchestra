@@ -106,8 +106,10 @@ _run_overlay_llm() {
 }
 
 # ── JSON extraction helper (hoisted; used by slot normalization and retry) ─────
-# Scans LLM output for the first valid JSON dict, stripping fences if present.
-# Prose braces ({text}) are not valid JSON and are skipped by raw_decode naturally.
+# Scans LLM output for the best reviewer-findings JSON dict, stripping fences.
+# Preference order: (1) dict with 'findings' key (top-level container),
+# (2) dict with 'summary' key, (3) any valid dict.
+# Prose braces ({text}) are not valid JSON; raw_decode skips them naturally.
 # Prints the extracted JSON to stdout; exits 1 when no dict is found.
 _extract_json_from_llm_text() {
   python3 -c "
@@ -121,6 +123,8 @@ if t2.startswith('json'):
 t2 = t2.strip()
 dec = json.JSONDecoder()
 pos = 0
+best = None      # best candidate seen so far
+best_score = 0   # 3=has findings, 2=has summary, 1=any dict
 while pos < len(t2):
     i = t2.find('{', pos)
     if i < 0:
@@ -128,12 +132,22 @@ while pos < len(t2):
     try:
         obj, _ = dec.raw_decode(t2, i)
         if isinstance(obj, dict):
-            print(json.dumps(obj))
-            sys.exit(0)
+            score = 1
+            if 'summary' in obj:
+                score = 2
+            if 'findings' in obj:
+                score = 3
+            if score > best_score:
+                best = obj
+                best_score = score
+            if best_score == 3:
+                break  # perfect match — no need to scan further
     except json.JSONDecodeError:
         pass
     pos = i + 1
-sys.exit(1)
+if best is None:
+    sys.exit(1)
+print(json.dumps(best))
 " 2>/dev/null
 }
 
@@ -267,39 +281,7 @@ ${DIFF_CONTENT}"
 
     _ARCH_RESP=$(bash "$(command -v llm-api-call.sh)" "$_PLUGIN_ROOT/agents/code-reviewer-deep-arch.md" \
       "@${_ARCH_TMP}" "deep")
-    FINDINGS_JSON=$(printf '%s' "$_ARCH_RESP" | python3 -c "
-import json, sys
-t = sys.stdin.read().strip()
-if not t:
-    raise ValueError('empty')
-# Strip leading backticks and any 'json' language tag from fenced code blocks
-t2 = t.lstrip('\`')
-if t2.startswith('json'):
-    t2 = t2[4:]
-t2 = t2.strip()
-# Scan for the first '{' that starts a valid JSON object. In LLM responses,
-# prose braces ({foo: bar}) are not valid JSON, so raw_decode naturally skips
-# them. Accept the first successfully-decoded dict — schema validation is
-# delegated to write-reviewer-findings.sh downstream.
-dec = json.JSONDecoder()
-pos = 0
-found = None
-while pos < len(t2):
-    i = t2.find('{', pos)
-    if i < 0:
-        break
-    try:
-        obj, _ = dec.raw_decode(t2, i)
-        if isinstance(obj, dict):
-            found = obj
-            break
-    except json.JSONDecodeError:
-        pass
-    pos = i + 1
-if found is None:
-    raise ValueError('no JSON object found in arch response')
-print(json.dumps(found))
-" 2>/dev/null) || {
+    FINDINGS_JSON=$(printf '%s' "$_ARCH_RESP" | _extract_json_from_llm_text) || {
       echo "WARNING: Arch LLM response could not be parsed as reviewer-findings JSON." >&2
       FINDINGS_JSON='{"scores":{"hygiene":"N/A","design":"N/A","maintainability":"N/A","correctness":"N/A","verification":"N/A"},"findings":[],"summary":"Review inconclusive: Arch response could not be parsed."}'
     }
