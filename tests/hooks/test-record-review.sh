@@ -977,4 +977,71 @@ REVIEW_STATUS_FILE="$ARTIFACTS_DIR/review-status"
 SCORE_LINE=$(grep '^score=' "$REVIEW_STATUS_FILE" 2>/dev/null || echo "absent")
 assert_eq "test_review_status_has_no_score_line: no score= line in review-status" "absent" "$SCORE_LINE"
 
+# ---------------------------------------------------------------------------
+# test_overlap_normalizes_dot_slash_prefix
+#
+# Given: RECORD_REVIEW_CHANGED_FILES contains "foo.sh" (bare path).
+#        reviewer-findings.json has a single minor finding with file="./foo.sh"
+#        (leading "./" prefix).
+# When:  record-review.sh runs.
+# Then:  Python _normalize strips './' so the per-finding strip recognizes the
+#        finding as in-diff and preserves it in the findings file. The script
+#        exits 0 and the finding's file field remains './foo.sh' (the strip is
+#        non-mutating — it only filters, never rewrites the file field).
+# ---------------------------------------------------------------------------
+echo "=== test_overlap_normalizes_dot_slash_prefix ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOF'
+{"findings":[{"severity":"minor","category":"hygiene","file":"./foo.sh","description":"Minor style issue."}],"summary":"One minor finding with ./ prefix path."}
+EOF
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+DOT_SLASH_EXIT=0
+# isolation-ok: inject bare path; finding uses ./-prefixed equivalent
+RECORD_REVIEW_CHANGED_FILES="foo.sh" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || DOT_SLASH_EXIT=$?
+assert_eq "test_overlap_normalizes_dot_slash_prefix: ./foo.sh matches foo.sh (exit 0)" "0" "$DOT_SLASH_EXIT"
+# Finding must survive the per-finding strip (NOT be filtered out as out-of-diff).
+DOT_SLASH_FINDINGS_COUNT=$(python3 -c "
+import json
+with open('$FINDINGS_FILE') as f:
+    print(len(json.load(f).get('findings', [])))
+" 2>/dev/null || echo "0")
+assert_eq "test_overlap_normalizes_dot_slash_prefix: finding preserved after per-finding strip" "1" "$DOT_SLASH_FINDINGS_COUNT"
+
+# ---------------------------------------------------------------------------
+# test_overlap_normalizes_redundant_separators
+#
+# Given: RECORD_REVIEW_CHANGED_FILES contains "foo/bar.sh".
+#        reviewer-findings.json has a single minor finding with
+#        file="foo//bar.sh" (redundant separator).
+# When:  record-review.sh runs.
+# Then:  Python _normalize collapses "foo//bar.sh" to "foo/bar.sh", the
+#        per-finding strip recognizes it as in-diff, and the finding is
+#        preserved in the findings file (count remains 1).
+#
+# Without os.path.normpath, the substring match 'foo/bar.sh' vs 'foo//bar.sh'
+# fails in both directions, the finding gets stripped, and FILES_FROM_FINDINGS
+# becomes empty — so this test catches missing normalization via the survival
+# count, not via exit code (which would silently pass with empty findings).
+# ---------------------------------------------------------------------------
+echo "=== test_overlap_normalizes_redundant_separators ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+cat > "$FINDINGS_FILE" <<'EOF'
+{"findings":[{"severity":"minor","category":"hygiene","file":"foo//bar.sh","description":"Minor style issue."}],"summary":"One minor finding with redundant separator."}
+EOF
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+REDUNDANT_SEP_EXIT=0
+# isolation-ok: inject normalized path; finding uses redundant-separator equivalent
+RECORD_REVIEW_CHANGED_FILES="foo/bar.sh" bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || REDUNDANT_SEP_EXIT=$?
+assert_eq "test_overlap_normalizes_redundant_separators: foo//bar.sh matches foo/bar.sh (exit 0)" "0" "$REDUNDANT_SEP_EXIT"
+# Finding must survive the per-finding strip — this is the behavioral signal
+# that path normalization actually ran.
+REDUNDANT_SEP_FINDINGS_COUNT=$(python3 -c "
+import json
+with open('$FINDINGS_FILE') as f:
+    print(len(json.load(f).get('findings', [])))
+" 2>/dev/null || echo "0")
+assert_eq "test_overlap_normalizes_redundant_separators: finding preserved after per-finding strip" "1" "$REDUNDANT_SEP_FINDINGS_COUNT"
+
 print_summary

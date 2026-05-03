@@ -77,10 +77,13 @@ _check_gh_version() {
         return 1
     fi
     # `printf "%s\n%s\n" "$_min" "$_found" | sort -V | head -n1` → smaller of the two.
-    # If the smaller is _min (or both equal), _found >= _min.
+    # When equal, sort -V emits _min first (input order is _min then _found, and
+    # sort -V is stable on equal keys), so _smallest == _min covers both
+    # _found > _min and _found == _min. If _smallest != _min, _found is older
+    # than the minimum required.
     local _smallest
     _smallest=$(printf '%s\n%s\n' "$_min" "$_found" | sort -V | head -n1)
-    if [[ "$_smallest" != "$_min" ]] || [[ "$_found" == "$_smallest" && "$_found" != "$_min" ]]; then
+    if [[ "$_smallest" != "$_min" ]]; then
         # _found is the smaller → too old
         echo "ERROR: gh CLI 2.0.0+ required for PR-mode merge (found $_found)" >&2
         return 1

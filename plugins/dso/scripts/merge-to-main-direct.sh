@@ -533,17 +533,17 @@ _phase_merge() {
                 exit 1
             fi
         else
-            # Recovery failed — emit CONFLICT_DATA from the worktree (where the
-            # rebase conflicts surfaced) BEFORE cd'ing back to the saved dir.
-            # REVIEW-DEFENSE: capture conflicted_files before cd to saved dir so
-            # the helper sees the conflict signal from the recovery worktree.
-            # _squash_rebase_recovery aborts the rebase before returning, so
-            # the live computation will be empty here too — but the helper
-            # falls back to _SQUASH_REBASE_CONFLICTS (exported by the recovery
-            # helper before its abort). This dual layering preserves the
-            # contract regardless of CWD (fix for important finding 2026-05-01).
-            _emit_conflict_data "$BRANCH" "main" "git-merge-no-ff"
+            # Recovery failed — _squash_rebase_recovery aborts the rebase before
+            # returning, so the live `git diff --diff-filter=U` is empty in BOTH
+            # the worktree and main repo. The CONFLICT_DATA payload is sourced
+            # from `_SQUASH_REBASE_CONFLICTS` (exported by the recovery helper
+            # before its abort), which the helper consults as a fallback. We
+            # cd back to _MERGE_SAVED_DIR FIRST so any future change to the
+            # helper that uses live `git diff` runs against the main repo (a
+            # well-defined location), not the recovery worktree (fix for
+            # important finding 2026-05-02 — reviewer's hardening request).
             cd "$_MERGE_SAVED_DIR"
+            _emit_conflict_data "$BRANCH" "main" "git-merge-no-ff"
             _restore_pre_merge_stash
             _state_increment_retry
             echo "ERROR: Squash-rebase recovery failed. Cannot resolve automatically."

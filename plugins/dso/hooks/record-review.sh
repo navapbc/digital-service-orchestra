@@ -385,11 +385,26 @@ fi
 if [[ -z "$FINDINGS_FILE_OVERRIDE" ]] && [[ -n "$OVERLAP_CHECK_FILES" ]] && [[ -s "$FINDINGS_FILE" ]]; then
     set +e
     _FILTERED_FINDINGS=$(python3 -c "
-import json, sys
+import json, os, sys
 
 findings_file = sys.argv[1]
 changed_str = sys.argv[2]
-changed = set(f for f in changed_str.split('\n') if f)
+
+def _normalize(p):
+    # Normalize for cross-format comparison. Strip leading './', collapse
+    # redundant separators, normalize separators to '/' (handles git output on
+    # Windows runners), and lowercase only on case-insensitive filesystems we
+    # do not currently support — keep case intact for portability.
+    if not p:
+        return ''
+    p = p.strip()
+    p = p.replace('\\\\', '/')
+    p = os.path.normpath(p)
+    if p.startswith('./'):
+        p = p[2:]
+    return p
+
+changed = set(_normalize(f) for f in changed_str.split('\n') if f.strip())
 
 with open(findings_file) as fh:
     data = json.load(fh)
@@ -397,14 +412,17 @@ with open(findings_file) as fh:
 findings = data.get('findings', [])
 
 # Partition into in-diff and out-of-diff findings.
-# A finding is in-diff if its file field matches (substring) any changed file.
+# A finding is in-diff if its file field matches (substring) any changed file
+# after path normalization (handles './' prefixes, redundant separators, and
+# Windows-style backslashes that may appear in cross-platform diffs).
 in_diff = []
 stripped = []
 for f in findings:
-    fpath = f.get('file', '')
-    if not fpath:
+    fpath_raw = f.get('file', '')
+    if not fpath_raw:
         in_diff.append(f)  # no file field — keep (global findings)
         continue
+    fpath = _normalize(fpath_raw)
     matched = any(c and (c in fpath or fpath in c) for c in changed)
     if matched:
         in_diff.append(f)
@@ -469,11 +487,25 @@ fi
 if [[ -n "$FINDINGS_FILE_OVERRIDE" ]]; then
     : # overlap check skipped — cross-worktree findings
 elif [[ -n "$OVERLAP_CHECK_FILES" ]] && [[ -n "$FILES_FROM_FINDINGS" ]]; then
+    # Normalize both sides before comparison: strip leading './', collapse
+    # redundant separators (e.g. 'a//b'), and convert backslashes. Without this,
+    # 'foo/bar.py' (in OVERLAP_CHECK_FILES) and './foo/bar.py' (from a finding)
+    # would fail to overlap. Reviewer-reported defect: filter previously matched
+    # against the `file` field with no normalization.
     OVERLAP_FOUND=""
+    _normalize_path() {
+        local _p="${1#./}"
+        _p="${_p//\\//}"
+        # Collapse runs of slashes
+        while [[ "$_p" == *//* ]]; do _p="${_p//\/\//\/}"; done
+        printf '%s' "$_p"
+    }
     while IFS= read -r target; do
         [[ -z "$target" ]] && continue
+        target=$(_normalize_path "$target")
         while IFS= read -r changed; do
             [[ -z "$changed" ]] && continue
+            changed=$(_normalize_path "$changed")
             if [[ "$changed" == *"$target"* || "$target" == *"$changed"* ]]; then
                 OVERLAP_FOUND="yes"
                 break 2

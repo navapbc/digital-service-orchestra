@@ -31,10 +31,10 @@ _state_is_fresh() {
     fi
     # Check if mtime > 4 hours (240 minutes) ago using python3 (portable across /tmp symlinks)
     local _is_stale
-    _is_stale=$(python3 -c "
+    _is_stale=$(_DSO_SF="$_sf" python3 -c "
 import os, time
 try:
-    mtime = os.path.getmtime('$_sf')
+    mtime = os.path.getmtime(os.environ['_DSO_SF'])
     if (time.time() - mtime) > 240 * 60:
         print('stale')
     else:
@@ -57,10 +57,13 @@ _state_init() {
     if ! _state_is_fresh; then
         # Not fresh (missing or stale) — write fresh skeleton
         # || true: state I/O is best-effort; set -e must not propagate from partial writes
-        python3 -c "
+        # Pass variables via env to avoid shell-string interpolation injection
+        # (branch names with quotes/backslashes/newlines would break python source).
+        _DSO_BRANCH="$BRANCH" _DSO_SF="$_sf" python3 -c "
 import json, os
-d = {'branch': '$BRANCH', 'merge_sha': '', 'completed_phases': [], 'current_phase': '', 'phases': {}, 'merge_strategy': os.environ.get('MERGE_STRATEGY', 'direct')}
-with open('${_sf}.tmp', 'w') as f:
+sf = os.environ['_DSO_SF']
+d = {'branch': os.environ['_DSO_BRANCH'], 'merge_sha': '', 'completed_phases': [], 'current_phase': '', 'phases': {}, 'merge_strategy': os.environ.get('MERGE_STRATEGY', 'direct')}
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     fi
@@ -76,12 +79,14 @@ _state_write_phase() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
     # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    python3 -c "
-import json
-with open('$_sf') as f:
+    # Pass variables via env to avoid shell-string interpolation injection.
+    _DSO_SF="$_sf" _DSO_PHASE="$_phase" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
     d = json.load(f)
-d['current_phase'] = '$_phase'
-with open('${_sf}.tmp', 'w') as f:
+d['current_phase'] = os.environ['_DSO_PHASE']
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
@@ -93,14 +98,17 @@ _state_mark_complete() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
     # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    python3 -c "
-import json
-with open('$_sf') as f:
+    # Pass variables via env to avoid shell-string interpolation injection.
+    _DSO_SF="$_sf" _DSO_PHASE="$_phase" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+phase = os.environ['_DSO_PHASE']
+with open(sf) as f:
     d = json.load(f)
-if '$_phase' not in d.get('completed_phases', []):
-    d.setdefault('completed_phases', []).append('$_phase')
-d.setdefault('phases', {})['$_phase'] = {'status': 'complete'}
-with open('${_sf}.tmp', 'w') as f:
+if phase not in d.get('completed_phases', []):
+    d.setdefault('completed_phases', []).append(phase)
+d.setdefault('phases', {})[phase] = {'status': 'complete'}
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
@@ -113,12 +121,14 @@ _set_phase_status() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
     # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    python3 -c "
-import json
-with open('$_sf') as f:
+    # Pass variables via env to avoid shell-string interpolation injection.
+    _DSO_SF="$_sf" _DSO_PHASE="$_phase" _DSO_STATUS="$_status" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
     d = json.load(f)
-d.setdefault('phases', {}).setdefault('$_phase', {})['status'] = '$_status'
-with open('${_sf}.tmp', 'w') as f:
+d.setdefault('phases', {}).setdefault(os.environ['_DSO_PHASE'], {})['status'] = os.environ['_DSO_STATUS']
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
@@ -130,12 +140,14 @@ _state_record_merge_sha() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
     # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    python3 -c "
-import json
-with open('$_sf') as f:
+    # Pass variables via env to avoid shell-string interpolation injection.
+    _DSO_SF="$_sf" _DSO_SHA="$_sha" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
     d = json.load(f)
-d['merge_sha'] = '$_sha'
-with open('${_sf}.tmp', 'w') as f:
+d['merge_sha'] = os.environ['_DSO_SHA']
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
@@ -145,9 +157,9 @@ _state_get_retry_count() {
     local _sf
     _sf=$(_state_file_path) 2>/dev/null || { echo "0"; return 0; }
     [[ -f "$_sf" ]] || { echo "0"; return 0; }
-    python3 -c "
-import json
-with open('$_sf') as f:
+    _DSO_SF="$_sf" python3 -c "
+import json, os
+with open(os.environ['_DSO_SF']) as f:
     d = json.load(f)
 print(d.get('retry_count', 0))
 " 2>/dev/null || echo "0"
@@ -158,12 +170,13 @@ _state_increment_retry() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
     # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    python3 -c "
-import json
-with open('$_sf') as f:
+    _DSO_SF="$_sf" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
     d = json.load(f)
 d['retry_count'] = d.get('retry_count', 0) + 1
-with open('${_sf}.tmp', 'w') as f:
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
@@ -174,12 +187,13 @@ _state_reset_retry_count() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
     # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    python3 -c "
-import json
-with open('$_sf') as f:
+    _DSO_SF="$_sf" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
     d = json.load(f)
 d['retry_count'] = 0
-with open('${_sf}.tmp', 'w') as f:
+with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
