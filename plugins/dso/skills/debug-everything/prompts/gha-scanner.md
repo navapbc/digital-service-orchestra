@@ -22,6 +22,17 @@ The orchestrator injects the following values into your prompt context before di
 
 Use `REPO_ROOT` to prefix all `.claude/scripts/dso` calls (e.g. `"$REPO_ROOT/.claude/scripts/dso" ticket ...`).
 
+### Step 1.5: Detect Default Branch
+
+Before fetching any workflow runs, determine the repository's default branch. This is used as the `branch` filter in Step 4 to prevent evaluating runs on PR or feature branches.
+
+```bash
+MAIN_BRANCH=$(git -C "$REPO_ROOT" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|^refs/remotes/origin/||')
+MAIN_BRANCH=${MAIN_BRANCH:-main}
+```
+
+If the command fails (no remote configured, detached HEAD, etc.), default to `main`. Store `MAIN_BRANCH` for use in Step 4.
+
 ### Step 2: Read Workflow List
 
 The orchestrator has provided a list of workflow file names via the `WORKFLOWS` input (comma-separated, e.g. `ci.yml,deploy.yml`). Parse each entry by splitting on commas and trimming whitespace. These are the workflows to scan.
@@ -45,10 +56,11 @@ For each workflow NOT skipped in Step 3:
 
 1. Call `list_workflow_runs_for_a_workflow` (preferred) with:
    - `workflow_id` = the workflow file name (e.g. `ci.yml`)
+   - `branch` = `MAIN_BRANCH` (from Step 1.5 — only evaluate runs on the default branch, never PR or feature branches)
    - `status` = `completed`
    - `per_page` = 10 (fetch enough to find the most recent completed run)
    
-   OR call `list_workflow_runs_for_a_repository` filtered to the workflow file name if the per-workflow tool is unavailable.
+   OR call `list_workflow_runs_for_a_repository` with the workflow file name and `branch=MAIN_BRANCH` filter if the per-workflow tool is unavailable.
 
 2. From the response, extract only the `workflow_runs` array. Do NOT return the full response body.
 
