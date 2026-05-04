@@ -1070,7 +1070,7 @@ t_state_record_failed_run_id_writes_to_state() {
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
     rm -f "$_state_file"
     # shellcheck disable=SC2064
-    trap "rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+    trap "rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'; unset BRANCH" RETURN
     export BRANCH="$_branch_safe"
 
     (
@@ -2095,7 +2095,6 @@ STATE_EOF
     trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
 
     local _tier2_called="$_T/normalize-tier2-called"
-    local _normalized_out="$_T/normalized-tier2.json"
 
     _ec=0
     (
@@ -2110,7 +2109,7 @@ STATE_EOF
 
             _normalize_tier2() {
                 touch "'"$_tier2_called"'"
-                echo "{\"tier\":2,\"findings\":[]}" > "${2:-'"$_normalized_out"'"}"
+                echo "{\"tier\":2,\"findings\":[]}" > "${2:-/dev/null}"
                 return 0
             }
 

@@ -44,7 +44,9 @@ done
 
 # --- Required env vars (set by the dispatcher) ---
 : "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set}"
-: "${MERGE_STRATEGY:?MERGE_STRATEGY must be set (expected: pr)}"
+if [[ "${PR_LIB_MODE:-0}" != "1" ]]; then
+    : "${MERGE_STRATEGY:?MERGE_STRATEGY must be set (expected: pr)}"
+fi
 
 # --- Resolve repo root (best-effort; PR mode can run outside a git repo for
 # certain failure paths in skeleton form, but most production paths require it). ---
@@ -981,14 +983,35 @@ _dispatch_fix_agent() {
     esac
 }
 
+# --- _push_fix_branch: commit and push remediation fixes (CI-only) ---
+# REVIEW-DEFENSE: raw git operations here are intentional and CI-only.
+# merge-to-main-pr.sh runs exclusively in automated CI environments where the
+# project pre-commit hook suite is not installed. The CI guard below ensures
+# this branch is never taken in interactive/local sessions, preventing
+# review-gate conflicts. Mirrors the pattern in _pr_commit_code_change_threads.
+#
+# Args: <tier_number>
+# Returns: 0 on success, 1 on failure
+_push_fix_branch() {
+    local _tier="${1:-0}"
+    if [[ "${CI:-}" != "true" ]]; then
+        echo "WARNING: remediate push skipped outside CI" >&2
+        return 1
+    fi
+    git add -u 2>/dev/null || true
+    git commit -m "fix: CI remediation tier${_tier} [skip ci]" 2>/dev/null || return 1
+    git push origin HEAD 2>/dev/null || return 1
+    return 0
+}
+
 # --- _phase_remediate: autonomous CI fix loop ---
-# Pipeline: state → download artifacts → normalize → dispatch → push → re-poll
+# Pipeline: state → download artifacts → normalize (4-tier) → dispatch → push → re-poll
 #
 # Args: <pr_number> <pr_url>
 # Returns: 0 on successful fix+re-poll, 2 on any failure (artifact missing,
 #          dispatch fail, CI guard, push fail, or re-poll failure).
 _phase_remediate() {
-    local _pr_number="$1" _pr_url="$2"
+    local _pr_number="${1:-}" _pr_url="${2:-}"
 
     # Step 1: get failed_run_id from state file
     local _sf _failed_run_id
@@ -1012,46 +1035,66 @@ except Exception:
     _artifacts_dir=$(mktemp -d /tmp/dso-remediate-artifacts.XXXXXX)
     gh run download "$_failed_run_id" --dir "$_artifacts_dir" 2>/dev/null || { rm -rf "$_artifacts_dir"; return 2; }
 
-    # Step 3: locate reviewer-findings.json
-    local _raw_findings
-    _raw_findings=$(find "$_artifacts_dir" -name 'reviewer-findings.json' -maxdepth 3 | head -1)
-    if [[ -z "$_raw_findings" ]]; then
-        rm -rf "$_artifacts_dir"
-        return 2
-    fi
+    # 4-tier priority loop: try each normalizer in priority order.
+    # Tier 1 (llm-review): findings are never in CI log — no log fallback.
+    # Tiers 2-4: if no artifact found, fall back to CI log text.
+    local _tier _tier_artifact _tier_log _tier_normalized _tier_rc _dispatch_rc
+    for _tier in 1 2 3 4; do
+        _tier_normalized=$(mktemp /tmp/dso-normalized.XXXXXX)
 
-    # Step 4: normalize
-    local _normalized
-    _normalized=$(mktemp /tmp/dso-normalized.XXXXXX)
-    _normalize_tier1 "$_raw_findings" "$_normalized" 2>/dev/null || { rm -rf "$_artifacts_dir" "$_normalized"; return 2; }
+        # Locate tier-specific artifact
+        _tier_artifact=''
+        case "$_tier" in
+            1) _tier_artifact=$(find "$_artifacts_dir" -name 'reviewer-findings.json' -maxdepth 3 2>/dev/null | head -1) ;;
+            2) _tier_artifact=$(find "$_artifacts_dir" -name 'test-results*.json' -maxdepth 3 2>/dev/null | head -1) ;;
+            3) _tier_artifact=$(find "$_artifacts_dir" -name 'lint-results*.json' -maxdepth 3 2>/dev/null | head -1) ;;
+            4) : ;;  # tier4 always uses CI log
+        esac
 
-    # Step 5: dispatch fix agent — capture exit code without triggering set -e
-    local _dispatch_rc=0
-    _dispatch_fix_agent "$_normalized" 2>/dev/null || _dispatch_rc=$?
-    rm -rf "$_artifacts_dir" "$_normalized"
-    if [[ "$_dispatch_rc" -ne 0 ]]; then
-        return 2
-    fi
+        # Tiers 2-4 only: log fallback when no structured artifact
+        _tier_log=''
+        if [[ -z "$_tier_artifact" ]] && [[ "$_tier" -gt 1 ]]; then
+            _tier_log=$(mktemp /tmp/dso-ci-log.XXXXXX)
+            if _fetch_ci_log "$_failed_run_id" "$_tier_log" 2>/dev/null; then
+                _tier_artifact="$_tier_log"
+            else
+                rm -f "$_tier_log"
+                _tier_log=''
+            fi
+        fi
 
-    # Step 6: CI guard — remediation push only runs in CI (same justification as
-    # _pr_commit_code_change_threads: hook suite not installed in CI environment)
-    # REVIEW-DEFENSE: raw git operations here are intentional and CI-only.
-    # merge-to-main-pr.sh runs exclusively in automated CI environments where the
-    # project pre-commit hook suite is not installed. The CI guard below ensures
-    # this branch is never taken in interactive/local sessions, preventing
-    # review-gate conflicts. Mirrors the pattern in _pr_commit_code_change_threads.
-    if [[ "${CI:-}" != "true" ]]; then
-        echo "WARNING: remediate push skipped outside CI" >&2
-        return 2
-    fi
+        # Normalize — normalizers handle empty/missing input with exit 3 (ARTIFACT_MISSING)
+        _tier_rc=0
+        case "$_tier" in
+            1) _normalize_tier1 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
+            2) _normalize_tier2 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
+            3) _normalize_tier3 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
+            4) _normalize_tier4 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
+        esac
+        [[ -n "$_tier_log" ]] && { rm -f "$_tier_log"; _tier_log=''; }
 
-    # Step 7: commit and push fixes
-    git add -u 2>/dev/null || true
-    git commit -m "fix: CI remediation [skip ci]" 2>/dev/null || true
-    git push origin HEAD 2>/dev/null || return 2
+        if [[ "$_tier_rc" -ne 0 ]]; then
+            rm -f "$_tier_normalized"
+            continue
+        fi
 
-    # Step 8: re-poll
-    _phase_poll "$_pr_number" "$_pr_url"
+        # Dispatch fix agent
+        _dispatch_rc=0
+        _dispatch_fix_agent "$_tier_normalized" 2>/dev/null || _dispatch_rc=$?
+        rm -f "$_tier_normalized"
+        [[ "$_dispatch_rc" -ne 0 ]] && continue
+
+        # Push and re-poll
+        _push_fix_branch "$_tier" 2>/dev/null || continue
+        if _phase_poll "$_pr_number" "$_pr_url"; then
+            rm -rf "$_artifacts_dir"
+            return 0
+        fi
+        # Repoll failed — try next tier
+    done
+
+    rm -rf "$_artifacts_dir"
+    return 2
 }
 
 # =============================================================================
