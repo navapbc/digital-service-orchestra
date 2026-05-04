@@ -2,7 +2,7 @@
 # shellcheck disable=SC2030,SC2031  # PATH/env modifications in subshells are intentional test isolation
 # tests/scripts/test-ci-llm-review-runner.sh
 # Behavioral tests for plugins/dso/scripts/ci-llm-review-runner.sh
-# Covers: empty-diff short-circuit, flag parsing, tier routing, overlay dispatch, and merge behavior.
+# Covers: empty-diff short-circuit, flag parsing, tier routing, overlay dispatch, merge behavior, and cited_lines preservation.
 #
 # Tests covered:
 #   1. test_runner_rejects_missing_api_key          — exits 1 when ANTHROPIC_API_KEY is empty
@@ -3407,6 +3407,121 @@ _has_invalid_error="false"
 echo "$_prose_stderr" | grep -q "invalid JSON" && _has_invalid_error="true"
 assert_eq "test_deep_tier_specialist_slot_prose_is_normalized: no invalid JSON error" "false" "$_has_invalid_error"
 assert_pass_if_clean "test_deep_tier_specialist_slot_prose_is_normalized"
+
+# ── test_overlay_merge_preserves_cited_lines ─────────────────────────────────
+# Given: tier finding has cited_lines: ["main.sh:10"]
+#        overlay finding has cited_lines: ["util.sh:25"]
+# When:  overlay merge logic is exercised via security overlay path
+# Then:  merged output contains both findings, each retaining its cited_lines
+#        value unchanged (the extend() merge copies full dicts — no field stripping)
+#
+# NOTE: All fixture findings include cited_lines to stay green after T7 activates
+# the cited_lines validation gate in validate-review-output.sh.
+_snapshot_fail
+MOCK_CL=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_CL")
+ARTIFACTS_CL=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_CL")
+FINDINGS_RECEIVED_CL="$MOCK_CL/findings-received.json"
+
+cat > "$MOCK_CL/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":0,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":true,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_CL/review-complexity-classifier.sh"
+
+# Mock curl: tier reviewer returns finding with cited_lines; overlay also returns
+# finding with cited_lines. Both must survive the extend()-based merge unchanged.
+cat > "$MOCK_CL/curl" <<'MOCKEOF'
+#!/usr/bin/env bash
+_body=""
+_prev=""
+for _arg in "$@"; do
+    if [[ "$_prev" == "--data-raw" || "$_prev" == "-d" ]]; then
+        _body="$_arg"
+    elif [[ "$_prev" == "--data" || "$_prev" == "--data-binary" ]]; then
+        _src="${_arg#@}"; [[ "$_src" != "$_arg" && -f "$_src" ]] && _body="$(cat "$_src")" || _body="$_arg"
+    fi
+    _prev="$_arg"
+done
+if printf '%s' "$_body" | grep -q "code-reviewer-security-red-team"; then
+    python3 -c "import json; t={\"scores\":{\"correctness\":4,\"verification\":4,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"summary\":\"Red overlay\",\"findings\":[{\"severity\":\"minor\",\"category\":\"correctness\",\"description\":\"overlay finding\",\"file\":\"util.sh\",\"cited_lines\":[\"util.sh:25\"]}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+elif printf '%s' "$_body" | grep -q "code-reviewer-security-blue-team"; then
+    python3 -c "import json; t={\"scores\":{\"correctness\":4,\"verification\":4,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"summary\":\"Blue overlay\",\"findings\":[{\"severity\":\"minor\",\"category\":\"verification\",\"description\":\"blue overlay finding\",\"file\":\"util.sh\",\"cited_lines\":[\"util.sh:25\"]}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+else
+    python3 -c "import json; t={\"scores\":{\"correctness\":4,\"verification\":4,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"summary\":\"Tier review\",\"findings\":[{\"severity\":\"minor\",\"category\":\"hygiene\",\"description\":\"tier finding\",\"file\":\"main.sh\",\"cited_lines\":[\"main.sh:10\"]}]}; print(json.dumps({\"content\":[{\"text\":json.dumps(t)}],\"stop_reason\":\"end_turn\"}))"
+fi
+MOCKEOF
+chmod +x "$MOCK_CL/curl"
+
+# Mock write-reviewer-findings.sh: capture stdin to verify cited_lines preservation
+cat > "$MOCK_CL/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+tee "${FINDINGS_RECEIVED_CL}" > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_CL/write-reviewer-findings.sh"
+
+cat > "$MOCK_CL/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "${ARTIFACTS_CL}"
+printf 'passed\n' > "${ARTIFACTS_CL}/review-status"
+MOCKEOF
+chmod +x "$MOCK_CL/record-review.sh"
+_add_anthropic_llm_wrapper "$MOCK_CL"
+
+mkdir -p "$ARTIFACTS_CL"
+printf 'security_overlay=true\nperformance_overlay=false\ntest_quality_overlay=false\n' \
+    > "$ARTIFACTS_CL/overlay-flags.env"
+
+merge_cl_exit=0
+(
+    export PATH="$MOCK_CL:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CL"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || merge_cl_exit=$?
+
+assert_eq "test_overlay_merge_preserves_cited_lines: runner exits 0" "0" "$merge_cl_exit"
+
+_cl_check_exit=0
+_cl_check_out=""
+if [[ -f "$FINDINGS_RECEIVED_CL" ]]; then
+    _cl_check_out=$(python3 - <<PYEOF 2>&1 || _cl_check_exit=$?
+import json, sys
+with open('${FINDINGS_RECEIVED_CL}') as f:
+    d = json.load(f)
+findings = d.get('findings', [])
+# Build a map: description -> cited_lines for easy lookup
+cited_by_desc = {x.get('description',''): x.get('cited_lines') for x in findings}
+descs = list(cited_by_desc.keys())
+# Tier finding must be present with cited_lines intact
+if 'tier finding' not in cited_by_desc:
+    print('MISSING tier finding; descriptions=' + str(descs))
+    sys.exit(1)
+if cited_by_desc.get('tier finding') != ['main.sh:10']:
+    print('WRONG cited_lines for tier finding: ' + str(cited_by_desc.get('tier finding')))
+    sys.exit(1)
+# At least one overlay finding must be present with cited_lines intact
+overlay_descs = [d for d in descs if 'overlay finding' in d]
+if not overlay_descs:
+    print('MISSING overlay finding; descriptions=' + str(descs))
+    sys.exit(1)
+overlay_cited = cited_by_desc.get(overlay_descs[0])
+if overlay_cited != ['util.sh:25']:
+    print('WRONG cited_lines for overlay finding: ' + str(overlay_cited))
+    sys.exit(1)
+print('OK')
+PYEOF
+    )
+else
+    _cl_check_out="FINDINGS_RECEIVED file not written by write-reviewer-findings.sh mock"
+    _cl_check_exit=1
+fi
+assert_eq "test_overlay_merge_preserves_cited_lines: merged findings passed to write-reviewer-findings" "0" "$_cl_check_exit"
+assert_eq "test_overlay_merge_preserves_cited_lines: cited_lines preserved in both tier and overlay findings" "OK" "$_cl_check_out"
+
+assert_pass_if_clean "test_overlay_merge_preserves_cited_lines"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

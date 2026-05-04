@@ -733,7 +733,8 @@ FINDINGS_A_JSON='{
       "severity": "important",
       "category": "correctness",
       "description": "Edge case: missing null check on input parameter in dispatch handler.",
-      "file": "plugins/dso/hooks/dispatchers/pre-bash.sh"
+      "file": "plugins/dso/hooks/dispatchers/pre-bash.sh",
+      "cited_lines": ["plugins/dso/hooks/dispatchers/pre-bash.sh:42"]
     }
   ],
   "summary": "Sonnet A (correctness) found one important edge case. Overall the logic is sound."
@@ -752,7 +753,8 @@ FINDINGS_B_JSON='{
       "severity": "important",
       "category": "verification",
       "description": "Test coverage gap: no test for the classifier fallback path when stdin is empty.",
-      "file": "tests/hooks/test-review-complexity-classifier.sh"
+      "file": "tests/hooks/test-review-complexity-classifier.sh",
+      "cited_lines": ["tests/hooks/test-review-complexity-classifier.sh:1"]
     }
   ],
   "summary": "Sonnet B (verification) found a test coverage gap. Implementation appears correct."
@@ -771,7 +773,8 @@ FINDINGS_C_JSON='{
       "severity": "important",
       "category": "hygiene",
       "description": "Redundant variable assignment in loop body that could be moved outside.",
-      "file": "plugins/dso/scripts/review-complexity-classifier.sh"
+      "file": "plugins/dso/scripts/review-complexity-classifier.sh",
+      "cited_lines": ["plugins/dso/scripts/review-complexity-classifier.sh:1"]
     }
   ],
   "summary": "Sonnet C (hygiene/design) found a minor hygiene issue. Design is appropriate."
@@ -880,19 +883,22 @@ OPUS_FINDINGS_JSON='{
       "severity": "important",
       "category": "correctness",
       "description": "Sonnet A finding (upgraded context): Edge case in dispatch handler. Combined with hygiene debt this creates a compounding risk.",
-      "file": "plugins/dso/hooks/dispatchers/pre-bash.sh"
+      "file": "plugins/dso/hooks/dispatchers/pre-bash.sh",
+      "cited_lines": ["plugins/dso/hooks/dispatchers/pre-bash.sh:42"]
     },
     {
       "severity": "important",
       "category": "verification",
       "description": "Sonnet B finding: Test coverage gap for classifier fallback path.",
-      "file": "tests/hooks/test-review-complexity-classifier.sh"
+      "file": "tests/hooks/test-review-complexity-classifier.sh",
+      "cited_lines": ["tests/hooks/test-review-complexity-classifier.sh:1"]
     },
     {
       "severity": "important",
       "category": "hygiene",
       "description": "Sonnet C finding: Redundant variable assignment in loop body.",
-      "file": "plugins/dso/scripts/review-complexity-classifier.sh"
+      "file": "plugins/dso/scripts/review-complexity-classifier.sh",
+      "cited_lines": ["plugins/dso/scripts/review-complexity-classifier.sh:1"]
     }
   ],
   "summary": "Opus arch review: three sonnet specialists found important issues across correctness, verification, and hygiene. Combined weight suggests these should be addressed before merge. No critical architectural violations found."

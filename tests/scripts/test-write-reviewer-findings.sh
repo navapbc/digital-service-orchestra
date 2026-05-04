@@ -8,6 +8,14 @@
 #   - Invalid JSON is rejected (exit 1, no file written)
 #   - Empty input is rejected (exit 2)
 #   - Script sources deps.sh for get_artifacts_dir()
+#   - cited_lines missing in finding is rejected (gate not yet active = RED)
+#   - cited_lines empty array is rejected (gate not yet active = RED)
+#   - cited_lines valid "path:line" format is accepted
+#   - cited_lines valid "~path:line" tilde prefix is accepted
+#   - cited_lines "~" alone (no path/line) is rejected (gate not yet active = RED)
+#   - cited_lines entry with no line number is rejected (gate not yet active = RED)
+#   - cited_lines empty string entry is rejected (gate not yet active = RED)
+#   - cited_lines "unknown" literal is rejected (gate not yet active = RED)
 
 set -uo pipefail
 
@@ -32,7 +40,23 @@ export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_DIR"
 trap 'rm -rf "$ARTIFACTS_DIR"' EXIT
 
 # Valid findings JSON — 2-key schema (findings + summary only, no scores)
+# cited_lines is included so this fixture remains valid after the T7 gate activation.
 VALID_JSON='{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "description": "Test finding",
+      "file": "test.py",
+      "cited_lines": ["test.py:1"]
+    }
+  ],
+  "summary": "Test summary for validation."
+}'
+
+# Fixture lacking cited_lines — used to test that missing cited_lines is rejected.
+# Kept separate from VALID_JSON so existing tests using VALID_JSON are not disrupted.
+MISSING_CL_JSON='{
   "findings": [
     {
       "severity": "minor",
@@ -344,5 +368,90 @@ assert_contains "test_write_reviewer_scores_key_deprecated: stderr contains DEPR
 
 # Clean up
 rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+
+# Valid finding WITH cited_lines (for testing accepted formats)
+VALID_JSON_WITH_CITED_LINES='{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "description": "Test finding",
+      "file": "test.py",
+      "cited_lines": ["test.py:42"]
+    }
+  ],
+  "summary": "Test summary for validation."
+}'
+
+# ---------------------------------------------------------------------------
+# cited_lines validation tests (RED — fail until cited_lines gate activated in T7)
+# ---------------------------------------------------------------------------
+echo "=== cited_lines validation tests ==="
+
+# GREEN acceptance tests come first — must not fall inside the RED zone.
+# (RED zone boundary starts at test_cited_lines_missing_rejected below.)
+
+# test_cited_lines_valid_path_colon_line
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$VALID_JSON_WITH_CITED_LINES" | "$SCRIPT" 2>/dev/null && cl_valid_exit=0 || cl_valid_exit=$?
+assert_eq "test_cited_lines_valid_path_colon_line" "0" "$cl_valid_exit"
+
+# test_cited_lines_valid_tilde_prefix
+TILDE_CL_JSON='{"findings":[{"severity":"minor","category":"hygiene","description":"test","file":"f.sh","cited_lines":["~src/foo.sh:42"]}],"summary":"Test summary here."}'
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$TILDE_CL_JSON" | "$SCRIPT" 2>/dev/null && cl_tilde_exit=0 || cl_tilde_exit=$?
+assert_eq "test_cited_lines_valid_tilde_prefix" "0" "$cl_tilde_exit"
+
+# RED tests below — tolerated by test gate until T7 activates the cited_lines gate.
+
+# test_cited_lines_missing_rejected
+# Finding without cited_lines key → rejected (gate not yet active = currently passes = RED)
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$MISSING_CL_JSON" | "$SCRIPT" 2>/dev/null && cl_missing_exit=0 || cl_missing_exit=$?
+if [[ "$cl_missing_exit" -ne 0 ]]; then
+    cl_missing_result="rejected"
+else
+    cl_missing_result="accepted"
+fi
+assert_eq "test_cited_lines_missing_rejected" "rejected" "$cl_missing_result"
+
+# test_cited_lines_empty_array_rejected
+EMPTY_CL_JSON='{"findings":[{"severity":"minor","category":"hygiene","description":"test","file":"f.sh","cited_lines":[]}],"summary":"Test summary here."}'
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$EMPTY_CL_JSON" | "$SCRIPT" 2>/dev/null && cl_empty_exit=0 || cl_empty_exit=$?
+if [[ "$cl_empty_exit" -ne 0 ]]; then cl_empty_result="rejected"; else cl_empty_result="accepted"; fi
+assert_eq "test_cited_lines_empty_array_rejected" "rejected" "$cl_empty_result"
+
+# test_cited_lines_tilde_alone_rejected
+TILDE_ALONE_JSON='{"findings":[{"severity":"minor","category":"hygiene","description":"test","file":"f.sh","cited_lines":["~"]}],"summary":"Test summary here."}'
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$TILDE_ALONE_JSON" | "$SCRIPT" 2>/dev/null && cl_tilde_alone_exit=0 || cl_tilde_alone_exit=$?
+if [[ "$cl_tilde_alone_exit" -ne 0 ]]; then cl_tilde_alone_result="rejected"; else cl_tilde_alone_result="accepted"; fi
+assert_eq "test_cited_lines_tilde_alone_rejected" "rejected" "$cl_tilde_alone_result"
+
+# test_cited_lines_no_line_number_rejected
+NO_LINE_JSON='{"findings":[{"severity":"minor","category":"hygiene","description":"test","file":"f.sh","cited_lines":["src/foo.sh"]}],"summary":"Test summary here."}'
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$NO_LINE_JSON" | "$SCRIPT" 2>/dev/null && cl_noline_exit=0 || cl_noline_exit=$?
+if [[ "$cl_noline_exit" -ne 0 ]]; then cl_noline_result="rejected"; else cl_noline_result="accepted"; fi
+assert_eq "test_cited_lines_no_line_number_rejected" "rejected" "$cl_noline_result"
+
+# test_cited_lines_empty_string_rejected
+EMPTY_STR_JSON='{"findings":[{"severity":"minor","category":"hygiene","description":"test","file":"f.sh","cited_lines":[""]}],"summary":"Test summary here."}'
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$EMPTY_STR_JSON" | "$SCRIPT" 2>/dev/null && cl_emptystr_exit=0 || cl_emptystr_exit=$?
+if [[ "$cl_emptystr_exit" -ne 0 ]]; then cl_emptystr_result="rejected"; else cl_emptystr_result="accepted"; fi
+assert_eq "test_cited_lines_empty_string_rejected" "rejected" "$cl_emptystr_result"
+
+# test_cited_lines_unknown_rejected
+UNKNOWN_JSON='{"findings":[{"severity":"minor","category":"hygiene","description":"test","file":"f.sh","cited_lines":["unknown"]}],"summary":"Test summary here."}'
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$UNKNOWN_JSON" | "$SCRIPT" 2>/dev/null && cl_unknown_exit=0 || cl_unknown_exit=$?
+if [[ "$cl_unknown_exit" -ne 0 ]]; then cl_unknown_result="rejected"; else cl_unknown_result="accepted"; fi
+assert_eq "test_cited_lines_unknown_rejected" "rejected" "$cl_unknown_result"
+
+# ---------------------------------------------------------------------------
+# End cited_lines validation tests
+# ---------------------------------------------------------------------------
 
 print_summary

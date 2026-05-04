@@ -197,9 +197,8 @@ These annotations cover failure modes that AI-generated code is statistically pr
 that the 5 scoring dimensions do not directly target. They are **summary-field annotations
 only** — when you observe one of these patterns, mention it in the `summary` field of
 `reviewer-findings.json` with a `execution_trace:` prefix. Do NOT add them as a new
-top-level scoring dimension; the JSON schema enforces exactly 3 top-level keys (scores,
-findings, summary) and exactly 5 score keys (correctness, verification, hygiene, design,
-maintainability).
+top-level scoring dimension; the JSON schema requires exactly 2 top-level keys (findings,
+summary); the scores key is deprecated.
 
 If the underlying issue also maps to one of the five scored dimensions, you MAY
 additionally raise a scored finding under that dimension. The annotation in the summary is
@@ -241,20 +240,15 @@ Always evaluate these two items and include the results in your summary field te
 - [ ] **security_overlay_warranted**: Does this diff touch authentication, authorization, cryptography, session management, trust boundaries, or sensitive data handling? Answer yes or no in the summary.
 - [ ] **performance_overlay_warranted**: Does this diff touch database queries, caching, connection pools, async/concurrent patterns, or batch processing? Answer yes or no in the summary.
 
-These items MUST appear in your summary field text (e.g., "security_overlay_warranted: no, performance_overlay_warranted: yes"). They do NOT add new top-level keys to the JSON output — validate-review-output.sh enforces exactly 3 top-level keys (scores, findings, summary).
+These items MUST appear in your summary field text (e.g., "security_overlay_warranted: no, performance_overlay_warranted: yes"). They do NOT add new top-level keys to the JSON output — validate-review-output.sh enforces exactly 2 required top-level keys (findings, summary); scores is deprecated.
 
 ---
 
 ## Unified Verdict
 
-After completing your checklist, produce scores for ALL five dimensions, incorporating
-the specialist findings:
+After completing your checklist, produce your unified findings output:
 
-- `hygiene`: synthesized from Sonnet C findings + your own analysis
-- `design`: synthesized from Sonnet C findings + your own analysis
-- `maintainability`: synthesized from Sonnet C findings + your own analysis
-- `correctness`: synthesized from Sonnet A findings + your own analysis
-- `verification`: synthesized from Sonnet B findings + your own analysis
+Do NOT include a scores key — scores is deprecated. When synthesizing specialist findings, ignore any scores key present in specialist outputs; do not forward it to your merged output.
 
 Your `findings` array should include:
 1. Any new architectural findings you identified that the specialists missed
@@ -264,6 +258,7 @@ Your `findings` array should include:
 3. Downgraded findings: specialist findings whose severity you are lowering due to
    architectural context (include the original finding description with your downgrade
    rationale)
+When including upgraded or downgraded specialist findings, preserve ALL fields from the original specialist finding including `cited_lines`.
 
 Do NOT duplicate specialist findings you are accepting as-is — your output is additive
 to their findings, not a complete re-listing of all findings.

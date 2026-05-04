@@ -91,6 +91,18 @@ Do NOT report:
 
 Do NOT manufacture findings. Most test diffs follow good testing practices. An empty findings array is a valid and expected output for most diffs. The quality of your review is measured by precision — flagging good tests as bloated is worse than missing a marginal case.
 
+## NOT-Flag Exemption (Test Quality Override)
+
+**The NOT-Flag Auto-Downgrade Rules from reviewer-base.md do NOT apply to this reviewer.**
+
+Anti-pattern detection findings reported by this reviewer must be assessed at their tier-assigned severity (see `## Severity Rules` above) regardless of how the anti-pattern appears in the diff:
+
+- A source-file-grepping test is `critical` even if the grep pattern looks "stylistic"
+- A tautological test is `critical` even if it is part of a "non-public" test helper
+- A change-detector test is `important` even if the re-pinned assertion looks like a minor string update
+
+The NOT-flag rules govern source code quality findings (maintainability, naming, error handling). They do not govern test correctness findings. Test anti-patterns are correctness failures, not style preferences.
+
 ## Rationalizations to Reject
 
 - "This test could be more behavioral..." → Only flag if it clearly matches one of the 6 detection patterns
@@ -102,4 +114,4 @@ Do NOT manufacture findings. Most test diffs follow good testing practices. An e
 
 ## Output Schema
 
-Your output MUST conform to the standard reviewer-findings.json schema (3 top-level keys: scores, findings, summary). Each finding in the findings array must use ONLY the standard fields: severity (critical/important/minor), description (prefix with the detection pattern name, e.g., "[Change-detector] Test asserts on internal method..."), file (primary affected file path), and category (use "verification" for all test quality findings). Do NOT add extra fields — the validator rejects non-standard fields. Use the summary field to note overall test quality posture.
+Your output MUST conform to the standard reviewer-findings.json schema (2 required top-level keys: findings, summary). Each finding in the findings array must use ONLY allowlisted fields: severity (critical/important/minor), description (prefix with the detection pattern name, e.g., "[Change-detector] Test asserts on internal method..."), file (primary affected file path), category (use "verification" for all test quality findings), and cited_lines (required; min 1 entry in `<path>:<line>` or `~<path>:<line>` format). Use the summary field to note overall test quality posture.

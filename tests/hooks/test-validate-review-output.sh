@@ -250,7 +250,8 @@ VALID_CRD_WITH_FINDINGS=$(write_fixture "valid-crd-findings.json" '{
       "severity": "critical",
       "category": "hygiene",
       "description": "Syntax error in module",
-      "file": "app/src/broken.py"
+      "file": "app/src/broken.py",
+      "cited_lines": ["app/src/broken.py:1"]
     }
   ],
   "summary": "Critical build failure requires immediate attention."
@@ -931,7 +932,7 @@ _snapshot_fail
 
 _FRAGILE_VALID_FILE=$(write_fixture "fragile_valid.json" '{
   "findings": [
-    {"severity": "fragile", "category": "correctness", "description": "Edge case in error path not covered by tests.", "file": "app/src/handler.py"}
+    {"severity": "fragile", "category": "correctness", "description": "Edge case in error path not covered by tests.", "file": "app/src/handler.py", "cited_lines": ["app/src/handler.py:42"]}
   ],
   "summary": "One fragile finding in correctness dimension."
 }')
@@ -948,7 +949,7 @@ _snapshot_fail
 
 _FRAGILE_SCORE_3_FILE=$(write_fixture "fragile_score_3.json" '{
   "findings": [
-    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption about input ordering in merge logic.", "file": "app/src/merge.py"}
+    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption about input ordering in merge logic.", "file": "app/src/merge.py", "cited_lines": ["app/src/merge.py:17"]}
   ],
   "summary": "Fragile finding in correctness dimension."
 }')
@@ -967,7 +968,7 @@ _snapshot_fail
 WRITE_SCRIPT="$DSO_PLUGIN_DIR/scripts/write-reviewer-findings.sh"
 _FRAGILE_INTEGRATION_FILE=$(write_fixture "fragile_integration.json" '{
   "findings": [
-    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption in retry logic; may fail under concurrent load.", "file": "app/src/retry.py"}
+    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption in retry logic; may fail under concurrent load.", "file": "app/src/retry.py", "cited_lines": ["app/src/retry.py:88"]}
   ],
   "summary": "One fragile correctness finding; all other dimensions are clean."
 }')
@@ -990,7 +991,7 @@ echo "--- test_escalate_review_valid_array_passes_validation ---"
 _snapshot_fail
 
 _ESC_VALID_FILE=$(write_fixture "escalate_review_valid.json" '{
-  "findings": [{"severity": "minor", "category": "correctness", "file": "src/foo.py", "description": "uncertain severity assignment"}],
+  "findings": [{"severity": "minor", "category": "correctness", "file": "src/foo.py", "description": "uncertain severity assignment", "cited_lines": ["src/foo.py:5"]}],
   "summary": "One finding with uncertain severity; escalation requested.",
   "escalate_review": [{"finding_index": 0, "reason": "uncertain severity"}]
 }')

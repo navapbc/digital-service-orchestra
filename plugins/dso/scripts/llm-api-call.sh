@@ -97,10 +97,13 @@ else
 fi
 
 DSO_SYSTEM="$SYSTEM_PROMPT" DSO_MSG_FILE="$_MSG_TMP" \
-    DSO_PROVIDER="$PROVIDER" DSO_MODEL="$MODEL_ID" python3 - <<'PYEOF' > "$_REQUEST_TMP"
+    DSO_PROVIDER="$PROVIDER" DSO_MODEL="$MODEL_ID" \
+    DSO_CI="${GITHUB_ACTIONS:-}" python3 - <<'PYEOF' > "$_REQUEST_TMP"
 import json, os
 with open(os.environ['DSO_MSG_FILE']) as f:
     user_message = f.read()
+if os.environ.get('DSO_CI'):
+    user_message = 'REVIEW_CONTEXT: ci\n' + user_message
 system_prompt = os.environ['DSO_SYSTEM']
 provider = os.environ['DSO_PROVIDER']
 model_id = os.environ['DSO_MODEL']

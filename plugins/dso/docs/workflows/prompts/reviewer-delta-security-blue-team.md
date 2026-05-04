@@ -72,4 +72,4 @@ Your output MUST conform to the standard reviewer-findings.json schema (3 top-le
 - **file**: primary affected file path (same as red team finding)
 - **category**: always "correctness"
 
-Do NOT add extra fields beyond these 4 per finding — the validator rejects non-standard fields. Use the summary field to note overall triage statistics (e.g., "3 findings triaged: 1 sustained, 1 downgraded, 1 dismissed") and residual risk assessment.
+Each finding must include `cited_lines` (required field; preserve the cited_lines from the original red team finding — do not omit or alter it). Use ONLY allowlisted fields: severity, category, description, file, cited_lines. Use the summary field to note overall triage statistics (e.g., "3 findings triaged: 1 sustained, 1 downgraded, 1 dismissed") and residual risk assessment.
