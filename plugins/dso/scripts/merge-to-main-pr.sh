@@ -924,6 +924,42 @@ except Exception:
     done
 }
 
+# --- _dispatch_resolve_conflicts: call LLM to resolve merge conflicts ---
+# Returns: 0=resolved, 1=unknown, 2=ESCALATE
+# Overridable via _RESOLVE_CONFLICTS_LLM_CMD for tests.
+_dispatch_resolve_conflicts() {
+    local _pr_number="$1" _pr_url="$2"
+    local _llm_cmd="${_RESOLVE_CONFLICTS_LLM_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
+    local _prompt_file="${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/resolve-conflicts-dispatch.md"
+    local _context_file
+    _context_file="$(mktemp /tmp/dso-conflict-context.XXXXXX)"
+    printf '{"pr_number": "%s", "pr_url": "%s"}' "$_pr_number" "$_pr_url" > "$_context_file"
+    local _result
+    _result=$("$_llm_cmd" "$_prompt_file" "$_context_file" "sonnet" 2>&1) || true
+    rm -f "$_context_file"
+    case "$_result" in
+        *"RESOLUTION_RESULT: FIXES_APPLIED"*) return 0 ;;
+        *"RESOLUTION_RESULT: ESCALATE"*)      return 2 ;;
+        *)                                    return 1 ;;
+    esac
+}
+
+# --- _phase_conflict_resolution: detect CONFLICTING PR state and dispatch resolve-conflicts ---
+# Returns: 0=no conflict or conflict resolved, 1=conflict remains (escalation needed)
+_phase_conflict_resolution() {
+    local _pr_number="$1" _pr_url="$2"
+    local _merge_state
+    _merge_state=$(gh pr view "$_pr_number" --json mergeStateStatus --jq '.mergeStateStatus' 2>/dev/null || true)
+    [[ "$_merge_state" != "CONFLICTING" ]] && return 0
+    _dispatch_resolve_conflicts "$_pr_number" "$_pr_url" 2>/dev/null || true
+    _merge_state=$(gh pr view "$_pr_number" --json mergeStateStatus --jq '.mergeStateStatus' 2>/dev/null || true)
+    if [[ "$_merge_state" == "CONFLICTING" ]]; then
+        echo "ESCALATION_REASON: Conflict resolution failed" >&2
+        return 1
+    fi
+    return 0
+}
+
 # --- _dispatch_fix_agent: invoke LLM sub-agent to apply fixes from findings ---
 #
 # ENV OVERRIDES (for testing):
@@ -1113,6 +1149,9 @@ if ! _phase_resolve_threads "$_PR_NUMBER" "$_PR_URL"; then
 fi
 
 if ! _phase_poll "$_PR_NUMBER" "$_PR_URL"; then
+    if ! _phase_conflict_resolution "$_PR_NUMBER" "$_PR_URL"; then
+        exit 2
+    fi
     _phase_remediate "$_PR_NUMBER" "$_PR_URL" || exit 2
 fi
 
