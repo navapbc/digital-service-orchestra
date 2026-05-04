@@ -1127,66 +1127,158 @@ except Exception:
     _artifacts_dir=$(mktemp -d /tmp/dso-remediate-artifacts.XXXXXX)
     gh run download "$_failed_run_id" --dir "$_artifacts_dir" 2>/dev/null || { rm -rf "$_artifacts_dir"; return 2; }
 
-    # 4-tier priority loop: try each normalizer in priority order.
-    # Tier 1 (llm-review): findings are never in CI log — no log fallback.
-    # Tiers 2-4: if no artifact found, fall back to CI log text.
+    # Bounded retry loop: cycles through all 4 normalizer tiers with per-tier and
+    # global attempt ceilings. Each outer iteration is one full pass over all tiers.
+    local _attempts_t1=0 _attempts_t2=0 _attempts_t3=0 _attempts_t4=0
+    local _attempts_global=0
+    local _tiers_attempted=''
+    local _per_tier_json
     local _tier _tier_artifact _tier_log _tier_normalized _tier_rc _dispatch_rc
-    for _tier in 1 2 3 4; do
-        _tier_normalized=$(mktemp /tmp/dso-normalized.XXXXXX)
+    local _all_tiers_artifact_missing _counter_signal _attempt_num_for_tier
 
-        # Locate tier-specific artifact
-        _tier_artifact=''
-        case "$_tier" in
-            1) _tier_artifact=$(find "$_artifacts_dir" -name 'reviewer-findings.json' -maxdepth 3 2>/dev/null | head -1) ;;
-            2) _tier_artifact=$(find "$_artifacts_dir" -name 'test-results*.json' -maxdepth 3 2>/dev/null | head -1) ;;
-            3) _tier_artifact=$(find "$_artifacts_dir" -name 'lint-results*.json' -maxdepth 3 2>/dev/null | head -1) ;;
-            4) : ;;  # tier4 always uses CI log
-        esac
+    while true; do
+        _all_tiers_artifact_missing=1
 
-        # Tiers 2-4 only: log fallback when no structured artifact
-        _tier_log=''
-        if [[ -z "$_tier_artifact" ]] && [[ "$_tier" -gt 1 ]]; then
-            _tier_log=$(mktemp /tmp/dso-ci-log.XXXXXX)
-            if _fetch_ci_log "$_failed_run_id" "$_tier_log" 2>/dev/null; then
-                _tier_artifact="$_tier_log"
-            else
-                rm -f "$_tier_log"
-                _tier_log=''
+        for _tier in 1 2 3 4; do
+
+            # --- throttle check before any dispatch ---
+            local _usage_rc=0
+            _check_usage_for_remediate 2>/dev/null || _usage_rc=$?
+            if [[ "$_usage_rc" -eq 2 ]]; then
+                _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                _remediate_emit_escalation "THROTTLE_PAUSE" "$_tiers_attempted" "$_per_tier_json" "" "Usage throttle hit; retry later"
+                rm -rf "$_artifacts_dir"
+                return 2
             fi
-        fi
 
-        # Normalize — normalizers handle empty/missing input with exit 3 (ARTIFACT_MISSING)
-        _tier_rc=0
-        case "$_tier" in
-            1) _normalize_tier1 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
-            2) _normalize_tier2 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
-            3) _normalize_tier3 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
-            4) _normalize_tier4 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
-        esac
-        [[ -n "$_tier_log" ]] && { rm -f "$_tier_log"; _tier_log=''; }
+            # --- ceiling check ---
+            _counter_signal=$(_remediate_counter_increment "$_tier" "$_attempts_t1" "$_attempts_t2" "$_attempts_t3" "$_attempts_t4" "$_attempts_global")
+            case "$_counter_signal" in
+                TIER_CEILING)
+                    _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                    _remediate_emit_escalation "TIER_CEILING" "$_tiers_attempted" "$_per_tier_json" "" "Tier ${_tier} attempt ceiling reached"
+                    rm -rf "$_artifacts_dir"
+                    return 2
+                    ;;
+                GLOBAL_CEILING)
+                    _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                    _state_write_remediation_state "remediate" "$_per_tier_json" "$_attempts_global" 2>/dev/null || true
+                    _remediate_emit_escalation "GLOBAL_CEILING" "$_tiers_attempted" "$_per_tier_json" "" "Global retry limit reached"
+                    rm -rf "$_artifacts_dir"
+                    return 2
+                    ;;
+                OSCILLATION)
+                    _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                    _remediate_emit_escalation "OSCILLATION" "$_tiers_attempted" "$_per_tier_json" "" "Fix oscillating between states"
+                    rm -rf "$_artifacts_dir"
+                    return 2
+                    ;;
+            esac
 
-        if [[ "$_tier_rc" -ne 0 ]]; then
+            # --- increment counters (using assignment to avoid set -e exit on 0→1) ---
+            case "$_tier" in
+                1) _attempts_t1=$(( _attempts_t1 + 1 )) ;;
+                2) _attempts_t2=$(( _attempts_t2 + 1 )) ;;
+                3) _attempts_t3=$(( _attempts_t3 + 1 )) ;;
+                4) _attempts_t4=$(( _attempts_t4 + 1 )) ;;
+            esac
+            _attempts_global=$(( _attempts_global + 1 ))
+            _tiers_attempted="${_tiers_attempted:+${_tiers_attempted},}${_tier}"
+
+            # --- persist state ---
+            _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+            _state_write_remediation_state "remediate" "$_per_tier_json" "$_attempts_global" 2>/dev/null || true
+
+            # Use global attempt count for budget-pressure injection
+            _attempt_num_for_tier="$_attempts_global"
+
+            _tier_normalized=$(mktemp /tmp/dso-normalized.XXXXXX)
+
+            # Locate tier-specific artifact
+            _tier_artifact=''
+            case "$_tier" in
+                1) _tier_artifact=$(find "$_artifacts_dir" -name 'reviewer-findings.json' -maxdepth 3 2>/dev/null | head -1) ;;
+                2) _tier_artifact=$(find "$_artifacts_dir" -name 'test-results*.json' -maxdepth 3 2>/dev/null | head -1) ;;
+                3) _tier_artifact=$(find "$_artifacts_dir" -name 'lint-results*.json' -maxdepth 3 2>/dev/null | head -1) ;;
+                4) : ;;  # tier4 always uses CI log
+            esac
+
+            # Tiers 2-4 only: log fallback when no structured artifact
+            _tier_log=''
+            if [[ -z "$_tier_artifact" ]] && [[ "$_tier" -gt 1 ]]; then
+                _tier_log=$(mktemp /tmp/dso-ci-log.XXXXXX)
+                if _fetch_ci_log "$_failed_run_id" "$_tier_log" 2>/dev/null; then
+                    _tier_artifact="$_tier_log"
+                else
+                    rm -f "$_tier_log"
+                    _tier_log=''
+                fi
+            fi
+
+            # Normalize — normalizers handle empty/missing input with exit 3 (ARTIFACT_MISSING)
+            _tier_rc=0
+            case "$_tier" in
+                1) _normalize_tier1 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
+                2) _normalize_tier2 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
+                3) _normalize_tier3 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
+                4) _normalize_tier4 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
+            esac
+            [[ -n "$_tier_log" ]] && { rm -f "$_tier_log"; _tier_log=''; }
+
+            if [[ "$_tier_rc" -ne 0 ]]; then
+                rm -f "$_tier_normalized"
+                continue  # ARTIFACT_MISSING or other error — try next tier
+            fi
+
+            # At least one tier did NOT return ARTIFACT_MISSING
+            _all_tiers_artifact_missing=0
+
+            # Dispatch fix agent; pass global attempt count for budget-pressure injection
+            _dispatch_rc=0
+            _dispatch_fix_agent "$_tier_normalized" "$_attempt_num_for_tier" 2>/dev/null || _dispatch_rc=$?
             rm -f "$_tier_normalized"
-            continue
-        fi
 
-        # Dispatch fix agent
-        _dispatch_rc=0
-        _dispatch_fix_agent "$_tier_normalized" 2>/dev/null || _dispatch_rc=$?
-        rm -f "$_tier_normalized"
-        [[ "$_dispatch_rc" -ne 0 ]] && continue
+            if [[ "$_dispatch_rc" -eq 2 ]]; then
+                # ESCALATE / CANNOT_PROCEED
+                _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                _remediate_emit_escalation "CANNOT_PROCEED" "$_tiers_attempted" "$_per_tier_json" "" "Manual intervention required"
+                rm -rf "$_artifacts_dir"
+                return 2
+            fi
+            [[ "$_dispatch_rc" -ne 0 ]] && continue  # dispatch failed — try next tier
 
-        # Push and re-poll
-        _push_fix_branch "$_tier" 2>/dev/null || continue
-        if _phase_poll "$_pr_number" "$_pr_url"; then
+            # Push and re-poll
+            _push_fix_branch "$_tier" 2>/dev/null || continue
+            if _phase_poll "$_pr_number" "$_pr_url"; then
+                rm -rf "$_artifacts_dir"
+                return 0
+            fi
+            # Repoll failed — continue to next tier (or wrap around in next outer iteration)
+        done
+
+        # End of inner for-loop pass: if every tier returned ARTIFACT_MISSING, escalate
+        if [[ "$_all_tiers_artifact_missing" -eq 1 ]]; then
+            _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+            _remediate_emit_escalation "ARTIFACT_MISSING" "$_tiers_attempted" "$_per_tier_json" "" "All tier artifacts unavailable"
             rm -rf "$_artifacts_dir"
-            return 0
+            return 2
         fi
-        # Repoll failed — try next tier
     done
 
+    # Unreachable — while true exits via return above
     rm -rf "$_artifacts_dir"
     return 2
+}
+
+# --- _check_usage_for_remediate: wrapper for usage-check in _phase_remediate ---
+# Allows tests to override via function definition without touching the env var path.
+# Returns: 0=ok (not paused), 2=paused (THROTTLE_PAUSE)
+_check_usage_for_remediate() {
+    local _usage_cmd="${_REMEDIATE_CHECK_USAGE_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/check-usage.sh}"  # shim-exempt: internal plugin script
+    "$_usage_cmd" >/dev/null 2>&1
+    local _rc=$?
+    [[ "$_rc" -eq 2 ]] && return 2
+    return 0
 }
 
 # =============================================================================
