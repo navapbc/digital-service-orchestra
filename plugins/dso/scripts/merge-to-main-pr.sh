@@ -865,6 +865,21 @@ except Exception:
 
             if [[ "$_has_failure" == "true" ]]; then
                 echo "ERROR: required check failed for PR ${_pr_url}" >&2
+                # Record the failed run ID so _phase_remediate can download artifacts
+                local _run_list _run_id=''
+                _run_list=$(gh run list --limit 1 --json databaseId 2>/dev/null || true)
+                _run_id=$(echo "$_run_list" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    if isinstance(d, list) and d:
+        print(str(d[0].get('databaseId', '')))
+except Exception:
+    pass
+" 2>/dev/null || true)
+                if [[ -n "$_run_id" ]] && type _state_record_failed_run_id >/dev/null 2>&1; then
+                    _state_record_failed_run_id "$_run_id" 2>/dev/null || true
+                fi
                 return 1
             fi
         fi
@@ -1098,7 +1113,7 @@ if ! _phase_resolve_threads "$_PR_NUMBER" "$_PR_URL"; then
 fi
 
 if ! _phase_poll "$_PR_NUMBER" "$_PR_URL"; then
-    exit 1
+    _phase_remediate "$_PR_NUMBER" "$_PR_URL" || exit 2
 fi
 
 # =============================================================================
