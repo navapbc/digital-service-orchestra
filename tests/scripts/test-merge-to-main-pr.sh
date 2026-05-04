@@ -21,6 +21,17 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
 PR_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main-pr.sh"
 
+# Isolate test fixtures from host-project-locating env vars exported by the
+# .claude/scripts/dso shim (PROJECT_ROOT) and ambient state (CLAUDE_PROJECT_DIR,
+# _MERGE_STATE_GIT_DIR). When this test file is invoked through the shim
+# (e.g., DSO_COMMIT_WORKFLOW=1 .claude/scripts/dso record-test-status), those
+# vars leak into per-test subshells and override the fixture's temp-dir git
+# repo via merge-to-main-pr.sh:53 (`REPO_ROOT="${PROJECT_ROOT:-...}"`),
+# causing `cd "$REPO_ROOT"` to escape the fixture and the script to operate
+# against the live worktree branch instead of the test branch. Unset here
+# (parent shell) so all subshells inherit the cleared env. (Bug 2015-dcce.)
+unset PROJECT_ROOT CLAUDE_PROJECT_DIR _MERGE_STATE_GIT_DIR
+
 # shellcheck source=../lib/assert.sh
 source "$REPO_ROOT/tests/lib/assert.sh"
 
@@ -86,6 +97,14 @@ case "\$1" in
         exit 0
         ;;
       merge)
+        if [[ "$pr_merge_mode" == "auto_disabled" ]]; then
+          # Auto-merge enable refuses; explicit merge (no --auto) succeeds.
+          if [[ "\$*" == *"--auto"* ]]; then
+            echo "ERROR: auto-merge is not allowed for this repository" >&2
+            exit 1
+          fi
+          exit 0
+        fi
         if [[ "$pr_merge_mode" == "refused" ]]; then
           echo "ERROR: auto-merge is not allowed for this repository" >&2
           exit 1
@@ -3329,6 +3348,161 @@ except Exception as e:
         "true" "$_ok"
 }
 t_phase_remediate_resets_tier_counter_on_regression
+
+# ---------------------------------------------------------------------------
+# Auto-merge-disabled fallback tests
+# ---------------------------------------------------------------------------
+# When `gh pr merge --auto --merge` is rejected because auto-merge is disabled
+# at the repo level, the script must:
+#   (a) NOT exit 1 — the PR is created, CI must still run
+#   (b) Persist auto_merge_disabled=true to the state file
+#   (c) Issue `gh pr merge <num> --merge` (no --auto flag) once all checks pass
+# ---------------------------------------------------------------------------
+
+t_auto_merge_disabled_does_not_emit_conflict_data() {
+    # Before the fix, auto-merge disabled produced CONFLICT_DATA with
+    # resolution_strategy "pr-conflict" and exited 1 at the merge phase. The
+    # new behavior treats it as a soft success — no CONFLICT_DATA, no exit-1
+    # at this phase (any later non-zero is fine; covered by other tests).
+    local _T branch _all_out _has_conflict_data
+    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-auto-merge-disabled"
+    _build_pr_fixture "$_T" "$branch" "ok" "auto_disabled"
+
+    _all_out="$_T/all.log"
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
+        bash "$PR_SCRIPT" >"$_all_out" 2>&1
+    ) || true
+
+    _has_conflict_data="false"
+    if grep -q '"resolution_strategy": *"pr-conflict"' "$_all_out" 2>/dev/null; then
+        _has_conflict_data="true"
+    fi
+    assert_eq "t_auto_merge_disabled_does_not_emit_conflict_data" "false" "$_has_conflict_data"
+
+    rm -f /tmp/merge-to-main-state-*.json 2>/dev/null || true
+}
+t_auto_merge_disabled_does_not_emit_conflict_data
+
+t_auto_merge_disabled_emits_warning_and_continues() {
+    # When auto-merge is disabled, the merge phase must emit a clear WARNING
+    # (so operators understand why the script fell through to manual merge)
+    # rather than emitting an ERROR / CONFLICT_DATA pair that previously
+    # caused the script to exit 1.
+    local _T branch _all_out _has_warning _has_error
+    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-auto-merge-warning"
+    _build_pr_fixture "$_T" "$branch" "ok" "auto_disabled"
+
+    _all_out="$_T/all.log"
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
+        bash "$PR_SCRIPT" >"$_all_out" 2>&1
+    ) || true
+
+    _has_warning="false"
+    if grep -q "WARNING: GitHub auto-merge is disabled" "$_all_out"; then
+        _has_warning="true"
+    fi
+    # The old failure path printed "ERROR: GitHub auto-merge is disabled" — must NOT appear.
+    _has_error="false"
+    if grep -q "ERROR: GitHub auto-merge is disabled" "$_all_out"; then
+        _has_error="true"
+    fi
+
+    assert_eq "t_auto_merge_disabled_emits_warning_and_continues:warning_present" "true" "$_has_warning"
+    assert_eq "t_auto_merge_disabled_emits_warning_and_continues:error_absent" "false" "$_has_error"
+
+    rm -f /tmp/merge-to-main-state-*.json 2>/dev/null || true
+}
+t_auto_merge_disabled_emits_warning_and_continues
+
+t_auto_merge_disabled_invokes_manual_merge_in_poll() {
+    # In the poll phase, when auto_merge_disabled is set and all checks pass,
+    # the script must invoke `gh pr merge <num> --merge` without --auto.
+    local _T branch _argv _has_manual_merge
+    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-manual-merge-call"
+    _build_pr_fixture "$_T" "$branch" "ok" "auto_disabled"
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
+        bash "$PR_SCRIPT" >/dev/null 2>&1
+    ) || true
+
+    _argv="$(cat "$_T/gh-argv.log" 2>/dev/null || echo '')"
+
+    # Look for a `pr merge 42 --merge` invocation that does NOT include --auto.
+    # The auto-attempt earlier in _phase_merge does include --auto and refuses,
+    # so we need a separate non-auto call to confirm the fallback fired.
+    _has_manual_merge="false"
+    if echo "$_argv" | grep -E "^pr merge 42" | grep -v -- "--auto" | grep -q -- "--merge"; then
+        _has_manual_merge="true"
+    fi
+
+    assert_eq "t_auto_merge_disabled_invokes_manual_merge_in_poll" "true" "$_has_manual_merge"
+
+    # Cleanup any state file produced by this run
+    rm -f /tmp/merge-to-main-state-*.json 2>/dev/null || true
+}
+t_auto_merge_disabled_invokes_manual_merge_in_poll
+
+t_state_write_read_auto_merge_disabled_round_trip() {
+    # Direct unit test of the helpers in merge-helpers.sh.
+    local _T _sf _val
+    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    BRANCH="round-trip-branch"
+    export BRANCH
+    # shellcheck source=/dev/null
+    source "$REPO_ROOT/plugins/dso/hooks/lib/merge-helpers.sh"
+
+    _state_init >/dev/null 2>&1
+    _state_write_auto_merge_disabled "true"
+    _val=$(_state_read_auto_merge_disabled)
+    assert_eq "t_state_write_read_auto_merge_disabled_round_trip:true_persists" "true" "$_val"
+
+    _state_write_auto_merge_disabled "false"
+    _val=$(_state_read_auto_merge_disabled)
+    assert_eq "t_state_write_read_auto_merge_disabled_round_trip:false_persists" "false" "$_val"
+
+    # Default when state file absent
+    _sf=$(_state_file_path 2>/dev/null)
+    rm -f "$_sf"
+    _val=$(_state_read_auto_merge_disabled)
+    assert_eq "t_state_write_read_auto_merge_disabled_round_trip:default_false" "false" "$_val"
+
+    rm -f /tmp/merge-to-main-state-*.json 2>/dev/null || true
+    unset BRANCH
+}
+t_state_write_read_auto_merge_disabled_round_trip
 
 # ---------------------------------------------------------------------------
 print_summary

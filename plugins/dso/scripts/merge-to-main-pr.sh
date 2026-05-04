@@ -158,9 +158,12 @@ with open(sf + '.tmp', 'w') as f:
 #   3. Persist pr_url, pr_number into state file
 #   4. gh pr view <num> --json mergeable      — detect CONFLICTING up-front
 #   5. gh pr merge <num> --auto --merge       — queue auto-merge
-#      → on "auto-merge not allowed" stderr: print clear error, exit 1
+#      → on "auto-merge not allowed" stderr: WARN, persist auto_merge_disabled=true,
+#        and fall through to soft-success (return 0). _phase_poll then issues
+#        `gh pr merge --merge` (no --auto) once all checks pass.
 #
-# Returns 0 on success, 1 on conflict / auto-merge-disabled / unrecoverable error.
+# Returns 0 on success (including auto-merge-disabled fall-through),
+# 1 on conflict / push-failure / pr-create-failure / unrecoverable error.
 # CONFLICT_DATA emission is performed by the caller (top-level error handler
 # below) so the contract surface is identical to direct mode.
 _phase_merge() {
@@ -237,26 +240,31 @@ except Exception:
     fi
 
     # --- 6. Queue auto-merge (--merge to match direct mode's --no-ff semantics) ---
+    # When auto-merge is disabled at the repo level, fall through to manual-merge
+    # mode: the PR exists, CI will run, and _phase_poll will issue `gh pr merge`
+    # itself once all required checks pass. The agent still drives any remediation
+    # required, regardless of whether auto-merge is available.
     local _merge_out _merge_rc=0
     _merge_out=$(gh pr merge "$_pr_number" --auto --merge 2>&1) || _merge_rc=$?
     if [[ "$_merge_rc" -ne 0 ]]; then
-        # Detect the "auto-merge not allowed" repo-setting case so the user
-        # gets actionable guidance (DD1 acceptance criterion).
         if echo "$_merge_out" | grep -qiE "auto.?merge.*(not allowed|disabled|cannot be enabled)"; then
-            echo "ERROR: GitHub auto-merge is disabled for this repository." >&2
-            echo "       Enable it under Settings → General → 'Allow auto-merge', then re-run with --resume." >&2
-            echo "       (gh stderr: $_merge_out)" >&2
+            echo "WARNING: GitHub auto-merge is disabled for this repository — falling through to manual merge after CI." >&2
+            echo "         (To enable for future runs: Settings → General → 'Allow auto-merge'.)" >&2
+            if type _state_write_auto_merge_disabled >/dev/null 2>&1; then
+                _state_write_auto_merge_disabled "true" 2>/dev/null || true
+            fi
         else
             echo "ERROR: gh pr merge ${_pr_number} --auto --merge failed: $_merge_out" >&2
+            return 1
         fi
-        return 1
+    else
+        echo "INFO: Auto-merge queued for PR #${_pr_number}."
     fi
 
     if type _state_mark_complete >/dev/null 2>&1; then
         _state_mark_complete "merge" 2>/dev/null || true
     fi
 
-    echo "INFO: Auto-merge queued for PR #${_pr_number}."
     return 0
 }
 
@@ -883,6 +891,47 @@ except Exception:
                     _state_record_failed_run_id "$_run_id" 2>/dev/null || true
                 fi
                 return 1
+            fi
+
+            # --- Auto-merge disabled fallback: manually merge once all checks pass ---
+            # When the repo has auto-merge disabled, GitHub will never flip the PR to
+            # MERGED on its own. Detect "all checks complete and successful" and issue
+            # `gh pr merge --merge` ourselves so the loop's MERGED check below succeeds
+            # on the next iteration.
+            local _auto_merge_disabled="false"
+            if type _state_read_auto_merge_disabled >/dev/null 2>&1; then
+                _auto_merge_disabled=$(_state_read_auto_merge_disabled 2>/dev/null || echo "false")
+            fi
+            if [[ "$_auto_merge_disabled" == "true" ]]; then
+                local _all_done
+                _all_done=$(echo "$_checks_json" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    if not isinstance(d, list) or not d:
+        print('false'); sys.exit(0)
+    for c in d:
+        state = (c.get('state') or '').upper()
+        concl = (c.get('conclusion') or '').upper()
+        if state in ('IN_PROGRESS', 'QUEUED', 'PENDING') or not concl:
+            print('false'); sys.exit(0)
+        if concl not in ('SUCCESS', 'NEUTRAL', 'SKIPPED'):
+            print('false'); sys.exit(0)
+    print('true')
+except Exception:
+    print('false')
+" 2>/dev/null || echo "false")
+                if [[ "$_all_done" == "true" ]]; then
+                    local _manual_out _manual_rc=0
+                    _manual_out=$(gh pr merge "$_pr_number" --merge 2>&1) || _manual_rc=$?
+                    if [[ "$_manual_rc" -eq 0 ]]; then
+                        echo "INFO: Manual merge issued for PR #${_pr_number} (auto-merge disabled)."
+                    else
+                        # Don't fail hard: a transient gh error or "already merged" message is fine —
+                        # the next iteration's state check will resolve.
+                        echo "WARNING: gh pr merge ${_pr_number} --merge returned non-zero: $_manual_out" >&2
+                    fi
+                fi
             fi
         fi
 

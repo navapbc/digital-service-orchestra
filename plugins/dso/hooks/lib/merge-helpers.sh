@@ -292,6 +292,44 @@ except Exception:
     return 0
 }
 
+# Persist whether GitHub auto-merge is disabled at the repo level.
+# When true, _phase_poll falls through to a manual `gh pr merge --merge`
+# call after all checks pass, instead of waiting for auto-merge to fire.
+# Args: $1 — "true" or "false"
+_state_write_auto_merge_disabled() {
+    local _val="$1"
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    [[ -f "$_sf" ]] || return 0
+    _DSO_SF="$_sf" _DSO_VAL="$_val" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
+    d = json.load(f)
+d['auto_merge_disabled'] = (os.environ['_DSO_VAL'] == 'true')
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
+    return 0
+}
+
+# Read the auto_merge_disabled flag. Returns "true" or "false" on stdout.
+# Default "false" when the state file is absent or the field is unset.
+_state_read_auto_merge_disabled() {
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || { echo "false"; return 0; }
+    [[ -f "$_sf" ]] || { echo "false"; return 0; }
+    _DSO_SF="$_sf" python3 -c "
+import json, os
+try:
+    with open(os.environ['_DSO_SF']) as f:
+        d = json.load(f)
+    print('true' if d.get('auto_merge_disabled', False) else 'false')
+except Exception:
+    print('false')
+" 2>/dev/null || echo "false"
+}
+
 # --- Lock staleness check ---
 # Usage: _is_lock_stale <lock_file>
 # Returns 0 (true/stale) if the lock can be broken, 1 (false/valid) if the lock is held.
