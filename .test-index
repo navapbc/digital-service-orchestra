@@ -373,4 +373,3 @@ plugins/dso/skills/brainstorm/prompts/ux-probe-set.md:tests/skills/test-brainsto
 plugins/dso/scripts/merge-to-main-direct.sh:tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-dispatcher.sh
 plugins/dso/scripts/onboarding/ci-generator.sh:tests/scripts/test-ci-generator.sh
 plugins/dso/scripts/lib/ci-findings-normalize.sh:tests/scripts/test-ci-findings-normalize.sh
-tests/scripts/test-ci-findings-normalize.sh:tests/scripts/test-ci-findings-normalize.sh [t_normalize_tier1_output_schema]
