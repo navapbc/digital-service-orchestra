@@ -1097,11 +1097,17 @@ _push_fix_branch() {
 }
 
 # --- _phase_remediate: autonomous CI fix loop ---
-# Pipeline: state → download artifacts → normalize (4-tier) → dispatch → push → re-poll
+# Bounded retry loop: outer while-true / inner for-tier-in-1-2-3-4.
+# Per-tier ceiling=5, global ceiling=15. Budget-pressure injected at attempt 4.
+# Normalizes failures via lib/ci-findings-normalize.sh (Tier 1=LLM review JSON,
+# Tier 2=test results, Tier 3=lint, Tier 4=generic log). Exit 3=ARTIFACT_MISSING.
+# State persisted across iterations via _state_write_remediation_state.
 #
 # Args: <pr_number> <pr_url>
-# Returns: 0 on successful fix+re-poll, 2 on any failure (artifact missing,
-#          dispatch fail, CI guard, push fail, or re-poll failure).
+# Returns: 0 = CI passed after fix; 2 = any escalation (JSON on stdout).
+# Escalation stop_reason values: TIER_CEILING, GLOBAL_CEILING, CANNOT_PROCEED,
+#   OSCILLATION, THROTTLE_PAUSE, CONFLICT_RESOLUTION_FAILED, ARTIFACT_MISSING.
+# Never returns 1. Caller exits 2 on non-zero return.
 _phase_remediate() {
     local _pr_number="${1:-}" _pr_url="${2:-}"
 
