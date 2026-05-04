@@ -2694,5 +2694,526 @@ CAPTURE_EOF
 }
 t_dispatch_fix_agent_no_budget_pressure_at_attempt_1
 
+# ===========================================================================
+# Tests for _phase_remediate bounded-retry loop integration
+# (story 4786-614e-8467-4bba, task c28e-4d62-fe45-4b73 — T3 RED phase)
+#
+# All 8 tests below FAIL (RED) because _phase_remediate does not yet call
+# _remediate_counter_increment, _remediate_emit_escalation,
+# _state_write_remediation_state, or check throttle state before dispatch.
+# Tests turn GREEN once the T4 implementation adds the bounded retry loop.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_stops_at_tier_ceiling
+# When _remediate_counter_increment returns TIER_CEILING, _phase_remediate must
+# exit 2 and emit JSON containing stop_reason=TIER_CEILING. RED: _phase_remediate
+# does not call _remediate_counter_increment.
+# ---------------------------------------------------------------------------
+t_phase_remediate_stops_at_tier_ceiling() {
+    local _T _branch_safe _state_file _ec _out
+    _T="$(mktemp -d /tmp/dso-remediate-tier-ceil.XXXXXX)"
+    _branch_safe="test-tier-ceiling-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-ceil-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    _out="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 1; }
+            _fetch_ci_log()       { return 1; }
+            _remediate_counter_increment() { echo "TIER_CEILING"; return 0; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    local _has_stop_reason="false"
+    local _has_tier_ceiling="false"
+    if echo "$_out" | grep -q '"stop_reason"'; then _has_stop_reason="true"; fi
+    if echo "$_out" | grep -q "TIER_CEILING";    then _has_tier_ceiling="true"; fi
+
+    assert_eq "t_phase_remediate_stops_at_tier_ceiling: exit code 2" "2" "$_ec"
+    assert_eq "t_phase_remediate_stops_at_tier_ceiling: stop_reason in output" "true" "$_has_stop_reason"
+    assert_eq "t_phase_remediate_stops_at_tier_ceiling: TIER_CEILING in output" "true" "$_has_tier_ceiling"
+}
+t_phase_remediate_stops_at_tier_ceiling
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_stops_at_global_ceiling
+# When _remediate_counter_increment returns GLOBAL_CEILING, _phase_remediate must
+# exit 2 and emit output containing GLOBAL_CEILING. RED: same as above.
+# ---------------------------------------------------------------------------
+t_phase_remediate_stops_at_global_ceiling() {
+    local _T _branch_safe _state_file _ec _out
+    _T="$(mktemp -d /tmp/dso-remediate-global-ceil.XXXXXX)"
+    _branch_safe="test-global-ceiling-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-gceil-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    _out="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 1; }
+            _fetch_ci_log()       { return 1; }
+            _remediate_counter_increment() { echo "GLOBAL_CEILING"; return 0; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    local _has_global_ceiling="false"
+    if echo "$_out" | grep -q "GLOBAL_CEILING"; then _has_global_ceiling="true"; fi
+
+    assert_eq "t_phase_remediate_stops_at_global_ceiling: exit code 2" "2" "$_ec"
+    assert_eq "t_phase_remediate_stops_at_global_ceiling: GLOBAL_CEILING in output" "true" "$_has_global_ceiling"
+}
+t_phase_remediate_stops_at_global_ceiling
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_stops_on_cannot_proceed
+# When _dispatch_fix_agent returns 2 (ESCALATE), _phase_remediate must exit 2
+# and emit output containing CANNOT_PROCEED. RED: _phase_remediate continues
+# to next tier on dispatch failure instead of emitting CANNOT_PROCEED.
+# ---------------------------------------------------------------------------
+t_phase_remediate_stops_on_cannot_proceed() {
+    local _T _branch_safe _state_file _ec _out
+    _T="$(mktemp -d /tmp/dso-remediate-cannot.XXXXXX)"
+    _branch_safe="test-cannot-proceed-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-cant-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    _out="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _dispatch_fix_agent() { return 2; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 1; }
+            _fetch_ci_log()       { return 1; }
+            _normalize_tier2()    { return 3; }
+            _normalize_tier3()    { return 3; }
+            _normalize_tier4()    { return 3; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    local _has_cannot="false"
+    if echo "$_out" | grep -q "CANNOT_PROCEED"; then _has_cannot="true"; fi
+
+    assert_eq "t_phase_remediate_stops_on_cannot_proceed: exit code 2" "2" "$_ec"
+    assert_eq "t_phase_remediate_stops_on_cannot_proceed: CANNOT_PROCEED in output" "true" "$_has_cannot"
+}
+t_phase_remediate_stops_on_cannot_proceed
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_writes_remediation_state_to_state_file
+# After a remediation attempt, _phase_remediate must write remediation state
+# (including remediation_attempts_global) to the state file. RED: _phase_remediate
+# does not call _state_write_remediation_state.
+# ---------------------------------------------------------------------------
+t_phase_remediate_writes_remediation_state_to_state_file() {
+    local _T _branch_safe _state_file _ec _state_contents
+    _T="$(mktemp -d /tmp/dso-remediate-state-write.XXXXXX)"
+    _branch_safe="test-state-write-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-sw-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 1; }
+            _fetch_ci_log()       { return 1; }
+            _normalize_tier2()    { return 3; }
+            _normalize_tier3()    { return 3; }
+            _normalize_tier4()    { return 3; }
+            _remediate_counter_increment() { echo "GLOBAL_CEILING"; return 0; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    ); _ec=$? || true
+
+    _state_contents="$(cat "$_state_file" 2>/dev/null || echo '')"
+
+    local _has_remediation_attempts="false"
+    if echo "$_state_contents" | grep -q "remediation_attempts_global"; then
+        _has_remediation_attempts="true"
+    fi
+
+    assert_eq "t_phase_remediate_writes_remediation_state_to_state_file: state file has remediation_attempts_global" \
+        "true" "$_has_remediation_attempts"
+}
+t_phase_remediate_writes_remediation_state_to_state_file
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_dispatches_oscillation_check_on_attempt_2_same_files
+# When _remediate_counter_increment signals OSCILLATION, _phase_remediate must
+# exit 2 and emit output containing OSCILLATION. RED: _phase_remediate does not
+# call _remediate_counter_increment so oscillation is never detected.
+# ---------------------------------------------------------------------------
+t_phase_remediate_dispatches_oscillation_check_on_attempt_2_same_files() {
+    local _T _branch_safe _state_file _ec _out
+    _T="$(mktemp -d /tmp/dso-remediate-osc.XXXXXX)"
+    _branch_safe="test-oscillation-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-osc-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    _out="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 1; }
+            _fetch_ci_log()       { return 1; }
+            _normalize_tier2()    { return 3; }
+            _normalize_tier3()    { return 3; }
+            _normalize_tier4()    { return 3; }
+            _remediate_counter_increment() { echo "OSCILLATION"; return 0; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    local _has_oscillation="false"
+    if echo "$_out" | grep -q "OSCILLATION"; then _has_oscillation="true"; fi
+
+    assert_eq "t_phase_remediate_dispatches_oscillation_check_on_attempt_2_same_files: exit code 2" "2" "$_ec"
+    assert_eq "t_phase_remediate_dispatches_oscillation_check_on_attempt_2_same_files: OSCILLATION in output" \
+        "true" "$_has_oscillation"
+}
+t_phase_remediate_dispatches_oscillation_check_on_attempt_2_same_files
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_injects_budget_pressure_at_attempt_4
+# When _phase_remediate calls _dispatch_fix_agent on attempt 4 (the 4th call to
+# the dispatch function across all tiers in the loop), it must pass attempt_num=4
+# so budget-pressure text is injected. RED: _phase_remediate does not track
+# a running attempt counter across loop iterations.
+# ---------------------------------------------------------------------------
+t_phase_remediate_injects_budget_pressure_at_attempt_4() {
+    local _T _branch_safe _state_file _ec _dispatch_args_file
+    _T="$(mktemp -d /tmp/dso-remediate-budget4.XXXXXX)"
+    _branch_safe="test-budget4-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    _dispatch_args_file="$_T/dispatch-args.log"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-b4-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    # Create a LLM stub that captures its arguments for inspection
+    cat > "$_T/llm_stub.sh" <<LLM_STUB_EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_dispatch_args_file"
+cat >> "$_dispatch_args_file" 2>/dev/null || true
+echo "RESOLUTION_RESULT: FIXES_APPLIED"
+exit 0
+LLM_STUB_EOF
+    chmod +x "$_T/llm_stub.sh"
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        _REMEDIATE_LLM_CMD="$_T/llm_stub.sh" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            # Normalizer that succeeds with minimal findings for ALL tiers
+            # so we can drive 4+ dispatch calls
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _normalize_tier2() { echo "{\"tier\":2,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _normalize_tier3() { echo "{\"tier\":3,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _normalize_tier4() { echo "{\"tier\":4,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+
+            # Push always succeeds; poll always fails (drives iteration through all tiers)
+            _push_fix_branch() { return 0; }
+            _phase_poll()      { return 1; }
+            _fetch_ci_log()    { return 1; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    ); _ec=$? || true
+
+    _captured="$(cat "$_dispatch_args_file" 2>/dev/null || echo '')"
+
+    # The 4th dispatch call should contain "attempt 4 of 5" budget-pressure text
+    local _has_budget_at_4="false"
+    if echo "$_captured" | grep -q "attempt 4 of 5"; then _has_budget_at_4="true"; fi
+
+    assert_eq "t_phase_remediate_injects_budget_pressure_at_attempt_4: budget pressure injected at attempt 4" \
+        "true" "$_has_budget_at_4"
+}
+t_phase_remediate_injects_budget_pressure_at_attempt_4
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_emits_artifact_missing_when_all_tiers_fail
+# When all tier normalizers return exit 3 (ARTIFACT_MISSING) and the CI log
+# is also unavailable, _phase_remediate must exit 2 and emit output containing
+# ARTIFACT_MISSING. RED: _phase_remediate just returns 2 without calling
+# _remediate_emit_escalation so there is no ARTIFACT_MISSING in stdout.
+# ---------------------------------------------------------------------------
+t_phase_remediate_emits_artifact_missing_when_all_tiers_fail() {
+    local _T _branch_safe _state_file _ec _out
+    _T="$(mktemp -d /tmp/dso-remediate-artmiss.XXXXXX)"
+    _branch_safe="test-artmiss-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-am-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    _out="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { return 3; }
+            _normalize_tier2() { return 3; }
+            _normalize_tier3() { return 3; }
+            _normalize_tier4() { return 3; }
+            _fetch_ci_log()    { return 1; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    local _has_artifact_missing="false"
+    if echo "$_out" | grep -q "ARTIFACT_MISSING"; then _has_artifact_missing="true"; fi
+
+    assert_eq "t_phase_remediate_emits_artifact_missing_when_all_tiers_fail: exit code 2" "2" "$_ec"
+    assert_eq "t_phase_remediate_emits_artifact_missing_when_all_tiers_fail: ARTIFACT_MISSING in output" \
+        "true" "$_has_artifact_missing"
+}
+t_phase_remediate_emits_artifact_missing_when_all_tiers_fail
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_emits_throttle_pause_when_usage_check_paused
+# When the usage check returns 2 (paused), _phase_remediate must exit 2 and
+# emit output containing THROTTLE_PAUSE without calling _dispatch_fix_agent.
+# RED: _phase_remediate has no usage-check gate before dispatch.
+# ---------------------------------------------------------------------------
+t_phase_remediate_emits_throttle_pause_when_usage_check_paused() {
+    local _T _branch_safe _state_file _ec _out _dispatch_called_file
+    _T="$(mktemp -d /tmp/dso-remediate-throttle.XXXXXX)"
+    _branch_safe="test-throttle-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    _dispatch_called_file="$_T/dispatch-was-called"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-thr-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    _out="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _fetch_ci_log()    { return 1; }
+            _normalize_tier2() { return 3; }
+            _normalize_tier3() { return 3; }
+            _normalize_tier4() { return 3; }
+
+            # Stub dispatch to record that it was called
+            _dispatch_fix_agent() {
+                touch "'"$_dispatch_called_file"'"
+                return 0
+            }
+            _push_fix_branch() { return 0; }
+            _phase_poll()      { return 1; }
+
+            # Override the usage-check function that _phase_remediate will call
+            _check_usage_for_remediate() { return 2; }
+            # Also override the canonical check-usage path in case _phase_remediate uses it
+            _check_remediate_usage() { return 2; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    local _has_throttle="false"
+    local _dispatch_was_called="false"
+    if echo "$_out" | grep -q "THROTTLE_PAUSE"; then _has_throttle="true"; fi
+    [[ -f "$_dispatch_called_file" ]] && _dispatch_was_called="true"
+
+    assert_eq "t_phase_remediate_emits_throttle_pause_when_usage_check_paused: exit code 2" "2" "$_ec"
+    assert_eq "t_phase_remediate_emits_throttle_pause_when_usage_check_paused: THROTTLE_PAUSE in output" \
+        "true" "$_has_throttle"
+    assert_eq "t_phase_remediate_emits_throttle_pause_when_usage_check_paused: dispatch NOT called" \
+        "false" "$_dispatch_was_called"
+}
+t_phase_remediate_emits_throttle_pause_when_usage_check_paused
+
 # ---------------------------------------------------------------------------
 print_summary
