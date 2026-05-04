@@ -4,6 +4,15 @@ _normalize_tier1() {
     local _input="$1"
     local _output="$2"
 
+    # Empty/missing input → ARTIFACT_MISSING (rc=3) — matches tiers 2/3/4 contract.
+    # Without this guard, the path is passed to python3 which errors out with
+    # FileNotFoundError and returns 1, indistinguishable from a real validation
+    # failure. _phase_remediate uses rc=3 to fall through to the next tier;
+    # treating "no artifact" as rc=1 would mask the cascade signal.
+    if [[ -z "$_input" ]] || [[ ! -f "$_input" ]]; then
+        return 3
+    fi
+
     # Validate input has findings key
     local _has_findings
     _has_findings=$(python3 - "$_input" <<'PYEOF'

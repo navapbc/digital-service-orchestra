@@ -289,6 +289,30 @@ except Exception as e:
 t_normalize_tier2_output_schema
 
 # ---------------------------------------------------------------------------
+# Test 6b: t_normalize_tier1_missing_input_exits_3
+# Given: empty string passed as input (and a non-existent file path)
+# When:  _normalize_tier1 "" "$_output" is called
+# Then:  exit code is 3 (ARTIFACT_MISSING) — parity with tiers 2/3/4
+# ---------------------------------------------------------------------------
+t_normalize_tier1_missing_input_exits_3() {
+    local _output _ec_file _exit_code
+    _output="$(mktemp /tmp/tier1-out.XXXXXX)"
+    _ec_file="$(mktemp /tmp/tier1-ec.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -f '$_output' '$_ec_file'" RETURN
+
+    (
+        CI_FINDINGS_LIB_MODE=1 source "$LIB_SCRIPT" 2>/dev/null || { echo "source-failed" > "$_ec_file"; exit 0; }
+        _normalize_tier1 "" "$_output" 2>/dev/null
+        echo "$?" > "$_ec_file"
+    ) 2>/dev/null || true
+
+    _exit_code="$(cat "$_ec_file" 2>/dev/null || echo 'unset')"
+    assert_eq "t_normalize_tier1_missing_input_exits_3: empty input → exit 3" "3" "$_exit_code"
+}
+t_normalize_tier1_missing_input_exits_3
+
+# ---------------------------------------------------------------------------
 # Test 7: t_normalize_tier2_missing_input_exits_3
 # Given: empty string passed as input
 # When:  _normalize_tier2 "" "$_output" is called

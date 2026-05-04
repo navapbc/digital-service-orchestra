@@ -876,10 +876,12 @@ except Exception:
             if [[ "$_has_failure" == "true" ]]; then
                 echo "ERROR: required check failed for PR ${_pr_url}" >&2
                 # Record the failed run ID so _phase_remediate can download artifacts.
-                # Filter by branch to avoid capturing an unrelated concurrent PR's run.
+                # Filter by branch AND status=failure: a concurrent in-progress run on
+                # the same branch (e.g., from a manual workflow_dispatch) would otherwise
+                # return as the most-recent run and steer remediation at the wrong findings.
                 # BRANCH is set at script init from the current git branch.
                 local _run_list _run_id=''
-                _run_list=$(gh run list --branch "$BRANCH" --limit 1 --json databaseId 2>/dev/null || true)
+                _run_list=$(gh run list --branch "$BRANCH" --status failure --limit 1 --json databaseId 2>/dev/null || true)
                 _run_id=$(echo "$_run_list" | python3 -c "
 import json, sys
 try:
@@ -905,6 +907,12 @@ except Exception:
                 _auto_merge_disabled=$(_state_read_auto_merge_disabled 2>/dev/null || echo "false")
             fi
             if [[ "$_auto_merge_disabled" == "true" ]]; then
+                # Manual-merge readiness: require SUCCESS for every reported check.
+                # We intentionally do NOT accept NEUTRAL or SKIPPED here, even though
+                # they often indicate "passed" — branch protection rules may treat
+                # them as not-passing-required, and a manual `gh pr merge --merge`
+                # would be rejected. Falling through to the next poll iteration is
+                # cheaper than loop-thrashing on a rejected merge attempt.
                 local _all_done
                 _all_done=$(echo "$_checks_json" | python3 -c "
 import json, sys
@@ -917,7 +925,7 @@ try:
         concl = (c.get('conclusion') or '').upper()
         if state in ('IN_PROGRESS', 'QUEUED', 'PENDING') or not concl:
             print('false'); sys.exit(0)
-        if concl not in ('SUCCESS', 'NEUTRAL', 'SKIPPED'):
+        if concl != 'SUCCESS':
             print('false'); sys.exit(0)
     print('true')
 except Exception:
@@ -1142,7 +1150,10 @@ _push_fix_branch() {
         return 1
     fi
     git add -u 2>/dev/null || true
-    git commit -m "fix: CI remediation tier${_tier} [skip ci]" 2>/dev/null || return 1
+    # No `[skip ci]` tag: the push MUST trigger a new CI run so _phase_poll can
+    # re-poll the post-fix run state. With the tag, GitHub Actions ignores the
+    # commit and the remediation loop deadlocks waiting for a run that never starts.
+    git commit -m "fix: CI remediation tier${_tier}" 2>/dev/null || return 1
     git push origin HEAD 2>/dev/null || return 1
     return 0
 }
@@ -1162,9 +1173,17 @@ _push_fix_branch() {
 _phase_remediate() {
     local _pr_number="${1:-}" _pr_url="${2:-}"
 
-    # Step 1: get failed_run_id from state file
+    # Step 1: get failed_run_id from state file. When the field is absent or
+    # empty the function cannot proceed — emit a structured escalation so the
+    # caller (and operators reading logs) can see WHY remediation aborted,
+    # rather than a silent `return 2`. The most likely cause is _phase_poll
+    # not having captured a failed run id yet (e.g., running remediate without
+    # a preceding poll-failure).
     local _sf _failed_run_id
-    _sf=$(_state_file_path) 2>/dev/null || return 2
+    _sf=$(_state_file_path) 2>/dev/null || {
+        _remediate_emit_escalation "ARTIFACT_MISSING" "" "{}" "" "State file unavailable — cannot read failed_run_id"
+        return 2
+    }
     _failed_run_id=$(_DSO_SF="$_sf" python3 -c "
 import json, os, sys
 try:
@@ -1177,7 +1196,10 @@ try:
         sys.exit(1)
 except Exception:
     sys.exit(1)
-" 2>/dev/null) || return 2
+" 2>/dev/null) || {
+        _remediate_emit_escalation "ARTIFACT_MISSING" "" "{}" "" "No failed_run_id recorded in state — _phase_poll may not have captured a CI failure"
+        return 2
+    }
 
     # Step 2: download CI artifacts
     local _artifacts_dir
@@ -1248,13 +1270,13 @@ except Exception:
                     rm -rf "$_artifacts_dir"
                     return 2
                     ;;
-                OSCILLATION)
-                    _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
-                    _remediate_emit_escalation "OSCILLATION" "$_tiers_attempted" "$_per_tier_json" "" "Fix oscillating between states"
-                    rm -rf "$_artifacts_dir"
-                    return 2
-                    ;;
             esac
+            # Note: OSCILLATION was a planned signal for fix/revert cycles, but
+            # no production caller emits it. If detection is added later, restore
+            # an OSCILLATION) branch above and ensure _remediate_counter_increment
+            # (or another producer) actually returns the signal. Tests for the
+            # `_remediate_emit_escalation` emitter still cover the OSCILLATION
+            # stop_reason value as a generic enum case.
 
             # --- increment counters (using assignment to avoid set -e exit on 0→1) ---
             case "$_tier" in
@@ -1270,8 +1292,16 @@ except Exception:
             _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
             _state_write_remediation_state "remediate" "$_per_tier_json" "$_attempts_global" 2>/dev/null || true
 
-            # Use global attempt count for budget-pressure injection
-            _attempt_num_for_tier="$_attempts_global"
+            # Budget pressure fires at attempt 4 of THIS tier (per-tier ceiling=5).
+            # Using the per-tier counter, not the global one — global crosses 4 on the
+            # 4th distinct tier visit, which often corresponds to tier-1 attempt 1
+            # and gives the agent misleading time-pressure context.
+            case "$_tier" in
+                1) _attempt_num_for_tier="$_attempts_t1" ;;
+                2) _attempt_num_for_tier="$_attempts_t2" ;;
+                3) _attempt_num_for_tier="$_attempts_t3" ;;
+                4) _attempt_num_for_tier="$_attempts_t4" ;;
+            esac
 
             _tier_normalized=$(mktemp /tmp/dso-normalized.XXXXXX)
 

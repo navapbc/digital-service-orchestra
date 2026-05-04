@@ -17,6 +17,69 @@
 #   source "${_SCRIPT_DIR}/../hooks/lib/merge-helpers.sh"
 
 # --- State file helpers (resumable merge support) ---
+#
+# Most of the helpers below share the same pattern: locate the state file,
+# load JSON, mutate one field, atomic .tmp+mv write. The two private helpers
+# `_state_set_field` and `_state_get_field` capture that pattern; the public
+# helpers like `_state_record_merge_sha` are now thin wrappers around them.
+# Helpers with non-trivial mutation (`_state_mark_complete`, `_set_phase_status`,
+# `_state_increment_retry`, `_state_write_remediation_state`) keep their own
+# python3 blocks because they touch nested structures or read-modify-write
+# counters.
+
+# Set a single top-level field on the state file.
+# Args: $1=field name, $2=value, $3=value_kind (optional: "string" (default), "json")
+#   - string: stored as-is via env-var passthrough.
+#   - json:   parsed as JSON before storing — use for booleans, numbers, arrays.
+# Best-effort: silent no-op when state file is unavailable.
+_state_set_field() {
+    local _field="$1" _value="$2" _kind="${3:-string}"
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    [[ -f "$_sf" ]] || return 0
+    _DSO_SF="$_sf" _DSO_FIELD="$_field" _DSO_VALUE="$_value" _DSO_KIND="$_kind" python3 -c "
+import json, os, sys
+sf = os.environ['_DSO_SF']
+field = os.environ['_DSO_FIELD']
+raw = os.environ['_DSO_VALUE']
+kind = os.environ['_DSO_KIND']
+try:
+    value = json.loads(raw) if kind == 'json' else raw
+except Exception:
+    value = raw
+with open(sf) as f:
+    d = json.load(f)
+d[field] = value
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
+    return 0
+}
+
+# Read a single top-level field from the state file.
+# Args: $1=field name, $2=default (optional, prints when state file or field is absent)
+# Prints the value on stdout; never errors.
+_state_get_field() {
+    local _field="$1" _default="${2:-}"
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || { printf '%s' "$_default"; return 0; }
+    [[ -f "$_sf" ]] || { printf '%s' "$_default"; return 0; }
+    _DSO_SF="$_sf" _DSO_FIELD="$_field" _DSO_DEFAULT="$_default" python3 -c "
+import json, os
+try:
+    with open(os.environ['_DSO_SF']) as f:
+        d = json.load(f)
+    v = d.get(os.environ['_DSO_FIELD'], None)
+    if v is None:
+        print(os.environ['_DSO_DEFAULT'])
+    elif isinstance(v, bool):
+        print('true' if v else 'false')
+    else:
+        print(v)
+except Exception:
+    print(os.environ['_DSO_DEFAULT'])
+" 2>/dev/null || printf '%s' "$_default"
+}
 
 _state_file_path() {
     local _sanitized="${BRANCH//\//-}"
@@ -74,22 +137,7 @@ with open(sf + '.tmp', 'w') as f:
 }
 
 _state_write_phase() {
-    local _phase="$1"
-    local _sf
-    _sf=$(_state_file_path) 2>/dev/null || return 0
-    [[ -f "$_sf" ]] || return 0
-    # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    # Pass variables via env to avoid shell-string interpolation injection.
-    _DSO_SF="$_sf" _DSO_PHASE="$_phase" python3 -c "
-import json, os
-sf = os.environ['_DSO_SF']
-with open(sf) as f:
-    d = json.load(f)
-d['current_phase'] = os.environ['_DSO_PHASE']
-with open(sf + '.tmp', 'w') as f:
-    json.dump(d, f)
-" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
-    return 0
+    _state_set_field "current_phase" "$1"
 }
 
 _state_mark_complete() {
@@ -135,41 +183,11 @@ with open(sf + '.tmp', 'w') as f:
 }
 
 _state_record_merge_sha() {
-    local _sha="$1"
-    local _sf
-    _sf=$(_state_file_path) 2>/dev/null || return 0
-    [[ -f "$_sf" ]] || return 0
-    # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    # Pass variables via env to avoid shell-string interpolation injection.
-    _DSO_SF="$_sf" _DSO_SHA="$_sha" python3 -c "
-import json, os
-sf = os.environ['_DSO_SF']
-with open(sf) as f:
-    d = json.load(f)
-d['merge_sha'] = os.environ['_DSO_SHA']
-with open(sf + '.tmp', 'w') as f:
-    json.dump(d, f)
-" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
-    return 0
+    _state_set_field "merge_sha" "$1"
 }
 
 _state_record_failed_run_id() {
-    local _run_id="$1"
-    local _sf
-    _sf=$(_state_file_path) 2>/dev/null || return 0
-    [[ -f "$_sf" ]] || return 0
-    # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    # Pass variables via env to avoid shell-string interpolation injection.
-    _DSO_SF="$_sf" _DSO_RUN_ID="$_run_id" python3 -c "
-import json, os
-sf = os.environ['_DSO_SF']
-with open(sf) as f:
-    d = json.load(f)
-d['failed_run_id'] = os.environ['_DSO_RUN_ID']
-with open(sf + '.tmp', 'w') as f:
-    json.dump(d, f)
-" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
-    return 0
+    _state_set_field "failed_run_id" "$1"
 }
 
 # Read the last-recorded failed_run_id from the state file. Empty string when
@@ -177,30 +195,11 @@ with open(sf + '.tmp', 'w') as f:
 # _phase_poll has captured a new CI run after a fix push, so it can re-download
 # fresh artifacts instead of reusing the original (now-stale) ones.
 _state_read_failed_run_id() {
-    local _sf
-    _sf=$(_state_file_path) 2>/dev/null || { echo ""; return 0; }
-    [[ -f "$_sf" ]] || { echo ""; return 0; }
-    _DSO_SF="$_sf" python3 -c "
-import json, os
-try:
-    with open(os.environ['_DSO_SF']) as f:
-        d = json.load(f)
-    print(d.get('failed_run_id', ''))
-except Exception:
-    print('')
-" 2>/dev/null || echo ""
+    _state_get_field "failed_run_id" ""
 }
 
 _state_get_retry_count() {
-    local _sf
-    _sf=$(_state_file_path) 2>/dev/null || { echo "0"; return 0; }
-    [[ -f "$_sf" ]] || { echo "0"; return 0; }
-    _DSO_SF="$_sf" python3 -c "
-import json, os
-with open(os.environ['_DSO_SF']) as f:
-    d = json.load(f)
-print(d.get('retry_count', 0))
-" 2>/dev/null || echo "0"
+    _state_get_field "retry_count" "0"
 }
 
 _state_increment_retry() {
@@ -221,20 +220,7 @@ with open(sf + '.tmp', 'w') as f:
 }
 
 _state_reset_retry_count() {
-    local _sf
-    _sf=$(_state_file_path) 2>/dev/null || return 0
-    [[ -f "$_sf" ]] || return 0
-    # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
-    _DSO_SF="$_sf" python3 -c "
-import json, os
-sf = os.environ['_DSO_SF']
-with open(sf) as f:
-    d = json.load(f)
-d['retry_count'] = 0
-with open(sf + '.tmp', 'w') as f:
-    json.dump(d, f)
-" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
-    return 0
+    _state_set_field "retry_count" "0" "json"
 }
 
 # Write remediation loop state to the state file atomically.
@@ -317,36 +303,18 @@ except Exception:
 # Args: $1 — "true" or "false"
 _state_write_auto_merge_disabled() {
     local _val="$1"
-    local _sf
-    _sf=$(_state_file_path) 2>/dev/null || return 0
-    [[ -f "$_sf" ]] || return 0
-    _DSO_SF="$_sf" _DSO_VAL="$_val" python3 -c "
-import json, os
-sf = os.environ['_DSO_SF']
-with open(sf) as f:
-    d = json.load(f)
-d['auto_merge_disabled'] = (os.environ['_DSO_VAL'] == 'true')
-with open(sf + '.tmp', 'w') as f:
-    json.dump(d, f)
-" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
-    return 0
+    # Stored as JSON boolean — _state_get_field renders bools as "true"/"false" strings.
+    if [[ "$_val" == "true" ]]; then
+        _state_set_field "auto_merge_disabled" "true" "json"
+    else
+        _state_set_field "auto_merge_disabled" "false" "json"
+    fi
 }
 
 # Read the auto_merge_disabled flag. Returns "true" or "false" on stdout.
 # Default "false" when the state file is absent or the field is unset.
 _state_read_auto_merge_disabled() {
-    local _sf
-    _sf=$(_state_file_path) 2>/dev/null || { echo "false"; return 0; }
-    [[ -f "$_sf" ]] || { echo "false"; return 0; }
-    _DSO_SF="$_sf" python3 -c "
-import json, os
-try:
-    with open(os.environ['_DSO_SF']) as f:
-        d = json.load(f)
-    print('true' if d.get('auto_merge_disabled', False) else 'false')
-except Exception:
-    print('false')
-" 2>/dev/null || echo "false"
+    _state_get_field "auto_merge_disabled" "false"
 }
 
 # --- Lock staleness check ---
