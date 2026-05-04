@@ -44,7 +44,9 @@ done
 
 # --- Required env vars (set by the dispatcher) ---
 : "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set}"
-: "${MERGE_STRATEGY:?MERGE_STRATEGY must be set (expected: pr)}"
+if [[ "${PR_LIB_MODE:-0}" != "1" ]]; then
+    : "${MERGE_STRATEGY:?MERGE_STRATEGY must be set (expected: pr)}"
+fi
 
 # --- Resolve repo root (best-effort; PR mode can run outside a git repo for
 # certain failure paths in skeleton form, but most production paths require it). ---
@@ -56,7 +58,8 @@ fi
 # --- Resolve current branch (best-effort) ---
 # Falls back to "unknown" outside a git repo so downstream helpers (e.g.,
 # _emit_conflict_data, _state_init) still receive a non-empty value.
-BRANCH=$(git branch --show-current 2>/dev/null || true)
+# Honor BRANCH if already set (e.g., injected by tests or the dispatcher).
+BRANCH="${BRANCH:-$(git branch --show-current 2>/dev/null || true)}"
 BRANCH="${BRANCH:-unknown}"
 
 # --- Load merge utility helpers (state file, lock, recovery, CONFLICT_DATA) ---
@@ -65,6 +68,14 @@ _MERGE_HELPERS_LIB="${CLAUDE_PLUGIN_ROOT}/hooks/lib/merge-helpers.sh"
 if [[ -f "$_MERGE_HELPERS_LIB" ]]; then
     # shellcheck disable=SC1090
     source "$_MERGE_HELPERS_LIB"
+fi
+
+# --- Load CI findings normalization library ---
+# shellcheck source=${CLAUDE_PLUGIN_ROOT}/scripts/lib/ci-findings-normalize.sh
+_FINDINGS_NORMALIZE_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/lib/ci-findings-normalize.sh"
+if [[ -f "$_FINDINGS_NORMALIZE_LIB" ]]; then
+    # shellcheck disable=SC1090
+    CI_FINDINGS_LIB_MODE=1 source "$_FINDINGS_NORMALIZE_LIB"  # shim-exempt: internal plugin script
 fi
 
 # --- gh CLI version gate (DD7) ---
@@ -147,9 +158,12 @@ with open(sf + '.tmp', 'w') as f:
 #   3. Persist pr_url, pr_number into state file
 #   4. gh pr view <num> --json mergeable      — detect CONFLICTING up-front
 #   5. gh pr merge <num> --auto --merge       — queue auto-merge
-#      → on "auto-merge not allowed" stderr: print clear error, exit 1
+#      → on "auto-merge not allowed" stderr: WARN, persist auto_merge_disabled=true,
+#        and fall through to soft-success (return 0). _phase_poll then issues
+#        `gh pr merge --merge` (no --auto) once all checks pass.
 #
-# Returns 0 on success, 1 on conflict / auto-merge-disabled / unrecoverable error.
+# Returns 0 on success (including auto-merge-disabled fall-through),
+# 1 on conflict / push-failure / pr-create-failure / unrecoverable error.
 # CONFLICT_DATA emission is performed by the caller (top-level error handler
 # below) so the contract surface is identical to direct mode.
 _phase_merge() {
@@ -226,26 +240,31 @@ except Exception:
     fi
 
     # --- 6. Queue auto-merge (--merge to match direct mode's --no-ff semantics) ---
+    # When auto-merge is disabled at the repo level, fall through to manual-merge
+    # mode: the PR exists, CI will run, and _phase_poll will issue `gh pr merge`
+    # itself once all required checks pass. The agent still drives any remediation
+    # required, regardless of whether auto-merge is available.
     local _merge_out _merge_rc=0
     _merge_out=$(gh pr merge "$_pr_number" --auto --merge 2>&1) || _merge_rc=$?
     if [[ "$_merge_rc" -ne 0 ]]; then
-        # Detect the "auto-merge not allowed" repo-setting case so the user
-        # gets actionable guidance (DD1 acceptance criterion).
         if echo "$_merge_out" | grep -qiE "auto.?merge.*(not allowed|disabled|cannot be enabled)"; then
-            echo "ERROR: GitHub auto-merge is disabled for this repository." >&2
-            echo "       Enable it under Settings → General → 'Allow auto-merge', then re-run with --resume." >&2
-            echo "       (gh stderr: $_merge_out)" >&2
+            echo "WARNING: GitHub auto-merge is disabled for this repository — falling through to manual merge after CI." >&2
+            echo "         (To enable for future runs: Settings → General → 'Allow auto-merge'.)" >&2
+            if type _state_write_auto_merge_disabled >/dev/null 2>&1; then
+                _state_write_auto_merge_disabled "true" 2>/dev/null || true
+            fi
         else
             echo "ERROR: gh pr merge ${_pr_number} --auto --merge failed: $_merge_out" >&2
+            return 1
         fi
-        return 1
+    else
+        echo "INFO: Auto-merge queued for PR #${_pr_number}."
     fi
 
     if type _state_mark_complete >/dev/null 2>&1; then
         _state_mark_complete "merge" 2>/dev/null || true
     fi
 
-    echo "INFO: Auto-merge queued for PR #${_pr_number}."
     return 0
 }
 
@@ -856,7 +875,73 @@ except Exception:
 
             if [[ "$_has_failure" == "true" ]]; then
                 echo "ERROR: required check failed for PR ${_pr_url}" >&2
+                # Record the failed run ID so _phase_remediate can download artifacts.
+                # Filter by branch AND status=failure: a concurrent in-progress run on
+                # the same branch (e.g., from a manual workflow_dispatch) would otherwise
+                # return as the most-recent run and steer remediation at the wrong findings.
+                # BRANCH is set at script init from the current git branch.
+                local _run_list _run_id=''
+                _run_list=$(gh run list --branch "$BRANCH" --status failure --limit 1 --json databaseId 2>/dev/null || true)
+                _run_id=$(echo "$_run_list" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    if isinstance(d, list) and d:
+        print(str(d[0].get('databaseId', '')))
+except Exception:
+    pass
+" 2>/dev/null || true)
+                if [[ -n "$_run_id" ]] && type _state_record_failed_run_id >/dev/null 2>&1; then
+                    _state_record_failed_run_id "$_run_id" 2>/dev/null || true
+                fi
                 return 1
+            fi
+
+            # --- Auto-merge disabled fallback: manually merge once all checks pass ---
+            # When the repo has auto-merge disabled, GitHub will never flip the PR to
+            # MERGED on its own. Detect "all checks complete and successful" and issue
+            # `gh pr merge --merge` ourselves so the loop's MERGED check below succeeds
+            # on the next iteration.
+            local _auto_merge_disabled="false"
+            if type _state_read_auto_merge_disabled >/dev/null 2>&1; then
+                _auto_merge_disabled=$(_state_read_auto_merge_disabled 2>/dev/null || echo "false")
+            fi
+            if [[ "$_auto_merge_disabled" == "true" ]]; then
+                # Manual-merge readiness: require SUCCESS for every reported check.
+                # We intentionally do NOT accept NEUTRAL or SKIPPED here, even though
+                # they often indicate "passed" — branch protection rules may treat
+                # them as not-passing-required, and a manual `gh pr merge --merge`
+                # would be rejected. Falling through to the next poll iteration is
+                # cheaper than loop-thrashing on a rejected merge attempt.
+                local _all_done
+                _all_done=$(echo "$_checks_json" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    if not isinstance(d, list) or not d:
+        print('false'); sys.exit(0)
+    for c in d:
+        state = (c.get('state') or '').upper()
+        concl = (c.get('conclusion') or '').upper()
+        if state in ('IN_PROGRESS', 'QUEUED', 'PENDING') or not concl:
+            print('false'); sys.exit(0)
+        if concl != 'SUCCESS':
+            print('false'); sys.exit(0)
+    print('true')
+except Exception:
+    print('false')
+" 2>/dev/null || echo "false")
+                if [[ "$_all_done" == "true" ]]; then
+                    local _manual_out _manual_rc=0
+                    _manual_out=$(gh pr merge "$_pr_number" --merge 2>&1) || _manual_rc=$?
+                    if [[ "$_manual_rc" -eq 0 ]]; then
+                        echo "INFO: Manual merge issued for PR #${_pr_number} (auto-merge disabled)."
+                    else
+                        # Don't fail hard: a transient gh error or "already merged" message is fine —
+                        # the next iteration's state check will resolve.
+                        echo "WARNING: gh pr merge ${_pr_number} --merge returned non-zero: $_manual_out" >&2
+                    fi
+                fi
             fi
         fi
 
@@ -898,6 +983,426 @@ except Exception:
             sleep "$_interval" 2>/dev/null || sleep 1
         fi
     done
+}
+
+# --- _dispatch_resolve_conflicts: call LLM to resolve merge conflicts ---
+# Returns: 0=resolved, 1=unknown, 2=ESCALATE
+# Overridable via _RESOLVE_CONFLICTS_LLM_CMD for tests.
+_dispatch_resolve_conflicts() {
+    local _pr_number="$1" _pr_url="$2"
+    local _llm_cmd="${_RESOLVE_CONFLICTS_LLM_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
+    local _prompt_file="${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/resolve-conflicts-dispatch.md"
+    local _context_file
+    _context_file="$(mktemp /tmp/dso-conflict-context.XXXXXX)"
+    printf '{"pr_number": "%s", "pr_url": "%s"}' "$_pr_number" "$_pr_url" > "$_context_file"
+    local _result
+    _result=$("$_llm_cmd" "$_prompt_file" "$_context_file" "sonnet" 2>&1) || true
+    rm -f "$_context_file"
+    case "$_result" in
+        *"RESOLUTION_RESULT: FIXES_APPLIED"*) return 0 ;;
+        *"RESOLUTION_RESULT: ESCALATE"*)      return 2 ;;
+        *)                                    return 1 ;;
+    esac
+}
+
+# --- _phase_conflict_resolution: detect CONFLICTING PR state and dispatch resolve-conflicts ---
+# Returns: 0=no conflict or conflict resolved, 1=conflict remains (escalation needed)
+_phase_conflict_resolution() {
+    local _pr_number="$1" _pr_url="$2"
+    local _merge_state
+    _merge_state=$(gh pr view "$_pr_number" --json mergeStateStatus --jq '.mergeStateStatus' 2>/dev/null || true)
+    [[ "$_merge_state" != "CONFLICTING" ]] && return 0
+    _dispatch_resolve_conflicts "$_pr_number" "$_pr_url" 2>/dev/null || true
+    _merge_state=$(gh pr view "$_pr_number" --json mergeStateStatus --jq '.mergeStateStatus' 2>/dev/null || true)
+    if [[ "$_merge_state" == "CONFLICTING" ]]; then
+        echo "ESCALATION_REASON: Conflict resolution failed" >&2
+        return 1
+    fi
+    return 0
+}
+
+# --- _remediate_counter_increment: check tier and global ceilings ---
+# Args: $1=tier (1-4), $2=t1_count, $3=t2_count, $4=t3_count, $5=t4_count, $6=global_count
+# Prints TIER_CEILING or GLOBAL_CEILING on stdout when a stop condition is met.
+# Prints nothing (empty stdout) when counts are under all ceilings.
+# Returns 0 in all cases.
+_remediate_counter_increment() {
+    local _tier="${1:-1}"
+    local _t1="${2:-0}"
+    local _t2="${3:-0}"
+    local _t3="${4:-0}"
+    local _t4="${5:-0}"
+    local _global="${6:-0}"
+    local _tier_ceiling=5
+    local _global_ceiling=15
+
+    # Select the tier-specific count
+    local _tier_count
+    case "$_tier" in
+        1) _tier_count="$_t1" ;;
+        2) _tier_count="$_t2" ;;
+        3) _tier_count="$_t3" ;;
+        4) _tier_count="$_t4" ;;
+        *) _tier_count="$_t1" ;;
+    esac
+
+    # Check tier ceiling first
+    if (( _tier_count >= _tier_ceiling )); then
+        echo "TIER_CEILING"
+        return 0
+    fi
+
+    # Check global ceiling
+    if (( _global >= _global_ceiling )); then
+        echo "GLOBAL_CEILING"
+        return 0
+    fi
+
+    return 0
+}
+
+# --- _remediate_emit_escalation: emit a structured escalation JSON object ---
+# Args: $1=stop_reason, $2=tiers_attempted (CSV), $3=attempts_per_tier (JSON string),
+#       $4=remaining_findings_path, $5=suggested_next_step
+# Emits a JSON object to stdout.
+_remediate_emit_escalation() {
+    local _stop_reason="${1:-}"
+    local _tiers_attempted="${2:-}"
+    local _per_tier_json="${3:-{}}"
+    local _remaining_path="${4:-}"
+    local _next_step="${5:-}"
+
+    STOP="$_stop_reason" TIERS="$_tiers_attempted" PER_TIER="$_per_tier_json" \
+    RPATH="$_remaining_path" NEXT="$_next_step" python3 -c "
+import json, os, datetime, sys
+stop = os.environ.get('STOP', '')
+tiers = os.environ.get('TIERS', '')
+per_tier_raw = os.environ.get('PER_TIER', '{}')
+rpath = os.environ.get('RPATH', '')
+nxt = os.environ.get('NEXT', '')
+try:
+    per_tier = json.loads(per_tier_raw)
+except Exception:
+    per_tier = {}
+# Use timezone-aware UTC (datetime.utcnow() is deprecated in Python 3.12+)
+if sys.version_info >= (3, 2):
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+else:
+    ts = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+d = {
+    'schema_version': 1,
+    'stop_reason': stop,
+    'tiers_attempted': tiers,
+    'attempts_per_tier': per_tier,
+    'remaining_findings': rpath,
+    'suggested_next_step': nxt,
+    'timestamp': ts,
+}
+print(json.dumps(d))
+" 2>/dev/null || true
+    return 0
+}
+
+# --- _dispatch_fix_agent: invoke LLM sub-agent to apply fixes from findings ---
+#
+# ENV OVERRIDES (for testing):
+#   _REMEDIATE_LLM_CMD  — override LLM command (default: llm-api-call.sh)
+#                         Separate from _LLM_DISPATCH_CMD to avoid colliding with
+#                         the thread-resolution override in _phase_resolve_threads.
+#
+# Args: $1=findings_path, $2=attempt_num (optional; when ==4, injects budget-pressure text)
+# Returns: 0=FIXES_APPLIED, 1=FAIL/unknown, 2=ESCALATE
+_dispatch_fix_agent() {
+    local _findings_path="$1"
+    local _attempt_num="${2:-}"
+    local _llm_cmd="${_REMEDIATE_LLM_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
+    local _prompt_file="${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md"
+    local _result
+    local _user_msg="$_findings_path"
+    if [[ "$_attempt_num" == "4" ]]; then
+        # Append budget-pressure context to the user message so the LLM receives it.
+        # llm-api-call.sh arg 2 is the user-message string — appending here ensures it
+        # reaches the model regardless of whether the caller is a real LLM or a test stub.
+        _user_msg="${_findings_path}
+This is attempt 4 of 5 - if you cannot resolve this finding, return ESCALATE with a clear explanation"
+    fi
+    _result=$("$_llm_cmd" "$_prompt_file" "$_user_msg" "sonnet" 2>&1) || true
+    case "$_result" in
+        *"RESOLUTION_RESULT: FIXES_APPLIED"*) return 0 ;;
+        *"RESOLUTION_RESULT: ESCALATE"*)      return 2 ;;
+        *)                                     return 1 ;;
+    esac
+}
+
+# --- _push_fix_branch: commit and push remediation fixes (CI-only) ---
+# REVIEW-DEFENSE: raw git operations here are intentional and CI-only.
+# merge-to-main-pr.sh runs exclusively in automated CI environments where the
+# project pre-commit hook suite is not installed. The CI guard below ensures
+# this branch is never taken in interactive/local sessions, preventing
+# review-gate conflicts. Mirrors the pattern in _pr_commit_code_change_threads.
+#
+# Args: <tier_number>
+# Returns: 0 on success, 1 on failure
+_push_fix_branch() {
+    local _tier="${1:-0}"
+    if [[ "${CI:-}" != "true" ]]; then
+        echo "WARNING: remediate push skipped outside CI" >&2
+        return 1
+    fi
+    git add -u 2>/dev/null || true
+    # No `[skip ci]` tag: the push MUST trigger a new CI run so _phase_poll can
+    # re-poll the post-fix run state. With the tag, GitHub Actions ignores the
+    # commit and the remediation loop deadlocks waiting for a run that never starts.
+    git commit -m "fix: CI remediation tier${_tier}" 2>/dev/null || return 1
+    git push origin HEAD 2>/dev/null || return 1
+    return 0
+}
+
+# --- _phase_remediate: autonomous CI fix loop ---
+# Bounded retry loop: outer while-true / inner for-tier-in-1-2-3-4.
+# Per-tier ceiling=5, global ceiling=15. Budget-pressure injected at attempt 4.
+# Normalizes failures via lib/ci-findings-normalize.sh (Tier 1=LLM review JSON,
+# Tier 2=test results, Tier 3=lint, Tier 4=generic log). Exit 3=ARTIFACT_MISSING.
+# State persisted across iterations via _state_write_remediation_state.
+#
+# Args: <pr_number> <pr_url>
+# Returns: 0 = CI passed after fix; 2 = any escalation (JSON on stdout).
+# Escalation stop_reason values: TIER_CEILING, GLOBAL_CEILING, CANNOT_PROCEED,
+#   OSCILLATION, THROTTLE_PAUSE, CONFLICT_RESOLUTION_FAILED, ARTIFACT_MISSING.
+# Never returns 1. Caller exits 2 on non-zero return.
+_phase_remediate() {
+    local _pr_number="${1:-}" _pr_url="${2:-}"
+
+    # Step 1: get failed_run_id from state file. When the field is absent or
+    # empty the function cannot proceed — emit a structured escalation so the
+    # caller (and operators reading logs) can see WHY remediation aborted,
+    # rather than a silent `return 2`. The most likely cause is _phase_poll
+    # not having captured a failed run id yet (e.g., running remediate without
+    # a preceding poll-failure).
+    local _sf _failed_run_id
+    _sf=$(_state_file_path) 2>/dev/null || {
+        _remediate_emit_escalation "ARTIFACT_MISSING" "" "{}" "" "State file unavailable — cannot read failed_run_id"
+        return 2
+    }
+    _failed_run_id=$(_DSO_SF="$_sf" python3 -c "
+import json, os, sys
+try:
+    with open(os.environ['_DSO_SF']) as f:
+        d = json.load(f)
+    rid = d.get('failed_run_id', '')
+    if rid:
+        print(rid)
+    else:
+        sys.exit(1)
+except Exception:
+    sys.exit(1)
+" 2>/dev/null) || {
+        _remediate_emit_escalation "ARTIFACT_MISSING" "" "{}" "" "No failed_run_id recorded in state — _phase_poll may not have captured a CI failure"
+        return 2
+    }
+
+    # Step 2: download CI artifacts
+    local _artifacts_dir
+    _artifacts_dir=$(mktemp -d /tmp/dso-remediate-artifacts.XXXXXX)
+    gh run download "$_failed_run_id" --dir "$_artifacts_dir" 2>/dev/null || { rm -rf "$_artifacts_dir"; return 2; }
+
+    # Bounded retry loop: cycles through all 4 normalizer tiers with per-tier and
+    # global attempt ceilings. Each outer iteration is one full pass over all tiers.
+    local _attempts_t1=0 _attempts_t2=0 _attempts_t3=0 _attempts_t4=0
+    local _attempts_global=0
+    local _tiers_attempted=''
+    local _per_tier_json
+    local _tier _tier_artifact _tier_log _tier_normalized _tier_rc _dispatch_rc
+    local _all_tiers_artifact_missing _counter_signal _attempt_num_for_tier
+    local _prev_pass_successes='' _cur_pass_successes='' _old_count
+
+    while true; do
+        _prev_pass_successes="$_cur_pass_successes"
+        _cur_pass_successes=''
+        _all_tiers_artifact_missing=1
+
+        # If _phase_poll captured a NEW failed_run_id during the prior pass
+        # (i.e., a fix was pushed and CI re-ran with a fresh failure), re-download
+        # artifacts so the next pass operates on current findings. Without this,
+        # the loop reuses the original artifacts indefinitely and dispatches
+        # fix-agents against stale findings.
+        local _current_run_id
+        _current_run_id=$(_state_read_failed_run_id 2>/dev/null || echo "")
+        if [[ -n "$_current_run_id" ]] && [[ "$_current_run_id" != "$_failed_run_id" ]]; then
+            rm -rf "$_artifacts_dir"
+            _artifacts_dir=$(mktemp -d /tmp/dso-remediate-artifacts.XXXXXX)
+            if ! gh run download "$_current_run_id" --dir "$_artifacts_dir" 2>/dev/null; then
+                # Fresh download failed — escalate as ARTIFACT_MISSING rather than
+                # silently reuse stale data. The orchestrator can retry manually.
+                rm -rf "$_artifacts_dir"
+                _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                _remediate_emit_escalation "ARTIFACT_MISSING" "$_tiers_attempted" "$_per_tier_json" "" "Could not download artifacts for run ${_current_run_id}"
+                return 2
+            fi
+            _failed_run_id="$_current_run_id"
+        fi
+
+        for _tier in 1 2 3 4; do
+
+            # --- throttle check before any dispatch ---
+            local _usage_rc=0
+            _check_usage_for_remediate 2>/dev/null || _usage_rc=$?
+            if [[ "$_usage_rc" -eq 2 ]]; then
+                _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                _remediate_emit_escalation "THROTTLE_PAUSE" "$_tiers_attempted" "$_per_tier_json" "" "Usage throttle hit; retry later"
+                rm -rf "$_artifacts_dir"
+                return 2
+            fi
+
+            # --- ceiling check ---
+            _counter_signal=$(_remediate_counter_increment "$_tier" "$_attempts_t1" "$_attempts_t2" "$_attempts_t3" "$_attempts_t4" "$_attempts_global")
+            case "$_counter_signal" in
+                TIER_CEILING)
+                    _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                    _remediate_emit_escalation "TIER_CEILING" "$_tiers_attempted" "$_per_tier_json" "" "Tier ${_tier} attempt ceiling reached"
+                    rm -rf "$_artifacts_dir"
+                    return 2
+                    ;;
+                GLOBAL_CEILING)
+                    _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                    _state_write_remediation_state "remediate" "$_per_tier_json" "$_attempts_global" 2>/dev/null || true
+                    _remediate_emit_escalation "GLOBAL_CEILING" "$_tiers_attempted" "$_per_tier_json" "" "Global retry limit reached"
+                    rm -rf "$_artifacts_dir"
+                    return 2
+                    ;;
+            esac
+            # Note: OSCILLATION was a planned signal for fix/revert cycles, but
+            # no production caller emits it. If detection is added later, restore
+            # an OSCILLATION) branch above and ensure _remediate_counter_increment
+            # (or another producer) actually returns the signal. Tests for the
+            # `_remediate_emit_escalation` emitter still cover the OSCILLATION
+            # stop_reason value as a generic enum case.
+
+            # --- increment counters (using assignment to avoid set -e exit on 0→1) ---
+            case "$_tier" in
+                1) _attempts_t1=$(( _attempts_t1 + 1 )) ;;
+                2) _attempts_t2=$(( _attempts_t2 + 1 )) ;;
+                3) _attempts_t3=$(( _attempts_t3 + 1 )) ;;
+                4) _attempts_t4=$(( _attempts_t4 + 1 )) ;;
+            esac
+            _attempts_global=$(( _attempts_global + 1 ))
+            _tiers_attempted="${_tiers_attempted:+${_tiers_attempted},}${_tier}"
+
+            # --- persist state ---
+            _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+            _state_write_remediation_state "remediate" "$_per_tier_json" "$_attempts_global" 2>/dev/null || true
+
+            # Budget pressure fires at attempt 4 of THIS tier (per-tier ceiling=5).
+            # Using the per-tier counter, not the global one — global crosses 4 on the
+            # 4th distinct tier visit, which often corresponds to tier-1 attempt 1
+            # and gives the agent misleading time-pressure context.
+            case "$_tier" in
+                1) _attempt_num_for_tier="$_attempts_t1" ;;
+                2) _attempt_num_for_tier="$_attempts_t2" ;;
+                3) _attempt_num_for_tier="$_attempts_t3" ;;
+                4) _attempt_num_for_tier="$_attempts_t4" ;;
+            esac
+
+            _tier_normalized=$(mktemp /tmp/dso-normalized.XXXXXX)
+
+            # Locate tier-specific artifact
+            _tier_artifact=''
+            case "$_tier" in
+                1) _tier_artifact=$(find "$_artifacts_dir" -name 'reviewer-findings.json' -maxdepth 3 2>/dev/null | head -1) ;;
+                2) _tier_artifact=$(find "$_artifacts_dir" -name 'test-results*.json' -maxdepth 3 2>/dev/null | head -1) ;;
+                3) _tier_artifact=$(find "$_artifacts_dir" -name 'lint-results*.json' -maxdepth 3 2>/dev/null | head -1) ;;
+                4) : ;;  # tier4 always uses CI log
+            esac
+
+            # Tiers 2-4 only: log fallback when no structured artifact
+            _tier_log=''
+            if [[ -z "$_tier_artifact" ]] && [[ "$_tier" -gt 1 ]]; then
+                _tier_log=$(mktemp /tmp/dso-ci-log.XXXXXX)
+                if _fetch_ci_log "$_failed_run_id" "$_tier_log" 2>/dev/null; then
+                    _tier_artifact="$_tier_log"
+                else
+                    rm -f "$_tier_log"
+                    _tier_log=''
+                fi
+            fi
+
+            # Normalize — normalizers handle empty/missing input with exit 3 (ARTIFACT_MISSING)
+            _tier_rc=0
+            case "$_tier" in
+                1) _normalize_tier1 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
+                2) _normalize_tier2 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
+                3) _normalize_tier3 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
+                4) _normalize_tier4 "$_tier_artifact" "$_tier_normalized" 2>/dev/null || _tier_rc=$? ;;
+            esac
+            [[ -n "$_tier_log" ]] && { rm -f "$_tier_log"; _tier_log=''; }
+
+            if [[ "$_tier_rc" -ne 0 ]]; then
+                rm -f "$_tier_normalized"
+                # Cross-tier regression: tier succeeded last pass but fails now — reset its counter
+                if echo " ${_prev_pass_successes} " | grep -q " ${_tier} "; then
+                    case "$_tier" in
+                        1) _old_count="$_attempts_t1"; _attempts_t1=0 ;;
+                        2) _old_count="$_attempts_t2"; _attempts_t2=0 ;;
+                        3) _old_count="$_attempts_t3"; _attempts_t3=0 ;;
+                        4) _old_count="$_attempts_t4"; _attempts_t4=0 ;;
+                    esac
+                    _attempts_global=$(( _attempts_global > _old_count ? _attempts_global - _old_count : 0 ))
+                    _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                    _state_write_remediation_state "remediate" "$_per_tier_json" "$_attempts_global" 2>/dev/null || true
+                fi
+                continue  # ARTIFACT_MISSING or other error — try next tier
+            fi
+
+            # At least one tier did NOT return ARTIFACT_MISSING
+            _all_tiers_artifact_missing=0
+            _cur_pass_successes="${_cur_pass_successes:+${_cur_pass_successes} }${_tier}"
+
+            # Dispatch fix agent; pass global attempt count for budget-pressure injection
+            _dispatch_rc=0
+            _dispatch_fix_agent "$_tier_normalized" "$_attempt_num_for_tier" 2>/dev/null || _dispatch_rc=$?
+            rm -f "$_tier_normalized"
+
+            if [[ "$_dispatch_rc" -eq 2 ]]; then
+                # ESCALATE / CANNOT_PROCEED
+                _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                _remediate_emit_escalation "CANNOT_PROCEED" "$_tiers_attempted" "$_per_tier_json" "" "Manual intervention required"
+                rm -rf "$_artifacts_dir"
+                return 2
+            fi
+            [[ "$_dispatch_rc" -ne 0 ]] && continue  # dispatch failed — try next tier
+
+            # Push and re-poll
+            _push_fix_branch "$_tier" 2>/dev/null || continue
+            if _phase_poll "$_pr_number" "$_pr_url"; then
+                rm -rf "$_artifacts_dir"
+                return 0
+            fi
+            # Repoll failed — continue to next tier (or wrap around in next outer iteration)
+        done
+
+        # End of inner for-loop pass: if every tier returned ARTIFACT_MISSING, escalate
+        if [[ "$_all_tiers_artifact_missing" -eq 1 ]]; then
+            _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+            _remediate_emit_escalation "ARTIFACT_MISSING" "$_tiers_attempted" "$_per_tier_json" "" "All tier artifacts unavailable"
+            rm -rf "$_artifacts_dir"
+            return 2
+        fi
+    done
+
+    # Unreachable — while true exits via return above
+    rm -rf "$_artifacts_dir"
+    return 2
+}
+
+# --- _check_usage_for_remediate: wrapper for usage-check in _phase_remediate ---
+# Allows tests to override via function definition without touching the env var path.
+# Returns: 0=ok (not paused), 2=paused (THROTTLE_PAUSE)
+_check_usage_for_remediate() {
+    local _usage_cmd="${_REMEDIATE_CHECK_USAGE_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/check-usage.sh}"  # shim-exempt: internal plugin script
+    "$_usage_cmd" >/dev/null 2>&1
+    local _rc=$?
+    [[ "$_rc" -eq 2 ]] && return 2
+    return 0
 }
 
 # =============================================================================
@@ -995,7 +1500,10 @@ if ! _phase_resolve_threads "$_PR_NUMBER" "$_PR_URL"; then
 fi
 
 if ! _phase_poll "$_PR_NUMBER" "$_PR_URL"; then
-    exit 1
+    if ! _phase_conflict_resolution "$_PR_NUMBER" "$_PR_URL"; then
+        exit 2
+    fi
+    _phase_remediate "$_PR_NUMBER" "$_PR_URL" || exit 2
 fi
 
 # =============================================================================

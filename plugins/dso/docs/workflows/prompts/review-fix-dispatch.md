@@ -48,10 +48,11 @@ Your final message MUST be ONLY these lines — no prose, no JSON, no explanatio
 RESOLUTION_RESULT: FIXES_APPLIED|FAIL|ESCALATE
 FILES_MODIFIED: [comma-separated list, or "none"]
 FINDINGS_ADDRESSED: N fixed, M defended, K deferred
+TESTING_MODES: red=N1 update=N2 green=N3 [or "n/a" if no Fix findings]
 REMAINING_CRITICAL: [descriptions if FAIL or ESCALATE, else "none"]
 ESCALATION_REASON: [reason if ESCALATE, else "none"]
 
-Note: FIXES_APPLIED means fixes passed local validation. The orchestrator dispatches re-review.
+Note: FIXES_APPLIED means fixes passed local validation. The orchestrator dispatches re-review. TESTING_MODES reports the count of each Step 2.5 classification across all Fix findings (`red` = new tests written, `update` = existing tests updated, `green` = no test changes — implementation-only).
 
 === CONTEXT ===
 
@@ -95,9 +96,31 @@ If ALL findings are Deferred, return immediately:
 RESOLUTION_RESULT: ESCALATE
 FILES_MODIFIED: none
 FINDINGS_ADDRESSED: 0 fixed, 0 defended, N deferred
+TESTING_MODES: n/a
 REMAINING_CRITICAL: <list all findings>
 ESCALATION_REASON: All findings were Deferred — defer alone cannot pass the review. User must override or provide a different fix approach.
 ```
+
+**Step 2.5 — Classify testing mode for each Fix finding (RED / GREEN / UPDATE)**
+
+For every finding routed to **Fix** in Step 2, classify the testing mode using the same rubric the `/dso:fix-bug` skill uses (see Phase D Step 3 of `${CLAUDE_PLUGIN_ROOT}/skills/fix-bug/SKILL.md`). The classification governs which order Step 3 follows: write tests first (RED/UPDATE) or rely on existing tests (GREEN).
+
+| testing_mode | Condition | Step 3 order |
+|--------------|-----------|--------------|
+| `GREEN` | The fix changes implementation without changing observable behavior (e.g., performance optimization, internal restructuring, refactor, naming change, comment update). Existing tests remain valid. | Apply the fix; existing tests validate post-fix. |
+| `UPDATE` | The fix changes observable behavior AND existing tests already cover the affected paths, but those tests currently assert the old (buggy/incorrect) behavior. | Update the existing tests FIRST so they assert the new correct behavior (they will fail). Then apply the fix. The updated tests must turn GREEN after the fix. |
+| `RED` | The fix changes observable behavior AND no existing test covers the affected path (verified via the codebase's test discovery — `grep`, `.test-index`, fuzzy file matching). | Write a NEW failing test FIRST that asserts the corrected behavior. Confirm it fails (RED). Then apply the fix. The new test must turn GREEN after the fix. |
+
+**Default**: `GREEN` — most review findings (rename, dead code removal, hygiene, comment updates, internal helper extractions) do not change observable behavior.
+
+**Coverage check** (Rule 1 of the behavioral testing standard): before classifying as RED, run a coverage check — `grep -r <symbol>` in the test directory and check `.test-index` mappings. If a test already exercises the affected code path, classify as UPDATE, not RED.
+
+**Anti-rationalization rules**:
+- Do NOT classify as GREEN to skip writing a test when the fix actually changes observable behavior. Behavioral changes always require RED or UPDATE.
+- Do NOT classify as UPDATE and silently weaken assertions. Assertion-regression Gate (see `/dso:fix-bug` Phase F Step 2) flags this pattern; the same standard applies here.
+- Do NOT classify as RED to add a brand-new test when an existing test already covers the path — that creates duplicate coverage and bloat (Rule 1 of the behavioral testing standard).
+
+Record your classification per finding in your internal triage list. Step 3 below branches on the classification.
 
 **Step 3 — Apply fixes and defenses (budget controlled by `review.max_resolution_attempts`, default: 5)**
 
@@ -105,8 +128,27 @@ Before applying fixes that introduce new abstractions, helpers, or patterns, con
 
 When writing or modifying tests as part of fix application, consult `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/behavioral-testing-standard.md` for the 5-rule behavioral testing standard.
 
-For each Fix finding: edit the relevant file(s). Use Edit/Write tools.
-For each Defend finding: add `# REVIEW-DEFENSE: <explanation>` inline in the relevant file.
+For each finding, follow the order dictated by its testing-mode classification (Step 2.5):
+
+**Fix findings — testing_mode=RED**
+1. Write a new failing test that asserts the corrected behavior. Place it in the appropriate test file (mirror the source file's location, or use `.test-index` mapping).
+2. Run the test; confirm it FAILS (this is the RED state — proves the test exercises the buggy path before the fix lands).
+3. Apply the source-code fix.
+4. Re-run the test; confirm it now PASSES (GREEN).
+
+**Fix findings — testing_mode=UPDATE**
+1. Identify the existing test(s) covering the affected path.
+2. Update the test assertions to express the new correct behavior. The updated tests should fail BEFORE the source-code fix (proves they exercise the path).
+3. Apply the source-code fix.
+4. Re-run; confirm the updated tests now pass.
+
+**Fix findings — testing_mode=GREEN**
+1. Apply the source-code fix.
+2. Existing tests remain valid; rely on Step 4 (Validate) to confirm they still pass.
+
+**Defend findings**: add `# REVIEW-DEFENSE: <explanation>` inline in the relevant file. No test changes.
+
+**Test-first discipline**: For RED and UPDATE findings, the test write/update MUST happen before the source-code fix. Do not batch all source edits and then write tests at the end — that order forfeits the RED→GREEN signal that proves the test actually exercises the buggy path.
 
 **Step 4 — Validate fixes**
 
@@ -132,6 +174,7 @@ rm -f "$TEST_LOG"
 RESOLUTION_RESULT: FAIL
 FILES_MODIFIED: <list>
 FINDINGS_ADDRESSED: N fixed, M defended, K deferred
+TESTING_MODES: red=N1 update=N2 green=N3
 REMAINING_CRITICAL: Validation failed after fix attempt — <error summary>
 ESCALATION_REASON: Fix attempt produced failing tests/lint. Original findings remain.
 ```
@@ -148,6 +191,7 @@ After validation passes in Step 4, return:
 RESOLUTION_RESULT: FIXES_APPLIED
 FILES_MODIFIED: <comma-separated list of files you modified>
 FINDINGS_ADDRESSED: N fixed, M defended, K deferred
+TESTING_MODES: red=N1 update=N2 green=N3
 REMAINING_CRITICAL: none
 ESCALATION_REASON: none
 ```

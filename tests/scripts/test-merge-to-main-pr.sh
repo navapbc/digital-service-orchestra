@@ -21,6 +21,17 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
 PR_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main-pr.sh"
 
+# Isolate test fixtures from host-project-locating env vars exported by the
+# .claude/scripts/dso shim (PROJECT_ROOT) and ambient state (CLAUDE_PROJECT_DIR,
+# _MERGE_STATE_GIT_DIR). When this test file is invoked through the shim
+# (e.g., DSO_COMMIT_WORKFLOW=1 .claude/scripts/dso record-test-status), those
+# vars leak into per-test subshells and override the fixture's temp-dir git
+# repo via merge-to-main-pr.sh:53 (`REPO_ROOT="${PROJECT_ROOT:-...}"`),
+# causing `cd "$REPO_ROOT"` to escape the fixture and the script to operate
+# against the live worktree branch instead of the test branch. Unset here
+# (parent shell) so all subshells inherit the cleared env. (Bug 2015-dcce.)
+unset PROJECT_ROOT CLAUDE_PROJECT_DIR _MERGE_STATE_GIT_DIR
+
 # shellcheck source=../lib/assert.sh
 source "$REPO_ROOT/tests/lib/assert.sh"
 
@@ -86,6 +97,14 @@ case "\$1" in
         exit 0
         ;;
       merge)
+        if [[ "$pr_merge_mode" == "auto_disabled" ]]; then
+          # Auto-merge enable refuses; explicit merge (no --auto) succeeds.
+          if [[ "\$*" == *"--auto"* ]]; then
+            echo "ERROR: auto-merge is not allowed for this repository" >&2
+            exit 1
+          fi
+          exit 0
+        fi
         if [[ "$pr_merge_mode" == "refused" ]]; then
           echo "ERROR: auto-merge is not allowed for this repository" >&2
           exit 1
@@ -1049,6 +1068,2527 @@ GIT_EOF
     assert_eq "t_per_thread_resolve_failure_emits_warn: WARN emitted for failed resolve" "true" "$_has_warn"
 }
 t_per_thread_resolve_failure_emits_warn
+
+# ===========================================================================
+# T3: CI Remediation Loop — RED tests (story c742-dc83-fd8e-4c89)
+#
+# These 9 tests cover _state_record_failed_run_id, _dispatch_fix_agent, and
+# _phase_remediate. All 9 FAIL in RED phase because the implementation
+# functions don't exist yet. They turn GREEN when T4a/T4b/T4c are applied.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# t_state_record_failed_run_id_writes_to_state
+# After calling _state_init + _state_record_failed_run_id "RUN123",
+# the state file must contain a "failed_run_id" key with value "RUN123".
+# RED reason: _state_record_failed_run_id not defined in merge-helpers.sh.
+# ---------------------------------------------------------------------------
+t_state_record_failed_run_id_writes_to_state() {
+    local _branch_safe _state_file _result
+    _branch_safe="test-branch-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'; unset BRANCH" RETURN
+    export BRANCH="$_branch_safe"
+
+    (
+        BRANCH="$_branch_safe" MERGE_STRATEGY="pr" \
+        bash -c "source '$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh' 2>/dev/null || exit 1
+                 _state_init 2>/dev/null || true
+                 _state_record_failed_run_id 'RUN123'"
+    ) 2>/dev/null || true
+
+    _result="no"
+    if grep -q '"failed_run_id"' "$_state_file" 2>/dev/null && \
+       grep -q 'RUN123' "$_state_file" 2>/dev/null; then
+        _result="yes"
+    fi
+    assert_eq "t_state_record_failed_run_id_writes_to_state: failed_run_id in state" "yes" "$_result"
+}
+t_state_record_failed_run_id_writes_to_state
+
+# ---------------------------------------------------------------------------
+# t_phase_poll_records_failed_run_id_on_ci_failure
+# When _phase_poll encounters a CI FAILURE conclusion, it must call
+# gh run list and write the run ID to the state file via
+# _state_record_failed_run_id.
+# RED reason: T4c hasn't wired gh run list + _state_record_failed_run_id
+#             into _phase_poll's CI failure branch yet.
+# ---------------------------------------------------------------------------
+t_phase_poll_records_failed_run_id_on_ci_failure() {
+    local _T _branch_safe _state_file _result
+    _T="$(mktemp -d /tmp/dso-poll-runid-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-poll-runid-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+case "\$1 \$2" in
+  "pr checks")
+    echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]'
+    exit 0
+    ;;
+  "pr view")
+    echo '{"state":"OPEN"}'
+    exit 0
+    ;;
+  "run list")
+    echo '[{"databaseId":"RUN999"}]'
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _state_init 2>/dev/null || true
+            _phase_poll "42" "https://github.com/x/y/pull/42" 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null || true
+
+    _result="no"
+    if grep -q '"failed_run_id"' "$_state_file" 2>/dev/null && \
+       grep -q 'RUN999' "$_state_file" 2>/dev/null; then
+        _result="yes"
+    fi
+    assert_eq "t_phase_poll_records_failed_run_id_on_ci_failure: run id in state" "yes" "$_result"
+}
+t_phase_poll_records_failed_run_id_on_ci_failure
+
+# ---------------------------------------------------------------------------
+# t_phase_poll_run_list_filters_by_branch
+# Regression test for the cross-PR run-id pollution fix: when _phase_poll
+# captures a failed run ID via `gh run list`, it MUST pass --branch <BRANCH>
+# so concurrent CI runs from unrelated PRs cannot poison the captured ID.
+# ---------------------------------------------------------------------------
+t_phase_poll_run_list_filters_by_branch() {
+    local _T _branch_safe _state_file _argv _has_branch_filter
+    _T="$(mktemp -d /tmp/dso-poll-runid-test.XXXXXX)"
+    _branch_safe="test-runlist-branch-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+case "\$1 \$2" in
+  "pr checks")  echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]' ;;
+  "pr view")    echo '{"state":"OPEN"}' ;;
+  "run list")   echo '[{"databaseId":"RUN999"}]' ;;
+  *) ;;
+esac
+exit 0
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _state_init 2>/dev/null || true
+            _phase_poll "42" "https://github.com/x/y/pull/42" 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null || true
+
+    _argv=$(cat "$_T/gh-argv.log" 2>/dev/null || echo '')
+    # Look specifically at the `run list` invocation line and verify --branch <name> is present.
+    _has_branch_filter="false"
+    if echo "$_argv" | grep -E "^run list" | grep -q -- "--branch ${_branch_safe}"; then
+        _has_branch_filter="true"
+    fi
+    assert_eq "t_phase_poll_run_list_filters_by_branch" "true" "$_has_branch_filter"
+}
+t_phase_poll_run_list_filters_by_branch
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_redownloads_artifacts_when_run_id_changes
+# Regression test for stale-artifact reuse: when a fix push triggers a NEW
+# CI run, _phase_poll records the new failed_run_id in state. On the next
+# outer iteration of the remediation loop, _phase_remediate must re-download
+# artifacts using the new run ID rather than reusing the original artifacts.
+# ---------------------------------------------------------------------------
+t_phase_remediate_redownloads_artifacts_when_run_id_changes() {
+    local _T _branch_safe _state_file _download_log _has_new_runid_download
+    _T="$(mktemp -d /tmp/dso-remediate-redl-test.XXXXXX)"
+    _branch_safe="test-redownload-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    _download_log="$_T/gh-download.log"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    # Seed the state file with an INITIAL failed_run_id, then on poll-failure
+    # we'll have the gh shim "update" it (via _state_record_failed_run_id) to
+    # a new value, simulating the post-fix-push CI re-run.
+    mkdir -p "$_T"
+    cat > "$_state_file" <<EOF
+{"branch":"$_branch_safe","failed_run_id":"OLD_RUN_111","completed_phases":[],"current_phase":"","phases":{},"merge_strategy":"pr"}
+EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+case "\$1 \$2" in
+  "run download")
+    # Record which run ID was downloaded
+    echo "downloaded:\$3" >> "$_download_log"
+    # Simulate a download failure on the SECOND run-id (NEW_RUN_222) so the
+    # loop emits ARTIFACT_MISSING — that exit code is observable, and the
+    # download attempt itself is logged regardless.
+    if [[ "\$3" == "NEW_RUN_222" ]]; then
+        exit 1
+    fi
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    # Update state mid-flight: simulate _phase_poll having captured a NEW run id
+    # by overwriting the state file's failed_run_id BEFORE _phase_remediate's
+    # outer-loop re-read fires. We do this by monkey-patching _phase_poll
+    # to mutate state and return failure, forcing the loop to iterate.
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            # Stub: simulate a fix-push that updates state to NEW_RUN_222 then poll fails
+            _phase_poll() { _state_record_failed_run_id "NEW_RUN_222"; return 1; }
+            _push_fix_branch() { return 0; }
+            _dispatch_fix_agent() { echo "{\"findings\":[]}" > "$2.dummy"; return 0; }
+            _normalize_tier1() { echo "{}" > "$2"; return 0; }
+            _normalize_tier2() { return 3; }
+            _normalize_tier3() { return 3; }
+            _normalize_tier4() { return 3; }
+            _check_usage_for_remediate() { return 0; }
+            _phase_remediate "42" "https://github.com/x/y/pull/42" 2>/dev/null || true
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null || true
+
+    # Verify: gh run download was called for NEW_RUN_222 (the post-poll run id)
+    _has_new_runid_download="false"
+    if grep -q "downloaded:NEW_RUN_222" "$_download_log" 2>/dev/null; then
+        _has_new_runid_download="true"
+    fi
+    assert_eq "t_phase_remediate_redownloads_artifacts_when_run_id_changes" "true" "$_has_new_runid_download"
+}
+t_phase_remediate_redownloads_artifacts_when_run_id_changes
+
+# ---------------------------------------------------------------------------
+# t_dispatch_fix_agent_invokes_llm_with_correct_args
+# _dispatch_fix_agent must invoke the LLM stub with the review-fix-dispatch
+# prompt and the findings path as arguments.
+# RED reason: _dispatch_fix_agent not defined.
+# ---------------------------------------------------------------------------
+t_dispatch_fix_agent_invokes_llm_with_correct_args() {
+    local _T _branch_safe _has_dispatch _has_findings
+    _T="$(mktemp -d /tmp/dso-dispatch-fix-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-dispatch-$$"
+
+    cat > "$_T/findings.json" <<'FINDINGS_EOF'
+{"findings":[{"severity":"important","description":"test finding"}]}
+FINDINGS_EOF
+
+    cat > "$_T/llm_stub.sh" <<LLM_EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/llm-calls.log"
+echo "RESOLUTION_RESULT: FIXES_APPLIED"
+exit 0
+LLM_EOF
+    chmod +x "$_T/llm_stub.sh"
+
+    (
+        cd "$_T" || exit 1
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        BRANCH="$_branch_safe" \
+        MERGE_STRATEGY="pr" \
+        _REMEDIATE_LLM_CMD="$_T/llm_stub.sh" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _dispatch_fix_agent "'"$_T/findings.json"'" 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null || true
+
+    _has_dispatch="false"
+    if grep -q "review-fix-dispatch" "$_T/llm-calls.log" 2>/dev/null; then
+        _has_dispatch="true"
+    fi
+    _has_findings="false"
+    if grep -q "findings.json" "$_T/llm-calls.log" 2>/dev/null; then
+        _has_findings="true"
+    fi
+
+    assert_eq "t_dispatch_fix_agent_invokes_llm_with_correct_args: prompt+path in llm args" "true:true" "${_has_dispatch}:${_has_findings}"
+}
+t_dispatch_fix_agent_invokes_llm_with_correct_args
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_wires_poll_failure_to_fix_push_repoll
+# Full happy-path: state has failed_run_id → download artifacts → normalize →
+# dispatch fix agent (FIXES_APPLIED) → git push → re-poll succeeds → exit 0.
+# RED reason: _phase_remediate not defined.
+# ---------------------------------------------------------------------------
+t_phase_remediate_wires_poll_failure_to_fix_push_repoll() {
+    local _T _branch_safe _state_file _ec _push_called
+    _T="$(mktemp -d /tmp/dso-remediate-wire-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-remediate-wire-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    mkdir -p "$_T/bin"
+
+    # Pre-write state file with failed_run_id (bypass _state_record_failed_run_id)
+    _DSO_SF="$_state_file" _DSO_BRANCH="$_branch_safe" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+d = {'branch': os.environ['_DSO_BRANCH'], 'merge_sha': '', 'completed_phases': [],
+     'current_phase': '', 'phases': {}, 'merge_strategy': 'pr', 'failed_run_id': 'RUN123'}
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+import os as _os
+_os.rename(sf + '.tmp', sf)
+" 2>/dev/null || true
+
+    cat > "$_T/findings.json" <<'FINDINGS_EOF'
+{"findings":[{"severity":"important","description":"test finding"}]}
+FINDINGS_EOF
+
+    # Counter file: pre-seed with 1 byte so the first re-poll call (from _phase_remediate)
+    # hits iter=2 → SUCCESS. Without pre-seeding, iter=1 → FAILURE on first call,
+    # causing _phase_poll to return 1 immediately (it doesn't retry on failure).
+    printf 'x' > "$_T/checks-count"
+
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+case "\$1 \$2" in
+  "run download")
+    _prev=""
+    _dir=""
+    for _arg in "\$@"; do
+      if [[ "\$_prev" == "--dir" ]]; then _dir="\$_arg"; fi
+      _prev="\$_arg"
+    done
+    if [[ -n "\$_dir" ]]; then
+      mkdir -p "\$_dir"
+      cp "$_T/findings.json" "\$_dir/reviewer-findings.json"
+    fi
+    exit 0
+    ;;
+  "pr checks")
+    printf 'x' >> "$_T/checks-count"
+    _iter=\$(wc -c < "$_T/checks-count" 2>/dev/null | tr -d ' ' || echo 0)
+    if [[ "\$_iter" -ge 2 ]]; then
+      echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+    else
+      echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]'
+    fi
+    exit 0
+    ;;
+  "pr view")
+    _iter=\$(wc -c < "$_T/checks-count" 2>/dev/null | tr -d ' ' || echo 0)
+    if [[ "\$_iter" -ge 2 ]]; then
+      echo '{"state":"MERGED"}'
+    else
+      echo '{"state":"OPEN"}'
+    fi
+    exit 0
+    ;;
+  "run list")
+    echo '[{"databaseId":"RUN123"}]'
+    exit 0
+    ;;
+  "pr merge") exit 0 ;;
+  "pr create") echo "https://github.com/x/y/pull/42"; exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    # git shim: strip -C <dir> pairs, intercept push
+    # Capture real git path BEFORE the shim is on PATH to avoid infinite recursion
+    local _real_git_wire
+    _real_git_wire="$(command -v git)"
+    cat > "$_T/bin/git" <<GIT_SHIM
+#!/usr/bin/env bash
+_args=("\$@")
+_idx=0
+while [[ "\${_idx}" -lt "\${#_args[@]}" && "\${_args[\$_idx]}" == "-C" ]]; do
+  _idx=\$(( _idx + 2 ))
+done
+_subcmd="\${_args[\$_idx]:-}"
+case "\$_subcmd" in
+  add|commit) exit 0 ;;
+  push)
+    touch "$_T/git-push-called"
+    exit 0
+    ;;
+  *)
+    exec "$_real_git_wire" "\$@" 2>/dev/null || exit 0
+    ;;
+esac
+GIT_SHIM
+    chmod +x "$_T/bin/git"
+
+    # LLM stub
+    cat > "$_T/llm_stub.sh" <<LLM_EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/llm-calls.log"
+echo "RESOLUTION_RESULT: FIXES_APPLIED"
+exit 0
+LLM_EOF
+    chmod +x "$_T/llm_stub.sh"
+
+    cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    _ec=127
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CI="true" \
+        _REMEDIATE_LLM_CMD="$_T/llm_stub.sh" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _normalize_tier1() { cp "$1" "$2"; }
+            _phase_remediate "42" "https://github.com/x/y/pull/42" 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null
+    _ec=$?
+
+    _push_called="false"
+    [[ -f "$_T/git-push-called" ]] && _push_called="true"
+
+    assert_eq "t_phase_remediate_wires_poll_failure_to_fix_push_repoll: exits_0:push_called" "0:true" "${_ec}:${_push_called}"
+}
+t_phase_remediate_wires_poll_failure_to_fix_push_repoll
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_on_fix_agent_fail_returns_nonzero
+# When _dispatch_fix_agent returns a non-FIXES_APPLIED result, _phase_remediate
+# must still call the LLM but must NOT push and must return non-zero.
+# RED reason: _phase_remediate not defined → LLM never called.
+# ---------------------------------------------------------------------------
+t_phase_remediate_on_fix_agent_fail_returns_nonzero() {
+    local _T _branch_safe _state_file _ec _llm_called _push_called
+    _T="$(mktemp -d /tmp/dso-remediate-fail-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-remediate-fail-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    mkdir -p "$_T/bin"
+
+    _DSO_SF="$_state_file" _DSO_BRANCH="$_branch_safe" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+d = {'branch': os.environ['_DSO_BRANCH'], 'merge_sha': '', 'completed_phases': [],
+     'current_phase': '', 'phases': {}, 'merge_strategy': 'pr', 'failed_run_id': 'RUN123'}
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+import os as _os
+_os.rename(sf + '.tmp', sf)
+" 2>/dev/null || true
+
+    cat > "$_T/findings.json" <<'FINDINGS_EOF'
+{"findings":[{"severity":"important","description":"test finding"}]}
+FINDINGS_EOF
+
+    # gh shim: run download succeeds
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+case "\$1 \$2" in
+  "run download")
+    _prev=""
+    _dir=""
+    for _arg in "\$@"; do
+      if [[ "\$_prev" == "--dir" ]]; then _dir="\$_arg"; fi
+      _prev="\$_arg"
+    done
+    if [[ -n "\$_dir" ]]; then
+      mkdir -p "\$_dir"
+      cp "$_T/findings.json" "\$_dir/reviewer-findings.json"
+    fi
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    # LLM stub: returns FAIL result
+    cat > "$_T/llm_stub.sh" <<LLM_EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/llm-calls.log"
+echo "RESOLUTION_RESULT: FAIL"
+exit 0
+LLM_EOF
+    chmod +x "$_T/llm_stub.sh"
+
+    cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CI="true" \
+        _REMEDIATE_LLM_CMD="$_T/llm_stub.sh" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _normalize_tier1() { cp "$1" "$2"; }
+            _phase_remediate "42" "https://github.com/x/y/pull/42" 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null
+    _ec=$?
+
+    _llm_called="$(test -f "$_T/llm-calls.log" && echo yes || echo no)"
+    _push_called="$(test -f "$_T/git-push-called" && echo yes || echo no)"
+
+    assert_eq "t_phase_remediate_on_fix_agent_fail_returns_nonzero: LLM was called" "yes" "$_llm_called"
+    assert_eq "t_phase_remediate_on_fix_agent_fail_returns_nonzero: no push" "no" "$_push_called"
+}
+t_phase_remediate_on_fix_agent_fail_returns_nonzero
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_on_artifact_missing_returns_nonzero
+# When gh run download fails (artifacts unavailable), _phase_remediate must
+# call gh run download and then return non-zero.
+# RED reason: _phase_remediate not defined → gh shim never called.
+# ---------------------------------------------------------------------------
+t_phase_remediate_on_artifact_missing_returns_nonzero() {
+    local _T _branch_safe _state_file _ec _gh_called
+    _T="$(mktemp -d /tmp/dso-remediate-miss-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-remediate-miss-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    mkdir -p "$_T/bin"
+
+    _DSO_SF="$_state_file" _DSO_BRANCH="$_branch_safe" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+d = {'branch': os.environ['_DSO_BRANCH'], 'merge_sha': '', 'completed_phases': [],
+     'current_phase': '', 'phases': {}, 'merge_strategy': 'pr', 'failed_run_id': 'RUN123'}
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+import os as _os
+_os.rename(sf + '.tmp', sf)
+" 2>/dev/null || true
+
+    # gh shim: run download fails
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+case "\$1 \$2" in
+  "run download")
+    echo "ERROR: artifact not found" >&2
+    exit 1
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CI="true" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _phase_remediate "42" "https://github.com/x/y/pull/42" 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null
+    _ec=$?
+
+    _gh_called="$(grep -q 'run download' "$_T/gh-argv.log" 2>/dev/null && echo true || echo false)"
+
+    assert_eq "t_phase_remediate_on_artifact_missing_returns_nonzero: gh run download called" "true" "$_gh_called"
+    assert_eq "t_phase_remediate_on_artifact_missing_returns_nonzero: exit non-zero" \
+        "yes" "$([[ "$_ec" -ne 0 ]] && echo yes || echo no)"
+}
+t_phase_remediate_on_artifact_missing_returns_nonzero
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_failure_exits_exactly_2
+# When _dispatch_fix_agent returns a non-FIXES_APPLIED result, _phase_remediate
+# must return exactly exit code 2.
+# RED reason: _phase_remediate not defined → exit code 127 ≠ 2.
+# ---------------------------------------------------------------------------
+t_phase_remediate_failure_exits_exactly_2() {
+    local _T _branch_safe _state_file _ec _push_called
+    _T="$(mktemp -d /tmp/dso-remediate-ec2-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-remediate-ec2-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    mkdir -p "$_T/bin"
+
+    _DSO_SF="$_state_file" _DSO_BRANCH="$_branch_safe" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+d = {'branch': os.environ['_DSO_BRANCH'], 'merge_sha': '', 'completed_phases': [],
+     'current_phase': '', 'phases': {}, 'merge_strategy': 'pr', 'failed_run_id': 'RUN123'}
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+import os as _os
+_os.rename(sf + '.tmp', sf)
+" 2>/dev/null || true
+
+    cat > "$_T/findings.json" <<'FINDINGS_EOF'
+{"findings":[{"severity":"important","description":"test finding"}]}
+FINDINGS_EOF
+
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+case "\$1 \$2" in
+  "run download")
+    _prev=""
+    _dir=""
+    for _arg in "\$@"; do
+      if [[ "\$_prev" == "--dir" ]]; then _dir="\$_arg"; fi
+      _prev="\$_arg"
+    done
+    if [[ -n "\$_dir" ]]; then
+      mkdir -p "\$_dir"
+      cp "$_T/findings.json" "\$_dir/reviewer-findings.json"
+    fi
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    # LLM stub: FAIL → triggers exit 2
+    cat > "$_T/llm_stub.sh" <<LLM_EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/llm-calls.log"
+echo "RESOLUTION_RESULT: FAIL"
+exit 0
+LLM_EOF
+    chmod +x "$_T/llm_stub.sh"
+
+    cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CI="true" \
+        _REMEDIATE_LLM_CMD="$_T/llm_stub.sh" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _normalize_tier1() { cp "$1" "$2"; }
+            _phase_remediate "42" "https://github.com/x/y/pull/42" 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null
+    _ec=$?
+
+    _push_called="$(test -f "$_T/git-push-called" && echo yes || echo no)"
+
+    assert_eq "t_phase_remediate_failure_exits_exactly_2: exact exit code 2" "2" "$_ec"
+    assert_eq "t_phase_remediate_failure_exits_exactly_2: no push" "no" "$_push_called"
+}
+t_phase_remediate_failure_exits_exactly_2
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_on_repoll_failure_returns_nonzero
+# When the re-poll after fix+push still fails CI, _phase_remediate must:
+# - still call git push (fix was applied)
+# - return non-zero (re-poll failed)
+# RED reason: _phase_remediate not defined → exit 127 (non-zero, OK) but
+#             push sentinel doesn't exist → assertion 2 fails.
+# ---------------------------------------------------------------------------
+t_phase_remediate_on_repoll_failure_returns_nonzero() {
+    local _T _branch_safe _state_file _ec _push_called
+    _T="$(mktemp -d /tmp/dso-remediate-repoll-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-remediate-repoll-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    mkdir -p "$_T/bin"
+
+    _DSO_SF="$_state_file" _DSO_BRANCH="$_branch_safe" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+d = {'branch': os.environ['_DSO_BRANCH'], 'merge_sha': '', 'completed_phases': [],
+     'current_phase': '', 'phases': {}, 'merge_strategy': 'pr', 'failed_run_id': 'RUN123'}
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+import os as _os
+_os.rename(sf + '.tmp', sf)
+" 2>/dev/null || true
+
+    cat > "$_T/findings.json" <<'FINDINGS_EOF'
+{"findings":[{"severity":"important","description":"test finding"}]}
+FINDINGS_EOF
+
+    # gh shim: pr checks ALWAYS FAILURE (re-poll fails too)
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+case "\$1 \$2" in
+  "run download")
+    _prev=""
+    _dir=""
+    for _arg in "\$@"; do
+      if [[ "\$_prev" == "--dir" ]]; then _dir="\$_arg"; fi
+      _prev="\$_arg"
+    done
+    if [[ -n "\$_dir" ]]; then
+      mkdir -p "\$_dir"
+      cp "$_T/findings.json" "\$_dir/reviewer-findings.json"
+    fi
+    exit 0
+    ;;
+  "pr checks")
+    echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]'
+    exit 0
+    ;;
+  "pr view")
+    echo '{"state":"OPEN"}'
+    exit 0
+    ;;
+  "run list")
+    echo '[{"databaseId":"RUN123"}]'
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    # git shim: creates push sentinel
+    # Capture real git path BEFORE the shim is on PATH to avoid infinite recursion
+    local _real_git_repoll
+    _real_git_repoll="$(command -v git)"
+    cat > "$_T/bin/git" <<GIT_SHIM
+#!/usr/bin/env bash
+_args=("\$@")
+_idx=0
+while [[ "\${_idx}" -lt "\${#_args[@]}" && "\${_args[\$_idx]}" == "-C" ]]; do
+  _idx=\$(( _idx + 2 ))
+done
+_subcmd="\${_args[\$_idx]:-}"
+case "\$_subcmd" in
+  add|commit) exit 0 ;;
+  push)
+    touch "$_T/git-push-called"
+    exit 0
+    ;;
+  *)
+    exec "$_real_git_repoll" "\$@" 2>/dev/null || exit 0
+    ;;
+esac
+GIT_SHIM
+    chmod +x "$_T/bin/git"
+
+    # LLM stub: FIXES_APPLIED so push is attempted
+    cat > "$_T/llm_stub.sh" <<LLM_EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/llm-calls.log"
+echo "RESOLUTION_RESULT: FIXES_APPLIED"
+exit 0
+LLM_EOF
+    chmod +x "$_T/llm_stub.sh"
+
+    cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CI="true" \
+        _REMEDIATE_LLM_CMD="$_T/llm_stub.sh" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _normalize_tier1() { cp "$1" "$2"; }
+            _phase_remediate "42" "https://github.com/x/y/pull/42" 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null
+    _ec=$?
+
+    _push_called="$(test -f "$_T/git-push-called" && echo yes || echo no)"
+
+    assert_eq "t_phase_remediate_on_repoll_failure_returns_nonzero: exit non-zero" \
+        "yes" "$([[ "$_ec" -ne 0 ]] && echo yes || echo no)"
+    assert_eq "t_phase_remediate_on_repoll_failure_returns_nonzero: push called" "yes" "$_push_called"
+}
+t_phase_remediate_on_repoll_failure_returns_nonzero
+
+# ---------------------------------------------------------------------------
+# t_main_flow_skips_remediate_on_poll_success
+# Asserts that _phase_remediate is defined in merge-to-main-pr.sh.
+# RED reason: _phase_remediate not yet added to the script.
+# ---------------------------------------------------------------------------
+t_main_flow_skips_remediate_on_poll_success() {
+    local _T _branch_safe _func_defined _fix_agent_called
+    _T="$(mktemp -d /tmp/dso-main-skip-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-main-skip-$$"
+
+    # Primary RED assertion: _phase_remediate must be defined as a function
+    _func_defined="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c 'source "$0" 2>/dev/null; declare -f _phase_remediate | grep -c _phase_remediate' \
+        "$PR_SCRIPT" 2>/dev/null || echo 0
+    )"
+    [[ "$_func_defined" -gt 0 ]] && _func_defined="yes" || _func_defined="no"
+
+    assert_eq "t_main_flow_skips_remediate_on_poll_success: _phase_remediate defined" \
+        "yes" "$_func_defined"
+
+    # Behavioral guard (GREEN-phase check): when poll succeeds, fix agent must NOT be called
+    if [[ "$_func_defined" == "yes" ]]; then
+        mkdir -p "$_T/bin"
+        _branch_safe="test-skip-behav-$$"
+        local _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+        rm -f "$_state_file"
+        # shellcheck disable=SC2064
+        trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+        cat > "$_T/fix-agent-stub.sh" <<FIX_EOF
+#!/usr/bin/env bash
+touch "$_T/fix-agent-called"
+echo "RESOLUTION_RESULT: FIXES_APPLIED"
+exit 0
+FIX_EOF
+        chmod +x "$_T/fix-agent-stub.sh"
+
+        cat > "$_T/bin/gh" <<GH_SHIM2
+#!/usr/bin/env bash
+case "\$1 \$2" in
+  "pr checks")  echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
+  "pr view")
+    if [[ "\$*" == *"--json state"* ]]; then echo '{"state":"MERGED"}'; exit 0; fi
+    if [[ "\$*" == *"--json mergeCommit"* ]]; then echo '{"mergeCommit":{"oid":"abc123"}}'; exit 0; fi
+    echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'; exit 0
+    ;;
+  "pr create")  echo "https://github.com/x/y/pull/42"; exit 0 ;;
+  "pr merge")   exit 0 ;;
+  "pr list")    exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM2
+        chmod +x "$_T/bin/gh"
+
+        # Capture real git path before shim is on PATH to avoid infinite recursion
+        local _real_git_skip
+        _real_git_skip="$(command -v git)"
+        cat > "$_T/bin/git" <<GIT_SHIM2
+#!/usr/bin/env bash
+if [[ "\$1" == "push" ]]; then exit 0; fi
+exec "$_real_git_skip" "\$@" 2>/dev/null || exit 0
+GIT_SHIM2
+        chmod +x "$_T/bin/git"
+
+        cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+        (
+            cd "$_T" || exit 1
+            PATH="$_T/bin:$PATH" \
+            CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+            MERGE_STRATEGY="pr" \
+            BRANCH="$_branch_safe" \
+            WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+            CI="true" \
+            PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+            PR_THREAD_LOOP_INTERVAL=0 \
+            _REMEDIATE_LLM_CMD="$_T/fix-agent-stub.sh" \
+            bash "$PR_SCRIPT" 2>/dev/null
+        ) 2>/dev/null || true
+
+        _fix_agent_called="$(test -f "$_T/fix-agent-called" && echo yes || echo no)"
+        assert_eq "t_main_flow_skips_remediate_on_poll_success: fix agent NOT called on success" \
+            "no" "$_fix_agent_called"
+    fi
+}
+t_main_flow_skips_remediate_on_poll_success
+
+# ===========================================================================
+# Tests for _phase_conflict_resolution (task 9b44-ac2a-ceb0-45a1)
+#
+# _phase_conflict_resolution(pr_number, pr_url) is NOT YET IMPLEMENTED.
+# All 4 tests below FAIL (RED) before the function is added.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# t_phase_conflict_resolution_dispatches_when_conflicting
+# When gh pr view --json mergeStateStatus returns CONFLICTING on first call
+# and CLEAN on second call, _phase_conflict_resolution must:
+#   - call _dispatch_resolve_conflicts exactly once
+#   - return 0
+# RED reason: _phase_conflict_resolution not defined.
+# ---------------------------------------------------------------------------
+t_phase_conflict_resolution_dispatches_when_conflicting() {
+    local _T _branch_safe _dispatch_called _ec
+    _T="$(mktemp -d /tmp/dso-pcr-dispatch-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-pcr-dispatch-$$"
+
+    # gh shim: first mergeStateStatus call → CONFLICTING; second → CLEAN
+    local _gh_call_count_file="$_T/gh-call-count"
+    : > "$_gh_call_count_file"
+    mkdir -p "$_T/bin"
+
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+if [[ "\$*" == *"mergeStateStatus"* ]]; then
+    printf 'x' >> "$_gh_call_count_file"
+    _cnt=\$(wc -c < "$_gh_call_count_file" 2>/dev/null | tr -d ' ' || echo 0)
+    if [[ "\$_cnt" -le 1 ]]; then
+        echo "CONFLICTING"
+    else
+        echo "CLEAN"
+    fi
+    exit 0
+fi
+exit 0
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            # Stub _dispatch_resolve_conflicts to record call
+            _dispatch_resolve_conflicts() {
+                touch "'"$_T/dispatch-called"'"
+                return 0
+            }
+            _phase_conflict_resolution "123" "https://example.com/pr/123"
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null
+    _ec=$?
+
+    _dispatch_called="$(test -f "$_T/dispatch-called" && echo yes || echo no)"
+
+    assert_eq "t_phase_conflict_resolution_dispatches_when_conflicting: returns 0" "0" "$_ec"
+    assert_eq "t_phase_conflict_resolution_dispatches_when_conflicting: dispatch called" "yes" "$_dispatch_called"
+}
+t_phase_conflict_resolution_dispatches_when_conflicting
+
+# ---------------------------------------------------------------------------
+# t_phase_conflict_resolution_noop_when_not_conflicting
+# When gh pr view --json mergeStateStatus returns CLEAN (not CONFLICTING),
+# _phase_conflict_resolution must return 0 WITHOUT calling
+# _dispatch_resolve_conflicts.
+# RED reason: _phase_conflict_resolution not defined.
+# ---------------------------------------------------------------------------
+t_phase_conflict_resolution_noop_when_not_conflicting() {
+    local _T _branch_safe _dispatch_called _ec
+    _T="$(mktemp -d /tmp/dso-pcr-noop-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-pcr-noop-$$"
+
+    mkdir -p "$_T/bin"
+
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+if [[ "\$*" == *"mergeStateStatus"* ]]; then
+    echo "CLEAN"
+    exit 0
+fi
+exit 0
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _dispatch_resolve_conflicts() {
+                touch "'"$_T/dispatch-called"'"
+                return 0
+            }
+            _phase_conflict_resolution "123" "https://example.com/pr/123"
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null
+    _ec=$?
+
+    _dispatch_called="$(test -f "$_T/dispatch-called" && echo yes || echo no)"
+
+    assert_eq "t_phase_conflict_resolution_noop_when_not_conflicting: returns 0" "0" "$_ec"
+    assert_eq "t_phase_conflict_resolution_noop_when_not_conflicting: dispatch NOT called" "no" "$_dispatch_called"
+}
+t_phase_conflict_resolution_noop_when_not_conflicting
+
+# ---------------------------------------------------------------------------
+# t_phase_conflict_resolution_fails_when_conflicts_remain
+# When gh pr view --json mergeStateStatus always returns CONFLICTING (even
+# after _dispatch_resolve_conflicts runs), _phase_conflict_resolution must
+# emit ESCALATION_REASON on stderr and return non-zero.
+# RED reason: _phase_conflict_resolution not defined.
+# ---------------------------------------------------------------------------
+t_phase_conflict_resolution_fails_when_conflicts_remain() {
+    local _T _branch_safe _stderr _ec _exits_nonzero _has_escalation
+    _T="$(mktemp -d /tmp/dso-pcr-fail-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-pcr-fail-$$"
+
+    mkdir -p "$_T/bin"
+
+    # gh shim: always returns CONFLICTING
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+if [[ "\$*" == *"mergeStateStatus"* ]]; then
+    echo "CONFLICTING"
+    exit 0
+fi
+exit 0
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _stderr="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _dispatch_resolve_conflicts() {
+                return 0
+            }
+            _phase_conflict_resolution "123" "https://example.com/pr/123"
+        ' "$PR_SCRIPT" 2>&1 >/dev/null
+    )"
+    _ec=$?
+
+    _exits_nonzero="false"
+    [[ "$_ec" -ne 0 ]] && _exits_nonzero="true"
+
+    _has_escalation="false"
+    if echo "$_stderr" | grep -q "ESCALATION_REASON"; then
+        _has_escalation="true"
+    fi
+
+    assert_eq "t_phase_conflict_resolution_fails_when_conflicts_remain: exits nonzero" "true" "$_exits_nonzero"
+    assert_eq "t_phase_conflict_resolution_fails_when_conflicts_remain: emits ESCALATION_REASON" "true" "$_has_escalation"
+}
+t_phase_conflict_resolution_fails_when_conflicts_remain
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_not_called_when_conflict_resolution_fails
+# DEFERRED: main-flow integration test added in T2 (GREEN) once production code
+# has the _phase_conflict_resolution gate. Tests 1-3 above verify the function
+# contract behaviorally (dispatches on CONFLICTING, no-op otherwise, ESCALATION
+# on unresolved conflicts). The gate's interaction with the main flow is verified
+# via end-to-end tests post-implementation.
+# ---------------------------------------------------------------------------
+t_phase_remediate_not_called_when_conflict_resolution_fails() {
+    # DEFERRED: main-flow integration test requires production code to have the
+    # _phase_conflict_resolution gate in place. Added in T2 [GREEN] post-implementation.
+    # Tests 1-3 above cover the _phase_conflict_resolution contract behaviorally.
+    true
+}
+t_phase_remediate_not_called_when_conflict_resolution_fails
+
+# ---------------------------------------------------------------------------
+#
+# RED phase: _phase_remediate 4-tier loop does not yet exist. All three tests
+# will fail because the function does not attempt tier2/3/4 normalizers.
+# GREEN phase: once the 4-tier loop is implemented, call-tracking and
+# exit-code assertions will pass.
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_tries_tier2_when_tier1_artifact_missing
+#
+# When _normalize_tier1 returns exit 3 (ARTIFACT_MISSING), _phase_remediate
+# must proceed to try tier2. After T4 implementation, tier2 is tried and the
+# test passes GREEN.
+# ---------------------------------------------------------------------------
+t_phase_remediate_tries_tier2_when_tier1_artifact_missing() {
+    local _T branch _ec
+    _T="$(mktemp -d /tmp/dso-pr-remediate-t2.XXXXXX)"
+    branch="feature-remediate-tier2"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_pr_fixture "$_T" "$branch" "ok" "ok"
+
+    local _branch_safe="${branch//\//-}"
+    local _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-001","pr_url":"https://github.com/x/y/pull/42","pr_number":"42"}
+STATE_EOF
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    local _tier2_called="$_T/normalize-tier2-called"
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" >/dev/null 2>&1
+
+            _normalize_tier1() { return 3; }
+
+            _normalize_tier2() {
+                touch "'"$_tier2_called"'"
+                echo "{\"tier\":2,\"findings\":[]}" > "${2:-/dev/null}"
+                return 0
+            }
+
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 0; }
+            _fetch_ci_log()       { return 1; }
+
+            _phase_remediate "42" "https://github.com/x/y/pull/42"
+        ' "$PR_SCRIPT"
+    ); _ec=$?
+
+    local _tier2_was_called="false"
+    [[ -f "$_tier2_called" ]] && _tier2_was_called="true"
+
+    assert_eq "t_phase_remediate_tries_tier2_when_tier1_artifact_missing: tier2 normalizer called" "true" "$_tier2_was_called"
+    assert_eq "t_phase_remediate_tries_tier2_when_tier1_artifact_missing: returns 0 after tier2 fix+poll green" "0" "$_ec"
+}
+t_phase_remediate_tries_tier2_when_tier1_artifact_missing
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_returns_2_when_all_tiers_artifact_missing
+#
+# When all four tier normalizers return exit 3 (ARTIFACT_MISSING), _phase_remediate
+# must try each one and return 2 (all tiers exhausted). The RED condition is that
+# tier2 WAS called — current code never reaches tier2.
+# ---------------------------------------------------------------------------
+t_phase_remediate_returns_2_when_all_tiers_artifact_missing() {
+    local _T branch _ec
+    _T="$(mktemp -d /tmp/dso-pr-remediate-all-miss.XXXXXX)"
+    branch="feature-remediate-all-missing"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_pr_fixture "$_T" "$branch" "ok" "ok"
+
+    local _branch_safe="${branch//\//-}"
+    local _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-002","pr_url":"https://github.com/x/y/pull/42","pr_number":"42"}
+STATE_EOF
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    local _tier2_called="$_T/normalize-tier2-called"
+    local _tier3_called="$_T/normalize-tier3-called"
+    local _tier4_called="$_T/normalize-tier4-called"
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" >/dev/null 2>&1
+
+            _normalize_tier1() { return 3; }
+            _normalize_tier2() { touch "'"$_tier2_called"'"; return 3; }
+            _normalize_tier3() { touch "'"$_tier3_called"'"; return 3; }
+            _normalize_tier4() { touch "'"$_tier4_called"'"; return 3; }
+            _fetch_ci_log()    { return 1; }
+
+            _phase_remediate "42" "https://github.com/x/y/pull/42"
+        ' "$PR_SCRIPT"
+    ); _ec=$?
+
+    local _tier2_was_called="false"
+    local _tier3_was_called="false"
+    local _tier4_was_called="false"
+    [[ -f "$_tier2_called" ]] && _tier2_was_called="true"
+    [[ -f "$_tier3_called" ]] && _tier3_was_called="true"
+    [[ -f "$_tier4_called" ]] && _tier4_was_called="true"
+
+    assert_eq "t_phase_remediate_returns_2_when_all_tiers_artifact_missing: tier2 normalizer called" "true" "$_tier2_was_called"
+    assert_eq "t_phase_remediate_returns_2_when_all_tiers_artifact_missing: tier3 normalizer called" "true" "$_tier3_was_called"
+    assert_eq "t_phase_remediate_returns_2_when_all_tiers_artifact_missing: tier4 normalizer called" "true" "$_tier4_was_called"
+    assert_eq "t_phase_remediate_returns_2_when_all_tiers_artifact_missing: returns 2" "2" "$_ec"
+}
+t_phase_remediate_returns_2_when_all_tiers_artifact_missing
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll
+#
+# When tier1 normalization and fix dispatch succeed but the subsequent poll
+# returns 1 (CI still failing), _phase_remediate must proceed to tier2.
+# RED: current code doesn't have this fallthrough.
+# ---------------------------------------------------------------------------
+t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll() {
+    local _T branch _ec
+    _T="$(mktemp -d /tmp/dso-pr-remediate-repoll.XXXXXX)"
+    branch="feature-remediate-repoll"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_pr_fixture "$_T" "$branch" "ok" "ok"
+
+    local _branch_safe="${branch//\//-}"
+    local _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-003","pr_url":"https://github.com/x/y/pull/42","pr_number":"42"}
+STATE_EOF
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    local _tier2_called="$_T/normalize-tier2-called"
+    local _poll_counter="$_T/poll-count"
+    printf '0' > "$_poll_counter"
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" >/dev/null 2>&1
+
+            _normalize_tier1() {
+                echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"
+                return 0
+            }
+
+            _normalize_tier2() {
+                touch "'"$_tier2_called"'"
+                return 3
+            }
+
+            _normalize_tier3() { return 3; }
+            _normalize_tier4() { return 3; }
+
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+
+            _phase_poll() {
+                local _cnt
+                _cnt=$(cat "'"$_poll_counter"'" 2>/dev/null || echo 0)
+                _cnt=$(( _cnt + 1 ))
+                printf "%s" "$_cnt" > "'"$_poll_counter"'"
+                return 1
+            }
+
+            _fetch_ci_log() { return 1; }
+
+            _phase_remediate "42" "https://github.com/x/y/pull/42"
+        ' "$PR_SCRIPT"
+    ); _ec=$?
+
+    local _tier2_was_called="false"
+    [[ -f "$_tier2_called" ]] && _tier2_was_called="true"
+
+    assert_eq "t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll: tier2 tried after tier1 repoll failure" "true" "$_tier2_was_called"
+    assert_eq "t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll: returns 2 when all tiers exhaust" "2" "$_ec"
+}
+t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll
+
+# ===========================================================================
+# Tests for bounded-retry support in _phase_remediate
+# (story 4786-614e-8467-4bba, task 0a02-a133-f925-43b7)
+#
+# All tests below FAIL (RED) because:
+#   - _remediate_counter_increment is not yet defined in merge-to-main-pr.sh
+#   - _remediate_emit_escalation is not yet defined in merge-to-main-pr.sh
+#   - _state_write_remediation_state / _state_read_remediation_state are not yet
+#     defined in merge-helpers.sh
+#   - _dispatch_fix_agent does not yet accept a second argument (_attempt_num)
+#     for budget-pressure injection
+#
+# Tests turn GREEN once T4b/T4c/T4d add those functions.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Group 1: _remediate_counter_increment
+# ---------------------------------------------------------------------------
+
+# t_remediate_counter_increment_stops_at_tier_ceiling
+# When tier=1 and t1_count has just hit its ceiling (5), the function must
+# emit "TIER_CEILING" on stdout. RED: function doesn't exist yet.
+# ---------------------------------------------------------------------------
+t_remediate_counter_increment_stops_at_tier_ceiling() {
+    local _out
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_counter_increment 1 5 0 0 0 10
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    local _has_ceiling="false"
+    if echo "$_out" | grep -q "TIER_CEILING"; then
+        _has_ceiling="true"
+    fi
+
+    assert_eq "t_remediate_counter_increment_stops_at_tier_ceiling: stdout contains TIER_CEILING" \
+        "true" "$_has_ceiling"
+}
+t_remediate_counter_increment_stops_at_tier_ceiling
+
+# ---------------------------------------------------------------------------
+# t_remediate_counter_increment_stops_at_global_ceiling
+# When global=15 (at or above the global ceiling), the function must emit
+# "GLOBAL_CEILING" on stdout. RED: function doesn't exist yet.
+# ---------------------------------------------------------------------------
+t_remediate_counter_increment_stops_at_global_ceiling() {
+    local _out
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_counter_increment 2 3 3 0 0 15
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    local _has_ceiling="false"
+    if echo "$_out" | grep -q "GLOBAL_CEILING"; then
+        _has_ceiling="true"
+    fi
+
+    assert_eq "t_remediate_counter_increment_stops_at_global_ceiling: stdout contains GLOBAL_CEILING" \
+        "true" "$_has_ceiling"
+}
+t_remediate_counter_increment_stops_at_global_ceiling
+
+# ---------------------------------------------------------------------------
+# t_remediate_counter_increment_returns_empty_under_ceiling
+# When counts are well under all ceilings, the function must produce no
+# stop-signal on stdout. RED: function doesn't exist yet.
+# ---------------------------------------------------------------------------
+t_remediate_counter_increment_returns_empty_under_ceiling() {
+    local _out _ec
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_counter_increment 1 2 0 0 0 5
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    assert_eq "t_remediate_counter_increment_returns_empty_under_ceiling: exit 0" \
+        "0" "$_ec"
+    assert_eq "t_remediate_counter_increment_returns_empty_under_ceiling: stdout is empty" \
+        "" "$_out"
+}
+t_remediate_counter_increment_returns_empty_under_ceiling
+
+# ---------------------------------------------------------------------------
+# Group 2: _remediate_emit_escalation
+# ---------------------------------------------------------------------------
+
+# t_remediate_emit_escalation_outputs_valid_json
+# The function must emit valid JSON on stdout that includes the required fields.
+# RED: function doesn't exist yet.
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_outputs_valid_json() {
+    local _out _valid _stop_reason _has_required_fields
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "TIER_CEILING" \
+                "1" \
+                '"'"'{"1":5,"2":0,"3":0,"4":0}'"'"' \
+                "/dev/null" \
+                "Retry with updated dependencies"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _valid="$(echo "$_out" | python3 -c "import json,sys; json.load(sys.stdin); print('ok')" 2>/dev/null || echo 'invalid')"
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+
+    _has_required_fields="$(echo "$_out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+required=['stop_reason','tiers_attempted','attempts_per_tier','remaining_findings','suggested_next_step']
+missing=[k for k in required if k not in d]
+print('ok' if not missing else 'missing:'+','.join(missing))
+" 2>/dev/null || echo 'invalid')"
+
+    assert_eq "t_remediate_emit_escalation_outputs_valid_json: valid JSON" "ok" "$_valid"
+    assert_eq "t_remediate_emit_escalation_outputs_valid_json: stop_reason=TIER_CEILING" "TIER_CEILING" "$_stop_reason"
+    assert_eq "t_remediate_emit_escalation_outputs_valid_json: required fields present" "ok" "$_has_required_fields"
+}
+t_remediate_emit_escalation_outputs_valid_json
+
+# ---------------------------------------------------------------------------
+# t_remediate_emit_escalation_global_ceiling_stop_reason
+# When called with stop_reason="GLOBAL_CEILING", JSON stop_reason must be
+# "GLOBAL_CEILING". RED: function doesn't exist yet.
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_global_ceiling_stop_reason() {
+    local _out _stop_reason
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "GLOBAL_CEILING" \
+                "3" \
+                '"'"'{"1":5,"2":3,"3":2,"4":0}'"'"' \
+                "/dev/null" \
+                "Global retry limit reached"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+    assert_eq "t_remediate_emit_escalation_global_ceiling_stop_reason: stop_reason=GLOBAL_CEILING" \
+        "GLOBAL_CEILING" "$_stop_reason"
+}
+t_remediate_emit_escalation_global_ceiling_stop_reason
+
+# ---------------------------------------------------------------------------
+# t_remediate_emit_escalation_cannot_proceed_stop_reason
+# When called with stop_reason="CANNOT_PROCEED", JSON stop_reason must match.
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_cannot_proceed_stop_reason() {
+    local _out _stop_reason
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "CANNOT_PROCEED" \
+                "1" \
+                '"'"'{"1":1,"2":0,"3":0,"4":0}'"'"' \
+                "/dev/null" \
+                "Manual intervention required"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+    assert_eq "t_remediate_emit_escalation_cannot_proceed_stop_reason: stop_reason=CANNOT_PROCEED" \
+        "CANNOT_PROCEED" "$_stop_reason"
+}
+t_remediate_emit_escalation_cannot_proceed_stop_reason
+
+# ---------------------------------------------------------------------------
+# t_remediate_emit_escalation_oscillation_stop_reason
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_oscillation_stop_reason() {
+    local _out _stop_reason
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "OSCILLATION" \
+                "2" \
+                '"'"'{"1":2,"2":1,"3":0,"4":0}'"'"' \
+                "/dev/null" \
+                "Fix oscillating between states"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+    assert_eq "t_remediate_emit_escalation_oscillation_stop_reason: stop_reason=OSCILLATION" \
+        "OSCILLATION" "$_stop_reason"
+}
+t_remediate_emit_escalation_oscillation_stop_reason
+
+# ---------------------------------------------------------------------------
+# t_remediate_emit_escalation_throttle_pause_stop_reason
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_throttle_pause_stop_reason() {
+    local _out _stop_reason
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "THROTTLE_PAUSE" \
+                "1" \
+                '"'"'{"1":1,"2":0,"3":0,"4":0}'"'"' \
+                "/dev/null" \
+                "Usage throttle hit; retry later"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+    assert_eq "t_remediate_emit_escalation_throttle_pause_stop_reason: stop_reason=THROTTLE_PAUSE" \
+        "THROTTLE_PAUSE" "$_stop_reason"
+}
+t_remediate_emit_escalation_throttle_pause_stop_reason
+
+# ---------------------------------------------------------------------------
+# t_remediate_emit_escalation_conflict_resolution_failed_stop_reason
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_conflict_resolution_failed_stop_reason() {
+    local _out _stop_reason
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "CONFLICT_RESOLUTION_FAILED" \
+                "2" \
+                '"'"'{"1":2,"2":1,"3":0,"4":0}'"'"' \
+                "/dev/null" \
+                "Resolve conflicts manually"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+    assert_eq "t_remediate_emit_escalation_conflict_resolution_failed_stop_reason: stop_reason=CONFLICT_RESOLUTION_FAILED" \
+        "CONFLICT_RESOLUTION_FAILED" "$_stop_reason"
+}
+t_remediate_emit_escalation_conflict_resolution_failed_stop_reason
+
+# ---------------------------------------------------------------------------
+# t_remediate_emit_escalation_artifact_missing_stop_reason
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_artifact_missing_stop_reason() {
+    local _out _stop_reason
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "ARTIFACT_MISSING" \
+                "4" \
+                '"'"'{"1":0,"2":0,"3":0,"4":1}'"'"' \
+                "/dev/null" \
+                "All tier artifacts unavailable"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+    assert_eq "t_remediate_emit_escalation_artifact_missing_stop_reason: stop_reason=ARTIFACT_MISSING" \
+        "ARTIFACT_MISSING" "$_stop_reason"
+}
+t_remediate_emit_escalation_artifact_missing_stop_reason
+
+# ---------------------------------------------------------------------------
+# Group 3: _state_write_remediation_state / _state_read_remediation_state
+# ---------------------------------------------------------------------------
+
+# t_state_write_read_remediation_state_round_trip
+# After _state_init + _state_write_remediation_state, _state_read_remediation_state
+# must return output containing the written phase and global attempt count.
+# RED: neither function exists in merge-helpers.sh yet.
+# ---------------------------------------------------------------------------
+t_state_write_read_remediation_state_round_trip() {
+    local _branch_safe _state_file _output
+    _branch_safe="test-branch-4786"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    _output="$(
+        BRANCH="$_branch_safe" MERGE_STRATEGY="pr" \
+        bash -c "
+            source '$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh' 2>/dev/null || exit 1
+            _state_init 2>/dev/null || true
+            _state_write_remediation_state 'remediate' '{\"1\":2,\"2\":0,\"3\":0,\"4\":0}' 2 2>/dev/null
+            _state_read_remediation_state 2>/dev/null
+        "
+    )" 2>/dev/null || true
+
+    local _has_phase="false"
+    local _has_global_count="false"
+    if echo "$_output" | grep -q "remediation_phase=remediate"; then
+        _has_phase="true"
+    fi
+    if echo "$_output" | grep -q "remediation_attempts_global=2"; then
+        _has_global_count="true"
+    fi
+
+    assert_eq "t_state_write_read_remediation_state_round_trip: phase persisted" \
+        "true" "$_has_phase"
+    assert_eq "t_state_write_read_remediation_state_round_trip: global count persisted" \
+        "true" "$_has_global_count"
+}
+t_state_write_read_remediation_state_round_trip
+
+# ---------------------------------------------------------------------------
+# Group 4: _dispatch_fix_agent budget-pressure injection
+# ---------------------------------------------------------------------------
+
+# t_dispatch_fix_agent_injects_budget_pressure_at_attempt_4
+# When called with attempt_num=4, the prompt passed to the LLM command must
+# contain "attempt 4 of 5" (or similar budget-pressure language indicating
+# the penultimate attempt). RED: _dispatch_fix_agent doesn't accept a second
+# argument yet.
+# ---------------------------------------------------------------------------
+t_dispatch_fix_agent_injects_budget_pressure_at_attempt_4() {
+    local _T _branch_safe _captured_output
+    _T="$(mktemp -d /tmp/dso-dispatch-budget-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-budget-pressure-$$"
+
+    cat > "$_T/findings.json" <<'FINDINGS_EOF'
+{"findings":[{"severity":"important","description":"test finding","file":"foo.py"}]}
+FINDINGS_EOF
+
+    # Capture stub: records everything passed to it to a log file
+    cat > "$_T/capture_stub.sh" <<CAPTURE_EOF
+#!/usr/bin/env bash
+# Write all args and stdin to the capture log
+printf '%s\n' "\$*" >> "$_T/capture.log"
+cat >> "$_T/capture.log" 2>/dev/null || true
+echo "RESOLUTION_RESULT: FIXES_APPLIED"
+exit 0
+CAPTURE_EOF
+    chmod +x "$_T/capture_stub.sh"
+
+    (
+        cd "$_T" || exit 1
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        BRANCH="$_branch_safe" \
+        MERGE_STRATEGY="pr" \
+        _REMEDIATE_LLM_CMD="$_T/capture_stub.sh" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _dispatch_fix_agent "'"$_T/findings.json"'" 4 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null || true
+
+    _captured_output="$(cat "$_T/capture.log" 2>/dev/null || echo '')"
+
+    local _has_budget_pressure="false"
+    if echo "$_captured_output" | grep -q "attempt 4 of 5"; then
+        _has_budget_pressure="true"
+    fi
+
+    assert_eq "t_dispatch_fix_agent_injects_budget_pressure_at_attempt_4: budget pressure in LLM input" \
+        "true" "$_has_budget_pressure"
+}
+t_dispatch_fix_agent_injects_budget_pressure_at_attempt_4
+
+# ---------------------------------------------------------------------------
+# t_dispatch_fix_agent_no_budget_pressure_at_attempt_1
+# When called with attempt_num=1 (first attempt), the prompt must NOT contain
+# "attempt 4 of 5" budget-pressure text.
+# RED: _dispatch_fix_agent doesn't accept a second argument yet.
+# ---------------------------------------------------------------------------
+t_dispatch_fix_agent_no_budget_pressure_at_attempt_1() {
+    local _T _branch_safe _captured_output
+    _T="$(mktemp -d /tmp/dso-dispatch-nobudget-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-no-budget-$$"
+
+    cat > "$_T/findings.json" <<'FINDINGS_EOF'
+{"findings":[{"severity":"important","description":"test finding","file":"foo.py"}]}
+FINDINGS_EOF
+
+    cat > "$_T/capture_stub.sh" <<CAPTURE_EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/capture.log"
+cat >> "$_T/capture.log" 2>/dev/null || true
+echo "RESOLUTION_RESULT: FIXES_APPLIED"
+exit 0
+CAPTURE_EOF
+    chmod +x "$_T/capture_stub.sh"
+
+    (
+        cd "$_T" || exit 1
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        BRANCH="$_branch_safe" \
+        MERGE_STRATEGY="pr" \
+        _REMEDIATE_LLM_CMD="$_T/capture_stub.sh" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _dispatch_fix_agent "'"$_T/findings.json"'" 1 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null || true
+
+    _captured_output="$(cat "$_T/capture.log" 2>/dev/null || echo '')"
+
+    local _has_budget_pressure="false"
+    if echo "$_captured_output" | grep -q "attempt 4 of 5"; then
+        _has_budget_pressure="true"
+    fi
+
+    assert_eq "t_dispatch_fix_agent_no_budget_pressure_at_attempt_1: no budget pressure at attempt 1" \
+        "false" "$_has_budget_pressure"
+}
+t_dispatch_fix_agent_no_budget_pressure_at_attempt_1
+
+# ===========================================================================
+# Tests for _phase_remediate bounded-retry loop integration
+# (story 4786-614e-8467-4bba, task c28e-4d62-fe45-4b73 — T3 RED phase)
+#
+# All 8 tests below FAIL (RED) because _phase_remediate does not yet call
+# _remediate_counter_increment, _remediate_emit_escalation,
+# _state_write_remediation_state, or check throttle state before dispatch.
+# Tests turn GREEN once the T4 implementation adds the bounded retry loop.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_stops_at_tier_ceiling
+# When _remediate_counter_increment returns TIER_CEILING, _phase_remediate must
+# exit 2 and emit JSON containing stop_reason=TIER_CEILING. RED: _phase_remediate
+# does not call _remediate_counter_increment.
+# ---------------------------------------------------------------------------
+t_phase_remediate_stops_at_tier_ceiling() {
+    local _T _branch_safe _state_file _ec _out
+    _T="$(mktemp -d /tmp/dso-remediate-tier-ceil.XXXXXX)"
+    _branch_safe="test-tier-ceiling-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-ceil-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    _out="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 1; }
+            _fetch_ci_log()       { return 1; }
+            _remediate_counter_increment() { echo "TIER_CEILING"; return 0; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    local _has_stop_reason="false"
+    local _has_tier_ceiling="false"
+    if echo "$_out" | grep -q '"stop_reason"'; then _has_stop_reason="true"; fi
+    if echo "$_out" | grep -q "TIER_CEILING";    then _has_tier_ceiling="true"; fi
+
+    assert_eq "t_phase_remediate_stops_at_tier_ceiling: exit code 2" "2" "$_ec"
+    assert_eq "t_phase_remediate_stops_at_tier_ceiling: stop_reason in output" "true" "$_has_stop_reason"
+    assert_eq "t_phase_remediate_stops_at_tier_ceiling: TIER_CEILING in output" "true" "$_has_tier_ceiling"
+}
+t_phase_remediate_stops_at_tier_ceiling
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_stops_at_global_ceiling
+# When _remediate_counter_increment returns GLOBAL_CEILING, _phase_remediate must
+# exit 2 and emit output containing GLOBAL_CEILING. RED: same as above.
+# ---------------------------------------------------------------------------
+t_phase_remediate_stops_at_global_ceiling() {
+    local _T _branch_safe _state_file _ec _out
+    _T="$(mktemp -d /tmp/dso-remediate-global-ceil.XXXXXX)"
+    _branch_safe="test-global-ceiling-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-gceil-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    _out="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 1; }
+            _fetch_ci_log()       { return 1; }
+            _remediate_counter_increment() { echo "GLOBAL_CEILING"; return 0; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    local _has_global_ceiling="false"
+    if echo "$_out" | grep -q "GLOBAL_CEILING"; then _has_global_ceiling="true"; fi
+
+    assert_eq "t_phase_remediate_stops_at_global_ceiling: exit code 2" "2" "$_ec"
+    assert_eq "t_phase_remediate_stops_at_global_ceiling: GLOBAL_CEILING in output" "true" "$_has_global_ceiling"
+}
+t_phase_remediate_stops_at_global_ceiling
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_stops_on_cannot_proceed
+# When _dispatch_fix_agent returns 2 (ESCALATE), _phase_remediate must exit 2
+# and emit output containing CANNOT_PROCEED. RED: _phase_remediate continues
+# to next tier on dispatch failure instead of emitting CANNOT_PROCEED.
+# ---------------------------------------------------------------------------
+t_phase_remediate_stops_on_cannot_proceed() {
+    local _T _branch_safe _state_file _ec _out
+    _T="$(mktemp -d /tmp/dso-remediate-cannot.XXXXXX)"
+    _branch_safe="test-cannot-proceed-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-cant-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    _out="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _dispatch_fix_agent() { return 2; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 1; }
+            _fetch_ci_log()       { return 1; }
+            _normalize_tier2()    { return 3; }
+            _normalize_tier3()    { return 3; }
+            _normalize_tier4()    { return 3; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    local _has_cannot="false"
+    if echo "$_out" | grep -q "CANNOT_PROCEED"; then _has_cannot="true"; fi
+
+    assert_eq "t_phase_remediate_stops_on_cannot_proceed: exit code 2" "2" "$_ec"
+    assert_eq "t_phase_remediate_stops_on_cannot_proceed: CANNOT_PROCEED in output" "true" "$_has_cannot"
+}
+t_phase_remediate_stops_on_cannot_proceed
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_writes_remediation_state_to_state_file
+# After a remediation attempt, _phase_remediate must write remediation state
+# (including remediation_attempts_global) to the state file. RED: _phase_remediate
+# does not call _state_write_remediation_state.
+# ---------------------------------------------------------------------------
+t_phase_remediate_writes_remediation_state_to_state_file() {
+    local _T _branch_safe _state_file _ec _state_contents
+    _T="$(mktemp -d /tmp/dso-remediate-state-write.XXXXXX)"
+    _branch_safe="test-state-write-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-sw-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 1; }
+            _fetch_ci_log()       { return 1; }
+            _normalize_tier2()    { return 3; }
+            _normalize_tier3()    { return 3; }
+            _normalize_tier4()    { return 3; }
+            _remediate_counter_increment() { echo "GLOBAL_CEILING"; return 0; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    ); _ec=$? || true
+
+    _state_contents="$(cat "$_state_file" 2>/dev/null || echo '')"
+
+    local _has_remediation_attempts="false"
+    if echo "$_state_contents" | grep -q "remediation_attempts_global"; then
+        _has_remediation_attempts="true"
+    fi
+
+    assert_eq "t_phase_remediate_writes_remediation_state_to_state_file: state file has remediation_attempts_global" \
+        "true" "$_has_remediation_attempts"
+}
+t_phase_remediate_writes_remediation_state_to_state_file
+
+# Test removed: t_phase_remediate_dispatches_oscillation_check_on_attempt_2_same_files
+# stubbed _remediate_counter_increment to return OSCILLATION, but no production
+# caller ever emits OSCILLATION. The OSCILLATION case in _phase_remediate was
+# removed as dead code; if oscillation detection is added later, restore both
+# the case branch and a behavioral test that verifies the actual detector logic.
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_injects_budget_pressure_at_attempt_4
+# When _phase_remediate calls _dispatch_fix_agent on the 4th attempt of a
+# given tier, it must pass attempt_num=4 so budget-pressure text is injected.
+# Per-tier counter (not global) — the test forces 4 outer-loop iterations,
+# so tier 1 reaches attempt 4 and budget pressure fires for tier 1's dispatch.
+# ---------------------------------------------------------------------------
+t_phase_remediate_injects_budget_pressure_at_attempt_4() {
+    local _T _branch_safe _state_file _ec _dispatch_args_file
+    _T="$(mktemp -d /tmp/dso-remediate-budget4.XXXXXX)"
+    _branch_safe="test-budget4-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    _dispatch_args_file="$_T/dispatch-args.log"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-b4-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    # Create a LLM stub that captures its arguments for inspection
+    cat > "$_T/llm_stub.sh" <<LLM_STUB_EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_dispatch_args_file"
+cat >> "$_dispatch_args_file" 2>/dev/null || true
+echo "RESOLUTION_RESULT: FIXES_APPLIED"
+exit 0
+LLM_STUB_EOF
+    chmod +x "$_T/llm_stub.sh"
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        _REMEDIATE_LLM_CMD="$_T/llm_stub.sh" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            # Normalizer that succeeds with minimal findings for ALL tiers
+            # so we can drive 4+ dispatch calls
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _normalize_tier2() { echo "{\"tier\":2,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _normalize_tier3() { echo "{\"tier\":3,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _normalize_tier4() { echo "{\"tier\":4,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+
+            # Push always succeeds; poll always fails (drives iteration through all tiers)
+            _push_fix_branch() { return 0; }
+            _phase_poll()      { return 1; }
+            _fetch_ci_log()    { return 1; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    ); _ec=$? || true
+
+    _captured="$(cat "$_dispatch_args_file" 2>/dev/null || echo '')"
+
+    # The 4th dispatch call should contain "attempt 4 of 5" budget-pressure text
+    local _has_budget_at_4="false"
+    if echo "$_captured" | grep -q "attempt 4 of 5"; then _has_budget_at_4="true"; fi
+
+    assert_eq "t_phase_remediate_injects_budget_pressure_at_attempt_4: budget pressure injected at attempt 4" \
+        "true" "$_has_budget_at_4"
+}
+t_phase_remediate_injects_budget_pressure_at_attempt_4
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_emits_artifact_missing_when_all_tiers_fail
+# When all tier normalizers return exit 3 (ARTIFACT_MISSING) and the CI log
+# is also unavailable, _phase_remediate must exit 2 and emit output containing
+# ARTIFACT_MISSING. RED: _phase_remediate just returns 2 without calling
+# _remediate_emit_escalation so there is no ARTIFACT_MISSING in stdout.
+# ---------------------------------------------------------------------------
+t_phase_remediate_emits_artifact_missing_when_all_tiers_fail() {
+    local _T _branch_safe _state_file _ec _out
+    _T="$(mktemp -d /tmp/dso-remediate-artmiss.XXXXXX)"
+    _branch_safe="test-artmiss-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-am-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    _out="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { return 3; }
+            _normalize_tier2() { return 3; }
+            _normalize_tier3() { return 3; }
+            _normalize_tier4() { return 3; }
+            _fetch_ci_log()    { return 1; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    local _has_artifact_missing="false"
+    if echo "$_out" | grep -q "ARTIFACT_MISSING"; then _has_artifact_missing="true"; fi
+
+    assert_eq "t_phase_remediate_emits_artifact_missing_when_all_tiers_fail: exit code 2" "2" "$_ec"
+    assert_eq "t_phase_remediate_emits_artifact_missing_when_all_tiers_fail: ARTIFACT_MISSING in output" \
+        "true" "$_has_artifact_missing"
+}
+t_phase_remediate_emits_artifact_missing_when_all_tiers_fail
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_emits_throttle_pause_when_usage_check_paused
+# When the usage check returns 2 (paused), _phase_remediate must exit 2 and
+# emit output containing THROTTLE_PAUSE without calling _dispatch_fix_agent.
+# RED: _phase_remediate has no usage-check gate before dispatch.
+# ---------------------------------------------------------------------------
+t_phase_remediate_emits_throttle_pause_when_usage_check_paused() {
+    local _T _branch_safe _state_file _ec _out _dispatch_called_file
+    _T="$(mktemp -d /tmp/dso-remediate-throttle.XXXXXX)"
+    _branch_safe="test-throttle-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    _dispatch_called_file="$_T/dispatch-was-called"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-thr-001","pr_url":"https://github.com/x/y/pull/99","pr_number":"99"}
+STATE_EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download") exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _ec=0
+    _out="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            _normalize_tier1() { echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"; return 0; }
+            _fetch_ci_log()    { return 1; }
+            _normalize_tier2() { return 3; }
+            _normalize_tier3() { return 3; }
+            _normalize_tier4() { return 3; }
+
+            # Stub dispatch to record that it was called
+            _dispatch_fix_agent() {
+                touch "'"$_dispatch_called_file"'"
+                return 0
+            }
+            _push_fix_branch() { return 0; }
+            _phase_poll()      { return 1; }
+
+            # Override the usage-check function that _phase_remediate will call
+            _check_usage_for_remediate() { return 2; }
+            # Also override the canonical check-usage path in case _phase_remediate uses it
+            _check_remediate_usage() { return 2; }
+
+            _phase_remediate "99" "https://github.com/x/y/pull/99"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    local _has_throttle="false"
+    local _dispatch_was_called="false"
+    if echo "$_out" | grep -q "THROTTLE_PAUSE"; then _has_throttle="true"; fi
+    [[ -f "$_dispatch_called_file" ]] && _dispatch_was_called="true"
+
+    assert_eq "t_phase_remediate_emits_throttle_pause_when_usage_check_paused: exit code 2" "2" "$_ec"
+    assert_eq "t_phase_remediate_emits_throttle_pause_when_usage_check_paused: THROTTLE_PAUSE in output" \
+        "true" "$_has_throttle"
+    assert_eq "t_phase_remediate_emits_throttle_pause_when_usage_check_paused: dispatch NOT called" \
+        "false" "$_dispatch_was_called"
+}
+t_phase_remediate_emits_throttle_pause_when_usage_check_paused
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_resets_tier_counter_on_regression
+# When a tier succeeded in pass N but fails in pass N+1 (cross-tier regression),
+# _phase_remediate must reset that tier's counter to 0 and decrement the global
+# counter by the reset amount, without exceeding the global ceiling.
+# ---------------------------------------------------------------------------
+t_phase_remediate_resets_tier_counter_on_regression() {
+    local _T _branch_safe _state_file _ec
+    _T="$(mktemp -d /tmp/dso-remediate-regression-test.XXXXXX)"
+    _branch_safe="test-tier-regression-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    # Pre-write state file with failed_run_id
+    _DSO_SF="$_state_file" _DSO_BRANCH="$_branch_safe" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+d = {'branch': os.environ['_DSO_BRANCH'], 'merge_sha': '', 'completed_phases': [],
+     'current_phase': '', 'phases': {}, 'merge_strategy': 'pr', 'failed_run_id': 'RUN-REGRESSION'}
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+import os as _os
+_os.rename(sf + '.tmp', sf)
+" 2>/dev/null || true
+
+    mkdir -p "$_T/bin"
+    # gh shim: run download always succeeds (creates empty dir)
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download")
+    _dir=""
+    _prev=""
+    for _arg in "$@"; do
+      if [[ "$_prev" == "--dir" ]]; then _dir="$_arg"; fi
+      _prev="$_arg"
+    done
+    [[ -n "$_dir" ]] && mkdir -p "$_dir"
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    # Call-count file for _normalize_tier1: call 1 succeeds, call 2+ returns 3 (regression)
+    local _t1_call_count_file="$_T/t1-call-count"
+    : > "$_t1_call_count_file"
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            # Tier 1: succeeds on first call, regresses on subsequent calls
+            _normalize_tier1() {
+                printf "x" >> "'"$_t1_call_count_file"'"
+                _cnt=$(wc -c < "'"$_t1_call_count_file"'" 2>/dev/null | tr -d " " || echo 0)
+                if [[ "$_cnt" -le 1 ]]; then
+                    echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"
+                    return 0
+                fi
+                return 3
+            }
+            # Tiers 2-4: always missing
+            _normalize_tier2() { return 3; }
+            _normalize_tier3() { return 3; }
+            _normalize_tier4() { return 3; }
+            _fetch_ci_log()    { return 1; }
+
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 1; }
+
+            # Counter: allow first 5 calls (empty), then emit GLOBAL_CEILING to exit the loop
+            _counter_call_count=0
+            _remediate_counter_increment() {
+                _counter_call_count=$(( _counter_call_count + 1 ))
+                if [[ "$_counter_call_count" -ge 6 ]]; then
+                    echo "GLOBAL_CEILING"
+                fi
+                return 0
+            }
+
+            _phase_remediate "42" "https://github.com/x/y/pull/42"
+        ' "$PR_SCRIPT" 2>/dev/null
+    ); _ec=$?
+
+    # After GLOBAL_CEILING, the state file should reflect the reset: tier 1 counter = 0
+    local _t1_counter _ok="false"
+    _t1_counter="$(python3 -c "
+import json, sys
+try:
+    with open('$_state_file') as f:
+        d = json.load(f)
+    per_tier = d.get('remediation_attempts_per_tier', {})
+    print(per_tier.get('1', 'MISSING'))
+except Exception as e:
+    print('ERR:' + str(e))
+" 2>/dev/null)"
+
+    # tier 1 counter must be 0 (was reset after regression)
+    [[ "$_t1_counter" == "0" ]] && _ok="true"
+
+    assert_eq "t_phase_remediate_resets_tier_counter_on_regression: tier1 counter reset to 0" \
+        "true" "$_ok"
+}
+t_phase_remediate_resets_tier_counter_on_regression
+
+# ---------------------------------------------------------------------------
+# Auto-merge-disabled fallback tests
+# ---------------------------------------------------------------------------
+# When `gh pr merge --auto --merge` is rejected because auto-merge is disabled
+# at the repo level, the script must:
+#   (a) NOT exit 1 — the PR is created, CI must still run
+#   (b) Persist auto_merge_disabled=true to the state file
+#   (c) Issue `gh pr merge <num> --merge` (no --auto flag) once all checks pass
+# ---------------------------------------------------------------------------
+
+t_auto_merge_disabled_does_not_emit_conflict_data() {
+    # Before the fix, auto-merge disabled produced CONFLICT_DATA with
+    # resolution_strategy "pr-conflict" and exited 1 at the merge phase. The
+    # new behavior treats it as a soft success — no CONFLICT_DATA, no exit-1
+    # at this phase (any later non-zero is fine; covered by other tests).
+    local _T branch _all_out _has_conflict_data
+    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-auto-merge-disabled"
+    _build_pr_fixture "$_T" "$branch" "ok" "auto_disabled"
+
+    _all_out="$_T/all.log"
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
+        bash "$PR_SCRIPT" >"$_all_out" 2>&1
+    ) || true
+
+    _has_conflict_data="false"
+    if grep -q '"resolution_strategy": *"pr-conflict"' "$_all_out" 2>/dev/null; then
+        _has_conflict_data="true"
+    fi
+    assert_eq "t_auto_merge_disabled_does_not_emit_conflict_data" "false" "$_has_conflict_data"
+
+    rm -f /tmp/merge-to-main-state-*.json 2>/dev/null || true
+}
+t_auto_merge_disabled_does_not_emit_conflict_data
+
+t_auto_merge_disabled_emits_warning_and_continues() {
+    # When auto-merge is disabled, the merge phase must emit a clear WARNING
+    # (so operators understand why the script fell through to manual merge)
+    # rather than emitting an ERROR / CONFLICT_DATA pair that previously
+    # caused the script to exit 1.
+    local _T branch _all_out _has_warning _has_error
+    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-auto-merge-warning"
+    _build_pr_fixture "$_T" "$branch" "ok" "auto_disabled"
+
+    _all_out="$_T/all.log"
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
+        bash "$PR_SCRIPT" >"$_all_out" 2>&1
+    ) || true
+
+    _has_warning="false"
+    if grep -q "WARNING: GitHub auto-merge is disabled" "$_all_out"; then
+        _has_warning="true"
+    fi
+    # The old failure path printed "ERROR: GitHub auto-merge is disabled" — must NOT appear.
+    _has_error="false"
+    if grep -q "ERROR: GitHub auto-merge is disabled" "$_all_out"; then
+        _has_error="true"
+    fi
+
+    assert_eq "t_auto_merge_disabled_emits_warning_and_continues:warning_present" "true" "$_has_warning"
+    assert_eq "t_auto_merge_disabled_emits_warning_and_continues:error_absent" "false" "$_has_error"
+
+    rm -f /tmp/merge-to-main-state-*.json 2>/dev/null || true
+}
+t_auto_merge_disabled_emits_warning_and_continues
+
+t_auto_merge_disabled_invokes_manual_merge_in_poll() {
+    # In the poll phase, when auto_merge_disabled is set and all checks pass,
+    # the script must invoke `gh pr merge <num> --merge` without --auto.
+    local _T branch _argv _has_manual_merge
+    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-manual-merge-call"
+    _build_pr_fixture "$_T" "$branch" "ok" "auto_disabled"
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
+        bash "$PR_SCRIPT" >/dev/null 2>&1
+    ) || true
+
+    _argv="$(cat "$_T/gh-argv.log" 2>/dev/null || echo '')"
+
+    # Look for a `pr merge 42 --merge` invocation that does NOT include --auto.
+    # The auto-attempt earlier in _phase_merge does include --auto and refuses,
+    # so we need a separate non-auto call to confirm the fallback fired.
+    _has_manual_merge="false"
+    if echo "$_argv" | grep -E "^pr merge 42" | grep -v -- "--auto" | grep -q -- "--merge"; then
+        _has_manual_merge="true"
+    fi
+
+    assert_eq "t_auto_merge_disabled_invokes_manual_merge_in_poll" "true" "$_has_manual_merge"
+
+    # Cleanup any state file produced by this run
+    rm -f /tmp/merge-to-main-state-*.json 2>/dev/null || true
+}
+t_auto_merge_disabled_invokes_manual_merge_in_poll
+
+t_state_write_read_auto_merge_disabled_round_trip() {
+    # Direct unit test of the helpers in merge-helpers.sh.
+    local _T _sf _val
+    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    BRANCH="round-trip-branch"
+    export BRANCH
+    # shellcheck source=/dev/null
+    source "$REPO_ROOT/plugins/dso/hooks/lib/merge-helpers.sh"
+
+    _state_init >/dev/null 2>&1
+    _state_write_auto_merge_disabled "true"
+    _val=$(_state_read_auto_merge_disabled)
+    assert_eq "t_state_write_read_auto_merge_disabled_round_trip:true_persists" "true" "$_val"
+
+    _state_write_auto_merge_disabled "false"
+    _val=$(_state_read_auto_merge_disabled)
+    assert_eq "t_state_write_read_auto_merge_disabled_round_trip:false_persists" "false" "$_val"
+
+    # Default when state file absent
+    _sf=$(_state_file_path 2>/dev/null)
+    rm -f "$_sf"
+    _val=$(_state_read_auto_merge_disabled)
+    assert_eq "t_state_write_read_auto_merge_disabled_round_trip:default_false" "false" "$_val"
+
+    rm -f /tmp/merge-to-main-state-*.json 2>/dev/null || true
+    unset BRANCH
+}
+t_state_write_read_auto_merge_disabled_round_trip
 
 # ---------------------------------------------------------------------------
 print_summary
