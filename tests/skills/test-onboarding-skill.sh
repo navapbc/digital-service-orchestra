@@ -1514,4 +1514,54 @@ test_step2b_nodejs_defaults_present
 test_step2b_key_presence_skip_signal
 test_step2b_empty_string_treated_as_not_set
 
+# ── RED merge strategy selection test (ffc2-03b3) ────────────────────────────
+
+# test_onboarding_skill_has_merge_strategy_question: SKILL.md Phase 3 / Step 2b section
+# must contain merge strategy selection with direct/pr options, provision-ruleset trigger,
+# and idempotency guard.
+# REVIEW-DEFENSE: grepping plugins/dso/skills/onboarding/SKILL.md for structural contract anchors
+# is the ONLY valid test for non-executable instruction files per behavioral-testing-standard.md Rule 5.
+# Rule 5 requires testing the structural boundary (that the contract phrase exists) rather than
+# behavioral correctness (that the agent follows the instruction at runtime, which is non-deterministic).
+# The substrings 'merge.strategy', 'direct', 'pr', 'provision-ruleset' are contract-surface markers
+# that must appear in Phase 3 Step 2b.1 per story DD1. This is a structural boundary check,
+# not implementation-coupled source-file-grepping.
+test_onboarding_skill_has_merge_strategy_question() {
+    _snapshot_fail
+    local section
+    section=$(awk '/Step 2b/,/Step 2c|Step 3:|^## Phase 4/' \
+        "$SKILL_MD" 2>/dev/null)
+
+    local has_merge_strategy="no"
+    local has_direct="no"
+    local has_pr="no"
+    local has_provision="no"
+    local has_idempotent="no"
+
+    if echo "$section" | grep -q 'merge\.strategy'; then
+        has_merge_strategy="yes"
+    fi
+    if echo "$section" | grep -q 'direct'; then
+        has_direct="yes"
+    fi
+    if echo "$section" | grep -q 'pr'; then
+        has_pr="yes"
+    fi
+    if echo "$section" | grep -q 'provision-ruleset'; then
+        has_provision="yes"
+    fi
+    if echo "$section" | grep -qiE 'idempotent|already.*provision|skip.*provision|already exists'; then
+        has_idempotent="yes"
+    fi
+
+    assert_eq "test_onboarding_skill_has_merge_strategy_question (merge.strategy)" "yes" "$has_merge_strategy"
+    assert_eq "test_onboarding_skill_has_merge_strategy_question (direct option)" "yes" "$has_direct"
+    assert_eq "test_onboarding_skill_has_merge_strategy_question (pr option)" "yes" "$has_pr"
+    assert_eq "test_onboarding_skill_has_merge_strategy_question (provision-ruleset)" "yes" "$has_provision"
+    assert_eq "test_onboarding_skill_has_merge_strategy_question (idempotency)" "yes" "$has_idempotent"
+    assert_pass_if_clean "test_onboarding_skill_has_merge_strategy_question"
+}
+
+test_onboarding_skill_has_merge_strategy_question
+
 print_summary

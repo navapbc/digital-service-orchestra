@@ -419,6 +419,14 @@ test_dispatch_count_cap_triggers_escalation() {
     assert_contains "test_dispatch_count_cap_triggers_escalation: PR url in stderr" "pull/99" "$stderr_capture"
     assert_contains "test_dispatch_count_cap_triggers_escalation: unresolved id in stderr" "PRT_STUCK" "$stderr_capture"
 
+    # Behavioral assertion: LLM dispatch was actually attempted before the cap fired.
+    # A regression that skips dispatch silently would leave llm.log empty and fail here.
+    local llm_call_count
+    llm_call_count=$(grep -c '^CALL' "$STUB_LLM_LOG" 2>/dev/null || echo 0)
+    assert_ne "test_dispatch_count_cap_triggers_escalation: LLM was dispatched at least once before cap" "0" "$llm_call_count"
+    # With MAX_DISPATCHES=10 and a perpetually-unresolved thread, exactly 10 dispatches expected.
+    assert_eq "test_dispatch_count_cap_triggers_escalation: LLM dispatched exactly max_dispatches times" "10" "$llm_call_count"
+
     _teardown_test
 }
 
@@ -466,6 +474,12 @@ test_wall_clock_cap_triggers_escalation() {
     assert_contains "test_wall_clock_cap_triggers_escalation: PR url in stderr" "pull/77" "$stderr_capture"
     assert_contains "test_wall_clock_cap_triggers_escalation: unresolved id in stderr" "PRT_STUCK" "$stderr_capture"
 
+    # Behavioral assertion: LLM dispatch was actually attempted before the wall-clock cap fired.
+    # A regression that skips dispatch silently would leave llm.log empty and fail here.
+    local llm_call_count
+    llm_call_count=$(grep -c '^CALL' "$STUB_LLM_LOG" 2>/dev/null || echo 0)
+    assert_ne "test_wall_clock_cap_triggers_escalation: LLM was dispatched at least once before wall-clock cap" "0" "$llm_call_count"
+
     _teardown_test
 }
 
@@ -474,16 +488,28 @@ test_wall_clock_cap_triggers_escalation() {
 # push occurs between iterations and dismiss_stale_approvals_on_push fires,
 # the poll window restart must not double-count the restarted CI as a
 # separate timeout. After the reset, the loop must continue (no escalation).
+#
+# Coverage: verifies POLL_WINDOW_RESET signal emission and that no wall-clock
+# escalation fires (ESCALATE:thread_resolution REASON:wall_clock). The test
+# uses PR_THREAD_LOOP_TEST_STOP_AFTER_RESET=1 so the loop returns 0 on the
+# iteration where reset is detected; rc=0 is an additional assertion.
+#
+# Trade-off note: proving that _start was *numerically* zeroed (not just that
+# the signal was emitted) would require injecting synthetic $SECONDS values —
+# not possible without modifying the implementation. This test instead verifies
+# the observable contract: POLL_WINDOW_RESET emitted, function exits 0, and no
+# wall_clock ESCALATE signal appears in the combined output.
 # ===========================================================================
 test_push_induced_dismissal_resets_poll_window() {
     _setup_test
     export STUB_GH_SCENARIO=push_dismissed
-    # Wall-clock cap large enough that without the reset the test would never
-    # escalate naturally; we only validate that the reset DOES fire (via a
-    # signal emitted by the implementation) and the loop survives one iter.
+    # Tight wall-clock budget to make any wall_clock escalation visible if it
+    # fires. The loop exits via STOP_AFTER_RESET before the wall-clock check
+    # on the reset iteration, so the only way wall_clock could fire is on an
+    # earlier iteration (which would mean the reset never happened).
     export PR_THREAD_LOOP_INTERVAL=0
     export PR_THREAD_LOOP_MAX_DISPATCHES=2
-    export PR_THREAD_LOOP_MAX_WALL_SECONDS=10
+    export PR_THREAD_LOOP_MAX_WALL_SECONDS=5
     # Tell the loop to stop after detecting one reset (test-only escape).
     export PR_THREAD_LOOP_TEST_STOP_AFTER_RESET=1
 
@@ -512,15 +538,27 @@ test_push_induced_dismissal_resets_poll_window() {
         return
     fi
 
+    # Wall-clock counter reset verification: the function must return 0 when
+    # STOP_AFTER_RESET fires. A non-zero rc means the loop escalated (wall_clock
+    # or dispatch_cap) before the reset was detected — i.e., the counter reset
+    # path was never reached.
+    if (( rc != 0 )); then
+        (( ++FAIL ))
+        echo "FAIL: test_push_induced_dismissal_resets_poll_window: expected rc=0 (reset path), got rc=${rc}" >&2
+        _teardown_test
+        return
+    fi
+
     # Behavioral assertion: the implementation MUST emit a recognizable signal
     # whenever it detects a head-sha change and resets its poll window. The
     # exact wording is contract-defined — assert on the signal token.
     assert_contains "test_push_induced_dismissal_resets_poll_window: emits POLL_WINDOW_RESET signal" "POLL_WINDOW_RESET" "$combined"
 
-    # And the wall-clock-cap escalation envelope must NOT fire on the very
-    # first iteration just because CI restarted — i.e., no max-wait error
-    # for PR 55.
-    assert_not_contains "test_push_induced_dismissal_resets_poll_window: no premature wall-clock escalation" "max-wait exceeded" "$combined"
+    # The wall-clock escalation signal from _phase_resolve_threads must NOT
+    # appear. Note: "max-wait exceeded" is emitted by a different function
+    # (_phase_wait_for_merge_check); the correct signal here is wall_clock REASON.
+    assert_not_contains "test_push_induced_dismissal_resets_poll_window: no wall-clock escalation after push reset" \
+        "ESCALATE:thread_resolution REASON:wall_clock" "$combined"
 
     _teardown_test
 }
@@ -604,8 +642,115 @@ test_file_path_validator_rejects_malicious_input() {
 }
 
 # ---------------------------------------------------------------------------
+# Unit tests for extracted helper functions (GREEN — helpers exist post-T5)
+# ---------------------------------------------------------------------------
+
+# test_pr_resolve_threads_read_config_env_override: _pr_resolve_threads_read_config
+# reads PR_THREAD_LOOP_MAX_DISPATCHES and PR_THREAD_LOOP_INTERVAL from env vars
+# when set, writing values into caller-provided variable names.
+test_pr_resolve_threads_read_config_env_override() {
+    echo "=== test_pr_resolve_threads_read_config_env_override ==="
+    _snapshot_fail
+    # Source the function in a subshell and verify env overrides take effect.
+    # Use PR_LIB_MODE=1 to suppress top-level script execution.
+    local _result
+    _result=$(
+        PR_THREAD_LOOP_MAX_DISPATCHES=5 PR_THREAD_LOOP_INTERVAL=15 \
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            _max_d='' _max_w='' _qw='' _iv=''
+            _pr_resolve_threads_read_config _max_d _max_w _qw _iv 2>/dev/null || true
+            echo \"max_dispatches=\$_max_d interval=\$_iv\"
+        " 2>/dev/null
+    ) || true
+    assert_eq "test_pr_resolve_threads_read_config_env_override: max_dispatches env override" \
+        "1" "$(echo "$_result" | grep -c 'max_dispatches=5')"
+    assert_eq "test_pr_resolve_threads_read_config_env_override: interval env override" \
+        "1" "$(echo "$_result" | grep -c 'interval=15')"
+    assert_pass_if_clean "test_pr_resolve_threads_read_config_env_override"
+}
+
+# test_pr_handle_head_sha_reset_skips_update_on_empty_sha: _pr_handle_head_sha_reset
+# must not update the tracked SHA when gh returns an empty string (transient failure).
+# Given: a running loop where the tracked SHA is 'abc123'
+# When: gh returns empty headRefOid (network hiccup stub)
+# Then: the tracked SHA remains 'abc123' (not overwritten) — verified by reading
+#       the variable value through the printf-v nameref pattern.
+test_pr_handle_head_sha_reset_skips_update_on_empty_sha() {
+    echo ""
+    echo "=== test_pr_handle_head_sha_reset_skips_update_on_empty_sha ==="
+    _snapshot_fail
+    # Source the function
+    local _result
+    _result=$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            # Stub gh to return empty headRefOid (transient failure)
+            gh() { echo '{\"headRefOid\":\"\"}'; }
+            export -f gh
+            _last_sha='abc123'
+            _start=0 _last_ts=0 _last_count=0
+            _pr_handle_head_sha_reset 99 _last_sha _start _last_ts _last_count 2>/dev/null || true
+            echo \"sha_after=\$_last_sha\"
+        " 2>/dev/null
+    ) || true
+    # SHA must NOT be updated when gh returns empty
+    assert_eq "test_pr_handle_head_sha_reset_skips_update_on_empty_sha" \
+        "1" "$(echo "$_result" | grep -c 'sha_after=abc123')"
+    assert_pass_if_clean "test_pr_handle_head_sha_reset_skips_update_on_empty_sha"
+}
+
+# test_pr_dispatch_unresolved_batch_routes_reply_action: when the LLM returns
+# ACTION:reply, the batch dispatches a reply comment (not code_change or escalate).
+# This tests the 3-way routing branch in _pr_dispatch_unresolved_batch.
+test_pr_dispatch_unresolved_batch_routes_reply_action() {
+    echo ""
+    echo "=== test_pr_dispatch_unresolved_batch_routes_reply_action ==="
+    _snapshot_fail
+    # Test the routing by inspecting which code path was taken.
+    # _pr_dispatch_unresolved_batch reads LLM output with ACTION:reply → calls _pr_post_thread_reply
+    # We verify by checking that _code_change_threads remains empty (no code_change routing)
+    # and _escalated_threads remains empty (no escalation routing).
+    local _result
+    _result=$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            # Stub LLM to return ACTION:reply with REPLY: keyword (matching production pattern)
+            _llm_cmd() { echo 'ACTION:reply REPLY:Fixed the issue'; }
+            # Stub gh for reply posting
+            gh() { :; }
+            export -f gh
+            declare -A _escaped=()
+            declare -a _code=()
+            declare -a _threads=('PRT_test_thread')
+            _dispatches=0
+            _pr_dispatch_unresolved_batch 42 'https://x/42' '$REPO_ROOT' '_llm_cmd' 10 \
+                _dispatches _escaped _code \"\${_threads[@]}\" 2>/dev/null || true
+            echo \"code_change_count=\${#_code[@]}\"
+            echo \"escalated_count=\${#_escaped[@]}\"
+            echo \"dispatches=\$_dispatches\"
+        " 2>/dev/null
+    ) || true
+    # Reply action: code_change empty (no code_change), escalated empty (no escalation), 1 dispatch
+    assert_eq "test_pr_dispatch_unresolved_batch_routes_reply_action: no code_change" \
+        "1" "$(echo "$_result" | grep -c 'code_change_count=0')"
+    assert_eq "test_pr_dispatch_unresolved_batch_routes_reply_action: not escalated" \
+        "1" "$(echo "$_result" | grep -c 'escalated_count=0')"
+    assert_eq "test_pr_dispatch_unresolved_batch_routes_reply_action: dispatch counted" \
+        "1" "$(echo "$_result" | grep -c 'dispatches=1')"
+    assert_pass_if_clean "test_pr_dispatch_unresolved_batch_routes_reply_action"
+}
+
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
+test_pr_resolve_threads_read_config_env_override
+test_pr_handle_head_sha_reset_skips_update_on_empty_sha
+test_pr_dispatch_unresolved_batch_routes_reply_action
 test_review_threads_query_parses_unresolved_thread_ids
 test_resolve_thread_calls_mutation_only_when_unresolved
 test_settling_heuristic_requires_zero_threads_and_quiet_window

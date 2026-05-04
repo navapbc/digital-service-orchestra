@@ -76,10 +76,10 @@ if [[ "$_resume" == "true" ]]; then
     fi
 
     if [[ -n "$_state_file" ]]; then
-        _stored_strategy="$(python3 -c "
-import json, sys
+        _stored_strategy="$(_DSO_SF="$_state_file" python3 -c "
+import json, os
 try:
-    d = json.load(open('$_state_file'))
+    d = json.load(open(os.environ['_DSO_SF']))
     print(d.get('merge_strategy', ''))
 except Exception:
     print('')

@@ -492,9 +492,11 @@ GIT_SHIM
         "$real_git" add seed.txt
         "$real_git" commit -q -m "seed" >/dev/null
         # Pre-fetch origin/main so the merge commit is already in refs/remotes/origin/main
-        # before the script runs. This prevents a race where the script's git fetch call
-        # (which uses the git shim's exec delegation) might not see the commit in CI.
-        "$real_git" fetch -q origin main >/dev/null 2>&1 || true
+        # before the script runs. Use explicit refspec to ensure refs/remotes/origin/main
+        # is populated — `git fetch origin main` without refspec may only update FETCH_HEAD
+        # on some git versions (notably Ubuntu CI git 2.43+) without creating the tracking ref.
+        "$real_git" fetch -q origin "main:refs/remotes/origin/main" >/dev/null 2>&1 || \
+            "$real_git" fetch -q origin >/dev/null 2>&1 || true
         "$real_git" checkout -q -b "$branch"
         echo "feature" > feature.txt
         "$real_git" add feature.txt
@@ -938,6 +940,115 @@ t_pr_success_missing_merge_sha() {
     assert_eq "t_pr_success_missing_merge_sha_has_error_message" "true" "$_has_error"
 }
 t_pr_success_missing_merge_sha
+
+# ===========================================================================
+# Tests for per-thread failure logging in _phase_resolve_threads
+# (bug 1920-c513-cf59-4417: batch `|| true` -> per-thread failures swallowed)
+# ===========================================================================
+#
+# Strategy: source merge-to-main-pr.sh in library mode (PR_LIB_MODE=1) to get
+# function definitions only, then call _phase_resolve_threads directly with
+# stub helpers that simulate a successful commit+push but a failing
+# _pr_resolve_thread. Assert that WARN messages are emitted on stderr.
+
+# ---------------------------------------------------------------------------
+# t_per_thread_resolve_failure_emits_warn
+# When _pr_resolve_thread fails for a code_change thread (after commit+push
+# succeed), _phase_resolve_threads MUST emit a WARN message containing the
+# thread ID and the exit code on stderr. The || true pattern that previously
+# swallowed this failure silently is the defect under test.
+# ---------------------------------------------------------------------------
+t_per_thread_resolve_failure_emits_warn() {
+    local _T branch _stderr _rc
+    _T="$(mktemp -d /tmp/dso-pr-thread-warn-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-resolve-fail-warn"
+    _build_pr_fixture "$_T" "$branch" "ok" "ok"
+
+    # Build an LLM stub that emits ACTION:code_change.
+    # The code_change path exercises commit+push+resolve. We want to verify
+    # that when _pr_resolve_thread exits non-zero a WARN is emitted.
+    local llm_stub="$_T/llm-stub.sh"
+    cat > "$llm_stub" <<'LLM_EOF'
+#!/usr/bin/env bash
+echo "ACTION:code_change"
+exit 0
+LLM_EOF
+    chmod +x "$llm_stub"
+
+    # Override the git stub created by _build_pr_fixture to also intercept
+    # `git [-C <dir>] commit` (the push is already handled). The -C flag
+    # requires stripping two args (the flag itself and its directory arg)
+    # to reveal the actual subcommand.
+    local real_git
+    real_git=$(command -v git)
+    local git_stub="$_T/bin/git"
+    cat > "$git_stub" <<GIT_EOF
+#!/usr/bin/env bash
+# Strip leading -C <dir> pairs so we can match the actual subcommand.
+_args=("\$@")
+_idx=0
+while [[ "\${_idx}" -lt "\${#_args[@]}" && "\${_args[\$_idx]}" == "-C" ]]; do
+    _idx=\$(( _idx + 2 ))
+done
+_subcmd="\${_args[\$_idx]:-}"
+if [[ "\$_subcmd" == "commit" || "\$_subcmd" == "push" ]]; then
+    exit 0
+fi
+exec "$real_git" "\$@"
+GIT_EOF
+    chmod +x "$git_stub"
+
+    # NOTE: Use PR_SCRIPT (the worktree-local file path) explicitly as the
+    # source argument. Do NOT use "$CLAUDE_PLUGIN_ROOT/..." here because
+    # CLAUDE_PLUGIN_ROOT may be set in the caller's environment to a different
+    # installation (e.g. the main repo). The PR_SCRIPT variable is set at the
+    # top of this test file to the repo-local path, ensuring the worktree's
+    # patched version is always sourced.
+    _stderr="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        CI="true" \
+        PR_LIB_MODE="1" \
+        _LLM_DISPATCH_CMD="$llm_stub" \
+        PR_THREAD_LOOP_INTERVAL="0" \
+        PR_THREAD_LOOP_MAX_DISPATCHES="1" \
+        PR_THREAD_LOOP_MAX_WALL_SECONDS="99999" \
+        bash -c '
+            source "$0" >/dev/null 2>&1
+            # Override helpers:
+            # _pr_fetch_unresolved_threads — returns one unresolved thread
+            # _pr_settling_check          — always unsettled (forces dispatch loop)
+            # _pr_resolve_thread          — always exits non-zero (simulates GraphQL error)
+            # _pr_post_thread_reply       — always succeeds
+            _pr_fetch_unresolved_threads() {
+                printf "T_FAIL\tsrc/foo.py\t1\tC_001\t"
+            }
+            _pr_settling_check() {
+                return 1
+            }
+            _pr_resolve_thread() {
+                return 42
+            }
+            _pr_post_thread_reply() {
+                return 0
+            }
+            _phase_resolve_threads 99 "https://github.com/x/y/pull/99" 2>&1 >/dev/null
+        ' "$PR_SCRIPT"
+    )" || true
+
+    local _has_warn="false"
+    if echo "$_stderr" | grep -qiE "WARN.*T_FAIL|T_FAIL.*WARN|WARN.*thread.*T_FAIL|thread.*T_FAIL.*failed"; then
+        _has_warn="true"
+    fi
+
+    assert_eq "t_per_thread_resolve_failure_emits_warn: WARN emitted for failed resolve" "true" "$_has_warn"
+}
+t_per_thread_resolve_failure_emits_warn
 
 # ---------------------------------------------------------------------------
 print_summary
