@@ -153,6 +153,25 @@ with open(sf + '.tmp', 'w') as f:
     return 0
 }
 
+_state_record_failed_run_id() {
+    local _run_id="$1"
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    [[ -f "$_sf" ]] || return 0
+    # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
+    # Pass variables via env to avoid shell-string interpolation injection.
+    _DSO_SF="$_sf" _DSO_RUN_ID="$_run_id" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
+    d = json.load(f)
+d['failed_run_id'] = os.environ['_DSO_RUN_ID']
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
+    return 0
+}
+
 _state_get_retry_count() {
     local _sf
     _sf=$(_state_file_path) 2>/dev/null || { echo "0"; return 0; }
