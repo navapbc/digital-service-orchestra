@@ -1189,6 +1189,7 @@ LLM_EOF
         cd "$_T" || exit 1
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         BRANCH="$_branch_safe" \
+        MERGE_STRATEGY="pr" \
         _REMEDIATE_LLM_CMD="$_T/llm_stub.sh" \
         PR_LIB_MODE="1" \
         bash -c '
@@ -1245,8 +1246,10 @@ _os.rename(sf + '.tmp', sf)
 {"findings":[{"severity":"important","description":"test finding"}]}
 FINDINGS_EOF
 
-    # Counter file for stateful gh pr checks responses
-    touch "$_T/checks-count"
+    # Counter file: pre-seed with 1 byte so the first re-poll call (from _phase_remediate)
+    # hits iter=2 → SUCCESS. Without pre-seeding, iter=1 → FAILURE on first call,
+    # causing _phase_poll to return 1 immediately (it doesn't retry on failure).
+    printf 'x' > "$_T/checks-count"
 
     cat > "$_T/bin/gh" <<GH_SHIM
 #!/usr/bin/env bash
@@ -1784,7 +1787,7 @@ t_main_flow_skips_remediate_on_poll_success() {
 
     # Primary RED assertion: _phase_remediate must be defined as a function
     _func_defined="$(
-        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
         bash -c 'source "$0" 2>/dev/null; declare -f _phase_remediate | grep -c _phase_remediate' \
         "$PR_SCRIPT" 2>/dev/null || echo 0
     )"
