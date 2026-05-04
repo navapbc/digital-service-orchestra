@@ -1141,8 +1141,11 @@ except Exception:
     local _per_tier_json
     local _tier _tier_artifact _tier_log _tier_normalized _tier_rc _dispatch_rc
     local _all_tiers_artifact_missing _counter_signal _attempt_num_for_tier
+    local _prev_pass_successes='' _cur_pass_successes='' _old_count
 
     while true; do
+        _prev_pass_successes="$_cur_pass_successes"
+        _cur_pass_successes=''
         _all_tiers_artifact_missing=1
 
         for _tier in 1 2 3 4; do
@@ -1233,11 +1236,24 @@ except Exception:
 
             if [[ "$_tier_rc" -ne 0 ]]; then
                 rm -f "$_tier_normalized"
+                # Cross-tier regression: tier succeeded last pass but fails now — reset its counter
+                if echo " ${_prev_pass_successes} " | grep -q " ${_tier} "; then
+                    case "$_tier" in
+                        1) _old_count="$_attempts_t1"; _attempts_t1=0 ;;
+                        2) _old_count="$_attempts_t2"; _attempts_t2=0 ;;
+                        3) _old_count="$_attempts_t3"; _attempts_t3=0 ;;
+                        4) _old_count="$_attempts_t4"; _attempts_t4=0 ;;
+                    esac
+                    _attempts_global=$(( _attempts_global > _old_count ? _attempts_global - _old_count : 0 ))
+                    _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                    _state_write_remediation_state "remediate" "$_per_tier_json" "$_attempts_global" 2>/dev/null || true
+                fi
                 continue  # ARTIFACT_MISSING or other error — try next tier
             fi
 
             # At least one tier did NOT return ARTIFACT_MISSING
             _all_tiers_artifact_missing=0
+            _cur_pass_successes="${_cur_pass_successes:+${_cur_pass_successes} }${_tier}"
 
             # Dispatch fix agent; pass global attempt count for budget-pressure injection
             _dispatch_rc=0

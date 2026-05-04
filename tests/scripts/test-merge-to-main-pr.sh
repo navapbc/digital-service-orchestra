@@ -3216,4 +3216,119 @@ GH_SHIM
 t_phase_remediate_emits_throttle_pause_when_usage_check_paused
 
 # ---------------------------------------------------------------------------
+# t_phase_remediate_resets_tier_counter_on_regression
+# When a tier succeeded in pass N but fails in pass N+1 (cross-tier regression),
+# _phase_remediate must reset that tier's counter to 0 and decrement the global
+# counter by the reset amount, without exceeding the global ceiling.
+# ---------------------------------------------------------------------------
+t_phase_remediate_resets_tier_counter_on_regression() {
+    local _T _branch_safe _state_file _ec
+    _T="$(mktemp -d /tmp/dso-remediate-regression-test.XXXXXX)"
+    _branch_safe="test-tier-regression-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    # Pre-write state file with failed_run_id
+    _DSO_SF="$_state_file" _DSO_BRANCH="$_branch_safe" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+d = {'branch': os.environ['_DSO_BRANCH'], 'merge_sha': '', 'completed_phases': [],
+     'current_phase': '', 'phases': {}, 'merge_strategy': 'pr', 'failed_run_id': 'RUN-REGRESSION'}
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+import os as _os
+_os.rename(sf + '.tmp', sf)
+" 2>/dev/null || true
+
+    mkdir -p "$_T/bin"
+    # gh shim: run download always succeeds (creates empty dir)
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "run download")
+    _dir=""
+    _prev=""
+    for _arg in "$@"; do
+      if [[ "$_prev" == "--dir" ]]; then _dir="$_arg"; fi
+      _prev="$_arg"
+    done
+    [[ -n "$_dir" ]] && mkdir -p "$_dir"
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    # Call-count file for _normalize_tier1: call 1 succeeds, call 2+ returns 3 (regression)
+    local _t1_call_count_file="$_T/t1-call-count"
+    : > "$_t1_call_count_file"
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        BRANCH="$_branch_safe" \
+        bash -c '
+            source "$0" 2>/dev/null
+
+            # Tier 1: succeeds on first call, regresses on subsequent calls
+            _normalize_tier1() {
+                printf "x" >> "'"$_t1_call_count_file"'"
+                _cnt=$(wc -c < "'"$_t1_call_count_file"'" 2>/dev/null | tr -d " " || echo 0)
+                if [[ "$_cnt" -le 1 ]]; then
+                    echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"
+                    return 0
+                fi
+                return 3
+            }
+            # Tiers 2-4: always missing
+            _normalize_tier2() { return 3; }
+            _normalize_tier3() { return 3; }
+            _normalize_tier4() { return 3; }
+            _fetch_ci_log()    { return 1; }
+
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 1; }
+
+            # Counter: allow first 5 calls (empty), then emit GLOBAL_CEILING to exit the loop
+            _counter_call_count=0
+            _remediate_counter_increment() {
+                _counter_call_count=$(( _counter_call_count + 1 ))
+                if [[ "$_counter_call_count" -ge 6 ]]; then
+                    echo "GLOBAL_CEILING"
+                fi
+                return 0
+            }
+
+            _phase_remediate "42" "https://github.com/x/y/pull/42"
+        ' "$PR_SCRIPT" 2>/dev/null
+    ); _ec=$?
+
+    # After GLOBAL_CEILING, the state file should reflect the reset: tier 1 counter = 0
+    local _t1_counter _ok="false"
+    _t1_counter="$(python3 -c "
+import json, sys
+try:
+    with open('$_state_file') as f:
+        d = json.load(f)
+    per_tier = d.get('remediation_attempts_per_tier', {})
+    print(per_tier.get('1', 'MISSING'))
+except Exception as e:
+    print('ERR:' + str(e))
+" 2>/dev/null)"
+
+    # tier 1 counter must be 0 (was reset after regression)
+    [[ "$_t1_counter" == "0" ]] && _ok="true"
+
+    assert_eq "t_phase_remediate_resets_tier_counter_on_regression: tier1 counter reset to 0" \
+        "true" "$_ok"
+}
+t_phase_remediate_resets_tier_counter_on_regression
+
+# ---------------------------------------------------------------------------
 print_summary
