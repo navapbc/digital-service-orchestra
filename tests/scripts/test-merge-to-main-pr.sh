@@ -2064,4 +2064,208 @@ t_phase_remediate_not_called_when_conflict_resolution_fails() {
 t_phase_remediate_not_called_when_conflict_resolution_fails
 
 # ---------------------------------------------------------------------------
+#
+# RED phase: _phase_remediate 4-tier loop does not yet exist. All three tests
+# will fail because the function does not attempt tier2/3/4 normalizers.
+# GREEN phase: once the 4-tier loop is implemented, call-tracking and
+# exit-code assertions will pass.
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_tries_tier2_when_tier1_artifact_missing
+#
+# When _normalize_tier1 returns exit 3 (ARTIFACT_MISSING), _phase_remediate
+# must proceed to try tier2. After T4 implementation, tier2 is tried and the
+# test passes GREEN.
+# ---------------------------------------------------------------------------
+t_phase_remediate_tries_tier2_when_tier1_artifact_missing() {
+    local _T branch _ec
+    _T="$(mktemp -d /tmp/dso-pr-remediate-t2.XXXXXX)"
+    branch="feature-remediate-tier2"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_pr_fixture "$_T" "$branch" "ok" "ok"
+
+    local _branch_safe="${branch//\//-}"
+    local _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-001","pr_url":"https://github.com/x/y/pull/42","pr_number":"42"}
+STATE_EOF
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    local _tier2_called="$_T/normalize-tier2-called"
+    local _normalized_out="$_T/normalized-tier2.json"
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" >/dev/null 2>&1
+
+            _normalize_tier1() { return 3; }
+
+            _normalize_tier2() {
+                touch "'"$_tier2_called"'"
+                echo "{\"tier\":2,\"findings\":[]}" > "${2:-'"$_normalized_out"'"}"
+                return 0
+            }
+
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+            _phase_poll()         { return 0; }
+            _fetch_ci_log()       { return 1; }
+
+            _phase_remediate
+        ' "$PR_SCRIPT"
+    ); _ec=$?
+
+    local _tier2_was_called="false"
+    [[ -f "$_tier2_called" ]] && _tier2_was_called="true"
+
+    assert_eq "t_phase_remediate_tries_tier2_when_tier1_artifact_missing: tier2 normalizer called" "true" "$_tier2_was_called"
+    assert_eq "t_phase_remediate_tries_tier2_when_tier1_artifact_missing: returns 0 after tier2 fix+poll green" "0" "$_ec"
+}
+t_phase_remediate_tries_tier2_when_tier1_artifact_missing
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_returns_2_when_all_tiers_artifact_missing
+#
+# When all four tier normalizers return exit 3 (ARTIFACT_MISSING), _phase_remediate
+# must try each one and return 2 (all tiers exhausted). The RED condition is that
+# tier2 WAS called — current code never reaches tier2.
+# ---------------------------------------------------------------------------
+t_phase_remediate_returns_2_when_all_tiers_artifact_missing() {
+    local _T branch _ec
+    _T="$(mktemp -d /tmp/dso-pr-remediate-all-miss.XXXXXX)"
+    branch="feature-remediate-all-missing"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_pr_fixture "$_T" "$branch" "ok" "ok"
+
+    local _branch_safe="${branch//\//-}"
+    local _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-002","pr_url":"https://github.com/x/y/pull/42","pr_number":"42"}
+STATE_EOF
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    local _tier2_called="$_T/normalize-tier2-called"
+    local _tier3_called="$_T/normalize-tier3-called"
+    local _tier4_called="$_T/normalize-tier4-called"
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" >/dev/null 2>&1
+
+            _normalize_tier1() { return 3; }
+            _normalize_tier2() { touch "'"$_tier2_called"'"; return 3; }
+            _normalize_tier3() { touch "'"$_tier3_called"'"; return 3; }
+            _normalize_tier4() { touch "'"$_tier4_called"'"; return 3; }
+            _fetch_ci_log()    { return 1; }
+
+            _phase_remediate
+        ' "$PR_SCRIPT"
+    ); _ec=$?
+
+    local _tier2_was_called="false"
+    local _tier3_was_called="false"
+    local _tier4_was_called="false"
+    [[ -f "$_tier2_called" ]] && _tier2_was_called="true"
+    [[ -f "$_tier3_called" ]] && _tier3_was_called="true"
+    [[ -f "$_tier4_called" ]] && _tier4_was_called="true"
+
+    assert_eq "t_phase_remediate_returns_2_when_all_tiers_artifact_missing: tier2 normalizer called" "true" "$_tier2_was_called"
+    assert_eq "t_phase_remediate_returns_2_when_all_tiers_artifact_missing: tier3 normalizer called" "true" "$_tier3_was_called"
+    assert_eq "t_phase_remediate_returns_2_when_all_tiers_artifact_missing: tier4 normalizer called" "true" "$_tier4_was_called"
+    assert_eq "t_phase_remediate_returns_2_when_all_tiers_artifact_missing: returns 2" "2" "$_ec"
+}
+t_phase_remediate_returns_2_when_all_tiers_artifact_missing
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll
+#
+# When tier1 normalization and fix dispatch succeed but the subsequent poll
+# returns 1 (CI still failing), _phase_remediate must proceed to tier2.
+# RED: current code doesn't have this fallthrough.
+# ---------------------------------------------------------------------------
+t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll() {
+    local _T branch _ec
+    _T="$(mktemp -d /tmp/dso-pr-remediate-repoll.XXXXXX)"
+    branch="feature-remediate-repoll"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_pr_fixture "$_T" "$branch" "ok" "ok"
+
+    local _branch_safe="${branch//\//-}"
+    local _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    cat > "$_state_file" <<'STATE_EOF'
+{"phase":"poll","failed_run_id":"run-003","pr_url":"https://github.com/x/y/pull/42","pr_number":"42"}
+STATE_EOF
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'" RETURN
+
+    local _tier2_called="$_T/normalize-tier2-called"
+    local _poll_counter="$_T/poll-count"
+    printf '0' > "$_poll_counter"
+
+    _ec=0
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" >/dev/null 2>&1
+
+            _normalize_tier1() {
+                echo "{\"tier\":1,\"findings\":[]}" > "${2:-/dev/null}"
+                return 0
+            }
+
+            _normalize_tier2() {
+                touch "'"$_tier2_called"'"
+                return 3
+            }
+
+            _normalize_tier3() { return 3; }
+            _normalize_tier4() { return 3; }
+
+            _dispatch_fix_agent() { return 0; }
+            _push_fix_branch()    { return 0; }
+
+            _phase_poll() {
+                local _cnt
+                _cnt=$(cat "'"$_poll_counter"'" 2>/dev/null || echo 0)
+                _cnt=$(( _cnt + 1 ))
+                printf "%s" "$_cnt" > "'"$_poll_counter"'"
+                return 1
+            }
+
+            _fetch_ci_log() { return 1; }
+
+            _phase_remediate
+        ' "$PR_SCRIPT"
+    ); _ec=$?
+
+    local _tier2_was_called="false"
+    [[ -f "$_tier2_called" ]] && _tier2_was_called="true"
+
+    assert_eq "t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll: tier2 tried after tier1 repoll failure" "true" "$_tier2_was_called"
+    assert_eq "t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll: returns 2 when all tiers exhaust" "2" "$_ec"
+}
+t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll
+
+# ---------------------------------------------------------------------------
 print_summary
