@@ -218,6 +218,80 @@ with open(sf + '.tmp', 'w') as f:
     return 0
 }
 
+# Write remediation loop state to the state file atomically.
+# Args: $1=phase (string), $2=attempts_per_tier (JSON object string), $3=attempts_global (integer)
+_state_write_remediation_state() {
+    local _phase="$1"
+    local _per_tier="$2"
+    local _global="$3"
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    [[ -f "$_sf" ]] || return 0
+    # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
+    # Pass variables via env to avoid shell-string interpolation injection.
+    _DSO_SF="$_sf" _DSO_PHASE="$_phase" _DSO_PER_TIER="$_per_tier" _DSO_GLOBAL="$_global" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
+    d = json.load(f)
+d['remediation_phase'] = os.environ['_DSO_PHASE']
+try:
+    d['remediation_attempts_per_tier'] = json.loads(os.environ['_DSO_PER_TIER'])
+except Exception:
+    d['remediation_attempts_per_tier'] = {}
+try:
+    d['remediation_attempts_global'] = int(os.environ['_DSO_GLOBAL'])
+except Exception:
+    d['remediation_attempts_global'] = 0
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
+    return 0
+}
+
+# Read remediation loop state from the state file.
+# Outputs KEY=VALUE lines on stdout. Defaults when state file absent or fields missing.
+_state_read_remediation_state() {
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || {
+        echo "remediation_phase="
+        echo "remediation_attempts_per_tier={}"
+        echo "remediation_attempts_global=0"
+        return 0
+    }
+    if [[ ! -f "$_sf" ]]; then
+        echo "remediation_phase="
+        echo "remediation_attempts_per_tier={}"
+        echo "remediation_attempts_global=0"
+        return 0
+    fi
+    _DSO_SF="$_sf" python3 -c "
+import json, os
+try:
+    with open(os.environ['_DSO_SF']) as f:
+        d = json.load(f)
+    phase = d.get('remediation_phase', '')
+    per_tier = d.get('remediation_attempts_per_tier', {})
+    global_cnt = d.get('remediation_attempts_global', 0)
+    if isinstance(per_tier, dict):
+        per_tier_str = json.dumps(per_tier)
+    else:
+        per_tier_str = str(per_tier)
+    print('remediation_phase=' + str(phase))
+    print('remediation_attempts_per_tier=' + per_tier_str)
+    print('remediation_attempts_global=' + str(int(global_cnt)))
+except Exception:
+    print('remediation_phase=')
+    print('remediation_attempts_per_tier={}')
+    print('remediation_attempts_global=0')
+" 2>/dev/null || {
+        echo "remediation_phase="
+        echo "remediation_attempts_per_tier={}"
+        echo "remediation_attempts_global=0"
+    }
+    return 0
+}
+
 # --- Lock staleness check ---
 # Usage: _is_lock_stale <lock_file>
 # Returns 0 (true/stale) if the lock can be broken, 1 (false/valid) if the lock is held.

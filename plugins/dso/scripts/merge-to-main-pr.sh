@@ -962,6 +962,88 @@ _phase_conflict_resolution() {
     return 0
 }
 
+# --- _remediate_counter_increment: check tier and global ceilings ---
+# Args: $1=tier (1-4), $2=t1_count, $3=t2_count, $4=t3_count, $5=t4_count, $6=global_count
+# Prints TIER_CEILING or GLOBAL_CEILING on stdout when a stop condition is met.
+# Prints nothing (empty stdout) when counts are under all ceilings.
+# Returns 0 in all cases.
+_remediate_counter_increment() {
+    local _tier="${1:-1}"
+    local _t1="${2:-0}"
+    local _t2="${3:-0}"
+    local _t3="${4:-0}"
+    local _t4="${5:-0}"
+    local _global="${6:-0}"
+    local _tier_ceiling=5
+    local _global_ceiling=15
+
+    # Select the tier-specific count
+    local _tier_count
+    case "$_tier" in
+        1) _tier_count="$_t1" ;;
+        2) _tier_count="$_t2" ;;
+        3) _tier_count="$_t3" ;;
+        4) _tier_count="$_t4" ;;
+        *) _tier_count="$_t1" ;;
+    esac
+
+    # Check tier ceiling first
+    if (( _tier_count >= _tier_ceiling )); then
+        echo "TIER_CEILING"
+        return 0
+    fi
+
+    # Check global ceiling
+    if (( _global >= _global_ceiling )); then
+        echo "GLOBAL_CEILING"
+        return 0
+    fi
+
+    return 0
+}
+
+# --- _remediate_emit_escalation: emit a structured escalation JSON object ---
+# Args: $1=stop_reason, $2=tiers_attempted (CSV), $3=attempts_per_tier (JSON string),
+#       $4=remaining_findings_path, $5=suggested_next_step
+# Emits a JSON object to stdout.
+_remediate_emit_escalation() {
+    local _stop_reason="${1:-}"
+    local _tiers_attempted="${2:-}"
+    local _per_tier_json="${3:-{}}"
+    local _remaining_path="${4:-}"
+    local _next_step="${5:-}"
+
+    STOP="$_stop_reason" TIERS="$_tiers_attempted" PER_TIER="$_per_tier_json" \
+    RPATH="$_remaining_path" NEXT="$_next_step" python3 -c "
+import json, os, datetime, sys
+stop = os.environ.get('STOP', '')
+tiers = os.environ.get('TIERS', '')
+per_tier_raw = os.environ.get('PER_TIER', '{}')
+rpath = os.environ.get('RPATH', '')
+nxt = os.environ.get('NEXT', '')
+try:
+    per_tier = json.loads(per_tier_raw)
+except Exception:
+    per_tier = {}
+# Use timezone-aware UTC (datetime.utcnow() is deprecated in Python 3.12+)
+if sys.version_info >= (3, 2):
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+else:
+    ts = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+d = {
+    'schema_version': 1,
+    'stop_reason': stop,
+    'tiers_attempted': tiers,
+    'attempts_per_tier': per_tier,
+    'remaining_findings': rpath,
+    'suggested_next_step': nxt,
+    'timestamp': ts,
+}
+print(json.dumps(d))
+" 2>/dev/null || true
+    return 0
+}
+
 # --- _dispatch_fix_agent: invoke LLM sub-agent to apply fixes from findings ---
 #
 # ENV OVERRIDES (for testing):
@@ -969,13 +1051,23 @@ _phase_conflict_resolution() {
 #                         Separate from _LLM_DISPATCH_CMD to avoid colliding with
 #                         the thread-resolution override in _phase_resolve_threads.
 #
+# Args: $1=findings_path, $2=attempt_num (optional; when ==4, injects budget-pressure text)
 # Returns: 0=FIXES_APPLIED, 1=FAIL/unknown, 2=ESCALATE
 _dispatch_fix_agent() {
     local _findings_path="$1"
+    local _attempt_num="${2:-}"
     local _llm_cmd="${_REMEDIATE_LLM_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
     local _prompt_file="${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md"
     local _result
-    _result=$("$_llm_cmd" "$_prompt_file" "$_findings_path" "sonnet" 2>&1) || true
+    local _user_msg="$_findings_path"
+    if [[ "$_attempt_num" == "4" ]]; then
+        # Append budget-pressure context to the user message so the LLM receives it.
+        # llm-api-call.sh arg 2 is the user-message string — appending here ensures it
+        # reaches the model regardless of whether the caller is a real LLM or a test stub.
+        _user_msg="${_findings_path}
+This is attempt 4 of 5 - if you cannot resolve this finding, return ESCALATE with a clear explanation"
+    fi
+    _result=$("$_llm_cmd" "$_prompt_file" "$_user_msg" "sonnet" 2>&1) || true
     case "$_result" in
         *"RESOLUTION_RESULT: FIXES_APPLIED"*) return 0 ;;
         *"RESOLUTION_RESULT: ESCALATE"*)      return 2 ;;
