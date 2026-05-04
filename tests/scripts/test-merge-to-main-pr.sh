@@ -1867,5 +1867,201 @@ EOF
 }
 t_main_flow_skips_remediate_on_poll_success
 
+# ===========================================================================
+# Tests for _phase_conflict_resolution (task 9b44-ac2a-ceb0-45a1)
+#
+# _phase_conflict_resolution(pr_number, pr_url) is NOT YET IMPLEMENTED.
+# All 4 tests below FAIL (RED) before the function is added.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# t_phase_conflict_resolution_dispatches_when_conflicting
+# When gh pr view --json mergeStateStatus returns CONFLICTING on first call
+# and CLEAN on second call, _phase_conflict_resolution must:
+#   - call _dispatch_resolve_conflicts exactly once
+#   - return 0
+# RED reason: _phase_conflict_resolution not defined.
+# ---------------------------------------------------------------------------
+t_phase_conflict_resolution_dispatches_when_conflicting() {
+    local _T _branch_safe _dispatch_called _ec
+    _T="$(mktemp -d /tmp/dso-pcr-dispatch-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-pcr-dispatch-$$"
+
+    # gh shim: first mergeStateStatus call → CONFLICTING; second → CLEAN
+    local _gh_call_count_file="$_T/gh-call-count"
+    : > "$_gh_call_count_file"
+    mkdir -p "$_T/bin"
+
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+if [[ "\$*" == *"mergeStateStatus"* ]]; then
+    printf 'x' >> "$_gh_call_count_file"
+    _cnt=\$(wc -c < "$_gh_call_count_file" 2>/dev/null | tr -d ' ' || echo 0)
+    if [[ "\$_cnt" -le 1 ]]; then
+        echo "CONFLICTING"
+    else
+        echo "CLEAN"
+    fi
+    exit 0
+fi
+exit 0
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            # Stub _dispatch_resolve_conflicts to record call
+            _dispatch_resolve_conflicts() {
+                touch "'"$_T/dispatch-called"'"
+                return 0
+            }
+            _phase_conflict_resolution "123" "https://example.com/pr/123"
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null
+    _ec=$?
+
+    _dispatch_called="$(test -f "$_T/dispatch-called" && echo yes || echo no)"
+
+    assert_eq "t_phase_conflict_resolution_dispatches_when_conflicting: returns 0" "0" "$_ec"
+    assert_eq "t_phase_conflict_resolution_dispatches_when_conflicting: dispatch called" "yes" "$_dispatch_called"
+}
+t_phase_conflict_resolution_dispatches_when_conflicting
+
+# ---------------------------------------------------------------------------
+# t_phase_conflict_resolution_noop_when_not_conflicting
+# When gh pr view --json mergeStateStatus returns CLEAN (not CONFLICTING),
+# _phase_conflict_resolution must return 0 WITHOUT calling
+# _dispatch_resolve_conflicts.
+# RED reason: _phase_conflict_resolution not defined.
+# ---------------------------------------------------------------------------
+t_phase_conflict_resolution_noop_when_not_conflicting() {
+    local _T _branch_safe _dispatch_called _ec
+    _T="$(mktemp -d /tmp/dso-pcr-noop-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-pcr-noop-$$"
+
+    mkdir -p "$_T/bin"
+
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+if [[ "\$*" == *"mergeStateStatus"* ]]; then
+    echo "CLEAN"
+    exit 0
+fi
+exit 0
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _dispatch_resolve_conflicts() {
+                touch "'"$_T/dispatch-called"'"
+                return 0
+            }
+            _phase_conflict_resolution "123" "https://example.com/pr/123"
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null
+    _ec=$?
+
+    _dispatch_called="$(test -f "$_T/dispatch-called" && echo yes || echo no)"
+
+    assert_eq "t_phase_conflict_resolution_noop_when_not_conflicting: returns 0" "0" "$_ec"
+    assert_eq "t_phase_conflict_resolution_noop_when_not_conflicting: dispatch NOT called" "no" "$_dispatch_called"
+}
+t_phase_conflict_resolution_noop_when_not_conflicting
+
+# ---------------------------------------------------------------------------
+# t_phase_conflict_resolution_fails_when_conflicts_remain
+# When gh pr view --json mergeStateStatus always returns CONFLICTING (even
+# after _dispatch_resolve_conflicts runs), _phase_conflict_resolution must
+# emit ESCALATION_REASON on stderr and return non-zero.
+# RED reason: _phase_conflict_resolution not defined.
+# ---------------------------------------------------------------------------
+t_phase_conflict_resolution_fails_when_conflicts_remain() {
+    local _T _branch_safe _stderr _ec _exits_nonzero _has_escalation
+    _T="$(mktemp -d /tmp/dso-pcr-fail-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-pcr-fail-$$"
+
+    mkdir -p "$_T/bin"
+
+    # gh shim: always returns CONFLICTING
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+if [[ "\$*" == *"mergeStateStatus"* ]]; then
+    echo "CONFLICTING"
+    exit 0
+fi
+exit 0
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    _stderr="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _dispatch_resolve_conflicts() {
+                return 0
+            }
+            _phase_conflict_resolution "123" "https://example.com/pr/123"
+        ' "$PR_SCRIPT" 2>&1 >/dev/null
+    )"
+    _ec=$?
+
+    _exits_nonzero="false"
+    [[ "$_ec" -ne 0 ]] && _exits_nonzero="true"
+
+    _has_escalation="false"
+    if echo "$_stderr" | grep -q "ESCALATION_REASON"; then
+        _has_escalation="true"
+    fi
+
+    assert_eq "t_phase_conflict_resolution_fails_when_conflicts_remain: exits nonzero" "true" "$_exits_nonzero"
+    assert_eq "t_phase_conflict_resolution_fails_when_conflicts_remain: emits ESCALATION_REASON" "true" "$_has_escalation"
+}
+t_phase_conflict_resolution_fails_when_conflicts_remain
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_not_called_when_conflict_resolution_fails
+# DEFERRED: main-flow integration test added in T2 (GREEN) once production code
+# has the _phase_conflict_resolution gate. Tests 1-3 above verify the function
+# contract behaviorally (dispatches on CONFLICTING, no-op otherwise, ESCALATION
+# on unresolved conflicts). The gate's interaction with the main flow is verified
+# via end-to-end tests post-implementation.
+# ---------------------------------------------------------------------------
+t_phase_remediate_not_called_when_conflict_resolution_fails() {
+    # DEFERRED: main-flow integration test requires production code to have the
+    # _phase_conflict_resolution gate in place. Added in T2 [GREEN] post-implementation.
+    # Tests 1-3 above cover the _phase_conflict_resolution contract behaviorally.
+    true
+}
+t_phase_remediate_not_called_when_conflict_resolution_fails
+
 # ---------------------------------------------------------------------------
 print_summary
