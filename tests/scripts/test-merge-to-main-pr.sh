@@ -2266,5 +2266,433 @@ STATE_EOF
 }
 t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll
 
+# ===========================================================================
+# Tests for bounded-retry support in _phase_remediate
+# (story 4786-614e-8467-4bba, task 0a02-a133-f925-43b7)
+#
+# All tests below FAIL (RED) because:
+#   - _remediate_counter_increment is not yet defined in merge-to-main-pr.sh
+#   - _remediate_emit_escalation is not yet defined in merge-to-main-pr.sh
+#   - _state_write_remediation_state / _state_read_remediation_state are not yet
+#     defined in merge-helpers.sh
+#   - _dispatch_fix_agent does not yet accept a second argument (_attempt_num)
+#     for budget-pressure injection
+#
+# Tests turn GREEN once T4b/T4c/T4d add those functions.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Group 1: _remediate_counter_increment
+# ---------------------------------------------------------------------------
+
+# t_remediate_counter_increment_stops_at_tier_ceiling
+# When tier=1 and t1_count has just hit its ceiling (5), the function must
+# emit "TIER_CEILING" on stdout. RED: function doesn't exist yet.
+# ---------------------------------------------------------------------------
+t_remediate_counter_increment_stops_at_tier_ceiling() {
+    local _out
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_counter_increment 1 5 0 0 0 10
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    local _has_ceiling="false"
+    if echo "$_out" | grep -q "TIER_CEILING"; then
+        _has_ceiling="true"
+    fi
+
+    assert_eq "t_remediate_counter_increment_stops_at_tier_ceiling: stdout contains TIER_CEILING" \
+        "true" "$_has_ceiling"
+}
+t_remediate_counter_increment_stops_at_tier_ceiling
+
+# ---------------------------------------------------------------------------
+# t_remediate_counter_increment_stops_at_global_ceiling
+# When global=15 (at or above the global ceiling), the function must emit
+# "GLOBAL_CEILING" on stdout. RED: function doesn't exist yet.
+# ---------------------------------------------------------------------------
+t_remediate_counter_increment_stops_at_global_ceiling() {
+    local _out
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_counter_increment 2 3 3 0 0 15
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    local _has_ceiling="false"
+    if echo "$_out" | grep -q "GLOBAL_CEILING"; then
+        _has_ceiling="true"
+    fi
+
+    assert_eq "t_remediate_counter_increment_stops_at_global_ceiling: stdout contains GLOBAL_CEILING" \
+        "true" "$_has_ceiling"
+}
+t_remediate_counter_increment_stops_at_global_ceiling
+
+# ---------------------------------------------------------------------------
+# t_remediate_counter_increment_returns_empty_under_ceiling
+# When counts are well under all ceilings, the function must produce no
+# stop-signal on stdout. RED: function doesn't exist yet.
+# ---------------------------------------------------------------------------
+t_remediate_counter_increment_returns_empty_under_ceiling() {
+    local _out _ec
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_counter_increment 1 2 0 0 0 5
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"; _ec=$?
+
+    assert_eq "t_remediate_counter_increment_returns_empty_under_ceiling: exit 0" \
+        "0" "$_ec"
+    assert_eq "t_remediate_counter_increment_returns_empty_under_ceiling: stdout is empty" \
+        "" "$_out"
+}
+t_remediate_counter_increment_returns_empty_under_ceiling
+
+# ---------------------------------------------------------------------------
+# Group 2: _remediate_emit_escalation
+# ---------------------------------------------------------------------------
+
+# t_remediate_emit_escalation_outputs_valid_json
+# The function must emit valid JSON on stdout that includes the required fields.
+# RED: function doesn't exist yet.
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_outputs_valid_json() {
+    local _out _valid _stop_reason _has_required_fields
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "TIER_CEILING" \
+                "1" \
+                '"'"'{"1":5,"2":0,"3":0,"4":0}'"'"' \
+                "/dev/null" \
+                "Retry with updated dependencies"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _valid="$(echo "$_out" | python3 -c "import json,sys; json.load(sys.stdin); print('ok')" 2>/dev/null || echo 'invalid')"
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+
+    _has_required_fields="$(echo "$_out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+required=['stop_reason','tiers_attempted','attempts_per_tier','remaining_findings','suggested_next_step']
+missing=[k for k in required if k not in d]
+print('ok' if not missing else 'missing:'+','.join(missing))
+" 2>/dev/null || echo 'invalid')"
+
+    assert_eq "t_remediate_emit_escalation_outputs_valid_json: valid JSON" "ok" "$_valid"
+    assert_eq "t_remediate_emit_escalation_outputs_valid_json: stop_reason=TIER_CEILING" "TIER_CEILING" "$_stop_reason"
+    assert_eq "t_remediate_emit_escalation_outputs_valid_json: required fields present" "ok" "$_has_required_fields"
+}
+t_remediate_emit_escalation_outputs_valid_json
+
+# ---------------------------------------------------------------------------
+# t_remediate_emit_escalation_global_ceiling_stop_reason
+# When called with stop_reason="GLOBAL_CEILING", JSON stop_reason must be
+# "GLOBAL_CEILING". RED: function doesn't exist yet.
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_global_ceiling_stop_reason() {
+    local _out _stop_reason
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "GLOBAL_CEILING" \
+                "3" \
+                '"'"'{"1":5,"2":3,"3":2,"4":0}'"'"' \
+                "/dev/null" \
+                "Global retry limit reached"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+    assert_eq "t_remediate_emit_escalation_global_ceiling_stop_reason: stop_reason=GLOBAL_CEILING" \
+        "GLOBAL_CEILING" "$_stop_reason"
+}
+t_remediate_emit_escalation_global_ceiling_stop_reason
+
+# ---------------------------------------------------------------------------
+# t_remediate_emit_escalation_cannot_proceed_stop_reason
+# When called with stop_reason="CANNOT_PROCEED", JSON stop_reason must match.
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_cannot_proceed_stop_reason() {
+    local _out _stop_reason
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "CANNOT_PROCEED" \
+                "1" \
+                '"'"'{"1":1,"2":0,"3":0,"4":0}'"'"' \
+                "/dev/null" \
+                "Manual intervention required"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+    assert_eq "t_remediate_emit_escalation_cannot_proceed_stop_reason: stop_reason=CANNOT_PROCEED" \
+        "CANNOT_PROCEED" "$_stop_reason"
+}
+t_remediate_emit_escalation_cannot_proceed_stop_reason
+
+# ---------------------------------------------------------------------------
+# t_remediate_emit_escalation_oscillation_stop_reason
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_oscillation_stop_reason() {
+    local _out _stop_reason
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "OSCILLATION" \
+                "2" \
+                '"'"'{"1":2,"2":1,"3":0,"4":0}'"'"' \
+                "/dev/null" \
+                "Fix oscillating between states"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+    assert_eq "t_remediate_emit_escalation_oscillation_stop_reason: stop_reason=OSCILLATION" \
+        "OSCILLATION" "$_stop_reason"
+}
+t_remediate_emit_escalation_oscillation_stop_reason
+
+# ---------------------------------------------------------------------------
+# t_remediate_emit_escalation_throttle_pause_stop_reason
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_throttle_pause_stop_reason() {
+    local _out _stop_reason
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "THROTTLE_PAUSE" \
+                "1" \
+                '"'"'{"1":1,"2":0,"3":0,"4":0}'"'"' \
+                "/dev/null" \
+                "Usage throttle hit; retry later"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+    assert_eq "t_remediate_emit_escalation_throttle_pause_stop_reason: stop_reason=THROTTLE_PAUSE" \
+        "THROTTLE_PAUSE" "$_stop_reason"
+}
+t_remediate_emit_escalation_throttle_pause_stop_reason
+
+# ---------------------------------------------------------------------------
+# t_remediate_emit_escalation_conflict_resolution_failed_stop_reason
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_conflict_resolution_failed_stop_reason() {
+    local _out _stop_reason
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "CONFLICT_RESOLUTION_FAILED" \
+                "2" \
+                '"'"'{"1":2,"2":1,"3":0,"4":0}'"'"' \
+                "/dev/null" \
+                "Resolve conflicts manually"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+    assert_eq "t_remediate_emit_escalation_conflict_resolution_failed_stop_reason: stop_reason=CONFLICT_RESOLUTION_FAILED" \
+        "CONFLICT_RESOLUTION_FAILED" "$_stop_reason"
+}
+t_remediate_emit_escalation_conflict_resolution_failed_stop_reason
+
+# ---------------------------------------------------------------------------
+# t_remediate_emit_escalation_artifact_missing_stop_reason
+# ---------------------------------------------------------------------------
+t_remediate_emit_escalation_artifact_missing_stop_reason() {
+    local _out _stop_reason
+    _out="$(
+        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _remediate_emit_escalation \
+                "ARTIFACT_MISSING" \
+                "4" \
+                '"'"'{"1":0,"2":0,"3":0,"4":1}'"'"' \
+                "/dev/null" \
+                "All tier artifacts unavailable"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )" || true
+
+    _stop_reason="$(echo "$_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_reason','MISSING'))" 2>/dev/null || echo 'MISSING')"
+    assert_eq "t_remediate_emit_escalation_artifact_missing_stop_reason: stop_reason=ARTIFACT_MISSING" \
+        "ARTIFACT_MISSING" "$_stop_reason"
+}
+t_remediate_emit_escalation_artifact_missing_stop_reason
+
+# ---------------------------------------------------------------------------
+# Group 3: _state_write_remediation_state / _state_read_remediation_state
+# ---------------------------------------------------------------------------
+
+# t_state_write_read_remediation_state_round_trip
+# After _state_init + _state_write_remediation_state, _state_read_remediation_state
+# must return output containing the written phase and global attempt count.
+# RED: neither function exists in merge-helpers.sh yet.
+# ---------------------------------------------------------------------------
+t_state_write_read_remediation_state_round_trip() {
+    local _branch_safe _state_file _output
+    _branch_safe="test-branch-4786"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    _output="$(
+        BRANCH="$_branch_safe" MERGE_STRATEGY="pr" \
+        bash -c "
+            source '$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh' 2>/dev/null || exit 1
+            _state_init 2>/dev/null || true
+            _state_write_remediation_state 'remediate' '{\"1\":2,\"2\":0,\"3\":0,\"4\":0}' 2 2>/dev/null
+            _state_read_remediation_state 2>/dev/null
+        "
+    )" 2>/dev/null || true
+
+    local _has_phase="false"
+    local _has_global_count="false"
+    if echo "$_output" | grep -q "remediation_phase=remediate"; then
+        _has_phase="true"
+    fi
+    if echo "$_output" | grep -q "remediation_attempts_global=2"; then
+        _has_global_count="true"
+    fi
+
+    assert_eq "t_state_write_read_remediation_state_round_trip: phase persisted" \
+        "true" "$_has_phase"
+    assert_eq "t_state_write_read_remediation_state_round_trip: global count persisted" \
+        "true" "$_has_global_count"
+}
+t_state_write_read_remediation_state_round_trip
+
+# ---------------------------------------------------------------------------
+# Group 4: _dispatch_fix_agent budget-pressure injection
+# ---------------------------------------------------------------------------
+
+# t_dispatch_fix_agent_injects_budget_pressure_at_attempt_4
+# When called with attempt_num=4, the prompt passed to the LLM command must
+# contain "attempt 4 of 5" (or similar budget-pressure language indicating
+# the penultimate attempt). RED: _dispatch_fix_agent doesn't accept a second
+# argument yet.
+# ---------------------------------------------------------------------------
+t_dispatch_fix_agent_injects_budget_pressure_at_attempt_4() {
+    local _T _branch_safe _captured_output
+    _T="$(mktemp -d /tmp/dso-dispatch-budget-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-budget-pressure-$$"
+
+    cat > "$_T/findings.json" <<'FINDINGS_EOF'
+{"findings":[{"severity":"important","description":"test finding","file":"foo.py"}]}
+FINDINGS_EOF
+
+    # Capture stub: records everything passed to it to a log file
+    cat > "$_T/capture_stub.sh" <<CAPTURE_EOF
+#!/usr/bin/env bash
+# Write all args and stdin to the capture log
+printf '%s\n' "\$*" >> "$_T/capture.log"
+cat >> "$_T/capture.log" 2>/dev/null || true
+echo "RESOLUTION_RESULT: FIXES_APPLIED"
+exit 0
+CAPTURE_EOF
+    chmod +x "$_T/capture_stub.sh"
+
+    (
+        cd "$_T" || exit 1
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        BRANCH="$_branch_safe" \
+        MERGE_STRATEGY="pr" \
+        _REMEDIATE_LLM_CMD="$_T/capture_stub.sh" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _dispatch_fix_agent "'"$_T/findings.json"'" 4 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null || true
+
+    _captured_output="$(cat "$_T/capture.log" 2>/dev/null || echo '')"
+
+    local _has_budget_pressure="false"
+    if echo "$_captured_output" | grep -q "attempt 4 of 5"; then
+        _has_budget_pressure="true"
+    fi
+
+    assert_eq "t_dispatch_fix_agent_injects_budget_pressure_at_attempt_4: budget pressure in LLM input" \
+        "true" "$_has_budget_pressure"
+}
+t_dispatch_fix_agent_injects_budget_pressure_at_attempt_4
+
+# ---------------------------------------------------------------------------
+# t_dispatch_fix_agent_no_budget_pressure_at_attempt_1
+# When called with attempt_num=1 (first attempt), the prompt must NOT contain
+# "attempt 4 of 5" budget-pressure text.
+# RED: _dispatch_fix_agent doesn't accept a second argument yet.
+# ---------------------------------------------------------------------------
+t_dispatch_fix_agent_no_budget_pressure_at_attempt_1() {
+    local _T _branch_safe _captured_output
+    _T="$(mktemp -d /tmp/dso-dispatch-nobudget-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _branch_safe="test-no-budget-$$"
+
+    cat > "$_T/findings.json" <<'FINDINGS_EOF'
+{"findings":[{"severity":"important","description":"test finding","file":"foo.py"}]}
+FINDINGS_EOF
+
+    cat > "$_T/capture_stub.sh" <<CAPTURE_EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/capture.log"
+cat >> "$_T/capture.log" 2>/dev/null || true
+echo "RESOLUTION_RESULT: FIXES_APPLIED"
+exit 0
+CAPTURE_EOF
+    chmod +x "$_T/capture_stub.sh"
+
+    (
+        cd "$_T" || exit 1
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        BRANCH="$_branch_safe" \
+        MERGE_STRATEGY="pr" \
+        _REMEDIATE_LLM_CMD="$_T/capture_stub.sh" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _dispatch_fix_agent "'"$_T/findings.json"'" 1 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null || true
+
+    _captured_output="$(cat "$_T/capture.log" 2>/dev/null || echo '')"
+
+    local _has_budget_pressure="false"
+    if echo "$_captured_output" | grep -q "attempt 4 of 5"; then
+        _has_budget_pressure="true"
+    fi
+
+    assert_eq "t_dispatch_fix_agent_no_budget_pressure_at_attempt_1: no budget pressure at attempt 1" \
+        "false" "$_has_budget_pressure"
+}
+t_dispatch_fix_agent_no_budget_pressure_at_attempt_1
+
 # ---------------------------------------------------------------------------
 print_summary
