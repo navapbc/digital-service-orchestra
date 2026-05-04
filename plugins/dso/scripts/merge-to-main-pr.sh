@@ -875,9 +875,11 @@ except Exception:
 
             if [[ "$_has_failure" == "true" ]]; then
                 echo "ERROR: required check failed for PR ${_pr_url}" >&2
-                # Record the failed run ID so _phase_remediate can download artifacts
+                # Record the failed run ID so _phase_remediate can download artifacts.
+                # Filter by branch to avoid capturing an unrelated concurrent PR's run.
+                # BRANCH is set at script init from the current git branch.
                 local _run_list _run_id=''
-                _run_list=$(gh run list --limit 1 --json databaseId 2>/dev/null || true)
+                _run_list=$(gh run list --branch "$BRANCH" --limit 1 --json databaseId 2>/dev/null || true)
                 _run_id=$(echo "$_run_list" | python3 -c "
 import json, sys
 try:
@@ -1196,6 +1198,27 @@ except Exception:
         _prev_pass_successes="$_cur_pass_successes"
         _cur_pass_successes=''
         _all_tiers_artifact_missing=1
+
+        # If _phase_poll captured a NEW failed_run_id during the prior pass
+        # (i.e., a fix was pushed and CI re-ran with a fresh failure), re-download
+        # artifacts so the next pass operates on current findings. Without this,
+        # the loop reuses the original artifacts indefinitely and dispatches
+        # fix-agents against stale findings.
+        local _current_run_id
+        _current_run_id=$(_state_read_failed_run_id 2>/dev/null || echo "")
+        if [[ -n "$_current_run_id" ]] && [[ "$_current_run_id" != "$_failed_run_id" ]]; then
+            rm -rf "$_artifacts_dir"
+            _artifacts_dir=$(mktemp -d /tmp/dso-remediate-artifacts.XXXXXX)
+            if ! gh run download "$_current_run_id" --dir "$_artifacts_dir" 2>/dev/null; then
+                # Fresh download failed — escalate as ARTIFACT_MISSING rather than
+                # silently reuse stale data. The orchestrator can retry manually.
+                rm -rf "$_artifacts_dir"
+                _per_tier_json="{\"1\":${_attempts_t1},\"2\":${_attempts_t2},\"3\":${_attempts_t3},\"4\":${_attempts_t4}}"
+                _remediate_emit_escalation "ARTIFACT_MISSING" "$_tiers_attempted" "$_per_tier_json" "" "Could not download artifacts for run ${_current_run_id}"
+                return 2
+            fi
+            _failed_run_id="$_current_run_id"
+        fi
 
         for _tier in 1 2 3 4; do
 

@@ -172,6 +172,25 @@ with open(sf + '.tmp', 'w') as f:
     return 0
 }
 
+# Read the last-recorded failed_run_id from the state file. Empty string when
+# the state file or field is absent. Used by _phase_remediate to detect when
+# _phase_poll has captured a new CI run after a fix push, so it can re-download
+# fresh artifacts instead of reusing the original (now-stale) ones.
+_state_read_failed_run_id() {
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || { echo ""; return 0; }
+    [[ -f "$_sf" ]] || { echo ""; return 0; }
+    _DSO_SF="$_sf" python3 -c "
+import json, os
+try:
+    with open(os.environ['_DSO_SF']) as f:
+        d = json.load(f)
+    print(d.get('failed_run_id', ''))
+except Exception:
+    print('')
+" 2>/dev/null || echo ""
+}
+
 _state_get_retry_count() {
     local _sf
     _sf=$(_state_file_path) 2>/dev/null || { echo "0"; return 0; }

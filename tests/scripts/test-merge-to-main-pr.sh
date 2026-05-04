@@ -1180,6 +1180,147 @@ EOF
 t_phase_poll_records_failed_run_id_on_ci_failure
 
 # ---------------------------------------------------------------------------
+# t_phase_poll_run_list_filters_by_branch
+# Regression test for the cross-PR run-id pollution fix: when _phase_poll
+# captures a failed run ID via `gh run list`, it MUST pass --branch <BRANCH>
+# so concurrent CI runs from unrelated PRs cannot poison the captured ID.
+# ---------------------------------------------------------------------------
+t_phase_poll_run_list_filters_by_branch() {
+    local _T _branch_safe _state_file _argv _has_branch_filter
+    _T="$(mktemp -d /tmp/dso-poll-runid-test.XXXXXX)"
+    _branch_safe="test-runlist-branch-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+case "\$1 \$2" in
+  "pr checks")  echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]' ;;
+  "pr view")    echo '{"state":"OPEN"}' ;;
+  "run list")   echo '[{"databaseId":"RUN999"}]' ;;
+  *) ;;
+esac
+exit 0
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _state_init 2>/dev/null || true
+            _phase_poll "42" "https://github.com/x/y/pull/42" 2>/dev/null
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null || true
+
+    _argv=$(cat "$_T/gh-argv.log" 2>/dev/null || echo '')
+    # Look specifically at the `run list` invocation line and verify --branch <name> is present.
+    _has_branch_filter="false"
+    if echo "$_argv" | grep -E "^run list" | grep -q -- "--branch ${_branch_safe}"; then
+        _has_branch_filter="true"
+    fi
+    assert_eq "t_phase_poll_run_list_filters_by_branch" "true" "$_has_branch_filter"
+}
+t_phase_poll_run_list_filters_by_branch
+
+# ---------------------------------------------------------------------------
+# t_phase_remediate_redownloads_artifacts_when_run_id_changes
+# Regression test for stale-artifact reuse: when a fix push triggers a NEW
+# CI run, _phase_poll records the new failed_run_id in state. On the next
+# outer iteration of the remediation loop, _phase_remediate must re-download
+# artifacts using the new run ID rather than reusing the original artifacts.
+# ---------------------------------------------------------------------------
+t_phase_remediate_redownloads_artifacts_when_run_id_changes() {
+    local _T _branch_safe _state_file _download_log _has_new_runid_download
+    _T="$(mktemp -d /tmp/dso-remediate-redl-test.XXXXXX)"
+    _branch_safe="test-redownload-$$"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    _download_log="$_T/gh-download.log"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    # Seed the state file with an INITIAL failed_run_id, then on poll-failure
+    # we'll have the gh shim "update" it (via _state_record_failed_run_id) to
+    # a new value, simulating the post-fix-push CI re-run.
+    mkdir -p "$_T"
+    cat > "$_state_file" <<EOF
+{"branch":"$_branch_safe","failed_run_id":"OLD_RUN_111","completed_phases":[],"current_phase":"","phases":{},"merge_strategy":"pr"}
+EOF
+
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+case "\$1 \$2" in
+  "run download")
+    # Record which run ID was downloaded
+    echo "downloaded:\$3" >> "$_download_log"
+    # Simulate a download failure on the SECOND run-id (NEW_RUN_222) so the
+    # loop emits ARTIFACT_MISSING — that exit code is observable, and the
+    # download attempt itself is logged regardless.
+    if [[ "\$3" == "NEW_RUN_222" ]]; then
+        exit 1
+    fi
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    # Update state mid-flight: simulate _phase_poll having captured a NEW run id
+    # by overwriting the state file's failed_run_id BEFORE _phase_remediate's
+    # outer-loop re-read fires. We do this by monkey-patching _phase_poll
+    # to mutate state and return failure, forcing the loop to iterate.
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$_branch_safe" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            # Stub: simulate a fix-push that updates state to NEW_RUN_222 then poll fails
+            _phase_poll() { _state_record_failed_run_id "NEW_RUN_222"; return 1; }
+            _push_fix_branch() { return 0; }
+            _dispatch_fix_agent() { echo "{\"findings\":[]}" > "$2.dummy"; return 0; }
+            _normalize_tier1() { echo "{}" > "$2"; return 0; }
+            _normalize_tier2() { return 3; }
+            _normalize_tier3() { return 3; }
+            _normalize_tier4() { return 3; }
+            _check_usage_for_remediate() { return 0; }
+            _phase_remediate "42" "https://github.com/x/y/pull/42" 2>/dev/null || true
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null || true
+
+    # Verify: gh run download was called for NEW_RUN_222 (the post-poll run id)
+    _has_new_runid_download="false"
+    if grep -q "downloaded:NEW_RUN_222" "$_download_log" 2>/dev/null; then
+        _has_new_runid_download="true"
+    fi
+    assert_eq "t_phase_remediate_redownloads_artifacts_when_run_id_changes" "true" "$_has_new_runid_download"
+}
+t_phase_remediate_redownloads_artifacts_when_run_id_changes
+
+# ---------------------------------------------------------------------------
 # t_dispatch_fix_agent_invokes_llm_with_correct_args
 # _dispatch_fix_agent must invoke the LLM stub with the review-fix-dispatch
 # prompt and the findings path as arguments.
