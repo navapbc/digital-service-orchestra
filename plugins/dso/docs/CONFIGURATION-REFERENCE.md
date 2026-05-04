@@ -227,10 +227,10 @@ Security, performance, and test-quality overlays are dispatched automatically wh
 
 | | |
 |---|---|
-| **Description** | Overrides the DSO plugin version used in CI LLM review. This is Tier 2 of the 3-tier version resolution chain: Tier 1 is the pinned `DSO_PLUGIN_VERSION` env var in the workflow file; Tier 2 is this config key (project-level override without editing the workflow); Tier 3 is `dso-dev` (latest HEAD, fallback). When absent, the workflow-pinned version is used. |
-| **Accepted values** | Any published plugin channel or version tag (e.g., `dso`, `dso-dev`, `v1.13.0`) |
-| **Default** | Absent — workflow-pinned version used |
-| **Used by** | `.github/workflows/ci.yml` (llm-review job, DSO_PLUGIN_VERSION resolution) |
+| **Description** | Overrides the DSO plugin version used in CI LLM review. This is **Tier 2** of the 3-tier version resolution chain implemented by `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh`: **Tier 1** is `~/.claude/plugins/installed_plugins.json` (the Claude per-project plugin tracking file; key `dso@digital-service-orchestra`) — overridable via the `PLUGIN_TRACKING_FILE` env var; **Tier 2** is this config key in `.claude/dso-config.conf` (project-level override without editing the workflow) — overridable via the `DSO_CONFIG_FILE` env var; **Tier 3** is the `dso` (stable) channel in `.claude-plugin/marketplace.json` — overridable via the `MARKETPLACE_JSON` env var. The resolver does **not** fall back to the `dso-dev` channel; if Tier 3 is reached and the stable `dso` channel is absent or malformed, the resolver exits non-zero. When all three tiers fail, the workflow exits with a diagnostic indicating which tier(s) failed. |
+| **Accepted values** | A version tag (e.g., `v1.13.0`) or a marketplace channel name resolvable in `marketplace.json` |
+| **Default** | Absent — Tier 1 (`installed_plugins.json`) or Tier 3 (`marketplace.json` `dso` channel) is used |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh` (called by `ci-dso-fetch.sh` in the generated host-project CI workflow) |
 
 ---
 
