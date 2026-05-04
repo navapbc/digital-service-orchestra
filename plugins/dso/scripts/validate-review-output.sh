@@ -9,13 +9,11 @@ set -euo pipefail
 #   validate-review-output.sh --list-callers
 #
 # Prompt IDs and their schema hashes:
-#   code-review-dispatch   d2c2c0f6c66b4ae5   (reviewer-findings.json schema)
+#   code-review-dispatch   a977b1de49b5dd3e   (reviewer-findings.json schema)
 #                          Required top-level keys: findings, summary
+#                          Required finding fields: severity, category, description, file, cited_lines
 #                          Optional: review_tier, selected_tier, escalate_review
 #                          DEPRECATED (tolerated with warning): scores
-#                          NOTE: scores key was required before story 6c75-cc5d;
-#                          it is tolerated during transition and will be rejected
-#                          after story f19a-c97e updates all reviewer agents.
 #   review-protocol        3053fa9a43e12b79   (REVIEW-SCHEMA.md base structure)
 #   plan-review            9dba6875b85b7bc3   (structured text verdict format)
 #
@@ -64,7 +62,7 @@ fi
 
 
 # --- Prompt-level schema hashes ---
-HASH_CODE_REVIEW_DISPATCH="d2c2c0f6c66b4ae5"
+HASH_CODE_REVIEW_DISPATCH="a977b1de49b5dd3e"
 HASH_REVIEW_PROTOCOL="3053fa9a43e12b79"
 HASH_PLAN_REVIEW="9dba6875b85b7bc3"
 
@@ -280,7 +278,7 @@ else:
         if not isinstance(finding, dict):
             errors.append(f"{prefix}: must be an object")
             continue
-        for field in ["severity", "category", "description", "file"]:
+        for field in ["severity", "category", "description", "file", "cited_lines"]:
             if field not in finding:
                 errors.append(f"{prefix}: missing required field '{field}'")
         sev = finding.get("severity")
@@ -289,6 +287,16 @@ else:
         cat = finding.get("category")
         if cat is not None and cat not in valid_categories:
             errors.append(f"{prefix}.category: must be one of {sorted(valid_categories)}, got: {cat!r}")
+        cited = finding.get("cited_lines")
+        if cited is not None:
+            import re
+            _cited_pattern = re.compile(r'^~?[^:]+:[1-9][0-9]*$')
+            if not isinstance(cited, list) or len(cited) == 0:
+                errors.append(f"{prefix}.cited_lines: must be a non-empty array")
+            else:
+                for j, entry in enumerate(cited):
+                    if not isinstance(entry, str) or not _cited_pattern.match(entry):
+                        errors.append(f"{prefix}.cited_lines[{j}]: invalid format {entry!r}; expected <path>:<line> or ~<path>:<line>")
 
 # Validate summary
 summary = data.get("summary")
