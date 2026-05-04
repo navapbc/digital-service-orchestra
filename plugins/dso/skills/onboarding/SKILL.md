@@ -1376,6 +1376,23 @@ Accept these values? [Y/n]
 
 Write `commands.acli_version` and `commands.acli_sha256` to `.claude/dso-config.conf` on acceptance.
 
+### Step 2b.1: Merge Strategy Selection
+
+**Read existing value first**: Before presenting the question, read `merge.strategy` from `.claude/dso-config.conf` (if present). If the key already exists, present the existing value as the prompt default so the user can press Enter to keep it or select a different option. Always write the chosen value (overwrite) — never skip the write based on the key already existing.
+
+Display to user:
+```
+Which merge strategy for this project?
+  (a) direct (default — push directly to main; suitable for solo or non-technical projects)
+  (b) pr (GitHub Ruleset enforcement — PR-based merge with CI gate; suitable for team projects)
+
+Press Enter or type 'a' for direct (recommended for most projects).
+```
+
+**On (a) or Enter**: Write `merge.strategy=direct` to `.claude/dso-config.conf` (overwrite any existing value).
+
+**On (b) pr**: Write `merge.strategy=pr` to `.claude/dso-config.conf` (overwrite any existing value). Inform the user that the GitHub Ruleset will be provisioned during the GitHub Repository Configuration step (Batch Group 4 — which calls `github-bootstrap.sh`, which in turn calls `provision-ruleset.sh`). **Note**: if `merge.strategy=pr` and a 'DSO CI Enforcement' Ruleset already exists on the repo, `github-bootstrap.sh` will exit with an error directing you to disable the Ruleset for the bootstrap window before retrying. This is expected — it prevents the bootstrap from conflicting with an existing enforcement Ruleset.
+
 ### Step 2c: Infrastructure Initialization
 
 After writing `.claude/dso-config.conf`, set up the supporting infrastructure for the host project. These steps ensure the enforcement gates, ticket system, and documentation templates are in place before the first commit.

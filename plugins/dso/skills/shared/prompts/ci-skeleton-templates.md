@@ -35,3 +35,11 @@ Self-contained GitHub Actions setup blocks. Load this prompt only when the archi
 ```
 
 <!-- Epic F: append Java block here -->
+
+## PR-Protected Mode Template
+
+When `ci-generator.sh --mode=pr-protected` is used, the generated CI workflow includes:
+- A job that resolves and fetches DSO plugin assets (required for PR-mode projects)
+- A step that runs `validate-required-checks.sh` to catch check-name alignment drift
+
+This template is suitable for projects using `merge.strategy=pr` with GitHub Ruleset enforcement.

@@ -199,51 +199,100 @@ else
         "no re-dispatch instruction found near file-overlap recovery guidance"
 fi
 
-# test_no_review_result_in_output_contract
+# test_output_contract_section_heading
 # Given: plugins/dso/docs/workflows/prompts/reviewer-base.md
-# When: inspect the mandatory output contract section for REVIEW_RESULT
-# Then: REVIEW_RESULT must NOT appear (3-line output: REVIEWER_HASH, FINDING_COUNT, FILES only)
-# RED: fails until reviewer-base.md is updated
+# When: inspect document structure for the Mandatory Output Contract section
+# Then: the section heading must exist as a structural anchor
+#
+# Structural contract check (Rule 5): section heading is the deterministic
+# interface boundary — its presence guarantees the contract block exists and
+# is reachable by reviewers following the document structure.
 echo ""
-echo "=== test_no_review_result_in_output_contract ==="
-if ! grep -q 'REVIEW_RESULT' "$REVIEWER_BASE"; then
-    assert_eq "REVIEW_RESULT must not appear in reviewer-base.md output contract" "absent" "absent"
+echo "=== test_output_contract_section_heading ==="
+if grep -q '^## Mandatory Output Contract' "$REVIEWER_BASE"; then
+    assert_eq "## Mandatory Output Contract section heading present" "present" "present"
 else
-    assert_eq "REVIEW_RESULT must not appear in reviewer-base.md output contract" \
-        "REVIEW_RESULT absent (deprecated — record-review.sh derives pass/fail from severity)" \
-        "REVIEW_RESULT still present in reviewer-base.md"
+    assert_eq "## Mandatory Output Contract section heading present" \
+        "section heading '## Mandatory Output Contract'" \
+        "heading not found — output contract section is missing or renamed"
 fi
 
-# test_no_min_score_in_output_contract
+# test_output_contract_required_fields
+# Given: plugins/dso/docs/workflows/prompts/reviewer-base.md
+# When: extract the code fence block within the ## Mandatory Output Contract section
+# Then: the fence must define all three required contract fields:
+#       REVIEWER_HASH, FINDING_COUNT, FILES
+#
+# Structural contract check (Rule 5): the code fence is the formal contract
+# specification — checking for required field names within the section-scoped
+# fence tests the mandatory fields boundary, not wording within prose.
 echo ""
-echo "=== test_no_min_score_in_output_contract ==="
-if ! grep -q 'MIN_SCORE' "$REVIEWER_BASE"; then
-    assert_eq "MIN_SCORE must not appear in reviewer-base.md output contract" "absent" "absent"
-else
-    assert_eq "MIN_SCORE must not appear in reviewer-base.md output contract" \
-        "MIN_SCORE absent (deprecated — scores removed from schema)" \
-        "MIN_SCORE still present in reviewer-base.md"
-fi
-
-# test_three_line_output_contract
-echo ""
-echo "=== test_three_line_output_contract ==="
-# The output contract must specify exactly: REVIEWER_HASH, FINDING_COUNT, FILES
-# Extract the mandatory output contract block and verify it has these 3 lines
-output_contract="$(python3 - "$REVIEWER_BASE" <<'PYEOF'
+echo "=== test_output_contract_required_fields ==="
+output_contract_fields="$(python3 - "$REVIEWER_BASE" <<'PYEOF'
 import sys, re
 content = open(sys.argv[1]).read()
-m = re.search(r'(REVIEWER_HASH|FINDING_COUNT|FILES)', content)
-if m:
-    print("has_required_lines")
+# Extract the ## Mandatory Output Contract section up to the next ## heading
+m = re.search(r'^## Mandatory Output Contract\s*\n(.*?)(?=^## |\Z)', content, re.DOTALL | re.MULTILINE)
+if not m:
+    print("MISSING_SECTION")
+    sys.exit(0)
+section = m.group(1)
+# Extract the first code fence in the section
+fence = re.search(r'```[^\n]*\n(.*?)```', section, re.DOTALL)
+if not fence:
+    print("MISSING_FENCE")
+    sys.exit(0)
+fence_content = fence.group(1)
+found = []
+if 'REVIEWER_HASH' in fence_content:
+    found.append('REVIEWER_HASH')
+if 'FINDING_COUNT' in fence_content:
+    found.append('FINDING_COUNT')
+if 'FILES' in fence_content:
+    found.append('FILES')
+# Report deprecated fields present in the fence (structural regression guard)
+deprecated = []
+if 'REVIEW_RESULT' in fence_content:
+    deprecated.append('REVIEW_RESULT')
+if 'MIN_SCORE' in fence_content:
+    deprecated.append('MIN_SCORE')
+print(f"FOUND:{','.join(found)} DEPRECATED:{','.join(deprecated)}")
 PYEOF
 )"
-if [[ "$output_contract" == *"has_required_lines"* ]]; then
-    assert_eq "3-line output contract (REVIEWER_HASH, FINDING_COUNT, FILES) present" "present" "present"
+required_fields_present=true
+deprecated_fields_present=false
+if [[ "$output_contract_fields" == *"MISSING_SECTION"* ]]; then
+    required_fields_present=false
+elif [[ "$output_contract_fields" == *"MISSING_FENCE"* ]]; then
+    required_fields_present=false
 else
-    assert_eq "3-line output contract (REVIEWER_HASH, FINDING_COUNT, FILES) present" \
-        "REVIEWER_HASH + FINDING_COUNT + FILES lines" \
-        "output contract lines missing"
+    for field in REVIEWER_HASH FINDING_COUNT FILES; do
+        if [[ "$output_contract_fields" != *"$field"* ]]; then
+            required_fields_present=false
+        fi
+    done
+    if [[ "$output_contract_fields" == *"DEPRECATED:"*"REVIEW_RESULT"* ]] || \
+       [[ "$output_contract_fields" == *"DEPRECATED:"*"MIN_SCORE"* ]]; then
+        deprecated_fields_present=true
+    fi
+fi
+
+if $required_fields_present; then
+    assert_eq "output contract code fence defines required fields (REVIEWER_HASH, FINDING_COUNT, FILES)" \
+        "all three fields present" "all three fields present"
+else
+    assert_eq "output contract code fence defines required fields (REVIEWER_HASH, FINDING_COUNT, FILES)" \
+        "REVIEWER_HASH + FINDING_COUNT + FILES in output contract code fence" \
+        "one or more required fields missing — fence: $output_contract_fields"
+fi
+
+if $deprecated_fields_present; then
+    assert_eq "output contract code fence must not contain deprecated fields (REVIEW_RESULT, MIN_SCORE)" \
+        "no deprecated fields in fence" \
+        "deprecated field(s) found in output contract fence — $output_contract_fields"
+else
+    assert_eq "output contract code fence must not contain deprecated fields (REVIEW_RESULT, MIN_SCORE)" \
+        "no deprecated fields in fence" "no deprecated fields in fence"
 fi
 
 # test_two_key_json_schema

@@ -589,6 +589,16 @@ main() {
   local resolved_plugin_root
   resolved_plugin_root=$(detect_dso_plugin_root "$project_dir")
 
+  # Write merge strategy defaults (append-if-absent to preserve user's existing config on re-run)
+  local _DSO_CONF="$project_dir/.claude/dso-config.conf"
+  mkdir -p "$(dirname "$_DSO_CONF")"
+  if ! grep -q '^merge\.strategy=' "$_DSO_CONF" 2>/dev/null; then
+    printf 'merge.strategy=direct\n' >> "$_DSO_CONF"
+  fi
+  if ! grep -q '^enforcement\.strategy=' "$_DSO_CONF" 2>/dev/null; then
+    printf 'enforcement.strategy=local\n' >> "$_DSO_CONF"
+  fi
+
   # Step 5b.5: Run project detection so dso-setup can analyze CI guard coverage
   # against the freshly cloned template (populates DSO_DETECT_OUTPUT contract).
   # Uses a path under project_dir rather than mktemp so it works under restricted

@@ -90,8 +90,21 @@ if [[ ! -f "$CHECKS_FILE" ]]; then
     exit 0
 fi
 
-# ── Idempotency: skip if Ruleset already exists ───────────────────────────────
+# ── Read merge.strategy from dso-config.conf (default: direct) ───────────────
+_MERGE_STRATEGY="direct"
+_CONF="$REPO_ROOT/.claude/dso-config.conf"
+if [ -f "$_CONF" ]; then
+    _read_strategy="$(grep '^merge\.strategy=' "$_CONF" 2>/dev/null | head -1 | cut -d= -f2- || true)"
+    _MERGE_STRATEGY="${_read_strategy:-direct}"
+fi
+
+# ── Idempotency / PR-mode Ruleset guard ───────────────────────────────────────
 if gh api --paginate "repos/$REPO/rulesets" 2>/dev/null | grep -q '"DSO CI Enforcement"'; then
+    if [ "$_MERGE_STRATEGY" = "pr" ]; then
+        echo "ERROR: PR-mode detected and Ruleset 'DSO CI Enforcement' already exists on $REPO." >&2
+        echo "To complete bootstrap, disable the Ruleset for the bootstrap window, run github-bootstrap.sh again, then re-enable." >&2
+        exit 1
+    fi
     echo "INFO: Ruleset 'DSO CI Enforcement' already exists on $REPO — skipping." >&2
     exit 0
 fi

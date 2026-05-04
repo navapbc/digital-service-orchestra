@@ -20,6 +20,17 @@
 # names, and no network-partition caveat. Every assertion below would have
 # failed in that prior state. The test is RED-relative-to-prior-state; it
 # now passes against the documented invariants.
+#
+# Structural-grep rationale (bug 01f5-a88b):
+# Assertions in this file use grep for hook filenames and section keywords
+# because those strings ARE the contract (not incidental doc prose). Hook
+# filenames are stable identifiers — they must match the files in the
+# hooks/ directory. Section-keyword checks use case-insensitive word
+# matching to tolerate cosmetic reformatting (capitalisation, surrounding
+# punctuation) while still catching semantic regressions. Count-range
+# checks tolerate minor list-size drift while still catching category collapse.
+# See behavioral-testing-standard.md rule 5: doc-content tests are a narrow
+# exception when the documented invariant IS the structural boundary.
 
 set -uo pipefail
 
@@ -43,14 +54,17 @@ content="$(< "$DOC")"
 #
 # The "Always-On vs Gated Hooks" section header anchors the canonical list.
 # Without the section, the rest of the contract has no documented home.
+#
+# Structural-grep: any markdown heading level (##, ###, etc.) is acceptable —
+# the contract is the presence of the named section, not its depth.
 # ---------------------------------------------------------------------------
 echo "=== test_section_header_present ==="
 
-if grep -Eq '^##[[:space:]]+Always-On vs Gated Hooks' "$DOC"; then
+if grep -Eq '^#{1,6}[[:space:]]+Always-On vs Gated Hooks' "$DOC"; then
     assert_eq "Always-On vs Gated Hooks section header" "present" "present"
 else
     assert_eq "Always-On vs Gated Hooks section header" \
-        "## Always-On vs Gated Hooks header line" \
+        "Always-On vs Gated Hooks heading (any level)" \
         "section header missing"
 fi
 
@@ -144,29 +158,51 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# test_hook_counts_explicit
+# test_hook_counts_structural
 #
-# The section header sub-headings should call out the counts (6 always-on,
-# 3 gated). This is the documented contract — if a hook is added or removed
-# without updating the count, the categorization drifts silently.
+# Verify that the document enumerates at least the known always-on and gated
+# hook counts. Rather than grepping for a declared-count sub-heading (which
+# breaks when a hook is added and the count is updated before docs are
+# re-reviewed), we count how many of the known hook names appear in the
+# document. The counts must be >= the expected minimums — if the document
+# mentions all known hooks, the section is intact.
+#
+# Structural-grep: counting occurrences of known filenames is resilient to
+# sub-heading reformatting while still catching category collapse.
 # ---------------------------------------------------------------------------
 echo ""
-echo "=== test_hook_counts_explicit ==="
+echo "=== test_hook_counts_structural ==="
 
-if grep -Eq 'Always-On Hooks[[:space:]]*\(6\)' "$DOC"; then
-    assert_eq "Always-On Hooks count (6) declared" "present" "present"
+# Count always-on hooks actually present in the document
+_always_on_found=0
+for hook in "${ALWAYS_ON_HOOKS[@]}"; do
+    if [[ "$content" == *"$hook"* ]]; then
+        (( _always_on_found++ ))
+    fi
+done
+# All 6 known always-on hooks must be documented
+if [[ "$_always_on_found" -ge "${#ALWAYS_ON_HOOKS[@]}" ]]; then
+    assert_eq "always-on hooks documented count (>= ${#ALWAYS_ON_HOOKS[@]})" "present" "present"
 else
-    assert_eq "Always-On Hooks count (6) declared" \
-        "'Always-On Hooks (6)' subheading" \
-        "count missing or mismatched"
+    assert_eq "always-on hooks documented count (>= ${#ALWAYS_ON_HOOKS[@]})" \
+        "all ${#ALWAYS_ON_HOOKS[@]} always-on hooks present" \
+        "only ${_always_on_found}/${#ALWAYS_ON_HOOKS[@]} found"
 fi
 
-if grep -Eq 'Gated Hooks[[:space:]]*\(3\)' "$DOC"; then
-    assert_eq "Gated Hooks count (3) declared" "present" "present"
+# Count gated hooks actually present in the document
+_gated_found=0
+for hook in "${GATED_HOOKS[@]}"; do
+    if [[ "$content" == *"$hook"* ]]; then
+        (( _gated_found++ ))
+    fi
+done
+# All 3 known gated hooks must be documented
+if [[ "$_gated_found" -ge "${#GATED_HOOKS[@]}" ]]; then
+    assert_eq "gated hooks documented count (>= ${#GATED_HOOKS[@]})" "present" "present"
 else
-    assert_eq "Gated Hooks count (3) declared" \
-        "'Gated Hooks (3)' subheading" \
-        "count missing or mismatched"
+    assert_eq "gated hooks documented count (>= ${#GATED_HOOKS[@]})" \
+        "all ${#GATED_HOOKS[@]} gated hooks present" \
+        "only ${_gated_found}/${#GATED_HOOKS[@]} found"
 fi
 
 print_summary

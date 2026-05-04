@@ -1573,4 +1573,176 @@ SHIMSTUB
 
 test_detect_dso_plugin_root_registers_plugin_even_when_probe_matches
 
+# ── test_installer_writes_merge_strategy_defaults ────────────────────────────
+# After a successful installer run, dso-config.conf must contain
+# merge.strategy=direct and enforcement.strategy=local (append-if-absent).
+# Also asserts provision-ruleset.sh is NOT invoked during create-dso-app.sh
+# (that is a post-install step, not installer responsibility).
+test_installer_writes_merge_strategy_defaults() {
+    echo ""
+    echo "→ test_installer_writes_merge_strategy_defaults"
+
+    local T fake_plugin_root project_dir
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    project_dir="$T/my-project"
+    fake_plugin_root="$T/fake-plugin"
+
+    # Sentinel dir to detect if provision-ruleset.sh is called
+    local SENTINEL_DIR
+    SENTINEL_DIR=$(mktemp -d)
+    TMPDIRS+=("$SENTINEL_DIR")
+
+    # Fake plugin root with stub dso-setup.sh
+    mkdir -p "$fake_plugin_root/.claude-plugin" \
+             "$fake_plugin_root/scripts/onboarding" \
+             "$fake_plugin_root/templates/host-project"
+    echo '{"name":"dso","version":"1.0.0"}' > "$fake_plugin_root/.claude-plugin/plugin.json"
+    : > "$fake_plugin_root/templates/host-project/dso"
+    cat > "$fake_plugin_root/scripts/onboarding/dso-setup.sh" <<'SETUPEOF'
+#!/bin/sh
+target="${1:-}"
+if [ -n "$target" ]; then
+    /bin/mkdir -p "$target/.claude/scripts"
+    printf '#!/bin/sh\nexec dso "$@"\n' > "$target/.claude/scripts/dso"
+    /bin/chmod +x "$target/.claude/scripts/dso"
+fi
+exit 0
+SETUPEOF
+    chmod +x "$fake_plugin_root/scripts/onboarding/dso-setup.sh"
+
+    local stub_bin
+    stub_bin=$(_installer_stub_bin)
+
+    # Stub bash to pass-through to real bash (needed for dso-setup.sh to run)
+    cat > "$stub_bin/bash" <<'BASHEOF'
+#!/bin/sh
+case "$1" in
+  --version|-v) echo "GNU bash, version 5.2.15(1)-release (x86_64-pc-linux-gnu)"; exit 0 ;;
+  *) exec /bin/bash "$@" ;;
+esac
+BASHEOF
+    chmod +x "$stub_bin/bash"
+
+    # Stub provision-ruleset.sh in PATH: writes sentinel if invoked
+    local sentinel_stub_dir
+    sentinel_stub_dir=$(mktemp -d)
+    TMPDIRS+=("$sentinel_stub_dir")
+    cat > "$sentinel_stub_dir/provision-ruleset.sh" <<STUBEOF
+#!/bin/sh
+touch "$SENTINEL_DIR/sentinel"
+exit 0
+STUBEOF
+    chmod +x "$sentinel_stub_dir/provision-ruleset.sh"
+
+    CLAUDE_PLUGIN_ROOT="$fake_plugin_root" \
+    PATH="$sentinel_stub_dir:$stub_bin" \
+    /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'\n' >/dev/null 2>&1 || true
+
+    local conf="$project_dir/.claude/dso-config.conf"
+
+    # Assert 1: merge.strategy=direct present
+    local has_merge="no"
+    grep -q '^merge\.strategy=direct$' "$conf" 2>/dev/null && has_merge="yes"
+    assert_eq "dso-config.conf contains merge.strategy=direct" "yes" "$has_merge"
+
+    # Assert 2: enforcement.strategy=local present
+    local has_enforcement="no"
+    grep -q '^enforcement\.strategy=local$' "$conf" 2>/dev/null && has_enforcement="yes"
+    assert_eq "dso-config.conf contains enforcement.strategy=local" "yes" "$has_enforcement"
+
+    # Assert 3: provision-ruleset.sh was NOT called
+    local sentinel_called="no"
+    [[ -f "$SENTINEL_DIR/sentinel" ]] && sentinel_called="yes"
+    assert_eq "provision-ruleset.sh not called by installer" "no" "$sentinel_called"
+}
+
+# ── test_installer_preserves_existing_merge_strategy ─────────────────────────
+# When dso-config.conf already contains merge.strategy=pr (or any non-default),
+# re-running create-dso-app.sh must NOT overwrite it. Idempotency test.
+test_installer_preserves_existing_merge_strategy() {
+    echo ""
+    echo "→ test_installer_preserves_existing_merge_strategy"
+
+    local T fake_plugin_root project_dir
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    project_dir="$T/my-project"
+    fake_plugin_root="$T/fake-plugin"
+
+    # Fake plugin root with stub dso-setup.sh
+    mkdir -p "$fake_plugin_root/.claude-plugin" \
+             "$fake_plugin_root/scripts/onboarding" \
+             "$fake_plugin_root/templates/host-project"
+    echo '{"name":"dso","version":"1.0.0"}' > "$fake_plugin_root/.claude-plugin/plugin.json"
+    : > "$fake_plugin_root/templates/host-project/dso"
+    cat > "$fake_plugin_root/scripts/onboarding/dso-setup.sh" <<'SETUPEOF'
+#!/bin/sh
+target="${1:-}"
+if [ -n "$target" ]; then
+    /bin/mkdir -p "$target/.claude/scripts"
+    printf '#!/bin/sh\nexec dso "$@"\n' > "$target/.claude/scripts/dso"
+    /bin/chmod +x "$target/.claude/scripts/dso"
+fi
+exit 0
+SETUPEOF
+    chmod +x "$fake_plugin_root/scripts/onboarding/dso-setup.sh"
+
+    local stub_bin
+    stub_bin=$(_installer_stub_bin)
+
+    # Stub bash to pass-through
+    cat > "$stub_bin/bash" <<'BASHEOF'
+#!/bin/sh
+case "$1" in
+  --version|-v) echo "GNU bash, version 5.2.15(1)-release (x86_64-pc-linux-gnu)"; exit 0 ;;
+  *) exec /bin/bash "$@" ;;
+esac
+BASHEOF
+    chmod +x "$stub_bin/bash"
+
+    # Pre-seed the git stub to also create dso-config.conf with merge.strategy=pr
+    # Override git stub to pre-create the project dir WITH a pre-seeded config
+    cat > "$stub_bin/git" <<GITSTUB
+#!/bin/sh
+if [ "\$1" = "clone" ]; then
+    target=""
+    for arg in "\$@"; do
+        case "\$arg" in -*) ;; *) target="\$arg" ;; esac
+    done
+    if [ -n "\$target" ] && [ "\$target" != "clone" ]; then
+        /bin/mkdir -p "\$target/src/app" "\$target/.claude"
+        printf '{"name":"{{PROJECT_NAME}}","scripts":{"dev":"next dev"},"dependencies":{"next":"^14.0.0"}}\n' \
+            > "\$target/package.json"
+        touch "\$target/src/app/page.tsx"
+        touch "\$target/CLAUDE.md"
+        # Pre-seed dso-config.conf with non-default merge.strategy
+        printf 'dso.plugin_root=plugins/dso\nmerge.strategy=pr\n' > "\$target/.claude/dso-config.conf"
+    fi
+    exit 0
+fi
+exit 0
+GITSTUB
+    chmod +x "$stub_bin/git"
+
+    CLAUDE_PLUGIN_ROOT="$fake_plugin_root" \
+    PATH="$stub_bin" \
+    /bin/bash "$SCRIPT_UNDER_TEST" "my-project" "$T" <<< $'\n' >/dev/null 2>&1 || true
+
+    local conf="$project_dir/.claude/dso-config.conf"
+
+    # Assert: merge.strategy=pr must still be present (not overwritten to direct)
+    local has_pr="no"
+    grep -q '^merge\.strategy=pr$' "$conf" 2>/dev/null && has_pr="yes"
+    assert_eq "existing merge.strategy=pr preserved on re-run" "yes" "$has_pr"
+
+    # Assert: merge.strategy=direct must NOT have been appended
+    local has_direct="no"
+    grep -q '^merge\.strategy=direct$' "$conf" 2>/dev/null && has_direct="yes"
+    assert_eq "merge.strategy=direct not appended when pr already present" "no" "$has_direct"
+}
+
+test_installer_writes_merge_strategy_defaults
+test_installer_preserves_existing_merge_strategy
+
 print_summary

@@ -120,47 +120,37 @@ test_deep_tier_has_negative_scope_constraint() {
     echo ""
     echo "=== test_deep_tier_has_negative_scope_constraint ==="
     for tier in deep-correctness deep-verification deep-hygiene; do
-        local tmpdir
-        tmpdir=$(_new_tmpdir)
-        bash "$BUILD_SCRIPT" --base "$REPO_ROOT/plugins/dso/docs/workflows/prompts/reviewer-base.md" \
-            --deltas "$REPO_ROOT/plugins/dso/docs/workflows/prompts/reviewer-delta-${tier}.md" \
-            --output "$tmpdir" --expect-count 1 2>/dev/null || true
-        local generated_file="$tmpdir/code-reviewer-${tier}.md"
-        if [[ -f "$generated_file" ]]; then
-            # Check for negative scope constraint language
-            if grep -qiE 'Emit findings ONLY|only in your (owned |assigned )?category|Do NOT emit findings in other|findings only in your' "$generated_file"; then
+        local delta_file="$REPO_ROOT/plugins/dso/docs/workflows/prompts/reviewer-delta-${tier}.md"
+        if [[ -f "$delta_file" ]]; then
+            # Assert on the template source directly (not the generated agent)
+            if grep -qiE 'Emit findings ONLY|only in your (owned |assigned )?category|Do NOT emit findings in other|findings only in your' "$delta_file"; then
                 assert_eq "test_deep_tier_has_negative_scope_constraint: ${tier}" "present" "present"
             else
                 assert_eq "test_deep_tier_has_negative_scope_constraint: ${tier}" \
-                    "negative scope constraint (Emit findings ONLY in your category)" \
-                    "no negative scope constraint found in ${tier} agent"
+                    "negative scope constraint in delta template" \
+                    "no negative scope constraint found in reviewer-delta-${tier}.md"
             fi
         else
-            assert_eq "test_deep_tier_has_negative_scope_constraint: ${tier} agent generated" "present" "missing"
+            assert_eq "test_deep_tier_has_negative_scope_constraint: ${tier} delta file" "present" "missing"
         fi
     done
 }
 
-test_preoutput_checklist_in_generated_agent() {
+test_preoutput_checklist_in_base_template() {
     echo ""
-    echo "=== test_preoutput_checklist_in_generated_agent ==="
-    local tmpdir
-    tmpdir=$(_new_tmpdir)
-    bash "$BUILD_SCRIPT" --base "$REPO_ROOT/plugins/dso/docs/workflows/prompts/reviewer-base.md" \
-        --deltas "$REPO_ROOT/plugins/dso/docs/workflows/prompts/reviewer-delta-light.md" \
-        --output "$tmpdir" --expect-count 1 2>/dev/null || true
-    local generated_file="$tmpdir/code-reviewer-light.md"
-    if [[ -f "$generated_file" ]]; then
-        # Check for pre-output checklist or category coverage check
-        if grep -qiE 'Pre-Output Category|pre-output checklist|Before writing|verify.*all 5 categories|category coverage check' "$generated_file"; then
-            assert_eq "test_preoutput_checklist_in_generated_agent: light reviewer" "present" "present"
+    echo "=== test_preoutput_checklist_in_base_template ==="
+    local base_file="$REPO_ROOT/plugins/dso/docs/workflows/prompts/reviewer-base.md"
+    if [[ -f "$base_file" ]]; then
+        # Assert on the base template source directly (not the generated agent)
+        if grep -qiE 'Pre-Output Category|pre-output checklist|Before writing|verify.*all 5 categories|category coverage check' "$base_file"; then
+            assert_eq "test_preoutput_checklist_in_base_template: base reviewer template" "present" "present"
         else
-            assert_eq "test_preoutput_checklist_in_generated_agent: light reviewer" \
-                "pre-output category checklist in generated agent" \
-                "no pre-output checklist found in generated code-reviewer-light.md"
+            assert_eq "test_preoutput_checklist_in_base_template: base reviewer template" \
+                "pre-output category checklist in reviewer-base.md" \
+                "no pre-output checklist found in reviewer-base.md"
         fi
     else
-        assert_eq "test_preoutput_checklist_in_generated_agent: agent generated" "present" "missing"
+        assert_eq "test_preoutput_checklist_in_base_template: base file" "present" "missing"
     fi
 }
 
@@ -171,6 +161,6 @@ test_blindspot_in_deep_arch
 test_blindspot_in_standard
 test_blindspot_in_light
 test_deep_tier_has_negative_scope_constraint
-test_preoutput_checklist_in_generated_agent
+test_preoutput_checklist_in_base_template
 
 print_summary

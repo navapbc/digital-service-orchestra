@@ -68,6 +68,15 @@ prompt. No manual configuration is required.
 
 Plan for **20–40 minutes** for a typical first run. Re-running `/dso:onboarding` on an existing project is safe; it performs an elevation-only update (never overwrites higher-confidence values).
 
+### PR-Mode Projects
+
+If your project uses GitHub Ruleset enforcement, select **pr** when `/dso:onboarding` asks for your merge strategy. This:
+1. Writes `merge.strategy=pr` to `.claude/dso-config.conf`
+2. Provisions a GitHub Ruleset via `provision-ruleset.sh`
+3. Routes all subsequent merges through `merge-to-main-pr.sh` (PR + CI gate)
+
+To enable PR mode on an existing project: set `merge.strategy=pr` in `.claude/dso-config.conf`, then re-run `/dso:onboarding` (which will detect the existing project and offer to provision the Ruleset) or run the provision script directly via your plugin install path.
+
 Full configuration reference: [`plugins/dso/docs/CONFIGURATION-REFERENCE.md`](plugins/dso/docs/CONFIGURATION-REFERENCE.md)
 
 ## Integration Setup

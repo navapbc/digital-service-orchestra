@@ -332,4 +332,110 @@ test_both_modes_emit_identical_key_sets() {
 }
 test_both_modes_emit_identical_key_sets
 
+# ---------------------------------------------------------------------------
+# Test 4: recovery-failed fallback path emits CONFLICT_DATA from
+# _SQUASH_REBASE_CONFLICTS when live git state has no unmerged paths.
+#
+# This models the merge-to-main-direct.sh _phase_merge recovery-failed branch:
+#   - _squash_rebase_recovery returns non-zero, having exported
+#     _SQUASH_REBASE_CONFLICTS before calling `git rebase --abort`
+#   - _phase_merge then `cd "$_MERGE_SAVED_DIR"` (a clean git repo), so live
+#     `git diff --diff-filter=U` returns empty
+#   - _emit_conflict_data must fall back to _SQUASH_REBASE_CONFLICTS and still
+#     emit CONFLICT_DATA with the correct conflicted_files list and
+#     resolution_strategy
+#
+# Asserts:
+#   - exactly one CONFLICT_DATA line is emitted
+#   - the JSON key set equals the canonical set
+#   - conflicted_files is a non-empty list containing the simulated conflict files
+#   - resolution_strategy is the value passed to _emit_conflict_data
+# ---------------------------------------------------------------------------
+test_recovery_failed_fallback_uses_squash_rebase_conflicts() {
+    local _T _out _json _keys _line_count _files_type _branch
+    _T="$(mktemp -d /tmp/dso-conflict-parity-recovery.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    # Build a minimal clean git repo (no unmerged paths) to simulate _MERGE_SAVED_DIR.
+    # _build_direct_conflict_repo leaves the repo with an in-progress merge.
+    # We abort the merge to leave a clean working tree — so live `git diff
+    # --diff-filter=U` returns empty, forcing _emit_conflict_data to use
+    # the _SQUASH_REBASE_CONFLICTS fallback.
+    _build_direct_conflict_repo "$_T"
+    (
+        cd "$_T" || exit 1
+        git merge --abort 2>/dev/null || true
+        git checkout -q main 2>/dev/null || true
+    )
+
+    _branch="recovery-failed-branch"
+    _out="$(
+        cd "$_T" || exit 1
+        # Simulate what _squash_rebase_recovery exports before rebase --abort.
+        export _SQUASH_REBASE_CONFLICTS="src/foo.sh
+src/bar.sh"
+        # Source helpers (which defines _emit_conflict_data).
+        # shellcheck source=/dev/null
+        BRANCH="$_branch" source "$MERGE_HELPERS"
+        # Call _emit_conflict_data in the same environment where:
+        #   - live git diff --diff-filter=U returns empty (clean repo)
+        #   - _SQUASH_REBASE_CONFLICTS is set (from recovery helper)
+        _emit_conflict_data "$_branch" "main" "git-merge-no-ff" 2>&1
+    )"
+
+    # Must emit exactly one CONFLICT_DATA line.
+    _line_count=$(echo "$_out" | grep -c '^CONFLICT_DATA ' || true)
+    assert_eq "recovery_fallback_single_conflict_data_line" "1" "$_line_count"
+
+    _json="$(_extract_conflict_data_json "$_out")"
+    assert_ne "recovery_fallback_json_payload_nonempty" "" "$_json"
+
+    # Key set must match the canonical schema.
+    _keys="$(_json_top_level_keys "$_json")"
+    assert_eq "recovery_fallback_canonical_key_set" "$CANONICAL_KEYS" "$_keys"
+
+    # conflicted_files must be a non-empty list (populated from _SQUASH_REBASE_CONFLICTS).
+    _files_type="$(_json_value_type "$_json" "conflicted_files")"
+    assert_eq "recovery_fallback_conflicted_files_is_array" "list" "$_files_type"
+
+    local _files_count
+    _files_count=$(JSON="$_json" python3 -c '
+import json, os, sys
+try:
+    d = json.loads(os.environ.get("JSON", ""))
+    print(len(d.get("conflicted_files", [])))
+except Exception:
+    print(0)
+')
+    # The fallback must have populated conflicted_files from _SQUASH_REBASE_CONFLICTS
+    # (2 files: src/foo.sh and src/bar.sh), not an empty list.
+    assert_eq "recovery_fallback_conflicted_files_nonempty" "2" "$_files_count"
+
+    # resolution_strategy must be the value passed to _emit_conflict_data.
+    local _strategy
+    _strategy=$(JSON="$_json" python3 -c '
+import json, os, sys
+try:
+    d = json.loads(os.environ.get("JSON", ""))
+    print(d.get("resolution_strategy", ""))
+except Exception:
+    pass
+')
+    assert_eq "recovery_fallback_resolution_strategy" "git-merge-no-ff" "$_strategy"
+
+    # branch must match what was passed.
+    local _actual_branch
+    _actual_branch=$(JSON="$_json" python3 -c '
+import json, os, sys
+try:
+    d = json.loads(os.environ.get("JSON", ""))
+    print(d.get("branch", ""))
+except Exception:
+    pass
+')
+    assert_eq "recovery_fallback_branch_field" "$_branch" "$_actual_branch"
+}
+test_recovery_failed_fallback_uses_squash_rebase_conflicts
+
 print_summary
