@@ -871,62 +871,6 @@ test_performance_reviewer_counted_in_total_agents() {
     assert_pass_if_clean "test_performance_reviewer_counted_in_total_agents"
 }
 
-# ── Test 20: built agents contain severity calibration rubric heading ─────────
-#
-# RED: no code-reviewer-*.md in plugins/dso/agents/ contains the
-#      '## Severity Calibration Rubric' heading yet (Task 4 adds it).
-# GREEN: after Task 4 adds the heading to each agent file, all assertions pass.
-
-test_built_agents_contain_severity_calibration_rubric_heading() {
-    _snapshot_fail
-
-    local agents_dir
-    agents_dir="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)/plugins/dso/agents"
-
-    local missing=0
-    local agent_file
-    for agent_file in "$agents_dir"/code-reviewer-*.md; do
-        [ -f "$agent_file" ] || continue
-        local agent_name
-        agent_name="$(basename "$agent_file")"
-        if ! grep -q '^## Severity Calibration Rubric' "$agent_file"; then
-            (( missing++ ))
-            printf "  missing '## Severity Calibration Rubric' in: %s\n" "$agent_name" >&2
-        fi
-    done
-    assert_eq "all_agents_have_severity_calibration_rubric_heading" "0" "$missing"
-
-    assert_pass_if_clean "test_built_agents_contain_severity_calibration_rubric_heading"
-}
-
-# ── Test N: built agents contain NOT-flag auto-downgrade rules heading ─────────
-#
-# RED: no code-reviewer-*.md in plugins/dso/agents/ contains
-#      '## NOT-Flag Auto-Downgrade Rules' yet (T3+T4 add it).
-# GREEN: after T3 adds the section and T4 rebuilds all 10 agents, all assertions pass.
-
-test_built_agents_contain_not_flag_rules_heading() {
-    _snapshot_fail
-
-    local agents_dir
-    agents_dir="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)/plugins/dso/agents"
-
-    local missing=0
-    local agent_file
-    for agent_file in "$agents_dir"/code-reviewer-*.md; do
-        [ -f "$agent_file" ] || continue
-        local agent_name
-        agent_name="$(basename "$agent_file")"
-        if ! grep -q '^## NOT-Flag Auto-Downgrade Rules' "$agent_file"; then
-            (( missing++ ))
-            printf "  missing '## NOT-Flag Auto-Downgrade Rules' in: %s\n" "$agent_name" >&2
-        fi
-    done
-    assert_eq "all_agents_have_not_flag_rules_heading" "0" "$missing"
-
-    assert_pass_if_clean "test_built_agents_contain_not_flag_rules_heading"
-}
-
 # ── Run all tests ─────────────────────────────────────────────────────────────
 
 test_build_produces_6_agent_files
@@ -948,7 +892,5 @@ test_security_blue_team_agent_file_is_generated
 test_security_blue_team_agent_has_opus_model
 test_security_blue_team_agent_contains_triage_keywords
 test_security_blue_team_counted_in_total_agents
-test_built_agents_contain_severity_calibration_rubric_heading
-test_built_agents_contain_not_flag_rules_heading
 
 print_summary

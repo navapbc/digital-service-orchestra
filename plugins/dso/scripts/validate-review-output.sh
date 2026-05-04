@@ -288,7 +288,9 @@ else:
         if cat is not None and cat not in valid_categories:
             errors.append(f"{prefix}.category: must be one of {sorted(valid_categories)}, got: {cat!r}")
         cited = finding.get("cited_lines")
-        if cited is not None:
+        if "cited_lines" in finding and cited is None:
+            errors.append(f"{prefix}.cited_lines: must be a non-empty array")
+        elif cited is not None:
             import re
             _cited_pattern = re.compile(r'^~?[^:]+:[1-9][0-9]*$')
             if not isinstance(cited, list) or len(cited) == 0:
