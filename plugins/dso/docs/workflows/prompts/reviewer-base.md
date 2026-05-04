@@ -117,13 +117,18 @@ the validator will reject unrecognized keys and force a re-dispatch.
       "severity": "critical|important|minor|fragile",
       "category": "<one of the 5 review categories>",
       "description": "...",
-      "file": "path/to/file (MUST be from the diff being reviewed)"
+      "file": "path/to/file (MUST be from the diff being reviewed)",
+      "cited_lines": ["<path>:<line>"]
     }
   ],
   "summary": "2-3 sentence assessment",
   "escalate_review": [{"finding_index": 0, "reason": "uncertain whether this is important or critical"}]
 }
 ```
+
+**cited_lines** — required; minimum 1 entry per finding.
+- Accepted: `<path>:<line>` (exact citation) or `~<path>:<line>` (approximate, when exact line is unknown in CI context)
+- Rejected: `~` alone, empty strings, entries without a colon-delimited positive integer line number (e.g., `src/foo.sh` without `:42`)
 
 Example **without** `escalate_review` (omit when confident about all severities):
 
@@ -134,7 +139,8 @@ Example **without** `escalate_review` (omit when confident about all severities)
       "severity": "important",
       "category": "correctness",
       "description": "Missing null check on user input before passing to downstream handler.",
-      "file": "src/handler.py"
+      "file": "src/handler.py",
+      "cited_lines": ["src/handler.py:42"]
     }
   ],
   "summary": "One important correctness finding. Logic is otherwise sound. security_overlay_warranted: no, performance_overlay_warranted: no, approach_viability_concern: false"
