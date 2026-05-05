@@ -20,11 +20,15 @@ Exit codes:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
 import tempfile
 
+from dso_ci_review.classifier import classify_tier
+from dso_ci_review.dispatch import async_dispatch_specialists
+from dso_ci_review.findings import merge_findings
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 
 
@@ -59,6 +63,52 @@ def _write_output(data: dict) -> None:
         print(serialized)
 
 
+def _build_agents_for_tier(
+    tier: str,
+    diff_text: str,
+    classification: dict,  # noqa: ARG001 — reserved for overlay use
+) -> list[dict]:
+    """Build agent dispatch list based on classifier tier."""
+    base_model = os.environ.get("DSO_CI_REVIEW_MODEL", "claude-haiku-4-5-20251001")
+    provider = os.environ.get("CI_REVIEW_PROVIDER", "anthropic")
+    provider_chain = [provider]
+
+    if tier == "deep":
+        # Deep tier: 3 parallel specialists
+        agents = [
+            {
+                "agent_id": "code-reviewer-deep-correctness",
+                "diff_text": diff_text,
+                "model": base_model,
+                "provider_chain": provider_chain,
+            },
+            {
+                "agent_id": "code-reviewer-deep-verification",
+                "diff_text": diff_text,
+                "model": base_model,
+                "provider_chain": provider_chain,
+            },
+            {
+                "agent_id": "code-reviewer-deep-hygiene",
+                "diff_text": diff_text,
+                "model": base_model,
+                "provider_chain": provider_chain,
+            },
+        ]
+    else:
+        # light or standard: single agent
+        agents = [
+            {
+                "agent_id": f"code-reviewer-{tier}",
+                "diff_text": diff_text,
+                "model": base_model,
+                "provider_chain": provider_chain,
+            }
+        ]
+
+    return agents
+
+
 def main() -> int:
     """Run the CI review and return an exit code."""
     dry_run = os.environ.get("DSO_CI_REVIEW_DRY_RUN") == "1"
@@ -73,8 +123,11 @@ def main() -> int:
         _write_output({"findings": []})
         return 0
 
+    # Validate provider configuration before dispatching any LLM calls.
+    # get_provider() raises ConfigError when no provider is configured and
+    # AuthError when the required API key env var is absent.
     try:
-        provider = get_provider()
+        get_provider()
     except ConfigError as exc:
         print(f"ERROR: provider config: {exc}", file=sys.stderr)
         return 1
@@ -82,18 +135,26 @@ def main() -> int:
         print(f"ERROR: provider auth: {exc}", file=sys.stderr)
         return 1
 
-    model = os.environ.get("DSO_CI_REVIEW_MODEL")
-    kwargs: dict = {}
-    if model:
-        kwargs["model"] = model
-
     try:
-        result = provider.review_diff(diff_text, **kwargs)
+        # Step 1: classify tier
+        classification = classify_tier(diff_text)
+        tier = classification["selected_tier"]
+
+        # Step 2: build agent list based on tier
+        agents = _build_agents_for_tier(tier, diff_text, classification)
+
+        # Step 3: dispatch agents (async)
+        all_findings = asyncio.run(async_dispatch_specialists(agents))
+
+        # Step 4: merge findings
+        merged = merge_findings(*all_findings)
+
+        # Step 5: write output
+        _write_output(merged)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)
         return 1
 
-    _write_output(result)
     return 0
 
 
