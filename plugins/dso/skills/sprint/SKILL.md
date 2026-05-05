@@ -1,6 +1,6 @@
 ---
 name: sprint
-description: Execute Epic - Multi-Agent Orchestration
+description: Use when the user wants to execute an epic, run a sprint, work through a planned epic's stories and tasks, or coordinate multi-agent task execution end-to-end. Routes the epic by complexity (SIMPLE → direct implementation-plan, MODERATE → lightweight preplanning, COMPLEX → full preplanning), runs an SC-coverage gate at haiku/sonnet/opus tiers to confirm story coverage of epic success criteria, plans the task graph, dispatches sub-agents in batches with file-overlap and semantic-conflict checks, runs per-task review and post-batch validation (test gate, lint, AC verification, visual verification for UI), commits/pushes results, and verifies epic completion via the dso:completion-verifier agent before close. Trigger phrases include 'work the epic', 'execute the sprint', 'run the epic', 'sprint this epic', 'work through the stories', 'implement the planned tasks', 'kick off the sprint'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
