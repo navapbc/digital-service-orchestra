@@ -1,10 +1,3 @@
-<!-- REVIEW-DEFENSE: No agent currently references this file by design. This is the walking skeleton
-     story for the behavioral-testing-standard shared prompt. Sibling stories (80c9-df3c, 967e-f219,
-     d82f-f58a, b669-fee9) in the same epic will update dso:red-test-writer, dso:red-test-evaluator,
-     and the sprint/fix-bug dispatch prompts to load this standard. The file must exist before those
-     stories can reference it. The "two parallel sources of truth" state is intentional and temporary
-     — it will be resolved when the sibling stories are executed. -->
-
 # Shared Behavioral Testing Standard
 
 Standalone prompt fragment for test-writing agents. Applies to all test creation and review tasks across any skill that writes or evaluates tests. This is a 5-rule standard (with a Rule 5 addendum covering remote-runtime declarative configuration artifacts) grounded in four research references:

@@ -194,10 +194,6 @@ merge strategy — treat both outputs the same way.
 
 ### Regression test (contract anchor)
 
-<!-- REVIEW-DEFENSE: tests/integration/test-conflict-data-schema-parity.sh was committed in
-     story 0bb9-ebde (closed). It is absent from this worktree only because this worktree was
-     branched before that commit landed on the session branch. The file exists at session HEAD
-     and will be present post-merge. Reference is accurate in the final merged state. -->
 `tests/integration/test-conflict-data-schema-parity.sh` drives both modes
 through their conflict paths and asserts the emitted JSON has identical key
 sets and field-type shapes. If either mode diverges from this schema, that test

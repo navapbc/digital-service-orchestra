@@ -206,7 +206,6 @@ fi
 ls .claude/scripts/dso 2>/dev/null && .claude/scripts/dso merge-to-main.sh --help 2>&1 | head -2 || true
 ```
 If the shim is missing or the dispatch fails with "command not found" (b068-94b4): do NOT perform a manual merge. Stop and report: "Error: .claude/scripts/dso shim not found or merge-to-main.sh not available. Run: bash scripts/update-shim.sh to update the shim, then retry." Never manually merge as a fallback — the DSO merge workflow ensures proper state management (ticket sync, version bump, CI trigger). # shim-exempt: update-shim.sh must be called directly when the shim itself is missing
-<!-- REVIEW-DEFENSE: # shim-exempt: above is load-bearing — suppresses check-shim-refs.sh and test-skill-script-paths.sh; required because the shim itself is the missing dependency. -->
 
 ```bash
 .claude/scripts/dso merge-to-main.sh ${BUMP_ARG:-}

@@ -381,11 +381,6 @@ Emit `SC_COVERAGE_HAIKU_GATE: complete` to your output so that ORCHESTRATOR_RESU
 - **ALL verdicts are `COVERED`**: log `"SC coverage haiku gate: all SCs covered — proceeding to Phase B"` and proceed to Phase B normally. Skip Step 4.
 - **ANY verdict is `ESCALATE`**: collect the ESCALATE SCs into an escalation list and proceed to Step 4 (SC Coverage Sonnet Tier).
 
-<!-- REVIEW-DEFENSE: Finding 2 — sc-coverage-sonnet.md, sc-coverage-haiku.md, and sc-coverage-opus.md not in this worktree.
-     All three prompt files are created by story 3812-d606 in branch worktree-agent-ae49f130 (Batch 1).
-     Merge order: Batch 1 (prompt files) → Batch 3 (haiku gate) → Batch 5 (sonnet tier) → Batch 6 (opus tier, this change).
-     Files will be present on main before this change lands. Merge order is enforced by the per-worktree-review-commit.md
-     sequential commit protocol. Worktree-isolation artifact — not a runtime missing file risk. -->
 #### Step 4: SC Coverage Sonnet Tier (/dso:sprint)
 
 **Trigger**: Only runs if the haiku gate (Step 3) returned ANY `ESCALATE` verdict. If haiku marked ALL SCs as `COVERED` (empty escalation list), skip this sub-step entirely and proceed to Phase B.
