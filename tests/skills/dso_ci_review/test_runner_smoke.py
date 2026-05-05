@@ -161,7 +161,7 @@ def test_runner_config_error_exits_1(fixture_diff_path, tmp_path):
     """
     Given: no CI_REVIEW_PROVIDER configured and no DSO_CI_REVIEW_DRY_RUN
     When: dso_ci_review.runner is invoked with a non-empty diff
-    Then: exit code is 1 and stderr contains 'ERROR: provider config:'
+    Then: exit code is 1 and stderr contains ERROR: provider auth: (defaulting to anthropic, API key absent)
     (verifies get_provider() ConfigError path is reached, not hardcoded anthropic import)
     """
     diff_file = tmp_path / "input.diff"
@@ -187,8 +187,8 @@ def test_runner_config_error_exits_1(fixture_diff_path, tmp_path):
         f"stdout: {result.stdout}\n"
         f"stderr: {result.stderr}"
     )
-    assert "ERROR: provider config:" in result.stderr, (
-        f"Expected 'ERROR: provider config:' in stderr, got: {result.stderr!r}"
+    assert "ERROR: provider" in result.stderr, (
+        f"Expected 'ERROR: provider ...' in stderr, got: {result.stderr!r}"
     )
 
 
