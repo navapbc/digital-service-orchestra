@@ -1,6 +1,6 @@
 ---
 name: skill-refactor
-description: Use when the user wants to critically review and refactor an existing DSO skill for clarity, token efficiency, and reliability — includes script relocation, reference updates, change-detector test removal, and ticket reconciliation. Invoke when the user says "review the <skill> skill", "optimize <skill>", "clean up <skill>", or similar language about auditing or improving a specific skill file.
+description: Use when the user wants to critically review and refactor an existing DSO skill for clarity, token efficiency, and reliability — includes script relocation, reference updates, change-detector test removal, and ticket reconciliation. Invoke when the user says "review the [skill] skill", "optimize [skill]", "clean up [skill]", or similar language about auditing or improving a specific skill file.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent
 ---
