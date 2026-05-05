@@ -96,5 +96,80 @@ assert_contains "test_shim_delegates_to_python_module: called with -m flag" "-m"
 assert_contains "test_shim_delegates_to_python_module: called with dso_ci_review.runner" "dso_ci_review.runner" "$_delegate_out"
 assert_pass_if_clean "test_shim_delegates_to_python_module"
 
+# ── test_overlay_security_flag_exported ──────────────────────────────────────
+# Given: a mock python3 that prints env vars matching DSO_CI_REVIEW_OVERLAY
+# When:  shim is invoked with --overlay-security
+# Then:  DSO_CI_REVIEW_OVERLAY_SECURITY=1 appears in the environment
+_snapshot_fail
+_mock_dir3=$(mktemp -d /tmp/test-shim-XXXXXX)
+_TEST_TMPDIRS+=("$_mock_dir3")
+
+cat > "$_mock_dir3/python3" <<'PYEOF'
+#!/usr/bin/env bash
+env | grep DSO_CI_REVIEW_OVERLAY
+PYEOF
+chmod +x "$_mock_dir3/python3"
+
+_overlay_sec_out=""
+_overlay_sec_exit=0
+_overlay_sec_out=$(
+    PATH="$_mock_dir3:$PATH"
+    PYTHON="$_mock_dir3/python3"
+    bash "$RUNNER" --overlay-security < /dev/null 2>&1
+) || _overlay_sec_exit=$?
+
+assert_contains "test_overlay_security_flag_exported: DSO_CI_REVIEW_OVERLAY_SECURITY=1 in env" "DSO_CI_REVIEW_OVERLAY_SECURITY=1" "$_overlay_sec_out"
+assert_pass_if_clean "test_overlay_security_flag_exported"
+
+# ── test_overlay_performance_flag_exported ────────────────────────────────────
+# Given: a mock python3 that prints env vars matching DSO_CI_REVIEW_OVERLAY
+# When:  shim is invoked with --overlay-performance
+# Then:  DSO_CI_REVIEW_OVERLAY_PERFORMANCE=1 appears in the environment
+_snapshot_fail
+_mock_dir4=$(mktemp -d /tmp/test-shim-XXXXXX)
+_TEST_TMPDIRS+=("$_mock_dir4")
+
+cat > "$_mock_dir4/python3" <<'PYEOF'
+#!/usr/bin/env bash
+env | grep DSO_CI_REVIEW_OVERLAY
+PYEOF
+chmod +x "$_mock_dir4/python3"
+
+_overlay_perf_out=""
+_overlay_perf_exit=0
+_overlay_perf_out=$(
+    PATH="$_mock_dir4:$PATH"
+    PYTHON="$_mock_dir4/python3"
+    bash "$RUNNER" --overlay-performance < /dev/null 2>&1
+) || _overlay_perf_exit=$?
+
+assert_contains "test_overlay_performance_flag_exported: DSO_CI_REVIEW_OVERLAY_PERFORMANCE=1 in env" "DSO_CI_REVIEW_OVERLAY_PERFORMANCE=1" "$_overlay_perf_out"
+assert_pass_if_clean "test_overlay_performance_flag_exported"
+
+# ── test_overlay_test_quality_flag_exported ───────────────────────────────────
+# Given: a mock python3 that prints env vars matching DSO_CI_REVIEW_OVERLAY
+# When:  shim is invoked with --overlay-test-quality
+# Then:  DSO_CI_REVIEW_OVERLAY_TEST_QUALITY=1 appears in the environment
+_snapshot_fail
+_mock_dir5=$(mktemp -d /tmp/test-shim-XXXXXX)
+_TEST_TMPDIRS+=("$_mock_dir5")
+
+cat > "$_mock_dir5/python3" <<'PYEOF'
+#!/usr/bin/env bash
+env | grep DSO_CI_REVIEW_OVERLAY
+PYEOF
+chmod +x "$_mock_dir5/python3"
+
+_overlay_tq_out=""
+_overlay_tq_exit=0
+_overlay_tq_out=$(
+    PATH="$_mock_dir5:$PATH"
+    PYTHON="$_mock_dir5/python3"
+    bash "$RUNNER" --overlay-test-quality < /dev/null 2>&1
+) || _overlay_tq_exit=$?
+
+assert_contains "test_overlay_test_quality_flag_exported: DSO_CI_REVIEW_OVERLAY_TEST_QUALITY=1 in env" "DSO_CI_REVIEW_OVERLAY_TEST_QUALITY=1" "$_overlay_tq_out"
+assert_pass_if_clean "test_overlay_test_quality_flag_exported"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
