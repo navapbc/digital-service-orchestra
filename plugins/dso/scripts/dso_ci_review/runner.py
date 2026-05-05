@@ -8,8 +8,10 @@ Environment variables (all optional):
     DSO_CI_REVIEW_DRY_RUN     When set to "1", emit a canned empty-findings
                               response without calling any LLM. Useful for
                               smoke-testing the subprocess invocation path.
-    DSO_CI_REVIEW_MODEL       LiteLLM model identifier (optional; provider
-                              default is used when absent).
+    DSO_CI_REVIEW_MODEL       Model identifier passed to the active provider
+                              (optional; provider default is used when absent).
+    CI_REVIEW_PROVIDER        Provider name (e.g. "anthropic", "openai").
+                              Resolved by providers/config.py.
 
 Exit codes:
     0  Success (findings JSON written)
@@ -21,6 +23,8 @@ from __future__ import annotations
 import json
 import os
 import sys
+
+from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 
 
 def _read_diff() -> str:
@@ -57,7 +61,14 @@ def main() -> int:
         _write_output({"findings": []})
         return 0
 
-    from dso_ci_review.providers.anthropic import review_diff
+    try:
+        provider = get_provider()
+    except ConfigError as exc:
+        print(f"ERROR: provider config: {exc}", file=sys.stderr)
+        return 1
+    except AuthError as exc:
+        print(f"ERROR: provider auth: {exc}", file=sys.stderr)
+        return 1
 
     model = os.environ.get("DSO_CI_REVIEW_MODEL")
     kwargs: dict = {}
@@ -65,7 +76,7 @@ def main() -> int:
         kwargs["model"] = model
 
     try:
-        result = review_diff(diff_text, **kwargs)
+        result = provider.review_diff(diff_text, **kwargs)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)
         return 1
