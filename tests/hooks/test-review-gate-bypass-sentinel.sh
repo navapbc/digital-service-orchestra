@@ -304,5 +304,79 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":".claude/scripts/dso ticket c
 EXIT_CODE=$(call_sentinel "$INPUT")
 assert_eq "test_no_verify_outside_quotes_still_blocked" "2" "$EXIT_CODE"
 
+# ============================================================
+# enforcement.strategy=ci bypass (RED tests — require implementation)
+# ============================================================
+
+# call_sentinel_with_config: invoke hook_review_bypass_sentinel in a subprocess with
+# a custom WORKFLOW_CONFIG_FILE. Returns the exit code on stdout.
+# Uses a subprocess so WORKFLOW_CONFIG_FILE is picked up by enforcement-gate.sh at
+# source time (the in-process call_sentinel() helper cannot isolate env-var reads).
+call_sentinel_with_config() {
+    local input="$1" config_file="$2"
+    local exit_code=0
+    # Pass input via env var to avoid shell quoting issues with JSON content.
+    INPUT_JSON="$input" WORKFLOW_CONFIG_FILE="$config_file" bash -c "
+        REPO_ROOT=\"\$(git rev-parse --show-toplevel)\"
+        source \"\$REPO_ROOT/plugins/dso/hooks/lib/deps.sh\"
+        source \"\$REPO_ROOT/plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh\"
+        hook_review_bypass_sentinel \"\$INPUT_JSON\"
+    " 2>/dev/null || exit_code=$?
+    echo "$exit_code"
+}
+
+# call_sentinel_with_config_stderr: like call_sentinel_with_config but also captures stderr.
+# Returns "exit_code|stderr_text" on stdout.
+call_sentinel_with_config_stderr() {
+    local input="$1" config_file="$2"
+    local exit_code=0
+    local stderr_output
+    # Pass input via env var to avoid shell quoting issues with JSON content.
+    stderr_output=$(INPUT_JSON="$input" WORKFLOW_CONFIG_FILE="$config_file" bash -c "
+        REPO_ROOT=\"\$(git rev-parse --show-toplevel)\"
+        source \"\$REPO_ROOT/plugins/dso/hooks/lib/deps.sh\"
+        source \"\$REPO_ROOT/plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh\"
+        hook_review_bypass_sentinel \"\$INPUT_JSON\"
+    " 2>&1 1>/dev/null) || exit_code=$?
+    echo "${exit_code}|${stderr_output}"
+}
+
+# test_sentinel_allows_noverify_under_ci_strategy
+# When enforcement.strategy=ci, hook_review_bypass_sentinel should return 0 (allow)
+# even for --no-verify commands — the CI enforcement strategy short-circuits before
+# pattern matching.
+# RED: requires review-gate-bypass-sentinel.sh to call _dso_enforcement_gate_check.
+_CI_TMPDIR=$(mktemp -d /tmp/sentinel-ci-test.XXXXXX)
+mkdir -p "$_CI_TMPDIR/.claude"
+printf 'enforcement.strategy=ci\n' > "$_CI_TMPDIR/.claude/dso-config.conf"
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m msg"}}'
+EXIT_CODE=$(call_sentinel_with_config "$INPUT" "$_CI_TMPDIR/.claude/dso-config.conf")
+assert_eq "test_sentinel_allows_noverify_under_ci_strategy" "0" "$EXIT_CODE"
+rm -rf "$_CI_TMPDIR"
+
+# test_sentinel_emits_hook_gate_skipped_under_ci_strategy
+# When enforcement.strategy=ci, stderr must contain the canonical HOOK_GATE message.
+# RED: requires review-gate-bypass-sentinel.sh to call _dso_enforcement_gate_check.
+_CI_TMPDIR=$(mktemp -d /tmp/sentinel-ci-test.XXXXXX)
+mkdir -p "$_CI_TMPDIR/.claude"
+printf 'enforcement.strategy=ci\n' > "$_CI_TMPDIR/.claude/dso-config.conf"
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m msg"}}'
+RESULT=$(call_sentinel_with_config_stderr "$INPUT" "$_CI_TMPDIR/.claude/dso-config.conf")
+EXIT_CODE_CI="${RESULT%%|*}"
+STDERR_CI="${RESULT#*|}"
+assert_contains "test_sentinel_emits_hook_gate_skipped_under_ci_strategy" "HOOK_GATE: skipped reason=enforcement.strategy=ci" "$STDERR_CI"
+rm -rf "$_CI_TMPDIR"
+
+# test_sentinel_blocks_noverify_under_local_strategy
+# Regression test: enforcement.strategy=local must still block --no-verify (return 2).
+# GREEN: existing behavior — verifies the ci path doesn't accidentally affect local.
+_LOCAL_TMPDIR=$(mktemp -d /tmp/sentinel-ci-test.XXXXXX)
+mkdir -p "$_LOCAL_TMPDIR/.claude"
+printf 'enforcement.strategy=local\n' > "$_LOCAL_TMPDIR/.claude/dso-config.conf"
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m msg"}}'
+EXIT_CODE=$(call_sentinel_with_config "$INPUT" "$_LOCAL_TMPDIR/.claude/dso-config.conf")
+assert_eq "test_sentinel_blocks_noverify_under_local_strategy" "2" "$EXIT_CODE"
+rm -rf "$_LOCAL_TMPDIR"
+
 
 print_summary

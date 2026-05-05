@@ -321,6 +321,8 @@ plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test
 tests/fixtures/ticket-cli-baseline.json:tests/scripts/test-ticket-cli-baseline-fixture.sh
 tests/scripts/capture-baseline.sh:tests/scripts/test-ticket-cli-baseline-fixture.sh
 plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-review-gate-bypass-sentinel.sh
+tests/hooks/test-review-gate-bypass-sentinel.sh [test_sentinel_allows_noverify_under_ci_strategy]:tests/hooks/test-review-gate-bypass-sentinel.sh [test_sentinel_allows_noverify_under_ci_strategy]
+tests/hooks/test-review-gate-bypass-sentinel.sh [test_sentinel_emits_hook_gate_skipped_under_ci_strategy]:tests/hooks/test-review-gate-bypass-sentinel.sh [test_sentinel_emits_hook_gate_skipped_under_ci_strategy]
 plugins/dso/hooks/lib/session-process-cleanup-functions.sh:tests/hooks/test-session-misc-dispatchers.sh
 plugins/dso/scripts/preconditions-baseline-collect.sh:tests/scripts/test-preconditions-baseline.sh
 plugins/dso/scripts/preconditions-validator.sh:tests/scripts/test-preconditions-validator.sh,tests/skills/test-preplanning-preconditions-integration.sh
