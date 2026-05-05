@@ -376,3 +376,4 @@ plugins/dso/scripts/onboarding/ci-generator.sh:tests/scripts/test-ci-generator.s
 plugins/dso/scripts/lib/ci-findings-normalize.sh:tests/scripts/test-ci-findings-normalize.sh
 tests/scripts/test-merge-to-main-pr.sh:tests/scripts/test-merge-to-main-pr.sh
 plugins/dso/scripts/dso_ci_review/runner.py: tests/skills/dso_ci_review/test_runner_smoke.py
+plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py [test_env_var_wins_over_config]
