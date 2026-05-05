@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"AC amendment: golden corpus fixtures (anthropic-request.json / anthropic-response.json) must include a CHECKSUMS.txt manifest or normalize non-deterministic fields (timestamps, request IDs)."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777960548183492000,"uuid":"a0bd3d92-182b-493b-a668-c82f33bb5553"}
