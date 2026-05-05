@@ -188,6 +188,13 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 After committing, report the SHA and **immediately return control to the caller** — do NOT wait for user input. Resume the calling workflow at the step after this commit invocation. If you were executing `/dso:debug-everything`, continue at the step after this commit invocation (Phase F Step 5 for auto-fix commits, or Phase H Step 11 for post-batch commits). If you were executing `/dso:sprint`, continue at Phase F Step 17 (Commit & Push) or the step that invoked this workflow. Do NOT output any text that implies the session is complete.
 
+<!-- Future work: Jira-Ticket and DSO-Task git trailers (story cab1-600f) are planned
+     but implementation was deferred. When implemented, this section will document:
+     - Jira-Ticket: populated from ticket sync jira_key field
+     - DSO-Task: populated from active session task ID
+     - Trailers omitted (not errored) when source is unavailable
+     See: epic 1083-fb3d consideration SC7 -->
+
 ## After Commit: Merging to Main
 
 If you need to merge the worktree branch to main and push, use `merge-to-main.sh` instead of manual `git merge` + `git push`. It handles .claude/scripts/dso ticket sync, merge, and push in a single step, avoiding the review-gate and pre-push hook issues that arise from ticket file changes on main.
