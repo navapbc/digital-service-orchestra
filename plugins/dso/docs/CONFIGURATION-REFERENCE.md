@@ -1546,6 +1546,17 @@ ticket.display_mode=alias
 
 ---
 
+### `ci_review.provider_chain`
+
+| | |
+|---|---|
+| **Description** | Comma-separated ordered list of provider names for the CI LLM review fallback chain. The first entry is the primary provider; subsequent entries are fallback targets on `RateLimitError`. Each name must be lowercase-canonical (`anthropic`, `openai`). |
+| **Accepted values** | Comma-separated provider names. Supported: `anthropic`, `openai` |
+| **Default** | `anthropic,openai` |
+| **Used by** | `python3 -m dso_ci_review.runner` (via `dso_ci_review.providers.config.parse_provider_chain`) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
 ### `DSO_LLM_MODEL` *(removed — ignored since Phase 2 provider abstraction)*
 
 `DSO_LLM_MODEL` was an early environment variable used to override the CI review model ID.
