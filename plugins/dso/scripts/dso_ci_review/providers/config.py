@@ -36,6 +36,63 @@ _PROVIDER_MAP = {
 }
 
 
+_KNOWN_PROVIDERS: frozenset[str] = frozenset(_PROVIDER_MAP)
+
+_PROVIDER_KEY_MAP: dict[str, str] = {
+    name: api_key_var for name, (_, _, api_key_var) in _PROVIDER_MAP.items()
+}
+
+
+def parse_provider_chain(value: str) -> list[str]:
+    """Parse a comma-separated provider chain string into a validated list.
+
+    Args:
+        value: Comma-separated provider names, e.g. ``"anthropic,openai"``.
+               Whitespace around each name is stripped before validation.
+
+    Returns:
+        Ordered list of provider name strings.
+
+    Raises:
+        ValueError: If *value* is empty, or any name is not in the known
+            provider set.  Validation is case-sensitive.
+    """
+    if not value or not value.strip():
+        raise ValueError("Provider chain value must not be empty.")
+
+    parts = [token.strip() for token in value.split(",")]
+    for part in parts:
+        if part not in _KNOWN_PROVIDERS:
+            known = ", ".join(sorted(_KNOWN_PROVIDERS))
+            raise ValueError(f"Unknown provider {part!r}. Known providers: {known}")
+    return parts
+
+
+def validate_provider_credentials(
+    providers: list[str], environ: dict[str, str]
+) -> None:
+    """Verify that required API key env vars are present for each provider.
+
+    Args:
+        providers: List of provider names (as returned by
+            :func:`parse_provider_chain`).
+        environ: Mapping of environment variable names to values (typically
+            ``os.environ`` or a test-supplied dict).
+
+    Raises:
+        ConfigError: If any provider's required API key is absent from
+            *environ*.  The error message includes the missing key name.
+    """
+    for name in providers:
+        key = _PROVIDER_KEY_MAP.get(name)
+        if key is None:
+            raise ConfigError(f"Unknown provider {name!r} in credential check.")
+        if not environ.get(key):
+            raise ConfigError(
+                f"Provider {name!r} requires {key} env var, but it is not set."
+            )
+
+
 def get_provider(
     name: str | None = None,
     *,
