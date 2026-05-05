@@ -376,5 +376,6 @@ plugins/dso/scripts/onboarding/ci-generator.sh:tests/scripts/test-ci-generator.s
 plugins/dso/scripts/lib/ci-findings-normalize.sh:tests/scripts/test-ci-findings-normalize.sh
 tests/scripts/test-merge-to-main-pr.sh:tests/scripts/test-merge-to-main-pr.sh
 plugins/dso/scripts/dso_ci_review/runner.py:tests/skills/dso_ci_review/test_runner_smoke.py
-plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py 
+plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py [test_parse_provider_chain_valid]
 plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]
+plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py [test_fallback_rate_limit_falls_back_to_provider]
