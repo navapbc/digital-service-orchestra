@@ -32,7 +32,7 @@ Flow: P1 (Health Assessment) → P2 (Codebase Review) → P3 (Findings Report)
 
 ---
 
-## Phase 1: Health Assessment (/dso:retro)
+## Phase A: Health Assessment (/dso:retro)
 
 Run the data-collection script to gather all metrics in one pass:
 
@@ -63,13 +63,13 @@ After reviewing the script output:
 
 ---
 
-## Phase 2: Codebase Review (/dso:retro)
+## Phase B: Codebase Review (/dso:retro)
 
 Gather codebase metrics, then invoke `/dso:review-protocol` for structured assessment.
 
 ### Data Collection
 
-The `retro-gather.sh` output (from Phase 1) already includes `TEST_METRICS`, `CODE_METRICS`, and `KNOWN_ISSUES` sections. Use those as the raw data baseline.
+The `retro-gather.sh` output (from Phase A) already includes `TEST_METRICS`, `CODE_METRICS`, and `KNOWN_ISSUES` sections. Use those as the raw data baseline.
 
 For the review, additionally check (not covered by the script):
 1. **Test quality**: Identify files with no assertions, excessive mocking (10+ mocks per test), generic names (`test_1`, `test_basic`).
@@ -78,7 +78,7 @@ For the review, additionally check (not covered by the script):
 4. **Naming**: Module (snake_case), class (PascalCase), function (snake_case), constant (UPPER_CASE) consistency.
 5. **Architecture**: Service/model/route separation, circular imports, layering compliance.
 6. **Review defenses**: Count `# REVIEW-DEFENSE:` comments (`grep -rn "REVIEW-DEFENSE:" src/`). Flag any that reference resolved issues, deleted ADRs, or code patterns that have since been refactored. Stale defenses are comment noise.
-7. **TODO-family comment triage**: The `CODE_METRICS` section from `retro-gather.sh` includes per-pattern counts and up to 25 sample matches for: `TODO`, `FIXME`, `HACK`, `XXX`, `NOCOMMIT`, `TEMP`, `KLUDGE`, `WORKAROUND`, `BUG`, `REVISIT`, `DEPRECATED`. For each match, evaluate whether it is: (a) a genuine deferred task → create a P3 ticket task during Phase 4; (b) a historical note that is now resolved → candidate for Quick Wins removal; (c) a defense comment that belongs as `# REVIEW-DEFENSE:` → refactor during Phase 4. Do not flag matches where the comment is a legitimate in-progress annotation with a linked issue ID.
+7. **TODO-family comment triage**: The `CODE_METRICS` section from `retro-gather.sh` includes per-pattern counts and up to 25 sample matches for: `TODO`, `FIXME`, `HACK`, `XXX`, `NOCOMMIT`, `TEMP`, `KLUDGE`, `WORKAROUND`, `BUG`, `REVISIT`, `DEPRECATED`. For each match, evaluate whether it is: (a) a genuine deferred task → create a P3 ticket task during Phase D; (b) a historical note that is now resolved → candidate for Quick Wins removal; (c) a defense comment that belongs as `# REVIEW-DEFENSE:` → refactor during Phase D. Do not flag matches where the comment is a legitimate in-progress annotation with a linked issue ID.
 8. **Shift-left CI analysis**: Using the `CI_SHIFT_LEFT` section from `retro-gather.sh`, categorize each failed CI job into one of: `unit`, `lint`, `type-check`, `integration`, `e2e`, `build`, `other`. Then for each failure category, identify the **earliest gate** that could catch it and the **gap** preventing it from being caught there:
 
    | Failure category | Earliest possible gate | Common gaps |
@@ -117,7 +117,7 @@ Report the `/dso:review-protocol` JSON output, categorized by perspective. Inclu
 
 ---
 
-## Phase 3: Findings Report (/dso:retro)
+## Phase C: Findings Report (/dso:retro)
 
 Present consolidated findings for user scope confirmation.
 
@@ -137,7 +137,7 @@ Use AskUserQuestion to present findings by tier with estimated effort, then ask 
 
 ---
 
-## Phase 4: Epic Creation (/dso:retro)
+## Phase D: Epic Creation (/dso:retro)
 
 Create a ticket epic with remediation tasks based on user-confirmed scope.
 
@@ -157,7 +157,7 @@ Create a ticket epic with remediation tasks based on user-confirmed scope.
 
 ---
 
-## Phase 5: Quick Wins (Optional) (/dso:retro)
+## Phase E: Quick Wins (Optional) (/dso:retro)
 
 Fix trivial items immediately. Skip entirely if session usage is high.
 
@@ -185,10 +185,10 @@ If yes: execute sequentially, one commit per fix, close corresponding task after
 1. **Discovery, not implementation** — identify and plan, don't fix everything in one session
 2. **No closing existing issues** — only close tasks created during this retro (and only if fixed during Quick Wins)
 3. **No scope creep** — new issues discovered during Quick Wins get added to the epic, not acted on
-4. **User confirmation required** — Phase 4 requires explicit approval before creating any tasks
+4. **User confirmation required** — Phase D requires explicit approval before creating any tasks
 5. **Preserve history** — when archiving docs, move to archive section (never delete)
-6. **Session limits respected** — skip Phase 5 if session usage is high
+6. **Session limits respected** — skip Phase E if session usage is high
 
 ## Output
 
-At the end of the retro, report: epic ID/title, findings summary (critical/improvement/cleanup counts), tasks created (ready/blocked counts), quick wins completed (if Phase 5 ran), current and target health scores, and next steps (`.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket list`, `/dso:sprint`).
+At the end of the retro, report: epic ID/title, findings summary (critical/improvement/cleanup counts), tasks created (ready/blocked counts), quick wins completed (if Phase E ran), current and target health scores, and next steps (`.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket list`, `/dso:sprint`).
