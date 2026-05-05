@@ -1,0 +1,6 @@
+{
+  "description": "Golden findings baseline for parity test — pre-migration critical/important/fragile findings",
+  "version": "1.0",
+  "baseline_date": "2026-05-05",
+  "findings": []
+}

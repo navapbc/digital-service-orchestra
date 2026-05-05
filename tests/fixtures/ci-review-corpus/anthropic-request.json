@@ -1,0 +1,10 @@
+{
+  "model": "claude-3-5-haiku-20241022",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Review this diff:\n\ndiff --git a/plugins/dso/scripts/example.py b/plugins/dso/scripts/example.py\nnew file mode 100644\n--- /dev/null\n+++ b/plugins/dso/scripts/example.py\n@@ -0,0 +1,10 @@\n+def add(a, b):\n+    \"\"\"Add two numbers.\"\"\"\n+    return a + b\n+\n+\n+def subtract(a, b):\n+    \"\"\"Subtract b from a.\"\"\"\n+    return a - b\n"
+    }
+  ],
+  "system": "You are a code reviewer. Analyze the provided diff and return a JSON object with a single key \"findings\" whose value is a list of finding objects. Each finding object must have: severity (string), description (string), cited_lines (list of strings in 'path:lineno' format). Return ONLY the JSON object, no markdown fences."
+}
