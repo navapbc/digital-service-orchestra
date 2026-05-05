@@ -3,6 +3,11 @@
 Ensures plugins/dso/scripts is at the FRONT of sys.path so that
 ``import dso_ci_review`` resolves to the plugin package rather than the
 test-package directory of the same name (tests/skills/dso_ci_review/).
+
+Implementation note: path setup runs in BOTH the module-level scope (early
+collection) AND in ``pytest_configure`` (which runs before module imports
+in pytest's collection phase) to handle both direct pytest invocations and
+cases where pytest inserts the test-package root mid-collection.
 """
 
 from __future__ import annotations
@@ -10,13 +15,16 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
 
 
 def _install_scripts_path() -> None:
     """Ensure the plugin scripts dir is at the front of sys.path and evict shadows."""
-    if _SCRIPTS_DIR in sys.path:
+    # Remove stale occurrence of _SCRIPTS_DIR so we can re-insert at position 0.
+    while _SCRIPTS_DIR in sys.path:
         sys.path.remove(_SCRIPTS_DIR)
     sys.path.insert(0, _SCRIPTS_DIR)
 
@@ -31,6 +39,17 @@ def _install_scripts_path() -> None:
                 del sys.modules[_key]
 
 
-# Run at import time (when pytest loads this conftest) so that the path
-# is correct before any test module in this directory tree is imported.
+def pytest_configure(config: pytest.Config) -> None:  # noqa: ARG001
+    """Re-run path setup after pytest has finished its own sys.path manipulation.
+
+    pytest inserts the rootdir / package roots into sys.path during the
+    ``configure`` phase, which can push plugins/dso/scripts back behind
+    tests/skills in the search order.  Running _install_scripts_path() here
+    ensures the plugin package wins regardless of pytest's insertion order.
+    """
+    _install_scripts_path()
+
+
+# Also run at module-import time as a belt-and-suspenders measure for
+# pytest invocations that process test modules before configure completes.
 _install_scripts_path()
