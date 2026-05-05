@@ -1,6 +1,6 @@
 ---
 name: resolve-conflicts
-description: Agent-assisted git merge/rebase conflict resolution with confidence-gated automation
+description: Use when the user is stuck in a merge conflict, rebase conflict, failed pull, or any git operation that left conflict markers in the working tree. Dispatches a conflict-analyzer sub-agent that classifies each conflicted hunk by confidence (auto-resolvable vs needs-human-review), auto-resolves high-confidence cases, validates the result, and rolls back if validation fails before falling through to human review. Trigger phrases include 'merge conflict', 'resolve conflicts', 'rebase conflict', 'git conflict', 'conflict markers', 'failed rebase', 'git pull conflict', 'fix the conflicts', 'help with this merge'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
