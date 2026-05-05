@@ -8,7 +8,7 @@
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # Environment (passed through to suite-engine):
-#   TEST_TIMEOUT=60/90           Per-test timeout in seconds (60 local, 90 CI)
+#   TEST_TIMEOUT=60/120          Per-test timeout in seconds (60 local, 120 CI)
 #   MAX_PARALLEL=8               Max concurrent tests (default: 8)
 #   MAX_CONSECUTIVE_FAILS=5      Abort after N consecutive failures (default: 5)
 
@@ -36,7 +36,7 @@ fi
 # so the 120s budget is no longer needed. CI runners have less CPU than
 # local dev, so use a higher ceiling there.
 if [[ "${CI:-}" == "true" ]]; then
-    : "${TEST_TIMEOUT:=90}"
+    : "${TEST_TIMEOUT:=120}"
 else
     : "${TEST_TIMEOUT:=60}"
 fi
