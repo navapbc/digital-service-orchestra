@@ -1,6 +1,6 @@
 ---
 name: verification-before-completion
-description: Use before saying 'done', 'finished', 'ready to merge', 'tests pass', 'all green', 'looks good', 'ship it', or any other completion claim — and before committing, creating a PR, or transitioning a ticket to closed. Forces evidence-before-assertion: run the actual verification command (validate.sh --ci, make lint-ruff, make lint-mypy, the test suite, etc.) and confirm exit-0 output before any success claim. State the command and the observed output, never an unverified status. Trigger phrases include 'done', 'finished', 'ready to merge', 'tests pass', 'all green', 'looks good', 'ship it', 'I'm done', 'work is complete'.
+description: Use before saying 'done', 'finished', 'ready to merge', 'tests pass', 'all green', 'looks good', 'ship it', or any other completion claim — and before committing, creating a PR, or transitioning a ticket to closed. Forces evidence-before-assertion: run the actual verification command (validate.sh --ci, make lint-ruff, make lint-mypy, the test suite, etc.) and confirm exit-0 output before any success claim. State the command and the observed output, never an unverified status. Trigger phrases include 'done', 'finished', 'ready to merge', 'tests pass', 'all green', 'looks good', 'ship it', 'work is complete'.
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
