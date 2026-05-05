@@ -1,6 +1,6 @@
 ---
 name: brainstorm
-description: Use when starting a new feature or epic — turns an idea into a defined, ticket-ready epic through Socratic dialogue, approach design, and milestone spec creation.
+description: Use when starting a new feature or epic — turns a feature idea into a defined, ticket-ready epic through Socratic dialogue with the user. Designs technical approaches, breaks features into milestones, drafts ticket descriptions and success criteria, and writes the epic to the ticket tracker. Trigger phrases include 'plan a feature', 'spec out a feature', 'break down work', 'create user stories', 'start a new epic', 'turn this idea into tickets', 'roadmap a feature'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
