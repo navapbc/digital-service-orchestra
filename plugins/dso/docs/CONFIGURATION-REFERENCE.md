@@ -1546,6 +1546,17 @@ ticket.display_mode=alias
 
 ---
 
+### `ci_review.provider`
+
+| | |
+|---|---|
+| **Description** | Primary LLM provider for the CI LLM review pipeline. Controls which provider is used when `CI_REVIEW_PROVIDER` env var is not set. Resolution order: `CI_REVIEW_PROVIDER` env var → `ci_review.provider` config key → `model.provider` config key → default `anthropic`. |
+| **Accepted values** | `anthropic`, `openai` |
+| **Default** | `anthropic` |
+| **Used by** | `python3 -m dso_ci_review.runner` (via `dso_ci_review.providers.config.get_provider`) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
 ### `ci_review.provider_chain`
 
 | | |

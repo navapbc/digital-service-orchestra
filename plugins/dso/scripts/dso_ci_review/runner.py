@@ -124,15 +124,35 @@ def main() -> int:
         return 0
 
     # Validate provider configuration before dispatching any LLM calls.
-    # get_provider() raises ConfigError when no provider is configured and
-    # AuthError when the required API key env var is absent.
+    # Resolve provider from CI_REVIEW_PROVIDER env var, falling back to
+    # model.provider in dso-config.conf, then defaulting to "anthropic".
+    _ci_provider = os.environ.get("CI_REVIEW_PROVIDER", "").strip()
+    if not _ci_provider:
+        # Attempt to read model.provider from dso-config.conf as a fallback
+        _config_path = os.path.join(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            ),
+            ".claude",
+            "dso-config.conf",
+        )
+        if os.path.isfile(_config_path):
+            with open(_config_path, encoding="utf-8") as _f:
+                for _line in _f:
+                    _line = _line.strip()
+                    if _line.startswith("ci_review.provider="):
+                        _ci_provider = _line[len("ci_review.provider=") :].strip()
+                        break
+                    if not _ci_provider and _line.startswith("model.provider="):
+                        _ci_provider = _line[len("model.provider=") :].strip()
+        if not _ci_provider:
+            _ci_provider = "anthropic"
+    # get_provider(name=...) raises AuthError when the required API key is absent.
     try:
-        get_provider()
-    except ConfigError as exc:
-        print(f"ERROR: provider config: {exc}", file=sys.stderr)
-        return 1
-    except AuthError as exc:
-        print(f"ERROR: provider auth: {exc}", file=sys.stderr)
+        get_provider(name=_ci_provider)
+    except (ConfigError, AuthError) as exc:
+        kind = "provider config" if isinstance(exc, ConfigError) else "provider auth"
+        print(f"ERROR: {kind}: {exc}", file=sys.stderr)
         return 1
 
     try:
