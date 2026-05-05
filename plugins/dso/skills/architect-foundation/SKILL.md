@@ -33,14 +33,14 @@ Supports dryrun: `/dso:dryrun /dso:architect-foundation`.
 ## Workflow
 
 ```
-P0 Read understanding + detect existing artifacts
-P1 Socratic gap-fill (one open question at a time)
-P2 Recommendation synthesis (per-item accept/reject/discuss)
-P3 Write scaffolding (single batched confirmation)
-P4 Wire enforcement + ADRs + peer review
+PA Read understanding + detect existing artifacts
+PB Socratic gap-fill (one open question at a time)
+PC Recommendation synthesis (per-item accept/reject/discuss)
+PD Write scaffolding (single batched confirmation)
+PE Wire enforcement + ADRs + peer review
 ```
 
-There is **one approval gate per phase**, not three. The P2 per-recommendation loop replaces a blueprint-level validation loop.
+There is **one approval gate per phase**, not three. The Phase C per-recommendation loop replaces a blueprint-level validation loop.
 
 ## Auto-Mode Behavior
 
@@ -48,28 +48,28 @@ When invoked with `--auto`:
 
 | Phase | Behavior under --auto |
 |-------|------------------------|
-| P0 | Same. Fail with an actionable error if `project-understanding.md` is missing or incomplete (list needed fields). |
-| P1 | Skipped — select recommended defaults from the understanding file. Report the chosen defaults in a summary table. |
-| P2 | Accept all synthesized recommendations without per-item review. |
-| P3 | Skip the "proceed with writing N files?" confirmation; skip `prefill-config.sh` post-write confirmation. |
-| P4 | Still runs `/dso:review`; applies critical/important findings automatically. |
+| PA | Same. Fail with an actionable error if `project-understanding.md` is missing or incomplete (list needed fields). |
+| PB | Skipped — select recommended defaults from the understanding file. Report the chosen defaults in a summary table. |
+| PC | Accept all synthesized recommendations without per-item review. |
+| PD | Skip the "proceed with writing N files?" confirmation; skip `prefill-config.sh` post-write confirmation. |
+| PE | Still runs `/dso:review`; applies critical/important findings automatically. |
 
 Log each skipped gate as `[DSO INFO] auto-mode: skipped <gate>`.
 
 ---
 
-## Phase 0 — Read understanding and detect prior artifacts
+## Phase A — Read understanding and detect prior artifacts
 
-1. Read `.claude/project-understanding.md`. Extract the facts already known (stack, interface type, test dirs, CI, any recorded architecture decisions). These must NOT be re-asked in P1.
+1. Read `.claude/project-understanding.md`. Extract the facts already known (stack, interface type, test dirs, CI, any recorded architecture decisions). These must NOT be re-asked in Phase B.
 2. Do **not** re-run stack detection — trust the understanding file.
 3. Run `.claude/scripts/dso onboarding/detect-enforcement-artifacts.sh`. Parse JSON for `arch_enforcement_md`, `adr_dir`, `adr_count`, `claude_md_invariants_section`. If any is `true`, enter **re-run mode** (append-only merge; see "Re-run rules" below).
 4. Opening message to the user: "I've read `.claude/project-understanding.md`. Already known: [list 3–5 facts]. [Prior artifacts detected: …] I have N questions before generating enforcement."
 
-## Phase 1 — Socratic gap-fill
+## Phase B — Socratic gap-fill
 
 Ask **one open-ended question at a time.** No multiple-choice menus. Follow-ups are shaped by what the user says.
 
-Question bank — ask only gaps not answered by P0. Each question is tagged with the AP codes it informs (see `skills/shared/prompts/anti-patterns.md` for definitions):
+Question bank — ask only gaps not answered by Phase A. Each question is tagged with the AP codes it informs (see `skills/shared/prompts/anti-patterns.md` for definitions):
 
 **Group A — Abstraction surface (drives anti-pattern risk):**
 
@@ -87,7 +87,7 @@ Question bank — ask only gaps not answered by P0. Each question is tagged with
 
 - **C1** Full enforcement layer, or only the rules needed to codify B3?
 
-## Phase 2 — Recommendation synthesis
+## Phase C — Recommendation synthesis
 
 For each candidate enforcement mechanism, produce a recommendation citing the actual project file/pattern that triggered it. Template:
 
@@ -101,21 +101,21 @@ Test isolation: <how tests remain isolated from the mechanism>
 Fit: <why this project specifically benefits>
 ```
 
-Present recommendations **one at a time**. For each: Accept / Reject / Discuss. After the full pass, confirm the consolidated accepted set, then proceed to P3.
+Present recommendations **one at a time**. For each: Accept / Reject / Discuss. After the full pass, confirm the consolidated accepted set, then proceed to Phase D.
 
 Under `--auto`, accept all without review.
 
-## Phase 3 — Write scaffolding
+## Phase D — Write scaffolding
 
-### Step 0 — Inventory existing plugin infrastructure (configure before creating)
+### Step 1 — Inventory existing plugin infrastructure (configure before creating)
 
 ```bash
 .claude/scripts/dso onboarding/plugin-inventory.sh --format table
 ```
 
-Parse the inventory. For each accepted P2 recommendation, check whether a plugin component already covers it. Only build custom enforcement for gaps the plugin doesn't cover. Wired hook detection is best-effort; confirm with the user if coverage is ambiguous.
+Parse the inventory. For each accepted Phase C recommendation, check whether a plugin component already covers it. Only build custom enforcement for gaps the plugin doesn't cover. Wired hook detection is best-effort; confirm with the user if coverage is ambiguous.
 
-### Step 1 — Pre-fill commands in dso-config.conf
+### Step 2 — Pre-fill commands in dso-config.conf
 
 ```bash
 .claude/scripts/dso onboarding/prefill-config.sh --project-dir "${PROJECT_DIR:-$(pwd)}"
@@ -123,7 +123,7 @@ Parse the inventory. For each accepted P2 recommendation, check whether a plugin
 
 This writes `commands.test_runner`, `commands.lint`, `commands.format`, `commands.format_check` for the detected stack, skipping keys that already have a value. Per-stack defaults and exact invocations live inside `prefill-config.sh` — do not duplicate them in this file. For `rust-cargo`, `golang`, `convention-based`, or `unknown` stacks the script emits empty values with a comment; prompt the user to fill them (unless `--auto`).
 
-### Step 2 — Bootstrap `.test-index` if missing
+### Step 3 — Bootstrap `.test-index` if missing
 
 ```bash
 if [[ ! -f .test-index ]]; then
@@ -131,22 +131,22 @@ if [[ ! -f .test-index ]]; then
 fi
 ```
 
-### Step 3 — Generate fitness functions and enforcement files
+### Step 4 — Generate fitness functions and enforcement files
 
 Load `skills/architect-foundation/fitness-function-templates.md` **only** when this step fires. For each accepted recommendation tagged AP-1 / AP-2 / AP-3 / AP-4 / AP-5, copy the matching template (choose stack) and customize for the project's module paths. Files land under `tests/architecture/`.
 
 Also generate / update:
 
-- **`ARCH_ENFORCEMENT.md`** at repo root — one section per accepted recommendation using the P2 template. Detected by `check-onboarding.sh` as evidence that scaffolding has been completed.
+- **`ARCH_ENFORCEMENT.md`** at repo root — one section per accepted recommendation using the Phase C template. Detected by `check-onboarding.sh` as evidence that scaffolding has been completed.
 - **`CLAUDE.md` Architectural Invariants section** — one-line rules derived from the accepted recommendations.
 
 If generating CI, load `skills/shared/prompts/ci-skeleton-templates.md` and include only the per-stack blocks whose dependency files exist.
 
-### Step 4 — Batched write gate (single confirmation)
+### Step 5 — Batched write gate (single confirmation)
 
 Present a summary: File / Type / Action (new|update) / diff-or-full-content. Ask **once**: "Proceed with writing all N files?" On confirmation, write all files. On partial failure, preserve already-written files and report which failed. Under `--auto`, skip this gate.
 
-## Phase 4 — Wire, ADRs, and peer review
+## Phase E — Wire, ADRs, and peer review
 
 ### Step 1 — Wiring checklist
 
@@ -187,7 +187,7 @@ ADRs:                                  [paths]
 
 ---
 
-## Re-run rules (when P0 Step 3 detects prior artifacts)
+## Re-run rules (when Phase A item 3 detects prior artifacts)
 
 - **Append-only merge** for `ARCH_ENFORCEMENT.md`: new sections added, existing sections untouched. Skip duplicates (same recommendation title → no-op).
 - **ADR dedup** is handled by `adr-upsert.sh` — no special-case logic here.
