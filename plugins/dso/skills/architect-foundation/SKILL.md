@@ -1,6 +1,6 @@
 ---
 name: architect-foundation
-description: Deep-dive architectural scaffolding for an existing project — reads .claude/project-understanding.md (written by /dso:onboarding), uses Socratic dialogue to uncover enforcement preferences and anti-pattern risks, and generates targeted enforcement scaffolding without re-running project detection.
+description: Use when the user wants to set up architecture rules, code standards, guardrails, fitness functions, lint configs, or enforce project conventions after onboarding has run. Reads .claude/project-understanding.md (written by /dso:onboarding) and uses Socratic dialogue to surface enforcement preferences and anti-pattern risks, then generates targeted enforcement scaffolding (CI checks, lint rules, fitness functions, ADRs) without re-running project detection. Trigger phrases include 'set up code standards', 'add architecture rules', 'enforce conventions', 'add guardrails', 'lock in patterns', 'set up linting', 'add fitness functions'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
