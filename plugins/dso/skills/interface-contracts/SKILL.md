@@ -1,6 +1,6 @@
 ---
 name: interface-contracts
-description: Interface contract design for parallel agent development
+description: Use when planning a feature where multiple components implement the same boundary, work can be parallelized across agents, or several tasks are blocked by a shared dependency. Defines an abstract base class or Protocol with @abstractmethod decorators, complete type hints, behavior-documenting docstrings, and contract tests; sets up the interface task plus per-implementation tasks with depends_on links so multiple agents can work in parallel. Trigger phrases include 'interface contract', 'parallel implementation', 'shared boundary', 'multi-agent coordination', 'contract-first', 'unblock parallel work', 'define an ABC', 'set up a Protocol'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
