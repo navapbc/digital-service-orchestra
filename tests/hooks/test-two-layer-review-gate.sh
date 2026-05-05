@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2030,SC2031,SC2069,SC2164
+# SC2030/SC2031: subshell variable exports (intentional — test helper subshells)
+# SC2069: 2>&1 >file in run_pre_commit_hook_stderr (intentional — captures stderr)
+# SC2164: cd without || exit in test helper subshells (acceptable for test context)
 # tests/hooks/test-two-layer-review-gate.sh
 # End-to-end tests for the two-layer review gate.
 #
@@ -47,6 +51,15 @@ PRE_BASH_FUNCTIONS="$DSO_PLUGIN_DIR/hooks/lib/pre-bash-functions.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
+
+# Set enforcement strategy to local for test isolation.
+# Without this, enforcement-gate.sh reads the real dso-config.conf at source time.
+# When enforcement.strategy=ci (as in this repo), hook_review_bypass_sentinel()
+# returns 0 immediately, breaking all block tests. Tests needing ci behavior
+# use their own WORKFLOW_CONFIG_FILE isolation.
+_TEST_TWO_LAYER_ISOLATION_DIR=$(mktemp -d /tmp/two-layer-test-isolation.XXXXXX)
+printf 'enforcement.strategy=local\n' > "$_TEST_TWO_LAYER_ISOLATION_DIR/dso-config.conf"
+WORKFLOW_CONFIG_FILE="$_TEST_TWO_LAYER_ISOLATION_DIR/dso-config.conf"
 source "$DSO_PLUGIN_DIR/hooks/lib/review-gate-bypass-sentinel.sh"
 
 # ── Cleanup on exit ──────────────────────────────────────────────────────────
@@ -94,6 +107,7 @@ run_pre_commit_hook() {
     local artifacts_dir="$2"
     local exit_code=0
     (
+        # shellcheck disable=SC2030,SC2031,SC2164
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
@@ -107,6 +121,7 @@ run_pre_commit_hook_stderr() {
     local repo_dir="$1"
     local artifacts_dir="$2"
     (
+        # shellcheck disable=SC2030,SC2031,SC2164,SC2069
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
@@ -128,6 +143,7 @@ compute_hash_in_repo() {
     local repo_dir="$1"
     local artifacts_dir="$2"
     (
+        # shellcheck disable=SC2030,SC2031,SC2164
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
@@ -512,6 +528,7 @@ test_gate_layer1_blocks_commit_without_test_status() {
     # No test-gate-status file → hook must block
     local exit_code=0
     (
+        # shellcheck disable=SC2031,SC2164
         cd "$_repo"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
