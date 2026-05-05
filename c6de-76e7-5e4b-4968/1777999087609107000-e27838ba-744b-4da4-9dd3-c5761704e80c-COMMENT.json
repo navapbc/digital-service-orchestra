@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"REPLAN_TRIGGER: validation — Story 182d DD3 FAIL: runner.py hardcodes Anthropic import instead of routing through get_provider(). Creating remediation task."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1777999087609107000,"uuid":"e27838ba-744b-4da4-9dd3-c5761704e80c"}

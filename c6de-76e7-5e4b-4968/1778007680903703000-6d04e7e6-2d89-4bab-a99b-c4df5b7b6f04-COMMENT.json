@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"REPLAN_TRIGGER: validation — Story e596 DD2 FAIL: contract test does not cover --overlay-security, --overlay-performance, --overlay-test-quality flag patterns. Creating remediation task."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1778007680903703000,"uuid":"6d04e7e6-2d89-4bab-a99b-c4df5b7b6f04"}
