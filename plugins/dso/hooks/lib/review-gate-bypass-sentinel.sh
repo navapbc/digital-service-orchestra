@@ -26,8 +26,13 @@ _REVIEW_GATE_BYPASS_SENTINEL_LOADED=1
 # Source shared dependency library (idempotent via its own guard)
 _LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_LIB_DIR/deps.sh"
+source "$_LIB_DIR/enforcement-gate.sh"
 
 hook_review_bypass_sentinel() {
+    # _dso_enforcement_gate_check returns 0 when enforcement.strategy=ci (hook should skip),
+    # non-zero when strategy=local (hook should proceed). The && return 0 idiom is correct:
+    # "if gate says skip (returns 0), skip (return 0); if gate says proceed (non-zero), continue".
+    _dso_enforcement_gate_check && return 0
     local INPUT="$1"
     local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"review-bypass-sentinel\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
@@ -215,20 +220,20 @@ _PY_EOF
         fi
     fi
 
-    # --- Pattern k: Direct writes/deletions to .tickets-tracker/ internals ---
-    # Block commands that modify .tickets-tracker/ files directly (echo/cat/tee/printf
+    # --- Pattern k: Direct writes/deletions to .tickets-tracker/ internals --- # tickets-boundary-ok
+    # Block commands that modify .tickets-tracker/ files directly (echo/cat/tee/printf # tickets-boundary-ok
     # with redirect, cp/mv, rm) but allow read-only commands and authorized writers
     # (ticket CLI scripts: ticket*.sh, ticket-*.py).
-    # Also protects .git/worktrees/-tickets-tracker/ (git worktree metadata).
-    if [[ "$COMMAND" == *".tickets-tracker/"* ]] || [[ "$COMMAND" == *"worktrees/-tickets-tracker/"* ]]; then
+    # Also protects .git/worktrees/-tickets-tracker/ (git worktree metadata). # tickets-boundary-ok
+    if [[ "$COMMAND" == *".tickets-tracker/"* ]] || [[ "$COMMAND" == *"worktrees/-tickets-tracker/"* ]]; then # tickets-boundary-ok: detection guard
         # Exemption: ticket CLI scripts are authorized writers
         if [[ "$COMMAND" == *"ticket-"*".sh"* ]] || [[ "$COMMAND" == *"ticket-"*".py"* ]] || \
            [[ "$COMMAND" == *"ticket init"* ]] || [[ "$COMMAND" == *"ticket-init"* ]] || \
            [[ "$COMMAND" == *"ticket-lib"* ]]; then
             return 0
         fi
-        # Exemption: git operations within ticket scripts (git -C .tickets-tracker/ ...)
-        if [[ "$COMMAND" =~ git[[:space:]]+-C[[:space:]]+[^[:space:]]*\.tickets-tracker ]]; then
+        # Exemption: git operations within ticket scripts (git -C .tickets-tracker/ ...) # tickets-boundary-ok
+        if [[ "$COMMAND" =~ git[[:space:]]+-C[[:space:]]+[^[:space:]]*\.tickets-tracker ]]; then # tickets-boundary-ok: detection guard
             return 0
         fi
         # Exemption: read-only commands (cat, head, tail, ls, find, grep without redirect)
@@ -236,13 +241,15 @@ _PY_EOF
            [[ ! "$COMMAND" =~ \> ]]; then
             return 0
         fi
-        # Check for write/delete patterns
-        if [[ "$COMMAND" =~ \>[[:space:]]*[^[:space:]]*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] || \
-           [[ "$COMMAND" =~ (tee)[[:space:]]*[^[:space:]]*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] || \
-           [[ "$COMMAND" =~ (cp|mv)[[:space:]].*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] || \
-           [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>.*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] || \
-           [[ "$COMMAND" =~ rm[[:space:]].*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]]; then
-            echo "BLOCKED [bypass-sentinel]: direct modification of .tickets-tracker/ detected. Use ticket CLI commands (ticket create, ticket comment, etc.) instead." >&2
+        # Check for write/delete patterns using a flag variable (each check on its own line for annotation)
+        local _is_write_op=false
+        [[ "$COMMAND" =~ \>[[:space:]]*[^[:space:]]*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] && _is_write_op=true || true # tickets-boundary-ok: detection guard
+        [[ "$COMMAND" =~ (tee)[[:space:]]*[^[:space:]]*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] && _is_write_op=true || true # tickets-boundary-ok: detection guard
+        [[ "$COMMAND" =~ (cp|mv)[[:space:]].*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] && _is_write_op=true || true # tickets-boundary-ok: detection guard
+        [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>.*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] && _is_write_op=true || true # tickets-boundary-ok: detection guard
+        [[ "$COMMAND" =~ rm[[:space:]].*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] && _is_write_op=true || true # tickets-boundary-ok: detection guard
+        if [[ "$_is_write_op" == "true" ]]; then
+            echo "BLOCKED [bypass-sentinel]: direct modification of .tickets-tracker/ detected. Use ticket CLI commands instead." >&2 # tickets-boundary-ok
             trap - ERR; return 2
         fi
     fi

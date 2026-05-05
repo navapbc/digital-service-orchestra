@@ -139,6 +139,17 @@ _extract_fn() {
 _STATE_TMPDIR=$(mktemp -d)
 
 # =============================================================================
+# Pre-load: _state_set_field and _state_get_field (helper functions required by
+# _state_write_phase, _state_record_merge_sha, and other state mutators).
+# These are defined in merge-helpers.sh and must be eval'd before any state
+# function that calls them is invoked.
+# =============================================================================
+_SSF_BODY=$(_extract_fn "_state_set_field")
+_SGF_BODY=$(_extract_fn "_state_get_field")
+[[ -n "$_SSF_BODY" ]] && eval "$_SSF_BODY"
+[[ -n "$_SGF_BODY" ]] && eval "$_SGF_BODY"
+
+# =============================================================================
 # Test: _state_file_path is worktree-scoped
 # =============================================================================
 _SFP_BODY=$(_extract_fn "_state_file_path")
@@ -441,6 +452,9 @@ assert_ne "test_state_init_called_after_branch" "0" "$_STATE_INIT_AFTER_BRANCH"
 # =============================================================================
 
 # Re-eval helpers (clean slate for integration section)
+# Load _state_set_field/_state_get_field first — required by write/record helpers
+eval "$(_extract_fn "_state_set_field")"
+eval "$(_extract_fn "_state_get_field")"
 eval "$(_extract_fn "_state_file_path")"
 eval "$(_extract_fn "_state_is_fresh")"
 eval "$(_extract_fn "_state_init")"
@@ -553,6 +567,8 @@ test_sigurg_records_interrupted_phase() {
     {
         echo '#!/usr/bin/env bash'
         echo 'set -uo pipefail'
+        _extract_fn "_state_set_field"
+        _extract_fn "_state_get_field"
         _extract_fn "_state_file_path"
         _extract_fn "_state_is_fresh"
         _extract_fn "_state_init"

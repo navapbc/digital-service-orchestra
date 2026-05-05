@@ -143,10 +143,18 @@ assert_eq "test_sentinel_has_mechanical_amend_check" "found" "$_SENT_HAS_CHECK"
 # string — exporting it to the test subshell would test the wrong execution model.
 _SENT_RC=0
 (
+    # Set enforcement strategy to local for test isolation (enforcement.strategy=ci
+    # would cause the sentinel to skip all blocking behavior).
+    _MECH_ISO_DIR=$(mktemp -d /tmp/mech-amend-test-isolation.XXXXXX)
+    printf 'enforcement.strategy=local\n' > "$_MECH_ISO_DIR/dso-config.conf"
+    WORKFLOW_CONFIG_FILE="$_MECH_ISO_DIR/dso-config.conf"
     source "$SENTINEL_LIB" 2>/dev/null
     # Simulate "DSO_MECHANICAL_AMEND=1 git commit -m test" (non-amend) — sentinel should block
     _INPUT='{"tool_name":"Bash","tool_input":{"command":"DSO_MECHANICAL_AMEND=1 git commit -m test"}}'
     hook_review_bypass_sentinel "$_INPUT" 2>/dev/null
+    _hook_rc=$?
+    rm -rf "$_MECH_ISO_DIR"
+    exit $_hook_rc
 ) || _SENT_RC=$?
 
 assert_eq "test_sentinel_blocks_mechanical_amend_on_raw_commit" "2" "$_SENT_RC"
@@ -164,12 +172,19 @@ _snapshot_fail
 
 _SENT_ALLOW_RC=0
 (
+    # Set enforcement strategy to local for test isolation.
+    _MECH_ISO2_DIR=$(mktemp -d /tmp/mech-amend-allow-isolation.XXXXXX)
+    printf 'enforcement.strategy=local\n' > "$_MECH_ISO2_DIR/dso-config.conf"
+    WORKFLOW_CONFIG_FILE="$_MECH_ISO2_DIR/dso-config.conf"
     source "$SENTINEL_LIB" 2>/dev/null
     # Simulate "DSO_MECHANICAL_AMEND=1 git commit --amend --no-edit --quiet" — sentinel should allow
     # The env var is in the command string (inline prefix), not exported to the environment,
     # matching the actual runtime model where the sentinel is a PreToolUse hook process.
     _INPUT='{"tool_name":"Bash","tool_input":{"command":"DSO_MECHANICAL_AMEND=1 git commit --amend --no-edit --quiet"}}'
     hook_review_bypass_sentinel "$_INPUT" 2>/dev/null
+    _hook_allow_rc=$?
+    rm -rf "$_MECH_ISO2_DIR"
+    exit $_hook_allow_rc
 ) || _SENT_ALLOW_RC=$?
 
 assert_eq "test_sentinel_allows_mechanical_amend_on_amend_noedit" "0" "$_SENT_ALLOW_RC"

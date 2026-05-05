@@ -792,7 +792,10 @@ _build_pr_success_fixture() {
         "$real_git" add local-seed.txt
         "$real_git" commit -q -m "local-seed" >/dev/null
         # Pre-fetch to populate refs/remotes/origin/main before the script runs.
-        "$real_git" fetch -q origin main >/dev/null 2>&1 || true
+        # Use explicit refspec — `git fetch origin main` without refspec may only
+        # update FETCH_HEAD on Ubuntu CI git 2.43+ without creating the tracking ref.
+        "$real_git" fetch -q origin "main:refs/remotes/origin/main" >/dev/null 2>&1 || \
+            "$real_git" fetch -q origin >/dev/null 2>&1 || true
         "$real_git" checkout -q -b "$branch"
         echo "feature" > feature.txt
         "$real_git" add feature.txt
@@ -1512,6 +1515,7 @@ EOF
         bash -c '
             source "$0" 2>/dev/null
             _normalize_tier1() { cp "$1" "$2"; }
+            _check_usage_for_remediate() { return 0; }
             _phase_remediate "42" "https://github.com/x/y/pull/42" 2>/dev/null
         ' "$PR_SCRIPT"
     ) 2>/dev/null
@@ -1610,6 +1614,7 @@ EOF
         bash -c '
             source "$0" 2>/dev/null
             _normalize_tier1() { cp "$1" "$2"; }
+            _check_usage_for_remediate() { return 0; }
             _phase_remediate "42" "https://github.com/x/y/pull/42" 2>/dev/null
         ' "$PR_SCRIPT"
     ) 2>/dev/null
@@ -1685,6 +1690,7 @@ EOF
         PR_LIB_MODE="1" \
         bash -c '
             source "$0" 2>/dev/null
+            _check_usage_for_remediate() { return 0; }
             _phase_remediate "42" "https://github.com/x/y/pull/42" 2>/dev/null
         ' "$PR_SCRIPT"
     ) 2>/dev/null
@@ -1783,6 +1789,7 @@ EOF
         bash -c '
             source "$0" 2>/dev/null
             _normalize_tier1() { cp "$1" "$2"; }
+            _check_usage_for_remediate() { return 0; }
             _phase_remediate "42" "https://github.com/x/y/pull/42" 2>/dev/null
         ' "$PR_SCRIPT"
     ) 2>/dev/null
@@ -1920,6 +1927,7 @@ EOF
         bash -c '
             source "$0" 2>/dev/null
             _normalize_tier1() { cp "$1" "$2"; }
+            _check_usage_for_remediate() { return 0; }
             _phase_remediate "42" "https://github.com/x/y/pull/42" 2>/dev/null
         ' "$PR_SCRIPT"
     ) 2>/dev/null
@@ -2277,6 +2285,7 @@ STATE_EOF
             _push_fix_branch()    { return 0; }
             _phase_poll()         { return 0; }
             _fetch_ci_log()       { return 1; }
+            _check_usage_for_remediate() { return 0; }
 
             _phase_remediate "42" "https://github.com/x/y/pull/42"
         ' "$PR_SCRIPT"
@@ -2332,6 +2341,7 @@ STATE_EOF
             _normalize_tier3() { touch "'"$_tier3_called"'"; return 3; }
             _normalize_tier4() { touch "'"$_tier4_called"'"; return 3; }
             _fetch_ci_log()    { return 1; }
+            _check_usage_for_remediate() { return 0; }
 
             _phase_remediate "42" "https://github.com/x/y/pull/42"
         ' "$PR_SCRIPT"
@@ -2413,6 +2423,7 @@ STATE_EOF
             }
 
             _fetch_ci_log() { return 1; }
+            _check_usage_for_remediate() { return 0; }
 
             _phase_remediate "42" "https://github.com/x/y/pull/42"
         ' "$PR_SCRIPT"
@@ -2908,6 +2919,7 @@ GH_SHIM
             _phase_poll()         { return 1; }
             _fetch_ci_log()       { return 1; }
             _remediate_counter_increment() { echo "TIER_CEILING"; return 0; }
+            _check_usage_for_remediate() { return 0; }
 
             _phase_remediate "99" "https://github.com/x/y/pull/99"
         ' "$PR_SCRIPT" 2>/dev/null
@@ -2967,6 +2979,7 @@ GH_SHIM
             _phase_poll()         { return 1; }
             _fetch_ci_log()       { return 1; }
             _remediate_counter_increment() { echo "GLOBAL_CEILING"; return 0; }
+            _check_usage_for_remediate() { return 0; }
 
             _phase_remediate "99" "https://github.com/x/y/pull/99"
         ' "$PR_SCRIPT" 2>/dev/null
@@ -3026,6 +3039,7 @@ GH_SHIM
             _normalize_tier2()    { return 3; }
             _normalize_tier3()    { return 3; }
             _normalize_tier4()    { return 3; }
+            _check_usage_for_remediate() { return 0; }
 
             _phase_remediate "99" "https://github.com/x/y/pull/99"
         ' "$PR_SCRIPT" 2>/dev/null
@@ -3086,6 +3100,7 @@ GH_SHIM
             _normalize_tier3()    { return 3; }
             _normalize_tier4()    { return 3; }
             _remediate_counter_increment() { echo "GLOBAL_CEILING"; return 0; }
+            _check_usage_for_remediate() { return 0; }
 
             _phase_remediate "99" "https://github.com/x/y/pull/99"
         ' "$PR_SCRIPT" 2>/dev/null
@@ -3171,6 +3186,7 @@ LLM_STUB_EOF
             _push_fix_branch() { return 0; }
             _phase_poll()      { return 1; }
             _fetch_ci_log()    { return 1; }
+            _check_usage_for_remediate() { return 0; }
 
             _phase_remediate "99" "https://github.com/x/y/pull/99"
         ' "$PR_SCRIPT" 2>/dev/null
@@ -3231,6 +3247,7 @@ GH_SHIM
             _normalize_tier3() { return 3; }
             _normalize_tier4() { return 3; }
             _fetch_ci_log()    { return 1; }
+            _check_usage_for_remediate() { return 0; }
 
             _phase_remediate "99" "https://github.com/x/y/pull/99"
         ' "$PR_SCRIPT" 2>/dev/null
@@ -3399,6 +3416,7 @@ GH_SHIM
             _dispatch_fix_agent() { return 0; }
             _push_fix_branch()    { return 0; }
             _phase_poll()         { return 1; }
+            _check_usage_for_remediate() { return 0; }
 
             # Counter: allow first 5 calls (empty), then emit GLOBAL_CEILING to exit the loop
             _counter_call_count=0
