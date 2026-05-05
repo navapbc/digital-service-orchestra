@@ -1512,9 +1512,13 @@ fi
 # =============================================================================
 
 # --- Step 1: fetch latest origin/main so we have the merge commit locally ---
-git fetch origin main --quiet 2>/dev/null || {
-    echo "WARNING: git fetch origin main failed — merge SHA verification may be stale." >&2
-}
+# Use explicit refspec to ensure refs/remotes/origin/main is populated.
+# `git fetch origin main` without refspec may only update FETCH_HEAD on some git
+# versions (notably Ubuntu git 2.43+) without creating the tracking ref.
+git fetch origin "main:refs/remotes/origin/main" --quiet 2>/dev/null || \
+    git fetch origin main --quiet 2>/dev/null || {
+        echo "WARNING: git fetch origin main failed — merge SHA verification may be stale." >&2
+    }
 
 # --- Step 2: get the merge commit SHA from the PR ---
 MERGE_SHA=$(gh pr view "$_PR_NUMBER" --json mergeCommit --jq .mergeCommit.oid 2>/dev/null || true)

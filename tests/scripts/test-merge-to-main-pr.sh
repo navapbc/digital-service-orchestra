@@ -792,7 +792,10 @@ _build_pr_success_fixture() {
         "$real_git" add local-seed.txt
         "$real_git" commit -q -m "local-seed" >/dev/null
         # Pre-fetch to populate refs/remotes/origin/main before the script runs.
-        "$real_git" fetch -q origin main >/dev/null 2>&1 || true
+        # Use explicit refspec — `git fetch origin main` without refspec may only
+        # update FETCH_HEAD on Ubuntu CI git 2.43+ without creating the tracking ref.
+        "$real_git" fetch -q origin "main:refs/remotes/origin/main" >/dev/null 2>&1 || \
+            "$real_git" fetch -q origin >/dev/null 2>&1 || true
         "$real_git" checkout -q -b "$branch"
         echo "feature" > feature.txt
         "$real_git" add feature.txt
