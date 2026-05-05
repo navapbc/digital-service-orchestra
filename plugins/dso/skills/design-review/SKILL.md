@@ -1,6 +1,6 @@
 ---
 name: design-review
-description: Use when reviewing proposed designs (code, wireframes, screenshots) against an established .claude/design-notes.md, or when enforcing design system compliance before merging UI changes
+description: Use when reviewing proposed designs (code, wireframes, screenshots) against an established .claude/design-notes.md, or when enforcing design system compliance before merging UI changes. Checks color tokens, typography, spacing, component usage, layout, and accessibility against the project's design notes and produces a report card with critical violations, UX/accessibility risks, alignment wins, and optional refined code. Trigger phrases include 'design review', 'style guide check', 'visual consistency', 'component library compliance', 'design system check', 'review this UI', 'check design tokens'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
