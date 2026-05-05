@@ -1,6 +1,6 @@
 ---
 name: retro
-description: Use when performing periodic project health reviews, optimizing development workflow, cleaning up worktrees, auditing test quality, or identifying technical debt and maintenance needs
+description: Use when performing periodic project health reviews, repo maintenance, code cleanup, dead-code sweeps, unused-dependency audits, stale-branch / stale-worktree cleanup, test quality / coverage-gap audits, CI failure pattern review, or technical-debt triage. Runs retro-gather.sh to collect CI failure metrics, TODO-family comment counts, validation health, and worktree state; classifies each finding via a shift-left analysis (was this catchable earlier?); produces a candidate task list (P3 maintenance tickets, Quick Wins for <5-minute removals, follow-ups) and writes the approved tasks to the tracker. Trigger phrases include 'project health check', 'code cleanup', 'dead code', 'unused dependencies', 'stale branches', 'stale worktrees', 'coverage gaps', 'repo maintenance', 'tech debt', 'retro', 'audit the tests', 'CI is flaky'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
