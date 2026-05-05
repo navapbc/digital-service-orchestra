@@ -1,6 +1,6 @@
 ---
 name: playwright-debug
-description: Use when debugging a UI or browser-visible bug. Enforces a 3-tier hypothesis-first process that minimizes @playwright/cli token usage by exhausting static code analysis and targeted JS evidence before escalating to full browser interaction.
+description: Use when debugging a visual bug, layout issue, CSS problem, rendering issue, broken UI, page-looks-wrong report, or any browser-visible defect. Enforces a 3-tier hypothesis-first process that minimizes @playwright/cli token usage — generates hypotheses from static code analysis (Tier 1), confirms them with targeted in-browser JS evidence (Tier 2, ≤3 run-code calls), and only escalates to full browser interaction (Tier 3) when prior tiers are exhausted. Trigger phrases include 'visual bug', 'layout issue', 'CSS problem', 'rendering issue', 'broken UI', 'the page looks wrong', 'screenshot regression', 'browser bug', 'frontend bug', 'why is this element off-screen'.
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash
 ---
@@ -33,6 +33,16 @@ fi
 ```
 
 If the binary is not available, do NOT proceed with Tier 2 or Tier 3. Remain in Tier 1 (code analysis only) and report the missing dependency.
+
+## Project-Specific Reference (one-time setup)
+
+Many sections below augment the generic guidance with project-specific data (symptom-to-code-path table, framework constraints, worked examples) loaded from a single reference file. Resolve it once at session start:
+
+```bash
+PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
+```
+
+When a section below says **"PROJECT-SPECIFIC: read the `## <section name>` section from `$PLAYWRIGHT_DEBUG_REF`"**, do that lookup if `$PLAYWRIGHT_DEBUG_REF` is non-empty; skip the section augment if empty.
 
 ## Session Management
 
@@ -74,13 +84,7 @@ trap - EXIT TERM INT  # Clear the trap after explicit close
 - The bug is confirmed server-side (use logs or test output)
 - You need to validate a full end-to-end deployment workflow
 
-<!-- PROJECT-SPECIFIC: Load additional "When NOT to Use" guidance from reference file if configured -->
-
-```bash
-PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
-```
-
-If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## When NOT to Use (Project-Specific)` section from that file for additional project-specific exclusions.
+**PROJECT-SPECIFIC**: read `## When NOT to Use (Project-Specific)` from `$PLAYWRIGHT_DEBUG_REF` for additional exclusions.
 
 ## Visual Regression Gate (run before Tier 1)
 
@@ -121,13 +125,7 @@ Tier 3 (Full CLI Interaction) → goto, click, hover, screenshot via @playwright
 
 ### Step 1: Identify the symptom's code path
 
-<!-- PROJECT-SPECIFIC: Load symptom-to-code-path table from reference file if configured -->
-
-```bash
-PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
-```
-
-If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Symptom-to-Code-Path Table` section from that file for the project-specific symptom table.
+**PROJECT-SPECIFIC**: read `## Symptom-to-Code-Path Table` from `$PLAYWRIGHT_DEBUG_REF` for the project-specific symptom table.
 
 **Generic fallback (when no reference file configured):**
 
@@ -148,13 +146,7 @@ Map the symptom to its source:
 
 ### Step 2: Read the relevant code
 
-<!-- PROJECT-SPECIFIC: Load code reading patterns from reference file if configured -->
-
-```bash
-PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
-```
-
-If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Code Reading Patterns` section from that file for project-specific Grep patterns and file locations.
+**PROJECT-SPECIFIC**: read `## Code Reading Patterns` from `$PLAYWRIGHT_DEBUG_REF` for project-specific Grep patterns and file locations.
 
 **Generic fallback (when no reference file configured):**
 
@@ -178,13 +170,7 @@ H3: <lower-likelihood alternative>
     <one sentence supporting evidence or reasoning>
 ```
 
-<!-- PROJECT-SPECIFIC: Load example hypotheses from reference file if configured -->
-
-```bash
-PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
-```
-
-If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Example Hypotheses` section from that file for project-specific worked hypothesis examples.
+**PROJECT-SPECIFIC**: read `## Example Hypotheses` from `$PLAYWRIGHT_DEBUG_REF` for project-specific worked hypothesis examples.
 
 **Generic fallback (when no reference file configured):**
 
@@ -252,13 +238,7 @@ fi
 echo "$rc_output"
 ```
 
-<!-- PROJECT-SPECIFIC: Load Tier 2 evidence examples from reference file if configured -->
-
-```bash
-PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
-```
-
-If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Tier 2 Evidence Examples` section from that file for project-specific batched JS examples using real selectors.
+**PROJECT-SPECIFIC**: read `## Tier 2 Evidence Examples` from `$PLAYWRIGHT_DEBUG_REF` for project-specific batched JS examples using real selectors.
 
 **Generic fallback (when no reference file configured):**
 
@@ -357,21 +337,9 @@ A JS exception can silently disable event handlers and is missed by DOM inspecti
    fi
    ```
 
-<!-- PROJECT-SPECIFIC: Load framework-specific Tier 3 constraints from reference file if configured -->
+**PROJECT-SPECIFIC**: read `## Framework-Specific Constraints` from `$PLAYWRIGHT_DEBUG_REF` for Tier 3 interaction patterns (e.g., file upload handling, custom widget interaction).
 
-```bash
-PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
-```
-
-If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Framework-Specific Constraints` section from that file for project-specific Tier 3 interaction patterns (e.g., file upload handling, custom widget interaction).
-
-<!-- PROJECT-SPECIFIC: Load staging/environment configuration from reference file if configured -->
-
-```bash
-PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
-```
-
-If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Staging Configuration` section from that file for environment-specific URLs, timeouts, and wait conditions.
+**PROJECT-SPECIFIC**: read `## Staging Configuration` from `$PLAYWRIGHT_DEBUG_REF` for environment-specific URLs, timeouts, and wait conditions.
 
 **Generic fallback for timeouts (when no reference file configured):**
 
@@ -417,13 +385,7 @@ The default 5s timeout may be insufficient for operations involving network call
 
 ---
 
-<!-- PROJECT-SPECIFIC: Load worked example from reference file if configured -->
-
-```bash
-PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
-```
-
-If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Worked Example` section from that file for a project-specific end-to-end debugging walkthrough using real routes, selectors, and data shapes.
+**PROJECT-SPECIFIC**: read `## Worked Example` from `$PLAYWRIGHT_DEBUG_REF` for a project-specific end-to-end debugging walkthrough using real routes, selectors, and data shapes.
 
 **Generic fallback (when no reference file configured):**
 

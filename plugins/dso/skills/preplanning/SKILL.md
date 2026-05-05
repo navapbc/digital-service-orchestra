@@ -1,6 +1,6 @@
 ---
 name: preplanning
-description: Use when decomposing a ticket epic into prioritized user stories with measurable done definitions, or when auditing and reconciling existing epic children before implementation
+description: Use when breaking down an epic into user stories, story splitting, backlog grooming, defining acceptance criteria, or auditing and reconciling existing epic children before implementation. Decomposes the epic into prioritized vertical-slice user stories, drafts measurable done definitions per story, identifies dependencies, runs an adversarial red-team review pass, dispatches a UI designer for UI stories, and writes the story tickets to the tracker. Trigger phrases include 'break down this epic', 'split into stories', 'story splitting', 'backlog grooming', 'write user stories', 'define acceptance criteria', 'plan the epic', 'decompose the epic', 'reconcile epic children'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -332,86 +332,11 @@ If no stories in the plan qualify for integration research, log: "No stories wit
 
 ---
 
-## Phase E: Adversarial Review (/dso:preplanning)
+## Phase E: Adversarial Review (branch — ≥3 stories; skipped under --lightweight)
 
-### Threshold Gate
+**Trigger**: Phase C completed and the story map has ≥ 3 stories. If fewer, log `"Adversarial review skipped: fewer than 3 stories (<N> stories)."` and proceed directly to Phase F. Skipped entirely under `--lightweight` (lightweight mode does not create stories).
 
-**Skip this phase if fewer than 3 stories exist** after Phase C completes. Adversarial review adds value only when there are enough stories for cross-story interactions to matter. If skipped, log: `"Adversarial review skipped: fewer than 3 stories (<N> stories)."` and proceed directly to Phase F.
-
-### Step 1: Red Team Dispatch (/dso:preplanning)
-
-Dispatch via `subagent_type: "dso:red-team-reviewer"` (model defaults: opus). If the named type is unregistered in this session, fall back to `subagent_type: "general-purpose"` with `model: "opus"` and `agents/red-team-reviewer.md` content read inline as the prompt. The agent definition contains the full review prompt including the 6-category taxonomy and Consumer Enumeration directive. Pass the following as task arguments:
-
-- `{epic-title}`: Epic title from Phase A
-- `{epic-description}`: Epic description from Phase A
-- `{story-map}`: All stories with their done definitions, considerations, and dependencies (formatted from Phase C output)
-- `{risk-register}`: Risk Register table from Phase C
-- `{dependency-graph}`: Dependency graph from `.claude/scripts/dso ticket deps <epic-id>`
-
-The red team sub-agent returns a JSON `findings` array. Parse the response and validate it contains well-formed JSON with the expected schema (array of objects with `type`, `target_story_id`, `title`, `description`, `rationale`, `taxonomy_category` fields).
-
-**Fallback — two-path protocol**:
-- **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `agents/red-team-reviewer.md` inline and re-dispatch as a general-purpose agent using that content as the prompt. Do NOT perform the review inline — the agent must do it.
-- **Execution failure** (timeout, malformed output, or fails to produce valid JSON): Log a warning `"Red team review failed: <reason>. Skipping adversarial review, proceeding to Phase F."` and skip directly to Phase F.
-
-### Step 2: Blue Team Dispatch (/dso:preplanning)
-
-If the red team returns a non-empty findings array, dispatch via `subagent_type: "dso:blue-team-filter"` (model defaults: sonnet). If the named type is unregistered, fall back to `subagent_type: "general-purpose"` with `model: "sonnet"` and `agents/blue-team-filter.md` content read inline as the prompt. Pass the following as task arguments:
-
-- `{epic-title}`: Same as red team
-- `{epic-description}`: Same as red team
-- `{story-map}`: Same as red team
-- `{red-team-findings}`: The raw JSON findings array from the red team sub-agent
-
-The blue team sub-agent returns a filtered JSON object with `findings` (accepted) and `rejected` arrays.
-
-**If red team returned zero findings**: Skip the blue team dispatch entirely. Log: `"Red team found no cross-story gaps. Skipping blue team filter."` and proceed to Phase F.
-
-**Partial failure — two-path protocol**:
-- **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `agents/blue-team-filter.md` inline and re-dispatch as a general-purpose agent using that content as the prompt. Do NOT perform the filtering inline — the agent must do it; inline filtering by the orchestrator defeats the purpose of the impartial blue team.
-- **Execution failure** (timeout, malformed output, or error): **Discard all unfiltered findings** and proceed to Phase F. Do NOT apply unfiltered red team findings — the blue team filter exists to prevent false positives from polluting the story map. Log: `"Blue team filter failed: <reason>. Discarding unfiltered red team findings, proceeding to Phase F."`
-
-### Step 3: Apply Surviving Findings (/dso:preplanning)
-
-Parse the blue team's accepted findings and apply each one based on its `type`:
-
-| Finding Type | Action |
-|-------------|--------|
-| `new_story` | Create a new story with description: `.claude/scripts/dso ticket create story "<title>" --parent=<epic-id> -d "<body with description, done definitions, and considerations>"`. |
-| `modify_done_definition` | Use `.claude/scripts/dso ticket comment <target_story_id> "Done definition update: <description>"` to record the modified done definition. |
-| `add_dependency` | Add the dependency: `.claude/scripts/dso ticket link <target_story_id> <dependency_id> depends_on` (extract dependency ID from the finding's description). |
-| `add_consideration` | Use `.claude/scripts/dso ticket comment <target_story_id> "Consideration: <text>"` to append the consideration. |
-| `escalate_to_epic` | The finding signals that a cross-story concern belongs at the epic level. Read the current epic description via `ticket show`, then use `.claude/scripts/dso ticket edit <epic-id> --description="<current-description>\n\nSC: <title> — <description>"` to append the new Success Criterion. Before emitting the escalation signal, check `sprint.max_replan_cycles` from config (default 2): if the current `replan_cycle_count` has already reached the limit, log `"escalate_to_epic: max_replan_cycles reached — recording SC but skipping REPLAN_ESCALATE"` and continue without escalating. Otherwise emit `REPLAN_ESCALATE: brainstorm EXPLANATION:<title>` to trigger brainstorm re-review of the updated epic scope before continuing. |
-
-Log a summary after applying findings:
-```
-Adversarial review complete:
-- Red team findings: <N> total
-- Blue team filtered: <M> rejected, <K> accepted
-- Applied: <A> new stories, <B> modified done definitions, <C> new dependencies, <D> new considerations
-```
-
-### Step 4: Persist Adversarial Review Exchange (/dso:preplanning)
-
-After processing blue team findings, the orchestrator persists the full exchange for post-mortem analysis. The blue team agent does NOT write files (it cannot run shell commands) — it returns `artifact_path: null`, and the orchestrator handles persistence here using the red team findings and the blue team's `findings`/`rejected` arrays.
-
-1. Resolve the artifact path and write the full exchange JSON:
-   ```bash
-   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
-   ARTIFACTS_DIR=$(get_artifacts_dir)
-   ARTIFACT_PATH="$ARTIFACTS_DIR/adversarial-review-<epic-id>.json"
-   # Write JSON combining the red team output and blue team findings/rejected arrays
-   ```
-2. Add a one-line ticket comment referencing the artifact:
-   ```bash
-   .claude/scripts/dso ticket comment <epic-id> "Adversarial review: <N> findings, <M> accepted. Full exchange: $ARTIFACT_PATH"
-   ```
-3. If writing the artifact fails (disk full, permission error): log a warning and continue — persistence failure is non-blocking.
-4. The artifact is available for future post-mortem analysis but is not surfaced in normal `ticket show` output.
-
-### Step 5: Continue to Phase F
-
-Proceed to Phase F (Walking Skeleton & Vertical Slicing) with the updated story map. New stories from adversarial review are included in the walking skeleton analysis.
+**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/preplanning/prompts/phase-e-adversarial-review.md` and follow it. The phase dispatches `dso:red-team-reviewer` (opus) for cross-story gap analysis, then `dso:blue-team-filter` (sonnet) to triage findings; applies surviving findings per a 5-row Finding Type table (`new_story`, `modify_done_definition`, `add_dependency`, `add_consideration`, `escalate_to_epic`); persists the full red/blue exchange to `$ARTIFACTS_DIR/adversarial-review-<epic-id>.json`; and emits `REPLAN_ESCALATE: brainstorm` when a finding escalates to the epic and `sprint.max_replan_cycles` has not been exhausted.
 
 ---
 
@@ -455,16 +380,7 @@ Ask: "What is the simplest possible flow that demonstrates this feature works?"
 
 ### Step 2: Apply INVEST Framework (/dso:preplanning)
 
-Ensure each story follows **INVEST** principles:
-
-| Principle | Question | Fix if No |
-|-----------|----------|----------|
-| **I**ndependent | Can this be built without waiting on other stories? | Add dependencies or split |
-| **N**egotiable | Is the "how" flexible, not dictated? | Remove implementation details |
-| **V**aluable | Does this deliver user/business value? | Combine with other stories |
-| **E**stimable | Can an agent estimate effort? | Add more context |
-| **S**mall | Can this be completed in one sub-agent session? | Split into smaller stories |
-| **T**estable | Are success criteria measurable? | Add specific acceptance criteria |
+Each story must satisfy **INVEST** — Independent, Negotiable, Valuable, Estimable, Small (one sub-agent session), Testable. For any story that fails one principle: add dependencies/split (I), remove implementation details (N), combine with others (V), add context (E), split (S), or add specific acceptance criteria (T).
 
 ### Step 3: Vertical Slicing (/dso:preplanning)
 
@@ -960,55 +876,11 @@ up to date and report completion.
 
 ---
 
-## Appendix: Lightweight Mode Specification
+## Lightweight Mode (branch — `--lightweight` flag only)
 
-When `--lightweight` is passed:
+**Trigger**: `/dso:preplanning` invoked with `--lightweight`. Lightweight mode produces an enriched epic description (done definitions + scope + considerations) without decomposing the epic into stories.
 
-1. **Skip Steps 3-5** of Phase A (no children to reconcile)
-2. **Skip Phase E** (Adversarial Review) entirely — lightweight mode does not create stories, so cross-story analysis is not applicable
-3. Proceed to **Phase C (abbreviated)**: Run the Risk & Scope Scan but with these modifications:
-   - **Run** the Concern Areas scan (Security, Performance, Accessibility, Testing, Reliability, Maintainability)
-   - **Run** the qualitative override check from the epic complexity evaluator (multiple personas, UI + backend, new DB migration, foundation/enhancement candidate, external integration)
-   - **Skip** split-candidate identification (no stories to split)
-4. **If any COMPLEX qualitative override is discovered** that the evaluator missed:
-   - Do NOT write the preplanning context file
-   - Do NOT modify the epic description
-   - Return immediately:
-     ```json
-     {
-       "result": "ESCALATED",
-       "reason": "<override name>: <explanation>",
-       "recommendation": "full_preplanning",
-       "epicId": "<epic-id>"
-     }
-     ```
-5. **If no overrides discovered**, proceed to write done definitions:
-   - Update the epic description with:
-     - **Done Definitions**: Observable outcomes from the epic description, formatted the same way as story-level done definitions (see Phase H Step 2)
-     - **Scope**: What's in and what's explicitly out
-     - **Considerations**: Flags from the abbreviated risk scan
-   - Write the preplanning context to the epic ticket as a comment (same schema as Phase H Step 6, but with an empty `stories` array) using Python subprocess to avoid ARG_MAX shell argument limits. This write is an optional cache — if it fails, log a warning and continue; do not abort the phase:
-     ```python
-     import json, subprocess
-     payload = json.dumps(<context-dict>, separators=(",",":"))
-     body = "PREPLANNING_CONTEXT_LIGHTWEIGHT: " + payload
-     result = subprocess.run(
-         [".claude/scripts/dso", "ticket", "comment", "<epic-id>", body],
-         check=False
-     )
-     if result.returncode != 0:
-         print("WARNING: Failed to write PREPLANNING_CONTEXT_LIGHTWEIGHT comment to epic ticket — continuing without cache write")
-     ```
-   Note: Lightweight mode uses the `PREPLANNING_CONTEXT_LIGHTWEIGHT:` key to avoid overwriting a full `PREPLANNING_CONTEXT:` comment. Consumers (e.g., `/dso:implementation-plan`) read `PREPLANNING_CONTEXT:` by default and only fall back to `PREPLANNING_CONTEXT_LIGHTWEIGHT:` if no full context exists.
-   - Return:
-     ```json
-     {
-       "result": "ENRICHED",
-       "epicId": "<epic-id>",
-       "doneDefinitions": ["<list of done definitions written>"],
-       "considerations": ["<list of considerations>"]
-     }
-     ```
+**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/preplanning/prompts/lightweight-mode.md` and follow it. It skips Phase A Steps 3–5, skips Phase E entirely, runs an abbreviated Phase C, escalates with `result: "ESCALATED"` on any qualitative COMPLEX override, otherwise writes the `PREPLANNING_CONTEXT_LIGHTWEIGHT:` ticket comment (separate key to preserve any full `PREPLANNING_CONTEXT:` comment) and returns `result: "ENRICHED"`.
 
 ---
 

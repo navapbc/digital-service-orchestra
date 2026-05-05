@@ -1,15 +1,13 @@
 ---
 name: skill-refactor
-description: Use when the user wants to critically review and refactor an existing DSO skill for clarity, token efficiency, and reliability — includes script relocation, reference updates, change-detector test removal, and ticket reconciliation. Invoke when the user says "review the <skill> skill", "optimize <skill>", "clean up <skill>", or similar language about auditing or improving a specific skill file.
+description: Use when the user wants to critically review and refactor an existing DSO skill for clarity, token efficiency, and reliability — includes script relocation, reference updates, change-detector test removal, and ticket reconciliation. Invoke when the user says "review the [skill] skill", "optimize [skill]", "clean up [skill]", or similar language about auditing or improving a specific skill file.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent
 ---
 
 # Skill Refactor
 
-End-to-end process for auditing and improving a DSO skill: review → approved plan → code/doc/test changes → ticket reconciliation → committed result.
-
-This skill codifies a workflow executed successfully on `/dso:architect-foundation` and the onboarding-adjacent scripts. Apply it to any skill where the user wants a token-efficiency and reliability pass.
+End-to-end token-efficiency and reliability pass on a DSO skill: review → approved plan → code/doc/test changes → ticket reconciliation → tessl review → committed result.
 
 ## When to use
 
@@ -23,17 +21,18 @@ User signals: "review the X skill", "audit X", "can we optimize X?", "clean up X
 
 ## Workflow
 
-The workflow is **eight sequential phases**. Do not skip. Phases 1 and 2 are synchronous with the user; Phases 3–8 execute autonomously once the plan is approved.
+The workflow is **nine sequential phases**. Do not skip. Phases A and B are synchronous with the user; Phases C–I execute autonomously once the plan is approved.
 
 ```
-P1 Critical review            → present findings
-P2 Remediation plan           → await explicit approval
-P3 Script relocation          → move skill-scoped scripts to shared sub-dir
-P4 Reference updates          → skill body, tests, docs
-P5 Change-detector test sweep → remove prose-grepping tests
-P6 Ticket reconciliation      → comment on open tickets affected
-P7 Renumbering                → renumber phases (A,B,C…) and steps (1,2,3…); update cross-skill refs
-P8 Commit                     → via COMMIT-WORKFLOW.md; surface review findings
+PA Critical review            → present findings
+PB Remediation plan           → await explicit approval
+PC Script relocation          → move skill-scoped scripts to shared sub-dir
+PD Reference updates          → skill body, tests, docs
+PE Change-detector test sweep → remove prose-grepping tests
+PF Ticket reconciliation      → comment on open tickets affected
+PG Renumbering                → renumber phases (A,B,C…) and steps (1,2,3…); update cross-skill refs
+PH Tessl skill review         → run tessl skill review; act on valid+actionable findings
+PI Commit                     → via COMMIT-WORKFLOW.md; surface review findings
 ```
 
 ---
@@ -65,18 +64,18 @@ A **hard gate** is anything in a skill that enforces a contract or triggers a do
 - Deleting an approval gate because the protocol the skill calls *also* has one. The skill-level gate may be load-bearing for entry modes that bypass the protocol.
 - Deleting a SUB-AGENT-GUARD or its test reference.
 
-**Procedure**: when Phase 1 diagnosis flags content as duplicated/restated/extractable, classify each item as **gate** or **prose**. Gates get compressed (one-line pointer + retain the identifier); prose gets removed. Surface the classification in the Phase 2 plan so the user can audit it.
+**Procedure**: in Phase A, classify each duplicated/restated/extractable item as **gate** (compress, retain identifier) or **prose** (remove). Surface the table in Phase B for user audit.
 
-**When in doubt, compress, do not remove.** Asymmetric cost: a removed gate may not surface as a failure for many sessions, and the loss is silent.
+**When in doubt, compress, do not remove** — silent gate loss is asymmetrically costly.
 
 ---
 
-## Phase 1 — Critical review
+## Phase A — Critical review
 
 Read the target SKILL.md in full. Identify, concretely:
 
 1. **Reliability problems**: undefined terms/codes referenced repeatedly, ambiguous phases, missing wiring instructions, scattered `--auto`/mode branches that should be consolidated, duplication that creates drift risk.
-2. **Token cost**: sections that are load-on-demand candidates (CI templates, anti-pattern catalogs, per-stack tables already codified in sibling scripts), prose over-elaboration of simple rules, examples that could live in a reference doc. For each candidate, classify as **gate** or **prose** per the "Hard gates" section above — gates get compressed, prose gets removed.
+2. **Token cost**: load-on-demand candidates (CI templates, anti-pattern catalogs, per-stack tables already codified in sibling scripts), prose over-elaboration, extractable examples. Classify each as **gate** or **prose** per "Hard gates" above. **Extraction constraint**: only extract content that is (a) used in multiple locations, OR (b) needed only on a specific logical branch off the hot path. Hot-path content stays inline.
 3. **Deterministic-command extraction candidates**: agent-executed bash blocks that are mechanical enough to live in a dedicated script (emit JSON, detect artifacts, slug and write files).
 4. **Structural issues**: multiple approval gates for the same decision at different granularity, phases that exist solely to invoke `/dso:review` or similar one-liners, sub-agent guards repeated inline instead of shared.
 
@@ -84,28 +83,28 @@ Read the target SKILL.md in full. Identify, concretely:
 
 Do not propose changes yet — this phase is diagnostic only.
 
-## Phase 2 — Remediation plan (blocking approval gate)
+## Phase B — Remediation plan (blocking approval gate)
 
 Convert the review into a concrete plan:
 
 - **Files to create** (new reference docs, new helper scripts) with one-line rationale each.
 - **Files to modify** (SKILL.md rewrite, inline shim-call updates).
-- **Scripts to relocate** (see Phase 3) with destination path.
-- **Change-detector tests to remove** (see Phase 5) — names only; evidence comes in P5.
-- **Gate/prose classification table** for every duplicate or restated section flagged in Phase 1, marking each as **gate** (compress, retain identifier) or **prose** (remove). Apply the criteria from the "Hard gates" section above. The user audits this table — gate misclassifications get caught here, not after the commit.
+- **Scripts to relocate** (see Phase C) with destination path.
+- **Change-detector tests to remove** (see Phase E) — names only; evidence comes in PE.
+- **Gate/prose classification table** for every duplicate or restated section flagged in Phase A, marking each as **gate** (compress, retain identifier) or **prose** (remove). Apply the criteria from the "Hard gates" section above. The user audits this table — gate misclassifications get caught here, not after the commit.
 - **Expected token reduction** (estimated line delta for SKILL.md).
 
 Present the plan and offer the user three explicit options:
 
-1. **Approve** — proceed to Phase 3.
+1. **Approve** — proceed to Phase C.
 2. **Red-team review first** — dispatch an opus sub-agent to adversarially scrutinize the plan; revise based on findings; re-present.
-3. **Revise** — user pushes back on specific items; rework Phase 1 / Phase 2 and re-present.
+3. **Revise** — user pushes back on specific items; rework Phase A / Phase B and re-present.
 
 Do not assume option 1 is the default. State the three options. Wait for the user's choice.
 
 **Under `/dso:dryrun`**: Same three options apply; note that dry-run mode will skip the write steps if option 1 is chosen.
 
-### Phase 2.5 — Red-team review (only when user picks option 2)
+### Red-Team Review Branch (only when user picks option 2)
 
 Launch an opus sub-agent to red-team the proposed plan. Direct the agent to:
 
@@ -116,7 +115,7 @@ Brief the sub-agent with: full file paths to the target SKILL.md and any extract
 
 **Out-of-scope concerns the red team MUST NOT flag** (these are project-level decisions already made; flagging them wastes review cycles):
 
-- **Phase / step renumbering blast radius.** Renumbering is a non-negotiable Phase 7 deliverable of every refactor. The cost of updating cross-skill references, contracts, and docs is accepted. Do NOT flag "X external references will need updating" as a blocker, important, or nit — Phase 7 of the skill-refactor workflow is responsible for those updates and the post-grep verify catches stragglers. Treat the renumbering as a fixed input, not a design choice to litigate.
+- **Phase / step renumbering blast radius.** Renumbering is a non-negotiable Phase G deliverable of every refactor. The cost of updating cross-skill references, contracts, and docs is accepted. Do NOT flag "X external references will need updating" as a blocker, important, or nit — Phase G of the skill-refactor workflow is responsible for those updates and the post-grep verify catches stragglers. Treat the renumbering as a fixed input, not a design choice to litigate.
 
 Output format the sub-agent should use:
 
@@ -131,9 +130,9 @@ When the sub-agent returns, **critically evaluate each finding for validity befo
 - **Partially accept** — revise with a narrower fix.
 - **Reject** — explain why the concern doesn't hold.
 
-Present the revised plan with explicit "accepted / partially accepted / rejected" status per finding, then return to the three-option gate at the top of Phase 2. The user may red-team again if substantial changes were made, approve, or revise further.
+Present the revised plan with explicit "accepted / partially accepted / rejected" status per finding, then return to the three-option gate at the top of Phase B. The user may red-team again if substantial changes were made, approve, or revise further.
 
-## Phase 3 — Script relocation (skill-scoped scripts only)
+## Phase C — Script relocation (skill-scoped scripts only)
 
 Determine which scripts are used only by this skill (or a tightly-coupled pair — e.g., onboarding + architect-foundation both consume the same scripts).
 
@@ -159,7 +158,7 @@ For each skill-scoped script:
 
 Verify: run the relocated script with `--help` or a safe read-only invocation; confirm it resolves the plugin root correctly.
 
-## Phase 4 — Reference updates
+## Phase D — Reference updates
 
 Update every caller of the moved scripts to use the new shim path. The DSO shim dispatches through sub-paths automatically — calls become `.claude/scripts/dso <sub-dir>/<script>.sh`. No shim changes required.
 
@@ -189,7 +188,7 @@ sed -i '' -E 's#^plugins/dso/scripts/(<A>|<B>|…)\.sh:#plugins/dso/scripts/<sub
 
 6. **Verification**: `grep -r "scripts/<script>\.sh" plugins/ tests/ docs/ | grep -v "<sub-dir>/"` must return zero relevant hits.
 
-## Phase 5 — Change-detector test sweep
+## Phase E — Change-detector test sweep
 
 Find tests whose only job is asserting prose phrases appear in instruction-file text — violating the project's behavioral-testing-standard Rule 5 ("test the structural boundary, not the content").
 
@@ -260,7 +259,7 @@ If the entire test file is change detectors, `git rm` the file.
 
 Summarize: N tests removed across M files, list the kept-but-flagged cases with one-line rationale for each.
 
-## Phase 6 — Ticket reconciliation
+## Phase F — Ticket reconciliation
 
 Find open tickets that reference the skill or moved scripts by **path** or **structural name** (phase numbers, step names, section titles that have been renamed). Conceptual references are fine; pathed references are stale.
 
@@ -290,7 +289,7 @@ For each hit:
 .claude/scripts/dso ticket comment <id> "NOTE (path update YYYY-MM-DD): <old> moved to <new>. <brief impact>."
 ```
 
-## Phase 7 — Renumbering
+## Phase G — Renumbering
 
 After all structural edits are complete and before commit, renumber the skill's phases and steps so the surface form matches the post-refactor structure (gaps, deletions, and reorderings produce numbering like "Phase 2.6 / Step 1a / Step 0.5" that confuses readers and tests). This phase is mechanical: do not change behavior, only labels.
 
@@ -311,7 +310,7 @@ This also applies to section title renames, signal label renames, and any other 
 
 ### Procedure
 
-> **Method**: scripts and `Edit` calls are both acceptable. The discipline that matters is **(1) build the explicit mapping table first**, **(2) one substitution pass, no double-mapping**, **(3) hand-audit cross-skill refs**, **(4) post-grep verify**. Skipping any of these — regardless of method — produces silent breakages: missed refs, off-by-one mappings, doubled substitutions where target labels collide with source labels, and mis-mapped cross-skill references (`fix-bug Step 1.5` rewritten as if it were a local step). The bug is not in the tool; the bug is in iteration discipline.
+> **Method**: scripts and `Edit` calls are both acceptable. The disciplines below are mandatory regardless of method: **(1) build the explicit mapping table first**, **(2) one substitution pass, no double-mapping**, **(3) hand-audit cross-skill refs**, **(4) post-grep verify**. Skipping any produces silent breakages (missed refs, off-by-one, doubled substitution, cross-skill refs rewritten as local).
 
 1. **Inventory current numbering** (replace `<name>` with the actual skill directory name, e.g., `debug-everything`, before running):
    ```bash
@@ -319,15 +318,12 @@ This also applies to section title renames, signal label renames, and any other 
    ```
    List every phase header and every step header with its current label. Build an explicit mapping table in your reply: `Phase 1 → Phase A`, `Phase 2.6 → Phase D`, `Step 1.5 → Step 2`, etc. Walk in document order. Step numbers reset to `1` at the start of each phase — Phase A may have Steps 1–3, Phase B Steps 1–7, Phase C no steps at all (named subsections only). **The mapping table is the contract** — every later step refers to it. Show it to the user before applying.
 
-2. **Plan the structural collapses around the renumbering, not into it**. If Phase 7 (Commit) is also restructuring blocks (e.g., collapsing "Step 1a + Step 1b" into a single "File Overlap Check + Critic Review" reference), write the collapsed content using the **original** step labels (`Step 1a`, `Step 1b`). Do NOT pre-name them with the target labels — if you write "Step 4" in a collapse and then run a renumbering pass that maps old `Step 4 → Step 9`, the collapse content gets remapped a second time and breaks. Renumbering owns the labels; collapses use the originals.
+2. **Plan structural collapses around the renumbering, not into it**. When collapsing blocks (e.g., merging "Step 1a + Step 1b" into one), write the collapsed content using the **original** step labels — never the target labels. Pre-naming with targets gets the content remapped twice. Renumbering owns the labels; collapses use the originals.
 
-3. **Apply the substitutions in one pass** using whichever tool fits the volume:
-   - **Script (Python/sed) for bulk** — fine for 50+ refs in one file. Required disciplines:
-     - Process longest old-strings first (`Step 1.5` before `Step 1`, `Phase 2.6` before `Phase 2`, `Phase 11` before `Phase 1`) so prefix matches don't fire wrong.
-     - Use unique-token placeholders (`__STEP_B_3__`, etc.) during the pass — substitute placeholders first, then convert placeholders to final labels at the end. This prevents the mid-pass output from being remapped a second time.
-     - Run the script **once**. If you re-run the same map on already-renumbered text, target labels look like source labels and get remapped again.
-   - **`Edit` calls for surgical or low-volume** — fine for under ~20 refs, or for cross-skill refs where the orchestrator must judge each match.
-   - **Hybrid is the realistic case** — script the mechanical bulk, then `Edit` the few cases where context matters (sentence-ending dots, cross-skill refs, ambiguous cross-phase refs).
+3. **Apply substitutions in one pass.** Choice of tool depends on volume:
+   - **Script (Python/sed) for bulk** (~50+ refs). Required disciplines: (a) process longest old-strings first (`Step 1.5` before `Step 1`, `Phase 11` before `Phase 1`); (b) use unique-token placeholders mid-pass, then convert placeholders to final labels — prevents mid-pass output from being remapped; (c) run the script **once** — re-running remaps target labels back as sources.
+   - **`Edit` calls** for under ~20 refs, or cross-skill refs needing per-match judgment.
+   - **Hybrid is typical** — script the bulk, `Edit` the context-sensitive cases.
 
 4. **Hand-audit cross-skill references regardless of method**. Run:
    ```bash
@@ -348,7 +344,7 @@ This also applies to section title renames, signal label renames, and any other 
    grep -rEn "(Phase|Step) [0-9]" tests/skills/ tests/scripts/ 2>/dev/null
    ```
 
-   Update structural assertions only (e.g., a test asserting `Phase 6` exists in SKILL.md). Tests that are change detectors should already be removed in Phase 5.
+   Update structural assertions only (e.g., a test asserting `Phase 6` exists in SKILL.md). Tests that are change detectors should already be removed in Phase E.
 
 7. **Post-grep verify (mandatory)**:
    ```bash
@@ -356,7 +352,7 @@ This also applies to section title renames, signal label renames, and any other 
    grep -nE '(Phase|Step) [0-9]' plugins/dso/skills/<name>/SKILL.md  # Audit every hit
    grep -rEn "/dso:<name>.*(Phase|Step) [0-9]\." plugins/ .claude/ docs/ tests/ 2>/dev/null  # Any hit is a stale referrer
    ```
-   The first grep must return zero hits — if any numeric header survives, the mapping pass missed it. The second grep returns inline refs; every hit is either an external reference (cross-skill, OK), an unrelated number (e.g., "Step 0 (always first)" in a quoted earlier version's prose, OK if intentional), or a stale ref (must fix). The third grep finds external referrers that point at the renumbered skill with stale numbers. Walk all three lists before declaring renumbering done.
+   First grep must return zero hits (any numeric header surviving = missed by the mapping pass). Second grep audits inline refs — each is either external (cross-skill, OK), intentional prose, or stale (fix). Third grep finds external referrers pointing into this skill with stale numbers. Walk all three before declaring renumbering done.
 
 ### Reporting back to the user
 
@@ -370,7 +366,26 @@ Present the mapping table (`old label → new label`) and the count of cross-ski
 
 ---
 
-## Phase 8 — Commit
+## Phase H — Tessl skill review
+
+After all structural edits and renumbering are complete, run `tessl skill review` against the refactored skill. This catches frontmatter regressions, judge-quality drift in the description, and structural issues introduced during the refactor — before they reach the commit gate.
+
+```bash
+# Plugin skill:
+tessl skill review plugins/dso/skills/<name>
+# Project skill:
+tessl skill review .claude/skills/<name>
+```
+
+Read the full output (deterministic checks + judge evaluation). Triage findings:
+
+- **Validation errors** (frontmatter invalid, missing fields, XML-tag literals in description) — must fix before commit. Re-run after each fix until clean.
+- **Validation warnings** about Claude-Code-native fields tessl doesn't recognize (`allowed-tools` containing `Agent`, unknown frontmatter keys like `user-invocable`) — not actionable; document the rejection in the Phase I commit body.
+- **Judge findings** (description specificity, trigger-term quality, content conciseness, progressive disclosure) — apply only when **valid AND actionable AND consistent with project extraction constraints**. Specifically: extract content only when (a) used in multiple locations, OR (b) needed only on a specific logical branch off the hot path. Do NOT extract hot-path content even if conciseness is flagged.
+
+Surface findings to the user with explicit accept/reject per finding before applying any new edits. Re-run `tessl skill review` after edits until the result is clean (or only non-actionable warnings remain). Then proceed to Phase I.
+
+## Phase I — Commit
 
 Execute `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md` inline. Do not invoke `/dso:commit` via the Skill tool — that nests workflows and breaks sub-agent boundaries (CLAUDE.md Rule 10).
 
@@ -400,5 +415,5 @@ Apply autonomous resolution (up to `review.max_resolution_attempts`, default 5).
 ## Known failure modes
 
 - **Over-aggressive change-detector removal**: if in doubt, keep. The asymmetric cost favors false negatives.
-- **Under-scoped relocation**: moving a "skill-scoped" script that turns out to have a non-obvious caller (an installer, a bootstrap doc, a test fixture). Phase 7 review will typically catch these; be prepared to update one or two additional files in the resolution loop.
-- **Missed `.test-index` updates**: both the source-path column (LHS of `:`) and the test-list column (RHS) may need updating for moved scripts and deleted tests. Re-grep `.test-index` after Phase 4 and Phase 5.
+- **Under-scoped relocation**: moving a "skill-scoped" script that turns out to have a non-obvious caller (an installer, a bootstrap doc, a test fixture). Phase G review will typically catch these; be prepared to update one or two additional files in the resolution loop.
+- **Missed `.test-index` updates**: both the source-path column (LHS of `:`) and the test-list column (RHS) may need updating for moved scripts and deleted tests. Re-grep `.test-index` after Phase D and Phase E.

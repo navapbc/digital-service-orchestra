@@ -1,6 +1,6 @@
 ---
 name: implementation-plan
-description: Use when a user story or simple epic needs to be broken into atomic, TDD-driven implementation tasks with architectural review, or when planning how to implement a specific ticket item
+description: Use when a user story or simple epic needs to be broken into atomic, TDD-driven implementation tasks with architectural review, or when planning the TDD task breakdown for a specific story or task ticket. Produces an ordered task list with explicit RED-test specs, identifies file impact and consumer/contract dependencies, runs an architectural review pass with a pass_threshold of 5, and writes the task tickets to the tracker with TDD task structure. Trigger phrases include 'plan this story', 'break this into tasks', 'implementation plan', 'plan the work', 'generate tasks', 'TDD task breakdown', 'how should I implement this story'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -60,35 +60,6 @@ Progress:
 - [ ] Step 5: Task Creation (tasks created, deps added, health validated)
 - [ ] Step 6: Gap Analysis (COMPLEX: opus sub-agent dispatched, findings processed; TRIVIAL: skipped)
 ```
-
-## Process Overview
-
-```
-Flow: S1 (Discovery) → [ambiguities?] → Yes: Clarify with user → S1 (loop)
-  → No: [evaluator output provided?]
-    → Yes: Sanity-check evaluator counts → Apply escalation rule
-    → No: [cross-cutting? ≥3 layers OR ≥5 interfaces]
-      → Yes: FORCE S2 (Arch Review) regardless of new-pattern flag
-      → No: [new pattern needed?]
-        → Yes: S2 (Arch Review) → [pass] S3 | [fail, iter<3] Revise → S2 | [fail, iter=3] Fallback → S3
-        → No: [Proposal Generation] → Generate ≥3 proposals → Distinctness gate
-          → [all pairs distinct] → [Resolution Loop] → Dispatch approach-decision-maker (timeout: 600000)
-            → [mode=selection] Accept → Selected proposal → S3 (Task Drafting)
-            → [mode=counter_proposal] Revise → Incorporate feedback → [Proposal Generation] (loop, max 2 cycles)
-            → [2 cycles exhausted] Escalate → Present proposals + feedback to user → User selects → S3
-            → [agent failure] Surface to user for manual resolution
-          → [equivalent pair found] → Regenerate with explicit differentiation guidance → [Proposal Generation] (loop)
-          → S3 → S4 (Plan Review)
-            → [score=5] S5 (Task Creation)
-            → [score<5, iter<3] Revise → S4
-            → [score<5, iter=3] Present plan with remaining issues
-  → S5 complete → [evaluator says TRIVIAL?]
-    → Yes: Skip S6, present summary
-    → No: S6 (Gap Analysis) → parse findings → create tasks / amend ACs → present summary
-      → [S6 fails/times out] Log warning → present summary (non-blocking)
-```
-
----
 
 ## Pre-flight Tag Guards
 
@@ -912,35 +883,15 @@ Add a **Gap Analysis Results** section:
 
 ---
 
-## Quick Reference
-
-| Step | Purpose | Key Commands |
-|------|---------|--------------|
-| 1 | Contextual Discovery | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`, Glob/Grep, clarify ambiguities, cross-cutting detection. When `planning.external_dependency_block_enabled=true`: `manual:awaiting_user` stories either refuse decomposition (no prep) or produce prep-only tasks; manual verification step never appears as a task. |
-| 2 | Architectural Review | `REVIEW-PROTOCOL-WORKFLOW.md` inline (≥ 4, max 3 iterations); forced if cross-cutting detected |
-| 3 | Atomic Task Drafting | TDD-first, sequential order, E2E + docs coverage |
-| 4 | Plan Review | `REVIEW-PROTOCOL-WORKFLOW.md` inline (all dims = 5, max 3 iterations) |
-| 5 | Task Creation | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `validate-issues.sh`, `.claude/scripts/dso ticket list --parent=<story-id>` |
-| 6 | Gap Analysis | TRIVIAL skip gate, opus sub-agent via `prompts/gap-analysis.md`, parse findings |
-
-## Common Mistakes
+## Common Mistakes (non-obvious)
 
 | Mistake | Fix |
 |---------|-----|
-| Planning on assumptions | Run the ambiguity scan; ask before drafting |
-| Tasks too large (multi-concern) | Apply the 3-gate test (testable behavior; codebase green; cannot split further while meeting gates 1 and 2). Two changes each producing independently verifiable behavior must be separate tasks |
-| Missing backward compatibility | Add migration/bridge step before breaking changes |
-| E2E tests forgotten | Always evaluate; document rationale if skipped |
-| No ADR for new patterns | Step 2 approval = ADR needed. Include doc task. |
-| Implicit dependencies | Make all task ordering explicit via `.claude/scripts/dso ticket link` |
-| Skipping plan review | Always run Step 4 — unreviewed plans miss edge cases |
-| Infinite refinement loops | Max 3 iterations, then escalate to user |
 | Skipping cross-cutting detection | Count layers and interfaces before deciding to skip Step 2 — a "simple" change touching route → service → agent → provider is already cross-cutting |
 | Cross-cutting but no pattern change | Cross-cutting threshold overrides the new-pattern check — Step 2 is still required |
-| Skipping gap analysis for COMPLEX stories | Always run Step 6 for COMPLEX stories |
+| Test filename not fuzzy-matchable | Verify the normalized source basename is a substring of the normalized test basename. If not, require a `.test-index` entry in AC |
+| Tasks requiring co-commit | Every task must be independently committable and green. Inert (does nothing yet) is fine; broken is not |
 | Blocking on gap analysis failure | Gap analysis failure is non-blocking — log warning and continue |
-| Tasks requiring co-commit | Every task must be independently committable and green. Inert (does nothing yet) is fine; broken is not. |
-| Test filename not fuzzy-matchable | Verify the normalized source basename is a substring of the normalized test basename. If not, require a `.test-index` entry in AC. |
 
 ## Stage-Boundary Exit Write
 

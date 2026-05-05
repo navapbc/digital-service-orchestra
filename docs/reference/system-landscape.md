@@ -156,7 +156,7 @@ Dev-team artifacts belong in project-local directories and are never shipped as 
 
 ## Stack-Aware Config Pre-Fill (prefill-config.sh)
 
-`plugins/dso/scripts/onboarding/prefill-config.sh` populates the four `commands.*` keys in `.claude/dso-config.conf` with stack-appropriate defaults. It is invoked by `/dso:architect-foundation` in Phase 3 Step 1, before enforcement scaffolding is generated.
+`plugins/dso/scripts/onboarding/prefill-config.sh` populates the four `commands.*` keys in `.claude/dso-config.conf` with stack-appropriate defaults. It is invoked by `/dso:architect-foundation` in Phase D Step 2, before enforcement scaffolding is generated.
 
 **Invocation**: `.claude/scripts/dso onboarding/prefill-config.sh [--project-dir <dir>]`
 

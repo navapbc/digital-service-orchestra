@@ -1,6 +1,6 @@
 # Fitness Function Templates (Architect-Foundation)
 
-Concrete enforcement templates per AP code and per stack. Referenced from `/dso:architect-foundation` Phase 3 Step 1. Load only when generating enforcement artifacts.
+Concrete enforcement templates per AP code and per stack. Referenced from `/dso:architect-foundation` Phase D Step 2. Load only when generating enforcement artifacts.
 
 Each template includes: (a) the test/check file to write, (b) the anti-pattern it targets, (c) the wiring step that registers it.
 

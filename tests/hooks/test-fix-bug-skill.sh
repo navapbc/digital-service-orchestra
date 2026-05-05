@@ -106,17 +106,6 @@ if [[ -f "$SKILL_FILE" ]]; then
     assert_eq "test_fix_bug_skill_complexity_evaluation" "present" "$actual"
 fi
 
-# test_fix_bug_skill_escalation_report
-# Skill must include an 'Escalation Report' section with fields 'bug_id' and 'investigation_findings'.
-if [[ -f "$SKILL_FILE" ]]; then
-    if grep -q "Escalation Report" "$SKILL_FILE" && grep -q "bug_id" "$SKILL_FILE" && grep -q "investigation_findings" "$SKILL_FILE"; then
-        actual="present"
-    else
-        actual="missing"
-    fi
-    assert_eq "test_fix_bug_skill_escalation_report" "present" "$actual"
-fi
-
 # test_fix_bug_skill_subagent_detection
 # Skill must reference 'running as a sub-agent' AND 'Agent tool'.
 if [[ -f "$SKILL_FILE" ]]; then

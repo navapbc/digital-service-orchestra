@@ -1,6 +1,6 @@
 ---
 name: onboarding
-description: Use when starting a new project or joining an existing one — conducts a Socratic dialogue to build a shared understanding of the project's stack, commands, architecture, infrastructure, CI pipeline, design system, and enforcement preferences.
+description: Use when starting a new DSO project, joining an existing one, getting started in an unfamiliar codebase, doing a codebase walkthrough, or running project setup. Auto-detects the stack, scans existing docs, runs a Socratic dialogue to capture architecture / infrastructure / CI / design system / enforcement preferences, then writes dso-config.conf, CLAUDE.md, ticket-system seed files, and pre-commit hooks. Optionally installs a project template (nava-platform or Jekyll). Trigger phrases include 'onboard this project', 'set up DSO', 'getting started', 'project setup', 'codebase walkthrough', 'understand the codebase', 'run onboarding', 'init the project'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -186,6 +186,9 @@ Replace each `<high|medium|low>` placeholder with the actual confidence level de
 # Merge Phase 0 context into main scratchpad (after Phase 1 Step 2 creates $SCRATCHPAD)
 cat "$SCRATCHPAD_PHASE0" >> "$SCRATCHPAD"
 rm -f "$SCRATCHPAD_PHASE0"
+# Validate the merge — Phase 2 confidence routing depends on this section
+grep -q "## CONFIDENCE_CONTEXT" "$SCRATCHPAD" || \
+    echo "WARNING: Phase 0 context merge failed — Phase 2 confidence routing will fall back to low for all dimensions"
 ```
 
 This makes `## CONFIDENCE_CONTEXT` visible to all downstream parsers (Phase 2 question routing, S2 doc folder scan, S3 routing logic) that scan `$SCRATCHPAD`.
@@ -196,43 +199,11 @@ This makes `## CONFIDENCE_CONTEXT` visible to all downstream parsers (Phase 2 qu
 
 ---
 
-## Phase 0.5: Document Folder Pre-Scan (/dso:onboarding)
+## Phase 0.5: Document Folder Pre-Scan (branch — `--doc-folder` flag only)
 
-**Trigger**: Run ONLY when `--doc-folder <path>` is specified on the onboarding invocation. If omitted, skip this phase entirely and proceed to Phase 1.
+**Trigger**: `--doc-folder <path>` was supplied on the onboarding invocation. If omitted, skip this phase entirely.
 
-**Goal**: Before asking questions, scan the user-specified document folder for structured facts (app name, stack signals, WCAG requirements). Update CONFIDENCE_CONTEXT with any elevated confidence levels found from the doc scan.
-
-**Step 0.5.1: Parse --doc-folder Parameter**
-Accept the optional `--doc-folder <path>` flag from the user's invocation. Validate it is a non-empty string and a readable directory before proceeding.
-
-**Step 0.5.2: Invoke scan-docs.sh**
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-CONTEXT_TEMP=$(mktemp /tmp/onboarding-context-XXXXXX.json)
-# Extract CONFIDENCE_CONTEXT JSON from $SCRATCHPAD_PHASE0 and write to $CONTEXT_TEMP
-
-SCAN_OUT=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/onboarding/scan-docs.sh" "$DOC_FOLDER" --context-file="$CONTEXT_TEMP" 2>/tmp/scan-docs-warn.txt)
-SCAN_EXIT=$?
-```
-
-- If scan-docs.sh exits non-zero, log the error to scratchpad and skip Phase 0.5 (do not abort onboarding)
-- Binary/large file skips are in /tmp/scan-docs-warn.txt — surface to user: "Note: N files were skipped (binary or too large)"
-
-**Step 0.5.3: Parse Facts and Elevate CONFIDENCE_CONTEXT**
-- Parse SCAN_OUT JSON to extract `facts` array and `elevated_dimensions` map
-- For each elevated dimension from the doc scan, apply elevation-only update to CONFIDENCE_CONTEXT: new_level = max(existing_level, elevated_level) where high > medium > low
-- Never lower any confidence level (contract requirement from `${CLAUDE_PLUGIN_ROOT}/docs/contracts/confidence-context.md`)
-- Append a `## DOC_SCAN_FACTS` section to scratchpad with the extracted facts
-- Display a brief summary to the user: "Found N facts in your documents — I'll use these to pre-fill answers where possible."
-
-**Step 0.5.4: File Count Cap Warning**
-If scan output includes `WARNING:file_cap_reached`, surface to user: "Note: Document scan processed the first 50 files. Additional files were not read."
-
-**Error handling**: Wrap all of Phase 0.5 in a guard — if any step fails (parse error, missing binary, permission denied), log to scratchpad and continue to Phase 1. Phase 0.5 failure must never abort onboarding.
-
-**Security note**: DOC_FOLDER is passed directly to scan-docs.sh which validates path traversal — do not attempt additional path resolution before invoking it.
-
-**Phase plan update**: When Phase 0.5 runs, add it to the phase plan between Phase 0 and Phase 1. When skipped, do not add it.
+**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/onboarding/phases/0.5-doc-folder-prescan.md` and follow it. It scans the supplied document folder via `scan-docs.sh`, parses extracted facts, and elevates `## CONFIDENCE_CONTEXT` levels (elevation-only, never lower). Output contracts: `## DOC_SCAN_FACTS` scratchpad section; CONFIDENCE_CONTEXT contract preserved per `${CLAUDE_PLUGIN_ROOT}/docs/contracts/confidence-context.md`. Failure-handling: any error in the phase is logged and onboarding continues.
 
 ---
 
@@ -469,120 +440,22 @@ Wait for the user to confirm or correct before continuing. Update the scratchpad
 
 ---
 
-## Phase 1.5: Template Selection Gate (Empty Project)
+## Phase 1.5: Template Selection Gate (branch — `STACK_OUT="unknown"` only)
 
-At the start of this phase, use the same awk expression to count `## PHASE_PLAN` entries (Y). Phase 1.5 is always position N=2 (it comes right after Phase 1, before any removals). Display to user: **(Phase 2 of Y)** — e.g. `(Phase 2 of 6)` when all phases apply.
+**Trigger**: `detect-stack.sh` returned `"unknown"`. If a recognized stack was detected, skip this phase entirely and proceed directly to Phase 2.
 
-**Condition:** Run this phase ONLY when `detect-stack.sh` returned `"unknown"` (no recognized framework was found). If the stack was detected as anything other than `"unknown"`, skip this phase entirely and proceed directly to Phase 2.
+**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/onboarding/phases/1.5-template-selection.md` and follow it. It loads the template registry via `parse-template-registry.sh`, presents a numbered template menu (with option 0 = decline), routes the chosen `install_method` to Phase 1.6a (`nava-platform`) or Phase 1.6b (`git-clone`), and records the **`## Template Selection Result`** scratchpad section — the wire-format contract consumed by Phases 1.6 and 1.7. Required fields: `name`, `install_method`, `repo_url`, `framework_type`, `required_data_flags`, `collected_data`. Failure-handling: empty/missing registry → silently skip and proceed to Phase 2.
 
-When skipping Phase 1.5/1.6/1.7, remove them from PHASE_PLAN so the counter reflects only phases that actually ran:
-
-```bash
-# Remove skipped phases from PHASE_PLAN (patterns must match exactly as written in Step 2 init)
-sed -i '/^Phase 1\.5: Template Selection Gate$/d' "$SCRATCHPAD"
-sed -i '/^Phase 1\.6: Template Installation$/d' "$SCRATCHPAD"
-sed -i '/^Phase 1\.7: Post-Install Re-Detection$/d' "$SCRATCHPAD"
-```
-
-Note: if phase names in Step 2's PHASE_PLAN initialization are updated, update these sed patterns to match.
-
-**Goal:** Offer the user a curated set of starter templates so they can bootstrap from a known-good foundation instead of starting from scratch.
-
-### Step 1: Load the Template Registry
-
-Run `parse-template-registry.sh` to fetch available templates:
+When Phase 1.5 is skipped (recognized stack), also remove Phases 1.5/1.6/1.7 from PHASE_PLAN:
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-REGISTRY_OUTPUT=$(bash "$PLUGIN_SCRIPTS/onboarding/parse-template-registry.sh" 2>/tmp/template-registry-warn.txt)  # shim-exempt: internal orchestration script
+# Portable in-place delete (works on BSD and GNU sed)
+for pat in '/^Phase 1\.5: Template Selection Gate$/d' \
+           '/^Phase 1\.6: Template Installation$/d' \
+           '/^Phase 1\.7: Post-Install Re-Detection$/d'; do
+    sed -i.bak "$pat" "$SCRATCHPAD" && rm -f "$SCRATCHPAD.bak"
+done
 ```
-
-**Fallback behavior**: If `$REGISTRY_OUTPUT` is empty (regardless of exit code), the template registry is missing or malformed. In that case:
-- Log a warning (do not display to user): append `"WARNING: template registry unavailable — skipping template gate"` to the scratchpad.
-- Skip Phase 1.5 silently and proceed directly to Phase 2 (existing manual flow).
-
-Do NOT surface registry errors to the user unless they ask why no templates were offered.
-
-### Step 2: Present Template Menu
-
-Parse `$REGISTRY_OUTPUT` (tab-separated: `name\trepo_url\tinstall_method\tframework_type\tdata_flags`) and present a numbered menu:
-
-```
-I didn't detect a recognized framework in this project. Would you like to start from a template?
-
-Available templates:
-  1. nextjs       — Next.js application (nava-platform)
-  2. flask        — Flask application (nava-platform)
-  3. rails        — Ruby on Rails application (nava-platform)
-  4. jekyll-uswds — Jekyll + USWDS site (git-clone)
-
-  0. No template — I'll configure this project manually
-
-Enter a number, or press Enter to skip:
-```
-
-Present each template on its own numbered line. Always include option `0` (or equivalent "no template" choice) so the user can decline without being forced to pick a template.
-
-### Step 3: Handle User Choice
-
-#### If the user selects a template (options 1–N):
-
-1. Store the template selection in the scratchpad:
-
-```bash
-SELECTED_TEMPLATE_NAME="<name>"          # e.g., "nextjs"
-SELECTED_TEMPLATE_REPO="<repo_url>"      # e.g., "https://github.com/navapbc/template-application-nextjs.git"
-SELECTED_TEMPLATE_INSTALL="<install_method>"  # "nava-platform" or "git-clone"
-SELECTED_TEMPLATE_FRAMEWORK="<framework_type>"  # e.g., "node-npm"
-SELECTED_TEMPLATE_DATA_FLAGS="<data_flags>"   # e.g., "app_name" (comma-separated, may be empty)
-
-echo "## Template Selection Result" >> "$SCRATCHPAD"
-echo "name: $SELECTED_TEMPLATE_NAME" >> "$SCRATCHPAD"
-echo "repo_url: $SELECTED_TEMPLATE_REPO" >> "$SCRATCHPAD"
-echo "install_method: $SELECTED_TEMPLATE_INSTALL" >> "$SCRATCHPAD"
-echo "framework_type: $SELECTED_TEMPLATE_FRAMEWORK" >> "$SCRATCHPAD"
-echo "required_data_flags: $SELECTED_TEMPLATE_DATA_FLAGS" >> "$SCRATCHPAD"
-```
-
-2. Route to the install path based on `install_method`:
-   - **`nava-platform`**: Notify the user that this template uses the nava-platform installer. Collect any required `required_data_flags` values (e.g., `app_name`) one at a time before proceeding. After collection, write the collected values to the scratchpad:
-     ```bash
-     echo "collected_data: app_name=my-app, node_version=20" >> "$SCRATCHPAD"
-     ```
-     (comma-separated `key=value` pairs for each flag the user provided)
-   - **`git-clone`**: Notify the user that this template will be cloned via `git clone <repo_url>`. No additional data flags are required — write an empty collected_data line:
-     ```bash
-     echo "collected_data: " >> "$SCRATCHPAD"
-     ```
-
-3. After collecting required data (or confirming none needed for git-clone), proceed to the install path. The scratchpad now has the complete `## Template Selection Result` section per the output contract below. The selected framework type fills in the stack area automatically — confirm with the user rather than asking from scratch.
-
-#### If the user declines (option 0 or empty input):
-
-Record in scratchpad:
-```bash
-echo "## Template Selection Result" >> "$SCRATCHPAD"
-echo "Declined — proceeding with manual configuration" >> "$SCRATCHPAD"
-```
-
-Proceed to Phase 2 (existing manual flow) unchanged. Do NOT reference templates again during Phase 2.
-
-### Output Contract: Template Selection Result
-
-When a template is selected, the selection result is recorded in the scratchpad under `## Template Selection Result`. This structure is the contract consumed by install path stories:
-
-```
-## Template Selection Result
-name: <string>               # Template name (e.g., "nextjs")
-install_method: <string>     # "nava-platform" or "git-clone"
-repo_url: <string>           # Full git URL of the template repo
-framework_type: <string>     # Framework type string (e.g., "node-npm", "python-poetry", "ruby-rails", "ruby-jekyll")
-required_data_flags: <csv>   # Comma-separated list of data flags collected (empty string if none)
-collected_data: <map>        # Key-value pairs for each required_data_flag (e.g., app_name=my-app)
-```
-
-This structure is append-only — downstream install path steps read it from the scratchpad to complete installation without re-prompting the user.
 
 ---
 
@@ -602,128 +475,11 @@ Read and execute `phases/1.6b-jekyll-git-clone-install.md`.
 
 ---
 
-## Phase 1.7: Post-Install Re-Detection and Phase 2 Skip
+## Phase 1.7: Post-Install Re-Detection and Phase 2 Skip (branch — only after Phase 1.6 fires)
 
-At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`. Count total entries (Y). Compute this phase's position N. Display to user: **(Phase N of Y)** — e.g. `(Phase 4 of 6)`.
+**Trigger**: Phase 1.6a or Phase 1.6b completed successfully (template was installed). If no template was installed, skip this phase entirely.
 
-**Trigger:** Run this phase ONLY after Phase 1.6a or Phase 1.6b completes successfully. If no template was installed (user declined in Phase 1.5 or installation failed and manual flow was selected), skip this phase entirely and proceed to Phase 2.
-
-**Goal:** Re-run auto-detection against the freshly scaffolded project, verify the detected framework matches the registry's `framework_type`, record detection results in the scratchpad, and skip Phase 2 entirely — proceeding directly to Phase 3 (DSO infrastructure setup) with configuration inferred from the registry metadata and detection output.
-
-### Step 1: Re-Run detect-stack.sh Against the Installed Project
-
-Now that template files are present in the project directory, re-run `detect-stack.sh` to detect the actual installed framework:
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-POST_INSTALL_STACK=$(bash "$REPO_ROOT/.claude/scripts/dso detect-stack.sh" "$REPO_ROOT" 2>/dev/null || echo "unknown")
-```
-
-### Step 2: Verify Detected Stack Matches Registry Framework Type
-
-Read the `framework_type` recorded in the scratchpad's `## Template Selection Result` section (written by Phase 1.5):
-
-```bash
-REGISTRY_FRAMEWORK_TYPE=$(grep "^framework_type:" "$SCRATCHPAD" | sed 's/^framework_type:[[:space:]]*//')
-```
-
-Compare `POST_INSTALL_STACK` against `REGISTRY_FRAMEWORK_TYPE`:
-
-- **If they match** (e.g., `POST_INSTALL_STACK="node-npm"` and `REGISTRY_FRAMEWORK_TYPE="node-npm"`): proceed normally.
-- **If they differ** (mismatch): log a warning to the scratchpad but do NOT crash or abort:
-
-```bash
-echo "WARNING: post-install stack mismatch — detected='$POST_INSTALL_STACK' registry='$REGISTRY_FRAMEWORK_TYPE' (possible partial install?)" >> "$SCRATCHPAD"
-```
-
-Do NOT surface this warning to the user as an error — continue to Step 3 regardless. If `POST_INSTALL_STACK` is `"unknown"` after installation, this typically indicates an incomplete install; record it as a warning and use `REGISTRY_FRAMEWORK_TYPE` as the canonical value for Phase 3 configuration.
-
-### Step 3: Re-Run project-detect.sh to Pick Up Template Files
-
-Re-run `project-detect.sh` to pick up the `package.json`, `pyproject.toml`, CI workflows, and test directories introduced by the template:
-
-```bash
-POST_INSTALL_DETECT=$(bash "$REPO_ROOT/.claude/scripts/dso onboarding/project-detect.sh" "$REPO_ROOT" 2>/dev/null || echo "")
-
-# Refresh file-level detection now that template files are present
-[ -f "$REPO_ROOT/package.json" ] && POST_INSTALL_PKG=$(cat "$REPO_ROOT/package.json" 2>/dev/null) || POST_INSTALL_PKG=""
-[ -f "$REPO_ROOT/pyproject.toml" ] && POST_INSTALL_PYPROJECT=$(cat "$REPO_ROOT/pyproject.toml" 2>/dev/null) || POST_INSTALL_PYPROJECT=""
-
-# Refresh CI workflow filenames
-POST_INSTALL_CI_WORKFLOWS=""
-if [ -d "$REPO_ROOT/.github/workflows" ]; then
-    POST_INSTALL_CI_WORKFLOWS=$(ls "$REPO_ROOT/.github/workflows"/*.yml "$REPO_ROOT/.github/workflows"/*.yaml 2>/dev/null | xargs -I{} basename {})
-fi
-
-# Refresh test directories
-POST_INSTALL_TEST_DIRS=""
-for candidate in tests test spec __tests__ src/__tests__; do
-    [ -d "$REPO_ROOT/$candidate" ] && POST_INSTALL_TEST_DIRS="$POST_INSTALL_TEST_DIRS $candidate"
-done
-POST_INSTALL_TEST_DIRS="${POST_INSTALL_TEST_DIRS# }"
-```
-
-### Step 4: Record Post-Install Detection Results in Scratchpad
-
-Append the re-detection results to the scratchpad under a dedicated section:
-
-```bash
-echo "## Post-Install Detection (Phase 1.7)" >> "$SCRATCHPAD"
-echo "post_install_stack: $POST_INSTALL_STACK" >> "$SCRATCHPAD"
-echo "post_install_detect_output: $POST_INSTALL_DETECT" >> "$SCRATCHPAD"
-echo "post_install_package_json: ${POST_INSTALL_PKG:+present}" >> "$SCRATCHPAD"
-echo "post_install_pyproject_toml: ${POST_INSTALL_PYPROJECT:+present}" >> "$SCRATCHPAD"
-echo "post_install_ci_workflows: ${POST_INSTALL_CI_WORKFLOWS:-none found}" >> "$SCRATCHPAD"
-echo "post_install_test_dirs: ${POST_INSTALL_TEST_DIRS:-none found}" >> "$SCRATCHPAD"
-```
-
-Update the working detection variables used by later phases to reflect the post-install state:
-
-```bash
-# Promote post-install values to primary detection variables for Phase 3 use
-STACK_OUT="$POST_INSTALL_STACK"
-DETECT_OUT="$POST_INSTALL_DETECT"
-CI_WORKFLOWS="${POST_INSTALL_CI_WORKFLOWS:-$CI_WORKFLOWS}"
-TEST_DIRS="${POST_INSTALL_TEST_DIRS:-$TEST_DIRS}"
-```
-
-### Step 5: Skip Phase 2 — Record Skip Note in Scratchpad
-
-Templates pre-answer the Socratic dialogue questions (stack, commands, architecture, CI, enforcement) via the registry metadata and installed project structure. Phase 2 is therefore redundant after a successful template installation.
-
-Append the skip note to the scratchpad:
-
-```bash
-echo "## Phase 2 Status" >> "$SCRATCHPAD"
-echo "Phase 2 skipped — template pre-configured" >> "$SCRATCHPAD"
-echo "Phase 3 config source: registry framework_type='$REGISTRY_FRAMEWORK_TYPE' + post-install detection output" >> "$SCRATCHPAD"
-```
-
-Also remove Phase 2 from PHASE_PLAN since it is being skipped via the template path:
-
-```bash
-# Remove Phase 2 from PHASE_PLAN (skipped via template path)
-# Pattern must match exactly as written in Step 2 init; update here if the name changes there
-sed -i '/^Phase 2: Socratic Dialogue Loop$/d' "$SCRATCHPAD"
-```
-
-Do NOT ask the user any Socratic dialogue questions from Phase 2. Proceed directly to Phase 3.
-
-### Step 6: Proceed Directly to Phase 3
-
-Proceed directly to Phase 3 (DSO infrastructure setup) without entering Phase 2. Phase 3 configuration is inferred from:
-
-1. **Registry `framework_type`** — read from `REGISTRY_FRAMEWORK_TYPE` (from `## Template Selection Result` scratchpad section)
-2. **Post-install detection output** — `POST_INSTALL_STACK`, `POST_INSTALL_DETECT`, and refreshed file-level variables
-
-Phase 3 must use the post-install `STACK_OUT`, `DETECT_OUT`, `CI_WORKFLOWS`, and `TEST_DIRS` values (promoted in Step 4) for all configuration inference — not the original Phase 1 values, which were collected before template installation.
-
-Notify the user before entering Phase 3:
-
-```
-Template installation complete. Detected stack: [POST_INSTALL_STACK].
-Skipping project dialogue (template pre-configured) — proceeding directly to DSO infrastructure setup.
-```
+**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/onboarding/phases/1.7-post-install-redetection.md` and follow it. It re-runs `detect-stack.sh` and `project-detect.sh` to refresh `POST_INSTALL_STACK`, `POST_INSTALL_DETECT`, `CI_WORKFLOWS`, and `TEST_DIRS`; verifies the detected stack matches the registry's `framework_type` (warns on mismatch, never aborts); promotes post-install values to the primary detection variables; writes `## Post-Install Detection (Phase 1.7)` and `## Phase 2 Status` scratchpad sections; removes Phase 2 from PHASE_PLAN so the counter reflects the skip; and proceeds directly to Phase 3 with configuration inferred from registry metadata + post-install detection.
 
 ---
 
@@ -777,12 +533,7 @@ Work through each area in the checklist order, but adapt based on what detection
 
 #### 1. stack
 
-**Confidence routing:**
-- **high**: "Detected [stack] — skipping stack question."
-- **medium**: "I detected [stack]. Does this look right? [Y/n]"
-- **low**: Ask using templates below.
-
-Ask about: primary language and version, framework (if any), package manager, runtime target.
+Apply the Confidence Routing rules above (skip on `high`, confirm on `medium`, ask on `low`) for the **stack** dimension. When asking, cover: primary language and version, framework (if any), package manager, runtime target.
 
 If `package.json` was found, present the detected Node/JavaScript stack for confirmation:
 ```
@@ -801,12 +552,7 @@ What language and runtime is this project built on? And what's the primary frame
 
 #### 2. commands
 
-**Confidence routing:**
-- **high**: "Detected [commands] — skipping commands question."
-- **medium**: "I detected [commands]. Does this look right? [Y/n]"
-- **low**: Ask using templates below.
-
-Ask about: how to run tests, how to start the dev server, how to lint/format, any project-specific Makefile targets.
+Apply the Confidence Routing rules above for the **commands** dimension. When asking, cover: how to run tests, how to start the dev server, how to lint/format, any project-specific Makefile targets.
 
 Present detected test directories for confirmation:
 ```
@@ -815,12 +561,7 @@ I found these test directories: [TEST_DIRS]. How do you actually run the test su
 
 #### 3. architecture
 
-**Confidence routing:**
-- **high**: "Detected [architecture] — skipping architecture question."
-- **medium**: "I detected [architecture]. Does this look right? [Y/n]"
-- **low**: Ask using templates below.
-
-Ask about: top-level module layout, key service boundaries, any notable design patterns (event sourcing, CQRS, hexagonal, etc.), where the main entry point is.
+Apply the Confidence Routing rules above for the **architecture** dimension. When asking, cover: top-level module layout, key service boundaries, any notable design patterns (event sourcing, CQRS, hexagonal, etc.), where the main entry point is.
 
 Ask openly:
 ```
@@ -829,12 +570,7 @@ How would you describe the top-level structure of this project — is it a singl
 
 #### 4. infrastructure
 
-**Confidence routing:**
-- **high**: "Detected [infrastructure] — skipping infrastructure question."
-- **medium**: "I detected [infrastructure]. Does this look right? [Y/n]"
-- **low**: Ask using templates below.
-
-Ask about: where it runs (cloud provider, on-prem, local-only), databases used, external services or APIs it calls, how secrets are managed.
+Apply the Confidence Routing rules above for the **infrastructure** dimension. When asking, cover: where it runs (cloud provider, on-prem, local-only), databases used, external services or APIs it calls, how secrets are managed.
 
 Ask openly:
 ```
@@ -843,12 +579,7 @@ Where does this project run in production, and what external services or databas
 
 #### 5. CI
 
-**Confidence routing:**
-- **high**: "Detected [ci] — skipping ci question."
-- **medium**: "I detected [ci]. Does this look right? [Y/n]"
-- **low**: Ask using templates below.
-
-List the actual `.github/workflows/*.yml` filenames discovered in Step 1. Use those filenames to confirm the CI workflow name rather than asking the user to type it from memory.
+Apply the Confidence Routing rules above for the **ci** dimension. List the actual `.github/workflows/*.yml` filenames discovered in Step 1 to confirm the CI workflow name rather than asking the user to type it from memory.
 
 ```
 I found these workflow filenames: [CI_WORKFLOWS]. Which one is your primary CI gate — the one that runs on pull requests?
@@ -861,12 +592,7 @@ I don't see any CI workflows yet. What CI system are you planning to use, if any
 
 #### 6. design
 
-**Confidence routing:**
-- **high**: "Detected [design] — skipping design question."
-- **medium**: "I detected [design]. Does this look right? [Y/n]"
-- **low**: Ask using templates below.
-
-Ask about: whether there is a UI layer, which framework/library is used, any established design system, accessibility targets.
+Apply the Confidence Routing rules above for the **design** dimension. When asking, cover: whether there is a UI layer, which framework/library is used, any established design system, accessibility targets.
 
 Ask openly:
 ```
@@ -895,12 +621,7 @@ After completing these design questions (each answered in a separate turn), appe
 
 #### 7. enforcement
 
-**Confidence routing:**
-- **high**: "Detected [enforcement] — skipping enforcement question."
-- **medium**: "I detected [enforcement]. Does this look right? [Y/n]"
-- **low**: Ask using templates below.
-
-Ask about: linting tools, commit message conventions, pre-commit hooks in use, code review requirements, test coverage policies.
+Apply the Confidence Routing rules above for the **enforcement** dimension. When asking, cover: linting tools, commit message conventions, pre-commit hooks in use, code review requirements, test coverage policies.
 
 Present detected hooks for confirmation:
 ```
@@ -955,15 +676,84 @@ On YES: write `confluence.space_key=<KEY>` to `.claude/dso-config.conf`.
 
 On no or skip: write `confluence.enabled=false` to `.claude/dso-config.conf` as an explicit disabled sentinel.
 
+#### 11. Merge strategy
+
+**MANDATORY PROMPT — always ask. Apply the Confidence Routing rules above (default to ask normally).**
+
+Before asking, read `merge.strategy` from `.claude/dso-config.conf` (if present). If the key already exists, present the existing value as the prompt default. The chosen answer is always written to config in Phase 3 (Step 2b.1) — never silently kept.
+
+```
+Which merge strategy for this project?
+  (a) direct (default — push directly to main; suitable for solo or non-technical projects)
+  (b) pr (GitHub Ruleset enforcement — PR-based merge with CI gate; suitable for team projects)
+
+Press Enter or type 'a' for direct (recommended for most projects).
+```
+
+Record the choice in the scratchpad as `MERGE_STRATEGY=direct` or `MERGE_STRATEGY=pr`. On `pr`, also note: the GitHub Ruleset will be provisioned during Batch Group 4 (GitHub bootstrap). If a 'DSO CI Enforcement' Ruleset already exists on the repo, `github-bootstrap.sh` will exit with an error directing you to disable the Ruleset for the bootstrap window before retrying.
+
+#### 12. CI trigger events
+
+**MANDATORY PROMPT — do NOT assume a PR-based workflow.** Apply the Confidence Routing rules above.
+
+```
+What events should trigger CI? Common options:
+- Pull request (on open, sync, reopen)
+- Push to specific branches (e.g., main, develop)
+- Manual dispatch only
+- Scheduled (cron)
+
+This affects ci.workflow_name and any generated workflow templates.
+```
+
+Record the answer in the scratchpad as `CI_TRIGGER_STRATEGY=<value>`. Phase 3 writes it to `dso-config.conf` and `project-understanding.md`.
+
+#### 13. Preplanning interactivity
+
+**MANDATORY PROMPT — operator preference.** Apply the Confidence Routing rules above.
+
+```
+When planning new features, would you like me to check in with you at key decisions, or should I run autonomously?
+(Options: "yes, check in" / "go ahead on your own" — default: check in with you)
+
+Checking in (default): /dso:preplanning pauses at key decisions to confirm story scope, done definitions, and decomposition with you.
+Running autonomously: /dso:preplanning runs without interruption — suitable for CI or batch workflows.
+```
+
+**Response normalization**:
+- yes / y / check in / pause → `true`
+- no / n / autonomous / go ahead → `false`
+- Empty / Enter → default `true`
+- Ambiguous → ask follow-up: "Just to confirm — would you like me to pause for confirmation (yes) or run without interruption (no)?"
+
+Record the answer in the scratchpad as `PREPLANNING_INTERACTIVE=true|false`. Phase 3 always overwrites the config with this value (exception to the general merge-not-overwrite rule, since the repo default is `false` and the operator must be able to flip it).
+
+#### 14. Ticket prefix confirmation
+
+**MANDATORY PROMPT.** Derive a default `tickets.prefix` from the project name by taking the first letter of each hyphen- or underscore-separated word and uppercasing them:
+
+- `my-app` → `MA`
+- `digital-service-orchestra` → `DSO`
+- `myapp` (single word) → first 2–3 characters uppercased → `MYA`
+
+Confirm the derived prefix:
+
+```
+I'll use ticket prefix "MA" for this project (derived from "my-app").
+Does that work, or would you prefer a different prefix?
+```
+
+Record the confirmed prefix in the scratchpad as `TICKET_PREFIX=<value>`. Phase 3 writes it to `dso-config.conf`.
+
 ### Phase 2 Gate
 
-When all 7 core areas (stack, commands, architecture, infrastructure, CI, design, enforcement) have at least a basic answer recorded in the scratchpad, ask:
+When all 7 core areas (stack, commands, architecture, infrastructure, CI, design, enforcement) have at least a basic answer recorded in the scratchpad, AND sections 8–14 (Jira, Figma, Confluence, merge strategy, CI trigger, preplanning interactivity, ticket prefix) have been asked, ask:
 
 ```
-I now have a working model of the project across all 7 core areas. Is there anything important I missed — any constraint, convention, or quirk that a new team member would need to know?
+I now have a working model of the project across all 7 core areas, plus the integration and operator-preference questions. Is there anything important I missed — any constraint, convention, or quirk that a new team member would need to know?
 ```
 
-Note: sections 8 (Jira), 9 (Figma), and 10 (Confluence) must be asked BEFORE reaching this gate — they are mandatory prompts that happen to come after the 7 core areas. "Optional" means the user may decline; it does NOT mean the model may skip asking. The gate requires all 10 sections complete.
+Note: sections 8–14 are MANDATORY prompts that happen to come after the 7 core areas. "Optional" means the user may decline; it does NOT mean the model may skip asking. The gate requires all 14 sections asked.
 
 Wait for the user's response before proceeding to Phase 3.
 
@@ -1072,43 +862,11 @@ Write `.claude/project-understanding.md` using this template:
 
 Populate each field from the scratchpad. Use the appropriate `(detected)` or `(user-stated)` tag for each entry. Leave fields as "not specified" or "N/A" where the conversation produced no answer — do not fabricate.
 
-### Step 2a: Write .claude/design-notes.md (UI Projects Only)
+### Step 2a: Write .claude/design-notes.md (branch — UI projects only)
 
-**Condition:** Only write this file if the design area conversation confirmed a UI/frontend layer. Skip this step entirely for CLI tools, libraries, and infrastructure projects.
+**Trigger**: The design-area conversation in Phase 2 confirmed a UI/frontend layer. Skip for CLI tools, libraries, infrastructure, or backend-only projects.
 
-Write `.claude/design-notes.md` as a lightweight companion to `.claude/project-understanding.md`, capturing the extended design findings from the conditional design questions:
-
-```markdown
-# Design Notes
-<!-- Generated by /dso:onboarding — human-readable and editable. Last updated: <date> -->
-<!-- For full design system specification, run /dso:onboarding -->
-
-## Vision
-<one-sentence value proposition, or "not specified">
-
-## User Archetypes
-<behavioral archetypes discovered in onboarding, or "not specified">
-
-## Golden Paths
-<top 1–2 frictionless workflows, or "not specified">
-
-## Anti-Patterns (Do Not Do)
-<explicit UI constraints, or "not specified">
-
-## Visual Language
-<3-adjective vibe description, or "not specified">
-
-## Accessibility Target
-<WCAG AA | WCAG AAA | not specified>
-
-## UI Framework
-<framework/library detected or user-stated, or "not specified">
-
-## Design System
-<established design system or "none">
-```
-
-This file is intentionally brief — it records what was learned during onboarding. For a full, structured design North Star document, offer to run `/dso:onboarding` separately.
+**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/onboarding/phases/3-conditional-paths.md` (Step 4 section) and follow it.
 
 ### Step 2b: Generate dso-config.conf
 
@@ -1130,24 +888,11 @@ fi
 
 If an existing dso-config.conf is found, merge the new keys into it rather than overwriting. Only add keys that are not already present. Existing config values take precedence — do not overwrite them unless the user explicitly confirms the new value.
 
-#### Deprecated Key Auto-Migration: merge.ci_workflow_name → ci.workflow_name
+#### Deprecated key auto-migration: `merge.ci_workflow_name` → `ci.workflow_name` (branch)
 
-After reading the existing config, check for the deprecated `merge.ci_workflow_name` key and auto-migrate it to `ci.workflow_name`. This migration is non-blocking — no user prompt is required.
+**Trigger**: The deprecated `merge.ci_workflow_name` key is present in the existing config.
 
-```
-Migration logic (run silently during config merge):
-1. If merge.ci_workflow_name is present in the existing config:
-   a. If ci.workflow_name already exists: skip migration, log that merge.ci_workflow_name
-      can be manually removed (it is now superseded by ci.workflow_name).
-   b. If ci.workflow_name does NOT already exist: auto-write the value from
-      merge.ci_workflow_name into ci.workflow_name, then log a deprecation notice:
-      "Note: merge.ci_workflow_name is deprecated — its value has been automatically
-      migrated to ci.workflow_name. You may remove merge.ci_workflow_name from your
-      dso-config.conf."
-2. If merge.ci_workflow_name is not present: no action needed.
-```
-
-This deprecation migration ensures existing projects continue to work without manual config edits when upgrading to the `ci.workflow_name` key introduced in a later DSO version.
+**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/onboarding/phases/3-conditional-paths.md` (auto-migration section) and follow it. Both key names (`merge.ci_workflow_name` and `ci.workflow_name`) are wire-format identifiers preserved across the migration — never delete one without the other being present.
 
 #### Per-Stack Command Defaults
 
@@ -1239,26 +984,9 @@ Populate these keys from the `ci_workflow_names` (comma-separated) and `ci_workf
 
 After running `project-detect.sh`, inspect `ci_workflow_confidence` and `ci_workflow_names`:
 
-**When `ci_workflow_confidence=high` AND `ci_workflow_names` contains exactly one entry:**
-- Skip the CI clarification question entirely — use the single detected workflow filename as `ci.integration_workflow` without asking.
+**When `ci_workflow_confidence=high` AND `ci_workflow_names` contains exactly one entry**: skip the clarification dialogue — use the single detected workflow filename as `ci.integration_workflow` without asking.
 
-**When `ci_workflow_confidence=low` OR `ci_workflow_names` contains 2+ comma-separated entries (multiple workflows detected):**
-- Present a numbered selection dialogue so the user can identify which workflow maps to which purpose:
-
-```
-I detected the following CI workflow files:
-  1. ci.yml
-  2. ci-slow.yml
-  3. deploy.yml
-
-Multiple workflows found (or low confidence in detection). Please identify:
-  - Which workflow is your fast-gate (lint + unit tests on PR)?
-  - Which is your integration workflow (full test suite)?
-
-Enter the numbers or type filenames directly.
-```
-
-Use the user's response to populate `ci.integration_workflow` and the CI job keys. If the user cannot answer immediately, omit the key with an explanatory comment per the fallback behavior below.
+**When `ci_workflow_confidence=low` OR `ci_workflow_names` contains 2+ comma-separated entries (branch)**: load `${CLAUDE_PLUGIN_ROOT}/skills/onboarding/phases/3-conditional-paths.md` (multi-workflow CI selection section) and follow it to present the numbered selection dialogue and populate `ci.integration_workflow` plus CI job keys (`ci.fast_gate_job`, `ci.fast_fail_job`, `ci.test_ceil_job`).
 
 > **CI LLM review — classifier-driven tier selection**: The CI review job selects the reviewer tier automatically per-PR based on the complexity classifier score (0–2 → light/haiku, 3–6 → standard/sonnet, 7+ → deep/opus). Tier selection is fully automatic — there is no manual override environment variable. `ci.dso_plugin_version` lets projects override the DSO plugin version used in CI LLM review without editing the workflow file (Tier 2 of the 3-tier version resolution chain). `DSO_ASSETS_DIR` is a CI environment variable required in host-project CI when running `ci-llm-review-runner.sh` outside the DSO source checkout (the script is a shim in S3+; delegates to `python3 -m dso_ci_review.runner`). See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIGURATION-REFERENCE.md` for full details.
 
@@ -1325,20 +1053,9 @@ When a config key cannot be auto-detected and the user does not provide a value,
 
 Never silently skip a required key — always leave a comment so the user knows what to fill in.
 
-#### Ticket prefix derivation
+#### Ticket prefix
 
-Derive the `tickets.prefix` from the project name by taking the first letter of each hyphen- or underscore-separated word and uppercasing them. For example:
-
-- `my-app` → `MA`
-- `digital-service-orchestra` → `DSO`
-- `myapp` (single word) → first 2–3 characters uppercased → `MYA`
-
-Confirm the derived prefix with the user before writing it to config:
-
-```
-I'll use ticket prefix "MA" for this project (derived from "my-app").
-Does that work, or would you prefer a different prefix?
-```
+Write the `TICKET_PREFIX` value captured in Phase 2 question 14 to `tickets.prefix` in `.claude/dso-config.conf`. No mid-stream prompt — the value was already confirmed in Phase 2.
 
 #### CI workflow examples
 
@@ -1376,22 +1093,9 @@ Accept these values? [Y/n]
 
 Write `commands.acli_version` and `commands.acli_sha256` to `.claude/dso-config.conf` on acceptance.
 
-### Step 2b.1: Merge Strategy Selection
+### Step 2b.1: Merge strategy
 
-**Read existing value first**: Before presenting the question, read `merge.strategy` from `.claude/dso-config.conf` (if present). If the key already exists, present the existing value as the prompt default so the user can press Enter to keep it or select a different option. Always write the chosen value (overwrite) — never skip the write based on the key already existing.
-
-Display to user:
-```
-Which merge strategy for this project?
-  (a) direct (default — push directly to main; suitable for solo or non-technical projects)
-  (b) pr (GitHub Ruleset enforcement — PR-based merge with CI gate; suitable for team projects)
-
-Press Enter or type 'a' for direct (recommended for most projects).
-```
-
-**On (a) or Enter**: Write `merge.strategy=direct` to `.claude/dso-config.conf` (overwrite any existing value).
-
-**On (b) pr**: Write `merge.strategy=pr` to `.claude/dso-config.conf` (overwrite any existing value). Inform the user that the GitHub Ruleset will be provisioned during the GitHub Repository Configuration step (Batch Group 4 — which calls `github-bootstrap.sh`, which in turn calls `provision-ruleset.sh`). **Note**: if `merge.strategy=pr` and a 'DSO CI Enforcement' Ruleset already exists on the repo, `github-bootstrap.sh` will exit with an error directing you to disable the Ruleset for the bootstrap window before retrying. This is expected — it prevents the bootstrap from conflicting with an existing enforcement Ruleset.
+Write `merge.strategy=$MERGE_STRATEGY` to `.claude/dso-config.conf` (overwrite any existing value), using the value captured in Phase 2 question 11. No mid-stream prompt. On `MERGE_STRATEGY=pr`, the GitHub Ruleset is provisioned during Batch Group 4 (`github-bootstrap.sh` → `provision-ruleset.sh`); if a 'DSO CI Enforcement' Ruleset already exists on the repo, the bootstrap will exit with an error directing the operator to disable the existing Ruleset before retrying.
 
 ### Step 2c: Infrastructure Initialization
 
@@ -1526,24 +1230,11 @@ else
 fi
 ```
 
-#### Prettier Ignore Configuration
+#### Prettier ignore configuration (branch — Prettier projects only)
 
-If the host project uses Prettier (detected by the presence of `.prettierrc`, `.prettierrc.json`, `.prettierrc.js`, `prettier.config.js`, or `.prettierignore`), add DSO infrastructure directories to `.prettierignore` to prevent Prettier from attempting to format ticket event files and UI discovery cache:
+**Trigger**: Host project uses Prettier (any of `.prettierrc`, `.prettierrc.json`, `.prettierrc.js`, `prettier.config.js`, `.prettierignore`).
 
-```bash
-if [ -f ".prettierignore" ] || [ -f ".prettierrc" ] || [ -f ".prettierrc.json" ] || [ -f ".prettierrc.js" ] || [ -f "prettier.config.js" ]; then
-    PRETTIERIGNORE="${PRETTIERIGNORE:-.prettierignore}"
-    touch "$PRETTIERIGNORE"
-    for dir in ".tickets-tracker/" ".ui-discovery-cache/"; do
-        if ! grep -qF "$dir" "$PRETTIERIGNORE"; then
-            echo "$dir" >> "$PRETTIERIGNORE"
-            echo "Added $dir to .prettierignore"
-        fi
-    done
-fi
-```
-
-This prevents Prettier from attempting to format the ticket event store and UI discovery cache, which contain JSON/YAML that Prettier may reformat in ways that break the ticket CLI's parsing.
+**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/onboarding/phases/3-conditional-paths.md` (Prettier ignore section) and follow it to add the ticket-tracker and UI-discovery-cache directories to `.prettierignore`.
 
 #### Ticket Smoke Test
 
@@ -1710,101 +1401,39 @@ If Semgrep installation failed, write `test_quality.tool=bash-grep` instead. The
 ## Batch Group 6: final-commit
 <!-- Skip guard: if no hook artifacts to commit, skip -->
 
-#### CI Trigger Strategy
+#### CI trigger and preplanning interactivity
 
-Ask the user about the CI trigger strategy — do NOT assume a PR-based workflow:
+Write the values captured in Phase 2 questions 12 and 13 to `.claude/dso-config.conf`:
 
-```
-What events should trigger CI? Common options:
-- Pull request (on open, sync, reopen)
-- Push to specific branches (e.g., main, develop)
-- Manual dispatch only
-- Scheduled (cron)
-
-This affects the ci.workflow_name setting and any generated workflow templates.
-```
-
-Record the CI trigger strategy in `dso-config.conf` under `ci.workflow_name` and in `.claude/project-understanding.md` under the CI section.
-
-#### Preplanning Interactivity Probe
-
-Ask the operator whether preplanning should run interactively:
-
-```
-When planning new features, would you like me to check in with you at key decisions, or should I run autonomously?
-(Options: "yes, check in" / "go ahead on your own" — default: check in with you)
-
-Checking in (default): /dso:preplanning pauses at key decisions to confirm story scope, done definitions, and decomposition with you.
-Running autonomously: /dso:preplanning runs without interruption — suitable for CI or batch workflows.
-```
-
-**Response normalization:**
-- yes / y / check in / pause → `true`
-- no / n / autonomous / go ahead → `false`
-- Empty / Enter → default `true`
-- Ambiguous → ask follow-up: "Just to confirm — would you like me to pause for confirmation (yes) or run without interruption (no)?"
-
-Write the operator's answer as `preplanning.interactive = <answer>` to `dso-config.conf`. If the operator does not respond or presses Enter, default to `true`.
-
-**Explicit overwrite**: unlike other merge-not-overwrite config keys, `preplanning.interactive` must always be overwritten with the operator's answer — even if `preplanning.interactive` already exists in `dso-config.conf` (the repo default written by initial setup is `false`, which the operator must be able to override here):
+- `CI_TRIGGER_STRATEGY` → record under `ci.workflow_name` and in `.claude/project-understanding.md`'s CI section.
+- `PREPLANNING_INTERACTIVE` → write `preplanning.interactive=<value>` with **explicit overwrite** (exception to the general merge-not-overwrite rule, since the repo default is `false` and the operator must be able to flip it):
 
 ```bash
-# Always write preplanning.interactive — overwrite even if the key already exists
-# This is an exception to the general merge-not-overwrite rule for this key.
-PREPLANNING_INTERACTIVE="${OPERATOR_PREPLANNING_ANSWER:-true}"
+# Always overwrite preplanning.interactive — exception to merge-not-overwrite rule
 if grep -q "^preplanning\.interactive" "$EXISTING_CONFIG" 2>/dev/null; then
-    # Overwrite existing value
-    sed -i.bak "s|^preplanning\.interactive.*|preplanning.interactive=$PREPLANNING_INTERACTIVE|" "$EXISTING_CONFIG"
+    sed -i.bak "s|^preplanning\.interactive.*|preplanning.interactive=$PREPLANNING_INTERACTIVE|" "$EXISTING_CONFIG" && rm -f "$EXISTING_CONFIG.bak"
 else
     echo "preplanning.interactive=$PREPLANNING_INTERACTIVE" >> "$EXISTING_CONFIG"
 fi
 ```
 
----
-
-## Step 6: Offer /dso:architect-foundation (/dso:onboarding)
-
-After writing `.claude/project-understanding.md`, offer the next step:
-
-```
-I can now codify this understanding into durable project artifacts using /dso:architect-foundation. This will:
-- Write or update ARCHITECTURE.md with the module map and key patterns
-- Register test suites and commands in .claude/dso-config.conf
-- Capture enforcement preferences and CI pipeline structure
-
-Would you like me to invoke /dso:architect-foundation now?
-```
-
-If the user says yes, invoke `/dso:architect-foundation`. When `COMFORT_LEVEL` is set, pass the appropriate flag:
-
-- `COMFORT_LEVEL="non_technical"`: invoke with `--auto` (skips interactive prompts, applies sensible defaults)
-- `COMFORT_LEVEL="technical"` or not set: invoke without flags
-
-```
-Skill tool:
-  skill: "dso:architect-foundation"
-  args: "--auto"   # omit if COMFORT_LEVEL != "non_technical"
-```
-
-If the user says no or wants to continue manually, proceed to Step 7.
+No mid-stream prompts at this step — both values were captured in Phase 2.
 
 ---
 
-## Step 7: Onboarding Integration Offer (/dso:onboarding)
+## Step 8: Wrap-up — architect-foundation offer (/dso:onboarding)
 
-After `/dso:architect-foundation` completes (or is skipped), offer additional onboarding skills that produce durable project artifacts.
+After all artifacts are written and committed, decide whether to offer `/dso:architect-foundation`.
 
-**Artifact detection**: Before prompting, check whether the target artifacts already exist:
-- Check for `ARCH_ENFORCEMENT.md` — produced by `/dso:architect-foundation`
-- Check for `.claude/design-notes.md` (or `design-notes.md` at repo root) — produced by `/dso:onboarding` Phase 3
+**Artifact detection**: Check whether `ARCH_ENFORCEMENT.md` already exists at the repo root (produced by a prior `/dso:architect-foundation` run). If it does, skip this step entirely — onboarding integration is already complete.
 
-If both artifacts already exist, skip this step entirely — the onboarding integration is already complete and no additional steps are needed.
-
-**When `/dso:architect-foundation` has not been run** (ARCH_ENFORCEMENT.md does not exist), present an AskUserQuestion:
+**When `ARCH_ENFORCEMENT.md` does not exist**, offer the next step:
 
 ```
-I can run /dso:architect-foundation to set up architectural enforcement scaffolding
-(produces ARCH_ENFORCEMENT.md with architecture enforcement rules).
+I can run /dso:architect-foundation now to codify this understanding into durable
+project artifacts (produces ARCH_ENFORCEMENT.md with architecture enforcement rules,
+registers test suites and commands in .claude/dso-config.conf, and captures
+enforcement preferences and CI pipeline structure).
 
 1) Run /dso:architect-foundation
 2) Skip — setup is complete, no additional steps
@@ -1812,7 +1441,15 @@ I can run /dso:architect-foundation to set up architectural enforcement scaffold
 Which would you like?
 ```
 
-**If the user selects skip**: Setup is complete. No additional steps are needed. Summarize what was learned and close the session.
+**On option 1**: invoke `/dso:architect-foundation`. Pass `--auto` when `COMFORT_LEVEL="non_technical"` (skips interactive prompts, applies sensible defaults); invoke without flags otherwise.
+
+```
+Skill tool:
+  skill: "dso:architect-foundation"
+  args: "--auto"   # omit when COMFORT_LEVEL != "non_technical"
+```
+
+**On option 2**: setup is complete. Summarize what was learned and close the session.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: debug-everything
-description: Diagnose and fix all outstanding bugs (validation failures AND open ticket bugs), test failures, lint errors, and infrastructure issues using orchestrated sub-agents with TDD discipline
+description: Use when the user wants a comprehensive multi-issue health pass — fix all bugs, resolve broken tests, clear CI failures, fix lint and type errors, restore green builds — not for a single targeted bug fix. Diagnoses and resolves every outstanding open bug ticket plus all validation failures (test, lint, type, format, infrastructure) using orchestrated sub-agents with TDD discipline, in tier order. Trigger phrases include 'debug everything', 'fix all bugs', 'fix the failing tests', 'CI is failing', 'build is broken', 'clean up the codebase', 'restore green', 'project health pass'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -16,7 +16,7 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 
 ## Mindset
 
-- **You own everything.** You did not create these bugs, but they are your responsibility now. There is no "out of scope." You are responsible for investigating and resolving all pre-existing failures using the fix-bug skill — "pre-existing" is not a reason to skip a bug; it is a reason to fix it.
+- **You own everything.** No "out of scope." Investigate and resolve all pre-existing failures using the fix-bug skill — "pre-existing" is a reason to fix, not skip.
 - **Diagnose before treating.** Run all diagnostics first. Understand the full landscape of failures before fixing anything.
 - **TDD is selective, not reflexive.** Behavioral bugs get a failing test BEFORE the fix. Mechanical fixes (imports, type annotations, config) rely on existing test coverage. See [TDD Enforcement](#tdd-enforcement).
 - **Never skip tests.** Disabling, skipping, or deleting tests is never acceptable.
