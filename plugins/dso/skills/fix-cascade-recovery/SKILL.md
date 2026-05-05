@@ -1,6 +1,6 @@
 ---
 name: fix-cascade-recovery
-description: Emergency brake for runaway cascades. Stops edits, assesses damage, decides revert, then hands off to /dso:fix-bug for investigation.
+description: Use when 5+ fix attempts have cascaded into new failures, when the cascade circuit-breaker fires (CLAUDE.md rule 6), or when repeated edits are propagating errors instead of resolving them. Stops further edits, assesses blast radius via git diff, decides whether to fully revert / selectively revert / keep changes, attaches cascade context to the active ticket, hands off to /dso:fix-bug for informed investigation, and resets the circuit-breaker counter. Trigger phrases include 'cascade circuit-breaker fired', 'too many failed attempts', 'rollback cascading changes', 'revert this mess', 'stop the edits', 'recover from a cascade', 'undo cascading edits'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
