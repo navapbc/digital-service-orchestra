@@ -59,23 +59,41 @@ def test_litellm_transport_verified(tmp_path):
     import inspect
 
     provider_path = (
-        REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_ci_review" / "providers" / "anthropic.py"
+        REPO_ROOT
+        / "plugins"
+        / "dso"
+        / "scripts"
+        / "dso_ci_review"
+        / "providers"
+        / "anthropic.py"
     )
-    assert provider_path.exists(), f"providers/anthropic.py not found at {provider_path}"
+    assert provider_path.exists(), (
+        f"providers/anthropic.py not found at {provider_path}"
+    )
 
-    spec = importlib.util.spec_from_file_location("dso_ci_review.providers.anthropic", provider_path)
-    assert spec is not None and spec.loader is not None, "Could not locate providers/anthropic.py"
+    spec = importlib.util.spec_from_file_location(
+        "dso_ci_review.providers.anthropic", provider_path
+    )
+    assert spec is not None and spec.loader is not None, (
+        "Could not locate providers/anthropic.py"
+    )
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # actually execute to verify the module is valid Python
+    spec.loader.exec_module(
+        module
+    )  # actually execute to verify the module is valid Python
 
     # Behavioral assertion: review_diff must be a callable exported by the module
-    assert hasattr(module, "review_diff"), "providers/anthropic.py does not export review_diff"
+    assert hasattr(module, "review_diff"), (
+        "providers/anthropic.py does not export review_diff"
+    )
     assert callable(module.review_diff), "review_diff is not callable"
 
     # Behavioral assertion: review_diff must accept diff_text as first positional arg
     sig = inspect.signature(module.review_diff)
     params = list(sig.parameters)
-    assert params[0] == "diff_text", f"review_diff first param is {params[0]!r}, expected 'diff_text'"
+    assert params[0] == "diff_text", (
+        f"review_diff first param is {params[0]!r}, expected 'diff_text'"
+    )
 
     transport_name, transport_notes = _detect_transport()
 

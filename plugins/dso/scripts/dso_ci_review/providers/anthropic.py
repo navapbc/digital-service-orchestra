@@ -22,6 +22,29 @@ _SYSTEM_PROMPT = (
 )
 
 
+class AnthropicProvider:
+    """Provider adapter that calls Anthropic models via LiteLLM."""
+
+    def __init__(self, model: str = _DEFAULT_MODEL) -> None:
+        self._model = model
+
+    def review_diff(self, diff_text: str, **kwargs: Any) -> dict[str, Any]:
+        """Send *diff_text* to the Anthropic model via LiteLLM and return parsed findings.
+
+        Args:
+            diff_text: The unified diff to review.
+            **kwargs: Optional overrides; ``model`` overrides the instance default.
+
+        Returns:
+            A dict with a ``"findings"`` key containing a list of finding dicts.
+
+        Raises:
+            ValueError: When the LLM returns a response that cannot be parsed as findings JSON.
+        """
+        model = kwargs.get("model", self._model)
+        return review_diff(diff_text, model=model)
+
+
 def review_diff(diff_text: str, model: str = _DEFAULT_MODEL) -> dict[str, Any]:
     """Send *diff_text* to the Anthropic model via LiteLLM and return parsed findings.
 
