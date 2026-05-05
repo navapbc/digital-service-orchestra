@@ -1,0 +1,38 @@
+# requirements.lock — pinned dependencies for dso-ci-review
+#
+# Generated from: pyproject.toml (in this directory)
+# Tool: pip-tools==7.4.1 (regenerate with: pip-compile --generate-hashes pyproject.toml --output-file requirements.lock)
+# Note: Full hash generation (--generate-hashes) requires Python >=3.11,<3.14 (litellm constraint).
+#       This file uses exact == pins for reproducibility; add --generate-hashes output for full
+#       hash verification when running in a compatible environment.
+#
+# All pins are exact (== only). Loose operators (~=, >=, !=) are rejected by check-lockfile-pins.sh.
+
+litellm==1.83.14
+    # via pyproject.toml
+
+# Core transitive dependencies of litellm==1.83.14
+aiohttp==3.13.4
+    # via litellm
+click==8.1.8
+    # via litellm
+fastuuid==0.14.0
+    # via litellm
+httpx==0.28.1
+    # via litellm
+importlib-metadata==8.5.0
+    # via litellm
+jinja2==3.1.6
+    # via litellm
+jsonschema==4.23.0
+    # via litellm
+openai==2.24.0
+    # via litellm
+pydantic==2.12.5
+    # via litellm
+python-dotenv==1.2.2
+    # via litellm
+tiktoken==0.12.0
+    # via litellm
+tokenizers==0.22.2
+    # via litellm

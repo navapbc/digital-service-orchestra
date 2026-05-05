@@ -12,6 +12,7 @@ test = [
     "respx==0.23.1",
     "pytest==9.0.2",
 ]
+lockfile = ["pip-tools==7.4.1"]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -19,4 +20,4 @@ include = ["dso_ci_review*"]
 
 [build-system]
 requires = ["setuptools==75.8.2"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
