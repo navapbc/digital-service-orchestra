@@ -29,6 +29,9 @@ source "$_LIB_DIR/deps.sh"
 source "$_LIB_DIR/enforcement-gate.sh"
 
 hook_review_bypass_sentinel() {
+    # _dso_enforcement_gate_check returns 0 when enforcement.strategy=ci (hook should skip),
+    # non-zero when strategy=local (hook should proceed). The && return 0 idiom is correct:
+    # "if gate says skip (returns 0), skip (return 0); if gate says proceed (non-zero), continue".
     _dso_enforcement_gate_check && return 0
     local INPUT="$1"
     local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"

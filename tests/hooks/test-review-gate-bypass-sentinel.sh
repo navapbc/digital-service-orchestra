@@ -326,7 +326,13 @@ assert_eq "test_no_verify_outside_quotes_still_blocked" "2" "$EXIT_CODE"
 call_sentinel_with_config() {
     local input="$1" config_file="$2"
     local exit_code=0
-    # Pass input via env var to avoid shell quoting issues with JSON content.
+    # INPUT_JSON is set as a prefix env var so the bash -c subprocess inherits it.
+    # \$INPUT_JSON (backslash-escaped dollar) in the bash -c body defers expansion
+    # to the subprocess context — the outer shell sees a literal '$' and does NOT
+    # expand INPUT_JSON at bash -c string construction time.  Inside the subprocess,
+    # "$INPUT_JSON" is then expanded from the inherited environment, preserving
+    # the full JSON value including any spaces or special characters. This is the
+    # correct pattern for passing structured data into a bash -c subshell.
     INPUT_JSON="$input" WORKFLOW_CONFIG_FILE="$config_file" bash -c "
         REPO_ROOT=\"\$(git rev-parse --show-toplevel)\"
         source \"\$REPO_ROOT/plugins/dso/hooks/lib/deps.sh\"
@@ -342,7 +348,9 @@ call_sentinel_with_config_stderr() {
     local input="$1" config_file="$2"
     local exit_code=0
     local stderr_output
-    # Pass input via env var to avoid shell quoting issues with JSON content.
+    # Same \$INPUT_JSON deferral pattern as call_sentinel_with_config above.
+    # INPUT_JSON is exported to the subprocess; \$INPUT_JSON in the body defers
+    # expansion so the subprocess reads the full JSON from its environment.
     stderr_output=$(INPUT_JSON="$input" WORKFLOW_CONFIG_FILE="$config_file" bash -c "
         REPO_ROOT=\"\$(git rev-parse --show-toplevel)\"
         source \"\$REPO_ROOT/plugins/dso/hooks/lib/deps.sh\"
