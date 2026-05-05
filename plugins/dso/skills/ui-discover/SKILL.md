@@ -1,11 +1,15 @@
 ---
 name: ui-discover
 description: >
-  Generates or refreshes the UI Discovery Cache for a project. Inventories
+  Use when starting an epic's wireframe designs, scanning a frontend for
+  UI components, cataloguing existing routes, or inventorying frontend
+  state. Generates or refreshes the UI Discovery Cache: inventories
   components via Glob/Grep, crawls routes via Playwright, and writes
   structured results to .ui-discovery-cache/. Produces a deterministic
-  validation script for git-based cache invalidation. Run once before
-  starting an epic's wireframe designs.
+  validation script for git-based cache invalidation. Trigger phrases
+  include 'scan UI components', 'discover routes', 'catalog UI elements',
+  'inventory frontend components', 'refresh ui-discovery-cache', 'before
+  designing wireframes'.
 argument-hint: [--refresh | --validate-only]
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash, Task, AskUserQuestion
 ---
