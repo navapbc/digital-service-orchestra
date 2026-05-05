@@ -67,7 +67,6 @@ plugins/dso/scripts/figma_merge/tokens_merge.py:tests/unit/test_figma_merge_toke
 plugins/dso/scripts/figma-merge.py:tests/unit/test_figma_merge_svg.py,tests/unit/test_figma_merge_spatial.py,tests/unit/test_figma_merge_identity.py,tests/unit/test_figma_merge_id_validate.py,tests/unit/test_figma_merge_tokens.py,tests/integration/test-figma-merge-integration.sh
 plugins/dso/scripts/fix-bug/route-escalation.sh:tests/scripts/test_gate_escalation_router.py
 plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test-issue-quality-check-storage-api.sh,tests/scripts/test_issue_quality_check_file_impact.py
-plugins/dso/scripts/llm-api-call.sh:tests/scripts/test-llm-api-call.sh
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh,tests/scripts/test-residual-callers-polyglot.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts/test-ts-morph-normalize-imports.sh
