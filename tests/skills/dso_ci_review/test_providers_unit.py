@@ -140,8 +140,6 @@ def test_openai_provider_review_diff() -> None:
     When: we inspect OpenAIProvider.review_diff
     Then: AnthropicProvider.review_diff exists AND OpenAIProvider.review_diff exists
 
-    RED marker: plugins/dso/scripts/dso_ci_review/providers/openai.py does not yet exist.
-    This test fails RED until openai.py is implemented in a future task.
     """
     anthropic_mod = _load_provider_module("dso_ci_review/providers/anthropic.py")
     AnthropicProvider = anthropic_mod.AnthropicProvider  # type: ignore[attr-defined]
