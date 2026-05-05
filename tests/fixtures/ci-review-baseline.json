@@ -1,0 +1,10 @@
+{
+  "captured_at": "2026-05-05T05:46:24.139516+00:00",
+  "iterations": 20,
+  "p50_ms": 28.58,
+  "p95_ms": 33.66,
+  "min_ms": 21.44,
+  "max_ms": 34.8,
+  "python_version": "3.14.4",
+  "mode": "dry_run"
+}

@@ -7,6 +7,17 @@ Versioning follows [Semantic Versioning](https://semver.org/) — see `docs/VERS
 
 ---
 
+## [Unreleased]
+
+### Migration: CI LLM Review Runner — Bash → Python
+
+- `llm-api-call.sh` deleted (replaced by `python3 -m dso_ci_review.runner`)
+- `ci-llm-review-runner.sh` reduced to a 29-line shim
+- New Python package: `plugins/dso/scripts/dso_ci_review/` (classifier.py, findings.py, dispatch.py, runner.py)
+- No compat wrapper created: `llm-api-call.sh` consumers that need the old interface should use `merge-to-main-pr.sh`'s `_LLM_DISPATCH_CMD` env var override
+
+---
+
 ## [Unreleased] — 2026-04-29
 
 ### Added: Ticket System — ID Widening and Concurrency Hardening (epic 3e74-56da)
