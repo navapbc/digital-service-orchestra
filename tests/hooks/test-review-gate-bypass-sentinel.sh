@@ -12,6 +12,17 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
+
+# Set enforcement strategy to local for test isolation.
+# Without this, enforcement-gate.sh reads the real dso-config.conf at source time.
+# When enforcement.strategy=ci (as in this repo after the 8e5f story), hook_review_bypass_sentinel()
+# returns 0 immediately, breaking all block tests. Tests that check ci behavior use
+# call_sentinel_with_config() which manages WORKFLOW_CONFIG_FILE independently.
+_TEST_ISOLATION_DIR=$(mktemp -d /tmp/sentinel-test-isolation.XXXXXX)
+printf 'enforcement.strategy=local\n' > "$_TEST_ISOLATION_DIR/dso-config.conf"
+WORKFLOW_CONFIG_FILE="$_TEST_ISOLATION_DIR/dso-config.conf"
+trap 'rm -rf "$_TEST_ISOLATION_DIR"' EXIT
+
 source "$DSO_PLUGIN_DIR/hooks/lib/review-gate-bypass-sentinel.sh"
 
 # call_sentinel: invoke hook_review_bypass_sentinel() directly (no subprocess).
