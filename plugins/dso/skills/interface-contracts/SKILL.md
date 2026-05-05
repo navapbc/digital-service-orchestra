@@ -20,12 +20,6 @@ Create interface contract if ANY:
 Otherwise: No interface needed
 ```
 
-**Create interface contracts when:**
-- Multiple components need to communicate: Define the boundary before implementing either side
-- Work can be parallelized: Interface + implementation can be separate tasks assigned to different agents
-- Dependencies exist between tasks: The blocked task can start once the interface is defined, even if implementation isn't complete
-- Complex features span multiple modules: Define integration points upfront
-
 ## Interface Contract Requirements
 
 Every interface contract must include:
@@ -35,43 +29,7 @@ Every interface contract must include:
 3. **Comprehensive docstrings** documenting behavior, not just structure
 4. **Unit test file** with tests that verify the contract (can test against mock/stub implementations)
 
-```python
-# src/services/{domain}/base.py
-from abc import ABC, abstractmethod
-from typing import TypeVar, Generic
-
-T = TypeVar("T")
-
-class MyProvider(ABC, Generic[T]):
-    """Contract description.
-
-    Implementations must:
-    - Be thread-safe
-    - Handle X, Y, Z formats
-    - Raise specific exceptions (see below)
-    """
-
-    @abstractmethod
-    def process(self, input: str) -> T:
-        """Process input and return result.
-
-        Args:
-            input: Description of input
-
-        Returns:
-            Description of return type
-
-        Raises:
-            ValueError: When input is invalid
-            ProcessingError: When processing fails
-
-        Thread Safety:
-            This method is thread-safe.
-        """
-        pass
-```
-
-### Real Example from This Codebase
+### Example from This Codebase
 
 ```python
 # src/services/extraction/base.py
