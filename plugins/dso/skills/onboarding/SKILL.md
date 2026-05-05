@@ -1,6 +1,6 @@
 ---
 name: onboarding
-description: Use when starting a new project or joining an existing one — conducts a Socratic dialogue to build a shared understanding of the project's stack, commands, architecture, infrastructure, CI pipeline, design system, and enforcement preferences.
+description: Use when starting a new DSO project, joining an existing one, getting started in an unfamiliar codebase, doing a codebase walkthrough, or running project setup. Auto-detects the stack, scans existing docs, runs a Socratic dialogue to capture architecture / infrastructure / CI / design system / enforcement preferences, then writes dso-config.conf, CLAUDE.md, ticket-system seed files, and pre-commit hooks. Optionally installs a project template (nava-platform or Jekyll). Trigger phrases include 'onboard this project', 'set up DSO', 'getting started', 'project setup', 'codebase walkthrough', 'understand the codebase', 'run onboarding', 'init the project'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
