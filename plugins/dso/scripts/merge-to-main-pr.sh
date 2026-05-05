@@ -276,7 +276,7 @@ except Exception:
 # Reviewer-supplied input from PR review threads is untrusted. Reject paths
 # that could be used for path traversal, absolute-path access outside the
 # repo, or argument injection (paths starting with `-` would be parsed as
-# a flag by `git diff` or `llm-api-call.sh`).
+# a flag by `git diff` or the LLM dispatch command).
 #
 # Returns 0 if path is safe, 1 otherwise. Empty string is treated as safe
 # (callers handle empty by skipping diff context).
@@ -467,7 +467,7 @@ _pr_dispatch_unresolved_batch() {
         # comes from the GraphQL response (untrusted reviewer input). An
         # invalid path is dropped: we skip the diff fetch and pass an empty
         # string to the LLM dispatch so neither `git diff` nor
-        # `llm-api-call.sh` ever sees the malicious value.
+        # the LLM dispatch command ever sees the malicious value.
         local _safe_file_path=""
         if _pr_validate_file_path "$_file_path"; then
             _safe_file_path="$_file_path"
@@ -684,7 +684,7 @@ _pr_commit_code_change_threads() {
 #   PR_THREAD_LOOP_INTERVAL           — overrides config default (30)
 #   PR_THREAD_LOOP_START_OVERRIDE_SECONDS — simulate elapsed time at start (default 0)
 #   PR_THREAD_LOOP_TEST_STOP_AFTER_RESET  — exit 0 after first POLL_WINDOW_RESET (testing)
-#   _LLM_DISPATCH_CMD                 — override LLM dispatch command (default: llm-api-call.sh compat wrapper (S6 creates it))
+#   _LLM_DISPATCH_CMD                 — override LLM dispatch command (required; no default — deleted in S3)
 _phase_resolve_threads() {
     local _pr_number="$1" _pr_url="$2"
 
@@ -697,8 +697,12 @@ _phase_resolve_threads() {
     local _last_thread_seen_ts=0
     local _last_thread_count=0
     local _last_head_sha=""
-    # compat-shim: llm-api-call.sh will be a compat wrapper post-S3 (S6 creates it). Override via env var.
-    local _llm_cmd="${_LLM_DISPATCH_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
+    # compat-shim: LLM helper was deleted in S3; set _LLM_DISPATCH_CMD to provide an LLM helper
+    local _llm_cmd="${_LLM_DISPATCH_CMD:-}"
+    if [[ -z "$_llm_cmd" ]]; then
+        echo "WARNING: _LLM_DISPATCH_CMD not set; no LLM helper available (deleted in S3) — LLM step skipped" >&2
+        return 0
+    fi
     # Track threads the LLM escalated so they are skipped on subsequent iterations
     # instead of burning the dispatch budget repeatedly on unresolvable threads.
     declare -A _escalated_threads=()
@@ -991,8 +995,12 @@ except Exception:
 # Overridable via _RESOLVE_CONFLICTS_LLM_CMD for tests.
 _dispatch_resolve_conflicts() {
     local _pr_number="$1" _pr_url="$2"
-    # compat-shim: llm-api-call.sh will be a compat wrapper post-S3 (S6 creates it). Override via env var.
-    local _llm_cmd="${_RESOLVE_CONFLICTS_LLM_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
+    # compat-shim: LLM helper was deleted in S3; set _RESOLVE_CONFLICTS_LLM_CMD to provide an LLM helper
+    local _llm_cmd="${_RESOLVE_CONFLICTS_LLM_CMD:-}"
+    if [[ -z "$_llm_cmd" ]]; then
+        echo "WARNING: _RESOLVE_CONFLICTS_LLM_CMD not set; no LLM helper available (deleted in S3) — LLM step skipped" >&2
+        return 0
+    fi
     local _prompt_file="${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/resolve-conflicts-dispatch.md"
     local _context_file
     _context_file="$(mktemp /tmp/dso-conflict-context.XXXXXX)"
@@ -1108,7 +1116,7 @@ print(json.dumps(d))
 # --- _dispatch_fix_agent: invoke LLM sub-agent to apply fixes from findings ---
 #
 # ENV OVERRIDES (for testing):
-#   _REMEDIATE_LLM_CMD  — override LLM command (default: llm-api-call.sh compat wrapper (S6 creates it))
+#   _REMEDIATE_LLM_CMD  — override LLM command (required; no default — deleted in S3)
 #                         Separate from _LLM_DISPATCH_CMD to avoid colliding with
 #                         the thread-resolution override in _phase_resolve_threads.
 #
@@ -1117,14 +1125,18 @@ print(json.dumps(d))
 _dispatch_fix_agent() {
     local _findings_path="$1"
     local _attempt_num="${2:-}"
-    # compat-shim: llm-api-call.sh will be a compat wrapper post-S3 (S6 creates it). Override via env var.
-    local _llm_cmd="${_REMEDIATE_LLM_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
+    # compat-shim: LLM helper was deleted in S3; set _REMEDIATE_LLM_CMD to provide an LLM helper
+    local _llm_cmd="${_REMEDIATE_LLM_CMD:-}"
+    if [[ -z "$_llm_cmd" ]]; then
+        echo "WARNING: _REMEDIATE_LLM_CMD not set; no LLM helper available (deleted in S3) — LLM step skipped" >&2
+        return 0
+    fi
     local _prompt_file="${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md"
     local _result
     local _user_msg="$_findings_path"
     if [[ "$_attempt_num" == "4" ]]; then
         # Append budget-pressure context to the user message so the LLM receives it.
-        # llm-api-call.sh arg 2 is the user-message string — appending here ensures it
+        # The LLM dispatch cmd arg 2 is the user-message string — appending here ensures it
         # reaches the model regardless of whether the caller is a real LLM or a test stub.
         _user_msg="${_findings_path}
 This is attempt 4 of 5 - if you cannot resolve this finding, return ESCALATE with a clear explanation"
