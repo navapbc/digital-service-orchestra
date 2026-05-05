@@ -17,6 +17,7 @@ Behavioral contracts under test:
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import pathlib
 
@@ -32,6 +33,7 @@ if _SCRIPTS_DIR not in sys.path:
 # This import will raise ImportError until dispatch.py is implemented,
 # which is the desired RED state.
 from dso_ci_review.dispatch import (  # noqa: E402
+    async_dispatch_specialists,
     dispatch_review,
 )
 from dso_ci_review.providers.config import ConfigError  # noqa: E402
@@ -397,3 +399,181 @@ def test_dispatch_raises_config_error_when_credential_missing() -> None:
     assert "ANTHROPIC_API_KEY" in msg or "anthropic" in msg.lower(), (
         f"ConfigError should mention the missing credential. Got: {msg!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 7 — async_dispatch_specialists: partial failure (DD4)
+# ---------------------------------------------------------------------------
+
+
+def test_async_dispatch_partial_failure(monkeypatch) -> None:
+    """Given: two agents, one raises, one returns findings
+    When: async_dispatch_specialists is called
+    Then:
+      - The failing agent produces a specialist_error entry in its findings
+      - The succeeding agent's findings are intact in the result list
+      - Result list has one entry per agent, in input order
+    """
+    _GOOD_FINDINGS = {
+        "findings": [
+            {
+                "severity": "minor",
+                "description": "Good agent finding",
+                "cited_lines": ["foo.py:1"],
+            }
+        ]
+    }
+
+    call_count = [0]
+
+    def _mock_completion(model: str, messages, **kwargs):
+        call_count[0] += 1
+
+        class _FakeMsg:
+            content = '{"findings": [{"severity": "minor", "description": "Good agent finding", "cited_lines": ["foo.py:1"]}]}'
+
+        class _FakeChoice:
+            message = _FakeMsg()
+
+        class _FakeResp:
+            choices = [_FakeChoice()]
+
+        return _FakeResp()
+
+    monkeypatch.setattr("litellm.completion", _mock_completion)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
+    # Patch dispatch_review for the failing agent to raise directly
+    import dso_ci_review.dispatch as _dispatch_mod
+
+    _orig_dispatch = _dispatch_mod.dispatch_review
+
+    def _patched_dispatch(diff_text, agent_id, primary_model, provider_chain, **kwargs):
+        if agent_id == "agent-fail":
+            raise RuntimeError("Simulated agent failure")
+        return _orig_dispatch(
+            diff_text=diff_text,
+            agent_id=agent_id,
+            primary_model=primary_model,
+            provider_chain=provider_chain,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _patched_dispatch)
+
+    agents = [
+        {
+            "agent_id": "agent-fail",
+            "diff_text": _DIFF_TEXT,
+            "model": _PRIMARY_MODEL,
+            "provider_chain": ["anthropic"],
+        },
+        {
+            "agent_id": "agent-ok",
+            "diff_text": _DIFF_TEXT,
+            "model": _PRIMARY_MODEL,
+            "provider_chain": ["anthropic"],
+        },
+    ]
+
+    results = asyncio.run(async_dispatch_specialists(agents))
+
+    assert len(results) == 2, f"Expected 2 results (one per agent), got {len(results)}"
+
+    # First result (failing agent) must have a specialist_error entry
+    fail_findings = results[0].get("findings", [])
+    error_entries = [f for f in fail_findings if f.get("type") == "specialist_error"]
+    assert error_entries, (
+        f"Expected specialist_error entry for failing agent, got findings: {fail_findings}"
+    )
+    assert error_entries[0].get("agent_id") == "agent-fail", (
+        f"specialist_error should reference agent-fail, got: {error_entries[0]}"
+    )
+
+    # Second result (succeeding agent) must have real findings
+    ok_findings = results[1].get("findings", [])
+    assert ok_findings, f"Expected findings from agent-ok, got: {results[1]}"
+    assert ok_findings[0].get("description") == "Good agent finding", (
+        f"Expected 'Good agent finding' in ok agent result, got: {ok_findings}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 8 — async_dispatch_specialists: all succeed (DD4)
+# ---------------------------------------------------------------------------
+
+
+def test_async_dispatch_all_succeed(monkeypatch) -> None:
+    """Given: two agents both returning findings
+    When: async_dispatch_specialists is called
+    Then:
+      - Both results contain findings (not error entries)
+      - Result list has two entries in input order
+    """
+    agent_findings: dict[str, str] = {
+        "agent-alpha": "Finding from alpha",
+        "agent-beta": "Finding from beta",
+    }
+
+    import dso_ci_review.dispatch as _dispatch_mod
+
+    def _mock_dispatch(diff_text, agent_id, primary_model, provider_chain, **kwargs):
+        description = agent_findings.get(agent_id, "Unknown")
+        return {
+            "findings": [
+                {
+                    "severity": "minor",
+                    "description": description,
+                    "cited_lines": ["foo.py:1"],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch)
+
+    agents = [
+        {
+            "agent_id": "agent-alpha",
+            "diff_text": _DIFF_TEXT,
+            "model": _PRIMARY_MODEL,
+        },
+        {
+            "agent_id": "agent-beta",
+            "diff_text": _DIFF_TEXT,
+            "model": _PRIMARY_MODEL,
+        },
+    ]
+
+    results = asyncio.run(async_dispatch_specialists(agents))
+
+    assert len(results) == 2, f"Expected 2 results, got {len(results)}"
+
+    for i, (result, agent) in enumerate(zip(results, agents)):
+        findings = result.get("findings", [])
+        assert findings, (
+            f"Agent {agent['agent_id']} (index {i}) returned empty findings: {result}"
+        )
+        error_entries = [f for f in findings if f.get("type") == "specialist_error"]
+        assert not error_entries, (
+            f"Agent {agent['agent_id']} unexpectedly returned error entry: {error_entries}"
+        )
+
+    descriptions = [r["findings"][0]["description"] for r in results]
+    assert "Finding from alpha" in descriptions, (
+        f"alpha finding missing: {descriptions}"
+    )
+    assert "Finding from beta" in descriptions, f"beta finding missing: {descriptions}"
+
+
+# ---------------------------------------------------------------------------
+# Scenario 9 — async_dispatch_specialists: empty input (DD4)
+# ---------------------------------------------------------------------------
+
+
+def test_async_dispatch_empty_list() -> None:
+    """Given: empty agents list
+    When: async_dispatch_specialists is called
+    Then: returns empty list without error
+    """
+    results = asyncio.run(async_dispatch_specialists([]))
+    assert results == [], f"Expected empty list for empty input, got: {results}"

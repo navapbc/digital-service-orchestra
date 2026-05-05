@@ -7,10 +7,12 @@ Implements a two-axis fallback strategy:
 DD1: stream=False on all litellm.completion() calls; fallbacks= passed for cross-provider
 DD2: fallback_hops rendered in result when a hop occurred
 DD3: fallback_exhausted entry (6 required fields) written when chain fully exhausted
+DD4: async_dispatch_specialists uses asyncio.gather(return_exceptions=True) for partial-failure
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -264,3 +266,91 @@ def review_with_fallbacks(
         agent_id=agent_id,
         primary_model=primary_model,
     )
+
+
+# ---------------------------------------------------------------------------
+# Async parallel specialist dispatch (DD4)
+# ---------------------------------------------------------------------------
+
+
+async def _call_single_agent(
+    agent_id: str,
+    diff_text: str,
+    model: str,
+    provider_chain: list[str] | None = None,
+) -> dict:
+    """Dispatch one reviewer agent. Returns findings dict or error entry on any exception."""
+    try:
+        result = dispatch_review(
+            diff_text=diff_text,
+            agent_id=agent_id,
+            primary_model=model,
+            provider_chain=provider_chain or ["anthropic"],
+        )
+        return result
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "findings": [
+                {
+                    "type": "specialist_error",
+                    "agent_id": agent_id,
+                    "severity": "important",
+                    "category": "correctness",
+                    "description": f"Specialist {agent_id} failed: {type(exc).__name__}: {exc}",
+                    "cited_lines": [],
+                }
+            ]
+        }
+
+
+async def async_dispatch_specialists(
+    agents: list[dict],
+) -> list[dict]:
+    """Dispatch all specialist agents concurrently via asyncio.gather.
+
+    Uses return_exceptions=True so one failure does not cancel sibling tasks.
+    Any task that raises an exception produces an error findings entry.
+    Returns list of findings dicts (one per agent, in same order as input).
+    Never raises — all errors are captured into error entries.
+
+    Args:
+        agents: List of agent descriptor dicts, each containing:
+            - agent_id (str): Identifier for the reviewing agent.
+            - diff_text (str): Unified diff text to review.
+            - model (str): Primary model identifier to use.
+            - provider_chain (list[str] | None): Optional provider chain override.
+    """
+    if not agents:
+        return []
+
+    tasks = [
+        _call_single_agent(
+            agent_id=a["agent_id"],
+            diff_text=a["diff_text"],
+            model=a["model"],
+            provider_chain=a.get("provider_chain"),
+        )
+        for a in agents
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    findings_list = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            findings_list.append(
+                {
+                    "findings": [
+                        {
+                            "type": "specialist_error",
+                            "agent_id": agents[i]["agent_id"],
+                            "severity": "important",
+                            "category": "correctness",
+                            "description": str(result),
+                            "cited_lines": [],
+                        }
+                    ]
+                }
+            )
+        else:
+            findings_list.append(result)
+    return findings_list
