@@ -21,18 +21,18 @@ User signals: "review the X skill", "audit X", "can we optimize X?", "clean up X
 
 ## Workflow
 
-The workflow is **nine sequential phases**. Do not skip. Phases 1 and 2 are synchronous with the user; Phases 3–9 execute autonomously once the plan is approved.
+The workflow is **nine sequential phases**. Do not skip. Phases A and B are synchronous with the user; Phases C–I execute autonomously once the plan is approved.
 
 ```
-P1 Critical review            → present findings
-P2 Remediation plan           → await explicit approval
-P3 Script relocation          → move skill-scoped scripts to shared sub-dir
-P4 Reference updates          → skill body, tests, docs
-P5 Change-detector test sweep → remove prose-grepping tests
-P6 Ticket reconciliation      → comment on open tickets affected
-P7 Renumbering                → renumber phases (A,B,C…) and steps (1,2,3…); update cross-skill refs
-P8 Tessl skill review         → run tessl skill review; act on valid+actionable findings
-P9 Commit                     → via COMMIT-WORKFLOW.md; surface review findings
+PA Critical review            → present findings
+PB Remediation plan           → await explicit approval
+PC Script relocation          → move skill-scoped scripts to shared sub-dir
+PD Reference updates          → skill body, tests, docs
+PE Change-detector test sweep → remove prose-grepping tests
+PF Ticket reconciliation      → comment on open tickets affected
+PG Renumbering                → renumber phases (A,B,C…) and steps (1,2,3…); update cross-skill refs
+PH Tessl skill review         → run tessl skill review; act on valid+actionable findings
+PI Commit                     → via COMMIT-WORKFLOW.md; surface review findings
 ```
 
 ---
@@ -64,13 +64,13 @@ A **hard gate** is anything in a skill that enforces a contract or triggers a do
 - Deleting an approval gate because the protocol the skill calls *also* has one. The skill-level gate may be load-bearing for entry modes that bypass the protocol.
 - Deleting a SUB-AGENT-GUARD or its test reference.
 
-**Procedure**: in Phase 1, classify each duplicated/restated/extractable item as **gate** (compress, retain identifier) or **prose** (remove). Surface the table in Phase 2 for user audit.
+**Procedure**: in Phase A, classify each duplicated/restated/extractable item as **gate** (compress, retain identifier) or **prose** (remove). Surface the table in Phase B for user audit.
 
 **When in doubt, compress, do not remove** — silent gate loss is asymmetrically costly.
 
 ---
 
-## Phase 1 — Critical review
+## Phase A — Critical review
 
 Read the target SKILL.md in full. Identify, concretely:
 
@@ -83,28 +83,28 @@ Read the target SKILL.md in full. Identify, concretely:
 
 Do not propose changes yet — this phase is diagnostic only.
 
-## Phase 2 — Remediation plan (blocking approval gate)
+## Phase B — Remediation plan (blocking approval gate)
 
 Convert the review into a concrete plan:
 
 - **Files to create** (new reference docs, new helper scripts) with one-line rationale each.
 - **Files to modify** (SKILL.md rewrite, inline shim-call updates).
-- **Scripts to relocate** (see Phase 3) with destination path.
-- **Change-detector tests to remove** (see Phase 5) — names only; evidence comes in P5.
-- **Gate/prose classification table** for every duplicate or restated section flagged in Phase 1, marking each as **gate** (compress, retain identifier) or **prose** (remove). Apply the criteria from the "Hard gates" section above. The user audits this table — gate misclassifications get caught here, not after the commit.
+- **Scripts to relocate** (see Phase C) with destination path.
+- **Change-detector tests to remove** (see Phase E) — names only; evidence comes in PE.
+- **Gate/prose classification table** for every duplicate or restated section flagged in Phase A, marking each as **gate** (compress, retain identifier) or **prose** (remove). Apply the criteria from the "Hard gates" section above. The user audits this table — gate misclassifications get caught here, not after the commit.
 - **Expected token reduction** (estimated line delta for SKILL.md).
 
 Present the plan and offer the user three explicit options:
 
-1. **Approve** — proceed to Phase 3.
+1. **Approve** — proceed to Phase C.
 2. **Red-team review first** — dispatch an opus sub-agent to adversarially scrutinize the plan; revise based on findings; re-present.
-3. **Revise** — user pushes back on specific items; rework Phase 1 / Phase 2 and re-present.
+3. **Revise** — user pushes back on specific items; rework Phase A / Phase B and re-present.
 
 Do not assume option 1 is the default. State the three options. Wait for the user's choice.
 
 **Under `/dso:dryrun`**: Same three options apply; note that dry-run mode will skip the write steps if option 1 is chosen.
 
-### Phase 2.5 — Red-team review (only when user picks option 2)
+### Red-Team Review Branch (only when user picks option 2)
 
 Launch an opus sub-agent to red-team the proposed plan. Direct the agent to:
 
@@ -115,7 +115,7 @@ Brief the sub-agent with: full file paths to the target SKILL.md and any extract
 
 **Out-of-scope concerns the red team MUST NOT flag** (these are project-level decisions already made; flagging them wastes review cycles):
 
-- **Phase / step renumbering blast radius.** Renumbering is a non-negotiable Phase 7 deliverable of every refactor. The cost of updating cross-skill references, contracts, and docs is accepted. Do NOT flag "X external references will need updating" as a blocker, important, or nit — Phase 7 of the skill-refactor workflow is responsible for those updates and the post-grep verify catches stragglers. Treat the renumbering as a fixed input, not a design choice to litigate.
+- **Phase / step renumbering blast radius.** Renumbering is a non-negotiable Phase G deliverable of every refactor. The cost of updating cross-skill references, contracts, and docs is accepted. Do NOT flag "X external references will need updating" as a blocker, important, or nit — Phase G of the skill-refactor workflow is responsible for those updates and the post-grep verify catches stragglers. Treat the renumbering as a fixed input, not a design choice to litigate.
 
 Output format the sub-agent should use:
 
@@ -130,9 +130,9 @@ When the sub-agent returns, **critically evaluate each finding for validity befo
 - **Partially accept** — revise with a narrower fix.
 - **Reject** — explain why the concern doesn't hold.
 
-Present the revised plan with explicit "accepted / partially accepted / rejected" status per finding, then return to the three-option gate at the top of Phase 2. The user may red-team again if substantial changes were made, approve, or revise further.
+Present the revised plan with explicit "accepted / partially accepted / rejected" status per finding, then return to the three-option gate at the top of Phase B. The user may red-team again if substantial changes were made, approve, or revise further.
 
-## Phase 3 — Script relocation (skill-scoped scripts only)
+## Phase C — Script relocation (skill-scoped scripts only)
 
 Determine which scripts are used only by this skill (or a tightly-coupled pair — e.g., onboarding + architect-foundation both consume the same scripts).
 
@@ -158,7 +158,7 @@ For each skill-scoped script:
 
 Verify: run the relocated script with `--help` or a safe read-only invocation; confirm it resolves the plugin root correctly.
 
-## Phase 4 — Reference updates
+## Phase D — Reference updates
 
 Update every caller of the moved scripts to use the new shim path. The DSO shim dispatches through sub-paths automatically — calls become `.claude/scripts/dso <sub-dir>/<script>.sh`. No shim changes required.
 
@@ -188,7 +188,7 @@ sed -i '' -E 's#^plugins/dso/scripts/(<A>|<B>|…)\.sh:#plugins/dso/scripts/<sub
 
 6. **Verification**: `grep -r "scripts/<script>\.sh" plugins/ tests/ docs/ | grep -v "<sub-dir>/"` must return zero relevant hits.
 
-## Phase 5 — Change-detector test sweep
+## Phase E — Change-detector test sweep
 
 Find tests whose only job is asserting prose phrases appear in instruction-file text — violating the project's behavioral-testing-standard Rule 5 ("test the structural boundary, not the content").
 
@@ -259,7 +259,7 @@ If the entire test file is change detectors, `git rm` the file.
 
 Summarize: N tests removed across M files, list the kept-but-flagged cases with one-line rationale for each.
 
-## Phase 6 — Ticket reconciliation
+## Phase F — Ticket reconciliation
 
 Find open tickets that reference the skill or moved scripts by **path** or **structural name** (phase numbers, step names, section titles that have been renamed). Conceptual references are fine; pathed references are stale.
 
@@ -289,7 +289,7 @@ For each hit:
 .claude/scripts/dso ticket comment <id> "NOTE (path update YYYY-MM-DD): <old> moved to <new>. <brief impact>."
 ```
 
-## Phase 7 — Renumbering
+## Phase G — Renumbering
 
 After all structural edits are complete and before commit, renumber the skill's phases and steps so the surface form matches the post-refactor structure (gaps, deletions, and reorderings produce numbering like "Phase 2.6 / Step 1a / Step 0.5" that confuses readers and tests). This phase is mechanical: do not change behavior, only labels.
 
@@ -344,7 +344,7 @@ This also applies to section title renames, signal label renames, and any other 
    grep -rEn "(Phase|Step) [0-9]" tests/skills/ tests/scripts/ 2>/dev/null
    ```
 
-   Update structural assertions only (e.g., a test asserting `Phase 6` exists in SKILL.md). Tests that are change detectors should already be removed in Phase 5.
+   Update structural assertions only (e.g., a test asserting `Phase 6` exists in SKILL.md). Tests that are change detectors should already be removed in Phase E.
 
 7. **Post-grep verify (mandatory)**:
    ```bash
@@ -366,7 +366,7 @@ Present the mapping table (`old label → new label`) and the count of cross-ski
 
 ---
 
-## Phase 8 — Tessl skill review
+## Phase H — Tessl skill review
 
 After all structural edits and renumbering are complete, run `tessl skill review` against the refactored skill. This catches frontmatter regressions, judge-quality drift in the description, and structural issues introduced during the refactor — before they reach the commit gate.
 
@@ -380,12 +380,12 @@ tessl skill review .claude/skills/<name>
 Read the full output (deterministic checks + judge evaluation). Triage findings:
 
 - **Validation errors** (frontmatter invalid, missing fields, XML-tag literals in description) — must fix before commit. Re-run after each fix until clean.
-- **Validation warnings** about Claude-Code-native fields tessl doesn't recognize (`allowed-tools` containing `Agent`, unknown frontmatter keys like `user-invocable`) — not actionable; document the rejection in the Phase 9 commit body.
+- **Validation warnings** about Claude-Code-native fields tessl doesn't recognize (`allowed-tools` containing `Agent`, unknown frontmatter keys like `user-invocable`) — not actionable; document the rejection in the Phase I commit body.
 - **Judge findings** (description specificity, trigger-term quality, content conciseness, progressive disclosure) — apply only when **valid AND actionable AND consistent with project extraction constraints**. Specifically: extract content only when (a) used in multiple locations, OR (b) needed only on a specific logical branch off the hot path. Do NOT extract hot-path content even if conciseness is flagged.
 
-Surface findings to the user with explicit accept/reject per finding before applying any new edits. Re-run `tessl skill review` after edits until the result is clean (or only non-actionable warnings remain). Then proceed to Phase 9.
+Surface findings to the user with explicit accept/reject per finding before applying any new edits. Re-run `tessl skill review` after edits until the result is clean (or only non-actionable warnings remain). Then proceed to Phase I.
 
-## Phase 9 — Commit
+## Phase I — Commit
 
 Execute `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md` inline. Do not invoke `/dso:commit` via the Skill tool — that nests workflows and breaks sub-agent boundaries (CLAUDE.md Rule 10).
 
@@ -415,5 +415,5 @@ Apply autonomous resolution (up to `review.max_resolution_attempts`, default 5).
 ## Known failure modes
 
 - **Over-aggressive change-detector removal**: if in doubt, keep. The asymmetric cost favors false negatives.
-- **Under-scoped relocation**: moving a "skill-scoped" script that turns out to have a non-obvious caller (an installer, a bootstrap doc, a test fixture). Phase 7 review will typically catch these; be prepared to update one or two additional files in the resolution loop.
-- **Missed `.test-index` updates**: both the source-path column (LHS of `:`) and the test-list column (RHS) may need updating for moved scripts and deleted tests. Re-grep `.test-index` after Phase 4 and Phase 5.
+- **Under-scoped relocation**: moving a "skill-scoped" script that turns out to have a non-obvious caller (an installer, a bootstrap doc, a test fixture). Phase G review will typically catch these; be prepared to update one or two additional files in the resolution loop.
+- **Missed `.test-index` updates**: both the source-path column (LHS of `:`) and the test-list column (RHS) may need updating for moved scripts and deleted tests. Re-grep `.test-index` after Phase D and Phase E.
