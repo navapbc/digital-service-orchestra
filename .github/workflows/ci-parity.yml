@@ -1,0 +1,27 @@
+name: Parity Test
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  parity-test:
+    name: CI Review Parity Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: plugins/dso/scripts/requirements.lock
+
+      - name: Install dependencies
+        run: pip install -r plugins/dso/scripts/requirements.lock
+
+      - name: Run parity test
+        run: python3 -m pytest tests/skills/dso_ci_review/test_parity.py -v
+        env:
+          DSO_CI_REVIEW_DRY_RUN: "1"
