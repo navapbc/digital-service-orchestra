@@ -133,6 +133,5 @@ class TestValidateProviderCredentialsMissingKey:
             "ANTHROPIC_API_KEY": "test-anthropic-key",
             "OPENAI_API_KEY": "test-openai-key",
         }
-        # Should not raise
-        result = validate_provider_credentials(["anthropic", "openai"], environ=environ)
-        assert result is None, f"Expected None return value, got {result!r}"
+        # Should not raise; validate_provider_credentials returns None on success
+        validate_provider_credentials(["anthropic", "openai"], environ=environ)

@@ -32,6 +32,7 @@ if _SCRIPTS_DIR not in sys.path:
 
 # This import will raise ImportError until dispatch.py is implemented,
 # which is the desired RED state.
+import dso_ci_review.dispatch as _dispatch_mod  # noqa: E402
 from dso_ci_review.dispatch import (  # noqa: E402
     async_dispatch_specialists,
     dispatch_review,
@@ -46,18 +47,6 @@ from dso_ci_review.providers.config import ConfigError  # noqa: E402
 _DIFF_TEXT = "--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
 
 _PRIMARY_MODEL = "claude-haiku-4-5-20251001"
-_FALLBACK_MODEL = "openai/gpt-4o-mini"
-_CONTEXT_FALLBACK_MODEL = "claude-sonnet-4-5"
-
-_CANNED_FINDINGS = {
-    "findings": [
-        {
-            "severity": "minor",
-            "description": "Test finding",
-            "cited_lines": ["foo.py:1"],
-        }
-    ]
-}
 
 
 # ---------------------------------------------------------------------------
@@ -414,16 +403,6 @@ def test_async_dispatch_partial_failure(monkeypatch) -> None:
       - The succeeding agent's findings are intact in the result list
       - Result list has one entry per agent, in input order
     """
-    _GOOD_FINDINGS = {
-        "findings": [
-            {
-                "severity": "minor",
-                "description": "Good agent finding",
-                "cited_lines": ["foo.py:1"],
-            }
-        ]
-    }
-
     call_count = [0]
 
     def _mock_completion(model: str, messages, **kwargs):
@@ -444,8 +423,6 @@ def test_async_dispatch_partial_failure(monkeypatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
     # Patch dispatch_review for the failing agent to raise directly
-    import dso_ci_review.dispatch as _dispatch_mod
-
     _orig_dispatch = _dispatch_mod.dispatch_review
 
     def _patched_dispatch(diff_text, agent_id, primary_model, provider_chain, **kwargs):
@@ -514,8 +491,6 @@ def test_async_dispatch_all_succeed(monkeypatch) -> None:
         "agent-alpha": "Finding from alpha",
         "agent-beta": "Finding from beta",
     }
-
-    import dso_ci_review.dispatch as _dispatch_mod
 
     def _mock_dispatch(diff_text, agent_id, primary_model, provider_chain, **kwargs):
         description = agent_findings.get(agent_id, "Unknown")

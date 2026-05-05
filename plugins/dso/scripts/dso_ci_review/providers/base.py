@@ -29,4 +29,4 @@ class Provider(Protocol):
             of finding dicts, each containing ``severity``, ``description``,
             and ``cited_lines``.
         """
-        ...
+        ...  # Protocol stub — no implementation required
