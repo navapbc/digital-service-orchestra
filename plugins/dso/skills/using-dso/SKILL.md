@@ -1,15 +1,11 @@
 ---
 name: using-dso
-description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
+description: Bootstrap skill loaded automatically at conversation start. Establishes the rule that the agent MUST invoke a matching skill via the Skill tool BEFORE any response, including clarifying questions and "simple" answers. Covers Skill tool invocation, fallback procedures (silent injection failure / 'Unknown skill'), feature-intent detection (route to /dso:brainstorm before /dso:sprint), sub-agent delegation triggers, and friction recording. Trigger phrases include 'help', 'what can you do', 'can you', 'fix', 'add', 'build' — i.e., any user message that requests action.
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <EXTREMELY-IMPORTANT>
-If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
-
-IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
-
-This is not negotiable. This is not optional. You cannot rationalize your way out of this.
+If there is even a 1% chance a skill applies to what you are doing, you MUST invoke it. Not negotiable; not optional; not rationalizable.
 </EXTREMELY-IMPORTANT>
 
 ## How to Access Skills
@@ -110,8 +106,6 @@ When a skill or workflow specifies steps, phases, gates, or procedures, execute 
 - Omit a validation step because "the change is small"
 - Rationalize that "this particular case doesn't need" a required step
 
-**Why this matters**: Skills encode hard-won lessons from production failures. Every gate exists because skipping it caused a real problem. Config masking hid bugs for weeks because a validation step was conditional instead of mandatory. Tests passed locally but failed in CI because a smoke test was skipped. The cost of running an "unnecessary" step is seconds; the cost of skipping a necessary one is hours of debugging.
-
 **If a skill step seems wrong or outdated**, flag it to the user — do not silently skip it. The correct response to a bad instruction is to raise it, not to ignore it.
 
 ## User Instructions
@@ -135,8 +129,6 @@ When no skill clearly applies, do not ask clarifying questions immediately. Foll
 Exit the loop as soon as the confidence test passes — do not ask more questions than necessary.
 
 **Proceed**: Once the confidence test passes, proceed immediately. Do not request explicit confirmation.
-
-**Dogfooding Evaluation**: Define *intent-match* as: the agent's final action matches the user's actual intent on the first attempt. Log each clarification loop entry and score intent-match after each interaction. Target: 80% intent-match rate across 20+ interactions. This measures success of the clarification loop.
 
 ## Sub-Agent Delegation
 
