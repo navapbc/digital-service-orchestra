@@ -375,3 +375,4 @@ plugins/dso/scripts/validate-review-output.sh:tests/hooks/test-validate-review-o
 plugins/dso/scripts/onboarding/ci-generator.sh:tests/scripts/test-ci-generator.sh
 plugins/dso/scripts/lib/ci-findings-normalize.sh:tests/scripts/test-ci-findings-normalize.sh
 tests/scripts/test-merge-to-main-pr.sh:tests/scripts/test-merge-to-main-pr.sh
+plugins/dso/scripts/dso_ci_review/runner.py: tests/skills/dso_ci_review/test_runner_smoke.py

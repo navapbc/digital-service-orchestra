@@ -76,6 +76,18 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
+# --- Install dso_ci_review package (and its deps including litellm) if present ---
+# This is a fail-open step: if the install fails in an incompatible environment
+# (e.g. externally-managed Python), we warn but do not block existing tests.
+_PLUGIN_SCRIPTS="$REPO_ROOT/plugins/dso/scripts"
+if [[ -f "$_PLUGIN_SCRIPTS/pyproject.toml" ]]; then
+    echo "Installing dso-ci-review package (litellm + deps) for Python tests..."
+    python3 -m pip install -e "$_PLUGIN_SCRIPTS" --quiet 2>&1 || {
+        echo "[WARN] pip install failed (externally-managed env?); tests that require litellm may be skipped" >&2
+    }
+    echo ""
+fi
+
 pytest_args=("${existing_dirs[@]}" "--tb=short" "-q")
 if [ -n "$DESELECT_EXPR" ]; then
     pytest_args+=("-k" "$DESELECT_EXPR")
