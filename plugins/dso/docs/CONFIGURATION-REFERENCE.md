@@ -1070,7 +1070,7 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 | **Accepted values** | `local` \| `ci` \| `both` |
 | **Default** | `local` |
 <!-- REVIEW-DEFENSE: enforcement-gate.sh was implemented and committed in story 5177-ec04 in the session branch. This worktree was dispatched before that commit landed; the file exists and will be present after harvest. -->
-| **Used by** | `hooks/lib/enforcement-gate.sh` (consumed by `pre-commit-review-gate.sh`, `pre-commit-test-gate.sh`, `pre-commit-test-quality-gate.sh`) |
+| **Used by** | `hooks/lib/enforcement-gate.sh` (consumed by `pre-commit-review-gate.sh`, `pre-commit-test-gate.sh`, `pre-commit-test-quality-gate.sh`, `hooks/lib/review-gate-bypass-sentinel.sh` (PreToolUse Layer 2)) |
 
 **Example**: `enforcement.strategy=local`
 
