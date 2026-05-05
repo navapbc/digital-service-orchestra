@@ -146,6 +146,24 @@ All implementors must read this contract before modifying fallback logic in `ci-
 
 ---
 
+## Per-Agent File Ownership
+
+When deep-tier dispatch runs 3 specialists (correctness, verification, hygiene) plus arch synthesis
+in parallel, each agent writes to a distinct slot file to prevent parallel-write corruption:
+
+| Agent | Slot file |
+|-------|-----------|
+| correctness specialist | `$WORKFLOW_PLUGIN_ARTIFACTS_DIR/reviewer-findings-correctness.json` |
+| verification specialist | `$WORKFLOW_PLUGIN_ARTIFACTS_DIR/reviewer-findings-verification.json` |
+| hygiene specialist | `$WORKFLOW_PLUGIN_ARTIFACTS_DIR/reviewer-findings-hygiene.json` |
+| arch synthesis | `$WORKFLOW_PLUGIN_ARTIFACTS_DIR/reviewer-findings.json` (canonical output) |
+
+The `fallback_exhausted` entry, when generated, is written into the canonical `reviewer-findings.json`
+via the atomic write protocol (temp file + `os.replace()`). Concurrent partial results from
+surviving specialists are preserved in their respective slot files and merged by the arch synthesis agent.
+
+---
+
 ## Versioning
 
 This contract is versioned. Breaking changes (format changes, field removal, type changes) require updating both all emitters and parsers and this document atomically in the same commit. Additive changes that do not affect existing field definitions are backward-compatible.

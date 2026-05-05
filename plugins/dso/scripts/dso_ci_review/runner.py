@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
 
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 
@@ -37,12 +38,23 @@ def _read_diff() -> str:
 
 
 def _write_output(data: dict) -> None:
-    """Serialize data as JSON to DSO_CI_REVIEW_OUTPUT_PATH or stdout."""
-    output_path = os.environ.get("DSO_CI_REVIEW_OUTPUT_PATH")
+    """Serialize data as JSON to DSO_CI_REVIEW_OUTPUT_PATH or stdout.
+
+    When DSO_CI_REVIEW_OUTPUT_PATH is set, the write is performed atomically
+    via a temp file + os.replace() (rename syscall on POSIX) to prevent
+    parsers from observing a partially-written file (DD3 requirement).
+    """
     serialized = json.dumps(data, indent=2)
+    output_path = os.environ.get("DSO_CI_REVIEW_OUTPUT_PATH")
     if output_path:
-        with open(output_path, "w", encoding="utf-8") as fh:
-            fh.write(serialized)
+        dir_path = os.path.dirname(os.path.abspath(output_path))
+        os.makedirs(dir_path, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w", dir=dir_path, suffix=".tmp", delete=False, encoding="utf-8"
+        ) as tmp:
+            tmp.write(serialized)
+            tmp_path = tmp.name
+        os.replace(tmp_path, output_path)  # atomic on POSIX (rename syscall)
     else:
         print(serialized)
 

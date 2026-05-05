@@ -1,11 +1,10 @@
 """dso_ci_review.dispatch — Fallback-aware LLM dispatch for CI code review.
 
 Implements a two-axis fallback strategy:
-  - Cross-provider fallback: try each provider in provider_chain in order
-  - Context-window fallback: when ContextWindowExceededError fires, escalate
-    to a larger model within the same provider
+  - Axis 1 (Cross-provider fallback): passed as fallbacks=[...] to litellm.completion
+  - Axis 2 (Context-window escalation): manual loop catching ContextWindowExceededError
 
-DD1: streaming=False preserved (stream=False passed to every litellm.completion call)
+DD1: stream=False on all litellm.completion() calls; fallbacks= passed for cross-provider
 DD2: fallback_hops rendered in result when a hop occurred
 DD3: fallback_exhausted entry (6 required fields) written when chain fully exhausted
 """
@@ -70,6 +69,22 @@ def _parse_response(response: Any) -> dict[str, Any]:
         ) from exc
 
 
+def _build_fallbacks(
+    provider_chain: list[str],
+    primary_provider: str,
+) -> list[dict[str, str]]:
+    """Build cross-provider fallbacks list for litellm.completion fallbacks= parameter.
+
+    Returns a list of model dicts for each non-primary provider in the chain.
+    """
+    fallbacks = []
+    for provider in provider_chain:
+        if provider != primary_provider:
+            fallback_model = _PROVIDER_DEFAULT_MODEL.get(provider, provider)
+            fallbacks.append({"model": fallback_model})
+    return fallbacks
+
+
 def dispatch_review(
     diff_text: str,
     provider_chain: list[str],
@@ -78,14 +93,12 @@ def dispatch_review(
     context_model_chain: list[str] | None = None,
     primary_model: str | None = None,
 ) -> dict[str, Any]:
-    """Dispatch a code review with a two-axis fallback strategy.
+    """Dispatch a code review using LiteLLM with manual context-window escalation.
 
-    Axis 1 — cross-provider: iterate over provider_chain, trying each provider
-    in order when the previous one raises a non-context error.
-
-    Axis 2 — context-window: when ContextWindowExceededError fires, escalate
-    through context_model_chain (larger models, same provider) before moving
-    to the next provider.
+    Uses litellm.completion with:
+      - fallbacks=[...]: cross-provider fallback models (Axis 1, SDK-native)
+      - Manual loop over context_model_chain catching ContextWindowExceededError (Axis 2)
+      - stream=False: DD1 compliance
 
     Args:
         diff_text: Unified diff text to review.
@@ -111,6 +124,7 @@ def dispatch_review(
 
     if environ is None:
         import os
+
         environ = dict(os.environ)
 
     # --- Credential pre-check (DD startup gate) ---
@@ -119,17 +133,14 @@ def dispatch_review(
         if not key_var:
             raise ConfigError(f"Unknown provider: {provider!r}")
         if not environ.get(key_var):
-            raise ConfigError(
-                f"Missing {key_var} for provider {provider!r}"
-            )
+            raise ConfigError(f"Missing {key_var} for provider {provider!r}")
 
     messages = _build_messages(diff_text)
 
     # Determine the primary provider and model
     first_provider = provider_chain[0]
-    resolved_primary_model = (
-        primary_model
-        or _PROVIDER_DEFAULT_MODEL.get(first_provider, first_provider)
+    resolved_primary_model = primary_model or _PROVIDER_DEFAULT_MODEL.get(
+        first_provider, first_provider
     )
 
     # Build context_model_chain if not provided.
@@ -137,94 +148,86 @@ def dispatch_review(
     # If first_provider is unknown (not in _DEFAULT_CONTEXT_CHAIN), fall back to a
     # single-element chain containing only the resolved primary model.
     if context_model_chain is None:
-        context_model_chain = _DEFAULT_CONTEXT_CHAIN.get(first_provider, [resolved_primary_model])
+        context_model_chain = _DEFAULT_CONTEXT_CHAIN.get(
+            first_provider, [resolved_primary_model]
+        )
 
-    # Ensure the primary model is first in the context chain (or use the chain as given)
-    # The caller may supply an explicit chain starting from haiku already.
+    # Build SDK-native cross-provider fallback parameter list (Axis 1, DD1)
+    fallbacks = _build_fallbacks(provider_chain, first_provider)
 
-    fallback_hops: list[str] = []
-    attempted_cross_provider: list[str] = []
-    attempted_context_models: list[str] = []
+    # Track attempted models/providers for fallback_exhausted reporting
+    attempted_cross_provider: list[str] = [first_provider]
+    attempted_context_models: list[str] = list(context_model_chain)
     last_exc: Exception | None = None
+    fallback_hops: list[str] = []
 
-    # Axis 2 first: try context_model_chain for the first provider
+    # Axis 2: manual context-window escalation loop.
+    # NOTE: the `context_window_fallbacks` kwarg is a LiteLLM Router parameter
+    # and is silently ignored by litellm.completion() — use a manual loop instead.
     for ctx_model in context_model_chain:
-        attempted_context_models.append(ctx_model)
         try:
             response = litellm.completion(
                 model=ctx_model,
                 messages=messages,
                 stream=False,  # DD1: never stream
+                fallbacks=fallbacks,  # DD1: SDK-native cross-provider fallback (Axis 1)
             )
             result = _parse_response(response)
 
-            # Record a hop before building the result so fallback_hops is complete
-            # when we return (non-first model means at least one context escalation occurred).
-            if ctx_model != context_model_chain[0]:
+            # Record a hop if we advanced past the first model in the context chain (DD2).
+            # Note: SDK-native cross-provider hops (via fallbacks= parameter) are also
+            # detected here via response._hidden_params["model"] when litellm transparently
+            # uses a fallback provider.
+            actual_model = (
+                getattr(response, "_hidden_params", {}).get("model") or ctx_model
+            )
+            effective_primary = resolved_primary_model
+            if ctx_model != effective_primary or actual_model != effective_primary:
+                hop_target = actual_model if actual_model != ctx_model else ctx_model
                 hop_desc = (
-                    f"[fallback: {agent_id} {context_model_chain[0]} -> {ctx_model} "
-                    f"(ContextWindowExceededError)]"
+                    f"[fallback: {agent_id} {effective_primary} -> {hop_target} "
+                    f"({'sdk_cross_provider' if actual_model != ctx_model else 'context_window_escalation'})]"
                 )
                 fallback_hops.append(hop_desc)
+
+            if fallback_hops:
                 result["fallback_hops"] = fallback_hops
+
             return result
 
         except litellm.ContextWindowExceededError as exc:
-            # Context too large; move to the next model in the context chain
+            # Context too large for this model — try the next larger context model
             last_exc = exc
             logger.debug(
-                "ContextWindowExceededError on %s, escalating context chain", ctx_model
+                "ContextWindowExceededError for model %s; escalating context chain",
+                ctx_model,
             )
             continue
-
-        except (litellm.RateLimitError, Exception) as exc:
-            # Non-context error on the primary provider; break to cross-provider fallback
-            last_exc = exc
-            attempted_cross_provider.append(first_provider)
-            break
-
-    # Axis 1: cross-provider fallback — try remaining providers
-    for provider in provider_chain[1:]:
-        attempted_cross_provider.append(provider)
-        fallback_model = _PROVIDER_DEFAULT_MODEL.get(provider, provider)
-
-        try:
-            response = litellm.completion(
-                model=fallback_model,
-                messages=messages,
-                stream=False,  # DD1: never stream
-            )
-            result = _parse_response(response)
-
-            # Record the cross-provider hop (DD2)
-            exc_type = type(last_exc).__name__ if last_exc else "UnknownError"
-            hop_desc = (
-                f"[fallback: {agent_id} {resolved_primary_model} -> {fallback_model} "
-                f"({exc_type})]"
-            )
-            fallback_hops.append(hop_desc)
-            result["fallback_hops"] = fallback_hops
-            return result
 
         except Exception as exc:  # noqa: BLE001
-            # Intentionally broad: auth failures, rate limits, and network errors all
-            # trigger the exhaustion path (fail-closed). We do not special-case auth
-            # failures here; if credentials were invalid, the pre-check gate above
-            # would have already raised ConfigError.
+            # Non-context error (rate limit, auth, etc.) — break out; cross-provider
+            # fallbacks= will have already been attempted by the SDK within this call.
             last_exc = exc
+            # Populate attempted_cross_provider with all providers in the chain
+            for provider in provider_chain[1:]:
+                attempted_cross_provider.append(provider)
             logger.debug(
-                "Provider %s also failed: %s", provider, exc
+                "Non-context error for model %s (provider chain exhausted): %s",
+                ctx_model,
+                exc,
             )
-            continue
+            break
 
-    # All providers exhausted — emit fallback_exhausted entry (DD3)
+    # All context models (and their cross-provider fallbacks) exhausted — emit DD3 entry
     exhausted_entry: dict[str, Any] = {
         "type": "fallback_exhausted",
         "agent_id": agent_id,
         "primary_model": resolved_primary_model,
         "attempted_cross_provider": list(attempted_cross_provider),
         "attempted_context_models": list(attempted_context_models),
-        "final_exception_class": type(last_exc).__name__ if last_exc else "UnknownError",
+        "final_exception_class": type(last_exc).__name__
+        if last_exc
+        else "UnknownError",
         "final_exception_message": str(last_exc) if last_exc else "",
     }
 
@@ -241,6 +244,7 @@ def dispatch_review(
 # ---------------------------------------------------------------------------
 # Legacy alias from task description (review_with_fallbacks)
 # ---------------------------------------------------------------------------
+
 
 def review_with_fallbacks(
     diff_text: str,

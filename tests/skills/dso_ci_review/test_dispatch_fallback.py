@@ -1,18 +1,17 @@
-"""RED tests for dso_ci_review.dispatch fallback chain (DD1–DD5).
+"""Tests for dso_ci_review.dispatch fallback chain (DD1–DD5).
 
-These tests FAIL until the implementation task creates dispatch.py with
-a working fallback chain using litellm.completion.
+Testing mode: UPDATE — tests updated to assert manual context-escalation loop behavior.
 
-Testing mode: RED — all 6 test functions define behavior that does not exist yet.
-
-RED marker: tests/skills/dso_ci_review/test_dispatch_fallback.py [test_fallback_rate_limit_falls_back_to_provider]
+DD1: stream=False and fallbacks= passed to litellm.completion (cross-provider, Axis 1).
+     context_window_fallbacks= is NOT used — it is a LiteLLM Router parameter silently
+     ignored by litellm.completion(). Axis 2 is handled via manual loop instead.
 
 Behavioral contracts under test:
-1. RateLimitError on primary → fallback provider answers; hop rendered in summary
-2. ContextWindowExceededError on haiku → sonnet tier answers (same provider)
+1. litellm.completion called with fallbacks= param for cross-provider fallback
+2. ContextWindowExceededError triggers escalation to next model in chain (manual loop, Axis 2)
 3. Full chain failure → fallback_exhausted JSON entry (6 required fields)
 4. fallback_exhausted JSON validates against expected schema (contract conformance)
-5. streaming=False preserved across all litellm.completion calls
+5. stream=False preserved; fallbacks= passed explicitly on every litellm.completion call
 6. ConfigError raised on startup when provider credential is missing
 """
 
@@ -60,32 +59,23 @@ _CANNED_FINDINGS = {
 
 
 # ---------------------------------------------------------------------------
-# Scenario 1 — RateLimitError on primary → fallback provider answers
+# Scenario 1 — litellm.completion called with fallbacks= for cross-provider fallback
 # ---------------------------------------------------------------------------
 
 
 def test_fallback_rate_limit_falls_back_to_provider(monkeypatch) -> None:
-    """Given: litellm.completion raises RateLimitError on the primary provider call
-    When: dispatch_review is called with a provider chain [anthropic, openai]
+    """Given: dispatch_review is called with a provider chain [anthropic, openai]
+    When: litellm.completion is called
     Then:
-      - The secondary (openai) provider is called and returns findings
-      - The returned result contains a "fallback_hops" summary entry describing the hop
+      - litellm.completion is called with a fallbacks= parameter containing the openai model
+      - The result contains findings from the successful call
     """
-    import litellm
-
-    call_count = 0
+    captured_kwargs: list[dict] = []
 
     def _mock_completion(model: str, messages, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        if "claude" in model:
-            raise litellm.RateLimitError(
-                message="Rate limit exceeded",
-                model=model,
-                llm_provider="anthropic",
-            )
+        captured_kwargs.append(dict(kwargs))
 
-        # Simulate openai response
+        # Simulate a successful response from the primary provider
         class _FakeMsg:
             content = '{"findings": [{"severity": "minor", "description": "fallback finding", "cited_lines": ["foo.py:1"]}]}'
 
@@ -109,38 +99,47 @@ def test_fallback_rate_limit_falls_back_to_provider(monkeypatch) -> None:
     )
 
     assert "findings" in result, "Result must contain 'findings' key"
-    assert call_count >= 2, (
-        f"Expected at least 2 litellm.completion calls (primary + fallback), got {call_count}"
+    assert captured_kwargs, "litellm.completion must be called at least once"
+
+    # DD1: fallbacks= parameter must be passed (SDK-native cross-provider fallback)
+    first_call = captured_kwargs[0]
+    assert "fallbacks" in first_call, (
+        "litellm.completion must be called with fallbacks= parameter for cross-provider fallback. "
+        f"Got kwargs keys: {list(first_call.keys())}"
     )
-    # The hop should be recorded in the result
-    assert "fallback_hops" in result, (
-        "Result must contain 'fallback_hops' when a fallback occurred"
+    fallbacks = first_call["fallbacks"]
+    assert isinstance(fallbacks, list), (
+        f"fallbacks= must be a list, got {type(fallbacks).__name__}"
     )
-    hops = result["fallback_hops"]
-    assert isinstance(hops, list) and len(hops) >= 1, (
-        "fallback_hops must be a non-empty list after a provider hop"
+    # The openai provider should appear in the fallbacks list
+    fallback_models = [f.get("model", "") for f in fallbacks if isinstance(f, dict)]
+    assert any("gpt" in m or "openai" in m for m in fallback_models), (
+        f"Expected openai model in fallbacks list, got: {fallback_models}"
     )
 
 
 # ---------------------------------------------------------------------------
-# Scenario 2 — ContextWindowExceededError on haiku → sonnet answers (same provider)
+# Scenario 2 — ContextWindowExceededError escalates to next model in chain (Axis 2)
 # ---------------------------------------------------------------------------
 
 
 def test_fallback_context_window_exceeded_escalates_to_sonnet(monkeypatch) -> None:
-    """Given: litellm.completion raises ContextWindowExceededError on the haiku model
-    When: dispatch_review is called with a context-model chain [haiku, sonnet] for anthropic
+    """Given: dispatch_review is called with a context-model chain [haiku, sonnet]
+    When: litellm.completion raises ContextWindowExceededError for haiku
     Then:
-      - The sonnet model is tried next (same provider, larger context)
-      - The returned result contains findings from the sonnet call
+      - litellm.completion is retried with sonnet (next model in chain)
+      - The result contains findings from sonnet
+      - fallback_hops is populated indicating context escalation occurred
     """
     import litellm
 
-    called_models: list[str] = []
+    call_models: list[str] = []
 
     def _mock_completion(model: str, messages, **kwargs):
-        called_models.append(model)
+        call_models.append(model)
+
         if "haiku" in model:
+            # Simulate context window exceeded for the small model
             raise litellm.ContextWindowExceededError(
                 message="Context window exceeded",
                 model=model,
@@ -169,8 +168,30 @@ def test_fallback_context_window_exceeded_escalates_to_sonnet(monkeypatch) -> No
     )
 
     assert "findings" in result, "Result must contain 'findings' key"
-    assert any("sonnet" in m for m in called_models), (
-        f"Expected sonnet model to be called after haiku context overflow; called: {called_models}"
+
+    # Axis 2: haiku should have been tried first, then sonnet
+    assert len(call_models) >= 2, (
+        f"Expected at least 2 litellm.completion calls (haiku + sonnet escalation), "
+        f"got {len(call_models)}: {call_models}"
+    )
+    assert any("haiku" in m for m in call_models), (
+        f"haiku should have been attempted first; got call sequence: {call_models}"
+    )
+    assert any("sonnet" in m for m in call_models), (
+        f"sonnet should have been tried after haiku failed; got call sequence: {call_models}"
+    )
+
+    # DD2: fallback_hops must reflect the context escalation
+    assert "fallback_hops" in result, (
+        f"fallback_hops must be present when context escalation occurred. "
+        f"Result keys: {list(result.keys())}"
+    )
+    hops = result["fallback_hops"]
+    assert isinstance(hops, list) and len(hops) >= 1, (
+        f"fallback_hops must be a non-empty list, got: {hops}"
+    )
+    assert any("sonnet" in h for h in hops), (
+        f"fallback_hops should mention sonnet as the escalation target, got: {hops}"
     )
 
 
@@ -286,33 +307,25 @@ def test_fallback_exhausted_entry_has_required_fields(monkeypatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Scenario 5 — streaming=False preserved across all hops
+# Scenario 5 — stream=False and fallbacks= passed on every litellm.completion call
 # ---------------------------------------------------------------------------
 
 
 def test_fallback_all_litellm_calls_have_streaming_false(monkeypatch) -> None:
-    """Given: dispatch_review triggers multiple litellm.completion calls via fallback
-    When: any hop occurs (primary + fallback)
-    Then: every litellm.completion call has streaming=False (never True or absent)
+    """Given: dispatch_review is called with a two-provider chain
+    When: litellm.completion is called
+    Then:
+      - stream=False is passed explicitly on every call (DD1: never stream)
+      - fallbacks= is passed explicitly (DD1: SDK-native cross-provider fallback)
+      - context_window_fallbacks= is NOT passed (it is silently ignored by
+        litellm.completion; Axis 2 is handled via the manual context escalation loop)
     """
-    import litellm
-
     captured_kwargs: list[dict] = []
-    call_index = 0
 
     def _mock_completion(model: str, messages, **kwargs):
-        nonlocal call_index
         captured_kwargs.append(dict(kwargs))
-        call_index += 1
-        if call_index == 1:
-            # First call fails to force a fallback hop
-            raise litellm.RateLimitError(
-                message="First call fails",
-                model=model,
-                llm_provider="anthropic",
-            )
 
-        # Second call succeeds
+        # Successful response
         class _FakeMsg:
             content = '{"findings": []}'
 
@@ -336,19 +349,30 @@ def test_fallback_all_litellm_calls_have_streaming_false(monkeypatch) -> None:
     )
 
     assert captured_kwargs, "Expected at least one litellm.completion call"
+
+    # All calls must have stream=False explicitly
     for i, kw in enumerate(captured_kwargs):
-        assert (
-            kw.get("stream") is False
-            or kw.get("streaming") is False
-            or ("stream" not in kw and "streaming" not in kw)
-        ), (
-            f"litellm.completion call #{i + 1} must have streaming=False, got kwargs={kw}"
+        assert kw.get("stream") is False, (
+            f"litellm.completion call #{i + 1} must explicitly set stream=False, got kwargs={kw}"
         )
-    # Stricter: at least one call must explicitly pass stream=False
-    explicit_false = [kw for kw in captured_kwargs if kw.get("stream") is False]
-    assert explicit_false, (
-        f"No litellm.completion call explicitly set stream=False. "
+
+    # At least one call must pass fallbacks= (SDK-native cross-provider fallback)
+    calls_with_fallbacks = [kw for kw in captured_kwargs if "fallbacks" in kw]
+    assert calls_with_fallbacks, (
+        f"No litellm.completion call passed fallbacks= parameter. "
         f"All captured kwargs: {captured_kwargs}"
+    )
+
+    # context_window_fallbacks= must NOT be passed — it is a LiteLLM Router parameter
+    # silently ignored by litellm.completion(); Axis 2 uses a manual loop instead.
+    calls_with_ctx_fallbacks = [
+        kw for kw in captured_kwargs if "context_window_fallbacks" in kw
+    ]
+    assert not calls_with_ctx_fallbacks, (
+        "litellm.completion must NOT receive context_window_fallbacks= — "
+        "this parameter is silently ignored (LiteLLM Router only). "
+        "Context escalation is handled by the manual loop in dispatch_review. "
+        f"Found calls with the broken parameter: {calls_with_ctx_fallbacks}"
     )
 
 
