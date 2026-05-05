@@ -355,7 +355,7 @@ fi
 
 # ── Assertion 3 (optional): security overlay artifact presence ───────────────
 # The CI workflow uploads reviewer-findings-security-red.json as an artifact
-# (per ci-llm-review-runner.sh). Use gh run download to fetch it; if the
+# (per ci-llm-review-runner.sh — shim in S3+). Use gh run download to fetch it; if the
 # workflow does NOT upload it (host project may not have configured artifact
 # upload yet), this assertion is informational only — it does not flip the
 # overall result, since assertions 1 + 2 already prove the overlay blocked.

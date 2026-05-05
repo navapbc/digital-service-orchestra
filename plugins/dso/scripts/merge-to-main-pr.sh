@@ -684,7 +684,7 @@ _pr_commit_code_change_threads() {
 #   PR_THREAD_LOOP_INTERVAL           — overrides config default (30)
 #   PR_THREAD_LOOP_START_OVERRIDE_SECONDS — simulate elapsed time at start (default 0)
 #   PR_THREAD_LOOP_TEST_STOP_AFTER_RESET  — exit 0 after first POLL_WINDOW_RESET (testing)
-#   _LLM_DISPATCH_CMD                 — override LLM dispatch command (default: llm-api-call.sh)
+#   _LLM_DISPATCH_CMD                 — override LLM dispatch command (default: llm-api-call.sh compat wrapper (S6 creates it))
 _phase_resolve_threads() {
     local _pr_number="$1" _pr_url="$2"
 
@@ -697,6 +697,7 @@ _phase_resolve_threads() {
     local _last_thread_seen_ts=0
     local _last_thread_count=0
     local _last_head_sha=""
+    # compat-shim: llm-api-call.sh will be a compat wrapper post-S3 (S6 creates it). Override via env var.
     local _llm_cmd="${_LLM_DISPATCH_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
     # Track threads the LLM escalated so they are skipped on subsequent iterations
     # instead of burning the dispatch budget repeatedly on unresolvable threads.
@@ -990,6 +991,7 @@ except Exception:
 # Overridable via _RESOLVE_CONFLICTS_LLM_CMD for tests.
 _dispatch_resolve_conflicts() {
     local _pr_number="$1" _pr_url="$2"
+    # compat-shim: llm-api-call.sh will be a compat wrapper post-S3 (S6 creates it). Override via env var.
     local _llm_cmd="${_RESOLVE_CONFLICTS_LLM_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
     local _prompt_file="${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/resolve-conflicts-dispatch.md"
     local _context_file
@@ -1106,7 +1108,7 @@ print(json.dumps(d))
 # --- _dispatch_fix_agent: invoke LLM sub-agent to apply fixes from findings ---
 #
 # ENV OVERRIDES (for testing):
-#   _REMEDIATE_LLM_CMD  — override LLM command (default: llm-api-call.sh)
+#   _REMEDIATE_LLM_CMD  — override LLM command (default: llm-api-call.sh compat wrapper (S6 creates it))
 #                         Separate from _LLM_DISPATCH_CMD to avoid colliding with
 #                         the thread-resolution override in _phase_resolve_threads.
 #
@@ -1115,6 +1117,7 @@ print(json.dumps(d))
 _dispatch_fix_agent() {
     local _findings_path="$1"
     local _attempt_num="${2:-}"
+    # compat-shim: llm-api-call.sh will be a compat wrapper post-S3 (S6 creates it). Override via env var.
     local _llm_cmd="${_REMEDIATE_LLM_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
     local _prompt_file="${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md"
     local _result

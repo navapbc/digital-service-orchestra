@@ -68,6 +68,7 @@ def _ensure_plugin_package() -> None:
 
     _load_from_plugin("providers")
     _load_from_plugin("providers.config")
+    _load_from_plugin("dispatch")
 
 
 _ensure_plugin_package()
