@@ -61,6 +61,36 @@ MOCKEOF
     chmod +x "$mock_dir/curl"
 }
 
+# ── Helper: create a config-aware mock curl ──────────────────────────────────
+# Usage: _create_mock_curl_config_aware <mock_dir> <args_capture_file> <response_body>
+# Like _create_mock_curl_args but also expands --config <file> into the captured output.
+# After capture, args_capture_file contains CLI args PLUS inline: "=CONFIG: header = ..."
+_create_mock_curl_config_aware() {
+    local mock_dir="$1"
+    local args_file="$2"
+    local response_body="$3"
+    local response_file="$mock_dir/curl-response.json"
+    printf '%s' "$response_body" > "$response_file"
+
+    cat > "$mock_dir/curl" <<MOCKEOF
+#!/usr/bin/env bash
+prev=""
+config_content=""
+for arg in "\$@"; do
+    if [[ "\$prev" == "--config" ]]; then
+        config_content=\$(cat "\$arg" 2>/dev/null || true)
+    fi
+    prev="\$arg"
+done
+printf '%s\n' "\$@" > "${args_file}"
+if [[ -n "\$config_content" ]]; then
+    printf '%s\n' "=CONFIG:" "\$config_content" >> "${args_file}"
+fi
+cat "${response_file}"
+MOCKEOF
+    chmod +x "$mock_dir/curl"
+}
+
 # ── Helper: create a mock curl that captures the request body separately ──────
 # Usage: _create_mock_curl_body <mock_dir> <body_capture_file> <response_body>
 _create_mock_curl_body() {
@@ -116,7 +146,7 @@ CONF1="$MOCK1/config.conf"
 SYSPROMPT1="$MOCK1/system-prompt.md"
 printf 'You are a reviewer.\n' > "$SYSPROMPT1"
 _write_config "$CONF1" "anthropic" "standard" "claude-sonnet-4-6"
-_create_mock_curl_args "$MOCK1" "$ARGS1" \
+_create_mock_curl_config_aware "$MOCK1" "$ARGS1" \
     '{"content":[{"text":"{\"result\":\"ok\"}"}],"stop_reason":"end_turn"}'
 
 headers_exit=0
@@ -128,9 +158,10 @@ headers_exit=0
 
 args1_content=""
 [[ -f "$ARGS1" ]] && args1_content="$(cat "$ARGS1")"
-assert_contains "test_anthropic_constructs_correct_headers: x-api-key header present" \
+# Headers now sent via --config file (not CLI args) for security; check config section
+assert_contains "test_anthropic_constructs_correct_headers: x-api-key header present in config" \
     "x-api-key: test-key" "$args1_content"
-assert_contains "test_anthropic_constructs_correct_headers: anthropic-version header present" \
+assert_contains "test_anthropic_constructs_correct_headers: anthropic-version header present in config" \
     "anthropic-version: 2023-06-01" "$args1_content"
 assert_pass_if_clean "test_anthropic_constructs_correct_headers"
 
@@ -146,7 +177,7 @@ CONF2="$MOCK2/config.conf"
 SYSPROMPT2="$MOCK2/system-prompt.md"
 printf 'You are a reviewer.\n' > "$SYSPROMPT2"
 _write_config "$CONF2" "openai" "light" "gpt-4o"
-_create_mock_curl_args "$MOCK2" "$ARGS2" \
+_create_mock_curl_config_aware "$MOCK2" "$ARGS2" \
     '{"choices":[{"message":{"content":"{\"result\":\"ok\"}"}}]}'
 
 openai_headers_exit=0
@@ -158,10 +189,11 @@ openai_headers_exit=0
 
 args2_content=""
 [[ -f "$ARGS2" ]] && args2_content="$(cat "$ARGS2")"
-assert_contains "test_openai_constructs_correct_headers: Authorization Bearer present" \
+# Authorization Bearer now sent via --config file; check config section
+assert_contains "test_openai_constructs_correct_headers: Authorization Bearer present in config" \
     "Authorization: Bearer sk-test" "$args2_content"
 
-# Verify x-api-key is NOT present
+# Verify x-api-key is NOT present (even in config)
 if echo "$args2_content" | grep -q "x-api-key"; then
     assert_eq "test_openai_constructs_correct_headers: x-api-key must NOT appear" \
         "NOT_PRESENT" "PRESENT"
@@ -542,6 +574,43 @@ else
         "CAPTURED" "MISSING"
 fi
 assert_pass_if_clean "test_ci_context_marker_absent_when_github_actions_unset"
+
+# ── test_api_key_not_exposed_in_curl_args ────────────────────────────────────
+# RED marker — test_api_key_not_exposed_in_curl_args
+# Must FAIL before llm-api-call.sh uses --config for headers.
+# Given: model.provider=anthropic, ANTHROPIC_API_KEY=test-secret-key
+# When:  llm-api-call.sh is invoked
+# Then:  captured curl CLI args do NOT contain the API key value
+#        (key is passed via --config file, not -H flag, so not visible in cmdline)
+_snapshot_fail
+MOCK_SEC=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_SEC")
+ARGS_SEC="$MOCK_SEC/curl-args.txt"
+CONF_SEC="$MOCK_SEC/config.conf"
+SYSPROMPT_SEC="$MOCK_SEC/system-prompt.md"
+printf 'You are a reviewer.\n' > "$SYSPROMPT_SEC"
+_write_config "$CONF_SEC" "anthropic" "standard" "claude-sonnet-4-6"
+_create_mock_curl_args "$MOCK_SEC" "$ARGS_SEC" \
+    '{"content":[{"text":"{\"result\":\"ok\"}"}],"stop_reason":"end_turn"}'
+
+sec_exit=0
+(
+    export PATH="$MOCK_SEC:$PATH"
+    unset OPENAI_API_KEY || true
+    ANTHROPIC_API_KEY="test-secret-key" bash "$SCRIPT" "$SYSPROMPT_SEC" "review this" standard "$CONF_SEC"
+) > /dev/null 2>&1 || sec_exit=$?
+
+args_sec_content=""
+[[ -f "$ARGS_SEC" ]] && args_sec_content="$(cat "$ARGS_SEC")"
+
+if echo "$args_sec_content" | grep -q "test-secret-key"; then
+    assert_eq "test_api_key_not_exposed_in_curl_args: API key must NOT be in curl cmdline" \
+        "NOT_PRESENT" "PRESENT_IN_ARGS"
+else
+    assert_eq "test_api_key_not_exposed_in_curl_args: API key must NOT be in curl cmdline" \
+        "NOT_PRESENT" "NOT_PRESENT"
+fi
+assert_pass_if_clean "test_api_key_not_exposed_in_curl_args"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
