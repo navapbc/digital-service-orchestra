@@ -395,4 +395,5 @@ tests/fixtures/inference-incidents/incidents.jsonl:tests/docs/test-inference-inc
 tests/fixtures/inference-incidents/holdout.txt:tests/docs/test-inference-incident-corpus.sh
 tests/fixtures/affects-fields-classifier.json:tests/scripts/test-red-team-affects-fields-classifier.sh [test_classifier_fixture_exists]
 plugins/dso/docs/contracts/inference-recall-result.md:tests/test-inference-recall-replay.sh [test_recall_result_contract_exists]
+plugins/dso/docs/contracts/inferred-source-marker.md:tests/docs/test-inferred-source-marker-contract.sh [test_inferred_source_marker_contract]
 plugins/dso/scripts/inference-recall-replay.sh:tests/test-inference-recall-replay.sh [test_recall_all_at_threshold]
