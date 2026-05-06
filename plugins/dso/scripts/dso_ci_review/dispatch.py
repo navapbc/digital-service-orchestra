@@ -23,9 +23,10 @@ logger = logging.getLogger(__name__)
 _SYSTEM_PROMPT = (
     "You are a code reviewer. Analyze the provided diff and return a JSON object "
     'with a single key "findings" whose value is a list of finding objects. '
-    "Each finding object must have: severity (string), description (string), "
+    'Each finding object must have: severity (one of: "critical", "important", '
+    '"minor", "fragile"), description (string), '
     "cited_lines (list of strings in 'path:lineno' format). "
-    "Return ONLY the JSON object, no markdown fences."
+    "Return ONLY the JSON object, no markdown fences, no explanatory text."
 )
 
 # Default per-provider model identifiers (primary → context escalation chain)
