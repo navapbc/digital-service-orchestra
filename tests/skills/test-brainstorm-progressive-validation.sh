@@ -374,6 +374,36 @@ fi
 
 # ============================================================
 echo ""
+echo "=== test_approval_gate_inferred_rendering ==="
+SECTION="test_approval_gate_inferred_rendering"
+
+APPROVAL_GATE_MD="$REPO_ROOT/plugins/dso/skills/brainstorm/phases/approval-gate.md"
+
+# Assertion 1: approval-gate.md contains a rendering rule for <<inferred:...>> markers
+if grep -q '<<inferred' "$APPROVAL_GATE_MD"; then
+  pass "approval-gate.md contains <<inferred:...>> rendering rule"
+else
+  fail "approval-gate.md missing <<inferred:...>> rendering rule"
+fi
+
+# Assertion 2: The <<inferred:...>> rendering rule is co-located with the render step
+# (appears before ## Option Behaviors heading, not in a new top-level section after it)
+_gate_render_section=$(sed -n '/^# Phase/,/^## Option Behaviors/p' "$APPROVAL_GATE_MD")
+if grep -q '<<inferred' <<< "$_gate_render_section"; then
+  pass "<<inferred:...>> rendering rule is co-located with the gate render step (before ## Option Behaviors)"
+else
+  fail "<<inferred:...>> rendering rule is not co-located with the gate render step"
+fi
+
+# Assertion 3: approval-gate.md contains a severity-based bold rendering rule for high or critical assumption findings
+if grep -qiE 'high.*bold|critical.*bold|bold.*high|bold.*critical|severity.*(high|critical).*bold|bold.*severity' "$APPROVAL_GATE_MD"; then
+  pass "approval-gate.md contains severity-based bold rendering for high/critical findings"
+else
+  fail "approval-gate.md missing severity-based bold rendering for high/critical findings"
+fi
+
+# ============================================================
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS"
 echo "Failed: $FAIL"
