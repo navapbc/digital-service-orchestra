@@ -21,9 +21,13 @@ REDUCER="$SCRIPT_DIR/ticket-reducer.py"
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
-    echo "Usage: ticket transition <ticket_id> <current_status> <target_status>" >&2
-    echo "       ticket transition <ticket_id> <target_status>  (auto-detects current status)" >&2
+    echo "Usage: ticket transition <ticket_id> <current_status> <target_status> [--reason=<text>]" >&2
+    echo "       ticket transition <ticket_id> <target_status> [--reason=<text>]  (auto-detects current status)" >&2
     echo "  current_status / target_status: open | in_progress | closed | blocked" >&2
+    echo "  --reason=<text>  Required when closing bug tickets. Must start with 'Fixed:' or 'Escalated to user:'." >&2
+    echo "  Examples:" >&2
+    echo "    ticket transition abc1 open closed --reason=\"Fixed: patched null check in foo.sh\"" >&2
+    echo "    ticket transition abc1 closed --reason=\"Fixed: patched null check in foo.sh\"" >&2
     exit 1
 }
 
@@ -75,6 +79,11 @@ _validate_status() {
     local value="$2"
     case "$value" in
         open|in_progress|closed|blocked) ;;
+        --reason*|--*)
+            echo "Error: invalid ${label} '${value}'. Options like --reason must come AFTER <target_status>." >&2
+            echo "  Correct: ticket transition <id> [<current_status>] <target_status> --reason=\"<text>\"" >&2
+            exit 1
+            ;;
         *)
             echo "Error: invalid ${label} '${value}'. Must be one of: open, in_progress, closed, blocked" >&2
             exit 1
