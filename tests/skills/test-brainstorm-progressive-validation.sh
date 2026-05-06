@@ -354,6 +354,26 @@ fi
 
 # ============================================================
 echo ""
+echo "=== test_inferred_marker_instruction ==="
+SECTION="test_inferred_marker_instruction"
+
+# Assert Phase 2 / Provenance Tracking section contains instruction to wrap
+# inferred input sources with <<inferred:...>> markers
+if grep -q '<<inferred' "$SKILL_MD"; then
+  pass "SKILL.md Phase 2 contains <<inferred:...>> marker emission instruction"
+else
+  fail "SKILL.md Phase 2 missing <<inferred:...>> marker emission instruction"
+fi
+
+# Assert Phase 2 contains a reference to the contract doc inferred-source-marker.md
+if grep -q 'inferred-source-marker' "$SKILL_MD"; then
+  pass "SKILL.md Phase 2 references contract doc inferred-source-marker.md"
+else
+  fail "SKILL.md Phase 2 missing reference to contract doc inferred-source-marker.md"
+fi
+
+# ============================================================
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS"
 echo "Failed: $FAIL"
