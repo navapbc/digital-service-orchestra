@@ -158,6 +158,11 @@ if ! "$SCRIPT_DIR/validate-review-output.sh" code-review-dispatch "$PENDING_FILE
     exit 1
 fi
 
-# Validation passed — promote pending to canonical and output hash
+# Validation passed — promote pending to canonical, write sidecar hash, output hash
 mv "$PENDING_FILE" "$FINDINGS_FILE"
-shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}'
+_FINDINGS_HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+# Sidecar hash file: lets record-review.sh verify integrity without depending on
+# the sub-agent's stdout-transcribed REVIEWER_HASH (LLM output truncation has
+# corrupted that value in the past — bug 8073-783f).
+printf '%s\n' "$_FINDINGS_HASH" > "${FINDINGS_FILE}.sha256"
+printf '%s\n' "$_FINDINGS_HASH"
