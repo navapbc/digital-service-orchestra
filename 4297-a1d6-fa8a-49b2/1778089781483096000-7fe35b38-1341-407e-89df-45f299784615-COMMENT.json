@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Classification: behavioral, Score: 2 (BASIC) — severity:1, complexity:0 (single _SYSTEM_PROMPT string in dispatch.py), environment:1 (CI), intermittent:0. Single coherent issue."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1778089781483096000,"uuid":"7fe35b38-1341-407e-89df-45f299784615"}
