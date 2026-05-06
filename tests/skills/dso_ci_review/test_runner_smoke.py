@@ -517,3 +517,119 @@ def test_runner_exits_1_when_all_specialists_fail(tmp_path):
     assert "specialist" in stderr_text.lower(), (
         f"Expected a message about specialist failures in stderr, got: {stderr_text!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tier model config tests — Fix C (c86e-e177)
+# ---------------------------------------------------------------------------
+
+
+def test_build_agents_for_tier_reads_standard_model_from_config(tmp_path):
+    """
+    Given: dso-config.conf sets model.standard=claude-sonnet-4-6
+    When: _build_agents_for_tier("standard", ...) is called with that config path
+    Then: the agent model is claude-sonnet-4-6, not the haiku default
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_build_agents_for_tier_reads_standard_model_from_config]
+
+    Covers c86e-e177 Fix C: tier-appropriate models read from dso config, matching
+    local review tiers (haiku=light, sonnet=standard/deep). Not hardcoded.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text(
+        "model.light=claude-haiku-4-5-20251001\n"
+        "model.standard=claude-sonnet-4-6\n"
+        "model.deep=claude-opus-4-6\n"
+    )
+
+    agents = runner_mod._build_agents_for_tier(
+        "standard", "diff text", {}, config_path=str(config_file)
+    )
+    assert len(agents) == 1
+    assert agents[0]["model"] == "claude-sonnet-4-6", (
+        f"standard tier should use claude-sonnet-4-6 from config; "
+        f"got {agents[0]['model']!r}. _build_agents_for_tier must accept config_path "
+        f"and read model.standard from it (c86e-e177 Fix C)."
+    )
+
+
+def test_build_agents_for_tier_reads_light_model_from_config(tmp_path):
+    """
+    Given: dso-config.conf sets model.light=claude-haiku-4-5-20251001
+    When: _build_agents_for_tier("light", ...) is called with that config path
+    Then: the agent model is claude-haiku-4-5-20251001
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_build_agents_for_tier_reads_light_model_from_config]
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text(
+        "model.light=claude-haiku-4-5-20251001\n"
+        "model.standard=claude-sonnet-4-6\n"
+        "model.deep=claude-opus-4-6\n"
+    )
+
+    agents = runner_mod._build_agents_for_tier(
+        "light", "diff text", {}, config_path=str(config_file)
+    )
+    assert len(agents) == 1
+    assert agents[0]["model"] == "claude-haiku-4-5-20251001"
+
+
+def test_build_agents_for_tier_reads_deep_model_from_config(tmp_path):
+    """
+    Given: dso-config.conf sets model.deep=claude-opus-4-6
+    When: _build_agents_for_tier("deep", ...) is called with that config path
+    Then: all three deep agents use claude-opus-4-6
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_build_agents_for_tier_reads_deep_model_from_config]
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text(
+        "model.light=claude-haiku-4-5-20251001\n"
+        "model.standard=claude-sonnet-4-6\n"
+        "model.deep=claude-opus-4-6\n"
+    )
+
+    agents = runner_mod._build_agents_for_tier(
+        "deep", "diff text", {}, config_path=str(config_file)
+    )
+    assert len(agents) == 3
+    for agent in agents:
+        assert agent["model"] == "claude-opus-4-6", (
+            f"deep tier agent {agent['agent_id']!r} should use claude-opus-4-6; "
+            f"got {agent['model']!r}"
+        )
+
+
+def test_build_agents_for_tier_falls_back_to_tier_defaults_when_config_absent(tmp_path):
+    """
+    Given: a config file that does NOT set model.standard
+    When: _build_agents_for_tier("standard", ...) is called with that config path
+    Then: the agent uses the hardcoded tier default for standard (sonnet), not haiku
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_build_agents_for_tier_falls_back_to_tier_defaults_when_config_absent]
+
+    Covers c86e-e177 Fix C: even without config, standard tier should default to
+    sonnet (not haiku) to match local review tier defaults.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("# no model.standard key\n")
+
+    agents = runner_mod._build_agents_for_tier(
+        "standard", "diff text", {}, config_path=str(config_file)
+    )
+    assert len(agents) == 1
+    # Standard tier default must be sonnet, not haiku
+    assert agents[0]["model"] != "claude-haiku-4-5-20251001", (
+        f"standard tier default should NOT be haiku; "
+        f"got {agents[0]['model']!r}. Standard tier must default to sonnet "
+        f"to match local review tiers (c86e-e177 Fix C)."
+    )

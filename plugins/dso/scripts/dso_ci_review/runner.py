@@ -63,13 +63,54 @@ def _write_output(data: dict) -> None:
         print(serialized)
 
 
+_TIER_MODEL_DEFAULTS: dict[str, str] = {
+    "light": "claude-haiku-4-5-20251001",
+    "standard": "claude-sonnet-4-6",
+    "deep": "claude-sonnet-4-6",
+}
+
+
+def _read_tier_model(tier: str, config_path: str | None = None) -> str:
+    """Return the model for the given tier, reading from dso-config.conf when available.
+
+    Resolution order:
+      1. DSO_CI_REVIEW_MODEL env var (explicit override, any tier)
+      2. model.<tier> key in config_path (or auto-detected repo config)
+      3. _TIER_MODEL_DEFAULTS[tier] (haiku=light, sonnet=standard/deep)
+    """
+    env_override = os.environ.get("DSO_CI_REVIEW_MODEL")
+    if env_override:
+        return env_override
+
+    # Locate config file
+    if config_path is None:
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            ".claude",
+            "dso-config.conf",
+        )
+
+    config_key = f"model.{tier}="
+    if os.path.isfile(config_path):
+        with open(config_path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line.startswith(config_key):
+                    value = line[len(config_key):].strip()
+                    if value:
+                        return value
+
+    return _TIER_MODEL_DEFAULTS.get(tier, "claude-sonnet-4-6")
+
+
 def _build_agents_for_tier(
     tier: str,
     diff_text: str,
     classification: dict,  # noqa: ARG001 — reserved for overlay use
+    config_path: str | None = None,
 ) -> list[dict]:
     """Build agent dispatch list based on classifier tier."""
-    base_model = os.environ.get("DSO_CI_REVIEW_MODEL", "claude-haiku-4-5-20251001")
+    base_model = _read_tier_model(tier, config_path)
     provider = os.environ.get("CI_REVIEW_PROVIDER", "anthropic")
     provider_chain = [provider]
 

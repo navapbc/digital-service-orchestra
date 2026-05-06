@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import sys
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -61,14 +62,25 @@ def _build_messages(diff_text: str) -> list[dict[str, str]]:
 
 
 def _parse_response(response: Any) -> dict[str, Any]:
+    from dso_ci_review.findings import _extract_json_from_text
+
     raw_content: str = response.choices[0].message.content or ""
+    # Fast path: clean JSON response (well-behaved models)
     try:
         return json.loads(raw_content)
-    except (json.JSONDecodeError, TypeError) as exc:
-        raise ValueError(
-            f"LLM returned non-JSON response (length={len(raw_content)}); "
-            "cannot parse as findings."
-        ) from exc
+    except (json.JSONDecodeError, TypeError):
+        pass
+    # Fallback: robust extractor handles prose-wrapped and markdown-fenced JSON
+    extracted = _extract_json_from_text(raw_content)
+    if extracted is not None:
+        return extracted
+    # Total parse failure — emit to stderr so CI logs surface the issue immediately
+    msg = (
+        f"LLM returned non-JSON response (length={len(raw_content)}); "
+        "cannot parse as findings."
+    )
+    print(f"ERROR: {msg}", file=sys.stderr)
+    raise ValueError(msg)
 
 
 def _build_fallbacks(
