@@ -391,6 +391,23 @@ if [[ "$_WRITE_RC" -ne 0 ]]; then
 fi
 rm -f "$_VALIDATION_ERR_TMP"
 
+# Warn (non-blocking) when all findings are synthetic — no real review content was produced.
+# This can happen when a fail-open design masks LLM parse failures (bug e840-327f).
+if printf '%s' "$FINDINGS_JSON" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+findings = d.get('findings', [])
+if not findings:
+    sys.exit(0)
+synthetic = {'specialist_error', 'fallback_exhausted'}
+if findings and all(f.get('type','') in synthetic for f in findings):
+    print('WARNING: all {} finding(s) are synthetic (fallback_exhausted/specialist_error) — real review content is absent; LLM may have returned unparseable output'.format(len(findings)), file=sys.stderr)
+    sys.exit(1)
+sys.exit(0)
+" 2>&1; then
+    : # real findings present — no warning needed
+fi
+
 bash "$(command -v record-review.sh)" --reviewer-hash "${REVIEWER_HASH:-}"
 REVIEW_STATUS=$(head -1 "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/review-status" 2>/dev/null || echo "")
 

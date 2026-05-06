@@ -3523,5 +3523,125 @@ assert_eq "test_overlay_merge_preserves_cited_lines: cited_lines preserved in bo
 
 assert_pass_if_clean "test_overlay_merge_preserves_cited_lines"
 
+# ── test_standard_tier_dispatches_single_api_call ────────────────────────────
+# Given: classifier returns selected_tier=standard; curl and support scripts mocked
+# When:  runner processes a non-empty diff
+# Then:  exactly 1 curl call is made (standard tier dispatches a single agent,
+#        unlike deep tier which dispatches 3 parallel specialists)
+_snapshot_fail
+MOCK_ST=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_ST")
+ARTIFACTS_ST=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_ST")
+CURL_COUNT_ST=$(mktemp -d)
+_TEST_TMPDIRS+=("$CURL_COUNT_ST")
+
+cat > "$MOCK_ST/curl" <<MOCKEOF
+#!/usr/bin/env bash
+touch "${CURL_COUNT_ST}/call.\${BASHPID}.\${RANDOM}"
+cat > /dev/null
+printf '%s\n' '{"content":[{"text":"{\"scores\":{\"correctness\":4,\"verification\":4,\"hygiene\":4,\"design\":4,\"maintainability\":4},\"findings\":[],\"summary\":\"OK\"}"}],"stop_reason":"end_turn"}'
+MOCKEOF
+chmod +x "$MOCK_ST/curl"
+
+cat > "$MOCK_ST/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"standard","blast_radius":2,"critical_path":1,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":5,"change_volume":0,"computed_total":3,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_ST/review-complexity-classifier.sh"
+
+cat > "$MOCK_ST/write-reviewer-findings.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_ST/write-reviewer-findings.sh"
+
+cat > "$MOCK_ST/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$ARTIFACTS_ST"
+printf 'passed\n' > "${ARTIFACTS_ST}/review-status"
+MOCKEOF
+chmod +x "$MOCK_ST/record-review.sh"
+_add_anthropic_llm_wrapper "$MOCK_ST"
+
+std_tier_exit=0
+(
+    export PATH="$MOCK_ST:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_ST"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER"
+) || std_tier_exit=$?
+
+assert_eq "test_standard_tier_dispatches_single_api_call: runner exits 0" "0" "$std_tier_exit"
+_std_curl_count=$(find "$CURL_COUNT_ST/" -maxdepth 1 -type f | wc -l | tr -d ' ')
+assert_eq "test_standard_tier_dispatches_single_api_call: exactly 1 curl call (not 3 like deep)" "1" "$_std_curl_count"
+
+assert_pass_if_clean "test_standard_tier_dispatches_single_api_call"
+
+# ── test_runner_warns_when_all_findings_are_synthetic ─────────────────────────
+# Given: runner produces findings where every entry is fallback_exhausted or
+#        specialist_error (no real review content)
+# When:  runner completes (exits 0, since the job is fail-open)
+# Then:  stderr contains a WARNING about synthetic-only findings
+# RED until ci-llm-review-runner.sh emits this warning
+_snapshot_fail
+MOCK_SY=$(mktemp -d)
+_TEST_TMPDIRS+=("$MOCK_SY")
+ARTIFACTS_SY=$(mktemp -d)
+_TEST_TMPDIRS+=("$ARTIFACTS_SY")
+
+_SYNTHETIC_FINDINGS='{"scores":{"correctness":"N/A","verification":"N/A","hygiene":"N/A","design":"N/A","maintainability":"N/A"},"findings":[{"type":"fallback_exhausted","severity":"informational","category":"error","description":"LLM returned unparseable prose","cited_lines":["foo.sh:1"]}],"summary":"Review inconclusive: all findings are synthetic."}'
+
+cat > "$MOCK_SY/review-complexity-classifier.sh" <<'MOCKEOF'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '{"selected_tier":"light","blast_radius":0,"critical_path":0,"anti_shortcut":0,"staleness":0,"cross_cutting":0,"diff_lines":5,"change_volume":0,"computed_total":0,"diff_size_lines":5,"size_action":"none","is_merge_commit":false,"security_overlay":false,"performance_overlay":false,"test_quality_overlay":false}'
+MOCKEOF
+chmod +x "$MOCK_SY/review-complexity-classifier.sh"
+
+_create_mock_curl "$MOCK_SY"
+
+cat > "$MOCK_SY/write-reviewer-findings.sh" <<MOCKEOF
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%064x\n' 0
+MOCKEOF
+chmod +x "$MOCK_SY/write-reviewer-findings.sh"
+
+cat > "$MOCK_SY/record-review.sh" <<MOCKEOF
+#!/usr/bin/env bash
+mkdir -p "$ARTIFACTS_SY"
+printf 'passed\n' > "${ARTIFACTS_SY}/review-status"
+MOCKEOF
+chmod +x "$MOCK_SY/record-review.sh"
+_add_anthropic_llm_wrapper "$MOCK_SY"
+
+# Override the anthropic_llm_wrapper to return synthetic findings
+_SYNTHETIC_FINDINGS_ESC=$(printf '%s' "$_SYNTHETIC_FINDINGS" | sed "s/'/'\\\\''/g")
+cat > "$MOCK_SY/curl" <<MOCKEOF
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%s\n' '{"content":[{"text":"${_SYNTHETIC_FINDINGS_ESC}"}],"stop_reason":"end_turn"}'
+MOCKEOF
+chmod +x "$MOCK_SY/curl"
+
+_synthetic_exit=0
+_synthetic_output=""
+_synthetic_output=$(
+    export PATH="$MOCK_SY:$PATH"
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_SY"
+    printf 'diff --git a/foo.sh b/foo.sh\n+echo hello\n' | ANTHROPIC_API_KEY='x' bash "$RUNNER" 2>&1
+) || _synthetic_exit=$?
+
+_synthetic_warned="false"
+if echo "$_synthetic_output" | grep -qi "WARNING.*synthetic\|synthetic.*findings\|fallback_exhausted"; then
+    _synthetic_warned="true"
+fi
+assert_eq "test_runner_warns_when_all_findings_are_synthetic: runner exits 0 (fail-open)" "0" "$_synthetic_exit"
+assert_eq "test_runner_warns_when_all_findings_are_synthetic: warning emitted for synthetic findings" "true" "$_synthetic_warned"
+
+assert_pass_if_clean "test_runner_warns_when_all_findings_are_synthetic"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

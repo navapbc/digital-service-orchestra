@@ -364,6 +364,10 @@ tests/scripts/test-host-project-e2e-verify.sh:tests/scripts/test-host-project-e2
 plugins/dso/skills/brainstorm/prompts/ui-keyword-trigger.md:tests/skills/test-brainstorm-ui-intent-detection.sh
 plugins/dso/skills/brainstorm/prompts/ui-detection-classifier.md:tests/skills/test-brainstorm-ui-intent-detection.sh
 tests/hooks/test-enforcement-gate.sh [test_structural_check_plugin_self_ref_runs_on_ci]:tests/hooks/test-enforcement-gate.sh [test_structural_check_plugin_self_ref_runs_on_ci]
+tests/hooks/test-enforcement-gate.sh [test_structural_check_portability_runs_on_ci]:tests/hooks/test-enforcement-gate.sh [test_structural_check_portability_runs_on_ci]
+tests/hooks/test-enforcement-gate.sh [test_structural_check_shim_refs_runs_on_ci]:tests/hooks/test-enforcement-gate.sh [test_structural_check_shim_refs_runs_on_ci]
+tests/hooks/test-enforcement-gate.sh [test_structural_check_contract_schemas_runs_on_ci]:tests/hooks/test-enforcement-gate.sh [test_structural_check_contract_schemas_runs_on_ci]
+tests/hooks/test-enforcement-gate.sh [test_structural_check_referential_integrity_runs_on_ci]:tests/hooks/test-enforcement-gate.sh [test_structural_check_referential_integrity_runs_on_ci]
 plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/pre-commit-test-quality-gate.sh:tests/hooks/test-enforcement-gate.sh
