@@ -630,6 +630,27 @@ def test_parse_response_extracts_json_from_markdown_fenced_response() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_system_prompt_enumerates_valid_severity_values() -> None:
+    """
+    Given: the _SYSTEM_PROMPT used in CI code review dispatch
+    When: inspected for severity vocabulary constraints
+    Then: it enumerates all valid DSO severity values (critical, important, minor, fragile)
+
+    RED marker: tests/skills/dso_ci_review/test_dispatch_fallback.py [test_system_prompt_enumerates_valid_severity_values]
+
+    Covers 4297-a1d6: _SYSTEM_PROMPT says 'severity (string)' with no enumeration;
+    models use their own vocabulary ('medium', 'low') instead of the DSO schema values.
+    Observed in PR #56 CI run (job 74669479348): severity='medium' and severity='low'.
+    """
+    prompt = _dispatch_mod._SYSTEM_PROMPT
+    for value in ("critical", "important", "minor", "fragile"):
+        assert value in prompt, (
+            f"_SYSTEM_PROMPT must enumerate valid severity value {value!r} "
+            f"so models do not use their own vocabulary (e.g. 'medium', 'low'). "
+            f"Current prompt: {prompt!r}"
+        )
+
+
 def test_parse_response_emits_stderr_on_total_parse_failure(capsys) -> None:
     """
     Given: an LLM response where content is pure prose with no extractable JSON
