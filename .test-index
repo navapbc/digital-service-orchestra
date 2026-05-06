@@ -2,9 +2,8 @@
 # Maps source files to test files that fuzzy match misses.
 # Format: source/path: test/path1[, test/path2...]
 
-tests/fixtures/ci-review-post-migration.json: tests/skills/dso_ci_review/test_post_migration_metrics.py
-.github/workflows/ci-python-skills.yml: tests/skills/test_ci_workflow_pip_cache.py
-
+tests/fixtures/ci-review-post-migration.json:tests/skills/dso_ci_review/test_post_migration_metrics.py
+.github/workflows/ci-python-skills.yml:tests/skills/test_ci_workflow_pip_cache.py
 plugins/dso/.claude-plugin/plugin.json:tests/unit/scripts/test-plugin-inventory.sh,tests/plugin/test_fixture_minimal_plugin_consumer.py,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/hooks/test-plugin-boundary-refs.sh,tests/hooks/test-plugin-boundary-rule.sh,tests/hooks/test-check-plugin-boundary.sh,tests/hooks/test-no-plugin-comment-refs.sh,tests/hooks/test-plugin-docs.sh,tests/hooks/test-plugin-self-ref-hook.sh,tests/hooks/test-no-plugin-markdown-refs.sh,tests/hooks/test-no-plugin-runtime-refs.sh,tests/scripts/test-plugin-retro-gather.sh,tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-create-dso-app-broken-plugin-cache.sh,tests/scripts/test-bash-runner-plugin-root.sh,tests/scripts/test-plugin-scripts.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-dso-nextjs-starter-plugin-install.sh,tests/scripts/test-plugin-scripts-no-relative-paths.sh,tests/scripts/test-plugin-dir-structure.sh,tests/scripts/test-plugin-reference-catalog.sh,tests/scripts/test-no-unguarded-plugin-refs.sh,tests/skills/test-plugin-boundary-migration.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
 plugins/dso/agents/bot-psychologist.md:tests/scripts/test-bot-psychologist-agent.sh
@@ -391,11 +390,8 @@ plugins/dso/docs/contracts/meta-question-signal.md:tests/docs/test-inference-sig
 plugins/dso/docs/contracts/inference-incident-schema.md:tests/docs/test-inference-signal-contracts.sh
 plugins/dso/agents/inference-incident-curator.md:tests/scripts/test-inference-incident-curator-agent.sh
 plugins/dso/docs/contracts/phase1-gate-attestation.md:tests/skills/test-brainstorm-attestation-contract.sh [test_attestation_contract_exists]
-
 tests/fixtures/inference-incidents/incidents.jsonl:tests/docs/test-inference-incident-corpus.sh
 tests/fixtures/inference-incidents/holdout.txt:tests/docs/test-inference-incident-corpus.sh
 tests/fixtures/affects-fields-classifier.json:tests/scripts/test-red-team-affects-fields-classifier.sh [test_classifier_fixture_exists]
 plugins/dso/docs/contracts/inference-recall-result.md:tests/test-inference-recall-replay.sh [test_recall_result_contract_exists]
 plugins/dso/scripts/inference-recall-replay.sh:tests/test-inference-recall-replay.sh [test_recall_all_at_threshold]
-
-tests/docs/test-inference-review-docs.sh [test_config_ref_rate_rationale]

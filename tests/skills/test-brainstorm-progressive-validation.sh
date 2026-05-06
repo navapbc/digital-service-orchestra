@@ -321,6 +321,39 @@ fi
 
 # ============================================================
 echo ""
+echo "=== test_inputs_dimension ==="
+SECTION="test_inputs_dimension"
+
+# Assertion 1: Inputs row in Tell-Me-More probe table (DD1)
+if grep -q '| Inputs |' "$SKILL_MD" 2>/dev/null; then
+  pass "SKILL.md Phase 1 Tell-Me-More table contains Inputs row"
+else
+  fail "SKILL.md Phase 1 Tell-Me-More table missing Inputs row"
+fi
+
+# Assertion 2: **Inputs** bullet in Understanding Summary template (DD2)
+if grep -qE '\*\*Inputs\*\*' "$SKILL_MD" 2>/dev/null; then
+  pass "SKILL.md Understanding Summary template contains **Inputs** bullet"
+else
+  fail "SKILL.md Understanding Summary template missing **Inputs** bullet"
+fi
+
+# Assertion 3: "no external inputs" permitted value documented (DD2)
+if grep -q '"no external inputs"' "$SKILL_MD" 2>/dev/null; then
+  pass "SKILL.md documents \"no external inputs\" as permitted Inputs value"
+else
+  fail "SKILL.md missing permitted value \"no external inputs\" for Inputs bullet"
+fi
+
+# Assertion 4: No TBD escape in Inputs bullet (DD2 - no TBD escape constraint)
+if ! grep -qE '\*\*Inputs\*\*.*TBD' "$SKILL_MD" 2>/dev/null; then
+  pass "SKILL.md Inputs bullet has no TBD escape value"
+else
+  fail "SKILL.md Inputs bullet contains TBD escape (must not be permitted)"
+fi
+
+# ============================================================
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS"
 echo "Failed: $FAIL"
