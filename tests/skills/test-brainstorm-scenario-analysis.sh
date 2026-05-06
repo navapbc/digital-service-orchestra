@@ -147,6 +147,52 @@ else
 fi
 
 echo ""
+echo "=== test_assumption_category_structure ==="
+SECTION="test_assumption_category_structure"
+
+# Assertion 1: Assumption heading exists (DD1 heading clause)
+if grep -q "### 4. Assumption" "$RED_TEAM" 2>/dev/null; then
+  pass "assumption category heading '### 4. Assumption' present in prompt"
+else
+  fail "assumption category heading '### 4. Assumption' missing from prompt"
+fi
+
+# Assertion 2: JSON schema block contains "assumption" literal (DD3-a)
+if grep -q '"assumption"' "$RED_TEAM" 2>/dev/null; then
+  pass "schema JSON block includes literal '\"assumption\"' enum value"
+else
+  fail "schema JSON block missing literal '\"assumption\"' enum value"
+fi
+
+# Assertion 3: Field Definitions table category row includes "assumption" (DD3-b)
+# Uses quoted form to match existing enum style: `"runtime"` or `"deployment"` or `"configuration"`
+# shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+if grep -q '| `category` |.*"assumption"' "$RED_TEAM" 2>/dev/null; then
+  pass "Field Definitions table category row includes '\"assumption\"'"
+else
+  fail "Field Definitions table category row missing '\"assumption\"'"
+fi
+
+# Assertion 4: Assumption section contains at least 4 sub-bullets (DD1 sub-bullet clause)
+_assumption_sub_count=$(grep -A 30 "### 4. Assumption" "$RED_TEAM" 2>/dev/null | grep -cE '^- ' || echo "0")
+if [ "${_assumption_sub_count:-0}" -ge 4 ]; then
+  pass "assumption section has at least 4 sub-bullets (found ${_assumption_sub_count})"
+else
+  fail "assumption section sub-bullets insufficient (expected >=4, found ${_assumption_sub_count:-0})"
+fi
+
+# Assertion 5: Assumption section contains Steps 1-4 of the inverted decision tree (DD2)
+# Scoped to first 30 lines after the heading to avoid matching existing numbered items
+_assumption_body=$(grep -A 30 "### 4. Assumption" "$RED_TEAM" 2>/dev/null || true)
+for _step in 1 2 3 4; do
+  if echo "$_assumption_body" | grep -q "Step $_step"; then
+    pass "assumption decision tree Step $_step present"
+  else
+    fail "assumption decision tree Step $_step missing"
+  fi
+done
+
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS"
 echo "Failed: $FAIL"
