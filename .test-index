@@ -385,7 +385,7 @@ tests/fixtures/ci-review-corpus/expected-findings.json:tests/skills/dso_ci_revie
 plugins/dso/docs/contracts/decision-id-format.md:tests/docs/test-inference-signal-contracts.sh
 plugins/dso/docs/contracts/inference-envelope.md:tests/docs/test-inference-signal-contracts.sh
 plugins/dso/docs/contracts/meta-question-signal.md:tests/docs/test-inference-signal-contracts.sh
-plugins/dso/docs/contracts/inference-incident-schema.md:tests/docs/test-inference-signal-contracts.sh [test_inference_incident_schema_contract_has_required_sections]
+plugins/dso/docs/contracts/inference-incident-schema.md:tests/docs/test-inference-signal-contracts.sh
 plugins/dso/agents/inference-incident-curator.md:tests/scripts/test-inference-incident-curator-agent.sh [test_curator_agent_has_required_frontmatter]
 
 tests/fixtures/inference-incidents/incidents.jsonl:tests/docs/test-inference-incident-corpus.sh [test_corpus_file_has_minimum_incidents]
