@@ -1968,93 +1968,11 @@ PYEOF
 
         # ── UNLINK scan: write event files, print paths to stdout (no commit) ──
         # All staging is deferred to the single atomic commit below.
+        # Uses ticket-delete-unlink-scan.py (standalone helper) which uses
+        # reduce_all_tickets() for O(N) scan with SNAPSHOT support.
         local unlink_files_raw
-        unlink_files_raw=$(python3 - "$TRACKER_DIR" "$ticket_id" "$env_id" "$author" <<'PYEOF'
-import json, os, sys, time, uuid
-from pathlib import Path
-
-tracker_dir = sys.argv[1]
-deleted_id  = sys.argv[2]
-env_id      = sys.argv[3]
-author      = sys.argv[4]
-
-
-def _get_active_links(ticket_dir: Path):
-    """Return list of (link_uuid, target_id, relation) for net-active LINKs."""
-    all_events = []
-    for f in sorted(ticket_dir.glob('*-LINK.json')):
-        all_events.append(('LINK', f))
-    for f in sorted(ticket_dir.glob('*-UNLINK.json')):
-        all_events.append(('UNLINK', f))
-
-    _order = {'LINK': 0, 'UNLINK': 1}
-    all_events.sort(key=lambda x: (int(x[1].name.split('-')[0]), _order.get(x[0], 99), x[1].name))
-
-    active = {}
-    for etype, f in all_events:
-        try:
-            with open(f, encoding='utf-8') as fh:
-                ev = json.load(fh)
-        except (OSError, json.JSONDecodeError):
-            continue
-        data = ev.get('data', {})
-        u = ev.get('uuid', '')
-        if etype == 'LINK' and u:
-            active[u] = (data.get('target_id', data.get('target', '')), data.get('relation', ''))
-        elif etype == 'UNLINK':
-            lu = data.get('link_uuid', '')
-            if lu:
-                active.pop(lu, None)
-    return [(u, tid, rel) for u, (tid, rel) in active.items()]
-
-
-def _write_unlink(source_id, target_id, link_uuid_val):
-    """Write an UNLINK event file into source_id's directory; return dest path."""
-    source_dir = Path(tracker_dir) / source_id
-    if not source_dir.is_dir():
-        return None
-    ts_prefix = str(time.time_ns())
-    ev_uuid = str(uuid.uuid4())
-    event = {
-        'event_type': 'UNLINK',
-        'timestamp': int(ts_prefix),
-        'uuid': ev_uuid,
-        'env_id': env_id,
-        'author': author,
-        'data': {
-            'link_uuid': link_uuid_val,
-            'target_id': target_id,
-        },
-    }
-    dest = source_dir / f'{ts_prefix}-{ev_uuid}-UNLINK.json'
-    dest.write_text(json.dumps(event, ensure_ascii=False), encoding='utf-8')
-    return str(dest)
-
-
-tracker_path = Path(tracker_dir)
-
-# Scan all ticket dirs for inbound LINKs pointing at deleted_id
-for entry in sorted(tracker_path.iterdir()):
-    if not entry.is_dir() or entry.name.startswith('.'):
-        continue
-    source_id = entry.name
-    active = _get_active_links(entry)
-    for link_uuid_val, target_id, relation in active:
-        if target_id == deleted_id:
-            f = _write_unlink(source_id, deleted_id, link_uuid_val)
-            if f:
-                print(f)
-
-# Also scan deleted ticket's own dir for outbound LINKs
-deleted_dir = tracker_path / deleted_id
-if deleted_dir.is_dir():
-    active = _get_active_links(deleted_dir)
-    for link_uuid_val, target_id, relation in active:
-        f = _write_unlink(deleted_id, target_id, link_uuid_val)
-        if f:
-            print(f)
-PYEOF
-)
+        unlink_files_raw=$(python3 "$_TICKETLIB_DIR/ticket-delete-unlink-scan.py" \
+            "$TRACKER_DIR" "$ticket_id" "$env_id" "$author")
         # set -euo pipefail (active in this subshell) aborts on non-zero python exit.
 
         if [ "$already_tombstoned" -eq 1 ]; then
