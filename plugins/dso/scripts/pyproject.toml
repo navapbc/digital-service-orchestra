@@ -1,0 +1,23 @@
+[project]
+name = "dso-ci-review"
+version = "0.1.0"
+description = "DSO CI review runner using LiteLLM"
+requires-python = ">=3.11"
+dependencies = [
+    "litellm==1.83.7",
+]
+
+[project.optional-dependencies]
+test = [
+    "respx==0.23.1",
+    "pytest==9.0.2",
+]
+lockfile = ["pip-tools==7.4.1"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dso_ci_review*"]
+
+[build-system]
+requires = ["setuptools==75.8.2"]
+build-backend = "setuptools.build_meta"

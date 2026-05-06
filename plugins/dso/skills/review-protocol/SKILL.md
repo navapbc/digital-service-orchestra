@@ -1,6 +1,6 @@
 ---
 name: review-protocol
-description: Use when a skill needs structured multi-perspective review with conflict detection, revision cycles, and standardized JSON output — replaces ad-hoc mental reviews and custom sub-agent review logic
+description: Use when a calling skill (e.g., /dso:implementation-plan, /dso:design-review, /dso:preplanning architectural-pattern check) needs to run a multi-perspective review of an artifact (plan, design, pattern). The caller passes subject, artifact, a perspectives list (each is a reviewer file), pass_threshold, start_stage, max_revision_cycles, and caller_id; this skill dispatches one sub-agent per perspective, scores on configured dimensions, detects conflicts between reviewers, runs a revision cycle up to max_revision_cycles, and returns JSON per the standardized REVIEW-SCHEMA. Not user-invocable directly — it is the shared review engine that calling skills delegate to instead of writing ad-hoc review logic.
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

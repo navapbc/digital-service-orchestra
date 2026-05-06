@@ -1,6 +1,6 @@
 ---
 name: plan-review
-description: Orchestrator-level skill that reviews plans and designs before user approval by dispatching a dso:plan-review sub-agent. Invoke before presenting any plan or design to the user, or before calling ExitPlanMode. Do NOT dispatch this skill itself as a sub-agent — it requires the Agent tool and will refuse sub-agent invocation.
+description: Use before presenting an implementation plan or design document to the user, before calling ExitPlanMode, or whenever you want a quality check on a plan/design ('check this plan', 'review my design before I share it', 'validate plan completeness'). Dispatches a sub-agent that scores the plan/design across four dimensions — feasibility, completeness, YAGNI, codebase alignment — and either passes it through or revises critical/major findings before user presentation. Orchestrator-level only; refuses sub-agent invocation. Trigger phrases include 'review this plan', 'check the design', 'validate the plan', 'before showing the user', 'pre-approval review', 'plan quality check'.
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
@@ -47,17 +47,10 @@ Launch with:
 Agent tool:
   subagent_type: "general-purpose"
   model: opus (design) or sonnet (implementation_plan)
-# dso:plan-review specializes in analyzing existing codebase patterns and
-# conventions — directly serves the Feasibility and Codebase Alignment
-# dimensions. The prompt's YAGNI and Completeness rubrics extend coverage
-# beyond the agent's default focus on architecture.
-#
-# Tier 3 for design: must evaluate architectural coherence, cross-cutting
-# concerns, and whether the design will compose with existing patterns —
-# requires reasoning about trade-offs, not just structural checks.
-# Tier 2 for implementation_plan: must verify task atomicity, dependency
-# graph validity, and TDD discipline across multiple tasks — structured
-# analysis that haiku reliably misses implicit coupling in.
+# Model rationale: design needs trade-off reasoning across architectural
+# coherence (opus); implementation_plan needs structured analysis of task
+# atomicity / dependency graph / TDD discipline (sonnet — haiku misses
+# implicit coupling).
 ```
 
 ### Step 2: Process Results

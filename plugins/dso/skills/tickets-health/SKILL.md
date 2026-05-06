@@ -1,6 +1,6 @@
 ---
 name: tickets-health
-description: Issue health validation and remediation
+description: Use when checking ticket health, cleaning up stale tickets, fixing dependency cycles, or validating that tickets are ready for sprint execution. Runs validate-issues.sh against the DSO ticket tracker to score health 1–5, surfaces common issues (orphan epics, missing acceptance criteria, dependency cycles, blocked-everywhere tasks, stale in_progress, broken interface tasks), and provides per-issue fix commands. Trigger phrases include 'ticket health', 'validate tickets', 'stale tickets', 'issue cleanup', 'check ticket dependencies', 'fix dependency cycle', 'are the tickets clean', 'audit the tracker'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -21,14 +21,6 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 - When batch-creating tasks, run **once** after all tasks and initial relationships are created
 
 ## Score Interpretation
-
-```
-Score 5 (Excellent) → Proceed with work
-Score 4 (Good)      → Fix if convenient
-Score 3 (Fair)      → MUST fix before continuing
-Score 2 (Poor)      → STOP - significant issues
-Score 1 (Critical)  → IMMEDIATE action required
-```
 
 | Score | Meaning | Action Required |
 |-------|---------|-----------------|

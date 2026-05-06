@@ -1,6 +1,6 @@
 ---
 name: resolve-conflicts
-description: Agent-assisted git merge/rebase conflict resolution with confidence-gated automation
+description: Use when the user is stuck in a merge conflict, rebase conflict, failed pull, or any git operation that left conflict markers in the working tree. Dispatches a conflict-analyzer sub-agent that classifies each conflicted hunk by confidence (auto-resolvable vs needs-human-review), auto-resolves high-confidence cases, validates the result, and rolls back if validation fails before falling through to human review. Trigger phrases include 'merge conflict', 'resolve conflicts', 'rebase conflict', 'git conflict', 'conflict markers', 'failed rebase', 'git pull conflict', 'fix the conflicts', 'help with this merge'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -194,10 +194,6 @@ merge strategy — treat both outputs the same way.
 
 ### Regression test (contract anchor)
 
-<!-- REVIEW-DEFENSE: tests/integration/test-conflict-data-schema-parity.sh was committed in
-     story 0bb9-ebde (closed). It is absent from this worktree only because this worktree was
-     branched before that commit landed on the session branch. The file exists at session HEAD
-     and will be present post-merge. Reference is accurate in the final merged state. -->
 `tests/integration/test-conflict-data-schema-parity.sh` drives both modes
 through their conflict paths and asserts the emitted JSON has identical key
 sets and field-type shapes. If either mode diverges from this schema, that test

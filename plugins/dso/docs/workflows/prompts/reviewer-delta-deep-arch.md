@@ -266,3 +266,28 @@ to their findings, not a complete re-listing of all findings.
 Your `summary` field must be 2–3 sentences covering: (1) the overall architectural
 assessment, (2) the most significant finding (if any), and (3) whether the diff is
 safe to merge.
+
+## Pre-Output Checklist (final pass before emitting JSON — bug f420-2607)
+
+Before you write the final JSON, walk this checklist for **every** finding in
+your `findings` array:
+
+1. Does this finding have a `cited_lines` field with **at least one** entry?
+2. Is each entry formatted as `<path>:<line>` or `~<path>:<line>` (approximate)?
+3. Is each `<line>` a positive integer (e.g., `42`, not `null`, not absent, not `~` alone)?
+
+If any answer is "no": fix the finding before emitting. Findings missing
+`cited_lines` are rejected by `validate-review-output.sh` at commit time —
+the rejection blocks the entire review and forces a re-dispatch, wasting the
+deep-tier compute you just spent. **Do not omit `cited_lines` to save tokens
+or because the citation feels redundant.** The validator does not care; the
+gate fails closed; the reviewer slot must be re-run.
+
+When a specific line is genuinely unknowable (architectural finding spans the
+whole file), use the approximate prefix: `["~src/foo.py:1"]`. The validator
+accepts this; bare descriptions like `["src/foo.py"]` (no colon-line) are
+rejected.
+
+This checklist applies to (a) new findings you identified, (b) upgraded
+specialist findings (carry the original `cited_lines` forward, then verify),
+and (c) downgraded specialist findings (same — carry forward, then verify).

@@ -1,6 +1,6 @@
 ---
 name: sprint
-description: Execute Epic - Multi-Agent Orchestration
+description: Use when the user wants to execute an epic, run a sprint, work through a planned epic's stories and tasks, or coordinate multi-agent task execution end-to-end. Routes the epic by complexity (SIMPLE → direct implementation-plan, MODERATE → lightweight preplanning, COMPLEX → full preplanning), runs an SC-coverage gate at haiku/sonnet/opus tiers to confirm story coverage of epic success criteria, plans the task graph, dispatches sub-agents in batches with file-overlap and semantic-conflict checks, runs per-task review and post-batch validation (test gate, lint, AC verification, visual verification for UI), commits/pushes results, and verifies epic completion via the dso:completion-verifier agent before close. Trigger phrases include 'work the epic', 'execute the sprint', 'run the epic', 'sprint this epic', 'work through the stories', 'implement the planned tasks', 'kick off the sprint'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -381,11 +381,6 @@ Emit `SC_COVERAGE_HAIKU_GATE: complete` to your output so that ORCHESTRATOR_RESU
 - **ALL verdicts are `COVERED`**: log `"SC coverage haiku gate: all SCs covered — proceeding to Phase B"` and proceed to Phase B normally. Skip Step 4.
 - **ANY verdict is `ESCALATE`**: collect the ESCALATE SCs into an escalation list and proceed to Step 4 (SC Coverage Sonnet Tier).
 
-<!-- REVIEW-DEFENSE: Finding 2 — sc-coverage-sonnet.md, sc-coverage-haiku.md, and sc-coverage-opus.md not in this worktree.
-     All three prompt files are created by story 3812-d606 in branch worktree-agent-ae49f130 (Batch 1).
-     Merge order: Batch 1 (prompt files) → Batch 3 (haiku gate) → Batch 5 (sonnet tier) → Batch 6 (opus tier, this change).
-     Files will be present on main before this change lands. Merge order is enforced by the per-worktree-review-commit.md
-     sequential commit protocol. Worktree-isolation artifact — not a runtime missing file risk. -->
 #### Step 4: SC Coverage Sonnet Tier (/dso:sprint)
 
 **Trigger**: Only runs if the haiku gate (Step 3) returned ANY `ESCALATE` verdict. If haiku marked ALL SCs as `COVERED` (empty escalation list), skip this sub-step entirely and proceed to Phase B.

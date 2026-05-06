@@ -1,6 +1,6 @@
 ---
 name: brainstorm
-description: Use when starting a new feature or epic — turns an idea into a defined, ticket-ready epic through Socratic dialogue, approach design, and milestone spec creation.
+description: Use when starting a new feature or epic — turns a feature idea into a defined, ticket-ready epic through Socratic dialogue with the user. Designs technical approaches, breaks features into milestones, drafts ticket descriptions and success criteria, and writes the epic to the ticket tracker. Trigger phrases include 'plan a feature', 'spec out a feature', 'break down work', 'create user stories', 'start a new epic', 'turn this idea into tickets', 'roadmap a feature'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -267,6 +267,14 @@ Do NOT proceed to Phase 2 until the user confirms the understanding summary or e
    - Run the classification dialogue: ask the user to specify `ownership`, `handling` (`claude_auto` or `user_manual`), `claude_has_access`, and (optionally) `verification_command` for each external-outcome dependency.
    - Warn if `verification_command` runs destructive operations (deletes, writes to production).
    - Render the External Dependencies block in the epic description per `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
+
+   **Platform capability probe (62ae-26ec)**: When the SC mentions GitHub, PR, merge, auto-merge, branch protection, CI/required-checks, or release tagging, additionally probe these repo-level capabilities — they are silent dependencies that determine whether a PR-mode workflow can run end-to-end:
+   - **`Allow auto-merge`** (Settings → General → Pull Requests): if the design hinges on `gh pr merge --auto`, this MUST be on at the repo level. Default for new repos: OFF. Surface as a `user_manual` dependency with verification command `gh repo view --json autoMergeAllowed --jq .autoMergeAllowed`.
+   - **Branch protection rules on `main`**: if the design pushes commits or tags directly, branch protection may reject them. Probe required-status-checks, required-reviews, and "Restrict pushes" settings.
+   - **Required status checks**: if the PR-merge flow waits on CI, the exact check-context names must match `.github/required-checks.txt`. New workflow renames silently break the gate.
+   - **Repository merge methods enabled**: `Allow merge commits` / `Allow squash merging` / `Allow rebase merging` — `gh pr merge --merge` fails if merge commits are disabled.
+
+   Treat each as a separate `external_dependencies` entry with `ownership: exists`, `handling: user_manual` (until verified), and `claude_has_access: unknown` (until verified). Adding the entries up front prevents the entire epic from failing on first real-world use because the deployment environment lacks an assumed capability.
 
 3. **Release-infrastructure compatibility check (3dc2-ad99)**: Regardless of SC shape classification, if the epic introduces a new Python package (e.g., `litellm`, any `pip install` or `pyproject.toml` addition) or changes that will eventually be exercised at release time (new CI job, new validation step, changed plugin entry point), flag `scripts/release.sh` as a release-infrastructure dependency. Note in the epic description: "Release dependency: scripts/release.sh must be updated to account for [new package/change] before this epic can ship via the stable release channel." This dependency is NOT captured by the `external-outcome` shape classifier (it's an internal script, not an external service) — so it must be checked explicitly here.
 

@@ -1,6 +1,6 @@
 ---
 name: oscillation-check
-description: Detect feedback oscillation in iterative review loops using structural diff comparison. Invoke before implementing review feedback.
+description: Use before implementing review feedback when iteration N+1 of a review loop is about to revert changes made in iteration N — i.e., when reviewers seem to be giving contradictory feedback, flip-flopping between approaches, asking to undo a prior fix, or going back and forth on the same lines. Detects oscillation by comparing the structural diff of the current proposed change against the prior accepted change; flags reverts as OSCILLATION with a recommended action (escalate, hold for user, or accept with annotation). Trigger phrases include 'contradictory feedback', 'flip-flopping reviews', 'going back and forth', 'reviewer keeps changing their mind', 'undo the last fix', 'revert what we just did'.
 user-invocable: false
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---

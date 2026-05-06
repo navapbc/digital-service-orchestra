@@ -238,10 +238,10 @@ Security, performance, and test-quality overlays are dispatched automatically wh
 
 | | |
 |---|---|
-| **Description** | Required in host-project CI when running `ci-llm-review-runner.sh` outside the DSO source checkout. When the runner detects that the marker file `${CLAUDE_PLUGIN_ROOT}/.dso-source-of-truth` is absent (indicating it is NOT running from the DSO local source), it falls back to `DSO_ASSETS_DIR` as the plugin root. If the marker is absent AND `DSO_ASSETS_DIR` is unset, the runner exits 1 with an error to stderr. In local DSO development, this variable is not required — the marker file is present and the runner uses a BASH_SOURCE-relative plugin root. |
+| **Description** | Required in host-project CI when running `ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) outside the DSO source checkout. When the runner detects that the marker file `${CLAUDE_PLUGIN_ROOT}/.dso-source-of-truth` is absent (indicating it is NOT running from the DSO local source), it falls back to `DSO_ASSETS_DIR` as the plugin root. If the marker is absent AND `DSO_ASSETS_DIR` is unset, the runner exits 1 with an error to stderr. In local DSO development, this variable is not required — the marker file is present and the runner uses a BASH_SOURCE-relative plugin root. |
 | **Accepted values** | Absolute path to the fetched DSO plugin assets directory |
 | **Default** | Absent — only required in host-project CI |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ci-llm-review-runner.sh` (auto-detect runner mode) | # shim-exempt: plugin path in config documentation, not an invocation
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) (auto-detect runner mode) | # shim-exempt: plugin path in config documentation, not an invocation
 
 ---
 
@@ -880,10 +880,10 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | Minimum number of scorable added lines in a diff that triggers a tier upgrade to deep review. When a non-merge diff meets or exceeds this threshold, the classifier sets `size_action=upgrade`, which causes ci-llm-review-runner.sh to route to the deep tier regardless of the score-based selected tier. This mirrors the local `/dso:review` Step 3b REVIEW_AGENT_OVERRIDE behavior. |
+| **Description** | Minimum number of scorable added lines in a diff that triggers a tier upgrade to deep review. When a non-merge diff meets or exceeds this threshold, the classifier sets `size_action=upgrade`, which causes ci-llm-review-runner.sh (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) to route to the deep tier regardless of the score-based selected tier. This mirrors the local `/dso:review` Step 3b REVIEW_AGENT_OVERRIDE behavior. |
 | **Accepted values** | Positive integer. Values of `0` are valid (every diff triggers upgrade). Non-numeric values are ignored and the default applies. |
 | **Default** | `300` |
-| **Used by** | `scripts/review-complexity-classifier.sh`, `scripts/ci-llm-review-runner.sh` | # shim-exempt: internal implementation reference in config documentation
+| **Used by** | `scripts/review-complexity-classifier.sh`, `scripts/ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -1505,11 +1505,11 @@ ticket.display_mode=alias
 
 | | |
 |---|---|
-| **Description** | CI LLM provider for `llm-api-call.sh`. Controls which provider's API is called during CI review. |
+| **Description** | CI LLM provider for `python3 -m dso_ci_review.runner`. Controls which provider's API is called during CI review. |
 | **Accepted values** | `anthropic` \| `openai` |
 | **Default** | `anthropic` |
 | **Example** | `model.provider=anthropic` or `model.provider=openai` |
-| **Used by** | `scripts/llm-api-call.sh` | # shim-exempt: internal implementation reference in config documentation
+| **Used by** | `python3 -m dso_ci_review.runner` (via `CI_REVIEW_PROVIDER` env var) | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -1517,10 +1517,10 @@ ticket.display_mode=alias
 
 | | |
 |---|---|
-| **Description** | Model ID used for light-tier CI review (when `llm-api-call.sh` is called with `tier=light`). |
+| **Description** | Model ID used for light-tier CI review (when `dso_ci_review.runner` is invoked with `tier=light`). |
 | **Accepted values** | Provider model ID string |
 | **Default** | `claude-haiku-4-5-20251001` (Anthropic) / `gpt-5.4-nano` (OpenAI) |
-| **Used by** | `scripts/llm-api-call.sh` | # shim-exempt: internal implementation reference in config documentation
+| **Used by** | `python3 -m dso_ci_review.runner` (via `DSO_CI_REVIEW_MODEL` env var) | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -1528,10 +1528,10 @@ ticket.display_mode=alias
 
 | | |
 |---|---|
-| **Description** | Model ID used for standard-tier CI review (when `llm-api-call.sh` is called with `tier=standard`). |
+| **Description** | Model ID used for standard-tier CI review (when `dso_ci_review.runner` is invoked with `tier=standard`). |
 | **Accepted values** | Provider model ID string |
 | **Default** | `claude-sonnet-4-6` (Anthropic) / `gpt-5.4` (OpenAI) |
-| **Used by** | `scripts/llm-api-call.sh` | # shim-exempt: internal implementation reference in config documentation
+| **Used by** | `python3 -m dso_ci_review.runner` (via `DSO_CI_REVIEW_MODEL` env var) | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -1539,10 +1539,32 @@ ticket.display_mode=alias
 
 | | |
 |---|---|
-| **Description** | Model ID used for deep-tier CI review (opus-class) (when `llm-api-call.sh` is called with `tier=deep`). |
+| **Description** | Model ID used for deep-tier CI review (opus-class) (when `dso_ci_review.runner` is invoked with `tier=deep`). |
 | **Accepted values** | Provider model ID string |
 | **Default** | `claude-opus-4-7` (Anthropic) / `gpt-5.5` (OpenAI) |
-| **Used by** | `scripts/llm-api-call.sh` | # shim-exempt: internal implementation reference in config documentation
+| **Used by** | `python3 -m dso_ci_review.runner` (via `DSO_CI_REVIEW_MODEL` env var) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `ci_review.provider`
+
+| | |
+|---|---|
+| **Description** | Primary LLM provider for the CI LLM review pipeline. Controls which provider is used when `CI_REVIEW_PROVIDER` env var is not set. Resolution order: `CI_REVIEW_PROVIDER` env var → `ci_review.provider` config key → `model.provider` config key → default `anthropic`. |
+| **Accepted values** | `anthropic`, `openai` |
+| **Default** | `anthropic` |
+| **Used by** | `python3 -m dso_ci_review.runner` (via `dso_ci_review.providers.config.get_provider`) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `ci_review.provider_chain`
+
+| | |
+|---|---|
+| **Description** | Comma-separated ordered list of provider names for the CI LLM review fallback chain. The first entry is the primary provider; subsequent entries are fallback targets on `RateLimitError`. Each name must be lowercase-canonical (`anthropic`, `openai`). |
+| **Accepted values** | Comma-separated provider names. Supported: `anthropic`, `openai` |
+| **Default** | `anthropic,openai` |
+| **Used by** | `python3 -m dso_ci_review.runner` (via `dso_ci_review.providers.config.parse_provider_chain`) | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -1634,7 +1656,7 @@ and [`model.deep`](#modeldeep) above.
 
 ### CI runner exemption — `check-usage.sh`
 
-`ci-llm-review-runner.sh` does not invoke `check-usage.sh`. The usage throttle requires an active Claude Code OAuth session and is not available in headless CI environments. Rate-limit backoff for CI deep-tier parallel curl calls is handled via `curl --retry` / `--retry-delay` flags on each request instead.
+`ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) does not invoke `check-usage.sh`. The usage throttle requires an active Claude Code OAuth session and is not available in headless CI environments. Rate-limit backoff for CI deep-tier parallel curl calls is handled via `curl --retry` / `--retry-delay` flags on each request instead.
 
 ---
 

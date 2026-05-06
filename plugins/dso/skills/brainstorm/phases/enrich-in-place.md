@@ -59,5 +59,3 @@ These apply to the full brainstorm → epic flow only, not this path:
 - Skip complexity evaluation (Phase 3, complexity evaluator dispatch)
 - Skip routing to downstream skills — do not invoke `/dso:preplanning` or `/dso:implementation-plan`
 - Skip writing the brainstorm completion sentinel (Step 3b)
-
-**REVIEW-DEFENSE**: enrich-in-place is used on existing tickets that are already defined, not on new features being scoped from scratch. The brainstorm-before-plan-mode enforcement is designed to ensure new ideas are properly scoped before entering plan mode. When enriching an existing ticket, the user is refining something already in the system — not discovering and framing a new feature — so the sentinel gate correctly does not apply to this path.

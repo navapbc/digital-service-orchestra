@@ -229,17 +229,35 @@ if [[ ! -f "$FINDINGS_FILE" ]]; then
     exit 1
 fi
 
-# Verify --reviewer-hash is provided (mandatory)
+# Prefer the sidecar hash file written by write-reviewer-findings.sh — robust
+# against LLM output truncation that historically corrupted the stdout-transcribed
+# REVIEWER_HASH (bug 8073-783f). Fall back to --reviewer-hash flag for callers
+# that pre-date the sidecar (host projects on older plugin versions).
+SIDECAR_HASH_FILE="${FINDINGS_FILE}.sha256"
+if [[ -f "$SIDECAR_HASH_FILE" ]]; then
+    REVIEWER_HASH=$(tr -d '[:space:]' < "$SIDECAR_HASH_FILE")
+fi
+
+# Verify --reviewer-hash is provided (mandatory; from sidecar or flag)
 if [[ -z "$REVIEWER_HASH" ]]; then
-    echo "ERROR: --reviewer-hash is required — the code-reviewer sub-agent must report the hash" >&2
+    echo "ERROR: --reviewer-hash is required — neither sidecar (${SIDECAR_HASH_FILE}) nor --reviewer-hash flag was provided" >&2
     echo "" >&2
     echo "Usage: record-review.sh --reviewer-hash HASH [--expected-hash HASH]" >&2
     echo "" >&2
     echo "Where to get REVIEWER_HASH:" >&2
     echo "  The code-reviewer sub-agent (dso:code-reviewer-light, dso:code-reviewer-standard," >&2
-    echo "  or dso:code-reviewer-deep-arch) writes reviewer-findings.json and reports its" >&2
-    echo "  SHA256 hash in the output as: REVIEWER_HASH: <hash>" >&2
-    echo "  Pass that value here via: record-review.sh --reviewer-hash <hash>" >&2
+    echo "  or dso:code-reviewer-deep-arch) writes reviewer-findings.json + .sha256 sidecar." >&2
+    echo "  Newer plugin versions read the sidecar automatically; older callers can pass" >&2
+    echo "  the hash via --reviewer-hash <hash>." >&2
+    exit 1
+fi
+
+# Validate hash is a 64-char SHA-256 hex (catches LLM output truncation early
+# with a clear message instead of the generic 'tampered with' error)
+if ! [[ "$REVIEWER_HASH" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    echo "ERROR: REVIEWER_HASH is not a valid 64-char SHA-256 hex value (got ${#REVIEWER_HASH} chars)" >&2
+    echo "  This usually means the reviewer sub-agent's output was truncated when transcribing the hash." >&2
+    echo "  Recovery: re-dispatch the code-reviewer sub-agent (it will re-write the sidecar)." >&2
     exit 1
 fi
 
