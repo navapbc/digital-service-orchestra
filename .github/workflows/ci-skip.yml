@@ -1,0 +1,71 @@
+# Digital Service Orchestra (DSO) — CI Skip
+#
+# Companion to ci.yml that fires ONLY for docs-only PRs (paths matching
+# **/*.md). Each job emits a check-context with the SAME `name:` as its
+# counterpart in ci.yml, so branch-protection required checks are satisfied
+# without running the heavy gates.
+#
+# Why this exists: ci.yml uses `paths-ignore: '**/*.md'`, which causes its
+# required checks to remain "expected" forever on docs-only PRs and blocks
+# merge. This pattern is GitHub's documented workaround.
+#
+# Sync invariant: the set of `name:` fields below MUST equal
+#   (ci.yml jobs) ∩ (.github/required-checks.txt)
+# Enforced by plugins/dso/scripts/onboarding/validate-ci-skip-parity.sh,
+# wired into ci.yml's `validate-required-checks` job.
+
+name: CI Skip
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '**/*.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    name: Actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: echo "Skipped — docs-only PR"
+
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: echo "Skipped — docs-only PR"
+
+  lint-python:
+    name: Lint Python (ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: echo "Skipped — docs-only PR"
+
+  test-hooks:
+    name: Hook Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: echo "Skipped — docs-only PR"
+
+  test-scripts:
+    name: Script Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: echo "Skipped — docs-only PR"
+
+  llm-review:
+    name: llm-review
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: echo "Skipped — docs-only PR"
