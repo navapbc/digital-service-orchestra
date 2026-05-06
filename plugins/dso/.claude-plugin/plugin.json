@@ -29,6 +29,7 @@
     "./agents/huge-diff-refactor-anomaly.md",
     "./agents/huge-diff-reviewer-light.md",
     "./agents/huge-diff-reviewer-standard.md",
+    "./agents/inference-incident-curator.md",
     "./agents/intent-search.md",
     "./agents/investigator-advanced-code-tracer.md",
     "./agents/investigator-advanced-historical.md",

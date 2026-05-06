@@ -22,7 +22,7 @@ fi
 **Step 2 — Review in worktree**: First, check `enforcement.strategy` — when CI enforces review, skip the local review pipeline entirely:
 
 ```bash
-ENFORCEMENT=$(cd "$WORKTREE_PATH" && bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" enforcement.strategy 2>/dev/null || echo "local")
+ENFORCEMENT=$(cd "$WORKTREE_PATH" && .claude/scripts/dso read-config.sh enforcement.strategy 2>/dev/null || echo "local")
 if [[ "$ENFORCEMENT" == "ci" ]]; then
     echo "Skipping worktree review: enforcement.strategy=ci — review enforced by CI on PR merge"
     # Proceed directly to Step 3 (Record test status). Do NOT run classifier, tier reviewer, or record-review.sh.
