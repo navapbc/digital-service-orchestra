@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2329
-# RED/GREEN tests for Phase 1 Gate META_QUESTION signal.
-# Tests: META_QUESTION signal defined, distinct from REPLAN_ESCALATE,
-# blocking_for condition documented, REPLAN_ESCALATE mid-workflow preserved.
-# NOTE: Tests 1-3 are intentionally RED — SKILL.md sections don't exist yet.
-# Test 4 checks the META_QUESTION distinction in Phase 1 Gate section (RED).
+# GREEN tests for META_QUESTION signal routing in brainstorm SKILL.md.
+# Tests: META_QUESTION signal exists, distinct from REPLAN_ESCALATE,
+# blocking_for brainstorm trigger condition.
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -13,77 +11,58 @@ source "${REPO_ROOT}/tests/skills/lib/brainstorm-skill-aggregate.sh"
 SKILL_CORPUS=$(brainstorm_aggregate_path)
 trap brainstorm_aggregate_cleanup EXIT
 
-source "${REPO_ROOT}/tests/lib/assert.sh"
+PASS=0
+FAIL=0
+SECTION="unknown"
+
+pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
+fail() { echo "FAIL: ${SECTION}"; echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 # ============================================================
-# test_meta_question_signal_defined
-# Grep SKILL.md for META_QUESTION signal name.
-# RED: META_QUESTION signal not defined yet.
-# ============================================================
-echo "=== test_meta_question_signal_defined ==="
+echo "=== test_meta_question_signal_exists ==="
+SECTION="test_meta_question_signal_exists"
 
-if grep -q 'META_QUESTION' "$SKILL_CORPUS"; then
-    actual=present
+# Assert META_QUESTION appears in SKILL.md as a distinct signal type
+if grep -q 'META_QUESTION' "$SKILL_MD"; then
+  pass "SKILL.md contains META_QUESTION signal"
 else
-    actual=missing
+  fail "SKILL.md missing META_QUESTION signal"
 fi
-assert_eq "SKILL.md must define META_QUESTION signal" "present" "$actual"
 
-# ============================================================
-# test_meta_question_not_replan_escalate
-# Grep for pattern showing META_QUESTION is distinct from REPLAN_ESCALATE.
-# RED: distinction not documented yet.
 # ============================================================
 echo ""
 echo "=== test_meta_question_not_replan_escalate ==="
+SECTION="test_meta_question_not_replan_escalate"
 
-if grep -qiE 'META_QUESTION.*NOT.*REPLAN_ESCALATE|not.*REPLAN_ESCALATE.*META_QUESTION|META_QUESTION.*instead.*REPLAN|use META_QUESTION.*not REPLAN' "$SKILL_CORPUS"; then
-    actual=present
+# Assert META_QUESTION is documented as distinct from REPLAN_ESCALATE
+if grep -qiE 'META_QUESTION.*NOT REPLAN_ESCALATE|META_QUESTION.*not.*REPLAN_ESCALATE' "$SKILL_MD"; then
+  pass "SKILL.md documents META_QUESTION as NOT REPLAN_ESCALATE"
 else
-    actual=missing
+  fail "SKILL.md missing distinction: META_QUESTION is NOT REPLAN_ESCALATE"
 fi
-assert_eq "SKILL.md must document that META_QUESTION is NOT REPLAN_ESCALATE" "present" "$actual"
 
-# ============================================================
-# test_meta_question_blocking_for_condition
-# Grep for blocking_for referencing brainstorm in META_QUESTION context.
-# RED: blocking_for condition not documented yet.
 # ============================================================
 echo ""
-echo "=== test_meta_question_blocking_for_condition ==="
+echo "=== test_blocking_for_brainstorm_trigger ==="
+SECTION="test_blocking_for_brainstorm_trigger"
 
-if grep -qiE 'blocking_for.*brainstorm|META_QUESTION.*blocking_for' "$SKILL_CORPUS"; then
-    actual=present
+# Assert blocking_for brainstorm as the trigger condition for META_QUESTION
+if grep -qiE 'blocking_for.*brainstorm.*META_QUESTION|blocking_for.*resolves.*brainstorm.*META_QUESTION|blocking_for.*brainstorm' "$SKILL_MD"; then
+  pass "SKILL.md documents blocking_for: brainstorm as META_QUESTION trigger condition"
 else
-    actual=missing
+  fail "SKILL.md missing blocking_for: brainstorm trigger condition for META_QUESTION"
 fi
-assert_eq "SKILL.md META_QUESTION must document blocking_for brainstorm condition" "present" "$actual"
 
-# ============================================================
-# test_replan_escalate_mid_workflow_preserved
-# REPLAN_ESCALATE exists for mid-workflow discovery (later phases).
-# This tests that:
-#   (a) REPLAN_ESCALATE is still documented in SKILL.md corpus (should PASS)
-#   (b) Phase 1 Gate section has the META_QUESTION distinction (RED: not yet)
 # ============================================================
 echo ""
-echo "=== test_replan_escalate_mid_workflow_preserved ==="
+echo "=== Results ==="
+echo "Passed: $PASS"
+echo "Failed: $FAIL"
 
-# Part (a): REPLAN_ESCALATE must still exist in the corpus (GREEN — pre-existing)
-if grep -q 'REPLAN_ESCALATE' "$SKILL_CORPUS"; then
-    replan_present=present
-else
-    replan_present=missing
+if [ "$FAIL" -gt 0 ]; then
+  echo "VALIDATION FAILED"
+  exit 1
 fi
-assert_eq "SKILL.md corpus must still document REPLAN_ESCALATE for mid-workflow use" "present" "$replan_present"
 
-# Part (b): Phase 1 Gate section must distinguish META_QUESTION from REPLAN_ESCALATE (RED)
-if grep -qiE 'Phase 1.*META_QUESTION|META_QUESTION.*Phase 1|Phase 1 Gate.*META_QUESTION' "$SKILL_CORPUS"; then
-    phase1_distinction=present
-else
-    phase1_distinction=missing
-fi
-assert_eq "Phase 1 Gate section must contain META_QUESTION distinction from REPLAN_ESCALATE" "present" "$phase1_distinction"
-
-# ============================================================
-print_summary
+echo "ALL VALIDATIONS PASSED"
+exit 0

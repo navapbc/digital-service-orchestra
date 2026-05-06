@@ -1,6 +1,6 @@
 ---
 name: brainstorm
-description: Use when starting a new feature or epic — turns an idea into a defined, ticket-ready epic through Socratic dialogue, approach design, and milestone spec creation.
+description: Use when starting a new feature or epic — turns a feature idea into a defined, ticket-ready epic through Socratic dialogue with the user. Designs technical approaches, breaks features into milestones, drafts ticket descriptions and success criteria, and writes the epic to the ticket tracker. Trigger phrases include 'plan a feature', 'spec out a feature', 'break down work', 'create user stories', 'start a new epic', 'turn this idea into tickets', 'roadmap a feature'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -252,6 +252,26 @@ Before I propose approaches: [Targeted gap question]
 
 Do NOT proceed to Phase 2 until the user confirms the understanding summary or explicitly skips the gap analysis.
 
+### Step 2.5 — Completeness Attestation
+
+Before proceeding to Phase 2, compute the attestation field:
+
+- **exhausted**: ALL gap questions are resolved — every question raised in the gap-analysis loop has a blocking_for that was answered, and no unresolved items remain. Attestation is exhausted when the gap list is empty and all blocking_for fields are satisfied.
+- **open**: One or more gap questions remain unresolved. For each unresolved question, record the question text and blocking_for: <phase>. Open attestation lists all unresolved questions with their blocking_for fields.
+
+**Blocking rule**: The Phase 1 Gate CANNOT return passed without an attestation field of value `exhausted` or `open`. A missing or absent attestation field is treated as a non-passing signal — do NOT proceed to Phase 2 until this field is computed.
+
+**META_QUESTION routing**: If any unresolved question's blocking_for resolves to brainstorm itself, emit META_QUESTION — NOT REPLAN_ESCALATE. Mid-workflow question discovery from Phase 2 and later continues to route via REPLAN_ESCALATE.
+
+Contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/phase1-gate-attestation.md`
+
+**Gate exit — PRECONDITIONS write**: On Phase 1 Gate exit (attestation: exhausted), write a PRECONDITIONS decisions_log entry via `preconditions-record.sh` with:
+- gate_name: phase1_gate
+- affects_fields: [workflow_completion_checklist]
+- data: {attestation: "exhausted", resolved_question_count: <N>}
+
+The affects_fields must include workflow_completion_checklist so the S3 tiered sampler routes this attestation to the 100% review bucket.
+
 ### Step 3 — Shape Heuristic Scan (config-gated)
 
 **Config gate**: Source `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh` and call `is_external_dep_block_enabled`. If the function returns exit 1, skip this sub-step and proceed to Phase 2.
@@ -267,6 +287,14 @@ Do NOT proceed to Phase 2 until the user confirms the understanding summary or e
    - Run the classification dialogue: ask the user to specify `ownership`, `handling` (`claude_auto` or `user_manual`), `claude_has_access`, and (optionally) `verification_command` for each external-outcome dependency.
    - Warn if `verification_command` runs destructive operations (deletes, writes to production).
    - Render the External Dependencies block in the epic description per `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
+
+   **Platform capability probe (62ae-26ec)**: When the SC mentions GitHub, PR, merge, auto-merge, branch protection, CI/required-checks, or release tagging, additionally probe these repo-level capabilities — they are silent dependencies that determine whether a PR-mode workflow can run end-to-end:
+   - **`Allow auto-merge`** (Settings → General → Pull Requests): if the design hinges on `gh pr merge --auto`, this MUST be on at the repo level. Default for new repos: OFF. Surface as a `user_manual` dependency with verification command `gh repo view --json autoMergeAllowed --jq .autoMergeAllowed`.
+   - **Branch protection rules on `main`**: if the design pushes commits or tags directly, branch protection may reject them. Probe required-status-checks, required-reviews, and "Restrict pushes" settings.
+   - **Required status checks**: if the PR-merge flow waits on CI, the exact check-context names must match `.github/required-checks.txt`. New workflow renames silently break the gate.
+   - **Repository merge methods enabled**: `Allow merge commits` / `Allow squash merging` / `Allow rebase merging` — `gh pr merge --merge` fails if merge commits are disabled.
+
+   Treat each as a separate `external_dependencies` entry with `ownership: exists`, `handling: user_manual` (until verified), and `claude_has_access: unknown` (until verified). Adding the entries up front prevents the entire epic from failing on first real-world use because the deployment environment lacks an assumed capability.
 
 3. If no SC returns `external-outcome`: skip block rendering.
 
