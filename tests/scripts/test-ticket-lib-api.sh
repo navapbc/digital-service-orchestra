@@ -454,4 +454,97 @@ test_ticket_transition_via_library() {
 }
 test_ticket_transition_via_library
 
+# ── Test 12: short ID (8-hex) resolves to full ticket via show ────────────────
+# RED marker — test_ticket_show_short_id_resolves_to_full_ticket
+# Must FAIL before _ticketlib_resolve_short_id is added to ticket_show.
+echo "Test 12: ticket show accepts 8-hex short ID and resolves to full ticket"
+test_ticket_show_short_id_resolves_to_full_ticket() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local full_id
+    full_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "short-id test ticket" 2>/dev/null | tail -1) || true
+
+    if [ -z "$full_id" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    # Derive the 8-hex short ID (first 9 chars: xxxx-xxxx)
+    local short_id="${full_id:0:9}"
+
+    local show_output
+    show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        bash "$TICKET_SCRIPT" show "$short_id" 2>/dev/null) || true
+
+    local got_id
+    got_id=$(echo "$show_output" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ticket_id',''))" 2>/dev/null || echo "")
+
+    assert_eq "short ID resolves to full ticket ID" "$full_id" "$got_id"
+}
+test_ticket_show_short_id_resolves_to_full_ticket
+
+# ── Test 13: ticket resolve subcommand dispatches through ticket_resolve() ────
+# Integration test for the full dispatch pipeline: ticket resolve <alias>
+# through the dispatcher → ticket_resolve() → resolve_ticket_id().
+echo "Test 13: ticket resolve subcommand resolves alias to canonical ID"
+test_ticket_resolve_subcommand_dispatches_via_library() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a ticket with an alias by injecting an alias into the CREATE event
+    local full_id
+    full_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "resolve subcommand test" 2>/dev/null | tail -1) || true
+
+    if [ -z "$full_id" ]; then
+        assert_eq "created ticket for resolve test" "non-empty" "empty"
+        return
+    fi
+
+    # Add an alias to the CREATE event by writing it directly into the event data
+    local tracker_dir="$repo/.tickets-tracker/$full_id"
+    local create_event
+    create_event=$(find "$tracker_dir" -maxdepth 1 -name '*-CREATE.json' 2>/dev/null | head -1) || true
+    if [ -z "$create_event" ]; then
+        # No CREATE event yet — skip the alias test, but verify resolve works for full ID
+        local resolve_output
+        resolve_output=$(cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+            bash "$TICKET_SCRIPT" resolve "$full_id" 2>/dev/null) || true
+        assert_eq "resolve full ID returns canonical ID" "$full_id" "${resolve_output:-empty}"
+        return
+    fi
+
+    # Inject an alias into the event data
+    python3 - "$create_event" "test-alias-$(echo "$full_id" | cut -c1-4)" <<'PYEOF'
+import json, sys
+path, alias = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    event = json.load(f)
+event.setdefault('data', {})['alias'] = alias
+with open(path, 'w') as f:
+    json.dump(event, f)
+PYEOF
+
+    local alias_val
+    alias_val=$(python3 -c "
+import json, sys
+with open('$create_event') as f:
+    print(json.load(f).get('data', {}).get('alias', ''))
+")
+
+    if [ -z "$alias_val" ]; then
+        assert_eq "alias injected into event" "non-empty" "empty"
+        return
+    fi
+
+    # Invoke 'ticket resolve <alias>' through the dispatcher
+    local resolve_output
+    resolve_output=$(cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        bash "$TICKET_SCRIPT" resolve "$alias_val" 2>/dev/null) || true
+
+    assert_eq "ticket resolve dispatches to ticket_resolve() and returns full ID" \
+        "$full_id" "${resolve_output:-empty}"
+}
+test_ticket_resolve_subcommand_dispatches_via_library
+
 print_summary

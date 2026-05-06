@@ -55,7 +55,8 @@ fi
 echo ""
 echo "=== test_cli_user_tag_prohibited_for_autonomous_bugs ==="
 
-prohibition_found="$(python3 - "$BOUNDARIES_FILE" <<'PYEOF'
+_py_script=$(mktemp /tmp/cli-user-tag-check.XXXXXX.py)
+cat > "$_py_script" << 'PYEOF'
 import sys, re
 
 content = open(sys.argv[1]).read()
@@ -92,7 +93,8 @@ for idx, _ in cli_user_lines:
 
 print("NO_PROHIBITION")
 PYEOF
-)"
+prohibition_found="$(python3 "$_py_script" "$BOUNDARIES_FILE")"
+rm -f "$_py_script"
 
 if [[ "$prohibition_found" == "PROHIBITION_FOUND" ]]; then
     assert_eq \

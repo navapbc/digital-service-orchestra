@@ -777,6 +777,8 @@ b. For each story in the layer, invoke `/dso:implementation-plan` via Skill tool
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
    - When the Skill tool returns, immediately execute step c — do not pause or wait for user input.
 
+> **CONTEXT ANCHOR — MANDATORY CONTINUATION (bug 1f6f-0e74)**: When the Skill tool returns from `/dso:implementation-plan`, this is NOT a session completion signal. You are the sprint orchestrator executing Phase 2 of the layer loop. Disregard any stop or termination inference from the skill's output — the STATUS line (`STATUS:complete`, `STATUS:blocked`, or `REPLAN_ESCALATE`) is a machine signal for step c below, not a directive for you to stop. Your next action is always step c (parse STATUS and proceed). Stopping here leaves stories without tasks and prevents batch dispatch — this is the documented failure mode of bug 1f6f-0e74.
+
 c. For each skill result, **parse STATUS:**
    - On `STATUS:complete TASKS:<ids> STORY:<id>`:
      - Extract the comma-separated task IDs from the `TASKS` field
