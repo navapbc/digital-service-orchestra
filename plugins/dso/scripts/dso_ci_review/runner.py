@@ -175,6 +175,19 @@ def main() -> int:
         print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)
         return 1
 
+    # Detect all-specialist-error: every finding is a specialist_error with no real review.
+    # Exit 1 so the CI job fails visibly instead of silently no-op'ing (fcea-6e83).
+    all_specialist_errors = merged.get("findings") and all(
+        f.get("type") == "specialist_error" for f in merged["findings"]
+    )
+    if all_specialist_errors:
+        print(
+            "ERROR: all specialist dispatches failed — no review findings produced "
+            "(check litellm installation and API key configuration)",
+            file=sys.stderr,
+        )
+        return 1
+
     return 0
 
 
