@@ -77,7 +77,13 @@ def process_status(state: dict, event: dict, data: dict, filepath: str) -> None:
     current_status = data.get("current_status")
     if current_status is not None and current_status != state["status"]:
         # Fork detected: two chains have diverged.
-        incoming_uuid = data.get("parent_status_uuid") or ""
+        #
+        # Tie-break uses the events' own UUIDs (not parent pointers) so that
+        # concurrent siblings — two STATUS events with the same parent pointer —
+        # resolve deterministically regardless of replay order (bug 1587-4816).
+        # state["parent_status_uuid"] is advanced to the WINNING event's own UUID
+        # so subsequent forks compare against the winner's identity, not its parent.
+        incoming_uuid = event.get("uuid") or ""
         existing_uuid = state.get("parent_status_uuid") or ""
 
         # Lower lexical UUID wins.
@@ -89,7 +95,7 @@ def process_status(state: dict, event: dict, data: dict, filepath: str) -> None:
             # the losing STATUS author's env, not the ticket creator's env.
             loser_env_id = state.get("last_status_env_id") or ""
             state["status"] = data.get("status", state["status"])
-            state["parent_status_uuid"] = incoming_uuid
+            state["parent_status_uuid"] = incoming_uuid  # winner's own UUID
         else:
             # Existing chain wins; keep state as-is.
             winner_uuid = existing_uuid
