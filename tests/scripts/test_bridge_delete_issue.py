@@ -632,3 +632,28 @@ def test_sync_file_retained_after_deletion(
     assert sync_path.exists(), (
         "SYNC file must be retained after delete — prevents future re-creation"
     )
+
+
+@pytest.mark.unit
+def test_load_module_from_path_directory_raises_clear_error(
+    outbound_api: ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Passing a directory to load_module_from_path raises ImportError with a clear message.
+
+    RED marker — test_load_module_from_path_directory_raises_clear_error
+    Must FAIL before load_module_from_path checks path.is_file() explicitly.
+
+    Scenario: a test author accidentally passes a scripts/ directory instead of
+    ticket-reducer.py.  The current code raises ImportError, but the message
+    "Cannot load module from <path>" gives no hint that a directory was passed.
+    The fix adds a path.is_file() guard with a message mentioning 'directory'
+    or 'must be a file' so the footgun is immediately visible (6a5f-f25a).
+    """
+    directory_path = tmp_path  # a directory, not a .py file
+    with pytest.raises(ImportError) as exc_info:
+        outbound_api.load_module_from_path("ticket_reducer", directory_path)
+    msg = str(exc_info.value).lower()
+    assert "director" in msg or "file" in msg, (
+        f"Expected ImportError to mention 'directory' or 'file'; got: {exc_info.value!r}"
+    )
