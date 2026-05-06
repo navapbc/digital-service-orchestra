@@ -58,6 +58,17 @@ assert_eq "audit-skill-resolution.sh --verbose exits 0" "0" "$exit_c"
 assert_contains "--verbose output shows OK: per-command lines" "OK:" "$output_c"
 
 # ---------------------------------------------------------------------------
+# Section D: debug-everything command file exists (bug bf9f-d7b1)
+# The Skill tool resolves /dso:debug-everything by looking up
+# plugins/dso/commands/debug-everything.md. Absence causes "Unknown skill".
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- Section D: debug-everything command registered in plugin ---"
+
+assert_eq "plugins/dso/commands/debug-everything.md exists" "true" \
+    "$(test -f "$DSO_PLUGIN_DIR/commands/debug-everything.md" && echo true || echo false)"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 print_summary

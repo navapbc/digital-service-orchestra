@@ -252,6 +252,26 @@ Before I propose approaches: [Targeted gap question]
 
 Do NOT proceed to Phase 2 until the user confirms the understanding summary or explicitly skips the gap analysis.
 
+### Step 2.5 — Completeness Attestation
+
+Before proceeding to Phase 2, compute the attestation field:
+
+- **exhausted**: ALL gap questions are resolved — every question raised in the gap-analysis loop has a blocking_for that was answered, and no unresolved items remain. Attestation is exhausted when the gap list is empty and all blocking_for fields are satisfied.
+- **open**: One or more gap questions remain unresolved. For each unresolved question, record the question text and blocking_for: <phase>. Open attestation lists all unresolved questions with their blocking_for fields.
+
+**Blocking rule**: The Phase 1 Gate CANNOT return passed without an attestation field of value `exhausted` or `open`. A missing or absent attestation field is treated as a non-passing signal — do NOT proceed to Phase 2 until this field is computed.
+
+**META_QUESTION routing**: If any unresolved question's blocking_for resolves to brainstorm itself, emit META_QUESTION — NOT REPLAN_ESCALATE. Mid-workflow question discovery from Phase 2 and later continues to route via REPLAN_ESCALATE.
+
+Contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/phase1-gate-attestation.md`
+
+**Gate exit — PRECONDITIONS write**: On Phase 1 Gate exit (attestation: exhausted), write a PRECONDITIONS decisions_log entry via `preconditions-record.sh` with:
+- gate_name: phase1_gate
+- affects_fields: [workflow_completion_checklist]
+- data: {attestation: "exhausted", resolved_question_count: <N>}
+
+The affects_fields must include workflow_completion_checklist so the S3 tiered sampler routes this attestation to the 100% review bucket.
+
 ### Step 3 — Shape Heuristic Scan (config-gated)
 
 **Config gate**: Source `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh` and call `is_external_dep_block_enabled`. If the function returns exit 1, skip this sub-step and proceed to Phase 2.

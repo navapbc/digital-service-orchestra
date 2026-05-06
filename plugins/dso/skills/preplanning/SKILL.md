@@ -336,7 +336,7 @@ If no stories in the plan qualify for integration research, log: "No stories wit
 
 **Trigger**: Phase C completed and the story map has ≥ 3 stories. If fewer, log `"Adversarial review skipped: fewer than 3 stories (<N> stories)."` and proceed directly to Phase F. Skipped entirely under `--lightweight` (lightweight mode does not create stories).
 
-**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/preplanning/prompts/phase-e-adversarial-review.md` and follow it. The phase dispatches `dso:red-team-reviewer` (opus) for cross-story gap analysis, then `dso:blue-team-filter` (sonnet) to triage findings; applies surviving findings per a 5-row Finding Type table (`new_story`, `modify_done_definition`, `add_dependency`, `add_consideration`, `escalate_to_epic`); persists the full red/blue exchange to `$ARTIFACTS_DIR/adversarial-review-<epic-id>.json`; and emits `REPLAN_ESCALATE: brainstorm` when a finding escalates to the epic and `sprint.max_replan_cycles` has not been exhausted.
+**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/preplanning/prompts/phase-e-adversarial-review.md` and follow it. The phase dispatches `dso:red-team-reviewer` (opus) with `mode: story_review` for cross-story gap analysis, then `dso:blue-team-filter` (sonnet) to triage findings; applies surviving findings per a 5-row Finding Type table (`new_story`, `modify_done_definition`, `add_dependency`, `add_consideration`, `escalate_to_epic`); persists the full red/blue exchange to `$ARTIFACTS_DIR/adversarial-review-<epic-id>.json`; and emits `REPLAN_ESCALATE: brainstorm` when a finding escalates to the epic and `sprint.max_replan_cycles` has not been exhausted.
 
 ---
 

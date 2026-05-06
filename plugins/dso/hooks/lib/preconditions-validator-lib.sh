@@ -246,6 +246,39 @@ _dso_pv_exit_write() {
     return 0
 }
 
+# _dso_pv_validate_inference_review_config config_file
+# Validates inference_review precondition config keys from a KEY=VALUE config file.
+# Enforces floor: rate_high_stakes must be >= 100 when set.
+# Returns exit 0 if all present keys are valid; exit 1 with diagnostic to stderr on violation.
+_dso_pv_validate_inference_review_config() {
+    local config_file="$1"
+
+    if [[ ! -f "$config_file" ]]; then
+        return 0  # no config file is not an error for this validator
+    fi
+
+    local rate_high_stakes=""
+    rate_high_stakes=$(grep -E '^preconditions\.inference_review\.rate_high_stakes=' "$config_file" \
+        | tail -1 | cut -d= -f2- | tr -d '[:space:]')
+
+    if [[ -n "$rate_high_stakes" ]]; then
+        # Must be a non-negative integer
+        if ! [[ "$rate_high_stakes" =~ ^[0-9]+$ ]]; then
+            printf "[DSO PRECONDITIONS] config error: preconditions.inference_review.rate_high_stakes must be an integer, got: %s\n" \
+                "$rate_high_stakes" >&2
+            return 1
+        fi
+        # Enforce minimum floor 100
+        if [[ "$rate_high_stakes" -lt 100 ]]; then
+            printf "[DSO PRECONDITIONS] config error: preconditions.inference_review.rate_high_stakes=%s is below minimum floor 100 (high-stakes decisions must always be challenged)\n" \
+                "$rate_high_stakes" >&2
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
 # _dso_pv_write_preconditions_event tracker_dir ticket_id stage_name upstream_event_id spec_hash
 # Internal helper: writes a PRECONDITIONS event JSON file to <tracker_dir>/<ticket_id>/
 # without requiring the full git commit path (supports test isolation via TICKETS_TRACKER_DIR).
@@ -319,3 +352,18 @@ except OSError as e:
 print(out_path, end="")
 PYEOF
 }
+
+# ── Main execution block ──────────────────────────────────────────────────────
+# When this script is executed directly (not sourced), run config validation
+# against the config file passed as $1.
+# Usage: bash preconditions-validator-lib.sh <config-file>
+# Exit 0: config is valid (or no relevant keys present).
+# Exit 1: config violates a floor constraint.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    config_arg="${1:-}"
+    if [[ -z "$config_arg" ]]; then
+        printf "[DSO PRECONDITIONS] usage: %s <config-file>\n" "$(basename "$0")" >&2
+        exit 1
+    fi
+    _dso_pv_validate_inference_review_config "$config_arg"
+fi

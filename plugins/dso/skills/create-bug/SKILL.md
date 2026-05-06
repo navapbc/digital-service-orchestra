@@ -65,7 +65,11 @@ fi
 
 ## CLI_user Tag Policy
 
-Do **not** add `--tags CLI_user` by default. The tag is reserved for bugs a human user explicitly requested during an interactive session. Only the calling agent — the one with direct knowledge that the user asked for the ticket — should add it. Autonomous creations (anti-pattern scans, debug discoveries, sub-agent blockers) omit the tag.
+**When to add**: When a human user has directly and explicitly requested this bug be created in the current interactive session — e.g., "Create a bug for X", "File a ticket about Y", "Log this as a bug" — add `--tags CLI_user` to the create command. The calling agent (the one with direct knowledge of the user's request) is responsible for adding the tag; sub-agents that receive a task description but were not directly prompted by the user omit it.
+
+**When to omit**: Autonomous creations — anti-pattern scans, debug discoveries, sub-agent blockers, error-pattern triage, end-session learnings — do **not** add `--tags CLI_user` even if the broader session was initiated by the user. The tag signals user-directed intent, not user-initiated sessions.
+
+**Downstream effect**: CLI_user-tagged bugs skip the intent-search gate in `/dso:fix-bug` Phase B Step 1, since user-reported bugs have known intent. Missing the tag causes unnecessary intent-search dispatch on every user-reported bug.
 
 ## Consolidation Rule
 

@@ -10,6 +10,7 @@ Skip this phase if fewer than 3 stories exist after Phase C completes. Adversari
 
 Dispatch via `subagent_type: "dso:red-team-reviewer"` (model defaults: opus). If the named type is unregistered in this session, fall back to `subagent_type: "general-purpose"` with `model: "opus"` and `agents/red-team-reviewer.md` content read inline as the prompt. The agent definition contains the full review prompt including the 6-category taxonomy and Consumer Enumeration directive. Pass the following as task arguments:
 
+- `mode: story_review`
 - `{epic-title}`: Epic title from Phase A
 - `{epic-description}`: Epic description from Phase A
 - `{story-map}`: All stories with their done definitions, considerations, and dependencies (formatted from Phase C output)

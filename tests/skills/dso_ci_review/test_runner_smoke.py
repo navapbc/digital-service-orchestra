@@ -633,3 +633,87 @@ def test_build_agents_for_tier_falls_back_to_tier_defaults_when_config_absent(tm
         f"got {agents[0]['model']!r}. Standard tier must default to sonnet "
         f"to match local review tiers (c86e-e177 Fix C)."
     )
+
+
+def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
+    """
+    Given: all findings are synthetic (fallback_exhausted type)
+    When: runner.main() completes
+    Then: exit code is 0 (fail-open) and stderr contains WARNING about synthetic findings
+
+    Covers e840-327f: runner silently succeeds with all-synthetic findings,
+    giving no signal to operators that review content is missing.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    diff_text = "diff --git a/foo.py b/foo.py\n+added line\n"
+    output_file = tmp_path / "findings.json"
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text(diff_text)
+
+    tier_result = {
+        "selected_tier": "light",
+        "size_action": "none",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 1,
+        "blast_radius": 0,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 0,
+        "change_volume": 0,
+        "computed_total": 0,
+        "is_merge_commit": False,
+    }
+    synthetic_findings = [
+        {
+            "findings": [
+                {
+                    "type": "fallback_exhausted",
+                    "severity": "informational",
+                    "category": "error",
+                    "description": "LLM returned unparseable prose",
+                    "cited_lines": ["foo.py:1"],
+                }
+            ],
+            "scores": {},
+            "summary": "Review inconclusive: all findings are synthetic.",
+        }
+    ]
+
+    async def mock_dispatch(agents):
+        return synthetic_findings
+
+    import io
+    import contextlib
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+            },
+        ),
+        patch("dso_ci_review.runner.classify_tier", return_value=tier_result),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
+        ),
+        contextlib.redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    assert exit_code == 0, (
+        f"Expected exit code 0 (fail-open for fallback_exhausted), got {exit_code}. "
+        f"stderr: {stderr_capture.getvalue()!r}"
+    )
+    stderr_text = stderr_capture.getvalue()
+    assert "WARNING" in stderr_text and "synthetic" in stderr_text.lower(), (
+        f"Expected WARNING about synthetic findings in stderr, got: {stderr_text!r}"
+    )
