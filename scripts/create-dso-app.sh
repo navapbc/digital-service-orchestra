@@ -152,9 +152,13 @@ detect_dso_plugin_root() {
     local _mp_name="digital-service-orchestra"
     local _mp_url="https://github.com/navapbc/digital-service-orchestra"
     # Add marketplace (idempotent — exits 0 if already present)
-    claude plugin marketplace add "$_mp_url" 2>/dev/null || true
-    # Install the stable dso plugin at user scope
-    if claude plugin install "dso@${_mp_name}" --scope user 2>/dev/null; then
+    # Redirect BOTH stdout and stderr: this function is called via command
+    # substitution (resolved_plugin_root=$(detect_dso_plugin_root ...)), so any
+    # stdout from claude contaminates the captured path variable. Bug 6a05-4e22
+    # observed marketplace-progress messages prepended to the resolved path.
+    claude plugin marketplace add "$_mp_url" >/dev/null 2>&1 || true
+    # Install the stable dso plugin at user scope (same stdout-capture concern)
+    if claude plugin install "dso@${_mp_name}" --scope user >/dev/null 2>&1; then
       # Re-probe marketplace-internal layout (probe 2)
       local _mp_dir2
       local _mp_base2="${_effective_marketplace_base:-$HOME/.claude/plugins/marketplaces}"
