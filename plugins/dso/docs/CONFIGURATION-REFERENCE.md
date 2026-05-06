@@ -1878,3 +1878,27 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | **Required** | Optional — testing override only |
 | **Usage context** | `hooks/lib/pre-bash-functions.sh` |
 
+---
+
+### `preconditions.inference_review.rate_rationale`
+
+| | |
+|---|---|
+| **Description** | Percentage (0–100) of `rationale_only` decisions that trigger an inference challenge during preconditions review. A value of `0` disables inference challenges for rationale-only decisions entirely; `100` challenges every one. No floor is enforced — any integer 0–100 is valid. |
+| **Default** | `20` |
+| **Value** | Integer 0–100 |
+| **Required** | Optional |
+| **Usage context** | `${CLAUDE_PLUGIN_ROOT}/hooks/lib/preconditions-validator-lib.sh`, inference-challenge mode of `dso:red-team-reviewer` |
+
+---
+
+### `preconditions.inference_review.rate_high_stakes`
+
+| | |
+|---|---|
+| **Description** | Percentage (0–100) of `high_stakes` decisions that trigger an inference challenge during preconditions review. High-stakes decisions affect `gate_verdicts` or `workflow_completion_checklist` fields and can silently corrupt workflow state if inferred incorrectly. **Minimum floor is 100** — values below 100 are rejected by `preconditions-validator-lib.sh` at validation time with the error `minimum floor 100`. |
+| **Default** | `100` |
+| **Value** | Integer 100 only (floor-enforced) |
+| **Required** | Optional — when absent, behavior defaults to always challenge high-stakes decisions |
+| **Usage context** | `${CLAUDE_PLUGIN_ROOT}/hooks/lib/preconditions-validator-lib.sh`, inference-challenge mode of `dso:red-team-reviewer` |
+
