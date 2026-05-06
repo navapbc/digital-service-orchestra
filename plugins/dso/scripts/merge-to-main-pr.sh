@@ -1528,9 +1528,18 @@ if [[ -z "$MERGE_SHA" ]]; then
 fi
 
 # --- Step 3: verify it appears on origin/main ---
+# For squash merges, GitHub's mergeCommit.oid returns the source-branch HEAD SHA
+# rather than the new squash commit on main. Fall back to git rev-parse origin/main
+# (the actual tip after the merge) when the API SHA is absent from origin/main.
 if ! git log origin/main --pretty=%H -n 50 2>/dev/null | grep -q "^${MERGE_SHA}$"; then
-    echo "ERROR: PR reported merged but merge commit ${MERGE_SHA} not found on origin/main (PR: ${_PR_URL})" >&2
-    exit 1
+    _fallback_sha=$(git rev-parse origin/main 2>/dev/null || true)
+    if [[ "$_fallback_sha" =~ ^[0-9a-f]{40}$ ]]; then
+        echo "INFO: mergeCommit.oid (${MERGE_SHA}) not on origin/main — squash-merge fallback: using git rev-parse origin/main (${_fallback_sha})" >&2
+        MERGE_SHA="$_fallback_sha"
+    else
+        echo "ERROR: PR reported merged but merge commit ${MERGE_SHA} not found on origin/main (PR: ${_PR_URL})" >&2
+        exit 1
+    fi
 fi
 
 echo "INFO: Merge commit ${MERGE_SHA} verified on origin/main."

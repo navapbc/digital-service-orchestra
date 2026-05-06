@@ -927,7 +927,11 @@ t_pr_success_exits_zero
 # origin/main" error in stderr.
 # ---------------------------------------------------------------------------
 t_pr_success_missing_merge_sha() {
-    local _T branch _ec _branch_safe _state_file _stderr _has_error
+    # Updated for squash-merge fallback (110f-9772): when mergeCommit.oid is not on
+    # origin/main, the script now falls back to git rev-parse origin/main and succeeds
+    # rather than exiting with an error. This handles GitHub's API limitation for squash
+    # merges where mergeCommit.oid returns the source-branch HEAD instead of the squash commit.
+    local _T branch _ec _branch_safe _state_file _out
     _T="$(mktemp -d /tmp/dso-pr-success-test.XXXXXX)"
     branch="feature-missing-merge-sha"
     _branch_safe="${branch//\//-}"
@@ -938,7 +942,7 @@ t_pr_success_missing_merge_sha() {
 
     _build_pr_success_fixture "$_T" "$branch" "missing"
 
-    _stderr="$(
+    _out="$(
         cd "$_T" || exit 1
         PATH="$_T/bin:$PATH" \
         WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
@@ -946,20 +950,20 @@ t_pr_success_missing_merge_sha() {
         MERGE_STRATEGY="pr" \
         PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
         PR_THREAD_LOOP_INTERVAL=0 \
-        bash "$PR_SCRIPT" 2>&1 >/dev/null
+        bash "$PR_SCRIPT" 2>&1
     )"
     _ec=$?
 
-    local _exits_nonzero="false"
-    [[ "$_ec" -ne 0 ]] && _exits_nonzero="true"
+    local _exits_zero="false"
+    [[ "$_ec" -eq 0 ]] && _exits_zero="true"
 
-    _has_error="false"
-    if echo "$_stderr" | grep -qE "merge commit [0-9a-f]+ not found on origin/main"; then
-        _has_error="true"
+    local _fallback_used="false"
+    if echo "$_out" | grep -qiE "squash|fallback"; then
+        _fallback_used="true"
     fi
 
-    assert_eq "t_pr_success_missing_merge_sha_exits_nonzero" "true" "$_exits_nonzero"
-    assert_eq "t_pr_success_missing_merge_sha_has_error_message" "true" "$_has_error"
+    assert_eq "t_pr_success_missing_merge_sha_exits_zero" "true" "$_exits_zero"
+    assert_eq "t_pr_success_missing_merge_sha_fallback_used" "true" "$_fallback_used"
 }
 t_pr_success_missing_merge_sha
 
@@ -3607,6 +3611,151 @@ t_state_write_read_auto_merge_disabled_round_trip() {
     unset BRANCH
 }
 t_state_write_read_auto_merge_disabled_round_trip
+
+# ---------------------------------------------------------------------------
+# t_pr_squash_merge_fallback_exits_zero (RED test for 110f-9772)
+# Given: gh returns a source-branch SHA for mergeCommit (API limitation for
+#        squash merges) that is NOT on origin/main, but origin/main's HEAD IS
+#        the actual squash commit.
+# Expected: script exits 0 using git rev-parse origin/main as fallback SHA
+#           (current behavior: exits 1 with "merge commit not found" error)
+# ---------------------------------------------------------------------------
+t_pr_squash_merge_fallback_exits_zero() {
+    local _T branch _ec _branch_safe _state_file _out
+    _T="$(mktemp -d /tmp/dso-pr-squash-test.XXXXXX)"
+    branch="feature-squash-merge"
+    _branch_safe="${branch//\//-}"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    local real_git
+    real_git=$(command -v git)
+    local bin="$_T/bin"
+    mkdir -p "$bin"
+
+    # Build remote repo whose main contains the squash commit
+    local remote_dir="$_T/remote.git"
+    "$real_git" init -q --bare -b main "$remote_dir" >/dev/null 2>&1
+    local seed_dir="$_T/seed"
+    "$real_git" init -q -b main "$seed_dir" >/dev/null 2>&1
+    (
+        cd "$seed_dir" || exit 1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        echo "seed" > seed.txt
+        "$real_git" add seed.txt
+        "$real_git" commit -q -m "seed" >/dev/null
+        # Squash commit: new commit on main representing the squash merge result
+        echo "squashed-feat" > squashed.txt
+        "$real_git" add squashed.txt
+        "$real_git" commit -q -m "squash: feat (#42)" >/dev/null
+    )
+    local sha_on_main
+    sha_on_main=$("$real_git" -C "$seed_dir" rev-parse HEAD)
+
+    # Build a separate repo to generate the "source branch HEAD" SHA
+    # (what GitHub returns for mergeCommit.oid on squash merges — not on main)
+    local src_dir="$_T/src"
+    "$real_git" init -q -b feat "$src_dir" >/dev/null 2>&1
+    (
+        cd "$src_dir" || exit 1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        echo "feat" > feat.txt
+        "$real_git" add feat.txt
+        "$real_git" commit -q -m "feat: add feature" >/dev/null
+    )
+    local source_branch_sha
+    source_branch_sha=$("$real_git" -C "$src_dir" rev-parse HEAD)
+
+    "$real_git" -C "$seed_dir" remote add origin "$remote_dir"
+    "$real_git" -C "$seed_dir" push -q origin main >/dev/null 2>&1
+
+    # Working repo
+    (
+        cd "$_T" || exit 1
+        "$real_git" init -q -b main >/dev/null 2>&1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        "$real_git" remote add origin "$remote_dir"
+        echo "local" > local.txt
+        "$real_git" add local.txt
+        "$real_git" commit -q -m "local" >/dev/null
+        "$real_git" fetch -q origin "main:refs/remotes/origin/main" >/dev/null 2>&1 || \
+            "$real_git" fetch -q origin >/dev/null 2>&1 || true
+        "$real_git" checkout -q -b "$branch"
+        echo "feature" > feature.txt
+        "$real_git" add feature.txt
+        "$real_git" commit -q -m "feature work" >/dev/null
+    )
+
+    # gh shim: returns source_branch_sha for mergeCommit (not sha_on_main)
+    # This simulates GitHub's API limitation for squash merges
+    cat > "$bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+case "\$1" in
+  --version) echo "gh version 2.40.1 (2024-01-01)"; exit 0 ;;
+  pr)
+    case "\$2" in
+      list) exit 0 ;;
+      create) echo "https://github.com/x/y/pull/42"; exit 0 ;;
+      view)
+        if [[ "\$*" == *"--json mergeCommit"* ]]; then
+          echo "$source_branch_sha"
+          exit 0
+        fi
+        if [[ "\$*" == *"--json state"* ]]; then
+          echo "MERGED"
+          exit 0
+        fi
+        echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
+        exit 0 ;;
+      checks) echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
+      merge) exit 0 ;;
+      *) exit 0 ;;
+    esac ;;
+  workflow) exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$bin/gh"
+
+    cat > "$bin/git" <<GIT_SHIM
+#!/usr/bin/env bash
+if [[ "\$1" == "push" ]]; then exit 0; fi
+exec "$real_git" "\$@"
+GIT_SHIM
+    chmod +x "$bin/git"
+
+    cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    _out="$(
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
+        bash "$PR_SCRIPT" 2>&1
+    )"
+    _ec=$?
+
+    local _exits_zero="false"
+    [[ "$_ec" -eq 0 ]] && _exits_zero="true"
+    local _fallback_logged="false"
+    echo "$_out" | grep -qiE "squash|fallback" && _fallback_logged="true"
+
+    assert_eq "t_pr_squash_merge_fallback_exits_zero:exits_zero" "true" "$_exits_zero"
+    assert_eq "t_pr_squash_merge_fallback_exits_zero:fallback_logged" "true" "$_fallback_logged"
+}
+t_pr_squash_merge_fallback_exits_zero
 
 # ---------------------------------------------------------------------------
 print_summary
