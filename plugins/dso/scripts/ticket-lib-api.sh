@@ -24,6 +24,30 @@ _TICKETLIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # can branch without repeated command -v calls.
 command -v flock >/dev/null 2>&1 && _ticketlib_has_flock=1 || _ticketlib_has_flock=0
 
+# ── Short ID resolver ────────────────────────────────────────────────────────
+# _ticketlib_resolve_short_id <input> <tracker_dir>
+# If <input> is an 8-hex short ID (xxxx-xxxx), scan <tracker_dir> for a
+# unique matching full 16-hex directory and echo it. Otherwise echo <input>.
+# Callers must reassign: ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+_ticketlib_resolve_short_id() {
+    local _input="$1" _tracker="$2"
+    if [[ "$_input" =~ ^[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+        local _matches=() _entry _base
+        while IFS= read -r -d '' _entry; do
+            _base="$(basename "$_entry")"
+            if [[ "${_base:0:9}" == "$_input" ]] && \
+               [[ "$_base" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+                _matches+=("$_base")
+            fi
+        done < <(find "$_tracker" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null)
+        if [ "${#_matches[@]}" -eq 1 ]; then
+            echo "${_matches[0]}"
+            return 0
+        fi
+    fi
+    echo "$_input"
+}
+
 # ── Dispatch helper ──────────────────────────────────────────────────────────
 # Wraps each call in a subshell so per-call set -e / traps / var mutations
 # cannot leak back into the caller's shell state.
@@ -99,6 +123,8 @@ ticket_show() {
             _usage
             return 1
         fi
+
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: Ticket '$ticket_id' not found" >&2
@@ -921,6 +947,8 @@ ticket_comment() {
             return 1
         fi
 
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+
         # Ghost check: ticket directory must exist with CREATE or SNAPSHOT event.
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: ticket '$ticket_id' does not exist" >&2
@@ -1042,6 +1070,8 @@ ticket_set_file_impact() {
             return 1
         fi
 
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+
         # Ghost check: ticket directory must exist with CREATE or SNAPSHOT event.
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: ticket '$ticket_id' does not exist" >&2
@@ -1139,6 +1169,8 @@ ticket_get_file_impact() {
             echo "Error: ticket_id must be non-empty" >&2
             return 1
         fi
+
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "[]"
@@ -1459,6 +1491,8 @@ ticket_edit() {
             return 1
         fi
 
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: ticket '$ticket_id' does not exist" >&2
             return 1
@@ -1684,6 +1718,8 @@ ticket_archive() {
             return 1
         fi
 
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+
         # Ticket directory must exist.
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: ticket '$ticket_id' does not exist" >&2
@@ -1870,6 +1906,8 @@ ticket_delete() {
             echo "Usage: ticket delete <ticket_id> --user-approved" >&2
             return 1
         fi
+
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: ticket '$ticket_id' does not exist" >&2

@@ -454,4 +454,34 @@ test_ticket_transition_via_library() {
 }
 test_ticket_transition_via_library
 
+# ── Test 12: short ID (8-hex) resolves to full ticket via show ────────────────
+# RED marker — test_ticket_show_short_id_resolves_to_full_ticket
+# Must FAIL before _ticketlib_resolve_short_id is added to ticket_show.
+echo "Test 12: ticket show accepts 8-hex short ID and resolves to full ticket"
+test_ticket_show_short_id_resolves_to_full_ticket() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local full_id
+    full_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "short-id test ticket" 2>/dev/null | tail -1) || true
+
+    if [ -z "$full_id" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    # Derive the 8-hex short ID (first 9 chars: xxxx-xxxx)
+    local short_id="${full_id:0:9}"
+
+    local show_output
+    show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        bash "$TICKET_SCRIPT" show "$short_id" 2>/dev/null) || true
+
+    local got_id
+    got_id=$(echo "$show_output" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ticket_id',''))" 2>/dev/null || echo "")
+
+    assert_eq "short ID resolves to full ticket ID" "$full_id" "$got_id"
+}
+test_ticket_show_short_id_resolves_to_full_ticket
+
 print_summary
