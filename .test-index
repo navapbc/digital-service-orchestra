@@ -388,5 +388,5 @@ plugins/dso/docs/contracts/meta-question-signal.md:tests/docs/test-inference-sig
 plugins/dso/docs/contracts/inference-incident-schema.md:tests/docs/test-inference-signal-contracts.sh
 plugins/dso/agents/inference-incident-curator.md:tests/scripts/test-inference-incident-curator-agent.sh
 
-tests/fixtures/inference-incidents/incidents.jsonl:tests/docs/test-inference-incident-corpus.sh [test_corpus_file_has_minimum_incidents]
-tests/fixtures/inference-incidents/holdout.txt:tests/docs/test-inference-incident-corpus.sh [test_holdout_file_exists]
+tests/fixtures/inference-incidents/incidents.jsonl:tests/docs/test-inference-incident-corpus.sh
+tests/fixtures/inference-incidents/holdout.txt:tests/docs/test-inference-incident-corpus.sh

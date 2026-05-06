@@ -18,7 +18,7 @@ test_corpus_ticket_ids_match_format() {
   if test -f "$f"; then actual_exists="present"; else actual_exists="missing"; fi
   assert_eq "incidents.jsonl exists" "present" "$actual_exists"
   local invalid
-  invalid=$(jq -r '.[].ticket_id' "$f" 2>/dev/null | grep -cv '^[a-z0-9]\{4\}-[a-z0-9]\{4\}$' || echo 0)
+  invalid=$(jq -rs '.[].ticket_id' "$f" 2>/dev/null | { grep -cv '^[a-z0-9]\{4\}-[a-z0-9]\{4\}$' || true; })
   assert_eq "all ticket_ids match 4-4 hex format" "0" "$invalid"
 }
 
@@ -35,8 +35,10 @@ test_holdout_entries_match_corpus_subset() {
   assert_eq "both files exist" "present" "$actual"
   # Pre-extract corpus ids once to avoid repeated jq passes
   local corpus_ids
-  corpus_ids=$(jq -r '.[].ticket_id' "$corpus" 2>/dev/null || echo "")
+  corpus_ids=$(jq -rs '.[].ticket_id' "$corpus" 2>/dev/null || echo "")
   while IFS= read -r tid; do
+    [[ "$tid" =~ ^# ]] && continue
+    [[ -z "$tid" ]] && continue
     local found
     found=$(printf '%s\n' "$corpus_ids" | grep -c "^${tid}$" || echo 0)
     assert_eq "holdout $tid in corpus" "1" "$found"
