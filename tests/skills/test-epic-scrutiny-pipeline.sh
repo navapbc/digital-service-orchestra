@@ -189,6 +189,34 @@ test_pipeline_part_c_output_format() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 10: Part B contains Inference-Signal Scan subsection
+# (RED test — fails until the subsection is added to epic-scrutiny-pipeline.md)
+# ---------------------------------------------------------------------------
+test_pipeline_part_b_inference_signal_scan() {
+  echo ""
+  echo "=== test_pipeline_part_b_inference_signal_scan ==="
+
+  if [ ! -f "$PIPELINE_MD" ]; then
+    fail "Shared pipeline file missing — cannot check for Inference-Signal Scan subsection"
+    return
+  fi
+
+  # Assertion 1: Part B contains an '#### Inference-Signal Scan' heading
+  if grep -q 'Inference-Signal Scan\|inference.signal.scan\|inference signal scan' "$PIPELINE_MD"; then
+    pass "epic-scrutiny-pipeline.md contains Inference-Signal Scan subsection"
+  else
+    fail "epic-scrutiny-pipeline.md missing Inference-Signal Scan subsection in Part B"
+  fi
+
+  # Assertion 2: Inference-Signal Scan references inferred-source-marker or <<inferred: marker
+  if grep -q 'inferred-source-marker\|<<inferred:' "$PIPELINE_MD"; then
+    pass "epic-scrutiny-pipeline.md Inference-Signal Scan references inferred-source-marker or <<inferred: marker"
+  else
+    fail "epic-scrutiny-pipeline.md Inference-Signal Scan missing reference to inferred-source-marker or <<inferred: marker"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 test_shared_pipeline_file_exists
@@ -200,6 +228,7 @@ test_pipeline_contains_scenario_analysis
 test_pipeline_contains_fidelity_review_with_feasibility
 test_pipeline_contains_part_c_section
 test_pipeline_part_c_output_format
+test_pipeline_part_b_inference_signal_scan
 
 # ---------------------------------------------------------------------------
 # Summary
