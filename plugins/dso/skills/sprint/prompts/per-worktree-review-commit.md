@@ -19,7 +19,19 @@ fi
 
 **CWD constraint**: The shell CWD resets between Bash calls and does NOT propagate to Agent tool dispatches. Every Bash call that must run in the worktree's git context must be prefixed with `cd $WORKTREE_PATH &&`. Sub-agents dispatched via the Agent tool always start in the orchestrator's primary CWD — this cannot be changed.
 
-**Step 2 — Review in worktree**: The orchestrator runs all CWD-sensitive REVIEW-WORKFLOW.md steps as its own Bash calls (prefixed with `cd $WORKTREE_PATH &&`). Only the code analysis sub-agent is dispatched via Agent tool.
+**Step 2 — Review in worktree**: First, check `enforcement.strategy` — when CI enforces review, skip the local review pipeline entirely:
+
+```bash
+ENFORCEMENT=$(cd "$WORKTREE_PATH" && bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" enforcement.strategy 2>/dev/null || echo "local")
+if [[ "$ENFORCEMENT" == "ci" ]]; then
+    echo "Skipping worktree review: enforcement.strategy=ci — review enforced by CI on PR merge"
+    # Proceed directly to Step 3 (Record test status). Do NOT run classifier, tier reviewer, or record-review.sh.
+fi
+```
+
+When `enforcement.strategy=ci`, skip all Step 2 sub-steps (classifier, reviewer dispatch, record-review) and proceed directly to Step 3. The pre-commit hooks also skip enforcement per the CLAUDE.md `enforcement.strategy=ci` exception — the commit will not be blocked by the review gate. When `enforcement.strategy=local`, `both`, or absent, continue with the full review pipeline below.
+
+The orchestrator runs all CWD-sensitive REVIEW-WORKFLOW.md steps as its own Bash calls (prefixed with `cd $WORKTREE_PATH &&`). Only the code analysis sub-agent is dispatched via Agent tool.
 
 **Orchestrator-run steps** (each a separate Bash call with `cd $WORKTREE_PATH &&`):
 - REVIEW-WORKFLOW.md Step 0: Clear stale review artifacts in `$WORKTREE_ARTIFACTS`

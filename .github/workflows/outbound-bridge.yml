@@ -15,7 +15,14 @@ on:
   # storms when both an explicit dispatch and a cron tick land together.
   schedule:
     - cron: '*/30 * * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: 'Process all tickets (not just last commit). Use once to sync historical tickets.'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 concurrency:
   group: jira-bridge
@@ -137,7 +144,11 @@ jobs:
       - name: Run outbound bridge
         id: run-bridge
         run: |
-          python3 plugins/dso/scripts/bridge-outbound.py
+          BACKFILL_FLAG=""
+          if [ "${{ inputs.backfill }}" = "true" ]; then
+            BACKFILL_FLAG="--backfill"
+          fi
+          python3 plugins/dso/scripts/bridge-outbound.py $BACKFILL_FLAG
         env:
           JIRA_URL: ${{ vars.JIRA_URL }}
           JIRA_USER: ${{ vars.JIRA_USER }}

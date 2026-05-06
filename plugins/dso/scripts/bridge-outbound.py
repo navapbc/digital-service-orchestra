@@ -147,8 +147,14 @@ def process_events(
     git_diff_output: str | None = None,
     bridge_env_id: str | None = None,
     run_id: str = "",
+    backfill: bool = False,
 ) -> list[dict[str, Any]]:
-    """Main entry point for the outbound bridge."""
+    """Main entry point for the outbound bridge.
+
+    When ``backfill=True``, all JSON event files in *tickets_dir* are
+    processed instead of only those added in the most recent git commit.
+    Use this once to sync historical tickets that predate the bridge setup.
+    """
     tickets_path = Path(tickets_dir)
 
     if acli_client is None:
@@ -156,38 +162,51 @@ def process_events(
         acli_client = _load_module_from_path("acli_integration", acli_path)
 
     if git_diff_output is None:
-        tracker_str = str(tickets_path)
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                tracker_str,
-                "diff",
-                "HEAD~1",
-                "HEAD",
-                "--diff-filter=A",
-                "--name-only",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            tracker_dir = tickets_path
-            if tracker_dir.is_dir():
-                # Use absolute paths so read_event_file can resolve them
-                # regardless of the caller's CWD.
+        if backfill:
+            # Backfill mode: scan every event file in the tracker directory so
+            # historical tickets (created before the bridge was wired up) are
+            # processed.  has_existing_sync() inside handle_create_event
+            # prevents re-creating Jira issues for tickets that already have a
+            # SYNC event, making this operation idempotent.
+            if tickets_path.is_dir():
                 git_diff_output = "\n".join(
-                    str(p.resolve()) for p in tracker_dir.rglob("*.json")
+                    str(p.resolve()) for p in tickets_path.rglob("*.json")
                 )
             else:
                 git_diff_output = ""
         else:
-            git_diff_output = "\n".join(
-                f".tickets-tracker/{line}"  # tickets-boundary-ok: bridge constructs paths to events
-                for line in result.stdout.strip().split("\n")
-                if line.strip()
+            tracker_str = str(tickets_path)
+            result = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    tracker_str,
+                    "diff",
+                    "HEAD~1",
+                    "HEAD",
+                    "--diff-filter=A",
+                    "--name-only",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
             )
+            if result.returncode != 0:
+                tracker_dir = tickets_path
+                if tracker_dir.is_dir():
+                    # Use absolute paths so read_event_file can resolve them
+                    # regardless of the caller's CWD.
+                    git_diff_output = "\n".join(
+                        str(p.resolve()) for p in tracker_dir.rglob("*.json")
+                    )
+                else:
+                    git_diff_output = ""
+            else:
+                git_diff_output = "\n".join(
+                    f".tickets-tracker/{line}"  # tickets-boundary-ok: bridge constructs paths to events
+                    for line in result.stdout.strip().split("\n")
+                    if line.strip()
+                )
 
     if bridge_env_id is None:
         env_id_path = tickets_path / ".env-id"
@@ -208,7 +227,25 @@ def process_events(
 
 
 if __name__ == "__main__":
+    import argparse
+
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    parser = argparse.ArgumentParser(
+        description="Outbound bridge: push tickets to Jira"
+    )
+    parser.add_argument(
+        "--backfill",
+        action="store_true",
+        default=False,
+        help=(
+            "Scan all event files in the tracker directory instead of only those "
+            "added in the most recent git commit. Use once to sync historical tickets "
+            "that predate the bridge setup. Operation is idempotent — tickets with an "
+            "existing SYNC event are skipped automatically."
+        ),
+    )
+    args = parser.parse_args()
 
     bridge_env_id = os.environ.get("BRIDGE_ENV_ID", "")
     run_id = os.environ.get("GH_RUN_ID", "")
@@ -228,12 +265,16 @@ if __name__ == "__main__":
         jira_project=jira_project,
     )
 
+    if args.backfill:
+        logger.info("Backfill mode: scanning all tickets in tracker directory")
+
     tickets_dir = ".tickets-tracker"  # tickets-boundary-ok: bridge root dir
     syncs = process_events(
         tickets_dir=tickets_dir,
         acli_client=acli_client,
         bridge_env_id=bridge_env_id,
         run_id=run_id,
+        backfill=args.backfill,
     )
 
     logger.info("Outbound bridge complete: %d SYNC events written", len(syncs))
