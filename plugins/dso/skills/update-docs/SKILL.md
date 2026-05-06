@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: Invoke the doc-writer agent to update project documentation based on recent changes. Scoped to a commit range (default main...HEAD). Use after an epic completes or when documentation is out of sync.
+description: Use after an epic completes, after a substantive merge, when documentation is out of sync with the code, or when the user asks to update docs / regenerate the README / refresh stale documentation. Invokes the doc-writer agent to update project documentation based on the recent changes scoped to a commit range (default main...HEAD). Trigger phrases include 'update the docs', 'docs are outdated', 'stale README', 'regenerate docs', 'doc generation', 'refresh documentation', 'sync the docs after this epic'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---

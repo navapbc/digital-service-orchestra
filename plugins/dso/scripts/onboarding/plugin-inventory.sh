@@ -3,7 +3,7 @@ set -uo pipefail
 # plugin-inventory.sh
 # Emits a structured inventory of plugin-provided enforcement components
 # (hooks, scripts, skills) as JSON. Replaces ad-hoc ls/cat bash blocks
-# inside /dso:architect-foundation Phase 3 Step 0.
+# inside /dso:architect-foundation Phase D Step 1.
 #
 # Usage: plugin-inventory.sh [--format json|table]
 #   --format json   (default) — JSON object suitable for agent parsing

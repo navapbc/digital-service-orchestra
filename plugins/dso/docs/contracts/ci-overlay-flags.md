@@ -11,7 +11,7 @@ This document defines the format of `overlay-flags.env`, written by `ci-llm-revi
 
 ---
 
-**Written by**: `ci-llm-review-runner.sh`  
+**Written by**: `dso_ci_review.runner` (`ci-llm-review-runner.sh` is a shim in S3+)  
 **Read by**: overlay dispatch step (Story 3 — security/performance/test-quality overlay runners)  
 **Location**: `$WORKFLOW_PLUGIN_ARTIFACTS_DIR/overlay-flags.env`
 

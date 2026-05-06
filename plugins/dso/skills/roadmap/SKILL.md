@@ -1,6 +1,6 @@
 ---
 name: roadmap
-description: Use when the user wants to transform a high-level product vision, PRD, or project idea into a prioritized roadmap of epics, or when they want to brainstorm and architect project milestones
+description: Use when the user wants to transform a high-level product vision, PRD, or project idea into a prioritized roadmap of epics, or to plan an initial milestone breakdown for a new project. Runs a 6-phase pipeline that expands the vision via "tell me more" sessions, drafts epic-level milestones with success criteria, scores each epic on a 1–5 value/effort scale, identifies critical-enabler dependencies, places each epic on a quick-wins/strategic-bets/fill-ins/avoid quadrant, runs a lightweight pre-mortem on top-priority epics, and writes the prioritized epics with P0–P4 priorities and dependency links to the ticket tracker. Trigger phrases include 'roadmap this', 'plan the project', 'build a roadmap', 'turn this PRD into epics', 'prioritize the milestones', 'what should we build first'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -167,13 +167,7 @@ Impact vs Effort Matrix:
   Avoid/Later     (Low Impact, High Effort)  → Defer or eliminate
 ```
 
-Present each Milestone as a "Post-it Note" in the appropriate quadrant:
-- **Quick Wins** (High Impact, Low Effort): Top priority
-- **Strategic Bets** (High Impact, High Effort): Important but plan carefully
-- **Fill-ins** (Low Impact, Low Effort): Do if time permits
-- **Avoid/Later** (Low Impact, High Effort): Defer or eliminate
-
-Example output:
+Present each Milestone as a "Post-it Note" in the appropriate quadrant per the matrix above. Example output:
 ```
 QUICK WINS (High Impact, Low Effort):
   - Epic: User Profile Page (Value: 4, Effort: 2) → P1
