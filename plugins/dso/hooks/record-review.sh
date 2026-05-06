@@ -240,7 +240,7 @@ fi
 
 # Verify --reviewer-hash is provided (mandatory; from sidecar or flag)
 if [[ -z "$REVIEWER_HASH" ]]; then
-    echo "ERROR: reviewer hash unavailable — neither sidecar (${SIDECAR_HASH_FILE}) nor --reviewer-hash flag was provided" >&2
+    echo "ERROR: --reviewer-hash is required — neither sidecar (${SIDECAR_HASH_FILE}) nor --reviewer-hash flag was provided" >&2
     echo "" >&2
     echo "Usage: record-review.sh --reviewer-hash HASH [--expected-hash HASH]" >&2
     echo "" >&2
