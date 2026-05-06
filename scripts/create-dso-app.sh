@@ -242,6 +242,30 @@ detect_dso_plugin_root() {
 check_homebrew_deps() {
   # Auto-install Homebrew if missing
   if ! command -v brew >/dev/null 2>&1; then
+    # Pre-flight: refuse auto-install when an explicit non-interactive env
+    # var is set. The official Homebrew installer requires sudo access at
+    # runtime and cannot prompt for a password under such shells; without
+    # this gate the script would invoke the installer, get a confusing
+    # 'Need sudo access' error mid-run, and bail late. (Bug a877-7639.)
+    # Note: we do NOT block on missing TTY alone — many normal CI flows have
+    # no TTY but DO want auto-install via NONINTERACTIVE=1 sudo wrapping.
+    local _noninteractive_signal=""
+    if [ -n "${SNOWINTERACTIVE:-}" ]; then
+      _noninteractive_signal="SNOWINTERACTIVE"
+    elif [ "${DSO_REFUSE_BREW_AUTO_INSTALL:-}" = "1" ]; then
+      _noninteractive_signal="DSO_REFUSE_BREW_AUTO_INSTALL=1 (explicit opt-out)"
+    fi
+    if [ -n "$_noninteractive_signal" ]; then
+      echo "ERROR: Homebrew is required but not installed, and auto-install is refused ($_noninteractive_signal)." >&2
+      echo "" >&2
+      echo "  The official Homebrew installer requires sudo access at runtime and cannot prompt non-interactively." >&2
+      echo "  Install Homebrew manually before re-running this script:" >&2
+      echo "    /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"" >&2
+      echo "" >&2
+      echo "  Then re-run this installer in the same shell (or open a new shell to pick up Homebrew on PATH)." >&2
+      exit 1
+    fi
+
     echo "Homebrew not found — installing via official installer (may prompt for sudo password)..."
     if ! command -v curl >/dev/null 2>&1; then
       echo "curl is required to fetch the Homebrew installer but is not available."
