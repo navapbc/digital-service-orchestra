@@ -1074,4 +1074,35 @@ assert_eq \
     "0" \
     "$_AVC_ABSENT_EXIT"
 
+# ============================================================
+# review-protocol: status="pass" / status="fail" rejected (3e37-80ba)
+# ============================================================
+# Sub-agents have drifted into emitting `"status": "pass"` (or "fail") on
+# review-protocol output. The schema only allows "reviewed" or "not_applicable";
+# pass/fail is computed by the caller from dimension scores. The validator
+# must reject the out-of-schema status with a specific diagnostic so the
+# caller can re-dispatch instead of silently misinterpreting the verdict.
+INVALID_STATUS_PASS_FILE=$(write_fixture "rp-status-pass.json" '{
+  "subject": "Implementation Plan for: story X",
+  "reviews": [
+    {
+      "perspective": "Dependencies",
+      "status": "pass",
+      "dimensions": {"dag_validity": 5, "no_coupling": 3},
+      "findings": []
+    }
+  ],
+  "conflicts": []
+}')
+INVALID_STATUS_PASS_EXIT=$(run_script review-protocol "$INVALID_STATUS_PASS_FILE")
+assert_ne \
+    "test_review_protocol_status_pass_rejected: status='pass' exits non-zero" \
+    "0" \
+    "$INVALID_STATUS_PASS_EXIT"
+INVALID_STATUS_PASS_OUT=$(bash "$SCRIPT" review-protocol "$INVALID_STATUS_PASS_FILE" 2>&1 || true)
+assert_contains \
+    "test_review_protocol_status_pass_rejected: cites valid status values" \
+    "must be 'reviewed' or 'not_applicable'" \
+    "$INVALID_STATUS_PASS_OUT"
+
 print_summary

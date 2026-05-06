@@ -133,6 +133,15 @@ After the sub-agent returns:
 3. If `SCHEMA_VALID: no` — retry the sub-agent once with an explicit format correction prompt; do not proceed with invalid output
 4. If `SCHEMA_VALID: yes` — emit the review result event, then proceed to Stage 3
 
+### Pass/Fail Determination (caller computes — never trust `status`)
+
+The sub-agent's per-review `status` field is `"reviewed"` or `"not_applicable"` per [REVIEW-SCHEMA.md](../REVIEW-SCHEMA.md) — it does NOT communicate pass/fail. **You (the caller running this protocol) MUST compute pass/fail from dimension scores, not from `status`:**
+
+- **PASS** = every numeric `dimensions.<key>` across every reviewed perspective is `>= pass_threshold` (`null` is N/A and does not count against pass)
+- **FAIL** = any single `dimensions.<key>` is a number `< pass_threshold`
+
+If a sub-agent emits an out-of-schema value such as `"status": "pass"` or `"status": "fail"`, that is a schema violation — the validator (Stage 2 step 2) rejects it with `SCHEMA_VALID: no`. Even if a malformed `status` value somehow slips through, **ignore it**. Trust the dimension scores. (Bug 3e37-80ba flagged exactly this drift: an agent returned `status: "pass"` alongside a dimension score of 3 with `pass_threshold=5` — the dimension score is authoritative; the `status` field is not a pass/fail oracle.)
+
 ### Emit Review Result (post-Stage 2)
 
 After Stage 2 completes with valid schema output, emit a review event so downstream observability can track review outcomes:

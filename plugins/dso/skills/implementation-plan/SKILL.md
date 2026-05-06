@@ -830,6 +830,10 @@ Report:
 
 Review the complete task list for design gaps that compound during sub-agent execution.
 
+<HARD-GATE>
+**Anti-rationalization prohibition.** The TRIVIAL Skip Gate (below) is the ONLY authorized bypass for gap analysis. Skipping for any other reason — "session efficiency", "context pressure", "the plan reviewer already validated coverage", "the story is small enough", "we're running long", "I already see the gaps" — is a prohibited rationalization. The plan reviewer in Step 4 evaluates the plan's structural quality (task design, TDD, safety, dependencies, completeness); it does NOT substitute for gap analysis, which is specifically scoped to design gaps that compound during sub-agent execution after tasks are written. Bug 5749-127d documented exactly this drift: a COMPLEX story (provider chain + LiteLLM fallback, 6 behavioral scenarios, asyncio + atomic-write semantics) had gap analysis skipped with "session efficiency" rationale. The more COMPLEX the story, the more session pressure has accumulated to skip — and the higher the cost of doing so. If you find yourself reasoning toward a non-TRIVIAL skip, stop and run the gap-analysis sub-agent.
+</HARD-GATE>
+
 ### TRIVIAL Skip Gate
 
 Check the story's complexity classification. When invoked from `/dso:sprint`, the parent story may carry a `COMPLEXITY_CLASSIFICATION: COMPLEX` comment (written by sprint's evaluator). Check via `.claude/scripts/dso ticket show <story-id>` and grep for `COMPLEXITY_CLASSIFICATION`:

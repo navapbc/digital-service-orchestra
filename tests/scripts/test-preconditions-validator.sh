@@ -253,4 +253,51 @@ test_validator_auto_locate_missing() {
 }
 test_validator_auto_locate_missing
 
+# ── Test 6: pre-manifest tag fallback (b40a-3a9d) ────────────────────────────
+# When no PRECONDITIONS event exists for the stage but the ticket carries the
+# canonical `<stage>:complete` tag, validator must exit 0 and emit a fallback
+# notice. Stage→tag convention: `brainstorm_complete` → `brainstorm:complete`.
+echo "Test 6: validator exits 0 with pre-manifest tag fallback when event missing but :complete tag is present"
+test_validator_pre_manifest_tag_fallback() {
+    if [ ! -f "$VALIDATOR_SCRIPT" ]; then
+        assert_eq "preconditions-validator.sh exists for tag-fallback test" "exists" "missing"
+        return
+    fi
+
+    local tmp
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+
+    # Mock `.claude/scripts/dso` so the validator's tag lookup returns a tagged
+    # ticket. Validator path: $REPO_ROOT/.claude/scripts/dso ticket show <id>.
+    # Override $REPO_ROOT itself by stubbing a fresh repo with a mock script.
+    local mock_root="$tmp/mock-repo"
+    mkdir -p "$mock_root/.claude/scripts" "$mock_root/.tickets-tracker/epic-tagonly1"
+    cat > "$mock_root/.claude/scripts/dso" <<'MOCK'
+#!/usr/bin/env bash
+# Mock dso script: returns ticket JSON with brainstorm:complete tag for the
+# tag-fallback test. All other invocations exit 1.
+if [ "${1:-}" = "ticket" ] && [ "${2:-}" = "show" ] && [ "${3:-}" = "epic-tagonly1" ]; then
+    echo '{"ticket_id":"epic-tagonly1","tags":["brainstorm:complete"]}'
+    exit 0
+fi
+exit 1
+MOCK
+    chmod +x "$mock_root/.claude/scripts/dso"
+    git -C "$mock_root" init -q 2>/dev/null
+
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$mock_root" && TICKETS_TRACKER_DIR="$mock_root/.tickets-tracker" \
+        bash "$VALIDATOR_SCRIPT" "epic-tagonly1" "brainstorm_complete" 2>&1) || exit_code=$?
+
+    assert_eq "tag-fallback exits 0 when brainstorm:complete tag present and event absent" "0" "$exit_code"
+    if echo "$stderr_out" | grep -q "pre-manifest tag fallback"; then
+        (( ++PASS )); echo "tag-fallback emits pre-manifest notice ... PASS"
+    else
+        (( ++FAIL )); printf "FAIL: tag-fallback notice missing\n  stderr: %s\n" "$stderr_out" >&2
+    fi
+}
+test_validator_pre_manifest_tag_fallback
+
 print_summary
