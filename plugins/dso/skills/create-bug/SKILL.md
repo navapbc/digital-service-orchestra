@@ -1,6 +1,6 @@
 ---
 name: create-bug
-description: Guidance for creating well-formatted, evidence-based bug reports using the shared bug report template and ticket CLI.
+description: Use when an agent or user needs to file a bug, report an issue, create a defect ticket, or capture a sub-agent blocker. Creates well-formatted, evidence-based bug tickets by collecting reproduction steps, expected vs. actual behavior, environment details, and logs, then writing the ticket via the ticket CLI using the shared bug report template. Trigger phrases include 'file a bug', 'report an issue', 'create a bug', 'open a ticket', 'log a defect', 'submit a bug report'.
 user-invocable: false
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -71,13 +71,6 @@ Do **not** add `--tags CLI_user` by default. The tag is reserved for bugs a huma
 
 When multiple Priority 4 (nitpick) findings share the same Component, consolidate into a single cleanup ticket. List each item as a bullet under §2 Actual Behavior and set Scenario Type to "Deferred Review Nitpick".
 
-## Using This Skill
+## Common callers
 
-This is guidance, not a behavioral workflow. Agents:
-
-1. Read this skill when they need to create a bug ticket.
-2. Consult `skills/shared/prompts/bug-report-template.md` for the full template.
-3. Use `.claude/scripts/dso ticket create bug` (the shim) — never call plugin scripts directly.
-4. Follow the Zero Inference Rule — report observations, not theories.
-
-Common callers: `/dso:fix-bug` (Phase G Step 1 anti-pattern scan), `/dso:debug-everything` (diagnostic discoveries), `/dso:sprint` (Phase F task failures), `/dso:end-session` (learnings triage), and any agent encountering unexpected behavior.
+`/dso:fix-bug` (Phase G Step 1 anti-pattern scan), `/dso:debug-everything` (diagnostic discoveries), `/dso:sprint` (Phase F task failures), `/dso:end-session` (learnings triage), and any agent encountering unexpected behavior.

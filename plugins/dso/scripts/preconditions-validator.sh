@@ -84,6 +84,22 @@ else
         )
     fi
     if [ -z "$target_file" ]; then
+        # Pre-manifest tag fallback (bug b40a-3a9d): epics that completed a
+        # stage before the PRECONDITIONS event-record system was introduced
+        # carry the canonical `<stage>:complete` tag. Treat that tag as
+        # sufficient evidence so legacy epics aren't permanently blocked.
+        # Stage → tag convention: `<x>_complete` → `<x>:complete`.
+        _expected_tag="${stage_arg%_complete}:complete"
+        if [ -n "${_REPO_ROOT:-}" ] && [ "$_expected_tag" != "$stage_arg" ]; then
+            _ticket_tags=$("$_REPO_ROOT/.claude/scripts/dso" ticket show "$ticket_id_arg" 2>/dev/null \
+                | python3 -c "import json,sys; d=json.load(sys.stdin); print(' '.join(d.get('tags',[])))" 2>/dev/null || echo "")
+            for _t in $_ticket_tags; do
+                if [ "$_t" = "$_expected_tag" ]; then
+                    echo "preconditions: pre-manifest tag fallback — ${_expected_tag} tag present on ${ticket_id_arg}; treating stage ${stage_arg} as satisfied" >&2
+                    exit 0
+                fi
+            done
+        fi
         echo "Error: no PRECONDITIONS event found for ticket=${ticket_id_arg} stage=${stage_arg}" >&2
         exit 2
     fi

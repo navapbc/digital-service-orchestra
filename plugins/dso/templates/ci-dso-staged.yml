@@ -114,6 +114,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install litellm
+        run: pip install litellm==1.83.7
+
       - name: Run LLM review
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -26,6 +26,9 @@ _EVENT_FILE_ABS_RE = re.compile(r"^.+/([^/]+)/(\d+)-([0-9a-f-]+)-([A-Z][A-Z_]*)\
 
 def load_module_from_path(name: str, path: Path) -> ModuleType:
     """Load a Python module from a filesystem path via importlib."""
+    if not path.is_file():
+        msg = f"reducer_path must be a .py file, not a directory: {path}"
+        raise ImportError(msg)
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
         msg = f"Cannot load module from {path}"

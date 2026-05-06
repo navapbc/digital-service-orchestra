@@ -1,6 +1,6 @@
 ---
 name: end-session
-description: End Session - Worktree Cleanup and Task Summary
+description: Use when wrapping up a worktree session — closing tasks, finishing work, or merging the branch back to main. Closes completed tickets, sweeps orphaned epics, extracts technical learnings, files bug tickets for unfixed failures, commits remaining changes, syncs the tickets branch, merges to main via merge-to-main.sh, verifies the worktree is merged and clean for claude-safe auto-removal, and prints a task summary. Trigger phrases include 'end session', 'wrap up', 'finish', 'done for now', 'close out', 'merge to main and clean up', 'session complete', 'wrap up this branch'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -123,9 +123,9 @@ GIT_DIFF=$(git diff main..HEAD --stat 2>/dev/null; git diff --stat 2>/dev/null)
 ```
 
 Review the diff output and conversation history for signal. Identify:
-- **Discoveries**: Non-obvious findings about how the system behaves (e.g., "The pipeline skips gap_analysis when document has no tables")
-- **Design decisions**: Choices made and why (e.g., "Used sentinel value max_tokens=0 instead of None to distinguish 'unset' from 'default'")
-- **Gotchas**: Edge cases, footguns, or surprising behavior that future sessions should know (e.g., "SQLAlchemy flushes on query, so tests must commit before asserting DB state")
+- **Discoveries**: non-obvious findings about how the system behaves.
+- **Design decisions**: choices made and why.
+- **Gotchas**: edge cases, footguns, or surprising behavior future sessions should know.
 
 **Store the results in a named section** called `LEARNINGS_FROM_STEP_6` for use in Step 14. If nothing substantive is found, store an empty list.
 
@@ -206,7 +206,6 @@ fi
 ls .claude/scripts/dso 2>/dev/null && .claude/scripts/dso merge-to-main.sh --help 2>&1 | head -2 || true
 ```
 If the shim is missing or the dispatch fails with "command not found" (b068-94b4): do NOT perform a manual merge. Stop and report: "Error: .claude/scripts/dso shim not found or merge-to-main.sh not available. Run: bash scripts/update-shim.sh to update the shim, then retry." Never manually merge as a fallback — the DSO merge workflow ensures proper state management (ticket sync, version bump, CI trigger). # shim-exempt: update-shim.sh must be called directly when the shim itself is missing
-<!-- REVIEW-DEFENSE: # shim-exempt: above is load-bearing — suppresses check-shim-refs.sh and test-skill-script-paths.sh; required because the shim itself is the missing dependency. -->
 
 ```bash
 .claude/scripts/dso merge-to-main.sh ${BUMP_ARG:-}
@@ -218,33 +217,7 @@ After merge-to-main.sh completes successfully, write a WORKTREE_TRACKING:landed 
 ```
 (Only when TICKET_ID context is available. Skip silently if not set.)
 
-If the script output begins with `ESCALATE:` (retry budget exhausted — merge-to-main.sh has failed the maximum number of times):
-**STOP immediately. Do NOT diagnose, retry, or continue.** Present the ESCALATE message verbatim to the user and ask for guidance. Do NOT proceed to Step 12 or any subsequent step. Example:
-> Merge failed after repeated attempts. Script message: `<ESCALATE output>`. Please advise how to proceed.
-
-If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-ticket files):
-1. Before invoking resolution, capture the current working tree state: run `git status --short` and report to the user: "Merge conflict detected. Current working tree state captured — do not stop the session until Step 12 confirms is_clean."
-2. Invoke `/dso:resolve-conflicts` to attempt agent-assisted resolution.
-3. If resolution succeeds: continue to Step 12.
-4. If resolution is abandoned (merge aborted): run `git status --short` immediately and report ALL dirty files to the user before proceeding. Do NOT continue to Step 12 silently — the user must confirm their work is intact.
-
-If the script reports a non-conflict ERROR:
-1. **Before giving up, diagnose the main repo state.** Run:
-   ```bash
-   MAIN_REPO=$(dirname "$(git rev-parse --git-common-dir)")
-   git -C "$MAIN_REPO" status --short
-   ```
-2. If the output shows staged or modified files (lines beginning with `M`, `A`, `D`, `R`, `C`, or `??` for non-`.tickets-tracker/` paths):  <!-- # tickets-boundary-ok: prose path-pattern reference, not direct access -->
-   - Run `git -C "$MAIN_REPO" reset HEAD` to unstage all staged files.
-   - Run `git -C "$MAIN_REPO" checkout .` to discard tracked modifications.
-   - Run `git -C "$MAIN_REPO" clean -fd` to remove untracked files.
-   - Report to the user: "Cleared stale main repo git state (staged/dirty index). Retrying merge."
-   - Retry: `.claude/scripts/dso merge-to-main.sh ${BUMP_ARG:-}`
-   - If the retry succeeds: continue to Step 12.
-   - If the retry fails: relay the new error message to the user and stop.
-3. If the main repo is clean and the error persists: relay the original error message to the user and stop.
-
-> **CRITICAL**: When resolving merge conflicts that involve `.tickets-tracker/` event files, do NOT use `git merge -X ours` — this would silently discard incoming ticket events from main and corrupt the event log. Instead, resolve `.tickets-tracker/` conflicts per-file using `git checkout --ours` on each conflicted JSON event file individually (they are append-only and safe to accept ours per-file). `/dso:resolve-conflicts` handles this automatically.  <!-- # tickets-boundary-ok: data-integrity warning prose, not direct access -->
+**On error from `merge-to-main.sh`** — load `${CLAUDE_PLUGIN_ROOT}/skills/end-session/prompts/merge-error-handling.md` and follow it. It covers `ESCALATE:` (retry budget exhausted — STOP and surface to user), `CONFLICT_DATA:` (merge conflicts — invoke `/dso:resolve-conflicts`, with critical guidance about ticket-tracker conflict resolution), and non-conflict `ERROR` (diagnose main repo dirty state, clean, retry once).
 
 ### 12. Final Worktree Verification (is_merged + is_clean)
 
@@ -265,9 +238,7 @@ elif git log main --oneline --grep="(merge $BRANCH)" -1 2>/dev/null | grep -q .;
     echo "MERGED (via merge commit message fallback)"
 elif git fetch origin main:main 2>/dev/null && git merge-base --is-ancestor "$BRANCH" main 2>/dev/null; then
     echo "MERGED (local main ref synced from origin — was out of sync after direct push)"
-    # Note: if git fetch fails (e.g., no network access), this elif is not entered and
-    # the branch reports NOT MERGED — a conservative fail-safe that prevents incorrect
-    # worktree auto-removal. The worktree remains until the next session with network access.
+    # If fetch fails (no network), this elif is skipped — conservative fail-safe; worktree stays until next session with network.
 else
     echo "NOT MERGED"
 fi

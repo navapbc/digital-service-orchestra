@@ -160,9 +160,18 @@ Outside the explicit bright-line conditions above, use your judgment to trigger 
 
 Research always runs when the user explicitly asks for it (e.g., "look up how others have done this", "research best practices first").
 
-### Research Process
+### Research Process (sub-agent dispatch — 3916-ad17)
 
-For each trigger condition that fires:
+Do NOT run WebSearch or WebFetch directly in the orchestrator context. Delegate Step 2 to a research sub-agent to keep the orchestrator context lean (same pattern as Steps 3–5 which delegate to sonnet sub-agents). Raw search results bloat the orchestrator window; the sub-agent distills findings to actionable insights before returning.
+
+Dispatch a `general-purpose` sonnet sub-agent with:
+- The list of triggered conditions (from the list above)
+- The epic title, description, and spec
+- Instructions to run 3-5 WebSearch/WebFetch queries per trigger condition, then return a concise `## Research Findings` section with the format defined below
+
+The sub-agent returns only the distilled `## Research Findings` section — not raw search output. If the Agent tool is unavailable or the sub-agent fails, fall back to running WebSearch/WebFetch directly in the orchestrator context (this ensures the step is non-blocking).
+
+For each trigger condition that fires (when running inline as fallback):
 
 1. Use **WebSearch** to find relevant prior art, official documentation, and community discussions. Prefer authoritative sources (official docs, well-maintained GitHub repos, recognized technical blogs).
 2. Use **WebFetch** to retrieve and read specific pages when a search result warrants deeper reading (e.g., official API docs, migration guides, security advisories).

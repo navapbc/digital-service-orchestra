@@ -1,6 +1,6 @@
 ---
 name: validate-work
-description: Use when verifying project health after completing work, before closing tasks, or when you need confidence that code, CI, staging deployment, and live environment are all passing. Does not fix issues — only detects and reports them.
+description: Use when running a smoke test, sanity check, health check, or status check before closing work — also when the user asks 'is everything working', 'verify the deployment', or 'check the build'. Dispatches read-only sub-agents that run local validate.sh, check CI pipeline status, probe staging deployment health, and ping live-environment endpoints in parallel; gates Batch 2 (live env) on Batch 1 passing; reports PASS/WARN/FAIL per domain with recommended actions. Detects and reports — never fixes. Trigger phrases include 'smoke test', 'sanity check', 'health check', 'status check', 'is everything working', 'verify deployment', 'run the checks', 'is the build green', 'validate before close'.
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

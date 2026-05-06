@@ -1224,4 +1224,51 @@ assert_eq "test_release_tag_points_to_bump_commit: commit called before tag (tag
 
 assert_pass_if_clean "test_release_tag_points_to_bump_commit"
 
+# =============================================================================
+# test_release_refuses_pr_merge_strategy (e775-65f0)
+# Given: a fake repo with .claude/dso-config.conf containing merge.strategy=pr
+# When:  scripts/release.sh runs from that repo
+# Then:  exits non-zero AND emits guidance pointing at PR-based release flow
+# =============================================================================
+echo ""
+echo "--- test_release_refuses_pr_merge_strategy ---"
+_snapshot_fail
+
+_tmp_pr="$(_make_tmp)"
+_mock_pr="$_tmp_pr/bin"
+_fake_repo_pr="$(_make_git_repo)"
+mkdir -p "$_fake_repo_pr/.claude-plugin" "$_fake_repo_pr/.claude" "$_mock_pr"
+printf '{"name":"p","version":"1.0.0"}' > "$_fake_repo_pr/.claude-plugin/marketplace.json"
+printf 'merge.strategy=pr\n' > "$_fake_repo_pr/.claude/dso-config.conf"
+
+# git mock: tag does NOT exist (so we reach the merge.strategy check), main, clean, up-to-date
+cat > "$_mock_pr/git" << 'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  tag)       exit 0 ;;   # empty tag list → tag does not exist
+  branch)    echo "main"; exit 0 ;;
+  status)    exit 0 ;;
+  fetch)     exit 0 ;;
+  rev-list)  echo "0"; exit 0 ;;
+  rev-parse) shift; case "$1" in --show-toplevel) printf '%s\n' "$PWD" ;; *) echo "deadbeef000000" ;; esac; exit 0 ;;
+  *)         exit 0 ;;
+esac
+STUB
+chmod +x "$_mock_pr/git"
+
+make_mock "$_mock_pr" "gh" 0
+
+_pr_exit=0
+(
+    cd "$_fake_repo_pr"
+    PATH="$_mock_pr:$PATH" bash "$SCRIPT" "1.2.3" --yes \
+        < /dev/null > /dev/null 2>"$_tmp_pr/stderr.txt"
+) || _pr_exit=$?
+_pr_stderr=$(cat "$_tmp_pr/stderr.txt" 2>/dev/null || true)
+
+assert_ne "test_release_refuses_pr_merge_strategy: exit non-zero" "0" "$_pr_exit"
+assert_contains "test_release_refuses_pr_merge_strategy: cites merge.strategy=pr in stderr" "merge.strategy=pr" "$_pr_stderr"
+assert_contains "test_release_refuses_pr_merge_strategy: provides PR-based flow guidance" "PR-based release flow" "$_pr_stderr"
+assert_pass_if_clean "test_release_refuses_pr_merge_strategy"
+
 print_summary

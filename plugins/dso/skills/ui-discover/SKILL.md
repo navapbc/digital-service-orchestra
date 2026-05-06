@@ -1,11 +1,15 @@
 ---
 name: ui-discover
 description: >
-  Generates or refreshes the UI Discovery Cache for a project. Inventories
+  Use when starting an epic's wireframe designs, scanning a frontend for
+  UI components, cataloguing existing routes, or inventorying frontend
+  state. Generates or refreshes the UI Discovery Cache: inventories
   components via Glob/Grep, crawls routes via Playwright, and writes
   structured results to .ui-discovery-cache/. Produces a deterministic
-  validation script for git-based cache invalidation. Run once before
-  starting an epic's wireframe designs.
+  validation script for git-based cache invalidation. Trigger phrases
+  include 'scan UI components', 'discover routes', 'catalog UI elements',
+  'inventory frontend components', 'refresh ui-discovery-cache', 'before
+  designing wireframes'.
 argument-hint: [--refresh | --validate-only]
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash, Task, AskUserQuestion
 ---
@@ -77,12 +81,12 @@ Determine mode from `$ARGUMENTS`:
 
 ---
 
-## Phase 0: Local Environment Preflight (/dso:ui-discover)
+## Phase A: Local Environment Preflight (/dso:ui-discover)
 
-### Step 0: Verify local environment (/dso:ui-discover)
+### Step 1: Verify local environment (/dso:ui-discover)
 
 Before any discovery work, verify that the local development stack is running.
-The Playwright crawl (Phase 2 Step 8) requires Docker, Postgres, and the
+The Playwright crawl (Phase C Step 6) requires Docker, Postgres, and the
 application to be healthy.
 
 ```
@@ -91,7 +95,7 @@ application to be healthy.
 
 Where `$REPO_ROOT` is determined by `git rev-parse --show-toplevel`.
 
-**If the script exits 0**: all checks passed — proceed to Phase 1.
+**If the script exits 0**: all checks passed — proceed to Phase B.
 
 **If the script exits non-zero**: the output identifies which layer failed
 (Docker, Postgres, app container, or health check). Use AskUserQuestion to
@@ -101,12 +105,12 @@ present the failure and ask whether to:
 - "Stop" (halt the skill)
 
 If the user chooses "Continue without live app", set `playwrightUsed = false`
-and skip Step 8 (Playwright route crawl) in Phase 2. All other phases proceed
+and skip Phase C Step 6 (Playwright route crawl). All other phases proceed
 normally with static-analysis-only data.
 
 ---
 
-## Phase 1: Environment Detection & Cache Assessment (/dso:ui-discover)
+## Phase B: Environment Detection & Cache Assessment (/dso:ui-discover)
 
 ### Step 1: Detect environment (/dso:ui-discover)
 
@@ -127,11 +131,11 @@ Note whether the `@playwright/cli` binary is available. If the command exits
 non-zero or is not found, warn that route crawling will be skipped and the cache
 will be static-analysis-only.
 
-**Running application:** If Phase 0 passed, the app is confirmed healthy on its
+**Running application:** If Phase A passed, the app is confirmed healthy on its
 port. Use the port from `.claude/scripts/dso check-local-env.sh` output or the `APP_PORT` env var
 (default port depends on the framework — use the adapter's conventions or
 fall back to common defaults: 5000 for Flask, 3000 for Node, 8080 for Go).
-If Phase 0 was skipped with "Continue without live app", skip this probe
+If Phase A was skipped with "Continue without live app", skip this probe
 entirely.
 
 **Project context:**
@@ -152,17 +156,17 @@ Check for `.ui-discovery-cache/manifest.json`.
 
 **If found:**
 1. Read the manifest and verify it parses as valid JSON. If corrupt, warn the
-   user, delete the cache directory, and proceed to Phase 2 (full generation).
+   user, delete the cache directory, and proceed to Phase C (full generation).
 2. Check for `.ui-discovery-cache/validate-ui-cache.sh`. If missing, treat as corrupt
-   cache — warn and proceed to Phase 2.
+   cache — warn and proceed to Phase C.
 3. Run: `bash .ui-discovery-cache/validate-ui-cache.sh`
 4. Parse the single-line JSON output:
    - `{"status":"valid"}` — Report cache is current. If mode is Auto or
      Validate-only, **exit with summary**. If mode is Force refresh, proceed
-     to Phase 3.
+     to Phase D.
    - `{"status":"stale",...}` — Collect the `staleEntries` and `scope` from the
-     output. Proceed to Phase 3 (selective regeneration).
-   - `{"status":"error",...}` — Warn user. Delete cache and proceed to Phase 2
+     output. Proceed to Phase D (selective regeneration).
+   - `{"status":"error",...}` — Warn user. Delete cache and proceed to Phase C
      (full generation).
 5. Run the lock acquisition script (see Lock Protocol below):
    ```
@@ -173,16 +177,16 @@ Check for `.ui-discovery-cache/manifest.json`.
 
 **If not found:**
 - If mode is Validate-only, report "No cache exists" and exit.
-- Otherwise, proceed to Phase 2 (full generation).
+- Otherwise, proceed to Phase C (full generation).
 
 **If mode is Validate-only:** After running validation, report the result and
 exit. Do not generate or refresh anything.
 
 ---
 
-## Phase 2: Full Discovery (/dso:ui-discover)
+## Phase C: Full Discovery (/dso:ui-discover)
 
-Acquire the lock (skip if already acquired in Phase 1 Step 2):
+Acquire the lock (skip if already acquired in Phase B Step 2):
 ```
 bash ${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/lock.sh acquire
 ```
@@ -193,7 +197,7 @@ Create the cache directory structure:
 mkdir -p .ui-discovery-cache/global .ui-discovery-cache/components .ui-discovery-cache/routes .ui-discovery-cache/screenshots
 ```
 
-### Step 3: Discover UI file inventory (/dso:ui-discover)
+### Step 1: Discover UI file inventory (/dso:ui-discover)
 
 Use Glob to find all UI files. Use the adapter's `component_file_patterns.glob_patterns`
 if available, otherwise use these generic patterns:
@@ -229,7 +233,7 @@ If **no UI files are found**, stop. Inform the user that no UI files were
 detected. Use AskUserQuestion to offer custom glob patterns or confirm the
 project structure.
 
-### Step 4: Component inventory (/dso:ui-discover)
+### Step 2: Component inventory (/dso:ui-discover)
 
 Discover and analyze all component definitions across template/source files
 using the adapter's patterns.
@@ -254,35 +258,9 @@ using the adapter's patterns.
    `component_file_patterns.import_patterns` to build the component dependency
    graph. Each import pattern specifies the regex and its capture groups.
 
-**If no adapter is loaded (generic fallback):**
+**If no adapter is loaded (generic fallback)**: load `${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/prompts/generic-fallback-patterns.md` and follow the **Component inventory (generic fallback)** section. It supplies heuristic component-definition patterns, generic import patterns, the `components/_index.json` catalog format, and the `dependsOn` rule.
 
-1. Use Grep with heuristic patterns to find component-like definitions:
-   - Pattern: `export\s+(default\s+)?function\s+(\w+)` (React/Vue)
-   - Pattern: `export\s+(default\s+)?class\s+(\w+)` (class components)
-   - Pattern: `\{%[-\s]+macro\s+(\w+)\s*\(` (Jinja2-like)
-   - Pattern: `<template>` (Vue SFC)
-   - Search all UI files discovered in Step 3
-
-2. Extract component metadata using best-effort heuristic parsing.
-
-3. Map import directives with generic patterns:
-   - `import\s+.*\s+from\s+["']([^"']+)["']` (JS/TS imports)
-   - `\{%[-\s]+import\s+["']([^"']+)["']` (template imports)
-   - `\{%[-\s]+include\s+["']([^"']+)["']` (template includes)
-
-4. Write `components/_index.json` — flat catalog array:
-   ```json
-   [
-     { "name": "component_name", "path": "path/to/component.html", "parameters": ["param1", "param2"], "purpose": "Description" }
-   ]
-   ```
-
-5. Write individual `components/<name>.json` files with full detail (see
-   cache-format-reference.md Section 6).
-
-Each component entry's `dependsOn` in the manifest: its source file path.
-
-### Step 5: Route discovery (/dso:ui-discover)
+### Step 3: Route discovery (/dso:ui-discover)
 
 Detect routes and map them to templates/components using the adapter's
 `route_patterns` config.
@@ -312,16 +290,7 @@ Detect routes and map them to templates/components using the adapter's
   registration patterns from the adapter's `route_patterns.registration_patterns`
 - Map router variable names to their URL prefixes if applicable
 
-**If no adapter is loaded (generic fallback):**
-
-- Grep for common route patterns across all source files:
-  - `@\w+\.(route|get|post|put|delete|patch)\s*\(\s*["']([^"']+)["']` (decorator-based)
-  - `router\.(get|post|put|delete|patch)\s*\(\s*["']([^"']+)["']` (Express-like)
-  - File-system routing: map file paths in `pages/` or `app/` directories to routes
-- Use heuristic template rendering detection:
-  - `render_template\s*\(\s*["']([^"']+)["']`
-  - `render\s*\(\s*["']([^"']+)["']`
-- Warn that route detection may be incomplete without an adapter
+**If no adapter is loaded (generic fallback)**: load `${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/prompts/generic-fallback-patterns.md` and follow the **Route discovery (generic fallback)** section. It supplies decorator-based, router-based, file-system-routing, and heuristic template-rendering patterns.
 
 For each discovered route:
 1. Record the route path, HTTP methods, router/blueprint name, source file, and
@@ -339,7 +308,7 @@ cache-format-reference.md Section 4).
 If the number of discovered routes exceeds 50, warn the user. Use
 AskUserQuestion to ask whether to crawl all routes or select a subset.
 
-### Step 6: Theme & design token extraction (/dso:ui-discover)
+### Step 4: Theme & design token extraction (/dso:ui-discover)
 
 Detect and parse theme configuration files:
 
@@ -371,7 +340,7 @@ Write `global/design-tokens.json` (see cache-format-reference.md Section 3).
 The design-tokens entry's `dependsOn` in the manifest: all theme/style config
 files parsed.
 
-### Step 7: App shell analysis (/dso:ui-discover)
+### Step 5: App shell analysis (/dso:ui-discover)
 
 Find the root layout template/component for the application using the adapter's
 `template_syntax` config.
@@ -387,17 +356,7 @@ Find the root layout template/component for the application using the adapter's
 - Look for the base template by finding templates that do NOT match the
   inheritance pattern (i.e., root templates that are not extending another)
 
-**If no adapter is loaded (generic fallback):**
-
-- Look for common layout files:
-  - `**/base.html`, `**/layout.html` (template-based)
-  - `**/layout.tsx`, `**/layout.jsx` (React/Next.js)
-  - `**/_layout.svelte` (SvelteKit)
-  - `**/__layout.vue` (Nuxt)
-- Use heuristic patterns for inheritance/composition:
-  - `\{%[-\s]+extends\s+` (Jinja2-like)
-  - `export\s+default\s+function\s+.*Layout` (React)
-- Warn that template inheritance analysis may be incomplete without an adapter
+**If no adapter is loaded (generic fallback)**: load `${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/prompts/generic-fallback-patterns.md` and follow the **App shell analysis (generic fallback)** section. It supplies common layout-file globs and heuristic inheritance/composition patterns across template engines.
 
 Read the base template and extract:
 - **Layout pattern**: the top-level structural arrangement (e.g., `TopNav-Main-Footer`)
@@ -417,13 +376,13 @@ Write `global/app-shell.json` (see cache-format-reference.md Section 2).
 The app-shell entry's `dependsOn` in the manifest: root layout file (`base.html`
 or equivalent) + any included partial templates.
 
-### Step 8: Playwright route crawl (conditional) (/dso:ui-discover)
+### Step 6: Playwright route crawl (conditional) (/dso:ui-discover)
+
+**Skip condition**: if `playwrightUsed = false` (set by Phase A Step 1 when the user chose "Continue without live app", or by the `@playwright/cli unavailable` / `app not running` paths), skip this step entirely and proceed to Phase C Step 7.
 
 **If `@playwright/cli` is available AND the app is running:**
 
-Use the `@playwright/cli` to crawl each route via discrete CLI commands. The
-CLI uses named sessions (`-s=<name>`) to persist browser state across separate
-Bash invocations.
+Use the `@playwright/cli` to crawl each route via discrete CLI commands. The CLI uses named sessions (`-s=<name>`) to persist browser state across separate Bash invocations. Acquire and release the Playwright session lock per Lock Protocol below.
 
 **Open a session** (with cleanup trap to prevent orphaned Chrome on interruption):
 ```bash
@@ -504,7 +463,7 @@ Warn the user. Set `playwrightUsed: false` in the manifest. Route snapshots
 will contain only static-analysis data (no DOM structure, no screenshots, no
 observed prop values).
 
-### Step 9: Write route snapshot files (/dso:ui-discover)
+### Step 7: Write route snapshot files (/dso:ui-discover)
 
 For each discovered route, combine all available data into a denormalized
 snapshot:
@@ -528,16 +487,16 @@ Section 7).
 Each route entry's `dependsOn` in the manifest: the template file + all
 imported component files + theme files (if Playwright visual data is included).
 
-### Step 10: Assemble manifest and validation script (/dso:ui-discover)
+### Step 8: Assemble manifest and validation script (/dso:ui-discover)
 
 **Write manifest.json:**
 - `version`: 1
 - `generatedAt`: current ISO 8601 timestamp
-- `gitCommit`: short SHA from Step 1
+- `gitCommit`: short SHA from Phase B Step 1
 - `appUrl`: discovered app URL or null
-- `playwrightUsed`: boolean from Step 8
-- `uiFileHashes`: complete hash map from Step 3
-- `entries`: dependency graph for every cache file written in Steps 4-9
+- `playwrightUsed`: boolean from Phase C Step 6
+- `uiFileHashes`: complete hash map from Phase C Step 1
+- `entries`: dependency graph for every cache file written in Phase C Steps 2–7
 
 Reference [templates/manifest-template.json](templates/manifest-template.json)
 for the exact structure.
@@ -578,70 +537,11 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/lock.sh release
 
 ---
 
-## Phase 3: Selective Regeneration (/dso:ui-discover)
+## Phase D: Selective Regeneration (branch — partial cache staleness only)
 
-Runs when validation (Step 2) identifies specific stale entries, or when
-`--refresh` mode is used with a valid cache.
+**Trigger**: Phase B Step 2 cache assessment identified specific stale entries (subset of files changed), OR `--refresh` mode is used with a valid cache. If the cache is missing or wholly stale, Phase C (Full Discovery) runs instead.
 
-Acquire the lock (skip if already acquired in Phase 1 Step 2):
-```
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/lock.sh acquire
-```
-If it exits non-zero, another instance is running — **stop**.
-
-### Step 11: Categorize staleness scope (/dso:ui-discover)
-
-Using the stale entry list from Step 2 (or the full entry list if `--refresh`)
-plus the manifest's `dependsOn` graph, categorize the refresh scope:
-
-| Scope | Trigger | What's stale |
-|-------|---------|-------------|
-| `theme-global` | Theme/style config files changed | All route visual data (DOM, screenshots, patterns). Template structure remains valid. |
-| `shell-global` | Base layout or nav template changed | App shell + all route snapshots (layout may have changed everywhere). |
-| `component-only` | Component/macro template files changed | Affected component entries + any route entries that use those components. |
-| `route-partial` | Only page template files changed | Only the affected route snapshot entries. |
-
-Multiple scopes can apply simultaneously (e.g., a component changed AND a theme
-file changed).
-
-### Step 12: Regenerate stale entries only (/dso:ui-discover)
-
-For each stale entry, re-run only the relevant Step logic:
-
-- **Stale components** -> Re-run Step 4 logic for only the affected
-  source files. Update `components/<name>.json` and the corresponding
-  `_index.json` entry.
-
-- **Stale design tokens** -> Re-run Step 6 to re-extract tokens from the changed
-  CSS/SCSS files. Update `global/design-tokens.json`.
-
-- **Stale app shell** -> Re-run Step 7 to re-analyze the base layout template.
-  Update `global/app-shell.json`.
-
-- **Stale routes** -> Re-run Steps 8-9 for only the affected routes. If
-  Playwright is available and the app is running, re-crawl just those routes.
-  Update the corresponding `routes/<slug>.json` and screenshot files.
-
-After regenerating stale entries:
-1. Recompute `uiFileHashes` for all changed source files
-2. Update `gitCommit` to current HEAD
-3. Update `generatedAt` timestamp
-4. Set all regenerated entries to `valid: true`
-5. Regenerate `validate-ui-cache.sh` (since the embedded commit and dependency graph changed)
-
-### Step 13: Report refresh summary (/dso:ui-discover)
-
-Present a summary showing:
-- Scope(s) detected
-- Entries regenerated vs. entries preserved (count and names)
-- Changed source files that triggered the refresh
-- Whether Playwright re-crawl was performed
-- Total time/effort saved vs. a full generation
-
-**Release lock:**
-```
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/lock.sh release
-```
+**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/phases/3-selective-regeneration.md` and follow it. Phase D Steps 1–3 categorize the staleness scope (`theme-global` / `shell-global` / `component-only` / `route-partial`), regenerate only the affected entries by re-running the relevant Phase C step logic (Phase C Step 2 for components, Phase C Step 4 for design tokens, Phase C Step 5 for app shell, Phase C Steps 6–7 for routes), update `uiFileHashes` / `gitCommit` / `generatedAt` and regenerate `validate-ui-cache.sh`, and report the refresh summary. Lock acquisition + release per Lock Protocol below.
 
 ---
 
@@ -667,7 +567,7 @@ next run to reclaim it automatically.
 
 ## Validation Script (`validate-ui-cache.sh`)
 
-Generated by Step 10 and written to `.ui-discovery-cache/validate-ui-cache.sh`. This
+Generated by Phase C Step 8 and written to `.ui-discovery-cache/validate-ui-cache.sh`. This
 script is self-contained, deterministic, and read-only.
 
 ### Requirements

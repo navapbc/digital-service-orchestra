@@ -517,3 +517,45 @@ def test_end_to_end_multiple_tickets(
     # Ticket B should still have only its pre-existing SYNC file
     sync_files_b = list((tracker_dir / ticket_b_id).glob("*-SYNC.json"))
     assert len(sync_files_b) == 1
+
+
+# ---------------------------------------------------------------------------
+# Test: Backfill mode — process all tickets without git diff
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_process_events_backfill_scans_all_tickets(
+    tmp_path: Path, bridge: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """process_events(backfill=True) processes all tickets in the tracker dir,
+    not just those present in git diff output.
+
+    This verifies the backfill mode enables syncing historical tickets created
+    before the bridge was wired up (cb9a-00ea-1c33-48ac).
+    """
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    monkeypatch.chdir(tmp_path)
+    _write_env_id_file(tracker_dir, _BRIDGE_ENV_ID)
+
+    ticket_id_1 = "backfill-hist-1"
+    ticket_id_2 = "backfill-hist-2"
+    _setup_ticket_with_create(tracker_dir, ticket_id_1)
+    _setup_ticket_with_create(tracker_dir, ticket_id_2)
+
+    mock_acli = _make_mock_acli(jira_key="DSO-99")
+
+    # backfill=True: process all tickets without passing git_diff_output
+    syncs = bridge.process_events(
+        tickets_dir=str(tracker_dir),
+        acli_client=mock_acli,
+        backfill=True,
+        bridge_env_id=_BRIDGE_ENV_ID,
+        run_id=_RUN_ID,
+    )
+
+    synced_ids = {s["local_id"] for s in syncs}
+    assert ticket_id_1 in synced_ids, f"backfill missed {ticket_id_1}; got {synced_ids}"
+    assert ticket_id_2 in synced_ids, f"backfill missed {ticket_id_2}; got {synced_ids}"

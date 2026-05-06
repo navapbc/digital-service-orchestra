@@ -1,6 +1,6 @@
 ---
 name: quick-ref
-description: Auto-discover and display all plugin scripts and skills available in this workflow plugin.
+description: Use when the user wants to see what DSO skills and scripts are available, list installed plugin commands, or look up the description of a skill they don't recognize. Auto-discovers and displays every script under the plugin scripts directory and every skill under the plugin skills directory, with each entry's description extracted from script comments or skill YAML frontmatter. No hardcoded lists — everything resolves dynamically at invocation time. Trigger phrases include 'list available skills', 'what skills are available', 'show plugins', 'what tools are installed', 'what can DSO do', 'list dso commands', 'show plugin scripts'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---

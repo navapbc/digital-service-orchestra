@@ -2,6 +2,9 @@
 # Maps source files to test files that fuzzy match misses.
 # Format: source/path: test/path1[, test/path2...]
 
+tests/fixtures/ci-review-post-migration.json: tests/skills/dso_ci_review/test_post_migration_metrics.py
+.github/workflows/ci-python-skills.yml: tests/skills/test_ci_workflow_pip_cache.py
+
 plugins/dso/.claude-plugin/plugin.json:tests/unit/scripts/test-plugin-inventory.sh,tests/plugin/test_fixture_minimal_plugin_consumer.py,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/hooks/test-plugin-boundary-refs.sh,tests/hooks/test-plugin-boundary-rule.sh,tests/hooks/test-check-plugin-boundary.sh,tests/hooks/test-no-plugin-comment-refs.sh,tests/hooks/test-plugin-docs.sh,tests/hooks/test-plugin-self-ref-hook.sh,tests/hooks/test-no-plugin-markdown-refs.sh,tests/hooks/test-no-plugin-runtime-refs.sh,tests/scripts/test-plugin-retro-gather.sh,tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-create-dso-app-broken-plugin-cache.sh,tests/scripts/test-bash-runner-plugin-root.sh,tests/scripts/test-plugin-scripts.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-dso-nextjs-starter-plugin-install.sh,tests/scripts/test-plugin-scripts-no-relative-paths.sh,tests/scripts/test-plugin-dir-structure.sh,tests/scripts/test-plugin-reference-catalog.sh,tests/scripts/test-no-unguarded-plugin-refs.sh,tests/skills/test-plugin-boundary-migration.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
 plugins/dso/agents/bot-psychologist.md:tests/scripts/test-bot-psychologist-agent.sh
@@ -67,7 +70,6 @@ plugins/dso/scripts/figma_merge/tokens_merge.py:tests/unit/test_figma_merge_toke
 plugins/dso/scripts/figma-merge.py:tests/unit/test_figma_merge_svg.py,tests/unit/test_figma_merge_spatial.py,tests/unit/test_figma_merge_identity.py,tests/unit/test_figma_merge_id_validate.py,tests/unit/test_figma_merge_tokens.py,tests/integration/test-figma-merge-integration.sh
 plugins/dso/scripts/fix-bug/route-escalation.sh:tests/scripts/test_gate_escalation_router.py
 plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test-issue-quality-check-storage-api.sh,tests/scripts/test_issue_quality_check_file_impact.py
-plugins/dso/scripts/llm-api-call.sh:tests/scripts/test-llm-api-call.sh
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh,tests/scripts/test-residual-callers-polyglot.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts/test-ts-morph-normalize-imports.sh
