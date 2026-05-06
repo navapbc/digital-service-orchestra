@@ -552,3 +552,110 @@ def test_async_dispatch_empty_list() -> None:
     """
     results = asyncio.run(async_dispatch_specialists([]))
     assert results == [], f"Expected empty list for empty input, got: {results}"
+
+
+# ---------------------------------------------------------------------------
+# Scenario 10 — _parse_response: prose-wrapped JSON extraction (Fix A, c86e-e177)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_response_extracts_json_from_prose_wrapped_response() -> None:
+    """
+    Given: an LLM response where content is prose with an embedded JSON object
+    When: _parse_response() is called
+    Then: the embedded findings dict is returned successfully (not raising ValueError)
+
+    RED marker: tests/skills/dso_ci_review/test_dispatch_fallback.py [test_parse_response_extracts_json_from_prose_wrapped_response]
+
+    Covers c86e-e177 Fix A: haiku returns 1911-char prose with JSON embedded; strict
+    json.loads fails; _extract_json_from_text() in findings.py must be wired in.
+    """
+    prose_with_json = (
+        "Here are my findings after reviewing the diff:\n\n"
+        '{"findings": [{"severity": "minor", "description": "unused import", '
+        '"cited_lines": ["foo.py:1"]}]}\n\n'
+        "Let me know if you need more details."
+    )
+
+    class _FakeMsg:
+        content = prose_with_json
+
+    class _FakeChoice:
+        message = _FakeMsg()
+
+    class _FakeResp:
+        choices = [_FakeChoice()]
+
+    result = _dispatch_mod._parse_response(_FakeResp())
+    assert "findings" in result, (
+        f"_parse_response() must extract JSON from prose-wrapped response; got: {result!r}"
+    )
+    assert len(result["findings"]) == 1
+    assert result["findings"][0]["severity"] == "minor"
+
+
+def test_parse_response_extracts_json_from_markdown_fenced_response() -> None:
+    """
+    Given: an LLM response where content is a markdown-fenced JSON block
+    When: _parse_response() is called
+    Then: the findings dict is returned (markdown fence stripped)
+
+    RED marker: tests/skills/dso_ci_review/test_dispatch_fallback.py [test_parse_response_extracts_json_from_markdown_fenced_response]
+
+    Covers c86e-e177 Fix A: markdown fences are a common LLM non-compliance pattern.
+    """
+    fenced = (
+        "```json\n"
+        '{"findings": [{"severity": "important", "description": "missing null check", '
+        '"cited_lines": ["bar.py:42"]}]}\n'
+        "```"
+    )
+
+    class _FakeMsg:
+        content = fenced
+
+    class _FakeChoice:
+        message = _FakeMsg()
+
+    class _FakeResp:
+        choices = [_FakeChoice()]
+
+    result = _dispatch_mod._parse_response(_FakeResp())
+    assert "findings" in result
+    assert result["findings"][0]["severity"] == "important"
+
+
+# ---------------------------------------------------------------------------
+# Scenario 11 — _parse_response: stderr error emission on total parse failure (Fix F, c86e-e177)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_response_emits_stderr_on_total_parse_failure(capsys) -> None:
+    """
+    Given: an LLM response where content is pure prose with no extractable JSON
+    When: _parse_response() is called
+    Then: an error message is written to stderr AND ValueError is raised
+
+    RED marker: tests/skills/dso_ci_review/test_dispatch_fallback.py [test_parse_response_emits_stderr_on_total_parse_failure]
+
+    Covers c86e-e177 Fix F: parse failures must be visible in CI logs even when
+    the job exits 0 — engineers should not need to inspect findings.json to diagnose.
+    """
+
+    class _FakeMsg:
+        content = "I cannot review this diff. Please provide more context."
+
+    class _FakeChoice:
+        message = _FakeMsg()
+
+    class _FakeResp:
+        choices = [_FakeChoice()]
+
+    with pytest.raises(ValueError):
+        _dispatch_mod._parse_response(_FakeResp())
+
+    captured = capsys.readouterr()
+    assert captured.err, (
+        "_parse_response() must write an error message to stderr when no JSON "
+        "can be extracted from the response"
+    )
