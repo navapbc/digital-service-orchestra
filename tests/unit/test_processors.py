@@ -278,3 +278,73 @@ def test_backwards_compat_existing_conflicts_key(tmp_path: Path) -> None:
     assert "conflicts" not in state, (
         f"Expected 'conflicts' key absent after processing; got state keys: {list(state.keys())!r}"
     )
+
+
+@pytest.mark.unit
+def test_concurrent_siblings_deterministic_by_event_uuid(tmp_path: Path) -> None:
+    """Concurrent siblings (same parent_status_uuid) must resolve deterministically.
+
+    RED marker — test_concurrent_siblings_deterministic_by_event_uuid
+    Must FAIL before process_status uses event['uuid'] for tie-break.
+
+    Scenario: two STATUS events both pointing to the same parent (e.g. both
+    spawned immediately after an 'open' → 'in_progress' event with uuid
+    "parent-0000"). Their parent pointers are IDENTICAL, so the legacy tie-break
+    comparing parent_status_uuid values is non-deterministic (incoming always
+    wins when both UUIDs are equal).
+
+    Setup:
+        - Event A: uuid="aaaa-0000" (lower), target="closed"
+        - Event B: uuid="zzzz-9999" (higher), target="blocked"
+        - Both have parent_status_uuid="parent-0000" (same parent)
+
+    Expected deterministic outcome in BOTH replay orders:
+        - Event A wins (lower event UUID) → state["status"] == "closed"
+
+    Current (buggy) behavior:
+        - Replay order 1 (B first, then A): incoming A wins → "closed" ✓
+        - Replay order 2 (A first, then B): incoming B wins → "blocked" ✗
+        - Non-deterministic: same events, different result depending on order
+    """
+    shared_parent = "parent-0000"
+
+    def _make_initial_state(first_event_uuid: str, first_target: str) -> dict:
+        state: dict = {"status": "open", "parent_status_uuid": shared_parent}
+        event, data = _make_status_event(
+            current_status="open",
+            target_status=first_target,
+            parent_status_uuid=shared_parent,
+            uuid=first_event_uuid,
+        )
+        process_status(state, event, data, str(tmp_path / "first.json"))
+        return state
+
+    # Replay order 1: B first (zzzz), then A (aaaa) arrives as fork
+    state1 = _make_initial_state("zzzz-9999", "blocked")
+    event_a, data_a = _make_status_event(
+        current_status="open",  # fork: doesn't match "blocked"
+        target_status="closed",
+        parent_status_uuid=shared_parent,
+        uuid="aaaa-0000",
+    )
+    process_status(state1, event_a, data_a, str(tmp_path / "a.json"))
+
+    # Replay order 2: A first (aaaa), then B (zzzz) arrives as fork
+    state2 = _make_initial_state("aaaa-0000", "closed")
+    event_b, data_b = _make_status_event(
+        current_status="open",  # fork: doesn't match "closed"
+        target_status="blocked",
+        parent_status_uuid=shared_parent,
+        uuid="zzzz-9999",
+    )
+    process_status(state2, event_b, data_b, str(tmp_path / "b.json"))
+
+    # Both orders must produce the same winner: event A (uuid="aaaa-0000" < "zzzz-9999")
+    assert state1["status"] == "closed", (
+        f"Replay order 1 (B first): expected 'closed' (A wins by lower event UUID); "
+        f"got {state1['status']!r}"
+    )
+    assert state2["status"] == "closed", (
+        f"Replay order 2 (A first): expected 'closed' (A wins by lower event UUID); "
+        f"got {state2['status']!r}"
+    )

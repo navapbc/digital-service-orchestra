@@ -3,7 +3,7 @@
 ## Overview
 
 The codebase health assessment is reviewed by a committee of five specialists using
-`/dso:review-protocol` (Stage 2, multi-agent). Data collection in Phase 2 of `/dso:retro`
+`/dso:review-protocol` (Stage 2, multi-agent). Data collection in Phase B of `/dso:retro`
 serves as Stage 1. Each reviewer has a self-contained prompt file in `docs/reviewers/`
 that defines their persona, dimensions, and scoring rubric.
 
@@ -30,7 +30,7 @@ Use the Task tool to launch all five reviewers **in parallel**. For each:
 1. Read the reviewer's prompt file from `docs/reviewers/`
 2. Construct the Task prompt by combining:
    - The reviewer prompt (role, dimensions, scoring scale)
-   - The collected metrics from Phase 2 data collection (TEST_METRICS, CODE_METRICS,
+   - The collected metrics from Phase B data collection (TEST_METRICS, CODE_METRICS,
      KNOWN_ISSUES sections from `retro-gather.sh`, plus the additional spot-checks)
 3. Instruct the reviewer to return JSON conforming to `REVIEW-SCHEMA.md`:
    `perspective`, `status`, `dimensions` map, `findings` array
@@ -72,8 +72,8 @@ automated code revisions. Instead:
 
 1. Triage findings by severity (critical → major → minor).
 2. Resolve conflicts before scoping the remediation epic.
-3. Group findings into priority tiers for Phase 3 user confirmation.
-4. Convert confirmed findings into ticket tasks in Phase 4.
+3. Group findings into priority tiers for Phase C user confirmation.
+4. Convert confirmed findings into ticket tasks in Phase D.
 
 ## Validation
 

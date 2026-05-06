@@ -110,6 +110,34 @@ if git tag -l "$TAG" 2>/dev/null | grep -q "^${TAG}$"; then
 fi
 
 # ---------------------------------------------------------------------------
+# Precondition 3.5: merge.strategy compatibility check (e775-65f0)
+# ---------------------------------------------------------------------------
+# scripts/release.sh creates a 'chore: bump version' commit directly on main
+# and pushes via `git push --follow-tags`. Both fail under merge.strategy=pr +
+# branch protection. Refuse to run with guidance rather than half-completing
+# and leaving the repo with a tag but no commit (or vice versa).
+
+MERGE_STRATEGY=""
+if [[ -f "$REPO_ROOT/.claude/dso-config.conf" ]]; then
+    MERGE_STRATEGY="$(grep -m1 '^merge\.strategy=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]' || true)"
+fi
+if [[ "$MERGE_STRATEGY" == "pr" ]]; then
+    echo "ERROR: scripts/release.sh assumes direct-push-to-main, but merge.strategy=pr is set" >&2
+    echo "" >&2
+    echo "  This script would:" >&2
+    echo "    (1) git commit 'chore: bump version' directly on main" >&2
+    echo "    (2) git push --follow-tags to origin/main" >&2
+    echo "  Both will be rejected by branch protection under PR-only merging." >&2
+    echo "" >&2
+    echo "  PR-based release flow:" >&2
+    echo "    1. From a feature branch: bump versions in plugin.json + marketplace.json" >&2
+    echo "    2. Open PR; merge via merge-to-main-pr.sh (or normal PR review)" >&2
+    echo "    3. After merge to main: git fetch && git checkout main && git pull" >&2
+    echo "    4. Tag and push: git tag -a v<VERSION> -m 'Release v<VERSION>' && git push origin v<VERSION>" >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # Precondition 4: On main branch
 # ---------------------------------------------------------------------------
 

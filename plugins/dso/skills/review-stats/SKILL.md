@@ -1,6 +1,6 @@
 ---
 name: review-stats
-description: Display review event statistics — shows reviewer tier distribution, resolution rates, and trends over time.
+description: Use when the user asks about review metrics, review analytics, reviewer performance, the review dashboard, review trends, resolution rates, or how /dso:review has been performing over time. Runs review-stats.sh and displays its output as-is — reviewer tier distribution (light/standard/deep), autonomous resolution rates, severity-distribution trends, and time-bucketed counts. Trigger phrases include 'review stats', 'review metrics', 'review analytics', 'reviewer performance', 'review dashboard', 'how is review going', 'tier distribution'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---

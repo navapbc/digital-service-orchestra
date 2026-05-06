@@ -1,6 +1,6 @@
 ---
 name: dryrun
-description: Use when the user wants to preview what a skill would do without making changes to tickets, the file system, or git
+description: Use when the user wants to dry-run a DSO skill, simulate its execution, or preview its planned changes without executing them. Wraps any /dso:* skill invocation with override rules that block all mutating operations (ticket writes, file edits, git commits) while still running read-only steps; emits [DRYRUN] preview blocks for each blocked mutation and a final summary of what would have changed. Trigger phrases include 'dry run', 'simulate', 'what-if', 'test run', 'no-op', 'preview without changes', 'show me what would happen'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---

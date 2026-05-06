@@ -1044,4 +1044,40 @@ with open('$FINDINGS_FILE') as f:
 " 2>/dev/null || echo "0")
 assert_eq "test_overlap_normalizes_redundant_separators: finding preserved after per-finding strip" "1" "$REDUNDANT_SEP_FINDINGS_COUNT"
 
+# ---------------------------------------------------------------------------
+# test_truncated_reviewer_hash_rejected_with_clear_message (8073-783f)
+# ---------------------------------------------------------------------------
+# When the reviewer sub-agent's stdout is truncated mid-hash (LLM output
+# truncation), --reviewer-hash arrives with fewer than 64 hex chars. The
+# hook must reject with a specific error pointing at truncation rather than
+# the generic 'tampered with' mismatch error — so retry guidance is clear.
+echo "=== test_truncated_reviewer_hash_rejected_with_clear_message ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+echo '{"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+TRUNCATED_HASH="e7818922350dd7d59e1a068986b72bf0cadea3d86c0e2a3c4a99107"  # 56 chars (real bug 8073 evidence)
+TRUNCATED_OUT=$(bash "$HOOK" --reviewer-hash "$TRUNCATED_HASH" 2>&1 || true)
+if echo "$TRUNCATED_OUT" | grep -q "not a valid 64-char SHA-256"; then
+    (( ++PASS )); echo "test_truncated_reviewer_hash_rejected_with_clear_message ... PASS"
+else
+    (( ++FAIL )); printf "FAIL: test_truncated_reviewer_hash_rejected_with_clear_message\n  output: %s\n" "$TRUNCATED_OUT" >&2
+fi
+
+# ---------------------------------------------------------------------------
+# test_sidecar_hash_file_used_when_present (8073-783f)
+# ---------------------------------------------------------------------------
+# write-reviewer-findings.sh now writes a `.sha256` sidecar alongside
+# reviewer-findings.json. record-review.sh must prefer the sidecar over the
+# --reviewer-hash flag, immune to LLM stdout truncation.
+echo "=== test_sidecar_hash_file_used_when_present ==="
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+echo '{"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+SIDECAR_HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+printf '%s\n' "$SIDECAR_HASH" > "${FINDINGS_FILE}.sha256"
+SIDECAR_EXIT=0
+bash "$HOOK" --reviewer-hash "WRONG_TRUNCATED_HASH" 2>/dev/null || SIDECAR_EXIT=$?
+assert_eq "test_sidecar_hash_file_used_when_present: sidecar overrides flag (exit 0)" "0" "$SIDECAR_EXIT"
+rm -f "${FINDINGS_FILE}.sha256"
+
 print_summary

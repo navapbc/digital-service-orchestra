@@ -137,7 +137,7 @@ Create a new ticket.
 |---|---|---|
 | `ticket_type` | Yes | One of: `bug`, `epic`, `story`, `task` |
 | `title` | Yes | Non-empty title string (≤ 255 characters for Jira sync compatibility) |
-| `--parent` | No | ID of an existing parent ticket |
+| `--parent` | **Required for task/story** | ID of an existing parent ticket. Tasks and stories without a parent are orphaned — `validate-issues.sh` flags them as health warnings. Always supply `--parent <epic-id>` when creating tasks from within skills or scans (cf3a-5e55). |
 | `--priority`, `-p` | No | Priority 0-4 (0=critical, 4=backlog; default: 2) |
 | `--assignee` | No | Assignee name (default: git config user.name) |
 | `-d`, `--description` | No | Optional long-form description text for the ticket |

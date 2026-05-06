@@ -78,6 +78,117 @@ if [[ -f "$_FINDINGS_NORMALIZE_LIB" ]]; then
     CI_FINDINGS_LIB_MODE=1 source "$_FINDINGS_NORMALIZE_LIB"  # shim-exempt: internal plugin script
 fi
 
+# --- _dso_is_ci_environment: detect whether we're running inside a CI runner ---
+# Returns 0 when running in a recognized CI environment (CI=true, GITHUB_ACTIONS=true,
+# or one of the common CI markers). Returns 1 in all other cases (interactive sessions,
+# local automation, etc.). LLM dispatch is permitted ONLY when this returns 0.
+_dso_is_ci_environment() {
+    [[ "${CI:-}" == "true" ]] && return 0
+    [[ "${GITHUB_ACTIONS:-}" == "true" ]] && return 0
+    [[ -n "${GITLAB_CI:-}" ]] && return 0
+    [[ -n "${BUILDKITE:-}" ]] && return 0
+    [[ -n "${CIRCLECI:-}" ]] && return 0
+    return 1
+}
+
+# --- _dso_emit_local_escalation: structured exit when LLM dispatch is requested locally ---
+# Args: $1=phase (resolve_threads|conflict_resolution|remediate),
+#       $2=reason (one-line),
+#       $3=instructions (what the session agent should do)
+# Emits a JSON object to stdout describing the escalation. Caller chooses exit code.
+_dso_emit_local_escalation() {
+    local _phase="${1:-unknown}"
+    local _reason="${2:-LLM dispatch requested in local environment (disallowed)}"
+    local _instructions="${3:-Session agent must remediate the failure(s) manually.}"
+    PHASE="$_phase" REASON="$_reason" INSTR="$_instructions" python3 -c "
+import json, os, datetime, sys
+if sys.version_info >= (3, 2):
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+else:
+    ts = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+print(json.dumps({
+    'schema_version': 1,
+    'escalation': 'local_no_llm_dispatch',
+    'phase': os.environ.get('PHASE', ''),
+    'reason': os.environ.get('REASON', ''),
+    'instructions': os.environ.get('INSTR', ''),
+    'timestamp': ts,
+}))
+" 2>/dev/null || true
+}
+
+# --- _phase_check_pr_comments_since_push: detect reviewer comments since last push ---
+#
+# Local-environment safety check: when running outside CI, fetch all PR comments
+# (issue comments + review comments + review-thread comments) created AFTER the
+# current head SHA was pushed. If any are present, emit an escalation and return
+# non-zero so the session agent addresses them before merging.
+#
+# In CI this function returns 0 immediately — CI does not have a session agent
+# to address comments, and the LLM-driven thread-resolution phase already covers
+# review-thread comments under CI semantics.
+#
+# Args: $1=pr_number, $2=pr_url
+# Returns: 0 = no new comments (or running in CI), 1 = new comments require attention.
+_phase_check_pr_comments_since_push() {
+    local _pr_number="${1:-}" _pr_url="${2:-}"
+
+    # CI bypass: only enforce the comment check in local sessions. CI runs the
+    # existing thread-resolution phase (LLM-driven) and treats top-level PR
+    # conversation as out-of-scope for autonomous remediation.
+    if _dso_is_ci_environment; then
+        return 0
+    fi
+
+    [[ -z "$_pr_number" ]] && return 0
+
+    # Establish "last push time" — use the committedDate of the current head
+    # commit as a stable proxy for when the branch state most recently changed.
+    local _head_sha _last_push_ts
+    _head_sha=$(gh pr view "$_pr_number" --json headRefOid --jq '.headRefOid' 2>/dev/null || true)
+    [[ -z "$_head_sha" ]] && return 0
+    _last_push_ts=$(gh api "repos/{owner}/{repo}/commits/${_head_sha}" --jq '.commit.committer.date' 2>/dev/null || true)
+    [[ -z "$_last_push_ts" || "$_last_push_ts" == "null" ]] && return 0
+
+    # Collect comment counts since _last_push_ts across all three comment surfaces.
+    local _gh_payload
+    _gh_payload=$(gh pr view "$_pr_number" \
+        --json comments,reviews,reviewThreads \
+        --jq '{
+            issue_comments: [.comments[]? | {createdAt, body, author: .author.login}],
+            review_comments: [.reviews[]?.body? | select(. != null and . != "") ] | map({body: .}) +
+                             [.reviews[]? | select(.body != null and .body != "") | {createdAt: .submittedAt, body: .body, author: .author.login}],
+            thread_comments: [.reviewThreads[]?.comments[]? | {createdAt, body, author: .author.login}]
+        }' 2>/dev/null || true)
+    [[ -z "$_gh_payload" ]] && return 0
+
+    # Filter to comments newer than _last_push_ts using python (avoids brittle bash date math).
+    local _new_count
+    _new_count=$(LAST_PUSH_TS="$_last_push_ts" PAYLOAD="$_gh_payload" python3 -c "
+import json, os, sys
+ts = os.environ.get('LAST_PUSH_TS', '')
+try:
+    d = json.loads(os.environ.get('PAYLOAD', '{}'))
+except Exception:
+    print(0); sys.exit(0)
+n = 0
+for key in ('issue_comments', 'review_comments', 'thread_comments'):
+    for c in d.get(key, []) or []:
+        ca = c.get('createdAt') or ''
+        if ca and ca > ts:
+            n += 1
+print(n)
+" 2>/dev/null || echo 0)
+
+    if [[ "$_new_count" -gt 0 ]]; then
+        _dso_emit_local_escalation "comments_since_push" \
+            "PR #${_pr_number} has ${_new_count} new comment(s) since the last push (head=${_head_sha:0:8}, since=${_last_push_ts}; PR: ${_pr_url})" \
+            "Session agent must read each new PR comment, address the feedback (push fixes or reply), and re-run merge-to-main.sh."
+        return 1
+    fi
+    return 0
+}
+
 # --- gh CLI version gate (DD7) ---
 # Parse `gh --version` first line: "gh version 2.40.1 (2024-...)" → "2.40.1".
 # Compare against minimum 2.0.0 via `sort -V`. On too-old / missing gh: exit 1.
@@ -276,7 +387,7 @@ except Exception:
 # Reviewer-supplied input from PR review threads is untrusted. Reject paths
 # that could be used for path traversal, absolute-path access outside the
 # repo, or argument injection (paths starting with `-` would be parsed as
-# a flag by `git diff` or `llm-api-call.sh`).
+# a flag by `git diff` or the LLM dispatch command).
 #
 # Returns 0 if path is safe, 1 otherwise. Empty string is treated as safe
 # (callers handle empty by skipping diff context).
@@ -426,6 +537,24 @@ _pr_dispatch_unresolved_batch() {
     # Remaining positional args are the thread entries (tab-delimited).
     local _pdb_threads=("$@")
 
+    # Local-environment guard: thread resolution dispatches LLM agents and is
+    # therefore CI-only. When invoked outside CI, emit an escalation JSON and
+    # return non-zero so _phase_resolve_threads exits and the session agent
+    # remediates the unresolved threads via /dso:fix-bug or manual review.
+    if ! _dso_is_ci_environment; then
+        local _pdb_unresolved_ids="" _pdb_entry _pdb_eid
+        for _pdb_entry in "${_pdb_threads[@]:-}"; do
+            [[ -z "$_pdb_entry" ]] && continue
+            _pdb_eid="${_pdb_entry%%$'\t'*}"
+            _pdb_unresolved_ids+="${_pdb_eid},"
+        done
+        _pdb_unresolved_ids="${_pdb_unresolved_ids%,}"
+        _dso_emit_local_escalation "resolve_threads" \
+            "PR #${_pdb_pr_number} has unresolved review threads; LLM-driven thread resolution is CI-only (PR: ${_pdb_pr_url}; threads: ${_pdb_unresolved_ids})" \
+            "Session agent must address the open PR review threads (resolve, comment, or push fixes) before re-running merge-to-main.sh."
+        return 2
+    fi
+
     # Use namerefs to access the caller's associative/indexed arrays directly,
     # avoiding eval on variable names that originate from parameter input.
     # shellcheck disable=SC2178
@@ -467,7 +596,7 @@ _pr_dispatch_unresolved_batch() {
         # comes from the GraphQL response (untrusted reviewer input). An
         # invalid path is dropped: we skip the diff fetch and pass an empty
         # string to the LLM dispatch so neither `git diff` nor
-        # `llm-api-call.sh` ever sees the malicious value.
+        # the LLM dispatch command ever sees the malicious value.
         local _safe_file_path=""
         if _pr_validate_file_path "$_file_path"; then
             _safe_file_path="$_file_path"
@@ -684,7 +813,7 @@ _pr_commit_code_change_threads() {
 #   PR_THREAD_LOOP_INTERVAL           — overrides config default (30)
 #   PR_THREAD_LOOP_START_OVERRIDE_SECONDS — simulate elapsed time at start (default 0)
 #   PR_THREAD_LOOP_TEST_STOP_AFTER_RESET  — exit 0 after first POLL_WINDOW_RESET (testing)
-#   _LLM_DISPATCH_CMD                 — override LLM dispatch command (default: llm-api-call.sh)
+#   _LLM_DISPATCH_CMD                 — override LLM dispatch command (required; no default — deleted in S3)
 _phase_resolve_threads() {
     local _pr_number="$1" _pr_url="$2"
 
@@ -697,7 +826,12 @@ _phase_resolve_threads() {
     local _last_thread_seen_ts=0
     local _last_thread_count=0
     local _last_head_sha=""
-    local _llm_cmd="${_LLM_DISPATCH_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
+    # compat-shim: LLM helper was deleted in S3; set _LLM_DISPATCH_CMD to provide an LLM helper
+    local _llm_cmd="${_LLM_DISPATCH_CMD:-}"
+    if [[ -z "$_llm_cmd" ]]; then
+        echo "WARNING: _LLM_DISPATCH_CMD not set; no LLM helper available (deleted in S3) — LLM step skipped" >&2
+        return 0
+    fi
     # Track threads the LLM escalated so they are skipped on subsequent iterations
     # instead of burning the dispatch budget repeatedly on unresolvable threads.
     declare -A _escalated_threads=()
@@ -795,6 +929,7 @@ _phase_resolve_threads() {
         local _repo_root
         _repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
         local _code_change_threads=()
+        local _dispatch_batch_rc=0
         _pr_dispatch_unresolved_batch \
             "$_pr_number" \
             "$_pr_url" \
@@ -804,7 +939,13 @@ _phase_resolve_threads() {
             _dispatches \
             _escalated_threads \
             _code_change_threads \
-            "${_threads_arr[@]:-}"
+            "${_threads_arr[@]:-}" || _dispatch_batch_rc=$?
+        # _pr_dispatch_unresolved_batch returns 2 when LLM dispatch is requested
+        # outside a CI environment (the local-escalation guard fired). Propagate
+        # so the caller (and the session agent) sees the structured ESCALATE.
+        if [[ "$_dispatch_batch_rc" -eq 2 ]]; then
+            return 1
+        fi
 
         # --- Batch commit + push for code_change threads ---
         _pr_commit_code_change_threads \
@@ -990,7 +1131,18 @@ except Exception:
 # Overridable via _RESOLVE_CONFLICTS_LLM_CMD for tests.
 _dispatch_resolve_conflicts() {
     local _pr_number="$1" _pr_url="$2"
-    local _llm_cmd="${_RESOLVE_CONFLICTS_LLM_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
+    if ! _dso_is_ci_environment; then
+        _dso_emit_local_escalation "conflict_resolution" \
+            "PR #${_pr_number} is CONFLICTING; LLM-driven conflict resolution is CI-only (PR: ${_pr_url})" \
+            "Session agent must run /dso:resolve-conflicts (or rebase manually), push, and re-run merge-to-main.sh."
+        return 2
+    fi
+    # compat-shim: LLM helper was deleted in S3; set _RESOLVE_CONFLICTS_LLM_CMD to provide an LLM helper
+    local _llm_cmd="${_RESOLVE_CONFLICTS_LLM_CMD:-}"
+    if [[ -z "$_llm_cmd" ]]; then
+        echo "WARNING: _RESOLVE_CONFLICTS_LLM_CMD not set; no LLM helper available (deleted in S3) — LLM step skipped" >&2
+        return 0
+    fi
     local _prompt_file="${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/resolve-conflicts-dispatch.md"
     local _context_file
     _context_file="$(mktemp /tmp/dso-conflict-context.XXXXXX)"
@@ -1106,7 +1258,7 @@ print(json.dumps(d))
 # --- _dispatch_fix_agent: invoke LLM sub-agent to apply fixes from findings ---
 #
 # ENV OVERRIDES (for testing):
-#   _REMEDIATE_LLM_CMD  — override LLM command (default: llm-api-call.sh)
+#   _REMEDIATE_LLM_CMD  — override LLM command (required; no default — deleted in S3)
 #                         Separate from _LLM_DISPATCH_CMD to avoid colliding with
 #                         the thread-resolution override in _phase_resolve_threads.
 #
@@ -1115,13 +1267,24 @@ print(json.dumps(d))
 _dispatch_fix_agent() {
     local _findings_path="$1"
     local _attempt_num="${2:-}"
-    local _llm_cmd="${_REMEDIATE_LLM_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/llm-api-call.sh}"  # shim-exempt: internal plugin script
+    if ! _dso_is_ci_environment; then
+        _dso_emit_local_escalation "remediate" \
+            "CI failed; LLM-driven fix dispatch is CI-only (findings: ${_findings_path})" \
+            "Session agent must invoke /dso:fix-bug on the failing CI run, push the fix, and re-run merge-to-main.sh."
+        return 2
+    fi
+    # compat-shim: LLM helper was deleted in S3; set _REMEDIATE_LLM_CMD to provide an LLM helper
+    local _llm_cmd="${_REMEDIATE_LLM_CMD:-}"
+    if [[ -z "$_llm_cmd" ]]; then
+        echo "WARNING: _REMEDIATE_LLM_CMD not set; no LLM helper available (deleted in S3) — LLM step skipped" >&2
+        return 0
+    fi
     local _prompt_file="${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md"
     local _result
     local _user_msg="$_findings_path"
     if [[ "$_attempt_num" == "4" ]]; then
         # Append budget-pressure context to the user message so the LLM receives it.
-        # llm-api-call.sh arg 2 is the user-message string — appending here ensures it
+        # The LLM dispatch cmd arg 2 is the user-message string — appending here ensures it
         # reaches the model regardless of whether the caller is a real LLM or a test stub.
         _user_msg="${_findings_path}
 This is attempt 4 of 5 - if you cannot resolve this finding, return ESCALATE with a clear explanation"
@@ -1491,6 +1654,13 @@ fi
 
 if [[ -z "$_PR_NUMBER" ]]; then
     echo "ERROR: could not resolve PR number for polling phase" >&2
+    exit 1
+fi
+
+# --- Local-only: surface any new PR comments since the last push ---
+# In local sessions, reviewer feedback must be addressed by the session agent
+# before merge can proceed. The check is a no-op in CI (returns 0).
+if ! _phase_check_pr_comments_since_push "$_PR_NUMBER" "$_PR_URL"; then
     exit 1
 fi
 

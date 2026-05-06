@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# retro-gather.sh — Collect all Phase 1 health metrics for /dso:retro.
+# retro-gather.sh — Collect all Phase A health metrics for /dso:retro.
 #
-# Extracts the deterministic data-collection steps from retro SKILL.md Phase 1
+# Extracts the deterministic data-collection steps from retro SKILL.md Phase A
 # into a single script that outputs structured sections. The LLM only needs to
 # interpret/analyze the output, not run the individual commands.
 #
@@ -302,7 +302,7 @@ else
     echo "Skipped (--quick mode)"
 fi
 
-# --- Phase 2 Data Collection (codebase metrics) ---
+# --- Phase B Data Collection (codebase metrics) ---
 section "TEST_METRICS"
 echo "Test file counts:"
 for dir in unit e2e integration; do
@@ -356,7 +356,7 @@ else
 fi
 
 section "CI_SHIFT_LEFT"
-# Raw CI failure data for the shift-left analysis in /dso:retro Phase 2.
+# Raw CI failure data for the shift-left analysis in /dso:retro Phase B.
 # Collects: recent run outcomes, failed job names, and failure rate.
 # The LLM maps each failure type to the earliest gate that could catch it.
 if ! command -v gh >/dev/null 2>&1; then

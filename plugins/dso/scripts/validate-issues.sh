@@ -657,20 +657,38 @@ try:
 except (json.JSONDecodeError, ValueError):
     issues = []
 
-interface_keywords = re.compile(r'interface|contract|abstract|protocol|base class|ABC', re.IGNORECASE)
+always_match = re.compile(r'\binterface\b|\babstract\b|\bbase class\b|\bABC\b', re.IGNORECASE)
+contract_match = re.compile(r'\bcontract\b', re.IGNORECASE)
+protocol_match = re.compile(r'\bprotocol\b', re.IGNORECASE)
+# Exclude known non-interface-contract title patterns (HTTP/test contract frameworks,
+# product names like "Model Context Protocol").
+false_positive_titles = re.compile(
+    r'\bwiremock\b|contract\s+test|test\s+contract|http\s+contract|model\s+context\s+protocol|mcp\s*\(',
+    re.IGNORECASE
+)
+
+def _is_interface_contract_title(title):
+    if false_positive_titles.search(title):
+        return False
+    if always_match.search(title):
+        return True
+    return bool(contract_match.search(title) or protocol_match.search(title))
 
 for issue in issues:
     status = issue.get('status', 'open')
     if status == 'closed':
         continue
     title = issue.get('title', issue.get('name', ''))
-    if not interface_keywords.search(title):
+    if not _is_interface_contract_title(title):
         continue
     iid = issue.get('id', '?')
     desc = issue.get('description', issue.get('body', '') or '')
     notes = issue.get('notes', '') or ''
     combined = desc + notes
-    has_file_path = bool(re.search(r'src/|\.py|file path', combined, re.IGNORECASE))
+    has_file_path = bool(re.search(
+        r'src/|\.py|\.sh|\.md|docs/contracts|skills/|file path',
+        combined, re.IGNORECASE
+    ))
     has_methods = bool(re.search(r'method|function|@abstractmethod', combined, re.IGNORECASE))
     if not has_file_path and not has_methods:
         print(f'MISSING|{iid}|{title}')

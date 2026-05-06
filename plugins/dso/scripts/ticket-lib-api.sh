@@ -24,6 +24,30 @@ _TICKETLIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # can branch without repeated command -v calls.
 command -v flock >/dev/null 2>&1 && _ticketlib_has_flock=1 || _ticketlib_has_flock=0
 
+# ── Short ID resolver ────────────────────────────────────────────────────────
+# _ticketlib_resolve_short_id <input> <tracker_dir>
+# If <input> is an 8-hex short ID (xxxx-xxxx), scan <tracker_dir> for a
+# unique matching full 16-hex directory and echo it. Otherwise echo <input>.
+# Callers must reassign: ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+_ticketlib_resolve_short_id() {
+    local _input="$1" _tracker="$2"
+    if [[ "$_input" =~ ^[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+        local _matches=() _entry _base
+        while IFS= read -r -d '' _entry; do
+            _base="$(basename "$_entry")"
+            if [[ "${_base:0:9}" == "$_input" ]] && \
+               [[ "$_base" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+                _matches+=("$_base")
+            fi
+        done < <(find "$_tracker" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null)
+        if [ "${#_matches[@]}" -eq 1 ]; then
+            echo "${_matches[0]}"
+            return 0
+        fi
+    fi
+    echo "$_input"
+}
+
 # ── Dispatch helper ──────────────────────────────────────────────────────────
 # Wraps each call in a subshell so per-call set -e / traps / var mutations
 # cannot leak back into the caller's shell state.
@@ -99,6 +123,8 @@ ticket_show() {
             _usage
             return 1
         fi
+
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: Ticket '$ticket_id' not found" >&2
@@ -921,6 +947,8 @@ ticket_comment() {
             return 1
         fi
 
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+
         # Ghost check: ticket directory must exist with CREATE or SNAPSHOT event.
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: ticket '$ticket_id' does not exist" >&2
@@ -1042,6 +1070,8 @@ ticket_set_file_impact() {
             return 1
         fi
 
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+
         # Ghost check: ticket directory must exist with CREATE or SNAPSHOT event.
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: ticket '$ticket_id' does not exist" >&2
@@ -1139,6 +1169,8 @@ ticket_get_file_impact() {
             echo "Error: ticket_id must be non-empty" >&2
             return 1
         fi
+
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "[]"
@@ -1459,6 +1491,8 @@ ticket_edit() {
             return 1
         fi
 
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: ticket '$ticket_id' does not exist" >&2
             return 1
@@ -1684,6 +1718,8 @@ ticket_archive() {
             return 1
         fi
 
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+
         # Ticket directory must exist.
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: ticket '$ticket_id' does not exist" >&2
@@ -1871,6 +1907,8 @@ ticket_delete() {
             return 1
         fi
 
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: ticket '$ticket_id' does not exist" >&2
             return 1
@@ -1930,93 +1968,11 @@ PYEOF
 
         # ── UNLINK scan: write event files, print paths to stdout (no commit) ──
         # All staging is deferred to the single atomic commit below.
+        # Uses ticket-delete-unlink-scan.py (standalone helper) which uses
+        # reduce_all_tickets() for O(N) scan with SNAPSHOT support.
         local unlink_files_raw
-        unlink_files_raw=$(python3 - "$TRACKER_DIR" "$ticket_id" "$env_id" "$author" <<'PYEOF'
-import json, os, sys, time, uuid
-from pathlib import Path
-
-tracker_dir = sys.argv[1]
-deleted_id  = sys.argv[2]
-env_id      = sys.argv[3]
-author      = sys.argv[4]
-
-
-def _get_active_links(ticket_dir: Path):
-    """Return list of (link_uuid, target_id, relation) for net-active LINKs."""
-    all_events = []
-    for f in sorted(ticket_dir.glob('*-LINK.json')):
-        all_events.append(('LINK', f))
-    for f in sorted(ticket_dir.glob('*-UNLINK.json')):
-        all_events.append(('UNLINK', f))
-
-    _order = {'LINK': 0, 'UNLINK': 1}
-    all_events.sort(key=lambda x: (int(x[1].name.split('-')[0]), _order.get(x[0], 99), x[1].name))
-
-    active = {}
-    for etype, f in all_events:
-        try:
-            with open(f, encoding='utf-8') as fh:
-                ev = json.load(fh)
-        except (OSError, json.JSONDecodeError):
-            continue
-        data = ev.get('data', {})
-        u = ev.get('uuid', '')
-        if etype == 'LINK' and u:
-            active[u] = (data.get('target_id', data.get('target', '')), data.get('relation', ''))
-        elif etype == 'UNLINK':
-            lu = data.get('link_uuid', '')
-            if lu:
-                active.pop(lu, None)
-    return [(u, tid, rel) for u, (tid, rel) in active.items()]
-
-
-def _write_unlink(source_id, target_id, link_uuid_val):
-    """Write an UNLINK event file into source_id's directory; return dest path."""
-    source_dir = Path(tracker_dir) / source_id
-    if not source_dir.is_dir():
-        return None
-    ts_prefix = str(time.time_ns())
-    ev_uuid = str(uuid.uuid4())
-    event = {
-        'event_type': 'UNLINK',
-        'timestamp': int(ts_prefix),
-        'uuid': ev_uuid,
-        'env_id': env_id,
-        'author': author,
-        'data': {
-            'link_uuid': link_uuid_val,
-            'target_id': target_id,
-        },
-    }
-    dest = source_dir / f'{ts_prefix}-{ev_uuid}-UNLINK.json'
-    dest.write_text(json.dumps(event, ensure_ascii=False), encoding='utf-8')
-    return str(dest)
-
-
-tracker_path = Path(tracker_dir)
-
-# Scan all ticket dirs for inbound LINKs pointing at deleted_id
-for entry in sorted(tracker_path.iterdir()):
-    if not entry.is_dir() or entry.name.startswith('.'):
-        continue
-    source_id = entry.name
-    active = _get_active_links(entry)
-    for link_uuid_val, target_id, relation in active:
-        if target_id == deleted_id:
-            f = _write_unlink(source_id, deleted_id, link_uuid_val)
-            if f:
-                print(f)
-
-# Also scan deleted ticket's own dir for outbound LINKs
-deleted_dir = tracker_path / deleted_id
-if deleted_dir.is_dir():
-    active = _get_active_links(deleted_dir)
-    for link_uuid_val, target_id, relation in active:
-        f = _write_unlink(deleted_id, target_id, link_uuid_val)
-        if f:
-            print(f)
-PYEOF
-)
+        unlink_files_raw=$(python3 "$_TICKETLIB_DIR/ticket-delete-unlink-scan.py" \
+            "$TRACKER_DIR" "$ticket_id" "$env_id" "$author")
         # set -euo pipefail (active in this subshell) aborts on non-zero python exit.
 
         if [ "$already_tombstoned" -eq 1 ]; then

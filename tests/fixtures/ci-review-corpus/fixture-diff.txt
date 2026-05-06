@@ -1,0 +1,13 @@
+diff --git a/plugins/dso/scripts/example.py b/plugins/dso/scripts/example.py
+new file mode 100644
+--- /dev/null
++++ b/plugins/dso/scripts/example.py
+@@ -0,0 +1,10 @@
++def add(a, b):
++    """Add two numbers."""
++    return a + b
++
++
++def subtract(a, b):
++    """Subtract b from a."""
++    return a - b

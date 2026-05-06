@@ -1,10 +1,3 @@
-<!-- REVIEW-DEFENSE: No agent currently references this file by design. This is the walking skeleton
-     story for the behavioral-testing-standard shared prompt. Sibling stories (80c9-df3c, 967e-f219,
-     d82f-f58a, b669-fee9) in the same epic will update dso:red-test-writer, dso:red-test-evaluator,
-     and the sprint/fix-bug dispatch prompts to load this standard. The file must exist before those
-     stories can reference it. The "two parallel sources of truth" state is intentional and temporary
-     — it will be resolved when the sibling stories are executed. -->
-
 # Shared Behavioral Testing Standard
 
 Standalone prompt fragment for test-writing agents. Applies to all test creation and review tasks across any skill that writes or evaluates tests. This is a 5-rule standard (with a Rule 5 addendum covering remote-runtime declarative configuration artifacts) grounded in four research references:
@@ -124,6 +117,18 @@ Test ONLY at the deterministic integration interface. Acceptable structural test
 
 - `test -f <instruction-file>` as a standalone assertion — existence-only checks are change-detector tests that break when files are renamed or reorganized without changing behavior.
 - `grep`-based content assertions that check whether a specific phrase, word, or sentence appears in instruction file body text — these test the text of the implementation, not its behavioral contract. They break on any edit that preserves intent but changes wording.
+- `grep`-based section-heading assertions on instruction files (e.g., `grep -q "^## Severity Calibration Rubric" reviewer-base.md`) UNLESS the heading is a tooling-parsed structural marker (see "Heading interface vs. heading organization" below) — organizational headings are content; renaming or restructuring them is a safe refactor that should not break tests.
+
+**Heading interface vs. heading organization (clarification of Rule 5 — bug 725c-5159):**
+
+A section heading is part of the structural contract ONLY when it is parsed or referenced by tooling outside the file itself. Apply this two-question test before adding a heading-grep assertion:
+
+1. Does any script, hook, validator, or other automated consumer parse this heading by name? (e.g., `validate-review-output.sh`, `check-shim-refs.sh`, an MCP probe, a contract validator)
+2. Is the heading published in a contract document (`docs/contracts/*.md`) or referenced by a stable external schema?
+
+If either is `yes`: the heading IS the interface — grep is appropriate, like `## SUB-AGENT-GUARD` (parsed by skill-dispatch logic) or `## Purpose` in a contract file (required by contract schema validation).
+
+If both are `no`: the heading is organizational content. Renaming `## Severity Calibration Rubric` to `## Calibration Rules` is a safe refactor that preserves intent — a test that breaks on that rename is a change-detector test (Rule 4), not a structural assertion. Replace it with a behavioral test that submits a finding and asserts the validator/agent applies the calibration as expected.
 
 **What this rule prohibits and why:**
 

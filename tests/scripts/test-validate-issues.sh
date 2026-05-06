@@ -429,6 +429,98 @@ else
     (( PASS++ ))
 fi
 
+# ── Tests: check_interface_contracts false-positive regression (33a0-1aa7) ───
+# RED marker — test_interface_contracts_no_false_positive_bash_docs
+# Test A: ticket with "interface" in title and description referencing a .sh file
+# should NOT be flagged (currently flagged because regex only matches src/|\.py|file path).
+echo "Test: check_interface_contracts — bash-doc ticket not flagged (33a0-1aa7)"
+IFACE_TICKET_BASH=$(python3 -c "
+import json
+t = {
+    'ticket_id': 'test-iface-bash',
+    'status': 'open',
+    'ticket_type': 'task',
+    'title': 'Define interface contract for ticket-lib-api.sh',
+    'parent_id': None,
+    'description': 'The orchestrator contract is documented in docs/contracts/harvest-attestation-format.md and plugins/dso/scripts/ticket-lib-api.sh',
+    'notes': '',
+    'deps': [],
+    'created_at': '2026-01-01T00:00:00Z',
+}
+print(json.dumps(t))
+")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$IFACE_TICKET_BASH]")
+output=""
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
+if echo "$output" | grep -qi "Interface task may need documentation.*test-iface-bash"; then
+    echo "  FAIL: bash-doc ticket was incorrectly flagged (false positive; .sh path not recognized)" >&2
+    echo "  Output: $output" >&2
+    (( FAIL++ ))
+else
+    echo "  PASS: bash-doc ticket was not flagged"
+    (( PASS++ ))
+fi
+
+# Test B: ticket title containing "contract" in non-interface-contract context
+# "WireMock contract tests" — should NOT be flagged.
+echo "Test: check_interface_contracts — WireMock contract title not flagged (33a0-1aa7)"
+WIREMOCK_TICKET=$(python3 -c "
+import json
+t = {
+    'ticket_id': 'test-wiremock',
+    'status': 'open',
+    'ticket_type': 'task',
+    'title': 'Jira bridge integration tests: free Cloud sandbox + WireMock contract tests',
+    'parent_id': None,
+    'description': 'Set up WireMock stubs for Jira REST API integration testing.',
+    'notes': '',
+    'deps': [],
+    'created_at': '2026-01-01T00:00:00Z',
+}
+print(json.dumps(t))
+")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$WIREMOCK_TICKET]")
+output=""
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
+if echo "$output" | grep -qi "Interface task may need documentation.*test-wiremock"; then
+    echo "  FAIL: WireMock contract ticket incorrectly flagged (overmatch on 'contract')" >&2
+    echo "  Output: $output" >&2
+    (( FAIL++ ))
+else
+    echo "  PASS: WireMock contract ticket not flagged"
+    (( PASS++ ))
+fi
+
+# Test C: ticket title containing "Protocol" as part of "Model Context Protocol"
+# should NOT be flagged (product name, not interface contract).
+echo "Test: check_interface_contracts — MCP Protocol title not flagged (33a0-1aa7)"
+MCP_TICKET=$(python3 -c "
+import json
+t = {
+    'ticket_id': 'test-mcp',
+    'status': 'open',
+    'ticket_type': 'task',
+    'title': 'Incorporate Semantic Search and MCP (Model Context Protocol)',
+    'parent_id': None,
+    'description': 'Integrate MCP server for semantic search capabilities.',
+    'notes': '',
+    'deps': [],
+    'created_at': '2026-01-01T00:00:00Z',
+}
+print(json.dumps(t))
+")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$MCP_TICKET]")
+output=""
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
+if echo "$output" | grep -qi "Interface task may need documentation.*test-mcp"; then
+    echo "  FAIL: MCP Protocol ticket incorrectly flagged (overmatch on 'Protocol')" >&2
+    echo "  Output: $output" >&2
+    (( FAIL++ ))
+else
+    echo "  PASS: MCP Protocol ticket not flagged"
+    (( PASS++ ))
+fi
+
 # ── Results ───────────────────────────────────────────────────────────────────
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

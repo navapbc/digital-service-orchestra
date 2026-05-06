@@ -73,3 +73,5 @@ Two updates to the architecture described above:
 The CI skeleton content referenced in this ADR has been extracted from `SKILL.md` to `plugins/dso/skills/shared/prompts/ci-skeleton-templates.md` and is loaded on demand. Anti-pattern codes AP-1..AP-5 are now defined in `plugins/dso/skills/shared/prompts/anti-patterns.md`.
 
 The decision recorded above — stack-aware config pre-fill plus per-stack CI skeleton blocks — remains valid; only the implementation structure was refactored.
+
+**2026-05-05 update (renumbering pass)**: `/dso:architect-foundation` phases were renumbered from `Phase 0/1/2/3/4` to `Phase A/B/C/D/E` and Phase 3's steps were renumbered from `Step 0/1/2/3/4` to `Step 1/2/3/4/5`. The "prefill-config invocation at Phase 3 Step 1" referenced above is now at **Phase D Step 2** in the current SKILL.md. "Phase 3 Step 0" (plugin inventory) is now **Phase D Step 1**. The decision and behavior are unchanged; only the labels moved.
