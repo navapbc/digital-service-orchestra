@@ -396,3 +396,5 @@ tests/fixtures/inference-incidents/holdout.txt:tests/docs/test-inference-inciden
 tests/fixtures/affects-fields-classifier.json:tests/scripts/test-red-team-affects-fields-classifier.sh [test_classifier_fixture_exists]
 plugins/dso/docs/contracts/inference-recall-result.md:tests/test-inference-recall-replay.sh [test_recall_result_contract_exists]
 plugins/dso/scripts/inference-recall-replay.sh:tests/test-inference-recall-replay.sh [test_recall_all_at_threshold]
+
+tests/docs/test-inference-review-docs.sh [test_config_ref_rate_rationale]
