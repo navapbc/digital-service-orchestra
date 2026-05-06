@@ -1350,6 +1350,7 @@ LLM_EOF
 
     (
         cd "$_T" || exit 1
+        CI="true" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         BRANCH="$_branch_safe" \
         MERGE_STRATEGY="pr" \
@@ -2791,6 +2792,7 @@ CAPTURE_EOF
 
     (
         cd "$_T" || exit 1
+        CI="true" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         BRANCH="$_branch_safe" \
         MERGE_STRATEGY="pr" \
@@ -2842,6 +2844,7 @@ CAPTURE_EOF
 
     (
         cd "$_T" || exit 1
+        CI="true" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         BRANCH="$_branch_safe" \
         MERGE_STRATEGY="pr" \
@@ -3167,6 +3170,7 @@ LLM_STUB_EOF
     _ec=0
     (
         cd "$_T" || exit 1
+        CI="true" \
         PATH="$_T/bin:$PATH" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         PR_LIB_MODE="1" \
@@ -3607,6 +3611,312 @@ t_state_write_read_auto_merge_disabled_round_trip() {
     unset BRANCH
 }
 t_state_write_read_auto_merge_disabled_round_trip
+
+# ---------------------------------------------------------------------------
+# Local-environment guard tests: LLM dispatch must be CI-only.
+# ---------------------------------------------------------------------------
+
+# Helper — write an LLM stub that records its invocations into a log file
+# so tests can assert the stub was NOT called when the guard fires first.
+_write_llm_stub() {
+    local _path="$1" _log="$2"
+    cat > "$_path" <<STUB
+#!/usr/bin/env bash
+echo "called \$@" >> "$_log"
+echo "RESOLUTION_RESULT: FIXES_APPLIED"
+exit 0
+STUB
+    chmod +x "$_path"
+}
+
+# t_local_guard_dispatch_fix_agent_blocks_llm_when_not_ci
+# When CI is unset, _dispatch_fix_agent MUST emit an escalation JSON, return 2,
+# and NEVER invoke the LLM stub.
+t_local_guard_dispatch_fix_agent_blocks_llm_when_not_ci() {
+    local _T _stub_log _stdout _ec
+    _T="$(mktemp -d /tmp/dso-local-guard-fix.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _stub_log="$_T/llm.log"
+    : > "$_stub_log"
+    _write_llm_stub "$_T/llm_stub.sh" "$_stub_log"
+    echo '{"findings":[]}' > "$_T/findings.json"
+
+    _stdout=$(
+        unset CI GITHUB_ACTIONS GITLAB_CI BUILDKITE CIRCLECI
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        BRANCH="local-guard-test" \
+        PR_LIB_MODE="1" \
+        _REMEDIATE_LLM_CMD="$_T/llm_stub.sh" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _dispatch_fix_agent "'"$_T/findings.json"'"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )
+    _ec=$?
+    assert_eq "t_local_guard_dispatch_fix_agent:returns_2" "2" "$_ec"
+    if [[ -s "$_stub_log" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: t_local_guard_dispatch_fix_agent:llm_must_not_be_invoked\n  stub log non-empty: %s\n" "$(cat "$_stub_log")" >&2
+    else
+        (( ++PASS ))
+    fi
+    if echo "$_stdout" | grep -q '"escalation": "local_no_llm_dispatch"' && \
+       echo "$_stdout" | grep -q '"phase": "remediate"'; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: t_local_guard_dispatch_fix_agent:escalation_json_emitted\n  stdout: %s\n" "$_stdout" >&2
+    fi
+}
+t_local_guard_dispatch_fix_agent_blocks_llm_when_not_ci
+
+# t_local_guard_dispatch_resolve_conflicts_blocks_llm_when_not_ci
+t_local_guard_dispatch_resolve_conflicts_blocks_llm_when_not_ci() {
+    local _T _stub_log _stdout _ec
+    _T="$(mktemp -d /tmp/dso-local-guard-conflict.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _stub_log="$_T/llm.log"
+    : > "$_stub_log"
+    _write_llm_stub "$_T/llm_stub.sh" "$_stub_log"
+
+    _stdout=$(
+        unset CI GITHUB_ACTIONS GITLAB_CI BUILDKITE CIRCLECI
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        BRANCH="local-guard-test" \
+        PR_LIB_MODE="1" \
+        _RESOLVE_CONFLICTS_LLM_CMD="$_T/llm_stub.sh" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _dispatch_resolve_conflicts 42 https://example.test/pr/42
+        ' "$PR_SCRIPT" 2>/dev/null
+    )
+    _ec=$?
+    assert_eq "t_local_guard_dispatch_resolve_conflicts:returns_2" "2" "$_ec"
+    if [[ -s "$_stub_log" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: t_local_guard_dispatch_resolve_conflicts:llm_must_not_be_invoked\n  stub log non-empty: %s\n" "$(cat "$_stub_log")" >&2
+    else
+        (( ++PASS ))
+    fi
+    if echo "$_stdout" | grep -q '"escalation": "local_no_llm_dispatch"' && \
+       echo "$_stdout" | grep -q '"phase": "conflict_resolution"'; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: t_local_guard_dispatch_resolve_conflicts:escalation_json_emitted\n  stdout: %s\n" "$_stdout" >&2
+    fi
+}
+t_local_guard_dispatch_resolve_conflicts_blocks_llm_when_not_ci
+
+# t_local_guard_pr_dispatch_unresolved_batch_blocks_llm_when_not_ci
+t_local_guard_pr_dispatch_unresolved_batch_blocks_llm_when_not_ci() {
+    local _T _stub_log _stdout _ec
+    _T="$(mktemp -d /tmp/dso-local-guard-threads.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    _stub_log="$_T/llm.log"
+    : > "$_stub_log"
+    _write_llm_stub "$_T/llm_stub.sh" "$_stub_log"
+
+    # Pass one tab-delimited thread entry: <thread_id>\t<other-fields-ignored>
+    _stdout=$(
+        unset CI GITHUB_ACTIONS GITLAB_CI BUILDKITE CIRCLECI
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        BRANCH="local-guard-test" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            declare -A _esc=()
+            declare -a _code=()
+            _disp=0
+            _pr_dispatch_unresolved_batch \
+                42 \
+                https://example.test/pr/42 \
+                "" \
+                "'"$_T/llm_stub.sh"'" \
+                10 \
+                _disp \
+                _esc \
+                _code \
+                $'"'"'thread-abc\tcomment-1\tdetail'"'"'
+        ' "$PR_SCRIPT" 2>/dev/null
+    )
+    _ec=$?
+    assert_eq "t_local_guard_pr_dispatch_unresolved_batch:returns_2" "2" "$_ec"
+    if [[ -s "$_stub_log" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: t_local_guard_pr_dispatch_unresolved_batch:llm_must_not_be_invoked\n  stub log non-empty: %s\n" "$(cat "$_stub_log")" >&2
+    else
+        (( ++PASS ))
+    fi
+    if echo "$_stdout" | grep -q '"escalation": "local_no_llm_dispatch"' && \
+       echo "$_stdout" | grep -q '"phase": "resolve_threads"'; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: t_local_guard_pr_dispatch_unresolved_batch:escalation_json_emitted\n  stdout: %s\n" "$_stdout" >&2
+    fi
+}
+t_local_guard_pr_dispatch_unresolved_batch_blocks_llm_when_not_ci
+
+# ---------------------------------------------------------------------------
+# _phase_check_pr_comments_since_push: new-comment detection.
+# ---------------------------------------------------------------------------
+
+# Helper — install a gh stub on PATH that emits a fixture payload for
+# `gh pr view --json headRefOid`, `gh api .../commits/<sha>` (head commit
+# date), and `gh pr view --json comments,reviews,reviewThreads`.
+_install_gh_stub_for_comments() {
+    local _bindir="$1"
+    local _head_date="$2"
+    local _payload_file="$3"   # contents for the comments+reviews+reviewThreads view
+    mkdir -p "$_bindir"
+    cat > "$_bindir/gh" <<STUB
+#!/usr/bin/env bash
+case "\$*" in
+    *"--json headRefOid"*)        echo '{"headRefOid":"deadbeefcafe1234"}'; ;;
+    *"api"*"commits/"*)           echo "$_head_date"; ;;
+    *"--json comments,reviews,reviewThreads"*)
+                                  cat "$_payload_file"
+                                  ;;
+    *)                            echo ""; ;;
+esac
+exit 0
+STUB
+    chmod +x "$_bindir/gh"
+}
+
+# Build a comments+reviews+reviewThreads payload pre-shaped per the script's
+# inline jq filter (the function itself does not invoke jq again — it parses
+# the structure directly via python).
+_write_comments_payload() {
+    local _path="$1"
+    local _new_ts="$2"   # createdAt for "new" comments (after head_date)
+    local _old_ts="$3"   # createdAt for "old" comments (before head_date)
+    cat > "$_path" <<JSON
+{
+  "issue_comments": [
+    {"createdAt": "$_old_ts", "body": "old", "author": "alice"},
+    {"createdAt": "$_new_ts", "body": "new!",  "author": "bob"}
+  ],
+  "review_comments": [],
+  "thread_comments": [
+    {"createdAt": "$_new_ts", "body": "thread reply", "author": "carol"}
+  ]
+}
+JSON
+}
+
+# t_check_pr_comments_new_comments_emit_escalation
+# Two comments newer than head — function returns 1 with structured escalation.
+t_check_pr_comments_new_comments_emit_escalation() {
+    local _T _stdout _ec
+    _T="$(mktemp -d /tmp/dso-pr-comments-new.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _write_comments_payload "$_T/payload.json" "2026-05-06T01:00:00Z" "2026-05-05T00:00:00Z"
+    _install_gh_stub_for_comments "$_T/bin" "2026-05-06T00:30:00Z" "$_T/payload.json"
+
+    _stdout=$(
+        unset CI GITHUB_ACTIONS GITLAB_CI BUILDKITE CIRCLECI
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        BRANCH="comment-check-test" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _phase_check_pr_comments_since_push 42 https://example.test/pr/42
+        ' "$PR_SCRIPT" 2>/dev/null
+    )
+    _ec=$?
+    assert_eq "t_check_pr_comments_new_comments:returns_1" "1" "$_ec"
+    if echo "$_stdout" | grep -q '"escalation": "local_no_llm_dispatch"' && \
+       echo "$_stdout" | grep -q '"phase": "comments_since_push"'; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: t_check_pr_comments_new_comments:escalation_json\n  stdout: %s\n" "$_stdout" >&2
+    fi
+}
+t_check_pr_comments_new_comments_emit_escalation
+
+# t_check_pr_comments_no_new_returns_zero
+# All comments older than head_date → function returns 0 (no escalation).
+t_check_pr_comments_no_new_returns_zero() {
+    local _T _stdout _ec
+    _T="$(mktemp -d /tmp/dso-pr-comments-none.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    # All comments dated before head — none newer.
+    cat > "$_T/payload.json" <<'JSON'
+{
+  "issue_comments": [
+    {"createdAt": "2026-05-05T00:00:00Z", "body": "old", "author": "alice"}
+  ],
+  "review_comments": [],
+  "thread_comments": []
+}
+JSON
+    _install_gh_stub_for_comments "$_T/bin" "2026-05-06T00:30:00Z" "$_T/payload.json"
+
+    _stdout=$(
+        unset CI GITHUB_ACTIONS GITLAB_CI BUILDKITE CIRCLECI
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        BRANCH="comment-check-test" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _phase_check_pr_comments_since_push 42 https://example.test/pr/42
+        ' "$PR_SCRIPT" 2>/dev/null
+    )
+    _ec=$?
+    assert_eq "t_check_pr_comments_no_new:returns_0" "0" "$_ec"
+    if [[ -z "$_stdout" ]]; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: t_check_pr_comments_no_new:no_stdout_when_clean\n  stdout: %s\n" "$_stdout" >&2
+    fi
+}
+t_check_pr_comments_no_new_returns_zero
+
+# t_check_pr_comments_skipped_in_ci
+# Even with new comments present, CI=true short-circuits the function.
+t_check_pr_comments_skipped_in_ci() {
+    local _T _stdout _ec
+    _T="$(mktemp -d /tmp/dso-pr-comments-ci.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _write_comments_payload "$_T/payload.json" "2026-05-06T01:00:00Z" "2026-05-05T00:00:00Z"
+    _install_gh_stub_for_comments "$_T/bin" "2026-05-06T00:30:00Z" "$_T/payload.json"
+
+    _stdout=$(
+        CI="true" \
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        BRANCH="comment-check-test" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _phase_check_pr_comments_since_push 42 https://example.test/pr/42
+        ' "$PR_SCRIPT" 2>/dev/null
+    )
+    _ec=$?
+    assert_eq "t_check_pr_comments_skipped_in_ci:returns_0" "0" "$_ec"
+    if [[ -z "$_stdout" ]]; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: t_check_pr_comments_skipped_in_ci:no_stdout\n  stdout: %s\n" "$_stdout" >&2
+    fi
+}
+t_check_pr_comments_skipped_in_ci
 
 # ---------------------------------------------------------------------------
 print_summary
