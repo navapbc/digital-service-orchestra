@@ -218,8 +218,9 @@ def main() -> int:
 
     # Detect all-specialist-error: every finding is a specialist_error with no real review.
     # Exit 1 so the CI job fails visibly instead of silently no-op'ing (fcea-6e83).
-    all_specialist_errors = merged.get("findings") and all(
-        f.get("type") == "specialist_error" for f in merged["findings"]
+    _findings = merged.get("findings") or []
+    all_specialist_errors = bool(_findings) and all(
+        f.get("type") == "specialist_error" for f in _findings
     )
     if all_specialist_errors:
         print(
@@ -228,6 +229,17 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+
+    # Warn (non-blocking) when all findings are synthetic (e840-327f).
+    # fallback_exhausted findings indicate review infrastructure issues but
+    # are not hard failures — alert the operator without blocking CI.
+    _synthetic_types = {"specialist_error", "fallback_exhausted"}
+    if _findings and all(f.get("type", "") in _synthetic_types for f in _findings):
+        print(
+            f"WARNING: all {len(_findings)} finding(s) are synthetic "
+            f"(fallback_exhausted/specialist_error) — review content may be incomplete",
+            file=sys.stderr,
+        )
 
     return 0
 

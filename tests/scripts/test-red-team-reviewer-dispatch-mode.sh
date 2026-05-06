@@ -86,7 +86,7 @@ test_no_dispatch_without_mode() {
                 missing_count=$(( missing_count + 1 ))
             fi
         done < <(grep -n 'dso:red-team-reviewer' "$filepath" 2>/dev/null || true)
-    done < <(grep -rl 'dso:red-team-reviewer' "$SKILLS_DIR" 2>/dev/null || true)
+    done < <(grep -rl --include='*.md' 'dso:red-team-reviewer' "$SKILLS_DIR" 2>/dev/null || true)
 
     # If no dispatch sites found at all, or any are missing mode:, fail RED
     if [[ "$checked_count" -eq 0 ]]; then
