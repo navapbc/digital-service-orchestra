@@ -227,6 +227,10 @@ _setup_test() {
     export PATH
     # Point _phase_resolve_threads at the stub so tests never hit the real LLM.
     export _LLM_DISPATCH_CMD="$STUB_DIR/llm-api-call.sh"
+    # The script's _dso_is_ci_environment guard rejects LLM dispatch outside CI.
+    # Tests for thread-resolution dispatch behavior must opt into CI to exercise
+    # the real code path.
+    export CI="true"
     # Set BRANCH so merge-helpers.sh state functions don't blow up.
     BRANCH="test-branch-$$"
     export BRANCH
@@ -239,6 +243,7 @@ _teardown_test() {
     unset PR_THREAD_LOOP_INTERVAL PR_THREAD_LOOP_MAX_DISPATCHES PR_THREAD_LOOP_MAX_WALL_SECONDS
     unset PR_THREAD_LOOP_START_OVERRIDE_SECONDS PR_THREAD_LOOP_TEST_STOP_AFTER_RESET
     unset _LLM_DISPATCH_CMD
+    unset CI
 }
 
 # Convenience: count how many times the gh stub was called with given subcmd.
