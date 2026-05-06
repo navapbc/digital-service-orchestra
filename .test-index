@@ -375,3 +375,18 @@ plugins/dso/scripts/validate-review-output.sh:tests/hooks/test-validate-review-o
 plugins/dso/scripts/onboarding/ci-generator.sh:tests/scripts/test-ci-generator.sh
 plugins/dso/scripts/lib/ci-findings-normalize.sh:tests/scripts/test-ci-findings-normalize.sh
 tests/scripts/test-merge-to-main-pr.sh:tests/scripts/test-merge-to-main-pr.sh
+plugins/dso/scripts/dso_ci_review/runner.py:tests/skills/dso_ci_review/test_runner_smoke.py
+plugins/dso/scripts/dso_ci_review/findings.py:tests/skills/dso_ci_review/test_findings.py
+plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py
+plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]
+plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py [test_fallback_rate_limit_falls_back_to_provider]
+plugins/dso/scripts/dso_ci_review/classifier.py:tests/skills/dso_ci_review/test_classifier.py
+tests/fixtures/ci-review-corpus/expected-findings.json:tests/skills/dso_ci_review/test_parity.py
+plugins/dso/docs/contracts/decision-id-format.md:tests/docs/test-inference-signal-contracts.sh [test_decision_id_contract_has_required_sections]
+plugins/dso/docs/contracts/inference-envelope.md:tests/docs/test-inference-signal-contracts.sh [test_inference_envelope_contract_has_required_sections]
+plugins/dso/docs/contracts/meta-question-signal.md:tests/docs/test-inference-signal-contracts.sh [test_meta_question_signal_contract_has_required_sections]
+plugins/dso/docs/contracts/inference-incident-schema.md:tests/docs/test-inference-signal-contracts.sh [test_inference_incident_schema_contract_has_required_sections]
+plugins/dso/agents/inference-incident-curator.md:tests/scripts/test-inference-incident-curator-agent.sh [test_curator_agent_has_required_frontmatter]
+
+tests/fixtures/inference-incidents/incidents.jsonl:tests/docs/test-inference-incident-corpus.sh [test_corpus_file_has_minimum_incidents]
+tests/fixtures/inference-incidents/holdout.txt:tests/docs/test-inference-incident-corpus.sh [test_holdout_file_exists]
