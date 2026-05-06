@@ -292,6 +292,19 @@ When escalating, annotate the Step 2 subject:
 "Architectural Pattern: {pattern name} [CROSS-CUTTING — {N} layers / {M} interfaces]"
 ```
 
+### Doc-Only Skip Gate (bug 578c-177c)
+
+Before generating proposals, check whether the story exclusively touches documentation or instruction files (`.md` files in `skills/`, `agents/`, `prompts/`, `docs/`, `CLAUDE.md`, or any workflow/config file with no executable behavior). Apply behavioral-testing-standard.md Rule 5: instruction-file changes have only one meaningful implementation and carry no architectural decision. In that case:
+
+1. Log: `"Doc-only story — skipping Proposal Generation and approach-decision-maker dispatch"`
+2. Skip directly to **Step 3: Atomic Task Drafting** with `testing_mode: GREEN` for all tasks.
+3. Do NOT generate proposals or dispatch the decision-maker.
+
+Signals that indicate a doc-only story:
+- Story title/description mentions updating a SKILL.md, CLAUDE.md, workflow doc, agent file, or other `.md` guidance file
+- All affected files in the file impact table are `.md` or `.conf` with no associated executable code change
+- Story is testing_mode: GREEN with only instruction file updates in scope
+
 ### Proposal Generation
 
 Read `shared/prompts/complexity-gate.md`. If unreadable, STOP and emit:
