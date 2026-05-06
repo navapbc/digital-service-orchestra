@@ -165,6 +165,9 @@ jobs:
       - name: Validate check-context names
         run: bash plugins/dso/scripts/onboarding/validate-required-checks.sh
 
+      - name: Validate ci-skip.yml parity
+        run: bash plugins/dso/scripts/onboarding/validate-ci-skip-parity.sh
+
   # ── LLM code review ─────────────────────────────────────────
 
   llm-review:
