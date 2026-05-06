@@ -268,6 +268,14 @@ Do NOT proceed to Phase 2 until the user confirms the understanding summary or e
    - Warn if `verification_command` runs destructive operations (deletes, writes to production).
    - Render the External Dependencies block in the epic description per `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
 
+   **Platform capability probe (62ae-26ec)**: When the SC mentions GitHub, PR, merge, auto-merge, branch protection, CI/required-checks, or release tagging, additionally probe these repo-level capabilities — they are silent dependencies that determine whether a PR-mode workflow can run end-to-end:
+   - **`Allow auto-merge`** (Settings → General → Pull Requests): if the design hinges on `gh pr merge --auto`, this MUST be on at the repo level. Default for new repos: OFF. Surface as a `user_manual` dependency with verification command `gh repo view --json autoMergeAllowed --jq .autoMergeAllowed`.
+   - **Branch protection rules on `main`**: if the design pushes commits or tags directly, branch protection may reject them. Probe required-status-checks, required-reviews, and "Restrict pushes" settings.
+   - **Required status checks**: if the PR-merge flow waits on CI, the exact check-context names must match `.github/required-checks.txt`. New workflow renames silently break the gate.
+   - **Repository merge methods enabled**: `Allow merge commits` / `Allow squash merging` / `Allow rebase merging` — `gh pr merge --merge` fails if merge commits are disabled.
+
+   Treat each as a separate `external_dependencies` entry with `ownership: exists`, `handling: user_manual` (until verified), and `claude_has_access: unknown` (until verified). Adding the entries up front prevents the entire epic from failing on first real-world use because the deployment environment lacks an assumed capability.
+
 3. If no SC returns `external-outcome`: skip block rendering.
 
 ---
