@@ -425,3 +425,95 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
     assert parsed["scores"]["correctness"] == 1
     assert parsed["scores"]["verification"] == 3
     assert parsed["scores"]["hygiene"] == 2
+
+
+def test_runner_exits_1_when_all_specialists_fail(tmp_path):
+    """
+    Given: all specialists return specialist_error findings (e.g. ModuleNotFoundError)
+    When: runner.main() is called in-process
+    Then: exit code is 1 and stderr contains a message about specialist failure
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_exits_1_when_all_specialists_fail]
+
+    Covers fcea-6e83: runner exits 0 (PASS) even when every specialist dispatch fails,
+    allowing a silently no-op'd review job to satisfy the required-status check.
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_text = "diff --git a/foo.py b/foo.py\n+added line\n"
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text(diff_text)
+    output_file = tmp_path / "findings.json"
+
+    tier_result = {
+        "selected_tier": "standard",
+        "size_action": "none",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 1,
+        "blast_radius": 1,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 0,
+        "change_volume": 0,
+        "computed_total": 1,
+        "is_merge_commit": False,
+    }
+
+    # All specialists fail — simulates ModuleNotFoundError: No module named 'litellm'
+    all_error_findings = [
+        {
+            "findings": [
+                {
+                    "type": "specialist_error",
+                    "agent_id": "code-reviewer-standard",
+                    "severity": "important",
+                    "category": "correctness",
+                    "description": (
+                        "Specialist code-reviewer-standard failed: "
+                        "ModuleNotFoundError: No module named 'litellm'"
+                    ),
+                    "cited_lines": [],
+                }
+            ]
+        }
+    ]
+
+    async def mock_dispatch(agents):
+        return all_error_findings
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+            },
+        ),
+        patch("dso_ci_review.runner.classify_tier", return_value=tier_result),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=mock_dispatch,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    assert exit_code == 1, (
+        f"Expected exit code 1 when all specialists fail, got {exit_code}. "
+        "runner.main() must detect all-specialist-error and return 1 "
+        "(fcea-6e83: silent exit-0 lets broken review satisfy required-status check)."
+    )
+    stderr_text = stderr_capture.getvalue()
+    assert "specialist" in stderr_text.lower(), (
+        f"Expected a message about specialist failures in stderr, got: {stderr_text!r}"
+    )

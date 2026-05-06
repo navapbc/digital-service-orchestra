@@ -156,8 +156,10 @@ assert_eq "test_llm_review_no_legacy_tier_vars: exit 0" "0" "$no_tier_vars_exit"
 assert_eq "test_llm_review_no_legacy_tier_vars: deprecated DSO_LLM_* vars absent from template" "OK" "$no_tier_vars_output"
 assert_pass_if_clean "test_llm_review_no_legacy_tier_vars"
 
-# ── test_llm_review_exactly_two_steps ─────────────────────────────────────────
-# The new classifier-driven llm-review job has exactly 2 steps: checkout + run LLM review.
+# ── test_llm_review_exactly_three_steps ──────────────────────────────────────
+# The classifier-driven llm-review job has exactly 3 steps:
+#   1. checkout, 2. install litellm, 3. run LLM review.
+# (Updated from 2 steps when litellm install step was added — bug d99c-f4d4.)
 _snapshot_fail
 step_count_exit=0
 step_count_output=""
@@ -168,15 +170,16 @@ template = os.environ.get('TEMPLATE', '')
 with open(template) as f:
     doc = yaml.safe_load(f)
 steps = doc.get('jobs', {}).get('llm-review', {}).get('steps', [])
-if len(steps) != 2:
-    print(f'FAIL: expected exactly 2 steps in llm-review job, got {len(steps)}')
+if len(steps) != 3:
+    names = [s.get('name', s.get('uses', '(unnamed)')) for s in steps]
+    print(f'FAIL: expected exactly 3 steps in llm-review job, got {len(steps)}: {names}')
     sys.exit(1)
 print('OK')
 PYEOF
 ) || step_count_exit=$?
-assert_eq "test_llm_review_exactly_two_steps: exit 0" "0" "$step_count_exit"
-assert_eq "test_llm_review_exactly_two_steps: llm-review job has exactly 2 steps" "OK" "$step_count_output"
-assert_pass_if_clean "test_llm_review_exactly_two_steps"
+assert_eq "test_llm_review_exactly_three_steps: exit 0" "0" "$step_count_exit"
+assert_eq "test_llm_review_exactly_three_steps: llm-review job has exactly 3 steps" "OK" "$step_count_output"
+assert_pass_if_clean "test_llm_review_exactly_three_steps"
 
 # ── test_llm_review_no_claude_code_action_ref ─────────────────────────────────
 # anthropics/claude-code-action must not appear anywhere in the llm-review job.
@@ -280,6 +283,35 @@ PYEOF
 assert_eq "test_llm_review_pipefail_shell: exit 0" "0" "$pipefail_exit"
 assert_eq "test_llm_review_pipefail_shell: run step uses pipefail shell" "OK" "$pipefail_output"
 assert_pass_if_clean "test_llm_review_pipefail_shell"
+
+# ── test_llm_review_installs_litellm ─────────────────────────────────────────
+# Regression guard: the llm-review job must have a step that installs litellm
+# before running the reviewer. Without it, dispatch.py raises ModuleNotFoundError
+# at import time, all specialists return specialist_error findings, and the job
+# silently exits 0 while producing zero real review findings (bugs d99c-f4d4, fcea-6e83).
+_snapshot_fail
+installs_litellm_exit=0
+installs_litellm_output=""
+installs_litellm_output=$(python3 - <<'PYEOF' 2>&1
+import yaml, sys, os
+
+template = os.environ.get('TEMPLATE', '')
+with open(template) as f:
+    doc = yaml.safe_load(f)
+steps = doc.get('jobs', {}).get('llm-review', {}).get('steps', [])
+# Match any step whose run: script contains "litellm" (covers pip install litellm,
+# pip install -r requirements.txt that includes litellm, etc.)
+matched = [s for s in steps if 'litellm' in s.get('run', '')]
+if not matched:
+    run_snippets = [s.get('run', s.get('uses', '(no run)'))[:80] for s in steps]
+    print('MISSING_LITELLM_INSTALL: no step installs litellm; steps: ' + str(run_snippets))
+    sys.exit(1)
+print('OK')
+PYEOF
+) || installs_litellm_exit=$?
+assert_eq "test_llm_review_installs_litellm: exit 0" "0" "$installs_litellm_exit"
+assert_eq "test_llm_review_installs_litellm: a step installs litellm" "OK" "$installs_litellm_output"
+assert_pass_if_clean "test_llm_review_installs_litellm"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
