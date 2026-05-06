@@ -396,3 +396,4 @@ tests/fixtures/affects-fields-classifier.json:tests/scripts/test-red-team-affect
 plugins/dso/docs/contracts/inference-recall-result.md:tests/test-inference-recall-replay.sh [test_recall_result_contract_exists]
 plugins/dso/docs/contracts/inferred-source-marker.md:tests/docs/test-inferred-source-marker-contract.sh
 plugins/dso/scripts/inference-recall-replay.sh:tests/test-inference-recall-replay.sh [test_recall_all_at_threshold]
+plugins/dso/skills/brainstorm/phases/approval-gate.md:tests/skills/test-brainstorm-progressive-validation.sh [test_approval_gate_inferred_rendering]
