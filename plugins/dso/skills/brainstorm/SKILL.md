@@ -268,7 +268,9 @@ Do NOT proceed to Phase 2 until the user confirms the understanding summary or e
    - Warn if `verification_command` runs destructive operations (deletes, writes to production).
    - Render the External Dependencies block in the epic description per `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md`.
 
-3. If no SC returns `external-outcome`: skip block rendering.
+3. **Release-infrastructure compatibility check (3dc2-ad99)**: Regardless of SC shape classification, if the epic introduces a new Python package (e.g., `litellm`, any `pip install` or `pyproject.toml` addition) or changes that will eventually be exercised at release time (new CI job, new validation step, changed plugin entry point), flag `scripts/release.sh` as a release-infrastructure dependency. Note in the epic description: "Release dependency: scripts/release.sh must be updated to account for [new package/change] before this epic can ship via the stable release channel." This dependency is NOT captured by the `external-outcome` shape classifier (it's an internal script, not an external service) — so it must be checked explicitly here.
+
+4. If no SC returns `external-outcome` and the release-infrastructure check is negative: skip block rendering.
 
 ---
 
