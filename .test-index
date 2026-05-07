@@ -384,7 +384,7 @@ plugins/dso/scripts/dso_ci_review/runner.py:tests/skills/dso_ci_review/test_runn
 plugins/dso/scripts/dso_ci_review/findings.py:tests/skills/dso_ci_review/test_findings.py
 plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py
 plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]
-plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py [test_fallback_rate_limit_falls_back_to_provider]
+plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py
 plugins/dso/scripts/dso_ci_review/classifier.py:tests/skills/dso_ci_review/test_classifier.py
 tests/fixtures/ci-review-corpus/expected-findings.json:tests/skills/dso_ci_review/test_parity.py
 plugins/dso/docs/contracts/decision-id-format.md:tests/docs/test-inference-signal-contracts.sh
