@@ -87,14 +87,15 @@ test_phase_merge_skipped_on_resume_with_pr_url() {
 
 test_phase_merge_fetches_before_push() {
     # _phase_merge should fetch origin and rebase if needed before its
-    # `git push -u origin "$BRANCH"` step. Detect by looking for a
-    # `git fetch origin` call inside the _phase_merge function body, before
-    # the `git push -u origin "$BRANCH"` line.
+    # `git push -u origin "$BRANCH"` step. The fetch may live inline OR in
+    # an extracted helper (_fetch_and_rebase_branch — Finding 2 refactor).
+    # Detect either pattern: literal `git fetch` in the function body, OR
+    # a call to a *_fetch_*rebase* helper before the push.
     _detect_tmp=$(mktemp /tmp/phase-merge-detect.XXXXXX)
     awk '
         /^_phase_merge\(\) \{/ { in_func = 1; next }
         in_func && /^\}/ { in_func = 0 }
-        in_func && /git fetch/ { saw_fetch = 1 }
+        in_func && (/git fetch/ || /_fetch_and_rebase|_fetch.*rebase/) { saw_fetch = 1 }
         in_func && /git push -u origin/ {
             if (saw_fetch) print "fetch_before_push"
             else print "no_fetch"

@@ -267,6 +267,36 @@ with open(sf + '.tmp', 'w') as f:
     return 0
 }
 
+# --- _fetch_and_rebase_branch: helper for pre-push synchronization ---
+# Fetches origin/$BRANCH and rebases local HEAD onto it when local is behind.
+# Used by _phase_merge before the initial push and again on push-rejection
+# retry (b56b-14e9). Returns 0 on success (or fast-forward not needed), 1 on
+# rebase failure (caller must decide whether to abort the rebase and bail).
+_fetch_and_rebase_branch() {
+    if ! git fetch origin "$BRANCH" 2>/dev/null; then
+        # Remote ref absent yet — fresh branch, nothing to rebase against.
+        return 0
+    fi
+    # Already a fast-forward → no rebase needed.
+    if git merge-base --is-ancestor "origin/$BRANCH" HEAD 2>/dev/null; then
+        return 0
+    fi
+    # Local is behind; attempt rebase. Capture rebase output so the caller can
+    # distinguish merge-conflict failures from other rebase errors via stderr.
+    local _rebase_out _rebase_rc=0
+    _rebase_out=$(git pull --rebase origin "$BRANCH" 2>&1) || _rebase_rc=$?
+    if [[ "$_rebase_rc" -ne 0 ]]; then
+        git rebase --abort 2>/dev/null || true
+        local _hint="(rebase failed)"
+        if [[ "$_rebase_out" == *"CONFLICT"* || "$_rebase_out" == *"merge conflict"* ]]; then
+            _hint="(merge conflicts — run /dso:resolve-conflicts)"
+        fi
+        echo "ERROR: git pull --rebase origin $BRANCH failed $_hint" >&2
+        return 1
+    fi
+    return 0
+}
+
 # --- _phase_merge (PR mode): push branch, create PR, queue auto-merge ---
 # DD1: gh pr create + gh pr merge --auto --merge
 # DD6: emit CONFLICT_DATA when gh reports mergeable=CONFLICTING
@@ -298,25 +328,11 @@ _phase_merge() {
     # non-fast-forward. Fetch and rebase before push so the workflow recovers
     # automatically instead of halting and forcing manual `git pull --rebase`.
     # (b56b-14e9)
-    if git fetch origin "$BRANCH" 2>/dev/null; then
-        # Remote ref exists; check if local is behind.
-        if ! git merge-base --is-ancestor "origin/$BRANCH" HEAD 2>/dev/null; then
-            # Local is behind remote — rebase. If conflicts arise, abort and
-            # fall through to git push (which will reject and surface the
-            # underlying state for manual resolution via /dso:resolve-conflicts).
-            if ! git pull --rebase origin "$BRANCH" 2>&1; then
-                git rebase --abort 2>/dev/null || true
-                echo "ERROR: git pull --rebase origin $BRANCH failed (conflicts) — run /dso:resolve-conflicts" >&2
-                return 1
-            fi
-        fi
-    fi
+    _fetch_and_rebase_branch || return 1
 
     if ! git push -u origin "$BRANCH" 2>&1; then
         # Retry once on rejection: another push may have landed between fetch and push.
-        if git fetch origin "$BRANCH" 2>/dev/null \
-            && git pull --rebase origin "$BRANCH" 2>&1 \
-            && git push -u origin "$BRANCH" 2>&1; then
+        if _fetch_and_rebase_branch && git push -u origin "$BRANCH" 2>&1; then
             : # retry succeeded
         else
             git rebase --abort 2>/dev/null || true
