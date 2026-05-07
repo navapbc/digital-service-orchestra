@@ -414,6 +414,64 @@ def test_reducer_applies_multiple_status_events_current_status_mismatch_resolves
     )
 
 
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_fork_with_empty_existing_uuid_lets_incoming_win(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """Bug e60b-e698: when state.parent_status_uuid is empty (no prior fork
+    winner has been recorded — e.g. the first fork after CREATE), the
+    incoming event MUST win regardless of its UUID's lexical ordering. The
+    previous condition ``incoming_uuid <= existing_uuid`` evaluated False for
+    any non-empty incoming vs an empty existing (because any string > ""), so
+    the existing-wins branch fired and state.status stayed at the loser's
+    value. Fix added a `not existing_uuid` guard so empty-existing → incoming
+    wins unconditionally.
+
+    This test directly exercises the empty-existing case: a CREATE leaves
+    state.parent_status_uuid="" (default). A STATUS event with
+    current_status='in_progress' (mismatched) and target='closed' triggers
+    fork resolution; without the fix, status stays 'open'; with the fix,
+    status becomes 'closed'.
+    """
+    ticket_dir = tmp_path / "tkt-empty-existing-uuid"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Empty-existing fork test",
+            "parent_id": None,
+        },
+    )
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_UUID2,
+        event_type="STATUS",
+        data={"status": "closed", "current_status": "in_progress"},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "reduce_ticket must return a dict on fork"
+    assert state.get("status") == "closed", (
+        "Empty existing_uuid must let incoming win — got "
+        f"state['status']={state.get('status')!r}"
+    )
+    # parent_status_uuid must advance to the winner's own UUID (not stay empty
+    # and not become the parent pointer) so subsequent forks have a
+    # well-defined comparison anchor.
+    assert state.get("parent_status_uuid") == _UUID2, (
+        "parent_status_uuid must advance to the winning event's own UUID; "
+        f"got {state.get('parent_status_uuid')!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Test 8: COMMENT event accumulates in comments list
 # ---------------------------------------------------------------------------

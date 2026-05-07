@@ -547,4 +547,91 @@ with open('$create_event') as f:
 }
 test_ticket_resolve_subcommand_dispatches_via_library
 
+# ── Test 14: ticket_tag accepts 8-hex short ID, writes to canonical full ID dir
+# RED marker — test_ticket_tag_short_id_resolves_to_full_ticket
+# Must FAIL before _ticketlib_resolve_short_id is added to ticket_tag.
+# Covers 6c0f-90bc: ticket_tag/ticket_untag silently created orphan dir under short ID.
+echo "Test 14: ticket_tag accepts 8-hex short ID and tags the canonical ticket"
+test_ticket_tag_short_id_resolves_to_full_ticket() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local full_id
+    full_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "tag short-id test" 2>/dev/null | tail -1) || true
+
+    if [ -z "$full_id" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    local short_id="${full_id:0:9}"
+
+    (
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        _invoke_lib_op ticket_tag "$short_id" shortlabel >/dev/null 2>&1
+    ) || true
+
+    # Verify canonical ticket directory has the tag (not an orphan dir under short ID)
+    local show_output
+    show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" show "$full_id" 2>/dev/null) || true
+    if echo "$show_output" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if 'shortlabel' in d.get('tags',[]) else 1)" 2>/dev/null; then
+        assert_eq "tag applied to canonical ticket" "yes" "yes"
+    else
+        assert_eq "tag applied to canonical ticket" "yes" "no"
+    fi
+
+    # Verify no orphan directory was created under the short ID
+    if [ -d "$repo/.tickets-tracker/$short_id" ]; then
+        assert_eq "no orphan dir under short ID" "absent" "present"
+    else
+        assert_eq "no orphan dir under short ID" "absent" "absent"
+    fi
+}
+test_ticket_tag_short_id_resolves_to_full_ticket
+
+# ── Test 15: ticket_untag accepts 8-hex short ID, removes from canonical full ID
+echo "Test 15: ticket_untag accepts 8-hex short ID and untags the canonical ticket"
+test_ticket_untag_short_id_resolves_to_full_ticket() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local full_id
+    full_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "untag short-id test" --tags removeme 2>/dev/null | tail -1) || true
+
+    if [ -z "$full_id" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    local short_id="${full_id:0:9}"
+
+    (
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        _invoke_lib_op ticket_untag "$short_id" removeme >/dev/null 2>&1
+    ) || true
+
+    local show_output
+    show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" show "$full_id" 2>/dev/null) || true
+    if echo "$show_output" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if 'removeme' not in d.get('tags',[]) else 1)" 2>/dev/null; then
+        assert_eq "tag removed from canonical ticket via short ID" "removed" "removed"
+    else
+        assert_eq "tag removed from canonical ticket via short ID" "removed" "still present"
+    fi
+
+    if [ -d "$repo/.tickets-tracker/$short_id" ]; then
+        assert_eq "no orphan dir under short ID (untag)" "absent" "present"
+    else
+        assert_eq "no orphan dir under short ID (untag)" "absent" "absent"
+    fi
+}
+test_ticket_untag_short_id_resolves_to_full_ticket
+
 print_summary

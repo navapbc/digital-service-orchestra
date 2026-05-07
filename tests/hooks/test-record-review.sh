@@ -27,7 +27,11 @@ export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_DIR"
 FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
 
 cleanup() {
-    rm -f "$FINDINGS_FILE"
+    # Also remove the .sha256 sidecar produced by write-reviewer-findings.sh —
+    # without this, a stale sidecar from a prior test bypasses the truncated-
+    # hash rejection in record-review.sh and a later test silently passes via
+    # the leftover hash. (da7d-93f1)
+    rm -f "$FINDINGS_FILE" "${FINDINGS_FILE}.sha256"
 }
 trap 'rm -rf "$ARTIFACTS_DIR"' EXIT
 

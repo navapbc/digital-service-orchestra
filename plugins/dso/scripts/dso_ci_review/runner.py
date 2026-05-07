@@ -336,9 +336,18 @@ def _read_tier_model(tier: str, config_path: str | None = None) -> str:
 
     # Locate config file
     if config_path is None:
+        # runner.py lives at <repo_root>/<plugin_root>/scripts/dso_ci_review/runner.py
+        # so dso-config.conf at <repo_root>/.claude/ is 5 dirname levels up
+        # (dso_ci_review → scripts → <plugin_root> → plugins → repo_root). The
+        # previous 3-level chain stopped at the plugin root, where .claude/ does
+        # not exist, so model.<tier> overrides were silently ignored. (0e2a-77b0)
         config_path = os.path.join(
             os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                os.path.dirname(
+                    os.path.dirname(
+                        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    )
+                )
             ),
             ".claude",
             "dso-config.conf",
@@ -423,10 +432,16 @@ def main() -> int:
     # model.provider in dso-config.conf, then defaulting to "anthropic".
     _ci_provider = os.environ.get("CI_REVIEW_PROVIDER", "").strip()
     if not _ci_provider:
-        # Attempt to read model.provider from dso-config.conf as a fallback
+        # Attempt to read model.provider from dso-config.conf as a fallback.
+        # 5 dirname levels: runner.py → dso_ci_review → scripts → dso → plugins → repo_root
+        # (0e2a-77b0).
         _config_path = os.path.join(
             os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                os.path.dirname(
+                    os.path.dirname(
+                        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    )
+                )
             ),
             ".claude",
             "dso-config.conf",
