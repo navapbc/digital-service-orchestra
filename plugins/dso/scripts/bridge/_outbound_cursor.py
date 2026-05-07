@@ -66,7 +66,18 @@ def write_cursor_bridge_alert(
         "data": {"reason": reason},
     }
     path = alert_dir / filename
-    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    try:
+        path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    except OSError as exc:
+        # Alert emission is best-effort — log loudly so an operator can see the
+        # cursor failed to surface its alert (disk full, permission denied,
+        # etc.) rather than discovering it via a missing alert file later.
+        # The caller has already taken its corrective action (e.g., seed_at_head
+        # wrote the cursor); failing alert emission must not abort the cursor
+        # path. Bug f776-d7ef llm-review finding 3.
+        logger.warning(
+            "_outbound_cursor: failed to write BRIDGE_ALERT to %s: %s", path, exc
+        )
     return path
 
 

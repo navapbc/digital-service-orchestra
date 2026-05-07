@@ -314,6 +314,15 @@ def process_events(
     # from the fetched range so per-event reordering inside
     # sort_events_for_dispatch can't leave the cursor mid-range. If processing
     # was incomplete, leave the cursor where it is so the next run retries.
+    #
+    # Empty-fetch guard (f776-d7ef llm-review finding 1): when fetch returns
+    # zero events (legitimately no new commits, or all events filtered as
+    # bridge-origin echoes), `events_with_sha` is empty. The `events_with_sha and`
+    # short-circuit below ensures we do NOT advance the cursor in that case —
+    # preventing the silent-drop window where cursor jumps to HEAD without
+    # processing anything. Cold-start handling (where the cursor SHOULD seed
+    # at HEAD with no events processed) lives in fetch_events_since_cursor's
+    # _seed_at_head, which writes the cursor and BRIDGE_ALERT directly.
     if events_with_sha and _processed_count[0] >= len(events_with_sha):
         head_sha_result = subprocess.run(
             ["git", "-C", str(tickets_path), "rev-parse", "HEAD"],

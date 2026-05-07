@@ -1781,13 +1781,20 @@ def test_cold_start_seeds_at_head_returns_empty(tmp_path):
 
 
 def test_process_events_multi_commit_catches_all_events(tmp_path):
-    """process_events with cursor-based fetch captures events from all commits (not just HEAD~1..HEAD).
+    """process_events uses the cursor to capture events from ALL commits since
+    the last checkpoint, not just HEAD~1..HEAD.
 
-    This is the shell-entry-point-level regression test: process_events
-    runs the git subprocess internally, catching diff-window regressions
-    that unit tests of the cursor module alone would miss.
+    Regression test for the chronic silent-drop bug (S1 of epic 1cec-29dc):
+    when multiple commits land between bridge runs, the prior HEAD~1..HEAD
+    diff window only saw the last commit's events. The cursor
+    (bridge._outbound_cursor) fetches cursor..HEAD instead.
+
+    Bug f776-d7ef llm-review finding 4: the prior version of this test had
+    a vacuous `>= 0` assertion that always passed; updated to a meaningful
+    behavioral assertion (cursor advances to HEAD after processing).
     """
     import importlib.util as _importlib_util
+    import subprocess as _sp
     import sys
     from pathlib import Path
     from unittest.mock import MagicMock
@@ -1797,10 +1804,10 @@ def test_process_events_multi_commit_catches_all_events(tmp_path):
         Path(__file__).resolve().parent.parent.parent / "plugins" / "dso" / "scripts"
     )
 
-    # Build a tracker git repo with 1 setup commit + 3 CREATE event commits
+    # Build a tracker git repo with 3 CREATE event commits.
     fixture = _make_tmp_git_tracker(tmp_path, n_event_commits=3)
     repo = fixture["repo"]
-    commit_shas = fixture["commit_shas"]  # noqa: F841
+    commit_shas = fixture["commit_shas"]
 
     # Load bridge-outbound.py via importlib
     bridge_outbound_path = scripts_dir / "bridge-outbound.py"
@@ -1811,31 +1818,47 @@ def test_process_events_multi_commit_catches_all_events(tmp_path):
     sys.modules["bridge_outbound"] = bridge_outbound
     spec.loader.exec_module(bridge_outbound)
 
-    # Mock acli_client
+    # Seed the cursor at the parent of the first event commit so all 3 event
+    # commits fall in the cursor..HEAD range. Without this seed the cursor
+    # would cold-start (seed at HEAD and return 0 events on this run).
+    from bridge._outbound_cursor import read_cursor, write_cursor
+
+    parent_sha = _sp.run(
+        ["git", "-C", str(repo), "rev-parse", f"{commit_shas[0]}^"],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    assert parent_sha, "fixture must have a parent commit before the events"
+    write_cursor(repo, parent_sha, "test-pre-seed")
+
     mock_acli = MagicMock()
     mock_acli.create_issue.return_value = {"key": "PROJ-1"}
 
-    # Call process_events — with git_diff_output=None, it will run the internal git command
-    # Against the current (broken) implementation this will use HEAD~1..HEAD and miss events.
-    # After the S1 fix, it uses cursor..HEAD and catches all events.
-    try:
-        syncs = bridge_outbound.process_events(  # noqa: F841
-            tickets_dir=str(repo),
-            acli_client=mock_acli,
-            git_diff_output=None,
-            bridge_env_id="",
-            run_id="test",
-        )
-    except Exception as e:
-        # If process_events crashes due to missing cursor module, the test fails RED
-        raise AssertionError(f"process_events raised unexpectedly: {e}") from e
+    # Call process_events with git_diff_output=None — it MUST consult the
+    # cursor we just seeded, NOT git diff HEAD~1..HEAD.
+    bridge_outbound.process_events(
+        tickets_dir=str(repo),
+        acli_client=mock_acli,
+        git_diff_output=None,
+        bridge_env_id="",
+        run_id="test",
+    )
 
-    # With the current HEAD~1..HEAD implementation, only 1 event is seen.
-    # After fix: cursor picks up all 3 commits.
-    assert mock_acli.create_issue.call_count >= 0  # minimal assertion to not crash
-    # The real regression assertion — after S1 fix this must pass:
-    # For now we just verify the test runs (will check count after GREEN)
-    # The test's purpose is confirmed RED by the overall test infrastructure failing to
-    # import bridge._outbound_cursor (ImportError), which is the real RED signal.
-    # Add an explicit import check to make the test visibly RED:
-    from bridge._outbound_cursor import fetch_events_since_cursor  # noqa: F401 — import triggers RED failure
+    # The cursor MUST advance to HEAD after processing all 3 commits' events.
+    # If process_events had used HEAD~1..HEAD (the bug), the cursor would
+    # stay at parent_sha (no advance) or only advance partway. A cursor
+    # equal to HEAD proves the full cursor..HEAD range was fetched and
+    # processed in a single invocation.
+    head_sha = _sp.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    post_cursor = read_cursor(repo)
+    assert post_cursor == head_sha, (
+        f"Cursor must advance to HEAD after processing all events. "
+        f"Expected {head_sha!r}, got {post_cursor!r}. This indicates "
+        f"either the cursor wasn't used or events weren't processed."
+    )

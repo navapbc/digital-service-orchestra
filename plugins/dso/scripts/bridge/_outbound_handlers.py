@@ -355,6 +355,15 @@ def handle_status_event(
             # second SYNC alert by checking whether retroactive succeeded:
             # only write the SYNC alert when retroactive failed or wasn't
             # attempted (b557-3bad).
+            #
+            # Partial-success note (f776-d7ef llm-review finding 2): when
+            # create_issue succeeds but the inner unassign_issue fails,
+            # handle_create_event itself writes a dedicated unassign-failure
+            # BRIDGE_ALERT (lines 154-159) before falling through to write the
+            # SYNC. So the unassign failure IS surfaced to consumers — just via
+            # the inner alert path, not via this outer SYNC alert. Suppressing
+            # the redundant outer alert (when create_syncs is non-empty) does
+            # NOT hide unassign failures.
             retroactive_succeeded = bool(create_syncs) if retroactive_attempted else False
             if retroactive_succeeded:
                 return []
