@@ -52,6 +52,13 @@ def process_create(
     state["parent_id"] = data.get("parent_id") or None
     state["priority"] = data.get("priority")
     state["assignee"] = data.get("assignee")
+    # Adjective-noun-noun alias (3363-fa8b): ticket_create computes this and
+    # writes it onto the CREATE event's data; the reducer must propagate it
+    # into compiled state so resolve_ticket_id and ticket_show can return
+    # human-friendly aliases. Without this assignment, alias is silently
+    # dropped between persistence and compiled state, defeating the entire
+    # alias system.
+    state["alias"] = data.get("alias")
     state["description"] = data.get("description") or ""
     state["tags"] = data.get("tags", [])
     return None

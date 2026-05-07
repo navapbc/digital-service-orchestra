@@ -196,6 +196,7 @@ def initial_state($tid):
     parent_id: null,
     priority: null,
     assignee: null,
+    alias: null,
     description: "",
     tags: [],
     comments: [],
@@ -208,7 +209,7 @@ def initial_state($tid):
 
 def _editable_keys:
   ["ticket_id","ticket_type","title","status","author","created_at","env_id",
-   "parent_id","priority","assignee","description","tags","comments","deps",
+   "parent_id","priority","assignee","alias","description","tags","comments","deps",
    "bridge_alerts","reverts"];
 
 def apply_event(ev):
@@ -223,6 +224,7 @@ def apply_event(ev):
                   else ev.data.parent_id end),
       priority:    (ev.data.priority?  // null),
       assignee:    (ev.data.assignee?  // null),
+      alias:       (ev.data.alias?     // null),
       description: (ev.data.description? // ""),
       tags:        (ev.data.tags? // [])
     }
@@ -1226,6 +1228,7 @@ def apply_event(ev):
                   else ev.data.parent_id end),
       priority:    (ev.data.priority?  // null),
       assignee:    (ev.data.assignee?  // null),
+      alias:       (ev.data.alias?     // null),
       description: (ev.data.description? // ""),
       tags:        (ev.data.tags? // [])
     }
