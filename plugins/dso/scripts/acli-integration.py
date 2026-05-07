@@ -726,6 +726,31 @@ class AcliClient:
         path = f"/rest/api/3/issue/{jira_key}/properties/{property_key}"
         self._direct_rest_put(path, value)
 
+    def unassign_issue(self, jira_key: str) -> None:
+        """Explicitly unassign a Jira issue via REST v3 PUT.
+
+        Uses direct REST v3 (not ACLI binary) because the /assignee endpoint
+        requires body {"accountId": null} at root level — ACLI's _direct_rest_put
+        wraps body as {"value": data} which is rejected by the assignee endpoint.
+        Empirically verified: direct REST PUT is the de-facto pattern used by
+        pycontribs/jira and atlassian-python-api for null-accountId unassign.
+        """
+        path = f"/rest/api/3/issue/{jira_key}/assignee"
+        url = f"{self.jira_url.rstrip('/')}{path}"
+        creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()
+        body = json.dumps({"accountId": None}, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=body,
+            method="PUT",
+            headers={
+                "Authorization": f"Basic {creds}",
+                "Content-Type": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            resp.read()
+
     def get_comments(self, jira_key: str) -> list[dict[str, Any]]:
         """Get all comments on a Jira issue."""
         cmd = [
