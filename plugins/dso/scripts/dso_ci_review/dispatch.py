@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import hashlib
 import json
 import logging
 import os
@@ -90,12 +91,86 @@ _PROVIDER_DEFAULT_MODEL: dict[str, str] = {
 }
 
 
-def _build_messages(diff_text: str, agent_id: str = "unknown") -> list[dict[str, str]]:
+def _build_messages(
+    diff_text: str, agent_id: str = "unknown", provider: str = "unknown"
+) -> list[dict[str, Any]]:
     system_prompt = _load_agent_prompt(agent_id)
+    if provider == "anthropic":
+        # SC3: place cache_control breakpoints at system-prompt and diff boundaries
+        # derived from the rendered message structure (not hardcoded by index).
+        return [
+            {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Review this diff:\n\n{diff_text}",
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+            },
+        ]
     return [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Review this diff:\n\n{diff_text}"},
     ]
+
+
+def _stable_prefix_hash(messages: list[dict[str, Any]]) -> str:
+    """Compute a SHA-256 hash of the stable cached prefix (first two messages).
+
+    The first two messages (system prompt + diff) must never change across turns
+    within a single dispatch_review call — any drift invalidates the Anthropic
+    cache and causes a 5-10× token cost overrun.
+    """
+    prefix = messages[:2]
+    serialized = json.dumps(prefix, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _check_cache_usage(
+    response: Any,
+    turn: int,
+    prev_cache_read: int | None,
+    provider: str,
+) -> int | None:
+    """Log warnings when Anthropic prompt-cache tokens are absent.
+
+    Returns the current cache_read_input_tokens value for use on the next turn.
+    No-op for non-Anthropic providers.
+    """
+    if provider != "anthropic":
+        return None
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return None
+    creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+    if turn == 0 and creation == 0 and cache_read == 0:
+        logger.warning(
+            "Anthropic cache miss on turn 0: neither cache_creation_input_tokens "
+            "nor cache_read_input_tokens > 0 — cache_control breakpoints may be "
+            "misplaced or the provider downgraded the request"
+        )
+    elif turn > 0 and prev_cache_read is not None and cache_read <= prev_cache_read:
+        logger.warning(
+            "Anthropic cache_read_input_tokens did not increase on turn %d "
+            "(prev=%d, current=%d) — stable prefix may have been invalidated",
+            turn,
+            prev_cache_read,
+            cache_read,
+        )
+    return cache_read
 
 
 def _parse_response(response: Any) -> dict[str, Any]:
@@ -194,10 +269,10 @@ def dispatch_review(
         if not environ.get(key_var):
             raise ConfigError(f"Missing {key_var} for provider {provider!r}")
 
-    messages = _build_messages(diff_text, agent_id=agent_id)
-
-    # Determine the primary provider and model
+    # Determine the primary provider early — needed for cache_control placement.
     first_provider = provider_chain[0]
+
+    messages = _build_messages(diff_text, agent_id=agent_id, provider=first_provider)
     resolved_primary_model = primary_model or _PROVIDER_DEFAULT_MODEL.get(
         first_provider, first_provider
     )
@@ -268,6 +343,10 @@ def dispatch_review(
                     0  # 0=pre-nudge, 1=after first nudge, 2=after second nudge
                 )
                 aug_failed = False
+                # SC3: track cache tokens across turns for cache-hit assertion.
+                _aug_cache_read: int | None = _check_cache_usage(
+                    response, 0, None, first_provider
+                )
 
                 while aug_turn <= _AUG_SOFT_CAP + 4:
                     assistant_content = (
@@ -309,6 +388,9 @@ def dispatch_review(
                             stream=False,
                             fallbacks=fallbacks,
                         )
+                        _aug_cache_read = _check_cache_usage(
+                            current_response, aug_turn, _aug_cache_read, first_provider
+                        )
                         aug_turn += 1
                         continue
 
@@ -324,6 +406,9 @@ def dispatch_review(
                             messages=aug_messages,
                             stream=False,
                             fallbacks=fallbacks,
+                        )
+                        _aug_cache_read = _check_cache_usage(
+                            current_response, aug_turn, _aug_cache_read, first_provider
                         )
                         aug_turn += 1
                         continue
@@ -371,6 +456,9 @@ def dispatch_review(
                             messages=aug_messages,
                             stream=False,
                             fallbacks=fallbacks,
+                        )
+                        _aug_cache_read = _check_cache_usage(
+                            current_response, aug_turn, _aug_cache_read, first_provider
                         )
                     else:
                         # Requests were all unknown actions; treat as done

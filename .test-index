@@ -173,7 +173,7 @@ plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoverie
 plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
 plugins/dso/scripts/dso_ci_review/classifier.py:tests/skills/dso_ci_review/test_classifier.py
-plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py,tests/skills/dso_ci_review/test_tier_wiring.py,tests/skills/dso_ci_review/test_context_augmentation.py
+plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py,tests/skills/dso_ci_review/test_tier_wiring.py,tests/skills/dso_ci_review/test_context_augmentation.py,tests/skills/dso_ci_review/test_prompt_caching.py
 plugins/dso/scripts/dso_ci_review/findings.py:tests/skills/dso_ci_review/test_findings.py
 plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py
 plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]
