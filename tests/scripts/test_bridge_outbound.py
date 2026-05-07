@@ -1298,3 +1298,103 @@ def test_write_sync_event_timestamp_is_nanosecond_scale(
         f"got {ts} — current code uses int(time.time()) which is seconds-scale (~1.7e9). "
         f"Fix: use time.time_ns() instead."
     )
+
+
+# ---------------------------------------------------------------------------
+# Test: handle_status_event retroactively triggers CREATE when no SYNC marker
+# Covers 7299-ff41: STATUS events on tickets without prior CREATE were silently
+# dropped, causing permanent state divergence between local tracker and Jira.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_status_event_no_sync_marker_triggers_retroactive_create(
+    tmp_path: Path,
+) -> None:
+    """When handle_status_event encounters a ticket with a CREATE event on disk
+    but no SYNC marker (i.e. CREATE never reached Jira), it must dispatch
+    handle_create_event retroactively and then retry the status update —
+    not silently drop the STATUS event.
+
+    Observable behavior asserted:
+      - acli_client.create_issue is called (retroactive CREATE)
+      - acli_client.update_issue is called with the resolved compiled status
+      - status_updated set contains the ticket_id (so retry isn't repeated)
+      - returned syncs list is non-empty (a SYNC event is emitted)
+    """
+    import importlib.util as _ilu
+    import sys
+
+    handlers_path = (
+        REPO_ROOT / "plugins" / "dso" / "scripts" / "bridge" / "_outbound_handlers.py"
+    )
+    sys.path.insert(0, str(REPO_ROOT / "plugins" / "dso" / "scripts"))
+    spec = _ilu.spec_from_file_location("_outbound_handlers_test", handlers_path)
+    assert spec is not None and spec.loader is not None
+    handlers = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(handlers)  # type: ignore[union-attr]
+
+    ticket_id = "w21-retroactive"
+    ticket_dir = tmp_path / ticket_id
+    ticket_dir.mkdir()
+
+    # CREATE event present on disk but never propagated to Jira (no SYNC marker)
+    _write_event(
+        ticket_dir,
+        timestamp=1742605100,
+        uuid=_UUID1,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Retroactive create test"},
+        env_id=_OTHER_ENV_ID,
+    )
+    # Then a STATUS event arrives
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID2,
+        event_type="STATUS",
+        data={"status": "in_progress"},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    # Mock acli_client: create_issue returns a Jira key; update_issue succeeds.
+    acli_client = MagicMock()
+    acli_client.create_issue.return_value = {"key": "DIG-9999"}
+    acli_client.update_issue.return_value = {"status": "ok"}
+
+    status_updated: set[str] = set()
+    event = {
+        "ticket_id": ticket_id,
+        "event_type": "STATUS",
+        "file_path": "",
+    }
+
+    syncs = handlers.handle_status_event(
+        event,
+        acli_client=acli_client,
+        tickets_root=tmp_path,
+        bridge_env_id="bridge-env",
+        run_id="test-run",
+        reducer_path=REDUCER_PATH,
+        status_updated=status_updated,
+    )
+
+    # Retroactive CREATE was dispatched
+    assert acli_client.create_issue.called, (
+        "handle_status_event must call acli_client.create_issue retroactively "
+        "when a CREATE event exists but no SYNC marker is present"
+    )
+    # STATUS update reached Jira
+    assert acli_client.update_issue.called, (
+        "handle_status_event must call acli_client.update_issue with the "
+        "compiled status after retroactive CREATE succeeds"
+    )
+    # ticket_id recorded so the loop doesn't re-attempt
+    assert ticket_id in status_updated, (
+        "ticket_id must be added to status_updated after retroactive CREATE+STATUS"
+    )
+    # SYNC event emitted (non-empty syncs list)
+    assert syncs, (
+        "handle_status_event must return at least one SYNC event after retroactive CREATE"
+    )

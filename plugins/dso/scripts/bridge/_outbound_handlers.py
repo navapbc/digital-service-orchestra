@@ -214,6 +214,60 @@ def handle_status_event(
                         bridge_env_id=bridge_env_id,
                     )
         else:
+            # No SYNC marker yet — the ticket was never successfully CREATEd in
+            # Jira (e.g. a prior CREATE attempt failed transiently, or the
+            # backfill aborted before this ticket's CREATE handler ran).
+            # Attempt retroactive CREATE so the latest status can propagate
+            # in this same run rather than being silently dropped. (7299-ff41)
+            create_files = sorted(ticket_dir.glob("*-CREATE.json"))
+            if create_files:
+                synthetic_create_event = {
+                    "ticket_id": ticket_id,
+                    "file_path": str(create_files[-1]),
+                }
+                try:
+                    create_syncs = handle_create_event(
+                        synthetic_create_event,
+                        acli_client=acli_client,
+                        tickets_root=tickets_root,
+                        bridge_env_id=bridge_env_id,
+                        run_id=run_id,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "Retroactive CREATE for %s failed: %s — falling back to BRIDGE_ALERT",
+                        ticket_id,
+                        exc,
+                    )
+                    create_syncs = []
+
+                retroactive_sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
+                if create_syncs and retroactive_sync_files:
+                    retroactive_sync = _read_event_file(retroactive_sync_files[-1])
+                    retroactive_jira_key = (
+                        retroactive_sync.get("jira_key", "") if retroactive_sync else ""
+                    )
+                    if retroactive_jira_key:
+                        try:
+                            acli_client.update_issue(
+                                retroactive_jira_key, status=compiled_status
+                            )
+                            status_updated.add(ticket_id)
+                            logger.info(
+                                "Retroactive CREATE+STATUS for %s succeeded: %s -> %s",
+                                ticket_id,
+                                retroactive_jira_key,
+                                compiled_status,
+                            )
+                            return create_syncs
+                        except Exception as exc:  # noqa: BLE001
+                            logger.warning(
+                                "Retroactive STATUS update for %s (%s) failed: %s",
+                                ticket_id,
+                                retroactive_jira_key,
+                                exc,
+                            )
+
             logger.warning(
                 "STATUS event dropped for %s: no SYNC.json marker — "
                 "ticket has never been linked to Jira",
