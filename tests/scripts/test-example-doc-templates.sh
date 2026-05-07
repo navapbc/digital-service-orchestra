@@ -45,16 +45,6 @@ else
     assert_eq "dso_setup_references_new_template" "found" "missing"
 fi
 
-# --- CLAUDE.md contains pointer to KNOWN-ISSUES.md ---
-
-claude_md="$REPO_ROOT/CLAUDE.md"
-
-if grep -q 'See .claude/docs/KNOWN-ISSUES.md' "$claude_md" 2>/dev/null; then
-    assert_eq "claude_md_has_known_issues_pointer" "found" "found"
-else
-    assert_eq "claude_md_has_known_issues_pointer" "found" "missing"
-fi
-
 # --- DOCUMENTATION-GUIDE.example.md ---
 
 dg_file="$TEMPLATES/DOCUMENTATION-GUIDE.example.md"

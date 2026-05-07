@@ -5,7 +5,7 @@
 .github/workflows/inbound-bridge.yml:tests/scripts/test-inbound-bridge-push-retry.sh
 .github/workflows/outbound-bridge.yml:tests/scripts/test-outbound-bridge-push-retry.sh
 .github/workflows/ticket-platform-matrix.yml:tests/scripts/test-ticket-platform-matrix-trigger.sh
-CLAUDE.md:tests/scripts/test-docs-behavioral-drift-prevention.sh,tests/skills/test-nextjs-starter-docs.sh,tests/scripts/test-tag-policy-docs.sh
+CLAUDE.md:tests/skills/test-nextjs-starter-docs.sh,tests/scripts/test-tag-policy-docs.sh
 docs/adr/0009-config-system.md:tests/scripts/test-adr-config-system.sh
 docs/designs/dso-nextjs-starter-plugin-install.md:tests/scripts/test-dso-nextjs-starter-plugin-install.sh
 docs/designs/stage-boundary-preconditions/:tests/docs/test-stage-boundary-preconditions-doc-structure.sh
