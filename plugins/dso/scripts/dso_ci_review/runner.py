@@ -385,18 +385,21 @@ def _build_agents_for_tier(
                 "diff_text": diff_text,
                 "model": base_model,
                 "provider_chain": provider_chain,
+                "tier": tier,
             },
             {
                 "agent_id": "code-reviewer-deep-verification",
                 "diff_text": diff_text,
                 "model": base_model,
                 "provider_chain": provider_chain,
+                "tier": tier,
             },
             {
                 "agent_id": "code-reviewer-deep-hygiene",
                 "diff_text": diff_text,
                 "model": base_model,
                 "provider_chain": provider_chain,
+                "tier": tier,
             },
         ]
     else:
@@ -407,6 +410,7 @@ def _build_agents_for_tier(
                 "diff_text": diff_text,
                 "model": base_model,
                 "provider_chain": provider_chain,
+                "tier": tier,
             }
         ]
 

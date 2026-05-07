@@ -1123,6 +1123,70 @@ def test_runner_skips_pr_post_on_push_event(tmp_path):
     )
 
 
+def test_build_agents_for_tier_includes_tier_in_agent_dicts(tmp_path):
+    """_build_agents_for_tier must set 'tier' on every agent dict it returns.
+
+    async_dispatch_specialists reads agent['tier'] to pass to dispatch_review,
+    so light-tier dispatch correctly skips the augmentation loop in production.
+    Without this field, a.get('tier', 'standard') defaults to 'standard', enabling
+    the loop for all tiers including light.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("model.light=claude-haiku-4-5-20251001\n")
+
+    for tier in ("light", "standard", "deep"):
+        agents = runner_mod._build_agents_for_tier(tier, "diff text", {}, config_path=str(config_file))
+        for agent in agents:
+            assert "tier" in agent, (
+                f"Agent dict for tier={tier!r} missing 'tier' key; "
+                f"async_dispatch_specialists relies on this to propagate tier to dispatch_review. "
+                f"Got keys: {list(agent.keys())}"
+            )
+            assert agent["tier"] == tier, (
+                f"Agent dict 'tier' value mismatch for {tier!r}: expected {tier!r}, got {agent['tier']!r}"
+            )
+
+
+def test_call_single_agent_passes_tier_to_dispatch_review():
+    """_call_single_agent must forward its tier param to dispatch_review.
+
+    This is the production path that ensures light-tier skips the augmentation loop.
+    Without tier propagation, dispatch_review receives tier='standard' (its default)
+    and enables the loop even for light-tier agents.
+    """
+    import asyncio
+    from unittest.mock import patch, MagicMock
+
+    sys.path.insert(0, str(SCRIPTS_DIR))
+    from dso_ci_review.dispatch import _call_single_agent
+
+    captured_kwargs: list = []
+
+    def mock_dispatch_review(**kwargs):
+        captured_kwargs.append(kwargs)
+        return {"findings": []}
+
+    with patch("dso_ci_review.dispatch.dispatch_review", side_effect=mock_dispatch_review):
+        asyncio.run(
+            _call_single_agent(
+                agent_id="code-reviewer-light",
+                diff_text="diff text",
+                model="claude-haiku-4-5-20251001",
+                provider_chain=["anthropic"],
+                tier="light",
+            )
+        )
+
+    assert captured_kwargs, "dispatch_review was not called"
+    assert captured_kwargs[0].get("tier") == "light", (
+        f"_call_single_agent must forward tier='light' to dispatch_review; "
+        f"got tier={captured_kwargs[0].get('tier')!r}. "
+        "Light-tier augmentation loop skip depends on this propagation."
+    )
+
+
 def test_read_tier_model_resolves_repo_root_config(tmp_path, monkeypatch):
     """
     Bug 0e2a-77b0: _read_tier_model and the provider-resolution branch in main

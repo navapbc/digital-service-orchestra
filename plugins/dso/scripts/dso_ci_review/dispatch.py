@@ -591,6 +591,7 @@ async def _call_single_agent(
     diff_text: str,
     model: str,
     provider_chain: list[str] | None = None,
+    tier: str = "standard",
 ) -> dict:
     """Dispatch one reviewer agent. Returns findings dict or error entry on any exception."""
     try:
@@ -599,6 +600,7 @@ async def _call_single_agent(
             agent_id=agent_id,
             primary_model=model,
             provider_chain=provider_chain or ["anthropic"],
+            tier=tier,
         )
         return result
     except Exception as exc:  # noqa: BLE001
@@ -632,6 +634,8 @@ async def async_dispatch_specialists(
             - diff_text (str): Unified diff text to review.
             - model (str): Primary model identifier to use.
             - provider_chain (list[str] | None): Optional provider chain override.
+            - tier (str | None): Review tier — propagated to dispatch_review so
+              light tier skips the augmentation loop.
     """
     if not agents:
         return []
@@ -642,6 +646,7 @@ async def async_dispatch_specialists(
             diff_text=a["diff_text"],
             model=a["model"],
             provider_chain=a.get("provider_chain"),
+            tier=a.get("tier", "standard"),
         )
         for a in agents
     ]
