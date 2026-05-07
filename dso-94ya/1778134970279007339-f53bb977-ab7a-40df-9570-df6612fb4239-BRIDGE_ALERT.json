@@ -1,0 +1,1 @@
+{"event_type": "BRIDGE_ALERT", "timestamp": 1778134970279007339, "uuid": "f53bb977-ab7a-40df-9570-df6612fb4239", "env_id": "", "ticket_id": "dso-94ya", "data": {"reason": "LINK event: target ticket a154-98de has no SYNC file (not yet synced to Jira) — skipping"}}
