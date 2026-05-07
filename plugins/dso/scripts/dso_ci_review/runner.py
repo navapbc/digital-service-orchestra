@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import subprocess
 import sys
 import tempfile
 
@@ -30,6 +31,159 @@ from dso_ci_review.classifier import classify_tier
 from dso_ci_review.dispatch import async_dispatch_specialists
 from dso_ci_review.findings import merge_findings
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
+
+# Severity values that must block merge — match local record-review.sh enforcement.
+# fragile is treated identically to important per CLAUDE.md rule 11 / reviewer-base.md.
+_BLOCKING_SEVERITIES = frozenset({"critical", "important", "fragile"})
+
+# Synthetic finding types — produced by infrastructure failures, not real review work.
+# These carry a severity field for schema conformance but must not count toward the
+# severity gate (the all-specialist-errors check below handles infra failures separately).
+_SYNTHETIC_TYPES = frozenset({"specialist_error", "fallback_exhausted", "parse_error"})
+
+
+def _real_blocking_findings(findings: list[dict]) -> list[dict]:
+    """Return the subset of findings that should block merge.
+
+    A finding blocks when:
+    - severity is in _BLOCKING_SEVERITIES (case-insensitive), AND
+    - type is NOT in _SYNTHETIC_TYPES (real review work, not an infra failure)
+    """
+    out: list[dict] = []
+    for f in findings or []:
+        if f.get("type", "") in _SYNTHETIC_TYPES:
+            continue
+        sev = str(f.get("severity", "")).lower()
+        if sev in _BLOCKING_SEVERITIES:
+            out.append(f)
+    return out
+
+
+def _resolve_pr_number() -> str | None:
+    """Resolve the current PR number from GitHub Actions env vars.
+
+    Returns the PR number as a string when running in pull_request event context,
+    else None. Sources checked, in order:
+      1. GITHUB_REF (format: refs/pull/<N>/merge on PR events)
+      2. PR_NUMBER env var (host-project override)
+    """
+    if os.environ.get("GITHUB_EVENT_NAME", "") != "pull_request":
+        return None
+    ref = os.environ.get("GITHUB_REF", "")
+    # GITHUB_REF on PR events is "refs/pull/<N>/merge"
+    if ref.startswith("refs/pull/"):
+        rest = ref[len("refs/pull/") :]
+        num = rest.split("/", 1)[0]
+        if num.isdigit():
+            return num
+    pr_num = os.environ.get("PR_NUMBER", "")
+    if pr_num.isdigit():
+        return pr_num
+    return None
+
+
+def _safe_inline(s: object) -> str:
+    """Strip newlines / carriage returns from any LLM-controlled string before
+    interpolation into a markdown heading. Prevents heading-line escape via \\n."""
+    return str(s).replace("\n", " ").replace("\r", " ")
+
+
+def _format_review_body(blocking: list[dict], total_count: int) -> str:
+    """Format a PR review body summarizing blocking findings."""
+    lines = [
+        "## DSO CI llm-review — blocking findings",
+        "",
+        f"{len(blocking)} of {total_count} finding(s) require attention before merge "
+        f"(severity in critical/important/fragile per CLAUDE.md rule 11).",
+        "",
+    ]
+    for i, f in enumerate(blocking, 1):
+        sev = _safe_inline(f.get("severity", "?"))
+        cat = _safe_inline(f.get("category", "?"))
+        desc = (f.get("description") or "").strip()
+        cited = f.get("cited_lines") or []
+        cited_str = (
+            ", ".join(_safe_inline(c) for c in cited) if cited else "(no citations)"
+        )
+        lines.append(f"### {i}. [{sev}/{cat}] {cited_str}")
+        lines.append("")
+        # Wrap LLM-controlled description in a fenced code block to prevent
+        # markdown / HTML injection in the rendered PR comment. A nested fence
+        # in the description itself would close ours; replace literal triple
+        # backticks with a Unicode look-alike to neutralize that vector.
+        safe_desc = desc.replace("```", "ˋˋˋ")
+        lines.append("```")
+        lines.append(safe_desc)
+        lines.append("```")
+        lines.append("")
+    lines.append("---")
+    lines.append(
+        "_Posted by dso_ci_review.runner; see CI llm-review job logs for full output._"
+    )
+    return "\n".join(lines)
+
+
+def _post_pr_review(findings: list[dict]) -> bool:
+    """Post blocking findings as a PR review via the gh CLI.
+
+    Returns True when a comment was successfully posted; False otherwise
+    (no-op preconditions OR posting failure). The caller uses this to phrase
+    the gate's stderr message accurately — claiming "see the PR comment" when
+    no comment exists is misleading.
+
+    No-op (returns False) when:
+    - GITHUB_EVENT_NAME != "pull_request" (push, workflow_dispatch, etc.)
+    - PR number cannot be resolved
+    - GITHUB_TOKEN is absent (gh auth would fail anyway)
+    - blocking finding list is empty (nothing to surface)
+
+    Errors are logged to stderr but never propagate — the severity gate below
+    is authoritative for blocking; comment posting is a best-effort UX layer.
+    """
+    blocking = _real_blocking_findings(findings)
+    if not blocking:
+        return False
+    pr_number = _resolve_pr_number()
+    if not pr_number:
+        return False
+    if not os.environ.get("GITHUB_TOKEN"):
+        print(
+            "WARNING: GITHUB_TOKEN absent; cannot post PR review for findings",
+            file=sys.stderr,
+        )
+        return False
+
+    body = _format_review_body(blocking, total_count=len(findings))
+    try:
+        subprocess.run(
+            [
+                "gh",
+                "pr",
+                "comment",
+                pr_number,
+                "--body",
+                body,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+    ) as exc:
+        # Best-effort — never block the gate on a failed comment post.
+        # Print only the exception class name (not str(exc)), since gh stderr
+        # captured by CalledProcessError can include URLs / token-bearing
+        # diagnostic text on auth failures.
+        print(
+            f"WARNING: failed to post PR review comment ({type(exc).__name__})",
+            file=sys.stderr,
+        )
+        return False
+    return True
 
 
 def _read_diff() -> str:
@@ -85,7 +239,9 @@ def _read_tier_model(tier: str, config_path: str | None = None) -> str:
     # Locate config file
     if config_path is None:
         config_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            ),
             ".claude",
             "dso-config.conf",
         )
@@ -96,7 +252,7 @@ def _read_tier_model(tier: str, config_path: str | None = None) -> str:
             for line in fh:
                 line = line.strip()
                 if line.startswith(config_key):
-                    value = line[len(config_key):].strip()
+                    value = line[len(config_key) :].strip()
                     if value:
                         return value
 
@@ -231,15 +387,43 @@ def main() -> int:
         return 1
 
     # Warn (non-blocking) when all findings are synthetic (e840-327f).
-    # fallback_exhausted findings indicate review infrastructure issues but
-    # are not hard failures — alert the operator without blocking CI.
-    _synthetic_types = {"specialist_error", "fallback_exhausted"}
-    if _findings and all(f.get("type", "") in _synthetic_types for f in _findings):
+    # fallback_exhausted / specialist_error / parse_error findings indicate review
+    # infrastructure issues but are not hard failures — alert the operator without
+    # blocking CI. Use _SYNTHETIC_TYPES (single source of truth for what counts as
+    # synthetic) so this WARNING and _real_blocking_findings agree.
+    if _findings and all(f.get("type", "") in _SYNTHETIC_TYPES for f in _findings):
         print(
             f"WARNING: all {len(_findings)} finding(s) are synthetic "
-            f"(fallback_exhausted/specialist_error) — review content may be incomplete",
+            f"({'/'.join(sorted(_SYNTHETIC_TYPES))}) — review content may be incomplete",
             file=sys.stderr,
         )
+
+    # Surface blocking findings to the PR (best-effort) before deciding exit code,
+    # so the author has visible context whether the gate passes or fails.
+    _comment_posted = _post_pr_review(_findings)
+
+    # Severity gate (bug f2c7-257e): block merge when any real finding is
+    # critical / important / fragile, matching local record-review.sh enforcement.
+    # Synthetic findings (specialist_error, fallback_exhausted, parse_error) are
+    # excluded — those represent infrastructure failures and are handled by the
+    # all-specialist-errors check above.
+    _blocking = _real_blocking_findings(_findings)
+    if _blocking:
+        sev_summary: dict[str, int] = {}
+        for f in _blocking:
+            sev = str(f.get("severity", "?")).lower()
+            sev_summary[sev] = sev_summary.get(sev, 0) + 1
+        sev_str = ", ".join(f"{c} {s}" for s, c in sorted(sev_summary.items()))
+        # Only mention the PR comment when one was actually posted (return value
+        # of _post_pr_review). Avoids "see the PR comment" pointing at a comment
+        # that was never created (failed gh auth, missing event context, etc.).
+        comment_hint = "and PR review comment " if _comment_posted else ""
+        print(
+            f"ERROR: llm-review found blocking finding(s) — {sev_str} "
+            f"(see findings JSON above {comment_hint}for details)",
+            file=sys.stderr,
+        )
+        return 1
 
     return 0
 
