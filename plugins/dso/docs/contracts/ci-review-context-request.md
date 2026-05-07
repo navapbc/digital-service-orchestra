@@ -31,9 +31,30 @@ Fields:
 - `paths` (array of strings, required): Relative paths from the repository root.
   Absolute paths and parent-traversal sequences (`..`) are rejected.
 
-### `grep` (future)
+### `grep`
 
-The `grep` action is handled by a separate story and is not yet implemented.
+Request the dispatcher to run a recursive grep over one or more repository paths and
+return matching lines as a new user message.
+
+```json
+{
+  "action": "grep",
+  "patterns": ["pattern1", "pattern2"],
+  "paths": ["src/", "tests/"],
+  "timeout_seconds": 5
+}
+```
+
+Fields:
+- `action` (string, required): Must be `"grep"`.
+- `patterns` (array of strings, required): One or more grep patterns (`-e` flags). At least one pattern must be provided.
+- `paths` (array of strings, required): Repository-relative paths to search (files or directories). Paths are canonicalized and must resolve within the repo root jail.
+- `timeout_seconds` (integer, optional): Wall-clock timeout. Defaults to `5` seconds (`_GREP_DEFAULT_TIMEOUT_SECONDS`).
+
+Output is capped at 64 KB; a truncation marker is appended when the limit is reached.
+Binary files are excluded (`--binary-files=without-match`).
+On timeout, the dispatcher returns `timed_out: true` and no output — the turn proceeds
+without grep results.
 
 ## Request-Precedence Rule
 
