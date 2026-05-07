@@ -158,7 +158,7 @@ plugins/dso/scripts/implementation-plan/approach-cycle-state.sh:tests/scripts/te
 plugins/dso/scripts/implementation-plan/check-reinvocation.sh:tests/scripts/test-implementation-plan-helpers.sh
 plugins/dso/scripts/implementation-plan/check-tag-guards.sh:tests/scripts/test-implementation-plan-helpers.sh
 plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_set_issue_property.py,tests/scripts/test_bridge_delete_issue.py
-.github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh
+.github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh
 plugins/dso/scripts/end-session/error-sweep.sh:tests/skills/test-end-session-error-sweep.sh,tests/scripts/test-error-sweep-config-gate.sh
 plugins/dso/scripts/end-session/check-orphan-epics.sh:tests/scripts/test-check-orphan-epics.sh
 plugins/dso/scripts/end-session/end-session-cleanup.sh:tests/scripts/test-end-session-cleanup.sh

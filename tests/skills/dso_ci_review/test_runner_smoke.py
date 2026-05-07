@@ -243,6 +243,11 @@ def test_runner_pipeline_standard_tier(tmp_path):
     When: runner.main() is called in-process
     Then: classify_tier is called once, async_dispatch_specialists is called with 1 agent,
           merge_findings merges the results, and _write_output emits the merged dict.
+
+    Exit code: this test fixture returns an "important" severity finding from the standard
+    reviewer, so the severity gate (bug f2c7-257e) correctly blocks with exit 1. The
+    pipeline-shape assertions below (classify called once, 1 agent dispatched, output
+    written, JSON shape) remain the intent of this test; the exit code is incidental.
     """
 
     import dso_ci_review.runner as runner_mod
@@ -309,7 +314,12 @@ def test_runner_pipeline_standard_tier(tmp_path):
     ):
         exit_code = runner_mod.main()
 
-    assert exit_code == 0, f"Expected exit code 0, got {exit_code}"
+    # Severity gate (bug f2c7-257e): the fixture returns an "important" finding,
+    # so exit 1 is the correct outcome — the pipeline ran end-to-end and the
+    # gate correctly identified the blocking severity.
+    assert exit_code == 1, (
+        f"Expected exit code 1 (important finding blocks), got {exit_code}"
+    )
     mock_classify.assert_called_once_with(diff_text)
 
     # 1 agent for standard tier
@@ -406,7 +416,11 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
     ):
         exit_code = runner_mod.main()
 
-    assert exit_code == 0, f"Expected exit code 0, got {exit_code}"
+    # Severity gate (bug f2c7-257e): fixture returns critical + important findings,
+    # so exit 1 is correct. Pipeline-shape assertions below remain the test's intent.
+    assert exit_code == 1, (
+        f"Expected exit code 1 (critical + important block), got {exit_code}"
+    )
 
     # 3 agents dispatched for deep tier
     assert len(captured_agents) == 3
@@ -716,4 +730,394 @@ def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
     stderr_text = stderr_capture.getvalue()
     assert "WARNING" in stderr_text and "synthetic" in stderr_text.lower(), (
         f"Expected WARNING about synthetic findings in stderr, got: {stderr_text!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Severity gate + PR comment posting tests — bug f2c7-257e
+# ---------------------------------------------------------------------------
+#
+# Bug: ci-llm-review-runner.sh returned 4 important + 2 fragile findings on
+# PR #62 yet the job exited 0 and posted no PR comments. enforcement.strategy=ci
+# became silently non-enforcing.
+#
+# RED markers:
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_exits_1_on_important_finding]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_exits_1_on_fragile_finding]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_exits_1_on_critical_finding]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_exits_0_on_minor_only]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_exits_0_on_no_findings]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_skips_blocking_for_specialist_errors]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_posts_pr_review_when_findings]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_skips_pr_post_on_push_event]
+
+
+def _make_findings_dispatch(findings_list):
+    """Build a mock async_dispatch_specialists return value from a list of findings dicts."""
+
+    async def _mock(agents):
+        return [{"findings": findings_list}]
+
+    return _mock
+
+
+def _standard_tier_classification():
+    return {
+        "selected_tier": "standard",
+        "size_action": "none",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 1,
+        "blast_radius": 1,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 0,
+        "change_volume": 0,
+        "computed_total": 1,
+        "is_merge_commit": False,
+    }
+
+
+def _run_main_with(diff_path, output_path, dispatch_findings, env_extra=None):
+    """Run runner.main() with a mocked dispatch returning the given findings.
+
+    Returns (exit_code, stderr_text).
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    env = {
+        "DSO_CI_REVIEW_DIFF_PATH": str(diff_path),
+        "DSO_CI_REVIEW_OUTPUT_PATH": str(output_path),
+        "CI_REVIEW_PROVIDER": "anthropic",
+        "ANTHROPIC_API_KEY": "test-key",
+        # Suppress real GitHub Actions env that would otherwise leak in via
+        # patch.dict(clear=False) and trigger an unintended `gh pr comment`
+        # subprocess call when these tests run inside a CI job. Tests that
+        # need the PR-event path opt in via env_extra below.
+        "GITHUB_EVENT_NAME": "",
+        "GITHUB_REF": "",
+        "GITHUB_TOKEN": "",
+        "PR_NUMBER": "",
+    }
+    if env_extra:
+        env.update(env_extra)
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict("os.environ", env, clear=False),
+        patch(
+            "dso_ci_review.runner.classify_tier",
+            return_value=_standard_tier_classification(),
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=_make_findings_dispatch(dispatch_findings),
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+    return exit_code, stderr_capture.getvalue()
+
+
+def test_runner_exits_1_on_important_finding(tmp_path):
+    """Important findings MUST block — exit 1, matching local record-review.sh enforcement."""
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo b/foo\n+x\n")
+    out = tmp_path / "out.json"
+    findings = [
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "real issue",
+            "cited_lines": ["foo:1"],
+        }
+    ]
+    exit_code, stderr = _run_main_with(diff_file, out, findings)
+    assert exit_code == 1, (
+        f"important finding must block (exit 1); got {exit_code}. stderr={stderr!r}"
+    )
+
+
+def test_runner_exits_1_on_fragile_finding(tmp_path):
+    """Fragile is treated as important per CLAUDE.md rule 11 / reviewer-base.md."""
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo b/foo\n+x\n")
+    out = tmp_path / "out.json"
+    findings = [
+        {
+            "severity": "fragile",
+            "category": "correctness",
+            "description": "unverifiable ref",
+            "cited_lines": ["foo:1"],
+        }
+    ]
+    exit_code, stderr = _run_main_with(diff_file, out, findings)
+    assert exit_code == 1, (
+        f"fragile finding must block (exit 1); got {exit_code}. stderr={stderr!r}"
+    )
+
+
+def test_runner_exits_1_on_critical_finding(tmp_path):
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo b/foo\n+x\n")
+    out = tmp_path / "out.json"
+    findings = [
+        {
+            "severity": "critical",
+            "category": "correctness",
+            "description": "must fix",
+            "cited_lines": ["foo:1"],
+        }
+    ]
+    exit_code, stderr = _run_main_with(diff_file, out, findings)
+    assert exit_code == 1, (
+        f"critical finding must block; got {exit_code}. stderr={stderr!r}"
+    )
+
+
+def test_runner_exits_0_on_minor_only(tmp_path):
+    """Minor findings alone should NOT block — match local reviewer behavior."""
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo b/foo\n+x\n")
+    out = tmp_path / "out.json"
+    findings = [
+        {
+            "severity": "minor",
+            "category": "hygiene",
+            "description": "nit",
+            "cited_lines": ["foo:1"],
+        }
+    ]
+    exit_code, stderr = _run_main_with(diff_file, out, findings)
+    assert exit_code == 0, (
+        f"minor-only findings must not block; got {exit_code}. stderr={stderr!r}"
+    )
+
+
+def test_runner_exits_0_on_no_findings(tmp_path):
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo b/foo\n+x\n")
+    out = tmp_path / "out.json"
+    exit_code, _ = _run_main_with(diff_file, out, [])
+    assert exit_code == 0, f"empty findings must not block; got {exit_code}"
+
+
+def test_runner_skips_blocking_for_specialist_errors(tmp_path):
+    """specialist_error / fallback_exhausted are infra issues — handled by existing
+    all-error gate (exit 1 only when all are errors); MUST NOT also count as
+    blocking severity findings (would double-count and break the warning path)."""
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo b/foo\n+x\n")
+    out = tmp_path / "out.json"
+    findings = [
+        {
+            "type": "specialist_error",
+            "severity": "important",  # synthetic findings carry severity but should not block
+            "category": "correctness",
+            "description": "litellm import failed",
+            "cited_lines": [],
+        },
+        {
+            "severity": "minor",
+            "category": "hygiene",
+            "description": "real but minor",
+            "cited_lines": ["foo:1"],
+        },
+    ]
+    exit_code, stderr = _run_main_with(diff_file, out, findings)
+    # Synthetic findings warn but do not block; minor real finding does not block.
+    assert exit_code == 0, (
+        f"synthetic important findings must not block (only real ones do); "
+        f"got {exit_code}. stderr={stderr!r}"
+    )
+
+
+def test_runner_posts_pr_review_when_findings(tmp_path):
+    """Each blocking finding must be posted as its own PR comment, so the team
+    can resolve/respond to them independently in the GitHub PR UI.
+
+    Uses GITHUB_EVENT_NAME=pull_request + GITHUB_REF=refs/pull/123/merge to simulate
+    PR context; mocks subprocess.run to capture each gh CLI invocation.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo b/foo\n+x\n")
+    out = tmp_path / "out.json"
+    findings = [
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "needs fix A",
+            "cited_lines": ["foo:1"],
+        },
+        {
+            "severity": "fragile",
+            "category": "correctness",
+            "description": "shaky reference B",
+            "cited_lines": ["foo:7"],
+        },
+        {
+            "severity": "critical",
+            "category": "correctness",
+            "description": "real bug C",
+            "cited_lines": ["foo:12"],
+        },
+    ]
+
+    captured_calls = []
+
+    def _capture_run(cmd, *args, **kwargs):
+        captured_calls.append(cmd)
+        from subprocess import CompletedProcess
+
+        return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    env_extra = {
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF": "refs/pull/123/merge",
+        "GITHUB_TOKEN": "token-stub",
+        "GITHUB_REPOSITORY": "owner/repo",
+    }
+
+    with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
+        mock_subprocess.run.side_effect = _capture_run
+        # Real exception types so the runner's `except` clauses match by identity
+        # if the stub ever raises (currently it doesn't).
+        import subprocess as _real_subprocess
+
+        mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
+        mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
+        _run_main_with(diff_file, out, findings, env_extra=env_extra)
+
+    gh_calls = [
+        c for c in captured_calls if "gh" in (c[0] if isinstance(c, list) else c)
+    ]
+    assert len(gh_calls) == len(findings), (
+        f"Expected one gh pr comment call per blocking finding "
+        f"({len(findings)} total); got {len(gh_calls)}: {gh_calls!r}"
+    )
+
+    # Each call body should reference exactly one finding (the i/N counter).
+    bodies = [c[c.index("--body") + 1] if "--body" in c else "" for c in gh_calls]
+    for i, body in enumerate(bodies, 1):
+        assert f"finding {i}/{len(findings)}" in body, (
+            f"Comment {i} body missing the finding-index marker; got: {body!r:.200}"
+        )
+
+
+def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
+    """When one gh comment call fails, the remaining findings still post.
+
+    Covers the per-finding loop's continue-on-error semantics: a transient
+    network blip on comment 2 of 3 must not suppress comments 1 and 3.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo b/foo\n+x\n")
+    out = tmp_path / "out.json"
+    findings = [
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "first finding",
+            "cited_lines": ["foo:1"],
+        },
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "second finding (post fails)",
+            "cited_lines": ["foo:7"],
+        },
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "third finding",
+            "cited_lines": ["foo:12"],
+        },
+    ]
+
+    captured_calls = []
+    call_count = {"n": 0}
+
+    def _flaky_run(cmd, *args, **kwargs):
+        captured_calls.append(cmd)
+        call_count["n"] += 1
+        from subprocess import CalledProcessError, CompletedProcess
+
+        if call_count["n"] == 2:
+            raise CalledProcessError(
+                returncode=1, cmd=cmd, output="", stderr="simulated network error"
+            )
+        return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    env_extra = {
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF": "refs/pull/123/merge",
+        "GITHUB_TOKEN": "token-stub",
+        "GITHUB_REPOSITORY": "owner/repo",
+    }
+
+    with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
+        import subprocess as _real_subprocess
+
+        mock_subprocess.run.side_effect = _flaky_run
+        mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
+        mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
+        _run_main_with(diff_file, out, findings, env_extra=env_extra)
+
+    gh_calls = [
+        c for c in captured_calls if "gh" in (c[0] if isinstance(c, list) else c)
+    ]
+    assert len(gh_calls) == 3, (
+        f"Expected runner to attempt all 3 comment posts even when #2 fails; "
+        f"got {len(gh_calls)} attempts: {gh_calls!r}"
+    )
+
+
+def test_runner_skips_pr_post_on_push_event(tmp_path):
+    """When GITHUB_EVENT_NAME != pull_request, runner must NOT attempt to post a PR review."""
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo b/foo\n+x\n")
+    out = tmp_path / "out.json"
+    findings = [
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "x",
+            "cited_lines": ["foo:1"],
+        }
+    ]
+
+    captured_calls = []
+
+    def _capture_run(cmd, *args, **kwargs):
+        captured_calls.append(cmd)
+        from subprocess import CompletedProcess
+
+        return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    env_extra = {
+        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_TOKEN": "token-stub",
+    }
+
+    with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
+        mock_subprocess.run.side_effect = _capture_run
+        _run_main_with(diff_file, out, findings, env_extra=env_extra)
+
+    gh_calls = [
+        c for c in captured_calls if "gh" in (c[0] if isinstance(c, list) else c)
+    ]
+    assert not gh_calls, (
+        f"runner must NOT post PR review on push events; captured gh calls: {gh_calls!r}"
     )
