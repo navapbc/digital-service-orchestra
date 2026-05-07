@@ -1440,3 +1440,189 @@ def test_filter_bridge_events_back_compat_when_bridge_env_id_empty() -> None:
         "Events with env_id must not be filtered when bridge_env_id is empty"
     )
     assert len(result) == 2, "All events must pass through when bridge_env_id is empty"
+
+
+# ---------------------------------------------------------------------------
+# Task 1f50-53cb: Migration BRIDGE_ALERT sentinel
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_migration_bridge_alert_emitted_on_first_env_id_set_and_sentinel_gates_repeat(
+    tmp_path, bridge
+):
+    """emit_migration_bridge_alert_if_needed writes BRIDGE_ALERT on first call
+    and is a no-op on subsequent calls when the sentinel file exists."""
+    import json
+
+    bridge_env_id = "test-uuid-bridge-env"
+
+    # First call: sentinel absent -> BRIDGE_ALERT should be written
+    bridge.emit_migration_bridge_alert_if_needed(tmp_path, bridge_env_id)
+    alert_files = list(tmp_path.glob("*-BRIDGE_ALERT.json"))
+    assert len(alert_files) == 1, "BRIDGE_ALERT must be written on first transition run"
+
+    alert_data = json.loads(alert_files[0].read_text())
+    assert alert_data.get("event_type") == "BRIDGE_ALERT"
+    assert "pre_migration" in alert_data.get("data", {}).get("reason", ""), (
+        "BRIDGE_ALERT reason must mention pre_migration"
+    )
+
+    sentinel = tmp_path / ".bridge-env-id-transition-marker"
+    assert sentinel.exists(), "Sentinel file must be created on first call"
+
+    # Second call: sentinel present -> no additional BRIDGE_ALERT
+    bridge.emit_migration_bridge_alert_if_needed(tmp_path, bridge_env_id)
+    alert_files_after = list(tmp_path.glob("*-BRIDGE_ALERT.json"))
+    assert len(alert_files_after) == 1, (
+        "No additional BRIDGE_ALERT when sentinel present"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Task 09cd-cd8a: _parse_user_map and _resolve_assignee (6 cases)
+# ---------------------------------------------------------------------------
+
+
+def _import_user_map_helpers():
+    """Import _parse_user_map and _resolve_assignee from bridge._outbound_handlers."""
+    import sys
+    from pathlib import Path
+
+    scripts_dir = (
+        Path(__file__).resolve().parent.parent.parent / "plugins" / "dso" / "scripts"
+    )
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    from bridge._outbound_handlers import _parse_user_map, _resolve_assignee
+
+    return _parse_user_map, _resolve_assignee
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_parse_user_map_exact_email_match():
+    """_resolve_assignee returns accountId for exact email match."""
+    _parse_user_map, _resolve_assignee = _import_user_map_helpers()
+    user_map = _parse_user_map('{"joe@example.com": "acc123"}')
+    assert _resolve_assignee("joe@example.com", user_map) == "acc123"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_parse_user_map_case_insensitive():
+    """_resolve_assignee matches email case-insensitively."""
+    _parse_user_map, _resolve_assignee = _import_user_map_helpers()
+    user_map = _parse_user_map('{"joe@example.com": "acc123"}')
+    assert _resolve_assignee("JOE@EXAMPLE.COM", user_map) == "acc123"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_parse_user_map_no_match():
+    """_resolve_assignee returns None for email not in map."""
+    _parse_user_map, _resolve_assignee = _import_user_map_helpers()
+    user_map = _parse_user_map('{"joe@example.com": "acc123"}')
+    assert _resolve_assignee("other@example.com", user_map) is None
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_parse_user_map_unset():
+    """_parse_user_map returns empty dict for '{}'; _resolve_assignee returns None."""
+    _parse_user_map, _resolve_assignee = _import_user_map_helpers()
+    user_map = _parse_user_map("{}")
+    assert user_map == {}
+    assert _resolve_assignee("any@example.com", user_map) is None
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_parse_user_map_malformed_json():
+    """_parse_user_map returns empty dict for malformed JSON (fail-open)."""
+    _parse_user_map, _resolve_assignee = _import_user_map_helpers()
+    user_map = _parse_user_map("not-json")
+    assert user_map == {}
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_parse_user_map_empty_string_value():
+    """_resolve_assignee returns None when accountId value is empty string (no-match)."""
+    _parse_user_map, _resolve_assignee = _import_user_map_helpers()
+    user_map = _parse_user_map('{"joe@example.com": ""}')
+    assert _resolve_assignee("joe@example.com", user_map) is None
+
+
+# ---------------------------------------------------------------------------
+# Task 878e-bcd3: AcliClient.unassign_issue wire format
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_unassign_issue_wire_format():
+    """AcliClient.unassign_issue sends PUT with {'accountId': null} as root body."""
+    import json
+    import sys
+    from pathlib import Path
+    from unittest.mock import patch
+
+    scripts_dir = (
+        Path(__file__).resolve().parent.parent.parent / "plugins" / "dso" / "scripts"
+    )
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "acli_integration", scripts_dir / "acli-integration.py"
+    )
+    acli_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(acli_mod)
+    AcliClient = acli_mod.AcliClient
+
+    client = AcliClient(
+        jira_url="https://jira.example.com",
+        user="user@example.com",
+        api_token="token",
+        jira_project="PROJ",
+    )
+
+    captured_requests = []
+
+    class FakeResponse:
+        def read(self):
+            return b""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            pass
+
+    def fake_urlopen(req, timeout=None):
+        captured_requests.append(req)
+        return FakeResponse()
+
+    with patch("urllib.request.urlopen", fake_urlopen):
+        client.unassign_issue("PROJ-123")
+
+    assert len(captured_requests) == 1, (
+        "unassign_issue must make exactly one HTTP request"
+    )
+    req = captured_requests[0]
+    assert req.get_method() == "PUT", f"Expected PUT, got {req.get_method()}"
+    assert req.full_url.endswith("/rest/api/3/issue/PROJ-123/assignee"), (
+        f"Unexpected URL: {req.full_url}"
+    )
+    body = json.loads(req.data)
+    assert body == {"accountId": None}, (
+        f"Body must be exactly {{'accountId': null}}, got {body!r}"
+    )
+    assert "application/json" in req.get_header("Content-type"), (
+        "Content-Type must be application/json"
+    )
+    # Verify NOT wrapped in {"value": ...}
+    assert "value" not in body, "Body must NOT be wrapped in {'value': ...}"
