@@ -321,6 +321,89 @@ fi
 
 # ============================================================
 echo ""
+echo "=== test_inputs_dimension ==="
+SECTION="test_inputs_dimension"
+
+# Assertion 1: Inputs row in Tell-Me-More probe table (DD1)
+if grep -q '| Inputs |' "$SKILL_MD" 2>/dev/null; then
+  pass "SKILL.md Phase 1 Tell-Me-More table contains Inputs row"
+else
+  fail "SKILL.md Phase 1 Tell-Me-More table missing Inputs row"
+fi
+
+# Assertion 2: **Inputs** bullet in Understanding Summary template (DD2)
+if grep -qE '\*\*Inputs\*\*' "$SKILL_MD" 2>/dev/null; then
+  pass "SKILL.md Understanding Summary template contains **Inputs** bullet"
+else
+  fail "SKILL.md Understanding Summary template missing **Inputs** bullet"
+fi
+
+# Assertion 3: "no external inputs" permitted value documented (DD2)
+if grep -q '"no external inputs"' "$SKILL_MD" 2>/dev/null; then
+  pass "SKILL.md documents \"no external inputs\" as permitted Inputs value"
+else
+  fail "SKILL.md missing permitted value \"no external inputs\" for Inputs bullet"
+fi
+
+# Assertion 4: No TBD escape in Inputs bullet (DD2 - no TBD escape constraint)
+if ! grep -qE '\*\*Inputs\*\*.*TBD' "$SKILL_MD" 2>/dev/null; then
+  pass "SKILL.md Inputs bullet has no TBD escape value"
+else
+  fail "SKILL.md Inputs bullet contains TBD escape (must not be permitted)"
+fi
+
+# ============================================================
+echo ""
+echo "=== test_inferred_marker_instruction ==="
+SECTION="test_inferred_marker_instruction"
+
+# Assert Phase 2 / Provenance Tracking section contains instruction to wrap
+# inferred input sources with <<inferred:...>> markers
+if grep -q '<<inferred' "$SKILL_MD"; then
+  pass "SKILL.md Phase 2 contains <<inferred:...>> marker emission instruction"
+else
+  fail "SKILL.md Phase 2 missing <<inferred:...>> marker emission instruction"
+fi
+
+# Assert Phase 2 contains a reference to the contract doc inferred-source-marker.md
+if grep -q 'inferred-source-marker' "$SKILL_MD"; then
+  pass "SKILL.md Phase 2 references contract doc inferred-source-marker.md"
+else
+  fail "SKILL.md Phase 2 missing reference to contract doc inferred-source-marker.md"
+fi
+
+# ============================================================
+echo ""
+echo "=== test_approval_gate_inferred_rendering ==="
+SECTION="test_approval_gate_inferred_rendering"
+
+APPROVAL_GATE_MD="$REPO_ROOT/plugins/dso/skills/brainstorm/phases/approval-gate.md"
+
+# Assertion 1: approval-gate.md contains a rendering rule for <<inferred:...>> markers
+if grep -q '<<inferred' "$APPROVAL_GATE_MD"; then
+  pass "approval-gate.md contains <<inferred:...>> rendering rule"
+else
+  fail "approval-gate.md missing <<inferred:...>> rendering rule"
+fi
+
+# Assertion 2: The <<inferred:...>> rendering rule is co-located with the render step
+# (appears before ## Option Behaviors heading, not in a new top-level section after it)
+_gate_render_section=$(sed -n '/^# Phase/,/^## Option Behaviors/p' "$APPROVAL_GATE_MD")
+if grep -q '<<inferred' <<< "$_gate_render_section"; then
+  pass "<<inferred:...>> rendering rule is co-located with the gate render step (before ## Option Behaviors)"
+else
+  fail "<<inferred:...>> rendering rule is not co-located with the gate render step"
+fi
+
+# Assertion 3: approval-gate.md contains a severity-based bold rendering rule for high or critical assumption findings
+if grep -qiE 'high.*bold|critical.*bold|bold.*high|bold.*critical|severity.*(high|critical).*bold|bold.*severity' "$APPROVAL_GATE_MD"; then
+  pass "approval-gate.md contains severity-based bold rendering for high/critical findings"
+else
+  fail "approval-gate.md missing severity-based bold rendering for high/critical findings"
+fi
+
+# ============================================================
+echo ""
 echo "=== Results ==="
 echo "Passed: $PASS"
 echo "Failed: $FAIL"

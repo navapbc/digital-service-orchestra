@@ -196,6 +196,7 @@ def initial_state($tid):
     parent_id: null,
     priority: null,
     assignee: null,
+    alias: null,
     description: "",
     tags: [],
     comments: [],
@@ -208,7 +209,7 @@ def initial_state($tid):
 
 def _editable_keys:
   ["ticket_id","ticket_type","title","status","author","created_at","env_id",
-   "parent_id","priority","assignee","description","tags","comments","deps",
+   "parent_id","priority","assignee","alias","description","tags","comments","deps",
    "bridge_alerts","reverts"];
 
 def apply_event(ev):
@@ -223,6 +224,7 @@ def apply_event(ev):
                   else ev.data.parent_id end),
       priority:    (ev.data.priority?  // null),
       assignee:    (ev.data.assignee?  // null),
+      alias:       (ev.data.alias?     // null),
       description: (ev.data.description? // ""),
       tags:        (ev.data.tags? // [])
     }
@@ -1226,6 +1228,7 @@ def apply_event(ev):
                   else ev.data.parent_id end),
       priority:    (ev.data.priority?  // null),
       assignee:    (ev.data.assignee?  // null),
+      alias:       (ev.data.alias?     // null),
       description: (ev.data.description? // ""),
       tags:        (ev.data.tags? // [])
     }
@@ -1356,6 +1359,26 @@ ticket_tag() {
             return 1
         fi
 
+        # Resolve 8-hex short ID to canonical 16-hex ticket dir name.
+        # Without this, _tag_add → write_commit_event → mkdir creates an orphan
+        # directory under the short ID instead of writing to the existing dir.
+        # (6c0f-90bc — mirrors the resolution pattern used by ticket_show,
+        # ticket_comment, ticket_edit, ticket_archive, ticket_delete, etc.)
+        local TRACKER_DIR
+        if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+            TRACKER_DIR="$TICKETS_TRACKER_DIR"
+        else
+            local REPO_ROOT
+            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing
+            # behavior in 7 sibling ops (ticket_show, ticket_comment, ticket_edit, etc.) — empty
+            # REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear
+            # errors. A hard return 1 here breaks callers that supply GIT_DIR directly or rely on
+            # subshell fall-through (test setups using isolated $tmp repos).
+            REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
+            TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+        fi
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+
         _tag_add_checked "$ticket_id" "$tag"
     )
 }
@@ -1387,6 +1410,22 @@ ticket_untag() {
             echo "Error: ticket_id and tag must be non-empty" >&2
             return 1
         fi
+
+        # Resolve 8-hex short ID to canonical 16-hex ticket dir name (6c0f-90bc).
+        local TRACKER_DIR
+        if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+            TRACKER_DIR="$TICKETS_TRACKER_DIR"
+        else
+            local REPO_ROOT
+            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing
+            # behavior in 7 sibling ops (ticket_show, ticket_comment, ticket_edit, etc.) — empty
+            # REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear
+            # errors. A hard return 1 here breaks callers that supply GIT_DIR directly or rely on
+            # subshell fall-through (test setups using isolated $tmp repos).
+            REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
+            TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+        fi
+        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
 
         _tag_remove "$ticket_id" "$tag"
     )

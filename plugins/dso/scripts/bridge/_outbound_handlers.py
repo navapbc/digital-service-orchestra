@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -53,6 +55,38 @@ _LOCAL_PRIORITY_TO_JIRA: dict[int, str] = {
 }
 
 
+def _parse_user_map(env_val: str) -> dict[str, str]:
+    """Parse BRIDGE_USER_MAP JSON string to a case-normalized dict.
+
+    Keys are lowercased for case-insensitive email lookup.
+    Returns empty dict on missing, empty, or malformed JSON (fail-open).
+    """
+    if not env_val or env_val.strip() == "{}":
+        return {}
+    try:
+        raw = json.loads(env_val)
+    except json.JSONDecodeError:
+        logger.warning("BRIDGE_USER_MAP is not valid JSON — treating as empty map")
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    return {k.lower(): v for k, v in raw.items()}
+
+
+def _resolve_assignee(name_or_email: str | None, user_map: dict[str, str]) -> str | None:
+    """Resolve a display name/email to a Jira accountId via BRIDGE_USER_MAP.
+
+    Returns None when name_or_email is absent, not in map, or maps to empty string.
+    Case-insensitive: both keys (at parse time) and lookup (here) are lowercased.
+    """
+    if not name_or_email or not user_map:
+        return None
+    account_id = user_map.get(name_or_email.lower())
+    if not account_id:  # None or empty string → no-match
+        return None
+    return account_id
+
+
 def handle_create_event(
     event: dict[str, Any],
     *,
@@ -60,8 +94,15 @@ def handle_create_event(
     tickets_root: Path,
     bridge_env_id: str,
     run_id: str = "",
+    _suppress_user_map_alert: bool = False,
 ) -> list[dict[str, Any]]:
-    """Handle a CREATE event: create issue in Jira and write SYNC event."""
+    """Handle a CREATE event: create issue in Jira and write SYNC event.
+
+    _suppress_user_map_alert: when True (set by handle_status_event's
+    retroactive-CREATE path), skip writing the BRIDGE_USER_MAP no-map alert.
+    The caller writes its own consolidated alert covering both the
+    missing-SYNC condition and any retroactive-CREATE failure (b557-3bad).
+    """
     ticket_id = event.get("ticket_id", "")
     ticket_dir = tickets_root / ticket_id
 
@@ -76,11 +117,46 @@ def handle_create_event(
     if not (ticket_data.get("title") or "").strip():
         ticket_data["title"] = f"[{ticket_id}]"
 
+    # Resolve BRIDGE_USER_MAP for assignee
+    user_map = _parse_user_map(os.environ.get("BRIDGE_USER_MAP", "{}"))
+    raw_assignee = ticket_data.get("assignee")
+    account_id = _resolve_assignee(raw_assignee, user_map)
+    if account_id:
+        ticket_data = dict(ticket_data)  # don't mutate original
+        ticket_data["assignee"] = account_id
+    elif raw_assignee:
+        # No mapping found — remove assignee to let Jira default, then unassign explicitly
+        ticket_data = dict(ticket_data)
+        ticket_data.pop("assignee", None)
+
     result = acli_client.create_issue(ticket_data)
     jira_key = result.get("key", "")
 
     if not jira_key:
         return []
+
+    if not account_id and raw_assignee and jira_key:
+        # Write BRIDGE_ALERT for no-map entry (unless caller is retroactive
+        # path which writes its own consolidated alert — b557-3bad)
+        if not _suppress_user_map_alert:
+            write_bridge_alert(
+                ticket_dir,
+                ticket_id=ticket_id,
+                reason=f"no BRIDGE_USER_MAP entry for {raw_assignee}",
+                bridge_env_id=bridge_env_id,
+            )
+        try:
+            acli_client.unassign_issue(jira_key)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "unassign_issue failed for %s: %s — writing BRIDGE_ALERT", jira_key, exc
+            )
+            write_bridge_alert(
+                ticket_dir,
+                ticket_id=ticket_id,
+                reason=f"unassign failed for {jira_key}: {exc}",
+                bridge_env_id=bridge_env_id,
+            )
 
     _write_sync_event(
         ticket_dir,
@@ -170,6 +246,19 @@ def handle_status_event(
                             reason=f"403 delete denied for {jira_key}: {exc}",
                             bridge_env_id=bridge_env_id,
                         )
+                    except subprocess.CalledProcessError as exc:
+                        err_text = (exc.stderr or "") + (exc.stdout or "")
+                        logger.warning(
+                            "delete_issue(%s) failed — writing BRIDGE_ALERT: %s",
+                            jira_key,
+                            err_text.strip() or exc,
+                        )
+                        write_bridge_alert(
+                            ticket_dir,
+                            ticket_id=ticket_id,
+                            reason=f"delete failed for {jira_key}: {err_text.strip() or exc}",
+                            bridge_env_id=bridge_env_id,
+                        )
                 else:
                     logger.debug(
                         "STATUS 'deleted' for %s: SYNC file has no jira_key — skipping",
@@ -201,6 +290,84 @@ def handle_status_event(
                         bridge_env_id=bridge_env_id,
                     )
         else:
+            # No SYNC marker yet — the ticket was never successfully CREATEd in
+            # Jira (e.g. a prior CREATE attempt failed transiently, or the
+            # backfill aborted before this ticket's CREATE handler ran).
+            # Attempt retroactive CREATE so the latest status can propagate
+            # in this same run rather than being silently dropped. (7299-ff41)
+            create_files = sorted(ticket_dir.glob("*-CREATE.json"))
+            retroactive_attempted = bool(create_files)
+            if create_files:
+                synthetic_create_event = {
+                    "ticket_id": ticket_id,
+                    "file_path": str(create_files[-1]),
+                }
+                try:
+                    create_syncs = handle_create_event(
+                        synthetic_create_event,
+                        acli_client=acli_client,
+                        tickets_root=tickets_root,
+                        bridge_env_id=bridge_env_id,
+                        run_id=run_id,
+                        _suppress_user_map_alert=True,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "Retroactive CREATE for %s failed: %s — falling back to BRIDGE_ALERT",
+                        ticket_id,
+                        exc,
+                    )
+                    create_syncs = []
+
+                retroactive_sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
+                if create_syncs and retroactive_sync_files:
+                    retroactive_sync = _read_event_file(retroactive_sync_files[-1])
+                    retroactive_jira_key = (
+                        retroactive_sync.get("jira_key", "") if retroactive_sync else ""
+                    )
+                    if retroactive_jira_key:
+                        try:
+                            acli_client.update_issue(
+                                retroactive_jira_key, status=compiled_status
+                            )
+                            status_updated.add(ticket_id)
+                            logger.info(
+                                "Retroactive CREATE+STATUS for %s succeeded: %s -> %s",
+                                ticket_id,
+                                retroactive_jira_key,
+                                compiled_status,
+                            )
+                            return create_syncs
+                        except Exception as exc:  # noqa: BLE001
+                            logger.warning(
+                                "Retroactive STATUS update for %s (%s) failed: %s",
+                                ticket_id,
+                                retroactive_jira_key,
+                                exc,
+                            )
+
+            # When retroactive-CREATE was attempted but didn't produce a SYNC
+            # (e.g. the synthetic create_issue call failed), we still need ONE
+            # alert that references the missing-SYNC condition so consumers can
+            # detect dropped STATUS events. handle_create_event may have also
+            # written its own no-map BRIDGE_USER_MAP alert; that's a separate
+            # signal and is preserved. We deduplicate the previously-redundant
+            # second SYNC alert by checking whether retroactive succeeded:
+            # only write the SYNC alert when retroactive failed or wasn't
+            # attempted (b557-3bad).
+            #
+            # Partial-success note (f776-d7ef llm-review finding 2): when
+            # create_issue succeeds but the inner unassign_issue fails,
+            # handle_create_event itself writes a dedicated unassign-failure
+            # BRIDGE_ALERT (lines 154-159) before falling through to write the
+            # SYNC. So the unassign failure IS surfaced to consumers — just via
+            # the inner alert path, not via this outer SYNC alert. Suppressing
+            # the redundant outer alert (when create_syncs is non-empty) does
+            # NOT hide unassign failures.
+            retroactive_succeeded = bool(create_syncs) if retroactive_attempted else False
+            if retroactive_succeeded:
+                return []
+
             logger.warning(
                 "STATUS event dropped for %s: no SYNC.json marker — "
                 "ticket has never been linked to Jira",

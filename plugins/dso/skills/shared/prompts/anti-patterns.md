@@ -12,9 +12,9 @@ Shared anti-pattern codes used by `/dso:architect-foundation` and any other skil
 
 ## How to use these codes
 
-- **In dialogue** (Phase 1 Group A of architect-foundation): the user's answers map to AP codes via the Trigger signal column.
-- **In the blueprint** (Phase 2): include the Enforcement mechanism row for each AP triggered.
-- **In fitness functions** (Phase 3): the enforcement mechanism for AP-3, AP-4, AP-5 is directly testable. AP-1 and AP-2 require structural code changes plus a test that verifies the change.
+- **In dialogue** (Phase B of architect-foundation — Socratic gap-fill): the user's answers map to AP codes via the Trigger signal column.
+- **In the blueprint** (Phase C — Recommendation synthesis): include the Enforcement mechanism row for each AP triggered.
+- **In fitness functions** (Phase D — Scaffolding generation): the enforcement mechanism for AP-3, AP-4, AP-5 is directly testable. AP-1 and AP-2 require structural code changes plus a test that verifies the change.
 
 ## Adding project-specific anti-patterns
 

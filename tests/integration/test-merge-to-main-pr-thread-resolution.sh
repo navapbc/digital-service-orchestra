@@ -719,8 +719,11 @@ test_pr_dispatch_unresolved_batch_routes_reply_action() {
     # We verify by checking that _code_change_threads remains empty (no code_change routing)
     # and _escalated_threads remains empty (no escalation routing).
     local _result
+    # CI=true: _pr_dispatch_unresolved_batch has a _dso_is_ci_environment guard
+    # that short-circuits with a local-escalation when CI is unset/false (commit
+    # f2845a6f3a). The test must set CI=true to reach the dispatch path.
     _result=$(
-        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+        CI=true PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
         bash -c "
             source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
             # Stub LLM to return ACTION:reply with REPLY: keyword (matching production pattern)
@@ -750,6 +753,145 @@ test_pr_dispatch_unresolved_batch_routes_reply_action() {
 }
 
 
+# ===========================================================================
+# Test: _phase_resolve_threads must fail loud (non-zero + ESCALATE: on stderr)
+# when _LLM_DISPATCH_CMD is unset, NOT silently return 0. (Bug 9e04-0eb6.)
+# ===========================================================================
+test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset() {
+    echo ""
+    echo "=== test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset ==="
+    _snapshot_fail
+
+    local stderr_out rc=0
+    stderr_out=$(
+        CI=true \
+        PR_LIB_MODE=1 \
+        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" \
+        MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            unset _LLM_DISPATCH_CMD
+            PR_THREAD_LOOP_MAX_DISPATCHES=1
+            PR_THREAD_LOOP_MAX_WALL_SECONDS=99999
+            PR_THREAD_LOOP_INTERVAL=0
+            export PR_THREAD_LOOP_MAX_DISPATCHES PR_THREAD_LOOP_MAX_WALL_SECONDS PR_THREAD_LOOP_INTERVAL
+            _phase_resolve_threads 42 'https://github.com/o/r/pull/42' 2>&1 >/dev/null
+        "
+    ) || rc=$?
+
+    assert_ne "test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset: must exit non-zero when _LLM_DISPATCH_CMD unset" \
+        "0" "$rc"
+    assert_contains "test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset: stderr must contain ESCALATE: prefix" \
+        "ESCALATE:" "$stderr_out"
+    assert_pass_if_clean "test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset"
+}
+
+# ===========================================================================
+# Test: _dispatch_resolve_conflicts must fail loud (non-zero + ESCALATE: on
+# stderr) when _RESOLVE_CONFLICTS_LLM_CMD is unset, NOT silently return 0.
+# (Bug 9e04-0eb6.)
+# ===========================================================================
+test_dispatch_resolve_conflicts_fails_loud_when_llm_dispatch_unset() {
+    echo ""
+    echo "=== test_dispatch_resolve_conflicts_fails_loud_when_llm_dispatch_unset ==="
+    _snapshot_fail
+
+    local stderr_out rc=0
+    stderr_out=$(
+        CI=true \
+        PR_LIB_MODE=1 \
+        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" \
+        MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            unset _RESOLVE_CONFLICTS_LLM_CMD
+            _dispatch_resolve_conflicts 42 'https://github.com/o/r/pull/42' 2>&1 >/dev/null
+        "
+    ) || rc=$?
+
+    assert_ne "test_dispatch_resolve_conflicts_fails_loud_when_llm_dispatch_unset: must exit non-zero when _RESOLVE_CONFLICTS_LLM_CMD unset" \
+        "0" "$rc"
+    assert_contains "test_dispatch_resolve_conflicts_fails_loud_when_llm_dispatch_unset: stderr must contain ESCALATE: prefix" \
+        "ESCALATE:" "$stderr_out"
+    assert_pass_if_clean "test_dispatch_resolve_conflicts_fails_loud_when_llm_dispatch_unset"
+}
+
+# ===========================================================================
+# Test: _dispatch_fix_agent must fail loud (non-zero + ESCALATE: on stderr)
+# when _REMEDIATE_LLM_CMD is unset, NOT silently return 0. (Bug 9e04-0eb6.)
+# ===========================================================================
+test_dispatch_fix_agent_fails_loud_when_llm_dispatch_unset() {
+    echo ""
+    echo "=== test_dispatch_fix_agent_fails_loud_when_llm_dispatch_unset ==="
+    _snapshot_fail
+
+    local _findings_file
+    _findings_file=$(mktemp "/tmp/dso-findings.XXXXXX")
+    _TEST_TMPDIRS+=("$_findings_file")
+
+    local stderr_out rc=0
+    stderr_out=$(
+        CI=true \
+        PR_LIB_MODE=1 \
+        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" \
+        MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            unset _REMEDIATE_LLM_CMD
+            _dispatch_fix_agent '$_findings_file' 1 2>&1 >/dev/null
+        "
+    ) || rc=$?
+
+    rm -f "$_findings_file"
+
+    assert_ne "test_dispatch_fix_agent_fails_loud_when_llm_dispatch_unset: must exit non-zero when _REMEDIATE_LLM_CMD unset" \
+        "0" "$rc"
+    assert_contains "test_dispatch_fix_agent_fails_loud_when_llm_dispatch_unset: stderr must contain ESCALATE: prefix" \
+        "ESCALATE:" "$stderr_out"
+    assert_pass_if_clean "test_dispatch_fix_agent_fails_loud_when_llm_dispatch_unset"
+}
+
+# ===========================================================================
+# Test: _phase_conflict_resolution must propagate the ESCALATE return code
+# (rc=2) from _dispatch_resolve_conflicts when _RESOLVE_CONFLICTS_LLM_CMD is
+# unset. Bug 9e04-0eb6 review-finding 1: caller-side `|| true` would swallow
+# both the ESCALATE: stderr and the rc=2, rendering the fail-loud guard
+# ineffective for the conflict-resolution path.
+# ===========================================================================
+test_phase_conflict_resolution_propagates_escalate_when_llm_unset() {
+    echo ""
+    echo "=== test_phase_conflict_resolution_propagates_escalate_when_llm_unset ==="
+    _snapshot_fail
+
+    local stderr_out rc=0
+    stderr_out=$(
+        CI=true \
+        PR_LIB_MODE=1 \
+        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" \
+        MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            unset _RESOLVE_CONFLICTS_LLM_CMD
+            # Stub gh to report CONFLICTING so _phase_conflict_resolution invokes
+            # _dispatch_resolve_conflicts (otherwise it short-circuits at the merge-state check).
+            gh() { echo 'CONFLICTING'; }
+            export -f gh
+            _phase_conflict_resolution 42 'https://github.com/o/r/pull/42' 2>&1 >/dev/null
+        "
+    ) || rc=$?
+
+    # _phase_conflict_resolution returns 1 (escalation needed) when the dispatch escalates.
+    assert_eq "test_phase_conflict_resolution_propagates_escalate_when_llm_unset: must return 1 (escalation)" \
+        "1" "$rc"
+    # The ESCALATE: line from _dispatch_resolve_conflicts must reach the caller's stderr.
+    assert_contains "test_phase_conflict_resolution_propagates_escalate_when_llm_unset: stderr must contain ESCALATE: prefix" \
+        "ESCALATE:" "$stderr_out"
+    # The phase's own ESCALATION_REASON line must also appear.
+    assert_contains "test_phase_conflict_resolution_propagates_escalate_when_llm_unset: stderr must contain ESCALATION_REASON" \
+        "ESCALATION_REASON:" "$stderr_out"
+    assert_pass_if_clean "test_phase_conflict_resolution_propagates_escalate_when_llm_unset"
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -763,6 +905,10 @@ test_dispatch_count_cap_triggers_escalation
 test_wall_clock_cap_triggers_escalation
 test_push_induced_dismissal_resets_poll_window
 test_file_path_validator_rejects_malicious_input
+test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset
+test_dispatch_resolve_conflicts_fails_loud_when_llm_dispatch_unset
+test_dispatch_fix_agent_fails_loud_when_llm_dispatch_unset
+test_phase_conflict_resolution_propagates_escalate_when_llm_unset
 
 # Print summary and exit non-zero on any failure (RED state expected pre-T3/T4).
 print_summary

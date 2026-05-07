@@ -13,8 +13,10 @@ DD4: async_dispatch_specialists uses asyncio.gather(return_exceptions=True) for 
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import logging
+import pathlib
 import sys
 from typing import Any
 
@@ -28,6 +30,34 @@ _SYSTEM_PROMPT = (
     "cited_lines (list of strings in 'path:lineno' format). "
     "Return ONLY the JSON object, no markdown fences, no explanatory text."
 )
+
+_PLUGIN_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
+_AGENTS_DIR = _PLUGIN_ROOT / "agents"
+
+
+@functools.lru_cache(maxsize=32)
+def _load_agent_prompt(agent_id: str) -> str:
+    """Load the canonical agent file body for ``agent_id``.
+
+    Resolves ``<plugin-root>/agents/<agent_id>.md``, strips YAML frontmatter
+    (the leading ``---\\n...\\n---\\n`` block), and returns the body. Falls
+    back to the inline ``_SYSTEM_PROMPT`` constant when the agent file is
+    missing or empty so dispatch remains functional on agent_id typos.
+    """
+    if not agent_id or agent_id == "unknown":
+        return _SYSTEM_PROMPT
+    agent_file = _AGENTS_DIR / f"{agent_id}.md"
+    try:
+        text = agent_file.read_text(encoding="utf-8")
+    except OSError:
+        return _SYSTEM_PROMPT
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end != -1:
+            text = text[end + len("\n---\n") :]
+    body = text.strip()
+    return body or _SYSTEM_PROMPT
+
 
 # Default per-provider model identifiers (primary → context escalation chain)
 _DEFAULT_CONTEXT_CHAIN: dict[str, list[str]] = {
@@ -55,9 +85,10 @@ _PROVIDER_DEFAULT_MODEL: dict[str, str] = {
 }
 
 
-def _build_messages(diff_text: str) -> list[dict[str, str]]:
+def _build_messages(diff_text: str, agent_id: str = "unknown") -> list[dict[str, str]]:
+    system_prompt = _load_agent_prompt(agent_id)
     return [
-        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Review this diff:\n\n{diff_text}"},
     ]
 
@@ -150,7 +181,7 @@ def dispatch_review(
         if not environ.get(key_var):
             raise ConfigError(f"Missing {key_var} for provider {provider!r}")
 
-    messages = _build_messages(diff_text)
+    messages = _build_messages(diff_text, agent_id=agent_id)
 
     # Determine the primary provider and model
     first_provider = provider_chain[0]

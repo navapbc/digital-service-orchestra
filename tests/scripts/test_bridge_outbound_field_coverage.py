@@ -167,9 +167,24 @@ class TestOutboundAssignee:
     """Test whether ticket assignee is sent to Jira on CREATE."""
 
     def test_create_sends_assignee_to_jira(
-        self, outbound: ModuleType, tmp_path: Path
+        self,
+        outbound: ModuleType,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """CREATE event should send assignee to Jira."""
+        """CREATE event should send the BRIDGE_USER_MAP-resolved Jira accountId.
+
+        Per the S4 two-step null-assignee design (epic 1cec-29dc): the bridge
+        resolves local display names via BRIDGE_USER_MAP env var (JSON dict) to
+        Jira accountIds. Mapped users land in the create_issue payload as the
+        accountId. Unmapped users have their assignee stripped from the payload
+        and are reconciled via a follow-up unassign_issue call.
+
+        This test exercises the mapped path; TestOutboundUnmappedAssignee covers
+        the unmapped path.
+        """
+        monkeypatch.setenv("BRIDGE_USER_MAP", '{"alice": "ACC-ALICE"}')
+
         tracker = tmp_path / ".tickets-tracker"
         ticket_id = "test-a001"
         ticket_dir = tracker / ticket_id
@@ -199,8 +214,9 @@ class TestOutboundAssignee:
 
         mock_acli.create_issue.assert_called_once()
         call_data = mock_acli.create_issue.call_args[0][0]
-        assert "assignee" in call_data and call_data["assignee"] == "alice", (
-            f"OUTBOUND CREATE should send assignee to Jira. Got: {call_data}"
+        assert "assignee" in call_data and call_data["assignee"] == "ACC-ALICE", (
+            f"OUTBOUND CREATE should send the BRIDGE_USER_MAP-resolved accountId "
+            f"as assignee. Got: {call_data}"
         )
 
 
@@ -453,9 +469,18 @@ class TestFieldCoverageSummary:
     """
 
     def test_outbound_create_passes_full_ticket_data(
-        self, outbound: ModuleType, tmp_path: Path
+        self,
+        outbound: ModuleType,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Capture exactly which fields from a CREATE event reach acli_client.create_issue()."""
+        """Capture exactly which fields from a CREATE event reach acli_client.create_issue().
+
+        Sets BRIDGE_USER_MAP so the assignee resolves and remains in the payload
+        (per S4 design — unmapped assignees are stripped, see TestOutboundAssignee).
+        """
+        monkeypatch.setenv("BRIDGE_USER_MAP", '{"charlie": "ACC-CHARLIE"}')
+
         tracker = tmp_path / ".tickets-tracker"
         ticket_id = "test-full"
         ticket_dir = tracker / ticket_id

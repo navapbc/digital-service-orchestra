@@ -454,4 +454,40 @@ assert_eq "test_cited_lines_unknown_rejected" "rejected" "$cl_unknown_result"
 # End cited_lines validation tests
 # ---------------------------------------------------------------------------
 
+# ── test_sha256_sidecar_written_after_successful_promote ─────────────────────
+# Bug 24d2-24dd: write-reviewer-findings.sh writes a `.sha256` sidecar after
+# validate-then-promote so record-review.sh can verify integrity without
+# depending on stdout-transcribed REVIEWER_HASH (LLM truncation has corrupted
+# that value historically — bug 8073-783f). Without a producer-side test, a
+# refactor that drops the sidecar would let record-review.sh fall back
+# silently to the legacy --reviewer-hash path.
+echo ""
+echo "=== test_sha256_sidecar_written_after_successful_promote ==="
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json" "$ARTIFACTS_DIR/reviewer-findings.json.sha256"
+
+sha_emit_hash=$(echo "$VALID_JSON" | "$SCRIPT" 2>/dev/null)
+sha_emit_exit=$?
+
+# 1. Producer succeeded
+assert_eq "test_sha256_sidecar: producer exit 0" "0" "$sha_emit_exit"
+
+# 2. Sidecar exists at expected path
+sidecar="$ARTIFACTS_DIR/reviewer-findings.json.sha256"
+sidecar_present=0
+[[ -f "$sidecar" ]] && sidecar_present=1
+assert_eq "test_sha256_sidecar: sidecar file exists at FINDINGS_FILE.sha256" "1" "$sidecar_present"
+
+# 3. Sidecar content is the 64-char SHA-256 of the canonical findings file
+#    AND matches the hash emitted on stdout
+if [[ "$sidecar_present" == "1" ]]; then
+    sidecar_content=$(tr -d '[:space:]' < "$sidecar")
+    expected_hash=$(shasum -a 256 "$ARTIFACTS_DIR/reviewer-findings.json" | awk '{print $1}')
+    assert_eq "test_sha256_sidecar: content equals shasum of findings file" \
+        "$expected_hash" "$sidecar_content"
+    assert_eq "test_sha256_sidecar: sidecar matches stdout-emitted hash" \
+        "$sha_emit_hash" "$sidecar_content"
+    sidecar_len=${#sidecar_content}
+    assert_eq "test_sha256_sidecar: 64-char hex length" "64" "$sidecar_len"
+fi
+
 print_summary

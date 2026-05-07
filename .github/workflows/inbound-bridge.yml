@@ -32,6 +32,14 @@ jobs:
           fetch-depth: 1
           ref: main
 
+      - name: Validate BRIDGE_ENV_ID
+        run: |
+          BRIDGE_ENV_ID="${{ vars.BRIDGE_ENV_ID }}"
+          if [ -z "$BRIDGE_ENV_ID" ]; then
+            echo "ERROR: BRIDGE_ENV_ID is unset or empty — cannot run inbound bridge. Set the BRIDGE_ENV_ID repository variable to a non-empty UUID: gh variable set BRIDGE_ENV_ID --body \"\$(uuidgen || python3 -c 'import uuid; print(uuid.uuid4())')\""
+            exit 1
+          fi
+
       - name: Mount tickets branch as worktree
         run: |
           git fetch origin tickets --depth=1

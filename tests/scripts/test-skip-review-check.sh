@@ -17,6 +17,11 @@ WORKFLOW_FILE="$DSO_PLUGIN_DIR/docs/workflows/COMMIT-WORKFLOW.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
+# Disable the enforcement.strategy=ci short-circuit so this test file exercises
+# the path-classification logic regardless of the live project config
+# (ab7b-785f). A new dedicated test below verifies the short-circuit itself.
+export DSO_FORCE_LOCAL_REVIEW=1
+
 echo "=== test-skip-review-check.sh ==="
 
 # ── test_skip_review_check_script_exists_and_executable ─────────────────────
@@ -181,5 +186,20 @@ done
 assert_eq "test_skip_review_check_allowlist_behavioral_equivalence: all reviewable files require review" "1" "$equiv_block"
 
 assert_pass_if_clean "test_skip_review_check_allowlist_behavioral_equivalence"
+
+# ── test_skip_review_check_strategy_ci_bypasses_classification ───────────────
+# When enforcement.strategy=ci, the script must short-circuit to SKIP=true
+# (exit 0) regardless of file classification — local review is redundant
+# under CI-as-source-of-truth (CLAUDE.md rule 18). Without DSO_FORCE_LOCAL_REVIEW,
+# even reviewable files (code, safeguard) should produce exit 0 on this repo
+# (whose .claude/dso-config.conf has enforcement.strategy=ci). (ab7b-785f)
+_snapshot_fail
+unset DSO_FORCE_LOCAL_REVIEW
+strategy_ci_skip=0
+{ printf 'app/src/main.py\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null; test $? -eq 0; } && strategy_ci_skip=1
+# Re-enable the override for any subsequent tests that may run after this one.
+export DSO_FORCE_LOCAL_REVIEW=1
+assert_eq "test_skip_review_check_strategy_ci_bypasses_classification: exits 0 on code file under strategy=ci" "1" "$strategy_ci_skip"
+assert_pass_if_clean "test_skip_review_check_strategy_ci_bypasses_classification"
 
 print_summary

@@ -81,3 +81,13 @@ After the scrutiny pipeline completes (with no unresolved FEASIBILITY_GAP), insp
    - **(a) Accept:** Apply the revised SCs to the epic spec (update the `## Success Criteria` section via `ticket edit --description`). Then proceed to Step 2.28.
    - **(b) Modify:** Incorporate user changes, present again.
    - **(c) Skip:** Log `"SC gap check: user opted to skip revision."` and proceed to Step 2.28 with original SCs.
+
+5. **Assumption findings without user-outcome SC mapping (Premise to confirm):** After processing SC coverage gaps, inspect the surviving `## Scenario Analysis` findings for entries with `"assumption"` category that do not map to any user-outcome SC. For each such finding, surface it under a `Premise to confirm` line in a follow-up `AskUserQuestion`:
+
+   > "The following assumption-category findings have no corresponding user-outcome SC: [list findings]. For each, do you want to (a) Confirm: accept the premise as valid and proceed, (b) Revise: add a new SC covering this assumption's risk, or (c) Accept risk: document the assumption and proceed without a new SC?"
+
+   - **(a) Confirm:** Note the premise as confirmed. Proceed to Step 2.28.
+   - **(b) Revise:** Draft a new SC for the assumption, add it to the epic spec, and re-present for approval.
+   - **(c) Accept risk:** Log the assumption risk. Proceed to Step 2.28 without a new SC.
+
+   All `"assumption"` findings surface here regardless of their severity level — low/medium NFR-style assumptions (cost-tier, latency-tier) are not silently dropped. No threshold is applied.

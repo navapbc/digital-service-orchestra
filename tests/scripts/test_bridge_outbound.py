@@ -1298,3 +1298,567 @@ def test_write_sync_event_timestamp_is_nanosecond_scale(
         f"got {ts} — current code uses int(time.time()) which is seconds-scale (~1.7e9). "
         f"Fix: use time.time_ns() instead."
     )
+
+
+# ---------------------------------------------------------------------------
+# Test: handle_status_event retroactively triggers CREATE when no SYNC marker
+# Covers 7299-ff41: STATUS events on tickets without prior CREATE were silently
+# dropped, causing permanent state divergence between local tracker and Jira.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_status_event_no_sync_marker_triggers_retroactive_create(
+    tmp_path: Path,
+) -> None:
+    """When handle_status_event encounters a ticket with a CREATE event on disk
+    but no SYNC marker (i.e. CREATE never reached Jira), it must dispatch
+    handle_create_event retroactively and then retry the status update —
+    not silently drop the STATUS event.
+
+    Observable behavior asserted:
+      - acli_client.create_issue is called (retroactive CREATE)
+      - acli_client.update_issue is called with the resolved compiled status
+      - status_updated set contains the ticket_id (so retry isn't repeated)
+      - returned syncs list is non-empty (a SYNC event is emitted)
+    """
+    import importlib.util as _ilu
+    import sys
+
+    handlers_path = (
+        REPO_ROOT / "plugins" / "dso" / "scripts" / "bridge" / "_outbound_handlers.py"
+    )
+    sys.path.insert(0, str(REPO_ROOT / "plugins" / "dso" / "scripts"))
+    spec = _ilu.spec_from_file_location("_outbound_handlers_test", handlers_path)
+    assert spec is not None and spec.loader is not None
+    handlers = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(handlers)  # type: ignore[union-attr]
+
+    ticket_id = "w21-retroactive"
+    ticket_dir = tmp_path / ticket_id
+    ticket_dir.mkdir()
+
+    # CREATE event present on disk but never propagated to Jira (no SYNC marker)
+    _write_event(
+        ticket_dir,
+        timestamp=1742605100,
+        uuid=_UUID1,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Retroactive create test"},
+        env_id=_OTHER_ENV_ID,
+    )
+    # Then a STATUS event arrives
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID2,
+        event_type="STATUS",
+        data={"status": "in_progress"},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    # Mock acli_client: create_issue returns a Jira key; update_issue succeeds.
+    acli_client = MagicMock()
+    acli_client.create_issue.return_value = {"key": "DIG-9999"}
+    acli_client.update_issue.return_value = {"status": "ok"}
+
+    status_updated: set[str] = set()
+    event = {
+        "ticket_id": ticket_id,
+        "event_type": "STATUS",
+        "file_path": "",
+    }
+
+    syncs = handlers.handle_status_event(
+        event,
+        acli_client=acli_client,
+        tickets_root=tmp_path,
+        bridge_env_id="bridge-env",
+        run_id="test-run",
+        reducer_path=REDUCER_PATH,
+        status_updated=status_updated,
+    )
+
+    # Retroactive CREATE was dispatched
+    assert acli_client.create_issue.called, (
+        "handle_status_event must call acli_client.create_issue retroactively "
+        "when a CREATE event exists but no SYNC marker is present"
+    )
+    # STATUS update reached Jira
+    assert acli_client.update_issue.called, (
+        "handle_status_event must call acli_client.update_issue with the "
+        "compiled status after retroactive CREATE succeeds"
+    )
+    # ticket_id recorded so the loop doesn't re-attempt
+    assert ticket_id in status_updated, (
+        "ticket_id must be added to status_updated after retroactive CREATE+STATUS"
+    )
+    # SYNC event emitted (non-empty syncs list)
+    assert syncs, (
+        "handle_status_event must return at least one SYNC event after retroactive CREATE"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bug 302e-98eb: filter_bridge_events back-compat when bridge_env_id is empty
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_filter_bridge_events_back_compat_when_bridge_env_id_empty() -> None:
+    """filter_bridge_events passes all events through when bridge_env_id is empty.
+
+    Pre-migration events have env_id='' and must not be filtered when bridge_env_id
+    is unset (empty string). This is the back-compat guard for the S2 fix.
+    """
+    import sys
+    from pathlib import Path
+
+    scripts_dir = (
+        Path(__file__).resolve().parent.parent.parent / "plugins" / "dso" / "scripts"
+    )
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    from bridge._outbound_api import filter_bridge_events
+
+    events = [
+        {"ticket_id": "t-pre-migration", "event_type": "STATUS", "env_id": ""},
+        {
+            "ticket_id": "t-with-uuid",
+            "event_type": "CREATE",
+            "env_id": "real-uuid-1234",
+        },
+    ]
+    result = filter_bridge_events(events, bridge_env_id="")
+    ticket_ids = [e["ticket_id"] for e in result]
+    assert "t-pre-migration" in ticket_ids, (
+        "Pre-migration events (env_id='') must not be filtered when bridge_env_id is empty"
+    )
+    assert "t-with-uuid" in ticket_ids, (
+        "Events with env_id must not be filtered when bridge_env_id is empty"
+    )
+    assert len(result) == 2, "All events must pass through when bridge_env_id is empty"
+
+
+# ---------------------------------------------------------------------------
+# Task 1f50-53cb: Migration BRIDGE_ALERT sentinel
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_migration_bridge_alert_emitted_on_first_env_id_set_and_sentinel_gates_repeat(
+    tmp_path, bridge
+):
+    """emit_migration_bridge_alert_if_needed writes BRIDGE_ALERT on first call
+    and is a no-op on subsequent calls when the sentinel file exists."""
+    import json
+
+    bridge_env_id = "test-uuid-bridge-env"
+
+    # First call: sentinel absent -> BRIDGE_ALERT should be written
+    bridge.emit_migration_bridge_alert_if_needed(tmp_path, bridge_env_id)
+    alert_files = list(tmp_path.glob("*-BRIDGE_ALERT.json"))
+    assert len(alert_files) == 1, "BRIDGE_ALERT must be written on first transition run"
+
+    alert_data = json.loads(alert_files[0].read_text())
+    assert alert_data.get("event_type") == "BRIDGE_ALERT"
+    assert "pre_migration" in alert_data.get("data", {}).get("reason", ""), (
+        "BRIDGE_ALERT reason must mention pre_migration"
+    )
+
+    sentinel = tmp_path / ".bridge-env-id-transition-marker"
+    assert sentinel.exists(), "Sentinel file must be created on first call"
+
+    # Second call: sentinel present -> no additional BRIDGE_ALERT
+    bridge.emit_migration_bridge_alert_if_needed(tmp_path, bridge_env_id)
+    alert_files_after = list(tmp_path.glob("*-BRIDGE_ALERT.json"))
+    assert len(alert_files_after) == 1, (
+        "No additional BRIDGE_ALERT when sentinel present"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Task 09cd-cd8a: _parse_user_map and _resolve_assignee (6 cases)
+# ---------------------------------------------------------------------------
+
+
+def _import_user_map_helpers():
+    """Import _parse_user_map and _resolve_assignee from bridge._outbound_handlers."""
+    import sys
+    from pathlib import Path
+
+    scripts_dir = (
+        Path(__file__).resolve().parent.parent.parent / "plugins" / "dso" / "scripts"
+    )
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    from bridge._outbound_handlers import _parse_user_map, _resolve_assignee
+
+    return _parse_user_map, _resolve_assignee
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_parse_user_map_exact_email_match():
+    """_resolve_assignee returns accountId for exact email match."""
+    _parse_user_map, _resolve_assignee = _import_user_map_helpers()
+    user_map = _parse_user_map('{"joe@example.com": "acc123"}')
+    assert _resolve_assignee("joe@example.com", user_map) == "acc123"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_parse_user_map_case_insensitive():
+    """_resolve_assignee matches email case-insensitively."""
+    _parse_user_map, _resolve_assignee = _import_user_map_helpers()
+    user_map = _parse_user_map('{"joe@example.com": "acc123"}')
+    assert _resolve_assignee("JOE@EXAMPLE.COM", user_map) == "acc123"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_parse_user_map_no_match():
+    """_resolve_assignee returns None for email not in map."""
+    _parse_user_map, _resolve_assignee = _import_user_map_helpers()
+    user_map = _parse_user_map('{"joe@example.com": "acc123"}')
+    assert _resolve_assignee("other@example.com", user_map) is None
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_parse_user_map_unset():
+    """_parse_user_map returns empty dict for '{}'; _resolve_assignee returns None."""
+    _parse_user_map, _resolve_assignee = _import_user_map_helpers()
+    user_map = _parse_user_map("{}")
+    assert user_map == {}
+    assert _resolve_assignee("any@example.com", user_map) is None
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_parse_user_map_malformed_json():
+    """_parse_user_map returns empty dict for malformed JSON (fail-open)."""
+    _parse_user_map, _resolve_assignee = _import_user_map_helpers()
+    user_map = _parse_user_map("not-json")
+    assert user_map == {}
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_parse_user_map_empty_string_value():
+    """_resolve_assignee returns None when accountId value is empty string (no-match)."""
+    _parse_user_map, _resolve_assignee = _import_user_map_helpers()
+    user_map = _parse_user_map('{"joe@example.com": ""}')
+    assert _resolve_assignee("joe@example.com", user_map) is None
+
+
+# ---------------------------------------------------------------------------
+# Task 878e-bcd3: AcliClient.unassign_issue wire format
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_unassign_issue_wire_format():
+    """AcliClient.unassign_issue sends PUT with {'accountId': null} as root body."""
+    import json
+    import sys
+    from pathlib import Path
+    from unittest.mock import patch
+
+    scripts_dir = (
+        Path(__file__).resolve().parent.parent.parent / "plugins" / "dso" / "scripts"
+    )
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "acli_integration", scripts_dir / "acli-integration.py"
+    )
+    acli_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(acli_mod)
+    AcliClient = acli_mod.AcliClient
+
+    client = AcliClient(
+        jira_url="https://jira.example.com",
+        user="user@example.com",
+        api_token="token",
+        jira_project="PROJ",
+    )
+
+    captured_requests = []
+
+    class FakeResponse:
+        def read(self):
+            return b""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            pass
+
+    def fake_urlopen(req, timeout=None):
+        captured_requests.append(req)
+        return FakeResponse()
+
+    with patch("urllib.request.urlopen", fake_urlopen):
+        client.unassign_issue("PROJ-123")
+
+    assert len(captured_requests) == 1, (
+        "unassign_issue must make exactly one HTTP request"
+    )
+    req = captured_requests[0]
+    assert req.get_method() == "PUT", f"Expected PUT, got {req.get_method()}"
+    assert req.full_url.endswith("/rest/api/3/issue/PROJ-123/assignee"), (
+        f"Unexpected URL: {req.full_url}"
+    )
+    body = json.loads(req.data)
+    assert body == {"accountId": None}, (
+        f"Body must be exactly {{'accountId': null}}, got {body!r}"
+    )
+    assert "application/json" in req.get_header("Content-type"), (
+        "Content-Type must be application/json"
+    )
+    # Verify NOT wrapped in {"value": ...}
+    assert "value" not in body, "Body must NOT be wrapped in {'value': ...}"
+
+
+# ---------------------------------------------------------------------------
+# RED tests — bridge._outbound_cursor (f3a4-0073) + shell entry-point (70c8-edb6)
+# These tests FAIL because bridge/_outbound_cursor.py does not exist yet.
+# ---------------------------------------------------------------------------
+
+
+def _setup_scripts_path():
+    """Add plugins/dso/scripts to sys.path if needed."""
+    import sys
+    from pathlib import Path
+
+    scripts_dir = (
+        Path(__file__).resolve().parent.parent.parent / "plugins" / "dso" / "scripts"
+    )
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    return scripts_dir
+
+
+def test_read_cursor_no_file(tmp_path):
+    """read_cursor returns None when .outbound-checkpoint.json is absent."""
+    _setup_scripts_path()
+    from bridge._outbound_cursor import read_cursor
+
+    result = read_cursor(tmp_path)
+    assert result is None
+
+
+def test_read_cursor_malformed_json(tmp_path):
+    """read_cursor returns None for malformed JSON in checkpoint file."""
+    _setup_scripts_path()
+    from bridge._outbound_cursor import CHECKPOINT_FILENAME, read_cursor
+
+    (tmp_path / CHECKPOINT_FILENAME).write_text("not-json")
+    result = read_cursor(tmp_path)
+    assert result is None
+
+
+def test_read_cursor_missing_sha_field(tmp_path):
+    """read_cursor returns None when checkpoint JSON lacks last_processed_sha."""
+    import json as _json
+
+    _setup_scripts_path()
+    from bridge._outbound_cursor import CHECKPOINT_FILENAME, read_cursor
+
+    (tmp_path / CHECKPOINT_FILENAME).write_text(_json.dumps({"last_run_id": "run-1"}))
+    result = read_cursor(tmp_path)
+    assert result is None
+
+
+def test_write_cursor_advances(tmp_path):
+    """write_cursor writes checkpoint JSON; read_cursor reads it back."""
+    import json as _json
+
+    _setup_scripts_path()
+    from bridge._outbound_cursor import CHECKPOINT_FILENAME, read_cursor, write_cursor
+
+    write_cursor(tmp_path, sha="abc123", run_id="run-1")
+    checkpoint = _json.loads((tmp_path / CHECKPOINT_FILENAME).read_text())
+    assert checkpoint["last_processed_sha"] == "abc123"
+    assert checkpoint["last_run_id"] == "run-1"
+    assert read_cursor(tmp_path) == "abc123"
+
+
+def _make_tmp_git_tracker(tmp_path, n_event_commits=3):
+    """Create a tmp git repo with n_event_commits, each adding one STATUS event file.
+
+    Returns dict with keys: repo (Path), commit_shas (list[str]).
+    """
+    import subprocess
+
+    repo = tmp_path / "tracker"
+    repo.mkdir()
+    # Init bare-minimum git repo
+    subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.name", "Test"],
+        check=True,
+        capture_output=True,
+    )
+
+    commit_shas = []
+    for i in range(n_event_commits):
+        ticket_dir = repo / f"ticket-{i:04d}"
+        ticket_dir.mkdir(exist_ok=True)
+        event_file = (
+            ticket_dir / f"1000{i}-deadbeef-cafe-4a1b-8f2d-{i:012x}-STATUS.json"
+        )
+        event_file.write_text(
+            f'{{"event_type": "STATUS", "ticket_id": "ticket-{i:04d}"}}'
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "add", "."], check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", f"add event {i}"],
+            check=True,
+            capture_output=True,
+        )
+        result = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        commit_shas.append(result.stdout.strip())
+    return {"repo": repo, "commit_shas": commit_shas}
+
+
+def test_fetch_events_three_commits(tmp_path):
+    """fetch_events_since_cursor returns events from all 3 commits (not just last)."""
+    _setup_scripts_path()
+    from bridge._outbound_cursor import fetch_events_since_cursor
+
+    fixture = _make_tmp_git_tracker(tmp_path, n_event_commits=3)
+    repo = fixture["repo"]
+    commit_shas = fixture["commit_shas"]
+
+    # Cursor at commit 0 — should see commits 1 and 2 (2 events)
+    events = fetch_events_since_cursor(
+        repo, cursor_sha=commit_shas[0], bridge_env_id="", run_id=""
+    )
+    assert len(events) >= 2, (
+        f"Expected at least 2 events from commits 1+2, got {len(events)}. "
+        f"Cursor fix must use cursor..HEAD, not HEAD~1..HEAD"
+    )
+
+
+def test_cold_start_seeds_at_head_returns_empty(tmp_path):
+    """Cold start (cursor=None): seeds at HEAD, returns empty event list."""
+    _setup_scripts_path()
+    from bridge._outbound_cursor import fetch_events_since_cursor
+
+    fixture = _make_tmp_git_tracker(tmp_path, n_event_commits=2)
+    repo = fixture["repo"]
+
+    events = fetch_events_since_cursor(
+        repo, cursor_sha=None, bridge_env_id="", run_id="test-run"
+    )
+    assert events == [] or len(events) == 0, (
+        "Cold start must return empty list (no retroactive history push)"
+    )
+    # Check a BRIDGE_ALERT was written somewhere in the repo
+    alert_files = list(repo.rglob("*-BRIDGE_ALERT.json"))
+    assert len(alert_files) >= 1, "Cold start must emit a BRIDGE_ALERT"
+
+
+def test_process_events_multi_commit_catches_all_events(tmp_path):
+    """process_events uses the cursor to capture events from ALL commits since
+    the last checkpoint, not just HEAD~1..HEAD.
+
+    Regression test for the chronic silent-drop bug (S1 of epic 1cec-29dc):
+    when multiple commits land between bridge runs, the prior HEAD~1..HEAD
+    diff window only saw the last commit's events. The cursor
+    (bridge._outbound_cursor) fetches cursor..HEAD instead.
+
+    Bug f776-d7ef llm-review finding 4: the prior version of this test had
+    a vacuous `>= 0` assertion that always passed; updated to a meaningful
+    behavioral assertion (cursor advances to HEAD after processing).
+    """
+    import importlib.util as _importlib_util
+    import subprocess as _sp
+    import sys
+    from pathlib import Path
+    from unittest.mock import MagicMock
+
+    _setup_scripts_path()
+    scripts_dir = (
+        Path(__file__).resolve().parent.parent.parent / "plugins" / "dso" / "scripts"
+    )
+
+    # Build a tracker git repo with 3 CREATE event commits.
+    fixture = _make_tmp_git_tracker(tmp_path, n_event_commits=3)
+    repo = fixture["repo"]
+    commit_shas = fixture["commit_shas"]
+
+    # Load bridge-outbound.py via importlib
+    bridge_outbound_path = scripts_dir / "bridge-outbound.py"
+    spec = _importlib_util.spec_from_file_location(
+        "bridge_outbound", bridge_outbound_path
+    )
+    bridge_outbound = _importlib_util.module_from_spec(spec)
+    sys.modules["bridge_outbound"] = bridge_outbound
+    spec.loader.exec_module(bridge_outbound)
+
+    # Seed the cursor at the parent of the first event commit so all 3 event
+    # commits fall in the cursor..HEAD range. Without this seed the cursor
+    # would cold-start (seed at HEAD and return 0 events on this run).
+    from bridge._outbound_cursor import read_cursor, write_cursor
+
+    parent_sha = _sp.run(
+        ["git", "-C", str(repo), "rev-parse", f"{commit_shas[0]}^"],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    assert parent_sha, "fixture must have a parent commit before the events"
+    write_cursor(repo, parent_sha, "test-pre-seed")
+
+    mock_acli = MagicMock()
+    mock_acli.create_issue.return_value = {"key": "PROJ-1"}
+
+    # Call process_events with git_diff_output=None — it MUST consult the
+    # cursor we just seeded, NOT git diff HEAD~1..HEAD.
+    bridge_outbound.process_events(
+        tickets_dir=str(repo),
+        acli_client=mock_acli,
+        git_diff_output=None,
+        bridge_env_id="",
+        run_id="test",
+    )
+
+    # The cursor MUST advance to HEAD after processing all 3 commits' events.
+    # If process_events had used HEAD~1..HEAD (the bug), the cursor would
+    # stay at parent_sha (no advance) or only advance partway. A cursor
+    # equal to HEAD proves the full cursor..HEAD range was fetched and
+    # processed in a single invocation.
+    head_sha = _sp.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    post_cursor = read_cursor(repo)
+    assert post_cursor == head_sha, (
+        f"Cursor must advance to HEAD after processing all events. "
+        f"Expected {head_sha!r}, got {post_cursor!r}. This indicates "
+        f"either the cursor wasn't used or events weren't processed."
+    )

@@ -609,20 +609,30 @@ Add blocking relationships:
 
 ### Documentation Update Story
 
-After all implementation stories are drafted, create one final story to update project documentation. This story:
+After all implementation stories are drafted, **decide whether a documentation update story is warranted** by running the gates in `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/doc-router.md`. The story is **not** unconditional. Default to **no story** unless at least one router gate fires.
 
-- **Updates existing docs only** — do not create new documentation files or patterns
-- **Targets**: `CLAUDE.md` (architecture section, quick reference), `.claude/design-notes.md`, ADRs, `KNOWN-ISSUES.md`, or other docs that already exist and would become stale after the epic is complete
-- **Scope**: Concise updates that ensure future agents have accurate awareness of the project state (new routes, changed patterns, updated commands, removed features)
-- **Style guide**: Follow `.claude/docs/DOCUMENTATION-GUIDE.md` for formatting, structure, and conventions when writing documentation updates
-- **Depends on**: All implementation stories (runs last)
-- **Title format**: "Update project docs to reflect [epic summary]"
-- **Skip if**: The epic makes no changes that would affect existing documentation (document rationale)
+**Skip the doc story (no router gate fires) when**: the epic is purely internal refactor, bug fix, or test work; user-visible behavior, public APIs, conventions, top-level commands, and every-session rules are unchanged. Document the skip rationale in the epic's preplanning summary (e.g., "doc-router: no gate fired — internal refactor only").
 
-When creating the documentation update story via `.claude/scripts/dso ticket create`, add a note with the guide reference so sub-agents find it in their ticket payload:
+**Create the doc story (at least one gate fires) with these properties**:
+
+- **Updates existing docs only** — do not create new documentation files unless a router gate explicitly directs to a new ADR (Gate 4) or the change introduces a contract that requires a new contract doc.
+- **Default targets, in order of preference** (set by `doc-router.md` gates, NOT by author intuition):
+  - **Gate 1 — skill-scoped change** → `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/SKILL.md` or skill-local prompt.
+  - **Gate 2 — extends an existing reference doc** → that doc (`HOOKS-REFERENCE.md`, `AGENTS.md`, `WORKTREE-GUIDE.md`, `CONFIGURATION-REFERENCE.md`, `CI-INTEGRATION.md`, `ticket-cli-reference.md`, `contracts/`, `KNOWN-ISSUES.md`).
+  - **Gate 3 — onboarding/user-facing** → `INSTALL.md`, `README.md`, or `docs/user/`.
+  - **Gate 4 — decision rationale** → new ADR in `docs/adr/`.
+  - **Gate 5 — strictly every-session, not skill-scoped, not enforceable as a hook, ≤ 2 lines** → CLAUDE.md, **but only as a `CLAUDE_MD_SUGGESTED_CHANGE` report**; the sub-agent must NOT write CLAUDE.md directly. The orchestrator surfaces the report to the user for approval before any CLAUDE.md edit lands.
+- **CLAUDE.md is not a default target.** Authoring a doc story whose primary target is CLAUDE.md is an anti-pattern; the router prefers SKILL.md / reference docs / ADRs and only escalates to CLAUDE.md when Gate 5 strictly holds. See CLAUDE.md Architectural Invariant #2 (bloat criteria a–d).
+- **Depends on**: all implementation stories (runs last).
+- **Title format**: "Update project docs to reflect [epic summary]".
+- **Style guide**: follow `.claude/docs/DOCUMENTATION-GUIDE.md` for formatting and structure.
+
+When creating the documentation update story via `.claude/scripts/dso ticket create`, attach the router and style references so sub-agents find them in the ticket payload:
 ```bash
-.claude/scripts/dso ticket comment <story-id> "Follow .claude/docs/DOCUMENTATION-GUIDE.md for documentation formatting, structure, and conventions."
+.claude/scripts/dso ticket comment <story-id> "Apply ${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/doc-router.md gates before writing. CLAUDE.md edits require a CLAUDE_MD_SUGGESTED_CHANGE report — do not edit CLAUDE.md directly. Follow .claude/docs/DOCUMENTATION-GUIDE.md for formatting."
 ```
+
+**Acceptance criterion** for the doc story: the completion report MUST include the `DOC_ROUTER_ATTESTATION` block (see `doc-router.md`), and any `CLAUDE_MD_SUGGESTED_CHANGE` reports MUST be surfaced to the user before the story closes.
 
 ### TDD Test Story Requirements (/dso:preplanning)
 

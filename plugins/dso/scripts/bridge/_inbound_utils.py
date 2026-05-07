@@ -28,6 +28,42 @@ _JIRA_TS_RE = re.compile(
 )
 
 
+def _adf_to_text(value: "str | dict | None") -> str:
+    """Convert Jira ADF (Atlassian Document Format) to plain text.
+
+    Handles three input types:
+    - None → empty string
+    - str → returned with leading/trailing whitespace stripped (back-compat
+      for plain-text descriptions; whitespace-only strings collapse to "")
+    - dict → ADF doc: walks doc→content[paragraph|heading|listItem]→content[text].text,
+      joins paragraph texts with newlines; silently skips unsupported node types
+      (panels, mediaSingle, mentions, inlineCard, mediaGroup, etc.)
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        # Strip whitespace so the call-site `_adf_to_text(s) or None` correctly
+        # collapses whitespace-only descriptions to None — symmetric with
+        # handle_edit_event's existing strip-and-empty-check pattern (b557-3bad).
+        return value.strip()
+    if not isinstance(value, dict):
+        return ""
+    # ADF structure: {"type": "doc", "content": [...nodes...]}
+    parts: list[str] = []
+    for node in value.get("content", []):
+        node_type = node.get("type", "")
+        if node_type in ("paragraph", "heading", "listItem"):
+            texts = [
+                child.get("text", "")
+                for child in node.get("content", [])
+                if child.get("type") == "text" and child.get("text")
+            ]
+            if texts:
+                parts.append("".join(texts))
+        # All other node types are silently skipped
+    return "\n".join(parts)
+
+
 def parse_jira_timestamp(ts_str: str) -> datetime:
     """Parse a Jira ISO 8601 timestamp string to a timezone-aware datetime.
 
