@@ -16,6 +16,7 @@ import asyncio
 import functools
 import json
 import logging
+import os
 import pathlib
 import sys
 from typing import Any
@@ -138,6 +139,8 @@ def dispatch_review(
     agent_id: str = "unknown",
     context_model_chain: list[str] | None = None,
     primary_model: str | None = None,
+    repo_root: str | None = None,
+    tier: str = "standard",
 ) -> dict[str, Any]:
     """Dispatch a code review using LiteLLM with manual context-window escalation.
 
@@ -145,6 +148,7 @@ def dispatch_review(
       - fallbacks=[...]: cross-provider fallback models (Axis 1, SDK-native)
       - Manual loop over context_model_chain catching ContextWindowExceededError (Axis 2)
       - stream=False: DD1 compliance
+      - Single-turn context-augmentation loop for non-light tiers (Axis 3)
 
     Args:
         diff_text: Unified diff text to review.
@@ -155,6 +159,9 @@ def dispatch_review(
         context_model_chain: Explicit list of models to try on ContextWindowExceededError.
                              When None, uses the default chain for the first provider.
         primary_model: Override the primary model for the first provider call.
+        repo_root: Repository root path for the context-augmentation file jail.
+                   Defaults to the current working directory when None.
+        tier: Review tier — "light" skips context augmentation; all others enable it.
 
     Returns:
         A dict containing "findings" (list). When a fallback hop occurred,
@@ -169,8 +176,6 @@ def dispatch_review(
     from dso_ci_review.providers.config import ConfigError
 
     if environ is None:
-        import os
-
         environ = dict(os.environ)
 
     # --- Credential pre-check (DD startup gate) ---
@@ -207,6 +212,11 @@ def dispatch_review(
     last_exc: Exception | None = None
     fallback_hops: list[str] = []
 
+    # Resolve repo root for the context-augmentation file jail (Axis 3)
+    resolved_repo_root = (
+        os.path.realpath(repo_root) if repo_root else os.path.realpath(".")
+    )
+
     # Axis 2: manual context-window escalation loop.
     # NOTE: the `context_window_fallbacks` kwarg is a LiteLLM Router parameter
     # and is silently ignored by litellm.completion() — use a manual loop instead.
@@ -218,6 +228,49 @@ def dispatch_review(
                 stream=False,  # DD1: never stream
                 fallbacks=fallbacks,  # DD1: SDK-native cross-provider fallback (Axis 1)
             )
+
+            # Axis 3: single-turn context-augmentation loop (non-light tiers only).
+            # Light tier: single-shot, no augmentation.
+            if tier != "light":
+                from dso_ci_review.context_request import (
+                    execute_read_files,
+                    parse_request_blocks,
+                )
+
+                assistant_content = response.choices[0].message.content or ""
+                turn_messages = [{"role": "assistant", "content": assistant_content}]
+                request_blocks = parse_request_blocks(turn_messages)
+
+                if request_blocks:
+                    # Execute each read_files request and collect results
+                    augmentation_parts: list[str] = []
+                    for req in request_blocks:
+                        if req.get("action") == "read_files":
+                            paths = req.get("paths", [])
+                            file_content = execute_read_files(
+                                paths=paths,
+                                repo_root=resolved_repo_root,
+                            )
+                            augmentation_parts.append(file_content)
+
+                    if augmentation_parts:
+                        # Append file contents as a new user message and re-complete
+                        augmented_user_content = (
+                            "File contents requested:\n\n"
+                            + "\n\n".join(augmentation_parts)
+                        )
+                        augmented_messages = list(messages) + [
+                            {"role": "assistant", "content": assistant_content},
+                            {"role": "user", "content": augmented_user_content},
+                        ]
+                        follow_up_response = litellm.completion(
+                            model=ctx_model,
+                            messages=augmented_messages,
+                            stream=False,  # DD1: never stream
+                            fallbacks=fallbacks,
+                        )
+                        response = follow_up_response
+
             result = _parse_response(response)
 
             # Record a hop if we advanced past the first model in the context chain (DD2).
