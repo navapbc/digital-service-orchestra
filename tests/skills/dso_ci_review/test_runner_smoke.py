@@ -1151,9 +1151,17 @@ def test_read_tier_model_resolves_repo_root_config(tmp_path, monkeypatch):
 
     # 1. Explicit config_path override
     cfg = tmp_path / "dso-config.conf"
-    cfg.write_text("model.light=test-marker-light-xyz\nmodel.standard=test-marker-std-xyz\n")
-    assert runner_mod._read_tier_model("light", config_path=str(cfg)) == "test-marker-light-xyz"
-    assert runner_mod._read_tier_model("standard", config_path=str(cfg)) == "test-marker-std-xyz"
+    cfg.write_text(
+        "model.light=test-marker-light-xyz\nmodel.standard=test-marker-std-xyz\n"
+    )
+    assert (
+        runner_mod._read_tier_model("light", config_path=str(cfg))
+        == "test-marker-light-xyz"
+    )
+    assert (
+        runner_mod._read_tier_model("standard", config_path=str(cfg))
+        == "test-marker-std-xyz"
+    )
 
     # 2. Auto-detect on live repo — must produce a non-empty model string,
     #    not raise, and not return the literal default-fallback when the live
