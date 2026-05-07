@@ -47,6 +47,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 - **Sub-agents and routing**: `plugins/dso/docs/AGENTS.md` (full named-agent table), `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md` (rules), `INSTALL.md` (routing config).
 - **Hooks, gates, test gate, review gate, hook error handler**: `plugins/dso/docs/HOOKS-REFERENCE.md`.
 - **CI integration, llm-review orchestrator, two-channel release**: `plugins/dso/docs/CI-INTEGRATION.md`.
+- **Context-augmentation loop** (multi-turn file/grep requests, Anthropic prompt caching, soft-cap exhaustion handling): `plugins/dso/docs/contracts/ci-review-context-request.md`; config keys: `review.context_aug.*` in `plugins/dso/docs/CONFIGURATION-REFERENCE.md`.
 - **Worktree lifecycle, isolation, WORKTREE_TRACKING comments**: `plugins/dso/docs/WORKTREE-GUIDE.md` and `plugins/dso/skills/shared/prompts/worktree-dispatch.md`.
 - **Config keys** (`merge.strategy`, `enforcement.strategy`, `orchestration.max_agents`, `test_gate.*`, `test_quality.*`, `commands.lint`/`format`/`format_check`, `worktree.isolation_enabled`, `design.figma_collaboration`, `planning.external_dependency_block_enabled`, `scope_drift.enabled`, `review.max_resolution_attempts`): `plugins/dso/docs/CONFIGURATION-REFERENCE.md`.
 - **Behavioral testing standard** (5-rule standard for all test-writing agents): `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md`.

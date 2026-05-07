@@ -39,7 +39,7 @@ plugins/dso/docs/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
 plugins/dso/docs/adapters/flask-jinja2.json:tests/plugin/test_flask_jinja2_adapter_yaml.py
 plugins/dso/docs/component-discovery-schema.json:tests/plugin/test_component_discovery_schema.py
 plugins/dso/docs/CONFIG-RESOLUTION.md:tests/scripts/test-config-resolution-doc-accuracy.sh
-plugins/dso/docs/CONFIGURATION-REFERENCE.md:tests/scripts/test-config-keys-documented.sh,tests/scripts/test-config-inference-review-validator.sh [test_configuration_reference_documents_keys]
+plugins/dso/docs/CONFIGURATION-REFERENCE.md:tests/scripts/test-config-keys-documented.sh,tests/scripts/test-config-inference-review-validator.sh
 plugins/dso/docs/contracts/decision-id-format.md:tests/docs/test-inference-signal-contracts.sh
 plugins/dso/docs/contracts/fp-auto-fallback-scope.md:tests/scripts/test-fp-rate-tracker.sh
 plugins/dso/docs/contracts/inference-envelope.md:tests/docs/test-inference-signal-contracts.sh
@@ -75,11 +75,11 @@ plugins/dso/docs/workflows/prompts/investigator-delta-escalated-web.md:tests/uni
 plugins/dso/docs/workflows/prompts/investigator-delta-intermediate-fallback.md:tests/unit/scripts/test-build-review-agents.sh
 plugins/dso/docs/workflows/prompts/investigator-delta-intermediate.md:tests/unit/scripts/test-build-review-agents.sh
 plugins/dso/docs/workflows/prompts/investigator-meta.sh:tests/unit/scripts/test-build-review-agents.sh
-plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh,tests/docs/test-reviewer-base-repo-root-context.sh,tests/scripts/test-reviewer-agent-review-tier.sh
+plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh,tests/docs/test-reviewer-base-repo-root-context.sh,tests/scripts/test-reviewer-agent-review-tier.sh,tests/skills/dso_ci_review/test_tier_wiring.py
 plugins/dso/docs/workflows/prompts/reviewer-delta-deep-arch.md:tests/docs/test-reviewer-blindspot-annotations.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-deep-correctness.md:tests/docs/test-reviewer-blindspot-annotations.sh
 plugins/dso/docs/workflows/prompts/reviewer-delta-deep-hygiene.md:tests/docs/test-reviewer-blindspot-annotations.sh
-plugins/dso/docs/workflows/prompts/reviewer-delta-light.md:tests/docs/test-reviewer-polyglot-compliance.sh,tests/docs/test-reviewer-blindspot-annotations.sh
+plugins/dso/docs/workflows/prompts/reviewer-delta-light.md:tests/docs/test-reviewer-polyglot-compliance.sh,tests/docs/test-reviewer-blindspot-annotations.sh,tests/skills/dso_ci_review/test_tier_wiring.py
 plugins/dso/docs/workflows/prompts/reviewer-delta-standard.md:tests/docs/test-reviewer-blindspot-annotations.sh
 plugins/dso/docs/workflows/prompts/reviewer-meta.sh:tests/unit/scripts/test-build-review-agents.sh,tests/scripts/test-reviewer-agent-review-tier.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
@@ -172,9 +172,12 @@ plugins/dso/scripts/claude-safe:tests/scripts/test-claude-safe-portability.sh,te
 plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoveries-plugin-root.sh
 plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
+plugins/dso/scripts/ci-review-corpus-delta.sh:tests/skills/dso_ci_review/test-ci-review-corpus-delta.sh
 plugins/dso/scripts/dso_ci_review/classifier.py:tests/skills/dso_ci_review/test_classifier.py
-plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py
+plugins/dso/scripts/dso_ci_review/context_request.py:tests/skills/dso_ci_review/test_context_augmentation.py
+plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py,tests/skills/dso_ci_review/test_tier_wiring.py,tests/skills/dso_ci_review/test_context_augmentation.py,tests/skills/dso_ci_review/test_prompt_caching.py,tests/skills/dso_ci_review/test_integration_full_loop.py
 plugins/dso/scripts/dso_ci_review/findings.py:tests/skills/dso_ci_review/test_findings.py
+plugins/dso/scripts/dso_ci_review/speculation_markers.py:tests/skills/dso_ci_review/test_speculation_markers.py
 plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py
 plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]
 plugins/dso/scripts/dso_ci_review/runner.py:tests/skills/dso_ci_review/test_runner_smoke.py

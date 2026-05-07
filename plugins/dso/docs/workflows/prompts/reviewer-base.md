@@ -71,6 +71,37 @@ Run the diff verification script via the `.claude/scripts/dso` shim. Use the `RE
 
 Then read the diff from the provided diff file path using the Read tool.
 
+### Context-Request Protocol (standard / deep / overlay tiers only)
+
+When you need to see a file that is not included in the diff, emit a fenced JSON block
+in your response and the dispatcher will read it and continue the conversation with the
+contents. This lets you ground findings against the actual implementation before scoring.
+
+```json
+{
+  "action": "read_files",
+  "paths": ["path/to/relevant/file.py"]
+}
+```
+
+You may also search for patterns across the repository:
+
+```json
+{
+  "action": "grep",
+  "patterns": ["MyClassName", "some_function"],
+  "paths": ["plugins/", "tests/"]
+}
+```
+
+**Full contract**: `docs/contracts/ci-review-context-request.md`
+
+**Tier availability**: Context-requests are issued only in standard, deep, and overlay
+tiers. Light tier runs single-shot — the dispatcher does not enter the augmentation loop
+and any request block emitted is ignored.
+
+---
+
 ### Step 2 — Review the diff
 
 **Working directory for context lookups**: Use the `REPO_ROOT` value provided in your dispatch prompt for all grep, Read, and Glob calls that examine surrounding code context. Do NOT re-derive REPO_ROOT via `git rev-parse --show-toplevel` — in worktree sessions the command returns the worktree path, which may differ from the repo root passed to you, causing grep to find no matches and producing false-positive findings. All bash grep commands must be prefixed with `cd "$REPO_ROOT" &&` or use absolute paths rooted at the provided REPO_ROOT.

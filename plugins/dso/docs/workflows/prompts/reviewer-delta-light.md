@@ -20,6 +20,21 @@ Deep tiers.
 
 ---
 
+## Context-Request Protocol — NOT available for light tier
+
+Light tier is single-shot and diff-only. The dispatcher does NOT enter the
+context-augmentation loop for light-tier reviews, so any request block you emit will be
+ignored. Do NOT emit `action: "read_files"` or `action: "grep"` JSON blocks — they have
+no effect in this tier.
+
+Use only the diff content and your inline knowledge. If a finding requires deep context
+to verify, mark it `minor` and note that it should be reviewed by a higher tier.
+
+See `docs/contracts/ci-review-context-request.md` for the full contract (not applicable
+to light-tier dispatch).
+
+---
+
 ## File-Type Detection
 
 Before applying the checklist, identify the file type from the diff header. Apply the

@@ -68,9 +68,11 @@ def _ensure_plugin_package() -> None:
 
     _load_from_plugin("providers")
     _load_from_plugin("providers.config")
+    _load_from_plugin("context_request")
     _load_from_plugin("dispatch")
     _load_from_plugin("classifier")
     _load_from_plugin("findings")
+    _load_from_plugin("speculation_markers")
     _load_from_plugin("runner")
 
 
@@ -84,6 +86,15 @@ FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "ci-review-corpus"
 def fixture_diff_path():
     """Return path to the fixture diff file."""
     return FIXTURE_DIR / "fixture-diff.txt"
+
+
+def pytest_configure(config):
+    existing = config.getini("markers")
+    if not any("integration:" in m for m in existing):
+        config.addinivalue_line(
+            "markers",
+            "integration: mark test as a live-provider integration test (skipped without API keys)",
+        )
 
 
 @pytest.fixture()

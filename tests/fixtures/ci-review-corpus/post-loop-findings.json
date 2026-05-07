@@ -1,0 +1,9 @@
+{
+  "findings": [
+    {
+      "severity": "minor",
+      "description": "The add function lacks input validation.",
+      "cited_lines": ["plugins/dso/scripts/example.py:1"]
+    }
+  ]
+}

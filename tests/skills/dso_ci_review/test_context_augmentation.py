@@ -1,0 +1,812 @@
+"""Tests for context_request module — parser, read_files handler, and round-trip."""
+
+from __future__ import annotations
+
+import json
+import pathlib
+import tempfile
+
+
+import subprocess
+from unittest.mock import patch
+
+from dso_ci_review.context_request import (
+    execute_grep,
+    execute_read_files,
+    parse_request_blocks,
+)
+
+
+# ---------------------------------------------------------------------------
+# Parser tests
+# ---------------------------------------------------------------------------
+
+
+class TestParserWellFormedAssistantMessage:
+    """parse_request_blocks returns a parsed request from a well-formed assistant message."""
+
+    def test_parser_well_formed_assistant_message(self) -> None:
+        """Given: an assistant-role message containing a fenced JSON request block
+        When: parse_request_blocks is called
+        Then: returns a list containing the parsed request dict
+        """
+        request_payload = {"action": "read_files", "paths": ["some/file.py"]}
+        content = f"```json\n{json.dumps(request_payload)}\n```"
+        messages = [{"role": "assistant", "content": content}]
+        result = parse_request_blocks(messages)
+        assert result, f"Expected at least one parsed request, got: {result!r}"
+        assert result[0].get("action") == "read_files", (
+            f"Expected action='read_files', got: {result[0]!r}"
+        )
+        assert result[0].get("paths") == ["some/file.py"], (
+            f"Expected paths=['some/file.py'], got: {result[0].get('paths')!r}"
+        )
+
+
+class TestParserMalformedRequestBlock:
+    """parse_request_blocks does not raise on malformed JSON; returns empty list or None."""
+
+    def test_parser_malformed_request_block(self) -> None:
+        """Given: an assistant-role message with malformed JSON in fenced block
+        When: parse_request_blocks is called
+        Then: returns empty list (does not raise, does not treat it as request)
+        """
+        content = '```json\n{"action": "read_files"\n```'  # missing closing brace
+        messages = [{"role": "assistant", "content": content}]
+        # Must not raise; must return empty list or falsy value
+        result = parse_request_blocks(messages)
+        assert not result, f"Expected empty result for malformed JSON, got: {result!r}"
+
+
+class TestParserUserRoleRejection:
+    """parse_request_blocks must NOT parse request blocks from user-role messages."""
+
+    def test_parser_ignores_user_role_message(self) -> None:
+        """Given: a user-role message containing valid request-format JSON
+        When: parse_request_blocks is called
+        Then: returns empty list — user messages are never parsed as requests
+        """
+        request_payload = {"action": "read_files", "paths": ["x.py"]}
+        content = f"```json\n{json.dumps(request_payload)}\n```"
+        messages = [{"role": "user", "content": content}]
+        result = parse_request_blocks(messages)
+        assert result == [], (
+            f"Expected empty list for user-role message, got: {result!r}. "
+            "Parser must only scan assistant-role messages."
+        )
+
+    def test_parser_ignores_user_role_plain_json(self) -> None:
+        """Given: a user-role message with plain (unfenced) valid JSON matching request format
+        When: parse_request_blocks is called
+        Then: returns empty list — user messages must not execute
+        """
+        request_payload = {"action": "read_files", "paths": ["some/path.py"]}
+        messages = [{"role": "user", "content": json.dumps(request_payload)}]
+        result = parse_request_blocks(messages)
+        assert result == [], (
+            f"Expected empty list for user-role plain JSON, got: {result!r}"
+        )
+
+
+class TestParserRequestPrecedenceOverFindings:
+    """When assistant emits both request block and final-findings, request takes precedence."""
+
+    def test_parser_request_takes_precedence_over_findings(self) -> None:
+        """Given: an assistant message containing both a request block and a findings block
+        When: parse_request_blocks is called
+        Then: returns the request (not empty); final-findings are deferred
+        """
+        request_payload = {"action": "read_files", "paths": ["foo.py"]}
+        findings_payload = {
+            "findings": [{"severity": "minor", "description": "x", "cited_lines": []}]
+        }
+        # Both blocks appear in the same message content
+        content = (
+            f"Here is a request:\n```json\n{json.dumps(request_payload)}\n```\n\n"
+            f"And here are final findings:\n```json\n{json.dumps(findings_payload)}\n```"
+        )
+        messages = [{"role": "assistant", "content": content}]
+        result = parse_request_blocks(messages)
+        assert result, (
+            f"Expected request to take precedence — got empty result: {result!r}"
+        )
+        # The returned list should contain the request, not the findings
+        actions = [r.get("action") for r in result]
+        assert "read_files" in actions, (
+            f"Expected 'read_files' action in result, got actions: {actions!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# read_files handler tests
+# ---------------------------------------------------------------------------
+
+
+class TestReadFilesAbsolutePathRejection:
+    """execute_read_files rejects absolute paths with an error response."""
+
+    def test_read_files_rejects_absolute_path(self) -> None:
+        """Given: a path of /etc/passwd
+        When: execute_read_files is called
+        Then: returns an error string (does not raise; indicates rejection)
+        """
+        with tempfile.TemporaryDirectory() as repo_root:
+            result = execute_read_files(["/etc/passwd"], repo_root=repo_root)
+        # Must not raise; must return a string indicating rejection
+        assert isinstance(result, str), f"Expected str result, got: {type(result)!r}"
+        result_lower = result.lower()
+        assert (
+            "error" in result_lower
+            or "rejected" in result_lower
+            or "denied" in result_lower
+            or "outside" in result_lower
+            or "invalid" in result_lower
+        ), f"Expected rejection indicator in result, got: {result!r}"
+
+    def test_read_files_rejects_another_absolute_path(self) -> None:
+        """Given: an absolute path /var/log/system.log
+        When: execute_read_files is called
+        Then: returns an error string
+        """
+        with tempfile.TemporaryDirectory() as repo_root:
+            result = execute_read_files(["/var/log/system.log"], repo_root=repo_root)
+        result_lower = result.lower()
+        assert (
+            "error" in result_lower
+            or "rejected" in result_lower
+            or "denied" in result_lower
+            or "outside" in result_lower
+            or "invalid" in result_lower
+        ), f"Expected rejection indicator, got: {result!r}"
+
+
+class TestReadFilesParentTraversalRejection:
+    """execute_read_files rejects paths containing parent traversal sequences."""
+
+    def test_read_files_rejects_parent_traversal(self) -> None:
+        """Given: a path of ../../etc/passwd
+        When: execute_read_files is called
+        Then: returns an error string indicating path rejection
+        """
+        with tempfile.TemporaryDirectory() as repo_root:
+            result = execute_read_files(["../../etc/passwd"], repo_root=repo_root)
+        assert isinstance(result, str), f"Expected str result, got: {type(result)!r}"
+        result_lower = result.lower()
+        assert (
+            "error" in result_lower
+            or "rejected" in result_lower
+            or "denied" in result_lower
+            or "outside" in result_lower
+            or "invalid" in result_lower
+        ), f"Expected rejection for traversal path, got: {result!r}"
+
+    def test_read_files_rejects_dotdot_in_path(self) -> None:
+        """Given: a path with .. embedded in it (subdir/../../../etc/passwd)
+        When: execute_read_files is called
+        Then: returns an error response
+        """
+        with tempfile.TemporaryDirectory() as repo_root:
+            result = execute_read_files(
+                ["subdir/../../../etc/passwd"], repo_root=repo_root
+            )
+        result_lower = result.lower()
+        assert (
+            "error" in result_lower
+            or "rejected" in result_lower
+            or "denied" in result_lower
+            or "outside" in result_lower
+            or "invalid" in result_lower
+        ), f"Expected rejection for dotdot path, got: {result!r}"
+
+
+class TestReadFilesEdgeCasePaths:
+    """execute_read_files handles edge-case path inputs safely."""
+
+    def test_empty_path_string_is_rejected_or_skipped(self) -> None:
+        """Given: an empty string path ""
+        When: execute_read_files is called
+        Then: does not raise; returns a string (error or empty content)
+        """
+        with tempfile.TemporaryDirectory() as repo_root:
+            result = execute_read_files([""], repo_root=repo_root)
+        assert isinstance(result, str), (
+            f"execute_read_files must return str for empty path, got: {type(result)!r}"
+        )
+
+    def test_empty_paths_list_returns_string(self) -> None:
+        """Given: an empty list of paths
+        When: execute_read_files is called with []
+        Then: does not raise; returns a string
+        """
+        with tempfile.TemporaryDirectory() as repo_root:
+            result = execute_read_files([], repo_root=repo_root)
+        assert isinstance(result, str), (
+            f"execute_read_files must return str for empty list, got: {type(result)!r}"
+        )
+
+    def test_symlink_escaping_repo_root_is_rejected(self) -> None:
+        """Given: a symlink inside the repo that points outside the repo root
+        When: execute_read_files is asked to read via the symlink
+        Then: the result contains an error or the content is not from outside the repo
+        """
+        import os
+
+        with tempfile.TemporaryDirectory() as repo_root:
+            with tempfile.TemporaryDirectory() as outside_dir:
+                secret_file = pathlib.Path(outside_dir) / "secret.txt"
+                secret_file.write_text("TOP SECRET", encoding="utf-8")
+
+                # Create a symlink inside the repo pointing to the outside file
+                link_path = pathlib.Path(repo_root) / "escape_link.txt"
+                os.symlink(str(secret_file), str(link_path))
+
+                result = execute_read_files(["escape_link.txt"], repo_root=repo_root)
+
+        assert isinstance(result, str), (
+            f"execute_read_files must return str for symlink path, got: {type(result)!r}"
+        )
+        # Either the read is rejected, or the content must not contain the secret
+        if "TOP SECRET" in result:
+            # If symlinks are allowed (the implementation may read-through for within-repo
+            # symlinks), assert we at least do not expose outside-repo content via a path
+            # that resolves outside the root. Implementations that read through symlinks
+            # to outside files must block — this assertion makes that detectable.
+            assert False, (
+                "execute_read_files returned content from a symlink escaping repo root — "
+                f"this is a security violation. Result: {result!r}"
+            )
+
+    def test_non_utf8_file_does_not_crash(self) -> None:
+        """Given: a file with non-UTF-8 bytes
+        When: execute_read_files is called
+        Then: does not raise an exception; returns a string
+        """
+        with tempfile.TemporaryDirectory() as repo_root:
+            binary_file = pathlib.Path(repo_root) / "binary.bin"
+            binary_file.write_bytes(b"\xff\xfe binary content \x00\x01\x02")
+            result = execute_read_files(["binary.bin"], repo_root=repo_root)
+        assert isinstance(result, str), (
+            f"execute_read_files must return str even for binary files, got: {type(result)!r}"
+        )
+
+
+class TestReadFilesPerFileSizeCap:
+    """execute_read_files truncates files exceeding the size cap and appends a marker."""
+
+    def test_read_files_truncates_large_file(self) -> None:
+        """Given: a file exceeding max_file_bytes
+        When: execute_read_files is called with a small max_file_bytes
+        Then: returned content is truncated and includes a truncation marker
+        """
+        with tempfile.TemporaryDirectory() as repo_root:
+            large_file = pathlib.Path(repo_root) / "large_file.py"
+            # Write content larger than the cap
+            large_content = "x" * 1000
+            large_file.write_text(large_content, encoding="utf-8")
+
+            result = execute_read_files(
+                ["large_file.py"],
+                repo_root=repo_root,
+                max_file_bytes=100,
+            )
+
+        assert isinstance(result, str), f"Expected str result, got: {type(result)!r}"
+        assert "TRUNCATED" in result, (
+            f"Expected TRUNCATED marker in result for oversized file, got: {result!r}"
+        )
+        # Must not assert absence — model instruction should be present
+        result_lower = result.lower()
+        assert "absence" in result_lower or "truncat" in result_lower, (
+            f"Expected model instruction about absence assertion in result, got: {result!r}"
+        )
+
+    def test_read_files_small_file_not_truncated(self) -> None:
+        """Given: a file smaller than max_file_bytes
+        When: execute_read_files is called
+        Then: returned content is NOT truncated (full content included, no truncation marker)
+        """
+        with tempfile.TemporaryDirectory() as repo_root:
+            small_file = pathlib.Path(repo_root) / "small_file.py"
+            content = "def hello(): pass\n"
+            small_file.write_text(content, encoding="utf-8")
+
+            result = execute_read_files(
+                ["small_file.py"],
+                repo_root=repo_root,
+                max_file_bytes=262144,
+            )
+
+        assert isinstance(result, str), f"Expected str result, got: {type(result)!r}"
+        assert content.strip() in result, (
+            f"Expected full file content in result, got: {result!r}"
+        )
+        assert "TRUNCATED" not in result, (
+            f"Expected no truncation marker for small file, got: {result!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Single-turn round-trip integration test
+# ---------------------------------------------------------------------------
+
+
+class TestSingleTurnRoundTripIntegration:
+    """Dispatcher issues a follow-up call when initial response contains a read_files request."""
+
+    def test_single_turn_round_trip(self) -> None:
+        """Given: a mock LLM that responds with a read_files request first, then final findings
+        When: dispatch_review is called (non-light tier)
+        Then: dispatcher issues a follow-up call and returns the final findings
+
+        This test uses a mock litellm.completion to simulate the two-turn exchange without
+        making real API calls.
+        """
+        import unittest.mock as mock
+
+        from dso_ci_review import dispatch
+
+        # Prepare a temp directory as the fake repo root with one file
+        with tempfile.TemporaryDirectory() as repo_root:
+            test_file = pathlib.Path(repo_root) / "example.py"
+            test_file.write_text("def foo():\n    pass\n", encoding="utf-8")
+
+            # Build the two mock responses:
+            # Turn 1: assistant requests file read
+            request_payload = {"action": "read_files", "paths": ["example.py"]}
+            turn1_content = f"```json\n{json.dumps(request_payload)}\n```"
+
+            # Turn 2: assistant provides final findings after receiving file content
+            final_findings = {
+                "findings": [
+                    {
+                        "severity": "minor",
+                        "description": "example finding from context-augmented review",
+                        "cited_lines": ["example.py:1"],
+                    }
+                ]
+            }
+            turn2_content = json.dumps(final_findings)
+
+            def make_mock_response(content: str) -> mock.MagicMock:
+                resp = mock.MagicMock()
+                resp.choices = [mock.MagicMock()]
+                resp.choices[0].message.content = content
+                resp._hidden_params = {}
+                return resp
+
+            call_count = 0
+
+            def mock_completion(**kwargs):
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    return make_mock_response(turn1_content)
+                else:
+                    return make_mock_response(turn2_content)
+
+            environ = {"ANTHROPIC_API_KEY": "test-key"}
+
+            with mock.patch("litellm.completion", side_effect=mock_completion):
+                result = dispatch.dispatch_review(
+                    diff_text="--- a/example.py\n+++ b/example.py\n@@ -1 +1 @@\n-old\n+new",
+                    provider_chain=["anthropic"],
+                    environ=environ,
+                    agent_id="unknown",
+                    repo_root=repo_root,
+                )
+
+            assert call_count >= 2, (
+                f"Expected at least 2 LLM calls for round-trip, got {call_count}"
+            )
+            assert "findings" in result, (
+                f"Expected 'findings' in round-trip result, got keys: {list(result.keys())!r}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# grep handler tests (f607-c098-1bee-4021)
+# ---------------------------------------------------------------------------
+
+
+def test_grep_adversarial_regex_aborts_at_timeout(tmp_path: pathlib.Path) -> None:
+    """An adversarial regex causes wall-clock timeout; execute_grep returns a
+    timeout error dict rather than hanging or propagating an exception.
+
+    The subprocess.TimeoutExpired exception is mocked because catastrophic
+    backtracking is platform/grep-implementation-specific. The contract under
+    test is that execute_grep catches TimeoutExpired and returns a clear error.
+    """
+    (tmp_path / "victim.txt").write_text("a" * 500 + "b\n", encoding="utf-8")
+
+    request = {
+        "action": "grep",
+        "patterns": ["(a+)+$"],
+        "paths": [str(tmp_path)],
+        "timeout_seconds": 1,
+    }
+
+    import dso_ci_review.context_request as _cr_mod
+
+    with patch.object(
+        _cr_mod.subprocess,
+        "run",
+        side_effect=subprocess.TimeoutExpired(cmd=["grep"], timeout=1),
+    ):
+        result = execute_grep(request=request, repo_root=str(tmp_path))
+
+    assert result.get("timed_out") is True, f"Expected timed_out=True, got: {result}"
+    assert "error" in result, f"Expected error key in timeout result, got: {result}"
+    assert "timed out" in result["error"].lower(), (
+        f"Expected 'timed out' in error message, got: {result['error']!r}"
+    )
+
+
+def test_grep_excludes_binary_files(tmp_path: pathlib.Path) -> None:
+    """grep on a directory containing binary files skips them silently."""
+    (tmp_path / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00")
+    (tmp_path / "source.py").write_text("hello world\nfoo bar\n", encoding="utf-8")
+
+    result = execute_grep(
+        request={"action": "grep", "patterns": ["hello"], "paths": [str(tmp_path)]},
+        repo_root=str(tmp_path),
+    )
+
+    output = result.get("output", "")
+    assert "PNG" not in output, "Binary file content must not appear in grep output"
+    assert b"\x00" not in output.encode("utf-8", errors="replace"), (
+        "Null bytes from binary files must not appear in grep output"
+    )
+    assert "hello" in output or "source.py" in output, (
+        f"Expected text-file match in output, got: {output!r}"
+    )
+
+
+def test_grep_multi_pattern_multi_path(tmp_path: pathlib.Path) -> None:
+    """execute_grep accepts multiple patterns and multiple paths."""
+    dir_a = tmp_path / "dir_a"
+    dir_b = tmp_path / "dir_b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    (dir_a / "a.txt").write_text("alpha pattern_one here\n", encoding="utf-8")
+    (dir_b / "b.txt").write_text("beta pattern_two there\n", encoding="utf-8")
+
+    result = execute_grep(
+        request={
+            "action": "grep",
+            "patterns": ["pattern_one", "pattern_two"],
+            "paths": [str(dir_a), str(dir_b)],
+        },
+        repo_root=str(tmp_path),
+    )
+
+    output = result.get("output", "")
+    assert "pattern_one" in output, f"Expected pattern_one match, got: {output!r}"
+    assert "pattern_two" in output, f"Expected pattern_two match, got: {output!r}"
+
+
+def test_grep_output_truncated_at_64kb(tmp_path: pathlib.Path) -> None:
+    """Output exceeding 64 KB is truncated and marked."""
+    lines = [f"MATCH_{i:05d}: " + "x" * 100 for i in range(5000)]
+    (tmp_path / "large.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    result = execute_grep(
+        request={"action": "grep", "patterns": ["MATCH_"], "paths": [str(tmp_path)]},
+        repo_root=str(tmp_path),
+    )
+
+    output = result.get("output", "")
+    output_bytes = output.encode("utf-8", errors="replace")
+    assert len(output_bytes) <= 64 * 1024 + 200, (
+        f"Output must be truncated at ~64 KB, got {len(output_bytes)} bytes"
+    )
+    assert result.get("truncated") or "truncated" in output.lower(), (
+        f"Expected truncation marker, got truncated={result.get('truncated')}, tail={output[-200:]!r}"
+    )
+
+
+def test_grep_rejects_path_outside_repo_root(tmp_path: pathlib.Path) -> None:
+    """Paths outside the repo root are rejected (security jail)."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("secret content\n", encoding="utf-8")
+
+    result = execute_grep(
+        request={"action": "grep", "patterns": ["secret"], "paths": [str(outside)]},
+        repo_root=str(repo_root),
+    )
+
+    assert "error" in result or result.get("output", "") == "", (
+        f"Expected error or empty output for out-of-jail path, got: {result}"
+    )
+    assert "secret content" not in result.get("output", ""), (
+        "Security jail breach: secret content appeared in output"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Multi-turn augmentation loop tests (d7fa-a6a2-e3a6-4076)
+# ---------------------------------------------------------------------------
+
+
+def _make_mock_response(content: str):
+    """Return a minimal litellm-compatible response mock."""
+
+    class _Choice:
+        class _Message:
+            pass
+
+        message = _Message()
+
+    r = object.__new__(type("MockResponse", (), {}))
+    choice = _Choice()
+    choice.message.content = content
+    r.choices = [choice]
+    r._hidden_params = {}
+    return r
+
+
+def _findings_content() -> str:
+    return json.dumps(
+        {"findings": [{"severity": "minor", "description": "ok", "cited_lines": []}]}
+    )
+
+
+def _request_content() -> str:
+    return (
+        f"```json\n{json.dumps({'action': 'read_files', 'paths': ['README.md']})}\n```"
+    )
+
+
+def _request_and_findings_content() -> str:
+    """Turn that contains BOTH a context-request block AND final findings."""
+    return (
+        f"Here is a request:\n```json\n{json.dumps({'action': 'read_files', 'paths': ['x.py']})}\n```\n\n"
+        f"And here are my findings:\n{_findings_content()}"
+    )
+
+
+def test_augmentation_soft_cap_nudge_triggers_final_findings(
+    tmp_path: pathlib.Path,
+) -> None:
+    """At soft_cap turns, wrap-up nudge is injected and assistant emits final findings.
+
+    Satisfies SC4 (nudge → JSON path).
+    """
+    import dso_ci_review.dispatch as _dispatch_mod
+    from dso_ci_review import dispatch
+
+    call_count = 0
+
+    def mock_completion(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # Initial response: emits a context request
+            return _make_mock_response(_request_content())
+        if call_count <= 3:
+            # After file results provided: still requests (approaching soft cap)
+            return _make_mock_response(_request_content())
+        # After nudge: emit final findings
+        return _make_mock_response(_findings_content())
+
+    environ = {"ANTHROPIC_API_KEY": "test-key"}
+
+    # Patch soft cap to 2 so test runs fast
+    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 2), patch(
+        "litellm.completion", side_effect=mock_completion
+    ):
+        result = dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="unknown",
+            repo_root=str(tmp_path),
+            tier="standard",
+        )
+
+    assert "findings" in result, (
+        f"Expected findings in result, got: {list(result.keys())}"
+    )
+    assert not result.get("augmentation_failed"), "Expected success (not fail-closed)"
+
+
+def test_augmentation_fail_closed_past_hard_cap(tmp_path: pathlib.Path) -> None:
+    """Reviewer continuing to emit requests past soft_cap+3 records as failed.
+
+    Satisfies SC4 (fail-closed recording).
+    """
+    import dso_ci_review.dispatch as _dispatch_mod
+    from dso_ci_review import dispatch
+
+    def mock_completion(**kwargs):
+        # Always emit a context request — never complies
+        return _make_mock_response(_request_content())
+
+    environ = {"ANTHROPIC_API_KEY": "test-key"}
+
+    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 1), patch(
+        "litellm.completion", side_effect=mock_completion
+    ):
+        result = dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="unknown",
+            repo_root=str(tmp_path),
+            tier="standard",
+        )
+
+    assert result.get("augmentation_failed") is True, (
+        f"Expected augmentation_failed=True for fail-closed, got: {result}"
+    )
+    findings = result.get("findings", [])
+    assert findings, "Expected a synthetic critical finding for fail-closed path"
+    assert findings[0]["severity"] == "critical", (
+        f"Expected critical severity for fail-closed finding, got: {findings[0]['severity']}"
+    )
+
+
+def test_augmentation_post_nudge_request_with_findings_is_ignored(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Post-nudge: turn containing both request AND findings has request ignored; findings used.
+
+    Satisfies SC4 (post-nudge state-machine rule).
+    """
+    import dso_ci_review.dispatch as _dispatch_mod
+    from dso_ci_review import dispatch
+
+    call_count = 0
+
+    def mock_completion(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # Initial: context request only
+            return _make_mock_response(_request_content())
+        if call_count == 2:
+            # After file results: another request (triggers soft cap nudge)
+            return _make_mock_response(_request_content())
+        # After nudge: emits BOTH request AND findings (post-nudge mixed turn)
+        return _make_mock_response(_request_and_findings_content())
+
+    environ = {"ANTHROPIC_API_KEY": "test-key"}
+
+    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 2), patch(
+        "litellm.completion", side_effect=mock_completion
+    ):
+        result = dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="unknown",
+            repo_root=str(tmp_path),
+            tier="standard",
+        )
+
+    # Request was ignored; findings from the mixed turn were used
+    assert "findings" in result, (
+        f"Expected findings (request should be ignored, findings used), got: {list(result.keys())}"
+    )
+    assert not result.get("augmentation_failed"), (
+        "Expected success (findings accepted from mixed turn)"
+    )
+
+
+def test_explicit_soft_cap_argument_takes_precedence_over_module_constant(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Explicit soft_cap= argument overrides CONTEXT_AUG_SOFT_CAP module constant.
+
+    Satisfies DD4 (per-tier soft-cap override): dispatch_review accepts soft_cap
+    and uses it instead of the module-level constant, allowing per-tier configuration
+    at the call site without patching globals.
+    """
+    import dso_ci_review.dispatch as _dispatch_mod
+    from dso_ci_review import dispatch
+
+    call_count = 0
+
+    def mock_completion(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count <= 2:
+            # Return requests for first two calls; triggers nudge at aug_turn=soft_cap=1
+            return _make_mock_response(_request_content())
+        return _make_mock_response(_findings_content())
+
+    environ = {"ANTHROPIC_API_KEY": "test-key"}
+
+    # Module constant is 15; explicit soft_cap=1 must override it
+    assert _dispatch_mod.CONTEXT_AUG_SOFT_CAP == 15, (
+        "Module constant must be 15 for this test to validate override behavior"
+    )
+
+    with patch("litellm.completion", side_effect=mock_completion):
+        result = dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="unknown",
+            repo_root=str(tmp_path),
+            tier="standard",
+            soft_cap=1,  # explicit override: nudge fires after 1 normal turn
+        )
+
+    assert "findings" in result, (
+        f"Expected findings from soft_cap=1 override, got: {list(result.keys())}"
+    )
+    assert not result.get("augmentation_failed"), (
+        "Expected success (soft_cap=1 override caused early nudge then compliance)"
+    )
+    # With soft_cap=1: initial call (aug_turn=0→request), normal turn call (aug_turn=0→request→aug_turn=1),
+    # nudge fires at aug_turn=1>=soft_cap=1, then findings returned → at least 3 calls
+    assert call_count >= 3, (
+        f"Expected ≥3 calls with soft_cap=1 (initial+normal+nudge), got {call_count}"
+    )
+
+
+def test_per_tier_soft_cap_via_explicit_argument(tmp_path: pathlib.Path) -> None:
+    """Per-tier soft caps are achievable by passing different soft_cap values per tier.
+
+    Satisfies DD4 (per-tier soft-cap override): a lower soft_cap fires the nudge after
+    fewer turns; a higher soft_cap allows more turns before nudge. Verified by counting
+    LLM calls: a nudge-aware mock returns findings only after the nudge message appears,
+    so tight nudge = fewer total calls.
+    """
+    from dso_ci_review import dispatch
+
+    environ = {"ANTHROPIC_API_KEY": "test-key"}
+    call_counts: dict[str, int] = {}
+
+    _NUDGE_PHRASE = "context-augmentation turn limit"
+
+    def make_nudge_aware_mock(label: str):
+        """Returns findings only after the nudge message appears in messages."""
+
+        def mock_completion(**kwargs):
+            call_counts[label] = call_counts.get(label, 0) + 1
+            messages = kwargs.get("messages", [])
+            # Check if any user message contains the nudge phrase
+            nudged = any(
+                _NUDGE_PHRASE in m.get("content", "")
+                for m in messages
+                if m.get("role") == "user"
+            )
+            if nudged:
+                return _make_mock_response(_findings_content())
+            return _make_mock_response(_request_content())
+
+        return mock_completion
+
+    # tight cap: soft_cap=1 — nudge fires after 1 normal turn
+    with patch("litellm.completion", side_effect=make_nudge_aware_mock("tight")):
+        dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="unknown",
+            repo_root=str(tmp_path),
+            tier="standard",
+            soft_cap=1,
+        )
+
+    # loose cap: soft_cap=3 — nudge fires after 3 normal turns
+    with patch("litellm.completion", side_effect=make_nudge_aware_mock("loose")):
+        dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="unknown",
+            repo_root=str(tmp_path),
+            tier="standard",
+            soft_cap=3,
+        )
+
+    # Loose cap allows more turns before nudge — it takes more calls to reach the nudge
+    assert call_counts.get("loose", 0) > call_counts.get("tight", 0), (
+        f"Expected loose soft_cap=3 to require more LLM calls before nudge than tight soft_cap=1, "
+        f"got tight={call_counts.get('tight')} loose={call_counts.get('loose')}"
+    )

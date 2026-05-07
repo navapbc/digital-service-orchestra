@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import hashlib
 import json
 import logging
+import os
 import pathlib
 import sys
 from typing import Any
@@ -33,6 +35,12 @@ _SYSTEM_PROMPT = (
 
 _PLUGIN_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 _AGENTS_DIR = _PLUGIN_ROOT / "agents"
+# Git-relative path to this module (used in synthetic cited_lines to avoid literal plugin paths).
+_THIS_FILE_GIT_REL = str(pathlib.Path(__file__).resolve().relative_to(_PLUGIN_ROOT.parent.parent))
+
+# SC4: context-augmentation soft cap (default 15 turns).
+# Module-level so tests can patch it without modifying the function signature.
+CONTEXT_AUG_SOFT_CAP: int = 15
 
 
 @functools.lru_cache(maxsize=32)
@@ -85,12 +93,86 @@ _PROVIDER_DEFAULT_MODEL: dict[str, str] = {
 }
 
 
-def _build_messages(diff_text: str, agent_id: str = "unknown") -> list[dict[str, str]]:
+def _build_messages(
+    diff_text: str, agent_id: str = "unknown", provider: str = "unknown"
+) -> list[dict[str, Any]]:
     system_prompt = _load_agent_prompt(agent_id)
+    if provider == "anthropic":
+        # SC3: place cache_control breakpoints at system-prompt and diff boundaries
+        # derived from the rendered message structure (not hardcoded by index).
+        return [
+            {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Review this diff:\n\n{diff_text}",
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+            },
+        ]
     return [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Review this diff:\n\n{diff_text}"},
     ]
+
+
+def _stable_prefix_hash(messages: list[dict[str, Any]]) -> str:
+    """Compute a SHA-256 hash of the stable cached prefix (first two messages).
+
+    The first two messages (system prompt + diff) must never change across turns
+    within a single dispatch_review call — any drift invalidates the Anthropic
+    cache and causes a 5-10× token cost overrun.
+    """
+    prefix = messages[:2]
+    serialized = json.dumps(prefix, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _check_cache_usage(
+    response: Any,
+    turn: int,
+    prev_cache_read: int | None,
+    provider: str,
+) -> int | None:
+    """Log warnings when Anthropic prompt-cache tokens are absent.
+
+    Returns the current cache_read_input_tokens value for use on the next turn.
+    No-op for non-Anthropic providers.
+    """
+    if provider != "anthropic":
+        return None
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return None
+    creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+    if turn == 0 and creation == 0 and cache_read == 0:
+        logger.warning(
+            "Anthropic cache miss on turn 0: neither cache_creation_input_tokens "
+            "nor cache_read_input_tokens > 0 — cache_control breakpoints may be "
+            "misplaced or the provider downgraded the request"
+        )
+    elif turn > 0 and prev_cache_read is not None and cache_read <= prev_cache_read:
+        logger.warning(
+            "Anthropic cache_read_input_tokens did not increase on turn %d "
+            "(prev=%d, current=%d) — stable prefix may have been invalidated",
+            turn,
+            prev_cache_read,
+            cache_read,
+        )
+    return cache_read
 
 
 def _parse_response(response: Any) -> dict[str, Any]:
@@ -138,6 +220,9 @@ def dispatch_review(
     agent_id: str = "unknown",
     context_model_chain: list[str] | None = None,
     primary_model: str | None = None,
+    repo_root: str | None = None,
+    tier: str = "standard",
+    soft_cap: int | None = None,
 ) -> dict[str, Any]:
     """Dispatch a code review using LiteLLM with manual context-window escalation.
 
@@ -145,6 +230,7 @@ def dispatch_review(
       - fallbacks=[...]: cross-provider fallback models (Axis 1, SDK-native)
       - Manual loop over context_model_chain catching ContextWindowExceededError (Axis 2)
       - stream=False: DD1 compliance
+      - Single-turn context-augmentation loop for non-light tiers (Axis 3)
 
     Args:
         diff_text: Unified diff text to review.
@@ -155,6 +241,12 @@ def dispatch_review(
         context_model_chain: Explicit list of models to try on ContextWindowExceededError.
                              When None, uses the default chain for the first provider.
         primary_model: Override the primary model for the first provider call.
+        repo_root: Repository root path for the context-augmentation file jail.
+                   Defaults to the current working directory when None.
+        tier: Review tier — "light" skips context augmentation; all others enable it.
+        soft_cap: Per-call soft cap override for context-augmentation turns. When None,
+                  falls back to the module-level CONTEXT_AUG_SOFT_CAP constant (patchable
+                  in tests). Use this to set per-tier caps at the call site.
 
     Returns:
         A dict containing "findings" (list). When a fallback hop occurred,
@@ -169,8 +261,6 @@ def dispatch_review(
     from dso_ci_review.providers.config import ConfigError
 
     if environ is None:
-        import os
-
         environ = dict(os.environ)
 
     # --- Credential pre-check (DD startup gate) ---
@@ -181,10 +271,10 @@ def dispatch_review(
         if not environ.get(key_var):
             raise ConfigError(f"Missing {key_var} for provider {provider!r}")
 
-    messages = _build_messages(diff_text, agent_id=agent_id)
-
-    # Determine the primary provider and model
+    # Determine the primary provider early — needed for cache_control placement.
     first_provider = provider_chain[0]
+
+    messages = _build_messages(diff_text, agent_id=agent_id, provider=first_provider)
     resolved_primary_model = primary_model or _PROVIDER_DEFAULT_MODEL.get(
         first_provider, first_provider
     )
@@ -207,6 +297,11 @@ def dispatch_review(
     last_exc: Exception | None = None
     fallback_hops: list[str] = []
 
+    # Resolve repo root for the context-augmentation file jail (Axis 3)
+    resolved_repo_root = (
+        os.path.realpath(repo_root) if repo_root else os.path.realpath(".")
+    )
+
     # Axis 2: manual context-window escalation loop.
     # NOTE: the `context_window_fallbacks` kwarg is a LiteLLM Router parameter
     # and is silently ignored by litellm.completion() — use a manual loop instead.
@@ -218,6 +313,182 @@ def dispatch_review(
                 stream=False,  # DD1: never stream
                 fallbacks=fallbacks,  # DD1: SDK-native cross-provider fallback (Axis 1)
             )
+
+            # Axis 3: multi-turn context-augmentation loop (non-light tiers only, SC4).
+            # Light tier: single-shot, no augmentation.
+            if tier != "light":
+                from dso_ci_review.context_request import (
+                    execute_grep,
+                    execute_read_files,
+                    parse_request_blocks,
+                )
+
+                # SC4: per-call soft_cap parameter takes precedence over module constant.
+                _AUG_SOFT_CAP = (
+                    soft_cap if soft_cap is not None else CONTEXT_AUG_SOFT_CAP
+                )
+                _AUG_FIRST_NUDGE = (
+                    "You have reached the context-augmentation turn limit. "
+                    "Please provide your final code review findings now without "
+                    "issuing any additional context requests."
+                )
+                _AUG_SECOND_NUDGE = (
+                    "FINAL WARNING: You must provide your final review findings "
+                    "immediately. No further context requests will be processed. "
+                    "Failure to comply will result in this review being recorded as failed."
+                )
+
+                aug_messages = list(messages)
+                current_response = response
+                aug_turn = 0
+                nudge_count = (
+                    0  # 0=pre-nudge, 1=after first nudge, 2=after second nudge
+                )
+                aug_failed = False
+                # SC3: track cache tokens across turns for cache-hit assertion.
+                _aug_cache_read: int | None = _check_cache_usage(
+                    response, 0, None, first_provider
+                )
+
+                while aug_turn <= _AUG_SOFT_CAP + 4:
+                    assistant_content = (
+                        current_response.choices[0].message.content or ""
+                    )
+                    turn_msgs = [{"role": "assistant", "content": assistant_content}]
+                    request_blocks = parse_request_blocks(turn_msgs)
+
+                    # Check if this turn has parseable final findings
+                    has_findings = False
+                    try:
+                        parsed_attempt = _parse_response(current_response)
+                        has_findings = bool(parsed_attempt.get("findings") is not None)
+                    except (ValueError, KeyError, AttributeError):
+                        has_findings = False
+
+                    # No context requests → assistant provided final findings
+                    if not request_blocks:
+                        response = current_response
+                        break
+
+                    # Post-nudge state machine (SC4): when both request AND findings
+                    # are present, ignore the request and count as a strike.
+                    if nudge_count >= 1 and has_findings:
+                        # Request is ignored; treat this turn as final findings.
+                        response = current_response
+                        break
+
+                    # Soft-cap nudge at turn soft_cap
+                    if aug_turn >= _AUG_SOFT_CAP and nudge_count == 0:
+                        nudge_count = 1
+                        aug_messages = aug_messages + [
+                            {"role": "assistant", "content": assistant_content},
+                            {"role": "user", "content": _AUG_FIRST_NUDGE},
+                        ]
+                        current_response = litellm.completion(
+                            model=ctx_model,
+                            messages=aug_messages,
+                            stream=False,
+                            fallbacks=fallbacks,
+                        )
+                        _aug_cache_read = _check_cache_usage(
+                            current_response, aug_turn, _aug_cache_read, first_provider
+                        )
+                        aug_turn += 1
+                        continue
+
+                    # Second nudge at soft_cap+3
+                    if aug_turn >= _AUG_SOFT_CAP + 3 and nudge_count == 1:
+                        nudge_count = 2
+                        aug_messages = aug_messages + [
+                            {"role": "assistant", "content": assistant_content},
+                            {"role": "user", "content": _AUG_SECOND_NUDGE},
+                        ]
+                        current_response = litellm.completion(
+                            model=ctx_model,
+                            messages=aug_messages,
+                            stream=False,
+                            fallbacks=fallbacks,
+                        )
+                        _aug_cache_read = _check_cache_usage(
+                            current_response, aug_turn, _aug_cache_read, first_provider
+                        )
+                        aug_turn += 1
+                        continue
+
+                    # Fail-closed: reviewer ignored both nudges
+                    if aug_turn >= _AUG_SOFT_CAP + 4 and nudge_count >= 2:
+                        aug_failed = True
+                        break
+
+                    # Normal turn: execute context requests and re-complete
+                    augmentation_parts: list[str] = []
+                    for req in request_blocks:
+                        action = req.get("action")
+                        if action == "read_files":
+                            paths = req.get("paths", [])
+                            file_content = execute_read_files(
+                                paths=paths,
+                                repo_root=resolved_repo_root,
+                            )
+                            augmentation_parts.append(file_content)
+                        elif action == "grep":
+                            grep_result = execute_grep(
+                                request=req,
+                                repo_root=resolved_repo_root,
+                            )
+                            grep_output = grep_result.get("output") or grep_result.get(
+                                "error", ""
+                            )
+                            if grep_output:
+                                augmentation_parts.append(
+                                    f"Grep results:\n\n{grep_output}"
+                                )
+
+                    if augmentation_parts:
+                        augmented_user_content = (
+                            "File contents requested:\n\n"
+                            + "\n\n".join(augmentation_parts)
+                        )
+                        aug_messages = aug_messages + [
+                            {"role": "assistant", "content": assistant_content},
+                            {"role": "user", "content": augmented_user_content},
+                        ]
+                        current_response = litellm.completion(
+                            model=ctx_model,
+                            messages=aug_messages,
+                            stream=False,
+                            fallbacks=fallbacks,
+                        )
+                        _aug_cache_read = _check_cache_usage(
+                            current_response, aug_turn, _aug_cache_read, first_provider
+                        )
+                    else:
+                        # Requests were all unknown actions; treat as done
+                        response = current_response
+                        break
+
+                    aug_turn += 1
+
+                if aug_failed:
+                    # Fail-closed: record as failed (SC4)
+                    failed_result: dict[str, Any] = {
+                        "findings": [
+                            {
+                                "severity": "critical",
+                                "description": (
+                                    "Context-augmentation loop failed-closed: reviewer "
+                                    f"continued emitting context requests past turn "
+                                    f"{_AUG_SOFT_CAP + 3} without providing final findings."
+                                ),
+                                "cited_lines": [f"{_THIS_FILE_GIT_REL}:418"],
+                            }
+                        ],
+                        "augmentation_failed": True,
+                    }
+                    if fallback_hops:
+                        failed_result["fallback_hops"] = fallback_hops
+                    return failed_result
+
             result = _parse_response(response)
 
             # Record a hop if we advanced past the first model in the context chain (DD2).
@@ -322,6 +593,7 @@ async def _call_single_agent(
     diff_text: str,
     model: str,
     provider_chain: list[str] | None = None,
+    tier: str = "standard",
 ) -> dict:
     """Dispatch one reviewer agent. Returns findings dict or error entry on any exception."""
     try:
@@ -330,6 +602,7 @@ async def _call_single_agent(
             agent_id=agent_id,
             primary_model=model,
             provider_chain=provider_chain or ["anthropic"],
+            tier=tier,
         )
         return result
     except Exception as exc:  # noqa: BLE001
@@ -363,6 +636,8 @@ async def async_dispatch_specialists(
             - diff_text (str): Unified diff text to review.
             - model (str): Primary model identifier to use.
             - provider_chain (list[str] | None): Optional provider chain override.
+            - tier (str | None): Review tier — propagated to dispatch_review so
+              light tier skips the augmentation loop.
     """
     if not agents:
         return []
@@ -373,6 +648,7 @@ async def async_dispatch_specialists(
             diff_text=a["diff_text"],
             model=a["model"],
             provider_chain=a.get("provider_chain"),
+            tier=a.get("tier", "standard"),
         )
         for a in agents
     ]

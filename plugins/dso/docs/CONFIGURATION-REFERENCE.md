@@ -908,6 +908,50 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `review.context_aug.soft_cap`
+
+| | |
+|---|---|
+| **Description** | Per-call soft cap on context-augmentation turns in the CI review dispatch loop. At this turn count the dispatcher issues a first nudge asking the reviewer to finalize findings; a second nudge fires at `soft_cap+3`; the loop fails-closed at `soft_cap+4` (single critical finding recorded). Applies to standard, deep, and overlay tiers only — light tier is always single-shot and ignores this key. Can be overridden per-call via the `soft_cap` parameter of `dispatch_review()`. |
+| **Accepted values** | Positive integer |
+| **Default** | `15` (module constant `CONTEXT_AUG_SOFT_CAP` in `scripts/dso_ci_review/dispatch.py`) |
+| **Used by** | `scripts/dso_ci_review/dispatch.py` (`dispatch_review()`) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `review.context_aug.max_file_bytes`
+
+| | |
+|---|---|
+| **Description** | Per-file size cap for the `read_files` context-request action. Files larger than this limit are read up to the cap and a truncation marker is appended to inform the reviewer that content is incomplete. Enforced by `execute_read_files()`. |
+| **Accepted values** | Positive integer (bytes) |
+| **Default** | `262144` (256 KB — hardcoded in `scripts/dso_ci_review/context_request.py`) |
+| **Used by** | `scripts/dso_ci_review/context_request.py` (`execute_read_files()`) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `review.context_aug.grep_timeout_seconds`
+
+| | |
+|---|---|
+| **Description** | Wall-clock timeout for the `grep` context-request action. Prevents runaway pattern matching (ReDoS) from stalling the augmentation loop. On timeout the handler returns `timed_out: true` and the turn is treated as producing no output. |
+| **Accepted values** | Positive integer (seconds) |
+| **Default** | `5` (constant `_GREP_DEFAULT_TIMEOUT_SECONDS` in `scripts/dso_ci_review/context_request.py`) |
+| **Used by** | `scripts/dso_ci_review/context_request.py` (`execute_grep()`) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `review.context_aug.contract_version`
+
+| | |
+|---|---|
+| **Description** | Version of the CI Review Context-Request Contract implemented by the dispatcher. Unversioned requests default to version 1 for backward compatibility. Currently unversioned in `dso-config.conf` — this key is reserved for future use when a breaking schema change requires version negotiation. |
+| **Accepted values** | Positive integer (currently only `1` is defined) |
+| **Default** | `1` (see `${CLAUDE_PLUGIN_ROOT}/docs/contracts/ci-review-context-request.md` §Schema Evolution) |
+| **Used by** | `scripts/dso_ci_review/context_request.py` (parser; version 1 baseline) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
 ### `debug.max_fix_validate_cycles`
 
 | | |
