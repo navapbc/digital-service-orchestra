@@ -634,6 +634,95 @@ def test_sync_file_retained_after_deletion(
     )
 
 
+# ---------------------------------------------------------------------------
+# STATUS handler — unmatched CalledProcessError does NOT propagate (f593-183b)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_status_handler_delete_unmatched_cpe_writes_alert_no_propagation(
+    tmp_path: Path, outbound_handlers: ModuleType
+) -> None:
+    """When delete_issue raises CalledProcessError with stderr that does NOT match
+    the 404/403/not-found/forbidden allowlist, handle_status_event must:
+
+    (1) NOT propagate the exception (loop-continuation property),
+    (2) call write_bridge_alert with a reason mentioning the jira_key,
+    (3) NOT add ticket_id to status_updated (retry semantics preserved),
+    (4) return [] (standard empty list, not raise).
+
+    This is the gap that caused bug f593-183b: an unmatched 500 Internal Server
+    Error from acli (seen in CI run 25474723444 for DIG-1682) propagated through
+    process_outbound's for-loop and aborted the entire backfill run.
+    """
+    ticket_dir = tmp_path / _TICKET_ID
+    ticket_dir.mkdir()
+    _write_sync(ticket_dir)
+    event_path = _write_status_event(ticket_dir, "deleted")
+
+    event = {
+        "ticket_id": _TICKET_ID,
+        "event_type": "STATUS",
+        "file_path": str(event_path),
+    }
+
+    # Simulate acli returning a 500 whose stderr does NOT match the narrow
+    # 404/403/not found/forbidden allowlist that delete_issue re-raises as
+    # PermissionError — so the raw CalledProcessError escapes delete_issue.
+    unmatched_cpe = subprocess.CalledProcessError(
+        returncode=1,
+        cmd=["acli", "jira", "workitem", "delete", "--key", _JIRA_KEY],
+    )
+    unmatched_cpe.stderr = "Error: 500 Internal Server Error from Jira API"
+    unmatched_cpe.stdout = ""
+
+    acli_client = MagicMock()
+    acli_client.delete_issue = MagicMock(side_effect=unmatched_cpe)
+
+    status_updated: set[str] = set()
+
+    with patch(
+        "bridge._outbound_handlers.get_compiled_status",
+        return_value="deleted",
+    ):
+        # (1) Must NOT raise — CalledProcessError must not propagate
+        result = outbound_handlers.handle_status_event(
+            event,
+            acli_client=acli_client,
+            tickets_root=tmp_path,
+            bridge_env_id=_BRIDGE_ENV_ID,
+            run_id="test-run",
+            reducer_path=REDUCER_PATH,
+            status_updated=status_updated,
+        )
+
+    # (4) Handler must return [] — standard empty list, not raise
+    assert result == [], (
+        f"handle_status_event must return [] on unmatched CalledProcessError, "
+        f"got: {result!r}"
+    )
+
+    # (2) A BRIDGE_ALERT file must be written — observable side effect
+    alerts = list(ticket_dir.glob("*-BRIDGE_ALERT.json"))
+    assert len(alerts) >= 1, (
+        "handle_status_event must write a BRIDGE_ALERT when delete_issue raises "
+        "an unmatched CalledProcessError"
+    )
+    alert_data = json.loads(alerts[0].read_text())
+    alert_reason = alert_data.get("data", {}).get("reason", "")
+    assert _JIRA_KEY in alert_reason, (
+        f"BRIDGE_ALERT reason must include the jira_key ({_JIRA_KEY!r}); "
+        f"got reason: {alert_reason!r}"
+    )
+
+    # (3) ticket_id must NOT be in status_updated — preserves retry semantics
+    assert _TICKET_ID not in status_updated, (
+        f"ticket_id {_TICKET_ID!r} must NOT be added to status_updated when "
+        f"delete_issue fails with unmatched CalledProcessError"
+    )
+
+
 @pytest.mark.unit
 def test_load_module_from_path_directory_raises_clear_error(
     outbound_api: ModuleType,

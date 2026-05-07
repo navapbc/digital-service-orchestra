@@ -170,6 +170,19 @@ def handle_status_event(
                             reason=f"403 delete denied for {jira_key}: {exc}",
                             bridge_env_id=bridge_env_id,
                         )
+                    except subprocess.CalledProcessError as exc:
+                        err_text = (exc.stderr or "") + (exc.stdout or "")
+                        logger.warning(
+                            "delete_issue(%s) failed — writing BRIDGE_ALERT: %s",
+                            jira_key,
+                            err_text.strip() or exc,
+                        )
+                        write_bridge_alert(
+                            ticket_dir,
+                            ticket_id=ticket_id,
+                            reason=f"delete failed for {jira_key}: {err_text.strip() or exc}",
+                            bridge_env_id=bridge_env_id,
+                        )
                 else:
                     logger.debug(
                         "STATUS 'deleted' for %s: SYNC file has no jira_key — skipping",
