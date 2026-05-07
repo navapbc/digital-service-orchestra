@@ -1398,3 +1398,45 @@ def test_status_event_no_sync_marker_triggers_retroactive_create(
     assert syncs, (
         "handle_status_event must return at least one SYNC event after retroactive CREATE"
     )
+
+
+# ---------------------------------------------------------------------------
+# Bug 302e-98eb: filter_bridge_events back-compat when bridge_env_id is empty
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_filter_bridge_events_back_compat_when_bridge_env_id_empty() -> None:
+    """filter_bridge_events passes all events through when bridge_env_id is empty.
+
+    Pre-migration events have env_id='' and must not be filtered when bridge_env_id
+    is unset (empty string). This is the back-compat guard for the S2 fix.
+    """
+    import sys
+    from pathlib import Path
+
+    scripts_dir = (
+        Path(__file__).resolve().parent.parent.parent / "plugins" / "dso" / "scripts"
+    )
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    from bridge._outbound_api import filter_bridge_events
+
+    events = [
+        {"ticket_id": "t-pre-migration", "event_type": "STATUS", "env_id": ""},
+        {
+            "ticket_id": "t-with-uuid",
+            "event_type": "CREATE",
+            "env_id": "real-uuid-1234",
+        },
+    ]
+    result = filter_bridge_events(events, bridge_env_id="")
+    ticket_ids = [e["ticket_id"] for e in result]
+    assert "t-pre-migration" in ticket_ids, (
+        "Pre-migration events (env_id='') must not be filtered when bridge_env_id is empty"
+    )
+    assert "t-with-uuid" in ticket_ids, (
+        "Events with env_id must not be filtered when bridge_env_id is empty"
+    )
+    assert len(result) == 2, "All events must pass through when bridge_env_id is empty"
