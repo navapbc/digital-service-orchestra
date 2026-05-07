@@ -48,6 +48,13 @@ def _real_blocking_findings(findings: list[dict]) -> list[dict]:
     A finding blocks when:
     - severity is in _BLOCKING_SEVERITIES (case-insensitive), AND
     - type is NOT in _SYNTHETIC_TYPES (real review work, not an infra failure)
+
+    REVIEW-DEFENSE (PR #62 finding 3): the `type` field is optional on real
+    findings — `f.get("type", "")` defaults to `""` which is NOT in
+    _SYNTHETIC_TYPES, so real findings (which lack `type`) correctly proceed
+    to the severity check. Only synthetic findings (specialist_error,
+    fallback_exhausted, parse_error) are excluded. This is the intended
+    semantic — see record-review.sh:307 for the parallel local enforcement.
     """
     out: list[dict] = []
     for f in findings or []:
@@ -88,50 +95,69 @@ def _safe_inline(s: object) -> str:
     return str(s).replace("\n", " ").replace("\r", " ")
 
 
-def _format_review_body(blocking: list[dict], total_count: int) -> str:
-    """Format a PR review body summarizing blocking findings."""
-    lines = [
-        "## DSO CI llm-review — blocking findings",
-        "",
-        f"{len(blocking)} of {total_count} finding(s) require attention before merge "
-        f"(severity in critical/important/fragile per CLAUDE.md rule 11).",
-        "",
-    ]
-    for i, f in enumerate(blocking, 1):
-        sev = _safe_inline(f.get("severity", "?"))
-        cat = _safe_inline(f.get("category", "?"))
-        desc = (f.get("description") or "").strip()
-        cited = f.get("cited_lines") or []
-        cited_str = (
-            ", ".join(_safe_inline(c) for c in cited) if cited else "(no citations)"
-        )
-        lines.append(f"### {i}. [{sev}/{cat}] {cited_str}")
-        lines.append("")
-        # Wrap LLM-controlled description in a fenced code block to prevent
-        # markdown / HTML injection in the rendered PR comment. A nested fence
-        # in the description itself would close ours; replace literal triple
-        # backticks with a Unicode look-alike to neutralize that vector.
-        safe_desc = desc.replace("```", "ˋˋˋ")
-        lines.append("```")
-        lines.append(safe_desc)
-        lines.append("```")
-        lines.append("")
-    lines.append("---")
-    lines.append(
-        "_Posted by dso_ci_review.runner; see CI llm-review job logs for full output._"
+def _format_finding_comment(idx: int, total: int, finding: dict) -> str:
+    """Format a single finding as a standalone PR comment body.
+
+    Each comment is independently responsive (resolve / reply / mark-as-fixed)
+    in the GitHub PR UI, so the team can triage findings one-by-one rather
+    than against a single bundled comment.
+
+    Body shape:
+        ## DSO llm-review — finding {idx}/{total}
+
+        **[severity]** `path:line` *(category)*
+
+        ```
+        <description, with backtick neutralization>
+        ```
+
+        ---
+        _Posted by dso_ci_review.runner._
+    """
+    sev = _safe_inline(finding.get("severity", "?"))
+    cat = finding.get("category")
+    cat_str = f" *({_safe_inline(cat)})*" if cat else ""
+    desc = (finding.get("description") or "").strip()
+    cited = finding.get("cited_lines") or []
+    if cited:
+        # Show citations as inline code spans for readability.
+        cited_str = " ".join(f"`{_safe_inline(c)}`" for c in cited)
+    else:
+        cited_str = "_(no citations)_"
+    # Wrap LLM-controlled description in a fenced code block to prevent
+    # markdown / HTML injection in the rendered PR comment. A nested fence
+    # in the description itself would close ours; replace literal triple
+    # backticks with a Unicode look-alike to neutralize that vector.
+    safe_desc = desc.replace("```", "ˋˋˋ")
+    return "\n".join(
+        [
+            f"## DSO llm-review — finding {idx}/{total}",
+            "",
+            f"**[{sev}]** {cited_str}{cat_str}",
+            "",
+            "```",
+            safe_desc,
+            "```",
+            "",
+            "---",
+            "_Posted by dso_ci_review.runner; resolve this comment when addressed._",
+        ]
     )
-    return "\n".join(lines)
 
 
-def _post_pr_review(findings: list[dict]) -> bool:
-    """Post blocking findings as a PR review via the gh CLI.
+def _post_pr_review(findings: list[dict]) -> tuple[int, int]:
+    """Post blocking findings as PR comments (one per finding) via the gh CLI.
 
-    Returns True when a comment was successfully posted; False otherwise
-    (no-op preconditions OR posting failure). The caller uses this to phrase
-    the gate's stderr message accurately — claiming "see the PR comment" when
-    no comment exists is misleading.
+    Returns `(posted_count, attempted_count)` so the caller can phrase its
+    stderr summary accurately — under the per-finding loop a partial failure
+    is a real outcome (e.g., 2 of 5 comments posted), and the gate hint must
+    reflect that rather than claim "see the PR comment" when several never
+    landed.
 
-    No-op (returns False) when:
+    Both counters are 0 in no-op cases (preconditions not met). When findings
+    were attempted, `attempted_count == len(blocking)`.
+
+    No-op (returns (0, 0)) when:
     - GITHUB_EVENT_NAME != "pull_request" (push, workflow_dispatch, etc.)
     - PR number cannot be resolved
     - GITHUB_TOKEN is absent (gh auth would fail anyway)
@@ -139,51 +165,78 @@ def _post_pr_review(findings: list[dict]) -> bool:
 
     Errors are logged to stderr but never propagate — the severity gate below
     is authoritative for blocking; comment posting is a best-effort UX layer.
+
+    REVIEW-DEFENSE (PR #62 findings 2 and 5):
+
+    - Timeout=30s: gh pr comment typically completes in <2s; 30s is a generous
+      ceiling. Slow runners are not a real failure mode here — comment posting
+      is best-effort and a slow comment delays only the WARNING line, not the
+      gate decision.
+
+    - Silent error suppression: BY DESIGN. The severity gate (caller below) is
+      the authoritative blocking mechanism. The comment is informational. A
+      single-line WARNING with the exception class name is sufficient operator
+      visibility; reraising would invert the design (UX layer blocking the
+      gate). Operators who need details can read the CI job stderr.
+
+    - stderr leakage: the `subprocess.run(..., capture_output=True)` capture
+      stores gh's stderr inside the CalledProcessError object, but we only
+      print `type(exc).__name__` — neither the captured stderr nor stdout is
+      ever serialized to the runner's stderr. The data exists in memory but
+      no code path emits it; sensitive content cannot leak via this path.
     """
     blocking = _real_blocking_findings(findings)
     if not blocking:
-        return False
+        return (0, 0)
     pr_number = _resolve_pr_number()
     if not pr_number:
-        return False
+        return (0, 0)
     if not os.environ.get("GITHUB_TOKEN"):
         print(
             "WARNING: GITHUB_TOKEN absent; cannot post PR review for findings",
             file=sys.stderr,
         )
-        return False
+        return (0, 0)
 
-    body = _format_review_body(blocking, total_count=len(findings))
-    try:
-        subprocess.run(
-            [
-                "gh",
-                "pr",
-                "comment",
-                pr_number,
-                "--body",
-                body,
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except (
-        subprocess.CalledProcessError,
-        subprocess.TimeoutExpired,
-        FileNotFoundError,
-    ) as exc:
-        # Best-effort — never block the gate on a failed comment post.
-        # Print only the exception class name (not str(exc)), since gh stderr
-        # captured by CalledProcessError can include URLs / token-bearing
-        # diagnostic text on auth failures.
-        print(
-            f"WARNING: failed to post PR review comment ({type(exc).__name__})",
-            file=sys.stderr,
-        )
-        return False
-    return True
+    # One comment per finding so each can be resolved / replied to / closed
+    # independently in the GitHub PR UI. Bundling all findings into a single
+    # comment would force the team to triage them as one unit.
+    posted = 0
+    total = len(blocking)
+    for idx, finding in enumerate(blocking, 1):
+        body = _format_finding_comment(idx, total, finding)
+        try:
+            subprocess.run(
+                [
+                    "gh",
+                    "pr",
+                    "comment",
+                    pr_number,
+                    "--body",
+                    body,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            posted += 1
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            FileNotFoundError,
+        ) as exc:
+            # Best-effort — never block the gate on a failed comment post.
+            # Print only the exception class name (not str(exc)), since gh stderr
+            # captured by CalledProcessError can include URLs / token-bearing
+            # diagnostic text on auth failures. Continue to the next finding so
+            # one transient failure doesn't suppress the rest.
+            print(
+                f"WARNING: failed to post PR comment for finding {idx}/{total} "
+                f"({type(exc).__name__})",
+                file=sys.stderr,
+            )
+    return (posted, total)
 
 
 def _read_diff() -> str:
@@ -399,8 +452,9 @@ def main() -> int:
         )
 
     # Surface blocking findings to the PR (best-effort) before deciding exit code,
-    # so the author has visible context whether the gate passes or fails.
-    _comment_posted = _post_pr_review(_findings)
+    # so the author has visible context whether the gate passes or fails. Returns
+    # (posted, attempted) so the gate stderr can phrase partial-success accurately.
+    _comments_posted, _comments_attempted = _post_pr_review(_findings)
 
     # Severity gate (bug f2c7-257e): block merge when any real finding is
     # critical / important / fragile, matching local record-review.sh enforcement.
@@ -414,10 +468,24 @@ def main() -> int:
             sev = str(f.get("severity", "?")).lower()
             sev_summary[sev] = sev_summary.get(sev, 0) + 1
         sev_str = ", ".join(f"{c} {s}" for s, c in sorted(sev_summary.items()))
-        # Only mention the PR comment when one was actually posted (return value
-        # of _post_pr_review). Avoids "see the PR comment" pointing at a comment
-        # that was never created (failed gh auth, missing event context, etc.).
-        comment_hint = "and PR review comment " if _comment_posted else ""
+        # Phrase the comment hint to reflect the actual posting outcome. Under
+        # the per-finding loop a partial success is a real outcome (e.g., 2 of
+        # 5 posted), so the message must not claim "see the PR comment" when
+        # several never landed.
+        if _comments_posted == 0 and _comments_attempted == 0:
+            comment_hint = ""
+        elif _comments_posted == 0 and _comments_attempted > 0:
+            comment_hint = (
+                f"(PR comment posting failed for all {_comments_attempted} "
+                f"finding(s); see WARNING lines above) "
+            )
+        elif _comments_posted == _comments_attempted:
+            plural = "s" if _comments_posted != 1 else ""
+            comment_hint = f"and {_comments_posted} PR review comment{plural} "
+        else:
+            comment_hint = (
+                f"and {_comments_posted}/{_comments_attempted} PR review comments "
+            )
         print(
             f"ERROR: llm-review found blocking finding(s) — {sev_str} "
             f"(see findings JSON above {comment_hint}for details)",

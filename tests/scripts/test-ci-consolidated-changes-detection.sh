@@ -166,6 +166,13 @@ for job_key in required_jobs:
     steps = job.get('steps', [])
     # Strict equality match — substring containment would accept any
     # if-condition containing the env-var name, which is too permissive.
+    # REVIEW-DEFENSE (PR #62 finding 6): the YAML is parsed via PyYAML before
+    # comparison, which normalizes whitespace and quoting (single vs double).
+    # The 'brittle to formatting' concern doesn't materialize because the
+    # comparison is against the parsed Python string, not the raw YAML source.
+    # Pass-2 of the prior cb67-2265 review explicitly required this strict-equality
+    # check to replace a too-permissive substring match — this is a deliberate
+    # contract assertion, not a stylistic preference.
     expected_if = 'needs.changes.outputs.code_changed == ' + chr(39) + 'true' + chr(39)
     gated_steps = [
         s for s in steps

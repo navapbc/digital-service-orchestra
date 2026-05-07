@@ -939,10 +939,11 @@ def test_runner_skips_blocking_for_specialist_errors(tmp_path):
 
 
 def test_runner_posts_pr_review_when_findings(tmp_path):
-    """Findings (real, blocking) must be surfaced as a PR review via the GH API.
+    """Each blocking finding must be posted as its own PR comment, so the team
+    can resolve/respond to them independently in the GitHub PR UI.
 
     Uses GITHUB_EVENT_NAME=pull_request + GITHUB_REF=refs/pull/123/merge to simulate
-    PR context; mocks subprocess.run to capture the gh CLI invocation.
+    PR context; mocks subprocess.run to capture each gh CLI invocation.
     """
     import dso_ci_review.runner as runner_mod
 
@@ -953,16 +954,27 @@ def test_runner_posts_pr_review_when_findings(tmp_path):
         {
             "severity": "important",
             "category": "correctness",
-            "description": "needs fix",
+            "description": "needs fix A",
             "cited_lines": ["foo:1"],
-        }
+        },
+        {
+            "severity": "fragile",
+            "category": "correctness",
+            "description": "shaky reference B",
+            "cited_lines": ["foo:7"],
+        },
+        {
+            "severity": "critical",
+            "category": "correctness",
+            "description": "real bug C",
+            "cited_lines": ["foo:12"],
+        },
     ]
 
     captured_calls = []
 
     def _capture_run(cmd, *args, **kwargs):
         captured_calls.append(cmd)
-        # Return a dummy CompletedProcess-like object
         from subprocess import CompletedProcess
 
         return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
@@ -974,17 +986,99 @@ def test_runner_posts_pr_review_when_findings(tmp_path):
         "GITHUB_REPOSITORY": "owner/repo",
     }
 
-    # Patch subprocess.run inside the runner module
     with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
         mock_subprocess.run.side_effect = _capture_run
-        from subprocess import CompletedProcess as _CP
+        # Real exception types so the runner's `except` clauses match by identity
+        # if the stub ever raises (currently it doesn't).
+        import subprocess as _real_subprocess
 
-        mock_subprocess.CompletedProcess = _CP
+        mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
+        mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
         _run_main_with(diff_file, out, findings, env_extra=env_extra)
 
-    assert any("gh" in (c[0] if isinstance(c, list) else c) for c in captured_calls), (
-        f"Expected runner to invoke `gh` to post PR review when findings present; "
-        f"captured calls: {captured_calls!r}"
+    gh_calls = [
+        c for c in captured_calls if "gh" in (c[0] if isinstance(c, list) else c)
+    ]
+    assert len(gh_calls) == len(findings), (
+        f"Expected one gh pr comment call per blocking finding "
+        f"({len(findings)} total); got {len(gh_calls)}: {gh_calls!r}"
+    )
+
+    # Each call body should reference exactly one finding (the i/N counter).
+    bodies = [c[c.index("--body") + 1] if "--body" in c else "" for c in gh_calls]
+    for i, body in enumerate(bodies, 1):
+        assert f"finding {i}/{len(findings)}" in body, (
+            f"Comment {i} body missing the finding-index marker; got: {body!r:.200}"
+        )
+
+
+def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
+    """When one gh comment call fails, the remaining findings still post.
+
+    Covers the per-finding loop's continue-on-error semantics: a transient
+    network blip on comment 2 of 3 must not suppress comments 1 and 3.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo b/foo\n+x\n")
+    out = tmp_path / "out.json"
+    findings = [
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "first finding",
+            "cited_lines": ["foo:1"],
+        },
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "second finding (post fails)",
+            "cited_lines": ["foo:7"],
+        },
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "third finding",
+            "cited_lines": ["foo:12"],
+        },
+    ]
+
+    captured_calls = []
+    call_count = {"n": 0}
+
+    def _flaky_run(cmd, *args, **kwargs):
+        captured_calls.append(cmd)
+        call_count["n"] += 1
+        from subprocess import CalledProcessError, CompletedProcess
+
+        if call_count["n"] == 2:
+            raise CalledProcessError(
+                returncode=1, cmd=cmd, output="", stderr="simulated network error"
+            )
+        return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    env_extra = {
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF": "refs/pull/123/merge",
+        "GITHUB_TOKEN": "token-stub",
+        "GITHUB_REPOSITORY": "owner/repo",
+    }
+
+    with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
+        import subprocess as _real_subprocess
+
+        mock_subprocess.run.side_effect = _flaky_run
+        mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
+        mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
+        _run_main_with(diff_file, out, findings, env_extra=env_extra)
+
+    gh_calls = [
+        c for c in captured_calls if "gh" in (c[0] if isinstance(c, list) else c)
+    ]
+    assert len(gh_calls) == 3, (
+        f"Expected runner to attempt all 3 comment posts even when #2 fails; "
+        f"got {len(gh_calls)} attempts: {gh_calls!r}"
     )
 
 

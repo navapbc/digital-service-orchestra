@@ -51,6 +51,14 @@ jobs:
             exit 0
           fi
           BASE_REF="origin/${{ github.base_ref }}"
+          # Verify BASE_REF is fetched before computing the diff. fetch-depth: 0
+          # on actions/checkout@v4 fetches all refs; this guard fails loud rather
+          # than silent if the runner's checkout shape ever changes.
+          if ! git rev-parse --verify --quiet "$BASE_REF" >/dev/null; then
+            echo "ERROR: base ref ${BASE_REF} not found in local refs after checkout. Forcing code_changed=true to be safe." >&2
+            echo "code_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           CHANGED=$(git diff --name-only "$BASE_REF...HEAD")
           echo "Changed files:"
           echo "$CHANGED"
