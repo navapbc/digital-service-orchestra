@@ -12,7 +12,13 @@ set -euo pipefail
 #   --name=NAME           Worktree name (default: worktree-YYYYMMDD-HHMMSS)
 #   --dir=DIR             Parent directory for worktrees
 #                         (default: $LOCKPICK_WORKTREE_DIR or <repo-parent>/<repo-name>-worktrees)
-#   --skip-pull           Skip git pull before creating worktree
+#   --from=REF            Source branch/ref to base the new worktree on
+#                         (default: origin/main). When the ref is of the form
+#                         `<remote>/<branch>`, that remote branch is fetched
+#                         before creation; otherwise the ref is used as-is.
+#   --skip-pull           Skip the pre-create fetch (worktree will be based on
+#                         whatever --from currently resolves to locally, or the
+#                         main repo's HEAD if --from is empty)
 #   --validation=STATE    Write initial validation state file.
 #                         'skipped'  — write a skipped state (agent won't be blocked)
 #                         'not_run'  — don't write a state file (default; agent will be warned)
@@ -33,6 +39,7 @@ WORKTREE_NAME=""
 WORKTREE_DIR_OVERRIDE=""
 SKIP_PULL=0
 VALIDATION_STATE="not_run"
+FROM_REF="origin/main"
 
 # ── Progress helper ──────────────────────────────────────────────────────────
 # Runs a command in the background, printing a dot every 2 s until it finishes.
@@ -62,6 +69,7 @@ for arg in "$@"; do
     case "$arg" in
         --name=*)       WORKTREE_NAME="${arg#--name=}" ;;
         --dir=*)        WORKTREE_DIR_OVERRIDE="${arg#--dir=}" ;;
+        --from=*)       FROM_REF="${arg#--from=}" ;;
         --skip-pull)    SKIP_PULL=1 ;;
         --validation=*) VALIDATION_STATE="${arg#--validation=}" ;;
         --help)
@@ -143,16 +151,35 @@ elif [ "$WORKTREE_COUNT" -ge 4 ]; then
     echo "" >&2
 fi
 
-# ── Pull latest changes ──────────────────────────────────────────────────────
+# ── Fetch source ref from origin ─────────────────────────────────────────────
+# Base the new worktree on $FROM_REF (default: origin/main) so it starts from
+# up-to-date code regardless of which branch the main repo currently has
+# checked out. We do NOT fast-forward local branches — `git pull` only updates
+# the currently checked-out branch, so local `main` is often stale when the
+# main repo sits on another branch. Basing directly on the ref sidesteps that.
+#
+# When $FROM_REF looks like `<remote>/<branch>`, fetch that remote branch first
+# so the local tracking ref is current. For other refs (local branches, tags,
+# SHAs), skip the fetch and use the ref as-is.
 
-if [ "$SKIP_PULL" -eq 0 ]; then
-    CURRENT_BRANCH=$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null)
-    if [ -z "$CURRENT_BRANCH" ]; then
-        echo "  Skipping git pull (detached HEAD state)" >&2
-    elif ! _run_with_dots "Pulling latest from origin" git -C "$REPO_ROOT" pull origin "$CURRENT_BRANCH"; then
-        echo "  WARNING: git pull failed — continuing with current state" >&2
+WORKTREE_BASE="$FROM_REF"
+if [ "$SKIP_PULL" -eq 0 ] && [ -n "$FROM_REF" ]; then
+    _from_remote="${FROM_REF%%/*}"
+    _from_branch="${FROM_REF#*/}"
+    if [ "$_from_remote" != "$FROM_REF" ] && \
+       git -C "$REPO_ROOT" remote | grep -qx "$_from_remote"; then
+        if ! _run_with_dots "Fetching $FROM_REF" git -C "$REPO_ROOT" fetch "$_from_remote" "$_from_branch"; then
+            echo "  WARNING: git fetch $_from_remote $_from_branch failed — using local ref state" >&2
+        fi
+        echo "" >&2
     fi
-    echo "" >&2
+fi
+
+# Verify the base ref resolves; fall back to HEAD with a warning if not.
+if [ -n "$WORKTREE_BASE" ] && \
+   ! git -C "$REPO_ROOT" rev-parse --verify --quiet "$WORKTREE_BASE" >/dev/null; then
+    echo "  WARNING: ref '$WORKTREE_BASE' not found — falling back to local HEAD" >&2
+    WORKTREE_BASE=""
 fi
 
 # ── Create worktree ──────────────────────────────────────────────────────────
@@ -162,11 +189,11 @@ CREATED=0
 
 printf "  Creating worktree..." >&2
 if type retry_with_backoff &>/dev/null; then
-    if retry_with_backoff 3 2 git worktree add "$WORKTREE_PATH" -b "$WORKTREE_NAME" &>/dev/null; then
+    if retry_with_backoff 3 2 git worktree add "$WORKTREE_PATH" -b "$WORKTREE_NAME" ${WORKTREE_BASE:+"$WORKTREE_BASE"} &>/dev/null; then
         CREATED=1
     fi
 else
-    if git worktree add "$WORKTREE_PATH" -b "$WORKTREE_NAME" &>/dev/null; then
+    if git worktree add "$WORKTREE_PATH" -b "$WORKTREE_NAME" ${WORKTREE_BASE:+"$WORKTREE_BASE"} &>/dev/null; then
         CREATED=1
     fi
 fi
@@ -174,7 +201,7 @@ fi
 if [ "$CREATED" -eq 0 ] || [ ! -d "$WORKTREE_PATH" ]; then
     printf " failed\n" >&2
     echo "ERROR: Failed to create worktree at $WORKTREE_PATH" >&2
-    echo "Create one manually: git worktree add $WORKTREE_PATH -b $WORKTREE_NAME" >&2
+    echo "Create one manually: git worktree add $WORKTREE_PATH -b $WORKTREE_NAME ${WORKTREE_BASE:-}" >&2
     exit 1
 fi
 printf " done\n" >&2
