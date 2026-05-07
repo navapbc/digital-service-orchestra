@@ -490,6 +490,51 @@ class TestInboundEditEventPath:
 # ===========================================================================
 
 
+def test_write_create_events_adf_description_produces_text(
+    inbound: "ModuleType", tmp_path: "Path"
+) -> None:
+    """write_create_events with ADF description dict writes non-None text to CREATE event."""
+    adf_description = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [{"type": "text", "text": "Hello from Jira"}],
+            }
+        ],
+    }
+    issue = {
+        "key": "PROJ-42",
+        "fields": {
+            "summary": "Test ADF description",
+            "description": adf_description,
+            "issuetype": {"name": "Task"},
+            "priority": {"name": "Medium"},
+            "assignee": None,
+            "created": "2026-01-01T00:00:00.000+0000",
+            "updated": "2026-01-01T00:00:00.000+0000",
+        },
+    }
+    tracker = tmp_path / ".tickets-tracker"
+    tracker.mkdir(parents=True)
+
+    written = inbound.write_create_events(
+        [issue],
+        tickets_tracker=tracker,
+        bridge_env_id=BRIDGE_ENV_ID,
+        run_id="test-run",
+    )
+
+    assert len(written) >= 1, "Expected at least one CREATE event file written"
+    event_data = json.loads(written[0].read_text(encoding="utf-8"))
+    desc = event_data.get("data", {}).get("description")
+    assert desc is not None, "description must not be None when ADF dict is provided"
+    assert "Hello from Jira" in desc, (
+        f"Expected 'Hello from Jira' in description, got: {desc!r}"
+    )
+
+
 class TestInboundEmptyDescriptionSafeguard:
     """Verify that empty Jira descriptions never overwrite non-empty local ones."""
 
