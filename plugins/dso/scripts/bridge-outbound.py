@@ -141,6 +141,47 @@ def process_outbound(
     return syncs
 
 
+def emit_migration_bridge_alert_if_needed(
+    tickets_dir: Path, bridge_env_id: str
+) -> None:
+    """On first run with non-empty bridge_env_id, write a one-shot migration BRIDGE_ALERT.
+
+    Uses .bridge-env-id-transition-marker sentinel in tickets_dir to ensure the alert
+    fires exactly once when BRIDGE_ENV_ID transitions from empty/unset to a real value.
+    Pre-migration events (env_id='') will not be retroactively replayed.
+    """
+    import json
+    import time
+    import uuid
+
+    if not bridge_env_id:
+        return
+    sentinel = tickets_dir / ".bridge-env-id-transition-marker"
+    if sentinel.exists():
+        return
+    ts = time.time_ns()
+    alert_uuid = str(uuid.uuid4())
+    filename = f"{ts}-{alert_uuid}-BRIDGE_ALERT.json"
+    payload = {
+        "event_type": "BRIDGE_ALERT",
+        "timestamp": ts,
+        "uuid": alert_uuid,
+        "env_id": bridge_env_id,
+        "ticket_id": "__migration__",
+        "data": {
+            "reason": (
+                "pre_migration_events_not_replayed: BRIDGE_ENV_ID set for first time. "
+                "Events authored before this run have env_id='' and will not be "
+                "retroactively pushed to Jira."
+            )
+        },
+    }
+    alert_path = tickets_dir / filename
+    alert_path.write_text(json.dumps(payload, ensure_ascii=False))
+    sentinel.write_text(f"BRIDGE_ENV_ID set at {ts}\n")
+    logger.info("Migration BRIDGE_ALERT written: %s", filename)
+
+
 def process_events(
     tickets_dir: str | Path,
     acli_client: Any | None = None,
