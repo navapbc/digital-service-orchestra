@@ -719,8 +719,11 @@ test_pr_dispatch_unresolved_batch_routes_reply_action() {
     # We verify by checking that _code_change_threads remains empty (no code_change routing)
     # and _escalated_threads remains empty (no escalation routing).
     local _result
+    # CI=true: _pr_dispatch_unresolved_batch has a _dso_is_ci_environment guard
+    # that short-circuits with a local-escalation when CI is unset/false (commit
+    # f2845a6f3a). The test must set CI=true to reach the dispatch path.
     _result=$(
-        PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
+        CI=true PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" MERGE_STRATEGY=pr \
         bash -c "
             source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
             # Stub LLM to return ACTION:reply with REPLY: keyword (matching production pattern)

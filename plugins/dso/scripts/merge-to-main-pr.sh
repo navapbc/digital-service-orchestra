@@ -24,13 +24,18 @@ if [[ "${BASH_VERSINFO[0]}" -lt 4 ]] || { [[ "${BASH_VERSINFO[0]}" -eq 4 ]] && [
     exit 1
 fi
 
-# --- CLI: --help (early exit before any context checks) ---
+# --- CLI: --resume / --help argv parsing (early — before any context checks) ---
+_RESUME=0
 for _arg in "$@"; do
-    if [[ "$_arg" == "--help" ]]; then
-        cat <<'USAGE'
+    case "$_arg" in
+        --help)
+            cat <<'USAGE'
 Usage: merge-to-main-pr.sh [--resume|--help]
 
   --resume        Resume from last incomplete phase (state file in /tmp).
+                  Skips _check_duplicate_pr and _phase_merge when the state
+                  file already records a pr_url (i.e. PR was created in a
+                  prior run); jumps directly to the polling phase.
   --help          Print this usage message and exit.
 
   (no args)       Run all phases sequentially.
@@ -38,8 +43,12 @@ Usage: merge-to-main-pr.sh [--resume|--help]
 PR mode creates a pull request against main, enables auto-merge, and waits
 for required status checks to pass. Requires gh CLI 2.0.0+ for GraphQL.
 USAGE
-        exit 0
-    fi
+            exit 0
+            ;;
+        --resume)
+            _RESUME=1
+            ;;
+    esac
 done
 
 # --- Required env vars (set by the dispatcher) ---
@@ -283,9 +292,37 @@ _phase_merge() {
     fi
 
     # --- 1. Publish branch ---
+    # Pre-push sync: when the remote ref already exists and has advanced
+    # past our local HEAD (e.g. a previous "Merge branch 'main' into <branch>"
+    # landed via UI or another session), `git push -u` will be rejected
+    # non-fast-forward. Fetch and rebase before push so the workflow recovers
+    # automatically instead of halting and forcing manual `git pull --rebase`.
+    # (b56b-14e9)
+    if git fetch origin "$BRANCH" 2>/dev/null; then
+        # Remote ref exists; check if local is behind.
+        if ! git merge-base --is-ancestor "origin/$BRANCH" HEAD 2>/dev/null; then
+            # Local is behind remote — rebase. If conflicts arise, abort and
+            # fall through to git push (which will reject and surface the
+            # underlying state for manual resolution via /dso:resolve-conflicts).
+            if ! git pull --rebase origin "$BRANCH" 2>&1; then
+                git rebase --abort 2>/dev/null || true
+                echo "ERROR: git pull --rebase origin $BRANCH failed (conflicts) — run /dso:resolve-conflicts" >&2
+                return 1
+            fi
+        fi
+    fi
+
     if ! git push -u origin "$BRANCH" 2>&1; then
-        echo "ERROR: git push -u origin $BRANCH failed" >&2
-        return 1
+        # Retry once on rejection: another push may have landed between fetch and push.
+        if git fetch origin "$BRANCH" 2>/dev/null \
+            && git pull --rebase origin "$BRANCH" 2>&1 \
+            && git push -u origin "$BRANCH" 2>&1; then
+            : # retry succeeded
+        else
+            git rebase --abort 2>/dev/null || true
+            echo "ERROR: git push -u origin $BRANCH failed (after fetch+rebase retry)" >&2
+            return 1
+        fi
     fi
 
     # --- 2. Derive PR title from last meaningful commit subject ---
@@ -1584,13 +1621,35 @@ if ! _check_gh_version; then
     exit 1
 fi
 
-if ! _check_duplicate_pr; then
-    exit 1
-fi
-
 # --- Initialize state file (best-effort; requires BRANCH set above) ---
+# Initialize state BEFORE the duplicate-PR guard so --resume can read it.
 if type _state_init >/dev/null 2>&1; then
     _state_init 2>/dev/null || true
+fi
+
+# --- Resume detection: when --resume is set and the state file already
+# records a pr_url, skip _check_duplicate_pr and _phase_merge entirely
+# (a PR exists from a prior run; re-running them would error out on the
+# duplicate-PR guard or push a no-op duplicate). (b0ad-69ee)
+_RESUME_STATE_PR_URL=""
+if [[ "${_RESUME:-0}" -eq 1 ]] && type _state_file_path >/dev/null 2>&1; then
+    _RESUME_SF=$(_state_file_path 2>/dev/null || true)
+    if [[ -n "$_RESUME_SF" && -f "$_RESUME_SF" ]]; then
+        _RESUME_STATE_PR_URL=$(_DSO_SF="$_RESUME_SF" python3 -c "
+import json, os
+try:
+    print(json.load(open(os.environ['_DSO_SF'])).get('pr_url', ''))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+    fi
+fi
+
+# Skip the duplicate-PR guard when resuming with a recorded PR.
+if [[ -z "$_RESUME_STATE_PR_URL" ]]; then
+    if ! _check_duplicate_pr; then
+        exit 1
+    fi
 fi
 
 # --- Run merge phase; on failure, emit CONFLICT_DATA contract line ---
@@ -1598,8 +1657,13 @@ fi
 # resolution_strategy distinguishes whether the failure was a push/create error or a
 # CONFLICTING merge: "pr-create-failed" when no PR was created, "pr-conflict" when
 # gh reported the PR as CONFLICTING.
+# Skip _phase_merge entirely when --resume is set and a prior PR is recorded
+# (b0ad-69ee). Re-running would attempt push + gh pr create against an existing
+# branch/PR, hitting the duplicate-PR error.
 _PHASE_MERGE_RC=0
-_phase_merge || _PHASE_MERGE_RC=$?
+if [[ -z "$_RESUME_STATE_PR_URL" ]]; then
+    _phase_merge || _PHASE_MERGE_RC=$?
+fi
 if [[ "$_PHASE_MERGE_RC" -ne 0 ]]; then
     if type _emit_conflict_data >/dev/null 2>&1; then
         # Determine resolution strategy from state: if PR URL was written, the phase
