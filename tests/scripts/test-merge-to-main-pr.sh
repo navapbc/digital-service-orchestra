@@ -32,6 +32,17 @@ PR_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main-pr.sh"
 # (parent shell) so all subshells inherit the cleared env. (Bug 2015-dcce.)
 unset PROJECT_ROOT CLAUDE_PROJECT_DIR _MERGE_STATE_GIT_DIR
 
+# Default LLM dispatch env vars to no-op stubs so polling/merge-flow tests can
+# reach downstream phases without tripping the fail-loud guards in
+# _phase_resolve_threads / _dispatch_resolve_conflicts / _dispatch_fix_agent
+# (bug 9e04-0eb6). Tests that exercise the LLM dispatch directly override
+# these per-invocation. /bin/true succeeds without emitting any sentinels,
+# which the call sites treat as "no resolution applied" — fine for tests
+# whose fixtures present zero unresolved threads / no conflicts / no failing CI.
+export _LLM_DISPATCH_CMD="${_LLM_DISPATCH_CMD:-/bin/true}"
+export _RESOLVE_CONFLICTS_LLM_CMD="${_RESOLVE_CONFLICTS_LLM_CMD:-/bin/true}"
+export _REMEDIATE_LLM_CMD="${_REMEDIATE_LLM_CMD:-/bin/true}"
+
 # shellcheck source=../lib/assert.sh
 source "$REPO_ROOT/tests/lib/assert.sh"
 

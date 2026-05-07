@@ -21,6 +21,8 @@ on:
       - 'plugins/dso/**/*.py'
       - 'tests/skills/**'
       - 'tests/docs/**'
+      - 'tests/scripts/test_bridge*.py'
+      - '.github/workflows/*-bridge.yml'
   pull_request:
     branches:
       - main
@@ -29,6 +31,8 @@ on:
       - 'plugins/dso/**/*.py'
       - 'tests/skills/**'
       - 'tests/docs/**'
+      - 'tests/scripts/test_bridge*.py'
+      - '.github/workflows/*-bridge.yml'
   workflow_dispatch:
 
 concurrency:

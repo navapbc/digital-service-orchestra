@@ -2217,3 +2217,64 @@ def test_write_create_events_heals_legacy_create_without_sync(
         f"Self-heal must be idempotent — second run added a duplicate SYNC; "
         f"found {len(sync_files_after)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# RED tests for _adf_to_text (7382-9c1d) — function does not exist yet
+# ---------------------------------------------------------------------------
+
+
+def test_adf_to_text_plain_string():
+    """_adf_to_text returns plain string unchanged (back-compat)."""
+    from bridge._inbound_utils import _adf_to_text
+
+    assert _adf_to_text("hello world") == "hello world"
+
+
+def test_adf_to_text_three_paragraphs():
+    """_adf_to_text flattens 3-paragraph ADF to newline-joined text."""
+    from bridge._inbound_utils import _adf_to_text
+
+    adf = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "line1"}]},
+            {"type": "paragraph", "content": [{"type": "text", "text": "line2"}]},
+            {"type": "paragraph", "content": [{"type": "text", "text": "line3"}]},
+        ],
+    }
+    result = _adf_to_text(adf)
+    assert result == "line1\nline2\nline3"
+
+
+def test_adf_to_text_unsupported_nodes_skipped():
+    """_adf_to_text silently skips unsupported nodes (panels, mediaSingle, mentions)."""
+    from bridge._inbound_utils import _adf_to_text
+
+    adf = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {"type": "panel", "content": [{"type": "text", "text": "panel text"}]},
+            {"type": "paragraph", "content": [{"type": "text", "text": "visible"}]},
+            {"type": "mediaSingle", "content": []},
+        ],
+    }
+    result = _adf_to_text(adf)
+    assert "visible" in result
+    assert "panel text" not in result
+
+
+def test_adf_to_text_none_input():
+    """_adf_to_text returns empty string for None input."""
+    from bridge._inbound_utils import _adf_to_text
+
+    assert _adf_to_text(None) == ""
+
+
+def test_adf_to_text_empty_string():
+    """_adf_to_text returns empty string for empty string input."""
+    from bridge._inbound_utils import _adf_to_text
+
+    assert _adf_to_text("") == ""

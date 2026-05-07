@@ -78,7 +78,13 @@ def read_event_file(file_path: str | Path) -> dict[str, Any] | None:
 def filter_bridge_events(
     events: list[dict[str, Any]], bridge_env_id: str
 ) -> list[dict[str, Any]]:
-    """Filter out events whose env_id matches the bridge env ID."""
+    """Filter out events whose env_id matches the bridge env ID.
+
+    Back-compat: if bridge_env_id is empty, no filtering is applied and
+    all events are returned unchanged.
+    """
+    if not bridge_env_id:
+        return list(events)
     filtered: list[dict[str, Any]] = []
     for e in events:
         if "env_id" in e:

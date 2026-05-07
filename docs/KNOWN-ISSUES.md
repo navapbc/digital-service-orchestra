@@ -17,6 +17,7 @@
 | [Tickets/Version Control](#tickets-and-version-control) | 2 | 2026-04 |
 | [Recipe Execution](#recipe-execution) | 1 | 2026-04 |
 | [Plugin System](#plugin-system) | 2 | 2026-04 |
+| [Bridge](#bridge) | 1 | 2026-05 |
 
 ## Quick Reference by Incident ID
 
@@ -36,6 +37,7 @@
 | INC-019 | /reload-plugins Skill Count Undercounts | Plugin System | reload-plugins, skill count, 3 skills, commands, allowed-tools |
 | INC-020 | validate.sh ENOBUFS / OSError 75 in CI | Plugin System | validate.sh, ENOBUFS, OSError 75, file descriptor, ulimit, CI |
 | INC-022 | `git checkout tickets` Fails Silently, Rebase Hits Wrong Branch | Tickets/Version Control | checkout tickets, tickets worktree, rebase wrong branch, .tickets-tracker, push ticket changes |
+| INC-023 | Bridge: silent event drops (HEAD~1..HEAD blindness pattern) | Bridge | bridge, outbound, checkpoint, HEAD~1, silent drop, SHA cursor, BRIDGE_ENV_ID, BRIDGE_USER_MAP |
 
 ---
 
@@ -276,3 +278,20 @@
 - **Detection**: A user attempted to run the installer; the failure surfaced immediately because the repo did not exist. No automated detection was possible because every gate had a vacuous-pass path.
 - **Fix**: Epic `e772-d73b` delivered the missing template repo, the NOTICE attribution, and a real-URL e2e validation path (`tests/scripts/test-create-dso-app-real-url.sh`) that does not stub `git`. The four contributing process bugs (`0f2a-95c9`, `b306-d9ac`, `91aa-b725`, `068c-1e8a`) are tracked separately so the underlying gates can be hardened independently. `068c-1e8a` is closed; the others remain open.
 - **Rule candidate**: When a story's done-definition references an externally-observable artifact (a URL, a published package, a deployed service), the verification path MUST exercise the real artifact end-to-end. PATH-stubbing, mocking, or accepting a closing comment as "evidence" all fail open. Either the test runs against the real artifact (preferred) or the closure requires explicit human attestation that the artifact is reachable.
+
+---
+
+## Bridge
+
+### INC-023: Bridge silent event drops (HEAD~1..HEAD blindness pattern)
+
+- **Date**: 2026-05
+- **Keywords**: bridge, outbound, checkpoint, HEAD~1, silent drop, SHA cursor, BRIDGE_ENV_ID, BRIDGE_USER_MAP, cron, multi-commit
+- **Symptom**: The outbound bridge misses STATUS, COMMENT, or other events between cron ticks when multiple commits land on the tickets branch in a single interval. Jira issues appear stale despite activity in the ticket tracker.
+- **Root cause**: Pre-fix, the outbound bridge used `HEAD~1..HEAD` to find ticket events, which only captured the single most-recent commit. When 4+ commits landed between cron runs (e.g., HEAD~4..HEAD~6), events from all but the last commit were invisible to the bridge.
+- **Fix**: SHA-cursor checkpoint in `plugins/dso/scripts/bridge/_outbound_cursor.py`. The cursor persists the last-processed commit SHA in `.outbound-checkpoint.json` on the `tickets` orphan branch. Each run fetches events since the stored SHA, then updates the cursor. Cold-start, corrupt, or unreachable SHA all seed the cursor at HEAD and emit `BRIDGE_ALERT` so the event is surfaced without blocking the run.
+- **Recovery**: If `.outbound-checkpoint.json` is absent or corrupt, the bridge self-heals on the next cron tick (seeds at HEAD, emits BRIDGE_ALERT). Manual recovery is not required unless events from the gap must be replayed — in that case, manually set the checkpoint SHA to the desired start commit and trigger the bridge run.
+- **Related**:
+  - `BRIDGE_ENV_ID` fail-fast: if the bridge is not starting at all, verify `gh variable list | grep BRIDGE_ENV_ID`. An empty or missing value causes both bridges to exit immediately.
+  - `BRIDGE_USER_MAP` assignee issues: if Jira issues are created unassigned, check that the commit author's email is present (case-insensitively) in the `BRIDGE_USER_MAP` JSON env var. Missing entries fall through to BRIDGE_ALERT + `unassign_issue()`.
+  - Full bridge reference: `plugins/dso/scripts/bridge/README.md`.

@@ -53,6 +53,11 @@ from bridge._outbound_handlers import (  # noqa: E402
 
 # Re-export detect_status_flap for backward compatibility
 from bridge._flap import detect_status_flap  # noqa: E402
+from bridge._outbound_cursor import (  # noqa: E402
+    fetch_events_since_cursor,
+    read_cursor,
+    write_cursor,
+)
 
 # Re-export public symbols for backward compatibility
 __all__ = [
@@ -80,6 +85,7 @@ def process_outbound(
     run_id: str = "",
     flap_threshold: int = 3,
     flap_window_seconds: int = 3600,
+    cursor_advance_fn: Any = None,
 ) -> list[dict[str, Any]]:
     """Process parsed events: filter, compile state, call acli, write SYNC events."""
     filtered = sort_events_for_dispatch(
@@ -138,7 +144,55 @@ def process_outbound(
         elif event_type == "FILE_IMPACT":
             handle_file_impact_event(event, **ctx)
 
+        # Advance cursor after each handler regardless of event_type — last
+        # successful commit_sha wins, partial-success semantics handled at
+        # process_events level (5d93-8b62).
+        commit_sha = event.get("commit_sha", "")
+        if cursor_advance_fn and commit_sha:
+            cursor_advance_fn(commit_sha)
+
     return syncs
+
+
+def emit_migration_bridge_alert_if_needed(
+    tickets_dir: Path, bridge_env_id: str
+) -> None:
+    """On first run with non-empty bridge_env_id, write a one-shot migration BRIDGE_ALERT.
+
+    Uses .bridge-env-id-transition-marker sentinel in tickets_dir to ensure the alert
+    fires exactly once when BRIDGE_ENV_ID transitions from empty/unset to a real value.
+    Pre-migration events (env_id='') will not be retroactively replayed.
+    """
+    import json
+    import time
+    import uuid
+
+    if not bridge_env_id:
+        return
+    sentinel = tickets_dir / ".bridge-env-id-transition-marker"
+    if sentinel.exists():
+        return
+    ts = time.time_ns()
+    alert_uuid = str(uuid.uuid4())
+    filename = f"{ts}-{alert_uuid}-BRIDGE_ALERT.json"
+    payload = {
+        "event_type": "BRIDGE_ALERT",
+        "timestamp": ts,
+        "uuid": alert_uuid,
+        "env_id": bridge_env_id,
+        "ticket_id": "__migration__",
+        "data": {
+            "reason": (
+                "pre_migration_events_not_replayed: BRIDGE_ENV_ID set for first time. "
+                "Events authored before this run have env_id='' and will not be "
+                "retroactively pushed to Jira."
+            )
+        },
+    }
+    alert_path = tickets_dir / filename
+    alert_path.write_text(json.dumps(payload, ensure_ascii=False))
+    sentinel.write_text(f"BRIDGE_ENV_ID set at {ts}\n")
+    logger.info("Migration BRIDGE_ALERT written: %s", filename)
 
 
 def process_events(
@@ -161,53 +215,6 @@ def process_events(
         acli_path = Path(__file__).resolve().parent / "acli-integration.py"
         acli_client = _load_module_from_path("acli_integration", acli_path)
 
-    if git_diff_output is None:
-        if backfill:
-            # Backfill mode: scan every event file in the tracker directory so
-            # historical tickets (created before the bridge was wired up) are
-            # processed.  has_existing_sync() inside handle_create_event
-            # prevents re-creating Jira issues for tickets that already have a
-            # SYNC event, making this operation idempotent.
-            if tickets_path.is_dir():
-                git_diff_output = "\n".join(
-                    str(p.resolve()) for p in tickets_path.rglob("*.json")
-                )
-            else:
-                git_diff_output = ""
-        else:
-            tracker_str = str(tickets_path)
-            result = subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    tracker_str,
-                    "diff",
-                    "HEAD~1",
-                    "HEAD",
-                    "--diff-filter=A",
-                    "--name-only",
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode != 0:
-                tracker_dir = tickets_path
-                if tracker_dir.is_dir():
-                    # Use absolute paths so read_event_file can resolve them
-                    # regardless of the caller's CWD.
-                    git_diff_output = "\n".join(
-                        str(p.resolve()) for p in tracker_dir.rglob("*.json")
-                    )
-                else:
-                    git_diff_output = ""
-            else:
-                git_diff_output = "\n".join(
-                    f".tickets-tracker/{line}"  # tickets-boundary-ok: bridge constructs paths to events
-                    for line in result.stdout.strip().split("\n")
-                    if line.strip()
-                )
-
     if bridge_env_id is None:
         env_id_path = tickets_path / ".env-id"
         if env_id_path.exists():
@@ -215,15 +222,118 @@ def process_events(
         else:
             bridge_env_id = ""
 
-    events = parse_git_diff_events(git_diff_output)
+    if git_diff_output is not None:
+        # Caller supplied a diff string directly (test fixtures, dispatcher).
+        events = parse_git_diff_events(git_diff_output)
+        return process_outbound(
+            events,
+            acli_client=acli_client,
+            tickets_root=tickets_path,
+            bridge_env_id=bridge_env_id,
+            run_id=run_id,
+        )
 
-    return process_outbound(
-        events,
+    if backfill:
+        # Backfill mode: scan every event file in the tracker directory so
+        # historical tickets (created before the bridge was wired up) are
+        # processed.  has_existing_sync() inside handle_create_event
+        # prevents re-creating Jira issues for tickets that already have a
+        # SYNC event, making this operation idempotent.
+        if tickets_path.is_dir():
+            git_diff_output = "\n".join(
+                str(p.resolve()) for p in tickets_path.rglob("*.json")
+            )
+        else:
+            git_diff_output = ""
+        events = parse_git_diff_events(git_diff_output)
+        return process_outbound(
+            events,
+            acli_client=acli_client,
+            tickets_root=tickets_path,
+            bridge_env_id=bridge_env_id,
+            run_id=run_id,
+        )
+
+    # If the tracker directory is not a git repo (test fixtures, ad-hoc
+    # invocations), fall back to rglob scanning — same legacy behavior as the
+    # pre-cursor implementation when `git diff` failed.
+    if (
+        not (tickets_path / ".git").exists()
+        and not (
+            tickets_path.parent / ".git" / "worktrees" / tickets_path.name
+        ).exists()
+    ):
+        rev_parse = subprocess.run(
+            ["git", "-C", str(tickets_path), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if rev_parse.returncode != 0:
+            if tickets_path.is_dir():
+                git_diff_output = "\n".join(
+                    str(p.resolve()) for p in tickets_path.rglob("*.json")
+                )
+            else:
+                git_diff_output = ""
+            events = parse_git_diff_events(git_diff_output)
+            return process_outbound(
+                events,
+                acli_client=acli_client,
+                tickets_root=tickets_path,
+                bridge_env_id=bridge_env_id,
+                run_id=run_id,
+            )
+
+    # Cursor-based fetch (5d93-8b62): process all commits since last checkpoint
+    # rather than only HEAD~1..HEAD, which loses events when multiple commits
+    # land between bridge runs.
+    cursor_sha = read_cursor(tickets_path)
+    events_with_sha = fetch_events_since_cursor(
+        tickets_path, cursor_sha, bridge_env_id or "", run_id
+    )
+
+    # Track per-event handler invocations so we know how far we got. The
+    # processed_count counter increments after every dispatched handler;
+    # if it equals len(events_with_sha) we processed everything.
+    _processed_count = [0]
+
+    def _cursor_advance(_sha: str) -> None:
+        _processed_count[0] += 1
+
+    syncs = process_outbound(
+        events_with_sha,
         acli_client=acli_client,
         tickets_root=tickets_path,
         bridge_env_id=bridge_env_id,
         run_id=run_id,
+        cursor_advance_fn=_cursor_advance,
     )
+
+    # Advance the cursor only if we have events to process. Use the HEAD SHA
+    # from the fetched range so per-event reordering inside
+    # sort_events_for_dispatch can't leave the cursor mid-range. If processing
+    # was incomplete, leave the cursor where it is so the next run retries.
+    #
+    # Empty-fetch guard (f776-d7ef llm-review finding 1): when fetch returns
+    # zero events (legitimately no new commits, or all events filtered as
+    # bridge-origin echoes), `events_with_sha` is empty. The `events_with_sha and`
+    # short-circuit below ensures we do NOT advance the cursor in that case —
+    # preventing the silent-drop window where cursor jumps to HEAD without
+    # processing anything. Cold-start handling (where the cursor SHOULD seed
+    # at HEAD with no events processed) lives in fetch_events_since_cursor's
+    # _seed_at_head, which writes the cursor and BRIDGE_ALERT directly.
+    if events_with_sha and _processed_count[0] >= len(events_with_sha):
+        head_sha_result = subprocess.run(
+            ["git", "-C", str(tickets_path), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if head_sha_result.returncode == 0 and head_sha_result.stdout.strip():
+            write_cursor(tickets_path, head_sha_result.stdout.strip(), run_id)
+
+    return syncs
 
 
 if __name__ == "__main__":
