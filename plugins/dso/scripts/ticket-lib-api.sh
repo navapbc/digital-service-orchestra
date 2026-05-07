@@ -1366,6 +1366,11 @@ ticket_tag() {
             TRACKER_DIR="$TICKETS_TRACKER_DIR"
         else
             local REPO_ROOT
+            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing
+            # behavior in 7 sibling ops (ticket_show, ticket_comment, ticket_edit, etc.) — empty
+            # REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear
+            # errors. A hard return 1 here breaks callers that supply GIT_DIR directly or rely on
+            # subshell fall-through (test setups using isolated $tmp repos).
             REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
             TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
         fi
@@ -1409,6 +1414,11 @@ ticket_untag() {
             TRACKER_DIR="$TICKETS_TRACKER_DIR"
         else
             local REPO_ROOT
+            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing
+            # behavior in 7 sibling ops (ticket_show, ticket_comment, ticket_edit, etc.) — empty
+            # REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear
+            # errors. A hard return 1 here breaks callers that supply GIT_DIR directly or rely on
+            # subshell fall-through (test setups using isolated $tmp repos).
             REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
             TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
         fi
