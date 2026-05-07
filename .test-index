@@ -344,7 +344,7 @@ plugins/dso/skills/roadmap/SKILL.md:tests/plugin/test-audit-skill-resolution.sh,
 plugins/dso/skills/shared/docs/reviewers/agent-clarity.md:tests/reviewers/test-agent-clarity-epic-calibration.sh
 plugins/dso/skills/shared/docs/reviewers/scope.md:tests/scripts/test-sprint-review-scope-check.sh,tests/scripts/test-scope-drift-reviewer.sh,tests/scripts/test-scope-reviewer-consumer-completeness.sh,tests/scripts/test-sprint-review-scope-check-storage-api.sh,tests/scripts/test-fix-bug-scope-drift-step.sh,tests/scripts/test-isolation-rule-no-unscoped-export.sh,tests/skills/test-preplanning-scope-split-precedence.sh
 plugins/dso/skills/shared/docs/reviewers/value.md:tests/scripts/test-value-reviewer-signals.sh,tests/skills/test-value-effort-scorer-integration.sh
-plugins/dso/skills/shared/prompts/anti-patterns.md:plugins/dso/hooks/semgrep-rules/test-anti-patterns.yaml,tests/scripts/test-fix-bug-anti-pattern-step.sh
+plugins/dso/skills/shared/prompts/anti-patterns.md:tests/scripts/test-fix-bug-anti-pattern-step.sh
 plugins/dso/skills/shared/prompts/behavioral-testing-standard.md:tests/hooks/test-behavioral-testing-standard-rule5.sh,tests/scripts/test-behavioral-testing-standard-structure.sh,tests/scripts/test-part-c-smoke-behavioral-testing-standard.sh
 plugins/dso/skills/shared/prompts/complexity-gate.md:tests/scripts/test-complexity-gate.sh,tests/skills/test-complexity-gate-shared-prompt.sh
 plugins/dso/skills/shared/prompts/prior-art-search.md:tests/scripts/test-prior-art-search-consumers.sh,tests/scripts/test-prior-art-search-structure.sh
