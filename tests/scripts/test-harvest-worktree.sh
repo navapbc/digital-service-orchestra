@@ -29,6 +29,7 @@
 #  21. test_branch_deleted_in_no_worktree_case — branch still deleted when no backing worktree exists (a44a-0f63 regression guard)
 #  22. test_empty_branch_exits3_when_expected_base_provided — exits 3 (EMPTY_BRANCH) when branch tip == base commit (1eda-6a0c)
 #  23. test_empty_branch_exits3_when_base_commit_file_present — exits 3 via artifacts/base-commit file (1eda-6a0c)
+#  26. test_ci_enforcement_skips_review_status_check — exits 0 with no review-status when enforcement.strategy=ci (99a6-f818)
 
 set -uo pipefail
 
@@ -1195,6 +1196,76 @@ cd "$SESSION_REPO25" && bash "$HARVEST_SCRIPT" \
 assert_eq "docs-only commit with --session-artifacts exits 0 (attest skip guard)" "0" "$exit_code25"
 
 assert_pass_if_clean "test_docs_only_commit_with_session_artifacts_skips_attest"
+
+# =============================================================================
+# Test 26: test_ci_enforcement_skips_review_status_check (99a6-f818)
+# Given: enforcement.strategy=ci in dso-config.conf
+# And: NO review-status artifact (CI enforcement path skips record-review)
+# When: harvest-worktree.sh is invoked
+# Then: exits 0 — review check is skipped when enforcement.strategy=ci
+# =============================================================================
+echo "--- test_ci_enforcement_skips_review_status_check ---"
+_snapshot_fail
+
+tmpdir=$(make_tmpdir)
+git init --bare "$tmpdir/origin26.git" >/dev/null 2>&1
+git clone "$tmpdir/origin26.git" "$tmpdir/session26" >/dev/null 2>&1
+SESSION_REPO26="$tmpdir/session26"
+cd "$SESSION_REPO26" || exit 1
+git config user.email "test@test.com"
+git config user.name "Test"
+echo "initial" > file.txt
+git add file.txt
+git commit -m "initial commit" >/dev/null 2>&1
+git push origin HEAD:main >/dev/null 2>&1
+git checkout -b session-branch26 >/dev/null 2>&1
+
+# Create worktree branch with a non-allowlisted file changed
+WORKTREE_BRANCH26="worktree-ci-enforce-$$-$RANDOM"
+git checkout -b "$WORKTREE_BRANCH26" >/dev/null 2>&1
+echo "some code change" > src_file.py
+git add src_file.py
+git commit -m "feat: add source file" >/dev/null 2>&1
+git checkout session-branch26 >/dev/null 2>&1
+
+# Set enforcement.strategy=ci in dso-config.conf
+mkdir -p "$SESSION_REPO26/.claude"
+cat > "$SESSION_REPO26/.claude/dso-config.conf" <<EOF
+enforcement.strategy=ci
+dso.plugin_root=plugins/dso
+EOF
+
+# Artifacts: write test-gate-status=passed but deliberately OMIT review-status
+# (mirrors enforcement.strategy=ci path where review pipeline is skipped)
+ARTIFACTS26="$tmpdir/artifacts26"
+mkdir -p "$ARTIFACTS26"
+_diff_hash26=$(cd "$SESSION_REPO26" && git diff "$WORKTREE_BRANCH26"~1 "$WORKTREE_BRANCH26" 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
+cat > "$ARTIFACTS26/test-gate-status" <<EOF
+passed
+diff_hash=${_diff_hash26}
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+tested_files=
+EOF
+# Intentionally do NOT write review-status — this is the enforcement.strategy=ci path
+
+exit_code26=0
+output26=$(cd "$SESSION_REPO26" && \
+    WORKFLOW_CONFIG_FILE="$SESSION_REPO26/.claude/dso-config.conf" \
+    bash "$HARVEST_SCRIPT" \
+    "$WORKTREE_BRANCH26" \
+    "$ARTIFACTS26" \
+    2>&1) || exit_code26=$?
+
+assert_eq "ci-enforcement commit without review-status exits 0 (99a6-f818)" "0" "$exit_code26"
+
+# Verify the source file was brought into the session branch
+src_file_present="no"
+if [[ -f "$SESSION_REPO26/src_file.py" ]]; then
+    src_file_present="yes"
+fi
+assert_eq "ci-enforcement branch was merged into session (99a6-f818)" "yes" "$src_file_present"
+
+assert_pass_if_clean "test_ci_enforcement_skips_review_status_check"
 
 # =============================================================================
 print_summary
