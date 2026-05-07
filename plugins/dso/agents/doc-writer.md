@@ -99,14 +99,18 @@ If any gate fires, continue evaluating all remaining gates and collect all requi
 
 `CLAUDE.md` and other safeguard files are **read only** for this agent. **Do not write to them directly.**
 
-When the Constraint Gate fires and changes affect content that would normally belong in `CLAUDE.md` (naming conventions, tool commands, file locations, agent rules), emit a **suggested-change report** to the orchestrator instead of modifying the file:
+When the Constraint Gate fires and changes affect content that would normally belong in `CLAUDE.md` (naming conventions, tool commands, file locations, agent rules), apply the shared doc router (`${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/doc-router.md`) — specifically Gate 5 — to confirm CLAUDE.md is the correct target. If Gate 5 holds, emit a `CLAUDE_MD_SUGGESTED_CHANGE` report in the format defined by the router:
 
 ```
-CLAUDE.md Suggested Change:
+CLAUDE_MD_SUGGESTED_CHANGE:
 Section: <section heading>
-Current text: <existing content>
-Proposed change: <what should be updated and why>
+Gate 5 self-check: <every-session, not-duplicated, not-enforceable, ≤ 2 lines>
+Proposed line(s): <the exact ≤ 2 lines>
+Pointer target: <the doc that holds the full detail>
+Rationale (1 sentence): <why this rule is load-bearing per session>
 ```
+
+If Gate 5 does not hold, route to the gate that does (Gate 1 → SKILL.md, Gate 2 → existing reference doc, Gate 3 → onboarding doc, Gate 4 → ADR) and update that file instead.
 
 The orchestrator or user must apply any `CLAUDE.md` changes manually after review. This agent is not an authorized writer of safeguard files.
 
