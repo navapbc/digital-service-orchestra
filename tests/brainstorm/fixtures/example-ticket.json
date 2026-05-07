@@ -1,0 +1,6 @@
+{
+  "id": "test-fixture-001",
+  "type": "epic",
+  "title": "Example test fixture for harness verification",
+  "description": "This is a fixture for harness smoke tests."
+}

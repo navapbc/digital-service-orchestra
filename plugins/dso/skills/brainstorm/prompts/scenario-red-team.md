@@ -12,7 +12,7 @@ You are a red team scenario analyst. Your task is to identify failure scenarios 
 
 ## Scenario Categories
 
-Review the epic spec against each of the following three scenario categories. For each category, generate concrete failure scenarios grounded in the specific approach described above.
+Review the epic spec against each of the following four scenario categories. For each category, generate concrete failure scenarios grounded in the specific approach described above.
 
 ### 1. Runtime Scenarios
 
@@ -40,6 +40,22 @@ Failures triggered by how the feature is configured or misconfigured:
 - **Invalid settings**: Inputs outside documented bounds (negative numbers, empty strings, unsupported enum values) that bypass validation and propagate into the system
 - **Missing defaults**: Required configuration values with no default that silently fail or degrade to insecure behavior when absent
 - **Edge cases**: Boundary values (zero, max int, empty lists, single-item collections) that expose off-by-one errors or unhandled conditions
+
+### 4. Assumption (Inferred Premises)
+
+Failures caused by premises that are assumed but never stated in the approach:
+
+- **Hidden preconditions**: assumptions about system state or environment that are never stated (e.g., "the cache is always warm", "users always have admin rights")
+- **Taken-for-granted user behavior**: assumptions about how users will interact that contradict observed patterns
+- **Causal assumptions**: claims that A causes B without evidence or mechanism
+- **Architectural assumptions**: assumptions about component behavior that may differ across environments (e.g., "the database always returns results in insertion order")
+
+Apply the following inverted decision tree, working backwards from each stated claim in the approach to uncover unstated premises:
+
+- **Step 1**: Identify each claim in the approach as if writing a theorem — what does each statement assume to be true?
+- **Step 2**: For each assumption, check whether it is documented explicitly in the approach description or epic context
+- **Step 3**: For undocumented assumptions, check whether there is cited evidence (prior art, metrics, precedent)
+- **Step 4**: For unverified assumptions, assess the fallback — what happens to the approach if this assumption is wrong?
 
 ## Analysis Instructions
 
@@ -72,6 +88,12 @@ Return a JSON array of scenario objects. Each object must have these fields:
     "title": "Empty retry list silently disables retry behavior",
     "description": "When `retry_statuses` is set to an empty list `[]`, the retry middleware interprets it as 'retry on no status codes' rather than 'use default retry list'. Requests that should be retried on 503 pass through without retry, degrading reliability without any log warning.",
     "severity": "medium"
+  },
+  {
+    "category": "assumption",
+    "title": "Assumption: Users will configure retry limits before first deployment",
+    "description": "The approach assumes operators will set retry limits in configuration before the feature is activated. This premise is never stated in the spec. If the default is zero retries (or the field is absent), the feature degrades silently without surfacing an error to the operator.",
+    "severity": "medium"
   }
 ]
 ```
@@ -80,7 +102,7 @@ Return a JSON array of scenario objects. Each object must have these fields:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `category` | `"runtime"` or `"deployment"` or `"configuration"` | Yes | Which scenario category this finding belongs to |
+| `category` | `"runtime"` or `"deployment"` or `"configuration"` or `"assumption"` | Yes | Which scenario category this finding belongs to |
 | `title` | string | Yes | Short, specific title describing the failure mode |
 | `description` | string | Yes | Concrete description of what breaks, when it breaks, and what the observable impact is |
 | `severity` | `"critical"` or `"high"` or `"medium"` or `"low"` | Yes | Impact severity based on user and system impact |
