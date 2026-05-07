@@ -634,6 +634,8 @@ Pull the latest main into the worktree branch before launching sub-agent batches
 git fetch origin main && git merge origin/main --no-edit
 ```
 
+**Use merge, not rebase, when the branch has an open PR.** If a PR is already open for your worktree branch, use `git merge origin/main` to integrate upstream changes — not `git rebase`. A rebase rewrites commits, so conflicts must be resolved once per commit (N times for an N-commit branch). A merge resolves them once. Rebasing an open PR branch also force-pushes, which resets reviewer approvals and confuses CI history.
+
 Ticket branch syncing happens automatically during `merge-to-main.sh` at end-of-sprint.
 
 ### Structured Note Format

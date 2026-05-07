@@ -67,6 +67,10 @@ Before presenting success criteria, render each criterion with a bold/normal ann
 - **injected** criteria → render in **bold** (same as inferred/researched — requires practitioner awareness)
 - **explicit** or **confirmed-via-gap-question** criteria → render in normal text (user already confirmed these)
 
+When the spec narrative contains `<<inferred:source-name>>` markers, render them as **bold** text: strip the `<<inferred:...>>` tags and render the enclosed noun phrase as bold (e.g., `<<inferred:user-service>>` → **user-service**). This visually flags inferred input sources at the point of user review.
+
+Assumption-category findings with severity **high** or **critical** are rendered in bold in the Scenario Analysis block to direct user attention to the highest-risk inferred premises.
+
 Immediately before the option list, include an annotation summary line:
 
 ```

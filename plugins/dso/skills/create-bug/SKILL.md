@@ -1,7 +1,7 @@
 ---
 name: create-bug
 description: Use when an agent or user needs to file a bug, report an issue, create a defect ticket, or capture a sub-agent blocker. Creates well-formatted, evidence-based bug tickets by collecting reproduction steps, expected vs. actual behavior, environment details, and logs, then writing the ticket via the ticket CLI using the shared bug report template. Trigger phrases include 'file a bug', 'report an issue', 'create a bug', 'open a ticket', 'log a defect', 'submit a bug report'.
-user-invocable: false
+user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

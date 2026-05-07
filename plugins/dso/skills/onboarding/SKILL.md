@@ -471,6 +471,8 @@ Read and execute `phases/1.6a-nava-platform-install.md`.
 
 **Trigger**: Run ONLY when Phase 1.5 selected `install_method: git-clone` with `framework_type: jekyll`.
 
+This phase performs a `git clone` of the Jekyll USWDS template repository into the current project directory, with pre-flight safety checks (non-empty directory guard) and post-clone validation (captive portal / HTML redirect detection). On any failure, the operator is offered a documented manual install fallback rather than a partially-cloned tree.
+
 Read and execute `phases/1.6b-jekyll-git-clone-install.md`.
 
 ---
@@ -753,7 +755,7 @@ When all 7 core areas (stack, commands, architecture, infrastructure, CI, design
 I now have a working model of the project across all 7 core areas, plus the integration and operator-preference questions. Is there anything important I missed — any constraint, convention, or quirk that a new team member would need to know?
 ```
 
-Note: sections 8–14 are MANDATORY prompts that happen to come after the 7 core areas. "Optional" means the user may decline; it does NOT mean the model may skip asking. The gate requires all 14 sections asked.
+Note: sections 8 (Jira), 9 (Figma), and 10 (Confluence) — and continuing through 14 — are mandatory prompts that happen to come after the 7 core areas. "Optional" means the user may decline; it does NOT mean the model may skip asking. The gate requires all 14 sections asked.
 
 Wait for the user's response before proceeding to Phase 3.
 

@@ -80,6 +80,24 @@ _matches_allowlist() {
     return 1
 }
 
+# enforcement.strategy=ci short-circuit (ab7b-785f): when CI is the source of
+# truth for review, the local pipeline is redundant — both review-gate layers
+# already skip enforcement under this strategy (CLAUDE.md rule 18). Returning
+# SKIP=true here lets COMMIT-WORKFLOW.md Step 0.5 bypass Steps 1.5-3a + 5
+# entirely, saving sub-agent budget per commit.
+#
+# DSO_FORCE_LOCAL_REVIEW=1 disables the short-circuit (useful for tests that
+# need to exercise the path-classification logic regardless of project config).
+_ENFORCEMENT_STRATEGY=""
+if [ "${DSO_FORCE_LOCAL_REVIEW:-0}" != "1" ]; then
+    if [ -x "${_PLUGIN_ROOT}/scripts/read-config.sh" ]; then
+        _ENFORCEMENT_STRATEGY="$("${_PLUGIN_ROOT}/scripts/read-config.sh" enforcement.strategy 2>/dev/null || true)"
+    fi
+    if [ "$_ENFORCEMENT_STRATEGY" = "ci" ]; then
+        exit 0
+    fi
+fi
+
 SKIP_REVIEW=true
 while IFS= read -r file; do
     [[ -z "$file" ]] && continue

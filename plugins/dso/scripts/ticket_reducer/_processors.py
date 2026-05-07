@@ -52,6 +52,13 @@ def process_create(
     state["parent_id"] = data.get("parent_id") or None
     state["priority"] = data.get("priority")
     state["assignee"] = data.get("assignee")
+    # Adjective-noun-noun alias (3363-fa8b): ticket_create computes this and
+    # writes it onto the CREATE event's data; the reducer must propagate it
+    # into compiled state so resolve_ticket_id and ticket_show can return
+    # human-friendly aliases. Without this assignment, alias is silently
+    # dropped between persistence and compiled state, defeating the entire
+    # alias system.
+    state["alias"] = data.get("alias")
     state["description"] = data.get("description") or ""
     state["tags"] = data.get("tags", [])
     return None
@@ -61,15 +68,20 @@ def process_status(state: dict, event: dict, data: dict, filepath: str) -> None:
     """Apply a STATUS event with fork detection and lexical UUID tie-break.
 
     If current_status in the event doesn't match state['status'], a fork has
-    been detected (two competing chains diverged).  Resolve by comparing the
-    incoming event's parent_status_uuid against the one already in state — the
-    lexically lower UUID wins and its target_status is applied.
+    been detected (two competing chains diverged). Resolve by comparing the
+    incoming event's own UUID (``event.get("uuid")``) against the UUID already
+    recorded in ``state['parent_status_uuid']`` — the lexically lower UUID
+    wins and its target_status is applied. Using event-own UUIDs (not parent
+    pointers) makes concurrent siblings with the same parent resolve
+    deterministically regardless of replay order (bug 1587-4816).
 
-    On a normal (non-fork) update, state['status'] is updated to the event's
-    target status and state['parent_status_uuid'] is advanced.
+    On a normal (non-fork) update, ``state['status']`` is updated to the
+    event's target status and ``state['parent_status_uuid']`` is advanced to
+    the event's own UUID so subsequent forks compare against the winner's
+    identity, not its parent.
 
-    The legacy state['conflicts'] key is never written and is removed if found
-    (e.g. replayed from an old SNAPSHOT compiled_state).
+    The legacy ``state['conflicts']`` key is never written and is removed if
+    found (e.g. replayed from an old SNAPSHOT compiled_state).
     """
     # Remove legacy conflicts key unconditionally — new behavior never uses it.
     state.pop("conflicts", None)
@@ -86,8 +98,12 @@ def process_status(state: dict, event: dict, data: dict, filepath: str) -> None:
         incoming_uuid = event.get("uuid") or ""
         existing_uuid = state.get("parent_status_uuid") or ""
 
-        # Lower lexical UUID wins.
-        if incoming_uuid <= existing_uuid:
+        # Lower lexical UUID wins. Empty existing_uuid means no prior fork
+        # winner has been recorded, so the incoming event wins unconditionally
+        # (otherwise any non-empty incoming UUID > "" and the existing-empty
+        # branch would always win, leaving state.status stuck at the loser's
+        # value — bug e60b-e698, test_reducer_applies_multiple_status_events_current_status_mismatch_resolves_fork).
+        if not existing_uuid or incoming_uuid <= existing_uuid:
             # Incoming event wins.
             winner_uuid = incoming_uuid
             loser_uuid = existing_uuid
