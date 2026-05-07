@@ -17,6 +17,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 DOCS_DIR="$REPO_ROOT/tests/docs"
+SCRIPTS_BRIDGE_DIR="$REPO_ROOT/tests/scripts"
 TEST_INDEX="$REPO_ROOT/.test-index"
 
 echo "=== Python Skill/Doc Tests ==="
@@ -89,6 +90,17 @@ if [[ -f "$_PLUGIN_SCRIPTS/pyproject.toml" ]]; then
 fi
 
 pytest_args=("${existing_dirs[@]}" "--tb=short" "-q")
+
+# Also collect bridge round-trip / failure-injection tests under tests/scripts/.
+# These are pytest-style files (test_bridge*.py) that don't fit the bash-based
+# tests/scripts/run-script-tests.sh runner. Collect them by file glob so we
+# don't accidentally pick up shell tests with similar names.
+if [ -d "$SCRIPTS_BRIDGE_DIR" ]; then
+    while IFS= read -r -d '' bridge_test; do
+        pytest_args+=("$bridge_test")
+    done < <(find "$SCRIPTS_BRIDGE_DIR" -maxdepth 1 -name 'test_bridge*.py' -print0 2>/dev/null)
+fi
+
 if [ -n "$DESELECT_EXPR" ]; then
     pytest_args+=("-k" "$DESELECT_EXPR")
 fi
